@@ -2,7 +2,7 @@ import EventBridgeRule from '@cloudform/events/rule';
 import { GetAtt, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToAlarm } from '@domain-services/config-manager/utils/alarms';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getEventBusRuleLambdaPermission } from '../utils';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';

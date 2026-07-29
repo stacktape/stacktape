@@ -7,7 +7,7 @@ import { configManager } from '@domain-services/config-manager';
 import { getConnectToReferencesForResource } from '@domain-services/config-manager/utils/resource-references';
 import { thirdPartyProviderManager } from '@domain-services/third-party-provider-credentials-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { transformToCidr } from '@shared/utils/misc';
 import { ExpectedError } from '@utils/errors';

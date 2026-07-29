@@ -5,7 +5,7 @@ import type { Deployment, Task, TaskSet } from '@aws-sdk/client-ecs';
 import type { AwsSdkManager } from './sdk-manager';
 import { ResourceStatus } from '@aws-sdk/client-cloudformation';
 import { DeploymentControllerType, DesiredStatus } from '@aws-sdk/client-ecs';
-import { consoleLinks } from '@shared/naming/console-links';
+import { consoleLinks } from '@stacktape/naming/console-links';
 import { wait } from '@shared/utils/misc';
 
 export class EcsServiceDeploymentStatusPoller {

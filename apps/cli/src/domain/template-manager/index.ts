@@ -7,8 +7,8 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
-import { outputNames } from '@shared/naming/stack-output-names';
-import { getExportedStackOutputName, getStackCfTemplateDescription } from '@shared/naming/utils';
+import { getExportedStackOutputName, outputNames } from '@stacktape/naming/stack-output-names';
+import { getStackCfTemplateDescription } from '@stacktape/naming/stacks';
 import { serialize } from '@shared/utils/misc';
 import { getCloudformationChildResources } from '@shared/utils/stack-info-map';
 import { stringifyToYaml } from '@shared/utils/yaml';

@@ -49,3 +49,23 @@ export const getSsmParameterNameForThirdPartyCredentials = ({
 export const parseDomainNameFromSmmParamName = ({ paramName, region }: { paramName: string; region: string }) => {
   return paramName.slice(`/stp/${region}/`.length);
 };
+
+export const getEc2RunnerApiKeySsmParameterName = ({
+  region,
+  invocationId
+}: {
+  region: string;
+  invocationId: string;
+}) => {
+  return `/stp/ec2-runner/${region}/${invocationId}/api-key`;
+};
+
+export const getEc2RunnerGitTokenSsmParameterName = ({
+  region,
+  invocationId
+}: {
+  region: string;
+  invocationId: string;
+}) => {
+  return `/stp/ec2-runner/${region}/${invocationId}/git-token`;
+};

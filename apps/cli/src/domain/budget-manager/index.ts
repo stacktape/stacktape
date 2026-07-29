@@ -2,7 +2,7 @@ import type { Budget } from '@aws-sdk/client-budgets';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { cfLogicalNames } from '@shared/naming/logical-names';
-import { tagNames } from '@shared/naming/tag-names';
+import { tagNames } from '@stacktape/naming/tag-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';

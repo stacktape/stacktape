@@ -1,8 +1,7 @@
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { arns } from '@shared/naming/arns';
-import { getRoleArnFromSessionArn } from '@shared/naming/utils';
+import { arns, getRoleArnFromSessionArn } from '@stacktape/naming/arns';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 
 export const SESSION_DURATION_SECONDS = 3600;

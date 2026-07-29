@@ -3,7 +3,7 @@ import TargetGroup from '@cloudform/elasticLoadBalancingV2/targetGroup';
 import LambdaPermission from '@cloudform/lambda/permission';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToApplicationLoadBalancer } from '@domain-services/config-manager/utils/application-load-balancers';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getListenerRule } from '../../../_utils/lb-listener-rule-helpers';
 import { getTargetsForLambdaWorkloadEvents } from '../../utils';

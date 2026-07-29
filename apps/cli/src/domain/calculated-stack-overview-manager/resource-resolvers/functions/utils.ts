@@ -13,7 +13,7 @@ import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToApplicationLoadBalancer } from '@domain-services/config-manager/utils/application-load-balancers';
 import { resolveReferenceToLambdaFunction } from '@domain-services/config-manager/utils/lambdas';
 import { vpcManager } from '@domain-services/vpc-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getAssumeRolePolicyDocumentForFunctionRole } from '@shared/utils/roles';
 import {

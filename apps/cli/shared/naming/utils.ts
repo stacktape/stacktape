@@ -1,11 +1,8 @@
 import type { IntrinsicFunction } from '../../@generated/cloudform/dataTypes';
-import { createHash } from 'node:crypto';
-import { STACKTAPE_CF_TEMPLATE_DESCRIPTION_PREFIX } from '@shared/utils/constants';
 import { capitalizeFirstLetter } from '@shared/utils/misc';
 import { pascalCase, snakeCase } from 'change-case';
 import { Ref, Sub } from '../../@generated/cloudform/functions';
 import { CF_TEMPLATE_FILE_NAME_WITHOUT_EXT, STP_TEMPLATE_FILE_NAME_WITHOUT_EXT } from '../../src/config/random';
-import { arns } from './arns';
 import type { ComparisonOperator } from '@stacktape/config/alarms';
 
 // @note image tag that will be used in ECR -
@@ -48,30 +45,6 @@ export const getCfTemplateS3Key = (version: string) => {
 
 export const getStpTemplateS3Key = (version: string) => {
   return `${STP_TEMPLATE_FILE_NAME_WITHOUT_EXT}/${version}.yml`;
-};
-
-export const getStackName = (projectName: string, stage: string) => {
-  return `${projectName}-${stage}`;
-};
-
-export const getStackCfTemplateDescription = (projectName: string, stage: string, globallyUniqueStackHash) => {
-  return `${STACKTAPE_CF_TEMPLATE_DESCRIPTION_PREFIX}_${projectName}_${stage}_${globallyUniqueStackHash}`;
-};
-
-export const isStacktapeStackDescription = (templateDescription: string): boolean => {
-  return !!templateDescription?.startsWith(STACKTAPE_CF_TEMPLATE_DESCRIPTION_PREFIX);
-};
-
-export const getStacktapeStackInfoFromTemplateDescription = (templateDescription: string) => {
-  if (isStacktapeStackDescription(templateDescription)) {
-    const [, projectName, stage, globallyUniqueStackHash] = templateDescription.split('_');
-    return {
-      projectName,
-      stage,
-      globallyUniqueStackHash
-    };
-  }
-  return { projectName: '', stage: '', globallyUniqueStackHash: '' };
 };
 
 export const getSimpleServiceDefaultContainerName = () => 'service-container';
@@ -158,51 +131,6 @@ export const getStpNameForAlarm = ({
   alarmIndexOrGlobalAlarmName: number | string;
 }) => `${pascalCase(alarmTriggerType)}For${pascalCase(nameChain.join('.'))}${alarmIndexOrGlobalAlarmName}`;
 
-class ObfuscatedNamesStateHolder {
-  usingObfuscateNames = false;
-  setUsingObfuscatedNamesToTrue = () => {
-    this.usingObfuscateNames = true;
-  };
-}
-
-export const obfuscatedNamesStateHolder = new ObfuscatedNamesStateHolder();
-
-export const buildResourceName = ({
-  proposedResourceName,
-  lengthLimit
-}: {
-  proposedResourceName: string;
-  lengthLimit?: number;
-}) => {
-  if (lengthLimit && proposedResourceName.length > lengthLimit) {
-    obfuscatedNamesStateHolder.setUsingObfuscatedNamesToTrue();
-    const hashedName = createHash('shake256', { outputLength: 3 }).update(proposedResourceName).digest('hex');
-    return `${proposedResourceName.slice(0, lengthLimit - hashedName.length - 1)}-${hashedName}`;
-  }
-  return proposedResourceName;
-};
-
-export const getStackOutputName = (resourceName: string, property: string) => {
-  return pascalCase(`${resourceName}${capitalizeFirstLetter(property)}`).replace('_', '');
-};
-export const getExportedStackOutputName = (stackOutputName: string, stackName: string) => {
-  return pascalCase(`${stackName}${capitalizeFirstLetter(stackOutputName)}`).replace('_', '');
-};
-
-export const getLogGroupBaseName = ({
-  stpResourceName,
-  stackName,
-  resourceNamespace,
-  resourceType
-}: {
-  stackName: string;
-  resourceType: 'ecs' | 'rds' | 'lambda' | 'api-gateway' | 'batch' | 'redis' | 'open-search' | 'bastion';
-  stpResourceName: string;
-  resourceNamespace: string;
-}) => {
-  return `/stp/${stackName}/${resourceType}/${stpResourceName}/${resourceNamespace}`;
-};
-
 export const getAlarmDescription = ({
   triggerType,
   threshold,
@@ -243,12 +171,6 @@ export const getCustomAlarmDescription = ({
     statFunction ? ` ${statFunction}` : ''
   } ${metricName} of ${stpResourceName} in stack ${stackName}. Triggered when ${comparisonOperator} (${threshold}).`;
   // return JSON.stringify({ stackName, stpResourceName, triggerType, comparisonOperator, threshold });
-};
-
-export const getRoleArnFromSessionArn = (sessionArn: string) => {
-  const [prefix, roleName] = sessionArn.split('/');
-  const awsAccount = prefix.split(':').at(4);
-  return arns.iamRole({ accountId: awsAccount, roleAwsName: roleName });
 };
 
 export const portMappingsPortName = (portNum: number) => {

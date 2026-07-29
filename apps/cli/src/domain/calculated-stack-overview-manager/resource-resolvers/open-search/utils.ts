@@ -10,7 +10,7 @@ import { resolveReferenceToUserPool } from '@domain-services/config-manager/util
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { stpErrors } from '@errors';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 
 export const getOpenSearchDomainResource = ({ resource }: { resource: StpOpenSearchDomain }) => {

@@ -10,7 +10,7 @@ export const arns = {
     stacktapeResourceName: string;
     accountId: string;
     stackName: string;
-    region: AWSRegion;
+    region: string;
   }) {
     return `arn:aws:lambda:${region}:${accountId}:function:${awsResourceNames.lambda(
       stacktapeResourceName,
@@ -24,7 +24,7 @@ export const arns = {
   }: {
     lambdaAwsName: string;
     accountId: string;
-    region: AWSRegion;
+    region: string;
   }) {
     return `arn:aws:lambda:${region}:${accountId}:function:${lambdaAwsName}`;
   },
@@ -37,7 +37,7 @@ export const arns = {
     workloadName: string;
     accountId: string;
     stackName: string;
-    region: AWSRegion;
+    region: string;
   }) {
     return `arn:aws:ecs:${region}:${accountId}:service/${awsResourceNames.ecsCluster(workloadName, stackName)}*`;
   },
@@ -53,4 +53,10 @@ export const arns = {
   snsTopic({ accountId, region, snsTopicAwsName }: { snsTopicAwsName: string; accountId: string; region: string }) {
     return `arn:aws:sns:${region}:${accountId}:${snsTopicAwsName}`;
   }
+};
+
+export const getRoleArnFromSessionArn = (sessionArn: string) => {
+  const [prefix, roleName] = sessionArn.split('/');
+  const accountId = prefix?.split(':').at(4);
+  return `arn:aws:iam::${accountId}:role/${roleName}`;
 };

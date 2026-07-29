@@ -13,7 +13,7 @@ import {
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { fsPaths } from '@shared/naming/fs-paths';
 import {
   buildLambdaS3Key,
@@ -27,7 +27,7 @@ import {
 } from '@shared/naming/utils';
 import { dockerLogin, pushDockerImage, tagDockerImage } from '@shared/utils/docker';
 import { processConcurrently } from '@shared/utils/misc';
-import { outputNames } from '@shared/naming/stack-output-names';
+import { outputNames } from '@stacktape/naming/stack-output-names';
 import { parseYaml, stringifyToYaml } from '@shared/utils/yaml';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';

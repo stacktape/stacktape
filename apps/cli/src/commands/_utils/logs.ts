@@ -1,6 +1,6 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getSimpleServiceDefaultContainerName } from '@shared/naming/utils';
 import { ExpectedError } from '@utils/errors';
 

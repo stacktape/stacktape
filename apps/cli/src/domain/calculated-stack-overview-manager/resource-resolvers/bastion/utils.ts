@@ -11,9 +11,9 @@ import SsmDocument from '@cloudform/ssm/document';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
-import { tagNames } from '@shared/naming/tag-names';
+import { tagNames } from '@stacktape/naming/tag-names';
 import { SubWithoutMapping } from '@utils/cloudformation';
 import type { BastionLoggingConfig } from '@stacktape/config/bastion';
 

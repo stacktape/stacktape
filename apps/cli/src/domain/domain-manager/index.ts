@@ -10,11 +10,11 @@ import { getPrefixForUserAppResourceDefaultDomainName } from '@shared/naming/dom
 import {
   getSsmParameterNameForDomainInfo,
   parseDomainNameFromSmmParamName
-} from '@shared/naming/ssm-secret-parameters';
+} from '@stacktape/naming/ssm-parameter-paths';
 import { COMMENT_FOR_STACKTAPE_ZONE } from '@shared/utils/constants';
 import { jsonFetch } from '@shared/utils/json-fetch';
 import { areStringArraysContentsEqual } from '@shared/utils/misc';
-import { shortHash } from '@shared/utils/short-hash';
+import { shortHash } from '@stacktape/naming/short-hash';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';

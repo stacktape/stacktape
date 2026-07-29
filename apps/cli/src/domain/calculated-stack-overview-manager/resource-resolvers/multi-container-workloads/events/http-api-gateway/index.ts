@@ -7,7 +7,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { resolveReferenceToHttpApiGateway } from '@domain-services/config-manager/utils/http-api-gateways';
 import { resolveReferenceToLambdaFunction } from '@domain-services/config-manager/utils/lambdas';
 import { templateManager } from '@domain-services/template-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';
 import {

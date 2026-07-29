@@ -1,7 +1,7 @@
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { globalStateManager } from '@application-services/global-state-manager';

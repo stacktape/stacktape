@@ -1,8 +1,8 @@
 import type { Build, ComputeType } from '@aws-sdk/client-codebuild';
 import type { AwsSdkManager } from './sdk-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
-import { getStacktapeApiKeySsmParameterName } from '@shared/naming/ssm-secret-parameters';
-import { getStackName } from '@shared/naming/utils';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { getStacktapeApiKeySsmParameterName } from '@stacktape/naming/ssm-parameter-paths';
+import { getStackName } from '@stacktape/naming/stacks';
 import { wait } from '@shared/utils/misc';
 
 export const preparePipelineResources = async ({

@@ -124,6 +124,7 @@
     "@smithy/protocol-http": "5.3.8",
     "@stacktape/config": "workspace:*",
     "@stacktape/console-api": "workspace:*",
+    "@stacktape/naming": "workspace:*",
     "@stacktape/packaging": "workspace:*",
     "@trpc/client": "^11.7.1",
     "@trpc/server": "^11.7.1",

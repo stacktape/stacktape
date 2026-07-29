@@ -7,7 +7,9 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
 ## Layout
 
 - `src/` — commands, application/domain managers, TUI, MCP, and the published `stacktape` npm API (`src/api/npm`).
-- `shared/` — AWS clients, packaging bundlers, naming, tRPC clients used by both the CLI and the helper Lambdas.
+- `shared/` — AWS clients, packaging bundlers, CLI-only logical/generated/filesystem naming, and tRPC clients used by
+  both the CLI and the helper Lambdas. Deterministic AWS physical names, ARNs, Console links, SSM paths, stack
+  descriptions, output/tag names, and truncation/hash behavior live in `@stacktape/naming`.
   `shared/packaging` stops where the CLI's own vocabulary begins: everything that raises typed `StacktapeError`s,
   reports `eventManager` progress or is typed against the configuration schema stays here, while the chunk/layer
   engine it calls lives in `@stacktape/packaging` (see that package's `AGENTS.md`).

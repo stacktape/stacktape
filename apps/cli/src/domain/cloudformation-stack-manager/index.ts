@@ -28,13 +28,13 @@ import {
   isLambdaAliasProvisionedConcurrencyEvent,
   LambdaProvisionedConcurrencyPoller
 } from '@shared/aws/lambda-provisioned-concurrency-monitoring';
-import { arns } from '@shared/naming/arns';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
-import { consoleLinks } from '@shared/naming/console-links';
+import { arns } from '@stacktape/naming/arns';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { consoleLinks } from '@stacktape/naming/console-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { stackMetadataNames } from '@shared/naming/metadata-names';
-import { outputNames } from '@shared/naming/stack-output-names';
-import { tagNames } from '@shared/naming/tag-names';
+import { outputNames } from '@stacktape/naming/stack-output-names';
+import { tagNames } from '@stacktape/naming/tag-names';
 import { wait } from '@shared/utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';

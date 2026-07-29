@@ -1,7 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { notificationManager } from '@domain-services/notification-manager';
-import { consoleLinks } from '@shared/naming/console-links';
+import { consoleLinks } from '@stacktape/naming/console-links';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ExpectedError } from '@utils/errors';
 import { loadRawFileContent } from '@utils/file-loaders';

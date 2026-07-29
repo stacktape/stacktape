@@ -4,7 +4,7 @@ import KinesisConsumer from '@cloudform/kinesis/streamConsumer';
 import EventSourceMapping from '@cloudform/lambda/eventSourceMapping';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToKinesisStream } from '@domain-services/config-manager/utils/kinesis-streams';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';

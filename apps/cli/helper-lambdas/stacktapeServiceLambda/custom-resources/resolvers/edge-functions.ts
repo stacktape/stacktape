@@ -11,7 +11,7 @@ import {
 } from '@aws-sdk/client-lambda';
 import { S3 } from '@aws-sdk/client-s3';
 import { helperLambdaAwsResourceNames } from '@shared/naming/helper-lambdas-resource-names';
-import { tagNames } from '@shared/naming/tag-names';
+import { tagNames } from '@stacktape/naming/tag-names';
 import { REGIONS_WITH_REGIONAL_CDN_EDGE_LOCATION } from '@shared/utils/constants';
 import { wait } from '@shared/utils/misc';
 import { getAssumeRolePolicyDocumentForFunctionRole } from '@shared/utils/roles';

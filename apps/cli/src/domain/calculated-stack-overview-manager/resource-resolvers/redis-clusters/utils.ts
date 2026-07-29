@@ -10,7 +10,7 @@ import { Ref } from '@cloudform/functions';
 import LogGroup from '@cloudform/logs/logGroup';
 import { getConnectToReferencesForResource } from '@domain-services/config-manager/utils/resource-references';
 import { vpcManager } from '@domain-services/vpc-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';
 

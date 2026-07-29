@@ -14,7 +14,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { outputNames } from '@shared/naming/stack-output-names';
+import { outputNames } from '@stacktape/naming/stack-output-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import {
   ApplicationLoadBalancer,

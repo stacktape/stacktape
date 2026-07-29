@@ -6,9 +6,9 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
-import { tagNames } from '@shared/naming/tag-names';
+import { tagNames } from '@stacktape/naming/tag-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 
 export const buildAndUpdateFunctionCode = async (stpResourceName: string, options: { devMode?: boolean } = {}) => {

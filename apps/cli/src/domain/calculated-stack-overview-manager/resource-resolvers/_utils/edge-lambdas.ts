@@ -4,7 +4,7 @@ import { resolveConnectToList } from '@domain-services/config-manager/utils/reso
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { stpErrors } from '@errors';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { NOT_YET_KNOWN_IDENTIFIER } from '@shared/utils/constants';
 import { getStpServiceCustomResource } from './custom-resource';

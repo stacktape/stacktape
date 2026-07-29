@@ -5,8 +5,8 @@ import EventBus from '@cloudform/events/eventBus';
 import { GetAtt } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
-import { consoleLinks } from '@shared/naming/console-links';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { consoleLinks } from '@stacktape/naming/console-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 
 export const resolveEventBuses = async () => {

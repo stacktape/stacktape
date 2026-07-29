@@ -1,6 +1,6 @@
 import type { CloudFormationCustomResourceEvent, CloudFormationCustomResourceResponse } from 'aws-lambda';
 import { StackStatus } from '@aws-sdk/client-cloudformation';
-import { consoleLinks } from '@shared/naming/console-links';
+import { consoleLinks } from '@stacktape/naming/console-links';
 
 export const STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS = [
   StackStatus.CREATE_COMPLETE,

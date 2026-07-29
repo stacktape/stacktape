@@ -23,7 +23,7 @@ import { thirdPartyProviderManager } from '@domain-services/third-party-provider
 import { vpcManager } from '@domain-services/vpc-manager';
 import { stpErrors } from '@errors';
 import { redirectPlugin, retryPlugin } from '@shared/aws/sdk-manager/utils';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { dependencyInstaller } from '@shared/utils/dependency-installer';
 import { settleAllBeforeThrowing } from '@shared/utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';

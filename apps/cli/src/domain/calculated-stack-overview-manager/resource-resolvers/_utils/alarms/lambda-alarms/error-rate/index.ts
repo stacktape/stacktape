@@ -2,7 +2,7 @@ import type { Dimension } from '@cloudform/cloudWatch/alarm';
 import { globalStateManager } from '@application-services/global-state-manager';
 import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
 import { Join, Ref } from '@cloudform/functions';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getAlarmDescription } from '@shared/naming/utils';
 import { getComparisonOperator } from '../../utils';
 import type { LambdaErrorRateTrigger } from '@stacktape/config/alarms';

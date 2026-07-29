@@ -4,7 +4,7 @@ import { GetAtt } from '@cloudform/functions';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
 import { cfLogicalNames } from '@shared/naming/logical-names';
-import { getSsmParameterNameForThirdPartyCredentials } from '@shared/naming/ssm-secret-parameters';
+import { getSsmParameterNameForThirdPartyCredentials } from '@stacktape/naming/ssm-parameter-paths';
 import {
   MONGODB_PROVIDER_DEFAULT_CREDENTIALS_ID,
   THIRD_PARTY_PROVIDER_CREDENTIALS_REGION,

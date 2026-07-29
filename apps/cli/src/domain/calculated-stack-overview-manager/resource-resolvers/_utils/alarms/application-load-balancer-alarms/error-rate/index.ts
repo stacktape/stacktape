@@ -1,7 +1,7 @@
 import type { Dimension } from '@cloudform/cloudWatch/alarm';
 import { globalStateManager } from '@application-services/global-state-manager';
 import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getAlarmDescription } from '@shared/naming/utils';
 import { getComparisonOperator } from '../../utils';
 import { getDimensionsForAlb } from '../utils';

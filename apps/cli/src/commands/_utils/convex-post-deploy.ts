@@ -6,7 +6,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { getConvexSecretName } from '@domain-services/config-manager/utils/convex';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { buildSSMParameterNameForReferencableParam } from '@shared/naming/ssm-secret-parameters';
+import { buildSSMParameterNameForReferencableParam } from '@stacktape/naming/ssm-parameter-paths';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ExpectedError } from '@utils/errors';
 import { runEcsExecCommand } from '@utils/ssm-session';

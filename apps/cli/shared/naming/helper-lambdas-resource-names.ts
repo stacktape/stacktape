@@ -1,4 +1,4 @@
-import { buildResourceName } from './utils';
+import { buildResourceName } from '@stacktape/naming/resource-names';
 
 export const helperLambdaAwsResourceNames = {
   originRequestEdgeLambda(stackName: string, region: string) {

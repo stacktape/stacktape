@@ -1,6 +1,6 @@
 import type { IntrinsicFunction } from '@cloudform/dataTypes';
 import { Ref, Sub } from '@cloudform/functions';
-import { tagNames } from './tag-names';
+import { tagNames } from '@stacktape/naming/tag-names';
 import { getBaseCfSubstitutedAwsConsoleLink } from './utils';
 
 export const cfEvaluatedLinks = {

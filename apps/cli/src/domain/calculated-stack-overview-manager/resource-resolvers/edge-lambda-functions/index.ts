@@ -1,7 +1,7 @@
 import { GetAtt } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { REGIONS_WITH_REGIONAL_CDN_EDGE_LOCATION } from '@shared/utils/constants';

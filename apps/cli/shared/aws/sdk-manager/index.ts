@@ -232,7 +232,7 @@ import { Upload } from '@aws-sdk/lib-storage';
 // import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node';
 import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
-import { consoleLinks } from '@shared/naming/console-links';
+import { consoleLinks } from '@stacktape/naming/console-links';
 import { resourceURIs } from '@shared/naming/resource-uris';
 import { COMMENT_FOR_STACKTAPE_ZONE } from '@shared/utils/constants';
 import { getRelativePath } from '@shared/utils/fs-utils';

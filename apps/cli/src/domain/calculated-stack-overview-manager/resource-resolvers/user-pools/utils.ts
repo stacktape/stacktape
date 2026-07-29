@@ -11,7 +11,7 @@ import Permission from '@cloudform/lambda/permission';
 import Route53Record from '@cloudform/route53/recordSet';
 import { domainManager } from '@domain-services/domain-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getUserPoolDomainPrefix } from '@shared/naming/utils';
 import { hasProperties } from '@shared/utils/misc';

@@ -5,7 +5,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import CloudfrontFunction from '@cloudform/cloudFront/function';
 import { GetAtt, Ref } from '@cloudform/functions';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { EDGE_LAMBDA_ENV_ASSET_REPLACER_PLACEHOLDER } from '@shared/utils/constants';

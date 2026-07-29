@@ -2,7 +2,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt } from '@cloudform/functions';
 import IAMRole from '@cloudform/iam/role';
 import StateMachine from '@cloudform/stepFunctions/stateMachine';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import type { StpStateMachine } from '@stacktape/config/state-machines';
 

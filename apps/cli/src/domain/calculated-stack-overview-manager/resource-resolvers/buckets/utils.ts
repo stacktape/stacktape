@@ -4,7 +4,7 @@ import { GetAtt, Join } from '@cloudform/functions';
 import S3Bucket, { Rule } from '@cloudform/s3/bucket';
 import S3BucketPolicy from '@cloudform/s3/bucketPolicy';
 import { configManager } from '@domain-services/config-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getFormattedRuleStatements } from '../_utils/role-helpers';
 import type { BucketCorsConfig } from '@stacktape/config/buckets';

@@ -4,7 +4,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 

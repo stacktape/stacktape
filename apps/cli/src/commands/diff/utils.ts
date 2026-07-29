@@ -1,7 +1,7 @@
 import type { ResourceDifference, TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import type { Change } from '@aws-sdk/client-cloudformation';
 import { ResourceImpact, diffTemplate } from '@aws-cdk/cloudformation-diff';
-import { outputNames } from '@shared/naming/stack-output-names';
+import { outputNames } from '@stacktape/naming/stack-output-names';
 import { PARENT_IDENTIFIER_CUSTOM_CF, PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 import { serialize } from '@shared/utils/misc';
 import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';

@@ -13,7 +13,7 @@ import { configManager } from '@domain-services/config-manager';
 import { getDefaultHttpApiCorsAllowedMethods } from '@domain-services/config-manager/utils/http-api-gateways';
 import { domainManager } from '@domain-services/domain-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { normalizePathForLink } from '@utils/formatting';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';

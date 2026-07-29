@@ -1,7 +1,7 @@
 import type Resource from '@cloudform/resource';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { thirdPartyProviderManager } from '@domain-services/third-party-provider-credentials-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { findBestFittingAvailableRegion } from '../_utils/regions';
 
 export const getUpstashDatabaseResource = (resource: StpUpstashRedis) => {

@@ -13,7 +13,7 @@ import {
 } from '@config';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
-import { getRoleArnFromSessionArn } from '@shared/naming/utils';
+import { getRoleArnFromSessionArn } from '@stacktape/naming/arns';
 import { getGloballyUniqueStackHash } from '@shared/utils/hashing';
 import { propertyFromObjectOrNull } from '@shared/utils/misc';
 import { listAwsProfiles, loadAwsConfigFileContent } from '@utils/aws-config';

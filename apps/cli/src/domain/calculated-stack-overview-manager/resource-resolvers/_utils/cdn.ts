@@ -31,10 +31,10 @@ import { resolveReferenceToHttpApiGateway } from '@domain-services/config-manage
 import { resolveReferenceToLambdaFunction } from '@domain-services/config-manager/utils/lambdas';
 import { resolveReferenceToFirewall } from '@domain-services/config-manager/utils/web-app-firewall';
 import { domainManager } from '@domain-services/domain-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { stacktapeCloudfrontHeaders } from '@shared/naming/stacktape-cloudfront-headers';
-import { shortHash } from '@shared/utils/short-hash';
+import { shortHash } from '@stacktape/naming/short-hash';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
 import { ExpectedError, UnexpectedError } from '@utils/errors';
 import objectHash from 'object-hash';

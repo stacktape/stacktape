@@ -5,7 +5,7 @@ import ScalingPolicy from '@cloudform/applicationAutoScaling/scalingPolicy';
 import GlobalTable from '@cloudform/dynamoDb/globalTable';
 import Table from '@cloudform/dynamoDb/table';
 import { Join, Ref } from '@cloudform/functions';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { SubWithoutMapping } from '@utils/cloudformation';
 

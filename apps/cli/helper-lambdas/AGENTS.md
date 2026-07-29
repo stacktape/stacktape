@@ -12,14 +12,15 @@ permanent home until the condition below is met.
 ## Why this is not `packages/helper-lambdas`
 
 `SIMPLIFIED-MIGRATION.md` once listed `helper-lambdas` as a package to extract "because it is an independently built
-artifact set". Building the artifacts is indeed independent; the source is not. Resolving every import from the four
-entrypoints gives the measurement that settled it:
+artifact set". Building the artifacts is indeed independent; the source is not. The original transitive-import
+measurement that settled it remains the relevant baseline:
 
-- the four entrypoints transitively reach **31 non-helper CLI modules, ~9,000 lines**;
-- **30 of those 31 have other CLI consumers** — 1,809 distinct non-helper CLI files import at least one of them;
-- the largest are general CLI facilities: the 3,434-line AWS SDK manager, the 1,418-line S3 sync engine, and the
-  760-line `aws-resource-names` model (75 other CLI files), alongside `utils/misc` (89), `utils/fs-utils` (61),
-  `config/random` (56), `naming/utils` (51) and `utils/constants` (43);
+- the four entrypoints reached **31 non-helper CLI modules, ~9,000 lines**, almost all broadly consumed elsewhere;
+- extracting the physical naming source into `@stacktape/naming` removed a public/private duplicate, but did not turn
+  the remaining AWS, S3, CloudFormation, tRPC, and configuration closure into helper-owned code;
+- the largest are general CLI facilities: the AWS SDK manager, the S3 sync engine, and shared physical naming
+  (now honestly owned by `@stacktape/naming` because both CLI and Console consume it), alongside broadly used
+  filesystem, configuration, logical-naming, and miscellaneous CLI modules;
 - exactly one module is helper-only — `shared/trpc/aws-identity-protected.ts`, 78 lines — and it still depends on
   `shared/aws/identity.ts` and `shared/trpc/client.ts`, which reach `shared/aws/fetch-handler.ts` (13 other consumers);
 - the runtime source is typed against **ambient global config types** — `AlarmDefinition` and
@@ -28,14 +29,14 @@ entrypoints gives the measurement that settled it:
 
 Every way to make a package out of that is worse than co-location:
 
-| Approach                                   | Why it was rejected                                                                                                                    |
-| ------------------------------------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
-| Move the closure into the package          | The CLI would import its AWS SDK manager, naming and CloudFormation types from a package called `helper-lambdas`. Dishonest ownership. |
-| Import `apps/cli` from the package         | Package-to-app dependency. Forbidden, including via TypeScript `paths` or a build path.                                                |
-| Copy the utilities into the package        | Two sources of truth for customer-visible resource names and CloudFormation responses.                                                 |
-| Split out `aws`/`naming`/`config` packages | The package cascade the simplified migration abandoned.                                                                                |
-| Refactor the runtimes to erase the imports | Changes deployed behavior to satisfy a directory diagram.                                                                              |
-| A package that only points a script here   | A workspace entry that owns no source.                                                                                                 |
+| Approach                                                     | Why it was rejected                                                                                                                                                    |
+| ------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Move the closure into the package                            | The CLI would import its AWS SDK manager, naming and CloudFormation types from a package called `helper-lambdas`. Dishonest ownership.                                 |
+| Import `apps/cli` from the package                           | Package-to-app dependency. Forbidden, including via TypeScript `paths` or a build path.                                                                                |
+| Copy the utilities into the package                          | Two sources of truth for customer-visible resource names and CloudFormation responses.                                                                                 |
+| Split out further `aws`/`config` packages only for this move | A package cascade with no additional present-day consumer; the independently justified `@stacktape/naming` package does not make the rest of the closure helper-owned. |
+| Refactor the runtimes to erase the imports                   | Changes deployed behavior to satisfy a directory diagram.                                                                                                              |
+| A package that only points a script here                     | A workspace entry that owns no source.                                                                                                                                 |
 
 Co-location keeps one concept — "these are CLI-owned artifacts built by a CLI script" — instead of adding a package
 boundary plus the machinery required to pretend the dependency runs the other way.

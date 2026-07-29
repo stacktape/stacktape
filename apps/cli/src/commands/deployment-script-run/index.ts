@@ -3,7 +3,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
-import { tagNames } from '@shared/naming/tag-names';
+import { tagNames } from '@stacktape/naming/tag-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { buildAndUpdateFunctionCode } from '../_utils/fn-deployment';
 import { initializeStackServicesForHotSwapDeploy } from '../_utils/initialization';

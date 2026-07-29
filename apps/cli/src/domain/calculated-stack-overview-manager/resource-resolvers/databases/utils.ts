@@ -20,7 +20,7 @@ import { vpcManager } from '@domain-services/vpc-manager';
 import { stpErrors } from '@errors';
 import versionJson from '@generated/db-engine-versions/versions.json' with { type: 'json' };
 import { normalizeEngineType } from '@shared/aws/rds';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { transformToCidr } from '@shared/utils/misc';
 import { isAuroraEngine } from '@shared/utils/rds-engines';

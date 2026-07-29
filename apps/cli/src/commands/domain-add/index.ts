@@ -4,7 +4,7 @@ import { CertificateStatus } from '@aws-sdk/client-acm';
 import { domainManager } from '@domain-services/domain-manager';
 import { sesManager } from '@domain-services/ses-manager';
 import { stpErrors } from '@errors';
-import { consoleLinks } from '@shared/naming/console-links';
+import { consoleLinks } from '@stacktape/naming/console-links';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getApexDomain, normalizeDomainName } from '@utils/domains';
 import { loadUserCredentials } from '../_utils/initialization';

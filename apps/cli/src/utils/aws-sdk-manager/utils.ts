@@ -6,7 +6,7 @@ import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { hintMessages } from '@errors';
 import { createFetchHandler } from '@shared/aws/fetch-handler';
 import { retryPlugin } from '@shared/aws/sdk-manager/utils';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { serialize } from '@shared/utils/misc';
 import { ExpectedError } from '@utils/errors';
 

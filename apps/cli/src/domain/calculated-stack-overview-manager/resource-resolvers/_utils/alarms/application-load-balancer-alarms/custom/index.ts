@@ -1,6 +1,6 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getCustomAlarmDescription } from '@shared/naming/utils';
 import { getComparisonOperator, getMetricStatDataQuery, getStatFunction } from '../../utils';
 import { getDimensionsForAlb } from '../utils';

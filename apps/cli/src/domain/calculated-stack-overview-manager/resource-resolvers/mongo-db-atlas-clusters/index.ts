@@ -5,10 +5,10 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { stackMetadataNames } from '@shared/naming/metadata-names';
-import { getSsmParameterNameForThirdPartyCredentials } from '@shared/naming/ssm-secret-parameters';
+import { getSsmParameterNameForThirdPartyCredentials } from '@stacktape/naming/ssm-parameter-paths';
 import {
   MONGODB_PROVIDER_DEFAULT_CREDENTIALS_ID,
   PARENT_IDENTIFIER_SHARED_GLOBAL,

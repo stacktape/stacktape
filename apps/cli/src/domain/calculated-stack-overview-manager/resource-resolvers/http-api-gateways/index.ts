@@ -6,7 +6,7 @@ import { configManager } from '@domain-services/config-manager';
 import { getAllIntegrationsForHttpApiGateway } from '@domain-services/config-manager/utils/http-api-gateways';
 import { domainManager } from '@domain-services/domain-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';

@@ -6,7 +6,7 @@ import { Ref } from '@cloudform/functions';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { getMountsForEfsFilesystem } from '@domain-services/config-manager/utils/efs-filesystems';
 import { vpcManager } from '@domain-services/vpc-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 
 export const getEfsFilesystem = ({ efsConfig }: { efsConfig: StpEfsFilesystem }) => {

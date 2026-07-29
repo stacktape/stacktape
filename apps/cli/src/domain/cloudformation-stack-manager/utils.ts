@@ -5,7 +5,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { consoleLinks } from '@shared/naming/console-links';
+import { consoleLinks } from '@stacktape/naming/console-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getCloudformationChildResources } from '@shared/utils/stack-info-map';
 

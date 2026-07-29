@@ -17,7 +17,7 @@ import { deploymentArtifactManager } from '@domain-services/deployment-artifact-
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getJobName } from '@shared/naming/utils';
 import { getCfEnvironment } from '@utils/cloudformation';

@@ -11,7 +11,7 @@ import { deploymentArtifactManager } from '@domain-services/deployment-artifact-
 import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { stackMetadataNames } from '@shared/naming/metadata-names';
-import { obfuscatedNamesStateHolder } from '@shared/naming/utils';
+import { obfuscatedNamesStateHolder } from '@stacktape/naming/resource-names';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
 
 /**

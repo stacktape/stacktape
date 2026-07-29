@@ -19,7 +19,7 @@ import { notificationManager } from '@domain-services/notification-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { fsPaths } from '@shared/naming/fs-paths';
-import { obfuscatedNamesStateHolder } from '@shared/naming/utils';
+import { obfuscatedNamesStateHolder } from '@stacktape/naming/resource-names';
 import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';
 import {
   injectEnvironmentToHostedHtmlFiles,

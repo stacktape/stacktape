@@ -4,7 +4,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { ExpectedError } from '@utils/errors';

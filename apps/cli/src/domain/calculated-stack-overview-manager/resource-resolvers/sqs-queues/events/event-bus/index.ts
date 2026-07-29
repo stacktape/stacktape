@@ -6,7 +6,7 @@ import { resolveReferenceToEventBus } from '@domain-services/config-manager/util
 import { resolveReferenceToSqsQueue } from '@domain-services/config-manager/utils/sqs-queues';
 import { templateManager } from '@domain-services/template-manager';
 import { stpErrors } from '@errors';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { isValidJson } from '@shared/utils/misc';
 import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';

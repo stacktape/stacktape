@@ -13,7 +13,7 @@ import CfStateMachine from '@cloudform/stepFunctions/stateMachine';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getCfEnvironment } from '@utils/cloudformation';
 import { getAugmentedEnvironment } from '@utils/environment';

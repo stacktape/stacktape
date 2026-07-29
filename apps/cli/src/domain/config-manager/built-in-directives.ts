@@ -7,7 +7,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { getStackOutputName } from '@shared/naming/utils';
+import { getStackOutputName } from '@stacktape/naming/stack-output-names';
 import { getError, serialize } from '@shared/utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { SubWithoutMapping } from '@utils/cloudformation';

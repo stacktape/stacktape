@@ -206,6 +206,9 @@ importers:
       '@stacktape/console-api':
         specifier: workspace:*
         version: link:../../packages/console-api
+      '@stacktape/naming':
+        specifier: workspace:*
+        version: link:../../packages/naming
       '@stacktape/packaging':
         specifier: workspace:*
         version: link:../../packages/packaging

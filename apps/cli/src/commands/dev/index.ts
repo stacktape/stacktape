@@ -7,7 +7,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stackMetadataNames } from '@shared/naming/metadata-names';
-import { outputNames } from '@shared/naming/stack-output-names';
+import { outputNames } from '@stacktape/naming/stack-output-names';
 import { getError } from '@shared/utils/misc';
 import { join } from 'node:path';
 import { devTuiManager } from 'src/app/tui-manager/dev-tui';

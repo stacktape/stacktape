@@ -1,5 +1,5 @@
 import Repository from '@cloudform/ecr/repository';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 
 export const getEcrRepositoryResource = (globallyUniqueStackHash: string) => {
   return new Repository({

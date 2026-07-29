@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { hashElement } from 'folder-hash';
-import { shortHash } from './short-hash';
+import { shortHash } from '@stacktape/naming/short-hash';
 
 export const getDirectoryChecksum = async ({
   absoluteDirectoryPath,

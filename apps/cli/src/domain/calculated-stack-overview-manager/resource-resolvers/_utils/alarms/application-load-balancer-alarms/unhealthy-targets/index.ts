@@ -4,7 +4,7 @@ import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
 import { GetAtt } from '@cloudform/functions';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { getAlarmDescription } from '@shared/naming/utils';
 import { getTargetsForContainerWorkload } from '../../../../multi-container-workloads/utils';

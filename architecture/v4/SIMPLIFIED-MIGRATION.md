@@ -27,6 +27,7 @@ apps/
 
 packages/
 ├── packaging/           # extracted only after the migrated CLI works
+├── naming/              # compatibility-sensitive deterministic names shared by CLI and Console
 ├── console-api/         # public external tRPC schemas/contracts when Console is migrated
 ├── design-tokens/       # added when at least two frontends consume the same tokens
 └── ui-react/            # only components used by at least two applications
@@ -36,10 +37,10 @@ The directory list is a destination, not a requirement to create empty packages.
 real code.
 
 The helper Lambdas are deliberately not in that list. They are separately built deployment artifacts, but their source
-transitively needs 31 non-helper CLI modules — 30 of which have other CLI consumers — and is typed against the ambient
-`types/` config declarations that produce the published config schema. Extracting them would mean a package-to-app
-dependency, duplicated implementation, or an `aws`/`naming`/`config` package cascade, so they stay in
-`apps/cli/helper-lambdas`, whose `AGENTS.md` records the measurement and the condition for revisiting.
+transitively needs general CLI implementation and the ambient `types/` declarations that produce the published config
+schema. They stay in `apps/cli/helper-lambdas`, whose `AGENTS.md` records the measurement and the condition for
+revisiting. The narrow `naming` package exists because the migrated CLI and Console had duplicated the same
+replacement-sensitive AWS names, ARNs, links, and SSM paths; it does not imply a broader helper-Lambda extraction.
 
 ## Conceptual-complexity budget
 
@@ -77,8 +78,9 @@ An abstraction is justified only when it reduces the total number of concepts a 
 3. Establish behavioral baselines around important CLI outputs and ordinary failure paths.
 4. Extract `packaging` from working code without redesigning it. Keep the helper Lambdas in `apps/cli` for the reason
    recorded above.
-5. Establish the practical tRPC public-contract boundary during the Console migration.
-6. Add shared design tokens and React components only when real frontend consumers exist.
+5. Consolidate deterministic naming shared by the CLI and Console, preserving every existing output.
+6. Establish the practical tRPC public-contract boundary during the Console migration.
+7. Add shared design tokens and React components only when real frontend consumers exist.
 
 The existing CLI implementation is the v4 starting point. There is no copied compatibility shell, parallel native
 compiler, SDK, or general-purpose headless runtime.

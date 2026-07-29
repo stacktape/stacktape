@@ -5,15 +5,15 @@ import { STACKTAPE_TRPC_API_ENDPOINT } from '../../../config/params';
 import { sesManager } from '@domain-services/ses-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { stpErrors } from '@errors';
-import { arns } from '@shared/naming/arns';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { arns } from '@stacktape/naming/arns';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { helperLambdaAwsResourceNames } from '@shared/naming/helper-lambdas-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import {
   getLegacySsmParameterStoreStackPrefix,
   getSsmParameterStoreStackPrefix
-} from '@shared/naming/ssm-secret-parameters';
-import { tagNames } from '@shared/naming/tag-names';
+} from '@stacktape/naming/ssm-parameter-paths';
+import { tagNames } from '@stacktape/naming/tag-names';
 import { getContainingFolderName, getFileExtension, getFileNameWithoutExtension } from '@shared/utils/fs-utils';
 import { getGloballyUniqueStackHash } from '@shared/utils/hashing';
 import { getDefaultRuntimeForExtension } from '@shared/utils/runtimes';

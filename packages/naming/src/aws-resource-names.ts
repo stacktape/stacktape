@@ -1,7 +1,8 @@
 import { pascalCase } from 'change-case';
-import { shortHash } from '../utils/short-hash';
-import { buildResourceName, getLogGroupBaseName } from './utils';
-import type { HttpMethod } from '@stacktape/config/http-api-gateways';
+import { shortHash } from './short-hash';
+import { buildResourceName, getLogGroupBaseName } from './resource-names';
+
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS' | '*';
 
 export const codebuildDeploymentBucketResourceName = (region: string, accountId: string) => {
   return `stp-codebuild-deployment-${region}-${shortHash(accountId)}`;
@@ -110,12 +111,7 @@ export const awsResourceNames = {
   },
   // max 64 chars
   // OK as it stands
-  lambdaRole(
-    stackName: string,
-    region: string,
-    functionName: string,
-    configParentResourceType: StpLambdaFunction['configParentResourceType']
-  ) {
+  lambdaRole(stackName: string, region: string, functionName: string, configParentResourceType: string | undefined) {
     return buildResourceName({
       proposedResourceName: `${stackName}-${functionName}${
         configParentResourceType === 'batch-job' ? '-TRIGGER' : ''
@@ -737,7 +733,7 @@ export const awsResourceNames = {
       lengthLimit: 28
     });
   },
-  openSearchLogGroup(stpResourceName: string, logGroupType: string, region: string, stackName: string) {
+  openSearchLogGroup(stpResourceName: string, logGroupType: string, _region: string, stackName: string) {
     return getLogGroupBaseName({
       resourceType: 'open-search',
       stackName,
@@ -756,5 +752,23 @@ export const awsResourceNames = {
       proposedResourceName: `${stackName}-${stpResourceName}-efs-sg`,
       lengthLimit: 255
     });
+  },
+  ec2RunnerInstanceName(projectName: string) {
+    return buildResourceName({
+      proposedResourceName: `stp-runner-${projectName}`,
+      lengthLimit: 255
+    });
+  },
+  ec2RunnerSecurityGroupName(region: string) {
+    return `stp-ec2-runner-sg-${region}`;
+  },
+  ec2RunnerIamRoleName() {
+    return 'stp-ec2-runner-role';
+  },
+  ec2RunnerInstanceProfileName() {
+    return 'stp-ec2-runner-instance-profile';
+  },
+  ec2RunnerLogGroupName() {
+    return '/stacktape/ec2-runner';
   }
 };

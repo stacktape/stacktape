@@ -9,8 +9,8 @@ import {
   getAllQueuePolicyStatements,
   resolveReferenceToSqsQueue
 } from '@domain-services/config-manager/utils/sqs-queues';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
-import { consoleLinks } from '@shared/naming/console-links';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { consoleLinks } from '@stacktape/naming/console-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { resolveAlarmsForResource } from '../_utils/alarms';
 import { resolveSqsQueueEventBusEvents } from './events/event-bus';

@@ -2,8 +2,8 @@ import { CloudFormationClient, DescribeStacksCommand, StackStatus } from '@aws-s
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
 import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
-import { consoleLinks } from '@shared/naming/console-links';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { consoleLinks } from '@stacktape/naming/console-links';
 
 // In order to honor the overall maximum timeout set for the target process,
 // the default 2 minutes from AWS SDK has to be overridden

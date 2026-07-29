@@ -1,6 +1,12 @@
 import { arns } from './arns';
 import { tagNames } from './tag-names';
-import { getBaseAwsConsoleLink } from './utils';
+
+const getBaseAwsConsoleLink = (region: string, serviceName: string, serviceQuery: string) => {
+  const baseUrl = `https://${region}.console.aws.amazon.com/${serviceName}/home?region=${region}#`;
+  return `${baseUrl}${serviceQuery}`;
+};
+
+type DomainAttachableResourceType = 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer' | 'cdn';
 
 export const consoleLinks = {
   stackUrl(region: string, stackId: string, tab: 'stackInfo' | 'resources' | 'events') {
@@ -16,7 +22,7 @@ export const consoleLinks = {
   secretUrl(region: string, secretName: string) {
     return getBaseAwsConsoleLink(region, 'secretsmanager', `secret?name=${secretName}`);
   },
-  createCertificateUrl(attachingTo: StpDomainAttachableResourceType, region: string) {
+  createCertificateUrl(attachingTo: DomainAttachableResourceType, region: string) {
     if (attachingTo === 'cdn') {
       return 'https://us-east-1.console.aws.amazon.com/acm/home?region=us-east-1#/certificates/request';
     }

@@ -8,7 +8,7 @@ import Route53Record from '@cloudform/route53/recordSet';
 import { getAllIntegrationsForNetworkLoadBalancerListener } from '@domain-services/config-manager/utils/network-load-balancers';
 import { domainManager } from '@domain-services/domain-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
-import { awsResourceNames } from '@shared/naming/aws-resource-names';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { transformToCidr } from '@shared/utils/misc';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';

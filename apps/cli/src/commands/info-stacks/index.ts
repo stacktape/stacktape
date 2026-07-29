@@ -2,7 +2,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { StackStatus as StackStatusEnum } from '@aws-sdk/client-cloudformation';
 import { budgetManager } from '@domain-services/budget-manager';
-import { getStacktapeStackInfoFromTemplateDescription, isStacktapeStackDescription } from '@shared/naming/utils';
+import { getStacktapeStackInfoFromTemplateDescription, isStacktapeStackDescription } from '@stacktape/naming/stacks';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { loadUserCredentials } from '../_utils/initialization';
 import { isAgentMode } from '../_utils/agent-mode';

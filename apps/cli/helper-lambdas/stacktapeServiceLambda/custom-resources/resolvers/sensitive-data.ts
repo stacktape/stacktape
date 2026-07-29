@@ -6,7 +6,7 @@ import {
   ResourceTypeForTagging,
   SSMClient
 } from '@aws-sdk/client-ssm';
-import { tagNames } from '@shared/naming/tag-names';
+import { tagNames } from '@stacktape/naming/tag-names';
 import { chunkArray } from '@shared/utils/misc';
 import { pRateLimit } from 'p-ratelimit';
 

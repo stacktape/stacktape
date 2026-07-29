@@ -9,7 +9,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { stpErrors } from '@errors';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { stackMetadataNames } from '@shared/naming/metadata-names';
-import { getSsmParameterNameForThirdPartyCredentials } from '@shared/naming/ssm-secret-parameters';
+import { getSsmParameterNameForThirdPartyCredentials } from '@stacktape/naming/ssm-parameter-paths';
 import {
   PARENT_IDENTIFIER_SHARED_GLOBAL,
   THIRD_PARTY_PROVIDER_CREDENTIALS_REGION,

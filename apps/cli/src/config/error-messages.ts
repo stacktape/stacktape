@@ -5,7 +5,7 @@ import {
   STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS,
   STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS
 } from '@shared/aws/cloudformation';
-import { consoleLinks } from '@shared/naming/console-links';
+import { consoleLinks } from '@stacktape/naming/console-links';
 import { getError } from '@shared/utils/misc';
 import { getApexDomain } from '@utils/domains';
 
