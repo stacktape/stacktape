@@ -190,32 +190,6 @@ ENV NODE_ENV production
 CMD ["node", "--max-old-space-size=16384", "index.js"]`;
 };
 
-export const buildEsBinInstallerDockerfile = ({
-  installationDirName,
-  packageManager,
-  lambdaRuntimeVersion,
-  dependencies
-}: {
-  installationDirName: string;
-  packageManager: SupportedEsPackageManager;
-  lambdaRuntimeVersion: number;
-  dependencies: { name: string; version: string }[];
-}) => {
-  const baseImage = `public.ecr.aws/sam/build-nodejs${lambdaRuntimeVersion}.x`;
-  const installDepsCommand = getInstallDepsCommand({ dependencies, packageManager });
-  const installPackageManagerCommand = getInstallPackageManagerCommand(packageManager);
-
-  return `FROM ${baseImage} AS build
-
-RUN mkdir /${installationDirName}
-WORKDIR /${installationDirName}
-
-${installPackageManagerCommand}${installDepsCommand}
-
-FROM scratch AS artifact
-COPY --from=build /${installationDirName}/node_modules /node_modules`;
-};
-
 // https://hub.docker.com/r/mhart/alpine-node/
 
 export const buildPythonArtifactDockerfile = ({

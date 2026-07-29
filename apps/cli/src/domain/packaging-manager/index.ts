@@ -1,4 +1,4 @@
-import type { NativeBinaryLayerResult } from '@shared/packaging/bundlers/es/copy-docker-installed-modules';
+import type { NativeBinaryLayerResult } from '@stacktape/packaging/es/native-dependencies';
 import type { DockerBuildOutputArchitecture, PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import type {
   LambdaEntrypoint,
@@ -17,7 +17,7 @@ import { ec2Manager } from '@domain-services/ec2-manager';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { buildLayerS3Key, getJobName } from '@shared/naming/utils';
 import { DEPENDENCIES_WITH_BINARIES } from '@stacktape/packaging/es/config';
-import { buildNativeBinaryLayer } from '@shared/packaging/bundlers/es/copy-docker-installed-modules';
+import { buildNativeBinaryLayer } from '@stacktape/packaging/es/native-dependencies';
 import { buildSplitBundle } from '@stacktape/packaging/split-bundler/bundler';
 import { getLambdaRuntimeFromNodeTarget, getLockFileData } from '@shared/packaging/bundlers/es/utils';
 import { assignChunksToLayers, DEFAULT_LAYER_CONFIG } from '@stacktape/packaging/split-bundler/layer-assignment';
@@ -49,6 +49,7 @@ import { buildUsingStacktapePyImageBuildpack } from '@shared/packaging/stacktape
 import { buildUsingStacktapePyLambdaBuildpack } from '@shared/packaging/stacktape-py-lambda-buildpack';
 import {
   ensureBuildxBuilderForCache,
+  execDocker,
   getDockerBuildxSupportedPlatforms,
   installDockerPlatforms,
   isDockerRunning
@@ -437,12 +438,16 @@ export class PackagingManager {
       // Build native binaries into a shared layer
       const nativeLayer = await buildNativeBinaryLayer({
         dependencies: Array.from(allNativeDeps.values()),
-        invocationId: globalStateManager.invocationId,
+        installationRootPath: join(
+          fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId }),
+          '_bin-install'
+        ),
         layerBasePath: `${fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId })}/layers`,
         lambdaRuntimeVersion: getLambdaRuntimeFromNodeTarget(String(nodeVersion)),
         packageManager,
         dockerBuildOutputArchitecture: dockerArch,
-        usedByLambdas: lambdasWithNativeDeps.map(([name]) => name)
+        usedByLambdas: lambdasWithNativeDeps.map(([name]) => name),
+        runDocker: execDocker
       });
 
       if (nativeLayer) {

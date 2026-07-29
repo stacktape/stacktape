@@ -15,6 +15,9 @@ The boundary is the CLI's own runtime state and orchestration vocabulary, not an
   declarations.
 - The CLI's concrete dependency installer and typed `StacktapeError` remain application concerns. The split bundler
   accepts exactly two actions for those boundaries: `installDependencies()` and `createPackagingError(details)`.
+- Installing native Node dependencies is package behavior, while invoking the Docker CLI and allocating Stacktape's
+  invocation-specific build root remain application concerns. The native-dependency builder therefore accepts the
+  explicit installation root and one `runDocker(commands)` action.
 - `eventManager`, `globalStateManager`, command arguments, higher-level layer deployment and user progress remain in
   `apps/cli/src/domain/packaging-manager`, which is still the composition root.
 
@@ -25,7 +28,7 @@ The boundary is the CLI's own runtime state and orchestration vocabulary, not an
 - `src/split-bundler/types.ts` — the chunk/layer vocabulary. It is deliberately structural:
   `SplitBundleDependency` describes only what this engine reads, so nothing in the package needs the CLI's globals.
 - `src/es/` — ES packaging policy, package/module resolution, ESM output compatibility, and project-root discovery
-  shared by the regular and split ES bundlers.
+  shared by the regular and split ES bundlers, plus native dependency installation and Lambda-layer layout.
 - `src/split-bundler/bundler.ts` — dependency installation boundary, Bun build, metafile analysis, entrypoint/chunk
   emission and source-map copying.
 - `src/split-bundler/layer-assignment.ts` — which chunks become layers (`DEFAULT_LAYER_CONFIG`, dependency-aware

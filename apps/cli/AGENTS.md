@@ -10,10 +10,11 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
 - `shared/` — AWS clients, packaging bundlers, CLI-only logical/generated/filesystem naming, and tRPC clients used by
   both the CLI and the helper Lambdas. Deterministic AWS physical names, ARNs, Console links, SSM paths, stack
   descriptions, output/tag names, and truncation/hash behavior live in `@stacktape/naming`.
-  `shared/packaging` stops where the CLI's own vocabulary begins. ES split bundling and its package-resolution policy
-  live in `@stacktape/packaging`; the CLI supplies its concrete dependency installer and typed packaging-error
-  constructor. `eventManager` progress, global runtime state, artifact deployment and command orchestration stay here
-  (see the package's `AGENTS.md`).
+  `shared/packaging` stops where the CLI's own vocabulary begins. ES split bundling, package resolution and native
+  dependency installation/layer layout live in `@stacktape/packaging`; the CLI supplies its concrete dependency
+  installer, typed packaging-error constructor, Docker execution action and invocation-specific installation root.
+  `eventManager` progress, global runtime state, artifact deployment and command orchestration stay here (see the
+  package's `AGENTS.md`).
 - `helper-lambdas/` — sources of the four Lambdas Stacktape deploys into customer accounts. They are separately built
   artifacts that stay in this application because their source needs general CLI implementation and the ambient
   `types/` declarations; see that directory's `AGENTS.md` for the measurement and the compatibility contract.

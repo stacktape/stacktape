@@ -3,6 +3,7 @@ import type { PackageJsonDepsInfo } from '@stacktape/packaging/es/bundler-helper
 import { existsSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { NODE_RUNTIME_VERSIONS_WITH_SKIPPED_SDK_V3_PACKAGING } from '@config';
+import { fsPaths } from '@shared/naming/fs-paths';
 import { SOURCE_MAP_INSTALL_DIST_PATH } from '@shared/naming/project-fs-paths';
 import { dependencyInstaller } from '@shared/utils/dependency-installer';
 import {
@@ -26,7 +27,8 @@ import {
   IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER,
   NODE_BUILTIN_MODULES
 } from '@stacktape/packaging/es/config';
-import { copyDockerInstalledModulesForLambda } from './copy-docker-installed-modules';
+import { copyDockerInstalledModulesForLambda } from '@stacktape/packaging/es/native-dependencies';
+import { execDocker } from '@shared/utils/docker';
 import {
   getAllJsDependenciesFromMultipleFiles,
   getExternalDeps,
@@ -792,10 +794,11 @@ export const createEsBundle = async ({
       copyDockerInstalledModulesForLambda({
         ...copyProps,
         dependencies: allDependenciesToInstallInDocker,
-        workloadName: name,
+        installationRootPath: join(fsPaths.absoluteBuildFolderPath({ invocationId }), '_bin-install'),
         packageManager,
         lambdaRuntimeVersion: getLambdaRuntimeFromNodeTarget(nodeTarget),
-        dockerBuildOutputArchitecture
+        dockerBuildOutputArchitecture,
+        runDocker: execDocker
       }),
     copyExplicitlyIncludedFiles({ cwd, explicitlyIncludedFiles, outputDirectory: distFolderPath }),
     outputSourceMapsTo &&
