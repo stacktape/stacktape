@@ -4,6 +4,7 @@ import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { SignatureV4 } from '@aws-sdk/signature-v4';
 import { createRequest } from '@aws-sdk/util-create-request';
 import { createFetchHandler } from '@shared/aws/fetch-handler';
+import type { AwsCredentials } from './credentials';
 
 type SignedRequest = { headers: Record<string, string>; [key: string]: unknown };
 

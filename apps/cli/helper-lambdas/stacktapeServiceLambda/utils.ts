@@ -1,5 +1,7 @@
 import type { Pluggable } from '@aws-sdk/types';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
+import type { AwsCredentials } from '@shared/aws/credentials';
+import type { AWSRegion } from '@shared/aws/regions';
 import { AwsSdkManager } from '@shared/aws/sdk-manager';
 import { retryPlugin } from '@shared/aws/sdk-manager/utils';
 

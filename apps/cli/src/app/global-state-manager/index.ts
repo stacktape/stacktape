@@ -8,11 +8,12 @@ import { getRequiredArgs } from '../../config/cli/utils';
 import {
   DEFAULT_CLOUDFORMATION_REGISTRY_BUCKET_NAME,
   DEFAULT_CLOUDFORMATION_REGISTRY_BUCKET_REGION,
-  RECORDED_STACKTAPE_COMMANDS,
-  SUPPORTED_AWS_REGIONS
+  RECORDED_STACKTAPE_COMMANDS
 } from '@config';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
+import type { LoadedAwsCredentials, ValidatedAwsCredentials } from '@shared/aws/credentials';
+import { SUPPORTED_AWS_REGIONS, type AWSRegion } from '@shared/aws/regions';
 import { getRoleArnFromSessionArn } from '@stacktape/naming/arns';
 import { getGloballyUniqueStackHash } from '@shared/utils/hashing';
 import { propertyFromObjectOrNull } from '@shared/utils/misc';

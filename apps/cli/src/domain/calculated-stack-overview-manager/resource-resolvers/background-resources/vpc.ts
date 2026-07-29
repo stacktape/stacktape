@@ -13,6 +13,7 @@ import { GetAtt, GetAZs, Join, Ref, Select } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
+import type { AWSRegion } from '@shared/aws/regions';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import { stackMetadataNames } from '@shared/naming/metadata-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';

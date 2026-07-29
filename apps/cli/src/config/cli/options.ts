@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SUPPORTED_AWS_REGIONS } from '../random';
+import { SUPPORTED_AWS_REGIONS } from '@shared/aws/regions';
 
 // ============ Base Option Schemas ============
 

@@ -1,6 +1,6 @@
 import { cliCommands, type StacktapeCommand } from '../../../config/cli/commands';
 import { getAllowedArgs, getCommandDescription, getRequiredArgs } from '../../../config/cli/utils';
-import { SUPPORTED_AWS_REGIONS } from '@config';
+import { SUPPORTED_AWS_REGIONS, type AWSRegion } from '@shared/aws/regions';
 import { ApiKeyProtectedClient } from '../../../../shared/trpc/api-key-protected';
 import { loadPersistedState } from '../../global-state-manager/utils';
 import type { CommandSuggestion, RecentAction, RecentCommandSuggestion } from './types';

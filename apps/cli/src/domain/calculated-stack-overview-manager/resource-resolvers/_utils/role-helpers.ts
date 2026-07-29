@@ -6,6 +6,7 @@ import { configManager } from '@domain-services/config-manager';
 import { thirdPartyProviderManager } from '@domain-services/third-party-provider-credentials-manager';
 import { arns } from '@stacktape/naming/arns';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import type { AWSRegion } from '@shared/aws/regions';
 import { cfLogicalNames } from '@shared/naming/logical-names';
 import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
 import type { BucketPolicyIamRoleStatement } from '@stacktape/config/buckets';

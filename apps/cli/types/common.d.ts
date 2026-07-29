@@ -167,14 +167,6 @@ type GlobalStateProject = import('./console-app/global-state').GlobalStateProjec
 
 type GlobalStateUser = import('./console-app/global-state').GlobalStateUser;
 
-type AwsCredentials = Mutable<import('@aws-sdk/types').Credentials>;
-
-type LoadedAwsCredentials = AwsCredentials & {
-  source: 'envVar' | 'credentialsFile' | 'api' | 'assumeRole';
-};
-
-type ValidatedAwsCredentials = LoadedAwsCredentials & { identity: { account: string; arn: string } };
-
 type PersistedState = {
   systemId: string;
   cliArgsDefaults: ConfigurableCliArgsDefaults;
