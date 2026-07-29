@@ -53,7 +53,8 @@ export const sensitiveData: ServiceLambdaResolver<StpServiceCustomResourceProper
       })
     );
     if (operation === 'Update') {
-      const parameterNamesToBeDeleted = previousProps
+      // An update that introduces `sensitiveData` for the first time has no previous parameters to clean up.
+      const parameterNamesToBeDeleted = (previousProps ?? [])
         .filter(
           ({ ssmParameterName }) =>
             !currentProps.find(({ ssmParameterName: currSSMParamName }) => currSSMParamName === ssmParameterName)

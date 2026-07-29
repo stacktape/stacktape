@@ -4,9 +4,18 @@ import type { OpenSearchDomainProps } from '@stacktape/config/open-search';
 import type { WebAppFirewallProps } from '@stacktape/config/web-app-firewall';
 
 declare global {
+/**
+ * A resolver for one Stacktape custom-resource kind.
+ *
+ * The wire envelope keeps every resolver key optional because exactly one of them belongs in a given resource, but
+ * the dispatcher selects that one key and refuses to invoke a resolver without it — so a resolver is entitled to its
+ * current properties. Previous properties are genuinely absent on Create and Delete, where CloudFormation sends no
+ * `OldResourceProperties`, so they stay optional. Both statements are shallow: whatever is optional *inside* the
+ * payload is as optional as it was authored.
+ */
 type ServiceLambdaResolver<T> = (
-  currentProps: T,
-  previousProps: T,
+  currentProps: NonNullable<T>,
+  previousProps: T | undefined,
   operationType: 'Create' | 'Update' | 'Delete',
   physicalResourceId?: string,
   lambdaContext?: import('aws-lambda').Context

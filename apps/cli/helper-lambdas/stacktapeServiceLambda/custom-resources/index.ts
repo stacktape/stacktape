@@ -82,8 +82,16 @@ const handler: CloudFormationCustomResourceHandler = async (event, context) => {
       throw new Error(`Unsupported custom resource operation: '${(event as any).RequestType}'.`);
     }
 
+    // CloudFormation sends `ResourceProperties` on every operation, so the selected resolver's current payload is
+    // always expected to be there. A nullish check rather than a truthy one: an empty array or object is a valid
+    // payload, only an absent one is a broken resource.
+    const currentResolverProperties = currentResourceProperties?.[resolverName];
+    if (currentResolverProperties === null || currentResolverProperties === undefined) {
+      throw new Error(`Missing current properties for Stacktape custom-resource resolver "${resolverName}".`);
+    }
+
     ({ data, physicalResourceId, chainInvocation } = await resolver(
-      currentResourceProperties?.[resolverName],
+      currentResolverProperties,
       previousResourceProperties?.[resolverName],
       event.RequestType,
       (event as CloudFormationCustomResourceUpdateEvent).PhysicalResourceId,
