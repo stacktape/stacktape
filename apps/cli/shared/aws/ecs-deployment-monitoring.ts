@@ -240,7 +240,16 @@ export class EcsServiceDeploymentStatusPoller {
   };
 }
 
-export const isEcsServiceCreateOrUpdateCloudformationEvent = (stackEvent: StackEvent) =>
+/**
+ * Whether an event announces an ECS service the deployment poller should start watching.
+ *
+ * The `PhysicalResourceId` check is the one this function already performed; the predicate return type only makes it
+ * visible to callers, which is what lets the single caller read the service ARN without re-testing it. The expression
+ * below is unchanged.
+ */
+export const isEcsServiceCreateOrUpdateCloudformationEvent = (
+  stackEvent: StackEvent
+): stackEvent is StackEvent & { PhysicalResourceId: string } =>
   (stackEvent.ResourceType === 'AWS::ECS::Service' ||
     stackEvent.ResourceType === 'Stacktape::ECSBlueGreenV1::Service') &&
   (stackEvent.ResourceStatus === ResourceStatus.CREATE_IN_PROGRESS ||

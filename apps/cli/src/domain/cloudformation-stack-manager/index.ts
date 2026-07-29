@@ -1,4 +1,5 @@
 import type { Capability, StackEvent, StackResourceSummary } from '@aws-sdk/client-cloudformation';
+import type { MonitoredStackEvent } from '@shared/aws/sdk-manager';
 import type { Tag } from '@aws-sdk/client-ecs';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -1018,7 +1019,10 @@ export class StackManager {
           // we are only fetching for new events "fetchSince"
           const [stackEvents, stackDetailsFromBatch] = await Promise.all([
             awsSdkManager.getStackEvents(stackId, fetchSince),
-            fetchNumber % 4 === 0 && awsSdkManager.getStackDetails(stackId)
+            // Every fourth poll also asks for stack details; the other three contribute no details to this batch.
+            // `null` rather than `false` says that in a way the result type can carry — both are falsy, so the
+            // fallback below behaves exactly as before.
+            fetchNumber % 4 === 0 ? awsSdkManager.getStackDetails(stackId) : null
           ]).catch((err) => {
             // if there was an error when fetching stack events we cancel entire interval
             cleanupMonitoring();
@@ -1201,7 +1205,7 @@ export class StackManager {
     return { warningMessages };
   };
 
-  #reactToEvent = ({ stackEvent }: { stackEvent: StackEvent }) => {
+  #reactToEvent = ({ stackEvent }: { stackEvent: MonitoredStackEvent }) => {
     if (isEcsServiceCreateOrUpdateCloudformationEvent(stackEvent)) {
       const stpParentResourceName = calculatedStackOverviewManager.findStpParentNameOfCfResource({
         cfLogicalName: stackEvent.LogicalResourceId

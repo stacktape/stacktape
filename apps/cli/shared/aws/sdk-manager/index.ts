@@ -284,6 +284,48 @@ const getOperationInvocationCodebuildEnvVariables = () => {
   }));
 };
 
+/**
+ * A stack event the deployment monitor can act on: one carrying the four fields it addresses events by.
+ *
+ * The SDK declares those four in two different ways, and this narrows both. `EventId` and `Timestamp` are required
+ * keys whose values may still be `undefined`; `LogicalResourceId` and `ResourceStatus` are optional keys, because
+ * CloudFormation also reports hook and other non-resource events that carry no resource identity at all. Such events
+ * are not monitorable and are dropped rather than allowed to crash monitoring.
+ *
+ * Nothing else is promised. In particular `PhysicalResourceId` stays optional: a resource that has not been created
+ * yet, or failed before it was, genuinely has none. The one place the monitor reads it is already guarded by
+ * `isEcsServiceCreateOrUpdateCloudformationEvent`, which tests it and narrows it for that branch alone.
+ */
+export type MonitoredStackEvent = StackEvent & {
+  Timestamp: NonNullable<StackEvent['Timestamp']>;
+  EventId: NonNullable<StackEvent['EventId']>;
+  LogicalResourceId: NonNullable<StackEvent['LogicalResourceId']>;
+  ResourceStatus: NonNullable<StackEvent['ResourceStatus']>;
+};
+
+const hasUsableTimestamp = (event: StackEvent): event is StackEvent & { Timestamp: Date } =>
+  event.Timestamp instanceof Date && Number.isFinite(event.Timestamp.getTime());
+
+const isMonitoredStackEvent = (event: StackEvent): event is MonitoredStackEvent =>
+  hasUsableTimestamp(event) &&
+  typeof event.EventId === 'string' &&
+  typeof event.LogicalResourceId === 'string' &&
+  typeof event.ResourceStatus === 'string';
+
+/**
+ * The oldest timestamp a page can be bounded by. Pages arrive newest first, so this walks back from the end and takes
+ * the first event that carries a usable one, ignoring events that have none.
+ */
+const findOldestUsableTimestamp = (events: StackEvent[]): Date | undefined => {
+  for (let index = events.length - 1; index >= 0; index -= 1) {
+    const event = events[index];
+    if (hasUsableTimestamp(event)) {
+      return event.Timestamp;
+    }
+  }
+  return undefined;
+};
+
 export class AwsSdkManager {
   /**
    * These three are assigned by `init()`, which every producer of this manager calls synchronously after constructing
@@ -757,19 +799,39 @@ export class AwsSdkManager {
       .catch(errHandler);
   };
 
-  getStackEvents = async (stackName: string, since: Date) => {
+  /**
+   * Fetches the stack events at or after `since`, newest first, exactly as CloudFormation orders them. The deployment
+   * monitor does its own single reversal before processing, so the order is deliberately left alone here.
+   *
+   * Every page is filtered, including the last one. The previous version filtered only the first page and appended
+   * the rest wholesale, which let an event older than the cutoff off the terminal page seed monitoring state.
+   *
+   * Paging continues while CloudFormation offers a token and stops once a page's oldest usable timestamp falls before
+   * the cutoff — the raw timestamp, so a page made entirely of hook events cannot end paging early. A page with a
+   * token but no usable timestamp at all is not a boundary, so paging continues through it.
+   */
+  getStackEvents = async (stackName: string, since: Date): Promise<MonitoredStackEvent[]> => {
     const errHandler = this.#getErrorHandler('Failed to fetch stack events.');
-    const result: StackEvent[][] = [];
-    let { NextToken, StackEvents } = await this.#cloudformation()
-      .send(new DescribeStackEventsCommand({ StackName: stackName }))
-      .catch(errHandler);
-    result.push(StackEvents.filter(({ Timestamp }) => Timestamp >= since));
-    while (NextToken && new Date(StackEvents[StackEvents.length - 1].Timestamp) >= since) {
-      ({ NextToken, StackEvents } = await this.#cloudformation()
-        .send(new DescribeStackEventsCommand({ StackName: stackName, NextToken }))
-        .catch(errHandler));
-      result.push(StackEvents);
-    }
+    const result: MonitoredStackEvent[][] = [];
+    let nextToken: string | undefined;
+
+    do {
+      const page = await this.#cloudformation()
+        .send(
+          new DescribeStackEventsCommand(
+            nextToken ? { StackName: stackName, NextToken: nextToken } : { StackName: stackName }
+          )
+        )
+        .catch(errHandler);
+      const events = page.StackEvents || [];
+      result.push(events.filter(isMonitoredStackEvent).filter(({ Timestamp }) => Timestamp >= since));
+      nextToken = page.NextToken;
+      const oldestUsableTimestamp = findOldestUsableTimestamp(events);
+      if (oldestUsableTimestamp && oldestUsableTimestamp < since) {
+        break;
+      }
+    } while (nextToken);
+
     return result.flat();
   };
 
