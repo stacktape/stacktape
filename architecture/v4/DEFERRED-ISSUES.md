@@ -26,6 +26,15 @@ refactoring scope. Revisit them before the v4 release where marked.
   Review its authentication, confirmation, and least-privilege model as part of the later dev-agent/AWS-manager
   hardening, not during package extraction.
 - Review credential/key rotation and versioning for the Console security-hardening work before a production rollout.
+- AWS SDK debug middleware serializes most operation inputs and only redacts a small set of body/log fields. Secret
+  Manager values, SSM values, and CodeBuild environment variables need a centralized field-aware redaction policy.
+- The CLI's override-region CloudFormation and SSM clients do not attach the manager's configured middleware. Revisit
+  whether retry, redirect, diagnostics, and redaction behavior must be identical to the normal client path.
+- Console connected-account credential construction currently asserts optional STS response fields into a complete
+  credential object. Validate the response explicitly before constructing an initialized AWS manager.
+- Long-running Console operations retain one assumed-role credential set without refresh, while the CLI's timer-based
+  refresh has no owning await/catch path. Define explicit refresh and failure ownership when the AWS manager is
+  refactored.
 
 ## Known v3 behavior debt
 
