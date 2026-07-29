@@ -70,7 +70,7 @@ export const buildUsingCustomArtifact = async ({
     };
   }
 
-  let size: number;
+  let size: number | undefined;
   if (!isZipped) {
     if (isDir) {
       size = await getFolderSize(absolutePackagePath, 'MB', 2);

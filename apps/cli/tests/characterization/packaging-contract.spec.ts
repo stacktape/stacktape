@@ -102,6 +102,40 @@ describe('custom artifact packaging contract', () => {
     expect(changed.digest).not.toBe(first.digest);
   });
 
+  test('reports a skipped cache hit with an explicit null size that survives serialization', async () => {
+    const { source, output } = await createWorkspace();
+    const first = await packageDirectory({ source, output });
+    const cached = await packageDirectory({ source, output, existingDigests: [first.digest] });
+
+    expect(cached.outcome).toBe('skipped');
+    expect(cached.size).toBeNull();
+    expect(JSON.parse(JSON.stringify(cached))).toHaveProperty('size', null);
+  });
+
+  test('leaves the size of an already zipped package undefined and omits it from serialization', async () => {
+    const { root, output } = await createWorkspace();
+    const archive = new AdmZip();
+    archive.addFile('index.js', Buffer.from('export const handler = () => "v1";\n'));
+    const packagePath = join(root, 'prezipped.zip');
+    archive.writeZip(packagePath);
+
+    const result = await buildUsingCustomArtifact({
+      packagePath,
+      name: 'characterizationFunction',
+      cwd: root,
+      distFolderPath: output,
+      progressLogger,
+      existingDigests: [],
+      handler: 'index.handler'
+    });
+
+    expect(result.outcome).toBe('bundled');
+    expect(result.artifactPath).toBe(join(output, 'prezipped.zip'));
+    expect(Object.hasOwn(result, 'size')).toBe(true);
+    expect(result.size).toBeUndefined();
+    expect(Object.keys(JSON.parse(JSON.stringify(result)))).not.toContain('size');
+  });
+
   test('does not invalidate a package for excluded dependency/cache directories', async () => {
     const { source, output } = await createWorkspace();
     const first = await packageDirectory({ source, output });

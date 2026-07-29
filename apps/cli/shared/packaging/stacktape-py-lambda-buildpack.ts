@@ -41,7 +41,7 @@ export const buildUsingStacktapePyLambdaBuildpack = async ({
   });
 
   if (outcome === 'skipped') {
-    return { ...otherOutputProps, digest, outcome, size: null, jobName: name } as PackagingOutput;
+    return { ...otherOutputProps, digest, outcome, size: null, jobName: name };
   }
 
   const { unzippedSize, zippedSize, artifactPath } = await createLambdaZipArtifact({

@@ -85,7 +85,12 @@ type PhpSpecificPackagingProps = PhpLanguageSpecificConfig;
 type DotnetSpecificPackagingProps = DotnetLanguageSpecificConfig;
 
 type PackagingOutput = {
-  size: number;
+  /**
+   * A number when the artifact was measured; `null` for cached/skipped results and for bundled ES image development
+   * builds. Pre-zipped custom artifacts return an own `size` property whose value is `undefined`, which JSON
+   * serialization then omits.
+   */
+  size: number | null | undefined;
   zippedSize?: number;
   imageName?: string;
   digest: string;
@@ -137,7 +142,8 @@ type PackageWorkloadOutput = {
   jobName: string;
   digest: string;
   skipped: boolean;
-  size: number;
+  /** Carried through from `PackagingOutput`; `null` and `undefined` both reach event data. */
+  size: number | null | undefined;
   artifactPath?: string;
   /** All npm modules resolved during bundling (for Lambda functions) */
   resolvedModules?: string[];
