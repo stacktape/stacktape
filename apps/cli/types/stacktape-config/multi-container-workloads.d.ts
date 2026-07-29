@@ -6,13 +6,24 @@ import type {
   ContainerWorkloadNetworkLoadBalancerIntegration,
   ContainerWorkloadServiceConnectIntegration
 } from '@stacktape/config/events';
-import type { ContainerWorkload } from '@stacktape/config/multi-container-workloads';
+import type { ContainerWorkload, ContainerWorkloadScaling } from '@stacktape/config/multi-container-workloads';
 import type { PrivateService } from '@stacktape/config/private-services';
 import type { WebService } from '@stacktape/config/web-services';
 import type { WorkerService } from '@stacktape/config/worker-services';
 
 declare global {
 type StpContainerWorkload = ContainerWorkload['properties'] & {
+  /**
+   * The instance range, which every producer of a container workload supplies.
+   *
+   * `ConfigManager` merges it from `RESOURCE_DEFAULTS` for an authored `multi-container-workload`; the web, private
+   * and worker service families pass their own already-defaulted `scaling` down to the workload they synthesize; and
+   * Convex hard-codes 1/1 for its backend and dashboard workloads.
+   *
+   * `scalingPolicy` deliberately stays optional. The defaults table does fill it, but the Convex producer does not,
+   * so requiring it here would describe fewer workloads than actually reach this type.
+   */
+  scaling: ContainerWorkloadScaling & { minInstances: number; maxInstances: number };
   name: string;
   type: ContainerWorkload['type'];
   configParentResourceType:

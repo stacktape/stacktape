@@ -1,3 +1,5 @@
+import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
+
 export const IS_DEV = process.env.STP_DEV_MODE === 'true';
 
 export const VALID_CONFIG_PATHS = ['stacktape.yaml', 'stacktape.yml', 'stacktape.js', 'stacktape.ts'];
@@ -132,7 +134,34 @@ export const defaultLogRetentionDays = {
   relationalDatabase: 90
 };
 
-export const RESOURCE_DEFAULTS: { [_resourceType in StpResourceType]: Partial<StpResource> } = {
+/**
+ * What each resource type's defaults entry is allowed to contain, correlated to that type.
+ *
+ * Keying off the authored union rather than `Partial<StpResource>` is what makes the constraint mean anything: a
+ * union of partials accepts any variant's property under any key, so it would have allowed a bastion default to
+ * supply `memory`. Mapping `as TResource['type']` checks each entry against its own resource.
+ *
+ * `batch-job` is the one entry that reaches into a nested bag, and `BatchJobResources` requires `cpu` alongside
+ * `memory`, so its `resources` is admitted one level shallower. That single explicit exception is deliberate: a
+ * general recursive partial would stop the constraint from describing what this table actually is.
+ */
+type ResourceDefaultsByType = {
+  [TResource in StacktapeResourceDefinition as TResource['type']]: TResource extends { type: 'batch-job' }
+    ? Omit<Partial<NonNullable<TResource['properties']>>, 'resources'> & {
+        resources?: Partial<NonNullable<TResource['properties']>['resources']>;
+      }
+    : Partial<NonNullable<TResource['properties']>>;
+};
+
+/**
+ * The per-type defaults `mergeStacktapeDefaults` merges into a normalized resource.
+ *
+ * The constraint is applied with `satisfies` rather than as an annotation so the inferred type keeps each entry's
+ * actual keys: `DefaultedResource` reads them back off this table instead of restating them somewhere they could
+ * drift. Every resource type still needs an entry. Do not add `as const` — it would narrow each default to its own
+ * literal and claim, for instance, that a Lambda's memory can only ever be 1024.
+ */
+export const RESOURCE_DEFAULTS = {
   'batch-job': {
     resources: {
       memory: 1024
@@ -225,7 +254,7 @@ export const RESOURCE_DEFAULTS: { [_resourceType in StpResourceType]: Partial<St
   'agentcore-gateway': {},
   'agentcore-browser': {},
   'agentcore-code-interpreter': {}
-};
+} satisfies ResourceDefaultsByType;
 
 export const configurableGlobalDefaultCliArgs = {
   region: { description: 'AWS region', default: null, isSensitive: false },

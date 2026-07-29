@@ -1,9 +1,12 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
+import { RESOURCE_DEFAULTS } from '@config';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { ConfigManager, configManager } from '@domain-services/config-manager';
 import {
   getNestedResourceIdentity,
-  type NormalizedResource
+  type DefaultedResource,
+  type NormalizedResource,
+  type StacktapeResourceType
 } from '@domain-services/config-manager/normalized-resource';
 import {
   DEFAULT_TEST_LISTENER_PORT,
@@ -112,6 +115,156 @@ describe('authored-to-runtime normalization', () => {
     });
 
     expect(manager.functions[0].memory).toBe(512);
+  });
+
+  test('merges the smaller edge-function defaults rather than the ordinary Lambda ones', () => {
+    const manager = managerFor({
+      rewrite: {
+        type: 'edge-lambda-function',
+        properties: {
+          packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/rewrite.ts' } }
+        }
+      }
+    });
+
+    const [rewrite] = manager.edgeLambdaFunctions;
+
+    expect(rewrite.memory).toBe(128);
+    expect(rewrite.timeout).toBe(3);
+  });
+
+  test('merges the bastion instance size, and yields to an authored one', () => {
+    expect(managerFor({ jump: { type: 'bastion' } }).bastions[0].instanceSize).toBe('t3.micro');
+    expect(
+      managerFor({ jump: { type: 'bastion', properties: { instanceSize: 't3.large' } } }).bastions[0].instanceSize
+    ).toBe('t3.large');
+  });
+
+  const workloadConfig = (scaling?: {
+    minInstances?: number;
+    maxInstances?: number;
+  }): StacktapeConfig['resources'] => ({
+    api: {
+      type: 'multi-container-workload',
+      properties: {
+        resources: { cpu: 0.25, memory: 512 },
+        ...(scaling ? { scaling } : {}),
+        containers: [
+          {
+            name: 'api-container',
+            packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/api.ts' } }
+          }
+        ]
+      }
+    }
+  });
+
+  test('fills the whole nested scaling default when the workload authors none', () => {
+    const [workload] = managerFor(workloadConfig()).containerWorkloads;
+
+    expect(workload.scaling).toEqual({
+      minInstances: 1,
+      maxInstances: 1,
+      scalingPolicy: { keepAvgCpuUtilizationUnder: 80, keepAvgMemoryUtilizationUnder: 80 }
+    });
+  });
+
+  test('keeps an authored nested value and fills only the siblings it omitted', () => {
+    const [workload] = managerFor(workloadConfig({ minInstances: 3 })).containerWorkloads;
+
+    expect(workload.scaling.minInstances).toBe(3);
+    expect(workload.scaling.maxInstances).toBe(1);
+    expect(workload.scaling.scalingPolicy).toEqual({
+      keepAvgCpuUtilizationUnder: 80,
+      keepAvgMemoryUtilizationUnder: 80
+    });
+  });
+
+  test('passes the service families their own scaling defaults', () => {
+    const manager = managerFor({
+      jobs: {
+        type: 'worker-service',
+        properties: {
+          resources: { cpu: 0.25, memory: 512 },
+          packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/jobs.ts' } }
+        }
+      }
+    });
+
+    const [service] = manager.workerServices;
+
+    const filledScaling = {
+      minInstances: 1,
+      maxInstances: 1,
+      scalingPolicy: { keepAvgCpuUtilizationUnder: 80, keepAvgMemoryUtilizationUnder: 80 }
+    };
+
+    expect(service.scaling).toEqual(filledScaling);
+    // The workload the service synthesizes is what synthesis actually scales, so it carries the same range. This is
+    // the second of the four producers behind the all-producer guarantee on `StpContainerWorkload.scaling`.
+    expect(service._nestedResources.containerWorkload.scaling).toEqual(filledScaling);
+  });
+
+  test('writes a nested default back into the working configuration when the bag was authored', () => {
+    // Recorded behavior debt, pinned rather than changed here: `mergeStacktapeDefaults` copies the resource shallowly,
+    // so an authored nested bag is the same object the working resolved configuration holds, and merging into it is
+    // visible there afterwards. The raw authored configuration stays isolated — `ConfigResolver` serializes a separate
+    // clone — so the uploaded `stp-template.yml` is unaffected.
+    const manager = managerFor(workloadConfig({ minInstances: 3 }));
+
+    expect(manager.config.resources.api.properties).not.toHaveProperty('scaling.maxInstances');
+
+    void manager.containerWorkloads;
+
+    expect(manager.config.resources.api.properties).toHaveProperty('scaling.maxInstances', 1);
+  });
+
+  test('does not write a nested default back when the bag was not authored', () => {
+    // The other half of the same shallow copy: with nothing authored, the merge builds a fresh object on the copy and
+    // the working configuration keeps no `scaling` at all.
+    const manager = managerFor(workloadConfig());
+
+    void manager.containerWorkloads;
+
+    expect(manager.config.resources.api.properties).not.toHaveProperty('scaling');
+  });
+
+  test('never hands out the defaults table itself, and stays stable across reads', () => {
+    // A merged nested object that aliased the table would let one resource's later mutation leak into every other
+    // stack this process normalizes.
+    const manager = managerFor(workloadConfig());
+
+    const [first] = manager.containerWorkloads;
+    const [second] = manager.containerWorkloads;
+
+    expect(first.scaling).not.toBe(RESOURCE_DEFAULTS['multi-container-workload'].scaling);
+    expect(first.scaling).not.toBe(second.scaling);
+    expect(first.scaling).toEqual(second.scaling);
+    expect(RESOURCE_DEFAULTS['multi-container-workload'].scaling).toEqual({
+      minInstances: 1,
+      maxInstances: 1,
+      scalingPolicy: { keepAvgCpuUtilizationUnder: 80, keepAvgMemoryUtilizationUnder: 80 }
+    });
+  });
+
+  test('leaves a resource whose type declares no defaults exactly as normalization produced it', () => {
+    expect(RESOURCE_DEFAULTS['dynamo-db-table']).toEqual({});
+
+    const manager = managerFor({
+      records: {
+        type: 'dynamo-db-table',
+        properties: { primaryKey: { partitionKey: { name: 'id', type: 'string' } } }
+      }
+    });
+
+    expect(Object.keys(manager.dynamoDbTables[0]).sort()).toEqual([
+      'configParentResourceType',
+      'name',
+      'nameChain',
+      'overrides',
+      'primaryKey',
+      'type'
+    ]);
   });
 
   test('builds the resolved Lambda identity the rest of the CLI addresses functions by', () => {
@@ -508,6 +661,62 @@ describe('normalized resource types', () => {
   // leave `StpApplicationLoadBalancer` structurally empty.
   const authoredMemberSurvivesTheAlias: StpApplicationLoadBalancer['listeners'] = [{ port: 443, protocol: 'HTTPS' }];
 
+  /**
+   * Whether `TKey` is a required member of `TObject`.
+   *
+   * Requiredness has to be asserted one key at a time and through the modifier itself. A fixture that simply omits
+   * several keys at once stays satisfied when only one of them is still required, and this project's test typecheck
+   * runs with `strictNullChecks` off, where an optional property is freely assignable to a required one — so reading
+   * a property, or assigning through an indexed access, proves nothing about the modifier here.
+   */
+  type RequiresKey<TObject, TKey extends keyof TObject> = {} extends Pick<TObject, TKey> ? false : true;
+
+  // The distinction the two names carry, stated per key: what the table fills is optional before defaults and
+  // required after, and each default is checked on its own.
+  const memoryBeforeDefaults: RequiresKey<NormalizedResource<'function'>, 'memory'> = false;
+  const timeoutBeforeDefaults: RequiresKey<NormalizedResource<'function'>, 'timeout'> = false;
+  const memoryAfterDefaults: RequiresKey<DefaultedResource<'function'>, 'memory'> = true;
+  const timeoutAfterDefaults: RequiresKey<DefaultedResource<'function'>, 'timeout'> = true;
+
+  const lambdaWithItsDefaults: DefaultedResource<'function'> = {
+    ...lambdaWithoutOptionalProperties,
+    memory: 512,
+    timeout: 30
+  };
+  // ...and changes nothing else: what the authored schema required is still required.
+  const packagingIsStillAuthored: DefaultedResource<'function'>['packaging'] = lambdaWithItsDefaults.packaging;
+
+  // Requiredness is all the intersection adds. Each default widens to its authored value type, so an override the
+  // schema allows still typechecks; a default narrowed to its own literal would have rejected these.
+  const anotherBastionSize: DefaultedResource<'bastion'>['instanceSize'] = 't3.large';
+  const anotherLambdaMemory: DefaultedResource<'function'>['memory'] = 3008;
+  const anotherInstanceCount: DefaultedResource<'multi-container-workload'>['scaling']['minInstances'] = 4;
+
+  // A resource type whose entry is empty is the same shape either way, in both directions.
+  const defaultedFromNormalizedLoadBalancer: DefaultedResource<'application-load-balancer'> =
+    loadBalancerWithoutAnyProperties;
+  const normalizedFromDefaultedLoadBalancer: NormalizedResource<'application-load-balancer'> =
+    defaultedFromNormalizedLoadBalancer;
+
+  // Defaulting does not disturb the authored parent a nested resource was synthesized under.
+  const nestedDefaultedLoadBalancer: DefaultedResource<'application-load-balancer', 'convex'> = nestedLoadBalancer;
+
+  // The all-producer container-workload shape. Both ends of the instance range reach this type from every producer,
+  // and each is checked on its own so that requiring only one of them would fail here...
+  const scalingIsAlwaysPresent: RequiresKey<StpContainerWorkload, 'scaling'> = true;
+  const minInstancesIsAlwaysPresent: RequiresKey<StpContainerWorkload['scaling'], 'minInstances'> = true;
+  const maxInstancesIsAlwaysPresent: RequiresKey<StpContainerWorkload['scaling'], 'maxInstances'> = true;
+  // ...but Convex supplies no policy, so requiring one would describe fewer workloads than actually reach this type.
+  const scalingPolicyStaysOptional: RequiresKey<StpContainerWorkload['scaling'], 'scalingPolicy'> = false;
+  const convexShapedWorkload: Pick<StpContainerWorkload, 'scaling'> = {
+    scaling: { minInstances: 1, maxInstances: 1 }
+  };
+
+  // `RESOURCE_DEFAULTS` is keyed by the authored resource union and indexed by it. If the resolved union ever gained a
+  // type the authored one lacks, the table would silently stop covering it.
+  const authoredCoversResolved: StacktapeResourceType extends StpResourceType ? true : false = true;
+  const resolvedCoversAuthored: StpResourceType extends StacktapeResourceType ? true : false = true;
+
   test('type-level expectations above compile', () => {
     expect(lambdaWithoutOptionalProperties.name).toBe('worker');
     expect(loadBalancerWithoutAnyProperties.name).toBe('lb');
@@ -521,6 +730,24 @@ describe('normalized resource types', () => {
     expect(firewallWithItsBag.scope).toBe('regional');
     expect(firewallWithAnUnknownScope.name).toBe('firewall');
     expect(authoredMemberSurvivesTheAlias).toHaveLength(1);
+    expect(memoryBeforeDefaults).toBe(false);
+    expect(timeoutBeforeDefaults).toBe(false);
+    expect(memoryAfterDefaults).toBe(true);
+    expect(timeoutAfterDefaults).toBe(true);
+    expect(lambdaWithItsDefaults.memory).toBe(512);
+    expect(packagingIsStillAuthored).toBeTruthy();
+    expect(anotherBastionSize).toBe('t3.large');
+    expect(anotherLambdaMemory).toBe(3008);
+    expect(anotherInstanceCount).toBe(4);
+    expect(normalizedFromDefaultedLoadBalancer.name).toBe('lb');
+    expect(nestedDefaultedLoadBalancer.configParentResourceType).toBe('convex');
+    expect(scalingIsAlwaysPresent).toBe(true);
+    expect(minInstancesIsAlwaysPresent).toBe(true);
+    expect(maxInstancesIsAlwaysPresent).toBe(true);
+    expect(scalingPolicyStaysOptional).toBe(false);
+    expect(convexShapedWorkload.scaling.maxInstances).toBe(1);
+    expect(authoredCoversResolved).toBe(true);
+    expect(resolvedCoversAuthored).toBe(true);
   });
 });
 

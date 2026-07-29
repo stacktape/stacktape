@@ -27,6 +27,21 @@ refactoring scope. Revisit them before the v4 release where marked.
   hardening, not during package extraction.
 - Review credential/key rotation and versioning for the Console security-hardening work before a production rollout.
 
+## Known v3 behavior debt
+
+- Minimal-template cleanup removes an AWS CDK construct from the wrong object level. The current code deletes
+  `cleanedConfig[key]` instead of `cleanedConfig.resources[key]`; fix it with a dedicated server-mode
+  characterization test.
+- The default merge's special `container` fallback assigns the merged value to a `forEach` parameter rather than the
+  array. No current resource default reaches that branch, so it remains unchanged while the defaulting contract is
+  typed.
+- Defaulting starts with a shallow resource copy. When an authored nested bag exists, filling its missing leaves can
+  therefore write back into the working resolved-config object. Raw authored configuration is protected by an earlier
+  serialization clone, but changing this behavior needs its own compatibility decision and tests.
+- CDN route rewriting can dereference `routeRewrite.routeTo` in the branch specifically handling an absent `routeTo`.
+  An omitted target is supported and means “reuse the resource's default origin,” so characterize and fix this crash
+  separately from the CDN-present type-contract slice.
+
 ## Operational note from the smoke test
 
 The first packaging-smoke attempt reached ECR authentication before failing because Docker was unavailable in the WSL

@@ -1,3 +1,4 @@
+import type { RESOURCE_DEFAULTS } from '@config';
 import { getStpNameForResource } from '@shared/naming/utils';
 import type { ResourceOverrides, StacktapeResourceDefinition } from '@stacktape/config/shared';
 
@@ -61,6 +62,32 @@ export type NormalizedResource<
   configParentResourceType: TParentType;
   overrides?: ResourceOverrides;
 };
+
+/**
+ * The defaults `mergeStacktapeDefaults` fills for one resource type, read back off the table rather than restated
+ * beside it. Most resource types declare none, and their entry reads `{}`.
+ */
+export type ResourceDefaultsOf<TResourceType extends StacktapeResourceType> = (typeof RESOURCE_DEFAULTS)[TResourceType];
+
+/**
+ * A normalized resource after `mergeStacktapeDefaults` has run over it.
+ *
+ * The intersection is the whole mechanism. `RESOURCE_DEFAULTS` is an object literal, so every key it supplies — at
+ * every level it nests — is required in that entry's inferred type, and intersecting makes exactly those keys required
+ * here. A key the table does not mention keeps whatever the authored schema said about it, which is why this is the
+ * honest difference between the two shapes rather than a deep `Required` that would promise the rest as well. A type
+ * whose entry is `{}` intersects to `NormalizedResource` unchanged.
+ *
+ * Requiredness is all it is meant to add. That holds for the table as it stands because every default there widens to
+ * its authored value type — the compiler-checked constraint on `RESOURCE_DEFAULTS` contextually types each entry, and
+ * nothing there is written `as const`. An intersection does not guarantee that in general: a default narrowed to a
+ * literal would narrow the property here too, and would then reject an authored value the schema allows. The
+ * compile-time tests beside the runtime ones pin representative authored overrides for exactly that reason.
+ */
+export type DefaultedResource<
+  TResourceType extends StacktapeResourceType,
+  TParentType extends StacktapeResourceType = TResourceType
+> = NormalizedResource<TResourceType, TParentType> & ResourceDefaultsOf<TResourceType>;
 
 /**
  * Reads the CloudFormation overrides a definition may carry.

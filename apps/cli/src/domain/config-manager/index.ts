@@ -1,4 +1,4 @@
-import type { NormalizedResource, ResourceDefinitionOf, StacktapeResourceType } from './normalized-resource';
+import type { DefaultedResource, ResourceDefinitionOf, StacktapeResourceType } from './normalized-resource';
 import type { CfResourceTransform, FinalTransform } from './transforms-resolver';
 import { isAbsolute, join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
@@ -289,10 +289,14 @@ export class ConfigManager {
    * Selecting on the discriminator narrows the authored definition, so the properties spread here are the ones that
    * resource type really declares. Families needing more than authored properties and identity — a Lambda's `handler`,
    * a service's `_nestedResources` — add it in their own getter.
+   *
+   * The result is a `DefaultedResource` rather than a `NormalizedResource`: everything returned here has been through
+   * `mergeStacktapeDefaults`, so the properties that resource type declares a default for are present. For the
+   * majority of types the table is empty and the two shapes are identical.
    */
   private getResourcesFromConfig = <TResourceType extends StacktapeResourceType>(
     resourceType: TResourceType
-  ): NormalizedResource<TResourceType>[] => {
+  ): DefaultedResource<TResourceType>[] => {
     return Object.entries(this.config.resources)
       .filter((entry): entry is [string, ResourceDefinitionOf<TResourceType>] => entry[1].type === resourceType)
       .map(([name, definition]) => ({
