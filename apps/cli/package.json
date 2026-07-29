@@ -9,6 +9,10 @@
     "./catalogs/rds-engine-versions.json": "./@generated/db-engine-versions/versions.json",
     "./local/server": "./src/api/local/server.ts",
     "./local/config-sdk": "./src/api/local/config-sdk.ts",
+    "./monaco-declarations/cloudformation.d.ts": "./generated/monaco-declarations/cloudformation.d.ts",
+    "./monaco-declarations/index.d.ts": "./generated/monaco-declarations/index.d.ts",
+    "./monaco-declarations/plain.d.ts": "./generated/monaco-declarations/plain.d.ts",
+    "./monaco-declarations/types.d.ts": "./generated/monaco-declarations/types.d.ts",
     "./starter-projects-metadata.json": "./starter-projects-metadata.json"
   },
   "scripts": {
@@ -24,6 +28,8 @@
     "esp": "bun scripts/execute-starter-project.ts",
     "generate": "bun scripts/generate-starter-projects-metadata.ts",
     "generate:check": "bun scripts/generate-starter-projects-metadata.ts --check",
+    "generate:monaco": "bun scripts/generate-monaco-declarations.ts",
+    "generate:monaco:check": "bun scripts/generate-monaco-declarations.ts --check",
     "gen:cf:types": "bun scripts/generate-cloudformation-types.ts",
     "gen:cloudform": "bun scripts/generate-cloudform.ts",
     "gen:db:engines": "bun scripts/generate-db-engine-versions-json.ts",

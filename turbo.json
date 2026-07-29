@@ -13,6 +13,14 @@
       "description": "Verify committed generated artifacts are current",
       "cache": false
     },
+    "generate:monaco": {
+      "description": "Generate the Stacktape declarations consumed by Console Monaco",
+      "outputs": ["generated/monaco-declarations/**"]
+    },
+    "generate:monaco:check": {
+      "description": "Verify the generated Monaco declarations are deterministic and current",
+      "cache": false
+    },
     "build": {
       "description": "Build a workspace after its dependencies and generators",
       "dependsOn": ["^build", "^generate", "generate"],

@@ -32,13 +32,18 @@ import { verifyNpmDeclarations } from './verify-npm-declarations';
 const PATHS = {
   source: join(SOURCE_FOLDER_PATH, 'api', 'npm', 'ts', 'index.ts'),
   distJs: join(NPM_RELEASE_FOLDER_PATH, 'index.js'),
-  distDts: join(NPM_RELEASE_FOLDER_PATH, 'index.d.ts'),
-  distTypesDts: join(NPM_RELEASE_FOLDER_PATH, 'types.d.ts'),
-  distPlainDts: join(NPM_RELEASE_FOLDER_PATH, 'plain.d.ts'),
-  distCloudformationDts: join(NPM_RELEASE_FOLDER_PATH, 'cloudformation.d.ts'),
   childResources: join(SOURCE_FOLDER_PATH, 'api', 'npm', 'ts', 'child-resources.ts'),
   resourceMetadata: join(SOURCE_FOLDER_PATH, 'api', 'npm', 'ts', 'resource-metadata.ts')
 } as const;
+
+export const NPM_DECLARATION_FILE_NAMES = ['index.d.ts', 'types.d.ts', 'plain.d.ts', 'cloudformation.d.ts'] as const;
+
+const declarationOutputPaths = (outputDirectory: string) => ({
+  index: join(outputDirectory, 'index.d.ts'),
+  types: join(outputDirectory, 'types.d.ts'),
+  plain: join(outputDirectory, 'plain.d.ts'),
+  cloudformation: join(outputDirectory, 'cloudformation.d.ts')
+});
 
 export const NPM_SOURCE_FILES = [
   'config.ts',
@@ -816,7 +821,12 @@ export type StacktapeDirectives = import('./plain').StacktapeConfig['directives'
 `;
 }
 
-export async function generateTypeDeclarations(): Promise<void> {
+export async function generateTypeDeclarations({
+  outputDirectory = NPM_RELEASE_FOLDER_PATH
+}: {
+  outputDirectory?: string;
+} = {}): Promise<void> {
+  const outputPaths = declarationOutputPaths(outputDirectory);
   logInfo('Generating TypeScript declarations for config...');
 
   // Load runtime metadata
@@ -1050,28 +1060,28 @@ ${generateAugmentedSectionTypes(resourceClassNames)}
 
   // Write all output files
   await Promise.all([
-    outputFile(PATHS.distPlainDts, stripFocusMarkersFromDts(plainDts), { encoding: 'utf8' }),
-    outputFile(PATHS.distCloudformationDts, cloudformationDts, { encoding: 'utf8' }),
-    outputFile(PATHS.distTypesDts, stripFocusMarkersFromDts(typesDts), { encoding: 'utf8' }),
-    outputFile(PATHS.distDts, stripFocusMarkersFromDts(indexDts), { encoding: 'utf8' })
+    outputFile(outputPaths.plain, stripFocusMarkersFromDts(plainDts), { encoding: 'utf8' }),
+    outputFile(outputPaths.cloudformation, cloudformationDts, { encoding: 'utf8' }),
+    outputFile(outputPaths.types, stripFocusMarkersFromDts(typesDts), { encoding: 'utf8' }),
+    outputFile(outputPaths.index, stripFocusMarkersFromDts(indexDts), { encoding: 'utf8' })
   ]);
 
   // Format all files (run twice for prettier bug)
   await Promise.all([
-    prettifyFile({ filePath: PATHS.distPlainDts }),
-    prettifyFile({ filePath: PATHS.distCloudformationDts }),
-    prettifyFile({ filePath: PATHS.distTypesDts }),
-    prettifyFile({ filePath: PATHS.distDts })
+    prettifyFile({ filePath: outputPaths.plain }),
+    prettifyFile({ filePath: outputPaths.cloudformation }),
+    prettifyFile({ filePath: outputPaths.types }),
+    prettifyFile({ filePath: outputPaths.index })
   ]);
   await Promise.all([
-    prettifyFile({ filePath: PATHS.distPlainDts }),
-    prettifyFile({ filePath: PATHS.distCloudformationDts }),
-    prettifyFile({ filePath: PATHS.distTypesDts }),
-    prettifyFile({ filePath: PATHS.distDts })
+    prettifyFile({ filePath: outputPaths.plain }),
+    prettifyFile({ filePath: outputPaths.cloudformation }),
+    prettifyFile({ filePath: outputPaths.types }),
+    prettifyFile({ filePath: outputPaths.index })
   ]);
 
   logSuccess(
-    `TypeScript declarations generated to:\n  - ${PATHS.distDts}\n  - ${PATHS.distTypesDts}\n  - ${PATHS.distPlainDts}\n  - ${PATHS.distCloudformationDts}`
+    `TypeScript declarations generated to:\n  - ${outputPaths.index}\n  - ${outputPaths.types}\n  - ${outputPaths.plain}\n  - ${outputPaths.cloudformation}`
   );
 }
 

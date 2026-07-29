@@ -38,6 +38,9 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
   `@stacktape/cli/catalogs/*.json` subpaths so Console does not keep application-local copies. Those generators read
   live upstream data, as do `gen:cloudform` and `gen:cf:types`, and have no pinned input; regenerate deliberately
   rather than as a side effect of an unrelated change.
+- `generated/monaco-declarations/` — ignored deterministic workspace output containing the four v4 declaration files
+  served by Console's Monaco editor. `generate:monaco` reuses the npm declaration assembler without building or
+  mutating `__release-npm`; Console build/dev materializes it automatically and then copies it into its served assets.
 - `tests/characterization/` — behavioral baselines for the CLI contract, config runtime, packaging and synthesis.
   `tests/tsconfig.json` is their editor project and is part of the normal CLI typecheck.
 - `_test-stacks/` — small Stacktape projects used as test input. `config-loading-smoke/` is the imported one the

@@ -1,6 +1,11 @@
 import { describe, expect, test } from 'bun:test';
 import { basename } from 'node:path';
-import { compileDeclarations, createDeclarationProgram, NPM_SOURCE_FILES } from './build-npm-main-export';
+import {
+  compileDeclarations,
+  createDeclarationProgram,
+  NPM_DECLARATION_FILE_NAMES,
+  NPM_SOURCE_FILES
+} from './build-npm-main-export';
 
 /**
  * The declaration half of `build:npm:main`, which needs no bundler and therefore runs on every platform.
@@ -16,6 +21,10 @@ const declarationProgram = createDeclarationProgram();
 const declarations = compileDeclarations();
 
 describe('the npm declaration program is the CLI project', () => {
+  test('publishes the four files consumed by Console Monaco', () => {
+    expect(NPM_DECLARATION_FILE_NAMES).toEqual(['index.d.ts', 'types.d.ts', 'plain.d.ts', 'cloudformation.d.ts']);
+  });
+
   test('inherits the real target/lib and path mappings rather than a second copy', () => {
     const options = declarationProgram.program.getCompilerOptions();
 

@@ -30,3 +30,6 @@ __source-maps/
 __stacktape-dist/
 __starter-projects/
 .release-version
+
+# Deterministic workspace output materialized for the private Console Monaco editor.
+apps/cli/generated/monaco-declarations/

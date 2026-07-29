@@ -50,6 +50,8 @@ it has a coherent capability and more than one real consumer.
 - Consume shared values from `@stacktape/design-tokens`.
 - Shared React components must remain router-neutral; Console navigation adapters stay in UI.
 - Preserve accessible loading, error, keyboard, and focus behavior.
+- Monaco's Stacktape declarations come from the workspace v4 CLI's `generate:monaco` output. UI build/dev generates
+  and copies all four files; never restore a published v3 `stacktape` fallback or silently keep stale declarations.
 - Consume starter-project metadata and the AWS, CloudFormation and RDS editor catalogs through the public
   `@stacktape/cli` subpaths; do not restore private generated copies. MongoDB Atlas prices currently have no
   generator and are a Console-only editor input, so their single source is `ui/src/data/mongodb-atlas-prices.json`.
@@ -60,11 +62,14 @@ From the integrated public parent:
 
 ```sh
 pnpm check:integrated
-pnpm --filter <console-api-package-name> test
-pnpm --filter <console-ui-package-name> test
+pnpm exec turbo run test --filter=@stacktape/console-api-app
+pnpm exec turbo run build --filter=@stacktape/console-ui
+pnpm exec turbo run test --filter=@stacktape/console-ui
+pnpm exec turbo run dev --filter=@stacktape/console-ui
 ```
 
-Use focused package commands during implementation. Relevant changes require:
+Use Turbo-filtered commands for focused Console work so generation dependencies run in the declared DAG. Relevant
+changes require:
 
 - tRPC compile-time surface tests and runtime authorization tests;
 - Prisma validation/migration tests;
