@@ -285,11 +285,24 @@ const getOperationInvocationCodebuildEnvVariables = () => {
 };
 
 export class AwsSdkManager {
-  credentials: AwsCredentials;
-  region: AWSRegion;
+  /**
+   * These three are assigned by `init()`, which every producer of this manager calls synchronously after constructing
+   * it and before any AWS operation runs.
+   *
+   * The `!` records that lifecycle rather than waiving it. It is a declaration-site statement about when the field is
+   * assigned, not a per-use claim that some expression is non-null: every read still gets the full `AwsCredentials`,
+   * `AWSRegion` and handler types, so nothing downstream is weakened. Declaring them optional instead would be the
+   * dishonest option — it would describe an initialized manager as one that might have no region, and would spread
+   * that doubt into every caller of an API that never actually hands out an uninitialized manager.
+   *
+   * `isInitialized` below is the runtime counterpart, and stays exactly as it was: before `init()` these really are
+   * absent, which is the one thing callers can ask about.
+   */
+  credentials!: AwsCredentials;
+  region!: AWSRegion;
   plugins: Pluggable<any, any>[] = [];
   printer?: Printer;
-  #getErrorHandler: (message: string) => (err: Error) => never;
+  #getErrorHandler!: (message: string) => (err: Error) => never;
 
   init({
     credentials,
@@ -622,7 +635,7 @@ export class AwsSdkManager {
     // max session duration is 12 hours
     const duration = durationSeconds && durationSeconds <= 60 * 60 ? 60 * 60 : durationSeconds || 60 * 60 * 12;
 
-    const executeAssumeRole = async () => {
+    const executeAssumeRole = async (): Promise<Credentials> => {
       // Don't catch errors here - let them propagate for retry logic
       const result = await this.#sts().send(
         new AssumeRoleCommand({
@@ -631,11 +644,19 @@ export class AwsSdkManager {
           RoleSessionName: roleSessionName
         })
       );
+      const { AccessKeyId, SecretAccessKey, Expiration, SessionToken } = result.Credentials || {};
+      // A successful AssumeRole carries all four, and callers here depend on the expiration and the session token to
+      // refresh and to sign. Checking inside `executeAssumeRole` rather than after it is what puts a malformed
+      // response on the same footing as a failed call: it reaches the retry wrapper below, and only an exhausted
+      // retry reaches `errHandler`. Returning the partly populated object instead would hand invalid credentials on.
+      if (!AccessKeyId || !SecretAccessKey || !Expiration || !SessionToken) {
+        throw new Error(`AssumeRole for ${roleArn} succeeded but returned an incomplete set of credentials.`);
+      }
       return {
-        accessKeyId: result.Credentials.AccessKeyId,
-        secretAccessKey: result.Credentials.SecretAccessKey,
-        expiration: result.Credentials.Expiration,
-        sessionToken: result.Credentials.SessionToken
+        accessKeyId: AccessKeyId,
+        secretAccessKey: SecretAccessKey,
+        expiration: Expiration,
+        sessionToken: SessionToken
       };
     };
 

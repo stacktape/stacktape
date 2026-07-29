@@ -41,6 +41,15 @@ refactoring scope. Revisit them before the v4 release where marked.
 - CDN route rewriting can dereference `routeRewrite.routeTo` in the branch specifically handling an absent `routeTo`.
   An omitted target is supported and means “reuse the resource's default origin,” so characterize and fix this crash
   separately from the CDN-present type-contract slice.
+- A second permanent-credential load can use an unassigned local `creds` value when the existing source is a
+  credentials file, or environment variables without expiration. Strict mode already identifies the unsafe branch in
+  `GlobalStateManager.loadValidatedAwsCredentials`.
+- Automatic re-assume requests the AWS manager's default 12-hour session even when the CodeBuild role it refreshes
+  allows only ten hours. The same duration expression also raises every explicit duration at or below one hour to
+  exactly one hour, rather than preserving shorter valid requests.
+- AWS-manager operations are not uniformly guarded before `init()`. Every traced real producer initializes first, but
+  accidental pre-init use can fail incidentally or allow AWS SDK fallback resolution; a fail-fast state contract needs
+  an explicit compatibility decision.
 
 ## Operational note from the smoke test
 
