@@ -326,6 +326,26 @@ const findOldestUsableTimestamp = (events: StackEvent[]): Date | undefined => {
   return undefined;
 };
 
+/**
+ * A registered version of a private CloudFormation resource type, carrying the ARN the CLI addresses it by.
+ *
+ * `Arn` is optional on the SDK summary, but the registry manager deregisters versions by it, so a version without one
+ * is a malformed success rather than something to carry around. `Description`, `IsDefaultVersion` and the rest stay
+ * optional: the registry manager already treats each as genuinely absent.
+ */
+export type RegisteredPrivateTypeVersion = TypeVersionSummary & {
+  Arn: NonNullable<TypeVersionSummary['Arn']>;
+};
+
+/**
+ * Whether a version carries an ARN the CLI can later deregister by.
+ *
+ * Truthiness rather than a `typeof` test, so that this agrees with the type-name and type-ARN checks in the listing
+ * below: an empty string is not a usable deregistration identifier, and accepting one would put `''` where a real ARN
+ * is expected. The type cannot say "non-empty", so the guard is what carries it.
+ */
+const hasVersionArn = (version: TypeVersionSummary): version is RegisteredPrivateTypeVersion => Boolean(version.Arn);
+
 export class AwsSdkManager {
   /**
    * These three are assigned by `init()`, which every producer of this manager calls synchronously after constructing
@@ -1409,32 +1429,60 @@ export class AwsSdkManager {
     return this.batchDeleteObjects(bucketName, objects as ObjectIdentifier[]);
   };
 
-  listAllPrivateCloudformationResourceTypesWithVersions = async () => {
+  /**
+   * Lists every private resource type in the account's registry together with its registered versions.
+   *
+   * A page that omits its summaries is an empty page rather than an absent one, and a token is still followed after
+   * it. A type with no name or ARN cannot be keyed or have its versions requested, and a version with no ARN cannot
+   * later be deregistered; CloudFormation reporting success without them is malformed, so those go to the same error
+   * handler as a failed request rather than travelling on as holes.
+   *
+   * Types are listed in service order, each type's versions keep their page order, and versions for independent types
+   * are still paginated concurrently.
+   */
+  listAllPrivateCloudformationResourceTypesWithVersions = async (): Promise<{
+    [typeName: string]: RegisteredPrivateTypeVersion[];
+  }> => {
     const errHandler = this.#getErrorHandler('Failed to list private cloudformation types.');
+    const listTypesInput = { DeprecatedStatus: 'LIVE', Type: 'RESOURCE', Visibility: 'PRIVATE' } as const;
 
-    let { TypeSummaries, NextToken } = await this.#cloudformation()
-      .send(new ListTypesCommand({ DeprecatedStatus: 'LIVE', Type: 'RESOURCE', Visibility: 'PRIVATE' }))
-      .catch(errHandler);
-    let typesList: TypeSummary[] = TypeSummaries;
-    while (NextToken) {
-      ({ TypeSummaries, NextToken } = await this.#cloudformation()
-        .send(new ListTypesCommand({ DeprecatedStatus: 'LIVE', Type: 'RESOURCE', Visibility: 'PRIVATE', NextToken }))
-        .catch(errHandler));
-      typesList = typesList.concat(TypeSummaries);
-    }
-    const typesVersions: { [typeName: string]: TypeVersionSummary[] } = {};
+    const typesList: TypeSummary[] = [];
+    let nextToken: string | undefined;
+    do {
+      const page = await this.#cloudformation()
+        .send(new ListTypesCommand(nextToken ? { ...listTypesInput, NextToken: nextToken } : listTypesInput))
+        .catch(errHandler);
+      typesList.push(...(page.TypeSummaries || []));
+      nextToken = page.NextToken;
+    } while (nextToken);
+
+    const typesVersions: { [typeName: string]: RegisteredPrivateTypeVersion[] } = {};
     await Promise.all(
       typesList.map(async ({ TypeArn, TypeName }) => {
-        let { TypeVersionSummaries, NextToken: VersionNextToken } = await this.#cloudformation()
-          .send(new ListTypeVersionsCommand({ Arn: TypeArn }))
-          .catch(errHandler);
-        typesVersions[TypeName] = TypeVersionSummaries;
-        while (VersionNextToken) {
-          ({ TypeVersionSummaries, NextToken: VersionNextToken } = await this.#cloudformation()
-            .send(new ListTypeVersionsCommand({ Arn: TypeArn, NextToken: VersionNextToken }))
-            .catch(errHandler));
-          typesVersions[TypeName] = typesVersions[TypeName].concat(TypeVersionSummaries);
+        if (!TypeName || !TypeArn) {
+          return errHandler(
+            new Error('CloudFormation listed a private resource type without a type name or a type ARN.')
+          );
         }
+        const versions: RegisteredPrivateTypeVersion[] = [];
+        typesVersions[TypeName] = versions;
+        let versionNextToken: string | undefined;
+        do {
+          const page = await this.#cloudformation()
+            .send(
+              new ListTypeVersionsCommand(
+                versionNextToken ? { Arn: TypeArn, NextToken: versionNextToken } : { Arn: TypeArn }
+              )
+            )
+            .catch(errHandler);
+          for (const version of page.TypeVersionSummaries || []) {
+            if (!hasVersionArn(version)) {
+              return errHandler(new Error(`CloudFormation listed a version of ${TypeName} without an ARN.`));
+            }
+            versions.push(version);
+          }
+          versionNextToken = page.NextToken;
+        } while (versionNextToken);
       })
     );
     return typesVersions;

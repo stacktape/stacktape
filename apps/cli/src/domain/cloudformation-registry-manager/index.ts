@@ -1,4 +1,4 @@
-import type { TypeVersionSummary } from '@aws-sdk/client-cloudformation';
+import type { RegisteredPrivateTypeVersion } from '@shared/aws/sdk-manager';
 import type { Policy, RoleProperties } from '@cloudform/iam/role';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -33,7 +33,7 @@ export class CloudformationRegistryManager {
   };
 
   cloudformationPrivateTypesInfo: {
-    registeredCloudformationPrivateTypes: { [typeName: string]: TypeVersionSummary[] };
+    registeredCloudformationPrivateTypes: { [typeName: string]: RegisteredPrivateTypeVersion[] };
     availableCloudformationPrivateTypesFiles: {
       [_infrastructureModuleType in StpCfInfrastructureModuleType]: {
         [privateTypeMajorVersion: string]: { [privateTypeSubversion: string]: CloudformationPrivateTypeFile[] };
