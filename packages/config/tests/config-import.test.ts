@@ -1,6 +1,8 @@
 import { describe, expect, test } from 'bun:test';
+import configSchema from '@stacktape/config/config-schema.json';
 import { IntrinsicFunction } from '../src/cloudformation';
 import { CONNECT_TO_AWS_SERVICE_MACROS } from '../src/aws-service-macros';
+import canonicalConfigSchema from '../generated/config-schema.json';
 import { acceptedConfiguration, api, rawSubscription } from './config-import.acceptance';
 
 /**
@@ -16,6 +18,14 @@ describe('a Stacktape configuration can be built from explicit package imports',
     expect(Object.keys(acceptedConfiguration.resources)).toEqual(['api', 'site', 'uploads']);
     expect(acceptedConfiguration.cloudformationResources?.LegacyTopic?.Type).toBe('AWS::SNS::Topic');
     expect(api.properties.packaging.type).toBe('stacktape-lambda-buildpack');
+  });
+});
+
+describe('the generated configuration schema package export', () => {
+  test('resolves the canonical committed schema', () => {
+    expect(configSchema).toBe(canonicalConfigSchema);
+    expect(Object.keys(configSchema.definitions)).toHaveLength(449);
+    expect(configSchema.definitions.StacktapeResourceDefinition.anyOf).toHaveLength(44);
   });
 });
 

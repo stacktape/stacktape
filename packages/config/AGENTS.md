@@ -4,6 +4,10 @@ The user-authored Stacktape configuration language: the resource model, its Clou
 primitives the published config schema, the `stacktape` npm declarations, the documentation examples and the Console
 are all generated from.
 
+The committed JSON schema has the same owner: `generated/config-schema.json` is exported as
+`@stacktape/config/config-schema.json`. The CLI generates, publishes and packages that file directly, and Console
+imports the package subpath; do not create application-local copies.
+
 This package exists because that model used to be ~59,000 lines of ambient `.d.ts` under `apps/cli/types`. Ambient
 declarations have no owner, so `packages/packaging` ended up re-declaring `ModuleInfo` and `ProgressLogger` locally
 and both copies drifted. Nothing can be extracted safely until the configuration contract has one importable owner.

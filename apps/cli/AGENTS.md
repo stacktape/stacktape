@@ -24,7 +24,8 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
   configuration model import their types explicitly from `@stacktape/config` and publish the existing globals
   through `declare global`; there is no ambient alias bridge. The retained JSDoc still feeds generated schema/npm
   content, so `types/` remains excluded from formatters.
-- `@generated/` — committed generated data (CloudFormation types, config schema, LLM docs, price tables). Never
+- `@generated/` — committed generated data (CloudFormation types, config validators, LLM docs, price tables). The
+  canonical config JSON schema lives with its model at `packages/config/generated/config-schema.json`. Never
   hand-edit; regenerate with the matching `gen:*` script. The main CLI project excludes this directory, so
   `@generated/tsconfig.json` owns both CloudFormation trees and the generated Zod validator
   (`test:generated-types`). The config lives above the generator-owned subdirectories so regeneration cannot delete
@@ -84,7 +85,8 @@ Two known constraints:
 
 - `@generated/llm-docs` is shipped from the committed tree. Regenerating it reads the documentation app, so
   `scripts/generate-llm-docs.ts` returns together with `apps/docs`.
-- `@generated/schemas` does not currently reproduce byte-for-byte from `types/`, with either TypeScript 5.9 or 6.
+- The generated config schema does not currently reproduce byte-for-byte from its TypeScript inputs, with either
+  TypeScript 5.9 or 6.
   That drift predates the move; a freshness gate is only worth adding once the inputs and generator agree again.
 - Framework-level starter validation belongs in a separate CI lane that materializes each starter into a temporary
   directory, installs with that starter's package manager, and runs its own typecheck with bounded concurrency,

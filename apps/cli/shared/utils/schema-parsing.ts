@@ -1,6 +1,6 @@
 import { capitalCase } from 'change-case';
 import { get } from 'lodash';
-import configSchema from '../../@generated/schemas/config-schema.json';
+import configSchema from '@stacktape/config/config-schema.json';
 
 function getDefinitionNameFromRefPath(refPath: string) {
   return refPath.split('/').pop() ?? '';

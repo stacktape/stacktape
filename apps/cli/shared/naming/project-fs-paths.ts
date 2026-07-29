@@ -44,11 +44,12 @@ export const CLOUDFORM_ROOT_HELPER_FOLDER_PATH = join(process.cwd(), 'scripts', 
  * generation and documentation extraction, so the location is named once here rather than spelled out in each
  * generator.
  */
-export const CONFIG_PACKAGE_SRC_PATH = join(process.cwd(), '..', '..', 'packages', 'config', 'src');
+const CONFIG_PACKAGE_PATH = join(process.cwd(), '..', '..', 'packages', 'config');
+export const CONFIG_PACKAGE_SRC_PATH = join(CONFIG_PACKAGE_PATH, 'src');
 /** CLI-owned resolved/internal declarations that schema and npm generation still read. */
 export const RETAINED_AMBIENT_CONFIG_PATH = join(process.cwd(), 'types', 'stacktape-config');
 
-export const CONFIG_SCHEMA_PATH = join(JSON_SCHEMAS_FOLDER_PATH, 'config-schema.json');
+export const CONFIG_SCHEMA_PATH = join(CONFIG_PACKAGE_PATH, 'generated', 'config-schema.json');
 
 export const INSTALL_SCRIPTS_PATH = join(process.cwd(), 'scripts', 'install-scripts');
 export const COMPLETIONS_SCRIPTS_PATH = join(process.cwd(), 'scripts', 'completions');
