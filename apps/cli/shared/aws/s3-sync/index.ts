@@ -7,6 +7,15 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { PassThrough, Readable } from 'node:stream';
 import url from 'node:url';
+import type {
+  CopyObjectCommandInput,
+  DeleteObjectsCommandInput,
+  GetObjectCommandInput,
+  ListObjectsCommandInput,
+  ObjectIdentifier,
+  PutObjectCommandInput,
+  S3ClientConfig
+} from '@aws-sdk/client-s3';
 import { S3 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
 import { Pend, stringMatchesGlob } from '@shared/utils/misc';
@@ -22,8 +31,8 @@ const MIN_MULTIPART_SIZE = 5 * 1024 * 1024;
 const TO_UNIX_RE = new RegExp(quotemeta(path.sep), 'g');
 
 interface S3SyncOptions {
-  clientArgs: any;
-  s3Plugins: any[];
+  clientArgs: S3ClientConfig;
+  s3Plugins: Parameters<S3['middlewareStack']['use']>[0][];
   s3RetryCount?: number;
   s3RetryDelay?: number;
   multipartUploadThreshold?: number;
@@ -40,7 +49,7 @@ interface UploadFileParams {
 
 interface DownloadFileParams {
   localFile: string;
-  s3Params: any;
+  s3Params: GetObjectCommandInput;
 }
 
 interface ListObjectsParams {
@@ -48,17 +57,27 @@ interface ListObjectsParams {
   s3Params: any;
 }
 
-interface DeleteObjectsParams {
+interface DeleteObjectsParams extends Omit<DeleteObjectsCommandInput, 'Bucket' | 'Delete'> {
   Bucket: string;
-  Delete: any;
+  Delete: Omit<NonNullable<DeleteObjectsCommandInput['Delete']>, 'Objects'> & { Objects: ObjectIdentifier[] };
+}
+interface CopyObjectParams extends Omit<CopyObjectCommandInput, 'Bucket' | 'CopySource' | 'Key'> {
+  Bucket: string;
+  CopySource: string;
+  Key: string;
   MFA?: string;
+}
+
+interface SyncS3Params extends Omit<PutObjectCommandInput, 'Body' | 'Key'> {
+  Bucket: string;
+  Prefix?: string;
 }
 
 interface SyncDirParams {
   localDir: string;
   deleteRemoved?: boolean;
   followSymlinks?: boolean;
-  s3Params: any;
+  s3Params: SyncS3Params;
   getS3Params?: (filePath: string, stat: any, callback: (err: any, s3Params?: any) => void) => void;
   defaultContentType?: string;
   skipFiles?: string[];
@@ -69,6 +88,14 @@ interface LocalFileStat extends Stats {
   s3Path: string;
   multipartETag?: MultipartETag;
 }
+
+interface ReadyLocalFileStat extends LocalFileStat {
+  multipartETag: MultipartETag;
+}
+
+type PendCallback = (error?: unknown) => void;
+type RetryCallback<Result> = (error: unknown, result?: Result) => void;
+type RetryOperation<Result> = (callback: RetryCallback<Result>) => void;
 
 export class S3Sync {
   public s3: S3;
@@ -117,10 +144,10 @@ export class S3Sync {
     (ee as any).progressTotal = params.Delete.Objects.length;
 
     slices.forEach((slice) => {
-      pend.go((cb) => {
+      pend.go((cb: PendCallback) => {
         doWithRetry(
           (innerCb) => {
-            this.s3Pend.go(async (pendCb) => {
+            this.s3Pend.go(async (pendCb: PendCallback) => {
               params.Delete.Objects = slice;
               try {
                 const data = await this.s3.deleteObjects(params);
@@ -148,7 +175,7 @@ export class S3Sync {
       });
     });
 
-    pend.wait((err) => {
+    pend.wait((err: unknown) => {
       if (err) {
         ee.emit('error', err);
         return;
@@ -263,7 +290,7 @@ export class S3Sync {
 
       doWithRetry(
         (cb) => {
-          this.s3Pend.go(async (pendCb) => {
+          this.s3Pend.go(async (pendCb: PendCallback) => {
             try {
               await this.doDownload(localFile, s3Params, downloader);
               pendCb();
@@ -289,7 +316,11 @@ export class S3Sync {
     return downloader;
   }
 
-  private async doDownload(localFile: string, s3Params: any, downloader: EventEmitter): Promise<void> {
+  private async doDownload(
+    localFile: string,
+    s3Params: GetObjectCommandInput,
+    downloader: EventEmitter
+  ): Promise<void> {
     return new Promise((resolve, reject) => {
       let errorOccurred = false;
 
@@ -377,7 +408,7 @@ export class S3Sync {
         if (abort) {
           return;
         }
-        this.s3Pend.go(async (pendCb) => {
+        this.s3Pend.go(async (pendCb: PendCallback) => {
           if (abort) {
             pendCb();
             return;
@@ -427,7 +458,7 @@ export class S3Sync {
         if (recursive) {
           data.CommonPrefixes.forEach((dirObj: any) => {
             const prefix = dirObj.Prefix;
-            pend.go((cb) => {
+            pend.go((cb: PendCallback) => {
               findAllS3Objects(null, prefix, cb);
             });
           });
@@ -435,13 +466,13 @@ export class S3Sync {
         }
 
         if (data.IsTruncated) {
-          pend.go((cb) => {
+          pend.go((cb: PendCallback) => {
             const nextMarker = data.NextMarker || data.Contents[data.Contents.length - 1].Key;
             findAllS3Objects(nextMarker, prefix, cb);
           });
         }
 
-        pend.wait((err) => {
+        pend.wait((err: unknown) => {
           cb(err);
         });
       });
@@ -472,7 +503,7 @@ export class S3Sync {
     return syncDir(this, params, false);
   }
 
-  deleteDir(s3Params: any): EventEmitter {
+  deleteDir(s3Params: ListObjectsCommandInput & { Bucket: string; MFA?: string }): EventEmitter {
     const ee = new EventEmitter();
     const bucket = s3Params.Bucket;
     const mfa = s3Params.MFA;
@@ -496,7 +527,7 @@ export class S3Sync {
       (ee as any).progressTotal += objects.Contents.length;
       ee.emit('progress');
       if (objects.Contents.length > 0) {
-        pend.go((cb) => {
+        pend.go((cb: PendCallback) => {
           const params = {
             Bucket: bucket,
             Delete: {
@@ -528,14 +559,14 @@ export class S3Sync {
     return ee;
   }
 
-  copyObject(s3Params: any): EventEmitter {
+  copyObject(s3Params: CopyObjectParams): EventEmitter {
     const ee = new EventEmitter();
     const params = extend({}, s3Params);
     delete params.MFA;
 
     doWithRetry(
       (cb) => {
-        this.s3Pend.go(async (pendCb) => {
+        this.s3Pend.go(async (pendCb: PendCallback) => {
           try {
             const data = await this.s3.copyObject(params);
             pendCb();
@@ -560,7 +591,7 @@ export class S3Sync {
     return ee;
   }
 
-  moveObject(s3Params: any): EventEmitter {
+  moveObject(s3Params: CopyObjectParams): EventEmitter {
     const ee = new EventEmitter();
     const copier = this.copyObject(s3Params);
     const copySource = s3Params.CopySource;
@@ -603,7 +634,7 @@ export class S3Sync {
     return ee;
   }
 
-  downloadBuffer(s3Params: any): EventEmitter {
+  downloadBuffer(s3Params: GetObjectCommandInput): EventEmitter {
     const downloader = new EventEmitter();
     const params = extend({}, s3Params);
 
@@ -611,7 +642,7 @@ export class S3Sync {
 
     doWithRetry(
       (cb) => {
-        this.s3Pend.go(async (pendCb) => {
+        this.s3Pend.go(async (pendCb: PendCallback) => {
           try {
             const response = await this.s3.getObject(params);
             const contentLength = response.ContentLength || 0;
@@ -677,11 +708,11 @@ export class S3Sync {
     return downloader;
   }
 
-  downloadStream(s3Params: any): PassThrough {
+  downloadStream(s3Params: GetObjectCommandInput): PassThrough {
     const downloadStream = new PassThrough();
     const params = extend({}, s3Params);
 
-    this.s3Pend.go(async (pendCb) => {
+    this.s3Pend.go(async (pendCb: PendCallback) => {
       try {
         const response = await this.s3.getObject(params);
 
@@ -798,7 +829,7 @@ function syncDir(self: S3Sync, params: SyncDirParams, directionIsToS3: boolean):
     }
 
     // need to wait until the md5 is done computing for the local file
-    if (localFileStat && !localFileStat.multipartETag) {
+    if (localFileStat && !hasMultipartETag(localFileStat)) {
       return;
     }
 
@@ -924,12 +955,12 @@ function syncDir(self: S3Sync, params: SyncDirParams, directionIsToS3: boolean):
         startDownload();
       }
 
-      function haveS3Params(err, s3Params) {
+      function haveS3Params(error: unknown, s3Params?: Record<string, unknown>) {
         if (fatalError) {
           return;
         }
-        if (err) {
-          return handleError(err);
+        if (error) {
+          return handleError(error);
         }
 
         if (!s3Params) {
@@ -986,12 +1017,12 @@ function syncDir(self: S3Sync, params: SyncDirParams, directionIsToS3: boolean):
         startCopy();
       }
 
-      function haveS3Params(err, s3Params) {
+      function haveS3Params(error: unknown, s3Params?: Record<string, unknown>) {
         if (fatalError) {
           return;
         }
-        if (err) {
-          return handleError(err);
+        if (error) {
+          return handleError(error);
         }
 
         if (!s3Params) {
@@ -1045,12 +1076,12 @@ function syncDir(self: S3Sync, params: SyncDirParams, directionIsToS3: boolean):
         startUpload();
       }
 
-      function haveS3Params(err, s3Params) {
+      function haveS3Params(error: unknown, s3Params?: Record<string, unknown>) {
         if (fatalError) {
           return;
         }
-        if (err) {
-          return handleError(err);
+        if (error) {
+          return handleError(error);
         }
 
         if (!s3Params) {
@@ -1112,12 +1143,12 @@ function syncDir(self: S3Sync, params: SyncDirParams, directionIsToS3: boolean):
     }
   }
 
-  function handleError(err) {
+  function handleError(error: unknown) {
     if (fatalError) {
       return;
     }
     fatalError = true;
-    ee.emit('error', err);
+    ee.emit('error', error);
   }
 
   function findAllS3Objects() {
@@ -1302,19 +1333,24 @@ function syncDir(self: S3Sync, params: SyncDirParams, directionIsToS3: boolean):
   }
 }
 
-function ensureChar(str, c) {
-  return str[str.length - 1] === c ? str : str + c;
+function ensureChar(str: string, char: string): string {
+  return str[str.length - 1] === char ? str : str + char;
 }
 
-function ensureSep(dir) {
+function ensureSep(dir: string): string {
   return ensureChar(dir, path.sep);
 }
 
-function ensureSlash(dir) {
+function ensureSlash(dir: string): string {
   return ensureChar(dir, '/');
 }
 
-function doWithRetry(fn, tryCount, delay, cb) {
+function doWithRetry<Result>(
+  fn: RetryOperation<Result>,
+  tryCount: number,
+  delay: number,
+  cb: RetryCallback<Result>
+): void {
   let tryIndex = 0;
 
   tryOnce();
@@ -1322,7 +1358,7 @@ function doWithRetry(fn, tryCount, delay, cb) {
   function tryOnce() {
     fn((err, result) => {
       if (err) {
-        if (err.retryable === false) {
+        if (isNonRetryableError(err)) {
           cb(err);
         } else {
           tryIndex += 1;
@@ -1339,14 +1375,15 @@ function doWithRetry(fn, tryCount, delay, cb) {
   }
 }
 
-function extend(target, source) {
+function extend<Target extends object, Source extends object>(target: Target, source: Source): Target & Source;
+function extend(target: object, source: object): object {
   for (const propName in source) {
     target[propName] = source[propName];
   }
   return target;
 }
 
-function chunkArray(array, maxLength) {
+function chunkArray<Item>(array: Item[], maxLength: number): Item[][] {
   const slices = [array];
   while (slices[slices.length - 1].length > maxLength) {
     slices.push(slices[slices.length - 1].splice(maxLength));
@@ -1354,29 +1391,42 @@ function chunkArray(array, maxLength) {
   return slices;
 }
 
-function cleanETag(eTag) {
+function cleanETag(eTag: string | undefined): string {
   if (!eTag) return '';
   // Remove quotes, apostrophes, and whitespace
   return eTag.replace(/^['"\s]+|['"\s]+$/g, '');
 }
 
-function compareMultipartETag(eTag, multipartETag) {
+function compareMultipartETag(eTag: string | undefined, multipartETag: MultipartETag): boolean {
   return multipartETag.anyMatch(cleanETag(eTag));
 }
 
-function getETagCount(eTag) {
+function hasMultipartETag(stat: LocalFileStat): stat is ReadyLocalFileStat {
+  return stat.multipartETag !== undefined;
+}
+
+function isNonRetryableError(error: unknown): boolean {
+  return (
+    (typeof error === 'object' || typeof error === 'function') &&
+    error !== null &&
+    'retryable' in error &&
+    error.retryable === false
+  );
+}
+
+function getETagCount(eTag: string | undefined): number {
   const match = (eTag || '').match(/[a-f0-9]{32}-(\d+)$/i);
   return match ? Number.parseInt(match[1], 10) : 1;
 }
 
-function keyOnly(item) {
+function keyOnly(item: ObjectIdentifier): ObjectIdentifier {
   return {
     Key: item.Key,
     VersionId: item.VersionId
   };
 }
 
-function encodeSpecialCharacters(filename) {
+function encodeSpecialCharacters(filename: string): string {
   // Note: these characters are valid in URIs, but S3 does not like them for
   // some reason.
   return encodeURI(filename).replace(/[!'()* ]/g, (char) => {
@@ -1384,7 +1434,7 @@ function encodeSpecialCharacters(filename) {
   });
 }
 
-function getPublicUrl(bucket, key, bucketLocation, endpoint) {
+function getPublicUrl(bucket: string, key: string, bucketLocation, endpoint): string {
   const nonStandardBucketLocation = bucketLocation && bucketLocation !== 'us-east-1';
   const hostnamePrefix = nonStandardBucketLocation ? `s3-${bucketLocation}` : 's3';
   const parts = {
@@ -1395,7 +1445,7 @@ function getPublicUrl(bucket, key, bucketLocation, endpoint) {
   return url.format(parts);
 }
 
-function getPublicUrlHttp(bucket, key, endpoint) {
+function getPublicUrlHttp(bucket: string, key: string, endpoint): string {
   const parts = {
     protocol: 'http:',
     hostname: `${bucket}.${endpoint || 's3.amazonaws.com'}`,
@@ -1404,14 +1454,14 @@ function getPublicUrlHttp(bucket, key, endpoint) {
   return url.format(parts);
 }
 
-function toUnixSep(str) {
+function toUnixSep(str: string): string {
   return str.replace(TO_UNIX_RE, '/');
 }
 
-function toNativeSep(str) {
+function toNativeSep(str: string): string {
   return str.replace(/\//g, path.sep);
 }
 
-function quotemeta(str) {
+function quotemeta(str: string): string {
   return String(str).replace(/(\W)/g, '\\$1');
 }
