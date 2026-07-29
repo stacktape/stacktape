@@ -6,13 +6,15 @@ writing those layers, and rewriting the chunk import paths that both halves of t
 
 ## Ownership boundary
 
-The boundary is the CLI's own error, progress and configuration vocabulary, not an architectural layer:
+The boundary is the CLI's own runtime state and orchestration vocabulary, not an architectural layer:
 
 - Code that only needs chunk metadata, file contents and paths lives here.
+- The package may depend on `@stacktape/config` for configuration types that its implementation genuinely consumes.
+  Keeping those types beside the packaging contracts is preferable to duplicating them or relying on CLI ambient
+  declarations.
 - Code that raises typed `StacktapeError`s, drives `eventManager` progress events, reads `globalStateManager`, or is
-  typed against the Stacktape configuration schema (`StpBuildpackInput`, `EsLanguageSpecificConfig`, …) stays in
-  `apps/cli`, because moving it would mean either dragging the configuration model into a package or reinventing the
-  CLI's error and progress contracts behind an interface.
+  coupled to CLI command arguments stays in `apps/cli`. Do not move those dependencies behind generic ports merely
+  to make a file fit in the package.
 
 That is why `apps/cli/shared/packaging/bundlers/es/split-bundler/bundler.ts` — which installs the user's dependencies,
 reports progress and raises `PACKAGING` errors — is still an application module even though it consumes this package.
@@ -21,8 +23,11 @@ digests, and reports to the user.
 
 ## Layout
 
-- `src/split-bundler/types.ts` — the chunk/layer vocabulary. It is deliberately structural: `ModuleInfo` and
-  `ProgressLogger` here describe only what this engine reads, so nothing in the package needs the CLI's globals.
+- `src/runtime-contracts.ts` — explicit packaging inputs and outputs shared with the CLI. It imports authoritative
+  configuration types where needed and does not import application code.
+- `src/split-bundler/types.ts` — the chunk/layer vocabulary. It is deliberately structural:
+  `SplitBundleDependency` and `ProgressLogger` here describe only what this engine reads, so nothing in the package
+  needs the CLI's globals.
 - `src/split-bundler/layer-assignment.ts` — which chunks become layers (`DEFAULT_LAYER_CONFIG`, dependency-aware
   promotion, first-fit-decreasing packing, and un-layering whatever the packing could not place along with its
   importers, because a layered chunk cannot import one that stayed in the Lambda package).

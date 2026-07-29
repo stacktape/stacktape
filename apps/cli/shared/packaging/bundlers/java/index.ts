@@ -1,3 +1,4 @@
+import type { CreateBundleOutput } from '@stacktape/packaging/runtime-contracts';
 import { join } from 'node:path';
 import { execDocker } from '@shared/utils/docker';
 import { buildJavaArtifactDockerfile } from '@shared/utils/dockerfiles';

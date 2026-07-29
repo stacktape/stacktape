@@ -40,6 +40,7 @@ import {
   resolvePrisma
 } from './utils';
 import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
+import type { ResolvedPackageDependency } from '@stacktape/packaging/runtime-contracts';
 
 // Extract module name from import path (handles scoped packages)
 const getModuleNameFromPath = (importPath: string): string => {
@@ -95,7 +96,7 @@ export const buildEsCode = async ({
   legalComments?: 'external' | 'inline' | 'linked' | 'none' | 'eof';
   isLambda?: boolean;
 }): Promise<{
-  dependenciesToInstallInDocker: ModuleInfo[];
+  dependenciesToInstallInDocker: ResolvedPackageDependency[];
   externalModules: { name: string; note: string }[];
   dynamicallyImportedModules: string[];
   sourceFiles: { path: string }[];
@@ -142,7 +143,7 @@ export const buildEsCode = async ({
   };
 
   const runBuild = async ({ dynamicallyImportedModules = [] }: { dynamicallyImportedModules?: string[] }) => {
-    const allDependenciesToInstallInDocker: ModuleInfo[] = [];
+    const allDependenciesToInstallInDocker: ResolvedPackageDependency[] = [];
     const externalModules: { name: string; note: string }[] = [];
     const allModules: string[] = [];
     // Note: Source file tracking moved to metafile.inputs (more accurate, no plugin overhead)

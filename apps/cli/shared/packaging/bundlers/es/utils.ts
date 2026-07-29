@@ -17,13 +17,14 @@ import { generateUuid } from '@utils/uuid';
 import { access, chmod, copy, readFile, readJSON, readJson, remove, stat } from 'fs-extra';
 import kleur from 'kleur';
 import { DEPENDENCIES_WITH_BINARIES, IGNORED_EXTENSIONS, IGNORED_FILES, IGNORED_FOLDERS } from './config';
+import type { ResolvedPackageDependency, SupportedEsPackageManager } from '@stacktape/packaging/runtime-contracts';
 
 export type PackageJsonDepsInfo = {
   version: string;
   hasBinary: boolean;
   name: string;
   path: string;
-  dependencyType: ModuleInfo['dependencyType'];
+  dependencyType: ResolvedPackageDependency['dependencyType'];
   parentModulePath?: string;
   parentModule: string;
   dependencies: PackageJsonDepsInfo[];
@@ -44,7 +45,7 @@ export const getInfoFromPackageJson = async ({
   directoryPath: string;
   parentModule: string;
   parentModulePath?: string;
-  dependencyType: ModuleInfo['dependencyType'];
+  dependencyType: ResolvedPackageDependency['dependencyType'];
   checkDeps?: boolean;
 }): Promise<PackageJsonDepsInfo> => {
   if (cachedPackageInfo[directoryPath]) {
@@ -412,7 +413,7 @@ export const getAllJsDependenciesFromMultipleFiles = async ({
   }
   const rootPackageJson = await readJson(join(workingDir, 'package.json'));
   const allInstalledDeps = Object.keys(rootPackageJson.dependencies || {});
-  const deps: ModuleInfo[] = [];
+  const deps: ResolvedPackageDependency[] = [];
 
   await Promise.all(
     allJsFiles.map(async (filePath) => {

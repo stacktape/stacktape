@@ -56,19 +56,19 @@ export type LambdaSplitOutput = {
   /** Source files that were bundled for this lambda */
   sourceFiles: { path: string }[];
   /** Dependencies that need Docker installation */
-  dependenciesToInstallInDocker: ModuleInfo[];
+  dependenciesToInstallInDocker: SplitBundleDependency[];
   /** All resolved npm modules */
   resolvedModules: string[];
 };
 
 /** Module info for dependencies that need special handling */
-export type ModuleInfo = {
+export type SplitBundleDependency = {
   name: string;
-  version?: string;
+  version: string;
   note?: string;
   hasBinary?: boolean;
-  peerDependencies?: ModuleInfo[];
-  optionalPeerDependencies?: ModuleInfo[];
+  peerDependencies?: SplitBundleDependency[];
+  optionalPeerDependencies?: SplitBundleDependency[];
 };
 
 /** Result of the split bundling process */

@@ -1,6 +1,7 @@
 import { basename, relative } from 'node:path';
 import { getJavaPackageName, transformToUnixPath } from './fs-utils';
 import type { SupportedPythonRunAppAs } from '@stacktape/config/deployment-artifacts';
+import type { SupportedEsPackageManager } from '@stacktape/packaging/runtime-contracts';
 
 const getInstallDepsCommand = ({
   dependencies,

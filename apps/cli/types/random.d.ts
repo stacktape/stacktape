@@ -6,6 +6,7 @@ import type { LambdaFunctionProps } from '@stacktape/config/functions';
 import type { ContainerWorkloadContainer } from '@stacktape/config/multi-container-workloads';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 import type { StpStateMachine } from '@stacktape/config/state-machines';
+import type { SupportedEsPackageManager } from '@stacktape/packaging/runtime-contracts';
 
 declare global {
 type ExpectedError = import('../src/utils/errors').ExpectedError;

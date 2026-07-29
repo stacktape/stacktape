@@ -1,3 +1,4 @@
+import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import { isAbsolute, join } from 'node:path';
 import { getFolder } from '@shared/utils/fs-utils';
 import { DEFAULT_PYTHON_VERSION } from './bundlers/constants';

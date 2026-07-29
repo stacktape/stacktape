@@ -1,3 +1,5 @@
+import type { SupportedEsPackageManager } from '@stacktape/packaging/runtime-contracts';
+
 const installScripts: { [_pm in SupportedEsPackageManager]: { ciInstall: string[]; normalInstall: string[] } } = {
   npm: {
     ciInstall: ['npm', 'ci'],

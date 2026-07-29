@@ -21,18 +21,13 @@ import type {
   StpBuildpackCwImagePackaging,
   StpBuildpackCwImagePackagingProps,
   StpBuildpackLambdaPackaging,
-  StpBuildpackLambdaPackagingProps,
-  SupportedDotnetVersion,
-  SupportedJavaVersion,
-  SupportedPhpVersion,
-  SupportedPythonPackageManager,
-  SupportedPythonVersion,
-  SupportedRubyVersion
+  StpBuildpackLambdaPackagingProps
 } from '@stacktape/config/deployment-artifacts';
 import type {
   ContainerWorkloadContainer,
   ContainerWorkloadResourcesConfig
 } from '@stacktape/config/multi-container-workloads';
+import type { DockerBuildOutputArchitecture } from '@stacktape/packaging/runtime-contracts';
 
 declare global {
 type StpBuildpackInput = StpBuildpackLambdaPackagingProps &
@@ -84,60 +79,6 @@ type CSharpSpecificPackagingProps = Record<string, never>;
 type PhpSpecificPackagingProps = PhpLanguageSpecificConfig;
 type DotnetSpecificPackagingProps = DotnetLanguageSpecificConfig;
 
-type PackagingOutput = {
-  /**
-   * A number when the artifact was measured; `null` for cached/skipped results and for bundled ES image development
-   * builds. Pre-zipped custom artifacts return an own `size` property whose value is `undefined`, which JSON
-   * serialization then omits.
-   */
-  size: number | null | undefined;
-  zippedSize?: number;
-  imageName?: string;
-  digest: string;
-  outcome: 'skipped' | 'bundled';
-  sourceFiles?: { path: string }[];
-  artifactPath?: string;
-  distFolderPath?: string;
-  details?: Record<string, any>;
-  jobName: string;
-  /** All npm modules resolved during bundling (for Lambda functions) */
-  resolvedModules?: string[];
-};
-
-type CreateBundleOutput = {
-  digest: string;
-  outcome: 'skipped' | 'bundled';
-  distIndexFilePath: string;
-  distFolderPath: string;
-  sourceFiles: { path: string }[];
-  languageSpecificBundleOutput: LanguageSpecificBundleOutput;
-};
-
-type LanguageSpecificBundleOutput = {
-  es?: {
-    dependenciesToInstallInDocker?: ModuleInfo[];
-    packageManager?: SupportedEsPackageManager;
-    dynamicallyImportedModules?: string[];
-  };
-  py?: {
-    packageManager: SupportedPythonPackageManager;
-    pythonVersion: SupportedPythonVersion;
-  };
-  java?: {
-    useMaven: boolean;
-    javaVersion: SupportedJavaVersion;
-  };
-  ruby?: {
-    rubyVersion: SupportedRubyVersion;
-  };
-  php?: {
-    phpVersion: SupportedPhpVersion;
-  };
-  dotnet?: {
-    dotnetVersion: SupportedDotnetVersion;
-  };
-};
-
 type PackageWorkloadOutput = {
   jobName: string;
   digest: string;
@@ -148,17 +89,6 @@ type PackageWorkloadOutput = {
   /** All npm modules resolved during bundling (for Lambda functions) */
   resolvedModules?: string[];
 };
-
-type ModuleInfo = {
-  name: string;
-  path: string;
-  version: string;
-  parentModulePath?: string;
-  dependencyType: 'root' | 'standard' | 'optional-peer' | 'peer';
-  note?: string;
-};
-
-type SupportedEsPackageManager = 'yarn' | 'npm' | 'pnpm' | 'deno' | 'bun';
 
 type PackageWorkloadInput = {
   /**
@@ -203,5 +133,4 @@ type EnrichedBjContainerProps = BatchJobContainer & {
   resources: BatchJobResources;
 };
 
-type DockerBuildOutputArchitecture = 'linux/amd64' | 'linux/arm64'; // default for linux
 }

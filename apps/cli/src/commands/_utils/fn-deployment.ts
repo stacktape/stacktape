@@ -1,3 +1,4 @@
+import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';

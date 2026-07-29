@@ -1,3 +1,4 @@
+import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import { isAbsolute, join } from 'node:path';
 import { buildDockerImage } from '@shared/utils/docker';
 import { buildRubyDockerfile } from '@shared/utils/dockerfiles';

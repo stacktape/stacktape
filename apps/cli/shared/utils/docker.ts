@@ -1,4 +1,5 @@
 import type { ContainerInfo, ContainerInspectInfo, Port } from 'dockerode';
+import type { DockerBuildOutputArchitecture } from '@stacktape/packaging/runtime-contracts';
 import { isAbsolute, join } from 'node:path';
 import { exec } from '@shared/utils/exec';
 import { transformToUnixPath } from '@shared/utils/fs-utils';

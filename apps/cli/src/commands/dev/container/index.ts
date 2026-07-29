@@ -1,6 +1,7 @@
 import type { Spinner } from '@application-services/tui-manager';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import type { ExecaReturnBase } from 'execa';
+import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';

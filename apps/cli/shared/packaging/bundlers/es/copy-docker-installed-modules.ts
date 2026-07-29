@@ -1,4 +1,10 @@
 import { join } from 'node:path';
+import type {
+  DockerBuildOutputArchitecture,
+  ResolvedPackageDependency,
+  SupportedEsPackageManager
+} from '@stacktape/packaging/runtime-contracts';
+import type { SplitBundleDependency } from '@stacktape/packaging/split-bundler/types';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { execDocker } from '@shared/utils/docker';
 import { buildEsBinInstallerDockerfile } from '@shared/utils/dockerfiles';
@@ -17,7 +23,7 @@ export const copyDockerInstalledModulesForLambda = async ({
   packageManager,
   dockerBuildOutputArchitecture
 }: {
-  dependencies: ModuleInfo[];
+  dependencies: ResolvedPackageDependency[];
   invocationId: string;
   distFolderPath: string;
   workloadName: string;
@@ -93,7 +99,7 @@ export type NativeBinaryLayerResult = {
   /** Lambda names that use this layer */
   usedByLambdas: string[];
   /** Dependencies included in the layer */
-  dependencies: ModuleInfo[];
+  dependencies: SplitBundleDependency[];
 };
 
 /**
@@ -115,7 +121,7 @@ export const buildNativeBinaryLayer = async ({
   dockerBuildOutputArchitecture,
   usedByLambdas
 }: {
-  dependencies: ModuleInfo[];
+  dependencies: SplitBundleDependency[];
   invocationId: string;
   layerBasePath: string;
   lambdaRuntimeVersion: number;

@@ -1,3 +1,4 @@
+import type { CreateBundleOutput } from '@stacktape/packaging/runtime-contracts';
 import { dirname, join, relative } from 'node:path';
 import { execDocker } from '@shared/utils/docker';
 import { buildDotnetArtifactDockerfile } from '@shared/utils/dockerfiles';

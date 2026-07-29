@@ -1,3 +1,4 @@
+import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import { getFileSize, getFolderSize } from '@shared/utils/fs-utils';
 import { getError } from '@shared/utils/misc';
 import { archiveItem } from '@shared/utils/zip';

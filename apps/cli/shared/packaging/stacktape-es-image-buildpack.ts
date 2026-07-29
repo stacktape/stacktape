@@ -1,3 +1,4 @@
+import type { LanguageSpecificBundleOutput, PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import { join } from 'node:path';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@config';
 import { buildDockerImage, checkDockerImageExists, getDockerImageDetails } from '@shared/utils/docker';

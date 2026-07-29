@@ -1,3 +1,4 @@
+import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import { basename, isAbsolute, join } from 'node:path';
 import {
   getAllFilesInDir,

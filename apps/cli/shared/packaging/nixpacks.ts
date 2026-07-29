@@ -1,4 +1,5 @@
 import type { ExecaReturnValue } from 'execa';
+import type { DockerBuildOutputArchitecture, PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import { join } from 'node:path';
 import { getDockerImageDetails } from '@shared/utils/docker';
 import { getAllFilesInDir } from '@shared/utils/fs-utils';

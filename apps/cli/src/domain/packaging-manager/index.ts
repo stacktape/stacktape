@@ -1,5 +1,10 @@
 import type { NativeBinaryLayerResult } from '@shared/packaging/bundlers/es/copy-docker-installed-modules';
-import type { LambdaEntrypoint, LayerAssignmentResult, ModuleInfo } from '@stacktape/packaging/split-bundler/types';
+import type { DockerBuildOutputArchitecture, PackagingOutput } from '@stacktape/packaging/runtime-contracts';
+import type {
+  LambdaEntrypoint,
+  LayerAssignmentResult,
+  SplitBundleDependency
+} from '@stacktape/packaging/split-bundler/types';
 import { join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -406,7 +411,7 @@ export class PackagingManager {
       const dockerArch = firstLambdaArch === 'arm64' ? 'linux/arm64' : 'linux/amd64';
 
       // Collect all unique native dependencies across all lambdas
-      const allNativeDeps = new Map<string, ModuleInfo>();
+      const allNativeDeps = new Map<string, SplitBundleDependency>();
       for (const [, output] of lambdasWithNativeDeps) {
         for (const dep of output.dependenciesToInstallInDocker) {
           if (!allNativeDeps.has(dep.name)) {
@@ -417,7 +422,7 @@ export class PackagingManager {
 
       // Build native binaries into a shared layer
       const nativeLayer = await buildNativeBinaryLayer({
-        dependencies: Array.from(allNativeDeps.values()) as any[],
+        dependencies: Array.from(allNativeDeps.values()),
         invocationId: globalStateManager.invocationId,
         layerBasePath: `${fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId })}/layers`,
         lambdaRuntimeVersion: getLambdaRuntimeFromNodeTarget(String(nodeVersion)),
