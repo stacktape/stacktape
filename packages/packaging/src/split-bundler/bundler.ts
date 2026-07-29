@@ -11,26 +11,26 @@ import type {
   BuildSplitBundleOptions,
   ChunkUsageAnalysis,
   LambdaSplitOutput,
-  ProgressLogger,
   SplitBundleResult
-} from '@stacktape/packaging/split-bundler/types';
-import type { PackageJsonDepsInfo } from '../utils';
+} from './types';
+import type { PackageJsonDepsInfo } from '../es/bundler-helpers';
 import { existsSync } from 'node:fs';
 import { basename, join } from 'node:path';
-import { dependencyInstaller } from '@shared/utils/dependency-installer';
-import { transformToUnixPath } from '@shared/utils/fs-utils';
-import { builtinModules, filterDuplicates, getError, getTsconfigAliases } from '@shared/utils/misc';
-import { findProjectRoot } from '@shared/utils/monorepo';
-import { rewriteChunkImports } from '@stacktape/packaging/split-bundler/chunk-rewriter';
+import { rewriteChunkImports } from './chunk-rewriter';
 import { copy, ensureDir, outputJSON, readFile, writeFile } from 'fs-extra';
-import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_MODULES } from '../config';
+import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_MODULES, NODE_BUILTIN_MODULES } from '../es/config';
+import { findProjectRoot } from '../es/project-root';
+import { formatBuildError } from './error-format';
 import {
   createModuleResolver,
   determineIfAlias,
   ensureDefaultExport,
   ESM_SOURCE_MAP_BANNER,
-  getInfoFromPackageJson
-} from '../utils';
+  getInfoFromPackageJson,
+  getTsconfigAliases
+} from '../es/bundler-helpers';
+
+const transformToUnixPath = (path: string): string => path.replace(/\\/g, '/');
 
 /**
  * Bundle multiple Lambda entrypoints together using Bun's code splitting.
@@ -55,15 +55,13 @@ export const buildSplitBundle = async ({
   sourceMapBannerType = 'pre-compiled',
   excludeDependencies = [],
   dependenciesToExcludeFromBundle = [],
-  progressLogger
+  installDependencies,
+  createPackagingError
 }: BuildSplitBundleOptions): Promise<SplitBundleResult> => {
   const startTime = Date.now();
 
   // Install dependencies first
-  await dependencyInstaller.install({
-    rootProjectDirPath: cwd,
-    progressLogger: progressLogger ?? createNoopLogger()
-  });
+  await installDependencies();
 
   // Setup tsconfig aliases and path resolution
   const aliases = tsConfigPath ? await getTsconfigAliases(tsConfigPath) : {};
@@ -81,7 +79,7 @@ export const buildSplitBundle = async ({
     sharedOutdir,
     cwd,
     monorepoRoot,
-    tsConfigPath,
+    ...(tsConfigPath ? { tsConfigPath } : {}),
     minify,
     sourceMaps,
     sourceMapBannerType,
@@ -89,7 +87,8 @@ export const buildSplitBundle = async ({
     dependenciesToExcludeFromBundle,
     shouldIgnoreAllDeps,
     aliases,
-    tracker
+    tracker,
+    createPackagingError
   });
 
   // Extract source files from metafile (replaces onLoad plugin tracking)
@@ -107,7 +106,8 @@ export const buildSplitBundle = async ({
     metafile,
     tracker,
     sourceFiles,
-    metafileToAbsolutePath
+    metafileToAbsolutePath,
+    createPackagingError
   });
 
   // Build chunk usage analysis from metafile (no file reading needed)
@@ -120,14 +120,6 @@ export const buildSplitBundle = async ({
     chunkAnalysis
   };
 };
-
-/** Creates a no-op progress logger */
-const createNoopLogger = (): ProgressLogger => ({
-  eventContext: {},
-  startEvent: async () => {},
-  updateEvent: async () => {},
-  finishEvent: async () => {}
-});
 
 /** Dependency tracking state during bundling (source files now from metafile) */
 type DependencyTracker = {
@@ -156,7 +148,8 @@ const executeBunBuild = async ({
   dependenciesToExcludeFromBundle,
   shouldIgnoreAllDeps,
   aliases,
-  tracker
+  tracker,
+  createPackagingError
 }: {
   entrypoints: BuildSplitBundleOptions['entrypoints'];
   sharedOutdir: string;
@@ -171,6 +164,7 @@ const executeBunBuild = async ({
   shouldIgnoreAllDeps: boolean;
   aliases: Record<string, string>;
   tracker: DependencyTracker;
+  createPackagingError: BuildSplitBundleOptions['createPackagingError'];
 }): Promise<{ buildResult: Awaited<ReturnType<typeof Bun.build>>; metafile: BuildMetafile }> => {
   const analyzePlugin = createAnalyzePlugin({
     cwd,
@@ -229,8 +223,8 @@ const executeBunBuild = async ({
       },
       plugins: [bunFfiShimPlugin, analyzePlugin, nativeModulesPlugin],
       root: buildRoot,
-      banner: sourceMapBannerType === 'pre-compiled' && banner ? banner : undefined,
-      tsconfig: tsConfigPath,
+      ...(sourceMapBannerType === 'pre-compiled' && banner ? { banner } : {}),
+      ...(tsConfigPath ? { tsconfig: tsConfigPath } : {}),
       naming: {
         entry: '[dir]/[name].js',
         chunk: 'chunks/chunk-[hash].js'
@@ -244,8 +238,7 @@ const executeBunBuild = async ({
         .filter((log) => log.level === 'error')
         .map((log) => log.message)
         .join('\n');
-      throw getError({
-        type: 'PACKAGING',
+      throw createPackagingError({
         message: `Split bundle build failed: ${errors}`
       });
     }
@@ -254,12 +247,9 @@ const executeBunBuild = async ({
       buildResult: result,
       metafile: result.metafile as BuildMetafile
     };
-  } catch (err: any) {
-    const errorDetails = err.errors
-      ? err.errors.map((e: any) => e?.message || e?.toString()).join('\n')
-      : err.message || err.toString();
-    throw getError({
-      type: 'PACKAGING',
+  } catch (error) {
+    const errorDetails = formatBuildError(error);
+    throw createPackagingError({
       message: `Split bundle failed: ${errorDetails}`,
       hint: 'Check that all entrypoint files exist and are valid TypeScript/JavaScript.'
     });
@@ -304,7 +294,7 @@ const createAnalyzePlugin = ({
         tracker.resolvedModules.add(moduleName);
 
         // Skip built-in modules
-        if (builtinModules.includes(moduleName) || args.path.startsWith('node:')) {
+        if (NODE_BUILTIN_MODULES.includes(moduleName) || args.path.startsWith('node:')) {
           return undefined;
         }
 
@@ -391,7 +381,8 @@ const createNativeModulesPlugin = (): BunPlugin => ({
 const getModuleName = (importPath: string): string => {
   const normalized = importPath.endsWith('/') ? importPath.slice(0, -1) : importPath;
   const [firstPart, secondPart] = normalized.split('/');
-  return firstPart.startsWith('@') ? `${firstPart}/${secondPart}` : firstPart;
+  if (!firstPart) return normalized;
+  return firstPart.startsWith('@') && secondPart ? `${firstPart}/${secondPart}` : firstPart;
 };
 
 /** Analyze a dependency for native binaries and special handling */
@@ -410,6 +401,9 @@ const analyzeDependency = async ({
     parentModule: null,
     dependencyType: 'root'
   });
+  if (!packageInfo) {
+    throw new Error(`Could not read package metadata for dependency "${dependency.name}" at ${dependency.path}.`);
+  }
 
   const dependenciesToInstallInDocker: PackageJsonDepsInfo[] = [];
   const allExternalDeps: string[] = [];
@@ -488,10 +482,9 @@ const categorizeOutputFiles = (outputs: Array<{ path: string }>): { entryFiles: 
 
 /** Extract source files from metafile inputs (replaces onLoad plugin tracking) */
 const getSourceFilesFromMetafile = (metafile: BuildMetafile): Array<{ path: string }> => {
-  return Object.keys(metafile.inputs)
-    .filter((inputPath) => !inputPath.includes('node_modules'))
-    .filter(filterDuplicates)
-    .map((inputPath) => ({ path: inputPath }));
+  return Array.from(
+    new Set(Object.keys(metafile.inputs).filter((inputPath) => !inputPath.includes('node_modules')))
+  ).map((inputPath) => ({ path: inputPath }));
 };
 
 /** Find all chunks required by an output (direct + transitive) using metafile */
@@ -528,6 +521,9 @@ const findAllChunksFromMetafile = (outputPath: string, metafile: BuildMetafile):
   return allChunks;
 };
 
+/** Removes path prefixes that differ between Bun metafiles and the caller's absolute entrypoint. */
+const getSignificantPath = (path: string): string => path.replace(/^(\.\.\/)+/, '').replace(/^[A-Za-z]:\//, '');
+
 /** Check if two paths refer to the same file (handles absolute vs relative, different separators) */
 const pathsMatch = (path1: string, path2: string): boolean => {
   const norm1 = transformToUnixPath(path1);
@@ -539,13 +535,6 @@ const pathsMatch = (path1: string, path2: string): boolean => {
   // Check if one ends with the other (handles absolute vs relative)
   // e.g., "C:/Projects/console-app/server/lambda.ts" vs "../console-app/server/lambda.ts"
   if (norm1.endsWith(norm2) || norm2.endsWith(norm1)) return true;
-
-  // Extract the significant path portion (after any ../ or drive letter)
-  // and compare the last N segments
-  const getSignificantPath = (p: string): string => {
-    // Remove leading ../ segments and drive letters
-    return p.replace(/^(\.\.\/)+/, '').replace(/^[A-Za-z]:\//, '');
-  };
 
   const sig1 = getSignificantPath(norm1);
   const sig2 = getSignificantPath(norm2);
@@ -562,13 +551,15 @@ const processLambdaOutputsWithMetafile = async ({
   metafile,
   tracker,
   sourceFiles,
-  metafileToAbsolutePath
+  metafileToAbsolutePath,
+  createPackagingError
 }: {
   entrypoints: BuildSplitBundleOptions['entrypoints'];
   metafile: BuildMetafile;
   tracker: DependencyTracker;
   sourceFiles: Array<{ path: string }>;
   metafileToAbsolutePath: Map<string, string>;
+  createPackagingError: BuildSplitBundleOptions['createPackagingError'];
 }): Promise<{
   lambdaOutputs: Map<string, LambdaSplitOutput>;
   chunkUsageMap: Map<string, Set<string>>;
@@ -609,8 +600,7 @@ const processLambdaOutputsWithMetafile = async ({
       }
 
       if (!outputPath) {
-        throw getError({
-          type: 'PACKAGING',
+        throw createPackagingError({
           message: `Could not find output for lambda: ${entrypoint.name}.\nEntry: ${normalizedEntryPath}\nAvailable entries: ${Array.from(entryPointToOutput.keys()).join(', ')}`
         });
       }
@@ -629,8 +619,7 @@ const processLambdaOutputsWithMetafile = async ({
       // Convert metafile relative paths to absolute paths for file operations
       const absoluteOutputPath = metafileToAbsolutePath.get(outputPath);
       if (!absoluteOutputPath) {
-        throw getError({
-          type: 'PACKAGING',
+        throw createPackagingError({
           message: `Could not resolve absolute path for: ${outputPath}`
         });
       }

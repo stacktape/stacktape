@@ -1,33 +1,33 @@
 # @stacktape/packaging
 
-The deployment-package build engine extracted from the CLI. It owns the part of packaging that turns an already
-split-bundled set of Lambda entrypoints into shipped artifacts: deciding which shared chunks become AWS Lambda layers,
-writing those layers, and rewriting the chunk import paths that both halves of that split then depend on.
+The deployment-package build engine extracted from the CLI. It owns ES split bundling from dependency analysis and the
+single Bun build through emitted Lambda entrypoints, shared chunks, layer assignment, layer writing, and the import
+rewrites that connect those artifacts.
 
 ## Ownership boundary
 
 The boundary is the CLI's own runtime state and orchestration vocabulary, not an architectural layer:
 
-- Code that only needs chunk metadata, file contents and paths lives here.
+- ES package/module resolution, split-build policy, emitted file processing, and code that only needs chunk metadata,
+  file contents and paths live here.
 - The package may depend on `@stacktape/config` for configuration types that its implementation genuinely consumes.
   Keeping those types beside the packaging contracts is preferable to duplicating them or relying on CLI ambient
   declarations.
-- Code that raises typed `StacktapeError`s, drives `eventManager` progress events, reads `globalStateManager`, or is
-  coupled to CLI command arguments stays in `apps/cli`. Do not move those dependencies behind generic ports merely
-  to make a file fit in the package.
-
-That is why `apps/cli/shared/packaging/bundlers/es/split-bundler/bundler.ts` — which installs the user's dependencies,
-reports progress and raises `PACKAGING` errors — is still an application module even though it consumes this package.
-`apps/cli/src/domain/packaging-manager` remains the composition root: it decides what to package, computes S3 keys and
-digests, and reports to the user.
+- The CLI's concrete dependency installer and typed `StacktapeError` remain application concerns. The split bundler
+  accepts exactly two actions for those boundaries: `installDependencies()` and `createPackagingError(details)`.
+- `eventManager`, `globalStateManager`, command arguments, higher-level layer deployment and user progress remain in
+  `apps/cli/src/domain/packaging-manager`, which is still the composition root.
 
 ## Layout
 
 - `src/runtime-contracts.ts` — explicit packaging inputs and outputs shared with the CLI. It imports authoritative
   configuration types where needed and does not import application code.
 - `src/split-bundler/types.ts` — the chunk/layer vocabulary. It is deliberately structural:
-  `SplitBundleDependency` and `ProgressLogger` here describe only what this engine reads, so nothing in the package
-  needs the CLI's globals.
+  `SplitBundleDependency` describes only what this engine reads, so nothing in the package needs the CLI's globals.
+- `src/es/` — ES packaging policy, package/module resolution, ESM output compatibility, and project-root discovery
+  shared by the regular and split ES bundlers.
+- `src/split-bundler/bundler.ts` — dependency installation boundary, Bun build, metafile analysis, entrypoint/chunk
+  emission and source-map copying.
 - `src/split-bundler/layer-assignment.ts` — which chunks become layers (`DEFAULT_LAYER_CONFIG`, dependency-aware
   promotion, first-fit-decreasing packing, and un-layering whatever the packing could not place along with its
   importers, because a layered chunk cannot import one that stayed in the Lambda package).

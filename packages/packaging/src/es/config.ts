@@ -16,6 +16,50 @@ export const DEPENDENCIES_TO_IGNORE_FROM_DOCKER_INSTALLATION = 'pg';
 
 export const DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE = ['next'];
 
+/** Node modules Bun should leave for the Lambda runtime instead of resolving as packages. */
+export const NODE_BUILTIN_MODULES = [
+  'assert',
+  'async_hooks',
+  'buffer',
+  'child_process',
+  'cluster',
+  'console',
+  'constants',
+  'crypto',
+  'dgram',
+  'dns',
+  'domain',
+  'events',
+  'fs',
+  'http',
+  'http2',
+  'https',
+  'inspector',
+  'module',
+  'net',
+  'os',
+  'path',
+  'perf_hooks',
+  'process',
+  'punycode',
+  'querystring',
+  'readline',
+  'repl',
+  'stream',
+  'string_decoder',
+  'timers',
+  'tls',
+  'trace_events',
+  'tty',
+  'url',
+  'util',
+  'v8',
+  'vm',
+  'wasi',
+  'worker_threads',
+  'zlib'
+];
+
 export const IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER = ['supports-color', 'debug'];
 
 export const DEPENDENCIES_WITH_BINARIES = [

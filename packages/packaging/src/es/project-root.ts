@@ -35,10 +35,8 @@ async function isGitRoot(dir: string): Promise<boolean> {
 async function isMonorepoRoot(dir: string): Promise<boolean> {
   const monorepoIndicators = ['lerna.json', 'pnpm-workspace.yaml', 'turbo.json', 'nx.json', 'rush.json'];
 
-  for (const file of monorepoIndicators) {
-    if (await pathExists(join(dir, file))) {
-      return true;
-    }
+  if ((await Promise.all(monorepoIndicators.map((file) => pathExists(join(dir, file))))).some(Boolean)) {
+    return true;
   }
 
   const pkgPath = join(dir, 'package.json');
@@ -72,6 +70,7 @@ export async function findProjectRoot(
   // look for monorepo root indicator by traversing up
   let dir = resolve(startDir);
   while (dir !== dirname(dir)) {
+    // oxlint-disable-next-line no-await-in-loop -- Root discovery must stop at the nearest matching ancestor.
     if (await isMonorepoRoot(dir)) {
       return dir;
     }
@@ -84,6 +83,7 @@ export async function findProjectRoot(
   // look for the nearest package.json
   dir = resolve(startDir);
   while (dir !== dirname(dir)) {
+    // oxlint-disable-next-line no-await-in-loop -- Root discovery must stop at the nearest matching ancestor.
     if (await pathExists(join(dir, 'package.json'))) {
       return dir;
     }
@@ -96,6 +96,7 @@ export async function findProjectRoot(
   // look for git repository root by traversing up
   dir = resolve(startDir);
   while (dir !== dirname(dir)) {
+    // oxlint-disable-next-line no-await-in-loop -- Root discovery must stop at the nearest matching ancestor.
     if (await isGitRoot(dir)) {
       return dir;
     }

@@ -5,7 +5,11 @@
   "description": "Deployment-package build engine: splits bundled Lambda code into shared AWS Lambda layers and rewrites the chunk imports that follow from it.",
   "type": "module",
   "exports": {
+    "./es/bundler-helpers": "./src/es/bundler-helpers.ts",
+    "./es/config": "./src/es/config.ts",
+    "./es/project-root": "./src/es/project-root.ts",
     "./runtime-contracts": "./src/runtime-contracts.ts",
+    "./split-bundler/bundler": "./src/split-bundler/bundler.ts",
     "./split-bundler/chunk-rewriter": "./src/split-bundler/chunk-rewriter.ts",
     "./split-bundler/layer-assignment": "./src/split-bundler/layer-assignment.ts",
     "./split-bundler/layer-builder": "./src/split-bundler/layer-builder.ts",
@@ -17,7 +21,8 @@
   },
   "dependencies": {
     "@stacktape/config": "workspace:*",
-    "fs-extra": "11.3.3"
+    "fs-extra": "11.3.3",
+    "json5": "^2.2.3"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",

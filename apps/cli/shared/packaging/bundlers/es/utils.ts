@@ -1,151 +1,27 @@
 import type { BunPlugin } from 'bun';
-import { realpathSync } from 'node:fs';
-import { createRequire } from 'node:module';
-import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
+import { basename, extname, join } from 'node:path';
 import {
   dirExists,
   getBaseName,
   getFolder,
   getMatchingFilesByGlob,
   getPathRelativeTo,
-  isDirAccessible,
   isFileAccessible
 } from '@shared/utils/fs-utils';
-import { builtinModules, getError } from '@shared/utils/misc';
-import { findProjectRoot } from '@shared/utils/monorepo';
+import { getError } from '@shared/utils/misc';
+import { findProjectRoot } from '@stacktape/packaging/es/project-root';
 import { generateUuid } from '@utils/uuid';
-import { access, chmod, copy, readFile, readJSON, readJson, remove, stat } from 'fs-extra';
+import { chmod, copy, readFile, readJson, remove, stat } from 'fs-extra';
 import kleur from 'kleur';
-import { DEPENDENCIES_WITH_BINARIES, IGNORED_EXTENSIONS, IGNORED_FILES, IGNORED_FOLDERS } from './config';
+import {
+  IGNORED_EXTENSIONS,
+  IGNORED_FILES,
+  IGNORED_FOLDERS,
+  NODE_BUILTIN_MODULES
+} from '@stacktape/packaging/es/config';
 import type { ResolvedPackageDependency, SupportedEsPackageManager } from '@stacktape/packaging/runtime-contracts';
-
-export type PackageJsonDepsInfo = {
-  version: string;
-  hasBinary: boolean;
-  name: string;
-  path: string;
-  dependencyType: ResolvedPackageDependency['dependencyType'];
-  parentModulePath?: string;
-  parentModule: string;
-  dependencies: PackageJsonDepsInfo[];
-  peerDependencies: PackageJsonDepsInfo[];
-  optionalPeerDependencies: PackageJsonDepsInfo[];
-  note?: string;
-};
-
-const cachedPackageInfo = {};
-
-export const getInfoFromPackageJson = async ({
-  directoryPath,
-  parentModule,
-  dependencyType,
-  parentModulePath = null,
-  checkDeps = true
-}: {
-  directoryPath: string;
-  parentModule: string;
-  parentModulePath?: string;
-  dependencyType: ResolvedPackageDependency['dependencyType'];
-  checkDeps?: boolean;
-}): Promise<PackageJsonDepsInfo> => {
-  if (cachedPackageInfo[directoryPath]) {
-    return cachedPackageInfo[directoryPath];
-  }
-  // this dependency causes a never-ending recursive cycle, idk why...
-  // but it an its dependencies can be statically analyzed so it's not an issue
-  if (directoryPath.endsWith('es-abstract')) {
-    return {
-      dependencies: [],
-      optionalPeerDependencies: [],
-      name: 'es-abstract',
-      dependencyType: 'standard',
-      hasBinary: false,
-      peerDependencies: []
-    } as any;
-  }
-  const packageJsonPath = resolve(directoryPath, 'package.json');
-  return readJSON(packageJsonPath)
-    .then(async (packageInfo: PackageJson) => {
-      const res: PackageJsonDepsInfo = {
-        name: packageInfo.name,
-        version: packageInfo.version,
-        path: directoryPath,
-        hasBinary: hasBinary(packageInfo),
-        dependencyType,
-        parentModule,
-        parentModulePath,
-        dependencies: checkDeps
-          ? (
-              await Promise.all(
-                Object.keys(packageInfo.dependencies || {}).map((name) => {
-                  const path = join(resolve(directoryPath, '..'), name);
-                  return isDirAccessible(path)
-                    ? getInfoFromPackageJson({
-                        directoryPath: path,
-                        parentModule: packageInfo.name,
-                        dependencyType: 'standard',
-                        parentModulePath: directoryPath
-                      })
-                    : null;
-                })
-              )
-            ).filter(Boolean)
-          : [],
-        peerDependencies: (
-          await Promise.all(
-            Object.keys(packageInfo.peerDependencies || {}).map((name) => {
-              const path = join(resolve(directoryPath, '..'), name);
-              return isDirAccessible(path)
-                ? getInfoFromPackageJson({
-                    directoryPath: path,
-                    parentModule: packageInfo.name,
-                    dependencyType: 'peer',
-                    parentModulePath: directoryPath,
-                    checkDeps: false
-                  })
-                : null;
-            })
-          )
-        ).filter(Boolean),
-        optionalPeerDependencies: (
-          await Promise.all(
-            Object.keys(packageInfo?.peerDependenciesMeta || {}).map((name) => {
-              const path = join(resolve(directoryPath, '..'), name);
-              return isDirAccessible(path)
-                ? getInfoFromPackageJson({
-                    directoryPath: path,
-                    parentModule: packageInfo.name,
-                    dependencyType: 'optional-peer',
-                    parentModulePath: directoryPath
-                  })
-                : null;
-            })
-          )
-        ).filter(Boolean)
-      };
-      cachedPackageInfo[directoryPath] = res;
-      return res;
-    })
-    .catch((err) => {
-      if (err.code === 'ENOENT') {
-        cachedPackageInfo[directoryPath] = null;
-        return null;
-      }
-      throw err;
-    });
-};
-
-// @note we try our best to identify if a package has a binary
-const hasBinary = (packageJsonContent: PackageJson): boolean => {
-  return !!(
-    !!(packageJsonContent.gypfile || (packageJsonContent.binary && packageJsonContent.binary.module_path)) ||
-    packageJsonContent?.dependencies?.['node-gyp'] ||
-    packageJsonContent?.devDependencies?.['node-gyp'] ||
-    packageJsonContent?.dependencies?.['node-pre-gyp'] ||
-    packageJsonContent?.devDependencies?.['node-pre-gyp'] ||
-    DEPENDENCIES_WITH_BINARIES.includes(packageJsonContent.name)
-  );
-};
+import type { PackageJsonDepsInfo } from '@stacktape/packaging/es/bundler-helpers';
+import { getInfoFromPackageJson } from '@stacktape/packaging/es/bundler-helpers';
 
 const PACKAGE_LOCKS = {
   'package-lock.json': 'npm',
@@ -427,7 +303,7 @@ export const getAllJsDependenciesFromMultipleFiles = async ({
             }
 
             const moduleName = getModuleNameFromPath(args.path);
-            if (builtinModules.includes(moduleName) || args.path === filePath) {
+            if (NODE_BUILTIN_MODULES.includes(moduleName) || args.path === filePath) {
               return undefined;
             }
             const modulePath = join(workingDir, 'node_modules', moduleName);
@@ -466,34 +342,6 @@ export const getAllJsDependenciesFromMultipleFiles = async ({
 };
 
 export const getLambdaRuntimeFromNodeTarget = (version: string) => Number(version.split('.')[0]);
-
-export const determineIfAlias = async ({
-  moduleName,
-  aliases
-}: {
-  moduleName: string;
-  aliases: {
-    [alias: string]: string;
-  };
-}): Promise<boolean> => {
-  const checkAliasPromises: Promise<any>[] = [];
-  for (const aliasName in aliases) {
-    if (moduleName.startsWith(aliasName)) {
-      const subPath = moduleName.slice(aliasName.length);
-      const aliasPath = aliases[aliasName];
-      // @todo cache
-      checkAliasPromises.push(
-        access(join(aliasPath, subPath))
-          .catch(() => {})
-          .then(() => {
-            return true;
-          })
-      );
-    }
-  }
-  const promiseResults = await Promise.all(checkAliasPromises);
-  return promiseResults.some(Boolean);
-};
 
 const filterJunkFiles = (filePath: string) => {
   const baseName = getBaseName(filePath);
@@ -552,171 +400,3 @@ export const resolveDifferentSourceMapLocation = async ({
 
   return remove(originalLocation);
 };
-
-/**
- * Module resolver that mimics esbuild's loose resolution behavior.
- * This handles transitive dependencies that aren't hoisted to root node_modules.
- *
- * A bare import is resolved the way Node resolves it: from the **real** location of the file that
- * imports it, and only from the project when there is no importer (or the importer cannot see the
- * package). Both parts matter in pnpm's isolated layout:
- *
- * - a dependent reaches its dependency through a symlink in its own private `node_modules`, so
- *   walking up from the symlinked (logical) path skips the dependency's own `node_modules` and can
- *   land in pnpm's hoisted `.pnpm/node_modules` fallback, which may hold a completely different
- *   major version of the same package;
- * - resolving from the project first would collapse every version of a multi-version transitive
- *   dependency onto whichever one the project itself installed.
- *
- * All returned paths are real paths, so two importers that reach the same physical package through
- * different symlinks share one bundled copy, and `getInfoFromPackageJson` sees the package's own
- * siblings rather than its dependent's.
- */
-export const createModuleResolver = ({ cwd, monorepoRoot }: { cwd: string; monorepoRoot: string | null }) => {
-  // Caches for module resolution to avoid repeated filesystem checks
-  const modulePathCache = new Map<string, string | null>();
-  const projectModulePathCache = new Map<string, string | null>();
-  const realPathCache = new Map<string, string>();
-  const requireCache = new Map<string, ReturnType<typeof createRequire>>();
-
-  const toRealPath = (path: string): string => {
-    const cached = realPathCache.get(path);
-    if (cached !== undefined) return cached;
-    let realPath: string;
-    try {
-      realPath = realpathSync(path);
-    } catch {
-      // Virtual entrypoints and not-yet-written files have no real path; resolve from them as given.
-      realPath = path;
-    }
-    realPathCache.set(path, realPath);
-    return realPath;
-  };
-
-  const requireFrom = (fromFile: string): ReturnType<typeof createRequire> => {
-    let fromFileRequire = requireCache.get(fromFile);
-    if (!fromFileRequire) {
-      fromFileRequire = createRequire(fromFile);
-      requireCache.set(fromFile, fromFileRequire);
-    }
-    return fromFileRequire;
-  };
-
-  // Node's `node_modules` walk, used for packages whose "exports" map hides ./package.json from
-  // require.resolve. Unlike Node it only needs the package directory, not an entry file.
-  const walkNodeModules = (moduleName: string, fromDir: string): string | null => {
-    let currentDir = fromDir;
-    while (true) {
-      if (basename(currentDir) !== 'node_modules') {
-        const candidate = join(currentDir, 'node_modules', moduleName);
-        if (isFileAccessible(join(candidate, 'package.json'))) return candidate;
-      }
-      const parentDir = dirname(currentDir);
-      if (parentDir === currentDir) return null;
-      currentDir = parentDir;
-    }
-  };
-
-  const findModulePathFromImporter = (moduleName: string, importer: string): string | null => {
-    const realImporter = toRealPath(importer);
-    try {
-      const manifestPath = requireFrom(realImporter).resolve(`${moduleName}/package.json`);
-      // Node returns the bare name for builtins; every real package resolves to an absolute path.
-      if (isAbsolute(manifestPath)) return dirname(manifestPath);
-    } catch {
-      // The package hides ./package.json behind an "exports" map, or is not reachable from here.
-    }
-    return walkNodeModules(moduleName, dirname(realImporter));
-  };
-
-  // What a direct import from the project itself resolves to (cwd/node_modules, monorepo root)
-  const findModulePathFromProject = (moduleName: string): string | null => {
-    if (projectModulePathCache.has(moduleName)) {
-      return projectModulePathCache.get(moduleName)!;
-    }
-
-    const candidates = [join(cwd, 'node_modules', moduleName)];
-    if (monorepoRoot && monorepoRoot !== cwd) {
-      candidates.push(join(monorepoRoot, 'node_modules', moduleName));
-    }
-    const found = candidates.find((candidate) => isFileAccessible(join(candidate, 'package.json'))) || null;
-
-    const result = found && toRealPath(found);
-    projectModulePathCache.set(moduleName, result);
-    return result;
-  };
-
-  // Combined resolution: importer-relative first, then the project
-  const findModulePath = (moduleName: string, importer?: string): string | null => {
-    const usableImporter = importer && isAbsolute(importer) ? importer : null;
-    const cacheKey = usableImporter ? `${moduleName} ${usableImporter}` : moduleName;
-    if (modulePathCache.has(cacheKey)) {
-      return modulePathCache.get(cacheKey)!;
-    }
-
-    const fromImporter = usableImporter ? findModulePathFromImporter(moduleName, usableImporter) : null;
-    const result = (fromImporter && toRealPath(fromImporter)) || findModulePathFromProject(moduleName);
-
-    modulePathCache.set(cacheKey, result);
-    return result;
-  };
-
-  // Check if module is in a non-standard location (nested node_modules). Standard locations are the
-  // ones Bun resolves natively, so only the rest needs the loose-resolve plugin to intervene.
-  const isNestedLocation = (modulePath: string, moduleName: string): boolean => {
-    return modulePath !== findModulePathFromProject(moduleName);
-  };
-
-  return {
-    findModulePath,
-    isNestedLocation
-  };
-};
-
-/**
- * Ensure the entry file has a default export for Lambda runtime compatibility.
- *
- * If the code exports `handler` but not `default`, append a re-export.
- * This handles the common pattern where users write `export const handler = ...`
- * instead of `export default ...`.
- *
- * Bun's ESM output format is: `export { varName as exportName }`
- */
-export const ensureDefaultExport = (content: string): string => {
-  // Check if there's already a default export
-  // Bun outputs: `export { something as default }` or `export { something_default as default }`
-  if (/export\s*\{[^}]*\bas\s+default\b[^}]*\}/.test(content)) {
-    return content;
-  }
-
-  // Check if there's a named `handler` export
-  // Bun outputs: `export { handler }` or `export { something as handler }`
-  const handlerExportMatch = content.match(/export\s*\{([^}]*)\}/g);
-  if (!handlerExportMatch) {
-    return content;
-  }
-
-  // Look for `handler` in any export block
-  for (const exportBlock of handlerExportMatch) {
-    // Match: `handler` or `something as handler`
-    if (/\bhandler\b/.test(exportBlock)) {
-      const sourceMapMatch = content.match(/\/\/[#@]\s*sourceMappingURL=.*(?:\r?\n)?$/);
-      if (sourceMapMatch) {
-        const sourceMapComment = sourceMapMatch[0];
-        const contentWithoutSourceMap = content.slice(0, -sourceMapComment.length);
-        return `${contentWithoutSourceMap}\nexport { handler as default };\n${sourceMapComment}`;
-      }
-      return `${content}\nexport { handler as default };\n`;
-    }
-  }
-
-  return content;
-};
-
-/** ESM compatibility banner for source maps */
-export const ESM_SOURCE_MAP_BANNER = `import { createRequire as __stp_createRequire } from "node:module";
-import { fileURLToPath as __stp_fileURLToPath } from "node:url";
-import { dirname as __stp_pathDirname } from "node:path";
-const require = __stp_createRequire(import.meta.url);
-const __stp_filename = __stp_fileURLToPath(import.meta.url);
-const __stp_dirname = __stp_pathDirname(__stp_filename);`;

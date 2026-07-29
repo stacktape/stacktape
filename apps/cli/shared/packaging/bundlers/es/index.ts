@@ -1,5 +1,5 @@
 import type { BunPlugin } from 'bun';
-import type { PackageJsonDepsInfo } from './utils';
+import type { PackageJsonDepsInfo } from '@stacktape/packaging/es/bundler-helpers';
 import { existsSync } from 'node:fs';
 import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { NODE_RUNTIME_VERSIONS_WITH_SKIPPED_SDK_V3_PACKAGING } from '@config';
@@ -13,8 +13,8 @@ import {
   isFileAccessible,
   transformToUnixPath
 } from '@shared/utils/fs-utils';
-import { builtinModules, filterDuplicates, getError, getTsconfigAliases, raiseError } from '@shared/utils/misc';
-import { findProjectRoot } from '@shared/utils/monorepo';
+import { getError, raiseError } from '@shared/utils/misc';
+import { findProjectRoot } from '@stacktape/packaging/es/project-root';
 import { copy, outputJSON, readFile, readFileSync, realpathSync, writeJson } from 'fs-extra';
 import uniqWith from 'lodash/uniqWith';
 import objectHash from 'object-hash';
@@ -23,22 +23,27 @@ import {
   DEPENDENCIES_TO_IGNORE_FROM_DOCKER_INSTALLATION,
   FILES_TO_INCLUDE_IN_DIGEST,
   IGNORED_MODULES,
-  IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER
-} from './config';
+  IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER,
+  NODE_BUILTIN_MODULES
+} from '@stacktape/packaging/es/config';
 import { copyDockerInstalledModulesForLambda } from './copy-docker-installed-modules';
 import {
-  createModuleResolver,
-  determineIfAlias,
-  ensureDefaultExport,
-  ESM_SOURCE_MAP_BANNER,
   getAllJsDependenciesFromMultipleFiles,
   getExternalDeps,
-  getInfoFromPackageJson,
   getLambdaRuntimeFromNodeTarget,
   getLockFileData,
   resolveDifferentSourceMapLocation,
   resolvePrisma
 } from './utils';
+import {
+  createModuleResolver,
+  determineIfAlias,
+  ensureDefaultExport,
+  ESM_SOURCE_MAP_BANNER,
+  filterDuplicates,
+  getInfoFromPackageJson,
+  getTsconfigAliases
+} from '@stacktape/packaging/es/bundler-helpers';
 import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 import type { ResolvedPackageDependency } from '@stacktape/packaging/runtime-contracts';
 
@@ -165,7 +170,7 @@ export const buildEsCode = async ({
             allModules.push(moduleName);
 
             // Skip built-in modules
-            if (builtinModules.includes(moduleName) || args.path === sourcePath) {
+            if (NODE_BUILTIN_MODULES.includes(moduleName) || args.path === sourcePath) {
               return undefined;
             }
 
@@ -297,7 +302,7 @@ export const buildEsCode = async ({
           if (args.path.startsWith('.') || args.path.startsWith('/')) return undefined;
 
           const moduleName = getModuleNameFromPath(args.path);
-          if (builtinModules.includes(moduleName) || args.path.startsWith('node:')) return undefined;
+          if (NODE_BUILTIN_MODULES.includes(moduleName) || args.path.startsWith('node:')) return undefined;
 
           // Use combined resolution: fast path first, then walk-up from importer
           // Skip deep search for performance - it's rarely needed and expensive

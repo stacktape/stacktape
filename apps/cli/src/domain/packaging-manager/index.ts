@@ -16,9 +16,9 @@ import { deploymentArtifactManager } from '@domain-services/deployment-artifact-
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { buildLayerS3Key, getJobName } from '@shared/naming/utils';
-import { DEPENDENCIES_WITH_BINARIES } from '@shared/packaging/bundlers/es/config';
+import { DEPENDENCIES_WITH_BINARIES } from '@stacktape/packaging/es/config';
 import { buildNativeBinaryLayer } from '@shared/packaging/bundlers/es/copy-docker-installed-modules';
-import { buildSplitBundle } from '@shared/packaging/bundlers/es/split-bundler/bundler';
+import { buildSplitBundle } from '@stacktape/packaging/split-bundler/bundler';
 import { getLambdaRuntimeFromNodeTarget, getLockFileData } from '@shared/packaging/bundlers/es/utils';
 import { assignChunksToLayers, DEFAULT_LAYER_CONFIG } from '@stacktape/packaging/split-bundler/layer-assignment';
 import { createLayerArtifacts } from '@stacktape/packaging/split-bundler/layer-builder';
@@ -53,7 +53,9 @@ import {
   installDockerPlatforms,
   isDockerRunning
 } from '@shared/utils/docker';
+import { dependencyInstaller } from '@shared/utils/dependency-installer';
 import { getFileExtension, getFileSize, getFolderSize, getHashFromMultipleFiles } from '@shared/utils/fs-utils';
+import { getError } from '@shared/utils/misc';
 import { archiveItem } from '@shared/utils/zip';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
@@ -389,7 +391,19 @@ export class PackagingManager {
       sourceMaps: languageSpecificConfig?.disableSourceMaps ? 'disabled' : 'external',
       sourceMapBannerType: 'pre-compiled',
       excludeDependencies: languageSpecificConfig?.dependenciesToExcludeFromBundle || [],
-      dependenciesToExcludeFromBundle: languageSpecificConfig?.dependenciesToExcludeFromBundle || []
+      dependenciesToExcludeFromBundle: languageSpecificConfig?.dependenciesToExcludeFromBundle || [],
+      installDependencies: async () => {
+        await dependencyInstaller.install({
+          rootProjectDirPath: globalStateManager.workingDir,
+          progressLogger: {
+            eventContext: {},
+            startEvent: async () => {},
+            updateEvent: async () => {},
+            finishEvent: async () => {}
+          }
+        });
+      },
+      createPackagingError: ({ message, hint }) => getError({ type: 'PACKAGING', message, hint })
     });
 
     // Build native binaries (bcrypt, sharp, prisma, etc.) into a shared layer

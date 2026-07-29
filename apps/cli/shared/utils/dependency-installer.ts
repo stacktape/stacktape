@@ -9,7 +9,7 @@ import { checkExecutableInPath } from './bin-executable';
 import { getEsInstallScript } from './es-install-scripts';
 import { exec } from './exec';
 import { raiseError } from './misc';
-import { findProjectRoot } from './monorepo';
+import { findProjectRoot } from '@stacktape/packaging/es/project-root';
 
 const wait = async ({ ms }: { ms: number }) => {
   return new Promise((resolve) => setTimeout(resolve, ms));

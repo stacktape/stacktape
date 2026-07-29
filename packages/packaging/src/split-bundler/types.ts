@@ -147,6 +147,11 @@ export type LayerArtifact = {
   contentHash: string;
 };
 
+export type PackagingErrorDetails = {
+  message: string;
+  hint?: string;
+};
+
 /** Options for buildSplitBundle */
 export type BuildSplitBundleOptions = {
   entrypoints: LambdaEntrypoint[];
@@ -160,13 +165,8 @@ export type BuildSplitBundleOptions = {
   sourceMapBannerType?: 'node_modules' | 'pre-compiled' | 'disabled';
   excludeDependencies?: string[];
   dependenciesToExcludeFromBundle?: string[];
-  progressLogger?: ProgressLogger;
-};
-
-/** Progress logger interface for build events */
-export type ProgressLogger = {
-  eventContext: Record<string, unknown>;
-  startEvent: (params: unknown) => Promise<void>;
-  updateEvent: (params: unknown) => Promise<void>;
-  finishEvent: (params: unknown) => Promise<void>;
+  /** Application action run before Bun resolves the entrypoints. */
+  installDependencies: () => Promise<void>;
+  /** Preserves the application's typed PACKAGING error contract without importing application code. */
+  createPackagingError: (details: PackagingErrorDetails) => Error;
 };

@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createModuleResolver } from '../../shared/packaging/bundlers/es/utils';
+import { createModuleResolver, determineIfAlias } from './bundler-helpers';
 
 const tempDirs: string[] = [];
 
@@ -49,26 +49,30 @@ const createPnpmWorkspace = async () => {
 
   await writeFile(join(root, 'package.json'), '{"name":"project","dependencies":{"consumer":"1.0.0"}}\n');
 
-  for (const version of ['5.1.1', '10.4.3', '11.5.2']) {
-    await writePackage(
-      storeDir('cache-lib', version),
-      { name: 'cache-lib', version, main: 'index.js' },
-      { 'index.js': `module.exports = ${JSON.stringify(version)};\n` }
-    );
-  }
+  await Promise.all(
+    ['5.1.1', '10.4.3', '11.5.2'].map((version) =>
+      writePackage(
+        storeDir('cache-lib', version),
+        { name: 'cache-lib', version, main: 'index.js' },
+        { 'index.js': `module.exports = ${JSON.stringify(version)};\n` }
+      )
+    )
+  );
 
   const deepPackages = [
     { name: 'deep-a', cacheLib: '10.4.3' },
     { name: 'deep-b', cacheLib: '11.5.2' }
   ];
-  for (const { name, cacheLib } of deepPackages) {
-    await writePackage(
-      storeDir(name, '1.0.0'),
-      { name, version: '1.0.0', main: 'dist/index.js', dependencies: { 'cache-lib': cacheLib } },
-      { 'dist/index.js': 'module.exports = require("cache-lib");\n' }
-    );
-    await link(name, '1.0.0', 'cache-lib', cacheLib);
-  }
+  await Promise.all(
+    deepPackages.map(async ({ name, cacheLib }) => {
+      await writePackage(
+        storeDir(name, '1.0.0'),
+        { name, version: '1.0.0', main: 'dist/index.js', dependencies: { 'cache-lib': cacheLib } },
+        { 'dist/index.js': 'module.exports = require("cache-lib");\n' }
+      );
+      await link(name, '1.0.0', 'cache-lib', cacheLib);
+    })
+  );
 
   await writePackage(
     storeDir('consumer', '1.0.0'),
@@ -92,6 +96,16 @@ afterEach(async () => {
 });
 
 describe('es bundler module resolution', () => {
+  test('recognizes a configured alias by prefix even when the extensionless candidate does not exist', async () => {
+    const root = await realpath(await mkdtemp(join(tmpdir(), 'stacktape-alias-resolution-')));
+    tempDirs.push(root);
+    const sourceDirectory = join(root, 'src');
+    await mkdir(sourceDirectory, { recursive: true });
+    await writeFile(join(sourceDirectory, 'tool.ts'), 'export const tool = true;\n');
+
+    expect(determineIfAlias({ moduleName: '@app/tool', aliases: { '@app': sourceDirectory } })).toBe(true);
+  });
+
   test("gives two importers the two versions they depend on, not pnpm's hoisted fallback", async () => {
     const { root, store, storeDir } = await createPnpmWorkspace();
     const { findModulePath } = createModuleResolver({ cwd: root, monorepoRoot: root });

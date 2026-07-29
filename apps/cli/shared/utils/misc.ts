@@ -1,20 +1,9 @@
 import type { Readable } from 'node:stream';
 import { Buffer } from 'node:buffer';
 import { homedir } from 'node:os';
-import { join, resolve as resolvePath } from 'node:path';
-import { readFile } from 'fs-extra';
-import json5 from 'json5';
+import { join } from 'node:path';
 import get from 'lodash/get';
 import micromatch from 'micromatch';
-
-const readJson = async (filePath: string) => {
-  try {
-    const contents = await readFile(filePath, { encoding: 'utf8' });
-    return json5.parse(contents);
-  } catch {
-    return null;
-  }
-};
 
 export const isPromise = (obj: any) => {
   return !!obj && (typeof obj === 'object' || typeof obj === 'function') && typeof obj.then === 'function';
@@ -457,61 +446,6 @@ export const getTimeSinceProcessStart = () => {
 
 export const localBuildTsConfigPath = join(process.cwd(), 'tsconfig.build.json');
 
-export const builtinModules = [
-  'assert',
-  'async_hooks',
-  'buffer',
-  'child_process',
-  'cluster',
-  'console',
-  'constants',
-  'crypto',
-  'dgram',
-  'dns',
-  'domain',
-  'events',
-  'fs',
-  'http',
-  'http2',
-  'https',
-  'inspector',
-  'module',
-  'net',
-  'os',
-  'path',
-  'perf_hooks',
-  'process',
-  'punycode',
-  'querystring',
-  'readline',
-  'repl',
-  'stream',
-  'string_decoder',
-  'timers',
-  'tls',
-  'trace_events',
-  'tty',
-  'url',
-  'util',
-  'v8',
-  'vm',
-  'wasi',
-  'worker_threads',
-  'zlib'
-];
-
-export const getTsconfigAliases = async (tsconfigPath: string) => {
-  const tsconfig = await readJson(tsconfigPath);
-  const paths = tsconfig?.compilerOptions?.paths || {};
-  const res: { [alias: string]: string } = {};
-  Object.keys(paths).forEach((item) => {
-    const key = item.replace('/*', '');
-    const value = resolvePath(process.cwd(), paths[item][0].replace('/*', '').replace('*', ''));
-    res[key] = value;
-  });
-  return res;
-};
-
 export const applyAll = (functionsArray: ((...args: any) => any)[], value: any) => {
   let res = value;
   for (const fn of functionsArray) {
@@ -519,8 +453,6 @@ export const applyAll = (functionsArray: ((...args: any) => any)[], value: any) 
   }
   return res;
 };
-
-export const filterDuplicates = (item: any, index: number, arr: any[]) => arr.indexOf(item) === index;
 
 export const getFirstAndLastItem = <T>(arr: T[]) => {
   return { first: arr[0] || null, last: arr[arr.length - 1] || null };
