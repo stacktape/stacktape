@@ -1,6 +1,5 @@
 import type { OpenNextConfig } from 'open-next/types/open-next.js';
 import { join } from 'node:path';
-import { eventManager } from '@application-services/event-manager';
 import { getJobName } from '@shared/naming/utils';
 import { EDGE_LAMBDA_ENV_ASSET_REPLACER_PLACEHOLDER } from '@shared/utils/constants';
 import { exec } from '@shared/utils/exec';
@@ -16,6 +15,7 @@ type NextjsWebBundlingProps = {
   resource: StpNextjsWeb;
   distFolderPath: string;
   progressLogger: ProgressLogger;
+  createProgressLogger: (instanceId: string) => ProgressLogger;
   existingDigests: { [key in keyof StpNextjsWeb['_nestedResources']]?: string[] };
   cwd: string;
   environmentVars: EnvironmentVar[];
@@ -24,6 +24,7 @@ type NextjsWebBundlingProps = {
 export const createNextjsWebArtifacts = async ({
   resource,
   progressLogger,
+  createProgressLogger,
   existingDigests,
   distFolderPath,
   cwd,
@@ -102,10 +103,7 @@ export const createNextjsWebArtifacts = async ({
       existingDigests: existingDigests.imageFunction,
       name: getJobName({ workloadName: resource._nestedResources.imageFunction.name, workloadType: 'function' }),
       packagePath: join(distFolderPath, 'image-optimization-function'),
-      progressLogger: eventManager.createChildLogger({
-        instanceId: `${progressLogger.eventContext.instanceId}.imageFunction`,
-        parentEventType: progressLogger.eventContext.parentEventType
-      }),
+      progressLogger: createProgressLogger(`${progressLogger.eventContext.instanceId}.imageFunction`),
       handler: resource._nestedResources.imageFunction.handler
     }),
     buildUsingCustomArtifact({
@@ -114,10 +112,7 @@ export const createNextjsWebArtifacts = async ({
       existingDigests: existingDigests.revalidationFunction,
       name: getJobName({ workloadName: resource._nestedResources.revalidationFunction.name, workloadType: 'function' }),
       packagePath: join(distFolderPath, 'revalidation-function'),
-      progressLogger: eventManager.createChildLogger({
-        instanceId: `${progressLogger.eventContext.instanceId}.revalidationFunction`,
-        parentEventType: progressLogger.eventContext.parentEventType
-      }),
+      progressLogger: createProgressLogger(`${progressLogger.eventContext.instanceId}.revalidationFunction`),
       handler: resource._nestedResources.revalidationFunction.handler
     }),
     buildUsingCustomArtifact({
@@ -129,10 +124,7 @@ export const createNextjsWebArtifacts = async ({
         workloadType: 'function'
       }),
       packagePath: join(distFolderPath, 'dynamodb-provider'),
-      progressLogger: eventManager.createChildLogger({
-        instanceId: `${progressLogger.eventContext.instanceId}.revalidationInsertFunction`,
-        parentEventType: progressLogger.eventContext.parentEventType
-      }),
+      progressLogger: createProgressLogger(`${progressLogger.eventContext.instanceId}.revalidationInsertFunction`),
       handler: resource._nestedResources.revalidationInsertFunction.handler
     }),
     resource._nestedResources.serverEdgeFunction &&
@@ -143,10 +135,7 @@ export const createNextjsWebArtifacts = async ({
         name: getJobName({ workloadName: resource._nestedResources.serverEdgeFunction.name, workloadType: 'function' }),
         packagePath: join(distFolderPath, 'server-functions/default'),
         additionalDigestInput: JSON.stringify(resource.environment),
-        progressLogger: eventManager.createChildLogger({
-          instanceId: `${progressLogger.eventContext.instanceId}.serverEdgeFunction`,
-          parentEventType: progressLogger.eventContext.parentEventType
-        }),
+        progressLogger: createProgressLogger(`${progressLogger.eventContext.instanceId}.serverEdgeFunction`),
         handler: resource._nestedResources.serverEdgeFunction.handler
       }),
     resource._nestedResources.serverFunction &&
@@ -156,10 +145,7 @@ export const createNextjsWebArtifacts = async ({
         existingDigests: existingDigests.serverFunction,
         name: getJobName({ workloadName: resource._nestedResources.serverFunction.name, workloadType: 'function' }),
         packagePath: join(distFolderPath, 'server-functions/default'),
-        progressLogger: eventManager.createChildLogger({
-          instanceId: `${progressLogger.eventContext.instanceId}.serverFunction`,
-          parentEventType: progressLogger.eventContext.parentEventType
-        }),
+        progressLogger: createProgressLogger(`${progressLogger.eventContext.instanceId}.serverFunction`),
         handler: resource._nestedResources.serverFunction.handler
       }),
     resource._nestedResources.warmerFunction &&
@@ -169,10 +155,7 @@ export const createNextjsWebArtifacts = async ({
         existingDigests: existingDigests.warmerFunction,
         name: getJobName({ workloadName: resource._nestedResources.warmerFunction.name, workloadType: 'function' }),
         packagePath: join(distFolderPath, 'warmer-function'),
-        progressLogger: eventManager.createChildLogger({
-          instanceId: `${progressLogger.eventContext.instanceId}.warmerFunction`,
-          parentEventType: progressLogger.eventContext.parentEventType
-        }),
+        progressLogger: createProgressLogger(`${progressLogger.eventContext.instanceId}.warmerFunction`),
         handler: resource._nestedResources.warmerFunction.handler
       })
   ]);

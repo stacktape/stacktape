@@ -1,5 +1,4 @@
 import { isAbsolute, join } from 'node:path';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { buildDockerImage } from '@shared/utils/docker';
 import { getAllFilesInDir } from '@shared/utils/fs-utils';
 import { getDirectoryChecksum, mergeHashes } from '@shared/utils/hashing';
@@ -12,6 +11,7 @@ import type {
 
 export const buildUsingCustomDockerfile = async ({
   name,
+  cwd,
   buildContextPath,
   dockerfilePath,
   progressLogger,
@@ -22,6 +22,7 @@ export const buildUsingCustomDockerfile = async ({
   cacheToRef
 }: {
   name: string;
+  cwd: string;
   progressLogger: ProgressLogger;
   existingDigests: string[];
   dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture;
@@ -34,9 +35,7 @@ export const buildUsingCustomDockerfile = async ({
     buildArgsObject[argName] = value;
   });
   const start = Date.now();
-  const absoluteBuildContextPath = isAbsolute(buildContextPath)
-    ? buildContextPath
-    : join(globalStateManager.workingDir, buildContextPath);
+  const absoluteBuildContextPath = isAbsolute(buildContextPath) ? buildContextPath : join(cwd, buildContextPath);
 
   await progressLogger.startEvent({
     eventType: 'CALCULATE_CHECKSUM',

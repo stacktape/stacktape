@@ -1,5 +1,4 @@
 import { join } from 'node:path';
-import { eventManager } from '@application-services/event-manager';
 import { getJobName } from '@shared/naming/utils';
 import { exec } from '@shared/utils/exec';
 import { raiseError, serialize } from '@shared/utils/misc';
@@ -35,10 +34,11 @@ export type SsrWebPackagingProps = {
   serverFunctionName: string;
   distFolderPath: string;
   cwd: string;
+  progressLogger: ProgressLogger;
+  createProgressLogger: (instanceId: string) => ProgressLogger;
   buildConfig: SsrWebBuildConfig;
   environmentVars: EnvironmentVar[];
   existingDigests?: string[];
-  parentEventType?: string;
 };
 
 /**
@@ -332,16 +332,12 @@ export const createSsrWebArtifacts = async ({
   serverFunctionName,
   distFolderPath,
   cwd,
+  progressLogger,
+  createProgressLogger,
   buildConfig,
   environmentVars,
-  existingDigests = [],
-  parentEventType = 'PACKAGE_ARTIFACTS'
+  existingDigests = []
 }: SsrWebPackagingProps) => {
-  const progressLogger = eventManager.createChildLogger({
-    parentEventType: parentEventType as 'PACKAGE_ARTIFACTS' | 'REPACKAGE_ARTIFACTS',
-    instanceId: resourceName
-  });
-
   // Build the framework project
   await progressLogger.startEvent({
     eventType: 'BUILD_SSR_WEB_PROJECT',
@@ -460,10 +456,7 @@ export const createSsrWebArtifacts = async ({
     existingDigests,
     name: getJobName({ workloadName: serverFunctionName, workloadType: 'function' }),
     packagePath: join(distFolderPath, 'server-function'),
-    progressLogger: eventManager.createChildLogger({
-      instanceId: `${progressLogger.eventContext.instanceId}.serverFunction`,
-      parentEventType: progressLogger.eventContext.parentEventType
-    }),
+    progressLogger: createProgressLogger(`${progressLogger.eventContext.instanceId}.serverFunction`),
     handler: 'index-wrap.handler'
   });
 

@@ -1,5 +1,4 @@
 import { isAbsolute, join } from 'node:path';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { exec } from '@shared/utils/exec';
 import { getError, serialize } from '@shared/utils/misc';
 
@@ -13,6 +12,7 @@ const stripAnsi = (str: string): string => {
 
 type HostingBucketBuildProps = {
   name: string;
+  cwd: string;
   build: {
     command: string;
     workingDirectory?: string;
@@ -318,6 +318,7 @@ const formatFinalMessage = (info: BuildOutputInfo | null): string => {
  */
 export const buildHostingBucket = async ({
   name,
+  cwd,
   build,
   progressLogger
 }: HostingBucketBuildProps): Promise<{ success: boolean; finalMessage: string }> => {
@@ -329,8 +330,8 @@ export const buildHostingBucket = async ({
   const workingDir = build.workingDirectory
     ? isAbsolute(build.workingDirectory)
       ? build.workingDirectory
-      : join(globalStateManager.workingDir, build.workingDirectory)
-    : globalStateManager.workingDir;
+      : join(cwd, build.workingDirectory)
+    : cwd;
 
   // Parse command - split by spaces but respect quotes
   const commandParts = build.command.match(/(?:[^\s"]+|"[^"]*")+/g) || [build.command];

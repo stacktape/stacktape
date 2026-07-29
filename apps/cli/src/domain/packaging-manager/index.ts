@@ -686,6 +686,7 @@ export class PackagingManager {
             return () =>
               buildHostingBucket({
                 name,
+                cwd: globalStateManager.workingDir,
                 build: build!,
                 progressLogger: eventManager.createChildLogger({
                   instanceId: name,
@@ -1056,6 +1057,8 @@ export class PackagingManager {
               )
             : []
       },
+      createProgressLogger: (instanceId) =>
+        eventManager.createChildLogger({ instanceId, parentEventType: 'PACKAGE_ARTIFACTS' }),
       progressLogger
     });
     packagingOutputs.forEach((result) => this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' }));
@@ -1078,6 +1081,10 @@ export class PackagingManager {
 
     const appDirectory = resource.appDirectory || '.';
     const workingDir = join(globalStateManager.workingDir, appDirectory);
+    const progressLogger = eventManager.createChildLogger({
+      parentEventType: 'PACKAGE_ARTIFACTS',
+      instanceId: resource.name
+    });
 
     const packagingOutputs = await createSsrWebArtifacts({
       resourceName: resource.name,
@@ -1089,6 +1096,9 @@ export class PackagingManager {
         resourceType
       }),
       cwd: globalStateManager.workingDir,
+      progressLogger,
+      createProgressLogger: (instanceId) =>
+        eventManager.createChildLogger({ instanceId, parentEventType: 'PACKAGE_ARTIFACTS' }),
       buildConfig: {
         buildCommand: resource.buildCommand || frameworkConfig.defaultBuildCommand,
         workingDir,
