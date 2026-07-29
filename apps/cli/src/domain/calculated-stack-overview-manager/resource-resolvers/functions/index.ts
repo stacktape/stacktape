@@ -49,6 +49,7 @@ import {
   isCustomCachePolicyNeeded,
   isCustomOriginRequestPolicyNeeded
 } from '../_utils/cdn';
+import type { ResourceWithPresentCdn } from '../_utils/cdn';
 import { getResolvedConnectToEnvironmentVariables } from '../_utils/connect-to-helper';
 import { getEfsAccessPoint } from '../_utils/efs';
 import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';
@@ -645,6 +646,12 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     })
   });
   if (cdn?.enabled) {
+    // `resolveFunction` also runs for the helper Lambdas Stacktape synthesizes itself, and those are not members of
+    // `StpCdnCompatibleResource`, so no narrowing available here can recover the user shape from the parameter's
+    // union. The guard above settles it at runtime: `cdn` comes off `lambdaProps`, and no helper-Lambda producer in
+    // `ConfigManager` ever sets a `cdn`, so only a user Lambda with an enabled CDN reaches this block. This records
+    // both of those facts once, in place of the identical unchecked cast that used to be repeated at each call below.
+    const cdnCompatibleResource = lambdaProps as ResourceWithPresentCdn<StpLambdaFunction>;
     // origin identity access START
     // here we determine if cdn attached to this lambda function is also targeting some bucket
     // if so, we will create identity for this cdn (one identity for all "possible" distributions)
@@ -854,7 +861,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         nameChain,
         resource: getCloudfrontDistributionResource({
           stpResourceName: name,
-          cdnCompatibleResource: lambdaProps as StpLambdaFunction,
+          cdnCompatibleResource,
           defaultOriginType: type as StpCdnAttachableResourceType,
           customDomains: [cdnDefaultDomainName],
           certificateArn: GetAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'usEast1CertArn')
@@ -919,7 +926,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         showDuringPrint: false
       });
     } else {
-      const cloudfrontDistributions = Object.values(getCloudfrontDistributionConfigs(lambdaProps as StpLambdaFunction));
+      const cloudfrontDistributions = Object.values(getCloudfrontDistributionConfigs(cdnCompatibleResource));
       const allCustomCdnDomains: string[] = [];
       cloudfrontDistributions.forEach(({ domains: domainSet, certificateArn, disableDns }, index) => {
         const domains = Array.from(domainSet);
@@ -935,7 +942,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
           nameChain,
           resource: getCloudfrontDistributionResource({
             stpResourceName: name,
-            cdnCompatibleResource: lambdaProps as StpLambdaFunction,
+            cdnCompatibleResource,
             defaultOriginType: type as StpCdnAttachableResourceType,
             customDomains: domains,
             certificateArn

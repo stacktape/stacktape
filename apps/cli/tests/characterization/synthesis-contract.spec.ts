@@ -5,6 +5,10 @@ import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import {
+  hasEnabledCdn,
+  type ResourceWithPresentCdn
+} from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/cdn';
 import { configManager } from '@domain-services/config-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
@@ -797,9 +801,13 @@ describe('load balancer and CDN synthesis contract', () => {
   });
 
   test('attaches a CloudFront distribution whose single origin is the load balancer', () => {
-    const [distribution] = resourcesOfType('AWS::CloudFront::Distribution');
+    const distributions = resourcesOfType('AWS::CloudFront::Distribution');
+    const [distribution] = distributions;
     const origins = distribution.Properties.DistributionConfig.Origins;
 
+    // One enabled CDN on one load balancer synthesizes exactly one distribution: the guard the resolvers branch on
+    // decides both whether any distribution is built and how many, so the count is part of what it contracts for.
+    expect(distributions).toHaveLength(1);
     expect(distribution.Properties.DistributionConfig.Enabled).toBe(true);
     expect(origins).toHaveLength(1);
     expect(origins[0].Id).toBe('edge0');
@@ -808,5 +816,55 @@ describe('load balancer and CDN synthesis contract', () => {
       HeaderValue: 'application-load-balancer'
     });
     expect(origins[0].CustomOriginConfig).toMatchObject({ OriginProtocolPolicy: 'https-only', HTTPSPort: 443 });
+  });
+});
+
+describe('enabled-CDN predicate', () => {
+  // `hasEnabledCdn` is the branch the resolvers above already took, written so that it also narrows the resource for
+  // the CloudFront helpers it guards. These pin the three configurations it has to tell apart.
+
+  const bucketWith = (cdn?: StpBucket['cdn']): StpBucket => ({
+    name: 'assets',
+    type: 'bucket',
+    nameChain: ['assets'],
+    configParentResourceType: 'bucket',
+    ...(cdn ? { cdn } : {})
+  });
+
+  test('rejects a resource that authored no CDN block at all', () => {
+    expect(hasEnabledCdn(bucketWith())).toBe(false);
+  });
+
+  test('rejects a CDN block that is present but switched off', () => {
+    // A disabled block is authored, so absence alone is not the question the resolvers ask.
+    expect(hasEnabledCdn(bucketWith({ enabled: false }))).toBe(false);
+  });
+
+  test('accepts a CDN block that is switched on', () => {
+    expect(hasEnabledCdn(bucketWith({ enabled: true }))).toBe(true);
+  });
+
+  test('narrows the resource so a guarded caller can read the CDN block', () => {
+    const bucket = bucketWith({ enabled: true, errorDocument: 'oops.html' });
+
+    if (!hasEnabledCdn(bucket)) throw new Error('expected the enabled CDN fixture to pass the predicate');
+
+    // Reachable only because the predicate narrowed `bucket`; before the guard `cdn` is optional.
+    expect(bucket.cdn.errorDocument).toBe('oops.html');
+  });
+
+  /**
+   * The narrowing itself, checked through the optionality modifier rather than by reading a property: this project's
+   * test typecheck runs with `strictNullChecks` off, where an optional property is freely assignable to a required
+   * one, so a plain read would prove nothing. The production proof is stronger and lives in the resolvers — the five
+   * CloudFront helpers now demand `ResourceWithPresentCdn`, and the six-project typecheck only passes because every
+   * call site sits inside one of these guards.
+   */
+  const cdnIsOptionalBeforeTheGuard: {} extends Pick<StpBucket, 'cdn'> ? false : true = false;
+  const cdnIsRequiredAfterTheGuard: {} extends Pick<ResourceWithPresentCdn<StpBucket>, 'cdn'> ? false : true = true;
+
+  test('treats the CDN block as optional before the guard and present after it', () => {
+    expect(cdnIsOptionalBeforeTheGuard).toBe(false);
+    expect(cdnIsRequiredAfterTheGuard).toBe(true);
   });
 });

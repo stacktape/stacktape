@@ -52,6 +52,29 @@ import type {
 } from '@stacktape/config/cdn';
 import type { ApplicationLoadBalancerIntegrationProps } from '@stacktape/config/events';
 
+/**
+ * A CDN-compatible resource whose `cdn` block is present.
+ *
+ * The authored `cdn` is optional on every one of these resources, but the helpers below are reached only from inside a
+ * resolver branch that has already tested it. This names that established fact so those helpers can read `cdn`
+ * without each dereference having to re-argue it.
+ */
+export type ResourceWithPresentCdn<TResource extends StpCdnCompatibleResource = StpCdnCompatibleResource> =
+  TResource & {
+    cdn: NonNullable<TResource['cdn']>;
+  };
+
+/**
+ * Whether a resource has a CDN that is switched on.
+ *
+ * The expression is the one the resolvers already branch on — an absent `cdn` and a present-but-disabled `cdn` both
+ * mean no distribution is synthesized — written as a predicate so the branch narrows the resource for the helpers it
+ * guards instead of only answering the question.
+ */
+export const hasEnabledCdn = <TResource extends StpCdnCompatibleResource>(
+  resource: TResource
+): resource is ResourceWithPresentCdn<TResource> => Boolean(resource.cdn?.enabled);
+
 export const getCloudfrontDefaultStaticCachePolicyResource = (stackName: string) =>
   new CloudfrontCachePolicy({ CachePolicyConfig: getCloudfrontDefaultStaticCachePolicyConfig(stackName) });
 
@@ -301,7 +324,7 @@ const getConfigBehaviour = (
 
 // goes through cdn configuration and constructs all origins for distribution
 const getOriginsForDistribution = (
-  cdnCompatibleResource: StpCdnCompatibleResource
+  cdnCompatibleResource: ResourceWithPresentCdn
   // defaultOriginType: StpCdnAttachableResourceType
 ): Origin[] => {
   const finalOrigins: Origin[] = [];
@@ -857,7 +880,7 @@ export const getCloudfrontOriginAccessIdentityResource = (stpResourceNameName: s
     CloudFrontOriginAccessIdentityConfig: { Comment: `${stpResourceNameName} attached distros - Access Identity` }
   });
 
-export const getCloudfrontDistributionConfigs = (cdnCompatibleResource: StpCdnCompatibleResource) => {
+export const getCloudfrontDistributionConfigs = (cdnCompatibleResource: ResourceWithPresentCdn) => {
   const cloudfrontDistributions: {
     [distributionKey: string]: { domains: Set<string>; certificateArn: string; disableDns: boolean };
   } = {};
@@ -886,7 +909,7 @@ export const getCloudfrontDistributionResource = ({
   stpResourceName
 }: {
   stpResourceName: string;
-  cdnCompatibleResource: StpCdnCompatibleResource;
+  cdnCompatibleResource: ResourceWithPresentCdn;
   defaultOriginType: StpCdnAttachableResourceType;
   customDomains: string[] | undefined;
   certificateArn: string | IntrinsicFunction | undefined;
@@ -994,7 +1017,7 @@ export const getCloudfrontDistributionResource = ({
   return resource;
 };
 
-const getCustomErrorResponses = (cdnCompatibleResource: StpCdnCompatibleResource) => {
+const getCustomErrorResponses = (cdnCompatibleResource: ResourceWithPresentCdn) => {
   return cdnCompatibleResource.cdn.errorDocument || cdnCompatibleResource.type === 'bucket'
     ? [
         // {
@@ -1476,7 +1499,7 @@ const getCacheBehaviour = ({
 const getCacheBehavioursForRouteRewrites = ({
   cdnCompatibleResource
 }: {
-  cdnCompatibleResource: StpCdnCompatibleResource;
+  cdnCompatibleResource: ResourceWithPresentCdn;
 }): CacheBehavior[] => {
   return cdnCompatibleResource.cdn.routeRewrites?.map((routeRewrite, index) => {
     // const routeRewriteType = determineTypeOfRouteRewrite(routeRewrite, stpResourceName);

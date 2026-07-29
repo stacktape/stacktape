@@ -25,6 +25,7 @@ import {
   getCloudfrontDnsRecord,
   getCloudfrontOriginAccessIdentityResource,
   getOriginRequestPolicyHash,
+  hasEnabledCdn,
   isCustomCachePolicyNeeded,
   isCustomOriginRequestPolicyNeeded
 } from '../_utils/cdn';
@@ -213,7 +214,7 @@ export const resolveHttpApiGateway = (definition: StpHttpApiGateway) => {
       showDuringPrint: true
     });
   }
-  if (definition?.cdn?.enabled) {
+  if (definition && hasEnabledCdn(definition)) {
     // origin identity access START
     // here we determine if cdn attached to this api gateway is also targeting some bucket
     // if so, we will create identity for this cdn (one identity for all "possible" distributions)

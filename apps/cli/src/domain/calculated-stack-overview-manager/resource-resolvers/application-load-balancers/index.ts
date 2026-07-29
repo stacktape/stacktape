@@ -28,6 +28,7 @@ import {
   getCloudfrontDnsRecord,
   getCloudfrontOriginAccessIdentityResource,
   getOriginRequestPolicyHash,
+  hasEnabledCdn,
   isCustomCachePolicyNeeded,
   isCustomOriginRequestPolicyNeeded
 } from '../_utils/cdn';
@@ -190,7 +191,7 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
       showDuringPrint: false
     });
   });
-  if (finalDefinition.cdn?.enabled) {
+  if (hasEnabledCdn(finalDefinition)) {
     if (finalDefinition.interface === 'internal') {
       throw new ExpectedError(
         'CONFIG_VALIDATION',

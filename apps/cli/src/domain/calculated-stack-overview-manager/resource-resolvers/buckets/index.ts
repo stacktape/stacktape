@@ -22,6 +22,7 @@ import {
   getCloudfrontDnsRecord,
   getCloudfrontOriginAccessIdentityResource,
   getOriginRequestPolicyHash,
+  hasEnabledCdn,
   isCustomCachePolicyNeeded,
   isCustomOriginRequestPolicyNeeded
 } from '../_utils/cdn';
@@ -77,7 +78,7 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
     linkValue: cfEvaluatedLinks.s3Bucket(Ref(cfLogicalNames.bucket(name)), 'metrics')
   });
 
-  if (definition.cdn?.enabled) {
+  if (hasEnabledCdn(definition)) {
     // origin identity access START
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.cloudfrontOriginAccessIdentity(name),
