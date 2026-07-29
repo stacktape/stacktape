@@ -4,8 +4,12 @@
   "private": true,
   "description": "Stacktape CLI: the developer-facing application that packages, synthesizes and deploys Stacktape projects.",
   "exports": {
+    "./catalogs/aws-prices.json": "./@generated/aws-price/prices.json",
+    "./catalogs/cloudformation-resource-types.json": "./@generated/cloudformation-resource-types.json",
+    "./catalogs/rds-engine-versions.json": "./@generated/db-engine-versions/versions.json",
     "./local/server": "./src/api/local/server.ts",
-    "./local/config-sdk": "./src/api/local/config-sdk.ts"
+    "./local/config-sdk": "./src/api/local/config-sdk.ts",
+    "./starter-projects-metadata.json": "./starter-projects-metadata.json"
   },
   "scripts": {
     "analyze:bundle": "bun scripts/analyze-bundle.ts",
@@ -18,6 +22,8 @@
     "dev": "bun run scripts/dev.ts",
     "docker:clean": "docker system prune --all --force --volumes",
     "esp": "bun scripts/execute-starter-project.ts",
+    "generate": "bun scripts/generate-starter-projects-metadata.ts",
+    "generate:check": "bun scripts/generate-starter-projects-metadata.ts --check",
     "gen:cf:types": "bun scripts/generate-cloudformation-types.ts",
     "gen:cloudform": "bun scripts/generate-cloudform.ts",
     "gen:db:engines": "bun scripts/generate-db-engine-versions-json.ts",
@@ -46,7 +52,7 @@
     "test:command-safety": "bun test src/domain/debug-services/aws-read-only-operations.spec.ts",
     "test:docker-secrets": "bun test shared/utils/__tests__/docker-secret-handling.test.ts",
     "test:generated-types": "node ../../node_modules/typescript/bin/tsc -p @generated/tsconfig.json",
-    "test:generators": "bun test scripts/generate-cloudform.spec.ts scripts/generate-cloudformation-types.spec.ts scripts/cloudform-root-helpers.spec.ts scripts/code-generation/jsdoc-extractor.spec.ts scripts/code-generation/resource-overrides.spec.ts scripts/code-generation/type-properties.spec.ts scripts/build-npm-declarations.spec.ts scripts/verify-npm-declarations.spec.ts scripts/tsconfig-projects.spec.ts",
+    "test:generators": "bun test scripts/generate-cloudform.spec.ts scripts/generate-cloudformation-types.spec.ts scripts/generate-starter-projects-metadata.spec.ts scripts/cloudform-root-helpers.spec.ts scripts/code-generation/jsdoc-extractor.spec.ts scripts/code-generation/resource-overrides.spec.ts scripts/code-generation/type-properties.spec.ts scripts/build-npm-declarations.spec.ts scripts/verify-npm-declarations.spec.ts scripts/tsconfig-projects.spec.ts",
     "test:helper-lambdas": "bun test helper-lambdas/ src/utils/helper-lambdas.spec.ts",
     "test:mcp-docs": "bun test src/commands/mcp",
     "test:mcp-production": "bun scripts/test-mcp-production-eval.ts",

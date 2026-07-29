@@ -1,3 +1,5 @@
+import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { STARTER_PROJECTS_METADATA_FOLDER_NAME, STARTER_PROJECTS_SOURCE_PATH } from '@shared/naming/project-fs-paths';
 import { logInfo, logSuccess, logWarn } from '@shared/utils/logging';
@@ -6,7 +8,23 @@ import { pathExists, remove, writeJson } from 'fs-extra';
 import { getAllStarterProjectIds } from './generate-starter-project';
 import { getStarterProjectMetadata, prettierFix } from './starter-projects/utils';
 
-export const generateStarterProjectsMetadata = async ({ distFolderPath }: { distFolderPath?: string }) => {
+type SortableStarterProjectMetadata = {
+  priority?: number;
+  starterProjectId: string;
+};
+
+export const compareStarterProjectMetadata = (
+  first: SortableStarterProjectMetadata,
+  second: SortableStarterProjectMetadata
+) => {
+  const priorityDifference = (first.priority ?? 100) - (second.priority ?? 100);
+  return (
+    priorityDifference ||
+    (first.starterProjectId < second.starterProjectId ? -1 : first.starterProjectId > second.starterProjectId ? 1 : 0)
+  );
+};
+
+export const generateStarterProjectsMetadata = async ({ distFolderPath }: { distFolderPath: string }) => {
   logInfo('Generating starter projects metadata...');
   // await exec('npx', ['prettier', 'starter-projects', '--write'], { disableStdout: true });
   const distPath = join(distFolderPath, STARTER_PROJECTS_METADATA_FOLDER_NAME);
@@ -37,7 +55,7 @@ export const generateStarterProjectsMetadata = async ({ distFolderPath }: { dist
   if (hasDuplicates(allProjectIds)) {
     throw new Error(`There are duplicate starter names in starter projects: ${getUniqueDuplicates(allProjectIds)}`);
   }
-  const sorted = metadata.sort((a, b) => a.priority - b.priority);
+  const sorted = metadata.sort(compareStarterProjectMetadata);
 
   await writeJson(distPath, sorted, { spaces: 2 });
 
@@ -48,6 +66,40 @@ export const generateStarterProjectsMetadata = async ({ distFolderPath }: { dist
   // await Promise.all([remove(join(outputDirPath, '.prettierrc')), remove(join(outputDirPath, '.eslintrc'))]);
 };
 
+export const checkStarterProjectsMetadata = async () => {
+  const temporaryDirectory = await mkdtemp(join(tmpdir(), 'stacktape-starter-metadata-'));
+
+  try {
+    const generatedPath = await generateStarterProjectsMetadata({ distFolderPath: temporaryDirectory });
+    const committedPath = join(process.cwd(), STARTER_PROJECTS_METADATA_FOLDER_NAME);
+    const [generatedContents, committedContents] = await Promise.all([
+      readFile(generatedPath, 'utf8'),
+      readFile(committedPath, 'utf8')
+    ]);
+
+    if (generatedContents !== committedContents) {
+      throw new Error(
+        `${STARTER_PROJECTS_METADATA_FOLDER_NAME} is stale. Run the normal workspace generation task and commit the result.`
+      );
+    }
+
+    logSuccess(`${STARTER_PROJECTS_METADATA_FOLDER_NAME} is current.`);
+  } finally {
+    await rm(temporaryDirectory, { recursive: true, force: true });
+  }
+};
+
+const main = async () => {
+  if (process.argv.includes('--check')) {
+    await checkStarterProjectsMetadata();
+  } else {
+    await generateStarterProjectsMetadata({ distFolderPath: process.cwd() });
+  }
+};
+
 if (import.meta.main) {
-  generateStarterProjectsMetadata({ distFolderPath: process.cwd() });
+  main().catch((error: unknown) => {
+    console.error(error);
+    process.exitCode = 1;
+  });
 }

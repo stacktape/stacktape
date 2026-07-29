@@ -50,6 +50,9 @@ it has a coherent capability and more than one real consumer.
 - Consume shared values from `@stacktape/design-tokens`.
 - Shared React components must remain router-neutral; Console navigation adapters stay in UI.
 - Preserve accessible loading, error, keyboard, and focus behavior.
+- Consume starter-project metadata and the AWS, CloudFormation and RDS editor catalogs through the public
+  `@stacktape/cli` subpaths; do not restore private generated copies. MongoDB Atlas prices currently have no
+  generator and are a Console-only editor input, so their single source is `ui/src/data/mongodb-atlas-prices.json`.
 
 ## Validation
 

@@ -22,7 +22,9 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
 - `starter-projects/` — canonical starter templates, not installed workspace projects. Their TypeScript configs are
   named `tsconfig*.template.json` so editors do not treat framework templates as live projects; starter
   materialization removes the `.template` segment (for example, `tsconfig.node.template.json` becomes
-  `tsconfig.node.json`) before publishing or use.
+  `tsconfig.node.json`) before publishing or use. `starter-projects-metadata.json` is derived from these sources by
+  the CLI's Turbo `generate` task and is exported to integrated consumers as
+  `@stacktape/cli/starter-projects-metadata.json`.
 - `types/` — the CLI's resolved/internal global declaration API. Declarations that depend on the authored
   configuration model import their types explicitly from `@stacktape/config` and publish the existing globals
   through `declare global`; there is no ambient alias bridge. The retained JSDoc still feeds generated schema/npm
@@ -32,8 +34,10 @@ packaging, naming, MCP and release behavior are unchanged; refactoring happens i
   hand-edit; regenerate with the matching `gen:*` script. The main CLI project excludes this directory, so
   `@generated/tsconfig.json` owns both CloudFormation trees and the generated Zod validator
   (`test:generated-types`). The config lives above the generator-owned subdirectories so regeneration cannot delete
-  it. Both `gen:cloudform` and `gen:cf:types` read live AWS endpoints and have no pinned input, so any regeneration
-  also imports upstream schema drift; regenerate deliberately rather than as a side effect of an unrelated change.
+  it. AWS prices, CloudFormation resource types and RDS versions are exported through explicit
+  `@stacktape/cli/catalogs/*.json` subpaths so Console does not keep application-local copies. Those generators read
+  live upstream data, as do `gen:cloudform` and `gen:cf:types`, and have no pinned input; regenerate deliberately
+  rather than as a side effect of an unrelated change.
 - `tests/characterization/` — behavioral baselines for the CLI contract, config runtime, packaging and synthesis.
   `tests/tsconfig.json` is their editor project and is part of the normal CLI typecheck.
 - `_test-stacks/` — small Stacktape projects used as test input. `config-loading-smoke/` is the imported one the
