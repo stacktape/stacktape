@@ -8,7 +8,7 @@ Resource type: `cdn`
 import type { CdnBucketRoute, CdnCachingOptions, CdnCustomDomainRoute, CdnForwardingOptions, CdnHttpApiGatewayRoute, CdnLambdaFunctionRoute, CdnLoadBalancerRoute, EdgeFunctionsConfig } from 'stacktape';
 
 type CdnRouteRewrite = {
-  /** URL path pattern to match (e.g., /api/*, *.jpg, /docs/v2/*). Wildcards supported. */
+  /** URL path pattern to match (e.g., `/api/*`, `*.jpg`, `/docs/v2/*`). Wildcards supported. */
   path: string;
   /** Override caching behavior for requests matching this route. */
   cachingOptions?: CdnCachingOptions;

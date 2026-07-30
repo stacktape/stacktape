@@ -4,7 +4,7 @@
 
 ```typescript
 type EnvironmentVar = {
-  /** Environment variable name (e.g., DATABASE_URL, API_KEY). */
+  /** Environment variable name (e.g., `DATABASE_URL`, `API_KEY`). */
   name: string;
   /** Environment variable value. Numbers and booleans are converted to strings. */
   value: string | number | boolean;

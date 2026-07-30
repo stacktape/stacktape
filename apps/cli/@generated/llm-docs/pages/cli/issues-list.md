@@ -23,13 +23,13 @@ stacktape issues:list --projectName my-app --stage production --issueStatus OPEN
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--agent (-ag)` | no | `boolean` | Agent Mode Optimizes CLI output for programmatic/LLM consumption: For `issues:list`, prints the returned issues as a pretty-printed JSON array (not JSONL) instead of a table Disables interactive terminal UI Automatically confirms operations (equivalent to --autoConfirmOperation) | - |
-| `--issueStatus (-is)` | no | `string` | Issue Status Filter Filter issues by status (OPEN, RESOLVED, IGNORED). | `OPEN`, `RESOLVED`, `IGNORED` |
-| `--limit (-lim)` | no | `number` | Limit Maximum number of items to return. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console. `info`: Basic information about the operation. `error`: Only errors. `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format Controls the CLI output format: `jsonl`: Machine-readable output, disables interactive UI. For `issues:list`, the command prints a single pretty-printed JSON array of issues (not one object per line). `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. `--agent` selects the machine-readable output for this command. | `jsonl`, `plain`, `tty` |
-| `--projectName (-prj)` | no | `string` | Project Name The name of the Stacktape project for this operation. | - |
-| `--stage (-s)` | no | `string` | Stage The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
+| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
+| `--issueStatus (-is)` | no | `string` | Issue Status Filter — Filter issues by status (OPEN, RESOLVED, IGNORED). | `OPEN`, `RESOLVED`, `IGNORED` |
+| `--limit (-lim)` | no | `number` | Limit — Maximum number of items to return. | - |
+| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
+| `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
+| `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
 
 
 ## Examples

@@ -10,10 +10,6 @@ import type { AttributeSchema, EmailConfiguration, IdentityProvider, InviteMessa
 type UserAuthPoolProps = {
   /** Access token lifetime */
   accessTokenValiditySeconds?: number;
-  /** OAuth flows */
-  allowedOAuthFlows?: Array<"client_credentials" | "code" | "implicit">;
-  /** OAuth scopes */
-  allowedOAuthScopes?: Array<string>;
   /** Allow email addresses as usernames */
   allowEmailAsUserName?: boolean;
   /** Restrict account creation to administrators */
@@ -22,6 +18,10 @@ type UserAuthPoolProps = {
   allowOnlyExternalIdentityProviders?: boolean;
   /** Allow phone numbers as usernames */
   allowPhoneNumberAsUserName?: boolean;
+  /** OAuth flows */
+  allowedOAuthFlows?: Array<"client_credentials" | "code" | "implicit">;
+  /** OAuth scopes */
+  allowedOAuthScopes?: Array<string>;
   /** OAuth callback URLs */
   callbackURLs?: Array<string>;
   /** Custom Domain */
@@ -38,10 +38,10 @@ type UserAuthPoolProps = {
   hostedUiCSS?: string;
   /** Hosted UI domain prefix */
   hostedUiDomainPrefix?: string;
-  /** External identity providers */
-  identityProviders?: Array<IdentityProvider>;
   /** ID token lifetime */
   idTokenValiditySeconds?: number;
+  /** External identity providers */
+  identityProviders?: Array<IdentityProvider>;
   /** Invite message overrides */
   inviteMessageConfig?: InviteMessageConfig;
   /** OAuth logout URLs */
@@ -101,105 +101,6 @@ export default defineConfig(() => {
   const userPool = new UserAuthPool({
     userVerificationType: 'email-code',
     accessTokenValiditySeconds: 3600
-  });
-  return { resources: { userPool } };
-});
-```
-
-## Property: `allowedOAuthFlows`
-
-- Required: no
-- Type: `Array<string: "client_credentials" | "code" | "implicit">`
-
-OAuth flows
-
-Specifies which OAuth 2.0 flows the user pool client is allowed to use:
-
-`code`: Authorization Code flow (recommended for web apps and backends).
-`implicit`: Implicit flow (legacy browser-only flow).
-`client_credentials`: Server‑to‑server (no end user) machine credentials.
-
-These values populate `AllowedOAuthFlows` on the Cognito user pool client
-([AWS::Cognito::UserPoolClient](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cognito-userpoolclient)).
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  userPool:
-    type: user-auth-pool
-    properties:
-      enableHostedUi: true
-      hostedUiDomainPrefix: acme-auth
-      callbackURLs:
-        - https://app.example.com/callback
-      allowedOAuthScopes:
-        - openid
-        - email
-      allowedOAuthFlows:
-        - code
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { UserAuthPool, defineConfig } from 'stacktape';
-
-export default defineConfig(() => {
-  const userPool = new UserAuthPool({
-    enableHostedUi: true,
-    hostedUiDomainPrefix: 'acme-auth',
-    callbackURLs: ['https://app.example.com/callback'],
-    allowedOAuthScopes: ['openid', 'email'],
-    allowedOAuthFlows: ['code']
-  });
-  return { resources: { userPool } };
-});
-```
-
-## Property: `allowedOAuthScopes`
-
-- Required: no
-- Type: `Array<string>`
-
-OAuth scopes
-
-Lists which scopes clients can request when using OAuth (for example `email`, `openid`, `profile`).
-Scopes control which user information and permissions your app receives in tokens.
-
-These values are passed to the user pool client as `AllowedOAuthScopes`.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  userPool:
-    type: user-auth-pool
-    properties:
-      enableHostedUi: true
-      hostedUiDomainPrefix: acme-auth
-      callbackURLs:
-        - https://app.example.com/callback
-      allowedOAuthFlows:
-        - code
-      allowedOAuthScopes:
-        - openid
-        - email
-        - profile
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { UserAuthPool, defineConfig } from 'stacktape';
-
-export default defineConfig(() => {
-  const userPool = new UserAuthPool({
-    enableHostedUi: true,
-    hostedUiDomainPrefix: 'acme-auth',
-    callbackURLs: ['https://app.example.com/callback'],
-    allowedOAuthFlows: ['code'],
-    allowedOAuthScopes: ['openid', 'email', 'profile']
   });
   return { resources: { userPool } };
 });
@@ -383,6 +284,105 @@ export default defineConfig(() => {
   const userPool = new UserAuthPool({
     userVerificationType: 'email-code',
     allowPhoneNumberAsUserName: false
+  });
+  return { resources: { userPool } };
+});
+```
+
+## Property: `allowedOAuthFlows`
+
+- Required: no
+- Type: `Array<string: "client_credentials" | "code" | "implicit">`
+
+OAuth flows
+
+Specifies which OAuth 2.0 flows the user pool client is allowed to use:
+
+`code`: Authorization Code flow (recommended for web apps and backends).
+`implicit`: Implicit flow (legacy browser-only flow).
+`client_credentials`: Server‑to‑server (no end user) machine credentials.
+
+These values populate `AllowedOAuthFlows` on the Cognito user pool client
+([AWS::Cognito::UserPoolClient](https://docs.aws.amazon.com/AWSCloudFormation/latest/TemplateReference/aws-resource-cognito-userpoolclient)).
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  userPool:
+    type: user-auth-pool
+    properties:
+      enableHostedUi: true
+      hostedUiDomainPrefix: acme-auth
+      callbackURLs:
+        - https://app.example.com/callback
+      allowedOAuthScopes:
+        - openid
+        - email
+      allowedOAuthFlows:
+        - code
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { UserAuthPool, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const userPool = new UserAuthPool({
+    enableHostedUi: true,
+    hostedUiDomainPrefix: 'acme-auth',
+    callbackURLs: ['https://app.example.com/callback'],
+    allowedOAuthScopes: ['openid', 'email'],
+    allowedOAuthFlows: ['code']
+  });
+  return { resources: { userPool } };
+});
+```
+
+## Property: `allowedOAuthScopes`
+
+- Required: no
+- Type: `Array<string>`
+
+OAuth scopes
+
+Lists which scopes clients can request when using OAuth (for example `email`, `openid`, `profile`).
+Scopes control which user information and permissions your app receives in tokens.
+
+These values are passed to the user pool client as `AllowedOAuthScopes`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  userPool:
+    type: user-auth-pool
+    properties:
+      enableHostedUi: true
+      hostedUiDomainPrefix: acme-auth
+      callbackURLs:
+        - https://app.example.com/callback
+      allowedOAuthFlows:
+        - code
+      allowedOAuthScopes:
+        - openid
+        - email
+        - profile
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { UserAuthPool, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const userPool = new UserAuthPool({
+    enableHostedUi: true,
+    hostedUiDomainPrefix: 'acme-auth',
+    callbackURLs: ['https://app.example.com/callback'],
+    allowedOAuthFlows: ['code'],
+    allowedOAuthScopes: ['openid', 'email', 'profile']
   });
   return { resources: { userPool } };
 });
@@ -730,7 +730,7 @@ export default defineConfig(() => {
 
 Hosted UI domain prefix
 
-Sets the first part of your Hosted UI URL: `https://.auth..amazoncognito.com`.
+Sets the first part of your Hosted UI URL: `https://<prefix>.auth.<region>.amazoncognito.com`.
 Pick something that matches your project or company name.
 
 ### Example 1 (yaml)
@@ -762,6 +762,42 @@ export default defineConfig(() => {
     callbackURLs: ['https://app.example.com/callback'],
     allowedOAuthFlows: ['code'],
     allowedOAuthScopes: ['openid']
+  });
+  return { resources: { userPool } };
+});
+```
+
+## Property: `idTokenValiditySeconds`
+
+- Required: no
+- Type: `number`
+
+ID token lifetime
+
+Controls how long an ID token (which contains user profile and claims) is accepted before clients must obtain a new one.
+
+This is set on the user pool client as `IdTokenValidity`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  userPool:
+    type: user-auth-pool
+    properties:
+      userVerificationType: email-code
+      idTokenValiditySeconds: 3600
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { UserAuthPool, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const userPool = new UserAuthPool({
+    userVerificationType: 'email-code',
+    idTokenValiditySeconds: 3600
   });
   return { resources: { userPool } };
 });
@@ -825,42 +861,6 @@ export default defineConfig(() => {
         authorizeScopes: ['openid', 'email']
       }
     ]
-  });
-  return { resources: { userPool } };
-});
-```
-
-## Property: `idTokenValiditySeconds`
-
-- Required: no
-- Type: `number`
-
-ID token lifetime
-
-Controls how long an ID token (which contains user profile and claims) is accepted before clients must obtain a new one.
-
-This is set on the user pool client as `IdTokenValidity`.
-
-### Example 1 (yaml)
-
-```yaml
-resources:
-  userPool:
-    type: user-auth-pool
-    properties:
-      userVerificationType: email-code
-      idTokenValiditySeconds: 3600
-```
-
-### Example 2 (typescript)
-
-```typescript
-import { UserAuthPool, defineConfig } from 'stacktape';
-
-export default defineConfig(() => {
-  const userPool = new UserAuthPool({
-    userVerificationType: 'email-code',
-    idTokenValiditySeconds: 3600
   });
   return { resources: { userPool } };
 });
@@ -1324,7 +1324,7 @@ export default defineConfig(() => {
 Verification message text
 
 Lets you customize the exact email and SMS texts that Cognito sends when asking users to verify their email / phone.
-For example, you can change subjects, body text, or the message that contains the `{####}` verification code.
+For example, you can change subjects, body text, or the message that contains the `{}` verification code.
 
 ### Example 1 (yaml)
 

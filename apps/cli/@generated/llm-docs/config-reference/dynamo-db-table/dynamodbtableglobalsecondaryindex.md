@@ -10,7 +10,7 @@ import type { DynamoDbAttribute } from 'stacktape';
 type DynamoDbTableGlobalSecondaryIndex = {
   /** Name of the index (used when querying). */
   name: string;
-  /** Partition key for this index — the attribute you&#39;ll query by. */
+  /** Partition key for this index — the attribute you'll query by. */
   partitionKey: DynamoDbAttribute;
   /** Extra attributes to copy into the index. Only projected attributes are available when querying. */
   projections?: Array<string>;

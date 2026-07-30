@@ -28,7 +28,7 @@ For automatically-run upgrades (native and global installs), Stacktape executes 
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--newVersion (-nv)` | no | `string` | New Version The version of Stacktape to install. | - |
+| `--newVersion (-nv)` | no | `string` | New Version — The version of Stacktape to install. | - |
 
 
 When run without flags, Stacktape resolves and installs the latest published version automatically.

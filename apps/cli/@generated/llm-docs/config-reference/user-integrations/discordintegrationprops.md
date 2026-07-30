@@ -4,7 +4,7 @@
 
 ```typescript
 type DiscordIntegrationProps = {
-  /** Discord Webhook URL for the channel. Store as $Secret() for security. */
+  /** Discord Webhook URL for the channel. Store as `$Secret()` for security. */
   webhookUrl: string;
 };
 ```

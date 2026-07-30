@@ -6,9 +6,9 @@ Resource type: `function`
 
 ```typescript
 type LambdaEfsMountProps = {
-  /** Name of the efs-filesystem resource defined in your config. */
+  /** Name of the `efs-filesystem` resource defined in your config. */
   efsFilesystemName: string;
-  /** Path inside the function where the volume appears. Must start with /mnt/ (e.g., /mnt/data). */
+  /** Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/data`). */
   mountPath: string;
   /** Subdirectory within the EFS filesystem to mount. Omit for full access. */
   rootDirectory?: string;

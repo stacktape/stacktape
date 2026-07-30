@@ -404,7 +404,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `logging` | no | `OpenSearchLogConfiguration` | - |
 | `storage` | no | `OpenSearchStorage` | - |
 | `userPool` | no | `string` | - |
-| `version` | no | `string: "1.0" \| "1.1" \| "1.2" \| "1.3" \| "2.11" \| "2.13" \| "2.15" \| "2.17" \| "2.3" \| "2.5" \| "2.7" \| "2.9"` | `'2.17'` |
+| `version` | no | `string: "1.0" \| "1.1" \| "1.2" \| "1.3" \| "2.11" \| "2.13" \| "2.15" \| "2.17" \| "2.3" \| "2.5" \| "2.7" \| "2.9"` | `2.17` |
 
 
 ## FAQ

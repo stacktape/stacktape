@@ -10,7 +10,7 @@ import type { KeyValuePair } from 'stacktape';
 type AbortIncompleteMultipartUploadProps = {
   /** Clean up incomplete multipart uploads after this many days. Prevents storage waste. */
   daysAfterInitiation: number;
-  /** Only apply this rule to objects with this key prefix (e.g., logs/, uploads/). */
+  /** Only apply this rule to objects with this key prefix (e.g., `logs/`, `uploads/`). */
   prefix?: string;
   /** Only apply this rule to objects with these tags. */
   tags?: Array<KeyValuePair>;

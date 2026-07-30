@@ -28,7 +28,7 @@ type SqsQueueProps = {
   maxMessageSizeBytes?: number;
   /** How long unprocessed messages stay in the queue before being deleted. Range: 60s to 1,209,600s (14 days). */
   messageRetentionPeriodSeconds?: number;
-  /** Custom access-control statements added to the queue&#39;s resource policy. */
+  /** Custom access-control statements added to the queue's resource policy. */
   policyStatements?: Array<SqsQueuePolicyStatement>;
   /** Moves messages that fail processing too many times to a dead-letter queue for inspection. */
   redrivePolicy?: SqsQueueRedrivePolicy;

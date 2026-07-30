@@ -10,7 +10,7 @@ type SqsQueueRedrivePolicy = {
   maxReceiveCount: number;
   /** ARN of an external SQS queue to use as the dead-letter queue. Use when the DLQ is in another stack or account. */
   targetSqsQueueArn?: string;
-  /** Name of another sqs-queue in your config to use as the dead-letter queue. */
+  /** Name of another `sqs-queue` in your config to use as the dead-letter queue. */
   targetSqsQueueName?: string;
 };
 ```

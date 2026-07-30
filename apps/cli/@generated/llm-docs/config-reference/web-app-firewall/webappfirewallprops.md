@@ -8,13 +8,13 @@ Resource type: `web-app-firewall`
 import type { CustomResponseBodies, CustomRuleGroup, ManagedRuleGroup, RateBasedStatement } from 'stacktape';
 
 type WebAppFirewallProps = {
-  /** cdn for CloudFront-attached resources, regional for ALBs, User Pools, or direct API Gateways. */
+  /** `cdn` for CloudFront-attached resources, `regional` for ALBs, User Pools, or direct API Gateways. */
   scope: "cdn" | "regional";
   /** Seconds a solved CAPTCHA stays valid before requiring re-verification. */
   captchaImmunityTime?: number;
   /** Seconds a solved challenge stays valid before requiring re-verification. */
   challengeImmunityTime?: number;
-  /** Custom response bodies for Block actions. Map of key → content type + body. */
+  /** Custom response bodies for `Block` actions. Map of key → content type + body. */
   customResponseBodies?: CustomResponseBodies;
   /** What happens when no rule matches a request. */
   defaultAction?: "Allow" | "Block";

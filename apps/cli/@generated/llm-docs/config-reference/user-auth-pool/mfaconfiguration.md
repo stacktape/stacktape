@@ -10,11 +10,11 @@ type MfaConfiguration = {
   enabledTypes?: Array<"EMAIL_OTP" | "SMS" | "SOFTWARE_TOKEN">;
   /** MFA requirement
 
-OFF: MFA is completely disabled.
-ON: All users must complete MFA during sign‑in.
-OPTIONAL: Users can opt in to MFA; it&#39;s recommended but not strictly required.
+`OFF`: MFA is completely disabled.
+`ON`: All users must complete MFA during sign‑in.
+`OPTIONAL`: Users can opt in to MFA; it's recommended but not strictly required.
 
-This value configures the Cognito MfaConfiguration property. */
+This value configures the Cognito `MfaConfiguration` property. */
   status?: "OFF" | "ON" | "OPTIONAL";
 };
 ```

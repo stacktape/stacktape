@@ -6,11 +6,11 @@ Resource type: `cdn`
 
 ```typescript
 type CdnLoadBalancerOrigin = {
-  /** Name of the application-load-balancer resource to route to. */
+  /** Name of the `application-load-balancer` resource to route to. */
   loadBalancerName: string;
   /** Listener port on the load balancer. Only needed if using custom listeners. */
   listenerPort?: number;
-  /** Explicit origin domain. Only needed if the ALB has no customDomains and uses customCertificateArns. */
+  /** Explicit origin domain. Only needed if the ALB has no `customDomains` and uses `customCertificateArns`. */
   originDomainName?: string;
 };
 ```

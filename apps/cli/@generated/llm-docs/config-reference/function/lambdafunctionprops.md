@@ -12,7 +12,7 @@ type LambdaFunctionProps = {
   packaging: LambdaFunctionPackaging;
   /** Alarms for this function (merged with global alarms from the Stacktape Console). */
   alarms?: Array<LambdaAlarm>;
-  /** Processor architecture: x86_64 (default) or arm64 (Graviton, ~20% cheaper). */
+  /** Processor architecture: `x86_64` (default) or `arm64` (Graviton, ~20% cheaper). */
   architecture?: "arm64" | "x86_64";
   /** Put a CDN (CloudFront) in front of this function for caching and lower latency. */
   cdn?: CdnConfiguration;
@@ -28,7 +28,7 @@ type LambdaFunctionProps = {
   environment?: Array<EnvironmentVar>;
   /** What triggers this function: HTTP requests, file uploads, queues, schedules, etc. */
   events?: Array<LambdaFunctionEvents>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
+  /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
   /** Connects the function to your VPC so it can reach databases, Redis, and other VPC-only resources. */
   joinDefaultVpc?: boolean;
@@ -42,9 +42,9 @@ type LambdaFunctionProps = {
   provisionedConcurrency?: number;
   /** Cap the maximum number of concurrent instances for this function. */
   reservedConcurrency?: number;
-  /** The language runtime (e.g., nodejs22.x, python3.13). */
+  /** The language runtime (e.g., `nodejs22.x`, `python3.13`). */
   runtime?: "dotnet6" | "dotnet7" | "dotnet8" | "java11" | "java17" | "java8" | "java8.al2" | "nodejs18.x" | "nodejs20.x" | "nodejs22.x" | "nodejs24.x" | "provided.al2" | "provided.al2023" | "python3.10" | "python3.11" | "python3.12" | "python3.13" | "python3.8" | "python3.9" | "ruby3.3";
-  /** Size of the /tmp directory in MB (512 - 10,240). Ephemeral per invocation. */
+  /** Size of the `/tmp` directory in MB (512 - 10,240). Ephemeral per invocation. */
   storage?: number;
   /** Additional tags for this function (on top of stack-level tags). Max 50. */
   tags?: Array<CloudformationTag>;
@@ -92,7 +92,7 @@ bundles, and uploads it automatically.
 **`custom-artifact`**: Provide a pre-built zip file. Stacktape handles the upload.
 
 Choices:
-- `stacktape-lambda-buildpack` (`StpBuildpackLambdaPackaging`) — A zero-config buildpack that packages your code for AWS Lambda.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `languageSpecificConfig?: Es | Py | Java | Php | Dotnet | Go | Ruby`.
+- `stacktape-lambda-buildpack` (`StpBuildpackLambdaPackaging`) — A zero-config buildpack that packages your code for AWS Lambda.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `languageSpecificConfig?: Es | Py | Java | Go | Ruby | Php | Dotnet`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
 ### Example 1 (yaml)
@@ -291,6 +291,37 @@ List the names of resources this workload needs to communicate with. Stacktape a
 
 Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
 resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.
+
+ What each resource type provides:
+
+**`Bucket`** — read/write/delete objects → `NAME`, `ARN`
+
+**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`
+
+**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.
+Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
+
+**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
+
+**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+
+**`Function`** — invoke permission → `ARN`
+
+**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`
+
+**`EventBus`** — publish events → `ARN`
+
+**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`
+
+**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`
+
+**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`
+
+**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`
+
+**`PrivateService`** → `ADDRESS`
+
+**`aws:ses`** — full SES email sending permissions
 
 ### Example 1 (yaml)
 

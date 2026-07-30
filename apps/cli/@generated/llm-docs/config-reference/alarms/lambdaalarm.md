@@ -23,8 +23,8 @@ type LambdaAlarmTrigger =
   | LambdaDurationTrigger;
 
 type LambdaAlarmNotificationTargets =
-  | MsTeamsIntegration
   | SlackIntegration
+  | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
   | WebhookIntegration;
@@ -218,13 +218,13 @@ export default defineConfig(() => {
 ## Property: `notificationTargets`
 
 - Required: no
-- Type: `Array<ms-teams | slack | email | discord | webhook>`
+- Type: `Array<slack | ms-teams | email | discord | webhook>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
 Choices:
-- `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
 - `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.

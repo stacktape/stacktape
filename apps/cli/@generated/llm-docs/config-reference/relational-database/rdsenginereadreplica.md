@@ -6,7 +6,7 @@ Resource type: `relational-database`
 
 ```typescript
 type RdsEngineReadReplica = {
-  /** Instance size (e.g., db.t4g.micro, db.r6g.large). */
+  /** Instance size (e.g., `db.t4g.micro`, `db.r6g.large`). */
   instanceSize: string;
   /** Create a standby replica in another availability zone for automatic failover. */
   multiAz?: boolean;

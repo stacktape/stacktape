@@ -6,7 +6,7 @@ Resource type: `cdn`
 
 ```typescript
 type CdnHttpApiGatewayOrigin = {
-  /** Name of the http-api-gateway resource to route to. */
+  /** Name of the `http-api-gateway` resource to route to. */
   httpApiGatewayName: string;
 };
 ```

@@ -6,7 +6,7 @@ Resource type: `multi-container-workload`
 
 ```typescript
 type ContainerHealthCheck = {
-  /** Command to check health. E.g., ["CMD-SHELL", "curl -f http://localhost/ || exit 1"]. Exit 0 = healthy. */
+  /** Command to check health. E.g., `["CMD-SHELL", "curl -f http://localhost/ || exit 1"]`. Exit 0 = healthy. */
   healthCheckCommand: Array<string>;
   /** Seconds between health checks (5-300). */
   intervalSeconds?: number;

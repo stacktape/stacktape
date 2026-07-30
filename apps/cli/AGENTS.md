@@ -32,16 +32,20 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   content, so `types/` remains excluded from formatters.
 - `@generated/` — committed generated data (CloudFormation types, config validators, LLM docs, price tables). The
   canonical config JSON schema lives with its model at `packages/config/generated/config-schema.json`. Never
-  hand-edit; regenerate with the matching `gen:*` script. The main CLI project excludes this directory, so
+  hand-edit; regenerate with the matching task. The main CLI project excludes this directory, so
   `@generated/tsconfig.json` owns both CloudFormation trees and the generated Zod validator
   (`test:generated-types`). `generate-schemas.ts` owns only `@generated/schemas/validate-config-zod.ts` and preserves
-  separately generated schema variants in that directory. AWS prices, CloudFormation resource types and RDS versions
-  are exported through explicit
+  separately generated schema variants in that directory. `generate:llm-docs` owns the enhanced documentation schema
+  and the complete `@generated/llm-docs` tree; it reads canonical data from `apps/docs` plus the current config model,
+  stages the corpus before replacement, and has a separate Turbo cache from the uncached config-schema task. AWS
+  prices, CloudFormation resource types and RDS versions are exported through explicit
   `@stacktape/cli/catalogs/*.json` subpaths so Console does not keep application-local copies. Those generators read
   live upstream data, as do `gen:cloudform` and `gen:cf:types`, and have no pinned input; regenerate deliberately
   rather than as a side effect of an unrelated change.
   Config-schema source discovery sorts normalized relative paths before constructing the TypeScript program; changing
   that ordering requires proving byte-identical generation on both Windows and Linux.
+  The root `check:generated-diff` gate checks both tracked changes and untracked files in every committed generated
+  scope; a newly generated page must be committed and cannot pass CI merely because `git diff` ignores it.
 - `generated/monaco-declarations/` — ignored deterministic workspace output containing the four v4 declaration files
   served by Console's Monaco editor. `generate:monaco` reuses the npm declaration assembler without building or
   mutating `__release-npm`; Console build/dev materializes it automatically and then copies it into its served assets.
@@ -78,10 +82,12 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 
 ```sh
 pnpm --filter @stacktape/cli run generate        # starter metadata plus deterministic config JSON/Zod schemas
+pnpm exec turbo run generate:llm-docs --filter @stacktape/cli # enhanced schema and complete shipped LLM corpus
 pnpm --filter @stacktape/cli run typecheck       # CLI, build/test projects, smoke fixtures and committed generated TypeScript
 pnpm --filter @stacktape/cli run test            # characterization, generators, command/Docker secret safety, release security, MCP docs, helper Lambdas, CLI smoke
 pnpm --filter @stacktape/cli run test:config-unit # authored-config npm API and directive-resolution unit tests
 pnpm --filter @stacktape/cli run test:generators      # generator unit tests: JSDoc escaping, cloudform naming/generics
+pnpm --filter @stacktape/cli run test:llm-docs        # corpus integrity and documented runtime safety invariants
 pnpm --filter @stacktape/cli run test:starter-projects # config-name restoration and source-template invariants
 pnpm --filter @stacktape/cli run test:generated-types # type-checks committed CloudFormation and schema TypeScript
 pnpm --filter @stacktape/cli run test:docker-secrets # proves registry password, build-arg and container-env values never reach Docker's argv
@@ -102,8 +108,6 @@ Two known constraints:
 
 ## Deferred
 
-- `@generated/llm-docs` is shipped from the committed tree. Regenerating it reads the documentation app, so
-  `scripts/generate-llm-docs.ts` returns together with `apps/docs`.
 - Framework-level starter validation belongs in a separate CI lane that materializes each starter into a temporary
   directory, installs with that starter's package manager, and runs its own typecheck with bounded concurrency,
   per-starter timeouts, and unconditional cleanup. It must not add every framework dependency to this workspace or

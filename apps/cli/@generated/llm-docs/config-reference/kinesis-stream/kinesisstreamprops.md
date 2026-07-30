@@ -16,7 +16,7 @@ type KinesisStreamProps = {
   encryption?: KinesisStreamEncryption;
   /** How long records stay in the stream (hours). Range: 24–8,760 (365 days). Beyond 24h costs extra. */
   retentionPeriodHours?: number;
-  /** Number of shards. Only used when capacityMode is PROVISIONED. */
+  /** Number of shards. Only used when `capacityMode` is `PROVISIONED`. */
   shardCount?: number;
 };
 ```

@@ -6,13 +6,13 @@ Resource type: `multi-container-workload`
 
 ```typescript
 type ContainerWorkloadResourcesConfig = {
-  /** CPU architecture for Fargate. arm64 is ~20% cheaper. Ignored when using instanceTypes. */
+  /** CPU architecture for Fargate. `arm64` is ~20% cheaper. Ignored when using `instanceTypes`. */
   architecture?: "arm64" | "x86_64";
-  /** vCPUs for the workload (Fargate). Ignored when using instanceTypes. */
+  /** vCPUs for the workload (Fargate). Ignored when using `instanceTypes`. */
   cpu?: 0.25 | 0.5 | 1 | 16 | 2 | 4 | 8;
   /** Keep pre-initialized EC2 instances ready for faster scaling. Only works with a single instance type. */
   enableWarmPool?: boolean;
-  /** EC2 instance types for the workload (e.g., t3.medium, c6g.large). Use instead of cpu/memory. */
+  /** EC2 instance types for the workload (e.g., `t3.medium`, `c6g.large`). Use instead of `cpu`/`memory`. */
   instanceTypes?: Array<string>;
   /** Memory in MB. Must be compatible with the vCPU count on Fargate. */
   memory?: number;
@@ -23,7 +23,7 @@ type ContainerWorkloadResourcesConfig = {
 
 - Required: no
 - Type: `string: "arm64" | "x86_64"`
-- Default: `'x86_64'`
+- Default: `x86_64`
 
 CPU architecture for Fargate. `arm64` is ~20% cheaper. Ignored when using `instanceTypes`.
 

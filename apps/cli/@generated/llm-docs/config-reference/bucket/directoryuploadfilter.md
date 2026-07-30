@@ -8,13 +8,13 @@ Resource type: `bucket`
 import type { KeyValuePair } from 'stacktape';
 
 type DirectoryUploadFilter = {
-  /** Glob pattern for files this rule applies to (e.g., *.html, assets/**). */
+  /** Glob pattern for files this rule applies to (e.g., `*.html`, `assets/**`). */
   includePattern: string;
-  /** Glob pattern for files to exclude even if they match includePattern. */
+  /** Glob pattern for files to exclude even if they match `includePattern`. */
   excludePattern?: string;
-  /** HTTP headers (e.g., Cache-Control) for matching files. Forwarded through CDN to the browser. */
+  /** HTTP headers (e.g., `Cache-Control`) for matching files. Forwarded through CDN to the browser. */
   headers?: Array<KeyValuePair>;
-  /** Tags for matching files. Can be used to target files with lifecycleRules. */
+  /** Tags for matching files. Can be used to target files with `lifecycleRules`. */
   tags?: Array<KeyValuePair>;
 };
 ```

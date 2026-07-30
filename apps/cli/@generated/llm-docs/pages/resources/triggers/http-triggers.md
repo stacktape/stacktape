@@ -183,7 +183,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `method` | yes | `string: "*" \| "DELETE" \| "GET" \| "HEAD" \| "OPTIONS" \| "PATCH" \| "POST" \| "PUT"` | - |
 | `path` | yes | `string` | - |
 | `authorizer` | no | `cognito \| lambda` | - |
-| `payloadFormat` | no | `string: "1.0" \| "2.0"` | `'1.0'` |
+| `payloadFormat` | no | `string: "1.0" \| "2.0"` | `1.0` |
 
 
 The API reference above covers HTTP API Gateway integration properties. For ALB integration properties (`ApplicationLoadBalancerIntegrationProps`), see the [Application Load Balancer](/resources/networking/application-load-balancer) resource page.

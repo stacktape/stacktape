@@ -6,7 +6,7 @@ Resource type: `cdn`
 
 ```typescript
 type CdnLambdaFunctionOrigin = {
-  /** Name of the function resource to route to. The function must have url.enabled: true. */
+  /** Name of the `function` resource to route to. The function must have `url.enabled: true`. */
   functionName: string;
 };
 ```

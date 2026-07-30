@@ -8,9 +8,9 @@ Resource type: `nuxt-web`
 import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
 
 type NuxtWebProps = {
-  /** Directory containing your nuxt.config.ts. For monorepos, point to the Nuxt workspace. */
+  /** Directory containing your `nuxt.config.ts`. For monorepos, point to the Nuxt workspace. */
   appDirectory?: string;
-  /** Override the default nuxt build command. */
+  /** Override the default `nuxt build` command. */
   buildCommand?: string;
   /** CDN cache controls for SSR routes and specific path patterns. */
   cdn?: SsrWebCdnConfig;
@@ -18,17 +18,17 @@ type NuxtWebProps = {
   connectTo?: Array<string>;
   /** Attach custom domains with auto-managed DNS records and TLS certificates. */
   customDomains?: Array<DomainConfiguration>;
-  /** Dev server config for stacktape dev. Defaults to nuxt dev. */
+  /** Dev server config for `stacktape dev`. Defaults to `nuxt dev`. */
   dev?: SsrWebDevConfig;
-  /** Environment variables for the SSR function. Use $ResourceParam() or $Secret() for dynamic values. */
+  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */
   environment?: Array<EnvironmentVar>;
-  /** Set custom headers (e.g., Cache-Control) for static files matching a pattern. */
+  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */
   fileOptions?: Array<DirectoryUploadFilter>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
+  /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
   /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
   serverLambda?: SsrWebServerLambdaConfig;
-  /** Name of a web-app-firewall resource to protect this app. Firewall scope must be cdn. */
+  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */
   useFirewall?: string;
 };
 ```
@@ -159,6 +159,37 @@ List the names of resources this workload needs to communicate with. Stacktape a
 
 Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
 resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.
+
+ What each resource type provides:
+
+**`Bucket`** — read/write/delete objects → `NAME`, `ARN`
+
+**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`
+
+**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.
+Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
+
+**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
+
+**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+
+**`Function`** — invoke permission → `ARN`
+
+**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`
+
+**`EventBus`** — publish events → `ARN`
+
+**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`
+
+**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`
+
+**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`
+
+**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`
+
+**`PrivateService`** → `ADDRESS`
+
+**`aws:ses`** — full SES email sending permissions
 
 ### Example 1 (yaml)
 

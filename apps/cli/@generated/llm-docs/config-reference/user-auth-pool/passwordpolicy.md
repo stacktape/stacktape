@@ -7,6 +7,7 @@ Resource type: `user-auth-pool`
 ```typescript
 type PasswordPolicy = {
   /** Minimum password length
+
 The fewest characters a password can have. Longer passwords are generally more secure. */
   minimumLength?: number;
   /** Require at least one lowercase letter */
@@ -14,11 +15,13 @@ The fewest characters a password can have. Longer passwords are generally more s
   /** Require at least one number */
   requireNumbers?: boolean;
   /** Require at least one symbol
-Symbols are non‑alphanumeric characters such as !, @, or #. */
+
+Symbols are non‑alphanumeric characters such as `!`, `@`, or `#`. */
   requireSymbols?: boolean;
   /** Require at least one uppercase letter */
   requireUppercase?: boolean;
   /** Temporary password validity (days)
+
 How long a temporary password issued to a new user is valid before it must be changed on first sign‑in. */
   temporaryPasswordValidityDays?: number;
 };

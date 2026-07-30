@@ -48,8 +48,8 @@ export const copyReleaseChecksums = async ({
   await copy(sourcePath, destinationPath);
 };
 
-// The LLM docs under @generated/llm-docs are committed. Regenerating them reads the documentation app, which
-// lives in apps/docs and is migrated in a later phase, so releases copy the committed output for now.
+// The LLM docs under @generated/llm-docs are committed and freshness-checked against apps/docs plus the current
+// CLI/config model. Release assembly copies that reviewed deterministic snapshot.
 export const copyLlmDocs = async () => {
   logInfo('Copying LLM docs...');
   await copy(LLM_DOCS_FOLDER_PATH, join(NPM_RELEASE_FOLDER_PATH, 'llm-docs'));

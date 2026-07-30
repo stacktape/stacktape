@@ -6,13 +6,13 @@ Resource type: `cdn`
 
 ```typescript
 type EdgeFunctionsConfig = {
-  /** Name of an edge-lambda-function to run before forwarding to the origin (after cache miss). */
+  /** Name of an `edge-lambda-function` to run before forwarding to the origin (after cache miss). */
   onOriginRequest?: string;
-  /** Name of an edge-lambda-function to run after the origin responds (before caching). */
+  /** Name of an `edge-lambda-function` to run after the origin responds (before caching). */
   onOriginResponse?: string;
-  /** Name of an edge-lambda-function to run when the CDN receives a request (before cache lookup). */
+  /** Name of an `edge-lambda-function` to run when the CDN receives a request (before cache lookup). */
   onRequest?: string;
-  /** Name of an edge-lambda-function to run before returning the response to the client. */
+  /** Name of an `edge-lambda-function` to run before returning the response to the client. */
   onResponse?: string;
 };
 ```
@@ -26,7 +26,7 @@ Name of an `edge-lambda-function` to run before forwarding to the origin (after 
 
 Only runs on cache misses. Use to modify the request before it reaches your origin.
 
-  **Warning:** Stacktape uses this trigger internally for bucket/web-service/API Gateway CDN setups.
+**Warning:** Stacktape uses this trigger internally for bucket/web-service/API Gateway CDN setups.
 Overriding it may break default behavior. Only use if you know what you're doing.
 
 ### Example 1 (yaml)

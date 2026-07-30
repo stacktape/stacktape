@@ -6,17 +6,17 @@ Resource type: `application-load-balancer`
 
 ```typescript
 type LbRedirectProperties = {
-  /** HTTP_301 (permanent) or HTTP_302 (temporary) redirect. */
+  /** `HTTP_301` (permanent) or `HTTP_302` (temporary) redirect. */
   statusCode: "HTTP_301" | "HTTP_302";
-  /** Redirect hostname. Use #{host} to keep the original. */
+  /** Redirect hostname. Use `#{host}` to keep the original. */
   host?: string;
-  /** Redirect path (must start with /). Use #{path} to reuse the original path. */
+  /** Redirect path (must start with `/`). Use `#{path}` to reuse the original path. */
   path?: string;
-  /** Redirect port (1-65535). Use #{port} to keep the original. */
+  /** Redirect port (1-65535). Use `#{port}` to keep the original. */
   port?: number;
   /** Redirect protocol. Cannot redirect HTTPS to HTTP. */
   protocol?: "HTTP" | "HTTPS";
-  /** Query string for the redirect (without leading ?). Use #{query} to preserve the original. */
+  /** Query string for the redirect (without leading `?`). Use `#{query}` to preserve the original. */
   query?: string;
 };
 ```

@@ -8,7 +8,7 @@ Resource type: `relational-database`
 type RdsEngineStorage = {
   /** Initial storage in GB. Auto-scales up when free space is low. */
   initialSize?: number;
-  /** Max storage in GB. The database won&#39;t auto-scale beyond this. */
+  /** Max storage in GB. The database won't auto-scale beyond this. */
   maxSize?: number;
 };
 ```

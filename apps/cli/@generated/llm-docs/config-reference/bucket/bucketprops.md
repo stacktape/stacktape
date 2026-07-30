@@ -8,7 +8,7 @@ Resource type: `bucket`
 import type { AbortIncompleteMultipartUpload, BucketAccessibility, BucketCdnConfiguration, BucketCorsConfig, ClassTransition, DirectoryUpload, Expiration, NonCurrentVersionClassTransition, NonCurrentVersionExpiration } from 'stacktape';
 
 type BucketProps = {
-  /** Who can read/write to this bucket: private (default), public-read, or public-read-write. */
+  /** Who can read/write to this bucket: `private` (default), `public-read`, or `public-read-write`. */
   accessibility?: BucketAccessibility;
   /** Put a CDN (CloudFront) in front of this bucket for faster downloads and lower bandwidth costs. */
   cdn?: BucketCdnConfiguration;

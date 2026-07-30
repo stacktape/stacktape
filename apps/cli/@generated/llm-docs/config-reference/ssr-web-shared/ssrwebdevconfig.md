@@ -6,7 +6,7 @@ Dev server configuration shared by all SSR web resources
 
 ```typescript
 type SsrWebDevConfig = {
-  /** Override the default dev server command (e.g., npm run dev). */
+  /** Override the default dev server command (e.g., `npm run dev`). */
   command?: string;
   /** Working directory for the dev command, relative to project root. */
   workingDirectory?: string;

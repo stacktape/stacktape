@@ -6,11 +6,11 @@
 type HttpEndpointLogForwardingProps = {
   /** HTTPS endpoint URL where logs are sent. */
   endpointUrl: string;
-  /** Auth credential sent in X-Amz-Firehose-Access-Key header. Store as $Secret() for security. */
+  /** Auth credential sent in `X-Amz-Firehose-Access-Key` header. Store as `$Secret()` for security. */
   accessKey?: string;
   /** Compress request body with GZIP to reduce transfer costs. */
   gzipEncodingEnabled?: boolean;
-  /** Extra metadata sent in the X-Amz-Firehose-Common-Attributes header. */
+  /** Extra metadata sent in the `X-Amz-Firehose-Common-Attributes` header. */
   parameters?: unknown;
   /** Total retry time (seconds) before sending failed logs to a backup S3 bucket. */
   retryDuration?: number;

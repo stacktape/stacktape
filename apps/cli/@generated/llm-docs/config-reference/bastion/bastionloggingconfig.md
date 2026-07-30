@@ -8,11 +8,11 @@ Resource type: `bastion`
 import type { BastionLogging } from 'stacktape';
 
 type BastionLoggingConfig = {
-  /** Audit logs (/var/log/audit/audit.log) — detailed security events from the Linux audit system. */
+  /** Audit logs (`/var/log/audit/audit.log`) — detailed security events from the Linux audit system. */
   audit?: BastionLogging;
-  /** System messages (/var/log/messages) — startup info, kernel messages, service logs. */
+  /** System messages (`/var/log/messages`) — startup info, kernel messages, service logs. */
   messages?: BastionLogging;
-  /** Auth logs (/var/log/secure) — SSH login attempts, authentication events. */
+  /** Auth logs (`/var/log/secure`) — SSH login attempts, authentication events. */
   secure?: BastionLogging;
 };
 ```

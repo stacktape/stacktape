@@ -12,7 +12,7 @@ type NetworkLoadBalancerProps = {
   listeners: Array<NetworkLoadBalancerListener>;
   /** Custom domains. */
   customDomains?: NetworkLoadBalancerCustomDomains;
-  /** internet (public) or internal (VPC-only). */
+  /** `internet` (public) or `internal` (VPC-only). */
   interface?: "internal" | "internet";
 };
 

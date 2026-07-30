@@ -6,7 +6,7 @@ Resource type: `http-api-gateway`
 
 ```typescript
 type HttpApiCorsConfig = {
-  /** Enable CORS. With no other options, uses permissive defaults (* origins, common headers). */
+  /** Enable CORS. With no other options, uses permissive defaults (`*` origins, common headers). */
   enabled: boolean;
   /** Allow cookies/auth headers in cross-origin requests. */
   allowCredentials?: boolean;
@@ -14,7 +14,7 @@ type HttpApiCorsConfig = {
   allowedHeaders?: Array<string>;
   /** Allowed HTTP methods. Auto-detected from integrations if not set. */
   allowedMethods?: Array<"*" | "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT">;
-  /** Allowed origins (e.g., https://myapp.com). Use * for any origin. */
+  /** Allowed origins (e.g., `https://myapp.com`). Use `*` for any origin. */
   allowedOrigins?: Array<string>;
   /** Response headers accessible to browser JavaScript. */
   exposedResponseHeaders?: Array<string>;

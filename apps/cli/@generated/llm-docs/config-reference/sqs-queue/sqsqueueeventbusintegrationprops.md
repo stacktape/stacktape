@@ -12,7 +12,7 @@ type SqsQueueEventBusIntegrationProps = {
   eventPattern: EventBusIntegrationPattern;
   /** The ARN of an existing event bus. */
   eventBusArn?: string;
-  /** The name of an event bus defined in your stack&#39;s resources. */
+  /** The name of an event bus defined in your stack's resources. */
   eventBusName?: string;
   /** A fixed JSON object to be passed as the event payload. */
   input?: unknown;
@@ -20,7 +20,7 @@ type SqsQueueEventBusIntegrationProps = {
   inputPath?: string;
   /** Customizes the event payload sent to the target. */
   inputTransformer?: EventInputTransformer;
-  /** Message group ID for FIFO queues. Required when the target queue has fifoEnabled: true. */
+  /** Message group ID for FIFO queues. Required when the target queue has `fifoEnabled: true`. */
   messageGroupId?: string;
   /** A destination for events that fail to be delivered to the target. */
   onDeliveryFailure?: EventBusOnDeliveryFailure;

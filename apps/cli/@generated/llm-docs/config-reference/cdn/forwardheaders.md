@@ -8,9 +8,9 @@ Resource type: `cdn`
 type ForwardHeaders = {
   /** Forward all viewer headers except the listed ones. */
   allExcept?: Array<string>;
-  /** Forward all headers from the viewer&#39;s request. */
+  /** Forward all headers from the viewer's request. */
   allViewer?: boolean;
-  /** Forward all viewer headers plus the listed CloudFront-specific headers (e.g., CloudFront-Viewer-Country). */
+  /** Forward all viewer headers plus the listed CloudFront-specific headers (e.g., `CloudFront-Viewer-Country`). */
   allViewerAndWhitelistCloudFront?: Array<string>;
   /** No headers are forwarded to the origin. */
   none?: boolean;

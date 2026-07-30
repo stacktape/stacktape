@@ -16,13 +16,13 @@ type BatchJobProps = {
   connectTo?: Array<string>;
   /** Events that trigger this job (schedules, HTTP requests, S3 uploads, SQS messages, etc.). */
   events?: Array<BatchJobEvents>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
+  /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
-  /** Container logging (stdout/stderr). Sent to CloudWatch, viewable with stacktape logs. */
+  /** Container logging (stdout/stderr). Sent to CloudWatch, viewable with `stacktape logs`. */
   logging?: BatchJobLogging;
   /** Auto-retry on failure, timeout, or Spot interruption. */
   retryConfig?: BatchJobRetryConfiguration;
-  /** Max run time in seconds. The job is killed if it exceeds this, then retried if retryConfig is set. */
+  /** Max run time in seconds. The job is killed if it exceeds this, then retried if `retryConfig` is set. */
   timeout?: number;
   /** Use discounted spare AWS capacity. Saves up to 90%, but jobs can be interrupted. */
   useSpotInstances?: boolean;
@@ -156,6 +156,37 @@ List the names of resources this workload needs to communicate with. Stacktape a
 
 Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
 resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.
+
+ What each resource type provides:
+
+**`Bucket`** — read/write/delete objects → `NAME`, `ARN`
+
+**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`
+
+**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.
+Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
+
+**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
+
+**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+
+**`Function`** — invoke permission → `ARN`
+
+**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`
+
+**`EventBus`** — publish events → `ARN`
+
+**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`
+
+**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`
+
+**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`
+
+**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`
+
+**`PrivateService`** → `ADDRESS`
+
+**`aws:ses`** — full SES email sending permissions
 
 ### Example 1 (yaml)
 

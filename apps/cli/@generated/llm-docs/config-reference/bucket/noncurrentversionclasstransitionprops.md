@@ -12,7 +12,7 @@ type NonCurrentVersionClassTransitionProps = {
   daysAfterVersioned: number;
   /** Target storage class for non-current versions. */
   storageClass: "DEEP_ARCHIVE" | "GLACIER" | "INTELLIGENT_TIERING" | "ONEZONE_IA" | "STANDARD_IA";
-  /** Only apply this rule to objects with this key prefix (e.g., logs/, uploads/). */
+  /** Only apply this rule to objects with this key prefix (e.g., `logs/`, `uploads/`). */
   prefix?: string;
   /** Only apply this rule to objects with these tags. */
   tags?: Array<KeyValuePair>;

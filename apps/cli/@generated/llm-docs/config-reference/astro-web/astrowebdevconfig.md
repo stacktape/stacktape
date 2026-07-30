@@ -6,7 +6,7 @@ Resource type: `astro-web`
 
 ```typescript
 type AstroWebDevConfig = {
-  /** Override the default astro dev command (e.g., npm run dev). */
+  /** Override the default `astro dev` command (e.g., `npm run dev`). */
   command?: string;
   /** Working directory for the dev command, relative to project root. */
   workingDirectory?: string;

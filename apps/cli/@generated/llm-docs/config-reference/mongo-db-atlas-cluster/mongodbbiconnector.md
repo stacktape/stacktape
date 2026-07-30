@@ -8,7 +8,7 @@ Resource type: `mongo-db-atlas-cluster`
 type MongoDbBiConnector = {
   /** Enable the BI Connector for SQL-based access. */
   enabled: boolean;
-  /** Which node type the BI Connector reads from. Use analytics to avoid impacting production queries. */
+  /** Which node type the BI Connector reads from. Use `analytics` to avoid impacting production queries. */
   readPreference?: "analytics" | "primary" | "secondary";
 };
 ```

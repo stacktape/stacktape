@@ -4,9 +4,9 @@
 
 ```typescript
 type StpIamRoleStatement = {
-  /** ARNs of the AWS resources this statement applies to. Use "*" for all resources. */
+  /** ARNs of the AWS resources this statement applies to. Use `"*"` for all resources. */
   Resource: Array<string>;
-  /** AWS actions to allow or deny (e.g., s3:GetObject, sqs:SendMessage). */
+  /** AWS actions to allow or deny (e.g., `s3:GetObject`, `sqs:SendMessage`). */
   Action?: Array<string>;
   /** Conditions under which this statement applies (e.g., IP restrictions, tag-based access). */
   Condition?: unknown;

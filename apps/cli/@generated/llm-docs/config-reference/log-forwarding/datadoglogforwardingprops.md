@@ -4,7 +4,7 @@
 
 ```typescript
 type DatadogLogForwardingProps = {
-  /** Your Datadog API key. Store as $Secret() for security. */
+  /** Your Datadog API key. Store as `$Secret()` for security. */
   apiKey: string;
   /** Datadog endpoint. Use the EU URL if your account is in the EU region. */
   endpointUrl?: string;

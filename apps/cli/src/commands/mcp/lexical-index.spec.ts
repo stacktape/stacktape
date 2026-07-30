@@ -51,7 +51,7 @@ describe('MCP docs lexical index', () => {
       title: 'LambdaFunctionProps API Reference',
       route: '/config-reference/function',
       docKind: 'config-reference',
-      sourcePath: 'types/stacktape-config/functions.d.ts',
+      sourcePath: 'packages/config/src/functions.ts',
       headingPath: ['LambdaFunctionProps API Reference', 'Property: `timeout`']
     });
   });

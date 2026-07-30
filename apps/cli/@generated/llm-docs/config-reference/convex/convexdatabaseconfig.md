@@ -8,15 +8,15 @@ Database override for the Convex deployment.
 import type { AuroraEngine, AuroraServerlessV2Engine, DatabaseAccessibility, RdsEngine, RelationalDatabaseLogging } from 'stacktape';
 
 type ConvexDatabaseConfig = {
-  /** Database network accessibility. Defaults to scoping-workloads-in-vpc. */
+  /** Database network accessibility. Defaults to `scoping-workloads-in-vpc`. */
   accessibility?: DatabaseAccessibility;
   /** Days to keep automated daily backups (0–35). Defaults to 1. */
   automatedBackupRetentionDays?: number;
-  /** Database engine override. Defaults to RDS PostgreSQL 16 on db.t4g.micro. */
+  /** Database engine override. Defaults to RDS PostgreSQL 16 on `db.t4g.micro`. */
   engine?: ConvexDatabaseConfigEngine;
   /** Database logging (connections, slow queries, errors). */
   logging?: RelationalDatabaseLogging;
-  /** When maintenance happens. Format: Sun:02:00-Sun:04:00 (UTC). */
+  /** When maintenance happens. Format: `Sun:02:00-Sun:04:00` (UTC). */
   preferredMaintenanceWindow?: string;
 };
 

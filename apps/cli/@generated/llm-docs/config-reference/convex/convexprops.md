@@ -6,7 +6,7 @@
 import type { ApplicationLoadBalancerAlarm, ConvexBackendConfig, ConvexCustomDomains, ConvexDashboardConfig, ConvexDatabaseConfig, ConvexFunctionsDeploymentConfig, ConvexStorageConfig, DevModeConfig, RelationalDatabaseAlarm } from 'stacktape';
 
 type ConvexProps = {
-  /** Path to the convex/ directory in your project. */
+  /** Path to the `convex/` directory in your project. */
   appDirectory: string;
   /** Alarms for this Convex deployment (backend container, ALB, database). Merged with global
 alarms from the Stacktape Console. */
@@ -28,8 +28,8 @@ filesystem storage. */
   disabledGlobalAlarms?: Array<string>;
   /** How Stacktape deploys Convex functions after infrastructure is ready. */
   functionsDeployment?: ConvexFunctionsDeploymentConfig;
-  /** Shared configuration applied to all five Convex S3 buckets (modules, files, search,
-exports, snapshot_imports). */
+  /** Shared configuration applied to all five Convex S3 buckets (`modules`, `files`, `search`,
+`exports`, `snapshot_imports`). */
   storage?: ConvexStorageConfig;
 };
 
@@ -111,8 +111,8 @@ Alarms for this Convex deployment (backend container, ALB, database). Merged wit
 alarms from the Stacktape Console.
 
 Choices:
-- `ApplicationLoadBalancerAlarm` (`ApplicationLoadBalancerAlarm`). Properties: `trigger: application-load-balancer-custom | application-load-balancer-error-rate | application-load-balancer-unhealthy-targets`, `evaluation?: AlarmEvaluation`, `notificationTargets?: Array<ms-teams | slack | email | discord | webhook>`, `includeInHistory?: boolean`, `description?: string`.
-- `RelationalDatabaseAlarm` (`RelationalDatabaseAlarm`). Properties: `trigger: database-read-latency | database-write-latency | database-cpu-utilization | database-free-storage | database-free-memory | database-connection-count`, `evaluation?: AlarmEvaluation`, `notificationTargets?: Array<ms-teams | slack | email | discord | webhook>`, `includeInHistory?: boolean`, `description?: string`.
+- `ApplicationLoadBalancerAlarm` (`ApplicationLoadBalancerAlarm`). Properties: `trigger: application-load-balancer-custom | application-load-balancer-error-rate | application-load-balancer-unhealthy-targets`, `evaluation?: AlarmEvaluation`, `notificationTargets?: Array<slack | ms-teams | email | discord | webhook>`, `includeInHistory?: boolean`, `description?: string`.
+- `RelationalDatabaseAlarm` (`RelationalDatabaseAlarm`). Properties: `trigger: database-read-latency | database-write-latency | database-cpu-utilization | database-free-storage | database-free-memory | database-connection-count`, `evaluation?: AlarmEvaluation`, `notificationTargets?: Array<slack | ms-teams | email | discord | webhook>`, `includeInHistory?: boolean`, `description?: string`.
 
 ### Example 1 (yaml)
 
@@ -336,7 +336,7 @@ export default defineConfig(() => {
 Override the PostgreSQL database that backs the Convex deployment.
 
 Defaults to a single-AZ RDS PostgreSQL `db.t4g.micro` instance (cheapest production-viable
-option, ~$13/month). The shape mirrors a subset of [`relational-database`](/resources/relational-databases/) — override only what
+option, ~$13/month). The shape mirrors a subset of [`relational-database`](https://docs.stacktape.com/resources/relational-databases/) — override only what
 you need. Common reasons to override: bump to Aurora Serverless v2 for auto-scaling, enable
 multi-AZ for HA, or increase storage retention.
 

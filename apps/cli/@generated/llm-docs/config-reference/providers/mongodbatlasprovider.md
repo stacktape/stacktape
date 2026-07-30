@@ -10,7 +10,7 @@ type MongoDbAtlasProvider = {
   accessibility?: MongoDbAtlasAccessibility;
   /** Your MongoDB Atlas Organization ID. */
   organizationId?: string;
-  /** Your MongoDB Atlas private API key. Store as $Secret() for security. */
+  /** Your MongoDB Atlas private API key. Store as `$Secret()` for security. */
   privateKey?: string;
   /** Your MongoDB Atlas public API key. */
   publicKey?: string;

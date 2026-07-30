@@ -9,13 +9,13 @@ type ManagedRuleGroupProps = {
   name: string;
   /** Evaluation order. Lower = evaluated first. Must be unique across all rules. */
   priority: number;
-  /** Vendor name (e.g., AWS for AWS-managed rules). */
+  /** Vendor name (e.g., `AWS` for AWS-managed rules). */
   vendorName: string;
   /** Disable CloudWatch metrics for this rule. */
   disableMetrics?: boolean;
   /** Rules within this group to skip (by rule name). Useful for disabling false positives. */
   excludedRules?: Array<string>;
-  /** None = apply normally, Count = log matches without blocking (dry-run mode). */
+  /** `None` = apply normally, `Count` = log matches without blocking (dry-run mode). */
   overrideAction?: "Count" | "None";
   /** Save samples of requests matching this rule for inspection in the WAF console. */
   sampledRequestsEnabled?: boolean;

@@ -104,7 +104,7 @@ export default defineConfig(() => {
 Logging configuration for the backend container.
 
 Container `stdout`/`stderr` are sent to CloudWatch and retained for 90 days by default.
-View logs with `stacktape logs `.
+View logs with `stacktape logs <resourceName>`.
 
 ### Example 1 (yaml)
 

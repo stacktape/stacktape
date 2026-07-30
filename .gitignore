@@ -33,3 +33,7 @@ __starter-projects/
 
 # Deterministic workspace output materialized for the private Console Monaco editor.
 apps/cli/generated/monaco-declarations/
+
+# Interrupted atomic LLM-doc corpus generation can leave its same-volume staging/backup directory behind.
+apps/cli/@generated/.llm-docs-*/
+apps/cli/@generated/llm-docs.previous/

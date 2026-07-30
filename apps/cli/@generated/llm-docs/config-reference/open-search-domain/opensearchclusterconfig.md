@@ -8,11 +8,11 @@ Resource type: `open-search-domain`
 type OpenSearchClusterConfig = {
   /** Number of data nodes. More nodes = more storage capacity and query throughput. */
   instanceCount: number;
-  /** Instance type for data nodes (e.g., t3.medium.search, r6g.large.search). */
+  /** Instance type for data nodes (e.g., `t3.medium.search`, `r6g.large.search`). */
   instanceType: string;
   /** Number of dedicated master nodes. Must be odd (3, 5, or 7) for quorum. */
   dedicatedMasterCount?: number;
-  /** Instance type for dedicated master nodes (e.g., m5.large.search). Manages cluster state, not data. */
+  /** Instance type for dedicated master nodes (e.g., `m5.large.search`). Manages cluster state, not data. */
   dedicatedMasterType?: string;
   /** Disable Multi-AZ replication. Not recommended — reduces availability and data durability. */
   multiAzDisabled?: boolean;

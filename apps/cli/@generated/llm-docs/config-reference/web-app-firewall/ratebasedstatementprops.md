@@ -8,18 +8,18 @@ Resource type: `web-app-firewall`
 import type { ForwardedIPConfig } from 'stacktape';
 
 type RateBasedStatementProps = {
-  /** Max requests per IP in a 5-minute window. Range: 100–20,000,000. Exceeding triggers the action. */
+  /** Max requests per IP in a 5-minute window. Range: 100–20,000,000. Exceeding triggers the `action`. */
   limit: number;
   name: string;
   /** Evaluation order. Lower = evaluated first. Must be unique across all rules. */
   priority: number;
   /** What to do when the rate limit is exceeded. */
   action?: "Allow" | "Block" | "Captcha" | "Challenge" | "Count";
-  /** IP = direct client IP, FORWARDED_IP = IP from a header (e.g., X-Forwarded-For behind a proxy). */
+  /** `IP` = direct client IP, `FORWARDED_IP` = IP from a header (e.g., `X-Forwarded-For` behind a proxy). */
   aggregateBasedOn?: "FORWARDED_IP" | "IP";
   /** Disable CloudWatch metrics for this rule. */
   disableMetrics?: boolean;
-  /** Header and fallback settings when using FORWARDED_IP aggregation. */
+  /** Header and fallback settings when using `FORWARDED_IP` aggregation. */
   forwardedIPConfig?: ForwardedIPConfig;
   /** Save samples of requests matching this rule for inspection in the WAF console. */
   sampledRequestsEnabled?: boolean;

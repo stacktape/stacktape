@@ -6,7 +6,7 @@ Resource type: `custom-resource`
 
 ```typescript
 type CustomResourceInstanceProps = {
-  /** Name of the custom-resource-definition in your config that provides the backing Lambda. */
+  /** Name of the `custom-resource-definition` in your config that provides the backing Lambda. */
   definitionName: string;
   /** Key-value pairs passed to the Lambda function during create/update/delete events. */
   resourceProperties: unknown;

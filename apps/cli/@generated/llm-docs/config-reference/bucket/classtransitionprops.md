@@ -12,7 +12,7 @@ type ClassTransitionProps = {
   daysAfterUpload: number;
   /** Target storage class. Cheaper classes have higher retrieval costs/latency. */
   storageClass: "DEEP_ARCHIVE" | "GLACIER" | "INTELLIGENT_TIERING" | "ONEZONE_IA" | "STANDARD_IA";
-  /** Only apply this rule to objects with this key prefix (e.g., logs/, uploads/). */
+  /** Only apply this rule to objects with this key prefix (e.g., `logs/`, `uploads/`). */
   prefix?: string;
   /** Only apply this rule to objects with these tags. */
   tags?: Array<KeyValuePair>;

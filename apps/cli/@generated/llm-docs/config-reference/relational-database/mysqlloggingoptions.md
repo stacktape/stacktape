@@ -6,7 +6,7 @@ Resource type: `relational-database`
 
 ```typescript
 type MysqlLoggingOptions = {
-  /** Queries slower than this (seconds) are logged as &quot;slow queries&quot;. -1 to disable. */
+  /** Queries slower than this (seconds) are logged as "slow queries". `-1` to disable. */
   long_query_time?: number;
   /** What to record in the audit log: connections, all queries, DDL only, DML only, etc. */
   server_audit_events?: Array<"CONNECT" | "QUERY" | "QUERY_DCL" | "QUERY_DDL" | "QUERY_DML" | "QUERY_DML_NO_SELECT">;

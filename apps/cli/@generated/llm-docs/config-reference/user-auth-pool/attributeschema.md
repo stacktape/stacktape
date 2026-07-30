@@ -7,23 +7,28 @@ Resource type: `user-auth-pool`
 ```typescript
 type AttributeSchema = {
   /** Attribute data type
-The value type stored for this attribute (String, Number, etc.).
-This is passed to Cognito&#39;s AttributeDataType. */
+
+The value type stored for this attribute (`String`, `Number`, etc.).
+This is passed to Cognito's `AttributeDataType`. */
   attributeDataType?: string;
   /** Developer-only attribute
+
 If true, the attribute is only readable/writable by privileged backend code and not exposed to end users directly. */
   developerOnlyAttribute?: boolean;
   /** Mutable after sign-up
+
 Controls whether the attribute can be changed after it has been initially set. */
   mutable?: boolean;
   /** Attribute name
-The logical name of the attribute as it appears on the user (for example given_name, plan, or tenantId). */
+
+The logical name of the attribute as it appears on the user (for example `given_name`, `plan`, or `tenantId`). */
   name?: string;
   /** Maximum numeric value */
   numberMaxValue?: number;
   /** Minimum numeric value */
   numberMinValue?: number;
   /** Required at sign-up
+
 If true, users must supply this attribute when creating an account. */
   required?: boolean;
   /** Maximum string length */

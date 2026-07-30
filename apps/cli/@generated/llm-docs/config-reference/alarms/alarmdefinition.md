@@ -6,7 +6,7 @@
 import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';
 
 type AlarmDefinition = {
-  /** A unique name for this alarm (e.g., api-error-rate, db-cpu-high). */
+  /** A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`). */
   name: string;
   /** The metric and threshold that fires this alarm. */
   trigger: AlarmDefinitionTrigger;
@@ -16,7 +16,7 @@ type AlarmDefinition = {
   evaluation?: AlarmEvaluation;
   /** Only activate this alarm for these services. If omitted, applies to all services. */
   forServices?: Array<string>;
-  /** Only activate this alarm for these stages (e.g., production). If omitted, applies to all stages. */
+  /** Only activate this alarm for these stages (e.g., `production`). If omitted, applies to all stages. */
   forStages?: Array<string>;
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
@@ -43,8 +43,8 @@ type AlarmDefinitionTrigger =
   | RelationalDatabaseConnectionCountTrigger;
 
 type AlarmDefinitionNotificationTargets =
-  | MsTeamsIntegration
   | SlackIntegration
+  | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
   | WebhookIntegration;
@@ -276,13 +276,13 @@ export default defineConfig(() => {
 ## Property: `notificationTargets`
 
 - Required: no
-- Type: `Array<ms-teams | slack | email | discord | webhook>`
+- Type: `Array<slack | ms-teams | email | discord | webhook>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
 Choices:
-- `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
 - `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.

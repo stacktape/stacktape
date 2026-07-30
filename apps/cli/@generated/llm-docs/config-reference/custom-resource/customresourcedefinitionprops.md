@@ -12,9 +12,9 @@ type CustomResourceDefinitionProps = {
   packaging: CustomResourceDefinitionPackaging;
   /** Give this resource access to other resources in your stack. */
   connectTo?: Array<string>;
-  /** Environment variables injected into the Lambda function. Use $ResourceParam() for dynamic values. */
+  /** Environment variables injected into the Lambda function. Use `$ResourceParam()` for dynamic values. */
   environment?: Array<EnvironmentVar>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
+  /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
   /** Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU. */
   memory?: number;
@@ -38,7 +38,7 @@ type CustomResourceDefinitionPackaging =
 How the Lambda function code is packaged and deployed.
 
 Choices:
-- `stacktape-lambda-buildpack` (`StpBuildpackLambdaPackaging`) — A zero-config buildpack that packages your code for AWS Lambda.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `languageSpecificConfig?: Es | Py | Java | Php | Dotnet | Go | Ruby`.
+- `stacktape-lambda-buildpack` (`StpBuildpackLambdaPackaging`) — A zero-config buildpack that packages your code for AWS Lambda.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `languageSpecificConfig?: Es | Py | Java | Go | Ruby | Php | Dotnet`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
 ### Example 1 (yaml)
@@ -108,6 +108,37 @@ List the names of resources this workload needs to communicate with. Stacktape a
 
 Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
 resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.
+
+ What each resource type provides:
+
+**`Bucket`** — read/write/delete objects → `NAME`, `ARN`
+
+**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`
+
+**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.
+Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
+
+**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
+
+**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+
+**`Function`** — invoke permission → `ARN`
+
+**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`
+
+**`EventBus`** — publish events → `ARN`
+
+**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`
+
+**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`
+
+**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`
+
+**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`
+
+**`PrivateService`** → `ADDRESS`
+
+**`aws:ses`** — full SES email sending permissions
 
 ### Example 1 (yaml)
 

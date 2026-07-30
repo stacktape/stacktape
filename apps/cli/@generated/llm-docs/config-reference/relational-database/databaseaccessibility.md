@@ -8,9 +8,9 @@ Resource type: `relational-database`
 type DatabaseAccessibility = {
   /** Controls who can connect to your database. */
   accessibilityMode: "internet" | "scoping-workloads-in-vpc" | "vpc" | "whitelisted-ips-only";
-  /** Remove the database&#39;s public IP entirely (VPC-only access). */
+  /** Remove the database's public IP entirely (VPC-only access). */
   forceDisablePublicIp?: boolean;
-  /** IP addresses or CIDR ranges allowed to connect (e.g., 203.0.113.50/32). */
+  /** IP addresses or CIDR ranges allowed to connect (e.g., `203.0.113.50/32`). */
   whitelistedIps?: Array<string>;
 };
 ```
@@ -31,7 +31,7 @@ You can also whitelist specific IPs (e.g., your office) using `whitelistedIps`.
 database in their `connectTo` can reach it. Best for production.
 **`whitelisted-ips-only`**: Only the IP addresses you list in `whitelistedIps` can connect.
 
-  Aurora Serverless engines only support `vpc` or `scoping-workloads-in-vpc`.
+Aurora Serverless engines only support `vpc` or `scoping-workloads-in-vpc`.
 
 ### Example 1 (yaml)
 

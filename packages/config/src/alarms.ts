@@ -315,6 +315,35 @@ export type RelationalDatabaseAlarmTrigger =
   | RelationalDatabaseFreeMemoryTrigger
   | RelationalDatabaseConnectionCountTrigger;
 
+export type AlarmTrigger =
+  | LambdaAlarmTrigger
+  | RelationalDatabaseAlarmTrigger
+  | HttpApiGatewayAlarmTrigger
+  | ApplicationLoadBalancerAlarmTrigger
+  | SqsQueueAlarmTrigger;
+
+export interface AlarmDefinition extends AlarmDefinitionBase {
+  /**
+   * #### A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`).
+   */
+  name: string;
+  /**
+   * #### The metric and threshold that fires this alarm.
+   *
+   * ---
+   *
+   * `type` selects what to monitor (error rate, CPU, latency, etc.) and `properties` set the threshold.
+   */
+  trigger: AlarmTrigger;
+  /**
+   * #### Only activate this alarm for these services. If omitted, applies to all services.
+   */
+  forServices?: string[];
+  /**
+   * #### Only activate this alarm for these stages (e.g., `production`). If omitted, applies to all stages.
+   */
+  forStages?: string[];
+}
 
 export interface AlarmEvaluation {
   /**

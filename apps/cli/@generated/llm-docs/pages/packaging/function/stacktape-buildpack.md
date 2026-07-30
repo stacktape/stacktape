@@ -357,7 +357,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `excludeFiles` | no | `Array<string>` | - |
 | `handlerFunction` | no | `string` | - |
 | `includeFiles` | no | `Array<string>` | - |
-| `languageSpecificConfig` | no | `Es \| Py \| Java \| Php \| Dotnet \| Go \| Ruby` | - |
+| `languageSpecificConfig` | no | `Es \| Py \| Java \| Go \| Ruby \| Php \| Dotnet` | - |
 
 
 ## FAQ

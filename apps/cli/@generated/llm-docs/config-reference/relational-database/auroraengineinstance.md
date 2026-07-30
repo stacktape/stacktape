@@ -6,7 +6,7 @@ Resource type: `relational-database`
 
 ```typescript
 type AuroraEngineInstance = {
-  /** Instance size (e.g., db.t4g.medium, db.r6g.large). */
+  /** Instance size (e.g., `db.t4g.medium`, `db.r6g.large`). */
   instanceSize: string;
 };
 ```

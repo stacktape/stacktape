@@ -1,0 +1,397 @@
+---
+title: 'MCP Server Setup'
+order: 126
+seoTitle: 'MCP Server Setup for AI Coding Assistants | Stacktape Docs'
+seoDescription: 'Set up the Stacktape MCP server so AI coding assistants like Claude Code, Cursor, and VS Code Copilot can deploy, inspect, debug, and manage your AWS stacks through structured tool calls.'
+---
+
+# MCP Server Setup
+
+<Warning>Preview — in active development. The Stacktape MCP server is under active development. Some operations may not work end-to-end in all environments, and behavior may change as the server stabilizes.</Warning>
+
+The Stacktape MCP server gives AI coding assistants structured access to Stacktape documentation, CLI commands, project inspection, and dev mode control. Instead of copying CLI output back and forth, your assistant calls Stacktape tools directly and receives typed JSON responses it can reason about.
+
+## Quick start
+
+1. Confirm that the current Stacktape CLI is available: `stacktape --version`.
+2. From your project directory, run `stacktape mcp:add` and select your AI client.
+3. Restart the client or reload the workspace so it reads the new MCP configuration.
+4. Ask: “Use Stacktape tools to inspect this project and explain how it is deployed.”
+
+A working integration exposes `stacktape_docs`, `stacktape_project`, `stacktape_cli`, and `stacktape_dev`. The assistant should start with `stacktape_project` for an unfamiliar repository and use `stacktape_cli` with `action: "plan"` before any execution.
+
+## When to use
+
+Use the MCP server when your AI coding assistant supports the [Model Context Protocol](https://modelcontextprotocol.io). The structured tool interface is better than raw CLI output for several workflows:
+
+- **Deploying or deleting stacks** — the assistant plans the command, validates arguments against CLI metadata, and executes with safety gates, all through tool calls.
+- **Debugging** — query [logs](/cli/logs), [metrics](/cli/metrics), [alarms](/cli/alarms), [database contents](/cli/query-sql), or [DynamoDB items](/cli/query-dynamodb) during a conversation. The assistant gets structured JSON instead of parsing terminal output.
+- **Configuration help** — the assistant searches Stacktape's bundled documentation index for resource types, config syntax, and deployment patterns without opening a browser.
+- **Dev mode** — start, monitor, rebuild, and stop [dev mode](/local-development/dev-mode-overview) sessions from within your AI conversation.
+
+## When NOT to use
+
+Skip the MCP server if your AI client does not support the Model Context Protocol — use the [Stacktape CLI](/cli/deploy) directly or the [Stacktape Console](/stacktape-console/console-overview) instead. For long-running deployments, prefer the CLI when you want to watch the command directly in your own terminal. MCP command responses are consolidated and may be truncated. The MCP server runs CLI commands as subprocesses and returns a consolidated response; if an optional caller-specified timeout is exceeded, the subprocess is terminated and an error is returned.
+
+## Supported clients
+
+[`stacktape mcp:add`](/cli/mcp-add) detects and configures six MCP clients automatically:
+
+| Client | Project config path | Global config path | Config key |
+|--------|--------------------|--------------------|------------|
+| Claude Code | `.mcp.json` | `~/.claude.json` | `mcpServers` |
+| Cursor | `.cursor/mcp.json` | `~/.cursor/mcp.json` | `mcpServers` |
+| VS Code / Copilot | `.vscode/mcp.json` | Platform-specific `User/mcp.json` | `servers` |
+| Windsurf | `.codeium/windsurf/mcp_config.json` | `~/.codeium/windsurf/mcp_config.json` | `mcpServers` |
+| OpenAI Codex | `.codex/config.toml` | `~/.codex/config.toml` | TOML section |
+| OpenCode | `opencode.jsonc` or `.opencode/config.json` | Platform-specific (see below) | `mcp` |
+
+OpenCode global paths: on Windows, `%APPDATA%\opencode\opencode.jsonc` or `%APPDATA%\opencode\config.json`. On macOS/Linux, `~/.config/opencode/opencode.jsonc`, `~/.config/opencode/config.json`, or `~/.opencode/config.json`.
+
+The MCP server uses stdio transport — every client launches `stacktape mcp` as a child process and communicates over stdin/stdout using JSON-RPC.
+
+<Info>Detection is based on whether a config file exists on disk, not whether the client application is installed. A freshly installed client that has never been opened (and therefore has no config file) will not show the `(detected)` label in the interactive prompt — but you can still select it, and `mcp:add` will create the project-level config file.</Info>
+
+## Automatic setup
+
+Run [`stacktape mcp:add`](/cli/mcp-add) from your project directory:
+
+```bash
+stacktape mcp:add
+```
+
+The interactive prompt lists all six supported clients. Clients with an existing config file are labeled `(detected)` and pre-selected. Select the ones you want and confirm. `mcp:add` checks each client's known paths in order (project-level first, then global), writes to the first existing file, and creates the first project-level file when none exist. Existing config files are backed up with a `.bak.<timestamp>` suffix before modification.
+
+To skip the interactive prompt and install into all detected clients (or all six if none are detected), pass `--autoConfirmOperation`:
+
+```bash
+stacktape mcp:add --autoConfirmOperation
+```
+
+When the project `package.json` lists `stacktape` in `dependencies`, `devDependencies`, `optionalDependencies`, or `peerDependencies`, `mcp:add` uses `node_modules/.bin/stacktape` for project-level configs and the global `stacktape` command for global configs. This pins the MCP server to your project's Stacktape version.
+
+## Manual setup
+
+If you prefer to configure the MCP server by hand, point your client at `stacktape mcp` using stdio transport. The snippets below are minimal manual configs. `mcp:add` also writes `STACKTAPE_MCP_CLIENT_NAME`; add it manually only if you want client tracking to match installer output.
+
+<Tabs>
+<Tab label="Claude Code">
+
+Add to `.mcp.json` in your project root or `~/.claude.json` globally:
+
+```json
+{
+  "mcpServers": {
+    "stacktape": {
+      "type": "stdio",
+      "command": "stacktape",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+</Tab>
+<Tab label="Cursor">
+
+Add to `.cursor/mcp.json` in your project root or `~/.cursor/mcp.json` globally:
+
+```json
+{
+  "mcpServers": {
+    "stacktape": {
+      "type": "stdio",
+      "command": "stacktape",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+</Tab>
+<Tab label="VS Code / Copilot">
+
+Add to `.vscode/mcp.json` in your project root or your VS Code user-level `mcp.json`. Note that VS Code uses the `servers` key instead of `mcpServers`:
+
+```json
+{
+  "servers": {
+    "stacktape": {
+      "type": "stdio",
+      "command": "stacktape",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+</Tab>
+<Tab label="Windsurf">
+
+Add to `.codeium/windsurf/mcp_config.json` in your project root or home directory:
+
+```json
+{
+  "mcpServers": {
+    "stacktape": {
+      "command": "stacktape",
+      "args": ["mcp"]
+    }
+  }
+}
+```
+
+</Tab>
+<Tab label="OpenAI Codex">
+
+Add to `.codex/config.toml` in your project root or `~/.codex/config.toml` globally:
+
+```toml
+[mcp_servers.stacktape]
+command = "stacktape"
+args = ["mcp"]
+enabled = true
+```
+
+</Tab>
+<Tab label="OpenCode">
+
+Add to `opencode.jsonc` or `.opencode/config.json` in your project root, or the platform-specific global path:
+
+```json
+{
+  "mcp": {
+    "stacktape": {
+      "type": "local",
+      "command": ["stacktape", "mcp"],
+      "enabled": true
+    }
+  }
+}
+```
+
+</Tab>
+</Tabs>
+
+<Info>When you use `stacktape mcp:add`, the generated config also includes an `env` field with `STACKTAPE_MCP_CLIENT_NAME` set to the client identifier (e.g. `claude-code`, `cursor`, `vscode`). This is used for client tracking. Manual configurations can include the same field — for example, `"env": { "STACKTAPE_MCP_CLIENT_NAME": "claude-code" }` — but it is not required for the server to function.</Info>
+
+<Tip>If your project has `stacktape` as an npm dependency, replace `"stacktape"` with `"node_modules/.bin/stacktape"` in project-level configs. This pins the MCP server to your project's Stacktape version instead of using the global install.</Tip>
+
+## Available tools
+
+The MCP server exposes four tools. Each tool uses an `action` parameter to group related operations, keeping the tool surface small while giving assistants access to docs, project inspection, CLI commands, and dev mode control.
+
+| Tool | Actions | Purpose |
+|------|---------|---------|
+| `stacktape_docs` | `search`, `get` | Search or fetch Stacktape documentation by query, route, resource type, definition name, property name, or heading path |
+| `stacktape_project` | `scan`, `orient` | Inspect the local workspace for Stacktape config files, package scripts, dependencies, and suggested CLI defaults |
+| `stacktape_cli` | `list`, `describe`, `plan`, `run` | Discover CLI commands, validate arguments, build execution plans, and execute non-interactive commands through safety-classified gates |
+| `stacktape_dev` | `plan`, `start`, `status`, `logs`, `rebuild`, `rebuild_all`, `stop` | Plan and control [dev mode](/local-development/dev-mode-overview) sessions |
+
+Tool arguments accept common snake_case and kebab-case forms (`project_name`, `config_path`, `start_time`, `end_time`, `secret_name`, etc.) and normalize them to camelCase automatically. Your AI assistant does not need to know the exact casing convention.
+
+### Docs tool
+
+`stacktape_docs` searches a documentation index bundled with the Stacktape CLI — no network access required. Use `action: "search"` with a `query` to find configuration syntax, resource types, deployment patterns, or troubleshooting guidance. Use `action: "get"` with a `route`, `definitionName`, `propertyName`, `sourcePath`, or `headingPath` to fetch an exact section.
+
+Search supports three modes: `answer` (default) returns a synthesized answer with references, `reference` returns matched references without content, and `snippet` returns code-focused excerpts.
+
+Key selectors and limits:
+
+| Parameter | Actions | Type | Description |
+|-----------|---------|------|-------------|
+| `query` | `search` | string | Search query (required for `search`). |
+| `mode` | `search` | `answer` \| `reference` \| `snippet` | Response mode. Default: `answer`. |
+| `maxItems` | `search` | number | Max search results. Default: 3. |
+| `docKind` | both | `docs-page` \| `config-reference` | Filter to a specific docs artifact kind. |
+| `resourceType` | both | string | Filter or select by resource type, e.g. `function`. |
+| `route` | `get` | string | Exact docs route, e.g. `/config-reference/function`. |
+| `definitionName` | `get` | string | Exact TypeScript definition name from config reference. |
+| `propertyName` | `get` | string | Exact config property name to extract. |
+| `sourcePath` | `get` | string | Exact source path from a previous docs reference. |
+| `headingPath` | `get` | string[] | Exact heading path array from a previous docs reference. |
+| `maxChars` | `get` | number | Max content characters. Default: 16,000. |
+| `includeFullPage` | `get` | boolean | Set `true` to fetch all content for a long route. |
+
+For long route-only `get` requests, when more than 20 docs-page sections match and `includeFullPage` is not set, the server returns available heading paths instead of the full route content — the assistant passes one back to get the specific section.
+
+### Project tool
+
+`stacktape_project` with `action: "scan"` discovers Stacktape config candidates (`.ts`, `.js`, `.yml`, `.json`), parses `package.json` scripts that invoke Stacktape commands, detects lockfiles, and returns suggested defaults for `configPath` and `currentWorkingDirectory`. This is the first tool an assistant should call when entering an unfamiliar Stacktape project.
+
+| Parameter | Type | Default | Description |
+|-----------|------|---------|-------------|
+| `cwd` | string | Server process cwd | Absolute path to the Stacktape project root. Pass this whenever the assistant knows it. |
+| `maxFiles` | number | 8 (`orient`: 12) | Maximum ranked files to return per category. |
+| `includeDetails` | boolean | `false` | When `true`, includes full package script commands and unabridged candidate metadata. |
+
+The `orient` action returns the same scan data with stronger next-action guidance for the assistant.
+
+### CLI tool
+
+`stacktape_cli` covers the non-interactive CLI surface: [deployments](/cli/deploy), [deletions](/cli/delete), [previewing changes](/cli/diff), [rollbacks](/cli/rollback), diagnostics ([`logs`](/cli/logs), [`metrics`](/cli/metrics), [`alarms`](/cli/alarms), [`query:sql`](/cli/query-sql), [`query:dynamodb`](/cli/query-dynamodb), [`query:redis`](/cli/query-redis), [`query:opensearch`](/cli/query-opensearch)), [secrets](/configuration/secrets) (`secret:set`, `secret:get`, `secret:delete`), parameters (`param:get`), stack info (`info:stack`, `info:stacks`), and deployment scripts (`script:run`).
+
+The typical workflow:
+
+1. **`action: "list"`** — discover available commands, optionally filtered by `category` or `safety` level.
+2. **`action: "describe"`** — get full metadata for a specific command (allowed arguments, safety class, confirmation policy).
+3. **`action: "plan"`** — build a read-only execution plan. Pass `cwd` with the absolute path to the Stacktape project root when the assistant has it — `plan` uses it to scan config files and `package.json` scripts. The action infers defaults, validates arguments against CLI metadata, and returns a suggested `action: "run"` payload with a shell command preview. No credentials are required for planning.
+4. **`action: "run"`** — execute the planned command as a CLI subprocess. Mutating commands require `confirm: true`. Destructive commands require direct user confirmation through MCP form elicitation (see [Safety model](#safety-model)).
+
+Common parameters accepted by `plan` and `run`:
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `command` | string | CLI command name, e.g. `deploy`, `logs`, `secret:get` |
+| `cwd` | string | Absolute path to the Stacktape project root for project scanning |
+| `args` | object | CLI arguments as a camelCase key-value object |
+| `stage` | string | Target Stacktape stage |
+| `region` | string | Target AWS region |
+| `projectName` | string | Stacktape project name |
+| `awsAccount` | string | Connected Stacktape AWS account name |
+| `configPath` | string | Stacktape config path relative to `currentWorkingDirectory` |
+| `currentWorkingDirectory` | string | Working directory for resolving config and app files |
+| `resourceName` | string | Resource name for diagnostics commands |
+| `scriptName` | string | Deployment script name for `script:run` |
+| `secretName` | string | Secret name for secret commands |
+| `secretValue` | string | Secret value for `secret:set` (masked in tool output) |
+| `secretFile` | string | Path to a file containing the secret value |
+| `hotSwap` | boolean | Request hotswap deployment when supported |
+| `confirm` | boolean | Required for mutating commands. Destructive commands also require direct user confirmation through MCP elicitation; this flag alone cannot authorize them. |
+| `timeoutMs` | number | Command timeout in milliseconds for `run` |
+
+The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `secrets`) and `safety` (e.g. `readOnly`, `mutating`, `destructive`) to filter results.
+
+<Warning>Always use `action: "plan"` before `action: "run"`. Commands marked as `sensitiveOutput` in CLI metadata have their output masked before being returned. The MCP planning guidance specifically warns assistants not to display `secret:get` or private `param:get` values in chat — run those in your own terminal to avoid exposing values in the conversation transcript.</Warning>
+
+### Dev tool
+
+`stacktape_dev` manages [dev mode](/local-development/dev-mode-overview) lifecycle without requiring a terminal. The dev mode agent listens on a local HTTP port (default `7331`) for control commands.
+
+- **`plan`** scans the project and returns suggested start arguments without starting anything. `plan` defaults `stage` to `dev` and infers `projectName`, `region`, `awsAccount`, `currentWorkingDirectory`, and `configPath` from deploy scripts and project scan when available. A dev-mode plan is only complete when `stage`, `region`, and `configPath` are resolved; otherwise the tool returns `MISSING_ARGS` with next steps. Since `stage` defaults to `dev`, the most common missing arguments are `region` and `configPath`.
+- **`start`** launches dev mode as a subprocess with a 12-minute timeout for initial setup. Pass `projectName`, `stage`, `region`, `configPath`, and optionally `awsAccount`, `agentPort`, `currentWorkingDirectory`, `devMode`, `resources`, `skipResources`, `watch`, `remoteResources`, or `freshDb`.
+- **`status`** returns the current state of the running session.
+- **`logs`** paginates structured log entries. Accepts `cursor`, `limit`, and `workload` for filtering.
+- **`rebuild`** triggers a rebuild of a single workload (pass `workload` name). **`rebuild_all`** triggers a rebuild of every workload.
+- **`stop`** terminates the active session.
+
+Only one dev session can be active at a time within an MCP server process. Actions other than `plan` and `start` require an active session — if none exists or the session's port no longer responds to health checks, the tool returns `NOT_FOUND`.
+
+## Safety model
+
+The MCP server classifies every CLI command into a safety level and enforces per-level gates:
+
+| Safety level | Behavior | Examples |
+|-------------|----------|---------|
+| `readOnly` | Executes without confirmation | `diff`, `info:stack`, `info:stacks`, `logs`, `metrics`, `alarms` |
+| `diagnostic` | Executes without confirmation | `query:sql`, `query:dynamodb`, `query:redis`, `query:opensearch` |
+| `local` | Executes without confirmation | `synth`, `validate`, `package` |
+| `mutating` | Requires `confirm: true` in the `run` call | [`deploy`](/cli/deploy), [`secret:set`](/cli/secret-set), [`rollback`](/cli/rollback) |
+| `destructive` | Requires direct user confirmation through MCP form elicitation; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret:delete`](/cli/secret-delete) |
+| `interactive` | Rejected by the MCP server — must be run in the user's own terminal | [`login`](/cli/login), [`dev`](/cli/dev) (use `stacktape_dev` instead), `bastion:session` |
+
+For destructive commands, the MCP server uses the MCP elicitation protocol to prompt the user directly through their AI client's UI. If the client does not support form elicitation, the command fails closed and the assistant is told to ask the user to run the command in their own terminal.
+
+<Warning>`diagnostic` describes the command category, not a guarantee that an individual query is read-only. SQL, Redis, DynamoDB, and OpenSearch query commands run without an MCP confirmation prompt and can change data when given mutating input. Review the planned command and query before it runs, especially against production stages.</Warning>
+
+Commands marked as `sensitiveOutput` in CLI metadata have their output masked before being returned. The MCP planning guidance specifically warns assistants not to display `secret:get` or private `param:get` values in chat. The MCP server also redacts known credential patterns (Stacktape API keys, GitHub tokens, Slack tokens, database connection strings with passwords) from all tool responses.
+
+## Authentication
+
+The MCP server reuses the local Stacktape CLI authentication state. It is not a separate identity provider, and planning does not require Stacktape credentials. Commands that run the underlying CLI may also require whatever AWS access that CLI command normally requires. The `stacktape_cli` planning action rejects raw Stacktape credential CLI arguments (such as `apiKey` or `STACKTAPE_API_KEY`), and the MCP instructions tell assistants not to collect API keys in chat.
+
+- **Docs search, project scanning, CLI listing, description, and planning** work without any authentication.
+- **`stacktape_cli` with `action: "run"` and `stacktape_dev`** execute the underlying Stacktape CLI flow and may require the same project, stage, region, AWS account, and profile setup as the CLI command. If execution fails with an authentication error, the MCP guidance tells the assistant to ask you to run [`stacktape login`](/cli/login) in your own terminal.
+
+For CI environments, the MCP server's safety guidance tells assistants to ask users to configure a dedicated `STACKTAPE_API_KEY` secret outside the conversation instead of pasting credentials into chat.
+
+## How it works
+
+The MCP server starts when your AI client launches the `stacktape mcp` command as a child process using stdio transport. The startup sequence is:
+
+1. The client spawns `stacktape mcp` as a child process.
+2. The server registers and connects four tools (docs, project, CLI, and dev) so they are discoverable immediately.
+3. The bundled documentation search index initializes asynchronously. If indexing fails, operational tools remain available and `stacktape_docs` reports the indexing error.
+4. The assistant sends MCP tool calls over stdin; the server executes them and returns structured JSON over stdout.
+
+For CLI execution, the MCP server validates the command against CLI metadata, applies safety policy, spawns a Stacktape CLI subprocess, streams its JSONL output, and returns a consolidated response. Tool responses are capped at 30,000 characters. Large `rawTail` output is shortened by keeping the beginning and end. Other large payloads are compacted by dropping or shrinking bulky fields (such as truncating answer text, limiting reference and snippet counts, and shortening data content). If compaction is still insufficient, the server returns `RESPONSE_TOO_LARGE`.
+
+For docs queries, search runs against a local index. No network calls are made.
+
+## Verifying the setup
+
+After running `stacktape mcp:add` or configuring manually, open your AI client and try a docs query:
+
+> "How do I deploy a Lambda function with Stacktape?"
+
+A working setup should make the `stacktape_docs` tool available to the assistant. If the assistant uses it, it should be able to return Stacktape documentation guidance for the query. If the tool is not available, check that your client's MCP config file points to a valid `stacktape` binary.
+
+You can also verify the binary directly:
+
+```bash
+stacktape --version
+```
+
+If the command is not found, install Stacktape globally or update it with [`stacktape upgrade`](/cli/upgrade).
+
+## Upgrading
+
+The MCP server ships with the Stacktape CLI binary. Updating the binary — via [`stacktape upgrade`](/cli/upgrade) or updating the npm package — means the next client launch uses the updated server. No separate MCP update step is needed.
+
+Re-run [`stacktape mcp:add`](/cli/mcp-add) only if you want to change which clients or config files are wired up.
+
+## Troubleshooting
+
+### Server fails to start
+
+Ensure `stacktape` is on your shell's PATH. If you installed Stacktape locally via npm, the global command may not exist. Either install globally (`npm install -g stacktape`) or use `node_modules/.bin/stacktape` in your MCP config. If the command exists but the MCP subcommand is missing, run [`stacktape upgrade`](/cli/upgrade) to get the latest version.
+
+### Config file parse errors
+
+`mcp:add` parses JSON and JSONC (JSON with comments) using the JSON5 parser. If it reports a parse error, fix any syntax issues in the existing config file before retrying. Backups are saved with a `.bak.<timestamp>` suffix — restore from these if needed.
+
+### Operations require authentication
+
+Docs search, project scanning, and CLI metadata actions (`list`, `describe`, `plan`) work without authentication. `stacktape_cli` with `action: "run"` and `stacktape_dev` execute the underlying Stacktape CLI flow. If execution fails with an authentication error, run [`stacktape login`](/cli/login) in your terminal. Some commands also require a configured [AWS profile](/cli/aws-profile-create).
+
+### Client not detected
+
+If `mcp:add` does not mark your client as `(detected)`, that client's config file does not exist yet at any of the known paths. Select it from the interactive prompt anyway — the installer creates a new project-level config file. Or configure manually using the [Manual setup](#manual-setup) examples.
+
+### Dev session not found
+
+If `stacktape_dev` returns `NOT_FOUND` for `status`, `logs`, `rebuild`, `rebuild_all`, or `stop`, either no dev session has been started in the current MCP server process, or the session's local agent port is no longer responding. Call `start` to create a new session.
+
+### Concurrent deployment conflicts
+
+The MCP server spawns separate CLI subprocesses for each operation, so it does not interfere with other Stacktape commands you run in a terminal. However, running concurrent deployments to the same stack from both MCP and a terminal causes AWS CloudFormation conflicts. Avoid overlapping deploys to the same project and stage.
+
+## FAQ
+
+### Which AI assistants work with the Stacktape MCP server?
+
+[`stacktape mcp:add`](/cli/mcp-add) configures Claude Code, Cursor, VS Code with GitHub Copilot, Windsurf, OpenAI Codex, and OpenCode automatically. Any other MCP client that can launch a stdio server process should also work — point it at `stacktape mcp`. Automatic setup via `mcp:add` is only implemented for these six clients.
+
+### Does the MCP server store or transmit my credentials?
+
+The MCP server runs locally and reuses the local Stacktape CLI authentication state. Commands executed through `stacktape_cli` and `stacktape_dev` follow the underlying CLI's normal authentication and AWS access behavior. The `stacktape_cli` planning action rejects raw Stacktape credential CLI arguments, and the MCP instructions tell assistants not to collect API keys in chat. Commands flagged `sensitiveOutput` (such as `secret:get` and private `param:get`) have their output masked, and the server also redacts known credential patterns (API keys, tokens, database connection strings with passwords) from all responses before returning them to the AI client. Even so, sensitive values are best retrieved by running the command in your own terminal rather than through an AI conversation.
+
+### What works without an AWS account or login?
+
+Docs search, project scanning, and CLI metadata operations (`list`, `describe`, `plan`) work with no AWS account or Stacktape login — planning never requires credentials, so an assistant can explore commands and build execution plans offline. Only `stacktape_cli` with `action: "run"` and `stacktape_dev` execute the underlying CLI flow; if that fails with an authentication error, the guidance tells the assistant to ask you to run [`stacktape login`](/cli/login) in your own terminal. Some commands also require a configured [AWS profile](/cli/aws-profile-create).
+
+### Is the MCP server safe for production workflows?
+
+The MCP server is in preview. Docs, project scanning, CLI listing, description, and planning are read-only. The server classifies every CLI command into a safety level: `readOnly`, `diagnostic`, `local`, `mutating`, `destructive`, or `interactive`. Mutating commands require `confirm: true`, destructive commands require direct user confirmation through MCP elicitation when supported, and interactive commands are rejected. Note that diagnostic commands like [`query:sql`](/cli/query-sql) run without confirmation but can modify state depending on the query passed — review those tool calls before approving. Treat MCP-initiated deployments with the same care as manual CLI deployments.
+
+### What happens if a deployment times out through MCP?
+
+CLI commands run as subprocesses. The caller can specify a `timeoutMs` value; if exceeded, the MCP server terminates the subprocess and returns an error. The dev mode `start` action uses a 12-minute timeout for initial setup. For long-running deployments, run them directly via the [CLI](/cli/deploy) where you get real-time streaming output.
+
+### What is the difference between plan and run in stacktape_cli?
+
+`action: "plan"` creates a read-only execution plan: it scans the project, reads `package.json` scripts for defaults, validates arguments, and returns the recommended `action: "run"` payload — without executing anything or requiring credentials. `action: "run"` executes the command. The typical flow is plan first, then run with the planned payload after the user approves.
+
+### Why was my tool response truncated or rejected as too large?
+
+Tool responses are capped at 30,000 characters. The server first shortens large `rawTail` output by keeping the beginning and end, then compacts other large payloads (truncating answer text, limiting reference and snippet counts, shortening data content). If compaction is still not enough, it returns `RESPONSE_TOO_LARGE`. For long-running deployments with heavy output, run them directly via the [CLI](/cli/deploy) where you get full streaming output instead.

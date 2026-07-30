@@ -10,7 +10,7 @@ type BucketCorsRule = {
   allowedHeaders?: Array<string>;
   /** Allowed HTTP methods. */
   allowedMethods?: Array<"*" | "DELETE" | "GET" | "HEAD" | "PATCH" | "POST" | "PUT">;
-  /** Allowed origins (e.g., https://example.com). Use * for any. */
+  /** Allowed origins (e.g., `https://example.com`). Use `*` for any. */
   allowedOrigins?: Array<string>;
   /** Response headers accessible to browser JavaScript. */
   exposedResponseHeaders?: Array<string>;

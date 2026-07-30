@@ -16,10 +16,10 @@ type RelationalDatabaseLogging = {
   logForwarding?: RelationalDatabaseLoggingLogForwarding;
   /** Which log types to export. Depends on engine:
 
-PostgreSQL: postgresql
-MySQL/MariaDB: audit, error, general, slowquery
-Oracle: alert, audit, listener, trace
-SQL Server: agent, error */
+**PostgreSQL**: `postgresql`
+**MySQL/MariaDB**: `audit`, `error`, `general`, `slowquery`
+**Oracle**: `alert`, `audit`, `listener`, `trace`
+**SQL Server**: `agent`, `error` */
   logTypes?: Array<string>;
   /** How many days to keep logs. */
   retentionDays?: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90;

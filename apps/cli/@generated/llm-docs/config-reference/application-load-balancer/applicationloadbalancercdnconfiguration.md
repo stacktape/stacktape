@@ -14,7 +14,7 @@ type ApplicationLoadBalancerCdnConfiguration = {
   cachingOptions?: CdnCachingOptions;
   /** Which regions the CDN serves from. Fewer regions = lower cost, but slower for distant users. */
   cloudfrontPriceClass?: "PriceClass_100" | "PriceClass_200" | "PriceClass_All";
-  /** Custom domains (e.g., cdn.example.com). Stacktape auto-creates DNS records and TLS certificates. */
+  /** Custom domains (e.g., `cdn.example.com`). Stacktape auto-creates DNS records and TLS certificates. */
   customDomains?: Array<DomainConfiguration>;
   /** Prepend a path prefix to all requests forwarded to the origin. */
   defaultRoutePrefix?: string;
@@ -22,19 +22,19 @@ type ApplicationLoadBalancerCdnConfiguration = {
   disableInvalidationAfterDeploy?: boolean;
   /** Run edge functions on CDN requests/responses (URL rewrites, auth, A/B testing). */
   edgeFunctions?: EdgeFunctionsConfig;
-  /** Page to show for 404 errors (e.g., /error.html). */
+  /** Page to show for 404 errors (e.g., `/error.html`). */
   errorDocument?: string;
   /** Control which headers, cookies, and query params are forwarded to your origin. */
   forwardingOptions?: CdnForwardingOptions;
-  /** Page served for requests to /. */
+  /** Page served for requests to `/`. */
   indexDocument?: string;
   /** Listener port for CDN traffic. Only needed if using custom listeners. */
   listenerPort?: number;
-  /** Explicit origin domain. Only needed if the ALB has no customDomains and uses customCertificateArns. */
+  /** Explicit origin domain. Only needed if the ALB has no `customDomains` and uses `customCertificateArns`. */
   originDomainName?: string;
-  /** Route specific URL patterns to different origins (e.g., /api/* → Lambda, /assets/* → S3). */
+  /** Route specific URL patterns to different origins (e.g., `/api/*` → Lambda, `/assets/*` → S3). */
   routeRewrites?: Array<CdnRouteRewrite>;
-  /** Name of a web-app-firewall resource to protect this CDN from common web exploits. */
+  /** Name of a `web-app-firewall` resource to protect this CDN from common web exploits. */
   useFirewall?: string;
 };
 ```

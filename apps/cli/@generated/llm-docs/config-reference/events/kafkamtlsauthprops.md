@@ -6,7 +6,7 @@
 type KafkaMTLSAuthProps = {
   /** The ARN of a secret containing the client certificate. */
   clientCertificate: string;
-  /** The ARN of a secret containing the server&#39;s root CA certificate. */
+  /** The ARN of a secret containing the server's root CA certificate. */
   serverRootCaCertificate?: string;
 };
 ```

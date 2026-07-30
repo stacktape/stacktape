@@ -20,7 +20,7 @@ type MongoDbAtlasClusterProps = {
   diskSizeGB?: number;
   /** Enable daily snapshots (18:00 UTC). M10+ only — M2/M5 get automatic snapshots with different rules. */
   enableBackups?: boolean;
-  /** Restore to any second within the last 7 days. Requires enableBackups: true and M10+. */
+  /** Restore to any second within the last 7 days. Requires `enableBackups: true` and M10+. */
   enablePointInTimeRecovery?: boolean;
   /** Number of shards. More than 1 enables sharded mode for horizontal scaling. Requires M30+. */
   numShards?: number;

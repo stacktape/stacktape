@@ -15,6 +15,7 @@
     "**/pnpm-lock.yaml",
     "apps/cli/starter-projects/**",
     "apps/cli/types/**",
+    "apps/docs/content/**",
     "packages/config/src/**"
   ]
 }

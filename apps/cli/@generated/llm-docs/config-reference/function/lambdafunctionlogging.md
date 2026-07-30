@@ -123,7 +123,7 @@ export default defineConfig(() => {
 
 - Required: no
 - Type: `number: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90`
-- Default: `180`
+- Default: `90`
 
 How many days to keep logs. Longer retention = higher storage cost.
 

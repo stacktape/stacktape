@@ -8,7 +8,7 @@ Resource type: `dynamo-db-table`
 import type { DynamoDbAttribute } from 'stacktape';
 
 type DynamoDbTablePrimaryKey = {
-  /** The main key attribute (e.g., userId, orderId). Must be unique if no sort key is used. */
+  /** The main key attribute (e.g., `userId`, `orderId`). Must be unique if no sort key is used. */
   partitionKey: DynamoDbAttribute;
   /** Optional second key for composite keys. Enables range queries and multiple items per partition key. */
   sortKey?: DynamoDbAttribute;

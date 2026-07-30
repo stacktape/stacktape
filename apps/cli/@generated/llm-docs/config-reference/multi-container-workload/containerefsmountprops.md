@@ -6,9 +6,9 @@ Resource type: `multi-container-workload`
 
 ```typescript
 type ContainerEfsMountProps = {
-  /** Name of the efs-filesystem resource defined in your config. */
+  /** Name of the `efs-filesystem` resource defined in your config. */
   efsFilesystemName: string;
-  /** Absolute path inside the container where the volume is mounted (e.g., /data). */
+  /** Absolute path inside the container where the volume is mounted (e.g., `/data`). */
   mountPath: string;
   /** Subdirectory within the EFS filesystem to mount. Restricts access to that directory. */
   rootDirectory?: string;

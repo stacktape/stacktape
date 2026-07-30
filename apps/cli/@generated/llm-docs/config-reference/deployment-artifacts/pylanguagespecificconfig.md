@@ -8,19 +8,19 @@ type PyLanguageSpecificConfig = {
   minify?: boolean;
   /** The Python package manager to use. */
   packageManager?: "uv";
-  /** The path to your project&#39;s dependency file. */
+  /** The path to your project's dependency file. */
   packageManagerFile?: string;
-  /** The version of Python to use. */
+  /** The Python version the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */
   pythonVersion?: 2.7 | 3.11 | 3.12 | 3.13 | 3.14 | 3.6 | 3.7 | 3.8 | 3.9;
-  /** Python server type: WSGI (Flask, Django) or ASGI (FastAPI, Starlette). */
+  /** Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette). */
   runAppAs?: "ASGI" | "WSGI";
-  /** Only include these dependency groups from pyproject.toml. */
+  /** Only include these dependency groups from `pyproject.toml`. */
   uvOnlyGroups?: Array<string>;
-  /** Optional dependency extras to include from pyproject.toml. */
+  /** Optional dependency extras to include from `pyproject.toml`. */
   uvOptionalDependencies?: Array<string>;
-  /** Dependency groups to include from pyproject.toml. */
+  /** Dependency groups to include from `pyproject.toml`. */
   uvWithGroups?: Array<string>;
-  /** Dependency groups to exclude from pyproject.toml. */
+  /** Dependency groups to exclude from `pyproject.toml`. */
   uvWithoutGroups?: Array<string>;
 };
 ```
@@ -172,9 +172,9 @@ export default defineConfig(() => {
 
 - Required: no
 - Type: `number: 2.7 | 3.11 | 3.12 | 3.13 | 3.14 | 3.6 | 3.7 | 3.8 | 3.9`
-- Default: `3.9`
+- Default: `3.12`
 
-The version of Python to use.
+The Python version the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value.
 
 ### Example 1 (yaml)
 
@@ -276,7 +276,7 @@ export default defineConfig(() => {
 
 Only include these dependency groups from `pyproject.toml`.
 
-Each value is passed to `uv pip compile` as `--only-group `.
+Each value is passed to `uv pip compile` as `--only-group <name>`.
 This omits the project dependencies and default groups, matching `uv` behavior.
 
 ### Example 1 (yaml)
@@ -327,7 +327,7 @@ export default defineConfig(() => {
 
 Optional dependency extras to include from `pyproject.toml`.
 
-Each value is passed to `uv pip compile` as `--extra `.
+Each value is passed to `uv pip compile` as `--extra <name>`.
 
 ### Example 1 (yaml)
 
@@ -378,7 +378,7 @@ export default defineConfig(() => {
 
 Dependency groups to include from `pyproject.toml`.
 
-Each value is passed to `uv pip compile` as `--group `.
+Each value is passed to `uv pip compile` as `--group <name>`.
 
 ### Example 1 (yaml)
 
@@ -428,7 +428,7 @@ export default defineConfig(() => {
 
 Dependency groups to exclude from `pyproject.toml`.
 
-Each value is passed to `uv pip compile` as `--no-group `.
+Each value is passed to `uv pip compile` as `--no-group <name>`.
 
 ### Example 1 (yaml)
 

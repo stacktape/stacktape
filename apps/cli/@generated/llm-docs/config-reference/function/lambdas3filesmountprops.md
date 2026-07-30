@@ -10,7 +10,7 @@ import type { IntrinsicFunction } from 'stacktape';
 type LambdaS3FilesMountProps = {
   /** ARN of an existing S3 Files access point. */
   accessPointArn: LambdaS3FilesMountAccessPointArn;
-  /** Path inside the function where the volume appears. Must start with /mnt/ (e.g., /mnt/s3data). */
+  /** Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/s3data`). */
   mountPath: string;
 };
 

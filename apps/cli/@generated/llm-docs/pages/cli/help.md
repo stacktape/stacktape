@@ -41,7 +41,7 @@ The `help` command accepts a single optional flag. The reference below lists its
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--command (-cmd)` | no | `string` | Command This argument has different meanings depending on the command: With `stacktape help`, it specifies a command to show detailed help for. With `stacktape container:session`, it specifies a command to run inside the container to start the interactive session. | - |
+| `--command (-cmd)` | no | `string` | Command — This argument has different meanings depending on the command: • With `stacktape help`, it specifies a command to show detailed help for. • With `stacktape container:session`, it specifies a command to run inside the container to start the interactive session. | - |
 
 
 ## Examples

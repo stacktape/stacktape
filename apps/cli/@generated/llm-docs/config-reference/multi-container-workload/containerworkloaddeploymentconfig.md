@@ -12,7 +12,7 @@ type ContainerWorkloadDeploymentConfig = {
   afterTrafficShiftFunction?: string;
   /** Lambda function to run before traffic shifts to the new version (for validation/smoke tests). */
   beforeAllowTrafficFunction?: string;
-  /** ALB listener port for test traffic. Only needed with beforeAllowTrafficFunction and custom listeners. */
+  /** ALB listener port for test traffic. Only needed with `beforeAllowTrafficFunction` and custom listeners. */
   testListenerPort?: number;
 };
 ```

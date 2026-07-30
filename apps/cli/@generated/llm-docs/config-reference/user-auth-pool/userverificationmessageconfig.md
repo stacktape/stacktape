@@ -7,11 +7,13 @@ Resource type: `user-auth-pool`
 ```typescript
 type UserVerificationMessageConfig = {
   /** Email body when verifying with a code
-Used when userVerificationType is email-code. The message typically contains a {####} placeholder
+
+Used when `userVerificationType` is `email-code`. The message typically contains a `{####}` placeholder
 that Cognito replaces with a one‑time verification code. */
   emailMessageUsingCode?: string;
   /** Email body when verifying with a link
-Used when userVerificationType is email-link. Cognito replaces special markers like {##verify your email##}
+
+Used when `userVerificationType` is `email-link`. Cognito replaces special markers like `{##verify your email##}`
 with a clickable URL. */
   emailMessageUsingLink?: string;
   /** Email subject when verifying with a code */
@@ -184,7 +186,7 @@ export default defineConfig(() => {
 
 SMS verification message
 
-Text of the SMS Cognito sends when verifying a phone number (for example containing `{####}`).
+Text of the SMS Cognito sends when verifying a phone number (for example containing `{}`).
 
 ### Example 1 (yaml)
 

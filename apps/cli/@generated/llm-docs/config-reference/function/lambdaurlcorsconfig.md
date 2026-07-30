@@ -6,15 +6,15 @@ Resource type: `function`
 
 ```typescript
 type LambdaUrlCorsConfig = {
-  /** Enable CORS. When true with no other settings, uses permissive defaults (* for origins and methods). */
+  /** Enable CORS. When `true` with no other settings, uses permissive defaults (`*` for origins and methods). */
   enabled: boolean;
   /** Allow cookies and credentials in cross-origin requests. */
   allowCredentials?: boolean;
-  /** Allowed request headers (e.g., Content-Type, Authorization). */
+  /** Allowed request headers (e.g., `Content-Type`, `Authorization`). */
   allowedHeaders?: Array<string>;
-  /** Allowed HTTP methods (e.g., GET, POST). */
+  /** Allowed HTTP methods (e.g., `GET`, `POST`). */
   allowedMethods?: Array<"*" | "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT">;
-  /** Allowed origins (e.g., https://example.com). Use * for any origin. */
+  /** Allowed origins (e.g., `https://example.com`). Use `*` for any origin. */
   allowedOrigins?: Array<string>;
   /** Response headers accessible to browser JavaScript. */
   exposedResponseHeaders?: Array<string>;

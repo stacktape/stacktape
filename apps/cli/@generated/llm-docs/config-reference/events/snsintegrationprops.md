@@ -12,7 +12,7 @@ type SnsIntegrationProps = {
   onDeliveryFailure?: SnsOnDeliveryFailure;
   /** The ARN of an existing SNS topic. */
   snsTopicArn?: string;
-  /** The name of an SNS topic defined in your stack&#39;s resources. */
+  /** The name of an SNS topic defined in your stack's resources. */
   snsTopicName?: string;
 };
 ```

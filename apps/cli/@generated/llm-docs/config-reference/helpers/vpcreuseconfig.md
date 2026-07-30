@@ -8,7 +8,7 @@ type VpcReuseConfig = {
   projectName?: string;
   /** Stage of the stack whose VPC you want to share. */
   stage?: string;
-  /** Direct VPC ID to reuse (e.g., vpc-1234567890abcdef0). */
+  /** Direct VPC ID to reuse (e.g., `vpc-1234567890abcdef0`). */
   vpcId?: string;
 };
 ```

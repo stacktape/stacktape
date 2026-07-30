@@ -10,7 +10,7 @@ type SnsTopicProps = {
   contentBasedDeduplication?: boolean;
   /** Guarantees message order and exactly-once delivery. Use for financial transactions, sequential workflows. */
   fifoEnabled?: boolean;
-  /** Sender name shown on SMS messages sent to subscribers (e.g., &quot;MyApp&quot;). Max 11 characters. */
+  /** Sender name shown on SMS messages sent to subscribers (e.g., "MyApp"). Max 11 characters. */
   smsDisplayName?: string;
 };
 ```

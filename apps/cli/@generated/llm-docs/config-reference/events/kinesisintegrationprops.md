@@ -14,7 +14,7 @@ type KinesisIntegrationProps = {
   bisectBatchOnFunctionError?: boolean;
   /** The ARN of a specific stream consumer to use. */
   consumerArn?: string;
-  /** The name of a Kinesis stream defined in your stack&#39;s resources. */
+  /** The name of a Kinesis stream defined in your stack's resources. */
   kinesisStreamName?: string;
   /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */
   maxBatchWindowSeconds?: number;

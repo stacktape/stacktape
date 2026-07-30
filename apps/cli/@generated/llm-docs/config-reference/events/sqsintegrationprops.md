@@ -10,7 +10,7 @@ type SqsIntegrationProps = {
   maxBatchWindowSeconds?: number;
   /** The ARN of an existing SQS queue. */
   sqsQueueArn?: string;
-  /** The name of an SQS queue defined in your stack&#39;s resources. */
+  /** The name of an SQS queue defined in your stack's resources. */
   sqsQueueName?: string;
 };
 ```

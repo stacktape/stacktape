@@ -6,9 +6,9 @@ Resource type: `dynamo-db-table`
 
 ```typescript
 type DynamoDbAttribute = {
-  /** Attribute name (e.g., userId, email, createdAt). */
+  /** Attribute name (e.g., `userId`, `email`, `createdAt`). */
   name: string;
-  /** Attribute data type: string, number, or binary. */
+  /** Attribute data type: `string`, `number`, or `binary`. */
   type: "binary" | "number" | "string";
 };
 ```

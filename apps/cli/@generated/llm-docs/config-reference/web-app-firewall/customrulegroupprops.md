@@ -13,7 +13,7 @@ type CustomRuleGroupProps = {
   priority: number;
   /** Disable CloudWatch metrics for this rule. */
   disableMetrics?: boolean;
-  /** None = apply normally, Count = log matches without blocking (dry-run mode). */
+  /** `None` = apply normally, `Count` = log matches without blocking (dry-run mode). */
   overrideAction?: "Count" | "None";
   /** Save samples of requests matching this rule for inspection in the WAF console. */
   sampledRequestsEnabled?: boolean;

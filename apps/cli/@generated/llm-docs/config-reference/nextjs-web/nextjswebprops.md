@@ -8,9 +8,9 @@ Resource type: `nextjs-web`
 import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, NextjsServerLambdaProperties, SsrWebCdnConfig, StpIamRoleStatement } from 'stacktape';
 
 type NextjsWebProps = {
-  /** Directory containing your next.config.js. For monorepos, point to the Next.js workspace. */
+  /** Directory containing your `next.config.js`. For monorepos, point to the Next.js workspace. */
   appDirectory: string;
-  /** Override the default next build command. */
+  /** Override the default `next build` command. */
   buildCommand?: string;
   /** CDN cache controls for SSR routes and specific path patterns. */
   cdn?: SsrWebCdnConfig;
@@ -18,13 +18,13 @@ type NextjsWebProps = {
   connectTo?: Array<string>;
   /** Attach custom domains with auto-managed DNS records and TLS certificates. */
   customDomains?: Array<DomainConfiguration>;
-  /** Dev server config for stacktape dev. Defaults to next dev. */
+  /** Dev server config for `stacktape dev`. Defaults to `next dev`. */
   dev?: unknown;
-  /** Environment variables for the SSR function. Use $ResourceParam() or $Secret() for dynamic values. */
+  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */
   environment?: Array<EnvironmentVar>;
-  /** Set custom headers (e.g., Cache-Control) for static files matching a pattern. */
+  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */
   fileOptions?: Array<DirectoryUploadFilter>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
+  /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
   /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */
   serverLambda?: NextjsServerLambdaProperties;
@@ -32,7 +32,7 @@ type NextjsWebProps = {
   streamingEnabled?: boolean;
   /** Run SSR at CloudFront edge locations for lower latency worldwide. */
   useEdgeLambda?: boolean;
-  /** Name of a web-app-firewall resource to protect this app. Firewall scope must be cdn. */
+  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */
   useFirewall?: string;
   /** Number of Lambda instances to keep warm (pre-initialized) to reduce cold starts. */
   warmServerInstances?: number;
@@ -174,6 +174,37 @@ List the names of resources this workload needs to communicate with. Stacktape a
 
 Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
 resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.
+
+ What each resource type provides:
+
+**`Bucket`** — read/write/delete objects → `NAME`, `ARN`
+
+**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`
+
+**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.
+Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
+
+**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
+
+**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+
+**`Function`** — invoke permission → `ARN`
+
+**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`
+
+**`EventBus`** — publish events → `ARN`
+
+**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`
+
+**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`
+
+**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`
+
+**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`
+
+**`PrivateService`** → `ADDRESS`
+
+**`aws:ses`** — full SES email sending permissions
 
 ### Example 1 (yaml)
 

@@ -401,5 +401,5 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `excludeDependencies` | no | `Array<string>` | - |
 | `excludeFiles` | no | `Array<string>` | - |
 | `includeFiles` | no | `Array<string>` | - |
-| `languageSpecificConfig` | no | `Es \| Py \| Java \| Php \| Dotnet \| Go \| Ruby` | - |
+| `languageSpecificConfig` | no | `Es \| Py \| Java \| Go \| Ruby \| Php \| Dotnet` | - |
 | `requiresGlibcBinaries` | no | `boolean` | - |

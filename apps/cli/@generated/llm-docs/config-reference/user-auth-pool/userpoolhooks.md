@@ -7,44 +7,55 @@ Resource type: `user-auth-pool`
 ```typescript
 type UserPoolHooks = {
   /** Create auth challenge hook
-Part of Cognito&#39;s custom auth flow. This trigger is used to generate a challenge (for example sending a custom OTP)
-after DefineAuthChallenge decides a challenge is needed. */
+
+Part of Cognito's custom auth flow. This trigger is used to generate a challenge (for example sending a custom OTP)
+after `DefineAuthChallenge` decides a challenge is needed. */
   createAuthChallenge?: string;
   /** Custom message hook
+
 Triggered whenever Cognito is about to send an email or SMS (sign‑up, verification, password reset, etc.).
 Lets you fully customize message contents or dynamically choose language/branding.
-Value must be the ARN of a Lambda function configured to handle the &quot;Custom Message&quot; trigger. */
+
+Value must be the ARN of a Lambda function configured to handle the "Custom Message" trigger. */
   customMessage?: string;
   /** Define auth challenge hook
+
 Also part of the custom auth flow. It decides whether a user needs another challenge, has passed, or has failed,
 based on previous challenges and responses. */
   defineAuthChallenge?: string;
   /** Post-authentication hook
+
 Runs after a user has successfully authenticated. You can use this to record analytics, update last‑login timestamps,
 or block access based on additional checks. */
   postAuthentication?: string;
   /** Post-confirmation hook
+
 Runs right after a user confirms their account (for example via email link or admin confirmation).
 This is often used to create user records in your own database or to provision resources. */
   postConfirmation?: string;
   /** Pre-authentication hook
-Invoked just before Cognito validates a user&#39;s credentials. You can use this to block sign‑in attempts
+
+Invoked just before Cognito validates a user's credentials. You can use this to block sign‑in attempts
 based on IP, device, or user state (for example, soft‑deleting an account). */
   preAuthentication?: string;
   /** Pre-sign-up hook
+
 Called before a new user is created. Useful for validating input, auto‑confirming trusted users,
-or blocking sign‑ups that don&#39;t meet your business rules. */
+or blocking sign‑ups that don't meet your business rules. */
   preSignUp?: string;
   /** Pre-token-generation hook
+
 Runs right before Cognito issues tokens. Lets you customize token claims (for example, adding roles or flags)
 based on external systems or additional logic. */
   preTokenGeneration?: string;
   /** User migration hook
-Lets you migrate users on‑the‑fly from another user store. When someone tries to sign in but doesn&#39;t exist in Cognito,
+
+Lets you migrate users on‑the‑fly from another user store. When someone tries to sign in but doesn't exist in Cognito,
 this trigger can look them up elsewhere, import them, and let the sign‑in continue. */
   userMigration?: string;
   /** Verify auth challenge response hook
-Validates the user&#39;s response to a custom challenge (for example, checking an OTP the user provides). */
+
+Validates the user's response to a custom challenge (for example, checking an OTP the user provides). */
   verifyAuthChallengeResponse?: string;
 };
 ```

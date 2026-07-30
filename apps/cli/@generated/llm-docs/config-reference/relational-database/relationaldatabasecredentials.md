@@ -6,9 +6,9 @@ Resource type: `relational-database`
 
 ```typescript
 type RelationalDatabaseCredentials = {
-  /** Admin password. Avoid special characters: []{}(),;?*=!@. */
+  /** Admin password. Avoid special characters: `[]{}(),;?*=!@`. */
   masterUserPassword: string;
-  /** Admin username. Avoid special characters: []{}(),;?*=!@. */
+  /** Admin username. Avoid special characters: `[]{}(),;?*=!@`. */
   masterUserName?: string;
 };
 ```

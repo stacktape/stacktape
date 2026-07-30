@@ -8,7 +8,7 @@ import type { KafkaMTLSAuth, KafkaSASLAuth } from 'stacktape';
 type CustomKafkaEventSource = {
   /** The authentication method for connecting to the Kafka cluster. */
   authentication: CustomKafkaEventSourceAuthentication;
-  /** A list of host:port addresses for your Kafka brokers. */
+  /** A list of `host:port` addresses for your Kafka brokers. */
   bootstrapServers: Array<string>;
   /** The name of the Kafka topic to consume messages from. */
   topicName: string;

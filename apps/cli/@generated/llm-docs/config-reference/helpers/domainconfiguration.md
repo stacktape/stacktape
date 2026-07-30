@@ -4,7 +4,7 @@
 
 ```typescript
 type DomainConfiguration = {
-  /** Your domain name (e.g., mydomain.com or api.mydomain.com). */
+  /** Your domain name (e.g., `mydomain.com` or `api.mydomain.com`). */
   domainName: string;
   /** Use your own TLS certificate instead of the auto-generated one. */
   customCertificateArn?: string;

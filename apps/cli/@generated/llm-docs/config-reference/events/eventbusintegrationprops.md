@@ -10,7 +10,7 @@ type EventBusIntegrationProps = {
   eventPattern: EventBusIntegrationPattern;
   /** The ARN of an existing event bus. */
   eventBusArn?: string;
-  /** The name of an event bus defined in your stack&#39;s resources. */
+  /** The name of an event bus defined in your stack's resources. */
   eventBusName?: string;
   /** A fixed JSON object to be passed as the event payload. */
   input?: unknown;

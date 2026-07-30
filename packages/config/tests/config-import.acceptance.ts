@@ -8,6 +8,7 @@ import type { LambdaFunction } from '@stacktape/config/functions';
 import type { Bucket } from '@stacktape/config/buckets';
 import type { WebService } from '@stacktape/config/web-services';
 import type { BudgetControl } from '@stacktape/config/budget';
+import type { AlarmDefinition, AlarmTrigger } from '@stacktape/config/alarms';
 
 /**
  * A real Stacktape configuration built from explicit package imports.
@@ -72,4 +73,31 @@ export const acceptedConfiguration: StacktapeConfig = {
 export const monthlyBudget: BudgetControl = {
   limit: 200,
   notifications: [{ budgetType: 'FORECASTED', thresholdPercentage: 80, emails: ['ops@example.com'] }]
+};
+
+export type AlarmDefinitionSurface = Pick<
+  AlarmDefinition,
+  | 'name'
+  | 'trigger'
+  | 'forServices'
+  | 'forStages'
+  | 'description'
+  | 'evaluation'
+  | 'includeInHistory'
+  | 'notificationTargets'
+>;
+
+export const alarmTrigger: AlarmTrigger = {
+  type: 'lambda-error-rate',
+  properties: { thresholdPercent: 5 }
+};
+
+export const alarmDefinition: AlarmDefinition = {
+  name: 'api-error-rate',
+  trigger: alarmTrigger,
+  forServices: ['api'],
+  forStages: ['production'],
+  description: 'API error rate too high',
+  evaluation: { period: 60, evaluationPeriods: 5, breachedPeriods: 3 },
+  includeInHistory: true
 };

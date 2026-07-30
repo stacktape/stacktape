@@ -8,7 +8,7 @@ Resource type: `bucket`
 import type { BucketCorsRule } from 'stacktape';
 
 type BucketCorsConfig = {
-  /** Enable CORS. When true with no rules, uses permissive defaults (* origins, all methods). */
+  /** Enable CORS. When `true` with no rules, uses permissive defaults (`*` origins, all methods). */
   enabled: boolean;
   /** Custom CORS rules. First matching rule wins for each preflight request. */
   corsRules?: Array<BucketCorsRule>;

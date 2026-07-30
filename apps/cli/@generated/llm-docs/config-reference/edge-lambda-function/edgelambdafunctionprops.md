@@ -12,9 +12,9 @@ type EdgeLambdaFunctionProps = {
   packaging: EdgeLambdaFunctionPackaging;
   /** Grant access to other resources in your stack (IAM permissions only — no env vars or VPC access). */
   connectTo?: Array<string>;
-  /** Custom IAM policy statements for fine-grained AWS permissions beyond what connectTo provides. */
+  /** Custom IAM policy statements for fine-grained AWS permissions beyond what `connectTo` provides. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
-  /** Logging config. Logs are sent to CloudWatch in the region where the function executed (not your stack region). */
+  /** Logging config. Logs are sent to CloudWatch **in the region where the function executed** (not your stack region). */
   logging?: LambdaFunctionLogging;
   /** Memory in MB. Max depends on event type: viewer events = 128 MB, origin events = 10,240 MB. */
   memory?: number;
@@ -38,7 +38,7 @@ type EdgeLambdaFunctionPackaging =
 How the function code is packaged and deployed.
 
 Choices:
-- `stacktape-lambda-buildpack` (`StpBuildpackLambdaPackaging`) — A zero-config buildpack that packages your code for AWS Lambda.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `languageSpecificConfig?: Es | Py | Java | Php | Dotnet | Go | Ruby`.
+- `stacktape-lambda-buildpack` (`StpBuildpackLambdaPackaging`) — A zero-config buildpack that packages your code for AWS Lambda.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `languageSpecificConfig?: Es | Py | Java | Go | Ruby | Php | Dotnet`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
 ### Example 1 (yaml)

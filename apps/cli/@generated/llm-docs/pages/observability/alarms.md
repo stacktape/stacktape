@@ -359,7 +359,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `forServices` | no | `Array<string>` | - |
 | `forStages` | no | `Array<string>` | - |
 | `includeInHistory` | no | `boolean` | `true` |
-| `notificationTargets` | no | `Array<ms-teams \| slack \| email \| discord \| webhook>` | - |
+| `notificationTargets` | no | `Array<slack \| ms-teams \| email \| discord \| webhook>` | - |
 
 
 ## FAQ

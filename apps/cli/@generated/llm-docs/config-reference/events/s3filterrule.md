@@ -4,9 +4,9 @@
 
 ```typescript
 type S3FilterRule = {
-  /** The prefix that an object&#39;s key must have to trigger the function. */
+  /** The prefix that an object's key must have to trigger the function. */
   prefix?: string;
-  /** The suffix that an object&#39;s key must have to trigger the function. */
+  /** The suffix that an object's key must have to trigger the function. */
   suffix?: string;
 };
 ```

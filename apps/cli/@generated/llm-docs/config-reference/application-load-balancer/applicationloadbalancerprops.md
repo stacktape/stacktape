@@ -16,11 +16,11 @@ type ApplicationLoadBalancerProps = {
   customDomains?: ApplicationLoadBalancerCustomDomains;
   /** Global alarm names to exclude from this load balancer. */
   disabledGlobalAlarms?: Array<string>;
-  /** internet (public) or internal (VPC-only). Internal ALBs are not reachable from the internet. */
+  /** `internet` (public) or `internal` (VPC-only). Internal ALBs are not reachable from the internet. */
   interface?: "internal" | "internet";
   /** Custom listeners (port + protocol). Defaults to HTTPS on 443 + HTTP on 80 (redirecting to HTTPS). */
   listeners?: Array<ApplicationLoadBalancerListener>;
-  /** Name of a web-app-firewall resource to protect this load balancer from common web exploits. */
+  /** Name of a `web-app-firewall` resource to protect this load balancer from common web exploits. */
   useFirewall?: string;
 };
 

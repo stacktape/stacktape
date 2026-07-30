@@ -10,7 +10,7 @@ import type { RdsEnginePrimaryInstance, RdsEngineReadReplica, RdsEngineStorage }
 type RdsEngineProperties = {
   /** The primary (writer) instance. Handles all write operations. */
   primaryInstance: RdsEnginePrimaryInstance;
-  /** Engine version (e.g., 16.6 for PostgreSQL, 8.0.36 for MySQL). */
+  /** Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL). */
   version: string;
   /** Name of the database created on initialization. For Oracle, this is the SID. Not applicable to SQL Server. */
   dbName?: string;

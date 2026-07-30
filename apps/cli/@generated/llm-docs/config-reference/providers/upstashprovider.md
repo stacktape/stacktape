@@ -6,7 +6,7 @@
 type UpstashProvider = {
   /** Email address of your Upstash account. */
   accountEmail: string;
-  /** API key for your Upstash account. Store as $Secret() for security. */
+  /** API key for your Upstash account. Store as `$Secret()` for security. */
   apiKey: string;
 };
 ```

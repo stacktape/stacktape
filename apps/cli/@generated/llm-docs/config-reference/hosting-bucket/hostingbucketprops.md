@@ -8,35 +8,35 @@ Resource type: `hosting-bucket`
 import type { CdnRouteRewrite, DirectoryUploadFilter, DomainConfiguration, EdgeFunctionsConfig, EnvironmentVar, HostingBucketBuild } from 'stacktape';
 
 type HostingBucketProps = {
-  /** Path to the build output directory (e.g., dist, build, out). */
+  /** Path to the build output directory (e.g., `dist`, `build`, `out`). */
   uploadDirectoryPath: string;
-  /** Build command that produces the files to upload (e.g., npm run build). */
+  /** Build command that produces the files to upload (e.g., `npm run build`). */
   build?: HostingBucketBuild;
-  /** Custom domains (e.g., www.example.com). Stacktape auto-creates DNS records and TLS certificates. */
+  /** Custom domains (e.g., `www.example.com`). Stacktape auto-creates DNS records and TLS certificates. */
   customDomains?: Array<DomainConfiguration>;
-  /** Dev server command for local development (e.g., npm run dev, vite). */
+  /** Dev server command for local development (e.g., `npm run dev`, `vite`). */
   dev?: HostingBucketBuild;
-  /** Disable clean URL normalization (e.g., /about → /about.html). */
+  /** Disable clean URL normalization (e.g., `/about` → `/about.html`). */
   disableUrlNormalization?: boolean;
   /** Run edge functions on CDN requests/responses (URL rewrites, auth, A/B testing). */
   edgeFunctions?: EdgeFunctionsConfig;
-  /** Page to show for 404 errors (e.g., /error.html). */
+  /** Page to show for 404 errors (e.g., `/error.html`). */
   errorDocument?: string;
-  /** Glob patterns for files to skip during upload (relative to uploadDirectoryPath). */
+  /** Glob patterns for files to skip during upload (relative to `uploadDirectoryPath`). */
   excludeFilesPatterns?: Array<string>;
-  /** Set HTTP headers (e.g., Cache-Control) for files matching specific patterns. */
+  /** Set HTTP headers (e.g., `Cache-Control`) for files matching specific patterns. */
   fileOptions?: Array<DirectoryUploadFilter>;
   /** Optimizes caching and routing for your type of frontend app. */
   hostingContentType?: "astro-static-website" | "gatsby-static-website" | "nuxt-static-website" | "single-page-app" | "static-website" | "sveltekit-static-website";
-  /** Page served for requests to /. */
+  /** Page served for requests to `/`. */
   indexDocument?: string;
-  /** Inject deploy-time values into HTML files as window.STP_INJECTED_ENV.VARIABLE_NAME. */
+  /** Inject deploy-time values into HTML files as `window.STP_INJECTED_ENV.VARIABLE_NAME`. */
   injectEnvironment?: Array<EnvironmentVar>;
-  /** Route specific URL patterns to different origins (e.g., /api/* → a Lambda function). */
+  /** Route specific URL patterns to different origins (e.g., `/api/*` → a Lambda function). */
   routeRewrites?: Array<CdnRouteRewrite>;
-  /** Name of a web-app-firewall resource to protect this site. Must have scope: cdn. */
+  /** Name of a `web-app-firewall` resource to protect this site. Must have `scope: cdn`. */
   useFirewall?: string;
-  /** Write deploy-time values to a .env file in the specified directory. */
+  /** Write deploy-time values to a `.env` file in the specified directory. */
   writeDotenvFilesTo?: string;
 };
 ```

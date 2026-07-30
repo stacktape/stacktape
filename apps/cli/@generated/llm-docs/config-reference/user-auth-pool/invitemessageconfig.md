@@ -23,7 +23,7 @@ type InviteMessageConfig = {
 Invitation email body
 
 The text of the email sent when an administrator creates a new user.
-You can reference placeholders like `{username}` and `{####}` (temporary password or code) in the message.
+You can reference placeholders like `{username}` and `{}` (temporary password or code) in the message.
 
 ### Example 1 (yaml)
 
@@ -100,7 +100,7 @@ export default defineConfig(() => {
 Invitation SMS body
 
 The content of the SMS message sent when new users are created with a phone number.
-As with email, you can include placeholders such as `{username}` and `{####}`.
+As with email, you can include placeholders such as `{username}` and `{}`.
 
 ### Example 1 (yaml)
 

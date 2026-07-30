@@ -8,9 +8,9 @@ Configures an image to be built automatically by Stacktape from your source code
 import type { DotnetLanguageSpecificConfig, EsLanguageSpecificConfig, GoLanguageSpecificConfig, JavaLanguageSpecificConfig, PhpLanguageSpecificConfig, PyLanguageSpecificConfig, RubyLanguageSpecificConfig } from 'stacktape';
 
 type StpBuildpackCwImagePackagingProps = {
-  /** Path to your app&#39;s entry point, relative to the Stacktape config file. */
+  /** Path to your app's entry point, relative to the Stacktape config file. */
   entryfilePath: string;
-  /** A list of commands to be executed during the docker build process. */
+  /** A list of commands to be executed during the `docker build` process. */
   customDockerBuildCommands?: Array<string>;
   /** A list of dependencies to exclude from the deployment package. */
   excludeDependencies?: Array<string>;
@@ -29,10 +29,10 @@ type StpBuildpackCwImagePackagingLanguageSpecificConfig =
   | EsLanguageSpecificConfig
   | PyLanguageSpecificConfig
   | JavaLanguageSpecificConfig
-  | PhpLanguageSpecificConfig
-  | DotnetLanguageSpecificConfig
   | GoLanguageSpecificConfig
-  | RubyLanguageSpecificConfig;
+  | RubyLanguageSpecificConfig
+  | PhpLanguageSpecificConfig
+  | DotnetLanguageSpecificConfig;
 ```
 
 ## Property: `entryfilePath`
@@ -272,7 +272,7 @@ export default defineConfig(() => {
 ## Property: `languageSpecificConfig`
 
 - Required: no
-- Type: `Es | Py | Java | Php | Dotnet | Go | Ruby`
+- Type: `Es | Py | Java | Go | Ruby | Php | Dotnet`
 
 Language-specific packaging configuration.
 
@@ -280,10 +280,10 @@ Choices:
 - `Es` (`EsLanguageSpecificConfig`). Properties: `tsConfigPath?: string`, `emitTsDecoratorMetadata?: boolean`, `dependenciesToExcludeFromBundle?: Array<string>`, `outputModuleFormat?: string: "cjs" | "esm"`, `nodeVersion?: number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`, `disableSourceMaps?: boolean`, `outputSourceMapsTo?: string`, `dependenciesToExcludeFromDeploymentPackage?: Array<string>`.
 - `Py` (`PyLanguageSpecificConfig`). Properties: `packageManagerFile?: string`, `packageManager?: string = "uv"`, `uvOptionalDependencies?: Array<string>`, `uvWithGroups?: Array<string>`, `uvWithoutGroups?: Array<string>`, `uvOnlyGroups?: Array<string>`, `pythonVersion?: number: 2.7 | 3.11 | 3.12 | 3.13 | 3.14 | 3.6 | 3.7 | 3.8 | 3.9`, `runAppAs?: string: "ASGI" | "WSGI"`, `minify?: boolean`.
 - `Java` (`JavaLanguageSpecificConfig`). Properties: `useMaven?: boolean`, `packageManagerFile?: string`, `javaVersion?: number: 11 | 17 | 19 | 8`.
-- `Php` (`PhpLanguageSpecificConfig`). Properties: `phpVersion?: number: 8.2 | 8.3`.
-- `Dotnet` (`DotnetLanguageSpecificConfig`). Properties: `projectFile?: string`, `dotnetVersion?: number: 6 | 8`.
 - `Go` (`GoLanguageSpecificConfig`)
 - `Ruby` (`RubyLanguageSpecificConfig`). Properties: `rubyVersion?: number: 3.2 | 3.3`.
+- `Php` (`PhpLanguageSpecificConfig`). Properties: `phpVersion?: number: 8.2 | 8.3`.
+- `Dotnet` (`DotnetLanguageSpecificConfig`). Properties: `projectFile?: string`, `dotnetVersion?: number: 6 | 8`.
 
 ### Example 1 (yaml)
 

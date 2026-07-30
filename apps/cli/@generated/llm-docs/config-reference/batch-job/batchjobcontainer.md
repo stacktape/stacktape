@@ -16,26 +16,26 @@ type BatchJobContainer = {
 
 /** Union choices used by the properties above. */
 type BatchJobContainerPackaging =
-  | StpBuildpackBjImagePackaging
-  | ExternalBuildpackBjImagePackaging
   | PrebuiltBjImagePackaging
   | CustomDockerfileBjImagePackaging
-  | NixpacksBjImagePackaging;
+  | ExternalBuildpackBjImagePackaging
+  | NixpacksBjImagePackaging
+  | StpBuildpackBjImagePackaging;
 ```
 
 ## Property: `packaging`
 
 - Required: yes
-- Type: `stacktape-image-buildpack | external-buildpack | prebuilt-image | custom-dockerfile | nixpacks`
+- Type: `prebuilt-image | custom-dockerfile | external-buildpack | nixpacks | stacktape-image-buildpack`
 
 How to build or specify the container image for this job.
 
 Choices:
-- `stacktape-image-buildpack` (`StpBuildpackBjImagePackaging`). Properties: `languageSpecificConfig?: Es | Py | Java | Php | Dotnet | Go | Ruby`, `requiresGlibcBinaries?: boolean`, `customDockerBuildCommands?: Array<string>`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`.
-- `external-buildpack` (`ExternalBuildpackBjImagePackaging`). Properties: `builder?: string`, `buildpacks?: Array<string>`, `sourceDirectoryPath: string`, `command?: Array<string>`.
 - `prebuilt-image` (`PrebuiltBjImagePackaging`). Properties: `image: string`, `command?: Array<string>`.
 - `custom-dockerfile` (`CustomDockerfileBjImagePackaging`). Properties: `dockerfilePath?: string`, `buildContextPath: string`, `buildArgs?: Array<DockerBuildArg>`, `command?: Array<string>`.
+- `external-buildpack` (`ExternalBuildpackBjImagePackaging`). Properties: `builder?: string`, `buildpacks?: Array<string>`, `sourceDirectoryPath: string`, `command?: Array<string>`.
 - `nixpacks` (`NixpacksBjImagePackaging`). Properties: `sourceDirectoryPath: string`, `buildImage?: string`, `providers?: Array<string>`, `startCmd?: string`, `startRunImage?: string`, `startOnlyIncludeFiles?: Array<string>`, `phases?: Array<NixpacksPhase>`.
+- `stacktape-image-buildpack` (`StpBuildpackBjImagePackaging`). Properties: `languageSpecificConfig?: Es | Py | Java | Go | Ruby | Php | Dotnet`, `requiresGlibcBinaries?: boolean`, `customDockerBuildCommands?: Array<string>`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`.
 
 ### Example 1 (yaml)
 

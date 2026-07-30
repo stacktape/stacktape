@@ -4,7 +4,7 @@
 
 ```typescript
 type MsTeamsIntegrationProps = {
-  /** Incoming Webhook URL for the MS Teams channel. Store as $Secret() for security. */
+  /** Incoming Webhook URL for the MS Teams channel. Store as `$Secret()` for security. */
   webhookUrl: string;
 };
 ```

@@ -8,11 +8,11 @@ Resource type: `bastion`
 import type { BastionLoggingConfig } from 'stacktape';
 
 type BastionProps = {
-  /** EC2 instance type. t3.micro is sufficient for SSH tunneling and basic admin tasks. */
+  /** EC2 instance type. `t3.micro` is sufficient for SSH tunneling and basic admin tasks. */
   instanceSize?: string;
   /** Log retention settings for system, security, and audit logs. Logs are sent to CloudWatch. */
   logging?: BastionLoggingConfig;
-  /** Shell commands to run when the instance starts (as root — no sudo needed). */
+  /** Shell commands to run when the instance starts (as root — no `sudo` needed). */
   runCommandsAtLaunch?: Array<string>;
 };
 ```

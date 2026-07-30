@@ -6,11 +6,11 @@
 import type { DomainConfiguration } from 'stacktape';
 
 type ConvexCustomDomains = {
-  /** API + WebSocket origin. Set as CONVEX_CLOUD_ORIGIN on the backend. */
+  /** API + WebSocket origin. Set as `CONVEX_CLOUD_ORIGIN` on the backend. */
   cloud: DomainConfiguration;
-  /** HTTP-actions origin. Set as CONVEX_SITE_ORIGIN on the backend. */
+  /** HTTP-actions origin. Set as `CONVEX_SITE_ORIGIN` on the backend. */
   site: DomainConfiguration;
-  /** Dashboard domain. Required if dashboard.enabled is true. */
+  /** Dashboard domain. Required if `dashboard.enabled` is `true`. */
   dashboard?: DomainConfiguration;
 };
 ```

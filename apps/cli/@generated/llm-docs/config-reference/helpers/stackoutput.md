@@ -6,7 +6,7 @@
 type StackOutput = {
   /** Name of the output (used as the key in terminal and stack info file). */
   name: string;
-  /** Value to output. Typically a directive like $ResourceParam('myApi', 'url'). */
+  /** Value to output. Typically a directive like `$ResourceParam('myApi', 'url')`. */
   value: string;
   /** Human-readable description shown alongside the output. */
   description?: string;

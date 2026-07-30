@@ -10,11 +10,11 @@ import type { DockerBuildArg } from 'stacktape';
 type CustomDockerfileBjImagePackagingProps = {
   /** The path to the build context directory, relative to your Stacktape configuration file. */
   buildContextPath: string;
-  /** A list of arguments to pass to the docker build command. */
+  /** A list of arguments to pass to the `docker build` command. */
   buildArgs?: Array<DockerBuildArg>;
   /** A command to be executed when the container starts. */
   command?: Array<string>;
-  /** The path to the Dockerfile, relative to buildContextPath. */
+  /** The path to the Dockerfile, relative to `buildContextPath`. */
   dockerfilePath?: string;
 };
 ```

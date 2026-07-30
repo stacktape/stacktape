@@ -572,12 +572,12 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
 | `accessTokenValiditySeconds` | no | `number` | - |
-| `allowedOAuthFlows` | no | `Array<string: "client_credentials" \| "code" \| "implicit">` | - |
-| `allowedOAuthScopes` | no | `Array<string>` | - |
 | `allowEmailAsUserName` | no | `boolean` | `true` |
 | `allowOnlyAdminsToCreateAccount` | no | `boolean` | `false` |
 | `allowOnlyExternalIdentityProviders` | no | `boolean` | `false` |
 | `allowPhoneNumberAsUserName` | no | `boolean` | `true` |
+| `allowedOAuthFlows` | no | `Array<string: "client_credentials" \| "code" \| "implicit">` | - |
+| `allowedOAuthScopes` | no | `Array<string>` | - |
 | `callbackURLs` | no | `Array<string>` | - |
 | `customDomain` | no | `UserPoolCustomDomainConfiguration` | - |
 | `emailConfiguration` | no | `EmailConfiguration` | - |
@@ -586,8 +586,8 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `hooks` | no | `UserPoolHooks` | - |
 | `hostedUiCSS` | no | `string` | - |
 | `hostedUiDomainPrefix` | no | `string` | - |
-| `identityProviders` | no | `Array<IdentityProvider>` | - |
 | `idTokenValiditySeconds` | no | `number` | - |
+| `identityProviders` | no | `Array<IdentityProvider>` | - |
 | `inviteMessageConfig` | no | `InviteMessageConfig` | - |
 | `logoutURLs` | no | `Array<string>` | - |
 | `mfaConfiguration` | no | `MfaConfiguration` | - |

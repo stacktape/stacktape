@@ -6,9 +6,9 @@ Resource type: `cdn`
 
 ```typescript
 type CdnBucketOrigin = {
-  /** Name of the bucket resource to route to. */
+  /** Name of the `bucket` resource to route to. */
   bucketName: string;
-  /** Disable clean URL normalization (e.g., /about → /about.html). */
+  /** Disable clean URL normalization (e.g., `/about` → `/about.html`). */
   disableUrlNormalization?: boolean;
 };
 ```

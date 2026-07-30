@@ -8,9 +8,9 @@ Resource type: `network-load-balancer`
 type NetworkLoadBalancerListener = {
   /** Port this listener accepts traffic on. */
   port: number;
-  /** TCP (raw) or TLS (encrypted). TLS requires a certificate (auto-created with customDomains or via customCertificateArns). */
+  /** `TCP` (raw) or `TLS` (encrypted). TLS requires a certificate (auto-created with `customDomains` or via `customCertificateArns`). */
   protocol: "TCP" | "TLS";
-  /** ARNs of your own ACM certificates. Not needed if using customDomains or TCP protocol. */
+  /** ARNs of your own ACM certificates. Not needed if using `customDomains` or TCP protocol. */
   customCertificateArns?: Array<string>;
   /** Restrict access to specific IP addresses/CIDRs. Default: all IPs allowed. */
   whitelistIps?: Array<string>;

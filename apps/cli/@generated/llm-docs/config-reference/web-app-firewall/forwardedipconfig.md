@@ -6,9 +6,9 @@ Resource type: `web-app-firewall`
 
 ```typescript
 type ForwardedIPConfig = {
-  /** What to do when the header is missing. MATCH = apply rule action, NO_MATCH = skip. */
+  /** What to do when the header is missing. `MATCH` = apply rule action, `NO_MATCH` = skip. */
   fallbackBehavior: "MATCH" | "NO_MATCH";
-  /** HTTP header containing the client IP (e.g., X-Forwarded-For). */
+  /** HTTP header containing the client IP (e.g., `X-Forwarded-For`). */
   headerName: string;
 };
 ```

@@ -4,7 +4,7 @@
 
 ```typescript
 type SlackIntegrationProps = {
-  /** Bot User OAuth Token for your Slack app. Store as $Secret() for security. */
+  /** Bot User OAuth Token for your Slack app. Store as `$Secret()` for security. */
   accessToken: string;
   /** The Slack channel or DM ID to send notifications to. */
   conversationId: string;

@@ -8,7 +8,7 @@ import type { CdnCachingOptions } from 'stacktape';
 type SsrWebPathCachingOverride = {
   /** Caching behavior override for this path pattern. */
   cachingOptions: CdnCachingOptions;
-  /** URL path pattern to match (e.g., /api/*, /_server-islands/*). */
+  /** URL path pattern to match (e.g., `/api/*`, `/_server-islands/*`). */
   path: string;
 };
 ```

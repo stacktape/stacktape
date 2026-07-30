@@ -6,7 +6,7 @@ Resource type: `relational-database`
 
 ```typescript
 type AuroraServerlessV2EngineProperties = {
-  /** Engine version (e.g., 16.6 for PostgreSQL, 8.0.36 for MySQL). */
+  /** Engine version (e.g., `16.6` for PostgreSQL, `8.0.36` for MySQL). */
   version: string;
   /** Name of the initial database. */
   dbName?: string;

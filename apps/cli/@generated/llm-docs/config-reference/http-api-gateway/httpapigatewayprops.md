@@ -14,13 +14,13 @@ type HttpApiGatewayProps = {
   cdn?: CdnConfiguration;
   /** CORS settings. Overrides any CORS headers from your application code. */
   cors?: HttpApiCorsConfig;
-  /** Custom domains (e.g., api.example.com). Stacktape auto-creates DNS records and TLS certificates. */
+  /** Custom domains (e.g., `api.example.com`). Stacktape auto-creates DNS records and TLS certificates. */
   customDomains?: Array<DomainConfiguration>;
   /** Global alarm names to exclude from this API Gateway. */
   disabledGlobalAlarms?: Array<string>;
-  /** Access logging (request ID, IP, method, status, etc.). Viewable with stacktape logs. */
+  /** Access logging (request ID, IP, method, status, etc.). Viewable with `stacktape logs`. */
   logging?: HttpApiAccessLogsConfig;
-  /** Lambda event payload format. 2.0 is simpler and recommended for new projects. */
+  /** Lambda event payload format. `2.0` is simpler and recommended for new projects. */
   payloadFormat?: "1.0" | "2.0";
 };
 ```

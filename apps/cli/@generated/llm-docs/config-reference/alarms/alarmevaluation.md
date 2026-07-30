@@ -4,7 +4,7 @@
 
 ```typescript
 type AlarmEvaluation = {
-  /** How many periods (within evaluationPeriods) must breach the threshold to fire the alarm. */
+  /** How many periods (within `evaluationPeriods`) must breach the threshold to fire the alarm. */
   breachedPeriods?: number;
   /** How many recent periods to evaluate. Prevents alarms from firing on short spikes. */
   evaluationPeriods?: number;

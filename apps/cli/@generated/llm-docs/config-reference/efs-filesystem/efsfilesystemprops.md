@@ -8,7 +8,7 @@ Resource type: `efs-filesystem`
 type EfsFilesystemProps = {
   /** Enable daily automatic backups with 35-day retention. Incremental (only changes are copied). */
   backupEnabled?: boolean;
-  /** Guaranteed throughput in MiB/s. Required when throughputMode is provisioned. */
+  /** Guaranteed throughput in MiB/s. Required when `throughputMode` is `provisioned`. */
   provisionedThroughputInMibps?: number;
   /** How throughput scales with your workload. */
   throughputMode?: "bursting" | "elastic" | "provisioned";

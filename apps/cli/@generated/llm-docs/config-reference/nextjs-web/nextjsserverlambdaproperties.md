@@ -8,9 +8,9 @@ Resource type: `nextjs-web`
 import type { LambdaFunctionLogging } from 'stacktape';
 
 type NextjsServerLambdaProperties = {
-  /** Connect to VPC resources (databases, Redis). Warning: function loses direct internet access. */
+  /** Connect to VPC resources (databases, Redis). **Warning:** function loses direct internet access. */
   joinDefaultVpc?: boolean;
-  /** Logging config. Logs are sent to CloudWatch. View with stacktape logs or in the AWS console. */
+  /** Logging config. Logs are sent to CloudWatch. View with `stacktape logs` or in the AWS console. */
   logging?: LambdaFunctionLogging;
   /** Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU. */
   memory?: number;

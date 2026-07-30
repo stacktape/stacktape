@@ -554,7 +554,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `packaging` | yes | `stacktape-image-buildpack \| external-buildpack \| prebuilt-image \| custom-dockerfile \| nixpacks` | - |
+| `packaging` | yes | `prebuilt-image \| custom-dockerfile \| external-buildpack \| nixpacks \| stacktape-image-buildpack` | - |
 | `authorizer` | no | `AgentCoreJwtAuthorizerConfig` | - |
 | `connectTo` | no | `Array<string>` | - |
 | `description` | no | `string` | - |

@@ -10,11 +10,11 @@ import type { LbRedirect } from 'stacktape';
 type ApplicationLoadBalancerListener = {
   /** Port this listener accepts traffic on (e.g., 443 for HTTPS, 80 for HTTP). */
   port: number;
-  /** Listener protocol. HTTPS requires a TLS certificate (auto-created with customDomains or via customCertificateArns). */
+  /** Listener protocol. `HTTPS` requires a TLS certificate (auto-created with `customDomains` or via `customCertificateArns`). */
   protocol: "HTTP" | "HTTPS";
-  /** ARNs of your own ACM certificates. Not needed if using customDomains (Stacktape creates certs automatically). */
+  /** ARNs of your own ACM certificates. Not needed if using `customDomains` (Stacktape creates certs automatically). */
   customCertificateArns?: Array<string>;
-  /** Action for requests that don&#39;t match any integration. Currently supports redirect only. */
+  /** Action for requests that don't match any integration. Currently supports `redirect` only. */
   defaultAction?: LbRedirect;
   /** Restrict access to specific IP addresses/CIDRs. Default: all IPs allowed. */
   whitelistIps?: Array<string>;

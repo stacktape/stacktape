@@ -8,9 +8,9 @@ Resource type: `bucket`
 import type { KeyValuePair } from 'stacktape';
 
 type NonCurrentVersionExpirationProps = {
-  /** Delete old versions this many days after they become non-current. Requires versioning: true. */
+  /** Delete old versions this many days after they become non-current. Requires `versioning: true`. */
   daysAfterVersioned: number;
-  /** Only apply this rule to objects with this key prefix (e.g., logs/, uploads/). */
+  /** Only apply this rule to objects with this key prefix (e.g., `logs/`, `uploads/`). */
   prefix?: string;
   /** Only apply this rule to objects with these tags. */
   tags?: Array<KeyValuePair>;

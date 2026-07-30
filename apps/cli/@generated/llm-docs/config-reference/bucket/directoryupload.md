@@ -12,7 +12,7 @@ type DirectoryUpload = {
   directoryPath: string;
   /** Disable faster uploads via S3 Transfer Acceleration. Saves a small per-GB cost. */
   disableS3TransferAcceleration?: boolean;
-  /** Glob patterns for files to skip during upload (relative to directoryPath). */
+  /** Glob patterns for files to skip during upload (relative to `directoryPath`). */
   excludeFilesPatterns?: Array<string>;
   /** Set HTTP headers or tags on files matching specific patterns. */
   fileOptions?: Array<DirectoryUploadFilter>;

@@ -8,25 +8,25 @@ Resource type: `deployment-script`
 import type { CustomArtifactLambdaPackaging, EnvironmentVar, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';
 
 type DeploymentScriptProps = {
-  /** How the script code is packaged. Use stacktape-lambda-buildpack for auto-bundling. */
+  /** How the script code is packaged. Use `stacktape-lambda-buildpack` for auto-bundling. */
   packaging: DeploymentScriptPackaging;
-  /** When to run: after:deploy (fails → rollback) or before:delete (fails → deletion continues). */
+  /** When to run: `after:deploy` (fails → rollback) or `before:delete` (fails → deletion continues). */
   trigger: "after:deploy" | "before:delete";
   /** Give this resource access to other resources in your stack. */
   connectTo?: Array<string>;
-  /** Environment variables injected at runtime. Use $ResourceParam() or $Secret() for dynamic values. */
+  /** Environment variables injected at runtime. Use `$ResourceParam()` or `$Secret()` for dynamic values. */
   environment?: Array<EnvironmentVar>;
-  /** Raw IAM policy statements for permissions not covered by connectTo. */
+  /** Raw IAM policy statements for permissions not covered by `connectTo`. */
   iamRoleStatements?: Array<StpIamRoleStatement>;
-  /** Connect to VPC resources (databases, Redis). Warning: function loses direct internet access. */
+  /** Connect to VPC resources (databases, Redis). **Warning:** function loses direct internet access. */
   joinDefaultVpc?: boolean;
   /** Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU. */
   memory?: number;
-  /** Structured data passed to the handler function as the event payload. Not for secrets — use environment. */
+  /** Structured data passed to the handler function as the event payload. Not for secrets — use `environment`. */
   parameters?: unknown;
   /** Lambda runtime. Auto-detected from file extension if not specified. */
   runtime?: "dotnet6" | "dotnet7" | "dotnet8" | "java11" | "java17" | "java8" | "java8.al2" | "nodejs18.x" | "nodejs20.x" | "nodejs22.x" | "nodejs24.x" | "provided.al2" | "provided.al2023" | "python3.10" | "python3.11" | "python3.12" | "python3.13" | "python3.8" | "python3.9" | "ruby3.3";
-  /** Ephemeral /tmp storage in MB (512–10,240). */
+  /** Ephemeral `/tmp` storage in MB (512–10,240). */
   storage?: number;
   /** Max execution time in seconds. Max: 900 (15 minutes). */
   timeout?: number;
@@ -46,7 +46,7 @@ type DeploymentScriptPackaging =
 How the script code is packaged. Use `stacktape-lambda-buildpack` for auto-bundling.
 
 Choices:
-- `stacktape-lambda-buildpack` (`StpBuildpackLambdaPackaging`) — A zero-config buildpack that packages your code for AWS Lambda.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `languageSpecificConfig?: Es | Py | Java | Php | Dotnet | Go | Ruby`.
+- `stacktape-lambda-buildpack` (`StpBuildpackLambdaPackaging`) — A zero-config buildpack that packages your code for AWS Lambda.. Properties: `handlerFunction?: string`, `entryfilePath: string`, `includeFiles?: Array<string>`, `excludeFiles?: Array<string>`, `excludeDependencies?: Array<string>`, `languageSpecificConfig?: Es | Py | Java | Go | Ruby | Php | Dotnet`.
 - `custom-artifact` (`CustomArtifactLambdaPackaging`) — Uses a pre-built artifact for Lambda deployment.. Properties: `packagePath: string`, `handler?: string`.
 
 ### Example 1 (yaml)
@@ -133,6 +133,37 @@ List the names of resources this workload needs to communicate with. Stacktape a
 
 Example: `connectTo: ["myDatabase", "myBucket"]` gives this workload full access to both
 resources and injects `STP_MY_DATABASE_CONNECTION_STRING`, `STP_MY_BUCKET_NAME`, etc.
+
+ What each resource type provides:
+
+**`Bucket`** — read/write/delete objects → `NAME`, `ARN`
+
+**`DynamoDbTable`** — CRUD + scan/query → `NAME`, `ARN`, `STREAM_ARN`
+
+**`RelationalDatabase`** — network access + connection details → `CONNECTION_STRING`, `HOST`, `PORT`.
+Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
+
+**`MongoDbAtlasCluster`** — temporary credential-less access → `CONNECTION_STRING`
+
+**`RedisCluster`** — network access → `HOST`, `READER_HOST`, `PORT`
+
+**`Function`** — invoke permission → `ARN`
+
+**`BatchJob`** — submit/list/terminate → `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN`
+
+**`EventBus`** — publish events → `ARN`
+
+**`UserAuthPool`** — full control → `ID`, `CLIENT_ID`, `ARN`
+
+**`SqsQueue`** — send/receive/delete → `ARN`, `NAME`, `URL`
+
+**`SnsTopic`** — publish/subscribe → `ARN`, `NAME`
+
+**`UpstashRedis`** → `HOST`, `PORT`, `PASSWORD`, `REST_TOKEN`, `REST_URL`, `REDIS_URL`
+
+**`PrivateService`** → `ADDRESS`
+
+**`aws:ses`** — full SES email sending permissions
 
 ### Example 1 (yaml)
 

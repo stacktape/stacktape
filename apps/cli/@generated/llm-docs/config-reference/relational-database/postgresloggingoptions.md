@@ -12,9 +12,9 @@ type PostgresLoggingOptions = {
   log_disconnections?: boolean;
   /** Log sessions waiting for locks (helps find lock contention issues). */
   log_lock_waits?: boolean;
-  /** Log queries slower than this (ms). -1 = disabled, 0 = log all. Great for finding slow queries. */
+  /** Log queries slower than this (ms). `-1` = disabled, `0` = log all. Great for finding slow queries. */
   log_min_duration_statement?: number;
-  /** Which SQL statements to log: none, ddl (CREATE/ALTER), mod (ddl + INSERT/UPDATE/DELETE), all. */
+  /** Which SQL statements to log: `none`, `ddl` (CREATE/ALTER), `mod` (ddl + INSERT/UPDATE/DELETE), `all`. */
   log_statement?: "all" | "ddl" | "mod" | "none";
 };
 ```

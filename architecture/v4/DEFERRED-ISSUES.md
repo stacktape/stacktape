@@ -5,10 +5,6 @@ refactoring scope. Revisit them before the v4 release where marked.
 
 ## Release blockers
 
-- **Regenerate the committed `aws:call` LLM documentation.** The source documentation and generator have not migrated
-  into `apps/docs` yet. The committed generated page still describes the removed `Batch*` prefix rule and incorrectly
-  presents `aws:call` as stack-independent. Do not hand-edit generated output; migrate its source and restore a
-  freshness check before publishing v4.
 - **Audit old plaintext development credentials.** The retired
   `C:\Projects\console-app\AGENTS_DEV_PLAYBOOK.md` contains live-looking credential material. None was copied into this
   repository. Rotate or invalidate those credentials before treating the old repositories or backups as safe.

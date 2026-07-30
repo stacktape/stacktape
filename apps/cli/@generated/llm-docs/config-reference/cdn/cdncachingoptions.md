@@ -10,17 +10,17 @@ import type { CdnCacheKey } from 'stacktape';
 type CdnCachingOptions = {
   /** Which headers, cookies, and query params make responses unique in the cache. */
   cacheKeyParameters?: CdnCacheKey;
-  /** HTTP methods to cache. Use ['GET', 'HEAD', 'OPTIONS'] if your API uses CORS preflight. */
+  /** HTTP methods to cache. Use `['GET', 'HEAD', 'OPTIONS']` if your API uses CORS preflight. */
   cacheMethods?: Array<"GET" | "HEAD" | "OPTIONS">;
   /** Use a pre-existing AWS cache policy ID instead of configuring TTL and cache key options here. */
   cachePolicyId?: string;
-  /** Default cache time (seconds). Used when the origin response has no Cache-Control or Expires header. */
+  /** Default cache time (seconds). Used when the origin response has no `Cache-Control` or `Expires` header. */
   defaultTTL?: number;
   /** Disable automatic Gzip/Brotli compression. Compression is on by default and reduces transfer size/cost. */
   disableCompression?: boolean;
   /** Maximum cache time (seconds). Caps how long the CDN caches content, even if the origin says longer. */
   maxTTL?: number;
-  /** Minimum cache time (seconds). Overrides Cache-Control: max-age if the origin sets a lower value. */
+  /** Minimum cache time (seconds). Overrides `Cache-Control: max-age` if the origin sets a lower value. */
   minTTL?: number;
 };
 ```

@@ -3,7 +3,7 @@ import configSchema from '@stacktape/config/config-schema.json';
 import { IntrinsicFunction } from '../src/cloudformation';
 import { CONNECT_TO_AWS_SERVICE_MACROS } from '../src/aws-service-macros';
 import canonicalConfigSchema from '../generated/config-schema.json';
-import { acceptedConfiguration, api, rawSubscription } from './config-import.acceptance';
+import { acceptedConfiguration, alarmDefinition, api, rawSubscription } from './config-import.acceptance';
 
 /**
  * The runtime half of the package's acceptance check.
@@ -18,6 +18,7 @@ describe('a Stacktape configuration can be built from explicit package imports',
     expect(Object.keys(acceptedConfiguration.resources)).toEqual(['api', 'site', 'uploads']);
     expect(acceptedConfiguration.cloudformationResources?.LegacyTopic?.Type).toBe('AWS::SNS::Topic');
     expect(api.properties.packaging.type).toBe('stacktape-lambda-buildpack');
+    expect(alarmDefinition.trigger.type).toBe('lambda-error-rate');
   });
 });
 

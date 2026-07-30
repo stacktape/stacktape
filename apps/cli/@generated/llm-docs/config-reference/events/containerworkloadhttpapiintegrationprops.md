@@ -135,7 +135,7 @@ Choices:
 
 - Required: no
 - Type: `string: "1.0" | "2.0"`
-- Default: `'1.0'`
+- Default: `1.0`
 
 The payload format version for the Lambda integration.
 

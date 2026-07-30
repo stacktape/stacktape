@@ -12,13 +12,13 @@ type EsLanguageSpecificConfig = {
   disableSourceMaps?: boolean;
   /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks. */
   emitTsDecoratorMetadata?: boolean;
-  /** The major version of Node.js to use. */
+  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */
   nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
-  /** Output module format: cjs (CommonJS) or esm (ES Modules, enables top-level await). */
+  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */
   outputModuleFormat?: "cjs" | "esm";
   /** Save source maps to a local directory instead of uploading them to AWS. */
   outputSourceMapsTo?: string;
-  /** The path to the tsconfig.json file. */
+  /** The path to the `tsconfig.json` file. */
   tsConfigPath?: string;
 };
 ```
@@ -221,9 +221,8 @@ export default defineConfig(() => {
 
 - Required: no
 - Type: `number: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24`
-- Default: `18`
 
-The major version of Node.js to use.
+The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value.
 
 ### Example 1 (yaml)
 
@@ -267,7 +266,6 @@ export default defineConfig(() => {
 
 - Required: no
 - Type: `string: "cjs" | "esm"`
-- Default: `'cjs'`
 
 Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`).
 

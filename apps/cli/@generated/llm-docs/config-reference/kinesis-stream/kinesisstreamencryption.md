@@ -8,7 +8,7 @@ Resource type: `kinesis-stream`
 type KinesisStreamEncryption = {
   /** Enable server-side encryption. */
   enabled: boolean;
-  /** ARN of your own KMS key. If omitted, uses the AWS-managed alias/aws/kinesis key (no extra cost). */
+  /** ARN of your own KMS key. If omitted, uses the AWS-managed `alias/aws/kinesis` key (no extra cost). */
   kmsKeyArn?: string;
 };
 ```

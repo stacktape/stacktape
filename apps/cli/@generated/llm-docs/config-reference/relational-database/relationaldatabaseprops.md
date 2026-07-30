@@ -20,13 +20,13 @@ type RelationalDatabaseProps = {
   automatedBackupRetentionDays?: number;
   /** Prevent accidental deletion of the database. Must be disabled before deleting. */
   deletionProtection?: boolean;
-  /** Dev mode: runs locally in Docker by default. Set remote: true to use the deployed database. */
+  /** Dev mode: runs locally in Docker by default. Set `remote: true` to use the deployed database. */
   dev?: DevModeConfig;
   /** Global alarm names to exclude from this database. */
   disabledGlobalAlarms?: Array<string>;
   /** Database logging (connections, slow queries, errors). */
   logging?: RelationalDatabaseLogging;
-  /** When maintenance (patching, upgrades) happens. Format: Sun:02:00-Sun:04:00 (UTC). */
+  /** When maintenance (patching, upgrades) happens. Format: `Sun:02:00-Sun:04:00` (UTC). */
   preferredMaintenanceWindow?: string;
 };
 

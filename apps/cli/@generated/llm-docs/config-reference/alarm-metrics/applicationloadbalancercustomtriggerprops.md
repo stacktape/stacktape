@@ -10,7 +10,7 @@ type ApplicationLoadBalancerCustomTriggerProps = {
   threshold: number;
   /** How to compare the metric value against the threshold. */
   comparisonOperator?: "GreaterThanOrEqualToThreshold" | "GreaterThanThreshold" | "LessThanOrEqualToThreshold" | "LessThanThreshold";
-  /** How to aggregate metric values within each period: avg, sum, min, max, p90, p95, p99. */
+  /** How to aggregate metric values within each period: `avg`, `sum`, `min`, `max`, `p90`, `p95`, `p99`. */
   statistic?: "avg" | "max" | "min" | "p90" | "p95" | "p99" | "sum";
 };
 ```

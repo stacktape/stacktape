@@ -6,7 +6,7 @@ Resource type: `cdn`
 
 ```typescript
 type CdnCustomOrigin = {
-  /** Domain name of the external origin (e.g., api.example.com). */
+  /** Domain name of the external origin (e.g., `api.example.com`). */
   domainName: string;
   /** Port on the origin. Defaults to 443 for HTTPS, 80 for HTTP. */
   port?: number;

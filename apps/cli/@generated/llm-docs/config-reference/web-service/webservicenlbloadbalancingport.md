@@ -8,9 +8,9 @@ Resource type: `web-service`
 type WebServiceNlbLoadBalancingPort = {
   /** Public port exposed by the load balancer. */
   port: number;
-  /** Port on the container that receives the traffic. Defaults to port. */
+  /** Port on the container that receives the traffic. Defaults to `port`. */
   containerPort?: number;
-  /** Protocol: TLS (encrypted) or TCP (raw). */
+  /** Protocol: `TLS` (encrypted) or `TCP` (raw). */
   protocol?: "TCP" | "TLS";
 };
 ```

@@ -10,7 +10,7 @@ import type { DevModeConfig, DynamoDbProvisionedThroughput, DynamoDbTableGlobalS
 type DynamoDbTableProps = {
   /** The primary key that uniquely identifies each item. */
   primaryKey: DynamoDbTablePrimaryKey;
-  /** Dev mode: runs locally in Docker by default. Set remote: true to use the deployed table. */
+  /** Dev mode: runs locally in Docker by default. Set `remote: true` to use the deployed table. */
   dev?: DevModeConfig;
   /** Enable continuous backups with point-in-time recovery (restore to any second in the last 35 days). */
   enablePointInTimeRecovery?: boolean;
@@ -33,7 +33,7 @@ The primary key that uniquely identifies each item.
 **Simple key**: Just a `partitionKey` (e.g., `userId`).
 **Composite key**: `partitionKey` + `sortKey` (e.g., `userId` + `createdAt`).
 
-  **Cannot be changed after creation.** Every item must include the primary key attribute(s).
+**Cannot be changed after creation.** Every item must include the primary key attribute(s).
 
 ### Example 1 (yaml)
 

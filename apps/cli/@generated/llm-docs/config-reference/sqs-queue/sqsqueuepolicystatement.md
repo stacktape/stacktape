@@ -6,9 +6,9 @@ Resource type: `sqs-queue`
 
 ```typescript
 type SqsQueuePolicyStatement = {
-  /** SQS actions to allow or deny. E.g., ["sqs:SendMessage"] or ["sqs:*"]. */
+  /** SQS actions to allow or deny. E.g., `["sqs:SendMessage"]` or `["sqs:*"]`. */
   Action: Array<string>;
-  /** Allow or Deny access for the specified actions and principal. */
+  /** `Allow` or `Deny` access for the specified actions and principal. */
   Effect: string;
   /** Who gets access: AWS account ID, IAM ARN, or `"*"` for everyone. E.g., `{ "Service": "sns.amazonaws.com" }`. */
   Principal: unknown;

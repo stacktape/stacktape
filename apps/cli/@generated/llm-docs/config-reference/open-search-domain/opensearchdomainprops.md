@@ -16,7 +16,7 @@ type OpenSearchDomainProps = {
   logging?: OpenSearchLogConfiguration;
   /** EBS volume size, IOPS, and throughput per data node. Only for EBS-backed instance types. */
   storage?: OpenSearchStorage;
-  /** Name of a user-pool resource in your config. Enables login to OpenSearch Dashboards via Cognito. */
+  /** Name of a `user-pool` resource in your config. Enables login to OpenSearch Dashboards via Cognito. */
   userPool?: string;
   /** OpenSearch engine version. Pin this to avoid surprises when the default changes. */
   version?: "1.0" | "1.1" | "1.2" | "1.3" | "2.11" | "2.13" | "2.15" | "2.17" | "2.3" | "2.5" | "2.7" | "2.9";
@@ -297,7 +297,7 @@ export default defineConfig(() => {
 
 - Required: no
 - Type: `string: "1.0" | "1.1" | "1.2" | "1.3" | "2.11" | "2.13" | "2.15" | "2.17" | "2.3" | "2.5" | "2.7" | "2.9"`
-- Default: `'2.17'`
+- Default: `2.17`
 
 OpenSearch engine version. Pin this to avoid surprises when the default changes.
 

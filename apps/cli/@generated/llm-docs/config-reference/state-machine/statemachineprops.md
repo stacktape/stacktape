@@ -8,7 +8,7 @@ Resource type: `state-machine`
 import type { StateMachineDefinition } from 'stacktape';
 
 type StateMachineProps = {
-  /** The workflow definition in Amazon States Language (ASL). */
+  /** The workflow definition in [Amazon States Language (ASL)](https://states-language.net/spec.html). */
   definition: StateMachineDefinition;
 };
 ```

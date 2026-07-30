@@ -6,7 +6,7 @@ Resource type: `hosting-bucket`
 
 ```typescript
 type HostingBucketBuild = {
-  /** Command to run (e.g., npm run build, vite build, npm run dev). */
+  /** Command to run (e.g., `npm run build`, `vite build`, `npm run dev`). */
   command: string;
   /** Working directory for the command (relative to project root). */
   workingDirectory?: string;

@@ -35,7 +35,7 @@ stacktape aws-profile:update --logLevel debug
 
 | Option | Required | Type | Description | Values |
 | --- | --- | --- | --- | --- |
-| `--logLevel (-ll)` | no | `string` | Log Level The level of logs to print to the console. `info`: Basic information about the operation. `error`: Only errors. `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
+| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 
 
 ## Related commands
