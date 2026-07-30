@@ -56,6 +56,9 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   rather than as a side effect of an unrelated change.
   Config-schema source discovery sorts normalized relative paths before constructing the TypeScript program; changing
   that ordering requires proving byte-identical generation on both Windows and Linux.
+- The live AWS Pricing CSV parser and product catalog definitions used by `gen:price:info` live in
+  `@stacktape/pricing/catalog`. The generated editor catalog remains CLI-owned output because this application
+  defines and publishes its JSON shape.
   The root `check:generated-diff` gate checks both tracked changes and untracked files in every committed generated
   scope; a newly generated page must be committed and cannot pass CI merely because `git diff` ignores it.
 - `generated/monaco-declarations/` — ignored deterministic workspace output containing the four v4 declaration files

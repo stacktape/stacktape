@@ -167,9 +167,6 @@ importers:
       '@aws-sdk/util-waiter':
         specifier: 3.374.0
         version: 3.374.0
-      '@fast-csv/parse':
-        specifier: ^4.3.6
-        version: 4.3.6
       '@modelcontextprotocol/sdk':
         specifier: ^1.26.0
         version: 1.26.0(supports-color@10.2.2)(zod@4.3.6)
@@ -212,6 +209,9 @@ importers:
       '@stacktape/packaging':
         specifier: workspace:*
         version: link:../../packages/packaging
+      '@stacktape/pricing':
+        specifier: workspace:*
+        version: link:../../packages/pricing
       '@stacktape/stack-info':
         specifier: workspace:*
         version: link:../../packages/stack-info
@@ -1639,9 +1639,6 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@fast-csv/parse@4.3.6':
-    resolution: {integrity: sha512-uRsLYksqpbDmWaSmzvJcuApSEe38+6NQZBUsuAyMZKqHxH0g1wcJgsKUvN3WC8tewaqFjBMMGrkHmC+T7k8LvA==}
-
   '@hono/node-server@1.19.15':
     resolution: {integrity: sha512-Za2ai6TLdKjUvnur+eenO6nuYYipVAEhyCAdaV8IRvmU9kK8crOZUSYvIXn72E4f8fJqyAbpcJuTsYYmZp9Deg==}
     engines: {node: '>=18.14.1'}
@@ -2552,9 +2549,6 @@ packages:
 
   '@types/mysql@2.15.27':
     resolution: {integrity: sha512-YfWiV16IY0OeBfBCk8+hXKmdTKrKlwKN1MNKAPBu5JYxLwBEZl7QzeEpGnlZb3VMGJrrGmB84gXiH+ofs/TezA==}
-
-  '@types/node@14.18.63':
-    resolution: {integrity: sha512-fAtCfv4jJg+ExtXhvCkCqUKZ+4ok/JQk01qDKhL5BDDoS3AxKXhV5/MAVUZyQnSEd2GT92fkgZl0pz0Q0AzcIQ==}
 
   '@types/node@16.18.126':
     resolution: {integrity: sha512-OTcgaiwfGFBKacvfwuHzzn1KLxH/er8mluiy8/uM3sGXHaRe73RrSIj01jow9t4kJEW633Ov+cOexXeiApTyAw==}
@@ -3776,29 +3770,11 @@ packages:
   lodash.defaults@4.2.0:
     resolution: {integrity: sha512-qjxPLHd3r5DnsdGacqOMU6pb/avJzdh9tFX2ymgoZE27BmjXrNy/y4LoaiTeAb+O3gL8AfpJGtqfX/ae2leYYQ==}
 
-  lodash.escaperegexp@4.1.2:
-    resolution: {integrity: sha512-TM9YBvyC84ZxE3rgfefxUWiQKLilstD6k7PTGt6wfbtXF8ixIJLOL3VYyV/z+ZiPLsVxAsKAFVwWlWeb2Y8Yyw==}
-
-  lodash.groupby@4.6.0:
-    resolution: {integrity: sha512-5dcWxm23+VAoz+awKmBaiBvzox8+RqMgFhi7UvX9DHZr2HdxHXM/Wrf8cfKpsW37RNrvtPn6hSwNqurSILbmJw==}
-
   lodash.isarguments@3.1.0:
     resolution: {integrity: sha512-chi4NHZlZqZD18a0imDHnZPrDeBbTtVN7GXMwuGdRH9qotxAjYs3aVLKc7zNOG9eddR5Ksd8rvFEBc9SsggPpg==}
 
-  lodash.isfunction@3.0.9:
-    resolution: {integrity: sha512-AirXNj15uRIMMPihnkInB4i3NHeb4iBtNg9WRWuK2o31S+ePwwNmDPaTL3o7dTJ+VXNZim7rFs4rxN4YU1oUJw==}
-
-  lodash.isnil@4.0.0:
-    resolution: {integrity: sha512-up2Mzq3545mwVnMhTDMdfoG1OurpA/s5t88JmQX809eH3C8491iu2sfKhTfhQtKY78oPNhiaHJUpT/dUDAAtng==}
-
-  lodash.isundefined@3.0.1:
-    resolution: {integrity: sha512-MXB1is3s899/cD8jheYYE2V9qTHwKvt+npCwpD+1Sxm3Q3cECXCiYHjeHWXNwr6Q0SOBPrYUDxendrO6goVTEA==}
-
   lodash.truncate@4.4.2:
     resolution: {integrity: sha512-jttmRe7bRse52OsWIMDLaXxWqRAmtIUccAQ3garviCqJjafXOfNMO0yMfNpdD6zbGaTU0P5Nz7e7gAT6cKmJRw==}
-
-  lodash.uniq@4.5.0:
-    resolution: {integrity: sha512-xfBaXQd9ryd9dlSDvnvI0lvxfLJlYAZzXomUYzLKtUeOQvOP5piqAWuGtrhWeqaXK9hhoM/iyJc5AV+XfsX3HQ==}
 
   lodash@4.17.23:
     resolution: {integrity: sha512-LgVTMpQtIopCi79SJeDiP0TfWi5CNEc/L/aRdTh3yIvmZXTnheWpKjSZhnvMl8iXbC1tFg9gdHHDMLoV7CnG+w==}
@@ -8198,16 +8174,6 @@ snapshots:
   '@esbuild/win32-x64@0.27.2':
     optional: true
 
-  '@fast-csv/parse@4.3.6':
-    dependencies:
-      '@types/node': 14.18.63
-      lodash.escaperegexp: 4.1.2
-      lodash.groupby: 4.6.0
-      lodash.isfunction: 3.0.9
-      lodash.isnil: 4.0.0
-      lodash.isundefined: 3.0.1
-      lodash.uniq: 4.5.0
-
   '@hono/node-server@1.19.15(hono@4.12.32)':
     dependencies:
       hono: 4.12.32
@@ -9321,8 +9287,6 @@ snapshots:
   '@types/mysql@2.15.27':
     dependencies:
       '@types/node': 26.1.1
-
-  '@types/node@14.18.63': {}
 
   '@types/node@16.18.126': {}
 
@@ -10563,21 +10527,9 @@ snapshots:
 
   lodash.defaults@4.2.0: {}
 
-  lodash.escaperegexp@4.1.2: {}
-
-  lodash.groupby@4.6.0: {}
-
   lodash.isarguments@3.1.0: {}
 
-  lodash.isfunction@3.0.9: {}
-
-  lodash.isnil@4.0.0: {}
-
-  lodash.isundefined@3.0.1: {}
-
   lodash.truncate@4.4.2: {}
-
-  lodash.uniq@4.5.0: {}
 
   lodash@4.17.23: {}
 

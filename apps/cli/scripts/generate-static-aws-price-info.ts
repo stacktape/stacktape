@@ -1,7 +1,11 @@
-import type { PricingInfo, RegionalPricingInfo } from 'src/aws/pricing-info';
 import { join } from 'node:path';
 import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '@stacktape/config/container-workload-resources';
-import { calculateFlatMonthlyCost, downloadSimplePricingInfo } from 'src/aws/pricing-info';
+import {
+  calculateFlatMonthlyCost,
+  downloadSimplePricingInfo,
+  type PricingInfo,
+  type RegionalPricingInfo
+} from '@stacktape/pricing/catalog';
 import { AWS_PRICE_INFO_GENERATED_FOLDER_PATH } from 'src/config/project-paths';
 import { logInfo, logSuccess } from '@scripts/support/logging';
 import { outputFile } from 'fs-extra';

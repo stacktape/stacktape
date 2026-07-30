@@ -1,14 +1,30 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { BatchGetCommand, BatchWriteCommand, DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { parse } from '@fast-csv/parse';
-import { downloadFile } from '@utils/download-file';
-import { chunkArray, serialize } from '@utils/misc';
 import { camelCase } from 'change-case';
 import { createReadStream, remove } from 'fs-extra';
-import { normalizeEngineType } from '@stacktape/config/relational-database-engines';
+import Downloader from 'nodejs-file-downloader';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { RdsEngine } from '@stacktape/config/relational-databases';
 import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
+import {
+  normalizeEngineType,
+  type NormalizedRelationalDatabaseEngine
+} from '@stacktape/config/relational-database-engines';
+import type { AwsServiceCsvOfferCode, PricingInfo, RegionalPricingInfo } from '../catalog';
+import type { ResourcePricingInformation } from '../estimator';
+
+const chunkArray = <Item>(items: Item[], chunkSize: number): Item[][] => {
+  return Array.from({ length: Math.ceil(items.length / chunkSize) }, (_, index) =>
+    items.slice(index * chunkSize, index * chunkSize + chunkSize)
+  );
+};
+
+const serialize = <Value>(value: Value): Value => JSON.parse(JSON.stringify(value));
+
+const downloadFile = async ({ downloadTo, url, fileName }: { downloadTo: string; url: string; fileName: string }) => {
+  return new Downloader({ url, directory: downloadTo, fileName }).download();
+};
 
 type CsvRow = {
   sku: string;
@@ -55,41 +71,6 @@ type CsvRow = {
   physicalProcessor: string;
   storageClass: string;
   throughputClass: string;
-};
-
-type AwsServiceCsvOfferCode =
-  | 'AmazonECS'
-  | 'AmazonElastiCache'
-  | 'AmazonEC2'
-  | 'AmazonRDS'
-  | 'AmazonES'
-  | 'AmazonS3'
-  | 'AmazonDynamoDB'
-  | 'AmazonApiGateway'
-  | 'AWSLambda'
-  | 'awswaf'
-  | 'AWSEvents'
-  | 'AmazonCloudFront'
-  | 'AmazonEFS';
-
-export type PricingInfo = {
-  [productName: string]: {
-    [region: string]: RegionalPricingInfo;
-  };
-};
-
-export type RegionalPricingInfo = {
-  unit: string;
-  pricePerUnit: string;
-  currency: string;
-  ADDITIONAL_METADATA?: { vCpu?: string; memory?: string; burstable?: boolean; cpuArchitecture?: 'ARM' | 'x86' };
-};
-
-type ResourcePricingInformation = {
-  priceInfo: Awaited<ReturnType<typeof getCumulatedPriceInfoForProducts>>;
-  relatedAwsPricingDocs?: { [linkName: string]: string };
-  underTheHoodLink?: string;
-  customComment?: string;
 };
 
 type ProductInfo = ReturnType<(typeof productsInfo)['AmazonEC2']['instance']>;
@@ -188,28 +169,34 @@ const productsInfo = {
     }
   },
   AmazonRDS: {
-    instance: ({ instanceType, databaseEngine }: { instanceType: string; databaseEngine: NormalizedSQLEngine }) => {
+    instance: ({
+      instanceType,
+      databaseEngine
+    }: {
+      instanceType: string;
+      databaseEngine: NormalizedRelationalDatabaseEngine;
+    }) => {
       return {
         name: `RDS-instance-${instanceType}-${databaseEngine}`,
         description: 'Price for database instance',
         priceModel: 'flat'
       };
     },
-    serverless: ({ databaseEngine }: { databaseEngine: NormalizedSQLEngine }) => {
+    serverless: ({ databaseEngine }: { databaseEngine: NormalizedRelationalDatabaseEngine }) => {
       return {
         name: `RDS-serverless-${databaseEngine}`,
         description: 'Price for Aurora serverless',
         priceModel: 'flat'
       };
     },
-    serverlessV2: ({ databaseEngine }: { databaseEngine: NormalizedSQLEngine }) => {
+    serverlessV2: ({ databaseEngine }: { databaseEngine: NormalizedRelationalDatabaseEngine }) => {
       return {
         name: `RDS-serverless-V2-${databaseEngine}`,
         description: 'Price for Aurora serverless V2',
         priceModel: 'flat'
       };
     },
-    storage: ({ databaseEngine }: { databaseEngine: NormalizedSQLEngine }) => {
+    storage: ({ databaseEngine }: { databaseEngine: NormalizedRelationalDatabaseEngine }) => {
       return {
         name: `RDS-gp2-storage-${databaseEngine}`,
         description: 'Price for database storage',
@@ -481,7 +468,7 @@ const productNameBuilders: {
     ) {
       return;
     }
-    const dbEngine: NormalizedSQLEngine | 'ANY_AURORA' =
+    const dbEngine: NormalizedRelationalDatabaseEngine | 'ANY_AURORA' | undefined =
       databaseEngine === 'Aurora MySQL'
         ? 'aurora-mysql'
         : databaseEngine === 'Aurora PostgreSQL'
@@ -613,6 +600,33 @@ const productNameBuilders: {
   }
 };
 
+const getProductNameBuilder = (serviceCode: string) => {
+  switch (serviceCode) {
+    case 'AmazonECS':
+      return productNameBuilders.AmazonECS;
+    case 'AmazonEFS':
+      return productNameBuilders.AmazonEFS;
+    case 'AmazonElastiCache':
+      return productNameBuilders.AmazonElastiCache;
+    case 'AmazonEC2':
+      return productNameBuilders.AmazonEC2;
+    case 'AmazonRDS':
+      return productNameBuilders.AmazonRDS;
+    case 'AmazonES':
+      return productNameBuilders.AmazonES;
+    case 'AmazonS3':
+      return productNameBuilders.AmazonS3;
+    case 'AmazonDynamoDB':
+      return productNameBuilders.AmazonDynamoDB;
+    case 'AmazonApiGateway':
+      return productNameBuilders.AmazonApiGateway;
+    case 'AWSLambda':
+      return productNameBuilders.AWSLambda;
+    default:
+      return undefined;
+  }
+};
+
 const getAdditionalMetadataAboutProductFromRow = (
   productName: string,
   row: CsvRow
@@ -633,31 +647,37 @@ const getAdditionalMetadataAboutProductFromRow = (
         : undefined
     };
   }
+  return undefined;
 };
 
-const getPricesFromCsvFile = async (path: string) => {
+export const parsePricingCsvFile = async (path: string) => {
   const result: PricingInfo = {};
 
   const processRow = (row: CsvRow) => {
-    const productName = productNameBuilders[row.serviceCode](row); // can return multiple product names
-    [productName]
-      .flat()
-      .filter(Boolean)
-      .forEach((pn) => {
-        result[pn] = result[pn] || {};
-        const additionalMetadata = getAdditionalMetadataAboutProductFromRow(pn, row);
-        result[pn][row.regionCode] = {
-          unit: row.unit,
-          pricePerUnit: row.pricePerUnit,
-          currency: row.currency,
-          ...(additionalMetadata ? { ADDITIONAL_METADATA: additionalMetadata } : {})
-        };
-      });
+    const productNameBuilder = getProductNameBuilder(row.serviceCode);
+    if (!productNameBuilder) {
+      return;
+    }
+    const productName = productNameBuilder(row); // can return multiple product names
+    const productNames = Array.isArray(productName) ? productName : [productName];
+    for (const resolvedProductName of productNames) {
+      if (!resolvedProductName) {
+        continue;
+      }
+      result[resolvedProductName] = result[resolvedProductName] || {};
+      const additionalMetadata = getAdditionalMetadataAboutProductFromRow(resolvedProductName, row);
+      result[resolvedProductName][row.regionCode] = {
+        unit: row.unit,
+        pricePerUnit: row.pricePerUnit,
+        currency: row.currency,
+        ...(additionalMetadata ? { ADDITIONAL_METADATA: additionalMetadata } : {})
+      };
+    }
   };
 
   await new Promise((resolve, reject) => {
     createReadStream(path)
-      .pipe(parse({ headers: (headers) => headers.map((header) => camelCase(header)), skipLines: 5 }))
+      .pipe(parse({ headers: (headers) => headers.map((header) => camelCase(header ?? '')), skipLines: 5 }))
       .on('error', (error) => reject(error))
       .on('data', (row) => processRow(row))
       .on('end', (rowCount: number) => resolve(`Parsed ${rowCount} rows`));
@@ -679,13 +699,16 @@ export const downloadSimplePricingInfo = async ({
     url: downloadUrl,
     fileName: `${awsServiceOfferCode}.csv`
   });
+  if (!downloadedFilePath) {
+    throw new Error(`AWS pricing download did not produce a file for ${awsServiceOfferCode}.`);
+  }
 
-  const prices = await getPricesFromCsvFile(downloadedFilePath);
+  const prices = await parsePricingCsvFile(downloadedFilePath);
   await remove(downloadedFilePath);
   return prices;
 };
 
-const _SERVICES_WITH_STATIC_PRICES: {
+const SERVICES_WITH_STATIC_PRICES: {
   AtlasMongo: PricingInfo;
   awswaf: PricingInfo;
   AWSEvents: PricingInfo;
@@ -835,7 +858,11 @@ const getProductsPricingInfoFromDynamoTable = async ({
       }
     })
   );
-  return response.Responses[dynamoDbTableName].reduce((obj, item) => {
+  const items = response.Responses?.[dynamoDbTableName];
+  if (!items) {
+    throw new Error(`DynamoDB returned no pricing response for table "${dynamoDbTableName}".`);
+  }
+  return items.reduce((obj, item) => {
     obj[item.productName] = item.prices;
     return obj;
   }, {}) as PricingInfo;
@@ -868,7 +895,7 @@ const getCumulatedPriceInfoForProducts = async ({
   const totalMonthlyFlat = costBreakdown
     .map(({ pricePerMonth }) => pricePerMonth)
     .filter(Boolean)
-    .reduce((acc, prc) => acc + prc, 0);
+    .reduce<number>((acc, pricePerMonth) => acc + Number(pricePerMonth), 0);
   return {
     totalMonthlyFlat,
     costBreakdown
@@ -1164,46 +1191,46 @@ const getPricingInformationForResource = async ({
     const priceInfo = await getCumulatedPriceInfoForProducts({
       dynamoDbTableName,
       region,
-      products: [
-        ...(resource.properties?.resources?.instanceTypes
-          ? [
-              {
-                ...productsInfo.AmazonEC2.instance({
-                  instanceType: resource.properties.resources.instanceTypes[0],
-                  operatingSystem: 'Linux'
-                }),
-                multiplier: resource.properties.scaling?.minInstances || 1,
-                upperThresholdMultiplier: resource.properties.scaling && (resource.properties.scaling.maxInstances || 1)
-              },
-              {
-                ...productsInfo.AmazonEC2.publicIp(),
-                multiplier: resource.properties.scaling?.minInstances || 1,
-                upperThresholdMultiplier: resource.properties.scaling && (resource.properties.scaling.maxInstances || 1)
-              }
-            ]
-          : [
-              {
-                ...productsInfo.AmazonECS.cpu({ cpuArchitecture: 'AMD64', operatingSystem: 'Linux' }),
-                multiplier: (resource.properties.scaling?.minInstances || 1) * resource.properties.resources.cpu,
-                upperThresholdMultiplier: resource.properties.scaling?.maxInstances
-                  ? (resource.properties.scaling?.maxInstances || 1) * resource.properties.resources.cpu
-                  : undefined
-              },
-              {
-                ...productsInfo.AmazonECS.memory({ cpuArchitecture: 'AMD64', operatingSystem: 'Linux' }),
-                multiplier:
-                  (resource.properties.scaling?.minInstances || 1) * (resource.properties.resources.memory / 1024),
-                upperThresholdMultiplier: resource.properties.scaling?.maxInstances
-                  ? (resource.properties.scaling?.maxInstances || 1) * (resource.properties.resources.memory / 1024)
-                  : undefined
-              },
-              {
-                ...productsInfo.AmazonEC2.publicIp(),
-                multiplier: resource.properties.scaling?.minInstances || 1,
-                upperThresholdMultiplier: resource.properties.scaling && (resource.properties.scaling.maxInstances || 1)
-              }
-            ])
-      ]
+      products: resource.properties?.resources?.instanceTypes
+        ? [
+            {
+              ...productsInfo.AmazonEC2.instance({
+                instanceType: resource.properties.resources.instanceTypes[0],
+                operatingSystem: 'Linux'
+              }),
+              multiplier: resource.properties.scaling?.minInstances || 1,
+              upperThresholdMultiplier: resource.properties.scaling && (resource.properties.scaling.maxInstances || 1)
+            },
+            {
+              ...productsInfo.AmazonEC2.publicIp(),
+              multiplier: resource.properties.scaling?.minInstances || 1,
+              upperThresholdMultiplier: resource.properties.scaling && (resource.properties.scaling.maxInstances || 1)
+            }
+          ]
+        : [
+            {
+              ...productsInfo.AmazonECS.cpu({ cpuArchitecture: 'AMD64', operatingSystem: 'Linux' }),
+              multiplier: (resource.properties.scaling?.minInstances || 1) * Number(resource.properties.resources.cpu),
+              upperThresholdMultiplier: resource.properties.scaling?.maxInstances
+                ? (resource.properties.scaling?.maxInstances || 1) * Number(resource.properties.resources.cpu)
+                : undefined
+            },
+            {
+              ...productsInfo.AmazonECS.memory({ cpuArchitecture: 'AMD64', operatingSystem: 'Linux' }),
+              multiplier:
+                (resource.properties.scaling?.minInstances || 1) *
+                (Number(resource.properties.resources.memory) / 1024),
+              upperThresholdMultiplier: resource.properties.scaling?.maxInstances
+                ? (resource.properties.scaling?.maxInstances || 1) *
+                  (Number(resource.properties.resources.memory) / 1024)
+                : undefined
+            },
+            {
+              ...productsInfo.AmazonEC2.publicIp(),
+              multiplier: resource.properties.scaling?.minInstances || 1,
+              upperThresholdMultiplier: resource.properties.scaling && (resource.properties.scaling.maxInstances || 1)
+            }
+          ]
     });
     return {
       priceInfo,
@@ -1268,7 +1295,7 @@ const getPricingInformationForResource = async ({
           }),
           multiplier: resource.properties?.clusterConfig?.instanceCount || 1
         },
-        ...(resource.properties.clusterConfig?.dedicatedMasterCount
+        ...(resource.properties?.clusterConfig?.dedicatedMasterCount
           ? [
               {
                 ...productsInfo.AmazonES.instance({
@@ -1278,7 +1305,7 @@ const getPricingInformationForResource = async ({
               }
             ]
           : []),
-        ...(resource.properties.clusterConfig?.warmCount
+        ...(resource.properties?.clusterConfig?.warmCount
           ? [
               {
                 ...productsInfo.AmazonES.instance({
@@ -1290,14 +1317,14 @@ const getPricingInformationForResource = async ({
           : []),
         {
           ...productsInfo.AmazonES.storage({
-            storageMedia: resource.properties.storage.iops || resource.properties.storage.throughput ? 'GP3' : 'GP2'
+            storageMedia: resource.properties?.storage?.iops || resource.properties?.storage?.throughput ? 'GP3' : 'GP2'
           }),
-          multiplier: resource.properties.storage.size
+          multiplier: resource.properties?.storage?.size
         },
-        ...(resource.properties.storage.iops
+        ...(resource.properties?.storage?.iops
           ? [{ ...productsInfo.AmazonES.storageIops(), multiplier: resource.properties.storage.iops }]
           : []),
-        ...(resource.properties.storage.throughput
+        ...(resource.properties?.storage?.throughput
           ? [{ ...productsInfo.AmazonES.storageThroughput(), multiplier: resource.properties.storage.throughput }]
           : [])
       ]
@@ -1332,17 +1359,20 @@ const getPricingInformationForResource = async ({
           : [
               {
                 ...productsInfo.AmazonECS.cpu({ cpuArchitecture: 'AMD64', operatingSystem: 'Linux' }),
-                multiplier: (resource.properties.scaling?.minInstances || 1) * resource.properties.resources.cpu,
+                multiplier:
+                  (resource.properties.scaling?.minInstances || 1) * Number(resource.properties.resources.cpu),
                 upperThresholdMultiplier: resource.properties.scaling?.maxInstances
-                  ? (resource.properties.scaling?.maxInstances || 1) * resource.properties.resources.cpu
+                  ? (resource.properties.scaling?.maxInstances || 1) * Number(resource.properties.resources.cpu)
                   : undefined
               },
               {
                 ...productsInfo.AmazonECS.memory({ cpuArchitecture: 'AMD64', operatingSystem: 'Linux' }),
                 multiplier:
-                  (resource.properties.scaling?.minInstances || 1) * (resource.properties.resources.memory / 1024),
+                  (resource.properties.scaling?.minInstances || 1) *
+                  (Number(resource.properties.resources.memory) / 1024),
                 upperThresholdMultiplier: resource.properties.scaling?.maxInstances
-                  ? (resource.properties.scaling?.maxInstances || 1) * (resource.properties.resources.memory / 1024)
+                  ? (resource.properties.scaling?.maxInstances || 1) *
+                    (Number(resource.properties.resources.memory) / 1024)
                   : undefined
               },
               {
@@ -1445,19 +1475,17 @@ const getPricingInformationForResource = async ({
             : resource.properties.engine.type === 'aurora-mysql' ||
                 resource.properties.engine.type === 'aurora-postgresql'
               ? [
-                  ...resource.properties.engine.properties.instances
-                    .map(({ instanceSize }) => [
-                      {
-                        ...productsInfo.AmazonRDS.instance({
-                          databaseEngine: normalizeEngineType(resource.properties.engine.type),
-                          instanceType: instanceSize
-                        })
-                      },
-                      ...(resource.properties.accessibility?.forceDisablePublicIp
-                        ? []
-                        : [productsInfo.AmazonEC2.publicIp()])
-                    ])
-                    .flat(),
+                  ...resource.properties.engine.properties.instances.flatMap(({ instanceSize }) => [
+                    {
+                      ...productsInfo.AmazonRDS.instance({
+                        databaseEngine: normalizeEngineType(resource.properties.engine.type),
+                        instanceType: instanceSize
+                      })
+                    },
+                    ...(resource.properties.accessibility?.forceDisablePublicIp
+                      ? []
+                      : [productsInfo.AmazonEC2.publicIp()])
+                  ]),
                   {
                     ...productsInfo.AmazonRDS.storage({
                       databaseEngine: normalizeEngineType(resource.properties.engine.type)
@@ -1488,8 +1516,9 @@ const getPricingInformationForResource = async ({
                       ((resource.properties.engine as RdsEngine).properties.primaryInstance.multiAz ? 2 : 1) *
                       ((resource.properties.engine as RdsEngine).properties.storage?.maxSize || 200)
                   },
-                  ...((resource.properties.engine as RdsEngine).properties.readReplicas || [])
-                    .map(({ instanceSize, multiAz }) => [
+                  // oxlint-disable-next-line oxc/no-map-spread -- append zero-to-many price products for each replica
+                  ...((resource.properties.engine as RdsEngine).properties.readReplicas || []).flatMap(
+                    ({ instanceSize, multiAz }) => [
                       {
                         ...productsInfo.AmazonRDS.instance({
                           databaseEngine: normalizeEngineType(resource.properties.engine.type),
@@ -1511,8 +1540,8 @@ const getPricingInformationForResource = async ({
                           (multiAz ? 2 : 1) *
                           ((resource.properties.engine as RdsEngine).properties.storage?.maxSize || 200)
                       }
-                    ])
-                    .flat()
+                    ]
+                  )
                 ]
     });
 
@@ -1622,17 +1651,20 @@ const getPricingInformationForResource = async ({
           : [
               {
                 ...productsInfo.AmazonECS.cpu({ cpuArchitecture: 'AMD64', operatingSystem: 'Linux' }),
-                multiplier: (resource.properties.scaling?.minInstances || 1) * resource.properties.resources.cpu,
+                multiplier:
+                  (resource.properties.scaling?.minInstances || 1) * Number(resource.properties.resources.cpu),
                 upperThresholdMultiplier: resource.properties.scaling?.maxInstances
-                  ? (resource.properties.scaling?.maxInstances || 1) * resource.properties.resources.cpu
+                  ? (resource.properties.scaling?.maxInstances || 1) * Number(resource.properties.resources.cpu)
                   : undefined
               },
               {
                 ...productsInfo.AmazonECS.memory({ cpuArchitecture: 'AMD64', operatingSystem: 'Linux' }),
                 multiplier:
-                  (resource.properties.scaling?.minInstances || 1) * (resource.properties.resources.memory / 1024),
+                  (resource.properties.scaling?.minInstances || 1) *
+                  (Number(resource.properties.resources.memory) / 1024),
                 upperThresholdMultiplier: resource.properties.scaling?.maxInstances
-                  ? (resource.properties.scaling?.maxInstances || 1) * (resource.properties.resources.memory / 1024)
+                  ? (resource.properties.scaling?.maxInstances || 1) *
+                    (Number(resource.properties.resources.memory) / 1024)
                   : undefined
               },
               {
@@ -1684,46 +1716,46 @@ const getPricingInformationForResource = async ({
     const priceInfo = await getCumulatedPriceInfoForProducts({
       dynamoDbTableName,
       region,
-      products: [
-        ...(resource.properties?.resources?.instanceTypes
-          ? [
-              {
-                ...productsInfo.AmazonEC2.instance({
-                  instanceType: resource.properties.resources.instanceTypes[0],
-                  operatingSystem: 'Linux'
-                }),
-                multiplier: resource.properties.scaling?.minInstances || 1,
-                upperThresholdMultiplier: resource.properties.scaling && (resource.properties.scaling.maxInstances || 1)
-              },
-              {
-                ...productsInfo.AmazonEC2.publicIp(),
-                multiplier: resource.properties.scaling?.minInstances || 1,
-                upperThresholdMultiplier: resource.properties.scaling && (resource.properties.scaling.maxInstances || 1)
-              }
-            ]
-          : [
-              {
-                ...productsInfo.AmazonECS.cpu({ cpuArchitecture: 'AMD64', operatingSystem: 'Linux' }),
-                multiplier: (resource.properties.scaling?.minInstances || 1) * resource.properties.resources.cpu,
-                upperThresholdMultiplier: resource.properties.scaling?.maxInstances
-                  ? (resource.properties.scaling?.maxInstances || 1) * resource.properties.resources.cpu
-                  : undefined
-              },
-              {
-                ...productsInfo.AmazonECS.memory({ cpuArchitecture: 'AMD64', operatingSystem: 'Linux' }),
-                multiplier:
-                  (resource.properties.scaling?.minInstances || 1) * (resource.properties.resources.memory / 1024),
-                upperThresholdMultiplier: resource.properties.scaling?.maxInstances
-                  ? (resource.properties.scaling?.maxInstances || 1) * (resource.properties.resources.memory / 1024)
-                  : undefined
-              },
-              {
-                ...productsInfo.AmazonEC2.publicIp(),
-                multiplier: resource.properties.scaling?.minInstances || 1,
-                upperThresholdMultiplier: resource.properties.scaling && (resource.properties.scaling.maxInstances || 1)
-              }
-            ])
-      ]
+      products: resource.properties?.resources?.instanceTypes
+        ? [
+            {
+              ...productsInfo.AmazonEC2.instance({
+                instanceType: resource.properties.resources.instanceTypes[0],
+                operatingSystem: 'Linux'
+              }),
+              multiplier: resource.properties.scaling?.minInstances || 1,
+              upperThresholdMultiplier: resource.properties.scaling && (resource.properties.scaling.maxInstances || 1)
+            },
+            {
+              ...productsInfo.AmazonEC2.publicIp(),
+              multiplier: resource.properties.scaling?.minInstances || 1,
+              upperThresholdMultiplier: resource.properties.scaling && (resource.properties.scaling.maxInstances || 1)
+            }
+          ]
+        : [
+            {
+              ...productsInfo.AmazonECS.cpu({ cpuArchitecture: 'AMD64', operatingSystem: 'Linux' }),
+              multiplier: (resource.properties.scaling?.minInstances || 1) * Number(resource.properties.resources.cpu),
+              upperThresholdMultiplier: resource.properties.scaling?.maxInstances
+                ? (resource.properties.scaling?.maxInstances || 1) * Number(resource.properties.resources.cpu)
+                : undefined
+            },
+            {
+              ...productsInfo.AmazonECS.memory({ cpuArchitecture: 'AMD64', operatingSystem: 'Linux' }),
+              multiplier:
+                (resource.properties.scaling?.minInstances || 1) *
+                (Number(resource.properties.resources.memory) / 1024),
+              upperThresholdMultiplier: resource.properties.scaling?.maxInstances
+                ? (resource.properties.scaling?.maxInstances || 1) *
+                  (Number(resource.properties.resources.memory) / 1024)
+                : undefined
+            },
+            {
+              ...productsInfo.AmazonEC2.publicIp(),
+              multiplier: resource.properties.scaling?.minInstances || 1,
+              upperThresholdMultiplier: resource.properties.scaling && (resource.properties.scaling.maxInstances || 1)
+            }
+          ]
     });
     return {
       priceInfo,
@@ -1767,20 +1799,22 @@ const getPricingInformationForResource = async ({
       underTheHoodLink: 'https://docs.stacktape.com/other-resources/efs-filesystems/#under-the-hood'
     };
   }
+  throw new Error(`Pricing is not implemented for resource type "${resource.type}".`);
 };
 
-const _loadProductPricesIntoDynamoTable = async ({
+export const loadProductPricesIntoDynamoTable = async ({
   prices,
-  dynamoDbTableName
+  dynamoDbTableName,
+  documentClient = DynamoDBDocumentClient.from(new DynamoDBClient({}))
 }: {
   prices: PricingInfo;
   dynamoDbTableName: string;
+  documentClient?: Pick<DynamoDBDocumentClient, 'send'>;
 }) => {
-  const docClient = DynamoDBDocumentClient.from(new DynamoDBClient({}));
   return Promise.all(
     chunkArray(Object.entries(prices), 25).map(async (chunk) => {
       try {
-        return await docClient.send(
+        return await documentClient.send(
           new BatchWriteCommand({
             RequestItems: {
               [dynamoDbTableName]: chunk.map(([productName, value]) => {
@@ -1804,7 +1838,7 @@ const _loadProductPricesIntoDynamoTable = async ({
   );
 };
 
-const _getCumulatedPriceInfoForStack = async ({
+export const getCumulatedPriceInfoForStack = async ({
   stackConfig,
   region = 'us-east-1',
   dynamoDbTableName
@@ -1835,4 +1869,34 @@ const _getCumulatedPriceInfoForStack = async ({
     flatMonthlyCost,
     resourcesBreakdown
   };
+};
+
+export const refreshPricingTable = async ({
+  dynamoDbTableName,
+  downloadDirectory,
+  dependencies = {
+    downloadPricing: downloadSimplePricingInfo,
+    writePrices: loadProductPricesIntoDynamoTable
+  }
+}: {
+  dynamoDbTableName: string;
+  downloadDirectory: string;
+  dependencies?: {
+    downloadPricing: typeof downloadSimplePricingInfo;
+    writePrices: typeof loadProductPricesIntoDynamoTable;
+  };
+}) => {
+  for (const awsServiceOfferCode of Object.keys(productNameBuilders) as AwsServiceCsvOfferCode[]) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- process large AWS offer files sequentially to bound memory use
+    const prices = await dependencies.downloadPricing({
+      awsServiceOfferCode,
+      downloadDirectory
+    });
+    // oxlint-disable-next-line eslint/no-await-in-loop -- finish each offer before downloading the next large CSV
+    await dependencies.writePrices({ prices, dynamoDbTableName });
+  }
+  for (const prices of Object.values(SERVICES_WITH_STATIC_PRICES)) {
+    // oxlint-disable-next-line eslint/no-await-in-loop -- preserve deterministic sequential writes after dynamic offers
+    await dependencies.writePrices({ prices, dynamoDbTableName });
+  }
 };
