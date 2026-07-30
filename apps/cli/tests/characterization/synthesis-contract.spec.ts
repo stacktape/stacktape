@@ -449,6 +449,10 @@ let synthesizedTemplate: CloudformationTemplate;
 
 beforeAll(async () => {
   synthesizedTemplate = await synthesizeDenseFixture();
+  const outputPath = process.env.STACKTAPE_SYNTHESIS_TEMPLATE_OUTPUT;
+  if (outputPath) {
+    await Bun.write(outputPath, JSON.stringify(synthesizedTemplate, null, 2));
+  }
 });
 
 const normalizeIamSequence = (value: unknown) =>
@@ -709,6 +713,13 @@ describe('full synthesis contract', () => {
     for (const action of ['dynamodb:PutItem', 's3:ListBucket', 'sqs:SendMessage', 'events:PutEvents']) {
       expect(apiActions).toContain(action);
     }
+    const devAgentSqsActions = resources.StpDevAgentRole.Properties.Policies.find(
+      ({ PolicyName }: { PolicyName: string }) => PolicyName === 'sqs-access'
+    ).PolicyDocument.Statement[0].Action;
+    expect(devAgentSqsActions).toContain('sqs:SendMessage');
+    expect(devAgentSqsActions).toContain('sqs:DeleteMessage');
+    expect(devAgentSqsActions).not.toContain('sqs:SendMessageBatch');
+    expect(devAgentSqsActions).not.toContain('sqs:DeleteMessageBatch');
     for (const method of ['GET', 'PUT', 'POST', 'DELETE']) {
       expect(resources.FilesBucket.Properties.CorsConfiguration.CorsRules[0].AllowedMethods).toContain(method);
     }

@@ -245,11 +245,12 @@ Characterization/artifact baselines, normalized synthesis fixtures, packaged CLI
 real-AWS packaging smoke are implemented. CLI Bun tests now also preload an application-level guard that replaces
 inherited AWS credentials, disables metadata/profile endpoint resolution, and blocks non-loopback fetch/HTTP(S)
 dispatch. It covers normal AWS SDK paths but is not an OS sandbox for child processes, raw sockets, or loopback
-redirects.
+redirects. Public CI writes the credential-free dense synthesis fixture to a temporary file and validates deployment
+errors against the CloudFormation resource specification with pinned `cfn-lint`; warnings remain visible without
+turning existing style diagnostics into a baseline.
 
 Next:
 
-1. Add static CloudFormation validation where it catches failures beyond current synthesis assertions.
-2. Run the Floci feasibility spike.
-3. Build the cheap real-AWS `serverless-mesh` canary after explicit authorization.
-4. Expand nightly/weekly coverage by observed risk and production defects.
+1. Run the Floci feasibility spike.
+2. Build the cheap real-AWS `serverless-mesh` canary after explicit authorization.
+3. Expand nightly/weekly coverage by observed risk and production defects.

@@ -135,10 +135,8 @@ export const resolveDevAgentRole = () => {
               Effect: 'Allow',
               Action: [
                 'sqs:SendMessage',
-                'sqs:SendMessageBatch',
                 'sqs:ReceiveMessage',
                 'sqs:DeleteMessage',
-                'sqs:DeleteMessageBatch',
                 'sqs:GetQueueAttributes',
                 'sqs:GetQueueUrl',
                 'sqs:ListQueueTags',
