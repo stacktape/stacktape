@@ -10,7 +10,7 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
 
-import { stringifyToYaml } from '@shared/utils/yaml';
+import { stringifyToYaml } from '@utils/yaml';
 import { getCriticalResourcesPotentiallyEndangeredByOperation } from '@utils/stack-info-map-diff';
 import { parse as dotenvParse } from 'dotenv';
 import dotenvStringify from 'dotenv-stringify';

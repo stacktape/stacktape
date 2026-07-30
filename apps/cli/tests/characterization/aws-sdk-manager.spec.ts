@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { AssumeRoleCommand, STSClient } from '@aws-sdk/client-sts';
 import { tuiManager } from '@application-services/tui-manager';
-import { AwsSdkManager } from '../../shared/aws/sdk-manager';
+import { AwsSdkManager } from '../../src/aws/sdk-manager';
 import type { Pluggable } from '@aws-sdk/types';
 
 type InitArguments = Parameters<AwsSdkManager['init']>[0];

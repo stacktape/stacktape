@@ -8,7 +8,7 @@ import {
   ResendConfirmationCodeCommand
 } from '@aws-sdk/client-cognito-identity-provider';
 import { COGNITO_CONFIG } from 'src/config/params';
-import { createFetchHandler } from '@shared/aws/fetch-handler';
+import { createFetchHandler } from 'src/aws/fetch-handler';
 import { openBrowser } from '../browser';
 
 const cognitoClient = new CognitoIdentityProviderClient({

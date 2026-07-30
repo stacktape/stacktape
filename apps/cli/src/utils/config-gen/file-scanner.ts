@@ -1,6 +1,6 @@
 import { join, basename } from 'node:path';
 import { readdir, readFile, stat } from 'fs-extra';
-import { stringMatchesGlob } from '@shared/utils/misc';
+import { stringMatchesGlob } from '@utils/misc';
 
 // ============ Default Ignore Patterns ============
 

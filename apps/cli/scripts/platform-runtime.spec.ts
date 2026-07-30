@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { configureNativeRuntimeForPlatform, resolveSupportedPlatform } from '@shared/utils/bin-executable';
+import { configureNativeRuntimeForPlatform, resolveSupportedPlatform } from '@utils/bin-executable';
 
 describe('release platform runtime', () => {
   test('selects the matching release archive for every supported host', () => {

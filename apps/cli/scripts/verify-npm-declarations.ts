@@ -2,7 +2,7 @@ import { existsSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { isAbsolute, join, relative, resolve } from 'node:path';
 import { NPM_RELEASE_FOLDER_PATH } from 'src/config/project-paths';
-import { logInfo, logSuccess } from '@shared/utils/logging';
+import { logInfo, logSuccess } from '@scripts/support/logging';
 import * as ts from 'typescript';
 
 /**

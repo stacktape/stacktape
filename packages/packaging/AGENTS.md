@@ -6,7 +6,8 @@ bundling through emitted Lambda entrypoints, shared chunks, layer assignment and
 artifact-identity primitives every language bundler depends on: source-file selection, content hashing, artifact size
 reporting, cache digests, and the language/runtime defaults that decide what an unpinned workload is built with.
 
-`apps/cli/shared/packaging` no longer exists. Do not recreate it or add forwarding wrappers there.
+The former CLI-owned packaging implementation has been removed. Do not recreate forwarding wrappers in the
+application.
 
 ## Ownership boundary
 
@@ -31,7 +32,7 @@ The boundary is the CLI's own runtime state and orchestration vocabulary, not an
 
 - `src/fs/files.ts` — which files a build selects (globs), how their bytes become a digest, and how artifact sizes are
   reported. These are artifact-identity semantics, not generic filesystem helpers: the CLI keeps its own path/IO
-  helpers in `shared/utils/fs-utils.ts`, and the few application call sites that need _these_ meanings import this
+  helpers in `src/utils/fs-utils.ts`, and the few application call sites that need _these_ meanings import this
   module so a digest is computed one way only.
 - `src/artifact/hashing.ts` — directory checksums, digest merging, and the directories excluded from a project
   checksum. Changing any of them invalidates every cached artifact.

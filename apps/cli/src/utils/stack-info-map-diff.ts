@@ -1,9 +1,9 @@
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import type { CloudformationResourceType } from '@cloudform/resource-types';
 import { ResourceImpact } from '@aws-cdk/cloudformation-diff';
-import { PARENT_IDENTIFIER_CUSTOM_CF, PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
-import { serialize } from '@shared/utils/misc';
-import { getCloudformationChildResources } from '@shared/utils/stack-info-map';
+import { PARENT_IDENTIFIER_CUSTOM_CF, PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
+import { serialize } from '@utils/misc';
+import { getCloudformationChildResources } from '@utils/stack-info-map';
 import { getAllReferencableParams } from '@utils/referenceable-types';
 
 export const calculateComplexResourceMap = ({

@@ -3,7 +3,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
+import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { getStateMachineExecutionRole, getStateMachineResource } from './utils';
 
 export const resolveStateMachines = async () => {

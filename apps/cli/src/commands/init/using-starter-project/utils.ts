@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { tuiManager } from '@application-services/tui-manager';
 import { DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY } from '@config';
-import { sortObjectKeys } from '@shared/utils/misc';
+import { sortObjectKeys } from '@utils/misc';
 import { copy, pathExists, readJson, readJSON, writeJson } from 'fs-extra';
 import sortBy from 'lodash/sortBy';
 

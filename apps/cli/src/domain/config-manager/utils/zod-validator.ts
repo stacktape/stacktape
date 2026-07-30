@@ -1,6 +1,6 @@
 import type { z } from 'zod';
 import { tuiManager } from '@application-services/tui-manager';
-import { capitalizeFirstLetter } from '@shared/utils/misc';
+import { capitalizeFirstLetter } from '@utils/misc';
 import { getIsDirective } from '@utils/directives';
 import { readFileSync } from 'fs-extra';
 import get from 'lodash/get';

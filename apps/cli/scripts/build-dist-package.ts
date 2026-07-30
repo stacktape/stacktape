@@ -1,9 +1,9 @@
 import { join } from 'node:path';
 import { DIST_PACKAGE_FOLDER_PATH } from 'src/config/project-paths';
-import { getPlatform } from '@shared/utils/bin-executable';
-import { exec } from '@shared/utils/exec';
-import { logInfo, logSuccess } from '@shared/utils/logging';
-import { archiveItem } from '@shared/utils/zip';
+import { getPlatform } from '@utils/bin-executable';
+import { exec } from '@utils/exec';
+import { logInfo, logSuccess } from '@scripts/support/logging';
+import { archiveItem } from '@utils/zip';
 import { readdir, remove, stat } from 'fs-extra';
 import yargsParser from 'yargs-parser';
 import { generateStarterProjectsMetadata } from './generate-starter-projects-metadata';

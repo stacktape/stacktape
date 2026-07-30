@@ -7,7 +7,7 @@ import {
   SSMClient
 } from '@aws-sdk/client-ssm';
 import { tagNames } from '@stacktape/naming/tag-names';
-import { chunkArray } from '@shared/utils/misc';
+import { chunkArray } from '@utils/misc';
 import { pRateLimit } from 'p-ratelimit';
 
 export const sensitiveData: ServiceLambdaResolver<StpServiceCustomResourceProperties['sensitiveData']> = async (

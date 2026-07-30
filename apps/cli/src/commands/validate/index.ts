@@ -6,7 +6,7 @@ import { validateGuardrails } from '@domain-services/config-manager/utils/valida
 import { packagingManager } from '@domain-services/packaging-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { stringifyToYaml } from '@shared/utils/yaml';
+import { stringifyToYaml } from '@utils/yaml';
 import { initializeAllStackServices } from '../_utils/initialization';
 
 export const commandValidate = async () => {

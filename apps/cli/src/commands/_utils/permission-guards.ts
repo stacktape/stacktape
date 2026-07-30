@@ -1,4 +1,4 @@
-import { getError } from '@shared/utils/misc';
+import { getError } from '@utils/misc';
 
 type GuardContext = {
   role?: string;

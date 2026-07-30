@@ -1,4 +1,4 @@
-import { parseYaml } from '@shared/utils/yaml';
+import { parseYaml } from '@utils/yaml';
 
 export const getTypescriptConfig = (yamlConfig: string) => {
   const jsObject = parseYaml(yamlConfig);

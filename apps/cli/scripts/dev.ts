@@ -1,9 +1,9 @@
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { CLI_SOURCE_PATH, DEV_TMP_FOLDER_PATH } from 'src/config/project-paths';
-import { dynamicRequire } from '@shared/utils/fs-utils';
-import { logError, logInfo, logWarn } from '@shared/utils/logging';
-import { localBuildTsConfigPath } from '@shared/utils/misc';
-import { createStacktapeOpenTuiBuildPlugin } from '@shared/utils/stacktape-opentui';
+import { dynamicRequire } from '@utils/fs-utils';
+import { logError, logInfo, logWarn } from '@scripts/support/logging';
+import { localBuildTsConfigPath } from '@utils/misc';
+import { createStacktapeOpenTuiBuildPlugin } from '@scripts/support/opentui-loader';
 import packageJson from '../package.json';
 import { packageHelperLambdas } from './package-helper-lambdas';
 import { config } from 'dotenv';

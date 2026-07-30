@@ -1,4 +1,4 @@
-import { getFirstAndLastItem } from '@shared/utils/misc';
+import { getFirstAndLastItem } from '@utils/misc';
 
 type LifecycleGroup = {
   eventType: LoggableEventType;

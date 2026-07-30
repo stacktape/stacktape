@@ -1,7 +1,7 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { execDocker, inspectDockerContainer } from '@shared/utils/docker';
-import { isPortInUse } from '@shared/utils/ports';
+import { execDocker, inspectDockerContainer } from '@utils/docker';
+import { isPortInUse } from '@utils/ports';
 import findFreePorts from 'find-free-ports';
 import { DEV_CONFIG } from '../dev-config';
 
@@ -56,7 +56,7 @@ export const removeContainerIfExists = async (containerName: string): Promise<vo
   const info = await inspectDockerContainer(containerName);
   // inspectDockerContainer returns {} when container doesn't exist, so check for Id
   if (info?.Id) {
-    const { stopDockerContainer, execDocker } = await import('@shared/utils/docker');
+    const { stopDockerContainer, execDocker } = await import('@utils/docker');
     if (info.State?.Running) {
       await stopDockerContainer(containerName, 5);
     }

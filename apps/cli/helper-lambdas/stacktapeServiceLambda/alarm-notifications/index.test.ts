@@ -18,7 +18,7 @@ mock.module('@aws-sdk/credential-provider-node', () => ({
   defaultProvider: () => async () => ({ accessKeyId: 'test', secretAccessKey: 'test' })
 }));
 
-mock.module('@shared/trpc/aws-identity-protected', () => ({
+mock.module('@api/console/aws-identity-protected', () => ({
   AwsIdentityProtectedClient: class {
     init = async () => undefined;
     reportAlarmEvent = {

@@ -6,7 +6,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
+import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';
 import {
   getCloudwatchAgentAutoUpdateDocument,

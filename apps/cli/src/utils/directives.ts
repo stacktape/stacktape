@@ -1,4 +1,4 @@
-import { isAlphanumeric } from '@shared/utils/misc';
+import { isAlphanumeric } from '@utils/misc';
 
 export const startsLikeDirective = (str: string) => {
   return /^\$(.*)\(/.test(str);

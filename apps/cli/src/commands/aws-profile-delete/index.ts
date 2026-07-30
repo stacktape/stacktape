@@ -1,6 +1,6 @@
 import { tuiManager } from '@application-services/tui-manager';
 import { fsPaths } from 'src/config/runtime-paths';
-import { getIniFileContent } from '@shared/utils/fs-utils';
+import { getIniFileContent } from '@utils/fs-utils';
 import { deleteAwsProfile } from '@utils/aws-config';
 import { ExpectedError } from '@utils/errors';
 import uniq from 'lodash/uniq';

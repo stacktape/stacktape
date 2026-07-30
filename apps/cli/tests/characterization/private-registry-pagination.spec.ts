@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { CloudFormationClient, ListTypesCommand, ListTypeVersionsCommand } from '@aws-sdk/client-cloudformation';
-import { AwsSdkManager } from '../../shared/aws/sdk-manager';
+import { AwsSdkManager } from '../../src/aws/sdk-manager';
 import type { ListTypesCommandInput, TypeSummary, TypeVersionSummary } from '@aws-sdk/client-cloudformation';
 
 const originalSend = CloudFormationClient.prototype.send;

@@ -1,7 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
+import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { getEcrRepositoryResource } from './utils';
 
 export const resolveImageRepository = () => {

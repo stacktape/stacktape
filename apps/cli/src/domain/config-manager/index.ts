@@ -11,18 +11,18 @@ import {
   getLogGroupPolicyDocumentStatements
 } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/role-helpers';
 import { stpErrors } from '@errors';
-import { isTransferAccelerationEnabledInRegion } from '@shared/aws/buckets';
-import { isBucketNativelySupportedHeader } from '@shared/aws/sdk-manager/utils';
+import { isTransferAccelerationEnabledInRegion } from 'src/aws/buckets';
+import { isBucketNativelySupportedHeader } from 'src/aws/sdk-manager/utils';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { fsPaths } from 'src/config/runtime-paths';
 import { helperLambdaAwsResourceNames } from '@stacktape/naming/helper-lambda-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getJobName, getSimpleServiceDefaultContainerName } from '@stacktape/naming/workload-names';
 import { getStpNameForResource } from '@stacktape/naming/stacktape-resource-names';
-import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
-import { getGloballyUniqueStackHash } from '@shared/utils/hashing';
-import { processAllNodesSync, traverseToMaximalExtent } from '@shared/utils/misc';
-import { isAuroraEngine } from '@shared/utils/rds-engines';
+import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
+import { getGloballyUniqueStackHash } from '@utils/hashing';
+import { processAllNodesSync, traverseToMaximalExtent } from '@utils/misc';
+import { isAuroraEngine } from 'src/aws/rds-engines';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { getDirectiveParams, getIsDirective } from '@utils/directives';

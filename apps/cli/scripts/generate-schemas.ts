@@ -1,5 +1,5 @@
 import { CONFIG_SCHEMA_PATH, JSON_SCHEMAS_FOLDER_PATH } from 'src/config/project-paths';
-import { logInfo, logSuccess } from '@shared/utils/logging';
+import { logInfo, logSuccess } from '@scripts/support/logging';
 import { mkdir, writeJSON } from 'fs-extra';
 import { generateConfigSchema, getJsonSchemaGenerator } from './code-generation/utils';
 import { generateZodSchema } from './code-generation/generate-zod-schema';

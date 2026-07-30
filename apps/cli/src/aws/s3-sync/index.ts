@@ -18,7 +18,7 @@ import type {
 } from '@aws-sdk/client-s3';
 import { S3 } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
-import { Pend, stringMatchesGlob } from '@shared/utils/misc';
+import { Pend, stringMatchesGlob } from '@utils/misc';
 import fsExtra from 'fs-extra';
 import mime from 'mime';
 import StreamSink from 'streamsink';

@@ -1,5 +1,5 @@
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
-import { AwsIdentityProtectedClient } from '@shared/trpc/aws-identity-protected';
+import { AwsIdentityProtectedClient } from '@api/console/aws-identity-protected';
 
 export const defaultDomain: ServiceLambdaResolver<StpServiceCustomResourceProperties['defaultDomain']> = async (
   currentProps,

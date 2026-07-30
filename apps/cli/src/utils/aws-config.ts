@@ -1,7 +1,7 @@
 import { fsPaths } from 'src/config/runtime-paths';
 import fsExtra from 'fs-extra';
 import uniq from 'lodash/uniq';
-import { adjustIniFileContent, getIniFileContent } from '../../shared/utils/fs-utils';
+import { adjustIniFileContent, getIniFileContent } from '@utils/fs-utils';
 
 export const upsertAwsProfile = async (profile: string, awsAccessKeyId: string, awsSecretAccessKey: string) => {
   return adjustIniFileContent(fsPaths.awsCredentialsFilePath(), (content) => ({

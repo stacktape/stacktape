@@ -3,7 +3,7 @@ import type {
   CliConfigGenPhase,
   CliConfigGenRequiredResource,
   ProductionReadiness
-} from '@shared/trpc/public';
+} from '@api/console/public';
 import type { StacktapeConfig } from '@stacktape/config';
 
 export type ConfigGenPhaseInfo = {

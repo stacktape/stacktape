@@ -8,11 +8,11 @@ import {
   SOURCE_MAP_INSTALL_DIST_PATH
 } from 'src/config/project-paths';
 import { buildUsingStacktapeEsLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-es-lambda-buildpack';
-import { dependencyInstaller } from '@shared/utils/dependency-installer';
-import { execDocker } from '@shared/utils/docker';
-import { logInfo, logSuccess } from '@shared/utils/logging';
-import { getError, localBuildTsConfigPath } from '@shared/utils/misc';
-import { archiveItem } from '@shared/utils/zip';
+import { dependencyInstaller } from '@domain-services/packaging-manager/dependency-installer';
+import { execDocker } from '@utils/docker';
+import { logInfo, logSuccess } from '@scripts/support/logging';
+import { getError, localBuildTsConfigPath } from '@utils/misc';
+import { archiveItem } from '@utils/zip';
 import fsExtra, { remove } from 'fs-extra';
 import { generateSourceMapInstall } from './release/build-cli-sources';
 

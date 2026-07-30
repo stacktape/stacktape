@@ -1,8 +1,8 @@
 import { join } from 'node:path';
 import { GENERATED_STARTER_PROJECTS_DIR_PATH, STARTER_PROJECTS_SOURCE_PATH } from 'src/config/project-paths';
-import { exec } from '@shared/utils/exec';
-import { logErrorMessage, logInfo, logSuccess } from '@shared/utils/logging';
-import { processConcurrently } from '@shared/utils/misc';
+import { exec } from '@utils/exec';
+import { logErrorMessage, logInfo, logSuccess } from '@scripts/support/logging';
+import { processConcurrently } from '@utils/misc';
 import { existsSync, readdir, remove, statSync } from 'fs-extra';
 import yargsParser from 'yargs-parser';
 import { prepareStarterProject } from './starter-projects/utils';

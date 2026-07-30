@@ -1,8 +1,8 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { BatchGetCommand, BatchWriteCommand, DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 import { parse } from '@fast-csv/parse';
-import { downloadFile } from '@shared/utils/download-file';
-import { chunkArray, serialize } from '@shared/utils/misc';
+import { downloadFile } from '@utils/download-file';
+import { chunkArray, serialize } from '@utils/misc';
 import { camelCase } from 'change-case';
 import { createReadStream, remove } from 'fs-extra';
 import { normalizeEngineType } from './rds';

@@ -1,6 +1,6 @@
 import { fsPaths } from 'src/config/runtime-paths';
-import { exec } from './exec';
-import { getError } from './misc';
+import { exec } from '@utils/exec';
+import { getError } from '@utils/misc';
 
 export const execPack = async ({
   args,

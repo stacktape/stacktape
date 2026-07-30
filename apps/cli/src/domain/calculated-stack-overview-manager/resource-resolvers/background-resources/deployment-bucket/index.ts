@@ -4,7 +4,7 @@ import { deploymentArtifactManager } from '@domain-services/deployment-artifact-
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
-import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
+import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { deploymentBucketPolicyResource, getDeploymentBucketResource } from './utils';
 
 export const resolveDeploymentBucket = () => {

@@ -10,7 +10,7 @@ import {
   type CliConfigGenDeployableUnit,
   type ProductionReadiness,
   type StackPriceEstimationResponse
-} from '@shared/trpc/public';
+} from '@api/console/public';
 import {
   appendResourceRows,
   countUnsetEnvVarsInConfig,

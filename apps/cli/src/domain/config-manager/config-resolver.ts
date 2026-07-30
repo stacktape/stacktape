@@ -5,9 +5,9 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { supportedCodeConfigLanguages } from '@config';
 import { stpErrors } from '@errors';
-import { getFileExtension } from '@shared/utils/fs-utils';
-import { isNonNullObject, processAllNodes, serialize, traverseToMaximalExtent } from '@shared/utils/misc';
-import { parseYaml } from '@shared/utils/yaml';
+import { getFileExtension } from '@utils/fs-utils';
+import { isNonNullObject, processAllNodes, serialize, traverseToMaximalExtent } from '@utils/misc';
+import { parseYaml } from '@utils/yaml';
 import { Stack } from '@utils/collections';
 import {
   getDirectiveName,

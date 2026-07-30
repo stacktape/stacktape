@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { INSTALL_SCRIPTS_BUCKET_NAME, INSTALL_SCRIPTS_PREVIEW_BUCKET_NAME } from '@config';
 import { CLI_RELEASE_FOLDER_PATH, INSTALL_SCRIPTS_PATH } from 'src/config/project-paths';
-import { logInfo, logSuccess } from '@shared/utils/logging';
+import { logInfo, logSuccess } from '@scripts/support/logging';
 import { mkdirp, readFile, remove, writeFile } from 'fs-extra';
 import yargsParser from 'yargs-parser';
 import { syncBucket } from './release/stacktape';

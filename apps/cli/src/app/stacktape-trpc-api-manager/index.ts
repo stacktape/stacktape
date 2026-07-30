@@ -1,6 +1,6 @@
 import { tuiManager } from '@application-services/tui-manager';
-import { ApiKeyProtectedClient } from '../../../shared/trpc/api-key-protected';
-import { withStacktapeOperationInvocationContext } from '@shared/utils/operation-invocation-context';
+import { ApiKeyProtectedClient } from '@api/console/api-key-protected';
+import { withStacktapeOperationInvocationContext } from '@application-services/operation-invocation-context';
 import { stpErrors } from '../../config/error-messages';
 import { IS_DEV } from '../../config/random';
 import { gitInfoManager } from '../../utils/git-info-manager';

@@ -1,4 +1,4 @@
-import { createFetchHandler } from '@shared/aws/fetch-handler';
+import { createFetchHandler } from 'src/aws/fetch-handler';
 import { DynamoDBClient, DescribeTableCommand } from '@aws-sdk/client-dynamodb';
 import {
   DynamoDBDocumentClient,

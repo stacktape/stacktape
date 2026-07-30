@@ -17,7 +17,7 @@
       "@errors": ["../../src/config/error-messages.ts"],
       "@api/*": ["../../src/api/*"],
       "@helper-lambdas/*": ["../../helper-lambdas/*"],
-      "@shared/*": ["../../shared/*"],
+      "@scripts/*": ["../../scripts/*"],
       "@generated/*": ["../../@generated/*"],
       "src/*": ["../../src/*"]
     },

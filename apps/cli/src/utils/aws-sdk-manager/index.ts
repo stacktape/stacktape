@@ -1,3 +1,3 @@
-import { AwsSdkManager } from '@shared/aws/sdk-manager';
+import { AwsSdkManager } from 'src/aws/sdk-manager';
 
 export const awsSdkManager = new AwsSdkManager();

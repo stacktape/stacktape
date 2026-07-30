@@ -1,6 +1,6 @@
-import { publicApiClient } from '@shared/trpc/public';
-import { convertYamlToTypescript } from '@shared/utils/config-converter';
-import { stringifyToYaml } from '@shared/utils/yaml';
+import { publicApiClient } from '@api/console/public';
+import { convertYamlToTypescript } from '@utils/config-gen/config-converter';
+import { stringifyToYaml } from '@utils/yaml';
 import { writeFile, pathExists } from 'fs-extra';
 import { join } from 'node:path';
 import prettier from 'prettier';

@@ -2,7 +2,7 @@ import type { LocalResourceInstance } from '../local-resources';
 import type { TunnelInfo } from '../tunnel-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { createFetchHandler } from '@shared/aws/fetch-handler';
+import { createFetchHandler } from 'src/aws/fetch-handler';
 import {
   GetFunctionConfigurationCommand,
   LambdaClient,

@@ -3,7 +3,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
-import { stopDockerContainer } from '@shared/utils/docker';
+import { stopDockerContainer } from '@utils/docker';
 import { ExpectedError } from '@utils/errors';
 import { ensureDir } from 'fs-extra';
 import { devTuiManager } from 'src/app/tui-manager/dev-tui';

@@ -25,10 +25,10 @@ import {
   getEcrRepositoryUrl,
   getStpTemplateS3Key
 } from '@domain-services/deployment-artifact-manager/artifact-names';
-import { dockerLogin, pushDockerImage, tagDockerImage } from '@shared/utils/docker';
-import { processConcurrently } from '@shared/utils/misc';
+import { dockerLogin, pushDockerImage, tagDockerImage } from '@utils/docker';
+import { processConcurrently } from '@utils/misc';
 import { outputNames } from '@stacktape/naming/stack-output-names';
-import { parseYaml, stringifyToYaml } from '@shared/utils/yaml';
+import { parseYaml, stringifyToYaml } from '@utils/yaml';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';

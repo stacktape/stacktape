@@ -6,8 +6,8 @@
 import { mkdir, writeFile, chmod, rename, rm } from 'node:fs/promises';
 import { execSync } from 'node:child_process';
 import { join } from 'node:path';
-import { unzip } from '@shared/utils/unzip';
-import { logInfo, logSuccess } from '@shared/utils/logging';
+import { unzip } from '@utils/unzip';
+import { logInfo, logSuccess } from '@scripts/support/logging';
 
 const GITHUB_API_URL = 'https://api.github.com/repos/buildpacks/pack/releases/latest';
 const ASSETS_DIR = join(process.cwd(), 'scripts/assets/pack');

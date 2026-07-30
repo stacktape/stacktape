@@ -7,7 +7,7 @@
 import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { dirExists, isFileAccessible } from '@shared/utils/fs-utils';
+import { dirExists, isFileAccessible } from '@utils/fs-utils';
 import { ExpectedError } from '@utils/errors';
 
 // Default pinned Convex images. Bump deliberately after testing Convex's

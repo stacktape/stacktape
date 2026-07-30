@@ -5,10 +5,10 @@ import { pathExists, readFile, remove, stat, writeFile } from 'fs-extra';
 import { createHash } from 'node:crypto';
 import { join } from 'node:path';
 import readPkgUp from 'read-pkg-up';
-import { checkExecutableInPath } from './bin-executable';
+import { checkExecutableInPath } from '@utils/bin-executable';
 import { getEsInstallScript } from './es-install-scripts';
-import { exec } from './exec';
-import { raiseError } from './misc';
+import { exec } from '@utils/exec';
+import { raiseError } from '@utils/misc';
 import { findProjectRoot } from '@stacktape/packaging/es/project-root';
 
 const wait = async ({ ms }: { ms: number }) => {

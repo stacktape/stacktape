@@ -1,7 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { DescribeEngineDefaultParametersCommand, RDSClient } from '@aws-sdk/client-rds';
-import { createFetchHandler } from '@shared/aws/fetch-handler';
+import { createFetchHandler } from 'src/aws/fetch-handler';
 import { configManager } from '@domain-services/config-manager';
 
 type DbEngine = 'postgres' | 'mysql' | 'mariadb';

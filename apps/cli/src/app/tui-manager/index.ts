@@ -15,7 +15,7 @@ import {
   linksMap,
   NOTIFICATION_MIN_DURATION_MS
 } from '@config';
-import { getRelativePath, transformToUnixPath } from '@shared/utils/fs-utils';
+import { getRelativePath, transformToUnixPath } from '@utils/fs-utils';
 
 import kleur from 'kleur';
 import boxen from 'boxen';

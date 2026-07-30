@@ -2,7 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import type { JsonSchemaGenerator } from 'typescript-json-schema';
 import { CONFIG_SCHEMA_PATH, JSON_SCHEMAS_FOLDER_PATH } from 'src/config/project-paths';
-import { logInfo, logSuccess } from '@shared/utils/logging';
+import { logInfo, logSuccess } from '@scripts/support/logging';
 import { writeJSON } from 'fs-extra';
 import { marked } from 'marked';
 import { getJsonSchemaGenerator } from './code-generation/utils';

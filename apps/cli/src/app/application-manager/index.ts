@@ -3,7 +3,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { getCanonicalCommand } from '../../config/cli/commands';
 import { tuiManager, UserCancelledError } from '@application-services/tui-manager';
 import { IS_DEV, IS_TELEMETRY_DISABLED } from '@config';
-import { propertyFromObjectOrNull } from '@shared/utils/misc';
+import { propertyFromObjectOrNull } from '@utils/misc';
 import { attemptToGetUsefulExpectedError, getErrorDetails, getReturnableError, UnexpectedError } from '@utils/errors';
 import { killPythonBridge } from '@utils/file-loaders';
 import { reportErrorToSentry } from '@utils/sentry';

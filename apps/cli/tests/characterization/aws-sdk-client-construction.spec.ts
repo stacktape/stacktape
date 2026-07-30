@@ -5,7 +5,7 @@ import { LambdaClient } from '@aws-sdk/client-lambda';
 import { Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
 import { S3Client } from '@aws-sdk/client-s3';
 import type { Pluggable } from '@aws-sdk/types';
-import { AwsSdkManager } from '../../shared/aws/sdk-manager';
+import { AwsSdkManager } from '../../src/aws/sdk-manager';
 
 type AwsClient = {
   config: {

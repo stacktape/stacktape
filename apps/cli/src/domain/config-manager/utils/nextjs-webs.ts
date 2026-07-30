@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stpErrors } from '@errors';
-import { dirExists, isFileAccessible } from '@shared/utils/fs-utils';
+import { dirExists, isFileAccessible } from '@utils/fs-utils';
 
 export const validateNextjsWebConfig = ({ resource }: { resource: StpNextjsWeb }) => {
   const absoluteAppDirectory = join(globalStateManager.workingDir, resource.appDirectory);

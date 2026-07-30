@@ -1,5 +1,5 @@
 import type { CloudFormationCustomResourceHandler, CloudFormationCustomResourceUpdateEvent } from 'aws-lambda';
-import { respondToCloudformation } from '@shared/aws/cloudformation';
+import { respondToCloudformation } from 'src/aws/cloudformation';
 import { getAwsSdkManager } from '../utils';
 import { assetReplacer } from './resolvers/asset-replacer';
 import { setDatabaseDeletionProtection } from './resolvers/database-deletion-protection';

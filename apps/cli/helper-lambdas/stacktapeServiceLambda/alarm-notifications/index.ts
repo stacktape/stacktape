@@ -1,9 +1,9 @@
 import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
-import { AwsIdentityProtectedClient } from '@shared/trpc/aws-identity-protected';
-import { CF_ESCAPED_DYNAMIC_REFERENCE_END, CF_ESCAPED_DYNAMIC_REFERENCE_START } from '@shared/utils/constants';
-import { processAllNodes } from '@shared/utils/misc';
+import { AwsIdentityProtectedClient } from '@api/console/aws-identity-protected';
+import { CF_ESCAPED_DYNAMIC_REFERENCE_END, CF_ESCAPED_DYNAMIC_REFERENCE_START } from 'src/config/constants';
+import { processAllNodes } from '@utils/misc';
 import { sendAlarmEmail } from './email';
 import { sendAlarmSlackMessage } from './slack';
 

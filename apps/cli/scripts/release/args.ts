@@ -1,4 +1,4 @@
-import { logInfo, logSuccess } from '@shared/utils/logging';
+import { logInfo, logSuccess } from '@scripts/support/logging';
 import { readJson, writeJson } from 'fs-extra';
 import inquirer from 'inquirer';
 import { inc } from 'semver';

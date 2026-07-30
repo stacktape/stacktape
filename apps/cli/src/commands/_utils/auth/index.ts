@@ -1,5 +1,5 @@
 import { tuiManager } from '@application-services/tui-manager';
-import { publicApiClient } from '@shared/trpc/public';
+import { publicApiClient } from '@api/console/public';
 import {
   signUpWithEmail,
   confirmSignUp,

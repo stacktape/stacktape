@@ -66,7 +66,7 @@ const extractStageFromContainerName = (containerName: string): string | null => 
  * Container naming: stp-{stage}-{resourceName}
  */
 export const cleanupOrphanedContainers = async (): Promise<string[]> => {
-  const { execDocker } = await import('@shared/utils/docker');
+  const { execDocker } = await import('@utils/docker');
   const { getAllRunningAgents } = await import('./agent-daemon');
 
   try {

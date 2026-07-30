@@ -7,10 +7,10 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 ## Layout
 
 - `src/` — commands, application/domain managers, TUI, MCP, and the published `stacktape` npm API (`src/api/npm`).
-- `shared/` — CLI-owned AWS clients, utility code, and tRPC clients used by the CLI and helper Lambdas. The historical
-  directory no longer owns naming or packaging code and is being dissolved by moving its remaining implementation to
-  precise `src/` locations rather than creating a generic shared package. Packaging implementation lives entirely in
-  `@stacktape/packaging`; the CLI's
+  CLI-owned AWS facilities live in `src/aws`, Console tRPC clients in `src/api/console`, and application utilities in
+  `src/utils`. Helper Lambdas may import those modules because they are CLI-owned deployment artifacts; co-location
+  does not make the modules a reusable workspace package. The historical catch-all `shared/` directory is gone.
+  Packaging implementation lives entirely in `@stacktape/packaging`; the CLI's
   `PackagingManager` remains its composition root and supplies the concrete dependency installer, error constructor,
   process/Docker/binary actions, invocation-specific paths and progress loggers. Global runtime state, artifact
   deployment and command orchestration stay in the application (see the package's `AGENTS.md`).

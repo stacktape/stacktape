@@ -1,6 +1,6 @@
 import { isAbsolute, join } from 'node:path';
 import { tuiManager } from '@application-services/tui-manager';
-import { getFileExtension, getPathRelativeTo } from '@shared/utils/fs-utils';
+import { getFileExtension, getPathRelativeTo } from '@utils/fs-utils';
 import { ExpectedError, UserCodeError } from './errors';
 import { getCallablePythonFunc, getJavascriptExport, getTypescriptExport, isFile } from './file-loaders';
 

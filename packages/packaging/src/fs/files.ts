@@ -14,7 +14,7 @@ const { readFile, stat } = fsExtra;
  * These are packaging semantics, not generic filesystem helpers: which files a glob selects, how a
  * file's bytes turn into a digest, and how a folder's size is reported all feed artifact contents,
  * cache keys, and size limits. The CLI keeps its own generic path/IO helpers in
- * `shared/utils/fs-utils.ts`; the few application call sites that need *these* semantics import this
+ * `apps/cli/src/utils/fs-utils.ts`; the few application call sites that need *these* semantics import this
  * module so there is one definition of each.
  */
 

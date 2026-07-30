@@ -4,7 +4,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { tagNames } from '@stacktape/naming/tag-names';
-import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
+import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { SubWithoutMapping } from '@utils/cloudformation';
 
 const DEBUG_AGENT_ROLE_LOGICAL_NAME = 'StpDebugAgentRole';

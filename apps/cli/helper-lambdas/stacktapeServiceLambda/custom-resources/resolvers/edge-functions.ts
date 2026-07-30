@@ -12,9 +12,9 @@ import {
 import { S3 } from '@aws-sdk/client-s3';
 import { helperLambdaAwsResourceNames } from '@stacktape/naming/helper-lambda-resource-names';
 import { tagNames } from '@stacktape/naming/tag-names';
-import { REGIONS_WITH_REGIONAL_CDN_EDGE_LOCATION } from '@shared/utils/constants';
-import { wait } from '@shared/utils/misc';
-import { getAssumeRolePolicyDocumentForFunctionRole } from '@shared/utils/roles';
+import { REGIONS_WITH_REGIONAL_CDN_EDGE_LOCATION } from 'src/config/constants';
+import { wait } from '@utils/misc';
+import { getAssumeRolePolicyDocumentForFunctionRole } from 'src/aws/iam';
 
 const configurationChangeDetectionParameters: (keyof StpServiceCustomResourceEdgeFunctionProps)[] = [
   'packaging',

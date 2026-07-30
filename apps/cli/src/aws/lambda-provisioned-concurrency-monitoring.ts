@@ -4,7 +4,7 @@ import type { AwsSdkManager } from './sdk-manager';
 import { ResourceStatus } from '@aws-sdk/client-cloudformation';
 import { ProvisionedConcurrencyStatusEnum } from '@aws-sdk/client-lambda';
 import { consoleLinks } from '@stacktape/naming/console-links';
-import { wait } from '@shared/utils/misc';
+import { wait } from '@utils/misc';
 
 export class LambdaProvisionedConcurrencyPoller {
   #functionName: string;

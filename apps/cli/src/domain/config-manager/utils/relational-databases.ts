@@ -1,6 +1,6 @@
 import { resolveCloudwatchLogExports } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/databases/utils';
 import { stpErrors } from '@errors';
-import { normalizeEngineType } from '@shared/aws/rds';
+import { normalizeEngineType } from 'src/aws/rds';
 import { ExpectedError } from '@utils/errors';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 import type { MysqlLoggingOptions, PostgresLoggingOptions } from '@stacktape/config/relational-databases';

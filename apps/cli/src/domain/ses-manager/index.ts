@@ -3,7 +3,7 @@ import type { GetAccountCommandOutput } from '@aws-sdk/client-sesv2';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stpErrors } from '@errors';
-import { isEmailValid } from '@shared/utils/validation';
+import { isEmailValid } from '@utils/validation';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';

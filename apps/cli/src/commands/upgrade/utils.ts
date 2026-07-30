@@ -1,6 +1,6 @@
 import { homedir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { getInstallationScript } from '@shared/utils/bin-executable';
+import { getInstallationScript } from '@utils/bin-executable';
 import { realpath } from 'fs-extra';
 
 export type PackageManager = 'npm' | 'bun' | 'pnpm';

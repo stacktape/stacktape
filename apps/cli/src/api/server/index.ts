@@ -6,7 +6,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
-import type { AWSRegion } from '@shared/aws/regions';
+import type { AWSRegion } from 'src/aws/regions';
 import { deleteTempFolder } from '@utils/temp-files';
 import { parse } from 'yaml';
 import { compileTemplateCommand } from './commands';

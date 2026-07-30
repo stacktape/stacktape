@@ -1,13 +1,13 @@
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
-import type { EcsServiceDeploymentStatusPoller } from '@shared/aws/ecs-deployment-monitoring';
-import type { LambdaProvisionedConcurrencyPoller } from '@shared/aws/lambda-provisioned-concurrency-monitoring';
+import type { EcsServiceDeploymentStatusPoller } from 'src/aws/ecs-deployment-monitoring';
+import type { LambdaProvisionedConcurrencyPoller } from 'src/aws/lambda-provisioned-concurrency-monitoring';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { getCloudformationChildResources } from '@shared/utils/stack-info-map';
+import { getCloudformationChildResources } from '@utils/stack-info-map';
 
 export const cfFailedEventHandlers: {
   eventMatchFunction: (event: StackEvent) => boolean;

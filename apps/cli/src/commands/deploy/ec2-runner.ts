@@ -1,5 +1,5 @@
 import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
-import type { ConfigureEc2RunnerFromCliParams } from '@shared/trpc/api-key-protected';
+import type { ConfigureEc2RunnerFromCliParams } from '@api/console/api-key-protected';
 import { CommandInvocationStatus } from '@aws-sdk/client-ssm';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -13,8 +13,8 @@ import { validateGuardrails } from '@domain-services/config-manager/utils/valida
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { fsPaths } from 'src/config/runtime-paths';
-import { getPathRelativeTo } from '@shared/utils/fs-utils';
-import { wait } from '@shared/utils/misc';
+import { getPathRelativeTo } from '@utils/fs-utils';
+import { wait } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { ExpectedError } from '@utils/errors';
 import { getGitVariable } from '@utils/git';

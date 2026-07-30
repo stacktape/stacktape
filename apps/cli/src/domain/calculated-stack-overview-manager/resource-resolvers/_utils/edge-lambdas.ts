@@ -6,7 +6,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { stpErrors } from '@errors';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { NOT_YET_KNOWN_IDENTIFIER } from '@shared/utils/constants';
+import { NOT_YET_KNOWN_IDENTIFIER } from 'src/config/constants';
 import { getStpServiceCustomResource } from './custom-resource';
 import { getPoliciesForRoles } from './role-helpers';
 import type { LambdaRuntime } from '@stacktape/config/primitives';

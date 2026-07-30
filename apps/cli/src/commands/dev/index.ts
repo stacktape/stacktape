@@ -8,7 +8,7 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { outputNames } from '@stacktape/naming/stack-output-names';
-import { getError } from '@shared/utils/misc';
+import { getError } from '@utils/misc';
 import { join } from 'node:path';
 import { devTuiManager } from 'src/app/tui-manager/dev-tui';
 import { devTuiState } from 'src/app/tui-manager/dev-tui/state';

@@ -20,7 +20,7 @@
       "@errors": ["./src/config/error-messages.ts"],
       "@api/*": ["./src/api/*"],
       "@helper-lambdas/*": ["./helper-lambdas/*"],
-      "@shared/*": ["./shared/*"],
+      "@scripts/*": ["./scripts/*"],
       "@generated/*": ["./@generated/*"],
       "src/*": ["./src/*"]
     },
@@ -35,6 +35,6 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["./src/**/*", "./types/**/*", "./shared/**/*", "./scripts/**/*", "./helper-lambdas/**/*"],
+  "include": ["./src/**/*", "./types/**/*", "./scripts/**/*", "./helper-lambdas/**/*"],
   "exclude": ["./@generated/**/*"]
 }

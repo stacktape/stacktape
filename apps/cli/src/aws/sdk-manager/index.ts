@@ -232,12 +232,12 @@ import { Upload } from '@aws-sdk/lib-storage';
 // import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node';
 import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
-import type { AwsCredentials } from '@shared/aws/credentials';
+import type { AwsCredentials } from 'src/aws/credentials';
 import { consoleLinks } from '@stacktape/naming/console-links';
-import type { AWSRegion } from '@shared/aws/regions';
+import type { AWSRegion } from 'src/aws/regions';
 import { resourceURIs } from 'src/utils/aws-resource-uris';
-import { COMMENT_FOR_STACKTAPE_ZONE } from '@shared/utils/constants';
-import { getRelativePath } from '@shared/utils/fs-utils';
+import { COMMENT_FOR_STACKTAPE_ZONE } from 'src/config/constants';
+import { getRelativePath } from '@utils/fs-utils';
 import {
   chunkArray,
   getError,
@@ -247,10 +247,10 @@ import {
   streamToString,
   stringMatchesGlob,
   wait
-} from '@shared/utils/misc';
-import { getForwardableOperationInvocationEnv } from '@shared/utils/operation-invocation-context';
-import { parseYaml } from '@shared/utils/yaml';
-import { createFetchHandler } from '@shared/aws/fetch-handler';
+} from '@utils/misc';
+import { getForwardableOperationInvocationEnv } from '@application-services/operation-invocation-context';
+import { parseYaml } from '@utils/yaml';
+import { createFetchHandler } from 'src/aws/fetch-handler';
 import { kebabCase, pascalCase } from 'change-case';
 import fsExtra from 'fs-extra';
 import pRetry from 'p-retry';

@@ -1,7 +1,7 @@
 import type { InputLogEvent } from '@aws-sdk/client-cloudwatch-logs';
 import type { AwsSdkManager } from '../sdk-manager';
 import { Writable } from 'node:stream';
-import { chunkArray, chunkString, removeColoringFromString, wait } from '@shared/utils/misc';
+import { chunkArray, chunkString, removeColoringFromString, wait } from '@utils/misc';
 
 export class LogCollectorStream extends Writable {
   #awsSdkManager: AwsSdkManager;

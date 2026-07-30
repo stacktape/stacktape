@@ -9,17 +9,17 @@ import {
   SOURCE_MAP_INSTALL_FILE_NAME
 } from 'src/config/project-paths';
 import { buildEsCode } from '@stacktape/packaging/bundlers/es';
-import { getPlatform } from '@shared/utils/bin-executable';
+import { getPlatform } from '@utils/bin-executable';
 import {
   NIXPACKS_BINARY_FILE_NAMES,
   PACK_BINARY_FILE_NAMES,
   SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES
-} from '@shared/utils/constants';
-import { downloadFile } from '@shared/utils/download-file';
-import { logInfo, logSuccess } from '@shared/utils/logging';
-import { getError, localBuildTsConfigPath } from '@shared/utils/misc';
-import { createStacktapeOpenTuiBuildPlugin } from '@shared/utils/stacktape-opentui';
-import { archiveItem, extractTgzArchive } from '@shared/utils/zip';
+} from 'src/config/constants';
+import { downloadFile } from '@utils/download-file';
+import { logInfo, logSuccess } from '@scripts/support/logging';
+import { getError, localBuildTsConfigPath } from '@utils/misc';
+import { createStacktapeOpenTuiBuildPlugin } from '@scripts/support/opentui-loader';
+import { archiveItem, extractTgzArchive } from '@utils/zip';
 import {
   chmod,
   copy,

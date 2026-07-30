@@ -4,7 +4,7 @@ import {
   ElasticLoadBalancingV2Client,
   ModifyTargetGroupAttributesCommand
 } from '@aws-sdk/client-elastic-load-balancing-v2';
-import { getError } from '@shared/utils/misc';
+import { getError } from '@utils/misc';
 
 const elbv2Client = new ElasticLoadBalancingV2Client({});
 

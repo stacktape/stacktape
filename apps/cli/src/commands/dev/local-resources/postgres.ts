@@ -1,5 +1,5 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
-import { execDocker } from '@shared/utils/docker';
+import { execDocker } from '@utils/docker';
 import {
   buildDockerRunArgs,
   buildLocalResourceInstance,

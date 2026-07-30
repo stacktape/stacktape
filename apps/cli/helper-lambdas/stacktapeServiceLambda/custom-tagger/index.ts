@@ -3,7 +3,7 @@ import { CreateTagsCommand, DescribeNetworkInterfacesCommand, EC2Client } from '
 import { ChangeTagsForResourceCommand, Route53Client } from '@aws-sdk/client-route-53';
 import { GetNamespaceCommand, ServiceDiscoveryClient } from '@aws-sdk/client-servicediscovery';
 import { tagNames } from '@stacktape/naming/tag-names';
-import { chunkArray } from '@shared/utils/misc';
+import { chunkArray } from '@utils/misc';
 
 const route53Client = new Route53Client({});
 const serviceDiscoveryClient = new ServiceDiscoveryClient({});

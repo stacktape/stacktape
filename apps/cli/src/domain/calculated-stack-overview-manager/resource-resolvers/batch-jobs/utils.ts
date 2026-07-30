@@ -14,7 +14,7 @@ import CfStateMachine from '@cloudform/stepFunctions/stateMachine';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import type { AWSRegion } from '@shared/aws/regions';
+import type { AWSRegion } from 'src/aws/regions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getCfEnvironment } from '@utils/cloudformation';
 import { getAugmentedEnvironment } from '@utils/environment';

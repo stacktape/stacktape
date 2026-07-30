@@ -1,8 +1,8 @@
 import { basename, join } from 'node:path';
 import { DIST_PACKAGE_FOLDER_PATH } from 'src/config/project-paths';
-import { createRelease, getReleaseByTag } from '@shared/utils/github-api';
-import { uploadReleaseAsset } from '@shared/utils/github-file-manipulation';
-import { logInfo, logSuccess } from '@shared/utils/logging';
+import { createRelease, getReleaseByTag } from '@scripts/support/github-api';
+import { uploadReleaseAsset } from '@scripts/support/github-file-manipulation';
+import { logInfo, logSuccess } from '@scripts/support/logging';
 import { readdir, stat } from 'fs-extra';
 import { RELEASE_CHECKSUMS_FILE_NAME } from './checksums';
 

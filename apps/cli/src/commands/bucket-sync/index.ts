@@ -7,8 +7,8 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { notificationManager } from '@domain-services/notification-manager';
 import { stpErrors } from '@errors';
-import { isDirAccessible } from '@shared/utils/fs-utils';
-import { getCloudformationChildResources } from '@shared/utils/stack-info-map';
+import { isDirAccessible } from '@utils/fs-utils';
+import { getCloudformationChildResources } from '@utils/stack-info-map';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { initializeStackServicesForWorkingWithDeployedStack, loadUserCredentials } from '../_utils/initialization';
 

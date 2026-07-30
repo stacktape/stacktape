@@ -6,7 +6,7 @@ import {
   NPM_PACKAGE_JSON_SOURCE_PATH,
   NPM_RELEASE_FOLDER_PATH
 } from 'src/config/project-paths';
-import { logInfo, logSuccess } from '../shared/utils/logging';
+import { logInfo, logSuccess } from '@scripts/support/logging';
 import packageJson from '../package.json';
 import { buildNpmMainExport } from './build-npm-main-export';
 import { getCliArgs, getVersion } from './release/args';

@@ -5,10 +5,10 @@ import { VALID_CONFIG_PATHS } from '@config';
 import {
   STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS,
   STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS
-} from '@shared/aws/cloudformation';
-import type { LoadedAwsCredentials, ValidatedAwsCredentials } from '@shared/aws/credentials';
+} from 'src/aws/cloudformation';
+import type { LoadedAwsCredentials, ValidatedAwsCredentials } from 'src/aws/credentials';
 import { consoleLinks } from '@stacktape/naming/console-links';
-import { getError } from '@shared/utils/misc';
+import { getError } from '@utils/misc';
 import { getApexDomain } from '@utils/domains';
 
 const STACKTAPE_DOMAINS_CONSOLE_URL = 'https://console.stacktape.com/domains';

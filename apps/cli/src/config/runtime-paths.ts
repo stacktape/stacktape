@@ -1,12 +1,12 @@
 import { dirname, join } from 'node:path';
 import { CF_TEMPLATE_FILE_NAME, INITIAL_CF_TEMPLATE_FILE_NAME, IS_DEV, STP_TEMPLATE_FILE_NAME } from '@config';
-import { getPlatform } from '@shared/utils/bin-executable';
+import { getPlatform } from '@utils/bin-executable';
 import {
   NIXPACKS_BINARY_FILE_NAMES,
   PACK_BINARY_FILE_NAMES,
   SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES
-} from '@shared/utils/constants';
-import { getHomeDir } from '@shared/utils/misc';
+} from 'src/config/constants';
+import { getHomeDir } from '@utils/misc';
 import {
   BRIDGE_FILES_FOLDER_NAME,
   DEV_TMP_FOLDER_PATH,

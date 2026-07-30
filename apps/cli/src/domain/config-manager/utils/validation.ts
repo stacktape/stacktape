@@ -8,8 +8,8 @@ import {
   supportedWorkloadExtensions
 } from '@config';
 import { stpErrors } from '@errors';
-import { isDirAccessible, isFileAccessible } from '@shared/utils/fs-utils';
-import { capitalizeFirstLetter, getUniqueDuplicates, isAlphanumeric } from '@shared/utils/misc';
+import { isDirAccessible, isFileAccessible } from '@utils/fs-utils';
+import { capitalizeFirstLetter, getUniqueDuplicates, isAlphanumeric } from '@utils/misc';
 import { ExpectedError } from '@utils/errors';
 import { parseUserCodeFilepath } from '@utils/user-code-processing';
 import { configManager } from '../index';

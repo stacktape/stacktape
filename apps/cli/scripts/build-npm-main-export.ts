@@ -3,9 +3,9 @@ import type { ChildResourcesMap, ReferenceableParamsMap } from './code-generatio
 import { join } from 'node:path';
 import { NPM_RELEASE_FOLDER_PATH, SOURCE_FOLDER_PATH, SOURCE_MAP_INSTALL_DIST_PATH } from 'src/config/project-paths';
 import { buildEsCode } from '@stacktape/packaging/bundlers/es';
-import { logInfo, logSuccess } from '@shared/utils/logging';
-import { getError, localBuildTsConfigPath } from '@shared/utils/misc';
-import { prettifyFile } from '@shared/utils/prettier';
+import { logInfo, logSuccess } from '@scripts/support/logging';
+import { getError, localBuildTsConfigPath } from '@utils/misc';
+import { prettifyFile } from '@scripts/support/prettier';
 import { outputFile } from 'fs-extra';
 import * as ts from 'typescript';
 import {

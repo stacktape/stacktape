@@ -1,9 +1,9 @@
-import type { PricingInfo, RegionalPricingInfo } from '@shared/aws/pricing-info';
+import type { PricingInfo, RegionalPricingInfo } from 'src/aws/pricing-info';
 import { join } from 'node:path';
-import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '@shared/aws/fargate';
-import { calculateFlatMonthlyCost, downloadSimplePricingInfo } from '@shared/aws/pricing-info';
+import { ALLOWED_MEMORY_VALUES_FOR_CPU } from 'src/aws/fargate';
+import { calculateFlatMonthlyCost, downloadSimplePricingInfo } from 'src/aws/pricing-info';
 import { AWS_PRICE_INFO_GENERATED_FOLDER_PATH } from 'src/config/project-paths';
-import { logInfo, logSuccess } from '@shared/utils/logging';
+import { logInfo, logSuccess } from '@scripts/support/logging';
 import { outputFile } from 'fs-extra';
 
 export const generateAwsPricingJson = async () => {

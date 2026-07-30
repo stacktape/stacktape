@@ -1,6 +1,6 @@
 import { AssumeRoleCommand, STSClient } from '@aws-sdk/client-sts';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { createFetchHandler } from '@shared/aws/fetch-handler';
+import { createFetchHandler } from 'src/aws/fetch-handler';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';

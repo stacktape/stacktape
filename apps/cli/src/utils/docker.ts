@@ -1,10 +1,10 @@
 import type { ContainerInfo, ContainerInspectInfo, Port } from 'dockerode';
 import type { DockerBuildOutputArchitecture } from '@stacktape/packaging/runtime-contracts';
 import { isAbsolute, join } from 'node:path';
-import { exec } from '@shared/utils/exec';
-import { transformToUnixPath } from '@shared/utils/fs-utils';
-import { getByteSize, getError } from '@shared/utils/misc';
-import { validateEnvVariableValue } from '@shared/utils/validation';
+import { exec } from '@utils/exec';
+import { transformToUnixPath } from '@utils/fs-utils';
+import { getByteSize, getError } from '@utils/misc';
+import { validateEnvVariableValue } from '@utils/validation';
 import { checkExecutableInPath, getPlatform } from './bin-executable';
 
 const STACKTAPE_BUILDER_NAME = 'stacktape-builder';

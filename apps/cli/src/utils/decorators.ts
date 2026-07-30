@@ -1,6 +1,6 @@
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager, type DomainServiceName } from '@application-services/global-state-manager';
-import { isPromise } from '@shared/utils/misc';
+import { isPromise } from '@utils/misc';
 import { generateUuid } from './uuid';
 
 // @note from https://github.com/taras/memoize-getters

@@ -2,13 +2,13 @@ import { isAbsolute, join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV } from '@config';
-import { getRelativePath, isFileAccessible } from '@shared/utils/fs-utils';
+import { getRelativePath, isFileAccessible } from '@utils/fs-utils';
 import stacktrace from 'stack-trace';
 import stripAnsi from 'strip-ansi';
 
 const isBundledStacktapeInternalFrame = (fileName: string) => {
   const normalizedFileName = fileName.replaceAll('\\', '/').replace(/^[./]+/, '');
-  const bundledInternalPrefixes = ['src/', 'shared/', 'scripts/', 'helper-lambdas/', '@generated/'];
+  const bundledInternalPrefixes = ['src/', 'scripts/', 'helper-lambdas/', '@generated/'];
 
   return (
     bundledInternalPrefixes.some((prefix) => normalizedFileName.startsWith(prefix)) &&

@@ -3,7 +3,7 @@ import {
   DescribeVpcPeeringConnectionsCommand,
   EC2Client
 } from '@aws-sdk/client-ec2';
-import { wait } from '@shared/utils/misc';
+import { wait } from '@utils/misc';
 
 const peeringStatusCodes = {
   peeringIsActive: ['active'],

@@ -1,7 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { aliasPostHogUser, identifyPostHogUser } from '../../../shared/utils/telemetry';
+import { aliasPostHogUser, identifyPostHogUser } from '@utils/telemetry';
 import { runAuthFlow } from '../_utils/auth';
 
 export const commandLogin = async () => {

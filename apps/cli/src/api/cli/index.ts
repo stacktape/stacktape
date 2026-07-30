@@ -1,5 +1,5 @@
 const main = async () => {
-  const { configureNativeRuntimeForPlatform } = await import('@shared/utils/bin-executable');
+  const { configureNativeRuntimeForPlatform } = await import('@utils/bin-executable');
   configureNativeRuntimeForPlatform();
 
   const { INVOKED_FROM_ENV_VAR_NAME } = await import('@config');

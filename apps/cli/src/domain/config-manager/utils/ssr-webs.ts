@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stpErrors } from '@errors';
-import { dirExists } from '@shared/utils/fs-utils';
+import { dirExists } from '@utils/fs-utils';
 
 type SsrWebResource = StpAstroWeb | StpNuxtWeb | StpSvelteKitWeb | StpSolidStartWeb | StpTanStackWeb | StpRemixWeb;
 

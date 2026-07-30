@@ -11,9 +11,9 @@ import {
   getSsmParameterNameForDomainInfo,
   parseDomainNameFromSmmParamName
 } from '@stacktape/naming/ssm-parameter-paths';
-import { COMMENT_FOR_STACKTAPE_ZONE } from '@shared/utils/constants';
-import { jsonFetch } from '@shared/utils/json-fetch';
-import { areStringArraysContentsEqual } from '@shared/utils/misc';
+import { COMMENT_FOR_STACKTAPE_ZONE } from 'src/config/constants';
+import { jsonFetch } from '@utils/json-fetch';
+import { areStringArraysContentsEqual } from '@utils/misc';
 import { shortHash } from '@stacktape/naming/short-hash';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';

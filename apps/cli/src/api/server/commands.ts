@@ -3,7 +3,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { templateManager } from '@domain-services/template-manager';
-import type { AWSRegion } from '@shared/aws/regions';
+import type { AWSRegion } from 'src/aws/regions';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 
 export const compileTemplateCommand = async () => {

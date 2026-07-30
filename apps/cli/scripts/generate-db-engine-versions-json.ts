@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { DescribeDBEngineVersionsCommand, RDSClient } from '@aws-sdk/client-rds';
 import { DB_ENGINE_VERSIONS_FOLDER } from 'src/config/project-paths';
-import { logInfo, logSuccess } from '@shared/utils/logging';
+import { logInfo, logSuccess } from '@scripts/support/logging';
 import { outputFile } from 'fs-extra';
 
 const client = new RDSClient({ region: 'us-east-1' }); // Specify your region

@@ -2,7 +2,7 @@ import { spawn } from 'node:child_process';
 import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { existsSync } from 'node:fs';
-import { getMcpOperationInvocationEnv } from '@shared/utils/operation-invocation-context';
+import { getMcpOperationInvocationEnv } from '@application-services/operation-invocation-context';
 
 type JsonlEventEvent = {
   type: 'event';

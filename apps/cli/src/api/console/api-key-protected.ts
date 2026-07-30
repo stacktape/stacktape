@@ -50,7 +50,7 @@ import type {
   TemplateParams,
   TemplateResponse
 } from '@stacktape/console-api/api-key';
-import { STACKTAPE_TRPC_API_ENDPOINT } from '../../src/config/params';
+import { STACKTAPE_TRPC_API_ENDPOINT } from 'src/config/params';
 import { createTypedTrpcClient } from './client';
 
 export type {

@@ -10,7 +10,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { processAllNodes } from '@shared/utils/misc';
+import { processAllNodes } from '@utils/misc';
 import { SubWithoutMapping, transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
 import { escapeCloudformationSecretDynamicReference } from '@utils/stack-info-map-sensitive-values';
 import {

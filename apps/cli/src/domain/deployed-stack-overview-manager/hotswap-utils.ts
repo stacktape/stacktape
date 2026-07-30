@@ -1,7 +1,7 @@
 import type { ResourceDifference } from '@aws-cdk/cloudformation-diff';
 import type { ContainerDefinition, TaskDefinition as SdkTaskDefinition } from '@aws-sdk/client-ecs';
 import type CloudformationTaskDefinition from '@cloudform/ecs/taskDefinition';
-import { lowerCaseFirstCharacterOfObjectKeys, serialize } from '@shared/utils/misc';
+import { lowerCaseFirstCharacterOfObjectKeys, serialize } from '@utils/misc';
 import isEqual from 'lodash/isEqual';
 import orderBy from 'lodash/orderBy';
 

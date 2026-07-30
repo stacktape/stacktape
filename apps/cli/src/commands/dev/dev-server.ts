@@ -2,7 +2,7 @@ import type { ChildProcess } from 'node:child_process';
 import { execSync, spawn } from 'node:child_process';
 import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { serialize } from '@shared/utils/misc';
+import { serialize } from '@utils/misc';
 import { createCleanupHook } from './cleanup-utils';
 import { DEV_CONFIG } from './dev-config';
 import { createFrameworkParser, detectFramework, type FrameworkType } from './framework-parsers';

@@ -14,9 +14,9 @@ import {
   getSsmParameterStoreStackPrefix
 } from '@stacktape/naming/ssm-parameter-paths';
 import { tagNames } from '@stacktape/naming/tag-names';
-import { getContainingFolderName, getFileExtension, getFileNameWithoutExtension } from '@shared/utils/fs-utils';
-import { getGloballyUniqueStackHash } from '@shared/utils/hashing';
-import { getDefaultRuntimeForExtension } from '@shared/utils/runtimes';
+import { getContainingFolderName, getFileExtension, getFileNameWithoutExtension } from '@utils/fs-utils';
+import { getGloballyUniqueStackHash } from '@utils/hashing';
+import { getDefaultRuntimeForExtension } from '@domain-services/config-manager/runtime-selection';
 import { SubWithoutMapping } from '@utils/cloudformation';
 import { kebabCase } from 'change-case';
 import { configManager } from '../index';

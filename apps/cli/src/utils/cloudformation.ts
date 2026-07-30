@@ -2,7 +2,7 @@ import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import type { Value } from '@cloudform/dataTypes';
 import { IntrinsicFunction } from '@cloudform/dataTypes';
 import { Sub } from '@cloudform/functions';
-import { serialize } from '@shared/utils/misc';
+import { serialize } from '@utils/misc';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 
 export const getCfEnvironment = (envVars: EnvironmentVar[]): { Name: string; Value: Value<string> }[] => {

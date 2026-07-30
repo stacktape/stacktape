@@ -58,14 +58,14 @@ import {
   getDockerBuildxSupportedPlatforms,
   installDockerPlatforms,
   isDockerRunning
-} from '@shared/utils/docker';
-import { dependencyInstaller } from '@shared/utils/dependency-installer';
-import { exec } from '@shared/utils/exec';
-import { getFileExtension } from '@shared/utils/fs-utils';
-import { getError } from '@shared/utils/misc';
-import { execNixpacks } from '@shared/utils/nixpack-exec';
-import { execPack } from '@shared/utils/pack-exec';
-import { archiveItem } from '@shared/utils/zip';
+} from '@utils/docker';
+import { dependencyInstaller } from '@domain-services/packaging-manager/dependency-installer';
+import { exec } from '@utils/exec';
+import { getFileExtension } from '@utils/fs-utils';
+import { getError } from '@utils/misc';
+import { execNixpacks } from '@domain-services/packaging-manager/nixpacks-command';
+import { execPack } from '@domain-services/packaging-manager/pack-command';
+import { archiveItem } from '@utils/zip';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { rename } from 'fs-extra';

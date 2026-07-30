@@ -1,4 +1,4 @@
-import { exec } from './exec';
+import { exec } from '@utils/exec';
 
 export const prettify = (relativeFolderPath: string) => {
   return exec('bunx', ['prettier', '--write', '--config', '.prettierrc', `./${relativeFolderPath}/**/*`], {

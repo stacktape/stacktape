@@ -29,7 +29,7 @@ type RegionRestrictionGuardrail = {
     /**
      * #### AWS regions where this stack can be deployed (e.g., `["eu-west-1", "us-east-1"]`). Others are blocked.
      */
-    allowedRegions?: import('../../shared/aws/regions').AWSRegion[];
+    allowedRegions?: import('../../src/aws/regions').AWSRegion[];
   };
 };
 type CommandRestrictionGuardrail = {

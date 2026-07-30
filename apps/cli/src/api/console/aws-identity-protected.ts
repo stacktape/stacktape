@@ -8,8 +8,8 @@ import type {
   UpsertDefaultDomainDnsRecordParams,
   ValidateCertificateParams
 } from '@stacktape/console-api/aws-identity';
-import type { AwsCredentials } from '../aws/credentials';
-import { getSignedGetCallerIdentityRequest } from '../aws/identity';
+import type { AwsCredentials } from 'src/aws/credentials';
+import { getSignedGetCallerIdentityRequest } from 'src/aws/identity';
 import { createTypedTrpcClient } from './client';
 
 const createTrpcAwsIdentityProtectedClient = ({

@@ -1,7 +1,7 @@
 import { describe, expect, mock, test } from 'bun:test';
 
 // Mock dependencies
-mock.module('@shared/utils/misc', () => ({
+mock.module('@utils/misc', () => ({
   getRandomNumberFromInterval: mock(() => 2.0),
   wait: mock(async () => {}),
   stringMatchesGlob: mock(() => false)

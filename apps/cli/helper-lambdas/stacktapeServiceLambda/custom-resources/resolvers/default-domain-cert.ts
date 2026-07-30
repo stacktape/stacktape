@@ -1,8 +1,8 @@
 import { CertificateStatus, DomainStatus } from '@aws-sdk/client-acm';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { getAwsSdkManager } from '@helper-lambdas/stacktapeServiceLambda/utils';
-import { AwsIdentityProtectedClient } from '@shared/trpc/aws-identity-protected';
-import { wait } from '@shared/utils/misc';
+import { AwsIdentityProtectedClient } from '@api/console/aws-identity-protected';
+import { wait } from '@utils/misc';
 
 export const defaultDomainCert: ServiceLambdaResolver<StpServiceCustomResourceProperties['defaultDomainCert']> = async (
   currentProps,

@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { GITHUB_REPO_README_PATH, INSTALL_SCRIPTS_PATH, PUBLISH_GITHUB_REPO_DIR_PATH } from 'src/config/project-paths';
-import { executeGit } from '@shared/utils/exec';
-import { logInfo, logSuccess } from '@shared/utils/logging';
+import { executeGit } from '@utils/exec';
+import { logInfo, logSuccess } from '@scripts/support/logging';
 import { copy, ensureFile, mkdir, remove, writeFile } from 'fs-extra';
 import walk from 'walk-filtered';
 import { getAllStarterProjectIds } from './generate-starter-project';

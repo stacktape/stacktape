@@ -14,7 +14,7 @@ import {
   PARENT_IDENTIFIER_SHARED_GLOBAL,
   THIRD_PARTY_PROVIDER_CREDENTIALS_REGION,
   UPSTASH_PROVIDER_DEFAULT_CREDENTIALS_ID
-} from '@shared/utils/constants';
+} from 'src/config/constants';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 import { getUpstashDatabaseResource } from './utils';
 

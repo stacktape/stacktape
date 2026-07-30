@@ -1,5 +1,5 @@
 import { HttpRequest } from '@aws-sdk/protocol-http';
-import { getRandomNumberFromInterval, wait } from '@shared/utils/misc';
+import { getRandomNumberFromInterval, wait } from '@utils/misc';
 import { pascalCase } from 'change-case';
 import pRetry from 'p-retry';
 import type { DirectoryUpload, DirectoryUploadFilter } from '@stacktape/config/buckets';

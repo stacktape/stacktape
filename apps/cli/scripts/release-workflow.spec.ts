@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { NIXPACKS_BINARY_FILE_NAMES } from '@shared/utils/constants';
+import { NIXPACKS_BINARY_FILE_NAMES } from 'src/config/constants';
 import { BUN_COMPILE_TARGETS, OPENTUI_PLATFORM_IDENTIFIERS } from './release/build-cli-sources';
 import { EXPECTED_RELEASE_ARCHIVES, verifyCandidateArchives } from './release/verify-candidate-assets';
 

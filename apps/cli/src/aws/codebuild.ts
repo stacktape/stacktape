@@ -3,7 +3,7 @@ import type { AwsSdkManager } from './sdk-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getStacktapeApiKeySsmParameterName } from '@stacktape/naming/ssm-parameter-paths';
 import { getStackName } from '@stacktape/naming/stacks';
-import { wait } from '@shared/utils/misc';
+import { wait } from '@utils/misc';
 
 export const preparePipelineResources = async ({
   awsSdkManager,

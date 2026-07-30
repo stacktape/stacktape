@@ -6,7 +6,7 @@ import { configManager } from '@domain-services/config-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
+import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 
 export const resolveServiceDiscoveryPrivateNamespace = async () => {
   if (configManager.isServiceDiscoveryPrivateNamespaceRequired) {

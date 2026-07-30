@@ -8,7 +8,7 @@ import {
   StackStatus
 } from '@aws-sdk/client-cloudformation';
 import { fromIni, fromEnv } from '@aws-sdk/credential-providers';
-import { createFetchHandler } from '@shared/aws/fetch-handler';
+import { createFetchHandler } from 'src/aws/fetch-handler';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { normalizeCurrentUserAndOrgData } from '@application-services/global-state-manager/user-data-mapper';

@@ -2,7 +2,7 @@ import { jsonSchemaToZod } from 'json-schema-to-zod';
 import $RefParser from '@apidevtools/json-schema-ref-parser';
 import { writeFile } from 'fs-extra';
 import { join } from 'node:path';
-import { logInfo, logSuccess } from '@shared/utils/logging';
+import { logInfo, logSuccess } from '@scripts/support/logging';
 
 const OUTPUT_PATH = join(process.cwd(), '@generated/schemas/validate-config-zod.ts');
 

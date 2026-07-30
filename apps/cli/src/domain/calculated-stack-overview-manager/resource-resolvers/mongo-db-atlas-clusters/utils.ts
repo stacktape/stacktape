@@ -9,7 +9,7 @@ import { thirdPartyProviderManager } from '@domain-services/third-party-provider
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { transformToCidr } from '@shared/utils/misc';
+import { transformToCidr } from '@utils/misc';
 import { ExpectedError } from '@utils/errors';
 import { snakeCase } from 'change-case';
 import { findBestFittingAvailableRegion } from '../_utils/regions';

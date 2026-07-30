@@ -2,7 +2,7 @@ import { afterAll, beforeAll, describe, expect, mock, test } from 'bun:test';
 import { mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { exec, executeGit } from '@shared/utils/exec';
+import { exec, executeGit } from '@utils/exec';
 
 // An ECR authorization token is short-lived but live, and a build argument or a container environment variable holds
 // whatever the user's configuration resolved into it. These stand-ins are unmistakable, cannot occur by accident and
@@ -27,7 +27,7 @@ const execCalls: ExecCall[] = [];
 
 // The replacement is a pass-through by default. `mock.module` is process-wide in Bun, so only the tests that install
 // an `execStub` see anything other than the real runner, and no other test file's behavior changes.
-mock.module('@shared/utils/exec', () => ({
+mock.module('@utils/exec', () => ({
   exec: (command: string, args: string[], params: Record<string, any>) => {
     const call = { command, args, params };
     execCalls.push(call);
@@ -37,7 +37,7 @@ mock.module('@shared/utils/exec', () => ({
 }));
 
 // Imported once the runner above is in place, and in `beforeAll` because this file's target has no top-level await.
-type DockerModule = typeof import('@shared/utils/docker');
+type DockerModule = typeof import('@utils/docker');
 let buildDockerImage: DockerModule['buildDockerImage'];
 let dockerLogin: DockerModule['dockerLogin'];
 let dockerRun: DockerModule['dockerRun'];
@@ -196,7 +196,7 @@ const captureConsole = async <T>(run: () => Promise<T>) => {
 };
 
 beforeAll(async () => {
-  ({ buildDockerImage, dockerLogin, dockerRun } = await import('@shared/utils/docker'));
+  ({ buildDockerImage, dockerLogin, dockerRun } = await import('@utils/docker'));
   writeFileSync(fakeDockerPath, FAKE_DOCKER_PROGRAM);
   mkdirSync(emptyPathDirectory, { recursive: true });
   mkdirSync(dockerOnPathDirectory, { recursive: true });

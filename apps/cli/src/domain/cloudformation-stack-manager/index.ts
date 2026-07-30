@@ -1,5 +1,5 @@
 import type { Capability, StackEvent, StackResourceSummary } from '@aws-sdk/client-cloudformation';
-import type { MonitoredStackEvent } from '@shared/aws/sdk-manager';
+import type { MonitoredStackEvent } from 'src/aws/sdk-manager';
 import type { Tag } from '@aws-sdk/client-ecs';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -19,15 +19,15 @@ import {
   STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS,
   STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS,
   STACK_OPERATION_IN_PROGRESS_STATUS
-} from '@shared/aws/cloudformation';
+} from 'src/aws/cloudformation';
 import {
   EcsServiceDeploymentStatusPoller,
   isEcsServiceCreateOrUpdateCloudformationEvent
-} from '@shared/aws/ecs-deployment-monitoring';
+} from 'src/aws/ecs-deployment-monitoring';
 import {
   isLambdaAliasProvisionedConcurrencyEvent,
   LambdaProvisionedConcurrencyPoller
-} from '@shared/aws/lambda-provisioned-concurrency-monitoring';
+} from 'src/aws/lambda-provisioned-concurrency-monitoring';
 import { arns } from '@stacktape/naming/arns';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { consoleLinks } from '@stacktape/naming/console-links';
@@ -35,7 +35,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { tagNames } from '@stacktape/naming/tag-names';
-import { wait } from '@shared/utils/misc';
+import { wait } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';

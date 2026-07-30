@@ -21,12 +21,12 @@ measurement that settled it remains the relevant baseline:
 - the largest are general CLI facilities: the AWS SDK manager, the S3 sync engine, and shared physical naming
   (now honestly owned by `@stacktape/naming` because both CLI and Console consume it), alongside broadly used
   filesystem, configuration, logical-naming, and miscellaneous CLI modules;
-- exactly one module is helper-only — `shared/trpc/aws-identity-protected.ts`, 78 lines — and it still depends on
-  `shared/aws/identity.ts` and `shared/trpc/client.ts`, which reach `shared/aws/fetch-handler.ts` (13 other consumers);
+- exactly one module is helper-only — `src/api/console/aws-identity-protected.ts`, 78 lines — and it still depends on
+  `src/aws/identity.ts` and `src/api/console/client.ts`, which reach `src/aws/fetch-handler.ts` (13 other consumers);
 - alarm configuration now uses an explicit `AlarmDefinition` import from `@stacktape/config`, while the runtime still
   consumes the CLI-only ambient `AlarmNotificationEventRuleInput` payload from
   `types/stacktape-config/alarms.d.ts`. AWS execution types are explicit imports from
-  `shared/aws/credentials.ts` and `shared/aws/regions.ts`, but those modules remain general CLI facilities rather than
+  `src/aws/credentials.ts` and `src/aws/regions.ts`, but those modules remain general CLI facilities rather than
   helper-owned code.
 
 Every way to make a package out of that is worse than co-location:

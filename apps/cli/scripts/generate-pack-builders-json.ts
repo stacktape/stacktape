@@ -1,7 +1,7 @@
 import { join } from 'node:path';
 import { PACK_GENERATED_FOLDER_PATH } from 'src/config/project-paths';
-import { exec } from '@shared/utils/exec';
-import { logInfo } from '@shared/utils/logging';
+import { exec } from '@utils/exec';
+import { logInfo } from '@scripts/support/logging';
 import { outputFile } from 'fs-extra';
 
 export const generatePackBuildersJson = async () => {

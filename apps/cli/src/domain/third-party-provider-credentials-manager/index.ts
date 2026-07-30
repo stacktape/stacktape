@@ -9,7 +9,7 @@ import {
   MONGODB_PROVIDER_DEFAULT_CREDENTIALS_ID,
   THIRD_PARTY_PROVIDER_CREDENTIALS_REGION,
   UPSTASH_PROVIDER_DEFAULT_CREDENTIALS_ID
-} from '@shared/utils/constants';
+} from 'src/config/constants';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';

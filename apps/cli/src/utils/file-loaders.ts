@@ -3,15 +3,9 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { VALID_CONFIG_PATHS } from '@config';
 import { stpErrors } from '@errors';
-import { checkExecutableInPath } from '@shared/utils/bin-executable';
-import {
-  dynamicRequire,
-  getBaseName,
-  getFileContent,
-  getIniFileContent,
-  isFileAccessible
-} from '@shared/utils/fs-utils';
-import { parseYaml } from '@shared/utils/yaml';
+import { checkExecutableInPath } from '@utils/bin-executable';
+import { dynamicRequire, getBaseName, getFileContent, getIniFileContent, isFileAccessible } from '@utils/fs-utils';
+import { parseYaml } from '@utils/yaml';
 import { parseDotenv } from '@utils/dotenv';
 import { ExpectedError } from '@utils/errors';
 import { pythonBridge } from '@utils/python-bridge';

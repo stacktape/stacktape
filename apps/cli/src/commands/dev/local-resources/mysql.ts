@@ -1,6 +1,6 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
 import { tuiManager } from '@application-services/tui-manager';
-import { execDocker } from '@shared/utils/docker';
+import { execDocker } from '@utils/docker';
 import { ensureDir, remove } from 'fs-extra';
 import {
   buildLocalResourceInstance,

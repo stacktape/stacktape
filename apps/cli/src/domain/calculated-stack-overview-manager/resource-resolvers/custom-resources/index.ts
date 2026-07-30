@@ -5,7 +5,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToCustomResourceDefinition } from '@domain-services/config-manager/utils/custom-resource-definitions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { STACKTAPE_SERVICE_CUSTOM_RESOURCE_LAMBDA_IDENTIFIER } from '@shared/utils/constants';
+import { STACKTAPE_SERVICE_CUSTOM_RESOURCE_LAMBDA_IDENTIFIER } from 'src/config/constants';
 import { resolveFunction } from '../functions';
 
 export const resolveCustomResources = () => {

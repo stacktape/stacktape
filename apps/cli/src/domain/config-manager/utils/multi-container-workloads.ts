@@ -1,6 +1,6 @@
 import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
-import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '@shared/aws/fargate';
+import { ALLOWED_MEMORY_VALUES_FOR_CPU } from 'src/aws/fargate';
 import { ExpectedError } from '@utils/errors';
 import { configManager } from '../index';
 import type {

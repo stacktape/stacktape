@@ -14,8 +14,8 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { packagingManager } from '@domain-services/packaging-manager';
 import { stpErrors } from '@errors';
 import { getJobName, getLocalInvokeContainerName } from '@stacktape/naming/workload-names';
-import { dockerRun } from '@shared/utils/docker';
-import { isJson } from '@shared/utils/misc';
+import { dockerRun } from '@utils/docker';
+import { isJson } from '@utils/misc';
 import { parseContainerError } from '@utils/errors';
 import { addCallerToAssumeRolePolicy } from 'src/commands/_utils/assume-role';
 import { initializeStackServicesForDevPhase2 } from 'src/commands/_utils/initialization';

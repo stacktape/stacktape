@@ -14,7 +14,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getUserPoolDomainPrefix } from '@stacktape/naming/domain-names';
-import { hasProperties } from '@shared/utils/misc';
+import { hasProperties } from '@utils/misc';
 import { ExpectedError } from '@utils/errors';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 import type { AttributeSchema } from '@stacktape/config/user-pools';

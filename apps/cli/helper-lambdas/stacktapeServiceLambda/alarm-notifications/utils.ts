@@ -1,5 +1,5 @@
 import type { AlarmDefinition } from '@stacktape/config/alarms';
-import { capitalizeFirstLetter } from '@shared/utils/misc';
+import { capitalizeFirstLetter } from '@utils/misc';
 
 const getCustomMetricFromAlarm = (alarm: AlarmDefinition): string => {
   return (alarm.trigger as any).properties?.metric;

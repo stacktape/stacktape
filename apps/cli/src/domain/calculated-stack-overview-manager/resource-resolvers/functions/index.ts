@@ -26,7 +26,7 @@ import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-man
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 import { tagNames } from '@stacktape/naming/tag-names';
-import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
+import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
 import { getAugmentedEnvironment, getLanguageFromExtension } from '@utils/environment';
 import { ExpectedError } from '@utils/errors';

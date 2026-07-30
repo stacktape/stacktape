@@ -12,11 +12,11 @@ import {
 } from '@config';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
-import type { LoadedAwsCredentials, ValidatedAwsCredentials } from '@shared/aws/credentials';
-import { SUPPORTED_AWS_REGIONS, type AWSRegion } from '@shared/aws/regions';
+import type { LoadedAwsCredentials, ValidatedAwsCredentials } from 'src/aws/credentials';
+import { SUPPORTED_AWS_REGIONS, type AWSRegion } from 'src/aws/regions';
 import { getRoleArnFromSessionArn } from '@stacktape/naming/arns';
-import { getGloballyUniqueStackHash } from '@shared/utils/hashing';
-import { propertyFromObjectOrNull } from '@shared/utils/misc';
+import { getGloballyUniqueStackHash } from '@utils/hashing';
+import { propertyFromObjectOrNull } from '@utils/misc';
 import { listAwsProfiles, loadAwsConfigFileContent } from '@utils/aws-config';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { memoizeGetters } from '@utils/decorators';

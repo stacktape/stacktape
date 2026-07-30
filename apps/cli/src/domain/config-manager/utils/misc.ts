@@ -1,5 +1,5 @@
 import { RESOURCE_DEFAULTS } from '@config';
-import { removePropertiesFromObject, serialize } from '@shared/utils/misc';
+import { removePropertiesFromObject, serialize } from '@utils/misc';
 import { UnexpectedError } from '@utils/errors';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { DefaultedResource, NormalizedResource, StacktapeResourceType } from '../normalized-resource';

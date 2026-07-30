@@ -1,4 +1,4 @@
-import { exec } from '@shared/utils/exec';
+import { exec } from '@utils/exec';
 import { config as loadDotenv } from 'dotenv';
 
 loadDotenv();

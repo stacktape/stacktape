@@ -2,7 +2,7 @@ import type { Readable } from 'node:stream';
 import { writeFile } from 'node:fs/promises';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 import { Upload } from '@aws-sdk/lib-storage';
-import { archiveItem } from '@shared/utils/zip';
+import { archiveItem } from '@utils/zip';
 import AdmZip from 'adm-zip';
 import fastGlob from 'fast-glob';
 import { createReadStream, readFile, remove } from 'fs-extra';

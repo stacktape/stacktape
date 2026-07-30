@@ -13,7 +13,7 @@ import {
   MONGODB_PROVIDER_DEFAULT_CREDENTIALS_ID,
   PARENT_IDENTIFIER_SHARED_GLOBAL,
   THIRD_PARTY_PROVIDER_CREDENTIALS_REGION
-} from '@shared/utils/constants';
+} from 'src/config/constants';
 import { ExpectedError } from '@utils/errors';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 import {

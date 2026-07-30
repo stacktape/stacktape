@@ -1,7 +1,7 @@
 import { join } from 'node:path';
-import { exec } from '@shared/utils/exec';
-import { getRelativePath } from '@shared/utils/fs-utils';
-import { logInfo } from '@shared/utils/logging';
+import { exec } from '@utils/exec';
+import { getRelativePath } from '@utils/fs-utils';
+import { logInfo } from '@scripts/support/logging';
 import kleur from 'kleur';
 import yargsParser from 'yargs-parser';
 import { generateStarterProject } from './generate-starter-project';

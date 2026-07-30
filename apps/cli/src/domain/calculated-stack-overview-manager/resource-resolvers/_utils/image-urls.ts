@@ -1,4 +1,4 @@
-import { NOT_YET_KNOWN_IDENTIFIER } from '@shared/utils/constants';
+import { NOT_YET_KNOWN_IDENTIFIER } from 'src/config/constants';
 import type {
   BatchJobContainerPackaging,
   ContainerWorkloadContainerPackaging

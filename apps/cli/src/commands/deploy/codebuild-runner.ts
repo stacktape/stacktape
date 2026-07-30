@@ -18,9 +18,9 @@ import {
   getCodebuildLogStreamNameFromBuildInfo,
   preparePipelineResources,
   startCodebuildDeployment
-} from '@shared/aws/codebuild';
+} from 'src/aws/codebuild';
 import { fsPaths } from 'src/config/runtime-paths';
-import { serialize, wait } from '@shared/utils/misc';
+import { serialize, wait } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CodebuildDeploymentCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { gitCreateZipArchive } from '@utils/git';

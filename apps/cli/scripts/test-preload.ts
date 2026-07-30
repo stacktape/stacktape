@@ -1,7 +1,7 @@
 import { plugin } from 'bun';
 import http from 'node:http';
 import https from 'node:https';
-import { createStacktapeOpenTuiBuildPlugin } from '@shared/utils/stacktape-opentui';
+import { createStacktapeOpenTuiBuildPlugin } from '@scripts/support/opentui-loader';
 
 // Tests must opt into a deliberately configured local endpoint; inheriting a developer or CI identity is never a
 // valid default. Dummy credentials and disabled instance metadata stop the credential chain from escaping first.

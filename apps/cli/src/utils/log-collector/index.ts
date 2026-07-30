@@ -1,3 +1,3 @@
-import { LogCollectorStream } from '@shared/aws/log-collector';
+import { LogCollectorStream } from 'src/aws/log-collector';
 
 export const logCollectorStream = new LogCollectorStream();

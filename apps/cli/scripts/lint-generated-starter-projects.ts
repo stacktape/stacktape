@@ -1,8 +1,8 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { GENERATED_STARTER_PROJECTS_DIR_PATH } from 'src/config/project-paths';
-import { exec } from '@shared/utils/exec';
-import { logInfo } from '@shared/utils/logging';
+import { exec } from '@utils/exec';
+import { logInfo } from '@scripts/support/logging';
 import { getAllStarterProjectIds } from './generate-starter-project';
 
 export const lintGeneratedStarterProjects = async () => {

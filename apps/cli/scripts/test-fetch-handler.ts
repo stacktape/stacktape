@@ -12,7 +12,7 @@
 import { STSClient, GetCallerIdentityCommand } from '@aws-sdk/client-sts';
 import { S3Client, ListBucketsCommand } from '@aws-sdk/client-s3';
 import { CloudFormationClient, ListStacksCommand } from '@aws-sdk/client-cloudformation';
-import { createFetchHandler } from '@shared/aws/fetch-handler';
+import { createFetchHandler } from 'src/aws/fetch-handler';
 
 const TOTAL_REQUESTS = 600;
 const HANG_TIMEOUT_MS = 15_000;

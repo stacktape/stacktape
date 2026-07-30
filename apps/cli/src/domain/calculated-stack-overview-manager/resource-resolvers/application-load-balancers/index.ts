@@ -11,7 +11,7 @@ import { domainManager } from '@domain-services/domain-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
+import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { ExpectedError } from '@utils/errors';
 import { resolveAlarmsForResource } from '../_utils/alarms';
 import {

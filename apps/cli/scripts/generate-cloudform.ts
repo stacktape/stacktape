@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import { CLOUDFORM_FOLDER_PATH, CLOUDFORM_ROOT_HELPER_FOLDER_PATH } from 'src/config/project-paths';
-import { logInfo, logSuccess } from '@shared/utils/logging';
-import { prettify } from '@shared/utils/prettier';
+import { logInfo, logSuccess } from '@scripts/support/logging';
+import { prettify } from '@scripts/support/prettier';
 import { copy, mkdir, remove } from 'fs-extra';
 import camelCase from 'lodash/camelCase';
 import forEach from 'lodash/forEach';

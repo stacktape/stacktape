@@ -4,10 +4,10 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { hintMessages } from '@errors';
-import { createFetchHandler } from '@shared/aws/fetch-handler';
-import { retryPlugin } from '@shared/aws/sdk-manager/utils';
+import { createFetchHandler } from 'src/aws/fetch-handler';
+import { retryPlugin } from 'src/aws/sdk-manager/utils';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { serialize } from '@shared/utils/misc';
+import { serialize } from '@utils/misc';
 import { ExpectedError } from '@utils/errors';
 
 export const getErrorHandler = (message: string) => (err: Error) => {

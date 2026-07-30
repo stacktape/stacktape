@@ -3,7 +3,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
-import { wait } from '@shared/utils/misc';
+import { wait } from '@utils/misc';
 import { startPortForwardingSessions } from '@utils/ssm-session';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 

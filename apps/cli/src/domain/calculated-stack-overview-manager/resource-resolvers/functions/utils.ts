@@ -15,7 +15,7 @@ import { resolveReferenceToLambdaFunction } from '@domain-services/config-manage
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { getAssumeRolePolicyDocumentForFunctionRole } from '@shared/utils/roles';
+import { getAssumeRolePolicyDocumentForFunctionRole } from 'src/aws/iam';
 import {
   getLambdaLogResourceArnsForPermissions,
   getLogGroupPolicyDocumentStatements,

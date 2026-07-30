@@ -15,7 +15,7 @@
 
 import { join } from 'node:path';
 import { emptyDir, ensureDir, readFile, writeFile } from 'fs-extra';
-import { logInfo, logSuccess } from '@shared/utils/logging';
+import { logInfo, logSuccess } from '@scripts/support/logging';
 import { commandDefinitions } from '../src/config/cli/commands';
 import { resolveConfigSourceFile } from './code-generation/config-sources';
 

@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import AdmZip from 'adm-zip';
 import { buildUsingCustomArtifact } from '@stacktape/packaging/artifact/custom-artifact';
-import { getError } from '@shared/utils/misc';
-import { archiveItem } from '@shared/utils/zip';
+import { getError } from '@utils/misc';
+import { archiveItem } from '@utils/zip';
 
 const tempDirs: string[] = [];
 

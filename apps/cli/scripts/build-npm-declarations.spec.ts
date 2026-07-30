@@ -30,7 +30,7 @@ describe('the npm declaration program is the CLI project', () => {
 
     // The CLI compiles against ES2023; a lower lib silently loses String.replaceAll and friends.
     expect(options.lib).toContain('lib.es2023.d.ts');
-    expect(options.paths?.['@shared/*']).toBeDefined();
+    expect(options.paths?.['@scripts/*']).toBeDefined();
     expect(options.paths?.['@cloudform/*']).toBeDefined();
     // Only emit is overridden.
     expect(options.declaration).toBe(true);

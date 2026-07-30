@@ -42,7 +42,7 @@ import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { portMappingsPortName } from '@stacktape/naming/workload-names';
-import { definedValueOr } from '@shared/utils/misc';
+import { definedValueOr } from '@utils/misc';
 import { getCfEnvironment, transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
 import { getAugmentedEnvironment } from '@utils/environment';
 import uniqWith from 'lodash/uniqWith';

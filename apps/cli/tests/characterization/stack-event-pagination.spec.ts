@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { CloudFormationClient, DescribeStackEventsCommand } from '@aws-sdk/client-cloudformation';
-import { AwsSdkManager } from '../../shared/aws/sdk-manager';
+import { AwsSdkManager } from '../../src/aws/sdk-manager';
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
 
 const originalSend = CloudFormationClient.prototype.send;

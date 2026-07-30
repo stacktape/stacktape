@@ -12,7 +12,7 @@
  * `z.union`s, so we walk the schema recursively, discriminating typed unions on `type`.
  */
 import { getIsDirective } from '@utils/directives';
-import { parseYaml } from '@shared/utils/yaml';
+import { parseYaml } from '@utils/yaml';
 import { get } from 'lodash';
 import { stacktapeConfigSchema } from '@generated/schemas/validate-config-zod';
 

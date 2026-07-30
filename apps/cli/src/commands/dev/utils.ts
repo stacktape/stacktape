@@ -9,7 +9,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { inspectDockerContainer, listDockerContainers, stopDockerContainer } from '@shared/utils/docker';
+import { inspectDockerContainer, listDockerContainers, stopDockerContainer } from '@utils/docker';
 import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
 import { getAugmentedEnvironment } from '@utils/environment';
 import { startPortForwardingSessions, substituteTunneledEndpointsInEnvironmentVars } from '@utils/ssm-session';

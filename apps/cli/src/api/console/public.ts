@@ -10,7 +10,7 @@ import type {
   SubmitFilesInput,
   SubmitFilesResponse
 } from '@stacktape/console-api/anonymous';
-import { STACKTAPE_TRPC_API_ENDPOINT } from '../../src/config/params';
+import { STACKTAPE_TRPC_API_ENDPOINT } from 'src/config/params';
 import { createTypedTrpcClient } from './client';
 
 export type {

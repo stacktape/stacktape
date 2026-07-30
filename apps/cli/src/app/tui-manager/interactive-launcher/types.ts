@@ -1,4 +1,4 @@
-import type { OrganizationActivityResponse } from '../../../../shared/trpc/api-key-protected';
+import type { OrganizationActivityResponse } from '@api/console/api-key-protected';
 
 export type InteractiveLauncherResult = {
   command: StacktapeCommand;

@@ -1,7 +1,7 @@
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getPlatform } from '@shared/utils/bin-executable';
+import { getPlatform } from '@utils/bin-executable';
 import stripAnsi from 'strip-ansi';
 import packageJson from '../package.json';
 import { packageHelperLambdas } from './package-helper-lambdas';

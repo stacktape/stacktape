@@ -1,7 +1,7 @@
 import type { LocalResourceConfig, LocalResourceInstance } from './index';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
-import { execDocker } from '@shared/utils/docker';
+import { execDocker } from '@utils/docker';
 import {
   buildLocalResourceInstance,
   DEFAULT_LOCAL_HOST,
