@@ -1,5 +1,5 @@
 import type { ExecaReturnValue } from 'execa';
-import { getLockFileData } from '@shared/packaging/bundlers/es/utils';
+import { getLockFileData } from '@stacktape/packaging/bundlers/es/utils';
 import ci from 'ci-info';
 import { pathExists, readFile, remove, stat, writeFile } from 'fs-extra';
 import { createHash } from 'node:crypto';

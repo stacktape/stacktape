@@ -48,8 +48,6 @@ export const SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES: { [_platform in Supported
 
 export const COMMENT_FOR_STACKTAPE_ZONE = 'STACKTAPE';
 
-export const EDGE_LAMBDA_ENV_ASSET_REPLACER_PLACEHOLDER = '"{{_STP_INJ_ENV_}}"';
-
 export const CF_ESCAPED_DYNAMIC_REFERENCE_START = '#stp-sec#';
 export const CF_ESCAPED_DYNAMIC_REFERENCE_END = '#!stp-sec#';
 

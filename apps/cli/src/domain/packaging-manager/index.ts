@@ -14,49 +14,56 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { fsPaths } from '@shared/naming/fs-paths';
+import { SOURCE_MAP_INSTALL_DIST_PATH } from '@shared/naming/project-fs-paths';
 import { buildLayerS3Key, getJobName } from '@shared/naming/utils';
 import { DEPENDENCIES_WITH_BINARIES } from '@stacktape/packaging/es/config';
 import { buildNativeBinaryLayer } from '@stacktape/packaging/es/native-dependencies';
 import { buildSplitBundle } from '@stacktape/packaging/split-bundler/bundler';
-import { getLambdaRuntimeFromNodeTarget, getLockFileData } from '@shared/packaging/bundlers/es/utils';
+import { getLambdaRuntimeFromNodeTarget, getLockFileData } from '@stacktape/packaging/bundlers/es/utils';
 import { assignChunksToLayers, DEFAULT_LAYER_CONFIG } from '@stacktape/packaging/split-bundler/layer-assignment';
 import { createLayerArtifacts } from '@stacktape/packaging/split-bundler/layer-builder';
-import { buildUsingCustomArtifact } from '@shared/packaging/custom-artifact';
-import { buildUsingCustomDockerfile } from '@shared/packaging/custom-dockerfile';
-import { buildUsingExternalBuildpack } from '@shared/packaging/external-buildpack';
-import { buildHostingBucket } from '@shared/packaging/hosting-bucket-build';
-import { createNextjsWebArtifacts } from '@shared/packaging/nextjs-web';
-import { createSsrWebArtifacts } from '@shared/packaging/ssr-web-shared';
+import { buildUsingCustomArtifact } from '@stacktape/packaging/artifact/custom-artifact';
+import { buildUsingCustomDockerfile } from '@stacktape/packaging/image/custom-dockerfile';
+import { buildUsingExternalBuildpack } from '@stacktape/packaging/image/external-buildpack';
+import { buildHostingBucket } from '@stacktape/packaging/web/hosting-bucket-build';
+import { createNextjsWebArtifacts } from '@stacktape/packaging/web/nextjs-web';
+import { createSsrWebArtifacts } from '@stacktape/packaging/web/ssr-web-shared';
 import {
   SSR_WEB_FRAMEWORK_CONFIGS,
   type SsrWebResourceType
 } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
-import { buildUsingNixpacks } from '@shared/packaging/nixpacks';
-import { resolveNodeVersion } from '@shared/packaging/node-version';
-import { buildUsingStacktapeEsImageBuildpack } from '@shared/packaging/stacktape-es-image-buildpack';
-import { buildUsingStacktapeEsLambdaBuildpack } from '@shared/packaging/stacktape-es-lambda-buildpack';
-import { buildUsingStacktapeGoImageBuildpack } from '@shared/packaging/stacktape-go-image-buildpack';
-import { buildUsingStacktapeGoLambdaBuildpack } from '@shared/packaging/stacktape-go-lambda-buildpack';
-import { buildUsingStacktapeJavaImageBuildpack } from '@shared/packaging/stacktape-java-image-buildpack';
-import { buildUsingStacktapeJavaLambdaBuildpack } from '@shared/packaging/stacktape-java-lambda-buildpack';
-import { buildUsingStacktapeRbImageBuildpack } from '@shared/packaging/stacktape-rb-image-buildpack';
-import { buildUsingStacktapeRbLambdaBuildpack } from '@shared/packaging/stacktape-rb-lambda-buildpack';
-import { buildUsingStacktapePhpImageBuildpack } from '@shared/packaging/stacktape-php-image-buildpack';
-import { buildUsingStacktapePhpLambdaBuildpack } from '@shared/packaging/stacktape-php-lambda-buildpack';
-import { buildUsingStacktapeDotnetImageBuildpack } from '@shared/packaging/stacktape-dotnet-image-buildpack';
-import { buildUsingStacktapeDotnetLambdaBuildpack } from '@shared/packaging/stacktape-dotnet-lambda-buildpack';
-import { buildUsingStacktapePyImageBuildpack } from '@shared/packaging/stacktape-py-image-buildpack';
-import { buildUsingStacktapePyLambdaBuildpack } from '@shared/packaging/stacktape-py-lambda-buildpack';
+import { buildUsingNixpacks } from '@stacktape/packaging/image/nixpacks';
+
+import { buildUsingStacktapeEsImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-es-image-buildpack';
+import { buildUsingStacktapeEsLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-es-lambda-buildpack';
+import { buildUsingStacktapeGoImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-go-image-buildpack';
+import { buildUsingStacktapeGoLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-go-lambda-buildpack';
+import { buildUsingStacktapeJavaImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-java-image-buildpack';
+import { buildUsingStacktapeJavaLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-java-lambda-buildpack';
+import { buildUsingStacktapeRbImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-rb-image-buildpack';
+import { buildUsingStacktapeRbLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-rb-lambda-buildpack';
+import { buildUsingStacktapePhpImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-php-image-buildpack';
+import { buildUsingStacktapePhpLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-php-lambda-buildpack';
+import { buildUsingStacktapeDotnetImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-dotnet-image-buildpack';
+import { buildUsingStacktapeDotnetLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-dotnet-lambda-buildpack';
+import { buildUsingStacktapePyImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-py-image-buildpack';
+import { buildUsingStacktapePyLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-py-lambda-buildpack';
 import {
+  buildDockerImage,
+  checkDockerImageExists,
   ensureBuildxBuilderForCache,
   execDocker,
+  getDockerImageDetails,
   getDockerBuildxSupportedPlatforms,
   installDockerPlatforms,
   isDockerRunning
 } from '@shared/utils/docker';
 import { dependencyInstaller } from '@shared/utils/dependency-installer';
-import { getFileExtension, getFileSize, getFolderSize, getHashFromMultipleFiles } from '@shared/utils/fs-utils';
+import { exec } from '@shared/utils/exec';
+import { getFileExtension } from '@shared/utils/fs-utils';
 import { getError } from '@shared/utils/misc';
+import { execNixpacks } from '@shared/utils/nixpack-exec';
+import { execPack } from '@shared/utils/pack-exec';
 import { archiveItem } from '@shared/utils/zip';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
@@ -79,6 +86,9 @@ import type {
 import type { ContainerWorkloadResourcesConfig } from '@stacktape/config/multi-container-workloads';
 import type { LambdaRuntime } from '@stacktape/config/primitives';
 import type { EnvironmentVar } from '@stacktape/config/shared';
+import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
+import { getFileSize, getFolderSize, getHashFromMultipleFiles } from '@stacktape/packaging/fs/files';
+import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';
 
 const formatLambdaSize = ({ sizeMB, sizeKB }: { sizeMB: number; sizeKB: number }) => {
   if (Number.isNaN(sizeMB) || Number.isNaN(sizeKB)) {
@@ -88,6 +98,20 @@ const formatLambdaSize = ({ sizeMB, sizeKB }: { sizeMB: number; sizeKB: number }
     return `${sizeMB}MB`;
   }
   return `${sizeKB}KB`;
+};
+
+const loadPackagingModuleExport = async <T>({
+  filePath,
+  exportName
+}: {
+  filePath: string;
+  exportName: string;
+}): Promise<T> => {
+  const load =
+    filePath.endsWith('.js') || filePath.endsWith('.cjs') || filePath.endsWith('.mjs')
+      ? loadFromJavascript
+      : loadFromTypescript;
+  return load({ filePath, exportName }) as Promise<T>;
 };
 
 const MINIMUM_LAMBDAS_FOR_SPLIT_BUNDLING = 2;
@@ -715,6 +739,8 @@ export class PackagingManager {
                 name,
                 cwd: globalStateManager.workingDir,
                 build: build!,
+                createPackagingError: getError,
+                executeProcess: exec,
                 progressLogger: eventManager.createChildLogger({
                   instanceId: name,
                   parentEventType: 'PACKAGE_ARTIFACTS'
@@ -1086,7 +1112,11 @@ export class PackagingManager {
       },
       createProgressLogger: (instanceId) =>
         eventManager.createChildLogger({ instanceId, parentEventType: 'PACKAGE_ARTIFACTS' }),
-      progressLogger
+      progressLogger,
+      archiveItem,
+      createPackagingError: getError,
+      executeProcess: exec,
+      loadModuleExport: loadPackagingModuleExport
     });
     packagingOutputs.forEach((result) => this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' }));
   };
@@ -1150,7 +1180,10 @@ export class PackagingManager {
               workloadType: 'function'
             })
           )
-        : []
+        : [],
+      archiveItem,
+      createPackagingError: getError,
+      executeProcess: exec
     });
 
     packagingOutputs.forEach((result) => this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' }));
@@ -1198,12 +1231,23 @@ export class PackagingManager {
       name: jobName,
       existingDigests,
       cwd: globalStateManager.workingDir,
-      args: globalStateManager.args,
       progressLogger,
       invocationId: globalStateManager.invocationId,
       dockerBuildOutputArchitecture,
       cacheFromRef: cacheRef,
-      cacheToRef: cacheRef
+      cacheToRef: cacheRef,
+      archiveItem,
+      buildDockerImage,
+      checkDockerImageExists,
+      createPackagingError: getError,
+      getDockerImageDetails,
+      installDependencies: dependencyInstaller.install,
+      nativeDependencyInstallationRootPath: join(
+        fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId }),
+        '_bin-install'
+      ),
+      runDocker: execDocker,
+      sourceMapInstallPath: SOURCE_MAP_INSTALL_DIST_PATH
     };
 
     if (packagingType === 'custom-dockerfile') {
@@ -1212,12 +1256,12 @@ export class PackagingManager {
       return result;
     }
     if (packagingType === 'external-buildpack') {
-      const result = await buildUsingExternalBuildpack({ ...sharedProps, ...packaging.properties });
+      const result = await buildUsingExternalBuildpack({ ...sharedProps, ...packaging.properties, runPack: execPack });
       this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
       return result;
     }
     if (packagingType === 'nixpacks') {
-      const result = await buildUsingNixpacks({ ...sharedProps, ...packaging.properties });
+      const result = await buildUsingNixpacks({ ...sharedProps, ...packaging.properties, runNixpacks: execNixpacks });
       this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
       return result;
     }

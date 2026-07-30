@@ -3,7 +3,9 @@ import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import AdmZip from 'adm-zip';
-import { buildUsingCustomArtifact } from '../../shared/packaging/custom-artifact';
+import { buildUsingCustomArtifact } from '@stacktape/packaging/artifact/custom-artifact';
+import { getError } from '@shared/utils/misc';
+import { archiveItem } from '@shared/utils/zip';
 
 const tempDirs: string[] = [];
 
@@ -43,7 +45,9 @@ const packageDirectory = async ({
     distFolderPath: output,
     progressLogger,
     existingDigests,
-    handler: 'index.handler'
+    handler: 'index.handler',
+    archiveItem,
+    createPackagingError: getError
   });
 
 afterEach(async () => {
@@ -126,7 +130,9 @@ describe('custom artifact packaging contract', () => {
       distFolderPath: output,
       progressLogger,
       existingDigests: [],
-      handler: 'index.handler'
+      handler: 'index.handler',
+      archiveItem,
+      createPackagingError: getError
     });
 
     expect(result.outcome).toBe('bundled');

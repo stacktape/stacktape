@@ -155,7 +155,7 @@ const executeBunBuild = async ({
   sharedOutdir: string;
   cwd: string;
   monorepoRoot: string | null;
-  tsConfigPath?: string;
+  tsConfigPath?: string | undefined;
   minify: boolean;
   sourceMaps: 'inline' | 'external' | 'disabled';
   sourceMapBannerType: 'node_modules' | 'pre-compiled' | 'disabled';

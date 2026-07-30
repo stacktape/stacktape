@@ -11,7 +11,7 @@ const chunk = ({
   name: string;
   sizeBytes: number;
   usageCount: number;
-  dependsOn?: string[];
+  dependsOn?: string[] | undefined;
 }): ChunkUsageAnalysis => ({
   chunkName: name,
   chunkPath: `/build/shared/chunks/${name}`,

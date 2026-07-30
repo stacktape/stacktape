@@ -8,7 +8,7 @@ import CfLambdaFunction from '@cloudform/lambda/function';
 import LayerVersion from '@cloudform/lambda/layerVersion';
 import LambdaPermission from '@cloudform/lambda/permission';
 import SubscriptionFilter from '@cloudform/logs/subscriptionFilter';
-import { DEFAULT_LAMBDA_NODE_VERSION } from '@config';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -24,7 +24,7 @@ import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
-import { resolveNodeVersion } from '@shared/packaging/node-version';
+
 import { tagNames } from '@stacktape/naming/tag-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
@@ -79,6 +79,8 @@ import {
 } from './utils';
 import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 import type { LambdaEfsMount, LambdaS3FilesMount } from '@stacktape/config/functions';
+import { DEFAULT_LAMBDA_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
+import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
 
 export const resolveFunctions = async () => {
   // Create shared chunk layer resources (from split bundling) before resolving individual functions

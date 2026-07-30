@@ -1,0 +1,31 @@
+import type { GoLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
+import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../digest';
+
+const FILE_GLOBS = ['./**/*.go'];
+const EXTRA_FILES = ['go.mod', 'go.sum', 'go.work', 'go.work.sum'];
+
+export const getBundleDigest = ({
+  rootPath,
+  externalDependencies,
+  additionalDigestInput,
+  rawEntryfilePath,
+  languageSpecificConfig
+}: {
+  rootPath: string;
+  externalDependencies: { name: string; version: string }[];
+  additionalDigestInput?: string | undefined;
+  rawEntryfilePath: string;
+  languageSpecificConfig?: GoLanguageSpecificConfig | undefined;
+}) =>
+  getBundleDigestFromGlobs({
+    rootPath,
+    fileGlobs: FILE_GLOBS,
+    extraFiles: EXTRA_FILES,
+    externalDependencies,
+    additionalDigestInput,
+    rawEntryfilePath,
+    languageSpecificConfig
+  });
+
+export const getSourceFiles = ({ rootPath }: { rootPath: string }) =>
+  getSourceFilesFromGlobs({ rootPath, fileGlobs: FILE_GLOBS, extraFiles: EXTRA_FILES });

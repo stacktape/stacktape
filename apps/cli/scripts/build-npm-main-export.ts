@@ -1,10 +1,14 @@
 import type { JsonSchemaGenerator } from 'typescript-json-schema';
 import type { ChildResourcesMap, ReferenceableParamsMap } from './code-generation/types';
 import { join } from 'node:path';
-import { NPM_RELEASE_FOLDER_PATH, SOURCE_FOLDER_PATH } from '@shared/naming/project-fs-paths';
-import { buildEsCode } from '@shared/packaging/bundlers/es';
+import {
+  NPM_RELEASE_FOLDER_PATH,
+  SOURCE_FOLDER_PATH,
+  SOURCE_MAP_INSTALL_DIST_PATH
+} from '@shared/naming/project-fs-paths';
+import { buildEsCode } from '@stacktape/packaging/bundlers/es';
 import { logInfo, logSuccess } from '@shared/utils/logging';
-import { localBuildTsConfigPath } from '@shared/utils/misc';
+import { getError, localBuildTsConfigPath } from '@shared/utils/misc';
 import { prettifyFile } from '@shared/utils/prettier';
 import { outputFile } from 'fs-extra';
 import * as ts from 'typescript';
@@ -402,7 +406,9 @@ const compileTsConfigHelpersSource = async () => {
     externals: [],
     tsConfigPath: localBuildTsConfigPath,
     sourcePath: PATHS.source,
-    distPath: PATHS.distJs
+    distPath: PATHS.distJs,
+    createPackagingError: getError,
+    sourceMapInstallPath: SOURCE_MAP_INSTALL_DIST_PATH
   });
 
   logSuccess('TypeScript config helpers source compiled successfully');

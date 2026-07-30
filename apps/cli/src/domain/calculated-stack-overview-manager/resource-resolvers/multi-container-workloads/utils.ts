@@ -24,7 +24,7 @@ import InstanceProfile from '@cloudform/iam/instanceProfile';
 import Role, { Policy } from '@cloudform/iam/role';
 import LogGroup from '@cloudform/logs/logGroup';
 import SchedulerRule from '@cloudform/scheduler/schedule';
-import { DEFAULT_CONTAINER_NODE_VERSION } from '@config';
+
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import {
@@ -64,6 +64,7 @@ import type {
 } from '@stacktape/config/events';
 import type { ContainerEfsMount, ContainerWorkloadContainer } from '@stacktape/config/multi-container-workloads';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
+import { DEFAULT_CONTAINER_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
 
 const BLUE_GREEN_SERVICE_RESOURCE_TYPE: SupportedEcsBlueGreenV1ResourceType = 'Stacktape::ECSBlueGreenV1::Service';
 

@@ -4,7 +4,7 @@ import { stringify } from 'yaml';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configGenManager, ConfigGenError, getPhaseDisplayName, type ConfigGenPhaseInfo } from '@utils/config-gen';
-import { getLockFileData } from '@shared/packaging/bundlers/es/utils';
+import { getLockFileData } from '@stacktape/packaging/bundlers/es/utils';
 import {
   publicApiClient,
   type CliConfigGenDeployableUnit,

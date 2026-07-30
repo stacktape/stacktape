@@ -78,9 +78,6 @@ export const MONITORING_FREQUENCY_SECONDS = 3.5;
 export const SENTRY_CAPTURE_EXCEPTION_WAIT_TIME_MS = 1500;
 export const DEFAULT_MAXIMUM_PARALLEL_ARTIFACT_UPLOADS = 10;
 export const DEFAULT_MAXIMUM_PARALLEL_BUCKET_SYNCS = 10;
-export const DEFAULT_CONTAINER_NODE_VERSION = 24;
-export const DEFAULT_LAMBDA_NODE_VERSION = 24;
-
 // @todo
 export const linksMap = {
   docsCli: 'https://docs.stacktape.com/cli/using-cli/',

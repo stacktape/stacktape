@@ -9,7 +9,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
-import { getAllFilesInDir } from '@shared/utils/fs-utils';
+
 import { stringifyToYaml } from '@shared/utils/yaml';
 import { getCriticalResourcesPotentiallyEndangeredByOperation } from '@utils/stack-info-map-diff';
 import { parse as dotenvParse } from 'dotenv';
@@ -17,6 +17,7 @@ import dotenvStringify from 'dotenv-stringify';
 import { existsSync, outputFile, readFile, writeFile } from 'fs-extra';
 import { merge } from 'lodash';
 import type { EnvironmentVar } from '@stacktape/config/shared';
+import { getAllFilesInDir } from '@stacktape/packaging/fs/files';
 
 // export const getStackNameForCommandConditionallyRequiringConfig = async () => {
 //   if (globalStateManager.args.stage && globalStateManager.args.stackName) {

@@ -1,8 +1,12 @@
 # @stacktape/packaging
 
-The deployment-package build engine extracted from the CLI. It owns ES split bundling from dependency analysis and the
-single Bun build through emitted Lambda entrypoints, shared chunks, layer assignment, layer writing, and the import
-rewrites that connect those artifacts.
+The deployment-package build engine. It owns language bundlers, Stacktape/external image buildpacks, custom
+artifacts and Dockerfiles, Nixpacks, Lambda artifacts, hosting-bucket builds, Next.js/SSR packaging, and ES split
+bundling through emitted Lambda entrypoints, shared chunks, layer assignment and import rewrites. It also owns the
+artifact-identity primitives every language bundler depends on: source-file selection, content hashing, artifact size
+reporting, cache digests, and the language/runtime defaults that decide what an unpinned workload is built with.
+
+`apps/cli/shared/packaging` no longer exists. Do not recreate it or add forwarding wrappers there.
 
 ## Ownership boundary
 
@@ -13,8 +17,10 @@ The boundary is the CLI's own runtime state and orchestration vocabulary, not an
 - The package may depend on `@stacktape/config` for configuration types that its implementation genuinely consumes.
   Keeping those types beside the packaging contracts is preferable to duplicating them or relying on CLI ambient
   declarations.
-- The CLI's concrete dependency installer and typed `StacktapeError` remain application concerns. The split bundler
-  accepts exactly two actions for those boundaries: `installDependencies()` and `createPackagingError(details)`.
+- The CLI's concrete dependency installer, typed `StacktapeError`, process runner, Docker runner and installed binary
+  paths remain application concerns. Packaging functions accept only the concrete callbacks and values they use:
+  `installDependencies()`, `createPackagingError(details)`, `executeProcess()`, `runDocker()`, `runPack()`,
+  `runNixpacks()`, and explicit build/source-map paths.
 - Installing native Node dependencies is package behavior, while invoking the Docker CLI and allocating Stacktape's
   invocation-specific build root remain application concerns. The native-dependency builder therefore accepts the
   explicit installation root and one `runDocker(commands)` action.
@@ -23,8 +29,25 @@ The boundary is the CLI's own runtime state and orchestration vocabulary, not an
 
 ## Layout
 
-- `src/runtime-contracts.ts` — explicit packaging inputs and outputs shared with the CLI. It imports authoritative
-  configuration types where needed and does not import application code.
+- `src/fs/files.ts` — which files a build selects (globs), how their bytes become a digest, and how artifact sizes are
+  reported. These are artifact-identity semantics, not generic filesystem helpers: the CLI keeps its own path/IO
+  helpers in `shared/utils/fs-utils.ts`, and the few application call sites that need _these_ meanings import this
+  module so a digest is computed one way only.
+- `src/artifact/hashing.ts` — directory checksums, digest merging, and the directories excluded from a project
+  checksum. Changing any of them invalidates every cached artifact.
+- `src/bundlers/constants.ts` — language and Node.js runtime defaults for workloads that do not pin a version. The
+  CLI's resource resolvers import the same constants, so synthesis and packaging cannot disagree about a runtime.
+- `src/bundlers/node-version.ts` — the explicit → AWS-runtime-identifier → default resolution order.
+- `src/bundlers/digest.ts` — the source-set digest every language bundler caches on.
+- `src/vendor-modules.d.ts` — narrow declarations for `cup-readdir` and `folder-hash`, which ship no types. The CLI
+  compiles them as `any`; this package compiles strictly, so the shapes are stated rather than suppressed.
+- `src/runtime-contracts.ts` — explicit packaging inputs, outputs and narrow injected-action types shared with the
+  CLI. It imports authoritative configuration types where needed and does not import application code.
+- `src/bundlers/` and `src/buildpacks/` — language-specific artifact builders and the Lambda/image policies that
+  compose them.
+- `src/artifact/`, `src/image/` and `src/web/` — custom/Lambda archives, Dockerfile/buildpack/Nixpacks images, and
+  hosting/Next.js/SSR artifacts.
+- `src/docker/dockerfiles.ts` — deterministic Dockerfile text generation. Docker execution remains injected.
 - `src/split-bundler/types.ts` — the chunk/layer vocabulary. It is deliberately structural:
   `SplitBundleDependency` describes only what this engine reads, so nothing in the package needs the CLI's globals.
 - `src/es/` — ES packaging policy, package/module resolution, ESM output compatibility, and project-root discovery
@@ -38,8 +61,8 @@ The boundary is the CLI's own runtime state and orchestration vocabulary, not an
   content hash that decides whether a layer is re-uploaded.
 - `src/split-bundler/chunk-rewriter.ts` — the import-path rewriting both of the above depend on.
 
-There is no barrel: `package.json` `exports` lists one subpath per module, and every consumer imports the module it
-actually uses.
+There is no barrel. `package.json` exports only the concrete subpaths consumed outside this package; package-internal
+modules use relative imports and remain private. External consumers import the narrow module they actually use.
 
 ## Checks
 

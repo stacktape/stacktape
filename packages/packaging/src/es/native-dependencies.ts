@@ -40,9 +40,9 @@ const getLayerContentHash = async (layerPath: string): Promise<string> => {
   const entries: Array<{
     absolutePath: string;
     relativePath: string;
-    sizeBytes?: number;
+    sizeBytes?: number | undefined;
     type: 'directory' | 'file' | 'other' | 'symlink';
-    symlinkTarget?: string;
+    symlinkTarget?: string | undefined;
   }> = [];
 
   const collectEntries = async (directoryPath: string): Promise<void> => {
@@ -174,7 +174,7 @@ const buildNativeModules = async ({
   installationRootPath: string;
   lambdaRuntimeVersion: number;
   packageManager: SupportedEsPackageManager;
-  dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture;
+  dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture | undefined;
   runDocker: RunDocker;
 }): Promise<string> => {
   const resolvedInstallationRootPath = resolvePath(installationRootPath);
@@ -255,7 +255,7 @@ const installNativeModules = ({
   installationRootPath: string;
   lambdaRuntimeVersion: number;
   packageManager: SupportedEsPackageManager;
-  dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture;
+  dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture | undefined;
   runDocker: RunDocker;
 }): Promise<string> => {
   const dockerfileContents = buildEsBinInstallerDockerfile({
@@ -293,7 +293,7 @@ export const copyDockerInstalledModulesForLambda = async ({
   distFolderPath: string;
   lambdaRuntimeVersion: number;
   packageManager: SupportedEsPackageManager;
-  dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture;
+  dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture | undefined;
   runDocker: RunDocker;
 }) => {
   if (!dependencies.length) {
@@ -335,7 +335,7 @@ export const buildNativeBinaryLayer = async ({
   layerBasePath: string;
   lambdaRuntimeVersion: number;
   packageManager: SupportedEsPackageManager;
-  dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture;
+  dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture | undefined;
   usedByLambdas: string[];
   runDocker: RunDocker;
 }): Promise<NativeBinaryLayerResult | null> => {

@@ -8,7 +8,7 @@ import { deploymentArtifactManager } from '@domain-services/deployment-artifact-
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { fsPaths } from '@shared/naming/fs-paths';
 import { cfLogicalNames } from '@shared/naming/logical-names';
-import { EDGE_LAMBDA_ENV_ASSET_REPLACER_PLACEHOLDER } from '@shared/utils/constants';
+import { EDGE_LAMBDA_ENV_ASSET_REPLACER_PLACEHOLDER } from '@stacktape/packaging/web/constants';
 import { getCfEnvironment, transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
 import { readdir, stat } from 'fs-extra';
 import { getResolvedConnectToEnvironmentVariables } from '../_utils/connect-to-helper';

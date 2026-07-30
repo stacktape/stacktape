@@ -8,9 +8,9 @@ export type MetafileInput = {
   imports: Array<{
     path: string;
     kind: string;
-    external?: boolean;
+    external?: boolean | undefined;
   }>;
-  format?: string;
+  format?: string | undefined;
 };
 
 /** Bun.build metafile output entry */
@@ -20,11 +20,11 @@ export type MetafileOutput = {
   imports: Array<{
     path: string;
     kind: string;
-    external?: boolean;
+    external?: boolean | undefined;
   }>;
   exports: string[];
-  entryPoint?: string;
-  cssBundle?: string | null;
+  entryPoint?: string | undefined;
+  cssBundle?: string | null | undefined;
 };
 
 /** Bun.build metafile structure */
@@ -65,10 +65,10 @@ export type LambdaSplitOutput = {
 export type SplitBundleDependency = {
   name: string;
   version: string;
-  note?: string;
-  hasBinary?: boolean;
-  peerDependencies?: SplitBundleDependency[];
-  optionalPeerDependencies?: SplitBundleDependency[];
+  note?: string | undefined;
+  hasBinary?: boolean | undefined;
+  peerDependencies?: SplitBundleDependency[] | undefined;
+  optionalPeerDependencies?: SplitBundleDependency[] | undefined;
 };
 
 /** Result of the split bundling process */
@@ -149,7 +149,7 @@ export type LayerArtifact = {
 
 export type PackagingErrorDetails = {
   message: string;
-  hint?: string;
+  hint?: string | undefined;
 };
 
 /** Options for buildSplitBundle */
@@ -158,13 +158,13 @@ export type BuildSplitBundleOptions = {
   /** Shared output directory for the initial bundle */
   sharedOutdir: string;
   cwd: string;
-  tsConfigPath?: string;
+  tsConfigPath?: string | undefined;
   nodeTarget: string;
-  minify?: boolean;
-  sourceMaps?: 'inline' | 'external' | 'disabled';
-  sourceMapBannerType?: 'node_modules' | 'pre-compiled' | 'disabled';
-  excludeDependencies?: string[];
-  dependenciesToExcludeFromBundle?: string[];
+  minify?: boolean | undefined;
+  sourceMaps?: 'inline' | 'external' | 'disabled' | undefined;
+  sourceMapBannerType?: 'node_modules' | 'pre-compiled' | 'disabled' | undefined;
+  excludeDependencies?: string[] | undefined;
+  dependenciesToExcludeFromBundle?: string[] | undefined;
   /** Application action run before Bun resolves the entrypoints. */
   installDependencies: () => Promise<void>;
   /** Preserves the application's typed PACKAGING error contract without importing application code. */

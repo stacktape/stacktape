@@ -1,30 +1,4 @@
-import { createHash } from 'node:crypto';
-import { hashElement } from 'folder-hash';
 import { shortHash } from '@stacktape/naming/short-hash';
-
-export const getDirectoryChecksum = async ({
-  absoluteDirectoryPath,
-  excludeGlobs
-}: {
-  absoluteDirectoryPath: string;
-  excludeGlobs?: string[];
-}) => {
-  const res = await hashElement(absoluteDirectoryPath, {
-    encoding: 'hex',
-    folders: { exclude: excludeGlobs || [] }
-  });
-  return res.hash;
-};
-
-export const mergeHashes = (...hashes: string[]) => {
-  const result = createHash('sha1');
-
-  hashes.forEach((hash) => {
-    result.update(hash);
-  });
-
-  return result.digest('hex');
-};
 
 export const getGloballyUniqueStackHash = ({
   region,

@@ -10,7 +10,7 @@ import IAMInstanceProfile from '@cloudform/iam/instanceProfile';
 import IAMRole from '@cloudform/iam/role';
 import LogGroup from '@cloudform/logs/logGroup';
 import CfStateMachine from '@cloudform/stepFunctions/stateMachine';
-import { DEFAULT_CONTAINER_NODE_VERSION } from '@config';
+
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -28,6 +28,7 @@ import type {
 } from '@stacktape/config/deployment-artifacts';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 import type { StpStateMachine } from '@stacktape/config/state-machines';
+import { DEFAULT_CONTAINER_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
 
 type BatchJobInstanceKind = 'spot' | 'onDemand';
 

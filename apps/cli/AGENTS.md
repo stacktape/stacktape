@@ -7,14 +7,13 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 ## Layout
 
 - `src/` — commands, application/domain managers, TUI, MCP, and the published `stacktape` npm API (`src/api/npm`).
-- `shared/` — AWS clients, packaging bundlers, CLI-only logical/generated/filesystem naming, and tRPC clients used by
-  both the CLI and the helper Lambdas. Deterministic AWS physical names, ARNs, Console links, SSM paths, stack
-  descriptions, output/tag names, and truncation/hash behavior live in `@stacktape/naming`.
-  `shared/packaging` stops where the CLI's own vocabulary begins. ES split bundling, package resolution and native
-  dependency installation/layer layout live in `@stacktape/packaging`; the CLI supplies its concrete dependency
-  installer, typed packaging-error constructor, Docker execution action and invocation-specific installation root.
-  `eventManager` progress, global runtime state, artifact deployment and command orchestration stay here (see the
-  package's `AGENTS.md`).
+- `shared/` — CLI-owned AWS clients, logical/generated/filesystem naming, utility code, and tRPC clients used by the
+  CLI and helper Lambdas. Packaging implementation lives entirely in `@stacktape/packaging`; the CLI's
+  `PackagingManager` remains its composition root and supplies the concrete dependency installer, error constructor,
+  process/Docker/binary actions, invocation-specific paths and progress loggers. Global runtime state, artifact
+  deployment and command orchestration stay in the application (see the package's `AGENTS.md`).
+  Deterministic AWS physical names, ARNs, Console links, SSM paths, stack descriptions, output/tag names, and
+  truncation/hash behavior live in `@stacktape/naming`.
 - `helper-lambdas/` — sources of the four Lambdas Stacktape deploys into customer accounts. They are separately built
   artifacts that stay in this application because their source needs general CLI implementation and the ambient
   `types/` declarations; see that directory's `AGENTS.md` for the measurement and the compatibility contract.

@@ -6,7 +6,7 @@ import { ConfigResolver } from '@domain-services/config-manager/config-resolver'
 import { cleanConfigForMinimalTemplateCompilerMode } from '@domain-services/config-manager/utils/misc';
 import { stacktapeConfigSchema, validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
 import { resolveOpenSearchLoggingDefaults } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/open-search';
-import { resolveNodeVersion } from '@shared/packaging/node-version';
+
 import type { StacktapeConfig } from '@stacktape/config';
 import get from 'lodash/get';
 import {
@@ -17,6 +17,7 @@ import {
   LambdaFunction,
   StacktapeLambdaBuildpackPackaging
 } from '../../src/api/npm/ts';
+import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
 
 const fixturePath = join(process.cwd(), '_test-stacks', 'config-loading-smoke', 'stacktape.ts');
 const originalState: Record<string, unknown> = {};

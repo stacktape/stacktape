@@ -12,23 +12,23 @@ export type PackageJsonDepsInfo = {
   name: string;
   path: string;
   dependencyType: ResolvedPackageDependency['dependencyType'];
-  parentModulePath?: string;
+  parentModulePath?: string | undefined;
   parentModule: string | null;
   dependencies: PackageJsonDepsInfo[];
   peerDependencies: PackageJsonDepsInfo[];
   optionalPeerDependencies: PackageJsonDepsInfo[];
-  note?: string;
+  note?: string | undefined;
 };
 
 type PackageJson = {
   name: string;
   version: string;
-  gypfile?: boolean;
-  binary?: { module_path?: string };
-  dependencies?: Record<string, string>;
-  devDependencies?: Record<string, string>;
-  peerDependencies?: Record<string, string>;
-  peerDependenciesMeta?: Record<string, unknown>;
+  gypfile?: boolean | undefined;
+  binary?: { module_path?: string } | undefined;
+  dependencies?: Record<string, string> | undefined;
+  devDependencies?: Record<string, string> | undefined;
+  peerDependencies?: Record<string, string> | undefined;
+  peerDependenciesMeta?: Record<string, unknown> | undefined;
 };
 
 const packageInfoCache = new Map<string, PackageJsonDepsInfo | null>();
@@ -44,7 +44,7 @@ const isDirectory = (path: string): boolean => {
 
 export const getTsconfigAliases = async (tsconfigPath: string): Promise<Record<string, string>> => {
   const tsconfig = json5.parse(await readFile(tsconfigPath, 'utf8')) as {
-    compilerOptions?: { paths?: Record<string, string[]> };
+    compilerOptions?: { paths?: Record<string, string[]> } | undefined;
   };
   const aliases: Record<string, string> = {};
   for (const [alias, paths] of Object.entries(tsconfig.compilerOptions?.paths ?? {})) {
@@ -80,9 +80,9 @@ export const getInfoFromPackageJson = async ({
 }: {
   directoryPath: string;
   parentModule: string | null;
-  parentModulePath?: string | null;
+  parentModulePath?: string | null | undefined;
   dependencyType: ResolvedPackageDependency['dependencyType'];
-  checkDeps?: boolean;
+  checkDeps?: boolean | undefined;
 }): Promise<PackageJsonDepsInfo | null> => {
   if (packageInfoCache.has(directoryPath)) {
     return packageInfoCache.get(directoryPath) ?? null;
@@ -114,7 +114,7 @@ export const getInfoFromPackageJson = async ({
     }: {
       name: string;
       type: ResolvedPackageDependency['dependencyType'];
-      recurse?: boolean;
+      recurse?: boolean | undefined;
     }) => {
       const path = join(resolve(directoryPath, '..'), name);
       return isDirectory(path)

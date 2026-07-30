@@ -4,11 +4,15 @@ import {
   CLI_BUILD_DIST_FOLDER_PATH,
   HELPER_LAMBDAS_DIST_FOLDER_PATH,
   HELPER_LAMBDAS_FOLDER_NAME,
-  HELPER_LAMBDAS_SOURCE_FOLDER_PATH
+  HELPER_LAMBDAS_SOURCE_FOLDER_PATH,
+  SOURCE_MAP_INSTALL_DIST_PATH
 } from '@shared/naming/project-fs-paths';
-import { buildUsingStacktapeEsLambdaBuildpack } from '@shared/packaging/stacktape-es-lambda-buildpack';
+import { buildUsingStacktapeEsLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-es-lambda-buildpack';
+import { dependencyInstaller } from '@shared/utils/dependency-installer';
+import { execDocker } from '@shared/utils/docker';
 import { logInfo, logSuccess } from '@shared/utils/logging';
-import { localBuildTsConfigPath } from '@shared/utils/misc';
+import { getError, localBuildTsConfigPath } from '@shared/utils/misc';
+import { archiveItem } from '@shared/utils/zip';
 import fsExtra, { remove } from 'fs-extra';
 import { generateSourceMapInstall } from './release/build-cli-sources';
 
@@ -55,7 +59,6 @@ export const packageHelperLambdas = async ({ distFolderPath }: { isDev?: boolean
       },
       nodeTarget: '22',
       minify: true,
-      isDev: false,
       externals: ['aws-sdk'],
       distFolderPath: join(lambdasDistFolderPath, name),
       progressLogger: {
@@ -63,10 +66,15 @@ export const packageHelperLambdas = async ({ distFolderPath }: { isDev?: boolean
         finishEvent: () => {},
         updateEvent: () => {},
         get eventContext() {
-          return {};
+          return { instanceId: name };
         }
       },
-      args: {},
+      archiveItem,
+      createPackagingError: getError,
+      installDependencies: dependencyInstaller.install,
+      nativeDependencyInstallationRootPath: join(lambdasDistFolderPath, '_bin-install'),
+      runDocker: execDocker,
+      sourceMapInstallPath: SOURCE_MAP_INSTALL_DIST_PATH,
       zippedSizeLimit: Infinity,
       invocationId: `${packagingRunId}-${name}`
     });

@@ -7,7 +7,7 @@ import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { renderErrorToString } from '@application-services/tui-manager/error-rendering';
-import { DEFAULT_CONTAINER_NODE_VERSION } from '@config';
+
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
@@ -35,6 +35,7 @@ import type {
   ExternalBuildpackCwImagePackaging,
   PrebuiltCwImagePackaging
 } from '@stacktape/config/deployment-artifacts';
+import { DEFAULT_CONTAINER_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
 
 export const runDevContainer = async () => {
   const { resourceName, container, stage, region, disableEmulation, watch } = globalStateManager.args;

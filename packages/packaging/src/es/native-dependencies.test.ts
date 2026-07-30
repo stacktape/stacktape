@@ -26,10 +26,10 @@ const createFakeDocker = ({
   rejectedCalls = [],
   symlinkTarget
 }: {
-  contents?: (callNumber: number) => string;
-  modifiedAt?: Date;
-  rejectedCalls?: number[];
-  symlinkTarget?: string;
+  contents?: (callNumber: number) => string | undefined;
+  modifiedAt?: Date | undefined;
+  rejectedCalls?: number[] | undefined;
+  symlinkTarget?: string | undefined;
 } = {}) => {
   const calls: string[][] = [];
   const runDocker: RunDocker = async (commands) => {
@@ -47,7 +47,11 @@ const createFakeDocker = ({
     const nodeModulesPath = join(installDirPath, 'node_modules', 'native-package');
     const nativeModulePath = join(nodeModulesPath, 'binding.node');
     await ensureDir(nodeModulesPath);
-    await writeFile(nativeModulePath, contents(callNumber));
+    const fileContents = contents(callNumber);
+    if (fileContents === undefined) {
+      throw new Error(`Fake Docker did not produce contents for call ${callNumber}.`);
+    }
+    await writeFile(nativeModulePath, fileContents);
     if (symlinkTarget) {
       await symlink(symlinkTarget, join(nodeModulesPath, 'native-link'));
     }
