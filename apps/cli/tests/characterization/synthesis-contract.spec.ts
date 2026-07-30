@@ -67,10 +67,15 @@ const createDenseConfig = () =>
       }
     });
     const events = new EventBus({});
-    // Authors no listeners, so synthesis has to supply the defaulted HTTP-redirect/HTTPS pair, and enables a CDN so
-    // the distribution path in front of a load balancer is covered too.
+    // Authors no listeners, so synthesis has to supply the defaulted HTTP-redirect/HTTPS pair. The CDN rewrite omits
+    // routeTo and therefore has to reuse this load balancer as its origin.
     const edge = new ApplicationLoadBalancer({
-      cdn: { enabled: true }
+      cdn: {
+        enabled: true,
+        originDomainName: 'edge.internal.example.com',
+        defaultRoutePrefix: '/service',
+        routeRewrites: [{ path: '/same-origin/*' }]
+      }
     });
     const database = new RelationalDatabase({
       credentials: {
@@ -800,7 +805,7 @@ describe('load balancer and CDN synthesis contract', () => {
     expect(resourcesOfType('AWS::ElasticLoadBalancingV2::TargetGroup')[0].Properties.TargetType).toBe('lambda');
   });
 
-  test('attaches a CloudFront distribution whose single origin is the load balancer', () => {
+  test('attaches a CloudFront distribution whose default origin is the load balancer', () => {
     const distributions = resourcesOfType('AWS::CloudFront::Distribution');
     const [distribution] = distributions;
     const origins = distribution.Properties.DistributionConfig.Origins;
@@ -809,13 +814,31 @@ describe('load balancer and CDN synthesis contract', () => {
     // decides both whether any distribution is built and how many, so the count is part of what it contracts for.
     expect(distributions).toHaveLength(1);
     expect(distribution.Properties.DistributionConfig.Enabled).toBe(true);
-    expect(origins).toHaveLength(1);
+    expect(origins).toHaveLength(2);
     expect(origins[0].Id).toBe('edge0');
+    expect(origins[0].DomainName).toBe('edge.internal.example.com');
+    expect(origins[0].OriginPath).toBe('/service');
     expect(origins[0].OriginCustomHeaders).toContainEqual({
       HeaderName: 'X-Stp-Origin-Request-Origin-Type',
       HeaderValue: 'application-load-balancer'
     });
     expect(origins[0].CustomOriginConfig).toMatchObject({ OriginProtocolPolicy: 'https-only', HTTPSPort: 443 });
+  });
+
+  test('routes an omitted-target CDN rewrite back to the load balancer origin', () => {
+    const [distribution] = resourcesOfType('AWS::CloudFront::Distribution');
+    const { CacheBehaviors: cacheBehaviors, Origins: origins } = distribution.Properties.DistributionConfig;
+
+    expect(origins[1]).toMatchObject({
+      Id: 'edge1',
+      DomainName: 'edge.internal.example.com',
+      OriginPath: '/service',
+      CustomOriginConfig: { OriginProtocolPolicy: 'https-only', HTTPSPort: 443 }
+    });
+    expect(cacheBehaviors[0]).toMatchObject({
+      PathPattern: '/same-origin/*',
+      TargetOriginId: 'edge1'
+    });
   });
 });
 

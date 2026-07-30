@@ -446,10 +446,9 @@ const getOriginsForDistribution = (
                 listenerPort: (routeRewrite.routeTo as CdnLoadBalancerRoute).properties.listenerPort
               }) as ApplicationLoadBalancerIntegrationProps,
 
-          explicitOriginDomainName: !routeRewrite.routeTo
-            ? (routeRewrite.routeTo as CdnLoadBalancerRoute).properties.originDomainName ||
-              (cdnCompatibleResource as StpApplicationLoadBalancer).cdn.originDomainName
-            : (routeRewrite.routeTo as CdnLoadBalancerRoute).properties.originDomainName,
+          explicitOriginDomainName: routeRewrite.routeTo
+            ? (routeRewrite.routeTo as CdnLoadBalancerRoute).properties.originDomainName
+            : (cdnCompatibleResource as StpApplicationLoadBalancer).cdn.originDomainName,
           routePrefix: !routeRewrite.routeTo
             ? routeRewrite.routePrefix || cdnCompatibleResource.cdn.defaultRoutePrefix
             : routeRewrite.routePrefix,
