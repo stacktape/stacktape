@@ -4,8 +4,10 @@ import type {
   SupportedEsPackageManager
 } from '../runtime-contracts';
 import type { SplitBundleDependency } from '../split-bundler/types';
-import { join } from 'node:path';
-import { copy, ensureDir, outputJSON, writeFile } from 'fs-extra';
+import { createHash, type Hash } from 'node:crypto';
+import { lstat, readdir, readFile, readlink } from 'node:fs/promises';
+import { join, relative, resolve as resolvePath } from 'node:path';
+import { copy, ensureDir, outputJSON, pathExists, remove, writeFile } from 'fs-extra';
 import getFolderSize from 'get-folder-size';
 import objectHash from 'object-hash';
 
@@ -14,6 +16,69 @@ export type RunDocker = (commands: string[]) => Promise<unknown>;
 const inProgressBuilds = new Map<string, Promise<string>>();
 
 const transformToUnixPath = (path: string): string => path.replace(/\\/g, '/');
+
+const updateHashPart = (hash: Hash, part: string | Buffer) => {
+  const contents = typeof part === 'string' ? Buffer.from(part) : part;
+  hash.update(`${contents.byteLength}:`);
+  hash.update(contents);
+};
+
+const getLayerContentHash = async (layerPath: string): Promise<string> => {
+  const entries: Array<{
+    absolutePath: string;
+    relativePath: string;
+    type: 'directory' | 'file' | 'other' | 'symlink';
+    symlinkTarget?: string;
+  }> = [];
+
+  const collectEntries = async (directoryPath: string): Promise<void> => {
+    await Promise.all(
+      (await readdir(directoryPath)).map(async (name) => {
+        const absolutePath = join(directoryPath, name);
+        const stats = await lstat(absolutePath);
+        const relativePath = transformToUnixPath(relative(layerPath, absolutePath));
+
+        if (stats.isSymbolicLink()) {
+          entries.push({
+            absolutePath,
+            relativePath,
+            symlinkTarget: await readlink(absolutePath),
+            type: 'symlink'
+          });
+        } else if (stats.isDirectory()) {
+          entries.push({ absolutePath, relativePath, type: 'directory' });
+          await collectEntries(absolutePath);
+        } else {
+          entries.push({ absolutePath, relativePath, type: stats.isFile() ? 'file' : 'other' });
+        }
+      })
+    );
+  };
+
+  await collectEntries(layerPath);
+  entries.sort((left, right) =>
+    left.relativePath < right.relativePath ? -1 : left.relativePath > right.relativePath ? 1 : 0
+  );
+
+  const hash = createHash('sha256');
+  const fileContents = new Map(
+    await Promise.all(
+      entries
+        .filter((entry) => entry.type === 'file')
+        .map(async (entry) => [entry.relativePath, await readFile(entry.absolutePath)] as const)
+    )
+  );
+  for (const entry of entries) {
+    updateHashPart(hash, entry.type);
+    updateHashPart(hash, entry.relativePath);
+    if (entry.type === 'file') {
+      updateHashPart(hash, fileContents.get(entry.relativePath)!);
+    } else if (entry.type === 'symlink') {
+      updateHashPart(hash, entry.symlinkTarget ?? '');
+    }
+  }
+  return hash.digest('hex').slice(0, 12);
+};
 
 const getRoundedFolderSizeInBytes = (folderPath: string): Promise<number> =>
   new Promise((resolve, reject) => {
@@ -84,7 +149,7 @@ COPY --from=build /${installationDirName}/node_modules /node_modules`;
 
 const buildNativeModules = async ({
   dependencies,
-  installationHash,
+  buildIdentity,
   installationRootPath,
   lambdaRuntimeVersion,
   packageManager,
@@ -92,21 +157,37 @@ const buildNativeModules = async ({
   runDocker
 }: {
   dependencies: { name: string; version: string }[];
-  installationHash: string;
+  buildIdentity: string;
   installationRootPath: string;
   lambdaRuntimeVersion: number;
   packageManager: SupportedEsPackageManager;
   dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture;
   runDocker: RunDocker;
 }): Promise<string> => {
-  const existingBuild = inProgressBuilds.get(installationHash);
+  const resolvedInstallationRootPath = resolvePath(installationRootPath);
+  const cacheKey = `${resolvedInstallationRootPath}\0${buildIdentity}`;
+  const existingBuild = inProgressBuilds.get(cacheKey);
   if (existingBuild) {
-    return existingBuild;
+    try {
+      const nodeModulesPath = await existingBuild;
+      if (await pathExists(nodeModulesPath)) {
+        return nodeModulesPath;
+      }
+      if (inProgressBuilds.get(cacheKey) === existingBuild) {
+        inProgressBuilds.delete(cacheKey);
+      }
+    } catch (error) {
+      if (inProgressBuilds.get(cacheKey) === existingBuild) {
+        inProgressBuilds.delete(cacheKey);
+      }
+      throw error;
+    }
   }
 
   const buildPromise = (async () => {
-    const installDirPath = join(installationRootPath, installationHash);
+    const installDirPath = join(resolvedInstallationRootPath, buildIdentity);
     const nodeModulesPath = join(installDirPath, 'node_modules');
+    await remove(installDirPath);
     await ensureDir(installDirPath);
     await writeFile(
       join(installDirPath, 'Dockerfile'),
@@ -132,8 +213,15 @@ const buildNativeModules = async ({
     return nodeModulesPath;
   })();
 
-  inProgressBuilds.set(installationHash, buildPromise);
-  return buildPromise;
+  inProgressBuilds.set(cacheKey, buildPromise);
+  try {
+    return await buildPromise;
+  } catch (error) {
+    if (inProgressBuilds.get(cacheKey) === buildPromise) {
+      inProgressBuilds.delete(cacheKey);
+    }
+    throw error;
+  }
 };
 
 export const copyDockerInstalledModulesForLambda = async ({
@@ -163,13 +251,13 @@ export const copyDockerInstalledModulesForLambda = async ({
     lambdaRuntimeVersion,
     dependencies
   });
-  const installationHash = objectHash({
+  const buildIdentity = objectHash({
     dockerfileContents,
     dockerBuildOutputArchitecture: dockerBuildOutputArchitecture || 'linux/amd64'
   });
   const nodeModulesPath = await buildNativeModules({
     dependencies,
-    installationHash,
+    buildIdentity,
     installationRootPath,
     lambdaRuntimeVersion,
     packageManager,
@@ -217,13 +305,13 @@ export const buildNativeBinaryLayer = async ({
     lambdaRuntimeVersion,
     dependencies
   });
-  const contentHash = objectHash({
+  const buildIdentity = objectHash({
     dockerfileContents,
     dockerBuildOutputArchitecture: dockerBuildOutputArchitecture || 'linux/amd64'
-  }).slice(0, 12);
+  });
   const nodeModulesPath = await buildNativeModules({
     dependencies,
-    installationHash: contentHash,
+    buildIdentity,
     installationRootPath,
     lambdaRuntimeVersion,
     packageManager,
@@ -236,6 +324,7 @@ export const buildNativeBinaryLayer = async ({
   await ensureDir(join(layerNodejsPath, 'node_modules'));
   await copy(nodeModulesPath, join(layerNodejsPath, 'node_modules'));
   await outputJSON(join(layerNodejsPath, 'package.json'), { type: 'module' });
+  const contentHash = await getLayerContentHash(layerPath);
 
   return {
     layerPath,

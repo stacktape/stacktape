@@ -1,7 +1,7 @@
 import type { RunDocker } from './native-dependencies';
 import type { SplitBundleDependency } from '../split-bundler/types';
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ensureDir, pathExists, writeFile } from 'fs-extra';
@@ -19,10 +19,22 @@ const createWorkspace = async () => {
   };
 };
 
-const createFakeDocker = () => {
+const createFakeDocker = ({
+  contents = () => 'native-binary',
+  modifiedAt,
+  rejectedCalls = []
+}: {
+  contents?: (callNumber: number) => string;
+  modifiedAt?: Date;
+  rejectedCalls?: number[];
+} = {}) => {
   const calls: string[][] = [];
   const runDocker: RunDocker = async (commands) => {
     calls.push(commands);
+    const callNumber = calls.length;
+    if (rejectedCalls.includes(callNumber)) {
+      throw new Error(`Docker failed on call ${callNumber}`);
+    }
     const outputIndex = commands.indexOf('--output');
     const output = commands[outputIndex + 1];
     if (!output?.startsWith('type=local,dest=')) {
@@ -30,8 +42,12 @@ const createFakeDocker = () => {
     }
     const installDirPath = output.slice('type=local,dest='.length);
     const nodeModulesPath = join(installDirPath, 'node_modules', 'native-package');
+    const nativeModulePath = join(nodeModulesPath, 'binding.node');
     await ensureDir(nodeModulesPath);
-    await writeFile(join(nodeModulesPath, 'binding.node'), 'native-binary');
+    await writeFile(nativeModulePath, contents(callNumber));
+    if (modifiedAt) {
+      await utimes(nativeModulePath, modifiedAt, modifiedAt);
+    }
   };
   return { calls, runDocker };
 };
@@ -83,7 +99,9 @@ describe('native dependency packaging', () => {
     });
 
     expect(result).not.toBeNull();
-    const installDirPath = join(workspace.installationRootPath, result!.contentHash);
+    const [installationDirectoryName] = await readdir(workspace.installationRootPath);
+    const installDirPath = join(workspace.installationRootPath, installationDirectoryName!);
+    expect(installationDirectoryName).toMatch(/^[a-f0-9]{40}$/);
     expect(calls).toEqual([
       [
         'image',
@@ -108,7 +126,7 @@ describe('native dependency packaging', () => {
     ).toBe('native-binary');
     expect(result).toEqual(
       expect.objectContaining({
-        contentHash: 'c6fbe4445b7e',
+        contentHash: expect.stringMatching(/^[a-f0-9]{12}$/),
         dependencies,
         layerPath: join(workspace.layerBasePath, 'layer-native'),
         sizeBytes: expect.any(Number),
@@ -146,6 +164,153 @@ describe('native dependency packaging', () => {
     );
   });
 
+  test('reuses a completed installation within the same installation root', async () => {
+    const workspace = await createWorkspace();
+    const { calls, runDocker } = createFakeDocker();
+    const input = {
+      dependencies: [dependency('native-sequential-reuse-test')],
+      installationRootPath: workspace.installationRootPath,
+      lambdaRuntimeVersion: 20,
+      packageManager: 'npm' as const,
+      usedByLambdas: ['function'],
+      runDocker
+    };
+
+    await buildNativeBinaryLayer({
+      ...input,
+      layerBasePath: join(workspace.rootPath, 'first-layer')
+    });
+    const second = await buildNativeBinaryLayer({
+      ...input,
+      layerBasePath: join(workspace.rootPath, 'second-layer')
+    });
+
+    expect(calls).toHaveLength(1);
+    expect(await pathExists(join(second!.layerPath, 'nodejs', 'node_modules', 'native-package', 'binding.node'))).toBe(
+      true
+    );
+  });
+
+  test('derives the public content hash from the bytes Docker produced, not the build specification', async () => {
+    const firstWorkspace = await createWorkspace();
+    const secondWorkspace = await createWorkspace();
+    const dependencies = [dependency('native-content-hash-test')];
+    const input = {
+      dependencies,
+      lambdaRuntimeVersion: 20,
+      packageManager: 'npm' as const,
+      usedByLambdas: ['function']
+    };
+
+    const first = await buildNativeBinaryLayer({
+      ...input,
+      installationRootPath: firstWorkspace.installationRootPath,
+      layerBasePath: firstWorkspace.layerBasePath,
+      runDocker: createFakeDocker({ contents: () => 'first-native-binary' }).runDocker
+    });
+    const second = await buildNativeBinaryLayer({
+      ...input,
+      installationRootPath: secondWorkspace.installationRootPath,
+      layerBasePath: secondWorkspace.layerBasePath,
+      runDocker: createFakeDocker({ contents: () => 'second-native-binary' }).runDocker
+    });
+
+    expect(first?.contentHash).toMatch(/^[a-f0-9]{12}$/);
+    expect(second?.contentHash).toMatch(/^[a-f0-9]{12}$/);
+    expect(first?.contentHash).not.toBe(second?.contentHash);
+  });
+
+  test('excludes file timestamps from the public content hash', async () => {
+    const firstWorkspace = await createWorkspace();
+    const secondWorkspace = await createWorkspace();
+    const input = {
+      dependencies: [dependency('native-timestamp-test')],
+      lambdaRuntimeVersion: 20,
+      packageManager: 'npm' as const,
+      usedByLambdas: ['function']
+    };
+
+    const first = await buildNativeBinaryLayer({
+      ...input,
+      installationRootPath: firstWorkspace.installationRootPath,
+      layerBasePath: firstWorkspace.layerBasePath,
+      runDocker: createFakeDocker({ modifiedAt: new Date('2020-01-01T00:00:00Z') }).runDocker
+    });
+    const second = await buildNativeBinaryLayer({
+      ...input,
+      installationRootPath: secondWorkspace.installationRootPath,
+      layerBasePath: secondWorkspace.layerBasePath,
+      runDocker: createFakeDocker({ modifiedAt: new Date('2030-01-01T00:00:00Z') }).runDocker
+    });
+
+    expect(first?.contentHash).toBe(second?.contentHash);
+  });
+
+  test('rebuilds a deleted installation and does not reuse it across roots', async () => {
+    const firstWorkspace = await createWorkspace();
+    const secondWorkspace = await createWorkspace();
+    const { calls, runDocker } = createFakeDocker();
+    const dependencies = [dependency('native-installation-root-test')];
+    const input = {
+      dependencies,
+      lambdaRuntimeVersion: 20,
+      packageManager: 'npm' as const,
+      usedByLambdas: ['function'],
+      runDocker
+    };
+
+    await buildNativeBinaryLayer({
+      ...input,
+      installationRootPath: firstWorkspace.installationRootPath,
+      layerBasePath: firstWorkspace.layerBasePath
+    });
+    await rm(firstWorkspace.installationRootPath, { recursive: true, force: true });
+    await buildNativeBinaryLayer({
+      ...input,
+      installationRootPath: firstWorkspace.installationRootPath,
+      layerBasePath: join(firstWorkspace.rootPath, 'rebuilt-layer')
+    });
+    const second = await buildNativeBinaryLayer({
+      ...input,
+      installationRootPath: secondWorkspace.installationRootPath,
+      layerBasePath: secondWorkspace.layerBasePath
+    });
+
+    expect(calls).toHaveLength(3);
+    expect(calls[0]!.at(-1)).toStartWith(firstWorkspace.installationRootPath);
+    expect(calls[1]!.at(-1)).toStartWith(firstWorkspace.installationRootPath);
+    expect(calls[2]!.at(-1)).toStartWith(secondWorkspace.installationRootPath);
+    expect(await pathExists(join(second!.layerPath, 'nodejs', 'node_modules', 'native-package', 'binding.node'))).toBe(
+      true
+    );
+  });
+
+  test('evicts a rejected Docker build so the same installation can be retried', async () => {
+    const workspace = await createWorkspace();
+    const { calls, runDocker } = createFakeDocker({ rejectedCalls: [1] });
+    const input = {
+      dependencies: [dependency('native-retry-test')],
+      installationRootPath: workspace.installationRootPath,
+      lambdaRuntimeVersion: 20,
+      packageManager: 'npm' as const,
+      usedByLambdas: ['function'],
+      runDocker
+    };
+
+    await expect(
+      buildNativeBinaryLayer({ ...input, layerBasePath: join(workspace.rootPath, 'failed-layer') })
+    ).rejects.toThrow('Docker failed on call 1');
+    const retried = await buildNativeBinaryLayer({
+      ...input,
+      layerBasePath: join(workspace.rootPath, 'retried-layer')
+    });
+
+    expect(calls).toHaveLength(2);
+    expect(await pathExists(join(retried!.layerPath, 'nodejs', 'node_modules', 'native-package', 'binding.node'))).toBe(
+      true
+    );
+  });
+
   test('reuses one Docker installation when copying native modules into multiple Lambdas', async () => {
     const workspace = await createWorkspace();
     const { calls, runDocker } = createFakeDocker();
@@ -178,9 +343,9 @@ describe('native dependency packaging', () => {
     );
   });
 
-  test('includes the target architecture in the content hash', async () => {
+  test('uses architecture for the build identity without changing the hash of identical layer contents', async () => {
     const workspace = await createWorkspace();
-    const { runDocker } = createFakeDocker();
+    const { calls, runDocker } = createFakeDocker();
     const input = {
       dependencies: [dependency('native-architecture-test')],
       installationRootPath: workspace.installationRootPath,
@@ -201,6 +366,8 @@ describe('native dependency packaging', () => {
       dockerBuildOutputArchitecture: 'linux/arm64'
     });
 
-    expect(amd64?.contentHash).not.toBe(arm64?.contentHash);
+    expect(amd64?.contentHash).toBe(arm64?.contentHash);
+    expect(calls).toHaveLength(2);
+    expect(calls[0]!.at(-1)).not.toBe(calls[1]!.at(-1));
   });
 });
