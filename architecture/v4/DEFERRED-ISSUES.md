@@ -38,9 +38,6 @@ refactoring scope. Revisit them before the v4 release where marked.
 
 ## Known v3 behavior debt
 
-- Defaulting starts with a shallow resource copy. When an authored nested bag exists, filling its missing leaves can
-  therefore write back into the working resolved-config object. Raw authored configuration is protected by an earlier
-  serialization clone, but changing this behavior needs its own compatibility decision and tests.
 - A second permanent-credential load can use an unassigned local `creds` value when the existing source is a
   credentials file, or environment variables without expiration. Strict mode already identifies the unsafe branch in
   `GlobalStateManager.loadValidatedAwsCredentials`.

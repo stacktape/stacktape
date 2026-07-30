@@ -12,6 +12,7 @@ import {
   DEFAULT_TEST_LISTENER_PORT,
   transformLoadBalancerToListenerForm
 } from '@domain-services/config-manager/utils/application-load-balancers';
+import { mergeStacktapeDefaults } from '@domain-services/config-manager/utils/misc';
 import { validateMultiContainerWorkloadConfig } from '@domain-services/config-manager/utils/multi-container-workloads';
 import { validateAwsCdkConstructProps } from '@domain-services/config-manager/utils/validation';
 import type { StacktapeConfig } from '@stacktape/config';
@@ -227,28 +228,67 @@ describe('authored-to-runtime normalization', () => {
     expect(service._nestedResources.containerWorkload.scaling).toEqual(filledScaling);
   });
 
-  test('writes a nested default back into the working configuration when the bag was authored', () => {
-    // Recorded behavior debt, pinned rather than changed here: `mergeStacktapeDefaults` copies the resource shallowly,
-    // so an authored nested bag is the same object the working resolved configuration holds, and merging into it is
-    // visible there afterwards. The raw authored configuration stays isolated — `ConfigResolver` serializes a separate
-    // clone — so the uploaded `stp-template.yml` is unaffected.
-    const manager = managerFor(workloadConfig({ minInstances: 3 }));
+  test('fills nested scaling defaults without mutating authored configuration bags', () => {
+    const authoredScalingPolicy = Object.freeze({ keepAvgCpuUtilizationUnder: 65 });
+    const authoredScaling = Object.freeze({ minInstances: 3, scalingPolicy: authoredScalingPolicy });
+    const manager = managerFor({
+      api: {
+        type: 'multi-container-workload',
+        properties: {
+          resources: { cpu: 0.25, memory: 512 },
+          scaling: authoredScaling,
+          containers: [
+            {
+              name: 'api-container',
+              packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/api.ts' } }
+            }
+          ]
+        }
+      }
+    });
 
-    expect(manager.config.resources.api.properties).not.toHaveProperty('scaling.maxInstances');
+    const [workload] = manager.containerWorkloads;
 
-    void manager.containerWorkloads;
-
-    expect(manager.config.resources.api.properties).toHaveProperty('scaling.maxInstances', 1);
+    expect(workload.scaling).toEqual({
+      minInstances: 3,
+      maxInstances: 1,
+      scalingPolicy: {
+        keepAvgCpuUtilizationUnder: 65,
+        keepAvgMemoryUtilizationUnder: 80
+      }
+    });
+    expect(manager.config.resources.api.properties).toHaveProperty('scaling', authoredScaling);
+    expect(authoredScaling).not.toHaveProperty('maxInstances');
+    expect(authoredScaling.scalingPolicy).toBe(authoredScalingPolicy);
+    expect(authoredScalingPolicy).not.toHaveProperty('keepAvgMemoryUtilizationUnder');
   });
 
   test('does not write a nested default back when the bag was not authored', () => {
-    // The other half of the same shallow copy: with nothing authored, the merge builds a fresh object on the copy and
-    // the working configuration keeps no `scaling` at all.
+    // With nothing authored, the merge builds a fresh object on the normalized copy and the working configuration
+    // keeps no `scaling` at all.
     const manager = managerFor(workloadConfig());
 
     void manager.containerWorkloads;
 
     expect(manager.config.resources.api.properties).not.toHaveProperty('scaling');
+  });
+
+  test('fills batch-job resource defaults without mutating the authored resources bag', () => {
+    const authoredResources = Object.freeze({ cpu: 2 });
+    // `memory` is runtime-defaulted even though the current authoring type still marks it required.
+    const batchJob = mergeStacktapeDefaults({
+      name: 'report',
+      nameChain: ['report'],
+      configParentResourceType: 'batch-job',
+      type: 'batch-job',
+      container: {
+        packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/report.ts' } }
+      },
+      resources: authoredResources
+    } as unknown as NormalizedResource<'batch-job'>);
+
+    expect(batchJob.resources).toEqual({ cpu: 2, memory: 1024 });
+    expect(authoredResources).not.toHaveProperty('memory');
   });
 
   test('never hands out the defaults table itself, and stays stable across reads', () => {

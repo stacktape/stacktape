@@ -46,6 +46,9 @@ const merge = (from: Record<string, any>, to: Record<string, any>) => {
             }
             to[prop] = to[prop].concat(from[prop]);
           } else {
+            // The normalized resource is a shallow copy of the working configuration. Copy only the branch that
+            // defaults are about to extend so recursive merging cannot write generated leaves back into that config.
+            to[prop] = { ...to[prop] };
             merge(from[prop], to[prop]);
           }
         }
@@ -85,9 +88,8 @@ function applyDefaults<TResource extends object, TDefaults extends object>(
 /**
  * Copies a normalized resource and fills in the defaults its type declares.
  *
- * The copy is shallow, exactly as before: a nested default merged into an authored object writes into that object,
- * which the working resolved configuration still shares. That is recorded behavior debt, not something this typing
- * changes.
+ * The top-level copy and the merge's copy-on-write descent keep the working resolved configuration unchanged while
+ * cloning only branches that overlap nested defaults.
  */
 export const mergeStacktapeDefaults = <
   TResourceType extends StacktapeResourceType,
