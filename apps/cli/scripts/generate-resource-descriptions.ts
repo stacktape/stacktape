@@ -1,7 +1,7 @@
 import { RESOURCES_DESCRIPTION_DIST_PATH } from 'src/config/project-paths';
 import { logInfo, logSuccess } from '@scripts/support/logging';
 import { remove, writeJson } from 'fs-extra';
-import { getStacktapeResourceDefinitions } from '@scripts/code-generation/schema-parsing';
+import { getStacktapeResourceDefinitions } from '@stacktape/config/schema-inspection';
 
 export const generateResourceDescriptions = async () => {
   logInfo('Generating resource descriptions...');

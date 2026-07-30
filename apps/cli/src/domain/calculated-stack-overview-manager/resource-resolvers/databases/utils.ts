@@ -19,7 +19,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { stpErrors } from '@errors';
 import versionJson from '@generated/db-engine-versions/versions.json' with { type: 'json' };
-import { normalizeEngineType } from 'src/aws/rds';
+import { normalizeEngineType } from '@stacktape/config/relational-database-engines';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { transformToCidr } from '@utils/misc';

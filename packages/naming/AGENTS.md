@@ -6,6 +6,10 @@ Stacktape stack descriptions, output/tag/metadata names, and the truncation/hash
 service limits. Some subpaths are consumed only by synthesis today, but they share the same compatibility contract:
 changing them can replace customer infrastructure or break discovery.
 
+`stack-identity` owns the historical region + stack name + account ID hash shared by the CLI and Console. Its
+separator-free concatenation is frozen compatibility behavior, including the Console default-domain suffix derived
+from it.
+
 - Preserve output byte-for-byte. A naming change can replace customer infrastructure or break discovery.
 - Keep explicit subpath exports; do not add a barrel.
 - Keep the dependency graph one-way: resource names may use hashing/truncation, ARNs may use resource names, and

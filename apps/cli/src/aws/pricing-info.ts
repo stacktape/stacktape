@@ -5,7 +5,7 @@ import { downloadFile } from '@utils/download-file';
 import { chunkArray, serialize } from '@utils/misc';
 import { camelCase } from 'change-case';
 import { createReadStream, remove } from 'fs-extra';
-import { normalizeEngineType } from './rds';
+import { normalizeEngineType } from '@stacktape/config/relational-database-engines';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { RdsEngine } from '@stacktape/config/relational-databases';
 import type { StacktapeResourceDefinition } from '@stacktape/config/shared';

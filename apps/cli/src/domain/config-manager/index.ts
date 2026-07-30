@@ -20,7 +20,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getJobName, getSimpleServiceDefaultContainerName } from '@stacktape/naming/workload-names';
 import { getStpNameForResource } from '@stacktape/naming/stacktape-resource-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
-import { getGloballyUniqueStackHash } from '@utils/hashing';
+import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { processAllNodesSync, traverseToMaximalExtent } from '@utils/misc';
 import { isAuroraEngine } from 'src/aws/rds-engines';
 import compose from '@utils/basic-compose-shim';

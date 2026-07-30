@@ -17,6 +17,7 @@
     "./ssm-parameter-paths": "./src/ssm-parameter-paths.ts",
     "./stack-metadata-names": "./src/stack-metadata-names.ts",
     "./stack-output-names": "./src/stack-output-names.ts",
+    "./stack-identity": "./src/stack-identity.ts",
     "./stacks": "./src/stacks.ts",
     "./stacktape-resource-names": "./src/stacktape-resource-names.ts",
     "./tag-names": "./src/tag-names.ts",

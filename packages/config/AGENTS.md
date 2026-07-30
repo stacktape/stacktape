@@ -4,6 +4,10 @@ The user-authored Stacktape configuration language: the resource model, its Clou
 primitives the published config schema, the `stacktape` npm declarations, the documentation examples and the Console
 are all generated from.
 
+Small deterministic operations that interpret this authored model live beside it: Fargate CPU/memory compatibility,
+relational-database engine normalization, and typed inspection of the canonical schema for generators and editors.
+They are explicit subpaths, not a general utility surface.
+
 The committed JSON schema has the same owner: `generated/config-schema.json` is exported as
 `@stacktape/config/config-schema.json`. The CLI generates, publishes and packages that file directly, and Console
 imports the package subpath; do not create application-local copies.

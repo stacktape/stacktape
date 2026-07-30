@@ -15,7 +15,7 @@ import { stpErrors } from '@errors';
 import type { LoadedAwsCredentials, ValidatedAwsCredentials } from 'src/aws/credentials';
 import { SUPPORTED_AWS_REGIONS, type AWSRegion } from 'src/aws/regions';
 import { getRoleArnFromSessionArn } from '@stacktape/naming/arns';
-import { getGloballyUniqueStackHash } from '@utils/hashing';
+import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { propertyFromObjectOrNull } from '@utils/misc';
 import { listAwsProfiles, loadAwsConfigFileContent } from '@utils/aws-config';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
