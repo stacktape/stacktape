@@ -23,9 +23,11 @@ measurement that settled it remains the relevant baseline:
   filesystem, configuration, logical-naming, and miscellaneous CLI modules;
 - exactly one module is helper-only — `shared/trpc/aws-identity-protected.ts`, 78 lines — and it still depends on
   `shared/aws/identity.ts` and `shared/trpc/client.ts`, which reach `shared/aws/fetch-handler.ts` (13 other consumers);
-- the runtime source is typed against **ambient global config types** — `AlarmDefinition` and
-  `AlarmNotificationEventRuleInput` from `types/stacktape-config/alarms.d.ts`, `AwsCredentials` from
-  `types/common.d.ts`. Those declarations are the source of the published config schema and cannot leave `apps/cli`.
+- the runtime source is still typed against **ambient global config types** — `AlarmDefinition` and
+  `AlarmNotificationEventRuleInput` from `types/stacktape-config/alarms.d.ts`. Those declarations feed published
+  config content and cannot leave `apps/cli` independently. AWS execution types are now explicit imports from
+  `shared/aws/credentials.ts` and `shared/aws/regions.ts`, but those modules remain general CLI facilities rather than
+  helper-owned code.
 
 Every way to make a package out of that is worse than co-location:
 
