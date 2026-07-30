@@ -9,6 +9,18 @@ import * as ts from 'typescript';
 import { buildGenerator, getProgramFromFiles } from 'typescript-json-schema';
 
 /**
+ * File-system enumeration order differs between operating systems. TypeScript assigns internal type IDs while
+ * constructing the program, and typescript-json-schema can reflect that order in emitted unions. Compare normalized
+ * relative paths explicitly so the same canonical inputs produce the same schema on Windows and Linux.
+ */
+export const sortConfigSchemaSourcePaths = (paths: string[]) =>
+  [...paths].sort((left, right) => {
+    const normalizedLeft = left.replaceAll('\\', '/');
+    const normalizedRight = right.replaceAll('\\', '/');
+    return normalizedLeft < normalizedRight ? -1 : normalizedLeft > normalizedRight ? 1 : 0;
+  });
+
+/**
  * The files the published config schema is generated from: `@stacktape/config`, which owns the authored
  * configuration model, plus the CLI's remaining ambient declarations.
  *
@@ -29,9 +41,11 @@ export const findConfigSchemaSourceFiles = async (rootDir = process.cwd()) => {
 
   const matched = await Promise.all(
     groups.map(async ({ name, cwd, pattern }) => {
-      const files = (await fastGlob(pattern, { cwd, dot: true }))
-        .filter((file) => file.endsWith('.ts') && !file.endsWith('.acceptance.ts'))
-        .map((file) => resolve(cwd, file));
+      const files = sortConfigSchemaSourcePaths(
+        (await fastGlob(pattern, { cwd, dot: true })).filter(
+          (file) => file.endsWith('.ts') && !file.endsWith('.acceptance.ts')
+        )
+      ).map((file) => resolve(cwd, file));
       if (files.length === 0) {
         throw new Error(`No TypeScript files found for ${name} (${pattern} in ${cwd}).`);
       }

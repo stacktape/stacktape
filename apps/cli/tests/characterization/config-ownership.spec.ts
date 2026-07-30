@@ -3,7 +3,11 @@ import { readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 import { CONFIG_PACKAGE_SRC_PATH } from '../../shared/naming/project-fs-paths';
 import { listConfigSourceFiles, resolveConfigSourceFile } from '../../scripts/code-generation/config-sources';
-import { getJsonSchemaGenerator } from '../../scripts/code-generation/utils';
+import {
+  findConfigSchemaSourceFiles,
+  getJsonSchemaGenerator,
+  sortConfigSchemaSourcePaths
+} from '../../scripts/code-generation/utils';
 import * as ts from 'typescript';
 
 /**
@@ -106,6 +110,25 @@ const readCliGlobalDeclarationNames = (typesPath = join(process.cwd(), 'types'))
 };
 
 describe('the configuration model is owned by @stacktape/config', () => {
+  test('schema source ordering is stable across filesystem path conventions', async () => {
+    expect(
+      sortConfigSchemaSourcePaths([
+        'zeta\\nested\\last.ts',
+        'alpha/shared.ts',
+        'alpha\\agentcore.ts',
+        'zeta/nested/first.ts'
+      ])
+    ).toEqual(['alpha\\agentcore.ts', 'alpha/shared.ts', 'zeta/nested/first.ts', 'zeta\\nested\\last.ts']);
+
+    const sources = await findConfigSchemaSourceFiles();
+    const cliSources = sources.filter((file) => !resolve(file).startsWith(resolve(CONFIG_PACKAGE_SRC_PATH)));
+    const packageSources = sources.filter((file) => resolve(file).startsWith(resolve(CONFIG_PACKAGE_SRC_PATH)));
+    expect(sources).toEqual([
+      ...sortConfigSchemaSourcePaths(cliSources),
+      ...sortConfigSchemaSourcePaths(packageSources)
+    ]);
+  });
+
   test('every configuration source is discovered, and discovery fails closed', () => {
     const sources = listConfigSourceFiles();
     expect(sources.length).toBeGreaterThan(0);
