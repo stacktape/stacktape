@@ -7,7 +7,6 @@
     "./catalogs/aws-prices.json": "./@generated/aws-price/prices.json",
     "./catalogs/cloudformation-resource-types.json": "./@generated/cloudformation-resource-types.json",
     "./catalogs/rds-engine-versions.json": "./@generated/db-engine-versions/versions.json",
-    "./local/server": "./src/api/local/server.ts",
     "./local/config-sdk": "./src/api/local/config-sdk.ts",
     "./monaco-declarations/cloudformation.d.ts": "./generated/monaco-declarations/cloudformation.d.ts",
     "./monaco-declarations/index.d.ts": "./generated/monaco-declarations/index.d.ts",
