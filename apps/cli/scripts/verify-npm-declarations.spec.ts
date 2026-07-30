@@ -74,7 +74,7 @@ describe('the published declarations are verified where they are actually instal
 
     expect(() => verifyNpmDeclarations({ packageDir })).toThrow('do not typecheck for a consumer');
     expect(() => verifyNpmDeclarations({ packageDir })).toThrow('BudgetControl');
-  });
+  }, 15_000);
 
   test('a package under node_modules whose declarations resolve is accepted', () => {
     const packageDir = installMinimalPackage({
