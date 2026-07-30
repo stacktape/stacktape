@@ -55,7 +55,7 @@ const evaluateShellChecksumGate = async (content: string, version: string) => {
   }
 };
 
-const evaluatePowerShellChecksumGate = async (content: string, version: string) => {
+const evaluatePowerShellChecksumGates = async (content: string, versions: string[]) => {
   const start = content.indexOf('$NormalizedVersion =');
   const end = content.indexOf('\n}', start);
   expect(start).toBeGreaterThan(-1);
@@ -65,16 +65,26 @@ const evaluatePowerShellChecksumGate = async (content: string, version: string) 
   const scriptPath = join(directory, 'gate.ps1');
   await writeFile(
     scriptPath,
-    `$Version = $args[0]\n${gate}\n$ChecksumRequired.ToString().ToLowerInvariant() | Write-Host -NoNewline\n`
+    [
+      'function Test-ChecksumRequired {',
+      '    param([string]$Version)',
+      gate,
+      '    $ChecksumRequired.ToString().ToLowerInvariant()',
+      '}',
+      'foreach ($CandidateVersion in $args) {',
+      '    Test-ChecksumRequired -Version $CandidateVersion',
+      '}',
+      ''
+    ].join('\n')
   );
   try {
     const result = Bun.spawnSync({
-      cmd: ['pwsh', '-NoProfile', '-File', scriptPath, version],
+      cmd: ['pwsh', '-NoProfile', '-File', scriptPath, ...versions],
       stdout: 'pipe',
       stderr: 'pipe'
     });
     expect(result.exitCode).toBe(0);
-    return result.stdout.toString();
+    return result.stdout.toString().trim().split(/\r?\n/);
   } finally {
     await rm(directory, { recursive: true, force: true });
   }
@@ -107,12 +117,9 @@ describe('published install scripts', () => {
     expect(content.indexOf('Checksum verification failed')).toBeLessThan(content.indexOf('Expand-Archive'));
     expect(content).toContain("$ChecksumRequired = $ParsedVersion -ge [version]'3.7.1'");
     expect(content).toContain('if ($ChecksumRequired)');
-    expect(await evaluatePowerShellChecksumGate(content, '3.7.0')).toBe('false');
-    expect(await evaluatePowerShellChecksumGate(content, 'v3.7.0')).toBe('false');
-    expect(await evaluatePowerShellChecksumGate(content, '3.7.1-rc.1')).toBe('true');
-    expect(await evaluatePowerShellChecksumGate(content, '3.7.1')).toBe('true');
-    expect(await evaluatePowerShellChecksumGate(content, '4.0.0')).toBe('true');
-    expect(await evaluatePowerShellChecksumGate(content, 'latest')).toBe('true');
+    expect(
+      await evaluatePowerShellChecksumGates(content, ['3.7.0', 'v3.7.0', '3.7.1-rc.1', '3.7.1', '4.0.0', 'latest'])
+    ).toEqual(['false', 'false', 'true', 'true', 'true', 'true']);
   }, 15_000);
 
   test('publishes only required installer assets, never adjacent tests', () => {
