@@ -12,6 +12,7 @@ import {
   DEFAULT_TEST_LISTENER_PORT,
   transformLoadBalancerToListenerForm
 } from '@domain-services/config-manager/utils/application-load-balancers';
+import { validateMultiContainerWorkloadConfig } from '@domain-services/config-manager/utils/multi-container-workloads';
 import { validateAwsCdkConstructProps } from '@domain-services/config-manager/utils/validation';
 import type { StacktapeConfig } from '@stacktape/config';
 
@@ -180,6 +181,27 @@ describe('authored-to-runtime normalization', () => {
     });
   });
 
+  test('preserves an unsupported authored zero for validation instead of silently rewriting it', () => {
+    const manager = managerFor(workloadConfig({ minInstances: 0, maxInstances: 1 }));
+    const [workload] = manager.containerWorkloads;
+
+    expect(workload.scaling.minInstances).toBe(0);
+    expect(workload.scaling.maxInstances).toBe(1);
+    configManager.config = manager.config;
+    try {
+      expect(() => validateMultiContainerWorkloadConfig({ definition: workload })).toThrow('must both be at least 1');
+    } finally {
+      configManager.config = originalSingletonConfig;
+    }
+  });
+
+  test('still fills an explicitly undefined nested property', () => {
+    const [workload] = managerFor(workloadConfig({ minInstances: undefined, maxInstances: 1 })).containerWorkloads;
+
+    expect(workload.scaling.minInstances).toBe(1);
+    expect(workload.scaling.maxInstances).toBe(1);
+  });
+
   test('passes the service families their own scaling defaults', () => {
     const manager = managerFor({
       jobs: {
@@ -245,6 +267,39 @@ describe('authored-to-runtime normalization', () => {
       maxInstances: 1,
       scalingPolicy: { keepAvgCpuUtilizationUnder: 80, keepAvgMemoryUtilizationUnder: 80 }
     });
+  });
+
+  test('applies a synthetic container default to every workload container without overriding authored values', () => {
+    // The defaults table does not currently use the historical singular `container` shape. Installing one for this
+    // test keeps its special merge path characterized without making that shape part of the public defaults type.
+    const workloadDefaults = RESOURCE_DEFAULTS['multi-container-workload'] as Record<string, unknown>;
+    workloadDefaults.container = { essential: true };
+
+    try {
+      const [workload] = managerFor({
+        api: {
+          type: 'multi-container-workload',
+          properties: {
+            resources: { cpu: 0.25, memory: 512 },
+            containers: [
+              {
+                name: 'api',
+                packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/api.ts' } }
+              },
+              {
+                name: 'worker',
+                essential: false,
+                packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/worker.ts' } }
+              }
+            ]
+          }
+        }
+      }).containerWorkloads;
+
+      expect(workload.containers.map(({ essential }) => essential)).toEqual([true, false]);
+    } finally {
+      delete workloadDefaults.container;
+    }
   });
 
   test('leaves a resource whose type declares no defaults exactly as normalization produced it', () => {

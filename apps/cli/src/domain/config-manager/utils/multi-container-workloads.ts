@@ -178,7 +178,8 @@ const validateResourcesConfiguration = (workload: StpContainerWorkload) => {
 
 const validateScalingConfiguration = (workload: StpContainerWorkload) => {
   if (
-    (workload.scaling && !workload.scaling.maxInstances) ||
+    workload.scaling.minInstances < 1 ||
+    workload.scaling.maxInstances < 1 ||
     workload.scaling.maxInstances < workload.scaling.minInstances
   ) {
     throw stpErrors.e89({ workloadName: workload.name, workloadType: workload.type });

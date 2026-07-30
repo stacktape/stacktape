@@ -7,9 +7,8 @@ import type { DefaultedResource, NormalizedResource, StacktapeResourceType } fro
 /**
  * Property names the walk below hands to a dedicated handler instead of merging structurally.
  *
- * No entry in `RESOURCE_DEFAULTS` currently supplies a `container`, so this handler is unreachable today. Its
- * fallback branch assigns to the `forEach` parameter and therefore would not update the array it walks; that is
- * recorded as known behavior debt and deliberately left alone here.
+ * No entry in `RESOURCE_DEFAULTS` currently supplies a `container`, so this handler is unreachable today. It exists
+ * for the historical shape where one container default is applied to every member of a multi-container workload.
  */
 const specialMergeBehaviorProperties: Record<string, ((from: any, to: any) => void) | undefined> = {
   container: (from, to) => {
@@ -17,7 +16,7 @@ const specialMergeBehaviorProperties: Record<string, ((from: any, to: any) => vo
       merge(from.container, to.container);
     } else {
       to.containers.forEach((container) => {
-        container = merge(from.container, container);
+        merge(from.container, container);
       });
     }
   }
@@ -32,7 +31,7 @@ const merge = (from: Record<string, any>, to: Record<string, any>) => {
     for (const prop in from) {
       if (specialMergeBehaviorProperties[prop]) {
         specialMergeBehaviorProperties[prop](from, to);
-      } else if (to[prop]) {
+      } else if (to[prop] !== undefined) {
         if (typeof from[prop] === 'object') {
           if (typeof to[prop] !== 'object') {
             throw new UnexpectedError({
@@ -73,8 +72,8 @@ const merge = (from: Record<string, any>, to: Record<string, any>) => {
  * merge, rather than a cast repeated at each place a defaulted property is read. This mutates `to` as well as
  * narrowing it, hence the action name.
  *
- * It holds for every entry in `RESOURCE_DEFAULTS` today. It would stop holding for a `container` default, because
- * `specialMergeBehaviorProperties` intercepts that name and its fallback branch does not assign one.
+ * It holds for every entry in `RESOURCE_DEFAULTS` today. A future singular `container` default would need its own
+ * typed contract because the special handler applies it to `containers[]` rather than adding a top-level property.
  */
 function applyDefaults<TResource extends object, TDefaults extends object>(
   from: TDefaults,

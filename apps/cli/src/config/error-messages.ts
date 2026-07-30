@@ -1209,9 +1209,11 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       type: 'CONFIG_VALIDATION',
       message: `Error in ${tuiManager.prettyResourceType(workloadType)} ${tuiManager.makeBold(
         workloadName
-      )}: When configuring ${tuiManager.prettyConfigProperty('scaling')} you must specify ${tuiManager.prettyConfigProperty(
-        'maxInstances'
-      )} property(it also must be higher or equal to ${tuiManager.prettyConfigProperty('minInstances')}).`
+      )}: ${tuiManager.prettyConfigProperty('scaling.minInstances')} and ${tuiManager.prettyConfigProperty(
+        'scaling.maxInstances'
+      )} must both be at least 1, and ${tuiManager.prettyConfigProperty(
+        'scaling.maxInstances'
+      )} must be greater than or equal to ${tuiManager.prettyConfigProperty('scaling.minInstances')}.`
     };
   },
   // e90(_arg: null): ReturnedError {
