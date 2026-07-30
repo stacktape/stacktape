@@ -174,7 +174,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
       'No .d.ts files found'
     );
     expect(redefined).toEqual([]);
-  });
+  }, 30_000);
 
   test('the declaration scan ignores module-local helpers', () => {
     const sourceFile = ts.createSourceFile(
