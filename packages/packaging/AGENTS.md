@@ -74,3 +74,9 @@ pnpm --filter @stacktape/packaging run test
 
 `layer-builder.ts` uses `Bun.file`/`Bun.hash`, so the tests run under `bun test` like the CLI's own suites. Unlike the
 CLI, this package compiles under the strict workspace `tsconfig.package.json`.
+
+The duplicate-code check narrowly excludes the language buildpacks, legacy language-bundler entrypoints, image
+builders, ES bundler entrypoint and Dockerfile generator that were moved here from the historically ignored
+`apps/cli/**` tree. This preserves their existing exemption without weakening the zero-duplication threshold for new
+packaging modules. Do not broaden the exclusion or add abstractions merely to satisfy the metric. Consolidate a
+repeated workflow only when characterization tests show that its behavior is genuinely shared.
