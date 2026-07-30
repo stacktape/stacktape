@@ -243,6 +243,42 @@ const buildNativeModules = async ({
   }
 };
 
+const installNativeModules = ({
+  dependencies,
+  installationRootPath,
+  lambdaRuntimeVersion,
+  packageManager,
+  dockerBuildOutputArchitecture,
+  runDocker
+}: {
+  dependencies: { name: string; version: string }[];
+  installationRootPath: string;
+  lambdaRuntimeVersion: number;
+  packageManager: SupportedEsPackageManager;
+  dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture;
+  runDocker: RunDocker;
+}): Promise<string> => {
+  const dockerfileContents = buildEsBinInstallerDockerfile({
+    installationDirName: 'installation-dir',
+    packageManager,
+    lambdaRuntimeVersion,
+    dependencies
+  });
+  const buildIdentity = objectHash({
+    dockerfileContents,
+    dockerBuildOutputArchitecture: dockerBuildOutputArchitecture || 'linux/amd64'
+  });
+  return buildNativeModules({
+    dependencies,
+    buildIdentity,
+    installationRootPath,
+    lambdaRuntimeVersion,
+    packageManager,
+    ...(dockerBuildOutputArchitecture && { dockerBuildOutputArchitecture }),
+    runDocker
+  });
+};
+
 export const copyDockerInstalledModulesForLambda = async ({
   dependencies,
   installationRootPath,
@@ -264,19 +300,8 @@ export const copyDockerInstalledModulesForLambda = async ({
     return;
   }
 
-  const dockerfileContents = buildEsBinInstallerDockerfile({
-    installationDirName: 'installation-dir',
-    packageManager,
-    lambdaRuntimeVersion,
-    dependencies
-  });
-  const buildIdentity = objectHash({
-    dockerfileContents,
-    dockerBuildOutputArchitecture: dockerBuildOutputArchitecture || 'linux/amd64'
-  });
-  const nodeModulesPath = await buildNativeModules({
+  const nodeModulesPath = await installNativeModules({
     dependencies,
-    buildIdentity,
     installationRootPath,
     lambdaRuntimeVersion,
     packageManager,
@@ -318,19 +343,8 @@ export const buildNativeBinaryLayer = async ({
     return null;
   }
 
-  const dockerfileContents = buildEsBinInstallerDockerfile({
-    installationDirName: 'installation-dir',
-    packageManager,
-    lambdaRuntimeVersion,
-    dependencies
-  });
-  const buildIdentity = objectHash({
-    dockerfileContents,
-    dockerBuildOutputArchitecture: dockerBuildOutputArchitecture || 'linux/amd64'
-  });
-  const nodeModulesPath = await buildNativeModules({
+  const nodeModulesPath = await installNativeModules({
     dependencies,
-    buildIdentity,
     installationRootPath,
     lambdaRuntimeVersion,
     packageManager,
