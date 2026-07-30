@@ -1,4 +1,4 @@
-import { publicApiClient } from '@api/console/public';
+import { publicApiClient } from '@stacktape-api/public';
 import { convertYamlToTypescript } from '@utils/config-gen/config-converter';
 import { stringifyToYaml } from '@utils/yaml';
 import { writeFile, pathExists } from 'fs-extra';

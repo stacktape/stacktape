@@ -18,7 +18,7 @@
       "@config": ["./src/config/random.ts"],
       "@cli-config": ["./src/config/cli.ts"],
       "@errors": ["./src/config/error-messages.ts"],
-      "@api/*": ["./src/api/*"],
+      "@stacktape-api/*": ["./src/stacktape-api/*"],
       "@helper-lambdas/*": ["./helper-lambdas/*"],
       "@scripts/*": ["./scripts/*"],
       "@generated/*": ["./@generated/*"],

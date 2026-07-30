@@ -175,7 +175,7 @@ export const runDev = async () => {
 
     const { runUsingCli } = dynamicRequire({
       filePath: cliDistPath
-    }) as typeof import('../src/api/cli');
+    }) as typeof import('../src/entrypoints/cli');
     await runUsingCli();
     if (!isSilentMode) {
       logInfo('----- FINISHED -----');

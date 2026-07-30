@@ -1,5 +1,5 @@
 import { tuiManager } from '@application-services/tui-manager';
-import { ApiKeyProtectedClient } from '@api/console/api-key-protected';
+import { ApiKeyProtectedClient } from '@stacktape-api/api-key-protected';
 import { withStacktapeOperationInvocationContext } from '@application-services/operation-invocation-context';
 import { stpErrors } from '../../config/error-messages';
 import { IS_DEV } from '../../config/random';

@@ -8,7 +8,7 @@
  * Give each run a unique short project name, use stage `dev` and region `eu-west-1`, and delete it afterwards.
  */
 
-import { $ResourceParam, defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from '../../src/api/npm/ts';
+import { $ResourceParam, defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from '../../src/config-sdk';
 
 export default defineConfig(() => {
   const retryAdvisor = new LambdaFunction({

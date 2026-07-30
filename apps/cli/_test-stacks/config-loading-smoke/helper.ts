@@ -1,5 +1,5 @@
 import pkgA from 'pkg-a';
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from '../../src/api/npm/ts';
+import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from '../../src/config-sdk';
 
 export const getConfig = defineConfig(() => {
   const lambda = new LambdaFunction({

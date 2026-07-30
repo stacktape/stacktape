@@ -1,9 +1,9 @@
-import type { ResourceClassName } from '@api/npm/ts/class-config';
+import type { ResourceClassName } from '../../src/config-sdk/class-config';
 import type { JSDocComment, ReferenceableParam, ReferenceableParamsMap } from './types';
 import {
   getResourcesWithAugmentedProps,
   RESOURCES_CONVERTIBLE_TO_CLASSES
-} from '../../src/api/npm/ts/resource-metadata';
+} from '../../src/config-sdk/resource-metadata';
 import { getResourceClassDescription } from './jsdoc-extractor';
 
 /**

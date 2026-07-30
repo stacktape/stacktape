@@ -1,5 +1,5 @@
 import { tuiManager } from '@application-services/tui-manager';
-import { publicApiClient } from '@api/console/public';
+import { publicApiClient } from '@stacktape-api/public';
 import {
   signUpWithEmail,
   confirmSignUp,

@@ -240,7 +240,7 @@ export const buildBinaryFile = async ({
 
   const compileTarget = BUN_COMPILE_TARGETS[platform];
 
-  const entrypoint = join(process.cwd(), 'src', 'api', 'cli', 'compiled-entry.ts');
+  const entrypoint = join(process.cwd(), 'src', 'entrypoints', 'compiled-cli.ts');
   const outputFileName = platform === 'win' ? 'stacktape.exe' : 'stacktape';
   const outputPath = join(outputFolderPath, outputFileName);
   const openTuiBuildPlugin = createStacktapeOpenTuiBuildPlugin();

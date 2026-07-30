@@ -5,7 +5,7 @@ const main = async () => {
   const { INVOKED_FROM_ENV_VAR_NAME } = await import('@config');
   const { getCliInput } = await import('@utils/cli');
   const { resolveOutputMode } = await import('@application-services/tui-manager/output-mode');
-  const { runCommand } = await import('../../index');
+  const { runCommand } = await import('../index');
 
   const { commands, options, additionalArgs } = getCliInput();
   const forceTty = process.env.FORCE_TTY === '1';

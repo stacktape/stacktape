@@ -4,11 +4,11 @@
   "workspaces": {
     "apps/cli": {
       "entry": [
-        "src/api/cli/compiled-entry.ts",
-        "src/api/cli/index.ts",
-        "src/api/local/config-sdk.ts",
-        "src/api/npm/ts/index.ts",
-        "src/api/npm/bin/stacktape.js",
+        "src/entrypoints/compiled-cli.ts",
+        "src/entrypoints/cli.ts",
+        "src/config-sdk/tooling.ts",
+        "src/config-sdk/index.ts",
+        "scripts/release/npm-package/bin/stacktape.js",
         "helper-lambdas/*/index.ts",
         "scripts/**/*.ts",
         "scripts/**/*.mjs",

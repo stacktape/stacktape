@@ -1,5 +1,5 @@
 import type { JSDocComment } from './types';
-import { MISC_TYPES_CONVERTIBLE_TO_CLASSES } from '../../src/api/npm/ts/resource-metadata';
+import { MISC_TYPES_CONVERTIBLE_TO_CLASSES } from '../../src/config-sdk/resource-metadata';
 import { getTypePropertiesDescription } from './jsdoc-extractor';
 
 /**

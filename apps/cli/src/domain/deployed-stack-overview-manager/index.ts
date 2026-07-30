@@ -347,7 +347,7 @@ export class DeployedStackOverviewManager {
     return { isHotswappable: false };
   };
 
-  getStackMetadata = (propertyName: string): string | number | boolean | undefined => {
+  getStackMetadata = (propertyName: string): OutputValue | Date | undefined => {
     return this.stackInfoMap?.metadata[propertyName]?.value;
   };
 

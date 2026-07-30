@@ -19,7 +19,7 @@ export const NPM_RELEASE_FOLDER_PATH = join(process.cwd(), SDK_RELEASE_FOLDER_NA
 export const PUBLISH_GITHUB_REPO_DIR_PATH = join(process.cwd(), '__publish-gh-repo-dir');
 export const PUBLISH_STARTER_PROJECTS_DIR_PATH = join(process.cwd(), '__publish-starters-repo-dir');
 export const SOURCE_FOLDER_PATH = join(process.cwd(), 'src');
-export const NPM_PACKAGE_JSON_SOURCE_PATH = join(SOURCE_FOLDER_PATH, 'api', 'npm', 'package.json');
+export const NPM_PACKAGE_JSON_SOURCE_PATH = join(process.cwd(), 'scripts', 'release', 'npm-package', 'package.json');
 export const SOURCE_MAP_INSTALL_DIST_PATH = join(DIST_FOLDER_PATH, SOURCE_MAP_INSTALL_FILENAME);
 export const GITHUB_REPO_README_PATH = join(process.cwd(), 'README_GITHUB.md');
 export const STARTER_PROJECTS_SOURCE_PATH = join(process.cwd(), 'starter-projects');
@@ -55,4 +55,4 @@ export const COMPLETIONS_SCRIPTS_PATH = join(process.cwd(), 'scripts', 'completi
 // export const INSTALL_PREVIEW_SCRIPTS_PATH = join(process.cwd(), 'scripts', 'install-scripts');
 export const SCRIPTS_ASSETS_PATH = join(process.cwd(), 'scripts', 'assets');
 
-export const CLI_SOURCE_PATH = join(SOURCE_FOLDER_PATH, 'api', 'cli', 'index.ts');
+export const CLI_SOURCE_PATH = join(SOURCE_FOLDER_PATH, 'entrypoints', 'cli.ts');

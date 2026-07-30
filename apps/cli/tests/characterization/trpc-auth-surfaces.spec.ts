@@ -1,8 +1,8 @@
 import { readFileSync } from 'node:fs';
 import { afterEach, beforeEach, describe, expect, test } from 'bun:test';
-import { ApiKeyProtectedClient } from '../../src/api/console/api-key-protected';
-import { AwsIdentityProtectedClient } from '../../src/api/console/aws-identity-protected';
-import { PublicApiClient } from '../../src/api/console/public';
+import { ApiKeyProtectedClient } from '../../src/stacktape-api/api-key-protected';
+import { AwsIdentityProtectedClient } from '../../src/stacktape-api/aws-identity-protected';
+import { PublicApiClient } from '../../src/stacktape-api/public';
 
 type CapturedRequest = {
   url: string;
@@ -110,7 +110,7 @@ const contractProcedureNames = (surface: string, clientType: string) => {
 };
 
 const calledProcedureNames = (clientModule: string) => {
-  const source = readSource(`../../src/api/console/${clientModule}.ts`);
+  const source = readSource(`../../src/stacktape-api/${clientModule}.ts`);
   return [...new Set([...source.matchAll(/\.([A-Za-z0-9_]+)\.(?:mutate|query)\(/g)].map((match) => match[1]))].sort();
 };
 

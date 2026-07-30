@@ -1,9 +1,9 @@
-import type { ResourceClassName } from '../../src/api/npm/ts/class-config';
+import type { ResourceClassName } from '../../src/config-sdk/class-config';
 import type { JSDocComment, PropertyInfo } from './types';
 import { existsSync, readFileSync } from 'node:fs';
 
 import * as ts from 'typescript';
-import { MISC_TYPES_CONVERTIBLE_TO_CLASSES, RESOURCES_CONVERTIBLE_TO_CLASSES } from '../../src/api/npm/ts/class-config';
+import { MISC_TYPES_CONVERTIBLE_TO_CLASSES, RESOURCES_CONVERTIBLE_TO_CLASSES } from '../../src/config-sdk/class-config';
 import { resolveConfigSourceFile, SHARED_CONFIG_SOURCE } from './config-sources';
 
 function extractJSDocFromNode(node: ts.Node): JSDocComment | undefined {

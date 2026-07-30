@@ -1,12 +1,12 @@
-import type { GetConfigParams } from 'src/api/npm/ts/config';
+import type { GetConfigParams } from 'src/config-sdk/config';
 import {
   ENGINE_TYPE_TO_CLASS,
   MISC_TYPES_CONVERTIBLE_TO_CLASSES,
   PACKAGING_TYPE_TO_CLASS,
   RESOURCE_TYPE_TO_CLASS,
   SCRIPT_TYPE_TO_CLASS
-} from 'src/api/npm/ts/class-config';
-import { defineConfig, transformConfigWithResources } from 'src/api/npm/ts/config';
+} from 'src/config-sdk/class-config';
+import { defineConfig, transformConfigWithResources } from 'src/config-sdk/config';
 import {
   $CfFormat,
   $CfResourceParam,
@@ -14,10 +14,10 @@ import {
   $GitInfo,
   $ResourceParam,
   $Secret
-} from 'src/api/npm/ts/directives';
-import { AWS_SES } from 'src/api/npm/ts/global-aws-services';
-import * as resourceClasses from 'src/api/npm/ts/resources';
-import * as typePropertyClasses from 'src/api/npm/ts/type-properties';
+} from 'src/config-sdk/directives';
+import { AWS_SES } from 'src/config-sdk/global-aws-services';
+import * as resourceClasses from 'src/config-sdk/resources';
+import * as typePropertyClasses from 'src/config-sdk/type-properties';
 import { parseYaml, stringifyToYaml } from '@utils/yaml';
 
 /** Lambda function event types (from events.d.ts) */

@@ -5,7 +5,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
 import { fsPaths } from 'src/config/runtime-paths';
-import { publicApiClient, type StackPriceEstimationResponse } from '@api/console/public';
+import { publicApiClient, type StackPriceEstimationResponse } from '@stacktape-api/public';
 import { deleteDirectoryContent } from '@utils/fs-utils';
 import { unzip } from '@utils/unzip';
 import color from 'picocolors';

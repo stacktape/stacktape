@@ -1,4 +1,4 @@
-import { runUsingCli } from './index';
+import { runUsingCli } from './cli';
 
 const drainStream = async (stream: NodeJS.WriteStream) => {
   if (stream.writableLength === 0) {

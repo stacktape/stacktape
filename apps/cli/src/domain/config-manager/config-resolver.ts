@@ -1,4 +1,4 @@
-import type { GetConfigParams } from '@api/npm/ts/config';
+import type { GetConfigParams } from 'src/config-sdk/config';
 import type { DirectiveParam } from '@utils/directives';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';

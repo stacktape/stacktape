@@ -1,4 +1,4 @@
-import type { OrganizationActivityResponse } from '@api/console/api-key-protected';
+import type { OrganizationActivityResponse } from '@stacktape-api/api-key-protected';
 
 export type InteractiveLauncherResult = {
   command: StacktapeCommand;

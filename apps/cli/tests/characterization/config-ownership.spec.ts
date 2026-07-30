@@ -137,7 +137,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
   });
 
   test('logical documentation source names still resolve', () => {
-    // These names are recorded in src/api/npm/ts/class-config.ts, which drives the published npm declarations.
+    // These names are recorded in src/config-sdk/class-config.ts, which drives the published npm declarations.
     for (const logicalName of ['functions.d.ts', 'web-services.d.ts', '__helpers.d.ts', '_root.d.ts', 'buckets.d.ts']) {
       expect(resolveConfigSourceFile(logicalName)).toStartWith(CONFIG_PACKAGE_SRC_PATH);
     }

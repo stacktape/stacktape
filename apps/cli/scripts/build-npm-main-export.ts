@@ -12,7 +12,7 @@ import {
   getResourcesWithAugmentedProps,
   MISC_TYPES_CONVERTIBLE_TO_CLASSES,
   RESOURCES_CONVERTIBLE_TO_CLASSES
-} from '../src/api/npm/ts/resource-metadata';
+} from '../src/config-sdk/resource-metadata';
 import {
   generateAugmentedPropsTypes,
   generatePlainPropsImports,
@@ -30,10 +30,10 @@ import { getJsonSchemaGenerator, getTsTypeDef } from './code-generation/utils';
 import { verifyNpmDeclarations } from './verify-npm-declarations';
 
 const PATHS = {
-  source: join(SOURCE_FOLDER_PATH, 'api', 'npm', 'ts', 'index.ts'),
+  source: join(SOURCE_FOLDER_PATH, 'config-sdk', 'index.ts'),
   distJs: join(NPM_RELEASE_FOLDER_PATH, 'index.js'),
-  childResources: join(SOURCE_FOLDER_PATH, 'api', 'npm', 'ts', 'child-resources.ts'),
-  resourceMetadata: join(SOURCE_FOLDER_PATH, 'api', 'npm', 'ts', 'resource-metadata.ts')
+  childResources: join(SOURCE_FOLDER_PATH, 'config-sdk', 'child-resources.ts'),
+  resourceMetadata: join(SOURCE_FOLDER_PATH, 'config-sdk', 'resource-metadata.ts')
 } as const;
 
 export const NPM_DECLARATION_FILE_NAMES = ['index.d.ts', 'types.d.ts', 'plain.d.ts', 'cloudformation.d.ts'] as const;
@@ -52,7 +52,7 @@ export const NPM_SOURCE_FILES = [
   'global-aws-services.ts',
   'directives.ts',
   'resource-metadata.ts'
-].map((file) => join(SOURCE_FOLDER_PATH, 'api', 'npm', 'ts', file));
+].map((file) => join(SOURCE_FOLDER_PATH, 'config-sdk', file));
 
 /**
  * Type aliases for Props types that need to extract 'properties' from discriminated unions

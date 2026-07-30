@@ -24,7 +24,7 @@ export const copyPackageJson = async (version?: string) => {
 
 export const copyBinWrapper = async () => {
   logInfo('Copying bin wrapper script...');
-  const binSourcePath = join(process.cwd(), 'src', 'api', 'npm', 'bin', 'stacktape.js');
+  const binSourcePath = join(process.cwd(), 'scripts', 'release', 'npm-package', 'bin', 'stacktape.js');
   const binDestPath = join(NPM_RELEASE_FOLDER_PATH, 'bin', 'stacktape.js');
   await copy(binSourcePath, binDestPath);
   logSuccess('Bin wrapper script copied successfully.');

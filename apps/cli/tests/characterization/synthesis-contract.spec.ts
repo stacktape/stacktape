@@ -35,7 +35,7 @@ import {
   UserAuthPool,
   WebService,
   defineConfig
-} from '../../src/api/npm/ts';
+} from '../../src/config-sdk';
 
 const createDenseConfig = () =>
   defineConfig(() => {

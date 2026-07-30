@@ -16,7 +16,7 @@ const main = async () => {
       newVersion: version
     }),
     adjustPackageJsonVersion({
-      path: join(process.cwd(), 'src', 'api', 'npm', 'package.json'),
+      path: join(process.cwd(), 'scripts', 'release', 'npm-package', 'package.json'),
       newVersion: version
     })
   ]);

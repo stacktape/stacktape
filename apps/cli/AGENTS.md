@@ -6,9 +6,11 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 
 ## Layout
 
-- `src/` — commands, application/domain managers, TUI, MCP, and the published `stacktape` npm API (`src/api/npm`).
-  CLI-owned AWS facilities live in `src/aws`, Console tRPC clients in `src/api/console`, and application utilities in
-  `src/utils`. Helper Lambdas may import those modules because they are CLI-owned deployment artifacts; co-location
+- `src/` — commands, application/domain managers, TUI, MCP, and the config-authoring SDK used to build the published
+  `stacktape` npm API (`src/config-sdk`). Executable process boundaries live in `src/entrypoints`; the outbound
+  Stacktape control-plane tRPC clients live in `src/stacktape-api`. CLI-owned AWS facilities live in `src/aws`, and
+  application utilities live in `src/utils`. Helper Lambdas may import those modules because they are CLI-owned
+  deployment artifacts; co-location
   does not make the modules a reusable workspace package. The historical catch-all `shared/` directory is gone.
   Packaging implementation lives entirely in `@stacktape/packaging`; the CLI's
   `PackagingManager` remains its composition root and supplies the concrete dependency installer, error constructor,
@@ -24,7 +26,8 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   the ambient `types/` declarations; see that directory's `AGENTS.md` for the measurement and the compatibility
   contract.
 - `scripts/` — build, code generation, release and publishing tooling, plus the committed platform binaries under
-  `scripts/assets/` that release archives ship.
+  `scripts/assets/` that release archives ship. The npm package manifest and JavaScript launcher are release inputs
+  under `scripts/release/npm-package`; they are not application runtime source.
 - `starter-projects/` — canonical starter templates, not installed workspace projects. Their TypeScript configs are
   named `tsconfig*.template.json` so editors do not treat framework templates as live projects; starter
   materialization removes the `.template` segment (for example, `tsconfig.node.template.json` becomes

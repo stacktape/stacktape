@@ -1,5 +1,5 @@
 import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
-import type { ConfigureEc2RunnerFromCliParams } from '@api/console/api-key-protected';
+import type { ConfigureEc2RunnerFromCliParams } from '@stacktape-api/api-key-protected';
 import { CommandInvocationStatus } from '@aws-sdk/client-ssm';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';

@@ -346,58 +346,23 @@ type SubscribeToLogStream = (
   }
 ) => void;
 
-type CfChildResourceOverview = {
-  cloudformationResourceType:
-    | import('@cloudform/resource-types').CloudformationResourceType
-    | SupportedPrivateCfResourceType;
-  status: import('@aws-cdk/cloudformation-diff').ResourceImpact;
-  referenceableParams: string[];
-  afterUpdateResourceType?:
-    | import('@cloudform/resource-types').CloudformationResourceType
-    | SupportedPrivateCfResourceType;
-};
+type CfChildResourceOverview = import('@stacktape/stack-info/contracts').CloudformationChildResourceOverview<
+  import('@aws-cdk/cloudformation-diff').ResourceImpact,
+  import('@cloudform/resource-types').CloudformationResourceType | SupportedPrivateCfResourceType
+>;
 
-type StackMetadataName = keyof typeof import('@stacktape/naming/stack-metadata-names').stackMetadataNames;
-type StackInfoMap = {
-  metadata: {
-    [metadataName in Partial<StackMetadataName>]?: { showDuringPrint: boolean; value: OutputValue | Date };
-  };
-  resources: {
-    [resourceName: string]: StackInfoMapResource;
-  };
-  customOutputs: {
-    [cfOutputName: string]: OutputValue;
-  };
-};
+type StackInfoMap = import('@stacktape/stack-info/contracts').StackInfoMap<
+  StpResourceType,
+  OutputValue,
+  StacktapeResourceReferenceableParam,
+  import('@aws-cdk/cloudformation-diff').ResourceImpact,
+  import('@cloudform/resource-types').CloudformationResourceType | SupportedPrivateCfResourceType,
+  OutputValue | Date
+>;
 
 type OutputValue = string | number | boolean | IntrinsicFunction; // number | boolean |
 
-type StackInfoMapResource = {
-  resourceType: StpResourceType | 'SHARED_GLOBAL' | 'CUSTOM_CLOUDFORMATION';
-  referencableParams: {
-    [paramName in StacktapeResourceReferenceableParam]?: {
-      showDuringPrint: boolean;
-      value: OutputValue;
-      ssmParameterName?: string;
-    };
-  };
-  cloudformationChildResources: {
-    [cfLogicalName: string]: Omit<CfChildResourceOverview, 'status' | 'referenceableParams'>;
-  };
-  links: {
-    [name: string]: OutputValue;
-  };
-  // outputs are meant for arbitrary non-referencable information about resource such as http-api-gateway paths
-  // output can be primitive but also complex (array or object)
-  // they are not meant for sensitive values
-  outputs: {
-    [name: string]: any;
-  };
-  // some of the resources such as web-service, private-service, nextjs-web (etc) are made of lower level stacktape resources (function, multi-container-workload, bucket...)
-  _nestedResources?: {
-    [nestedResourceIdentifier: string]: StackInfoMapResource;
-  };
-};
+type StackInfoMapResource = StackInfoMap['resources'][string];
 
 type StacktapeResourceOutput<T extends StpResourceType> = T extends 'http-api-gateway'
   ? HttpApiGatewayOutputs
@@ -414,24 +379,25 @@ type StackMetadata = {
   [metaName: string]: OutputValue | Date;
 };
 
-type DetailedStackResourceInfo = Omit<StackInfoMapResource, 'referencableParams' | '_nestedResources'> & {
-  status: 'DEPLOYED' | 'TO_BE_CREATED' | 'TO_BE_DELETED' | 'TO_BE_REPLACED';
-  afterUpdateResourceType?: StpResourceType | 'SHARED_GLOBAL' | 'CUSTOM_CLOUDFORMATION';
-  referenceableParams: {
-    [paramName in StacktapeResourceReferenceableParam]?: OutputValue;
-  };
-  cloudformationChildResources: {
-    [cfLogicalName: string]: CfChildResourceOverview;
-  };
-  _nestedResources?: {
-    [nestedResourceIdentifier: string]: DetailedStackResourceInfo;
-  };
-};
+type DetailedStackResourceInfo = import('@stacktape/stack-info/contracts').DetailedStackResourceInfo<
+  StpResourceType,
+  OutputValue,
+  StacktapeResourceReferenceableParam,
+  import('@aws-cdk/cloudformation-diff').ResourceImpact,
+  import('@cloudform/resource-types').CloudformationResourceType | SupportedPrivateCfResourceType
+>;
 
-type DetailedStackInfoMap = {
+type DetailedStackInfoMap = Omit<
+  import('@stacktape/stack-info/contracts').DetailedStackInfoMap<
+    StpResourceType,
+    OutputValue,
+    StacktapeResourceReferenceableParam,
+    import('@aws-cdk/cloudformation-diff').ResourceImpact,
+    import('@cloudform/resource-types').CloudformationResourceType | SupportedPrivateCfResourceType
+  >,
+  'metadata'
+> & {
   metadata: StackMetadata;
-  resources: { [key: string]: DetailedStackResourceInfo };
-  customOutputs: StackInfoMap['customOutputs'];
 };
 
 type ListStackSummary = {

@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto';
 import { gunzipSync } from 'node:zlib';
 import { CloudWatchLogsClient, FilterLogEventsCommand, GetLogEventsCommand } from '@aws-sdk/client-cloudwatch-logs';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
-import { AwsIdentityProtectedClient } from '@api/console/aws-identity-protected';
+import { AwsIdentityProtectedClient } from '@stacktape-api/aws-identity-protected';
 
 const cwLogsClient = new CloudWatchLogsClient({});
 

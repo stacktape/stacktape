@@ -10,7 +10,7 @@ const isConfigModelModule = (file: string) => file.endsWith('.ts') && !file.ends
  *
  * Generators, documentation extraction and the npm class build refer to config sources by their historical
  * `.d.ts` names — `functions.d.ts`, `__helpers.d.ts` — and those names are recorded in
- * `src/api/npm/ts/class-config.ts`, which is a published-surface mapping. That logical identity is kept; only
+ * `src/config-sdk/class-config.ts`, which is a published-surface mapping. That logical identity is kept; only
  * the physical location changed. Resolution is deliberately strict: every one of these callers used to fail
  * open, silently emitting nothing when its glob or `readFile` found no source.
  */

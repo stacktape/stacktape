@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'bun:test';
-import { MISC_TYPES_CONVERTIBLE_TO_CLASSES } from '../../src/api/npm/ts/resource-metadata';
+import { MISC_TYPES_CONVERTIBLE_TO_CLASSES } from '../../src/config-sdk/resource-metadata';
 import { generateTypePropertiesClassDeclarations } from './generate-type-properties';
 
 /**

@@ -10,7 +10,7 @@ import {
   type CliConfigGenDeployableUnit,
   type ProductionReadiness,
   type StackPriceEstimationResponse
-} from '@api/console/public';
+} from '@stacktape-api/public';
 import {
   appendResourceRows,
   countUnsetEnvVarsInConfig,
