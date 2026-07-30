@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import * as ts from 'typescript';
 import { CONFIG_PACKAGE_SRC_PATH } from '@shared/naming/project-fs-paths';
 import { buildIndexNamespaceModule, buildResourceModule, resourceModuleName } from './generate-cloudform';
@@ -43,13 +43,56 @@ const compileWithRootHelpers = (modules: Record<string, string>): string[] => {
     paths: { '@stacktape/config/*': [join(CONFIG_PACKAGE_SRC_PATH, '*')] }
   });
 
-  return ts
-    .getPreEmitDiagnostics(program)
-    .map((diagnostic) => `TS${diagnostic.code}: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')}`);
+  return ts.getPreEmitDiagnostics(program).map((diagnostic) => {
+    const message = `TS${diagnostic.code}: ${ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')}`;
+    if (!diagnostic.file || diagnostic.start === undefined) return message;
+
+    const { line, character } = diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start);
+    return `${relative(root, diagnostic.file.fileName)}:${line + 1}:${character + 1} - ${message}`;
+  });
 };
 
 const requiredValue = { PrimitiveType: 'String', Required: true };
 const tagList = { Type: 'List', ItemType: 'Tag', Required: false };
+
+const valueCollisionModule = buildResourceModule(
+  'Connect',
+  'DataTableRecord',
+  { InstanceArn: requiredValue },
+  {
+    'AWS::Connect::DataTableRecord.Value': {
+      Properties: { AttributeValue: { PrimitiveType: 'String', Required: false } }
+    },
+    'AWS::Connect::DataTableRecord.Fields': {
+      Properties: { Values: { Type: 'List', ItemType: 'Value', Required: true } }
+    }
+  }
+);
+const listCollisionModule = buildResourceModule('FraudDetector', 'List', { Name: requiredValue, Tags: tagList }, {});
+const resourceTagCollisionModule = buildResourceModule(
+  'Budgets',
+  'Budget',
+  { Tags: tagList },
+  { 'AWS::Budgets::Budget.ResourceTag': { Properties: { Key: requiredValue } } }
+);
+const ordinaryResourceModule = buildResourceModule(
+  'Lambda',
+  'Permission',
+  { FunctionName: requiredValue, Tags: tagList },
+  {}
+);
+const preferredAliasCollisionModule = buildResourceModule(
+  'Synthetic',
+  'Collision',
+  { Name: requiredValue },
+  {
+    'AWS::Synthetic::Collision.Value': { Properties: { Name: requiredValue } },
+    'AWS::Synthetic::Collision.CfnValue': { Properties: { Name: requiredValue } }
+  }
+);
+const indexResourceModule = buildResourceModule('Kendra', 'Index', { Name: requiredValue }, {});
+const dataSourceResourceModule = buildResourceModule('Kendra', 'DataSource', { Name: requiredValue }, {});
+const indexNamespaceModule = buildIndexNamespaceModule('Kendra', ['DataSource', 'Index']);
 
 afterEach(() => {
   for (const dir of tempDirs) {
@@ -59,80 +102,57 @@ afterEach(() => {
 });
 
 describe('cloudform resource modules compile when a generated name shadows a root helper', () => {
+  test('all representative generated modules form one valid TypeScript program', () => {
+    expect(
+      compileWithRootHelpers({
+        valueCollision: valueCollisionModule,
+        listCollision: listCollisionModule,
+        resourceTagCollision: resourceTagCollisionModule,
+        ordinaryResource: ordinaryResourceModule,
+        preferredAliasCollision: preferredAliasCollisionModule,
+        indexResource: indexResourceModule,
+        dataSource: dataSourceResourceModule,
+        'index.namespace': indexNamespaceModule
+      })
+    ).toEqual([]);
+  }, 30_000);
+
   test('a property type named Value keeps its class and aliases the helper import', () => {
     // AWS::Connect::DataTableRecord.Value
-    const generated = buildResourceModule(
-      'Connect',
-      'DataTableRecord',
-      { InstanceArn: requiredValue },
-      {
-        'AWS::Connect::DataTableRecord.Value': {
-          Properties: { AttributeValue: { PrimitiveType: 'String', Required: false } }
-        },
-        'AWS::Connect::DataTableRecord.Fields': {
-          Properties: { Values: { Type: 'List', ItemType: 'Value', Required: true } }
-        }
-      }
-    );
-
-    expect(compileWithRootHelpers({ dataTableRecord: generated })).toEqual([]);
-    expect(generated).toContain("import { Value as CfnValue, List } from '../dataTypes'");
-    expect(generated).toContain('export class Value {');
-    expect(generated).toContain('AttributeValue?: CfnValue<string>');
-    expect(generated).toContain('Values!: List<Value>');
+    expect(valueCollisionModule).toContain("import { Value as CfnValue, List } from '../dataTypes'");
+    expect(valueCollisionModule).toContain('export class Value {');
+    expect(valueCollisionModule).toContain('AttributeValue?: CfnValue<string>');
+    expect(valueCollisionModule).toContain('Values!: List<Value>');
   });
 
   test('a resource named List keeps its class name and aliases the helper import', () => {
     // AWS::FraudDetector::List
-    const generated = buildResourceModule('FraudDetector', 'List', { Name: requiredValue, Tags: tagList }, {});
-
-    expect(compileWithRootHelpers({ list: generated })).toEqual([]);
-    expect(generated).toContain("import { Value, List as CfnList } from '../dataTypes'");
-    expect(generated).toContain('export default class List extends ResourceBase<ListProperties>');
-    expect(generated).toContain('Tags?: CfnList<ResourceTag>');
+    expect(listCollisionModule).toContain("import { Value, List as CfnList } from '../dataTypes'");
+    expect(listCollisionModule).toContain('export default class List extends ResourceBase<ListProperties>');
+    expect(listCollisionModule).toContain('Tags?: CfnList<ResourceTag>');
   });
 
   test('a property type named ResourceTag keeps its class name and aliases the helper import', () => {
     // AWS::Budgets::Budget.ResourceTag
-    const generated = buildResourceModule(
-      'Budgets',
-      'Budget',
-      { Tags: tagList },
-      { 'AWS::Budgets::Budget.ResourceTag': { Properties: { Key: requiredValue } } }
+    expect(resourceTagCollisionModule).toContain(
+      "import {ResourceBase, ResourceTag as CfnResourceTag} from '../resource'"
     );
-
-    expect(compileWithRootHelpers({ budget: generated })).toEqual([]);
-    expect(generated).toContain("import {ResourceBase, ResourceTag as CfnResourceTag} from '../resource'");
-    expect(generated).toContain('export class ResourceTag {');
-    expect(generated).toContain('Tags?: List<CfnResourceTag>');
+    expect(resourceTagCollisionModule).toContain('export class ResourceTag {');
+    expect(resourceTagCollisionModule).toContain('Tags?: List<CfnResourceTag>');
   });
 
   test('an ordinary resource is emitted without aliases', () => {
-    const generated = buildResourceModule('Lambda', 'Permission', { FunctionName: requiredValue, Tags: tagList }, {});
-
-    expect(compileWithRootHelpers({ permission: generated })).toEqual([]);
-    expect(generated).toContain("import {ResourceBase, ResourceTag} from '../resource'");
-    expect(generated).toContain("import { Value, List } from '../dataTypes'");
-    expect(generated).toContain('FunctionName: Value<string>');
-    expect(generated).toContain('Tags?: List<ResourceTag>');
-    expect(generated).not.toContain('Cfn');
+    expect(ordinaryResourceModule).toContain("import {ResourceBase, ResourceTag} from '../resource'");
+    expect(ordinaryResourceModule).toContain("import { Value, List } from '../dataTypes'");
+    expect(ordinaryResourceModule).toContain('FunctionName: Value<string>');
+    expect(ordinaryResourceModule).toContain('Tags?: List<ResourceTag>');
+    expect(ordinaryResourceModule).not.toContain('Cfn');
   });
 
   test('allocates a unique alias when a generated type already uses the preferred helper alias', () => {
-    const generated = buildResourceModule(
-      'Synthetic',
-      'Collision',
-      { Name: requiredValue },
-      {
-        'AWS::Synthetic::Collision.Value': { Properties: { Name: requiredValue } },
-        'AWS::Synthetic::Collision.CfnValue': { Properties: { Name: requiredValue } }
-      }
-    );
-
-    expect(compileWithRootHelpers({ collision: generated })).toEqual([]);
-    expect(generated).toContain("import { Value as CfnValue2, List } from '../dataTypes'");
-    expect(generated).toContain('export class Value {');
-    expect(generated).toContain('export class CfnValue {');
+    expect(preferredAliasCollisionModule).toContain("import { Value as CfnValue2, List } from '../dataTypes'");
+    expect(preferredAliasCollisionModule).toContain('export class Value {');
+    expect(preferredAliasCollisionModule).toContain('export class CfnValue {');
   });
 });
 
@@ -145,19 +165,8 @@ describe('cloudform namespace modules do not collide with a resource named Index
 
   test('the namespace module imports the Index resource as a class it can use as a type', () => {
     // AWS::Kendra::Index, plus the four sibling Index resources in other namespaces.
-    const indexResource = buildResourceModule('Kendra', 'Index', { Name: requiredValue }, {});
-    const namespaceModule = buildIndexNamespaceModule('Kendra', ['DataSource', 'Index']);
-    const dataSourceResource = buildResourceModule('Kendra', 'DataSource', { Name: requiredValue }, {});
-
-    expect(namespaceModule).toContain("import Index_ from './indexResource'");
-    expect(namespaceModule).toContain('export type Index = Index_');
-    expect(
-      compileWithRootHelpers({
-        indexResource,
-        dataSource: dataSourceResource,
-        'index.namespace': namespaceModule
-      })
-    ).toEqual([]);
+    expect(indexNamespaceModule).toContain("import Index_ from './indexResource'");
+    expect(indexNamespaceModule).toContain('export type Index = Index_');
   });
 
   test('fails instead of overwriting when two resources map to the same module name', () => {
