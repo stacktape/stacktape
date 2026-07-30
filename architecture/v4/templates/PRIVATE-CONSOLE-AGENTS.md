@@ -57,6 +57,18 @@ it has a coherent capability and more than one real consumer.
 - Consume starter-project metadata and the AWS, CloudFormation and RDS editor catalogs through the public
   `@stacktape/cli` subpaths; do not restore private generated copies. MongoDB Atlas prices currently have no
   generator and are a Console-only editor input, so their single source is `ui/src/data/mongodb-atlas-prices.json`.
+- Consume pricing catalog ingestion, DynamoDB refresh, and resource-estimator contracts from `@stacktape/pricing`;
+  do not restore either private or CLI-local copies of the pricing implementation.
+- Browser AWS operations receive an explicit access context containing organization, AWS account, region, and signed-in
+  user. Read session state at the component boundary and pass it down; do not restore a singleton that reads the
+  global store internally.
+- Acquire browser AWS clients through `ui/src/aws/client.ts`. Its cache owns expiry margin, concurrent credential
+  requests, client reuse, and logout cleanup; feature code must not add a second credential or client cache.
+- Scope AWS-backed React Query keys by organization, account, and region whenever the AWS result is regional. Global
+  services such as Route 53 deliberately omit region. Keep one query-key family shared by each query and its
+  invalidations.
+- Keep feature-specific AWS operations beside their sole UI feature. Use `ui/src/aws` only for operations shared by
+  several screens or for the common access/client boundary.
 
 ## Validation
 

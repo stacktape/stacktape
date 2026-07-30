@@ -37,11 +37,6 @@ refactoring scope. Revisit them before the v4 release where marked.
   authorize each credential request against the exact browser operation (and project or resource where applicable),
   while preserving the existing organization/account-membership checks, and default browser sessions to least
   privilege.
-- The Console browser credential cache is not scoped by organization or user, does not coalesce concurrent refreshes,
-  and considers credentials valid until their exact expiry. Its AWS-backed React Query keys are also not consistently
-  scoped by account, region, and organization. Add explicit session ownership, an expiry margin, request coalescing,
-  logout invalidation, and complete query-key scoping when the browser AWS layer is refactored.
-
 ## Known v3 behavior debt
 
 - A second permanent-credential load can use an unassigned local `creds` value when the existing source is a
