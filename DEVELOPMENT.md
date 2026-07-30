@@ -60,6 +60,22 @@ pnpm --filter @stacktape/packaging run test
 `pnpm dev` at the root is `turbo run dev` — the Astro dev servers for `apps/docs` and `apps/website`. It is unrelated
 to the Stacktape `dev` command described below.
 
+## Building a release candidate
+
+`.github/workflows/release.yml` is a manually dispatched, artifact-only workflow. It builds all six supported platform
+archives, generates checksums for that exact archive set, embeds the manifest in a verified npm package, smoke-tests
+the Alpine archive/runtime, and uploads one inspectable candidate artifact. It cannot publish npm packages, create a
+GitHub release, push a tag, or deploy anything.
+
+```powershell
+gh workflow run release.yml --ref v4/integration -f version=4.0.0-beta.1
+gh run watch <run-id>
+gh run download <run-id>
+```
+
+Use a unique prerelease version for each inspection. Publishing and default-branch cutover require a separately
+reviewed protected stage and explicit approval.
+
 ## The development CLI
 
 `pnpm --filter @stacktape/cli run dev <command> [options]` builds the CLI from source with Bun and runs it in one
