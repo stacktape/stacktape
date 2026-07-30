@@ -234,7 +234,7 @@ import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node';
 import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
 import type { AwsCredentials } from 'src/aws/credentials';
 import { consoleLinks } from '@stacktape/naming/console-links';
-import type { AWSRegion } from 'src/aws/regions';
+import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { resourceURIs } from 'src/utils/aws-resource-uris';
 import { COMMENT_FOR_STACKTAPE_ZONE } from 'src/config/constants';
 import { getRelativePath } from '@utils/fs-utils';

@@ -4,9 +4,10 @@ The user-authored Stacktape configuration language: the resource model, its Clou
 primitives the published config schema, the `stacktape` npm declarations, the documentation examples and the Console
 are all generated from.
 
-Small deterministic operations that interpret this authored model live beside it: Fargate CPU/memory compatibility,
-relational-database engine normalization, and typed inspection of the canonical schema for generators and editors.
-They are explicit subpaths, not a general utility surface.
+Small deterministic operations and closed vocabularies that interpret or constrain this authored/deployment model
+live beside it: Fargate CPU/memory compatibility, relational-database engine normalization, the supported AWS region
+catalog, and typed inspection of the canonical schema for generators and editors. They are explicit subpaths, not a
+general utility surface.
 
 The committed JSON schema has the same owner: `generated/config-schema.json` is exported as
 `@stacktape/config/config-schema.json`. The CLI generates, publishes and packages that file directly, and Console
@@ -18,12 +19,17 @@ and both copies drifted. Nothing can be extracted safely until the configuration
 
 ## What belongs here
 
-The authored configuration format, and only that: what a user may write in `stacktape.yml` or in a TypeScript config.
-The bulk of it is classified mechanically rather than by naming convention — a declaration belongs here when it is
-reachable from `StacktapeConfig`, which is how the published schema is computed, and it is why the `Stp` prefix is
+The authored configuration format plus the small closed vocabularies that define its accepted deployment inputs. The
+bulk of the package is classified mechanically rather than by naming convention — a declaration belongs here when it
+is reachable from `StacktapeConfig`, which is how the published schema is computed, and it is why the `Stp` prefix is
 not a classifier: `StpBuildpackLambdaPackaging`, `StpIamRoleStatement` and `StpStateMachine` are authored configuration,
 while `StpResource`, `StpResourceType` and the `*ReferencableParam` unions are the CLI's resolved model and stay in
 `apps/cli`.
+
+`aws-regions.ts` is the focused exception to the reachability test: region identifiers are user-selectable
+configuration/deployment vocabulary, and CLI validation, config guardrails, Console scanning, and Console UI choices
+must share one exact supported catalog. The Console API deliberately keeps its input type open to valid regions AWS
+may add between Console releases; this package's closed tuple describes Stacktape's current supported choices.
 
 Reachability is the test, not the rule. A few authored types are published by the `stacktape` npm package without
 being referenced from the configuration root — `BudgetControl`, `BudgetNotification`, `IotIntegration`,

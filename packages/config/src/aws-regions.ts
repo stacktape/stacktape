@@ -22,4 +22,7 @@ export const SUPPORTED_AWS_REGIONS = [
   'eu-south-1'
 ] as const;
 
-export type AWSRegion = (typeof SUPPORTED_AWS_REGIONS)[number];
+export type SupportedAWSRegion = (typeof SUPPORTED_AWS_REGIONS)[number];
+
+export const isSupportedAwsRegion = (region: string): region is SupportedAWSRegion =>
+  SUPPORTED_AWS_REGIONS.some((supportedRegion) => supportedRegion === region);

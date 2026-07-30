@@ -13,7 +13,7 @@ import { GetAtt, GetAZs, Join, Ref, Select } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
-import type { AWSRegion } from 'src/aws/regions';
+import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';

@@ -13,7 +13,7 @@ import {
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
 import type { LoadedAwsCredentials, ValidatedAwsCredentials } from 'src/aws/credentials';
-import { SUPPORTED_AWS_REGIONS, type AWSRegion } from 'src/aws/regions';
+import { SUPPORTED_AWS_REGIONS, type SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { getRoleArnFromSessionArn } from '@stacktape/naming/arns';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { propertyFromObjectOrNull } from '@utils/misc';

@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { SUPPORTED_AWS_REGIONS } from 'src/aws/regions';
+import { SUPPORTED_AWS_REGIONS } from '@stacktape/config/aws-regions';
 
 // ============ Base Option Schemas ============
 

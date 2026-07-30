@@ -1,5 +1,5 @@
 import { Sub } from '@cloudform/functions';
-import type { AWSRegion } from 'src/aws/regions';
+import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 
 export const resourceURIs = {

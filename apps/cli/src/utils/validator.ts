@@ -3,7 +3,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
 import type { LoadedAwsCredentials, ValidatedAwsCredentials } from 'src/aws/credentials';
-import { SUPPORTED_AWS_REGIONS, type AWSRegion } from 'src/aws/regions';
+import { SUPPORTED_AWS_REGIONS, type SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { getError, isAlphanumeric, isSmallAlphanumericDashCase } from '@utils/misc';
 import { ExpectedError } from '@utils/errors';
 import { renderPrettyJson } from '@utils/pretty-json';

@@ -29,9 +29,9 @@ measurement that settled it remains the relevant baseline:
   `src/aws/identity.ts` and `src/stacktape-api/client.ts`, which reach `src/aws/fetch-handler.ts` (13 other consumers);
 - alarm configuration now uses an explicit `AlarmDefinition` import from `@stacktape/config`, while the runtime still
   consumes the CLI-only ambient `AlarmNotificationEventRuleInput` payload from
-  `types/stacktape-config/alarms.d.ts`. AWS execution types are explicit imports from
-  `src/aws/credentials.ts` and `src/aws/regions.ts`, but those modules remain general CLI facilities rather than
-  helper-owned code.
+  `types/stacktape-config/alarms.d.ts`. AWS credentials are imported explicitly from the general CLI facility
+  `src/aws/credentials.ts`; supported region types come from the configuration vocabulary at
+  `@stacktape/config/aws-regions`. Neither capability is helper-owned.
 
 Every way to make a package out of that is worse than co-location:
 
