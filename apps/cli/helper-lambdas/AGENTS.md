@@ -9,6 +9,10 @@ The four Lambdas Stacktape deploys into customer AWS accounts:
 They are separately built deployment artifacts, but they are **not** a workspace package, and this directory is their
 permanent home until the condition below is met.
 
+Wire contracts shared by helper runtime entrypoints and CLI synthesis belong beside the artifacts. CloudFront's
+Stacktape-owned origin headers therefore live in `cloudfront/cloudfront-origin-headers.ts`; consumers use the existing
+`@helper-lambdas/*` application alias so synthesis and both edge artifacts compile from one source of truth.
+
 ## Why this is not `packages/helper-lambdas`
 
 `SIMPLIFIED-MIGRATION.md` once listed `helper-lambdas` as a package to extract "because it is an independently built

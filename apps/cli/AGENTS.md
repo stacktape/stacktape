@@ -18,9 +18,11 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   links, SSM paths, stack descriptions, output/tag/metadata names, and truncation/hash behavior live in
   `@stacktape/naming`. CLI runtime/build paths, generated CloudFormation links and URIs, artifact keys, and alarm
   descriptions remain beside the application behavior that owns them.
-- `helper-lambdas/` — sources of the four Lambdas Stacktape deploys into customer accounts. They are separately built
-  artifacts that stay in this application because their source needs general CLI implementation and the ambient
-  `types/` declarations; see that directory's `AGENTS.md` for the measurement and the compatibility contract.
+- `helper-lambdas/` — sources of the four Lambdas Stacktape deploys into customer accounts. Cross-artifact wire
+  contracts used by synthesis live beside them (for example, `cloudfront/cloudfront-origin-headers.ts`). They are
+  separately built artifacts that stay in this application because their source needs general CLI implementation and
+  the ambient `types/` declarations; see that directory's `AGENTS.md` for the measurement and the compatibility
+  contract.
 - `scripts/` — build, code generation, release and publishing tooling, plus the committed platform binaries under
   `scripts/assets/` that release archives ship.
 - `starter-projects/` — canonical starter templates, not installed workspace projects. Their TypeScript configs are

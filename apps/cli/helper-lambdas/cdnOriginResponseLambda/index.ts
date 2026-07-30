@@ -1,5 +1,5 @@
 import type { CloudFrontHeaders, CloudFrontResponseHandler } from 'aws-lambda';
-import { stacktapeCloudfrontHeaders } from 'src/helper-lambda-contracts/cloudfront-headers';
+import { stacktapeCloudfrontHeaders } from '@helper-lambdas/cloudfront/cloudfront-origin-headers';
 
 export const handler: CloudFrontResponseHandler = async (event) => {
   const { request, response } = event.Records[0].cf;

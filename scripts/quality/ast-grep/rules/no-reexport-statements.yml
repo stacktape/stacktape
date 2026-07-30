@@ -1,10 +1,12 @@
-id: no-reexport-only-module
+id: no-reexport-statements
 language: TypeScript
 severity: error
-message: Re-export-only modules hide ownership; use explicit package subpath exports.
+message: Re-export statements hide ownership; import from and export each module through its explicit package subpath.
 rule:
   kind: export_statement
-  regex: ^export\s+(?:\*|\{[\s\S]*\})\s+from
+  has:
+    field: source
+    kind: string
 constraints: {}
 files:
   - apps/**/*.ts
@@ -17,8 +19,9 @@ ignores:
   # The imported Stacktape CLI predates this rule: its published API entry points and a few internal barrels
   # re-export from sibling modules. Reworking them is a follow-up, not part of moving the application.
   - 'apps/cli/**'
-  # The same applies to these four modules of the imported Console. They are listed one by one so that new
+  # The same applies to these five modules of the imported Console. They are listed one by one so that new
   # Console code still has to satisfy the rule.
+  - 'apps/console/api/server/services/config-gen/ai-flows/get-project-details/response-schemas/ai-inferred-project-details-schema.ts'
   - 'apps/console/api/server/services/remote-deploy/index.ts'
   - 'apps/console/api/server/services/remote-deploy/ec2/index.ts'
   - 'apps/console/ui/src/styles/variables.ts'

@@ -33,7 +33,7 @@ import { resolveReferenceToFirewall } from '@domain-services/config-manager/util
 import { domainManager } from '@domain-services/domain-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { stacktapeCloudfrontHeaders } from 'src/helper-lambda-contracts/cloudfront-headers';
+import { stacktapeCloudfrontHeaders } from '@helper-lambdas/cloudfront/cloudfront-origin-headers';
 import { shortHash } from '@stacktape/naming/short-hash';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
 import { ExpectedError, UnexpectedError } from '@utils/errors';

@@ -2,7 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { DIST_FOLDER_PATH, JSON_SCHEMAS_FOLDER_PATH } from 'src/config/project-paths';
 import { fsPaths } from 'src/config/runtime-paths';
-import { stacktapeCloudfrontHeaders } from 'src/helper-lambda-contracts/cloudfront-headers';
+import { stacktapeCloudfrontHeaders } from '@helper-lambdas/cloudfront/cloudfront-origin-headers';
 import { resourceURIs } from 'src/utils/aws-resource-uris';
 import { cfRegistryNames } from '@domain-services/cloudformation-registry-manager/names';
 import { resourceReferencableParams } from '@domain-services/config-manager/resource-reference-parameters';
