@@ -96,7 +96,14 @@ Important Stacktape resource groups requiring real AWS or new Floci contribution
 ElastiCache, OpenSearch, WAF, Scheduler, Service Discovery, Lambda alias/permission/URL/event-invoke resources, several
 API Gateway v2 resources, ECS capacity providers, and Application Auto Scaling.
 
-Before Floci becomes a public-PR gate, a feasibility spike must demonstrate:
+The first provider-baseline spike is implemented at
+[`apps/cli/scripts/floci/`](../../apps/cli/scripts/floci/). Against pinned Floci 1.5.34, CloudFormation create, real
+S3/SQS data-plane operations, persistent restart and stack-record deletion work. The emulator currently accepts an
+identical update, reports a changed SQS property as updated without changing the data plane, and deletes the stack
+record without deleting its S3/SQS resources. The command therefore exits `2`, is not part of normal checks, and is
+not a Stacktape end-to-end test.
+
+Before Floci becomes a public-PR gate, a later Stacktape-integrated feasibility spike must demonstrate:
 
 1. serverless initial create;
 2. live event/data flow;
@@ -251,6 +258,7 @@ turning existing style diagnostics into a baseline.
 
 Next:
 
-1. Run the Floci feasibility spike.
+1. Re-evaluate Floci after no-op, update and delete fidelity are fixed; then run a Stacktape-synthesized certified
+   subset through it.
 2. Build the cheap real-AWS `serverless-mesh` canary after explicit authorization.
 3. Expand nightly/weekly coverage by observed risk and production defects.
