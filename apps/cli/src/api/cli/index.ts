@@ -1,4 +1,7 @@
 const main = async () => {
+  const { configureNativeRuntimeForPlatform } = await import('@shared/utils/bin-executable');
+  configureNativeRuntimeForPlatform();
+
   const { INVOKED_FROM_ENV_VAR_NAME } = await import('@config');
   const { getCliInput } = await import('@utils/cli');
   const { resolveOutputMode } = await import('@application-services/tui-manager/output-mode');

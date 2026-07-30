@@ -122,6 +122,16 @@ describe('published install scripts', () => {
     ).toEqual(['false', 'false', 'true', 'true', 'true', 'true']);
   }, 15_000);
 
+  test('Alpine installer reports all native runtime prerequisites without modifying the host', async () => {
+    const content = await readFile(join(import.meta.dir, 'alpine.sh'), 'utf8');
+
+    expect(content).toContain('for package in libstdc++ libgcc gcompat');
+    expect(content).toContain('apk info --installed "$package"');
+    expect(content).toContain('apk add --no-cache libstdc++ libgcc gcompat');
+    expect(content).not.toMatch(/^\s*apk add /m);
+    expect(content.indexOf('missing_runtime_packages=""')).toBeLessThan(content.indexOf('curl -#'));
+  });
+
   test('publishes only required installer assets, never adjacent tests', () => {
     expect(PUBLISHED_INSTALL_ASSET_FILES).toEqual([
       '_data.json',

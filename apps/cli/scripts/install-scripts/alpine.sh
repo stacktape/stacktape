@@ -37,6 +37,21 @@ version=${STACKTAPE_VERSION:-"<<DEFAULT_VERSION>>"}
 archive_name="alpine.tar.gz"
 archive_source_url="https://github.com/stacktape/stacktape/releases/download/$version/$archive_name"
 checksums_source_url="https://github.com/stacktape/stacktape/releases/download/$version/SHA256SUMS"
+
+# Bun's musl executable needs the C++ runtime, while the bundled AWS Session Manager plugin needs glibc compatibility.
+# Do not mutate the host package set from a curl-piped installer; report the exact prerequisite instead.
+missing_runtime_packages=""
+for package in libstdc++ libgcc gcompat; do
+    if ! apk info --installed "$package" >/dev/null 2>&1; then
+        missing_runtime_packages="$missing_runtime_packages $package"
+    fi
+done
+if [ -n "$missing_runtime_packages" ]; then
+    print_message error "Error: Stacktape requires these Alpine packages:$missing_runtime_packages"
+    print_message info "Install them with: apk add --no-cache libstdc++ libgcc gcompat"
+    exit 1
+fi
+
 # SHA256SUMS is required starting with 3.7.1. Older pinned releases remain installable.
 # The direct installer fetches both files from GitHub Releases, so this is an integrity check, not independent authenticity.
 checksum_required_for_version() {

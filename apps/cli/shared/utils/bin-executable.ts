@@ -78,20 +78,55 @@ export const isStacktapeInstalledOnSystem = () => {
   return Boolean(execPath);
 };
 
-export const getPlatform = (): SupportedPlatform => {
-  if (process.platform === 'win32') {
+export const resolveSupportedPlatform = ({
+  platform,
+  arch,
+  isAlpine = false
+}: {
+  platform: NodeJS.Platform;
+  arch: string;
+  isAlpine?: boolean;
+}): SupportedPlatform => {
+  if (platform === 'win32' && arch === 'x64') {
     return 'win';
   }
-  if (process.platform === 'linux') {
-    return 'linux';
+  if (platform === 'linux') {
+    if (isAlpine) {
+      if (arch === 'x64') {
+        return 'alpine';
+      }
+      throw new Error(`Unsupported Alpine architecture: ${arch}.`);
+    }
+    if (arch === 'x64') {
+      return 'linux';
+    }
+    if (arch === 'arm64') {
+      return 'linux-arm';
+    }
   }
-  if (process.platform === 'darwin') {
-    if (process.arch === 'x64') {
+  if (platform === 'darwin') {
+    if (arch === 'x64') {
       return 'macos';
     }
-    return 'macos-arm';
+    if (arch === 'arm64') {
+      return 'macos-arm';
+    }
   }
-  throw new Error(`Unsupported platform: ${process.platform}, arch: ${process.arch}.`);
+  throw new Error(`Unsupported platform: ${platform}, arch: ${arch}.`);
+};
+
+export const getPlatform = (): SupportedPlatform => {
+  return resolveSupportedPlatform({
+    platform: process.platform,
+    arch: process.arch,
+    isAlpine: process.platform === 'linux' && fsExtra.existsSync('/etc/alpine-release')
+  });
+};
+
+export const configureNativeRuntimeForPlatform = (platform = getPlatform()) => {
+  if (platform === 'alpine') {
+    process.env.OPENTUI_LIBC = 'musl';
+  }
 };
 
 export const getInstallationScript = () => {

@@ -62,6 +62,14 @@ describe('release candidate workflow', () => {
     expect(workflow).toContain('--require-checksums --expected-version "$RELEASE_VERSION"');
     expect(workflow).toContain('apps/cli/__dist/SHA256SUMS');
     expect(workflow).toContain('apps/cli/__dist/stacktape-*.tgz');
+    expect(workflow).toContain("if: matrix.platform == 'alpine'");
+    expect(workflow).toContain('apk add --no-cache libstdc++ libgcc gcompat');
+    expect(workflow).toContain('/tmp/stacktape-candidate/stacktape --version');
+    expect(workflow).toContain('/tmp/stacktape-candidate/nixpacks/nixpacks --version');
+    expect(workflow).toContain('/tmp/stacktape-candidate/pack/pack version');
+    expect(workflow).toContain('/tmp/stacktape-candidate/session-manager-plugin/smp --version');
+    expect(workflow).toContain('FORCE_TTY=1 STP_DISABLE_TELEMETRY=1 STP_PRINT_UNHANDLED_ERROR=1');
+    expect(workflow).toContain('timeout 3 /tmp/stacktape-candidate/stacktape');
   });
 
   test('is artifact-only and has no publishing authority', async () => {
