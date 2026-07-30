@@ -5,13 +5,7 @@ import { designTokens } from '../src/tokens.ts';
 const outputUrl = new URL('../generated/tokens.css', import.meta.url);
 const css = `/* Generated from src/tokens.ts. Do not edit. */
 :root {
-  --stp-color-accent: ${designTokens.color.accent};
-  --stp-color-canvas: ${designTokens.color.canvas};
-  --stp-color-text: ${designTokens.color.text};
-  --stp-font-sans: ${designTokens.font.sans};
-  --stp-space-6: ${designTokens.space[6]};
-  --stp-space-12: ${designTokens.space[12]};
-  --stp-space-16: ${designTokens.space[16]};
+  --stp-color-brand: ${designTokens.color.brand};
 }
 `;
 

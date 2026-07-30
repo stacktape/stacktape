@@ -11,7 +11,7 @@ import { tokenVar } from '@stacktape/design-tokens';
   </head>
   <body>
     <main>
-      <p class="eyebrow" style={`color: ${tokenVar.color.accent}`}>Stacktape v4</p>
+      <p class="eyebrow" style={`color: ${tokenVar.color.brand}`}>Stacktape v4</p>
       <h1>Ship on AWS without losing control.</h1>
       <p>This fresh Astro shell deliberately contains no imported website history.</p>
     </main>
@@ -23,21 +23,22 @@ import { tokenVar } from '@stacktape/design-tokens';
 </style>
 
 <style>
+/* Shell colours, type, and spacing are this site's own theme. Only the brand colour is shared. */
 :global(body) {
   margin: 0;
-  color: var(--stp-color-text);
-  background: var(--stp-color-canvas);
-  font-family: var(--stp-font-sans);
+  color: #f5f7ff;
+  background: #0d0f14;
+  font-family: Inter, ui-sans-serif, system-ui, sans-serif;
 }
 
 main {
   max-width: 64rem;
   margin: 0 auto;
-  padding: var(--stp-space-16) var(--stp-space-6);
+  padding: 4rem 1.5rem;
 }
 
 .eyebrow {
-  color: var(--stp-color-accent);
+  color: var(--stp-color-brand);
   font-weight: 700;
 }
 </style>

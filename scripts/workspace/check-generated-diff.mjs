@@ -6,6 +6,7 @@ export const GENERATED_SCOPES = [
   'apps/cli/starter-projects-metadata.json',
   'apps/cli/@generated/schemas/validate-config-zod.ts',
   'apps/cli/@generated/schemas/enhanced-config-schema.json',
+  'apps/cli/@generated/schemas/api-reference-data.json',
   'apps/cli/@generated/llm-docs',
   'packages/config/generated/config-schema.json',
   'packages/design-tokens/generated/tokens.css'

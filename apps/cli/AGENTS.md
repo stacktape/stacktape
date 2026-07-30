@@ -35,9 +35,13 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   hand-edit; regenerate with the matching task. The main CLI project excludes this directory, so
   `@generated/tsconfig.json` owns both CloudFormation trees and the generated Zod validator
   (`test:generated-types`). `generate-schemas.ts` owns only `@generated/schemas/validate-config-zod.ts` and preserves
-  separately generated schema variants in that directory. `generate:llm-docs` owns the enhanced documentation schema
-  and the complete `@generated/llm-docs` tree; it reads canonical data from `apps/docs` plus the current config model,
-  stages the corpus before replacement, and has a separate Turbo cache from the uncached config-schema task. AWS
+  separately generated schema variants in that directory. `generate:llm-docs` owns the enhanced documentation schema,
+  `@generated/schemas/api-reference-data.json`, and the complete `@generated/llm-docs` tree; it reads canonical data
+  from `apps/docs` plus the current config model, stages the corpus before replacement, and has a separate Turbo cache
+  from the uncached config-schema task. `api-reference-data.json` is the normalized API reference this generator
+  already renders into the corpus, published so `apps/docs` can render the same data instead of keeping a second copy
+  of the extractor — a copy that in practice diverged and stopped decoding HTML entities. Change the normalization
+  here, never in a consumer. AWS
   prices, CloudFormation resource types and RDS versions are exported through explicit
   `@stacktape/cli/catalogs/*.json` subpaths so Console does not keep application-local copies. Those generators read
   live upstream data, as do `gen:cloudform` and `gen:cf:types`, and have no pinned input; regenerate deliberately

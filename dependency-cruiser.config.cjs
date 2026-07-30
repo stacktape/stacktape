@@ -52,7 +52,15 @@ module.exports = {
   options: {
     doNotFollow: { path: 'node_modules' },
     exclude: {
-      path: '^apps/(cli/(@generated|starter-projects|_test-stacks)|console/(api/(@generated|dist)|ui/(dist|public)))/'
+      /**
+       * Build output, fixtures, and committed generator output. The generated artifacts are
+       * excluded because applications consume them as data: `apps/docs` reads the CLI's config
+       * schema, LLM corpus, and starter-project metadata without importing CLI implementation, and
+       * the `does-not-import-other-apps` rules exist to stop the latter, not the former.
+       */
+      path:
+        '^apps/(cli/(@generated|generated|starter-projects|_test-stacks)/|cli/starter-projects-metadata\\.json$' +
+        '|docs/dist/|console/(api/(@generated|dist)|ui/(dist|public))/)'
     },
     includeOnly: '^(apps|packages)/',
     tsConfig: { fileName: 'tsconfig.base.json' }

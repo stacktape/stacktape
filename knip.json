@@ -20,7 +20,9 @@
       "ignore": ["@generated/**", "starter-projects/**", "_test-stacks/**", "__release-npm/**"]
     },
     "apps/docs": {
-      "entry": ["src/**/*.astro"]
+      "entry": ["astro.config.mjs", "src/pages/**/*.astro", "src/content.config.ts", "scripts/*.ts", "tests/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx,astro}", "scripts/*.ts", "tests/*.ts"],
+      "ignore": ["content/**", "dist/**", "public/**"]
     },
     "apps/website": {
       "entry": ["src/**/*.astro"]

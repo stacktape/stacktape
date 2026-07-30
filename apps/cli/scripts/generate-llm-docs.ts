@@ -55,6 +55,16 @@ const DIST_DIR = LLM_DOCS_FOLDER_PATH;
 const ENHANCED_CONFIG_SCHEMA_PATH = join(process.cwd(), '@generated', 'schemas', 'enhanced-config-schema.json');
 const RESOURCES_JSON_PATH = join(WORKSPACE_ROOT, 'apps', 'docs', '.resources.json');
 
+/**
+ * The same normalized API reference this generator renders into the LLM corpus, emitted as data so
+ * the documentation site can render it too.
+ *
+ * This generator is the single owner of that normalization. `apps/docs` previously carried its own
+ * copy of the extractor, which drifted (it stopped decoding HTML entities, so `&#39;` reached the
+ * page). Publishing the computed result instead of the algorithm removes the possibility.
+ */
+export const API_REFERENCE_DATA_PATH = join(process.cwd(), '@generated', 'schemas', 'api-reference-data.json');
+
 const normalizePath = (filePath: string): string => filePath.replace(/\\/g, '/');
 
 export const compareLlmDocPaths = (left: string, right: string): number => {
@@ -1163,6 +1173,9 @@ export const generateLlmDocs = async () => {
   await recoverInterruptedCorpus(DIST_DIR);
   const enhancedConfigSchema = JSON.parse(await readFile(ENHANCED_CONFIG_SCHEMA_PATH, 'utf-8')) as EnhancedConfigSchema;
   apiReferenceData = buildApiReferenceData(enhancedConfigSchema);
+  // `buildApiReferenceData` walks definitions in a fixed ordinal order, so serializing it is
+  // deterministic for a given schema.
+  await writeFile(API_REFERENCE_DATA_PATH, `${JSON.stringify(apiReferenceData, null, 2)}\n`, 'utf-8');
   resources = JSON.parse(await readFile(RESOURCES_JSON_PATH, 'utf-8')) as any[];
 
   const docsPages = await buildDocsPages();

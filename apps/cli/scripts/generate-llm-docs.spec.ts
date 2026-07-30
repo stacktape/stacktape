@@ -3,7 +3,12 @@ import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { describe, expect, test } from 'bun:test';
 import { LLM_DOCS_FOLDER_PATH } from '@shared/naming/project-fs-paths';
-import { compareLlmDocPaths, installGeneratedCorpus, recoverInterruptedCorpus } from './generate-llm-docs';
+import {
+  API_REFERENCE_DATA_PATH,
+  compareLlmDocPaths,
+  installGeneratedCorpus,
+  recoverInterruptedCorpus
+} from './generate-llm-docs';
 import { htmlToMarkdownText } from './llm-docs/html-to-markdown';
 
 const WORKSPACE_ROOT = join(process.cwd(), '..', '..');
@@ -323,6 +328,44 @@ describe('generated LLM docs corpus', () => {
     for (const representation of [source, page, full, awsCallChunks, awsCallLexicalEntries, manifestText]) {
       for (const staleClaim of staleClaims) expect(representation).not.toContain(staleClaim);
     }
+  });
+
+  test('publishes the normalized API reference as data for the documentation site', async () => {
+    const raw = await readFile(API_REFERENCE_DATA_PATH, 'utf-8');
+    const data = JSON.parse(raw) as Record<
+      string,
+      {
+        definitionName: string;
+        properties: { name: string; required: boolean; shortDescription: string; typeInfo: { kind: string } }[];
+        stats: { requiredCount: number; optionalCount: number };
+        typeDeclaration: string;
+      }
+    >;
+
+    // This artifact is the reason `apps/docs` no longer carries its own copy of the extractor, so
+    // it has to be complete enough to render the reference the corpus documents.
+    const definitionNames = Object.keys(data);
+    expect(definitionNames.length).toBeGreaterThan(100);
+    expect(definitionNames).toEqual(
+      [...definitionNames].sort((left, right) => (left < right ? -1 : left > right ? 1 : 0))
+    );
+    expect(raw.endsWith('\n')).toBe(true);
+
+    const lambda = data.LambdaFunctionProps;
+    expect(lambda).toBeDefined();
+    expect(lambda.definitionName).toBe('LambdaFunctionProps');
+    expect(lambda.properties.length).toBeGreaterThan(0);
+    expect(lambda.stats.requiredCount + lambda.stats.optionalCount).toBe(lambda.properties.length);
+    expect(lambda.typeDeclaration).toContain('LambdaFunctionProps');
+
+    // Descriptions stay as the HTML the documentation site renders, so entities are expected inside
+    // them; the site decodes when it flattens HTML to text. What must not appear is the internal
+    // required marker, which is a rendering detail of the corpus, not of this data.
+    const listener = data.ApplicationLoadBalancerListener;
+    expect(listener.properties.find((property) => property.name === 'defaultAction')?.shortDescription).toContain(
+      '<p>'
+    );
+    expect(raw).not.toContain('--stp-required--');
   });
 
   test('keeps the enhanced documentation schema separate from the canonical validation schema', async () => {

@@ -1,31 +1,24 @@
+/**
+ * Stacktape brand primitives.
+ *
+ * This package owns only what more than one frontend genuinely shares. Today that is the brand
+ * colour: the documentation site and the marketing site must render the same Stacktape green.
+ * Everything else — palettes, typography, spacing, component recipes — is application theme and
+ * stays with the application that decides it.
+ *
+ * Adding a token here is a claim that at least two applications must agree on its value. If only one
+ * consumer needs it, it belongs in that consumer.
+ */
 export const designTokens = {
   color: {
-    accent: '#6155f5',
-    canvas: '#0d0f14',
-    text: '#f5f7ff'
-  },
-  font: {
-    sans: 'Inter, ui-sans-serif, system-ui, sans-serif'
-  },
-  space: {
-    6: '1.5rem',
-    12: '3rem',
-    16: '4rem'
+    /** Stacktape green. The one colour every Stacktape surface has to agree on. */
+    brand: 'rgb(54, 190, 190)'
   }
 } as const;
 
+/** The same primitives as CSS-variable references, for consumers styling in CSS. */
 export const tokenVar = {
   color: {
-    accent: 'var(--stp-color-accent)',
-    canvas: 'var(--stp-color-canvas)',
-    text: 'var(--stp-color-text)'
-  },
-  font: {
-    sans: 'var(--stp-font-sans)'
-  },
-  space: {
-    6: 'var(--stp-space-6)',
-    12: 'var(--stp-space-12)',
-    16: 'var(--stp-space-16)'
+    brand: 'var(--stp-color-brand)'
   }
 } as const;

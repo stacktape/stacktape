@@ -165,6 +165,17 @@
       }
     },
     {
+      "files": ["apps/docs/src/utils/yaml-to-typescript.ts"],
+      "rules": {
+        "eslint/no-underscore-dangle": [
+          "error",
+          {
+            "allow": ["__identifier"]
+          }
+        ]
+      }
+    },
+    {
       "files": ["packages/config/src/**"],
       "rules": {
         "typescript/no-explicit-any": "off"
