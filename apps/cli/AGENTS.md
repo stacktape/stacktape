@@ -66,6 +66,10 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   dependency update. `@smithy/fetch-http-handler`, `@smithy/protocol-http`, `lodash`, `@types/lodash` and `tar` are
   pinned exactly because transitive consumers otherwise pull pnpm's deduplicated newer version. Deliberate
   exceptions: `@octokit/plugin-throttling` 11 (Octokit Core 7 peer) and `solid-js` 1.9.12 (OpenTUI peer).
+- `bunfig.toml` preloads `scripts/test-preload.ts` for every Bun test. It replaces inherited AWS credentials, disables
+  metadata/profile endpoint resolution, and rejects non-loopback fetch/HTTP(S) dispatch. This is an application-level
+  fail-closed guard for normal AWS SDK paths, not an operating-system network sandbox; tests that spawn processes or
+  use raw sockets still own their isolation.
 
 ## Checks
 

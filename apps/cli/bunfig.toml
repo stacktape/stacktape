@@ -1,2 +1,2 @@
 [test]
-preload = ["./scripts/solid-test-preload.ts"]
+preload = ["./scripts/test-preload.ts"]

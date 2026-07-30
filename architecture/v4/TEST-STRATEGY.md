@@ -242,10 +242,14 @@ drift, replacements, concurrency, and deletion fidelity.
 ## Remaining implementation order
 
 Characterization/artifact baselines, normalized synthesis fixtures, packaged CLI process tests, and a disposable
-real-AWS packaging smoke are implemented. Next:
+real-AWS packaging smoke are implemented. CLI Bun tests now also preload an application-level guard that replaces
+inherited AWS credentials, disables metadata/profile endpoint resolution, and blocks non-loopback fetch/HTTP(S)
+dispatch. It covers normal AWS SDK paths but is not an OS sandbox for child processes, raw sockets, or loopback
+redirects.
 
-1. Make fail-closed no-real-AWS safety explicit for every new test slice that can reach an AWS client.
-2. Add static CloudFormation validation where it catches failures beyond current synthesis assertions.
-3. Run the Floci feasibility spike.
-4. Build the cheap real-AWS `serverless-mesh` canary after explicit authorization.
-5. Expand nightly/weekly coverage by observed risk and production defects.
+Next:
+
+1. Add static CloudFormation validation where it catches failures beyond current synthesis assertions.
+2. Run the Floci feasibility spike.
+3. Build the cheap real-AWS `serverless-mesh` canary after explicit authorization.
+4. Expand nightly/weekly coverage by observed risk and production defects.
