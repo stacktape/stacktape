@@ -10,12 +10,7 @@
         "$TURBO_ROOT$/apps/cli/types/**",
         "$TURBO_ROOT$/apps/cli/tsconfig.json"
       ],
-      "outputs": [
-        "generated/**",
-        "@generated/schemas/validate-config-zod.ts",
-        "dist/**",
-        "starter-projects-metadata.json"
-      ]
+      "outputs": ["@generated/schemas/validate-config-zod.ts", "starter-projects-metadata.json"]
     },
     "generate:llm-docs": {
       "dependsOn": ["generate"],

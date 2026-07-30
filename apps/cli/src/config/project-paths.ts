@@ -31,7 +31,6 @@ export const HELPER_LAMBDAS_DIST_FOLDER_PATH = join(DIST_FOLDER_PATH, HELPER_LAM
 export const HELPER_LAMBDAS_SOURCE_FOLDER_PATH = join(process.cwd(), HELPER_LAMBDAS_FOLDER_NAME);
 export const GENERATED_FILES_FOLDER_PATH = join(process.cwd(), '@generated');
 export const JSON_SCHEMAS_FOLDER_PATH = join(process.cwd(), '@generated', JSON_SCHEMAS_FOLDER_NAME);
-export const PACK_GENERATED_FOLDER_PATH = join(process.cwd(), '@generated', 'pack');
 export const AWS_PRICE_INFO_GENERATED_FOLDER_PATH = join(process.cwd(), '@generated', 'aws-price');
 export const DB_ENGINE_VERSIONS_FOLDER = join(process.cwd(), '@generated', 'db-engine-versions');
 export const LLM_DOCS_FOLDER_PATH = join(process.cwd(), '@generated', 'llm-docs');

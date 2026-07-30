@@ -6,6 +6,19 @@ const cliPath = join(import.meta.dir, '..');
 const workspacePath = join(cliPath, '..', '..');
 
 describe('TypeScript project ownership', () => {
+  test('declares only the outputs owned by ordinary CLI generation', async () => {
+    const [workspaceTurboConfig, cliTurboConfig] = await Promise.all([
+      readJson(join(workspacePath, 'turbo.json')),
+      readJson(join(cliPath, 'turbo.json'))
+    ]);
+
+    expect(cliTurboConfig.tasks.generate.outputs).toEqual([
+      '@generated/schemas/validate-config-zod.ts',
+      'starter-projects-metadata.json'
+    ]);
+    expect(workspaceTurboConfig.tasks['generate:monaco'].outputs).toEqual(['generated/monaco-declarations/**']);
+  });
+
   test('keeps workspace tools in the standard root project', async () => {
     const [packageJson, tsConfig] = await Promise.all([
       readJson(join(workspacePath, 'package.json')),

@@ -39,7 +39,6 @@ export const compileCfSchema = async () => {
 
   const resourceTypes = allData.map((resource) => resource.typeName);
 
-  await outputJSON(join(GENERATED_FILES_FOLDER_PATH, 'full-cloudformation-schema.json'), allData);
   await outputJSON(join(GENERATED_FILES_FOLDER_PATH, 'cloudformation-resource-types.json'), resourceTypes);
   await outputJSON(
     join(GENERATED_FILES_FOLDER_PATH, 'cloudformation-resource-referenceable-params.json'),

@@ -35,7 +35,6 @@
     "gen:cloudform": "bun scripts/generate-cloudform.ts",
     "gen:db:engines": "bun scripts/generate-db-engine-versions-json.ts",
     "gen:llm-docs": "bun run generate:llm-docs",
-    "gen:pack:builders": "bun scripts/generate-pack-builders-json.ts",
     "gen:price:info": "bun scripts/generate-static-aws-price-info.ts",
     "gen:res:descriptions": "bun scripts/generate-resource-descriptions.ts",
     "gen:schema": "bun scripts/generate-schemas.ts",
