@@ -3,7 +3,7 @@ import { capitalizeFirstLetter } from '@shared/utils/misc';
 import { pascalCase, snakeCase } from 'change-case';
 import { Ref, Sub } from '../../@generated/cloudform/functions';
 import { CF_TEMPLATE_FILE_NAME_WITHOUT_EXT, STP_TEMPLATE_FILE_NAME_WITHOUT_EXT } from '../../src/config/random';
-import type { ComparisonOperator } from '@stacktape/config/alarms';
+import type { AlarmDefinition, ComparisonOperator } from '@stacktape/config/alarms';
 
 // @note image tag that will be used in ECR -
 export const getEcrImageTag = (taskName: string, version: string, digest: string) =>

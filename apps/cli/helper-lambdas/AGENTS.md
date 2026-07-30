@@ -23,9 +23,9 @@ measurement that settled it remains the relevant baseline:
   filesystem, configuration, logical-naming, and miscellaneous CLI modules;
 - exactly one module is helper-only — `shared/trpc/aws-identity-protected.ts`, 78 lines — and it still depends on
   `shared/aws/identity.ts` and `shared/trpc/client.ts`, which reach `shared/aws/fetch-handler.ts` (13 other consumers);
-- the runtime source is still typed against **ambient global config types** — `AlarmDefinition` and
-  `AlarmNotificationEventRuleInput` from `types/stacktape-config/alarms.d.ts`. Those declarations feed published
-  config content and cannot leave `apps/cli` independently. AWS execution types are now explicit imports from
+- alarm configuration now uses an explicit `AlarmDefinition` import from `@stacktape/config`, while the runtime still
+  consumes the CLI-only ambient `AlarmNotificationEventRuleInput` payload from
+  `types/stacktape-config/alarms.d.ts`. AWS execution types are explicit imports from
   `shared/aws/credentials.ts` and `shared/aws/regions.ts`, but those modules remain general CLI facilities rather than
   helper-owned code.
 
@@ -47,7 +47,8 @@ boundary plus the machinery required to pretend the dependency runs the other wa
 
 Extract the package when the helper runtimes no longer need general CLI implementation to run — concretely, when the
 non-helper closure is small and helper-dominant (a handful of modules whose honest owner is helper-Lambda runtime
-behavior), and the runtime source no longer depends on the ambient `types/` config declarations. A deliberate,
+behavior), and the runtime source no longer depends on CLI-only ambient declarations such as
+`AlarmNotificationEventRuleInput`. A deliberate,
 separately justified slice that narrows the closure is the prerequisite; the package is the result, not the trigger.
 
 ## Compatibility contract

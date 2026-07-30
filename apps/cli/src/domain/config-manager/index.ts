@@ -1,3 +1,4 @@
+import type { AlarmDefinition } from '@stacktape/config/alarms';
 import type { DefaultedResource, ResourceDefinitionOf, StacktapeResourceType } from './normalized-resource';
 import type { CfResourceTransform, FinalTransform } from './transforms-resolver';
 import { isAbsolute, join } from 'node:path';

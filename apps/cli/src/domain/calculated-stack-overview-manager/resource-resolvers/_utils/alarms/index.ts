@@ -1,3 +1,4 @@
+import type { AlarmDefinition } from '@stacktape/config/alarms';
 import { globalStateManager } from '@application-services/global-state-manager';
 import EventBridgeRule from '@cloudform/events/rule';
 import { GetAtt, Ref } from '@cloudform/functions';

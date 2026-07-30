@@ -1,3 +1,4 @@
+import type { AlarmDefinition } from '@stacktape/config/alarms';
 import type { Dimension } from '@cloudform/cloudWatch/alarm';
 import { globalStateManager } from '@application-services/global-state-manager';
 import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';

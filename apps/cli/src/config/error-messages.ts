@@ -1,3 +1,4 @@
+import type { AlarmDefinition } from '@stacktape/config/alarms';
 import { tuiManager } from '@application-services/tui-manager';
 import { StackStatus } from '@aws-sdk/client-cloudformation';
 import { VALID_CONFIG_PATHS } from '@config';

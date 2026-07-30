@@ -1,3 +1,4 @@
+import type { AlarmDefinition } from '@stacktape/config/alarms';
 import { stpErrors } from '@errors';
 import { getStpNameForAlarm } from '@shared/naming/utils';
 import isEqual from 'lodash/isEqual';

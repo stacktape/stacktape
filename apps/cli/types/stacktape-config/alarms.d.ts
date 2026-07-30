@@ -5,12 +5,10 @@ import type {
 } from '@stacktape/config/alarms';
 
 declare global {
-interface AlarmDefinition extends ConfigAlarmDefinition {}
-interface StpAlarm extends AlarmDefinition {
+interface StpAlarm extends ConfigAlarmDefinition {
   nameChain: string[];
 }
-type AlarmTrigger = ConfigAlarmTrigger;
-type AlarmTriggerType = AlarmTrigger['type'];
+type AlarmTriggerType = ConfigAlarmTrigger['type'];
 type AlarmNotificationEventRuleInput = {
   sourceEventId: string;
   description: string;
@@ -18,7 +16,7 @@ type AlarmNotificationEventRuleInput = {
   stateValue: string;
   alarmAwsResourceName: string;
   stackName: string;
-  alarmConfig: AlarmDefinition;
+  alarmConfig: ConfigAlarmDefinition;
   affectedResource: AlarmAffectedResourceInfo;
   comparisonOperator: ComparisonOperator;
   measuringUnit: string;
