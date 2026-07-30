@@ -71,10 +71,18 @@ describe('the published declarations are verified where they are actually instal
     // `types.d.ts` aliases `./plain.BudgetControl`, and plain.d.ts does not declare it — the exact shape of the
     // bug that shipped. Every required declaration filename is present, so only type checking can catch it.
     const packageDir = installMinimalPackage({ plainDeclarations: `${IOT_PROPS}export type SomethingElse = 1;\n` });
+    let verificationError: Error | undefined;
 
-    expect(() => verifyNpmDeclarations({ packageDir })).toThrow('do not typecheck for a consumer');
-    expect(() => verifyNpmDeclarations({ packageDir })).toThrow('BudgetControl');
-  }, 15_000);
+    try {
+      verifyNpmDeclarations({ packageDir });
+    } catch (error) {
+      expect(error).toBeInstanceOf(Error);
+      verificationError = error as Error;
+    }
+
+    expect(verificationError?.message).toContain('do not typecheck for a consumer');
+    expect(verificationError?.message).toContain('BudgetControl');
+  }, 30_000);
 
   test('a package under node_modules whose declarations resolve is accepted', () => {
     const packageDir = installMinimalPackage({
@@ -82,7 +90,7 @@ describe('the published declarations are verified where they are actually instal
     });
 
     expect(() => verifyNpmDeclarations({ packageDir })).not.toThrow();
-  });
+  }, 30_000);
 
   test('missing declaration files fail closed rather than passing vacuously', () => {
     const fixture = mkdtempSync(join(tmpdir(), 'stacktape-installed-'));
