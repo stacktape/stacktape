@@ -41,9 +41,11 @@ corpus stopped using does not linger. Add a component only together with the con
 ## Generated inputs and the no-network invariant
 
 `src/build/cli-generated-inputs.ts` names every artifact this application consumes from `apps/cli`.
-Turbo supplies them: see the `@stacktape/docs#build`, `#typecheck`, and `#dev` entries in the root
-`turbo.json`. A missing artifact fails the build with the exact command to run — it never falls back
-to a published package or a CDN.
+Turbo supplies them: see the `@stacktape/docs#build`, `#typecheck`, `#test`, and `#dev` entries in
+the root `turbo.json`. Every docs task that reads a CLI artifact needs its own entry — the generic
+tasks cannot help, because their `generate:llm-docs` dependency resolves to this package's own
+(absent) task rather than the CLI's. A missing artifact fails with the exact command to run; it never
+falls back to a published package or a CDN.
 
 | Input                                                 | Produced by         | Used for                                          |
 | ----------------------------------------------------- | ------------------- | ------------------------------------------------- |

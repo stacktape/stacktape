@@ -55,6 +55,11 @@
       "dependsOn": ["^generate", "@stacktape/cli#generate:llm-docs", "@stacktape/cli#generate:monaco"],
       "outputs": []
     },
+    "@stacktape/docs#test": {
+      "description": "Test the documentation site. Needs the same CLI artifacts as its build: the api-reference data the DTO test reads, and the Stacktape declarations the Twoslash test type-checks against. The generic test task cannot supply them — its generate:llm-docs entry resolves to the docs package's own (absent) task",
+      "dependsOn": ["@stacktape/cli#generate:llm-docs", "@stacktape/cli#generate:monaco"],
+      "outputs": []
+    },
     "@stacktape/docs#dev": {
       "description": "Serve the documentation site against the CLI's reviewed generated artifacts",
       "dependsOn": ["@stacktape/cli#generate:llm-docs", "@stacktape/cli#generate:monaco"],
