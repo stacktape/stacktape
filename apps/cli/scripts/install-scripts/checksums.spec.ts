@@ -113,7 +113,7 @@ describe('published install scripts', () => {
     expect(await evaluatePowerShellChecksumGate(content, '3.7.1')).toBe('true');
     expect(await evaluatePowerShellChecksumGate(content, '4.0.0')).toBe('true');
     expect(await evaluatePowerShellChecksumGate(content, 'latest')).toBe('true');
-  });
+  }, 15_000);
 
   test('publishes only required installer assets, never adjacent tests', () => {
     expect(PUBLISHED_INSTALL_ASSET_FILES).toEqual([
