@@ -82,8 +82,9 @@ Notes that save time:
 
 **Platform constraint.** On Windows, Bun 1.3.9's bundler panics on modules reached through pnpm's symlinked
 `node_modules` ("Expected pretty file path to have only forward slashes"), which takes down the helper-Lambda
-packaging step and therefore the whole `dev` wrapper. Run the development CLI on Linux, macOS, or WSL. Everything in
-"Local repository checks" runs on Windows; see `apps/cli/AGENTS.md` for the full list of Bun-bundling lanes.
+packaging step and therefore the whole `dev` wrapper. Run the development CLI, complete `pnpm check`/`check:public`,
+and every Bun-bundling test lane on Linux, macOS, or WSL. Typecheck, lint, formatting, and the focused non-bundling
+tests run on Windows; see `apps/cli/AGENTS.md` for the exact list of bundling lanes.
 
 **Using WSL from a Windows machine.** Do not point WSL at the Windows checkout under `/mnt/c`. `pnpm install` on
 Windows resolves Windows builds of the workspace's native dependencies, and reusing that `node_modules` from Linux
@@ -92,12 +93,13 @@ create the worktree) on the WSL filesystem and install there:
 
 ```sh
 # inside WSL, on the Linux filesystem — not /mnt/c
-git clone <repository-url> ~/src/stacktape
+git clone --branch v4/integration <repository-url> ~/src/stacktape
 cd ~/src/stacktape
 pnpm install --frozen-lockfile
 ```
 
-The two checkouts are independent: install in each, and let Git — not the filesystem — move changes between them.
+The branch flag is needed only until v4 becomes the repository default. The two checkouts are independent: install in
+each, and let Git — not the filesystem — move changes between them.
 
 ## Semi-local development mode
 
@@ -128,23 +130,31 @@ money and can destroy something.
 
 **Guardrails — all of them, every time.**
 
-1. Confirm who you are and where you are pointing _before_ the first mutating command, with the raw AWS CLI:
+1. Confirm who you are and where you are pointing _before_ the first mutating command.
+
+   With a local AWS profile, use the raw AWS CLI and then list stacks through the same profile:
 
    ```powershell
-   aws sts get-caller-identity --region eu-west-1 --profile <profile>
+   aws sts get-caller-identity --region eu-west-1 --profile '<profile>'
+   pnpm --filter @stacktape/cli run dev info:stacks --region eu-west-1 --profile '<profile>'
    ```
 
-   Drop `--profile` only when you are deliberately using the default profile. Use the AWS CLI here and not
-   `stacktape aws:call`: `aws:call` first initializes the CLI's services against an already-deployed target stack, and
-   then reports the identity of that stack's debug role whenever one can be assumed. Even with the target spelled out
-   it answers a more complicated question than "which credentials am I about to deploy with". Read the account id back
-   and confirm it is a disposable development account.
+   Drop `--profile` only when you are deliberately using the default profile. Read the account id back and confirm it
+   is a disposable development account.
 
-   Then see what already exists in that account:
+   Alternatively, with a Stacktape-connected account, there is no corresponding local profile. Inspect the
+   authenticated identity and connected account id, then force that account on the stack listing:
 
-   ```powershell
-   pnpm --filter @stacktape/cli run dev info:stacks --region eu-west-1 --profile <profile>
+   ```sh
+   pnpm --filter @stacktape/cli run dev info:whoami --agent
+   pnpm --filter @stacktape/cli run dev info:stacks --region eu-west-1 --awsAccount '<connected-account>' --agent
    ```
+
+   In the `info:whoami` result, find the connected-account entry whose `name` exactly matches the value passed to
+   `--awsAccount`; confirm that entry is `ACTIVE` and its `awsAccountId` is the expected disposable development
+   account. The second command then loads temporary credentials and validates them against that selected account before
+   listing stacks. Do not use `aws:call` as the initial identity check: it requires a deployed target stack and may
+   assume that stack's debug role.
 
 2. Use a uniquely named throwaway stack and stage `dev`. Never reuse a name that already appears in `info:stacks`.
 3. Never target a production or Console stack, and never run a stack-targeted command — mutating or not — without
@@ -154,10 +164,10 @@ money and can destroy something.
    says so.
 5. Delete the stack when finished, including after a failure, and confirm with `info:stacks`.
 
-The reusable fixture for this is `apps/cli/_test-stacks/packaging-smoke/` — two Node Lambdas sharing one module,
-behind public function URLs, deployed as project `stacktape-v4-packaging-smoke`, stage `dev`, region `eu-west-1`. Its
-[README](apps/cli/_test-stacks/packaging-smoke/README.md) has the exact deploy, invoke, redeploy, inspect and delete
-commands, and what each response must show.
+The reusable fixture for this is `apps/cli/_test-stacks/packaging-smoke/` — two Node Lambdas sharing one module behind
+public function URLs. Give every run a unique project name, use stage `dev` and region `eu-west-1`, and follow its
+[README](apps/cli/_test-stacks/packaging-smoke/README.md) for the exact deploy, invoke, redeploy, inspect, and delete
+flow.
 
 Useful read-only commands against a deployed stack:
 

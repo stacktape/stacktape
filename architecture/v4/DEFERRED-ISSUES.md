@@ -66,3 +66,8 @@ The first packaging-smoke attempt reached ECR authentication before failing beca
 PATH. Its error exposed a short-lived ECR authorization token through the old `docker login -p` command line. The
 captured local log was deleted, the token was temporary, and commit `352dd8dd` changed login to `--password-stdin`.
 No CloudFormation stack was created by that attempt.
+
+After Docker access was repaired, public commit `f091e541` passed the complete disposable smoke flow on 2026-07-30:
+deploy, both live function invocations, identical source/runtime fingerprints, one identical versioned Lambda layer
+attached to both functions, cached no-change redeploy, deletion, and an absent-stack confirmation. The temporary
+project used a unique name and no smoke stack remains deployed.

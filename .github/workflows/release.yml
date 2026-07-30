@@ -1,8 +1,8 @@
 name: v4 release
 
 # Keeping this workflow filename preserves the npm trusted-publisher identity while the release pipeline is migrated.
-# It intentionally cannot publish. Phase 8 replaces the skipped placeholder only after archive checksums, packed npm
-# verification, provenance, versioning, and rollback behavior have passed review.
+# It intentionally cannot publish. A reviewed release-pipeline implementation replaces the skipped placeholder only
+# after archive checksums, packed npm verification, provenance, versioning, and rollback behavior have passed review.
 on:
   workflow_dispatch:
 

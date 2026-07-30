@@ -1,8 +1,9 @@
 # Stacktape v4
 
-This branch is the fresh v4 monorepo backbone. The existing Stacktape applications are migrated into it with minimal
-behavioral change before reusable capabilities are extracted. The current approach deliberately favors conceptual
-simplicity and maintainability over speculative runtime architecture.
+This branch is the integrated Stacktape v4 monorepo. The public CLI and private Console have been migrated, and the
+config, naming, Console API contract, design-token, and packaging capabilities now have concrete package boundaries.
+The docs and website are intentionally still small Astro shells. Release publishing and default-branch cutover remain
+disabled until their release-readiness gates are complete.
 
 Prerequisites: Node.js 24+, pnpm 11.17.0, and Bun 1.3.9 — the CLI builds, generates and tests with Bun, and
 `apps/cli/AGENTS.md` records where that matters.
@@ -10,10 +11,13 @@ Prerequisites: Node.js 24+, pnpm 11.17.0, and Bun 1.3.9 — the CLI builds, gene
 Public contributors clone and work normally:
 
 ```sh
-git clone https://github.com/stacktape/stacktape.git
+git clone --branch v4/integration https://github.com/stacktape/stacktape.git
+cd stacktape
 pnpm install --frozen-lockfile
 pnpm check:public
 ```
+
+The explicit branch is temporary while the repository default still points at v3; remove it after the v4 cutover.
 
 Maintainers initialize the optional private Console submodule:
 

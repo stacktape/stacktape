@@ -21,6 +21,17 @@ CloudFormation identities, resource names, security boundaries, packaging semant
 Every observed v3/v4 difference must be classified as intentional, a preserved contract, a fixed bug, or an
 implementation detail.
 
+## Current status
+
+| Area                       | State                                                                                                                                                                                                                                             |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Workspace and Git boundary | Implemented on the public and private `v4/integration` branches. Public clones work without `apps/console`; maintainers pin one private Console submodule.                                                                                        |
+| Product applications       | The CLI and private Console API/UI are migrated. Docs and website are buildable Astro shells, not migrated product sites.                                                                                                                         |
+| Package boundaries         | `config`, `console-api`, `design-tokens`, `naming`, and `packaging` own concrete code. Helper Lambdas and the broader runtime intentionally remain in the CLI.                                                                                    |
+| Validation                 | Public and integrated frozen installs/checks pass in CI. At public commit `f091e541`, the packaging fixture also passed a disposable real-AWS deploy, invocation, shared-layer inspection, cached no-change redeploy, and deletion on 2026-07-30. |
+| Not implemented            | Floci integration, the production release/publish pipeline, full docs/website applications, and broader real-AWS canaries.                                                                                                                        |
+| Release state              | Publishing is disabled. Repository default branches, production infrastructure, and customer rollout are unchanged. Release blockers remain in `DEFERRED-ISSUES.md`.                                                                              |
+
 ## Current documents
 
 - [SIMPLIFIED-MIGRATION.md](./SIMPLIFIED-MIGRATION.md) defines the migration approach, the destination tree, the

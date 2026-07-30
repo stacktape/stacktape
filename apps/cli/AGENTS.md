@@ -1,8 +1,8 @@
 # Stacktape CLI
 
-This application is the Stacktape CLI as it shipped in v3, moved into the monorepo with the smallest set of path,
-manifest and tooling changes needed to make it an ordinary pnpm workspace application. Its runtime, synthesis,
-packaging, naming, MCP and release behavior are unchanged; refactoring happens in later, separate phases.
+This application is the Stacktape CLI as migrated from v3. Its command/runtime and synthesis ownership remain largely
+intact, while concrete reusable capabilities such as config, deterministic AWS naming, and packaging have been
+extracted behind explicit package entry points. Refactors remain behavior-focused rather than directory-driven.
 
 ## Layout
 

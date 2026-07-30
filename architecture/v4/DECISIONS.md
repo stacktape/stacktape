@@ -69,27 +69,34 @@ and integrated clones.
 
 ## Tooling decisions
 
-| Tooling area       | Decision                                                                                                                                                                                                    |
-| ------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Package manager    | pnpm for installation, workspaces, catalogs, and frozen lockfiles.                                                                                                                                          |
-| Lockfiles          | Use pnpm's non-shared workspace lockfile mode. Public root/packages and each optional private workspace keep reproducible lockfiles without requiring private packages to appear in a public root lockfile. |
-| Runtime/test/build | Keep Bun where it is valuable. Do not require Bun as the package manager.                                                                                                                                   |
-| Task graph         | Turborepo with explicit task descriptions, inputs, outputs, and dependencies.                                                                                                                               |
-| TypeScript         | TypeScript 6 is authoritative initially. Isolate programmatic-compiler consumers in `schema-codegen`.                                                                                                       |
-| Lint               | Oxlint immediately; no long-lived ESLint compatibility layer. TypeScript 6 remains authoritative for type-aware checks until Oxlint's TS-Go semantics are an intentional choice.                            |
-| Format             | Oxfmt for supported files and dprint `markup_fmt` for `.astro`. No Prettier in the v4 workspace.                                                                                                            |
-| Vite+              | Do not adopt it.                                                                                                                                                                                            |
-| AI guardrails      | Use strict TypeScript, Oxlint, package exports, dependency-cruiser, Knip, Sherif, publint, a narrow ast-grep no-barrel rule, and duplication regression checks where they provide signal.                   |
+| Tooling area       | Decision                                                                                                                                                                                                                                                                                       |
+| ------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Package manager    | pnpm for installation, workspaces, catalogs, and frozen lockfiles.                                                                                                                                                                                                                             |
+| Lockfiles          | Use pnpm's non-shared workspace lockfile mode. Public root/packages and each optional private workspace keep reproducible lockfiles without requiring private packages to appear in a public root lockfile.                                                                                    |
+| Runtime/test/build | Keep Bun where it is valuable. Do not require Bun as the package manager.                                                                                                                                                                                                                      |
+| Task graph         | Turborepo with explicit task descriptions, inputs, outputs, and dependencies.                                                                                                                                                                                                                  |
+| TypeScript         | TypeScript 6 is authoritative for workspace validation. The CLI retains TypeScript 5.9 as a runtime dependency for its compiler-API config/code-generation consumers; isolate those only when a concrete extraction is justified.                                                              |
+| Lint               | Oxlint immediately; no long-lived ESLint compatibility layer. TypeScript 6 remains authoritative for type-aware checks until Oxlint's TS-Go semantics are an intentional choice.                                                                                                               |
+| Format             | Oxfmt for repository sources and dprint `markup_fmt` for `.astro`. Prettier remains a CLI runtime dependency used only to format emitted npm declaration artifacts.                                                                                                                            |
+| Vite+              | Do not adopt it.                                                                                                                                                                                                                                                                               |
+| AI guardrails      | Use TypeScript, Oxlint, package exports, dependency-cruiser, Knip, Sherif, publint, a narrow ast-grep no-barrel rule, and duplication regression checks where they provide signal. The migrated CLI explicitly remains non-strict until strictness is addressed as its own measured migration. |
 
 Knip still checks unused files/exports, duplicate exports, unresolved imports, and other source-graph issues. Its
 unused-dependency category is disabled in the backbone because Knip currently misclassifies dependencies that are
 resolved through pnpm's non-shared per-workspace lockfiles. Sherif, pnpm frozen installs, TypeScript, Oxlint, and
 dependency-cruiser continue to cover version consistency, declaration, resolution, and boundary failures. Re-enable
 Knip's dependency category if upstream support for this lockfile mode becomes reliable.
-| Barrel exports | Do not create re-export-only barrel modules. Use explicit package exports and direct entry points. |
-| Generation | Every generator is deterministic and one-shot. Build/typecheck/test tasks depend on generation through Turbo. CI checks committed outputs for freshness. |
-| Watch mode | No universal generator watcher. A development command may start a native watcher only when derived output must change while the process remains alive. |
-| Hooks | Pre-commit operates only on staged formatting/lint/new-secret checks. Expensive architecture, dead-code, build, and test checks run in pre-push or CI. |
+
+Additional tooling rules:
+
+- Do not create re-export-only barrel modules. Use explicit package exports and direct entry points.
+- Deterministic generators required by ordinary build/typecheck/test tasks run through Turbo, and committed outputs
+  receive freshness checks where their canonical inputs reproduce reliably. Live-upstream CLI generators remain
+  deliberate manual operations; the known config-schema drift must be resolved before adding a freshness gate.
+- There is no universal generator watcher. A development command may start a native watcher only when derived output
+  must change while that process remains alive.
+- Pre-commit operates only on staged formatting, lint, and new-secret checks. Expensive architecture, dead-code,
+  build, and test checks run in pre-push or CI.
 
 pnpm 11 non-registry settings live in `pnpm-workspace.yaml`; `.npmrc` is reserved for registry/auth configuration.
 Turbo remote caching and `turbo prune` remain disabled for v4 orchestration until their dependency-closure behavior is
@@ -125,7 +132,9 @@ the instruction text.
 - API key and deployment token secrets exist for dev and production; values are not recorded in repository documents.
 - The focused Console security suite passes. The legacy Console repository's full typecheck still has pre-existing
   application/generated-type debt; it is migration work, not an accepted v4 warning baseline.
-- No deployment was performed.
+- No security-hardening or production deployment was performed. At public commit `f091e541`, a separate disposable
+  packaging fixture was deployed to the development account, exercised, redeployed unchanged, and deleted on
+  2026-07-30.
 - Production rollout order remains Console database/secrets/backend first, then Stacktape clients/runners.
 - Credential rotation and full historical secret scanning are intentionally deferred.
 - Legacy agent/playbook text is not imported verbatim: it contains stale commands, production-risky guidance, and

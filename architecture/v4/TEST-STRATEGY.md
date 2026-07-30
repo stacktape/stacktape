@@ -8,9 +8,10 @@ development loop.
 
 Use three complementary layers:
 
-1. deterministic whole-core, synthesis, packaging, CLI-process, and static infrastructure tests;
-2. Floci integration tests for a deliberately certified subset;
-3. selective real-AWS canaries and scheduled full workflows.
+1. deterministic CLI/application, synthesis, packaging, CLI-process, and static infrastructure tests;
+2. a future Floci integration lane for a deliberately certified subset;
+3. the disposable packaging smoke test now, with broader real-AWS canaries and scheduled workflows added when
+   justified.
 
 Every production defect receives a regression at the cheapest layer capable of reproducing it.
 
@@ -47,7 +48,8 @@ Run on every relevant change:
 - npm package, binary input, and helper-Lambda artifact verification;
 - typed AWS adapter fakes for throttling, malformed responses, pagination, and error classification.
 
-Deterministic tests must be able to substitute every environmental seam the CLI reaches:
+Prefer existing seams, subprocess boundaries, and focused fakes. Introduce injection only when the changed behavior
+owns an external interaction and the resulting API is simpler than module-level mocking. Important seams include:
 
 - AWS client factory/endpoints;
 - Console/control-plane adapter;
@@ -58,15 +60,15 @@ Deterministic tests must be able to substitute every environmental seam the CLI 
 - prompts and cancellation;
 - network access.
 
-Test mode must fail closed if any unapproved request can reach real AWS.
+Tests capable of reaching AWS must fail closed unless they are in an explicitly authorized real-AWS lane.
 
 Expected cadence: every change. Expected runtime: approximately one to five minutes after optimization. Cloud cost:
 zero.
 
-## Layer 2 — Floci certified integration
+## Layer 2 — proposed Floci-certified integration
 
-[Floci](https://github.com/floci-io/floci) is MIT licensed and is the preferred open emulator candidate, but it is not
-an AWS oracle.
+[Floci](https://github.com/floci-io/floci) is MIT licensed and is the preferred open emulator candidate, but this
+repository does not yet contain a Floci lane and Floci is not an AWS oracle.
 
 Its [CloudFormation documentation](https://floci.io/floci/services/cloudformation/) states that unsupported resources
 can receive synthetic IDs while stacks still reach `CREATE_COMPLETE`. Template validation is success-only, change sets
@@ -114,8 +116,8 @@ Expected cadence after certification: public pull requests. Expected cloud cost:
 Only AWS can validate full CloudFormation change-set behavior, replacements, IAM enforcement, update rollback, drift,
 service-specific semantics, and deletion fidelity.
 
-Use permanent dedicated disposable test accounts with ephemeral uniquely named stacks. CI access uses GitHub OIDC and
-short-lived roles, never fork-exposed secrets.
+Use dedicated disposable development accounts with ephemeral uniquely named stacks. Automated CI access should use
+GitHub OIDC and short-lived roles, never fork-exposed secrets.
 
 Required controls:
 
@@ -128,7 +130,7 @@ Required controls:
 - recorded runtime and tagged cost per suite;
 - no NAT Gateway in routine tests where a cheaper safe topology is possible.
 
-Cadence:
+Target cadence after these lanes are implemented:
 
 | Lane                             | Cadence                  | Target                                               |
 | -------------------------------- | ------------------------ | ---------------------------------------------------- |
@@ -140,7 +142,7 @@ Cadence:
 These are initial budget envelopes, not price guarantees. Measure the pilot using tagged resources. RDS billable
 transitions and OpenSearch partial-hour billing make those services poor per-PR candidates.
 
-## Representative projects
+## Proposed representative projects
 
 Use multiple high-density projects rather than one enormous slow stack.
 
@@ -235,15 +237,15 @@ drift, replacements, concurrency, and deletion fidelity.
 - Moto is useful for narrow Python-backed service tests, not as a general Stacktape CloudFormation lifecycle oracle.
 - LocalEmu is an Apache-licensed fork of archived LocalStack code but is too new to become a v4 release gate.
 - AWS SAM local can invoke Lambda/API handlers but does not reproduce Stacktape infrastructure lifecycle.
-- AWS SDK mocks are useful behind explicit ports for error paths; they do not define AWS semantics.
+- AWS SDK mocks are useful at existing client/module seams for error paths; they do not define AWS semantics.
 
-## Initial implementation order
+## Remaining implementation order
 
-1. Review and merge current characterization/artifact baselines.
-2. Add normalized synthesis fixtures and compatibility classifications.
-3. Make fail-closed no-real-AWS safety an acceptance criterion of every slice that can reach an AWS client.
-4. Add static CloudFormation validation.
-5. Add packaged CLI process tests.
-6. Run the Floci feasibility spike.
-7. Build the cheap real-AWS `serverless-mesh` canary after explicit authorization.
-8. Expand nightly/weekly coverage by observed risk and production defects.
+Characterization/artifact baselines, normalized synthesis fixtures, packaged CLI process tests, and a disposable
+real-AWS packaging smoke are implemented. Next:
+
+1. Make fail-closed no-real-AWS safety explicit for every new test slice that can reach an AWS client.
+2. Add static CloudFormation validation where it catches failures beyond current synthesis assertions.
+3. Run the Floci feasibility spike.
+4. Build the cheap real-AWS `serverless-mesh` canary after explicit authorization.
+5. Expand nightly/weekly coverage by observed risk and production defects.

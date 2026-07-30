@@ -5,7 +5,7 @@
  * successful deployment should produce a shared chunk large enough to be promoted into a Lambda layer. Each
  * function is reachable through its own function URL; see `README.md` for the exact commands and guardrails.
  *
- * Deploy it as project `stacktape-v4-packaging-smoke`, stage `dev`, region `eu-west-1`, and delete it afterwards.
+ * Give each run a unique short project name, use stage `dev` and region `eu-west-1`, and delete it afterwards.
  */
 
 import { $ResourceParam, defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from '../../src/api/npm/ts';

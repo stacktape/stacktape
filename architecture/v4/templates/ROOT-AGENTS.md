@@ -2,8 +2,9 @@
 
 ## Goal and repository model
 
-This is the public Stacktape v4 monorepo. It must remain fully installable, testable, buildable, and publishable when
-the private `apps/console` Git submodule is absent.
+This is the public Stacktape v4 monorepo. It must remain fully installable, testable, buildable, and capable of
+producing and validating release artifacts when the private `apps/console` Git submodule is absent. Publishing remains
+disabled until the release pipeline is deliberately restored.
 
 - Public apps: `apps/cli`, `apps/docs`, `apps/website`.
 - Private Git boundary: `apps/console`, containing `api` and `ui`.
@@ -91,8 +92,9 @@ Conceptual complexity is reviewed as strictly as correctness.
 
 ## Generated files
 
-Turbo tasks own generation dependencies. Humans and agents should not need to remember a separate generation step
-before build/typecheck/test.
+Turbo tasks own dependencies for deterministic generators used by ordinary build/typecheck/test work. Humans and
+agents should not need to remember a separate generation step for those outputs. The CLI's live-upstream generators
+and the currently drifting config-schema generator are deliberate exceptions documented in `apps/cli/AGENTS.md`.
 
 - Never hand-edit generated output.
 - Run the owning package's freshness check after changing canonical inputs.
