@@ -5,7 +5,8 @@ import type {
 } from '../runtime-contracts';
 import type { SplitBundleDependency } from '../split-bundler/types';
 import { createHash, type Hash } from 'node:crypto';
-import { lstat, readdir, readFile, readlink } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { lstat, readdir, readlink } from 'node:fs/promises';
 import { join, relative, resolve as resolvePath } from 'node:path';
 import { copy, ensureDir, outputJSON, pathExists, remove, writeFile } from 'fs-extra';
 import getFolderSize from 'get-folder-size';
@@ -23,10 +24,23 @@ const updateHashPart = (hash: Hash, part: string | Buffer) => {
   hash.update(contents);
 };
 
+const updateHashFile = async (hash: Hash, filePath: string, sizeBytes: number): Promise<void> => {
+  hash.update(`${sizeBytes}:`);
+  await new Promise<void>((done, reject) => {
+    const stream = createReadStream(filePath);
+    stream.on('data', (chunk) => {
+      hash.update(chunk);
+    });
+    stream.on('error', reject);
+    stream.on('end', done);
+  });
+};
+
 const getLayerContentHash = async (layerPath: string): Promise<string> => {
   const entries: Array<{
     absolutePath: string;
     relativePath: string;
+    sizeBytes?: number;
     type: 'directory' | 'file' | 'other' | 'symlink';
     symlinkTarget?: string;
   }> = [];
@@ -49,7 +63,12 @@ const getLayerContentHash = async (layerPath: string): Promise<string> => {
           entries.push({ absolutePath, relativePath, type: 'directory' });
           await collectEntries(absolutePath);
         } else {
-          entries.push({ absolutePath, relativePath, type: stats.isFile() ? 'file' : 'other' });
+          entries.push({
+            absolutePath,
+            relativePath,
+            ...(stats.isFile() && { sizeBytes: stats.size }),
+            type: stats.isFile() ? 'file' : 'other'
+          });
         }
       })
     );
@@ -61,22 +80,21 @@ const getLayerContentHash = async (layerPath: string): Promise<string> => {
   );
 
   const hash = createHash('sha256');
-  const fileContents = new Map(
-    await Promise.all(
-      entries
-        .filter((entry) => entry.type === 'file')
-        .map(async (entry) => [entry.relativePath, await readFile(entry.absolutePath)] as const)
-    )
-  );
-  for (const entry of entries) {
+  const updateEntry = async (index: number): Promise<void> => {
+    const entry = entries[index];
+    if (!entry) {
+      return;
+    }
     updateHashPart(hash, entry.type);
     updateHashPart(hash, entry.relativePath);
     if (entry.type === 'file') {
-      updateHashPart(hash, fileContents.get(entry.relativePath)!);
+      await updateHashFile(hash, entry.absolutePath, entry.sizeBytes!);
     } else if (entry.type === 'symlink') {
-      updateHashPart(hash, entry.symlinkTarget ?? '');
+      updateHashPart(hash, transformToUnixPath(entry.symlinkTarget ?? ''));
     }
-  }
+    await updateEntry(index + 1);
+  };
+  await updateEntry(0);
   return hash.digest('hex').slice(0, 12);
 };
 
@@ -166,15 +184,21 @@ const buildNativeModules = async ({
 }): Promise<string> => {
   const resolvedInstallationRootPath = resolvePath(installationRootPath);
   const cacheKey = `${resolvedInstallationRootPath}\0${buildIdentity}`;
-  const existingBuild = inProgressBuilds.get(cacheKey);
-  if (existingBuild) {
+  while (true) {
+    const existingBuild = inProgressBuilds.get(cacheKey);
+    if (!existingBuild) {
+      break;
+    }
     try {
+      // oxlint-disable-next-line no-await-in-loop -- Stale cache replacement must compare the same entry after awaiting it.
       const nodeModulesPath = await existingBuild;
+      // oxlint-disable-next-line no-await-in-loop -- Reuse is safe only while this cached path still exists.
       if (await pathExists(nodeModulesPath)) {
         return nodeModulesPath;
       }
       if (inProgressBuilds.get(cacheKey) === existingBuild) {
         inProgressBuilds.delete(cacheKey);
+        break;
       }
     } catch (error) {
       if (inProgressBuilds.get(cacheKey) === existingBuild) {

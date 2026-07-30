@@ -285,6 +285,44 @@ describe('native dependency packaging', () => {
     );
   });
 
+  test('deduplicates concurrent callers that replace a deleted cached installation', async () => {
+    const workspace = await createWorkspace();
+    const { calls, runDocker } = createFakeDocker();
+    const input = {
+      dependencies: [dependency('native-stale-concurrency-test')],
+      installationRootPath: workspace.installationRootPath,
+      lambdaRuntimeVersion: 20,
+      packageManager: 'npm' as const,
+      usedByLambdas: ['function'],
+      runDocker
+    };
+
+    await buildNativeBinaryLayer({
+      ...input,
+      layerBasePath: join(workspace.rootPath, 'initial-layer')
+    });
+    await rm(workspace.installationRootPath, { recursive: true, force: true });
+    const [first, second] = await Promise.all([
+      buildNativeBinaryLayer({
+        ...input,
+        layerBasePath: join(workspace.rootPath, 'first-rebuilt-layer')
+      }),
+      buildNativeBinaryLayer({
+        ...input,
+        layerBasePath: join(workspace.rootPath, 'second-rebuilt-layer')
+      })
+    ]);
+
+    expect(calls).toHaveLength(2);
+    expect(first?.contentHash).toBe(second?.contentHash);
+    expect(await pathExists(join(first!.layerPath, 'nodejs', 'node_modules', 'native-package', 'binding.node'))).toBe(
+      true
+    );
+    expect(await pathExists(join(second!.layerPath, 'nodejs', 'node_modules', 'native-package', 'binding.node'))).toBe(
+      true
+    );
+  });
+
   test('evicts a rejected Docker build so the same installation can be retried', async () => {
     const workspace = await createWorkspace();
     const { calls, runDocker } = createFakeDocker({ rejectedCalls: [1] });
