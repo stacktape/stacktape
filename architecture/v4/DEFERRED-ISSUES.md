@@ -38,9 +38,6 @@ refactoring scope. Revisit them before the v4 release where marked.
 
 ## Known v3 behavior debt
 
-- Minimal-template cleanup removes an AWS CDK construct from the wrong object level. The current code deletes
-  `cleanedConfig[key]` instead of `cleanedConfig.resources[key]`; fix it with a dedicated server-mode
-  characterization test.
 - The default merge's special `container` fallback assigns the merged value to a `forEach` parameter rather than the
   array. No current resource default reaches that branch, so it remains unchanged while the defaulting contract is
   typed.

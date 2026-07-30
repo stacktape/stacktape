@@ -110,7 +110,7 @@ export const cleanConfigForMinimalTemplateCompilerMode = (conf: StacktapeConfig)
   ]) as StacktapeConfig;
   for (const key in cleanedConfig?.resources || {}) {
     if (cleanedConfig.resources[key].type === 'aws-cdk-construct') {
-      delete cleanedConfig[key];
+      delete cleanedConfig.resources[key];
     }
   }
   return cleanedConfig;
