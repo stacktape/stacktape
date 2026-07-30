@@ -127,14 +127,24 @@ export const generateSourceMapInstall = async ({ distFolderPath }: { distFolderP
   logSuccess('Source map install file generated successfully.');
 };
 
-// Maps our platform names to @opentui/core native package identifiers (process.platform-process.arch)
-const OPENTUI_PLATFORM_IDENTIFIERS: { [_platform in SupportedPlatform]: string } = {
-  win: 'win32-x64',
-  macos: 'darwin-x64',
-  'macos-arm': 'darwin-arm64',
-  linux: 'linux-x64',
-  alpine: 'linux-x64',
-  'linux-arm': 'linux-arm64'
+// The Linux runtime selects glibc or musl after startup, so a cross-compiled Linux binary must bundle both native
+// variants. Other targets have one native package per OS/architecture pair.
+export const OPENTUI_PLATFORM_IDENTIFIERS: { [_platform in SupportedPlatform]: string[] } = {
+  win: ['win32-x64'],
+  macos: ['darwin-x64'],
+  'macos-arm': ['darwin-arm64'],
+  linux: ['linux-x64', 'linux-x64-musl'],
+  alpine: ['linux-x64', 'linux-x64-musl'],
+  'linux-arm': ['linux-arm64', 'linux-arm64-musl']
+};
+
+export const BUN_COMPILE_TARGETS: { [_platform in SupportedPlatform]: Bun.Build.Target } = {
+  win: 'bun-windows-x64',
+  macos: 'bun-darwin-x64',
+  'macos-arm': 'bun-darwin-arm64',
+  linux: 'bun-linux-x64',
+  'linux-arm': 'bun-linux-arm64',
+  alpine: 'bun-linux-x64-baseline-musl'
 };
 
 /**
@@ -142,8 +152,7 @@ const OPENTUI_PLATFORM_IDENTIFIERS: { [_platform in SupportedPlatform]: string }
  * target platform's package is not installed at all (installers skip packages filtered by os/cpu), so it is
  * downloaded from npm. Building for the current platform reuses what is already installed.
  */
-const ensureOpenTuiPlatformPackage = async (platform: SupportedPlatform) => {
-  const platformId = OPENTUI_PLATFORM_IDENTIFIERS[platform];
+const ensureOpenTuiPlatformPackage = async (platformId: string) => {
   const scopedName = `core-${platformId}`;
   const corePackageDir = join(process.cwd(), 'node_modules', '@opentui', 'core');
   const packageDir = join(process.cwd(), 'node_modules', '@opentui', scopedName);
@@ -201,6 +210,10 @@ const ensureOpenTuiPlatformPackage = async (platform: SupportedPlatform) => {
   logSuccess(`Installed @opentui/${scopedName}@${coreVersion}.`);
 };
 
+const ensureOpenTuiPlatformPackages = async (platform: SupportedPlatform) => {
+  await Promise.all(OPENTUI_PLATFORM_IDENTIFIERS[platform].map(ensureOpenTuiPlatformPackage));
+};
+
 export const buildBinaryFile = async ({
   distFolderPath,
   debug,
@@ -221,27 +234,9 @@ export const buildBinaryFile = async ({
   await ensureDir(outputFolderPath);
 
   // Ensure the target platform's @opentui/core native package is available for cross-compilation
-  await ensureOpenTuiPlatformPackage(platform);
+  await ensureOpenTuiPlatformPackages(platform);
 
-  // Map platform to Bun compile target
-  const compileTarget = (() => {
-    switch (platform) {
-      case 'macos':
-        return 'bun-darwin-x64';
-      case 'macos-arm':
-        return 'bun-darwin-arm64';
-      case 'linux':
-        return 'bun-linux-x64';
-      case 'linux-arm':
-        return 'bun-linux-arm64';
-      case 'win':
-        return 'bun-windows-x64';
-      case 'alpine':
-        return 'bun-linux-x64-baseline';
-      default:
-        return 'bun';
-    }
-  })();
+  const compileTarget = BUN_COMPILE_TARGETS[platform];
 
   const entrypoint = join(process.cwd(), 'src', 'api', 'cli', 'compiled-entry.ts');
   const outputFileName = platform === 'win' ? 'stacktape.exe' : 'stacktape';
@@ -251,7 +246,7 @@ export const buildBinaryFile = async ({
   const result = await Bun.build({
     entrypoints: [entrypoint],
     compile: {
-      target: compileTarget as Bun.Build.Target,
+      target: compileTarget,
       outfile: outputPath,
       autoloadTsconfig: true,
       autoloadPackageJson: true

@@ -24,7 +24,7 @@ export const NIXPACKS_BINARY_FILE_NAMES: { [_platform in SupportedPlatform]: str
   macos: 'nixpacks-macos',
   linux: 'nixpacks-linux',
   'macos-arm': 'nixpacks-macos-arm',
-  alpine: 'nixpacks-linux',
+  alpine: 'nixpacks-linux-alpine',
   'linux-arm': 'nixpacks-linux-arm'
 };
 

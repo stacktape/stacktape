@@ -81,7 +81,8 @@ const verifyReleaseArtifact = async () => {
     const installedPackagePath = join(installDirectory, 'node_modules', 'stacktape');
     const packageResult = await verifyNpmPackage({
       packageDir: installedPackagePath,
-      requireChecksums: true
+      requireChecksums: true,
+      expectedVersion: '0.0.0-release-artifact'
     });
     const require = createRequire(import.meta.url);
     const launcher = require(join(installedPackagePath, 'bin', 'stacktape.js')) as PackagedLauncher;

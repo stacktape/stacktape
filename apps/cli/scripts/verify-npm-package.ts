@@ -37,10 +37,12 @@ const assertContains = async (filePath: string, values: string[]) => {
 
 export const verifyNpmPackage = async ({
   packageDir = NPM_RELEASE_FOLDER_PATH,
-  requireChecksums = false
+  requireChecksums = false,
+  expectedVersion
 }: {
   packageDir?: string;
   requireChecksums?: boolean;
+  expectedVersion?: string;
 } = {}) => {
   assert.ok(isAbsolute(packageDir), 'NPM artifact path must be absolute');
   const manifestPath = join(packageDir, 'package.json');
@@ -49,6 +51,13 @@ export const verifyNpmPackage = async ({
   const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as PackageManifest;
   assert.equal(manifest.name, 'stacktape');
   assert.match(manifest.version, /^\d+\.\d+\.\d+(?:[-+].+)?$/);
+  if (expectedVersion) {
+    assert.equal(
+      manifest.version,
+      expectedVersion,
+      'NPM artifact version does not match the requested release version'
+    );
+  }
   assert.deepEqual(Object.keys(manifest.bin).sort(), ['stacktape', 'stp']);
   assert.equal(manifest.bin.stacktape, manifest.bin.stp);
 
@@ -128,7 +137,15 @@ export const verifyNpmPackage = async ({
 };
 
 const main = async () => {
-  const result = await verifyNpmPackage({ requireChecksums: process.argv.includes('--require-checksums') });
+  const expectedVersionIndex = process.argv.indexOf('--expected-version');
+  const expectedVersion = expectedVersionIndex === -1 ? undefined : process.argv[expectedVersionIndex + 1];
+  if (expectedVersionIndex !== -1 && !expectedVersion) {
+    throw new Error('--expected-version requires a version.');
+  }
+  const result = await verifyNpmPackage({
+    requireChecksums: process.argv.includes('--require-checksums'),
+    expectedVersion
+  });
   console.info(
     `Verified stacktape@${result.version}: ${result.fileCount} packed files, ${result.runtimeExportCount} runtime exports.`
   );
