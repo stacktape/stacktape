@@ -6,10 +6,10 @@ import path from 'node:path';
 import { after, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-const checker = fileURLToPath(new URL('./check-generated-diff.mjs', import.meta.url));
+const checker = fileURLToPath(new URL('./check-generated-diff.ts', import.meta.url));
 let repository = '';
 
-const run = (command, args) =>
+const run = (command: string, args: string[]) =>
   spawnSync(command, args, {
     cwd: repository,
     encoding: 'utf8',

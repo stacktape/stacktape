@@ -1,8 +1,9 @@
 import { access, readFile } from 'node:fs/promises';
 
-const read = (relativePath) => readFile(new URL(`../../${relativePath}`, import.meta.url), 'utf8');
+const read = (relativePath: string): Promise<string> =>
+  readFile(new URL(`../../${relativePath}`, import.meta.url), 'utf8');
 
-const assertSame = async (actualPath, templatePath) => {
+const assertSame = async (actualPath: string, templatePath: string): Promise<void> => {
   const [actual, template] = await Promise.all([read(actualPath), read(templatePath)]);
   if (actual !== template) {
     throw new Error(`${actualPath} drifted from its approved template at ${templatePath}.`);
@@ -19,7 +20,7 @@ let consolePresent = true;
 try {
   await access(new URL('../../apps/console/api/package.json', import.meta.url));
 } catch (error) {
-  if (error?.code === 'ENOENT') {
+  if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
     consolePresent = false;
   } else {
     throw error;

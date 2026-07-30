@@ -1,6 +1,6 @@
 {
-  "entry": ["scripts/agents/*.ts", "scripts/workspace/*.mjs"],
-  "ignoreFiles": ["scripts/agents/*.ts", "scripts/workspace/*.mjs"],
+  "entry": ["scripts/agents/*.ts", "scripts/workspace/*.ts"],
+  "ignoreFiles": ["scripts/agents/*.ts", "scripts/workspace/*.ts"],
   "workspaces": {
     "apps/cli": {
       "entry": [
@@ -41,7 +41,14 @@
       "ignore": ["@generated/**", "dist/**"]
     },
     "apps/console/ui": {
-      "entry": ["src/main.tsx", "src/**/*.tsx", "vite.config.ts", "diagram-test/**/*.ts", "diagram-test/**/*.tsx"],
+      "entry": [
+        "src/main.tsx",
+        "src/**/*.tsx",
+        "vite.config.ts",
+        "diagram-test/**/*.ts",
+        "diagram-test/**/*.tsx",
+        "scripts/**/*.ts"
+      ],
       "project": ["**/*.{ts,tsx}"],
       "ignore": ["dist/**", "public/**"]
     },

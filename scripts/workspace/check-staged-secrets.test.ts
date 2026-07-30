@@ -6,7 +6,7 @@ import { after, afterEach, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { spawnSync } from 'node:child_process';
 
-const checker = fileURLToPath(new URL('./check-staged-secrets.mjs', import.meta.url));
+const checker = fileURLToPath(new URL('./check-staged-secrets.ts', import.meta.url));
 let repository = '';
 
 const run = (command: string, args: string[]) =>

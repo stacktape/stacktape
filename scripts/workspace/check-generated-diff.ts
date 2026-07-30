@@ -12,7 +12,7 @@ export const GENERATED_SCOPES = [
   'packages/design-tokens/generated/tokens.css'
 ];
 
-const gitLines = (cwd, args) => {
+const gitLines = (cwd: string, args: string[]): string[] => {
   const result = spawnSync('git', args, { cwd, encoding: 'utf8' });
   if (result.status !== 0) {
     const detail = result.stderr.trim() || result.stdout.trim() || `exit code ${result.status}`;
@@ -21,13 +21,13 @@ const gitLines = (cwd, args) => {
   return result.stdout.split(/\r?\n/).filter(Boolean);
 };
 
-export const findGeneratedChanges = (cwd = process.cwd()) => {
+export const findGeneratedChanges = (cwd = process.cwd()): { tracked: string[]; untracked: string[] } => {
   const tracked = gitLines(cwd, ['diff', '--name-only', 'HEAD', '--', ...GENERATED_SCOPES]);
   const untracked = gitLines(cwd, ['ls-files', '--others', '--exclude-standard', '--', ...GENERATED_SCOPES]);
   return { tracked, untracked };
 };
 
-export const checkGeneratedDiff = (cwd = process.cwd()) => {
+export const checkGeneratedDiff = (cwd = process.cwd()): boolean => {
   const changes = findGeneratedChanges(cwd);
   if (changes.tracked.length === 0 && changes.untracked.length === 0) return true;
 

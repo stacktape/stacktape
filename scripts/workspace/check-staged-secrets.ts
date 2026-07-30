@@ -7,7 +7,13 @@ const treeMode = args.includes('--tree');
 const repositoryArgument = args.find((argument) => !argument.startsWith('-'));
 const repositoryRoot = path.resolve(repositoryArgument ?? process.cwd());
 
-const detectors = [
+type Detector = {
+  git: string;
+  js: RegExp;
+  label: string;
+};
+
+const detectors: Detector[] = [
   {
     git: '-----BEGIN ([A-Z0-9]+ )?PRIVATE KEY-----',
     js: /-----BEGIN (?:[A-Z0-9]+ )?PRIVATE KEY-----/,
@@ -50,10 +56,10 @@ const documentedAwsExampleKeys = new Set(['AKIAIOSFODNN7EXAMPLE', 'ASIAIOSFODNN7
 const loopbackHosts = new Set(['0.0.0.0', '127.0.0.1', '::1', 'host.docker.internal']);
 const reservedDomains = ['example', 'example.com', 'example.net', 'example.org', 'invalid', 'localhost', 'test'];
 
-const isUnreachableHost = (host) =>
+const isUnreachableHost = (host: string): boolean =>
   loopbackHosts.has(host) || reservedDomains.some((domain) => host === domain || host.endsWith(`.${domain}`));
 
-const hostOf = (match) => {
+const hostOf = (match: string): string => {
   const authority = /@([^/\s@]*)/.exec(match)?.[1] ?? '';
   return authority
     .replace(/[^A-Za-z0-9.:_[\]-].*$/, '') // trailing quote, comma or backtick from the surrounding source line
@@ -65,16 +71,17 @@ const hostOf = (match) => {
 // A database CLI builds and documents connection strings, so URL shape alone cannot separate a leak from a
 // template. Only two things rule a match out: credentials that are still an unresolved placeholder, and a host
 // nobody can reach. How weak the password looks is not one of them — `app:secret@db.acme-corp.tld` is a leak.
-const isDocumentedCredentialUrl = (match) => {
+const isDocumentedCredentialUrl = (match: string): boolean => {
   const credentials = /:\/\/([^/:@\s]+):([^/@\s]+)@/.exec(match);
   if (!credentials) {
     return false;
   }
-  const [, user, password] = credentials;
+  const user = credentials[1] ?? '';
+  const password = credentials[2] ?? '';
   return [user, password].some((part) => /[${}<>%]/.test(part)) || isUnreachableHost(hostOf(match));
 };
 
-const isSyntheticMatch = (label, match) => {
+const isSyntheticMatch = (label: string, match: string): boolean => {
   if (label === 'AWS access key') {
     return documentedAwsExampleKeys.has(match);
   }
@@ -84,7 +91,7 @@ const isSyntheticMatch = (label, match) => {
   return false;
 };
 
-const hasRealMatch = (detector, text) => {
+const hasRealMatch = (detector: Detector, text: string): boolean => {
   const matcher = new RegExp(detector.js.source, `${detector.js.flags.replace('g', '')}g`);
   for (const [match] of text.matchAll(matcher)) {
     if (!isSyntheticMatch(detector.label, match)) {
@@ -94,7 +101,7 @@ const hasRealMatch = (detector, text) => {
   return false;
 };
 
-const gitDiff = (root, diffArguments) => {
+const gitDiff = (root: string, diffArguments: string[]): string => {
   const result = spawnSync('git', ['diff', '--cached', '--no-ext-diff', '--diff-filter=ACMRTUXB', ...diffArguments], {
     cwd: root,
     encoding: 'utf8',
@@ -106,7 +113,7 @@ const gitDiff = (root, diffArguments) => {
   return result.stdout;
 };
 
-const scanStagedDiff = (root) => {
+const scanStagedDiff = (root: string): string[] => {
   const findings = [];
   for (const detector of detectors) {
     // Narrowing to the files whose staged changes touch the pattern keeps a large commit from being materialised
@@ -126,7 +133,7 @@ const scanStagedDiff = (root) => {
   return findings;
 };
 
-const scanTrackedTree = (root) => {
+const scanTrackedTree = (root: string): string[] => {
   const findings = [];
   for (const detector of detectors) {
     // `--only-matching` keeps the output small even for the vendored multi-megabyte schema files and lets the
