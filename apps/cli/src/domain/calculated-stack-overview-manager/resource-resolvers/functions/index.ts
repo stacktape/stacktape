@@ -24,6 +24,7 @@ import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
 import { cfLogicalNames } from '@shared/naming/logical-names';
+import { resolveNodeVersion } from '@shared/packaging/node-version';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
@@ -225,8 +226,11 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   const entryfilePath = (packaging?.properties as { entryfilePath?: string })?.entryfilePath;
   const languageSpecificConfig = (packaging?.properties as { languageSpecificConfig?: EsLanguageSpecificConfig })
     ?.languageSpecificConfig;
-  const nodeVersionFromRuntime = Number(runtime?.match(/nodejs(\d+)/)?.[1]) || null;
-  const nodeVersion = languageSpecificConfig?.nodeVersion || nodeVersionFromRuntime || DEFAULT_LAMBDA_NODE_VERSION;
+  const nodeVersion = resolveNodeVersion({
+    nodeVersion: languageSpecificConfig?.nodeVersion,
+    runtime,
+    target: 'lambda'
+  });
 
   const transformedEnvVars = {};
   getAugmentedEnvironment({

@@ -325,7 +325,8 @@ export interface EsLanguageSpecificConfig {
   * });
   * ```
    *
-   * @default 'cjs' for Node.js 23 and earlier. Node.js 24 and later use ESM output.
+   * When omitted, Node.js 23 and earlier use CommonJS output, while Node.js 24 and later use ESM output.
+   * The default is selected by the packaging runtime after resolving `nodeVersion`.
    */
   outputModuleFormat?: 'cjs' | 'esm';
   /**
@@ -376,7 +377,8 @@ export interface EsLanguageSpecificConfig {
   * });
   * ```
    *
-   * @default 24
+   * When omitted, image buildpacks use Node.js 24. Lambda buildpacks use the function's `runtime`, falling back to
+   * Node.js 24 when neither setting is present. An explicit `nodeVersion` takes precedence over both.
    */
   nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
   /**

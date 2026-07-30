@@ -8,7 +8,6 @@ import type {
 import { join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { DEFAULT_CONTAINER_NODE_VERSION, DEFAULT_LAMBDA_NODE_VERSION } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
@@ -33,6 +32,7 @@ import {
   type SsrWebResourceType
 } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/ssr-web-shared';
 import { buildUsingNixpacks } from '@shared/packaging/nixpacks';
+import { resolveNodeVersion } from '@shared/packaging/node-version';
 import { buildUsingStacktapeEsImageBuildpack } from '@shared/packaging/stacktape-es-image-buildpack';
 import { buildUsingStacktapeEsLambdaBuildpack } from '@shared/packaging/stacktape-es-lambda-buildpack';
 import { buildUsingStacktapeGoImageBuildpack } from '@shared/packaging/stacktape-go-image-buildpack';
@@ -351,8 +351,11 @@ export class PackagingManager {
     const languageSpecificConfig = (firstLambda.packaging.properties as any)?.languageSpecificConfig as
       | EsLanguageSpecificConfig
       | undefined;
-    const nodeVersionFromRuntime = Number(firstLambda.runtime?.match(/nodejs(\d+)/)?.[1]) || null;
-    const nodeVersion = languageSpecificConfig?.nodeVersion || nodeVersionFromRuntime || DEFAULT_LAMBDA_NODE_VERSION;
+    const nodeVersion = resolveNodeVersion({
+      nodeVersion: languageSpecificConfig?.nodeVersion,
+      runtime: firstLambda.runtime,
+      target: 'lambda'
+    });
 
     // Create progress logger for the shared layer (split bundle process)
     const sharedLayerLogger = eventManager.createChildLogger({
@@ -1237,12 +1240,12 @@ export class PackagingManager {
         case 'tsx': {
           const languageSpecificConfig =
             (packaging.properties.languageSpecificConfig as EsLanguageSpecificConfig) || undefined;
-          const nodeVersionFromRuntime = Number(runtime?.match(/nodejs(\d+)/)?.[1]) || null;
           const nodeVersionFromUser = languageSpecificConfig?.nodeVersion;
-          const nodeVersion =
-            packagingType === 'stacktape-image-buildpack'
-              ? nodeVersionFromUser || DEFAULT_CONTAINER_NODE_VERSION
-              : nodeVersionFromUser || nodeVersionFromRuntime || DEFAULT_LAMBDA_NODE_VERSION;
+          const nodeVersion = resolveNodeVersion({
+            nodeVersion: nodeVersionFromUser,
+            runtime,
+            target: packagingType === 'stacktape-image-buildpack' ? 'container' : 'lambda'
+          });
           // Lambda@Edge doesn't support ESM with top-level await, so force CJS for edge functions
           const isEdgeFunction = workloadType === 'edge-lambda-function';
           const useEsm = !isEdgeFunction && (languageSpecificConfig?.outputModuleFormat === 'esm' || nodeVersion >= 24);

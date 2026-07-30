@@ -4,8 +4,11 @@ import { dirname, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
 import { cleanConfigForMinimalTemplateCompilerMode } from '@domain-services/config-manager/utils/misc';
-import { validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
+import { stacktapeConfigSchema, validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
+import { resolveOpenSearchLoggingDefaults } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/open-search';
+import { resolveNodeVersion } from '@shared/packaging/node-version';
 import type { StacktapeConfig } from '@stacktape/config';
+import get from 'lodash/get';
 import {
   $ResourceParam,
   $Stage,
@@ -203,5 +206,86 @@ describe('configuration runtime contract', () => {
       expect(result.errorMessage).toContain('Invalid resource type');
       expect(result.errorMessage).toContain('function');
     }
+  });
+
+  test('the generated validator applies current buildpack and logging defaults', () => {
+    const parsed = stacktapeConfigSchema.parse({
+      resources: {
+        nodeFunction: {
+          type: 'function',
+          properties: {
+            packaging: {
+              type: 'stacktape-lambda-buildpack',
+              properties: { entryfilePath: 'src/index.ts', languageSpecificConfig: {} }
+            },
+            runtime: 'nodejs22.x',
+            logging: {}
+          }
+        },
+        pythonFunction: {
+          type: 'function',
+          properties: {
+            packaging: {
+              type: 'stacktape-lambda-buildpack',
+              properties: {
+                entryfilePath: 'src/index.py',
+                languageSpecificConfig: { packageManager: 'uv' }
+              }
+            }
+          }
+        },
+        cache: {
+          type: 'redis-cluster',
+          properties: {
+            defaultUserPassword: "$Secret('redis.password')",
+            instanceSize: 'cache.t4g.micro',
+            logging: {}
+          }
+        }
+      }
+    });
+
+    expect(
+      get(parsed, 'resources.nodeFunction.properties.packaging.properties.languageSpecificConfig.nodeVersion')
+    ).toBeUndefined();
+    expect(get(parsed, 'resources.nodeFunction.properties.runtime')).toBe('nodejs22.x');
+    expect(
+      get(parsed, 'resources.nodeFunction.properties.packaging.properties.languageSpecificConfig.outputModuleFormat')
+    ).toBeUndefined();
+    expect(
+      get(parsed, 'resources.pythonFunction.properties.packaging.properties.languageSpecificConfig.pythonVersion')
+    ).toBe(3.12);
+    expect(get(parsed, 'resources.nodeFunction.properties.logging.retentionDays')).toBe(90);
+    expect(get(parsed, 'resources.cache.properties.logging.retentionDays')).toBe(30);
+    expect(resolveNodeVersion({ runtime: 'nodejs22.x', target: 'lambda' })).toBe(22);
+    expect(resolveNodeVersion({ target: 'lambda' })).toBe(24);
+    expect(resolveNodeVersion({ nodeVersion: 20, runtime: 'nodejs22.x', target: 'lambda' })).toBe(20);
+    expect(resolveNodeVersion({ runtime: 'nodejs22.x', target: 'container' })).toBe(24);
+  });
+
+  test('the generated validator leaves context-dependent OpenSearch retention defaults to synthesis', () => {
+    const parsed = stacktapeConfigSchema.parse({
+      resources: {
+        search: {
+          type: 'open-search-domain',
+          properties: {
+            logging: {
+              errorLogs: {},
+              searchSlowLogs: {},
+              indexSlowLogs: {}
+            }
+          }
+        }
+      }
+    });
+
+    expect(get(parsed, 'resources.search.properties.logging.errorLogs.retentionDays')).toBeUndefined();
+    expect(get(parsed, 'resources.search.properties.logging.searchSlowLogs.retentionDays')).toBeUndefined();
+    expect(get(parsed, 'resources.search.properties.logging.indexSlowLogs.retentionDays')).toBeUndefined();
+    expect(resolveOpenSearchLoggingDefaults()).toEqual({
+      errorLogs: { disabled: false, retentionDays: 30 },
+      searchSlowLogs: { disabled: false, retentionDays: 5 },
+      indexSlowLogs: { disabled: false, retentionDays: 5 }
+    });
   });
 });

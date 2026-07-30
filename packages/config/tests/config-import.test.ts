@@ -27,6 +27,67 @@ describe('the generated configuration schema package export', () => {
     expect(Object.keys(configSchema.definitions)).toHaveLength(449);
     expect(configSchema.definitions.StacktapeResourceDefinition.anyOf).toHaveLength(44);
   });
+
+  test('publishes defaults that match the authored and runtime configuration contract', () => {
+    expect('default' in configSchema.definitions.EsLanguageSpecificConfig.properties.nodeVersion).toBe(false);
+    expect(configSchema.definitions.PyLanguageSpecificConfig.properties.pythonVersion.default).toBe(3.12);
+    expect(configSchema.definitions.LambdaFunctionLogging.properties.retentionDays.default).toBe(90);
+    expect(configSchema.definitions.RedisLogging.properties.retentionDays.default).toBe(30);
+
+    // These defaults depend on another property or the containing log type. They are applied by the
+    // packaging/synthesis runtime and cannot be represented by one scalar JSON Schema default.
+    expect('default' in configSchema.definitions.EsLanguageSpecificConfig.properties.outputModuleFormat).toBe(false);
+    expect('default' in configSchema.definitions.OpenSearchLogRetentionSettings.properties.retentionDays).toBe(false);
+  });
+
+  test('publishes current configuration documentation links', () => {
+    const publishedSchema = JSON.stringify(configSchema);
+    expect(publishedSchema).toContain('https://docs.stacktape.com/configuration/referenceable-parameters/');
+    expect(publishedSchema).not.toContain('https://docs.stacktape.com/configuration/referencing-parameters/');
+  });
+
+  test('never publishes a default outside its declared JSON Schema type or enum', () => {
+    const invalidDefaults: string[] = [];
+
+    const visit = (node: unknown, path: string[] = []) => {
+      if (!node || typeof node !== 'object') return;
+
+      const schemaNode = node as {
+        default?: unknown;
+        enum?: unknown[];
+        type?: string | string[];
+        [key: string]: unknown;
+      };
+      if (Object.hasOwn(schemaNode, 'default')) {
+        const declaredTypes = schemaNode.type
+          ? Array.isArray(schemaNode.type)
+            ? schemaNode.type
+            : [schemaNode.type]
+          : [];
+        const actualType =
+          schemaNode.default === null
+            ? 'null'
+            : Array.isArray(schemaNode.default)
+              ? 'array'
+              : Number.isInteger(schemaNode.default)
+                ? 'integer'
+                : typeof schemaNode.default;
+        const matchesType =
+          declaredTypes.length === 0 ||
+          declaredTypes.includes(actualType) ||
+          (actualType === 'integer' && declaredTypes.includes('number'));
+        const matchesEnum =
+          schemaNode.enum === undefined || schemaNode.enum.some((value) => Object.is(value, schemaNode.default));
+
+        if (!matchesType || !matchesEnum) invalidDefaults.push(path.join('.'));
+      }
+
+      for (const [key, value] of Object.entries(schemaNode)) visit(value, [...path, key]);
+    };
+
+    visit(configSchema);
+    expect(invalidDefaults).toEqual([]);
+  });
 });
 
 describe('the CloudFormation value vocabulary the escape hatch is written against', () => {

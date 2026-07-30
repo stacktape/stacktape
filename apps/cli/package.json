@@ -26,7 +26,7 @@
     "dev": "bun run scripts/dev.ts",
     "docker:clean": "docker system prune --all --force --volumes",
     "esp": "bun scripts/execute-starter-project.ts",
-    "generate": "bun scripts/generate-starter-projects-metadata.ts",
+    "generate": "bun scripts/generate-starter-projects-metadata.ts && bun scripts/generate-schemas.ts",
     "generate:check": "bun scripts/generate-starter-projects-metadata.ts --check",
     "generate:monaco": "bun scripts/generate-monaco-declarations.ts",
     "generate:monaco:check": "bun scripts/generate-monaco-declarations.ts --check",

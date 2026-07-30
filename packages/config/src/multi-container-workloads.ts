@@ -902,7 +902,7 @@ export interface ContainerWorkloadResourcesConfig {
    * });
    * ```
    *
-   * @default 'x86_64'
+   * @default "x86_64"
    */
   architecture?: 'x86_64' | 'arm64';
 }

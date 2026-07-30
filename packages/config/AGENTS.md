@@ -73,6 +73,8 @@ by this package. Direct imports and that no-redeclaration invariant are the comp
 ## Checks
 
 ```sh
+pnpm --filter @stacktape/cli run gen:schema          # regenerate the committed JSON Schema and Zod validator
+pnpm check:generated-diff                            # prove both committed outputs are current after generation
 pnpm --filter @stacktape/config run typecheck          # strict, skipLibCheck false, includes the acceptance fixture
 pnpm --filter @stacktape/cli run test:characterization # schema probes: 449 definitions, 44-resource union, examples
 pnpm --filter @stacktape/cli run typecheck             # direct imports plus retained global declaration compatibility

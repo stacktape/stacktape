@@ -34,8 +34,9 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   canonical config JSON schema lives with its model at `packages/config/generated/config-schema.json`. Never
   hand-edit; regenerate with the matching `gen:*` script. The main CLI project excludes this directory, so
   `@generated/tsconfig.json` owns both CloudFormation trees and the generated Zod validator
-  (`test:generated-types`). The config lives above the generator-owned subdirectories so regeneration cannot delete
-  it. AWS prices, CloudFormation resource types and RDS versions are exported through explicit
+  (`test:generated-types`). `generate-schemas.ts` owns only `@generated/schemas/validate-config-zod.ts` and preserves
+  separately generated schema variants in that directory. AWS prices, CloudFormation resource types and RDS versions
+  are exported through explicit
   `@stacktape/cli/catalogs/*.json` subpaths so Console does not keep application-local copies. Those generators read
   live upstream data, as do `gen:cloudform` and `gen:cf:types`, and have no pinned input; regenerate deliberately
   rather than as a side effect of an unrelated change.
@@ -74,6 +75,7 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 ## Checks
 
 ```sh
+pnpm --filter @stacktape/cli run generate        # starter metadata plus deterministic config JSON/Zod schemas
 pnpm --filter @stacktape/cli run typecheck       # CLI, build/test projects, smoke fixtures and committed generated TypeScript
 pnpm --filter @stacktape/cli run test            # characterization, generators, command/Docker secret safety, release security, MCP docs, helper Lambdas, CLI smoke
 pnpm --filter @stacktape/cli run test:config-unit # authored-config npm API and directive-resolution unit tests
@@ -100,9 +102,6 @@ Two known constraints:
 
 - `@generated/llm-docs` is shipped from the committed tree. Regenerating it reads the documentation app, so
   `scripts/generate-llm-docs.ts` returns together with `apps/docs`.
-- The generated config schema does not currently reproduce byte-for-byte from its TypeScript inputs, with either
-  TypeScript 5.9 or 6.
-  That drift predates the move; a freshness gate is only worth adding once the inputs and generator agree again.
 - Framework-level starter validation belongs in a separate CI lane that materializes each starter into a temporary
   directory, installs with that starter's package manager, and runs its own typecheck with bounded concurrency,
   per-starter timeouts, and unconditional cleanup. It must not add every framework dependency to this workspace or

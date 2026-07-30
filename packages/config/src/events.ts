@@ -2178,7 +2178,7 @@ export interface HttpApiIntegrationProps {
    *
    * For details on the differences between formats, see the [AWS documentation](https://docs.aws.amazon.com/apigateway/latest/developerguide/http-api-develop-integrations-lambda.html).
    *
-   * @default '1.0'
+   * @default "1.0"
    */
   payloadFormat?: '1.0' | '2.0';
 }

@@ -1,6 +1,6 @@
 import { CONFIG_SCHEMA_PATH, JSON_SCHEMAS_FOLDER_PATH } from '@shared/naming/project-fs-paths';
 import { logInfo, logSuccess } from '@shared/utils/logging';
-import { mkdir, remove, writeJSON } from 'fs-extra';
+import { mkdir, writeJSON } from 'fs-extra';
 import { generateConfigSchema, getJsonSchemaGenerator } from './code-generation/utils';
 import { generateZodSchema } from './code-generation/generate-zod-schema';
 import { stripExampleMarkersInSchema } from './code-generation/strip-example-markers';
@@ -8,7 +8,8 @@ import { stripExampleMarkersInSchema } from './code-generation/strip-example-mar
 export const generateSchemas = async () => {
   logInfo('Generating config schema and Zod schema...');
 
-  await remove(JSON_SCHEMAS_FOLDER_PATH);
+  // This generator owns validate-config-zod.ts, not the whole schemas directory.
+  // Other schema variants are generated independently and must survive a config-schema refresh.
   await mkdir(JSON_SCHEMAS_FOLDER_PATH, { recursive: true });
 
   const jsonSchemaGenerator = await getJsonSchemaGenerator();

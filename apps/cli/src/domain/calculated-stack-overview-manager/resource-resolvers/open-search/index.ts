@@ -3,30 +3,32 @@ import { GetAtt } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { cfLogicalNames } from '@shared/naming/logical-names';
+import type { OpenSearchLogConfiguration } from '@stacktape/config/open-search';
 import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 import { getOpenSearchDomainLogGroup, getOpenSearchDomainResource, getOpenSearchDomainSecurityGroup } from './utils';
+
+export const resolveOpenSearchLoggingDefaults = (logging: OpenSearchLogConfiguration = {}) => ({
+  errorLogs: {
+    disabled: logging.errorLogs?.disabled ?? false,
+    retentionDays: logging.errorLogs?.retentionDays ?? 30
+  },
+  searchSlowLogs: {
+    disabled: logging.searchSlowLogs?.disabled ?? false,
+    retentionDays: logging.searchSlowLogs?.retentionDays ?? 5
+  },
+  indexSlowLogs: {
+    disabled: logging.indexSlowLogs?.disabled ?? false,
+    retentionDays: logging.indexSlowLogs?.retentionDays ?? 5
+  }
+});
 
 export const resolveOpenSearchDomains = () => {
   const openSearchDomains = filterResourcesForDevMode(configManager.openSearchDomains);
   openSearchDomains.forEach((openSearchDomain) => {
     const cfLogicalName = cfLogicalNames.openSearchDomain(openSearchDomain.name);
 
-    const logging = openSearchDomain.logging ?? {};
-    const finalLoggingConfig = {
-      errorLogs: {
-        disabled: logging.errorLogs?.disabled ?? false,
-        retentionDays: logging.errorLogs?.retentionDays ?? 30
-      },
-      searchSlowLogs: {
-        disabled: logging.searchSlowLogs?.disabled ?? false,
-        retentionDays: logging.searchSlowLogs?.retentionDays ?? 5
-      },
-      indexSlowLogs: {
-        disabled: logging.indexSlowLogs?.disabled ?? false,
-        retentionDays: logging.indexSlowLogs?.retentionDays ?? 5
-      }
-    };
+    const finalLoggingConfig = resolveOpenSearchLoggingDefaults(openSearchDomain.logging);
     calculatedStackOverviewManager.addCfChildResource({
       nameChain: openSearchDomain.nameChain,
       cfLogicalName,

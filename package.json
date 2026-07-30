@@ -10,7 +10,7 @@
     "check:architecture:update-known": "depcruise --config dependency-cruiser.config.cjs --output-type baseline apps packages",
     "check:deadcode": "knip --production --strict --treat-config-hints-as-errors --exclude dependencies",
     "check:duplicates": "jscpd apps packages scripts --config jscpd.json",
-    "check:generated-diff": "git diff --exit-code -- apps/cli/starter-projects-metadata.json packages/design-tokens/generated/tokens.css",
+    "check:generated-diff": "git diff --exit-code -- apps/cli/starter-projects-metadata.json apps/cli/@generated/schemas/validate-config-zod.ts packages/config/generated/config-schema.json packages/design-tokens/generated/tokens.css",
     "check:integrated": "node scripts/workspace/require-console.mjs && pnpm check",
     "check:instructions": "node scripts/workspace/check-instruction-sync.mjs",
     "check:patterns": "ast-grep scan && ast-grep test --skip-snapshot-tests",

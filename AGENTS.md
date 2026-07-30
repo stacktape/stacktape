@@ -93,8 +93,9 @@ Conceptual complexity is reviewed as strictly as correctness.
 ## Generated files
 
 Turbo tasks own dependencies for deterministic generators used by ordinary build/typecheck/test work. Humans and
-agents should not need to remember a separate generation step for those outputs. The CLI's live-upstream generators
-and the currently drifting config-schema generator are deliberate exceptions documented in `apps/cli/AGENTS.md`.
+agents should not need to remember a separate generation step for those outputs. The CLI config-schema generator is
+part of its ordinary `generate` task; only live-upstream generators remain deliberate manual operations documented in
+`apps/cli/AGENTS.md`.
 
 - Never hand-edit generated output.
 - Run the owning package's freshness check after changing canonical inputs.

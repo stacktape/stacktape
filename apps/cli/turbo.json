@@ -1,0 +1,16 @@
+{
+  "$schema": "https://turborepo.dev/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    "generate": {
+      "cache": false,
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/packages/config/src/**",
+        "$TURBO_ROOT$/apps/cli/types/**",
+        "$TURBO_ROOT$/apps/cli/tsconfig.json"
+      ],
+      "outputs": ["generated/**", "@generated/schemas/**", "dist/**", "starter-projects-metadata.json"]
+    }
+  }
+}

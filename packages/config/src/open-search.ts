@@ -59,7 +59,7 @@ export interface OpenSearchDomainProps {
    * });
    * ```
    *
-   * @default '2.17'
+   * @default "2.17"
    */
   version?: '2.17' | '2.15' | '2.13' | '2.11' | '2.9' | '2.7' | '2.5' | '2.3' | '1.3' | '1.2' | '1.1' | '1.0';
   /**
@@ -1272,7 +1272,8 @@ export interface OpenSearchLogRetentionSettings {
    * });
    * ```
    *
-   * @default 30 for `errorLogs`; 5 for `searchSlowLogs` and `indexSlowLogs`
+   * When omitted, Stacktape retains `errorLogs` for 30 days and `searchSlowLogs` and `indexSlowLogs` for 5 days.
+   * The default depends on the containing log type and is applied during synthesis.
    */
   retentionDays?: 1 | 3 | 5 | 7 | 14 | 30 | 60 | 90 | 120 | 150 | 180 | 365 | 400 | 545 | 731 | 1827 | 3653;
 }
