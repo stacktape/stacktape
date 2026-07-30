@@ -80,21 +80,16 @@ const getLayerContentHash = async (layerPath: string): Promise<string> => {
   );
 
   const hash = createHash('sha256');
-  const updateEntry = async (index: number): Promise<void> => {
-    const entry = entries[index];
-    if (!entry) {
-      return;
-    }
+  for (const entry of entries) {
     updateHashPart(hash, entry.type);
     updateHashPart(hash, entry.relativePath);
     if (entry.type === 'file') {
+      // oxlint-disable-next-line no-await-in-loop -- Files must enter the shared digest in sorted order without being buffered.
       await updateHashFile(hash, entry.absolutePath, entry.sizeBytes!);
     } else if (entry.type === 'symlink') {
-      updateHashPart(hash, transformToUnixPath(entry.symlinkTarget ?? ''));
+      updateHashPart(hash, entry.symlinkTarget ?? '');
     }
-    await updateEntry(index + 1);
-  };
-  await updateEntry(0);
+  }
   return hash.digest('hex').slice(0, 12);
 };
 

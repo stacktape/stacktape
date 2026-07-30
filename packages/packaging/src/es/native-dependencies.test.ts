@@ -1,13 +1,14 @@
 import type { RunDocker } from './native-dependencies';
 import type { SplitBundleDependency } from '../split-bundler/types';
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdtemp, readdir, readFile, rm, utimes } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm, symlink, utimes } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { ensureDir, pathExists, writeFile } from 'fs-extra';
 import { buildNativeBinaryLayer, copyDockerInstalledModulesForLambda } from './native-dependencies';
 
 const tempDirectories: string[] = [];
+const linuxTest = process.platform === 'linux' ? test : test.skip;
 
 const createWorkspace = async () => {
   const rootPath = await mkdtemp(join(tmpdir(), 'stacktape-native-dependencies-'));
@@ -22,11 +23,13 @@ const createWorkspace = async () => {
 const createFakeDocker = ({
   contents = () => 'native-binary',
   modifiedAt,
-  rejectedCalls = []
+  rejectedCalls = [],
+  symlinkTarget
 }: {
   contents?: (callNumber: number) => string;
   modifiedAt?: Date;
   rejectedCalls?: number[];
+  symlinkTarget?: string;
 } = {}) => {
   const calls: string[][] = [];
   const runDocker: RunDocker = async (commands) => {
@@ -45,6 +48,9 @@ const createFakeDocker = ({
     const nativeModulePath = join(nodeModulesPath, 'binding.node');
     await ensureDir(nodeModulesPath);
     await writeFile(nativeModulePath, contents(callNumber));
+    if (symlinkTarget) {
+      await symlink(symlinkTarget, join(nodeModulesPath, 'native-link'));
+    }
     if (modifiedAt) {
       await utimes(nativeModulePath, modifiedAt, modifiedAt);
     }
@@ -244,6 +250,40 @@ describe('native dependency packaging', () => {
     });
 
     expect(first?.contentHash).toBe(second?.contentHash);
+  });
+
+  linuxTest('hashes the raw symlink target independently of its installation root', async () => {
+    const firstWorkspace = await createWorkspace();
+    const secondWorkspace = await createWorkspace();
+    const slashWorkspace = await createWorkspace();
+    const input = {
+      dependencies: [dependency('native-symlink-test')],
+      lambdaRuntimeVersion: 20,
+      packageManager: 'npm' as const,
+      usedByLambdas: ['function']
+    };
+
+    const first = await buildNativeBinaryLayer({
+      ...input,
+      installationRootPath: firstWorkspace.installationRootPath,
+      layerBasePath: firstWorkspace.layerBasePath,
+      runDocker: createFakeDocker({ symlinkTarget: 'foo\\bar' }).runDocker
+    });
+    const second = await buildNativeBinaryLayer({
+      ...input,
+      installationRootPath: secondWorkspace.installationRootPath,
+      layerBasePath: secondWorkspace.layerBasePath,
+      runDocker: createFakeDocker({ symlinkTarget: 'foo\\bar' }).runDocker
+    });
+    const slash = await buildNativeBinaryLayer({
+      ...input,
+      installationRootPath: slashWorkspace.installationRootPath,
+      layerBasePath: slashWorkspace.layerBasePath,
+      runDocker: createFakeDocker({ symlinkTarget: 'foo/bar' }).runDocker
+    });
+
+    expect(first?.contentHash).toBe(second?.contentHash);
+    expect(first?.contentHash).not.toBe(slash?.contentHash);
   });
 
   test('rebuilds a deleted installation and does not reuse it across roots', async () => {
