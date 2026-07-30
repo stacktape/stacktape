@@ -31,6 +31,16 @@ refactoring scope. Revisit them before the v4 release where marked.
 - Long-running Console operations retain one assumed-role credential set without refresh, while the CLI's timer-based
   refresh has no owning await/catch path. Define explicit refresh and failure ownership when the AWS manager is
   refactored.
+- The Console `temporaryCredentials` procedure is authorized with `observability:view`, but callers can request any
+  allowlisted managed policy, including mutation-capable policies. Some browser S3 operations also request no session
+  policy, so the session then inherits the connected-account role's effective permissions. Before production rollout,
+  authorize each credential request against the exact browser operation (and project or resource where applicable),
+  while preserving the existing organization/account-membership checks, and default browser sessions to least
+  privilege.
+- The Console browser credential cache is not scoped by organization or user, does not coalesce concurrent refreshes,
+  and considers credentials valid until their exact expiry. Its AWS-backed React Query keys are also not consistently
+  scoped by account, region, and organization. Add explicit session ownership, an expiry margin, request coalescing,
+  logout invalidation, and complete query-key scoping when the browser AWS layer is refactored.
 
 ## Known v3 behavior debt
 
