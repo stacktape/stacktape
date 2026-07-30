@@ -62,6 +62,8 @@
     "packages/packaging/src/docker/dockerfiles.ts",
     "packages/packaging/src/image/custom-dockerfile.ts",
     "packages/packaging/src/image/external-buildpack.ts",
-    "packages/packaging/src/image/nixpacks.ts"
+    "packages/packaging/src/image/nixpacks.ts",
+    "packages/pricing/src/internal/pricing.ts",
+    "packages/stack-info/src/contracts.ts"
   ]
 }

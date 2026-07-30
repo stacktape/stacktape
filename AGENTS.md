@@ -58,6 +58,9 @@ mode, and the guarded real-AWS validation lane including the reusable packaging 
 - Avoid hidden side effects at module import time.
 - Prefer narrow types and explicit validation at I/O boundaries. Do not use `any` or unsafe assertions to bridge a
   package boundary.
+- The duplicate-code gate excludes the imported pricing implementation and structurally repetitive stack-info
+  contracts. Treat those as explicit legacy baselines; do not broaden the exclusions, and do not introduce
+  abstractions solely to satisfy the metric.
 
 ## Conceptual complexity
 

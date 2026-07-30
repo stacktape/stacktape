@@ -4,24 +4,12 @@ import os from 'node:os';
 import path from 'node:path';
 import { after, afterEach, before, test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { spawnSync } from 'node:child_process';
+import { runFixtureCommand } from './test-fixture-command.ts';
 
 const checker = fileURLToPath(new URL('./check-staged-secrets.ts', import.meta.url));
 let repository = '';
 
-const run = (command: string, args: string[]) =>
-  spawnSync(command, args, {
-    cwd: repository,
-    encoding: 'utf8',
-    env: {
-      ...process.env,
-      GIT_CONFIG_COUNT: '2',
-      GIT_CONFIG_KEY_0: 'user.email',
-      GIT_CONFIG_KEY_1: 'user.name',
-      GIT_CONFIG_VALUE_0: 'test@example.invalid',
-      GIT_CONFIG_VALUE_1: 'Stacktape Test'
-    }
-  });
+const run = (command: string, args: string[]) => runFixtureCommand(repository, command, args);
 
 before(async () => {
   repository = await mkdtemp(path.join(os.tmpdir(), 'stacktape-secret-check-'));

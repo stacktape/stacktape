@@ -12,10 +12,10 @@ import {
   DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE,
   FILES_TO_INCLUDE_IN_DIGEST,
   IGNORED_MODULES,
-  IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER,
-  NODE_BUILTIN_MODULES
+  IGNORED_OPTIONAL_PEER_DEPS_FROM_INSTALL_IN_DOCKER
 } from '../../es/config';
 import { copyDockerInstalledModulesForLambda } from '../../es/native-dependencies';
+import { isNodeBuiltinImport } from './module-specifier';
 import {
   getAllJsDependenciesFromMultipleFiles,
   getExternalDeps,
@@ -179,7 +179,7 @@ export const buildEsCode = async ({
             allModules.push(moduleName);
 
             // Skip built-in modules
-            if (NODE_BUILTIN_MODULES.includes(moduleName) || args.path === sourcePath) {
+            if (isNodeBuiltinImport(args.path) || args.path === sourcePath) {
               return undefined;
             }
 
@@ -304,9 +304,10 @@ export const buildEsCode = async ({
       }
     };
 
-    // Bun plugin to resolve modules that Bun can't find on its own (mimics esbuild's loose resolution)
-    // This handles transitive dependencies that aren't hoisted to root node_modules
-    // Only intervenes for modules in non-standard (nested) locations
+    // Bun plugin to resolve modules that Bun can't find on its own (mimics esbuild's loose resolution).
+    // It handles transitive dependencies that aren't hoisted to root node_modules. On Windows it also resolves
+    // ordinary dependencies explicitly because Bun's native pnpm resolution can return backslash paths that its
+    // bundler rejects.
     const looseResolvePlugin: BunPlugin = {
       name: 'loose-resolve-plugin',
       setup(build) {
@@ -314,16 +315,32 @@ export const buildEsCode = async ({
           if (args.path.startsWith('.') || args.path.startsWith('/')) return undefined;
 
           const moduleName = getModuleNameFromPath(args.path);
-          if (NODE_BUILTIN_MODULES.includes(moduleName) || args.path.startsWith('node:')) return undefined;
+          if (isNodeBuiltinImport(args.path)) return undefined;
 
           // Use combined resolution: fast path first, then walk-up from importer
           // Skip deep search for performance - it's rarely needed and expensive
           const modulePath = findModulePath(moduleName, args.importer);
           if (!modulePath) return undefined;
 
-          // Only intervene if module is in a non-standard location (nested node_modules)
-          // Standard locations are handled by Bun natively
-          if (!moduleResolver.isNestedLocation(modulePath, moduleName)) return undefined;
+          if (process.platform === 'win32') {
+            try {
+              const importerDirectory =
+                args.resolveDir || (args.importer && isAbsolute(args.importer) ? dirname(args.importer) : cwd);
+              const resolvedModulePath = Bun.resolveSync(args.path, importerDirectory);
+              if (isAbsolute(resolvedModulePath)) {
+                return {
+                  path: transformToUnixPath(resolvedModulePath)
+                };
+              }
+            } catch {
+              // Fall back to the package-directory resolver below.
+            }
+          }
+
+          const isNestedModule = moduleResolver.isNestedLocation(modulePath, moduleName);
+          if (!isNestedModule) {
+            return undefined;
+          }
 
           // Module is in nested node_modules - resolve entry point manually
           try {
@@ -337,9 +354,9 @@ export const buildEsCode = async ({
               const extensions = ['.js', '.mjs', '.cjs', '.ts', '.tsx', '.json', ''];
               for (const ext of extensions) {
                 const fullPath = subpathFile + ext;
-                if (isFileAccessible(fullPath)) return { path: resolve(fullPath) };
+                if (isFileAccessible(fullPath)) return { path: transformToUnixPath(resolve(fullPath)) };
                 const indexPath = join(subpathFile, `index${ext || '.js'}`);
-                if (isFileAccessible(indexPath)) return { path: resolve(indexPath) };
+                if (isFileAccessible(indexPath)) return { path: transformToUnixPath(resolve(indexPath)) };
               }
             }
 
@@ -365,12 +382,12 @@ export const buildEsCode = async ({
             if (!entryPoint) entryPoint = pkgJson.module || pkgJson.main || 'index.js';
 
             const resolvedPath = join(modulePath, entryPoint ?? 'index.js');
-            if (isFileAccessible(resolvedPath)) return { path: resolve(resolvedPath) };
+            if (isFileAccessible(resolvedPath)) return { path: transformToUnixPath(resolve(resolvedPath)) };
 
             const extensions = ['.js', '.mjs', '.cjs', '.ts', '.json'];
             for (const ext of extensions) {
               const pathWithExt = resolvedPath.replace(/\.(js|mjs|cjs)$/, '') + ext;
-              if (isFileAccessible(pathWithExt)) return { path: resolve(pathWithExt) };
+              if (isFileAccessible(pathWithExt)) return { path: transformToUnixPath(resolve(pathWithExt)) };
             }
           } catch {
             // If we can't read package.json, let Bun try its resolution
@@ -407,8 +424,8 @@ export const buildEsCode = async ({
 
     const allBunPlugins: BunPlugin[] = [
       bunFfiShimPlugin,
-      looseResolvePlugin,
       stpAnalyzeDepsPlugin,
+      looseResolvePlugin,
       nativeNodeModulesPlugin,
       ...(plugins || [])
     ];

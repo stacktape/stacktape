@@ -37,6 +37,7 @@ refactoring scope. Revisit them before the v4 release where marked.
   authorize each credential request against the exact browser operation (and project or resource where applicable),
   while preserving the existing organization/account-membership checks, and default browser sessions to least
   privilege.
+
 ## Known v3 behavior debt
 
 - A second permanent-credential load can use an unassigned local `creds` value when the existing source is a
