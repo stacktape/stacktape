@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { DIST_PACKAGE_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { DIST_PACKAGE_FOLDER_PATH } from 'src/config/project-paths';
 import { getPlatform } from '@shared/utils/bin-executable';
 import { exec } from '@shared/utils/exec';
 import { logInfo, logSuccess } from '@shared/utils/logging';

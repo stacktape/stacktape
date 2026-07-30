@@ -19,7 +19,7 @@ import {
   preparePipelineResources,
   startCodebuildDeployment
 } from '@shared/aws/codebuild';
-import { fsPaths } from '@shared/naming/fs-paths';
+import { fsPaths } from 'src/config/runtime-paths';
 import { serialize, wait } from '@shared/utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CodebuildDeploymentCloudwatchLogPrinter } from '@utils/cloudwatch-logs';

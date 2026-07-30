@@ -6,7 +6,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { consoleLinks } from '@stacktape/naming/console-links';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 export const resolveKinesisStreams = async () => {
   configManager.kinesisStreams.forEach((resource) => {

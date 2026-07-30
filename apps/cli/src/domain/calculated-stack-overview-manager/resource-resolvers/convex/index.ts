@@ -6,7 +6,7 @@ import { configManager } from '@domain-services/config-manager';
 import { getConvexSecretName } from '@domain-services/config-manager/utils/convex';
 import { domainManager } from '@domain-services/domain-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { pascalCase } from 'change-case';
 import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 

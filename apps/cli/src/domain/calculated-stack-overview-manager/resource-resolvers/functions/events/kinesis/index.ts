@@ -5,7 +5,7 @@ import EventSourceMapping from '@cloudform/lambda/eventSourceMapping';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToKinesisStream } from '@domain-services/config-manager/utils/kinesis-streams';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { ExpectedError } from '@utils/errors';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { KinesisIntegration, KinesisIntegrationProps } from '@stacktape/config/events';

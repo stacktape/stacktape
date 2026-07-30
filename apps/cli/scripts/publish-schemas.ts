@@ -2,7 +2,7 @@ import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SCHEMAS_BUCKET_NAME } from '@config';
-import { CONFIG_SCHEMA_PATH, JSON_SCHEMAS_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { CONFIG_SCHEMA_PATH, JSON_SCHEMAS_FOLDER_PATH } from 'src/config/project-paths';
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { copy } from 'fs-extra';
 import { syncBucket } from './release/stacktape';

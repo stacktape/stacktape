@@ -3,7 +3,7 @@ import { GetAtt, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToAlarm } from '@domain-services/config-manager/utils/alarms';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getEventBusRuleLambdaPermission } from '../utils';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { AlarmIntegration, AlarmIntegrationProps } from '@stacktape/config/events';

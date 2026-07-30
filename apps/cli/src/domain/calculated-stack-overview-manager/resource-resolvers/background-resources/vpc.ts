@@ -14,8 +14,8 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import type { AWSRegion } from '@shared/aws/regions';
-import { cfLogicalNames } from '@shared/naming/logical-names';
-import { stackMetadataNames } from '@shared/naming/metadata-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 
 const getInternetGateway = () => new InternetGateway({});

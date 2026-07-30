@@ -3,9 +3,9 @@ import type { Dimension, MetricDataQuery } from '@cloudform/cloudWatch/alarm';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { Ref } from '@cloudform/functions';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
+import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
 import { consoleLinks } from '@stacktape/naming/console-links';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { snakeCase } from 'change-case';
 import { isAuroraCluster } from '../../databases/utils';
 import type {

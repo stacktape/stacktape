@@ -1,7 +1,7 @@
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { STARTER_PROJECTS_METADATA_FOLDER_NAME, STARTER_PROJECTS_SOURCE_PATH } from '@shared/naming/project-fs-paths';
+import { STARTER_PROJECTS_METADATA_FOLDER_NAME, STARTER_PROJECTS_SOURCE_PATH } from 'src/config/project-paths';
 import { logInfo, logSuccess, logWarn } from '@shared/utils/logging';
 import { getUniqueDuplicates, hasDuplicates } from '@shared/utils/misc';
 import { pathExists, remove, writeJson } from 'fs-extra';

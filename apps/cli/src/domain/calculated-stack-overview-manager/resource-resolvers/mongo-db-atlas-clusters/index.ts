@@ -6,8 +6,8 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
-import { stackMetadataNames } from '@shared/naming/metadata-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { getSsmParameterNameForThirdPartyCredentials } from '@stacktape/naming/ssm-parameter-paths';
 import {
   MONGODB_PROVIDER_DEFAULT_CREDENTIALS_ID,

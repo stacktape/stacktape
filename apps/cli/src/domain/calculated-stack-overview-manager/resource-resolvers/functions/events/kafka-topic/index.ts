@@ -2,7 +2,7 @@ import type { SourceAccessConfiguration } from '@cloudform/lambda/eventSourceMap
 import { GetAtt, Ref } from '@cloudform/functions';
 import EventSourceMapping from '@cloudform/lambda/eventSourceMapping';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { KafkaTopicIntegration, KafkaTopicIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';

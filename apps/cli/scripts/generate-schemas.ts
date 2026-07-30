@@ -1,4 +1,4 @@
-import { CONFIG_SCHEMA_PATH, JSON_SCHEMAS_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { CONFIG_SCHEMA_PATH, JSON_SCHEMAS_FOLDER_PATH } from 'src/config/project-paths';
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { mkdir, writeJSON } from 'fs-extra';
 import { generateConfigSchema, getJsonSchemaGenerator } from './code-generation/utils';

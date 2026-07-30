@@ -1,6 +1,6 @@
 import { GetAtt } from '@cloudform/functions';
 import { stpErrors } from '@errors';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { configManager } from '../index';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 import type { SqsQueueEventBusIntegration, SqsQueuePolicyStatement } from '@stacktape/config/sqs-queues';

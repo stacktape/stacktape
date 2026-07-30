@@ -3,7 +3,7 @@ import { GetAtt } from '@cloudform/functions';
 import IAMRole from '@cloudform/iam/role';
 import StateMachine from '@cloudform/stepFunctions/stateMachine';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import type { StpStateMachine } from '@stacktape/config/state-machines';
 
 export const getStateMachineResource = async (stateMachine: StpStateMachine) => {

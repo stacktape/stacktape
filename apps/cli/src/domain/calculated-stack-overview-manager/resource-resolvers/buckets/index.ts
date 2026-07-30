@@ -4,8 +4,8 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { domainManager } from '@domain-services/domain-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
 import {

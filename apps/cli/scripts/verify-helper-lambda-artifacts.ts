@@ -3,7 +3,7 @@ import { stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import AdmZip from 'adm-zip';
 import { loadHelperLambdaDetailsFromDir } from '../src/utils/helper-lambdas';
-import { CLI_BUILD_DIST_FOLDER_PATH, HELPER_LAMBDAS_FOLDER_NAME } from '../shared/naming/project-fs-paths';
+import { CLI_BUILD_DIST_FOLDER_PATH, HELPER_LAMBDAS_FOLDER_NAME } from 'src/config/project-paths';
 
 const requiredHelperLambdas = [
   'batchJobTriggerLambda',

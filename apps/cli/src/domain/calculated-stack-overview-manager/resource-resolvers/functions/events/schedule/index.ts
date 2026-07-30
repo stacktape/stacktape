@@ -4,7 +4,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { isValidJson } from '@shared/utils/misc';
 import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
 import { ExpectedError } from '@utils/errors';

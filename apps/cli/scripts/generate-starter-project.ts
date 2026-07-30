@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { GENERATED_STARTER_PROJECTS_DIR_PATH, STARTER_PROJECTS_SOURCE_PATH } from '@shared/naming/project-fs-paths';
+import { GENERATED_STARTER_PROJECTS_DIR_PATH, STARTER_PROJECTS_SOURCE_PATH } from 'src/config/project-paths';
 import { exec } from '@shared/utils/exec';
 import { logErrorMessage, logInfo, logSuccess } from '@shared/utils/logging';
 import { processConcurrently } from '@shared/utils/misc';

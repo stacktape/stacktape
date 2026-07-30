@@ -1,5 +1,5 @@
 import { readdir } from 'node:fs/promises';
-import { DIST_PACKAGE_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { DIST_PACKAGE_FOLDER_PATH } from 'src/config/project-paths';
 
 export const EXPECTED_RELEASE_ARCHIVES = [
   'alpine.tar.gz',

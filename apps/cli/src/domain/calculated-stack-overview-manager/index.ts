@@ -4,7 +4,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { consoleLinks } from '@stacktape/naming/console-links';
-import { stackMetadataNames } from '@shared/naming/metadata-names';
+import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { buildSSMParameterNameForReferencableParam } from '@stacktape/naming/ssm-parameter-paths';
 import { PARENT_IDENTIFIER_CUSTOM_CF, PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 import { serialize } from '@shared/utils/misc';

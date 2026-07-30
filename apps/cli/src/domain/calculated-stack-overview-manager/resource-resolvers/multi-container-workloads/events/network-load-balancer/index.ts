@@ -1,5 +1,5 @@
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getContainerWorkloadTargetGroup, getTargetsForContainerWorkload } from '../../utils';
 
 export const resolveNetworkLoadBalancerEvents = ({ definition }: { definition: StpContainerWorkload }) => {

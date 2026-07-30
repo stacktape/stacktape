@@ -1,5 +1,5 @@
 import type { RESOURCE_DEFAULTS } from '@config';
-import { getStpNameForResource } from '@shared/naming/utils';
+import { getStpNameForResource } from '@stacktape/naming/stacktape-resource-names';
 import type { ResourceOverrides, StacktapeResourceDefinition } from '@stacktape/config/shared';
 
 /**

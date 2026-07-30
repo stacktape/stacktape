@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONFIG_PACKAGE_SRC_PATH, RETAINED_AMBIENT_CONFIG_PATH } from '@shared/naming/project-fs-paths';
+import { CONFIG_PACKAGE_SRC_PATH, RETAINED_AMBIENT_CONFIG_PATH } from 'src/config/project-paths';
 
 /** Package tests and acceptance fixtures are not authored configuration model modules. */
 const isConfigModelModule = (file: string) => file.endsWith('.ts') && !file.endsWith('.acceptance.ts');

@@ -21,7 +21,7 @@ import { stpErrors } from '@errors';
 import versionJson from '@generated/db-engine-versions/versions.json' with { type: 'json' };
 import { normalizeEngineType } from '@shared/aws/rds';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { transformToCidr } from '@shared/utils/misc';
 import { isAuroraEngine } from '@shared/utils/rds-engines';
 import { ExpectedError } from '@utils/errors';

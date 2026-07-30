@@ -1,4 +1,4 @@
-import { RESOURCES_DESCRIPTION_DIST_PATH } from '@shared/naming/project-fs-paths';
+import { RESOURCES_DESCRIPTION_DIST_PATH } from 'src/config/project-paths';
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { remove, writeJson } from 'fs-extra';
 import { getStacktapeResourceDefinitions } from '../shared/utils/schema-parsing';

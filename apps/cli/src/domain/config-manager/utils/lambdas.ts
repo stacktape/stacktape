@@ -7,8 +7,8 @@ import { vpcManager } from '@domain-services/vpc-manager';
 import { stpErrors } from '@errors';
 import { arns } from '@stacktape/naming/arns';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { helperLambdaAwsResourceNames } from '@shared/naming/helper-lambdas-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { helperLambdaAwsResourceNames } from '@stacktape/naming/helper-lambda-resource-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import {
   getLegacySsmParameterStoreStackPrefix,
   getSsmParameterStoreStackPrefix

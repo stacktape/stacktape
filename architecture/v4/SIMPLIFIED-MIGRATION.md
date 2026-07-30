@@ -27,7 +27,7 @@ apps/
 
 packages/
 ├── packaging/           # extracted only after the migrated CLI works
-├── naming/              # compatibility-sensitive deterministic names shared by CLI and Console
+├── naming/              # compatibility-sensitive deterministic Stacktape and infrastructure names
 ├── console-api/         # public external tRPC schemas/contracts when Console is migrated
 ├── design-tokens/       # added when at least two frontends consume the same tokens
 └── ui-react/            # only components used by at least two applications

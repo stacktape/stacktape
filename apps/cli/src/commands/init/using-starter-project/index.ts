@@ -4,7 +4,7 @@ import { pipeline } from 'node:stream/promises';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
-import { fsPaths } from '@shared/naming/fs-paths';
+import { fsPaths } from 'src/config/runtime-paths';
 import { publicApiClient, type StackPriceEstimationResponse } from '@shared/trpc/public';
 import { deleteDirectoryContent } from '@shared/utils/fs-utils';
 import { unzip } from '@shared/utils/unzip';

@@ -6,7 +6,7 @@ import GlobalTable from '@cloudform/dynamoDb/globalTable';
 import Table from '@cloudform/dynamoDb/table';
 import { Join, Ref } from '@cloudform/functions';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { SubWithoutMapping } from '@utils/cloudformation';
 
 const getAttributeDefinitions = ({ resource }: { resource: StpDynamoTable }) => {

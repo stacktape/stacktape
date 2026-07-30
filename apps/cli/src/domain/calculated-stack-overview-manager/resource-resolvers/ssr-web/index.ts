@@ -2,8 +2,8 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
-import { fsPaths } from '@shared/naming/fs-paths';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { fsPaths } from 'src/config/runtime-paths';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 import { resolveBucket } from '../buckets';

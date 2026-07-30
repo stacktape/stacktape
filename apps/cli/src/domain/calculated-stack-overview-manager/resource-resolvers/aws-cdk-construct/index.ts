@@ -7,7 +7,7 @@ import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { stpErrors } from '@errors';
 import { ExpectedError } from '@utils/errors';
-import { fsPaths } from '@shared/naming/fs-paths';
+import { fsPaths } from 'src/config/runtime-paths';
 import { dynamicRequireLibraryFromUserNodeModules } from '@shared/utils/fs-utils';
 import { capitalizeFirstLetter } from '@shared/utils/misc';
 import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';

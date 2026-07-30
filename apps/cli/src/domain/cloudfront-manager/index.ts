@@ -2,7 +2,7 @@ import { eventManager } from '@application-services/event-manager';
 import { getCloudfrontDistributionConfigs } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/cdn';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';

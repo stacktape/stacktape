@@ -2,7 +2,7 @@ import { GetAtt } from '@cloudform/functions';
 import Role from '@cloudform/iam/role';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 
 export const resolveCodeDeploySharedResources = async () => {

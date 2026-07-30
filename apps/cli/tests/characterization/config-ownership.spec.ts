@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readFileSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
-import { CONFIG_PACKAGE_SRC_PATH } from '../../shared/naming/project-fs-paths';
+import { CONFIG_PACKAGE_SRC_PATH } from 'src/config/project-paths';
 import { listConfigSourceFiles, resolveConfigSourceFile } from '../../scripts/code-generation/config-sources';
 import {
   findConfigSchemaSourceFiles,

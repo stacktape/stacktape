@@ -2,8 +2,8 @@ import { GetAtt } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { REGIONS_WITH_REGIONAL_CDN_EDGE_LOCATION } from '@shared/utils/constants';
 import { getEdgeLambdaCustomResource } from '../_utils/edge-lambdas';
 

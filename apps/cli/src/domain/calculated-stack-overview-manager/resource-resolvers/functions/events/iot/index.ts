@@ -2,8 +2,7 @@
 // import { GetAtt } from '@cloudform/functions';
 // import { templateManager } from '@domain-services/template-manager';
 // import LambdaPermission from '@cloudform/lambda/permission';
-// import { cfLogicalNames } from '@shared/naming/logical-names';
-// import { getArrayLikeDescriptiveName } from '@shared/naming/utils';
+// import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 // export const resolveIotEvents = ({ allLambdaResources, policyStatementsFromEvents }: EventResolverProps) => {
 //   allLambdaResources.forEach(({ name, events, cfLogicalName }: StpLambdaFunction) => {

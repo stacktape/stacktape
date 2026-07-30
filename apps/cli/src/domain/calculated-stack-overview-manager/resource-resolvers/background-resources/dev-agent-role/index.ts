@@ -2,7 +2,7 @@ import { GetAtt } from '@cloudform/functions';
 import Role, { Policy } from '@cloudform/iam/role';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { stackMetadataNames } from '@shared/naming/metadata-names';
+import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 import { SubWithoutMapping } from '@utils/cloudformation';

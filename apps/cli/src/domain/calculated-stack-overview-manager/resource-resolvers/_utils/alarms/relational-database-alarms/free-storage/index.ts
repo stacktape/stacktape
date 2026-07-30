@@ -3,7 +3,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
 import { stpErrors } from '@errors';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { getAlarmDescription } from '@shared/naming/utils';
+import { getAlarmDescription } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/alarms/descriptions';
 import { isAuroraCluster } from '../../../../databases/utils';
 import { getComparisonOperator, getMetricStatDataQuery, getStatFunction } from '../../utils';
 import { getDimensionsForInstance } from '../utils';

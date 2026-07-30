@@ -2,7 +2,7 @@ import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { readdir, readFile, writeFile } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import { DIST_PACKAGE_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { DIST_PACKAGE_FOLDER_PATH } from 'src/config/project-paths';
 
 export const RELEASE_CHECKSUMS_FILE_NAME = 'SHA256SUMS';
 

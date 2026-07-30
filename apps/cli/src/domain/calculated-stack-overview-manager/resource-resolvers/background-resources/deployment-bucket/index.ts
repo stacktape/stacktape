@@ -1,9 +1,9 @@
 import { Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
-import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
-import { cfLogicalNames } from '@shared/naming/logical-names';
-import { stackMetadataNames } from '@shared/naming/metadata-names';
+import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 import { deploymentBucketPolicyResource, getDeploymentBucketResource } from './utils';
 

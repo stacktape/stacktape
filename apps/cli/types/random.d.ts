@@ -357,7 +357,7 @@ type CfChildResourceOverview = {
     | SupportedPrivateCfResourceType;
 };
 
-type StackMetadataName = keyof typeof import('@shared/naming/metadata-names').stackMetadataNames;
+type StackMetadataName = keyof typeof import('@stacktape/naming/stack-metadata-names').stackMetadataNames;
 type StackInfoMap = {
   metadata: {
     [metadataName in Partial<StackMetadataName>]?: { showDuringPrint: boolean; value: OutputValue | Date };

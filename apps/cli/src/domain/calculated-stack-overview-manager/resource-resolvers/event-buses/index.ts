@@ -7,7 +7,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { consoleLinks } from '@stacktape/naming/console-links';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 export const resolveEventBuses = async () => {
   configManager.eventBuses.forEach(({ name, nameChain, ...eventBusConfig }) => {

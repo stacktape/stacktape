@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { PACK_GENERATED_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { PACK_GENERATED_FOLDER_PATH } from 'src/config/project-paths';
 import { exec } from '@shared/utils/exec';
 import { logInfo } from '@shared/utils/logging';
 import { outputFile } from 'fs-extra';

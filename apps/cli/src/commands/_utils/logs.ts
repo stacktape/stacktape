@@ -1,7 +1,7 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { getSimpleServiceDefaultContainerName } from '@shared/naming/utils';
+import { getSimpleServiceDefaultContainerName } from '@stacktape/naming/workload-names';
 import { ExpectedError } from '@utils/errors';
 
 // Resource type patterns to match against CloudFormation logical IDs

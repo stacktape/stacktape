@@ -7,8 +7,8 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { stpErrors } from '@errors';
-import { cfLogicalNames } from '@shared/naming/logical-names';
-import { stackMetadataNames } from '@shared/naming/metadata-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { getSsmParameterNameForThirdPartyCredentials } from '@stacktape/naming/ssm-parameter-paths';
 import {
   PARENT_IDENTIFIER_SHARED_GLOBAL,

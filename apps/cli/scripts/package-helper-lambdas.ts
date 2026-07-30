@@ -6,7 +6,7 @@ import {
   HELPER_LAMBDAS_FOLDER_NAME,
   HELPER_LAMBDAS_SOURCE_FOLDER_PATH,
   SOURCE_MAP_INSTALL_DIST_PATH
-} from '@shared/naming/project-fs-paths';
+} from 'src/config/project-paths';
 import { buildUsingStacktapeEsLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-es-lambda-buildpack';
 import { dependencyInstaller } from '@shared/utils/dependency-installer';
 import { execDocker } from '@shared/utils/docker';

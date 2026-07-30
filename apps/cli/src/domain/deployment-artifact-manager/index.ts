@@ -14,7 +14,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { fsPaths } from '@shared/naming/fs-paths';
+import { fsPaths } from 'src/config/runtime-paths';
 import {
   buildLambdaS3Key,
   getBaseS3EndpointForRegion,
@@ -24,7 +24,7 @@ import {
   getEcrImageUrl,
   getEcrRepositoryUrl,
   getStpTemplateS3Key
-} from '@shared/naming/utils';
+} from '@domain-services/deployment-artifact-manager/artifact-names';
 import { dockerLogin, pushDockerImage, tagDockerImage } from '@shared/utils/docker';
 import { processConcurrently } from '@shared/utils/misc';
 import { outputNames } from '@stacktape/naming/stack-output-names';

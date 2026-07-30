@@ -6,7 +6,7 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { SUPPORTED_CF_INFRASTRUCTURE_MODULES } from '@config';
 import { createFetchHandler } from '@shared/aws/fetch-handler';
 import { retryPlugin } from '@shared/aws/sdk-manager/utils';
-import { cfRegistryNames } from '@shared/naming/cf-registry-types';
+import { cfRegistryNames } from '@domain-services/cloudformation-registry-manager/names';
 import { UNKNOWN_CLOUDFORMATION_PRIVATE_TYPE_VERSION_IDENTIFIER } from '@shared/utils/constants';
 import { wait } from '@shared/utils/misc';
 import { parseYaml } from '@shared/utils/yaml';

@@ -8,7 +8,7 @@ import { resolveReferenceToHttpApiGateway } from '@domain-services/config-manage
 import { resolveReferenceToLambdaFunction } from '@domain-services/config-manager/utils/lambdas';
 import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { ExpectedError } from '@utils/errors';
 import {
   getHttpApiAuthorizerResource,

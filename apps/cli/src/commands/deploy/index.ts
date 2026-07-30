@@ -13,12 +13,12 @@ import { configManager } from '@domain-services/config-manager';
 import { validateGuardrails } from '@domain-services/config-manager/utils/validation';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
-import { stackMetadataNames } from '@shared/naming/metadata-names';
+import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { notificationManager } from '@domain-services/notification-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { fsPaths } from '@shared/naming/fs-paths';
+import { fsPaths } from 'src/config/runtime-paths';
 import { obfuscatedNamesStateHolder } from '@stacktape/naming/resource-names';
 import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';
 import {

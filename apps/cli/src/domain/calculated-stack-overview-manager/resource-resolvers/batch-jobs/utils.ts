@@ -15,7 +15,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import type { AWSRegion } from '@shared/aws/regions';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getCfEnvironment } from '@utils/cloudformation';
 import { getAugmentedEnvironment } from '@utils/environment';
 import { getImageUrlForSingleTask } from '../_utils/image-urls';

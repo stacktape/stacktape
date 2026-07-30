@@ -1,5 +1,5 @@
 import { basename, join } from 'node:path';
-import { DIST_PACKAGE_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { DIST_PACKAGE_FOLDER_PATH } from 'src/config/project-paths';
 import { createRelease, getReleaseByTag } from '@shared/utils/github-api';
 import { uploadReleaseAsset } from '@shared/utils/github-file-manipulation';
 import { logInfo, logSuccess } from '@shared/utils/logging';

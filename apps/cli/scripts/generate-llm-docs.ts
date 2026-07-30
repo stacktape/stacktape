@@ -3,7 +3,7 @@ import { existsSync, readFileSync } from 'node:fs';
 import { mkdtemp, rename, rm } from 'node:fs/promises';
 import { ensureDir, readFile, readdir, writeFile } from 'fs-extra';
 import ts from 'typescript';
-import { LLM_DOCS_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { LLM_DOCS_FOLDER_PATH } from 'src/config/project-paths';
 import { generateCommandSchemaInfo } from '../src/config/cli/utils';
 import { buildApiReferenceData, type ApiReferenceGeneratedDefinition } from './llm-docs/build-api-reference-data';
 import { htmlToMarkdownText } from './llm-docs/html-to-markdown';

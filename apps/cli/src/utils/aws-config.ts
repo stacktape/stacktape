@@ -1,4 +1,4 @@
-import { fsPaths } from '@shared/naming/fs-paths';
+import { fsPaths } from 'src/config/runtime-paths';
 import fsExtra from 'fs-extra';
 import uniq from 'lodash/uniq';
 import { adjustIniFileContent, getIniFileContent } from '../../shared/utils/fs-utils';

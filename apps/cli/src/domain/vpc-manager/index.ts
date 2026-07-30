@@ -2,7 +2,7 @@ import type { Subnet, Vpc } from '@aws-sdk/client-ec2';
 import { eventManager } from '@application-services/event-manager';
 import { Ref } from '@cloudform/functions';
 import { stpErrors } from '@errors';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getStackName } from '@stacktape/naming/stacks';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';

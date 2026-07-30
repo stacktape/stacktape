@@ -1,5 +1,5 @@
 import { LLM_DOCS_BUCKET_NAME } from '@config';
-import { LLM_DOCS_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { LLM_DOCS_FOLDER_PATH } from 'src/config/project-paths';
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { syncBucket } from './release/stacktape';
 

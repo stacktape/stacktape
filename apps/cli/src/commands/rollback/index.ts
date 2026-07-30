@@ -5,7 +5,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
-import { stackMetadataNames } from '@shared/naming/metadata-names';
+import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { getNumericVersion } from '@utils/versioning';
 
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';

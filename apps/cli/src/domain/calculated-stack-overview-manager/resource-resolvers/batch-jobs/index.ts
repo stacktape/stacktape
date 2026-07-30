@@ -8,9 +8,9 @@ import { resolveConnectToList } from '@domain-services/config-manager/utils/reso
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { templateManager, type TemplateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
-import { cfLogicalNames } from '@shared/naming/logical-names';
-import { getJobName } from '@shared/naming/utils';
+import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { getJobName } from '@stacktape/naming/workload-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 import { getResolvedConnectToEnvironmentVariables } from '../_utils/connect-to-helper';
 import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';

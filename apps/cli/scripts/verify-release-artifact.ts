@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { NPM_RELEASE_FOLDER_PATH } from '../shared/naming/project-fs-paths';
+import { NPM_RELEASE_FOLDER_PATH } from 'src/config/project-paths';
 import { generateReleaseChecksums } from './release/checksums';
 import { verifyNpmPackage } from './verify-npm-package';
 

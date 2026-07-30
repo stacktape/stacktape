@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { readdirSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { CLOUDFORM_FOLDER_PATH, CLOUDFORM_ROOT_HELPER_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { CLOUDFORM_FOLDER_PATH, CLOUDFORM_ROOT_HELPER_FOLDER_PATH } from 'src/config/project-paths';
 import * as prettier from 'prettier';
 
 /** The formatting `gen:cloudform` applies: prettier with the CLI's own `.prettierrc`, the same config the script passes. */

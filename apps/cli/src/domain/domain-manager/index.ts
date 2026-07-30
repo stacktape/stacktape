@@ -6,7 +6,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { CertificateStatus } from '@aws-sdk/client-acm';
 import { stpErrors } from '@errors';
-import { getPrefixForUserAppResourceDefaultDomainName } from '@shared/naming/domain-names';
+import { getPrefixForUserAppResourceDefaultDomainName } from '@stacktape/naming/domain-names';
 import {
   getSsmParameterNameForDomainInfo,
   parseDomainNameFromSmmParamName

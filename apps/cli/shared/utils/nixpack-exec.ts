@@ -1,4 +1,4 @@
-import { fsPaths } from '@shared/naming/fs-paths';
+import { fsPaths } from 'src/config/runtime-paths';
 import { exec } from './exec';
 import { getError } from './misc';
 

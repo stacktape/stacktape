@@ -13,9 +13,9 @@ import { deploymentArtifactManager } from '@domain-services/deployment-artifact-
 import { templateManager, type TemplateManager } from '@domain-services/template-manager';
 import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfEvaluatedLinks } from '@shared/naming/cf-evaluated-links';
-import { cfLogicalNames } from '@shared/naming/logical-names';
-import { getJobName } from '@shared/naming/utils';
+import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { getJobName } from '@stacktape/naming/workload-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from '@shared/utils/constants';
 import { getLanguageFromExtension } from '@utils/environment';
 import { getContainerIssueFilterPattern, isIssueDetectionSupportedLanguage } from '../_utils/issue-detection';

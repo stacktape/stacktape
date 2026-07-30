@@ -1,4 +1,4 @@
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { configManager } from '..';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 

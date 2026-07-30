@@ -8,7 +8,7 @@ import { getConnectToReferencesForResource } from '@domain-services/config-manag
 import { thirdPartyProviderManager } from '@domain-services/third-party-provider-credentials-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { transformToCidr } from '@shared/utils/misc';
 import { ExpectedError } from '@utils/errors';
 import { snakeCase } from 'change-case';

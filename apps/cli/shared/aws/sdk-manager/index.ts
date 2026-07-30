@@ -235,7 +235,7 @@ import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
 import type { AwsCredentials } from '@shared/aws/credentials';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import type { AWSRegion } from '@shared/aws/regions';
-import { resourceURIs } from '@shared/naming/resource-uris';
+import { resourceURIs } from 'src/utils/aws-resource-uris';
 import { COMMENT_FOR_STACKTAPE_ZONE } from '@shared/utils/constants';
 import { getRelativePath } from '@shared/utils/fs-utils';
 import {

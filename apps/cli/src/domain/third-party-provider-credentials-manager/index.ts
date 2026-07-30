@@ -3,7 +3,7 @@ import { ParameterNotFound } from '@aws-sdk/client-ssm';
 import { GetAtt } from '@cloudform/functions';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getSsmParameterNameForThirdPartyCredentials } from '@stacktape/naming/ssm-parameter-paths';
 import {
   MONGODB_PROVIDER_DEFAULT_CREDENTIALS_ID,

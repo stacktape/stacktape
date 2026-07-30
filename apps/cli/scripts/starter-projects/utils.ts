@@ -1,6 +1,6 @@
 import { rename } from 'node:fs/promises';
 import { basename, join, sep } from 'node:path';
-import { STARTER_PROJECTS_SOURCE_PATH } from '@shared/naming/project-fs-paths';
+import { STARTER_PROJECTS_SOURCE_PATH } from 'src/config/project-paths';
 import { exec } from '@shared/utils/exec';
 import { copy, pathExists, readdir, readFile, writeFile, writeJson } from 'fs-extra';
 import sortBy from 'lodash/sortBy';

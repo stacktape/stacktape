@@ -7,7 +7,7 @@ import { resolveReferenceToSqsQueue } from '@domain-services/config-manager/util
 import { templateManager } from '@domain-services/template-manager';
 import { stpErrors } from '@errors';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { isValidJson } from '@shared/utils/misc';
 import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
 import { ExpectedError } from '@utils/errors';

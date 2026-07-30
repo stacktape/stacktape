@@ -2,7 +2,7 @@ import { mkdir, mkdtemp, readdir, readFile, rename, rm, stat, writeFile } from '
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import { describe, expect, test } from 'bun:test';
-import { LLM_DOCS_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { LLM_DOCS_FOLDER_PATH } from 'src/config/project-paths';
 import {
   API_REFERENCE_DATA_PATH,
   compareLlmDocPaths,

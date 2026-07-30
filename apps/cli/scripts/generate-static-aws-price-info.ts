@@ -2,7 +2,7 @@ import type { PricingInfo, RegionalPricingInfo } from '@shared/aws/pricing-info'
 import { join } from 'node:path';
 import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '@shared/aws/fargate';
 import { calculateFlatMonthlyCost, downloadSimplePricingInfo } from '@shared/aws/pricing-info';
-import { AWS_PRICE_INFO_GENERATED_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { AWS_PRICE_INFO_GENERATED_FOLDER_PATH } from 'src/config/project-paths';
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { outputFile } from 'fs-extra';
 

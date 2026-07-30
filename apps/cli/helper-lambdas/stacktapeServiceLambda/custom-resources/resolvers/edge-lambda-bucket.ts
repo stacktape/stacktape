@@ -1,6 +1,6 @@
 import type { _Object, ObjectIdentifier } from '@aws-sdk/client-s3';
 import { BucketAlreadyExists, S3 } from '@aws-sdk/client-s3';
-import { helperLambdaAwsResourceNames } from '@shared/naming/helper-lambdas-resource-names';
+import { helperLambdaAwsResourceNames } from '@stacktape/naming/helper-lambda-resource-names';
 import { chunkArray } from '@shared/utils/misc';
 
 const s3Api = new S3({ region: 'us-east-1' });

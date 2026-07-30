@@ -4,8 +4,8 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
 import { Ref } from '@cloudform/functions';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
-import { getAlarmDescription } from '@shared/naming/utils';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { getAlarmDescription } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/alarms/descriptions';
 import { getComparisonOperator } from '../../utils';
 import type { HttpApiGatewayErrorRateTrigger } from '@stacktape/config/alarms';
 

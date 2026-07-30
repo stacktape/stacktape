@@ -5,7 +5,7 @@ import DeliveryStream from '@cloudform/kinesisFirehose/deliveryStream';
 import SubscriptionFilter from '@cloudform/logs/subscriptionFilter';
 import Bucket from '@cloudform/s3/bucket';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { SubWithoutMapping } from '@utils/cloudformation';
 import type { CloudformationResource } from '@stacktape/config/cloudformation';
 import type {

@@ -1,6 +1,6 @@
 import type { CloudFrontRequestHandler } from 'aws-lambda';
 import { S3 } from '@aws-sdk/client-s3';
-import { stacktapeCloudfrontHeaders } from '@shared/naming/stacktape-cloudfront-headers';
+import { stacktapeCloudfrontHeaders } from 'src/helper-lambda-contracts/cloudfront-headers';
 
 const hasExtensionRegex = /(.+)\.[a-z0-9]+$/i;
 

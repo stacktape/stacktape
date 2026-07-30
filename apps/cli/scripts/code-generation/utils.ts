@@ -1,6 +1,6 @@
 import type { JsonSchemaGenerator } from 'typescript-json-schema';
 import { dirname, join, resolve } from 'node:path';
-import { CONFIG_PACKAGE_SRC_PATH, CONFIG_SCHEMA_PATH } from '@shared/naming/project-fs-paths';
+import { CONFIG_PACKAGE_SRC_PATH, CONFIG_SCHEMA_PATH } from 'src/config/project-paths';
 import { logInfo } from '@shared/utils/logging';
 import fastGlob from 'fast-glob';
 import { readJson, writeJSON } from 'fs-extra';

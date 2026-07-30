@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { DescribeDBEngineVersionsCommand, RDSClient } from '@aws-sdk/client-rds';
-import { DB_ENGINE_VERSIONS_FOLDER } from '@shared/naming/project-fs-paths';
+import { DB_ENGINE_VERSIONS_FOLDER } from 'src/config/project-paths';
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { outputFile } from 'fs-extra';
 

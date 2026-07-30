@@ -10,7 +10,7 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { stackMetadataNames } from '@shared/naming/metadata-names';
+import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { obfuscatedNamesStateHolder } from '@stacktape/naming/resource-names';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
 

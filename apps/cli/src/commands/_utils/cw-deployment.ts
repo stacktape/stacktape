@@ -15,9 +15,9 @@ import { compareEcsTaskDefinitions } from '@domain-services/deployed-stack-overv
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { EcsServiceDeploymentStatusPoller } from '@shared/aws/ecs-deployment-monitoring';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
-import { getJobName } from '@shared/naming/utils';
+import { getJobName } from '@stacktape/naming/workload-names';
 import { NOT_YET_KNOWN_IDENTIFIER } from '@shared/utils/constants';
 import { lowerCaseFirstCharacterOfEveryWord, serialize } from '@shared/utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';

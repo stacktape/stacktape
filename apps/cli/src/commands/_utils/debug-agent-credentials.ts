@@ -3,7 +3,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { createFetchHandler } from '@shared/aws/fetch-handler';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { stackMetadataNames } from '@shared/naming/metadata-names';
+import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 
 type DebugAgentCredentials = {
   accessKeyId: string;

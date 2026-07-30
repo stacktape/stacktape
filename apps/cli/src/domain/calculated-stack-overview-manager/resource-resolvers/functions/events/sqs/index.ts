@@ -3,7 +3,7 @@ import EventSourceMapping from '@cloudform/lambda/eventSourceMapping';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToSqsQueue } from '@domain-services/config-manager/utils/sqs-queues';
 import { stpErrors } from '@errors';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { SqsIntegration, SqsIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';

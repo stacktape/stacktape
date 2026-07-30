@@ -3,7 +3,7 @@ import { GetAtt, Ref, Select, Split } from '@cloudform/functions';
 import LambdaPermission from '@cloudform/lambda/permission';
 import SubscriptionFilter from '@cloudform/logs/subscriptionFilter';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { CloudwatchLogIntegration, CloudwatchLogIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';

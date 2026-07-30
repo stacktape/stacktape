@@ -1,6 +1,6 @@
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { injectedParameterEnvVarName } from '@shared/naming/utils';
+import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { isCloudformationFunction } from '@utils/cloudformation';
 
 export const getResolvedConnectToEnvironmentVariables = ({

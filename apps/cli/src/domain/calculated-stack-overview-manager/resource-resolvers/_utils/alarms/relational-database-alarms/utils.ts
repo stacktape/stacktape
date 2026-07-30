@@ -1,6 +1,6 @@
 import type { Dimension } from '@cloudform/cloudWatch/alarm';
 import { Ref } from '@cloudform/functions';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 export const getDimensionsForAuroraCluster = ({
   databaseResource

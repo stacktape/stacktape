@@ -2,7 +2,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferencesToMountedEfsFilesystems } from '@domain-services/config-manager/utils/efs-filesystems';
 import { resolveConnectToList } from '@domain-services/config-manager/utils/resource-references';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { isDevCommand, isLegacyDevMode, LOCALLY_RUN_RESOURCE_TYPES } from '../../../../commands/dev/dev-mode-utils';
 import { getEcsTaskRole } from './utils';
 

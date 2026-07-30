@@ -7,3 +7,7 @@ export const getPrefixForUserAppResourceDefaultDomainName = ({
   stackName: string;
   cdn?: boolean;
 }) => `${stpResourceName.toLowerCase()}${cdn ? '-cdn' : ''}-${stackName}`;
+
+export const getUserPoolDomainPrefix = (stackName: string, userPoolName: string) => {
+  return `${stackName}-${userPoolName}`.toLowerCase();
+};

@@ -5,15 +5,22 @@
   "description": "Compatibility-sensitive Stacktape names, ARNs, AWS Console links, and parameter paths shared by the CLI and Console.",
   "type": "module",
   "exports": {
+    "./alarm-names": "./src/alarm-names.ts",
     "./arns": "./src/arns.ts",
     "./aws-resource-names": "./src/aws-resource-names.ts",
+    "./cloudformation-logical-names": "./src/cloudformation-logical-names.ts",
     "./console-links": "./src/console-links.ts",
+    "./domain-names": "./src/domain-names.ts",
+    "./helper-lambda-resource-names": "./src/helper-lambda-resource-names.ts",
     "./resource-names": "./src/resource-names.ts",
     "./short-hash": "./src/short-hash.ts",
     "./ssm-parameter-paths": "./src/ssm-parameter-paths.ts",
+    "./stack-metadata-names": "./src/stack-metadata-names.ts",
     "./stack-output-names": "./src/stack-output-names.ts",
     "./stacks": "./src/stacks.ts",
-    "./tag-names": "./src/tag-names.ts"
+    "./stacktape-resource-names": "./src/stacktape-resource-names.ts",
+    "./tag-names": "./src/tag-names.ts",
+    "./workload-names": "./src/workload-names.ts"
   },
   "scripts": {
     "test": "bun test src",

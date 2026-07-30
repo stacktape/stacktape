@@ -6,7 +6,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { consoleLinks } from '@stacktape/naming/console-links';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getCloudformationChildResources } from '@shared/utils/stack-info-map';
 
 export const cfFailedEventHandlers: {

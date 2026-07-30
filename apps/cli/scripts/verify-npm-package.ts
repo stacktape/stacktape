@@ -3,7 +3,7 @@ import { existsSync } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, normalize } from 'node:path';
 import { pathToFileURL } from 'node:url';
-import { NPM_RELEASE_FOLDER_PATH } from '../shared/naming/project-fs-paths';
+import { NPM_RELEASE_FOLDER_PATH } from 'src/config/project-paths';
 import { verifyNpmDeclarations } from './verify-npm-declarations';
 
 type PackageManifest = {

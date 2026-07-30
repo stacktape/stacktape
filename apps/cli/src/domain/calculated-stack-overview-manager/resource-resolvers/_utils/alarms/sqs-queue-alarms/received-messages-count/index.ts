@@ -2,7 +2,7 @@ import type { AlarmDefinition } from '@stacktape/config/alarms';
 import { globalStateManager } from '@application-services/global-state-manager';
 import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { getAlarmDescription } from '@shared/naming/utils';
+import { getAlarmDescription } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/alarms/descriptions';
 import { getComparisonOperator, getMetricStatDataQuery, getStatFunction } from '../../utils';
 import { getDimensionsForSqsQueue } from '../utils';
 import type { SqsQueueReceivedMessagesCountTrigger } from '@stacktape/config/alarms';

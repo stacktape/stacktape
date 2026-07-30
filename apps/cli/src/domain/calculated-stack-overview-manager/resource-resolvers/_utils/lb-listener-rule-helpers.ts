@@ -4,7 +4,7 @@ import ListenerRule, {
   RuleCondition
 } from '@cloudform/elasticLoadBalancingV2/listenerRule';
 import { Ref } from '@cloudform/functions';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { ExpectedError } from '@utils/errors';
 
 const getActionsForListenerRule = (workloadName: string, resolvedLbReference: StpResolvedLoadBalancerReference) => {

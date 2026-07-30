@@ -1,6 +1,6 @@
 import { dirname, join, resolve } from 'node:path';
 import { pathExists, readFile } from 'fs-extra';
-import { LLM_DOCS_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { LLM_DOCS_FOLDER_PATH } from 'src/config/project-paths';
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 

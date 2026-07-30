@@ -9,7 +9,7 @@ import { getAllIntegrationsForNetworkLoadBalancerListener } from '@domain-servic
 import { domainManager } from '@domain-services/domain-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { transformToCidr } from '@shared/utils/misc';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 import type { CloudformationResource } from '@stacktape/config/cloudformation';

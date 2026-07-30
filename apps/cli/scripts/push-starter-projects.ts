@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { PUBLISH_GITHUB_REPO_DIR_PATH, PUBLISH_STARTER_PROJECTS_DIR_PATH } from '@shared/naming/project-fs-paths';
+import { PUBLISH_GITHUB_REPO_DIR_PATH, PUBLISH_STARTER_PROJECTS_DIR_PATH } from 'src/config/project-paths';
 import { executeGit } from '@shared/utils/exec';
 import { createRepository, getRepository } from '@shared/utils/github-api';
 import { logInfo, logSuccess } from '@shared/utils/logging';

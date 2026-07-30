@@ -4,7 +4,7 @@ import {
   resolveReferenceToApplicationLoadBalancer
 } from '@domain-services/config-manager/utils/application-load-balancers';
 import { stpErrors } from '@errors';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getListenerRule } from '../../../_utils/lb-listener-rule-helpers';
 import { getContainerWorkloadTargetGroup, getTargetsForContainerWorkload } from '../../utils';
 import type { ContainerWorkloadLoadBalancerIntegration } from '@stacktape/config/events';

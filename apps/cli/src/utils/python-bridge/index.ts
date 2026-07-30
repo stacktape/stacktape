@@ -1,7 +1,7 @@
 /* eslint-disable */
 // @note from https://github.com/Submersible/node-python-bridge
 import { spawn } from 'node:child_process';
-import { fsPaths } from '@shared/naming/fs-paths';
+import { fsPaths } from 'src/config/runtime-paths';
 
 export const pythonBridge = (opts?: any) => {
   // default options

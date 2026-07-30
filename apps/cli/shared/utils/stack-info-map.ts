@@ -1,4 +1,4 @@
-import { getStpNameForResource } from '@shared/naming/utils';
+import { getStpNameForResource } from '@stacktape/naming/stacktape-resource-names';
 
 export const getCloudformationChildResources = <T extends StackInfoMapResource | DetailedStackResourceInfo>({
   resource

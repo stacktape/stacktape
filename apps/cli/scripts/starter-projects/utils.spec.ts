@@ -3,7 +3,7 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, join, relative } from 'node:path';
 import { copy, ensureDir, pathExists, readJson } from 'fs-extra';
-import { STARTER_PROJECTS_SOURCE_PATH } from '../../shared/naming/project-fs-paths';
+import { STARTER_PROJECTS_SOURCE_PATH } from 'src/config/project-paths';
 import { ensureStarterProjectTsConfig, restoreStarterTsConfigNames } from './utils';
 
 const temporaryDirectories: string[] = [];

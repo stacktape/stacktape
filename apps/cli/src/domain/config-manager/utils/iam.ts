@@ -1,5 +1,5 @@
 import { GetAtt, Join } from '@cloudform/functions';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 export const getStacktapeOriginRequestLambdaIamStatement = (buckets: {
   [stpResourceNameOfTargetedResource: string]: string[];

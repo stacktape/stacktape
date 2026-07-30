@@ -12,7 +12,7 @@ import { configManager } from '@domain-services/config-manager';
 import { validateGuardrails } from '@domain-services/config-manager/utils/validation';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { fsPaths } from '@shared/naming/fs-paths';
+import { fsPaths } from 'src/config/runtime-paths';
 import { getPathRelativeTo } from '@shared/utils/fs-utils';
 import { wait } from '@shared/utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';

@@ -14,7 +14,7 @@ import { getDefaultHttpApiCorsAllowedMethods } from '@domain-services/config-man
 import { domainManager } from '@domain-services/domain-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { normalizePathForLink } from '@utils/formatting';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';

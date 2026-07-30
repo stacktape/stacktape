@@ -11,7 +11,7 @@ import {
   UpdateFunctionConfigurationCommand
 } from '@aws-sdk/client-lambda';
 import { configManager } from '@domain-services/config-manager';
-import { injectedParameterEnvVarName } from '@shared/naming/utils';
+import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { createCleanupHook } from '../cleanup-utils';
 import { DEV_CONFIG } from '../dev-config';
 

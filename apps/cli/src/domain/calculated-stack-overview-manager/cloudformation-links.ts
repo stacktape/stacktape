@@ -1,7 +1,17 @@
 import type { IntrinsicFunction } from '@cloudform/dataTypes';
 import { Ref, Sub } from '@cloudform/functions';
 import { tagNames } from '@stacktape/naming/tag-names';
-import { getBaseCfSubstitutedAwsConsoleLink } from './utils';
+
+const getBaseCfSubstitutedAwsConsoleLink = (
+  serviceName: string,
+  serviceQuery: string | IntrinsicFunction,
+  region?: string
+) => {
+  return Sub(`https://\${region}.console.aws.amazon.com/${serviceName}/home?region=\${region}#\${service_query}`, {
+    region: region || Ref('AWS::Region'),
+    service_query: serviceQuery
+  });
+};
 
 export const cfEvaluatedLinks = {
   ecsMonitoring(ecsClusterName: string | IntrinsicFunction, ecsServiceName: string | IntrinsicFunction) {

@@ -3,7 +3,7 @@ import { copyFileSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { join, relative } from 'node:path';
 import * as ts from 'typescript';
-import { CONFIG_PACKAGE_SRC_PATH } from '@shared/naming/project-fs-paths';
+import { CONFIG_PACKAGE_SRC_PATH } from 'src/config/project-paths';
 import { buildIndexNamespaceModule, buildResourceModule, resourceModuleName } from './generate-cloudform';
 
 const ROOT_HELPERS = ['resource.ts', 'dataTypes.ts'];

@@ -2,7 +2,7 @@ import type { AccessPointProperties, RootDirectory } from '@cloudform/efs/access
 import AccessPoint from '@cloudform/efs/accessPoint';
 import { Ref } from '@cloudform/functions';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 export const getEfsAccessPoint = ({
   efsFilesystemName,

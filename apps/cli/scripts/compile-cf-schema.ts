@@ -1,5 +1,5 @@
 import { join } from 'node:path';
-import { GENERATED_FILES_FOLDER_PATH } from '@shared/naming/project-fs-paths';
+import { GENERATED_FILES_FOLDER_PATH } from 'src/config/project-paths';
 import { downloadFile } from '@shared/utils/download-file';
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { unzip } from '@shared/utils/unzip';

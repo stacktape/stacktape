@@ -4,8 +4,8 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToFirewall } from '@domain-services/config-manager/utils/web-app-firewall';
 import { domainManager } from '@domain-services/domain-manager';
-import { cfLogicalNames } from '@shared/naming/logical-names';
-import { getUserPoolDomainPrefix } from '@shared/naming/utils';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { getUserPoolDomainPrefix } from '@stacktape/naming/domain-names';
 import { getWebACLAssociation } from '../_utils/firewall-helpers';
 import {
   getIdentityProviderResource,

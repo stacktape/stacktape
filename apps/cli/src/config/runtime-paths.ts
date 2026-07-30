@@ -13,7 +13,7 @@ import {
   HELPER_LAMBDAS_FOLDER_NAME,
   SCRIPTS_ASSETS_PATH,
   STARTER_PROJECTS_METADATA_FOLDER_NAME
-} from './project-fs-paths';
+} from './project-paths';
 
 export const fsPaths = {
   absoluteExecutableDirname() {

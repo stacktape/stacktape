@@ -1,6 +1,6 @@
 import { basename, join } from 'node:path';
-import { fsPaths } from '@shared/naming/fs-paths';
-import { HELPER_LAMBDAS_FOLDER_NAME } from '@shared/naming/project-fs-paths';
+import { fsPaths } from 'src/config/runtime-paths';
+import { HELPER_LAMBDAS_FOLDER_NAME } from 'src/config/project-paths';
 import fsExtra from 'fs-extra';
 
 export const loadHelperLambdaDetailsFromDir = async ({

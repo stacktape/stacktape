@@ -11,7 +11,7 @@ import { ec2Manager } from '@domain-services/ec2-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { stpErrors } from '@errors';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 export const getOpenSearchDomainResource = ({ resource }: { resource: StpOpenSearchDomain }) => {
   const input: DomainProperties = {

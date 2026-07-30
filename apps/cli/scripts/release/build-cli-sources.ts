@@ -7,7 +7,7 @@ import {
   LLM_DOCS_FOLDER_PATH,
   SCRIPTS_ASSETS_PATH,
   SOURCE_MAP_INSTALL_FILE_NAME
-} from '@shared/naming/project-fs-paths';
+} from 'src/config/project-paths';
 import { buildEsCode } from '@stacktape/packaging/bundlers/es';
 import { getPlatform } from '@shared/utils/bin-executable';
 import {

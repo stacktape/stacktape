@@ -1,6 +1,6 @@
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
-import { GENERATED_STARTER_PROJECTS_DIR_PATH } from '@shared/naming/project-fs-paths';
+import { GENERATED_STARTER_PROJECTS_DIR_PATH } from 'src/config/project-paths';
 import { exec } from '@shared/utils/exec';
 import { logInfo } from '@shared/utils/logging';
 import { getAllStarterProjectIds } from './generate-starter-project';

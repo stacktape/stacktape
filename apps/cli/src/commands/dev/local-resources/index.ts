@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
-import { injectedParameterEnvVarName } from '@shared/naming/utils';
+import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { stopDockerContainer } from '@shared/utils/docker';
 import { ExpectedError } from '@utils/errors';
 import { ensureDir } from 'fs-extra';

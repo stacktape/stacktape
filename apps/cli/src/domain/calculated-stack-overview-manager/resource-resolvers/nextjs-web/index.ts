@@ -3,7 +3,7 @@ import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 import { resolveBucket } from '../buckets';
 import { resolveDynamoDbTable } from '../dynamo-db-tables';

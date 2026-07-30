@@ -11,7 +11,7 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { stpErrors } from '@errors';
-import { getJobName, getLocalInvokeContainerName, injectedParameterEnvVarName } from '@shared/naming/utils';
+import { getJobName, getLocalInvokeContainerName, injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { dockerRun } from '@shared/utils/docker';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';

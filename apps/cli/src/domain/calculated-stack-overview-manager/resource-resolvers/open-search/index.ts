@@ -2,7 +2,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import type { OpenSearchLogConfiguration } from '@stacktape/config/open-search';
 import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';

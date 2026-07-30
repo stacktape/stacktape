@@ -1,5 +1,5 @@
 import { configurableGlobalDefaultCliArgs, configurableGlobalDefaultOtherProps } from '@config';
-import { fsPaths } from '@shared/naming/fs-paths';
+import { fsPaths } from 'src/config/runtime-paths';
 import { ensureDir, outputJson, readJson } from 'fs-extra';
 
 export const loadPersistedState = async (): Promise<PersistedState> => {

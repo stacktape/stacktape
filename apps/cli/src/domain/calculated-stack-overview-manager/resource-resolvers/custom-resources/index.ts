@@ -4,7 +4,7 @@ import { GetAtt } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToCustomResourceDefinition } from '@domain-services/config-manager/utils/custom-resource-definitions';
-import { cfLogicalNames } from '@shared/naming/logical-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { STACKTAPE_SERVICE_CUSTOM_RESOURCE_LAMBDA_IDENTIFIER } from '@shared/utils/constants';
 import { resolveFunction } from '../functions';
 

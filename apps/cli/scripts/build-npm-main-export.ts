@@ -1,11 +1,7 @@
 import type { JsonSchemaGenerator } from 'typescript-json-schema';
 import type { ChildResourcesMap, ReferenceableParamsMap } from './code-generation/types';
 import { join } from 'node:path';
-import {
-  NPM_RELEASE_FOLDER_PATH,
-  SOURCE_FOLDER_PATH,
-  SOURCE_MAP_INSTALL_DIST_PATH
-} from '@shared/naming/project-fs-paths';
+import { NPM_RELEASE_FOLDER_PATH, SOURCE_FOLDER_PATH, SOURCE_MAP_INSTALL_DIST_PATH } from 'src/config/project-paths';
 import { buildEsCode } from '@stacktape/packaging/bundlers/es';
 import { logInfo, logSuccess } from '@shared/utils/logging';
 import { getError, localBuildTsConfigPath } from '@shared/utils/misc';

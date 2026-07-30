@@ -1,6 +1,6 @@
-import type { CloudformationResourceType } from '@cloudform/resource-types';
 import { pascalCase } from 'change-case';
-import type { HttpMethod } from '@stacktape/config/http-api-gateways';
+
+type HttpMethod = 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE' | 'HEAD' | 'OPTIONS' | '*';
 
 export const cfLogicalNames = {
   bucket(stpResourceName: string) {
@@ -642,7 +642,7 @@ export const cfLogicalNames = {
   lambda(stpResourceName: string, isStpServiceFunction?: boolean) {
     return buildCfLogicalName({
       stpResourceName,
-      specifier: isStpServiceFunction ? { type: 'CustomResource' } : undefined,
+      ...(isStpServiceFunction ? { specifier: { type: 'CustomResource' } } : {}),
       suffix: { cloudformationResourceType: 'AWS::Lambda::Function' }
     });
   },
@@ -791,7 +791,7 @@ export const cfLogicalNames = {
   ecsService(stpResourceName: string, blueGreen: boolean) {
     return buildCfLogicalName({
       stpResourceName,
-      specifier: blueGreen ? { type: 'BlueGreen' } : undefined,
+      ...(blueGreen ? { specifier: { type: 'BlueGreen' } } : {}),
       suffix: { cloudformationResourceType: 'AWS::ECS::Service' }
     });
   },
@@ -1290,7 +1290,10 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::Cognito::UserPoolDomain' }
     });
   },
-  identityProvider(stpResourceName: string, type: StpUserAuthPool['identityProviders'][number]['type']) {
+  identityProvider(
+    stpResourceName: string,
+    type: 'Facebook' | 'Google' | 'LoginWithAmazon' | 'OIDC' | 'SAML' | 'SignInWithApple'
+  ) {
     return buildCfLogicalName({
       stpResourceName,
       specifier: { type },
@@ -1497,7 +1500,7 @@ const buildCfLogicalName = ({
   stpResourceName?: string;
   specifier?: { type: string; typeIndex?: number; subtype?: string };
   suffix: {
-    cloudformationResourceType: CloudformationResourceType | SupportedPrivateCfResourceType;
+    cloudformationResourceType: string;
     index?: number;
   };
 }) => {
@@ -1512,14 +1515,11 @@ const buildCfLogicalName = ({
   return pascalCase(`${resolvedParentName}-${resolvedSpecifier}-${resolvedSuffix}`);
 };
 
-const getSpecifierForDomainResource = (fullyQualifiedDomainName) => {
+const getSpecifierForDomainResource = (fullyQualifiedDomainName: string) => {
   if (pascalCase(fullyQualifiedDomainName).replace('_', '').length < 85) {
     return pascalCase(fullyQualifiedDomainName).replace('_', '');
   }
-  const splittedDomain = fullyQualifiedDomainName
-    .split('.')
-    .map((subdomain) => subdomain.split('-'))
-    .flat();
+  const splittedDomain = fullyQualifiedDomainName.split('.').flatMap((subdomain) => subdomain.split('-'));
   const maxCharactersPerWord = Math.floor(85 / splittedDomain.length);
   return splittedDomain.map((word) => pascalCase(word.slice(0, maxCharactersPerWord)).replace('_', '')).join('');
 };
