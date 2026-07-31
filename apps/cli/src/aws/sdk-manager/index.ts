@@ -24,10 +24,8 @@ import type {
   UpdateStackInput
 } from '@aws-sdk/client-cloudformation';
 import type { DistributionSummary } from '@aws-sdk/client-cloudfront';
-import type { BatchGetBuildsCommandInput, Build } from '@aws-sdk/client-codebuild';
+import type { BatchGetBuildsCommandInput } from '@aws-sdk/client-codebuild';
 import type { CreateDeploymentCommandInput } from '@aws-sdk/client-codedeploy';
-import type { UserType } from '@aws-sdk/client-cognito-identity-provider';
-import type { Tag } from '@aws-sdk/client-dynamodb';
 import type { _InstanceType, InstanceTypeInfo, RouteTable, Subnet, Vpc } from '@aws-sdk/client-ec2';
 import type { ImageIdentifier } from '@aws-sdk/client-ecr';
 import type {
@@ -37,7 +35,6 @@ import type {
   UpdateServiceCommandInput
 } from '@aws-sdk/client-ecs';
 import type { GetRoleCommandOutput } from '@aws-sdk/client-iam';
-import type { Runtime } from '@aws-sdk/client-lambda';
 import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
 import type { HostedZone, ResourceRecordSet } from '@aws-sdk/client-route-53';
 import type { DomainPrice } from '@aws-sdk/client-route-53-domains';
@@ -54,7 +51,6 @@ import {
   ACMClient,
   DescribeCertificateCommand,
   ListCertificatesCommand,
-  ListTagsForCertificateCommand,
   RequestCertificateCommand
 } from '@aws-sdk/client-acm';
 import { AutoScaling, DescribeAutoScalingGroupsCommand } from '@aws-sdk/client-auto-scaling';
@@ -71,7 +67,6 @@ import {
   DescribeStackEventsCommand,
   DescribeStacksCommand,
   DescribeTypeRegistrationCommand,
-  ExecuteChangeSetCommand,
   GetTemplateCommand,
   ListStackResourcesCommand,
   ListStacksCommand,
@@ -103,19 +98,12 @@ import {
   CreateProjectCommand,
   EnvironmentType,
   EnvironmentVariableType,
-  ListBuildsForProjectCommand,
   SourceType,
   StartBuildCommand,
   StatusType
 } from '@aws-sdk/client-codebuild';
 import { CodeDeployClient, CreateDeploymentCommand, waitUntilDeploymentSuccessful } from '@aws-sdk/client-codedeploy';
-import {
-  AdminConfirmSignUpCommand,
-  CognitoIdentityProviderClient,
-  ListUsersCommand
-} from '@aws-sdk/client-cognito-identity-provider';
 import { CostExplorerClient, GetTagsCommand } from '@aws-sdk/client-cost-explorer';
-import { DescribeTableCommand, DynamoDBClient, TagResourceCommand as TagDynamoTable } from '@aws-sdk/client-dynamodb';
 import {
   DescribeInstanceTypesCommand,
   DescribeRouteTablesCommand,
@@ -125,7 +113,6 @@ import {
 } from '@aws-sdk/client-ec2';
 import {
   BatchDeleteImageCommand,
-  DescribeRepositoriesCommand,
   ECRClient,
   GetAuthorizationTokenCommand,
   ListImagesCommand
@@ -157,14 +144,11 @@ import {
   waitUntilRoleExists
 } from '@aws-sdk/client-iam';
 import {
-  DeleteLayerVersionCommand,
   GetFunctionConfigurationCommand,
   GetProvisionedConcurrencyConfigCommand,
   InvokeCommand,
   LambdaClient,
-  ListLayerVersionsCommand,
   ListTagsCommand,
-  PublishLayerVersionCommand,
   PublishVersionCommand,
   TagResourceCommand as TagLambdaResource,
   UpdateAliasCommand,
@@ -445,10 +429,6 @@ export class AwsSdkManager {
     return this.#applyPlugins(new SSMClient(this.#getClientArgs({ region })));
   }
 
-  #cognito() {
-    return this.#applyPlugins(new CognitoIdentityProviderClient(this.#getClientArgs()));
-  }
-
   #cloudformation(region: string = this.region) {
     return this.#applyPlugins(
       new CloudFormationClient({
@@ -504,10 +484,6 @@ export class AwsSdkManager {
 
   #acm() {
     return this.#applyPlugins(new ACMClient(this.#getClientArgs()));
-  }
-
-  #dynamo() {
-    return this.#applyPlugins(new DynamoDBClient(this.#getClientArgs()));
   }
 
   #route53() {
@@ -773,31 +749,6 @@ export class AwsSdkManager {
         }
         errHandler(err);
       });
-  };
-
-  removeUserFromRolePrincipals = async ({ userArn, roleName }: { userArn: string; roleName: string }) => {
-    const errHandler = this.#getErrorHandler(`Failed to remove user ${userArn} as a principal in role ${roleName}.`);
-    const role = await this.getRole({ roleName, throwErrorWhenRoleNotExists: true }).catch(errHandler);
-    const { AssumeRolePolicyDocument } = role;
-
-    const parsedAssumeRolePolicy = JSON.parse(decodeURIComponent(AssumeRolePolicyDocument));
-    const rolePolicyHasStatementForThisUser = parsedAssumeRolePolicy.Statement.find(
-      ({ Principal }) => Principal?.AWS === userArn
-    );
-    if (!rolePolicyHasStatementForThisUser) {
-      this.printer?.debug(`User ${userArn} is not among principals of the role ${roleName}.`);
-      return;
-    }
-    const filteredStatements = parsedAssumeRolePolicy.Statement.filter(({ Principal }) => Principal?.AWS !== userArn);
-    parsedAssumeRolePolicy.Statement = filteredStatements;
-    return this.#iam()
-      .send(
-        new UpdateAssumeRolePolicyCommand({
-          PolicyDocument: JSON.stringify(parsedAssumeRolePolicy),
-          RoleName: roleName
-        })
-      )
-      .catch(errHandler);
   };
 
   /**
@@ -1178,37 +1129,6 @@ export class AwsSdkManager {
     return { user, password, proxyEndpoint };
   };
 
-  listEcrReposForStack = async (stackName: string): Promise<string[]> => {
-    const errHandler = this.#getErrorHandler('Failed to list ECR repositories.');
-    const res = await this.#ecr().send(new DescribeRepositoriesCommand({})).catch(errHandler);
-    return res.repositories
-      .filter((repo) => repo.repositoryName.startsWith(stackName))
-      .map((repo) => repo.repositoryName);
-  };
-
-  copyWithinBucket = async ({
-    toS3Key,
-    fromS3Key,
-    bucketName
-  }: {
-    fromS3Key: string;
-    toS3Key: string;
-    bucketName: string;
-  }) => {
-    const errHandler = this.#getErrorHandler(
-      `Failed to copy object ${fromS3Key} to ${toS3Key} within deployment bucket.`
-    );
-    return this.#s3()
-      .send(
-        new CopyObjectCommand({
-          Bucket: bucketName,
-          CopySource: `${bucketName}/${fromS3Key}`,
-          Key: toS3Key
-        })
-      )
-      .catch(errHandler);
-  };
-
   syncDirectoryIntoBucket = async ({
     // directoryPath,
     uploadConfiguration: {
@@ -1405,11 +1325,6 @@ export class AwsSdkManager {
     return result;
   };
 
-  emptyBucket = async (bucketName: string) => {
-    const objects = await this.listAllObjectsInBucket(bucketName);
-    return this.batchDeleteObjects(bucketName, objects as ObjectIdentifier[]);
-  };
-
   /**
    * Lists every private resource type in the account's registry together with its registered versions.
    *
@@ -1569,39 +1484,6 @@ export class AwsSdkManager {
       }
       throw err;
     }
-  };
-
-  confirmUserSignup = async ({ userName, userPoolId }: { userName: string; userPoolId: string }) => {
-    return this.#cognito().send(new AdminConfirmSignUpCommand({ Username: userName, UserPoolId: userPoolId }));
-  };
-
-  listUsersInUserpool = async ({ userPoolId }: { userPoolId: string }) => {
-    const params = { UserPoolId: userPoolId };
-    const allUsers: UserType[][] = [];
-    let { Users, PaginationToken } = await this.#cognito().send(new ListUsersCommand(params));
-    allUsers.push(Users);
-    while (PaginationToken) {
-      ({ Users, PaginationToken } = await this.#cognito().send(new ListUsersCommand({ ...params, PaginationToken })));
-      allUsers.push(Users);
-    }
-    return allUsers.flat().map((user) => {
-      const result: {
-        createdAt: Date;
-        updatedAt: Date;
-        userName: string;
-        status: string;
-        [attribute: string]: any;
-      } = {
-        createdAt: user.UserCreateDate,
-        updatedAt: user.UserLastModifiedDate,
-        userName: user.Username,
-        status: user.UserStatus
-      };
-      user.Attributes.forEach((attr) => {
-        result[attr.Name] = attr.Value;
-      });
-      return result;
-    });
   };
 
   updateExistingLambdaFunctionCode = async ({
@@ -1907,14 +1789,6 @@ export class AwsSdkManager {
     return res.Certificate as CertificateDetail;
   };
 
-  getCertificateTags = async (certArn: string) => {
-    const errHandler = this.#getErrorHandler('Failed to get tags for certificate.');
-    const res = await this.#acm()
-      .send(new ListTagsForCertificateCommand({ CertificateArn: certArn }))
-      .catch(errHandler);
-    return res.Tags;
-  };
-
   //   getStackDriftInformation = async (stackName: string): Promise<DriftDetail[]> => {
   //     let driftInformation: DescribeStackResourceDriftsCommandOutput;
   //     try {
@@ -1956,13 +1830,6 @@ export class AwsSdkManager {
     }
 
     return { changes: changeSet.Changes, changeSetId: Id, stackId: StackId };
-  };
-
-  executeChangeSet = async (changeSetId: string) => {
-    const errHandler = this.#getErrorHandler('Failed to initiate execution of change-set.');
-    return this.#cloudformation()
-      .send(new ExecuteChangeSetCommand({ ChangeSetName: changeSetId }))
-      .catch(errHandler);
   };
 
   setStackPolicy = async (input: SetStackPolicyInput) => {
@@ -2063,16 +1930,6 @@ export class AwsSdkManager {
         return originItem.DomainName === bucketDomainName;
       })
     );
-  };
-
-  tagDynamoTable = async ({ tableName, tags }: { tableName: string; tags: Tag[] }) => {
-    const errHandler = this.#getErrorHandler('Failed to tag dynamo table.');
-    const {
-      Table: { TableArn: tableArn }
-    } = await this.#dynamo().send(new DescribeTableCommand({ TableName: tableName }));
-    return this.#dynamo()
-      .send(new TagDynamoTable({ ResourceArn: tableArn, Tags: tags }))
-      .catch(errHandler);
   };
 
   listBudgets = async ({ accountId }: { accountId: string }) => {
@@ -2356,61 +2213,6 @@ export class AwsSdkManager {
         })
       )
       .catch(errHandler);
-  };
-
-  upsertDnsRecordInHostedZone = async ({
-    hostedZoneId,
-    dnsRecord
-  }: {
-    hostedZoneId: string;
-    dnsRecord: ResourceRecordSet;
-  }) => {
-    const errHandler = this.#getErrorHandler(`Failed to upsert record set in hosted zone ${hostedZoneId}.`);
-    return this.#route53()
-      .send(
-        new ChangeResourceRecordSetsCommand({
-          HostedZoneId: hostedZoneId,
-          ChangeBatch: {
-            Changes: [
-              {
-                Action: 'UPSERT',
-                ResourceRecordSet: dnsRecord
-              }
-            ]
-          }
-        })
-      )
-      .catch(errHandler);
-  };
-
-  deleteDnsRecordFromHostedZone = async ({
-    hostedZoneId,
-    dnsRecord
-  }: {
-    hostedZoneId: string;
-    dnsRecord: ResourceRecordSet;
-  }) => {
-    const errHandler = this.#getErrorHandler(`Failed to delete record set in hosted zone ${hostedZoneId}.`);
-    return this.#route53()
-      .send(
-        new ChangeResourceRecordSetsCommand({
-          HostedZoneId: hostedZoneId,
-          ChangeBatch: {
-            Changes: [
-              {
-                Action: 'DELETE',
-                ResourceRecordSet: dnsRecord
-              }
-            ]
-          }
-        })
-      )
-      .catch((err) => {
-        if (`${err}`.includes('record set') && `${err}`.includes('not found')) {
-          return;
-        }
-        return errHandler(err);
-      });
   };
 
   getCodebuildProject = async ({ projectName }: { projectName: string }) => {
@@ -2840,44 +2642,6 @@ export class AwsSdkManager {
     }
   };
 
-  listCodebuildProjectBuilds = async ({
-    codebuildProjectName,
-    limit = 500,
-    nextToken
-  }: {
-    codebuildProjectName: string;
-    // stackName: string;
-    limit?: number;
-    nextToken?: string;
-  }) => {
-    const errHandler = this.#getErrorHandler('Unable to list codebuild operations');
-    const result: Build[][] = [];
-    let amount = 0;
-    let builds: Build[];
-    // let nextToken:string;
-    ({ builds, nextToken } = await this.#codebuild()
-      .send(new ListBuildsForProjectCommand({ projectName: codebuildProjectName, nextToken }))
-      .then(async ({ ids, nextToken: nt }) => ({
-        builds: await this.getCodebuildBuilds({ buildIds: ids }),
-        nextToken: nt
-      }))
-      .catch(errHandler));
-    result.push(builds);
-    amount += builds?.length || 0;
-    while (nextToken && amount < limit) {
-      ({ builds, nextToken } = await this.#codebuild()
-        .send(new ListBuildsForProjectCommand({ projectName: codebuildProjectName, nextToken }))
-        .then(async ({ ids, nextToken: nt }) => ({
-          builds: await this.getCodebuildBuilds({ buildIds: ids }),
-          nextToken: nt
-        }))
-        .catch(errHandler));
-      result.push(builds);
-      amount += builds?.length || 0;
-    }
-    return { codebuildBuilds: result.flat(), nextToken };
-  };
-
   getEc2InstanceTypesInfo = async ({ instanceTypes }: { instanceTypes: _InstanceType[] }) => {
     const errHandler = this.#getErrorHandler('Could not list EC2 instance types.');
     const result: InstanceTypeInfo[] = [];
@@ -3085,115 +2849,5 @@ export class AwsSdkManager {
       .send(new DescribeDBClustersCommand({ DBClusterIdentifier: rdsClusterIdentifier }))
       .catch(errHandler);
     return response.DBClusters?.[0];
-  };
-
-  /**
-   * Publish a Lambda layer version.
-   */
-  publishLambdaLayer = async ({
-    layerName,
-    zipFilePath,
-    compatibleRuntimes,
-    description
-  }: {
-    layerName: string;
-    zipFilePath: string;
-    compatibleRuntimes: string[];
-    description?: string;
-  }): Promise<{ layerArn: string; layerVersionArn: string; version: number }> => {
-    const errHandler = this.#getErrorHandler(`Failed to publish Lambda layer ${layerName}.`);
-    const { readFile } = await import('fs-extra');
-    const zipContent = await readFile(zipFilePath);
-
-    const response = await this.#lambda()
-      .send(
-        new PublishLayerVersionCommand({
-          LayerName: layerName,
-          Content: { ZipFile: zipContent },
-          CompatibleRuntimes: compatibleRuntimes as Runtime[],
-          Description: description
-        })
-      )
-      .catch(errHandler);
-
-    return {
-      layerArn: response.LayerArn,
-      layerVersionArn: response.LayerVersionArn,
-      version: response.Version
-    };
-  };
-
-  /**
-   * Delete a specific Lambda layer version.
-   */
-  deleteLambdaLayerVersion = async ({
-    layerName,
-    versionNumber
-  }: {
-    layerName: string;
-    versionNumber: number;
-  }): Promise<void> => {
-    const errHandler = this.#getErrorHandler(`Failed to delete Lambda layer version ${layerName}:${versionNumber}.`);
-    await this.#lambda()
-      .send(
-        new DeleteLayerVersionCommand({
-          LayerName: layerName,
-          VersionNumber: versionNumber
-        })
-      )
-      .catch(errHandler);
-  };
-
-  /**
-   * List all versions of a Lambda layer.
-   */
-  listLambdaLayerVersions = async ({
-    layerName
-  }: {
-    layerName: string;
-  }): Promise<{ versionNumber: number; createdDate: string; description?: string }[]> => {
-    const errHandler = this.#getErrorHandler(`Failed to list Lambda layer versions for ${layerName}.`);
-    const versions: { versionNumber: number; createdDate: string; description?: string }[] = [];
-
-    let marker: string | undefined;
-    do {
-      const response = await this.#lambda()
-        .send(
-          new ListLayerVersionsCommand({
-            LayerName: layerName,
-            Marker: marker
-          })
-        )
-        .catch(errHandler);
-
-      for (const version of response.LayerVersions || []) {
-        versions.push({
-          versionNumber: version.Version,
-          createdDate: version.CreatedDate,
-          description: version.Description
-        });
-      }
-
-      marker = response.NextMarker;
-    } while (marker);
-
-    return versions;
-  };
-
-  /**
-   * Check if a Lambda layer exists.
-   */
-  checkLambdaLayerExists = async ({ layerName }: { layerName: string }): Promise<boolean> => {
-    try {
-      const response = await this.#lambda().send(
-        new ListLayerVersionsCommand({
-          LayerName: layerName,
-          MaxItems: 1
-        })
-      );
-      return (response.LayerVersions?.length ?? 0) > 0;
-    } catch {
-      return false;
-    }
   };
 }
