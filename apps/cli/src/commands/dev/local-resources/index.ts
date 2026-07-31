@@ -6,7 +6,7 @@ import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
 import { stopDockerContainer } from '@utils/docker';
 import { ExpectedError } from '@utils/errors';
 import { ensureDir } from 'fs-extra';
-import { devTuiManager } from 'src/app/tui-manager/dev-tui';
+import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { createCleanupHook } from '../cleanup-utils';
 import { clearReservedPorts } from './container-helpers';
 import { startLocalDynamoDb } from './dynamodb';

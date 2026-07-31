@@ -131,7 +131,7 @@ const formatResourceList = (resources: string[], maxItems: number) => {
 
 type StackProgressUpdate = {
   message: string;
-  detail?: import('@application-services/tui-manager/jsonl-types').JsonlEventDetail;
+  detail?: import('@application-services/tui-manager/output/jsonl-types').JsonlEventDetail;
 };
 
 export class StackManager {

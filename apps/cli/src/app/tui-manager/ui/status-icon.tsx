@@ -1,6 +1,6 @@
 import type { TuiEventStatus } from '../types';
 import { Spinner } from './spinner';
-import { useTheme } from '../context/theme';
+import { useTheme } from './theme';
 
 export const StatusIcon = (props: { status: TuiEventStatus; isActive?: boolean }) => {
   const { theme } = useTheme();

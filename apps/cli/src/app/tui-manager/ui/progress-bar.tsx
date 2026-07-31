@@ -1,4 +1,4 @@
-import { useTheme } from '../context/theme';
+import { useTheme } from './theme';
 
 export const ProgressBar = (props: { percent: number; width?: number }) => {
   const { theme } = useTheme();

@@ -6,7 +6,7 @@ import type { FSWatcher } from 'chokidar';
 import type { Stats } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
-import { devTuiManager } from 'src/app/tui-manager/dev-tui';
+import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';

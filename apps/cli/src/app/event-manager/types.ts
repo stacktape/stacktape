@@ -111,7 +111,7 @@ export type EventManagerProgressEvent = {
   eventType: LoggableEventType;
   data?: Record<string, any>;
   /** Typed JSONL event metadata (e.g. CloudFormation resource counts). */
-  detail?: import('../tui-manager/jsonl-types').JsonlEventDetail;
+  detail?: import('../tui-manager/output/jsonl-types').JsonlEventDetail;
   skipPrint?: boolean;
   additionalMessage?: string;
   description?: string;

@@ -41,7 +41,7 @@ describe('release platform runtime', () => {
 
     const cliEntry = await readFile(join(import.meta.dir, '..', 'src', 'entrypoints', 'cli.ts'), 'utf8');
     expect(cliEntry.indexOf('configureNativeRuntimeForPlatform();')).toBeLessThan(
-      cliEntry.indexOf("await import('@application-services/tui-manager/output-mode')")
+      cliEntry.indexOf("await import('@application-services/tui-manager/output/mode')")
     );
   });
 });

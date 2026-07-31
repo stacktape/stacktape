@@ -18,7 +18,7 @@ import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { getDirectiveParams, getIsDirective, startsLikeGetParamDirective } from '@utils/directives';
 import { ExpectedError } from '@utils/errors';
 import { getAwsSynchronizedTime } from '@utils/time';
-import { devTuiManager } from 'src/app/tui-manager/dev-tui';
+import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { buildAndUpdateFunctionCode } from 'src/commands/_utils/fn-deployment';
 import { getLogGroupInfoForStacktapeResource } from 'src/commands/_utils/logs';
 import { getExecutableScriptFunction } from 'src/commands/script-run/utils';

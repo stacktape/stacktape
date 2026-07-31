@@ -1,8 +1,8 @@
 import type { StacktapeCliArgs } from 'src/config/cli/types';
-import type { OutputMode } from '@application-services/tui-manager/output-mode';
+import type { OutputMode } from '@application-services/tui-manager/output/mode';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { setSpinnerAgentMode } from '@application-services/tui-manager/spinners';
+import { setSpinnerAgentMode } from '@application-services/tui-manager/spinner';
 
 /**
  * Check if agent mode is enabled via --agent flag.

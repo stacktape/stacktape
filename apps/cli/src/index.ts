@@ -5,7 +5,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { tuiDebug } from '@application-services/tui-manager/tui-debug-log';
+import { tuiDebug } from '@application-services/tui-manager/debug';
 import { commandsWithDisabledAnnouncements, getCanonicalCommand } from './config/cli/commands';
 import { notificationManager } from '@domain-services/notification-manager';
 import { initializeSentry, setSentryTags } from '@utils/sentry';

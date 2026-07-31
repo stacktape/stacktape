@@ -16,7 +16,7 @@ import { killPythonBridge } from '@utils/file-loaders';
 import { reportErrorToSentry } from '@utils/sentry';
 import { reportTelemetryEvent } from '@utils/telemetry';
 import { deleteTempFolder } from '@utils/temp-files';
-import { tuiDebug } from '@application-services/tui-manager/tui-debug-log';
+import { tuiDebug } from '@application-services/tui-manager/debug';
 import kill from 'tree-kill';
 
 export const normalizeCliError = (value: unknown): HandledError => {

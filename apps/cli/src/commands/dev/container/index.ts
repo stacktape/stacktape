@@ -9,7 +9,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { renderErrorToString } from '@application-services/tui-manager/error-rendering';
+import { renderErrorToString } from '@application-services/tui-manager/format/errors';
 
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';

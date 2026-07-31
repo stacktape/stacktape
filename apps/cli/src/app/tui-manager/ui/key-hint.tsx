@@ -1,5 +1,5 @@
 import { For } from 'solid-js';
-import { useTheme } from '../context/theme';
+import { useTheme } from './theme';
 
 export type Hint = { key: string; label: string };
 

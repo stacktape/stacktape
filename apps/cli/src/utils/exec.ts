@@ -2,7 +2,7 @@ import type { StdTransformer } from '@utils/streams';
 import type { CommonOptions } from 'execa';
 import { EventEmitter } from 'node:events';
 import execa from 'execa';
-import { jsonlEmitter } from '../../src/app/tui-manager/jsonl-emitter';
+import { jsonlEmitter } from '../app/tui-manager/output/jsonl';
 import { logCollectorStream } from '../../src/utils/log-collector';
 import { isDirAccessible } from './fs-utils';
 import { serialize } from './misc';

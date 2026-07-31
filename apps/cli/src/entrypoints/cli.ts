@@ -3,7 +3,7 @@ const main = async () => {
   configureNativeRuntimeForPlatform();
 
   const { getCliInput } = await import('@utils/cli');
-  const { resolveOutputMode } = await import('@application-services/tui-manager/output-mode');
+  const { resolveOutputMode } = await import('@application-services/tui-manager/output/mode');
   const { runCommand } = await import('../index');
 
   const { commands, options, additionalArgs } = getCliInput();
@@ -16,7 +16,7 @@ const main = async () => {
     !commands.length && !options.agent && outputMode === 'tty' && (process.stdin.isTTY || forceTty);
 
   if (shouldRunInteractiveLauncher) {
-    const { runInteractiveLauncher } = await import('@application-services/tui-manager/interactive-launcher');
+    const { runInteractiveLauncher } = await import('@application-services/tui-manager/launcher');
     const launcherResult = await runInteractiveLauncher();
     if (!launcherResult) {
       return;
@@ -24,7 +24,7 @@ const main = async () => {
     const mergedArgs = { ...options, ...launcherResult.args };
     // Echo the equivalent non-interactive command so it lands in shell history
     // and teaches the flag form.
-    const { formatCommandLine } = await import('@application-services/tui-manager/interactive-launcher/data');
+    const { formatCommandLine } = await import('@application-services/tui-manager/launcher/data');
     process.stdout.write(`\n→ ${formatCommandLine(launcherResult.command, mergedArgs)}\n\n`);
     return runCommand({
       args: mergedArgs,

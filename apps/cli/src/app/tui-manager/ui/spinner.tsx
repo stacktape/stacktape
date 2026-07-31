@@ -1,5 +1,5 @@
 import { createSignal, onCleanup } from 'solid-js';
-import { useTheme } from '../context/theme';
+import { useTheme } from './theme';
 
 const BRAILLE_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];
 
