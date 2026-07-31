@@ -30,7 +30,7 @@ import {
   createSpinner,
   createSpinnerProgressLogger,
   MultiSpinner,
-  setSpinnerGuidedMode,
+  setSpinnerAgentMode,
   setSpinnerTuiMessageSink
 } from './spinner';
 import type { TuiDeploymentHeader, TuiEventStatus, TuiLink, TuiMessageType, TuiSelectOption } from './types';
@@ -76,7 +76,6 @@ class TuiManager {
   private _isEnabled = false;
   private _wasEverStarted = false;
   private _devTuiActive = false;
-  private _guidedMode = false;
   private logLevel: LogLevel = 'info';
 
   constructor() {
@@ -104,10 +103,6 @@ class TuiManager {
     return this._devTuiActive;
   }
 
-  get guidedMode(): boolean {
-    return this._guidedMode;
-  }
-
   setOutputFormat(mode: OutputMode) {
     this.explicitOutputMode = mode;
     this.applyOutputMode();
@@ -126,14 +121,26 @@ class TuiManager {
     });
     this.outputRouter.reconfigure(this.outputMode);
     fmt.setTextStylingEnabled(this.isTTY);
+    // Non-TTY output gets line-based spinners instead of \r animation.
+    setSpinnerAgentMode(!this.isTTY);
     this.reconfigureConsoleForMode();
   }
 
-  start() {
+  /**
+   * Starts a progress session. With `phases` set, the phase bar and per-phase
+   * scrollback headers are shown using that preset; without it the session
+   * runs in simple mode (events stream without phase structure).
+   */
+  start(options: { phases?: PhasePreset } = {}) {
     this._isEnabled = true;
     this._wasEverStarted = true;
     this.teardownDone = false;
     this.stateSink.reset();
+    if (options.phases) {
+      tuiState.setPhasePreset(options.phases);
+    } else {
+      tuiState.setShowPhaseHeaders(false);
+    }
     scrollbackFeed.reset();
     this.finalScrollbackEmitted = false;
     this._pendingErrorData = undefined;
@@ -418,8 +425,6 @@ class TuiManager {
       console.info(`\n[i] ${title}\n`);
       return;
     }
-    this._guidedMode = true;
-    setSpinnerGuidedMode(true);
     process.stdout.write(`${title}\n\n`);
   }
 
@@ -431,8 +436,6 @@ class TuiManager {
     const checkmark = this.colorize('green', '√');
     const outroMessage = message ? `${checkmark} ${message}` : '';
     process.stdout.write(`${outroMessage}\n\n`);
-    this._guidedMode = false;
-    setSpinnerGuidedMode(false);
   }
 
   createSpinner({ text }: { text: string }) {
@@ -544,24 +547,9 @@ class TuiManager {
     console.info(`${symbols[type] || '[*]'} ${message}\n`);
   }
 
-  configureForDelete() {
-    tuiState.setPhasePreset('delete');
-  }
-
-  configureForCodebuildDeploy() {
-    tuiState.setPhasePreset('codebuild-deploy');
-  }
-
+  /** Switches the phase preset mid-session (codebuild/ec2 deploy runners). */
   setPhasePreset(preset: PhasePreset) {
     tuiState.setPhasePreset(preset);
-  }
-
-  setShowPhaseHeaders(show: boolean) {
-    tuiState.setShowPhaseHeaders(show);
-  }
-
-  setSimpleMode(enabled: boolean) {
-    tuiState.setShowPhaseHeaders(!enabled);
   }
 
   private setHeader(header: TuiDeploymentHeader) {
@@ -677,10 +665,6 @@ class TuiManager {
       lines: params.lines
     });
     this.stateSink.appendEventOutput(params);
-  }
-
-  setComplete(success: boolean, message: string, links: TuiLink[] = [], consoleUrl?: string) {
-    tuiState.setComplete(success, message, links, consoleUrl);
   }
 
   setPendingCompletion(params: { success: boolean; message: string; links: TuiLink[]; consoleUrl?: string }) {
@@ -919,343 +903,6 @@ class TuiManager {
 
   printBox({ title, lines }: { title: string; lines: string[] }) {
     this.writeInfoLines([...renderTitledBox({ title, lines }), '']);
-  }
-
-  printListStack(listStacksResult: any[]) {
-    const header = [
-      'Stack name',
-      'Stage',
-      'Status',
-      'Last updated',
-      'Created',
-      'Monthly spend',
-      'Deployed by Stacktape'
-    ];
-
-    const unspecifiedValue = this.colorize('gray', 'N/A');
-
-    const sortedStacks = [
-      ...listStacksResult
-        .filter(({ isStacktapeStack }) => isStacktapeStack)
-        .sort(({ stackName: name1 }, { stackName: name2 }) => name1.localeCompare(name2)),
-      ...listStacksResult
-        .filter(({ isStacktapeStack }) => !isStacktapeStack)
-        .sort(({ stackName: name1 }, { stackName: name2 }) => name1.localeCompare(name2))
-    ];
-
-    const rows = sortedStacks.map((stackInfo) => [
-      stackInfo.stackName,
-      stackInfo.stage ? this.colorize('cyan', stackInfo.stage) : unspecifiedValue,
-      stackInfo.stackStatus,
-      stackInfo.lastUpdateTime
-        ? this.colorize('blue', new Date(stackInfo.lastUpdateTime).toLocaleString())
-        : unspecifiedValue,
-      stackInfo.creationTime
-        ? this.colorize('blue', new Date(stackInfo.creationTime).toLocaleString())
-        : unspecifiedValue,
-      stackInfo.actualSpend ? this.colorize('cyan', stackInfo.actualSpend) : unspecifiedValue,
-      stackInfo.isStacktapeStack ? this.colorize('green', 'TRUE') : 'FALSE'
-    ]);
-
-    this.printTable({ header, rows });
-  }
-
-  printDevContainerReady({ ports, isWatchMode }: { ports: number[]; isWatchMode: boolean }) {
-    const contentLines: string[] = [];
-
-    if (ports.length > 0) {
-      contentLines.push('Ports:');
-      for (const port of ports) {
-        contentLines.push(`  ${this.colorize('cyan', `http://localhost:${port}`)}`);
-      }
-    }
-
-    const hint = isWatchMode
-      ? 'Watching for file changes'
-      : `Type '${this.makeBold('rs + enter')}' to rebuild and restart`;
-    contentLines.push(hint);
-
-    this.printBox({ title: `${this.colorize('green', '✓')} Container ready`, lines: contentLines });
-  }
-
-  printWhoami({
-    user,
-    organization,
-    connectedAwsAccounts,
-    projects,
-    role,
-    isProjectScoped,
-    permissions
-  }: {
-    user: { id: string; name?: string; email?: string; [key: string]: any };
-    organization: { id: string; name: string; [key: string]: any };
-    connectedAwsAccounts: Array<{
-      id: string;
-      name?: string;
-      awsAccountId?: string;
-      state?: string;
-      [key: string]: any;
-    }>;
-    projects: Array<{ id: string; name: string; [key: string]: any }>;
-    role?: string;
-    isProjectScoped?: boolean;
-    permissions?: string[];
-  }) {
-    const lines: string[] = [];
-
-    lines.push(this.makeBold('User'));
-    lines.push(`  Name: ${this.colorize('cyan', user.name || 'N/A')}`);
-    lines.push(`  Email: ${this.colorize('cyan', user.email || 'N/A')}`);
-    lines.push(`  ID: ${this.colorize('gray', user.id)}`);
-    if (role) {
-      lines.push(`  Role: ${this.colorize('yellow', role)}`);
-    }
-    if (isProjectScoped) {
-      lines.push(`  Scope: ${this.colorize('yellow', 'project-scoped (limited to assigned projects)')}`);
-    }
-    lines.push('');
-
-    lines.push(this.makeBold('Organization'));
-    lines.push(`  Name: ${this.colorize('cyan', organization.name)}`);
-    lines.push(`  ID: ${this.colorize('gray', organization.id)}`);
-    lines.push('');
-
-    lines.push(this.makeBold('Connected AWS Accounts'));
-    if (connectedAwsAccounts.length === 0) {
-      lines.push(`  ${this.colorize('gray', 'No connected accounts')}`);
-    } else {
-      for (const acc of connectedAwsAccounts) {
-        const stateColor = acc.state === 'ACTIVE' ? 'green' : 'yellow';
-        lines.push(
-          `  - ${this.colorize('cyan', acc.name || 'unnamed')} (${acc.awsAccountId || 'N/A'}) - ${this.colorize(stateColor, acc.state || 'UNKNOWN')}`
-        );
-      }
-    }
-    lines.push('');
-
-    lines.push(this.makeBold('Accessible Projects'));
-    if (projects.length === 0) {
-      lines.push(`  ${this.colorize('gray', 'No projects')}`);
-    } else {
-      for (const project of projects) {
-        lines.push(`  - ${this.colorize('cyan', project.name)}`);
-      }
-    }
-
-    if (permissions && permissions.length > 0) {
-      lines.push('');
-      lines.push(this.makeBold('Permissions'));
-      for (const perm of permissions) {
-        lines.push(`  - ${this.colorize('gray', perm)}`);
-      }
-    }
-
-    this.printLines(lines);
-  }
-
-  printProjects({
-    projects
-  }: {
-    projects: Array<{
-      id: string;
-      name: string;
-      stages: Array<{
-        stage: string;
-        status: string;
-        deploymentIsInProgress: boolean;
-        isErrored: boolean;
-        lastUpdateTime: number;
-        thisMonthCosts: { currencyCode: string; total: number };
-        previousMonthCosts: { currencyCode: string; total: number };
-      }>;
-      undeployedStages: Array<{ name?: string; [key: string]: any }>;
-    }>;
-  }) {
-    if (projects.length === 0) {
-      this.writeInfoLine(this.colorize('gray', 'No projects found.'));
-      return;
-    }
-
-    for (const project of projects) {
-      const lines: string[] = [this.makeBold(`Project: ${this.colorize('cyan', project.name)}`)];
-
-      if (project.stages.length === 0 && project.undeployedStages.length === 0) {
-        lines.push(`  ${this.colorize('gray', 'No stages')}`, '');
-        this.writeInfoLines(lines);
-        continue;
-      }
-
-      if (project.stages.length > 0) {
-        const header = ['Stage', 'Status', 'Last Updated', 'This Month', 'Prev Month'];
-        const rows = project.stages.map((s) => {
-          let statusDisplay = s.status;
-          if (s.deploymentIsInProgress) {
-            statusDisplay = this.colorize('yellow', 'IN_PROGRESS');
-          } else if (s.isErrored) {
-            statusDisplay = this.colorize('red', 'ERRORED');
-          } else if (s.status?.includes('COMPLETE')) {
-            statusDisplay = this.colorize('green', s.status);
-          }
-
-          const formatCost = (cost: { currencyCode: string; total: number }) =>
-            cost.total > 0 ? `${cost.total.toFixed(2)} ${cost.currencyCode}` : this.colorize('gray', '$0.00');
-
-          return [
-            this.colorize('cyan', s.stage),
-            statusDisplay,
-            s.lastUpdateTime ? new Date(s.lastUpdateTime).toLocaleString() : 'N/A',
-            formatCost(s.thisMonthCosts),
-            formatCost(s.previousMonthCosts)
-          ];
-        });
-        lines.push(...formatAsciiTable(header, rows));
-      }
-
-      if (project.undeployedStages.length > 0) {
-        lines.push(
-          `  ${this.colorize('gray', 'Undeployed stages:')} ${project.undeployedStages.map((s) => s.name).join(', ')}`
-        );
-      }
-
-      lines.push('');
-      this.writeInfoLines(lines);
-    }
-  }
-
-  printOperations({
-    operations
-  }: {
-    operations: Array<{
-      id: string;
-      command?: string | null;
-      projectName?: string | null;
-      stackName?: string | null;
-      stage?: string | null;
-      region?: string | null;
-      createdAt?: Date | string;
-      startTime?: Date | string | null;
-      endTime?: Date | string | null;
-      success?: boolean | null;
-      inProgress?: boolean | null;
-      description?: string | null;
-    }>;
-  }) {
-    if (operations.length === 0) {
-      this.writeInfoLine(this.colorize('gray', 'No operations found.'));
-      return;
-    }
-
-    const header = ['Command', 'Project', 'Stage', 'Region', 'Status', 'Time'];
-
-    const rows = operations.map((op) => {
-      let status: string;
-      if (op.inProgress) {
-        status = this.colorize('yellow', 'IN_PROGRESS');
-      } else if (op.success === true) {
-        status = this.colorize('green', 'SUCCESS');
-      } else if (op.success === false) {
-        status = this.colorize('red', 'FAILED');
-      } else {
-        status = this.colorize('gray', 'UNKNOWN');
-      }
-
-      const time = op.createdAt ? new Date(op.createdAt).toLocaleString() : 'N/A';
-
-      return [
-        op.command || 'N/A',
-        op.projectName || 'N/A',
-        op.stage ? this.colorize('cyan', op.stage) : 'N/A',
-        op.region || 'N/A',
-        status,
-        time
-      ];
-    });
-
-    const allLines = formatAsciiTable(header, rows);
-
-    const failedOps = operations.filter((op) => op.success === false && op.description);
-    if (failedOps.length > 0) {
-      allLines.push('', this.makeBold('Error Details:'));
-      for (const op of failedOps) {
-        allLines.push(`  ${this.colorize('red', `[${op.command}]`)} ${op.projectName}-${op.stage}:`);
-        const descLines = (op.description || '').split('\n').slice(0, 5);
-        for (const line of descLines) {
-          allLines.push(`    ${this.colorize('gray', line)}`);
-        }
-        if ((op.description || '').split('\n').length > 5) {
-          allLines.push(`    ${this.colorize('gray', '...(truncated)')}`);
-        }
-      }
-    }
-
-    this.writeInfoLines(allLines);
-  }
-
-  printStackDetails({
-    stackName,
-    region,
-    details
-  }: {
-    stackName: string;
-    region: string;
-    details: {
-      stackOutput?: { [key: string]: string };
-      stackInfoMap?: any;
-      resources?: any[];
-      description?: string | null;
-    };
-  }) {
-    const lines: string[] = [];
-
-    lines.push(this.makeBold(`Stack: ${this.colorize('cyan', stackName)}`));
-    lines.push(`Region: ${this.colorize('cyan', region)}`);
-    if (details.description) {
-      lines.push(`Description: ${details.description}`);
-    }
-    lines.push('');
-
-    if (details.stackOutput && Object.keys(details.stackOutput).length > 0) {
-      lines.push(this.makeBold('Stack Outputs:'));
-      for (const [key, value] of Object.entries(details.stackOutput)) {
-        if (key.startsWith('stp')) continue;
-        lines.push(`  ${this.colorize('cyan', key)}: ${value}`);
-      }
-      lines.push('');
-    }
-
-    if (details.stackInfoMap) {
-      lines.push(this.makeBold('Resources (from stackInfoMap):'));
-      const infoMap = details.stackInfoMap;
-      for (const [resourceName, resourceInfo] of Object.entries(infoMap)) {
-        if (typeof resourceInfo === 'object' && resourceInfo !== null) {
-          lines.push(`  ${this.colorize('cyan', resourceName)}:`);
-          const info = resourceInfo as Record<string, any>;
-          for (const [propName, propValue] of Object.entries(info)) {
-            if (typeof propValue === 'string' || typeof propValue === 'number') {
-              lines.push(`    ${propName}: ${propValue}`);
-            }
-          }
-        }
-      }
-      lines.push('');
-    }
-
-    if (details.resources && details.resources.length > 0) {
-      lines.push(this.makeBold('CloudFormation Resources:'));
-      const resourcesSummary = details.resources.slice(0, 20);
-      for (const res of resourcesSummary) {
-        const status = res.ResourceStatus || 'N/A';
-        const statusColor = status.includes('COMPLETE') ? 'green' : status.includes('FAILED') ? 'red' : 'yellow';
-        lines.push(
-          `  ${res.LogicalResourceId || 'N/A'} (${res.ResourceType || 'N/A'}) - ${this.colorize(statusColor, status)}`
-        );
-      }
-      if (details.resources.length > 20) {
-        lines.push(`  ${this.colorize('gray', `...and ${details.resources.length - 20} more resources`)}`);
-      }
-    }
-
-    this.printLines(lines);
   }
 }
 

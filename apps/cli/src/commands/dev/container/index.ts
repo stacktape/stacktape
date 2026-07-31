@@ -40,6 +40,24 @@ import type {
 } from '@stacktape/config/deployment-artifacts';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
 
+const printDevContainerReady = ({ ports, isWatchMode }: { ports: number[]; isWatchMode: boolean }) => {
+  const contentLines: string[] = [];
+
+  if (ports.length > 0) {
+    contentLines.push('Ports:');
+    for (const port of ports) {
+      contentLines.push(`  ${tuiManager.colorize('cyan', `http://localhost:${port}`)}`);
+    }
+  }
+
+  const hint = isWatchMode
+    ? 'Watching for file changes'
+    : `Type '${tuiManager.makeBold('rs + enter')}' to rebuild and restart`;
+  contentLines.push(hint);
+
+  tuiManager.printBox({ title: `${tuiManager.colorize('green', '✓')} Container ready`, lines: contentLines });
+};
+
 export const runDevContainer = async () => {
   const { resourceName, container, stage, region, disableEmulation, watch } = globalStateManager.args;
   const resource = configManager.allContainerWorkloads.find(
@@ -260,7 +278,7 @@ const runDockerContainer = async (
     onStart: () => {
       // Clear the restart flag once container has started
       containersBeingRestarted.delete(containerName);
-      tuiManager.printDevContainerReady({ ports, isWatchMode: !!watch });
+      printDevContainerReady({ ports, isWatchMode: !!watch });
     },
     args: globalStateManager.args
   }).catch((res) => {

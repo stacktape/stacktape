@@ -1,6 +1,76 @@
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { formatAsciiTable } from '@application-services/tui-manager/format/blocks';
+
+const printProjects = ({
+  projects
+}: {
+  projects: Array<{
+    id: string;
+    name: string;
+    stages: Array<{
+      stage: string;
+      status: string;
+      deploymentIsInProgress: boolean;
+      isErrored: boolean;
+      lastUpdateTime: number;
+      thisMonthCosts: { currencyCode: string; total: number };
+      previousMonthCosts: { currencyCode: string; total: number };
+    }>;
+    undeployedStages: Array<{ name?: string; [key: string]: any }>;
+  }>;
+}) => {
+  if (projects.length === 0) {
+    tuiManager.printLines([tuiManager.colorize('gray', 'No projects found.')]);
+    return;
+  }
+
+  for (const project of projects) {
+    const lines: string[] = [tuiManager.makeBold(`Project: ${tuiManager.colorize('cyan', project.name)}`)];
+
+    if (project.stages.length === 0 && project.undeployedStages.length === 0) {
+      lines.push(`  ${tuiManager.colorize('gray', 'No stages')}`, '');
+      tuiManager.printLines(lines);
+      continue;
+    }
+
+    if (project.stages.length > 0) {
+      const header = ['Stage', 'Status', 'Last Updated', 'This Month', 'Prev Month'];
+      const rows = project.stages.map((s) => {
+        let statusDisplay = s.status;
+        if (s.deploymentIsInProgress) {
+          statusDisplay = tuiManager.colorize('yellow', 'IN_PROGRESS');
+        } else if (s.isErrored) {
+          statusDisplay = tuiManager.colorize('red', 'ERRORED');
+        } else if (s.status?.includes('COMPLETE')) {
+          statusDisplay = tuiManager.colorize('green', s.status);
+        }
+
+        const formatCost = (cost: { currencyCode: string; total: number }) =>
+          cost.total > 0 ? `${cost.total.toFixed(2)} ${cost.currencyCode}` : tuiManager.colorize('gray', '$0.00');
+
+        return [
+          tuiManager.colorize('cyan', s.stage),
+          statusDisplay,
+          s.lastUpdateTime ? new Date(s.lastUpdateTime).toLocaleString() : 'N/A',
+          formatCost(s.thisMonthCosts),
+          formatCost(s.previousMonthCosts)
+        ];
+      });
+      lines.push(...formatAsciiTable(header, rows));
+    }
+
+    if (project.undeployedStages.length > 0) {
+      lines.push(
+        `  ${tuiManager.colorize('gray', 'Undeployed stages:')} ${project.undeployedStages.map((s) => s.name).join(', ')}`
+      );
+    }
+
+    lines.push('');
+    tuiManager.printLines(lines);
+  }
+};
 
 export const commandProjectList = async () => {
   await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
@@ -41,7 +111,7 @@ export const commandProjectList = async () => {
     tuiManager.printLines(['']);
   }
 
-  tuiManager.printProjects({ projects: sortedProjects });
+  printProjects({ projects: sortedProjects });
 
   return sortedProjects;
 };

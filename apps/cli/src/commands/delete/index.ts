@@ -13,8 +13,6 @@ import { potentiallyPromptBeforeOperation } from '../_utils/common';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 export const commandDelete = async () => {
-  // Set up TUI for delete operation BEFORE initialization (simplified phases: Initialize, Delete)
-  tuiManager.configureForDelete();
   tuiManager.showCommandHeader({
     action: 'DELETING',
     projectName: globalStateManager.args.projectName || 'project',

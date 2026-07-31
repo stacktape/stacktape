@@ -548,14 +548,10 @@ export const commandDev = async () => {
         region: globalStateManager.region
       });
       tuiManager.start();
-      tuiManager.setSimpleMode(true);
-      tuiManager.setShowPhaseHeaders(false);
       try {
         await deployDevStack();
       } finally {
         await tuiManager.stop();
-        tuiManager.setSimpleMode(false);
-        tuiManager.setShowPhaseHeaders(true);
         eventManager.setSilentMode(true);
       }
     }

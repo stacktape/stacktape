@@ -41,7 +41,7 @@ const ec2RunnerInstanceOptions = [
 ];
 
 export const deployWithEc2Runner = async () => {
-  tuiManager.configureForCodebuildDeploy();
+  tuiManager.setPhasePreset('codebuild-deploy');
   await initializeAllStackServices({
     commandRequiresDeployedStack: false,
     commandModifiesStack: true,

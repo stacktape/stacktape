@@ -25,8 +25,6 @@ export type Spinner = {
 
 let _devTuiActive = false;
 let _agentMode = false;
-let _guidedMode = false;
-
 type TuiSpinnerMessageSink = (type: 'success' | 'error', text: string) => void;
 
 // While the split-footer TUI owns the terminal, inline \r-animated spinners would
@@ -43,19 +41,9 @@ export const setSpinnerDevTuiActive = (active: boolean) => {
   _devTuiActive = active;
 };
 
-export const isSpinnerDevTuiActive = () => _devTuiActive;
-
 export const setSpinnerAgentMode = (active: boolean) => {
   _agentMode = active;
 };
-
-export const isSpinnerAgentMode = () => _agentMode;
-
-export const setSpinnerGuidedMode = (active: boolean) => {
-  _guidedMode = active;
-};
-
-export const isSpinnerGuidedMode = () => _guidedMode;
 
 const createTuiSinkSpinner = (text: string, sink: TuiSpinnerMessageSink): Spinner => {
   const startTime = Date.now();
