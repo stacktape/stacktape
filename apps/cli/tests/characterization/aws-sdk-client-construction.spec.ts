@@ -337,6 +337,25 @@ describe.serial('AWS SDK client construction', () => {
     expect(pluginApplications).toBe(1);
   });
 
+  test.serial('constructs Systems Manager session clients from the manager context', async () => {
+    const captured = captureSend<SSMClient>(SSMClient.prototype, {
+      SessionId: 'session-1',
+      StreamUrl: 'wss://ssmmessages.example/session-1',
+      TokenValue: 'session-token'
+    });
+    let pluginApplications = 0;
+    const plugin: Pluggable<any, any> = {
+      applyToStack: () => {
+        pluginApplications += 1;
+      }
+    };
+
+    await managerWith([plugin]).systemsManager.startSession({ Target: 'i-0123456789abcdef0' });
+
+    expect(await captured().config.region()).toBe('eu-west-1');
+    expect(pluginApplications).toBe(1);
+  });
+
   test.serial('applies explicit plugins to ordinary clients', async () => {
     const appliedStacks: unknown[] = [];
     const plugin: Pluggable<any, any> = {

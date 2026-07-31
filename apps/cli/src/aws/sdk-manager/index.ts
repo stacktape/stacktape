@@ -4,7 +4,6 @@ import type { Budget } from '@aws-sdk/client-budgets';
 import type { DistributionSummary } from '@aws-sdk/client-cloudfront';
 import type { _InstanceType, InstanceTypeInfo, RouteTable, Subnet, Vpc } from '@aws-sdk/client-ec2';
 import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
-import type { StartSessionCommandInput, StartSessionResponse } from '@aws-sdk/client-ssm';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { AutoScaling, DescribeAutoScalingGroupsCommand } from '@aws-sdk/client-auto-scaling';
 import { BudgetsClient, DescribeBudgetsCommand } from '@aws-sdk/client-budgets';
@@ -40,13 +39,7 @@ import { S3Client } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { SESClient } from '@aws-sdk/client-ses';
 import { SESv2Client } from '@aws-sdk/client-sesv2';
-import {
-  ListCommandInvocationsCommand,
-  SendCommandCommand,
-  SSMClient,
-  StartSessionCommand,
-  TerminateSessionCommand
-} from '@aws-sdk/client-ssm';
+import { SSMClient } from '@aws-sdk/client-ssm';
 import { STSClient } from '@aws-sdk/client-sts';
 // import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
 import { resourceURIs } from 'src/utils/aws-resource-uris';
@@ -73,6 +66,7 @@ import { AwsEcr } from '../ecr';
 import { AwsLambda } from '../lambda';
 import { AwsEcs } from '../ecs';
 import { AwsCodeBuild } from '../codebuild';
+import { AwsSystemsManager } from '../systems-manager';
 import { defaultGetErrorFunction } from './utils';
 
 export class AwsSdkManager {
@@ -90,6 +84,7 @@ export class AwsSdkManager {
   #lambda?: AwsLambda;
   #ecs?: AwsEcs;
   #codeBuild?: AwsCodeBuild;
+  #systemsManager?: AwsSystemsManager;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -177,6 +172,10 @@ export class AwsSdkManager {
       getErrorHandler: this.#getErrorHandler,
       printer,
       region
+    });
+    this.#systemsManager = new AwsSystemsManager({
+      createClient: () => this.#ssm(),
+      getErrorHandler: this.#getErrorHandler
     });
   }
 
@@ -298,6 +297,14 @@ export class AwsSdkManager {
       throw new Error('AWS CodeBuild has not been initialized.');
     }
     return this.#codeBuild;
+  }
+
+  get systemsManager() {
+    this.#getContext();
+    if (!this.#systemsManager) {
+      throw new Error('AWS Systems Manager has not been initialized.');
+    }
+    return this.#systemsManager;
   }
 
   #getContext() {
@@ -680,60 +687,6 @@ export class AwsSdkManager {
       .catch(errHandler);
 
     return result.Vpcs || [];
-  };
-
-  startSsmSession = async (startSessionInput: StartSessionCommandInput) => {
-    const errHandler = this.#getErrorHandler('Unable to start SSM session');
-    const { SessionId, StreamUrl, TokenValue } = await this.#ssm()
-      .send(new StartSessionCommand(startSessionInput))
-      .catch(errHandler);
-    return { SessionId, StreamUrl, TokenValue } as StartSessionResponse;
-  };
-
-  terminateSsmSession = async ({ sessionId }: { sessionId: string }) => {
-    const errHandler = this.#getErrorHandler('Unable to terminate SSM session');
-    await this.#ssm()
-      .send(new TerminateSessionCommand({ SessionId: sessionId }))
-      .catch(errHandler);
-  };
-
-  startSsmShellScript = async ({
-    instanceId,
-    commands,
-    cwd = '/'
-  }: {
-    instanceId: string;
-    commands: string[];
-    cwd?: string;
-  }) => {
-    const errHandler = this.#getErrorHandler(`Unable to start shell script on instance ${instanceId}`);
-    return this.#ssm()
-      .send(
-        new SendCommandCommand({
-          DocumentName: 'AWS-RunShellScript',
-          InstanceIds: [instanceId],
-          Parameters: { commands, workingDirectory: [cwd] },
-          CloudWatchOutputConfig: { CloudWatchOutputEnabled: true }
-        })
-      )
-      .catch(errHandler);
-  };
-
-  getSsmShellScriptExecution = async ({ instanceId, commandId }: { instanceId: string; commandId: string }) => {
-    const errHandler = this.#getErrorHandler(
-      `Error when fetching information about shell script execution on instance ${instanceId}`
-    );
-    const {
-      CommandInvocations: [commandInvocationInfo]
-    } = await this.#ssm()
-      .send(
-        new ListCommandInvocationsCommand({
-          CommandId: commandId,
-          InstanceId: instanceId
-        })
-      )
-      .catch(errHandler);
-    return commandInvocationInfo;
   };
 
   getAutoscalingGroupInfo = async ({ autoscalingGroupAwsName }: { autoscalingGroupAwsName: string }) => {

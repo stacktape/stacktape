@@ -93,32 +93,34 @@ export class SsmPortForwardingTunnel {
       };
       pRetry(
         async () => {
-          return awsSdkManager.startSsmSession(startSessionCommandInput).then(async (startSessionResponse) => {
-            this.#ssmSessionId = startSessionResponse.SessionId;
-            await ensureSessionManagerPluginExecutable();
-            this.#tunnelProcess = execa(fsPaths.sessionManagerPath(), [
-              JSON.stringify(startSessionResponse),
-              this.#region,
-              'StartSession',
-              '',
-              JSON.stringify(startSessionCommandInput)
-            ]);
+          return awsSdkManager.systemsManager
+            .startSession(startSessionCommandInput)
+            .then(async (startSessionResponse) => {
+              this.#ssmSessionId = startSessionResponse.SessionId;
+              await ensureSessionManagerPluginExecutable();
+              this.#tunnelProcess = execa(fsPaths.sessionManagerPath(), [
+                JSON.stringify(startSessionResponse),
+                this.#region,
+                'StartSession',
+                '',
+                JSON.stringify(startSessionCommandInput)
+              ]);
 
-            readline
-              .createInterface({
-                input: this.#tunnelProcess.stdout,
-                crlfDelay: Infinity
-              })
-              .on('line', (line) => {
-                if (line.includes('Waiting for connections')) {
-                  finishResolve();
-                }
+              readline
+                .createInterface({
+                  input: this.#tunnelProcess.stdout,
+                  crlfDelay: Infinity
+                })
+                .on('line', (line) => {
+                  if (line.includes('Waiting for connections')) {
+                    finishResolve();
+                  }
+                });
+
+              this.#tunnelProcess.catch((error) => {
+                finishReject(error);
               });
-
-            this.#tunnelProcess.catch((error) => {
-              finishReject(error);
             });
-          });
         },
         {
           retries: 5,
@@ -152,7 +154,7 @@ export class SsmPortForwardingTunnel {
       if (this.#tunnelProcess.exitCode === null) {
         this.#tunnelProcess.kill('SIGKILL');
       }
-      await awsSdkManager.terminateSsmSession({ sessionId: this.#ssmSessionId });
+      await awsSdkManager.systemsManager.terminateSession({ sessionId: this.#ssmSessionId });
     }
     return true;
   };
@@ -164,7 +166,7 @@ export const runBastionSsmShellSession = async ({ instanceId, region }: { instan
     Reason: `user ${globalStateManager.userData.id} session`
   };
 
-  const startSessionResponse = await awsSdkManager.startSsmSession(startSessionCommandInput);
+  const startSessionResponse = await awsSdkManager.systemsManager.startSession(startSessionCommandInput);
 
   try {
     await ensureSessionManagerPluginExecutable();
@@ -174,7 +176,7 @@ export const runBastionSsmShellSession = async ({ instanceId, region }: { instan
       { stdio: 'inherit' }
     );
   } finally {
-    await awsSdkManager.terminateSsmSession({ sessionId: startSessionResponse.SessionId });
+    await awsSdkManager.systemsManager.terminateSession({ sessionId: startSessionResponse.SessionId });
   }
   return startSessionResponse.SessionId;
 };
@@ -213,7 +215,7 @@ export const runEcsExecSsmShellSession = async ({
       { stdio: 'inherit' }
     );
   } finally {
-    await awsSdkManager.terminateSsmSession({ sessionId: startSessionResponse.SessionId });
+    await awsSdkManager.systemsManager.terminateSession({ sessionId: startSessionResponse.SessionId });
   }
   return startSessionResponse.SessionId;
 };
@@ -277,7 +279,7 @@ export const runEcsExecCommand = async ({
       exitCode: result.exitCode ?? 1
     };
   } finally {
-    await awsSdkManager.terminateSsmSession({ sessionId: startSessionResponse.SessionId });
+    await awsSdkManager.systemsManager.terminateSession({ sessionId: startSessionResponse.SessionId });
   }
 };
 
@@ -293,7 +295,7 @@ export const runSsmShellScript = async ({
   env: Record<string, any>;
 }) => {
   const setEnvVarsCommands = Object.entries(env).map(([name, value]) => `export ${name}="${value}"`);
-  const startShellScriptResponse = await awsSdkManager.startSsmShellScript({
+  const startShellScriptResponse = await awsSdkManager.systemsManager.startShellScript({
     instanceId,
     commands: [...setEnvVarsCommands, 'set -e', ...commands],
     cwd
@@ -301,7 +303,7 @@ export const runSsmShellScript = async ({
 
   await wait(2000);
 
-  let executionInfo = await awsSdkManager.getSsmShellScriptExecution({
+  let executionInfo = await awsSdkManager.systemsManager.getShellScriptExecution({
     instanceId,
     commandId: startShellScriptResponse.Command.CommandId
   });
@@ -327,7 +329,7 @@ export const runSsmShellScript = async ({
     }
     await logPrinter.printLogs();
     await wait(2000);
-    executionInfo = await awsSdkManager.getSsmShellScriptExecution({
+    executionInfo = await awsSdkManager.systemsManager.getShellScriptExecution({
       instanceId,
       commandId: startShellScriptResponse.Command.CommandId
     });

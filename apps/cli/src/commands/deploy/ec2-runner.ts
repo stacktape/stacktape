@@ -253,8 +253,8 @@ const monitorEc2RunnerDeployment = async ({ invocationId }: { invocationId: stri
       });
       await commandLogPrinter.printLogs();
 
-      const commandInvocation = await awsSdkManager
-        .getSsmShellScriptExecution({
+      const commandInvocation = await awsSdkManager.systemsManager
+        .getShellScriptExecution({
           instanceId: status.ec2InstanceId,
           commandId: status.ssmCommandId
         })
