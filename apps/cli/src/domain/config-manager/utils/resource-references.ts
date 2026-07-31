@@ -14,7 +14,7 @@ import {
   isResourceTypeExcludedInDevMode,
   isResourceTypeLocallyEmulatable
 } from '../../../commands/dev/dev-mode-utils';
-import { configManager } from '../index';
+import { configManager as runtimeConfigManager, type ConfigManager } from '../index';
 import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
 import { configErrors } from '../errors';
 
@@ -67,17 +67,19 @@ export const getNonExistingResourceError = ({
 };
 
 export const getPropsOfResourceReferencedInConfig = <T extends StpResourceType>({
+  activeConfig = runtimeConfigManager,
   stpResourceReference,
   stpResourceType,
   referencedFrom,
   referencedFromType
 }: {
+  activeConfig?: ConfigManager;
   stpResourceReference: string;
   stpResourceType?: T;
   referencedFrom: string;
   referencedFromType?: StpResourceType | 'alarm';
 }): ResourcePropsFromConfig<T> => {
-  const { resource, restPath, validPath, fullyResolved } = configManager.findResourceInConfig({
+  const { resource, restPath, validPath, fullyResolved } = activeConfig.findResourceInConfig({
     nameChain: stpResourceReference.split('.')
   });
   if (!fullyResolved || (stpResourceType && resource.type !== stpResourceType)) {
@@ -103,10 +105,10 @@ export const getConnectToReferencesForResource = ({
   const resourceReferenceableName = typeof nameChain === 'string' ? nameChain : nameChain.join('.');
   const result: { scopingResource: StpResource; scopingCfLogicalNameOfSecurityGroup?: string }[] = [];
   [
-    ...configManager.allLambdasToUpload,
-    ...configManager.allContainerWorkloads,
-    ...configManager.batchJobs,
-    ...configManager.agentCoreRuntimes
+    ...runtimeConfigManager.allLambdasToUpload,
+    ...runtimeConfigManager.allContainerWorkloads,
+    ...runtimeConfigManager.batchJobs,
+    ...runtimeConfigManager.agentCoreRuntimes
   ].forEach((scopingResource) => {
     const { name, connectTo, type } = scopingResource;
     if (connectTo) {

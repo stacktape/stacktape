@@ -6,7 +6,6 @@ import type { StpConvex } from '@domain-services/config-manager/resolved-types/c
  */
 
 import { isAbsolute, join } from 'node:path';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { dirExists, isFileAccessible } from '@utils/fs-utils';
 import { CliError } from '@utils/errors';
@@ -19,13 +18,20 @@ export const DEFAULT_CONVEX_BACKEND_IMAGE =
 export const DEFAULT_CONVEX_DASHBOARD_IMAGE =
   'ghcr.io/get-convex/convex-dashboard@sha256:26bd4a89b097c5dd89e78d194a6b79c5c1b8cb1d02801b9946a9eb7b716e18dd';
 
-export const getConvexSecretName = ({ nameChain }: { nameChain: string[] }) =>
-  `stp/${globalStateManager.region}/${globalStateManager.targetStack.stackName}/${nameChain.join('.')}`;
+export const getConvexSecretName = ({
+  nameChain,
+  region,
+  stackName
+}: {
+  nameChain: string[];
+  region: string;
+  stackName: string;
+}) => `stp/${region}/${stackName}/${nameChain.join('.')}`;
 
-export const validateConvexConfig = ({ resource }: { resource: StpConvex }) => {
+export const validateConvexConfig = ({ resource, workingDir }: { resource: StpConvex; workingDir: string }) => {
   const absoluteAppDirectory = isAbsolute(resource.appDirectory)
     ? resource.appDirectory
-    : join(globalStateManager.workingDir, resource.appDirectory);
+    : join(workingDir, resource.appDirectory);
 
   if (!dirExists(absoluteAppDirectory)) {
     throw new CliError({
@@ -70,7 +76,7 @@ export const validateConvexConfig = ({ resource }: { resource: StpConvex }) => {
   if (resource.functionsDeployment?.workingDirectory) {
     const absoluteWorkingDirectory = isAbsolute(resource.functionsDeployment.workingDirectory)
       ? resource.functionsDeployment.workingDirectory
-      : join(globalStateManager.workingDir, resource.functionsDeployment.workingDirectory);
+      : join(workingDir, resource.functionsDeployment.workingDirectory);
     if (!dirExists(absoluteWorkingDirectory)) {
       throw new CliError({
         category: 'CONFIG',

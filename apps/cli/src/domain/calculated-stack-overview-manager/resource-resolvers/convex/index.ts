@@ -9,6 +9,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { pascalCase } from 'change-case';
 import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
+import type { StackContext } from '@domain-services/stack-context';
 
 const getConvexRuntimeSecretLogicalName = (convexName: string) => `${pascalCase(convexName)}RuntimeSecret`;
 
@@ -26,7 +27,7 @@ const getConvexRuntimeSecretLogicalName = (convexName: string) => `${pascalCase(
  *      properly-formed connection string (no database-name path — convex rejects URLs
  *      that include one with "cluster url already contains db name").
  */
-export const resolveConvexes = async () => {
+export const resolveConvexes = async ({ context }: { context: StackContext }) => {
   const convexes = filterResourcesForDevMode(configManager.convexes);
 
   convexes.forEach((convex) => {
@@ -34,7 +35,11 @@ export const resolveConvexes = async () => {
     const lb = convex._nestedResources.loadBalancer;
     const backend = convex._nestedResources.backendContainerWorkload;
     const database = convex._nestedResources.database;
-    const convexSecretName = getConvexSecretName({ nameChain });
+    const convexSecretName = getConvexSecretName({
+      nameChain,
+      region: context.region,
+      stackName: context.stackName
+    });
     const runtimeSecretLogicalName = getConvexRuntimeSecretLogicalName(convex.name);
 
     const defaultDomain = domainManager.getDefaultDomainForResource({ stpResourceName: lb.name });

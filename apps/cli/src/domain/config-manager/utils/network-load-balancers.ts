@@ -3,7 +3,7 @@ import type {
   StpResolvedNetworkLoadBalancerReference
 } from '@domain-services/config-manager/resolved-types/network-load-balancer';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import { configManager } from '@domain-services/config-manager';
+import { configManager as runtimeConfigManager, type ConfigManager } from '@domain-services/config-manager';
 import { CliError } from '@utils/errors';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 import type { ContainerWorkloadNetworkLoadBalancerIntegrationProps } from '@stacktape/config/events';
@@ -25,12 +25,15 @@ const validateListenerPortOverlap = ({ loadBalancer }: { loadBalancer: StpNetwor
 };
 
 const validateNetworkLoadBalancerIntegrations = ({
+  activeConfig,
   loadBalancerDefinition
 }: {
+  activeConfig: ConfigManager;
   loadBalancerDefinition: StpNetworkLoadBalancer;
 }) => {
   loadBalancerDefinition.listeners.forEach(({ port }) => {
     const existingIntegrations = getAllIntegrationsForNetworkLoadBalancerListener({
+      activeConfig,
       stpLoadBalancerName: loadBalancerDefinition.name,
       listenerPort: port
     });
@@ -45,7 +48,13 @@ const validateNetworkLoadBalancerIntegrations = ({
   });
 };
 
-export const validateNetworkLoadBalancerConfig = ({ definition }: { definition: StpNetworkLoadBalancer }) => {
+export const validateNetworkLoadBalancerConfig = ({
+  activeConfig,
+  definition
+}: {
+  activeConfig: ConfigManager;
+  definition: StpNetworkLoadBalancer;
+}) => {
   if (
     definition.customDomains?.some(
       ({ disableDnsRecordCreation, customCertificateArn }) => disableDnsRecordCreation && !customCertificateArn
@@ -58,16 +67,18 @@ export const validateNetworkLoadBalancerConfig = ({ definition }: { definition: 
   }
 
   validateListenerPortOverlap({ loadBalancer: definition });
-  validateNetworkLoadBalancerIntegrations({ loadBalancerDefinition: definition });
+  validateNetworkLoadBalancerIntegrations({ activeConfig, loadBalancerDefinition: definition });
 };
 
 export const resolveReferenceToNetworkLoadBalancer = (
   lbReference: ContainerWorkloadNetworkLoadBalancerIntegrationProps,
   referencedFrom: string,
-  referencedFromType?: StpWorkloadType | 'alarm'
+  referencedFromType?: StpWorkloadType | 'alarm',
+  activeConfig: ConfigManager = runtimeConfigManager
   // resolveListenerInfo = true
 ): StpResolvedNetworkLoadBalancerReference => {
   const referencedLoadBalancer = getPropsOfResourceReferencedInConfig({
+    activeConfig,
     stpResourceReference: lbReference.loadBalancerName,
     stpResourceType: 'network-load-balancer',
     referencedFrom,
@@ -100,14 +111,16 @@ export const resolveReferenceToNetworkLoadBalancer = (
 };
 
 export const getAllIntegrationsForNetworkLoadBalancerListener = ({
+  activeConfig = runtimeConfigManager,
   stpLoadBalancerName,
   listenerPort
 }: {
+  activeConfig?: ConfigManager;
   stpLoadBalancerName: string;
   listenerPort: number;
 }): (ContainerWorkloadNetworkLoadBalancerIntegrationProps & { workloadName: string })[] => {
   const result: (ContainerWorkloadNetworkLoadBalancerIntegrationProps & { workloadName: string })[] = [];
-  configManager.allContainerWorkloads.forEach(({ containers, name }) =>
+  activeConfig.allContainerWorkloads.forEach(({ containers, name }) =>
     containers.forEach(({ events }) => {
       if (events) {
         events.forEach((event) => {
@@ -115,7 +128,8 @@ export const getAllIntegrationsForNetworkLoadBalancerListener = ({
             const eventListenerPort =
               (event.properties as ContainerWorkloadNetworkLoadBalancerIntegrationProps).listenerPort || 443;
             if (
-              resolveReferenceToNetworkLoadBalancer(event.properties, name).loadBalancer.name === stpLoadBalancerName &&
+              resolveReferenceToNetworkLoadBalancer(event.properties, name, undefined, activeConfig).loadBalancer
+                .name === stpLoadBalancerName &&
               eventListenerPort === listenerPort
             ) {
               result.push({ ...event.properties, listenerPort: eventListenerPort, workloadName: name });

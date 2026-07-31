@@ -1,11 +1,10 @@
 import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-types/nextjs-web';
 import { join } from 'node:path';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { dirExists, isFileAccessible } from '@utils/fs-utils';
 import { configErrors } from '../errors';
 
-export const validateNextjsWebConfig = ({ resource }: { resource: StpNextjsWeb }) => {
-  const absoluteAppDirectory = join(globalStateManager.workingDir, resource.appDirectory);
+export const validateNextjsWebConfig = ({ resource, workingDir }: { resource: StpNextjsWeb; workingDir: string }) => {
+  const absoluteAppDirectory = join(workingDir, resource.appDirectory);
   if (!dirExists(absoluteAppDirectory)) {
     throw configErrors.appDirectoryMissing({
       directoryPath: resource.appDirectory,

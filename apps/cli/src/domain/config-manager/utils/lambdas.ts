@@ -2,7 +2,7 @@ import type { HelperLambdaName } from '@config';
 import type { HelperLambdaPackaging } from '@domain-services/packaging-manager/types';
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import { globalStateManager } from '@application-services/global-state-manager';
+import type { StackContext } from '@domain-services/stack-context';
 import { GetAtt, Ref, Sub } from '@cloudform/functions';
 import { IS_DEV } from '../../../config/random';
 import { STACKTAPE_TRPC_API_ENDPOINT } from '../../../config/params';
@@ -18,11 +18,10 @@ import {
 } from '@stacktape/naming/ssm-parameter-paths';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { getContainingFolderName, getFileExtension, getFileNameWithoutExtension } from '@utils/fs-utils';
-import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { getDefaultRuntimeForExtension } from '@domain-services/config-manager/runtime-selection';
 import { SubWithoutMapping } from '@utils/cloudformation';
 import { kebabCase } from 'change-case';
-import { configManager } from '../index';
+import type { ConfigManager } from '../index';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 import type { LambdaRuntime } from '@stacktape/config/primitives';
@@ -65,11 +64,15 @@ export const getBatchJobTriggerLambdaAccessControl = ({ batchJobName }: { batchJ
 export const getStacktapeServiceLambdaEnvironment = ({
   projectName,
   stackName,
-  globallyUniqueStackHash
+  globallyUniqueStackHash,
+  issueEventSamplingRate,
+  stage
 }: {
   stackName: string;
   projectName: string;
   globallyUniqueStackHash: string;
+  issueEventSamplingRate: number;
+  stage: string;
 }) => {
   return [
     {
@@ -90,7 +93,7 @@ export const getStacktapeServiceLambdaEnvironment = ({
     },
     {
       name: 'STAGE',
-      value: globalStateManager.targetStack.stage
+      value: stage
     },
     {
       name: 'GLOBALLY_UNIQUE_STACK_HASH',
@@ -106,7 +109,7 @@ export const getStacktapeServiceLambdaEnvironment = ({
     },
     {
       name: 'ISSUE_EVENT_SAMPLE_RATE_PERCENT',
-      value: String(configManager.issueDetectionPolicy.eventSamplingRate)
+      value: String(issueEventSamplingRate)
     },
     {
       name: 'ISSUE_MAX_ERRORS_PER_INVOCATION',
@@ -124,18 +127,16 @@ export const getStacktapeServiceLambdaEnvironment = ({
   ];
 };
 
-export const getStacktapeServiceLambdaCustomResourceInducedStatements = (): StpIamRoleStatement[] => {
+export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
+  activeConfig,
+  stackContext
+}: {
+  activeConfig: ConfigManager;
+  stackContext: StackContext;
+}): StpIamRoleStatement[] => {
   const serviceLambdaName: HelperLambdaName = 'stacktapeServiceLambda';
-  const { allAuroraDatabases, allDatabasesWithInstancies, allResourcesRequiringVpc, deploymentScripts } = configManager;
-  const { stackName } = globalStateManager.targetStack;
-  const globallyUniqueStackHash = getGloballyUniqueStackHash({
-    region: globalStateManager.region,
-    accountId: globalStateManager.targetAwsAccount.awsAccountId,
-    stackName
-  });
-  const {
-    targetAwsAccount: { awsAccountId: accountId }
-  } = globalStateManager;
+  const { allAuroraDatabases, allDatabasesWithInstancies, allResourcesRequiringVpc, deploymentScripts } = activeConfig;
+  const { accountId, globallyUniqueStackHash, region, stackName } = stackContext;
   const waf = [
     {
       Resource: ['*'],
@@ -324,7 +325,7 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = (): StpI
         SubWithoutMapping(
           `arn:\${AWS::Partition}:ssm:\${AWS::Region}:\${AWS::AccountId}:parameter${getSsmParameterStoreStackPrefix({
             stackName,
-            region: globalStateManager.region
+            region
           })}/*`
         ) as unknown as string
       ],
@@ -352,7 +353,7 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = (): StpI
                 arns.lambdaFromFullName({
                   accountId,
                   lambdaAwsName: resourceName,
-                  region: globalStateManager.region
+                  region
                 }) as unknown as string
             ),
             Action: ['lambda:InvokeFunction'],
@@ -419,7 +420,7 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = (): StpI
         arns.lambdaFromFullName({
           accountId,
           lambdaAwsName: awsResourceNames.stpServiceLambda(stackName),
-          region: globalStateManager.region
+          region
         })
       ],
       Action: ['lambda:InvokeFunction']
@@ -466,12 +467,16 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = (): StpI
   ];
 };
 
-export const getStacktapeServiceLambdaAlarmNotificationInducedStatements = (): StpIamRoleStatement[] => {
+export const getStacktapeServiceLambdaAlarmNotificationInducedStatements = ({
+  activeConfig
+}: {
+  activeConfig: ConfigManager;
+}): StpIamRoleStatement[] => {
   const {
     allSecretNamesUsedInAlarmNotifications,
     allParameterNamesUsedInAlarmNotifications,
     categorizedEmailsUsedInAlertNotifications: { senders }
-  } = configManager;
+  } = activeConfig;
   const allEmailSenders = Array.from(senders);
   return [
     allParameterNamesUsedInAlarmNotifications.length && {
@@ -508,10 +513,14 @@ export const getStacktapeServiceLambdaAlarmNotificationInducedStatements = (): S
   ].filter(Boolean);
 };
 
-export const getStacktapeServiceLambdaEcsRedeployInducedStatements = (): StpIamRoleStatement[] => {
-  const { allContainerWorkloads } = configManager;
-
-  const { stackName } = globalStateManager.targetStack;
+export const getStacktapeServiceLambdaEcsRedeployInducedStatements = ({
+  activeConfig,
+  stackName
+}: {
+  activeConfig: ConfigManager;
+  stackName: string;
+}): StpIamRoleStatement[] => {
+  const { allContainerWorkloads } = activeConfig;
   const allBlueGreenWorkloads = allContainerWorkloads.filter(({ deployment }) => deployment);
   return allContainerWorkloads.length
     ? [
@@ -587,8 +596,12 @@ export const getStacktapeServiceLambdaCustomTaggingInducedStatement = (): StpIam
   ];
 };
 
-export const getStacktapeServiceLambdaIssueDetectionStatements = (): StpIamRoleStatement[] => {
-  if (!configManager.isIssueDetectionEnabled) return [];
+export const getStacktapeServiceLambdaIssueDetectionStatements = ({
+  issueDetectionEnabled
+}: {
+  issueDetectionEnabled: boolean;
+}): StpIamRoleStatement[] => {
+  if (!issueDetectionEnabled) return [];
   return [{ Resource: ['*'], Action: ['logs:GetLogEvents', 'logs:FilterLogEvents'] }];
 };
 

@@ -180,12 +180,9 @@ describe('authored-to-runtime normalization', () => {
 
     expect(workload.scaling.minInstances).toBe(0);
     expect(workload.scaling.maxInstances).toBe(1);
-    configManager.config = manager.config;
-    try {
-      expect(() => validateMultiContainerWorkloadConfig({ definition: workload })).toThrow('must both be at least 1');
-    } finally {
-      configManager.config = originalSingletonConfig;
-    }
+    expect(() => validateMultiContainerWorkloadConfig({ activeConfig: manager, definition: workload })).toThrow(
+      'must both be at least 1'
+    );
   });
 
   test('still fills an explicitly undefined nested property', () => {
@@ -622,6 +619,7 @@ describe('reporting a property-less aws-cdk-construct', () => {
     // users looking for a CLI flag that does not exist.
     const validate = () =>
       validateAwsCdkConstructProps({
+        workingDir: process.cwd(),
         construct: {
           name: 'construct',
           type: 'aws-cdk-construct',
@@ -636,6 +634,23 @@ describe('reporting a property-less aws-cdk-construct', () => {
     } catch (error) {
       expect((error as Error).message).not.toContain('--entryfilePath');
     }
+  });
+});
+
+describe('guardrail invocation isolation', () => {
+  test('evaluates each manager against the stack context captured for that invocation', () => {
+    const firstManager = managerFor({});
+    firstManager.setStackContext({ ...normalizationStackContext, invocationId: 'first', stage: 'development' });
+    firstManager.globalConfigGuardrails = [
+      { type: 'stage-restriction', properties: { allowedStages: ['production'] } }
+    ];
+
+    const secondManager = managerFor({});
+    secondManager.setStackContext({ ...normalizationStackContext, invocationId: 'second', stage: 'production' });
+    secondManager.globalConfigGuardrails = firstManager.globalConfigGuardrails;
+
+    expect(() => firstManager.validateGuardrails({ hasConfig: false })).toThrow('Stage `development` is not allowed');
+    expect(() => secondManager.validateGuardrails({ hasConfig: false })).not.toThrow();
   });
 });
 

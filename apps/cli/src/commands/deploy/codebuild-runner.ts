@@ -11,7 +11,6 @@ import { budgetManager } from '@domain-services/budget-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
-import { validateGuardrails } from '@domain-services/config-manager/utils/validation';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { stpErrors } from '@errors';
@@ -49,7 +48,7 @@ export const deployWithCodebuildRunner = async () => {
       requiresSubscription: true
     });
 
-    validateGuardrails({ guardrails: configManager.guardrails, hasConfig: true });
+    configManager.validateGuardrails({ hasConfig: true });
 
     await ensureMissingSecretsCreated();
     await ensureMissingSsmParamsCreated();

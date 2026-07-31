@@ -80,7 +80,7 @@ import {
   getStacktapeServiceLambdaIssueDetectionStatements
 } from './utils/lambdas';
 import { mergeStacktapeDefaults } from './utils/misc';
-import { runInitialValidations, validateConfigStructure } from './utils/validation';
+import { runInitialValidations, validateConfigStructure, validateGuardrails } from './utils/validation';
 import { isDevCommand, isResourceTypeExcludedInDevMode } from '../../commands/dev/dev-mode-utils';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { ApplicationLoadBalancerAlarm, HttpApiGatewayAlarm } from '@stacktape/config/alarms';
@@ -242,7 +242,7 @@ export class ConfigManager {
       this.config = this.configResolver.resolvedConfig;
       this.rawConfig = this.configResolver.rawConfig;
       await validateConfigStructure({ config: this.config, configPath, templateId });
-      runInitialValidations();
+      runInitialValidations({ configManager: this, stackContext: this.stackContext });
     }
 
     await eventManager.finishEvent({
@@ -267,6 +267,14 @@ export class ConfigManager {
     this.#helperLambdaDetails = undefined;
     this.#issueDetection = {};
   };
+
+  validateGuardrails = ({ hasConfig }: { hasConfig: boolean }) =>
+    validateGuardrails({
+      configManager: this,
+      guardrails: this.guardrails,
+      hasConfig,
+      stackContext: this.stackContext
+    });
 
   loadGlobalConfig = async () => {
     const globalConfig = await stacktapeTrpcApiManager.apiClient.globalConfig();
@@ -588,7 +596,11 @@ export class ConfigManager {
       const snapshotImportsBucketChild = child('snapshotImportsBucket');
       const snapshotImportsBucketRef = childRef('snapshotImportsBucket');
       const databaseRef = childRef('database');
-      const convexSecretName = getConvexSecretName({ nameChain });
+      const convexSecretName = getConvexSecretName({
+        nameChain,
+        region: this.stackContext.region,
+        stackName: this.stackContext.stackName
+      });
 
       const mkBucket = (c: { nameChain: string[]; name: string }): StpBucket => ({
         type: 'bucket',
@@ -3536,7 +3548,11 @@ export class ConfigManager {
     // auto-create those secrets.
     processAllNodesSync(this.convexes, visit);
     for (const convex of this.convexes) {
-      const secretName = getConvexSecretName({ nameChain: convex.nameChain });
+      const secretName = getConvexSecretName({
+        nameChain: convex.nameChain,
+        region: this.stackContext.region,
+        stackName: this.stackContext.stackName
+      });
       if (!secretRefs.has(secretName)) {
         secretRefs.set(secretName, new Set());
       }
@@ -3574,7 +3590,13 @@ export class ConfigManager {
       if (dbName) names.add(dbName);
       // INSTANCE_SECRET is referenced from the backend container env, which is keyed
       // by the same secret name. Adding it explicitly is harmless (Set dedups).
-      names.add(getConvexSecretName({ nameChain: convex.nameChain }));
+      names.add(
+        getConvexSecretName({
+          nameChain: convex.nameChain,
+          region: this.stackContext.region,
+          stackName: this.stackContext.stackName
+        })
+      );
     }
     return names;
   }
@@ -3758,14 +3780,24 @@ export class ConfigManager {
       environment: getStacktapeServiceLambdaEnvironment({
         projectName: this.stackContext.projectName,
         globallyUniqueStackHash: this.globallyUniqueStackHash,
-        stackName: this.stackContext.stackName
+        stackName: this.stackContext.stackName,
+        stage: this.stackContext.stage,
+        issueEventSamplingRate: this.issueDetectionPolicy.eventSamplingRate
       }),
       iamRoleStatements: [
-        ...getStacktapeServiceLambdaCustomResourceInducedStatements(),
-        ...getStacktapeServiceLambdaAlarmNotificationInducedStatements(),
-        ...getStacktapeServiceLambdaEcsRedeployInducedStatements(),
+        ...getStacktapeServiceLambdaCustomResourceInducedStatements({
+          activeConfig: this,
+          stackContext: this.stackContext
+        }),
+        ...getStacktapeServiceLambdaAlarmNotificationInducedStatements({ activeConfig: this }),
+        ...getStacktapeServiceLambdaEcsRedeployInducedStatements({
+          activeConfig: this,
+          stackName: this.stackContext.stackName
+        }),
         ...getStacktapeServiceLambdaCustomTaggingInducedStatement(),
-        ...getStacktapeServiceLambdaIssueDetectionStatements()
+        ...getStacktapeServiceLambdaIssueDetectionStatements({
+          issueDetectionEnabled: this.isIssueDetectionEnabled
+        })
       ]
     };
   }

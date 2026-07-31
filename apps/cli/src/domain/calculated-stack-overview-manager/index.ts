@@ -165,7 +165,7 @@ export class CalculatedStackOverviewManager {
       resolveTanStackWebs(),
       resolveRemixWebs(),
       resolveEfsFilesystems(),
-      resolveConvexes(),
+      resolveConvexes({ context: this.context }),
       resolveDevAgentRole(),
       resolveDebugAgentRole(),
       resolveDevContainerWorkloadRoles()

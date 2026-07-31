@@ -11,8 +11,8 @@ import type { StpRelationalDatabase } from '@domain-services/config-manager/reso
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import type { StpWebService } from '@domain-services/config-manager/resolved-types/web-services';
+import type { StackContext } from '@domain-services/stack-context';
 import { join } from 'node:path';
-import { globalStateManager } from '@application-services/global-state-manager';
 import {
   lambdaRuntimesForFileExtension,
   linksMap,
@@ -23,9 +23,8 @@ import { isDirAccessible, isFileAccessible } from '@utils/fs-utils';
 import { capitalizeFirstLetter, getUniqueDuplicates, isAlphanumeric } from '@utils/misc';
 import { CliError } from '@utils/errors';
 import { parseUserCodeFilepath } from '@utils/file-loaders';
-import { configManager } from '../index';
+import type { ConfigManager } from '../index';
 import { validateApplicationLoadBalancerConfig } from './application-load-balancers';
-import { resolveReferenceToBastion } from './bastion';
 import { validateHostingBucketConfig } from './buckets';
 import { validateConvexConfig } from './convex';
 import { validateHttpApiGatewayConfig } from './http-api-gateways';
@@ -56,13 +55,15 @@ export const validatePackagingProps = ({
   workloadName,
   containerName,
   lambdaRuntime,
-  workloadType
+  workloadType,
+  workingDir
 }: {
   packaging: AllSupportedPackagingConfig;
   workloadName: string;
   containerName?: string;
   lambdaRuntime?: LambdaRuntime;
   workloadType: StpWorkloadType;
+  workingDir: string;
 }) => {
   const workloadDescription = `${capitalizeFirstLetter(workloadType)} \`${workloadName}\`${
     containerName && workloadType === 'multi-container-workload' ? ` (container \`${containerName}\`)` : ''
@@ -74,7 +75,7 @@ export const validatePackagingProps = ({
     const { extension, filePath, handler, hasExplicitHandler } = parseUserCodeFilepath({
       codeType: `${workloadDescription} entryfilePath`,
       fullPath: entryfilePath,
-      workingDir: globalStateManager.workingDir
+      workingDir
     });
     if (!supportedWorkloadExtensions.includes(extension as SupportedFileExt)) {
       const issue: string = {
@@ -137,8 +138,8 @@ export const validatePackagingProps = ({
   } else if (packaging.type === 'custom-dockerfile') {
     const { dockerfilePath, buildContextPath } = packaging.properties;
     const fullLocation = buildContextPath
-      ? join(globalStateManager.workingDir, buildContextPath, dockerfilePath || 'Dockerfile')
-      : join(globalStateManager.workingDir, dockerfilePath || 'Dockerfile');
+      ? join(workingDir, buildContextPath, dockerfilePath || 'Dockerfile')
+      : join(workingDir, dockerfilePath || 'Dockerfile');
     if (!isFileAccessible(fullLocation)) {
       throw new CliError({
         category: 'PACKAGING_CONFIG',
@@ -149,7 +150,7 @@ export const validatePackagingProps = ({
     }
   } else if (packaging.type === 'custom-artifact') {
     const { packagePath } = packaging.properties;
-    const fullLocation = join(globalStateManager.workingDir, packagePath);
+    const fullLocation = join(workingDir, packagePath);
     if (!isFileAccessible(fullLocation) && !isDirAccessible(fullLocation)) {
       throw new CliError({
         category: 'PACKAGING_CONFIG',
@@ -160,7 +161,7 @@ export const validatePackagingProps = ({
     }
   } else if (packaging.type === 'external-buildpack') {
     const { sourceDirectoryPath } = packaging.properties;
-    const fullLocation = join(globalStateManager.workingDir, sourceDirectoryPath);
+    const fullLocation = join(workingDir, sourceDirectoryPath);
     if (!isFileAccessible(fullLocation) && !isDirAccessible(fullLocation)) {
       throw new CliError({
         category: 'PACKAGING_CONFIG',
@@ -203,7 +204,13 @@ const validateStacktapeBuildpackPythonPackagingProps = ({
   }
 };
 
-export const validateAwsCdkConstructProps = ({ construct }: { construct: StpAwsCdkConstruct }) => {
+export const validateAwsCdkConstructProps = ({
+  construct,
+  workingDir
+}: {
+  construct: StpAwsCdkConstruct;
+  workingDir: string;
+}) => {
   const constructDescription = `${capitalizeFirstLetter('aws-cdk-construct')} \`${construct.name}\``;
   const cwdHint =
     'Paths are resolved relative to `--currentWorkingDirectory` or the directory containing the Stacktape config.';
@@ -220,7 +227,7 @@ export const validateAwsCdkConstructProps = ({ construct }: { construct: StpAwsC
   const { extension, filePath } = parseUserCodeFilepath({
     codeType: `${constructDescription} entryfilePath`,
     fullPath: entryfilePath,
-    workingDir: globalStateManager.workingDir
+    workingDir
   });
   if (!supportedAwsCdkConstructExtensions.includes(extension as SupportedFileExt)) {
     throw new CliError({
@@ -259,7 +266,7 @@ export const validateConfigStructure = async ({
   }
 };
 
-export const validateResourceNameUniqueness = () => {
+export const validateResourceNameUniqueness = ({ configManager }: { configManager: ConfigManager }) => {
   const resourceNames = configManager.allConfigResources.map(({ name }) => name);
   const duplicates = getUniqueDuplicates(resourceNames);
   if (duplicates.length) {
@@ -271,7 +278,7 @@ export const validateResourceNameUniqueness = () => {
   }
 };
 
-export const validateResourceNames = () => {
+export const validateResourceNames = ({ configManager }: { configManager: ConfigManager }) => {
   configManager.allConfigResources.forEach(({ name }) => {
     if (!isAlphanumeric(name)) {
       throw new CliError({
@@ -292,39 +299,43 @@ const guardrailViolation = (code: string, message: string) =>
 
 export const validateGuardrails = ({
   guardrails,
-  hasConfig
+  hasConfig,
+  configManager,
+  stackContext
 }: {
   guardrails: GuardrailDefinition[];
   hasConfig: boolean;
+  configManager: ConfigManager;
+  stackContext: StackContext;
 }) => {
   for (const guardrail of guardrails || []) {
     switch (guardrail.type) {
       case 'stage-restriction': {
         const { allowedStages } = guardrail.properties;
-        if (allowedStages?.length && !allowedStages.includes(globalStateManager.targetStack.stage)) {
+        if (allowedStages?.length && !allowedStages.includes(stackContext.stage)) {
           throw guardrailViolation(
             'GUARDRAIL_STAGE_RESTRICTED',
-            `Stage \`${globalStateManager.targetStack.stage}\` is not allowed. Allowed stages: ${allowedStages.map((stage) => `\`${stage}\``).join(', ')}.`
+            `Stage \`${stackContext.stage}\` is not allowed. Allowed stages: ${allowedStages.map((stage) => `\`${stage}\``).join(', ')}.`
           );
         }
         break;
       }
       case 'region-restriction': {
         const { allowedRegions } = guardrail.properties;
-        if (allowedRegions?.length && !allowedRegions.includes(globalStateManager.region)) {
+        if (allowedRegions?.length && !allowedRegions.includes(stackContext.region)) {
           throw guardrailViolation(
             'GUARDRAIL_REGION_RESTRICTED',
-            `Region \`${globalStateManager.region}\` is not allowed. Allowed regions: ${allowedRegions.map((region) => `\`${region}\``).join(', ')}.`
+            `Region \`${stackContext.region}\` is not allowed. Allowed regions: ${allowedRegions.map((region) => `\`${region}\``).join(', ')}.`
           );
         }
         break;
       }
       case 'command-restriction': {
         const { blockedCommands } = guardrail.properties;
-        if (blockedCommands?.length && blockedCommands.includes(globalStateManager.command)) {
+        if (blockedCommands?.length && blockedCommands.includes(stackContext.command)) {
           throw guardrailViolation(
             'GUARDRAIL_COMMAND_BLOCKED',
-            `Command \`${globalStateManager.command}\` is blocked. Blocked commands: ${blockedCommands.map((command) => `\`${command}\``).join(', ')}.`
+            `Command \`${stackContext.command}\` is blocked. Blocked commands: ${blockedCommands.map((command) => `\`${command}\``).join(', ')}.`
           );
         }
         break;
@@ -544,7 +555,7 @@ const getDbInstanceSizes = (engine: StpRelationalDatabase['engine']): string[] =
   return sizes;
 };
 
-const validateBastionReferences = () => {
+const validateBastionReferences = ({ configManager }: { configManager: ConfigManager }) => {
   [
     ...Object.values(configManager.scripts)
     // ...(Object.values(configManager.hooks) as InlineScriptLifecycleHook[][]).flat()
@@ -552,14 +563,27 @@ const validateBastionReferences = () => {
     .filter(({ type }) => type === 'bastion-script' || type === 'local-script-with-bastion-tunneling')
     .forEach(({ type, properties: { bastionResource } }: BastionScript | LocalScriptWithBastionTunneling) => {
       if (bastionResource) {
-        resolveReferenceToBastion({ referencedFrom: type, stpResourceReference: bastionResource });
+        const { resource, restPath, validPath, fullyResolved } = configManager.findResourceInConfig({
+          nameChain: bastionResource.split('.')
+        });
+        if (!fullyResolved || resource.type !== 'bastion') {
+          throw configErrors.unresolvedResourceReference({
+            stpResourceName: bastionResource,
+            stpResourceType: 'bastion',
+            referencedFrom: type,
+            validResourcePath: validPath,
+            invalidRestResourcePath: restPath,
+            possibleNestedResources: Object.keys(resource?._nestedResources || {}),
+            incorrectResourceType: resource?.type !== 'bastion'
+          });
+        }
       } else if (!configManager.bastions.length) {
         throw configErrors.bastionScriptRequiresBastion({ scriptType: type });
       }
     });
 };
 
-export const validateReuseVpcConfig = () => {
+export const validateReuseVpcConfig = ({ configManager }: { configManager: ConfigManager }) => {
   const reuseVpc = configManager.config?.stackConfig?.vpc?.reuseVpc;
 
   if (!reuseVpc) {
@@ -583,22 +607,30 @@ export const validateReuseVpcConfig = () => {
 // these are only static validations that can be ran after the initial resolving of the config
 // however there are some validations that can only be performed after domain services are initialized
 // for example validating domain usability etc - those validation are mostly executed as a part of resource resolvers
-export const runInitialValidations = () => {
-  validateResourceNameUniqueness();
-  validateResourceNames();
-  validateReuseVpcConfig();
+export const runInitialValidations = ({
+  configManager,
+  stackContext
+}: {
+  configManager: ConfigManager;
+  stackContext: StackContext;
+}) => {
+  validateResourceNameUniqueness({ configManager });
+  validateResourceNames({ configManager });
+  validateReuseVpcConfig({ configManager });
   // validateProviders();
-  validateBastionReferences();
+  validateBastionReferences({ configManager });
   // packaging props
   configManager.allContainerWorkloadContainers.forEach((props) =>
     validatePackagingProps({
       ...props,
-      containerName: props.name
+      containerName: props.name,
+      workingDir: stackContext.workingDir
     })
   );
   configManager.allBatchJobContainers.forEach((props) =>
     validatePackagingProps({
-      ...props
+      ...props,
+      workingDir: stackContext.workingDir
     })
   );
   configManager.allUserCodeLambdas.forEach((props) =>
@@ -606,29 +638,30 @@ export const runInitialValidations = () => {
       ...props,
       workloadType: props.type,
       workloadName: props.name,
-      lambdaRuntime: props.runtime
+      lambdaRuntime: props.runtime,
+      workingDir: stackContext.workingDir
     })
   );
   configManager.awsCdkConstructs.forEach((construct) => {
-    validateAwsCdkConstructProps({ construct });
+    validateAwsCdkConstructProps({ construct, workingDir: stackContext.workingDir });
   });
   configManager.convexes.forEach((resource) => {
-    validateConvexConfig({ resource });
+    validateConvexConfig({ resource, workingDir: stackContext.workingDir });
   });
   // http-api-gateway
   configManager.allHttpApiGateways.forEach((resource) => {
-    validateHttpApiGatewayConfig({ resource });
+    validateHttpApiGatewayConfig({ activeConfig: configManager, resource });
   });
   // application-load-balancer
   configManager.applicationLoadBalancers.forEach((definition) => {
-    validateApplicationLoadBalancerConfig({ definition });
+    validateApplicationLoadBalancerConfig({ activeConfig: configManager, definition });
   });
   // network-load-balancer
   configManager.networkLoadBalancers.forEach((definition) => {
-    validateNetworkLoadBalancerConfig({ definition });
+    validateNetworkLoadBalancerConfig({ activeConfig: configManager, definition });
   });
   configManager.hostingBuckets.forEach((definition) => {
-    validateHostingBucketConfig({ definition });
+    validateHostingBucketConfig({ definition, workingDir: stackContext.workingDir });
   });
   // relational databases
   configManager.databases.forEach((definition) => {
@@ -640,7 +673,7 @@ export const runInitialValidations = () => {
   });
   // multi container workload
   configManager.allContainerWorkloads.forEach((definition) => {
-    validateMultiContainerWorkloadConfig({ definition });
+    validateMultiContainerWorkloadConfig({ activeConfig: configManager, definition });
   });
   // sns topics
   configManager.snsTopics.forEach((resource) => {
@@ -652,26 +685,26 @@ export const runInitialValidations = () => {
   });
   // nextjs-webs
   configManager.nextjsWebs.forEach((resource) => {
-    validateNextjsWebConfig({ resource });
+    validateNextjsWebConfig({ resource, workingDir: stackContext.workingDir });
   });
   // ssr-webs (astro, nuxt, sveltekit, solidstart, tanstack, remix)
   configManager.astroWebs.forEach((resource) => {
-    validateSsrWebConfig({ resource });
+    validateSsrWebConfig({ resource, workingDir: stackContext.workingDir });
   });
   configManager.nuxtWebs.forEach((resource) => {
-    validateSsrWebConfig({ resource });
+    validateSsrWebConfig({ resource, workingDir: stackContext.workingDir });
   });
   configManager.sveltekitWebs.forEach((resource) => {
-    validateSsrWebConfig({ resource });
+    validateSsrWebConfig({ resource, workingDir: stackContext.workingDir });
   });
   configManager.solidstartWebs.forEach((resource) => {
-    validateSsrWebConfig({ resource });
+    validateSsrWebConfig({ resource, workingDir: stackContext.workingDir });
   });
   configManager.tanstackWebs.forEach((resource) => {
-    validateSsrWebConfig({ resource });
+    validateSsrWebConfig({ resource, workingDir: stackContext.workingDir });
   });
   configManager.remixWebs.forEach((resource) => {
-    validateSsrWebConfig({ resource });
+    validateSsrWebConfig({ resource, workingDir: stackContext.workingDir });
   });
   // lambdas
   configManager.functions.forEach((resource) => {

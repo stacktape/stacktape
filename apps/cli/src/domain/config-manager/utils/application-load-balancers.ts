@@ -4,7 +4,7 @@ import type {
 } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import { CliError } from '@utils/errors';
-import { configManager } from '../index';
+import { configManager as runtimeConfigManager, type ConfigManager } from '../index';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 import type { ApplicationLoadBalancerListener } from '@stacktape/config/application-load-balancers';
 import { configErrors } from '../errors';
@@ -19,9 +19,11 @@ export const resolveReferenceToApplicationLoadBalancer = (
   lbReference: ApplicationLoadBalancerIntegrationProps | ContainerWorkloadLoadBalancerIntegrationProps,
   referencedFrom: string,
   referencedFromType?: StpWorkloadType | 'alarm',
-  resolveListenerInfo = true
+  resolveListenerInfo = true,
+  activeConfig: ConfigManager = runtimeConfigManager
 ): StpResolvedLoadBalancerReference => {
   const referencedLoadBalancer = getPropsOfResourceReferencedInConfig({
+    activeConfig,
     stpResourceReference: lbReference.loadBalancerName,
     stpResourceType: 'application-load-balancer',
     referencedFrom,
@@ -82,20 +84,23 @@ export const resolveReferenceToApplicationLoadBalancer = (
 };
 
 export const getAllIntegrationsForApplicationLoadBalancerListener = ({
+  activeConfig = runtimeConfigManager,
   stpLoadBalancerName,
   listenerPort
 }: {
+  activeConfig?: ConfigManager;
   stpLoadBalancerName: string;
   listenerPort: number;
 }): (ApplicationLoadBalancerIntegrationProps & { workloadName: string })[] => {
   const result: (ApplicationLoadBalancerIntegrationProps & { workloadName: string })[] = [];
-  configManager.allLambdasTriggerableUsingEvents.forEach(({ events, name }) => {
+  activeConfig.allLambdasTriggerableUsingEvents.forEach(({ events, name }) => {
     if (events) {
       events.forEach((event) => {
         const eventListenerPort = (event.properties as ApplicationLoadBalancerIntegrationProps).listenerPort || 443;
         if (
           event.type === 'application-load-balancer' &&
-          resolveReferenceToApplicationLoadBalancer(event.properties, name).loadBalancer.name === stpLoadBalancerName &&
+          resolveReferenceToApplicationLoadBalancer(event.properties, name, undefined, true, activeConfig).loadBalancer
+            .name === stpLoadBalancerName &&
           eventListenerPort === listenerPort
         ) {
           result.push({ ...event.properties, listenerPort: eventListenerPort, workloadName: name });
@@ -103,15 +108,15 @@ export const getAllIntegrationsForApplicationLoadBalancerListener = ({
       });
     }
   });
-  configManager.allContainerWorkloads.forEach(({ containers, name }) =>
+  activeConfig.allContainerWorkloads.forEach(({ containers, name }) =>
     containers.forEach(({ events }) => {
       if (events) {
         events.forEach((event) => {
           const eventListenerPort = (event.properties as ApplicationLoadBalancerIntegrationProps).listenerPort || 443;
           if (
             event.type === 'application-load-balancer' &&
-            resolveReferenceToApplicationLoadBalancer(event.properties, name).loadBalancer.name ===
-              stpLoadBalancerName &&
+            resolveReferenceToApplicationLoadBalancer(event.properties, name, undefined, true, activeConfig)
+              .loadBalancer.name === stpLoadBalancerName &&
             eventListenerPort === listenerPort
           ) {
             result.push({ ...event.properties, listenerPort: eventListenerPort, workloadName: name });
@@ -124,13 +129,16 @@ export const getAllIntegrationsForApplicationLoadBalancerListener = ({
 };
 
 const validateApplicationLoadBalancerIntegrations = ({
+  activeConfig,
   loadBalancerDefinition
 }: {
+  activeConfig: ConfigManager;
   loadBalancerDefinition: ApplicationLoadBalancerWithListeners;
 }) => {
   loadBalancerDefinition.listeners.forEach(({ port }) => {
     const uniquePriorities: { [uniquePriority: number]: string } = {};
     getAllIntegrationsForApplicationLoadBalancerListener({
+      activeConfig,
       stpLoadBalancerName: loadBalancerDefinition.name,
       listenerPort: port
     }).forEach(({ workloadName, priority }) => {
@@ -160,20 +168,23 @@ const hasAuthoredListeners = (
 ): definition is ApplicationLoadBalancerWithListeners => Boolean(definition.listeners?.length);
 
 export const transformLoadBalancerToListenerForm = ({
+  activeConfig = runtimeConfigManager,
   definition
 }: {
+  activeConfig?: ConfigManager;
   definition: StpApplicationLoadBalancer;
 }): ApplicationLoadBalancerWithListeners => {
   // Resolved unconditionally: the traversal reports invalid load balancer references even for a definition that
   // brings its own listeners and therefore needs no test listener.
-  const createTestListener = configManager.allContainerWorkloads.some(
+  const createTestListener = activeConfig.allContainerWorkloads.some(
     (cw) =>
       cw.deployment?.beforeAllowTrafficFunction &&
       cw.containers.some(({ events }) =>
         events.some(
           ({ properties, type }) =>
             type === 'application-load-balancer' &&
-            resolveReferenceToApplicationLoadBalancer(properties, cw.name).loadBalancer.name === definition.name
+            resolveReferenceToApplicationLoadBalancer(properties, cw.name, undefined, true, activeConfig).loadBalancer
+              .name === definition.name
         )
       )
   );
@@ -222,8 +233,14 @@ const validateListenerPortOverlap = ({ loadBalancer }: { loadBalancer: Applicati
   });
 };
 
-export const validateApplicationLoadBalancerConfig = ({ definition }: { definition: StpApplicationLoadBalancer }) => {
-  const finalDefinition = transformLoadBalancerToListenerForm({ definition });
+export const validateApplicationLoadBalancerConfig = ({
+  activeConfig,
+  definition
+}: {
+  activeConfig: ConfigManager;
+  definition: StpApplicationLoadBalancer;
+}) => {
+  const finalDefinition = transformLoadBalancerToListenerForm({ activeConfig, definition });
 
   if (
     finalDefinition.customDomains?.some(
@@ -239,5 +256,5 @@ export const validateApplicationLoadBalancerConfig = ({ definition }: { definiti
   validateListenerPortOverlap({ loadBalancer: finalDefinition });
   // we do this validations here, even though strictly speaking this is more about event integrations than load balancer itself
   // it is still related to load balancer so it should make sense :D
-  validateApplicationLoadBalancerIntegrations({ loadBalancerDefinition: finalDefinition });
+  validateApplicationLoadBalancerIntegrations({ activeConfig, loadBalancerDefinition: finalDefinition });
 };

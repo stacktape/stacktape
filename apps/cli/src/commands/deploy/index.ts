@@ -12,7 +12,6 @@ import { cloudformationRegistryManager } from '@domain-services/cloudformation-r
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { cloudfrontManager } from '@domain-services/cloudfront-manager';
 import { configManager } from '@domain-services/config-manager';
-import { validateGuardrails } from '@domain-services/config-manager/utils/validation';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
@@ -67,7 +66,7 @@ const deployLocally = async () => {
     });
   }
 
-  validateGuardrails({ guardrails: configManager.guardrails, hasConfig: true });
+  configManager.validateGuardrails({ hasConfig: true });
 
   const issueDetectionPolicy = configManager.issueDetectionPolicy;
   if (issueDetectionPolicy.enabled) {

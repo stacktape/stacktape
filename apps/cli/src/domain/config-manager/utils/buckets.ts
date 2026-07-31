@@ -1,7 +1,6 @@
 import type { StpHostingBucket } from '@domain-services/config-manager/resolved-types/hosting-buckets';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { join } from 'node:path';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { dirExists } from '@utils/fs-utils';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 import { configErrors } from '../errors';
@@ -23,9 +22,15 @@ export const resolveReferenceToBucket = ({
   });
 };
 
-export const validateHostingBucketConfig = ({ definition }: { definition: StpHostingBucket }) => {
+export const validateHostingBucketConfig = ({
+  definition,
+  workingDir
+}: {
+  definition: StpHostingBucket;
+  workingDir: string;
+}) => {
   if (definition.build?.workingDirectory) {
-    const absoluteWorkingDirectory = join(globalStateManager.workingDir, definition.build.workingDirectory);
+    const absoluteWorkingDirectory = join(workingDir, definition.build.workingDirectory);
     if (!dirExists(absoluteWorkingDirectory)) {
       throw configErrors.resourceDirectoryMissing({
         directoryPath: definition.build.workingDirectory,

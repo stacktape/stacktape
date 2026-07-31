@@ -4,7 +4,6 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
-import { validateGuardrails } from '@domain-services/config-manager/utils/validation';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { templateManager } from '@domain-services/template-manager';
@@ -24,7 +23,7 @@ export const commandValidate = async () => {
     requiresSubscription: false
   });
 
-  validateGuardrails({ guardrails: configManager.guardrails, hasConfig: true });
+  configManager.validateGuardrails({ hasConfig: true });
 
   let packagedWorkloads: PackageWorkloadOutput[] | undefined;
   if (shouldPackage) {

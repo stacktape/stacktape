@@ -1,7 +1,7 @@
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '@stacktape/config/container-workload-resources';
 import { CliError } from '@utils/errors';
-import { configManager } from '../index';
+import type { ConfigManager } from '../index';
 import { configErrors } from '../errors';
 import type {
   ContainerWorkloadLoadBalancerIntegration,
@@ -159,8 +159,8 @@ const validateLoadBalancerConfigurations = (workload: StpContainerWorkload) => {
   }
 };
 
-const validateServiceConnectLimitations = (workload: StpContainerWorkload) => {
-  if (configManager.serviceConnectContainerWorkloadsAssociations[workload.name] && workload.deployment) {
+const validateServiceConnectLimitations = (workload: StpContainerWorkload, activeConfig: ConfigManager) => {
+  if (activeConfig.serviceConnectContainerWorkloadsAssociations[workload.name] && workload.deployment) {
     throw configErrors.deploymentIncompatibleWithServiceConnect({
       workloadName: workload.name,
       workloadType: workload.configParentResourceType
@@ -222,11 +222,17 @@ const validateFargateMemorySetting = (
   }
 };
 
-export const validateMultiContainerWorkloadConfig = ({ definition }: { definition: StpContainerWorkload }) => {
+export const validateMultiContainerWorkloadConfig = ({
+  activeConfig,
+  definition
+}: {
+  activeConfig: ConfigManager;
+  definition: StpContainerWorkload;
+}) => {
   validateContainerNamesConsistency(definition);
   validatePortOverlapOfContainerWorkload(definition);
   validateLoadBalancerConfigurations(definition);
-  validateServiceConnectLimitations(definition);
+  validateServiceConnectLimitations(definition, activeConfig);
   validateResourcesConfiguration(definition);
   validateScalingConfiguration(definition);
   validateCpuArchitecture(definition);

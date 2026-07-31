@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { eventManager } from '@application-services/event-manager';
 import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
-import { configManager } from '@domain-services/config-manager';
+import { ConfigManager, configManager } from '@domain-services/config-manager';
 import { stacktapeConfigSchema, validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
 import { resolveOpenSearchLoggingDefaults } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/open-search';
 import {
@@ -113,6 +113,182 @@ afterAll(async () => {
 });
 
 describe('configuration runtime contract', () => {
+  test('reuses one manager for two different configs without leaking config, directives, or stack identity', async () => {
+    const manager = new ConfigManager();
+    const workingDir = join(import.meta.dir, 'fixtures', 'dense-application');
+    const helperLambda = {
+      digest: 'config-isolation',
+      artifactPath: 'config-isolation.zip',
+      handler: 'index.default',
+      size: 1
+    };
+
+    const initialize = async ({
+      accountId,
+      config,
+      resourceName,
+      stage,
+      stackName,
+      targetManager = manager
+    }: {
+      accountId: string;
+      config?: StacktapeConfig;
+      resourceName: string;
+      stage: string;
+      stackName: string;
+      targetManager?: ConfigManager;
+    }) => {
+      const stackContext = {
+        accountId,
+        command: 'synth' as const,
+        globallyUniqueStackHash: `${stage}-hash`,
+        invocationId: `${stage}-invocation`,
+        projectName: `${stage}-project`,
+        region: 'eu-west-1' as const,
+        stackName,
+        stage,
+        workingDir
+      };
+      const authoringParams: GetConfigParams = {
+        projectName: stackContext.projectName,
+        stage,
+        region: stackContext.region,
+        cliArgs: {} as any,
+        command: stackContext.command,
+        awsProfile: '',
+        user: undefined
+      };
+
+      await targetManager.init({
+        configRequired: true,
+        context: {
+          helperLambdaDetails: {
+            batchJobTriggerLambda: helperLambda,
+            stacktapeServiceLambda: helperLambda,
+            cdnOriginRequestLambda: helperLambda,
+            cdnOriginResponseLambda: helperLambda
+          },
+          issueDetection: {},
+          resolver: {
+            authoringParams,
+            builtInDirectives: {
+              accountId,
+              additionalArgs: {},
+              awsProfile: '',
+              cliArgs: authoringParams.cliArgs,
+              command: stackContext.command,
+              disableEmulation: false,
+              region: stackContext.region,
+              stage,
+              workingDir
+            },
+            presetConfig:
+              config ??
+              ({
+                projectName: stackContext.projectName,
+                resources: {
+                  [resourceName]: {
+                    type: 'function',
+                    properties: {
+                      packaging: {
+                        type: 'stacktape-lambda-buildpack',
+                        properties: { entryfilePath: './src/api.ts' }
+                      },
+                      environment: [{ name: 'INVOCATION_STAGE', value: '$Stage()' }]
+                    }
+                  }
+                }
+              } as StacktapeConfig),
+            workingDir
+          },
+          stack: stackContext
+        }
+      });
+    };
+
+    await initialize({
+      accountId: '111111111111',
+      resourceName: 'firstFunction',
+      stage: 'first',
+      stackName: 'first-project-first'
+    });
+    expect(manager.functions).toHaveLength(1);
+    expect(manager.functions[0]).toMatchObject({
+      name: 'firstFunction',
+      resourceName: 'first-project-first-firstFunction',
+      environment: [{ name: 'INVOCATION_STAGE', value: 'first' }]
+    });
+
+    manager.transforms.FirstFunction = (properties) => properties;
+    manager.finalTransform = (template) => template;
+    manager.reset();
+
+    await initialize({
+      accountId: '222222222222',
+      resourceName: 'secondFunction',
+      stage: 'second',
+      stackName: 'second-project-second'
+    });
+    expect(manager.functions).toHaveLength(1);
+    expect(manager.functions[0]).toMatchObject({
+      name: 'secondFunction',
+      resourceName: 'second-project-second-secondFunction',
+      environment: [{ name: 'INVOCATION_STAGE', value: 'second' }]
+    });
+    expect(manager.config.resources).not.toHaveProperty('firstFunction');
+    expect(manager.transforms).toEqual({});
+    expect(manager.finalTransform).toBeNull();
+
+    const conflictManager = new ConfigManager();
+    await expect(
+      initialize({
+        accountId: '333333333333',
+        resourceName: 'unused',
+        stage: 'conflict',
+        stackName: 'conflict-project-conflict',
+        targetManager: conflictManager,
+        config: {
+          projectName: 'conflict-project',
+          resources: {
+            api: { type: 'http-api-gateway' },
+            firstFunction: {
+              type: 'function',
+              properties: {
+                packaging: {
+                  type: 'stacktape-lambda-buildpack',
+                  properties: { entryfilePath: './src/api.ts' }
+                },
+                events: [
+                  {
+                    type: 'http-api-gateway',
+                    properties: { httpApiGatewayName: 'api', method: 'GET', path: '/duplicate' }
+                  }
+                ]
+              }
+            },
+            secondFunction: {
+              type: 'function',
+              properties: {
+                packaging: {
+                  type: 'stacktape-lambda-buildpack',
+                  properties: { entryfilePath: './src/worker.ts' }
+                },
+                events: [
+                  {
+                    type: 'http-api-gateway',
+                    properties: { httpApiGatewayName: 'api', method: 'GET', path: '/duplicate' }
+                  }
+                ]
+              }
+            }
+          }
+        }
+      })
+    ).rejects.toMatchObject({ code: 'CONFIG_HTTP_API_ROUTE_CONFLICT' });
+
+    expect(manager.functions.map(({ name }) => name)).toEqual(['secondFunction']);
+  });
+
   test('loads TypeScript config through tsconfig paths and transitive node_modules', async () => {
     const { config } = await new ConfigResolver().loadTypescriptConfig({
       filePath: fixturePath,

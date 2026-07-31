@@ -5,15 +5,14 @@ import type { StpSolidStartWeb } from '@domain-services/config-manager/resolved-
 import type { StpSvelteKitWeb } from '@domain-services/config-manager/resolved-types/sveltekit-web';
 import type { StpTanStackWeb } from '@domain-services/config-manager/resolved-types/tanstack-web';
 import { join } from 'node:path';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { dirExists } from '@utils/fs-utils';
 import { configErrors } from '../errors';
 
 type SsrWebResource = StpAstroWeb | StpNuxtWeb | StpSvelteKitWeb | StpSolidStartWeb | StpTanStackWeb | StpRemixWeb;
 
-export const validateSsrWebConfig = ({ resource }: { resource: SsrWebResource }) => {
+export const validateSsrWebConfig = ({ resource, workingDir }: { resource: SsrWebResource; workingDir: string }) => {
   const appDirectory = resource.appDirectory || '.';
-  const absoluteAppDirectory = join(globalStateManager.workingDir, appDirectory);
+  const absoluteAppDirectory = join(workingDir, appDirectory);
 
   if (!dirExists(absoluteAppDirectory)) {
     throw configErrors.appDirectoryMissing({

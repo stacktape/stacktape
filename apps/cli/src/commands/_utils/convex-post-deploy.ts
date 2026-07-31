@@ -120,7 +120,11 @@ const writeSensitiveParam = async ({
 };
 
 const ensureConvexAdminKey = async (convex: StpConvex) => {
-  const convexSecretName = getConvexSecretName({ nameChain: convex.nameChain });
+  const convexSecretName = getConvexSecretName({
+    nameChain: convex.nameChain,
+    region: globalStateManager.region,
+    stackName: globalStateManager.targetStack.stackName
+  });
   const { SecretString } = await awsSdkManager.secrets.get({ secretId: convexSecretName });
   if (!SecretString) {
     throw new ExpectedError(
