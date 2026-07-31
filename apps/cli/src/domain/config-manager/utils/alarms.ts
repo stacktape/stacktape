@@ -5,10 +5,10 @@ import type {
 } from '@domain-services/config-manager/resolved-types/alarms';
 import type { StpResource, StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
-import { stpErrors } from '@errors';
 import { getStpNameForAlarm } from '@stacktape/naming/alarm-names';
 import isEqual from 'lodash/isEqual';
 import { configManager } from '../index';
+import { configErrors } from '../errors';
 
 export const resolveReferenceToAlarm = ({
   stpAlarmReference,
@@ -23,7 +23,11 @@ export const resolveReferenceToAlarm = ({
   const alarm = configManager.allAlarms.find(({ nameChain }) => isEqual(stpAlarmReferenceSplit, nameChain));
 
   if (!alarm) {
-    throw stpErrors.e60({ alarmReference: stpAlarmReference, referencedFrom, referencedFromType });
+    throw configErrors.alarmReferenceNotFound({
+      alarmReference: stpAlarmReference,
+      referencedFrom,
+      referencedFromType
+    });
   }
 
   return alarm;

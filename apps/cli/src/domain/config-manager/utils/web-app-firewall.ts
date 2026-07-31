@@ -1,6 +1,6 @@
 import type { StpCdnAttachableResourceType } from '@domain-services/config-manager/resolved-types/resources';
-import { stpErrors } from '@errors';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import { configErrors } from '../errors';
 
 export const resolveReferenceToFirewall = ({
   referencedFrom,
@@ -21,7 +21,7 @@ export const resolveReferenceToFirewall = ({
   });
 
   if ((cdn === true && firewall.scope === 'regional') || (cdn === false && firewall.scope === 'cdn')) {
-    throw stpErrors.e1004({
+    throw configErrors.firewallScopeIncompatible({
       firewallName: firewall.name
     });
   }

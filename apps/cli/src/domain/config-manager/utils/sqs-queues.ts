@@ -1,11 +1,11 @@
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import { GetAtt } from '@cloudform/functions';
-import { stpErrors } from '@errors';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { configManager } from '../index';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 import type { SqsQueueEventBusIntegration, SqsQueuePolicyStatement } from '@stacktape/config/sqs-queues';
+import { configErrors } from '../errors';
 
 export const resolveReferenceToSqsQueue = ({
   referencedFrom,
@@ -26,7 +26,7 @@ export const resolveReferenceToSqsQueue = ({
 
 export const validateSqsQueueConfig = ({ resource }: { resource: StpSqsQueue }) => {
   if ((resource.contentBasedDeduplication || resource.fifoHighThroughput) && !resource.fifoEnabled) {
-    throw stpErrors.e81({ stpSqsQueueName: resource.name });
+    throw configErrors.sqsFifoOptionRequiresFifo({ stpSqsQueueName: resource.name });
   }
 
   if (resource.redrivePolicy) {
@@ -34,7 +34,7 @@ export const validateSqsQueueConfig = ({ resource }: { resource: StpSqsQueue }) 
       [resource.redrivePolicy.targetSqsQueueArn, resource.redrivePolicy.targetSqsQueueName].filter((element) => element)
         .length !== 1
     ) {
-      throw stpErrors.e112({
+      throw configErrors.sqsRedriveTargetAmbiguous({
         sqsQueueReferencerStpName: resource.name
       });
     }

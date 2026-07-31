@@ -9,7 +9,7 @@ import { isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { dirExists, isFileAccessible } from '@utils/fs-utils';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 
 // Default pinned Convex images. Bump deliberately after testing Convex's
 // self-hosted migration path against a real Stacktape deployment.
@@ -28,12 +28,12 @@ export const validateConvexConfig = ({ resource }: { resource: StpConvex }) => {
     : join(globalStateManager.workingDir, resource.appDirectory);
 
   if (!dirExists(absoluteAppDirectory)) {
-    throw new ExpectedError(
-      'CONFIG',
-      `Convex resource '${resource.name}': appDirectory '${resource.appDirectory}' does not exist ` +
-        `(resolved to '${absoluteAppDirectory}'). Create a 'convex/' directory in your project root ` +
-        `containing your Convex function files.`
-    );
+    throw new CliError({
+      category: 'CONFIG',
+      code: 'CONFIG_CONVEX_APP_DIRECTORY_MISSING',
+      message: `Convex resource \`${resource.name}\` uses missing app directory \`${resource.appDirectory}\` (resolved to \`${absoluteAppDirectory}\`).`,
+      hints: 'Create a `convex/` directory containing your Convex functions, or update `appDirectory`.'
+    });
   }
 
   if (!isFileAccessible(join(absoluteAppDirectory, 'schema.ts'))) {
@@ -50,18 +50,20 @@ export const validateConvexConfig = ({ resource }: { resource: StpConvex }) => {
       resource.dashboard?.enabled !== false && !customDomains.dashboard && 'customDomains.dashboard'
     ].filter(Boolean);
     if (missingRequiredOrigins.length) {
-      throw new ExpectedError(
-        'CONFIG',
-        `Convex resource '${resource.name}' is missing ${missingRequiredOrigins.join(', ')}.`,
-        'When using Convex custom domains, provide separate cloud and site domains, and a dashboard domain when the dashboard is enabled.'
-      );
+      throw new CliError({
+        category: 'CONFIG',
+        code: 'CONFIG_CONVEX_CUSTOM_DOMAIN_MISSING',
+        message: `Convex resource \`${resource.name}\` is missing ${missingRequiredOrigins.map((name) => `\`${name}\``).join(', ')}.`,
+        hints: 'Provide separate cloud and site domains, plus a dashboard domain when the Convex dashboard is enabled.'
+      });
     }
     if (resource.dashboard?.enabled === false && customDomains.dashboard) {
-      throw new ExpectedError(
-        'CONFIG',
-        `Convex resource '${resource.name}' has customDomains.dashboard, but dashboard.enabled is false.`,
-        'Remove customDomains.dashboard or enable the Convex dashboard.'
-      );
+      throw new CliError({
+        category: 'CONFIG',
+        code: 'CONFIG_CONVEX_DASHBOARD_DOMAIN_UNUSED',
+        message: `Convex resource \`${resource.name}\` sets \`customDomains.dashboard\` while \`dashboard.enabled\` is false.`,
+        hints: 'Remove `customDomains.dashboard` or enable the Convex dashboard.'
+      });
     }
   }
 
@@ -70,12 +72,12 @@ export const validateConvexConfig = ({ resource }: { resource: StpConvex }) => {
       ? resource.functionsDeployment.workingDirectory
       : join(globalStateManager.workingDir, resource.functionsDeployment.workingDirectory);
     if (!dirExists(absoluteWorkingDirectory)) {
-      throw new ExpectedError(
-        'CONFIG',
-        `Convex resource '${resource.name}': functionsDeployment.workingDirectory '${resource.functionsDeployment.workingDirectory}' does not exist ` +
-          `(resolved to '${absoluteWorkingDirectory}').`,
-        'Create the directory or remove functionsDeployment.workingDirectory.'
-      );
+      throw new CliError({
+        category: 'CONFIG',
+        code: 'CONFIG_CONVEX_FUNCTIONS_DIRECTORY_MISSING',
+        message: `Convex resource \`${resource.name}\` uses missing functions directory \`${resource.functionsDeployment.workingDirectory}\` (resolved to \`${absoluteWorkingDirectory}\`).`,
+        hints: 'Create the directory or remove `functionsDeployment.workingDirectory`.'
+      });
     }
   }
 

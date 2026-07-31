@@ -1,9 +1,8 @@
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
-import { tuiManager } from '@application-services/tui-manager';
-import { stpErrors } from '@errors';
 import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '@stacktape/config/container-workload-resources';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { configManager } from '../index';
+import { configErrors } from '../errors';
 import type {
   ContainerWorkloadLoadBalancerIntegration,
   ContainerWorkloadLoadBalancerIntegrationProps
@@ -14,10 +13,11 @@ const validateContainerNamesConsistency = (workload: StpContainerWorkload) => {
   // if (workload.containers) {
   workload.containers.forEach(({ name: containerName }) => {
     if (containerNames.includes(containerName)) {
-      throw new ExpectedError(
-        'CONFIG_VALIDATION',
-        `Conflict within container names of ${workload.configParentResourceType} "${workload.name}. Two or more containers are using the same name "${containerName}"`
-      );
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_CONTAINER_NAME_DUPLICATE',
+        message: `\`${workload.configParentResourceType}\` \`${workload.name}\` defines more than one container named \`${containerName}\`.`
+      });
     }
     containerNames.push(containerName);
   });
@@ -25,10 +25,11 @@ const validateContainerNamesConsistency = (workload: StpContainerWorkload) => {
     if (dependsOn) {
       dependsOn.forEach(({ containerName: dependencyName }) => {
         if (!containerNames.includes(dependencyName)) {
-          throw new ExpectedError(
-            'CONFIG_VALIDATION',
-            `Conflict within container dependencies of ${workload.configParentResourceType} "${workload.name}". Container with name "${containerName}" depends on non-existent container "${dependencyName}"`
-          );
+          throw new CliError({
+            category: 'CONFIG_VALIDATION',
+            code: 'CONFIG_CONTAINER_DEPENDENCY_NOT_FOUND',
+            message: `Container \`${containerName}\` in \`${workload.name}\` depends on unknown container \`${dependencyName}\`.`
+          });
         }
       });
     }
@@ -67,12 +68,13 @@ const checkSingleContainerEventsConfiguration = (
       (protocol === 'tcp' && usedPorts.udp.some(({ containerPort: usedPort }) => containerPort === usedPort)) ||
       (protocol === 'udp' && usedPorts.tcp.some(({ containerPort: usedPort }) => containerPort === usedPort))
     ) {
-      throw new ExpectedError(
-        'CONFIG_VALIDATION',
-        `Port overlap detected for port number ${containerPort} in ports in container compute resource "${workloadName}" ${
-          containerName ? `in container "${containerName}".` : '.'
-        }`
-      );
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_CONTAINER_PORT_PROTOCOL_CONFLICT',
+        message: `Port \`${containerPort}\` in workload \`${workloadName}\`${
+          containerName ? `, container \`${containerName}\`,` : ''
+        } is assigned to conflicting protocols.`
+      });
     } else {
       usedPorts[protocol].push({ containerPort }); // availabilityCheck: loadBalancerCheck
     }
@@ -102,17 +104,12 @@ const validatePortOverlapOfContainerWorkload = (workload: StpContainerWorkload) 
             exposedPorts2.tcp.some(({ containerPort: usedPort }) => containerPort === usedPort) ||
             exposedPorts2.udp.some(({ containerPort: usedPort }) => containerPort === usedPort)
           ) {
-            throw new ExpectedError(
-              'CONFIG_VALIDATION',
-              `Port overlap detected within ${workload.configParentResourceType} ${tuiManager.colorize(
-                'cyan',
-                workload.name
-              )}. Container ${tuiManager.colorize('cyan', container1)} and container ${tuiManager.colorize(
-                'cyan',
-                container2
-              )} are using the same port number ${tuiManager.colorize('cyan', containerPort.toString())}.
-  Each container port mapped using 'events' must be unique withing the ${workload.configParentResourceType}.`
-            );
+            throw new CliError({
+              category: 'CONFIG_VALIDATION',
+              code: 'CONFIG_CONTAINER_PORT_DUPLICATE',
+              message: `Containers \`${container1}\` and \`${container2}\` in \`${workload.name}\` both use port \`${containerPort}\`.`,
+              hints: `Every container port mapped through \`events\` must be unique within the \`${workload.configParentResourceType}\`.`
+            });
           }
         });
       });
@@ -128,7 +125,10 @@ const validateLoadBalancerConfigurations = (workload: StpContainerWorkload) => {
       )
     );
     if (workload.deployment && !workloadUsesLoadBalancerEvents) {
-      throw stpErrors.e54({ stpResourceName: workload.name, resourceType: workload.configParentResourceType });
+      throw configErrors.deploymentRequiresAlbIntegration({
+        stpResourceName: workload.name,
+        resourceType: workload.configParentResourceType
+      });
     }
     let previousContainerName: string;
     let previousEventProps: ContainerWorkloadLoadBalancerIntegrationProps;
@@ -146,7 +146,10 @@ const validateLoadBalancerConfigurations = (workload: StpContainerWorkload) => {
             previousLbEventTargetedDifferentContainerPort ||
             previousLbEventUsedDifferentListener
           ) {
-            throw stpErrors.e61({ stpResourceName: workload.name, resourceType: workload.configParentResourceType });
+            throw configErrors.deploymentRequiresSingleAlbTarget({
+              stpResourceName: workload.name,
+              resourceType: workload.configParentResourceType
+            });
           }
           previousContainerName = name;
           previousEventProps = event.properties;
@@ -158,13 +161,16 @@ const validateLoadBalancerConfigurations = (workload: StpContainerWorkload) => {
 
 const validateServiceConnectLimitations = (workload: StpContainerWorkload) => {
   if (configManager.serviceConnectContainerWorkloadsAssociations[workload.name] && workload.deployment) {
-    throw stpErrors.e75({ workloadName: workload.name, workloadType: workload.configParentResourceType });
+    throw configErrors.deploymentIncompatibleWithServiceConnect({
+      workloadName: workload.name,
+      workloadType: workload.configParentResourceType
+    });
   }
 };
 
 const validateResourcesConfiguration = (workload: StpContainerWorkload) => {
   if (!workload.resources.instanceTypes && (!workload.resources.cpu || !workload.resources.memory)) {
-    throw stpErrors.e87({ workloadName: workload.name, workloadType: workload.type });
+    throw configErrors.containerResourcesInvalid({ workloadName: workload.name, workloadType: workload.type });
   }
   if (!workload.resources.instanceTypes) {
     validateFargateMemorySetting(workload.resources.memory, workload.resources.cpu, workload.name);
@@ -173,7 +179,10 @@ const validateResourcesConfiguration = (workload: StpContainerWorkload) => {
     workload.resources.enableWarmPool &&
     (!workload.resources.instanceTypes || workload.resources.instanceTypes.length !== 1)
   ) {
-    throw stpErrors.e125({ stpResourceName: workload.name, stpResourceType: workload.configParentResourceType });
+    throw configErrors.warmPoolMixedInstanceTypes({
+      stpResourceName: workload.name,
+      stpResourceType: workload.configParentResourceType
+    });
   }
 };
 
@@ -183,13 +192,16 @@ const validateScalingConfiguration = (workload: StpContainerWorkload) => {
     workload.scaling.maxInstances < 1 ||
     workload.scaling.maxInstances < workload.scaling.minInstances
   ) {
-    throw stpErrors.e89({ workloadName: workload.name, workloadType: workload.type });
+    throw configErrors.scalingRangeInvalid({ workloadName: workload.name, workloadType: workload.type });
   }
 };
 
 const validateCpuArchitecture = (workload: StpContainerWorkload) => {
   if (workload.resources.instanceTypes && workload.resources.architecture) {
-    throw stpErrors.e126({ stpResourceName: workload.name, stpResourceType: workload.configParentResourceType });
+    throw configErrors.cpuArchitectureWithEc2Invalid({
+      stpResourceName: workload.name,
+      stpResourceType: workload.configParentResourceType
+    });
   }
 };
 
@@ -199,11 +211,14 @@ const validateFargateMemorySetting = (
   workloadName: string
 ) => {
   if (!ALLOWED_MEMORY_VALUES_FOR_CPU[cpu]?.includes(memory)) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in resources of container compute resource ${workloadName}. Memory value '${memory}' is not compatible with CPU value '${cpu}'.
-Allowed memory values for this CPU setting are: ${ALLOWED_MEMORY_VALUES_FOR_CPU[cpu]}`
-    );
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_CONTAINER_MEMORY_CPU_INCOMPATIBLE',
+      message: `Memory \`${memory}\` is not compatible with CPU \`${cpu}\` for workload \`${workloadName}\`.`,
+      hints: `Allowed memory values for CPU \`${cpu}\`: ${ALLOWED_MEMORY_VALUES_FOR_CPU[cpu]
+        .map((value) => `\`${value}\``)
+        .join(', ')}.`
+    });
   }
 };
 

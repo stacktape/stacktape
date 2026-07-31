@@ -166,6 +166,19 @@ describe('configuration runtime contract', () => {
     ).resolves.toEqual({ value: 'prefix-test' });
   });
 
+  test('reports unknown directives with a stable semantic error code', () => {
+    const resolver = new ConfigResolver();
+    resolver.registerBuiltInDirectives();
+
+    expect(() => resolver.getDirectiveInfo('$DoesNotExist()')).toThrow(
+      expect.objectContaining({
+        category: 'DIRECTIVE',
+        code: 'DIRECTIVE_UNKNOWN',
+        hints: ['If this is a custom directive, register it in your Stacktape config.']
+      })
+    );
+  });
+
   test('rejects misspelled resource types at the schema boundary', () => {
     const result = validateConfigWithZod({
       config: {

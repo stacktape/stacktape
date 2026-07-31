@@ -5,7 +5,6 @@ import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { supportedCodeConfigLanguages } from '@config';
-import { stpErrors } from '@errors';
 import { getFileExtension } from '@utils/fs-utils';
 import { isNonNullObject, processAllNodes, serialize, traverseToMaximalExtent } from '@utils/misc';
 import { parseYaml } from '@utils/yaml';
@@ -17,13 +16,14 @@ import {
   getDirectiveWithoutPath,
   getIsDirective
 } from '@utils/directives';
-import { CliError, ExpectedError, getUserCodeStackTrace } from '@utils/errors';
+import { CliError, getUserCodeStackTrace } from '@utils/errors';
 import { loadFromAnySupportedFile, loadFromTypescript, parseUserCodeFilepath } from '@utils/file-loaders';
 import { getUserCodeAsFn } from '@utils/user-code-processing';
 import { validatePrimitiveFunctionParams } from '@utils/validation-utils';
 import { remove, writeFile } from 'fs-extra';
 import { builtInDirectives } from './built-in-directives';
 import type { StacktapeConfig } from '@stacktape/config';
+import { configErrors } from './errors';
 
 type BuildError = {
   message: string;
@@ -59,14 +59,14 @@ const handleTypescriptConfigError = (error: Error, configPath: string): never =>
     const aggregateError = error as Error & { errors: BuildError[] };
     if (aggregateError.errors?.length) {
       const formattedErrors = formatBuildErrors(aggregateError.errors);
-      throw stpErrors.e137({ configPath, errorMessage: formattedErrors });
+      throw configErrors.typescriptSyntaxInvalid({ configPath, errorMessage: formattedErrors });
     }
   }
 
   // Check for missing package errors
   const packageMatch = rawMessage.match(/Cannot find package '([^']+)'/);
   if (packageMatch) {
-    throw stpErrors.e136({ configPath, packageName: packageMatch[1] });
+    throw configErrors.configDependencyMissing({ configPath, packageName: packageMatch[1] });
   }
 
   // Check for module not found (different format)
@@ -75,18 +75,18 @@ const handleTypescriptConfigError = (error: Error, configPath: string): never =>
     const moduleName = moduleMatch[1];
     // If it looks like a package (not a relative path), suggest installing
     if (!moduleName.startsWith('.') && !moduleName.startsWith('/')) {
-      throw stpErrors.e136({ configPath, packageName: moduleName });
+      throw configErrors.configDependencyMissing({ configPath, packageName: moduleName });
     }
   }
 
   // Check for syntax errors
   if (rawMessage.includes('SyntaxError') || rawMessage.includes('Parse error')) {
-    throw stpErrors.e137({ configPath, errorMessage: rawMessage });
+    throw configErrors.typescriptSyntaxInvalid({ configPath, errorMessage: rawMessage });
   }
 
   // Check for export not found
   if (rawMessage.includes('Export named') && rawMessage.includes('not found')) {
-    throw stpErrors.e137({ configPath, errorMessage: rawMessage });
+    throw configErrors.typescriptSyntaxInvalid({ configPath, errorMessage: rawMessage });
   }
 
   // Prefix the error message with its class name (TypeError, ReferenceError, ...) so the
@@ -111,7 +111,7 @@ const handleTypescriptConfigError = (error: Error, configPath: string): never =>
       if (codeFrame) userStackTrace = codeFrame;
     }
   }
-  throw stpErrors.e138({ configPath, errorMessage, userStackTrace });
+  throw configErrors.typescriptExecutionFailed({ configPath, errorMessage, userStackTrace });
 };
 
 /**
@@ -273,12 +273,12 @@ export class ConfigResolver {
     // Prefer getConfig export over default export
     if (getConfigFunction) {
       if (typeof getConfigFunction !== 'function') {
-        throw stpErrors.e128({ configPath: filePath });
+        throw configErrors.getConfigExportNotFunction({ configPath: filePath });
       }
       try {
         const result = getConfigFunction(params);
         if (result === null || result === undefined || typeof result !== 'object') {
-          throw stpErrors.e140({ configPath: filePath, exportValue: String(result) });
+          throw configErrors.configFunctionReturnInvalid({ configPath: filePath, exportValue: String(result) });
         }
         return result;
       } catch (error) {
@@ -293,7 +293,7 @@ export class ConfigResolver {
         const configFn = defaultExport as (params: GetConfigParams) => unknown;
         const result = configFn(params);
         if (result === null || result === undefined || typeof result !== 'object') {
-          throw stpErrors.e140({ configPath: filePath, exportValue: String(result) });
+          throw configErrors.configFunctionReturnInvalid({ configPath: filePath, exportValue: String(result) });
         }
         return result;
       } catch (error) {
@@ -304,12 +304,12 @@ export class ConfigResolver {
 
     // No valid export found
     if (!getConfigFunction && !defaultExport) {
-      throw stpErrors.e139({ configPath: filePath });
+      throw configErrors.typescriptExportMissing({ configPath: filePath });
     }
 
     // Export exists but is not a function
     if (defaultExport && typeof defaultExport !== 'function') {
-      throw stpErrors.e128({ configPath: filePath });
+      throw configErrors.getConfigExportNotFunction({ configPath: filePath });
     }
 
     return null;
@@ -396,17 +396,18 @@ export class ConfigResolver {
       }
 
       if (config === null) {
-        throw new ExpectedError(
-          'FILE_ACCESS',
-          `Can't load stacktape config from unsupported file type ${globalStateManager.configPath}.`
-        );
+        throw new CliError({
+          category: 'FILE_ACCESS',
+          code: 'CONFIG_FILE_TYPE_UNSUPPORTED',
+          message: `Cannot load Stacktape config from unsupported file type \`${globalStateManager.configPath}\`.`
+        });
       }
 
       if (!config) {
         try {
           JSON.parse(JSON.stringify(config));
         } catch {
-          throw stpErrors.e129({ configPath: globalStateManager.configPath, config });
+          throw configErrors.configObjectInvalid({ configPath: globalStateManager.configPath, config });
         }
       }
 
@@ -415,14 +416,16 @@ export class ConfigResolver {
       this.stripTransformsFromConfig(config);
 
       return config;
-    } catch (err) {
-      if (err instanceof CliError) {
-        throw err;
+    } catch (error) {
+      if (error instanceof CliError) {
+        throw error;
       }
-      throw new ExpectedError(
-        'CONFIG_VALIDATION',
-        `Malformed configuration file at ${globalStateManager.configPath}. Error details:\n${err}`
-      );
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_FILE_MALFORMED',
+        message: `Malformed configuration file at \`${globalStateManager.configPath}\`.\n${String(error)}`,
+        cause: error
+      });
     }
   };
 
@@ -451,7 +454,11 @@ export class ConfigResolver {
             })
         });
       } else {
-        throw new ExpectedError('DIRECTIVE', `Unsupported file format for directive ${directive.name}`);
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_FILE_TYPE_UNSUPPORTED',
+          message: `Directive \`${directive.name}\` uses an unsupported file type.`
+        });
       }
     }
   };
@@ -462,14 +469,15 @@ export class ConfigResolver {
 
   registerDirective = (directive: Directive | CustomDirective) => {
     if (this.registeredDirectives[directive.name]) {
-      throw new ExpectedError(
-        'DIRECTIVE',
-        `Can't have multiple directives with the same name: ${directive.name}. ${
+      throw new CliError({
+        category: 'DIRECTIVE',
+        code: 'DIRECTIVE_NAME_DUPLICATE',
+        message: `Cannot register multiple directives named \`${directive.name}\`. ${
           builtInDirectives.map((d) => d.name).includes(directive.name)
-            ? `${directive.name} is a built-in directive`
+            ? `\`${directive.name}\` is a built-in directive`
             : ''
         }.`
-      );
+      });
     }
     this.registeredDirectives[directive.name] = directive as any;
   };
@@ -503,11 +511,12 @@ export class ConfigResolver {
     const name = getDirectiveName(rawDefinition);
     const registeredDirective = this.registeredDirectives[name];
     if (!registeredDirective) {
-      throw new ExpectedError(
-        'DIRECTIVE',
-        `Unknown directive ${name}. You can only use built-in and custom directives.`,
-        'Did you forget to register your custom directive?'
-      );
+      throw new CliError({
+        category: 'DIRECTIVE',
+        code: 'DIRECTIVE_UNKNOWN',
+        message: `Unknown directive \`${name}\`. Only built-in and registered custom directives can be used.`,
+        hints: 'If this is a custom directive, register it in your Stacktape config.'
+      });
     }
     return {
       ...registeredDirective,
@@ -537,12 +546,13 @@ export class ConfigResolver {
     const value = await this.#getValueFromDirectiveResult(directiveResult, pathToProp, rawDefinition);
 
     if (value === undefined) {
-      throw new ExpectedError(
-        'DIRECTIVE',
-        `Property with path ${pathToProp} is not accessible on result of directive ${getDirectiveWithoutPath(
+      throw new CliError({
+        category: 'DIRECTIVE',
+        code: 'DIRECTIVE_RESULT_PATH_UNRESOLVED',
+        message: `Property path \`${pathToProp}\` is not available on the result of directive \`${getDirectiveWithoutPath(
           rawDefinition
-        )}.`
-      );
+        )}\`.`
+      });
     }
     if (getIsDirective(value)) {
       return this.resolveDirectives({ itemToResolve: value, resolveRuntime, useLocalResolve });
@@ -564,12 +574,17 @@ export class ConfigResolver {
         if (getIsDirective(resultValue)) {
           return `${resultValue}.${restPath}`;
         }
-        throw new ExpectedError(
-          'DIRECTIVE',
-          `Property with path "${pathToProp}" is not accessible on result of directive ${getDirectiveWithoutPath(
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_RESULT_PATH_UNRESOLVED',
+          message: `Property path \`${pathToProp}\` is not available on the result of directive \`${getDirectiveWithoutPath(
             rawDefinition
-          )}.${validPath ? `Longest resolvable partial path is "${validPath}" with result "${isNonNullObject(resultValue) ? JSON.stringify(resultValue) : resultValue}".` : ''} `
-        );
+          )}\`.${
+            validPath
+              ? ` The longest resolvable path is \`${validPath}\`, whose value is \`${isNonNullObject(resultValue) ? JSON.stringify(resultValue) : resultValue}\`.`
+              : ''
+          }`
+        });
       }
       // if there was no rest path it means the whole path resolved successfully
       return resultValue;
@@ -608,10 +623,11 @@ export class ConfigResolver {
           if (param.isDirective) {
             const { isRuntime } = this.getDirectiveInfo(param.definition);
             if (isRuntime && !directive.isRuntime) {
-              throw new ExpectedError(
-                'DIRECTIVE',
-                `Non-runtime directive ${directive.name} can't be dependent on a result of runtime directive ${param.name}.`
-              );
+              throw new CliError({
+                category: 'DIRECTIVE',
+                code: 'DIRECTIVE_RUNTIME_DEPENDENCY_INVALID',
+                message: `Non-runtime directive \`${directive.name}\` cannot depend on runtime directive \`${param.name}\`.`
+              });
             }
           }
         });
@@ -675,7 +691,11 @@ export class ConfigResolver {
 
       const value = this.resultsWithPath[node];
       if (value === undefined || value === null) {
-        throw new ExpectedError('DIRECTIVE', `Directive ${node} did not return a value.`);
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_VALUE_MISSING',
+          message: `Directive \`${node}\` did not return a value.`
+        });
       }
 
       return serialize(value);
@@ -724,11 +744,13 @@ export class ConfigResolver {
       await this.processDirectives({ resolveRuntime, useLocalResolve });
       try {
         result = await this.replaceDirectiveNodesWithResults(result);
-      } catch {
-        throw new ExpectedError(
-          'DIRECTIVE',
-          'Failed to process directives. One of the directives probably returned an invalid value.'
-        );
+      } catch (error) {
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_RESULT_INVALID',
+          message: 'Failed to process directives because a directive returned an invalid value.',
+          cause: error
+        });
       }
       shouldScanResolvedResult = (await this.collectRemainingDirectives({ obj: result, resolveRuntime })).length > 0;
     }

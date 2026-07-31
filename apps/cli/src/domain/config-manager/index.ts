@@ -47,7 +47,6 @@ import {
   getLambdaLogResourceArnsForPermissions,
   getLogGroupPolicyDocumentStatements
 } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/role-helpers';
-import { stpErrors } from '@errors';
 import { isTransferAccelerationEnabledInRegion } from 'src/aws/buckets';
 import { isBucketNativelySupportedHeader } from 'src/aws/sdk-manager/utils';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -114,6 +113,7 @@ import type { MongoDbAtlasProvider, UpstashProvider } from '@stacktape/config/pr
 import type { DomainConfiguration, StackConfig, StackOutput } from '@stacktape/config/shared';
 import type { SsrWebPathCachingOverride } from '@stacktape/config/ssr-web-shared';
 import type { WebServiceAlbLoadBalancing, WebServiceNlbLoadBalancing } from '@stacktape/config/web-services';
+import { configErrors } from './errors';
 
 const normalizeCdnPath = ({ path }: { path: string }) => path.replace(/^\//, '');
 
@@ -207,7 +207,7 @@ export class ConfigManager {
     if (!templateId && !globalStateManager.presetConfig) {
       detectedConfigPath = getConfigPath();
       if (!detectedConfigPath && configRequired) {
-        throw stpErrors.e16(null);
+        throw configErrors.configFileMissing();
       }
       globalStateManager.setConfigPath(detectedConfigPath);
     }
@@ -3345,7 +3345,7 @@ export class ConfigManager {
 
     Object.entries(domainAssociations).forEach(([fullDomainName, associations]) => {
       if (associations.length > 1) {
-        throw stpErrors.e47({ fullDomainName, associations });
+        throw configErrors.domainAssociatedWithMultipleResources({ fullDomainName, associations });
       }
     });
     return Array.from(resultDomains);

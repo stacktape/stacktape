@@ -8,7 +8,6 @@ import { IS_DEV } from '../../../config/random';
 import { STACKTAPE_TRPC_API_ENDPOINT } from '../../../config/params';
 import { sesManager } from '@domain-services/ses-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
-import { stpErrors } from '@errors';
 import { arns } from '@stacktape/naming/arns';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { helperLambdaAwsResourceNames } from '@stacktape/naming/helper-lambda-resource-names';
@@ -28,6 +27,7 @@ import { getPropsOfResourceReferencedInConfig } from './resource-references';
 import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 import type { LambdaRuntime } from '@stacktape/config/primitives';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
+import { configErrors } from '../errors';
 
 export const getBatchJobTriggerLambdaEnvironment = ({
   batchJobName,
@@ -631,11 +631,11 @@ export const getLambdaHandler = ({ name, packaging }: { packaging: LambdaPackagi
   }
   if (packaging.type === 'custom-artifact') {
     if (!packaging.properties.handler) {
-      throw stpErrors.e10({ functionName: name });
+      throw configErrors.customArtifactHandlerRequired({ functionName: name });
     }
     const [filePath, handlerFunction] = packaging.properties.handler.split(':');
     if (!handlerFunction) {
-      throw stpErrors.e102({ functionName: name });
+      throw configErrors.lambdaHandlerFormatInvalid({ functionName: name });
     }
     const filePathWithoutExtension = getFileNameWithoutExtension(filePath);
 
@@ -668,7 +668,7 @@ export const getLambdaRuntime = ({
     return isEdgeFunction ? capEdgeFunctionRuntime(runtime) : runtime;
   }
   if (packaging.type === 'custom-artifact' && !runtime) {
-    throw stpErrors.e11({ functionName: name });
+    throw configErrors.customArtifactRuntimeRequired({ functionName: name });
   }
   if (packaging.type === 'stacktape-lambda-buildpack') {
     const defaultRuntime = getDefaultRuntimeForExtension(getFileExtension(packaging.properties.entryfilePath));
@@ -695,6 +695,6 @@ export const resolveReferenceToLambdaFunction = ({
 
 export const validateLambdaConfig = ({ definition }: { definition: StpLambdaFunction }) => {
   if (definition.volumeMounts && !definition.joinDefaultVpc) {
-    throw stpErrors.e121({ lambdaStpResourceName: definition.name });
+    throw configErrors.lambdaEfsRequiresVpc({ lambdaStpResourceName: definition.name });
   }
 };

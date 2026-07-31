@@ -4,20 +4,21 @@ import type {
 } from '@domain-services/config-manager/resolved-types/network-load-balancer';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import { configManager } from '@domain-services/config-manager';
-import { stpErrors } from '@errors';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 import type { ContainerWorkloadNetworkLoadBalancerIntegrationProps } from '@stacktape/config/events';
+import { configErrors } from '../errors';
 
 const validateListenerPortOverlap = ({ loadBalancer }: { loadBalancer: StpNetworkLoadBalancer }) => {
   const encounteredPorts = new Set<number>();
   loadBalancer.listeners.forEach(({ port }) => {
     if (encounteredPorts.has(port)) {
-      throw new ExpectedError(
-        'CONFIG_VALIDATION',
-        `Error in load-balancer ${loadBalancer.name}. Two or more listeners are using the same port "${port}".`,
-        'Each listener must use unique port'
-      );
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_NLB_LISTENER_PORT_DUPLICATE',
+        message: `Network load balancer \`${loadBalancer.name}\` defines more than one listener on port \`${port}\`.`,
+        hints: 'Each listener must use a unique port.'
+      });
     }
     encounteredPorts.add(port);
   });
@@ -35,7 +36,7 @@ const validateNetworkLoadBalancerIntegrations = ({
     });
 
     if (existingIntegrations.length !== 1) {
-      throw stpErrors.e116({
+      throw configErrors.nlbListenerIntegrationCountInvalid({
         stpLoadBalancerName: loadBalancerDefinition.name,
         port,
         referencingWorkloadNames: existingIntegrations.map(({ workloadName }) => workloadName)
@@ -50,7 +51,10 @@ export const validateNetworkLoadBalancerConfig = ({ definition }: { definition: 
       ({ disableDnsRecordCreation, customCertificateArn }) => disableDnsRecordCreation && !customCertificateArn
     )
   ) {
-    throw stpErrors.e118({ resourceName: definition.name, resourceType: definition.type });
+    throw configErrors.customCertificateRequiredWhenDnsDisabled({
+      resourceName: definition.name,
+      resourceType: definition.type
+    });
   }
 
   validateListenerPortOverlap({ loadBalancer: definition });
@@ -72,11 +76,12 @@ export const resolveReferenceToNetworkLoadBalancer = (
   // if (resolveListenerInfo) {
   const referencedListener = referencedLoadBalancer?.listeners.find(({ port }) => port === lbReference.listenerPort);
   if (!referencedListener) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in network load-balancer ${referencedLoadBalancer.name}. No listener found for port ${lbReference.listenerPort}.`,
-      'Make sure the specified listenerPort matches a defined listener'
-    );
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_NLB_LISTENER_NOT_FOUND',
+      message: `Network load balancer \`${referencedLoadBalancer.name}\` has no listener on port \`${lbReference.listenerPort}\`.`,
+      hints: 'Set `listenerPort` to a port defined by the load balancer.'
+    });
   }
   return {
     ...lbReference,

@@ -3,16 +3,13 @@ import { CliError, type ErrorCategory } from '@utils/errors';
 import type { StpCfInfrastructureModuleType } from '@domain-services/cloudformation-registry-manager/types';
 import type { ArgType, Subtype } from '@utils/type-helpers';
 import type { StacktapeCommand } from 'src/config/cli/types';
-import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type {
-  Script,
   StpDomainAttachableResourceType,
   StpResourceType
 } from '@domain-services/config-manager/resolved-types/resources';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import { tuiManager } from '@application-services/tui-manager';
 import { StackStatus } from '@aws-sdk/client-cloudformation';
-import { VALID_CONFIG_PATHS } from '@config';
 import {
   STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS,
   STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS
@@ -116,22 +113,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       message: 'This command is not yet implemented'
     };
   },
-  e10({ functionName }: { functionName: string }): ReturnedError {
-    return {
-      type: 'CONFIG',
-      message: `Lambda function ${tuiManager.prettyResourceName(functionName)} must have ${tuiManager.prettyConfigProperty(
-        'handler'
-      )} property specified when using custom-artifact packaging type.`
-    };
-  },
-  e11({ functionName }: { functionName: string }): ReturnedError {
-    return {
-      type: 'CONFIG',
-      message: `Lambda function ${tuiManager.prettyResourceName(
-        functionName
-      )} must set ${tuiManager.prettyConfigProperty('runtime')} when using custom-artifact packaging type.`
-    };
-  },
   e12(): ReturnedError {
     return {
       type: 'CLI',
@@ -165,25 +146,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       type: 'CONFIG_VALIDATION',
       message: `Found multiple matching config files: ${matchingConfigPaths.join(', ')}. You need to supply only one.`,
       hint: hintMessages.configPathHint()
-    };
-  },
-  e16(): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: [
-        'This command requires a Stacktape config. Provide it in one of these ways:',
-        ` - Stacktape auto-detects config files named ${VALID_CONFIG_PATHS.map((p) => tuiManager.makeBold(p)).join(', ')} in your project root.`,
-        ` - Specify the config path using ${tuiManager.prettyOption('configPath')}.`,
-        ` - Specify a console template ID using ${tuiManager.prettyOption('templateId')}.`
-      ].join('\n'),
-      hint: [
-        // ...hintMessages.configPathHint(),
-        `Either manually create your stacktape configuration, or use ${tuiManager.prettyCommand(
-          'init'
-        )}.\nThe ${tuiManager.prettyCommand(
-          'init'
-        )} command can bootstrap config for your project or pick a starter template.`
-      ]
     };
   },
   e17({ scriptName }): ReturnedError {
@@ -367,50 +329,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       message: `Failed to install dependencies. Error:\n${err}`
     };
   },
-  e36({
-    stpResourceName,
-    stpResourceType,
-    referencedFromType,
-    referencedFrom,
-    validResourcePath,
-    invalidRestResourcePath,
-    possibleNestedResources,
-    incorrectResourceType
-  }: {
-    stpResourceName: string;
-    stpResourceType?: StpResourceType;
-    referencedFromType?: StpResourceType | 'alarm';
-    referencedFrom: string;
-    validResourcePath: string;
-    invalidRestResourcePath: string;
-    possibleNestedResources?: string[];
-    incorrectResourceType?: boolean;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Referenced resource with name ${tuiManager.prettyResourceName(stpResourceName)}${
-        stpResourceType ? ` of type ${tuiManager.prettyResourceType(stpResourceType as StpResourceType)}` : ''
-      } could not be resolved in the config (referenced from ${tuiManager.prettyResourceName(referencedFrom)}${
-        referencedFromType ? `(${tuiManager.prettyResourceType(referencedFromType as StpResourceType)})` : ''
-      }).`,
-      hint:
-        validResourcePath && invalidRestResourcePath
-          ? [
-              `Resource ${tuiManager.prettyResourceName(validResourcePath)} does not contain nested resource "${
-                invalidRestResourcePath.split('.')[0]
-              }"`
-            ].concat(
-              possibleNestedResources.length
-                ? `Possible nested resources: ${possibleNestedResources.map(tuiManager.prettyResourceName).join(', ')}`
-                : []
-            )
-          : incorrectResourceType
-            ? `Referenced resource does not have the correct type (${tuiManager.prettyResourceType(
-                stpResourceType as StpResourceType
-              )})`
-            : undefined
-    };
-  },
   e37({
     stpResourceName,
     referencedResourceType,
@@ -540,77 +458,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       ]
     };
   },
-  e44({
-    stpLoadBalancerName,
-    referencedFromType,
-    referencedFrom
-  }: {
-    stpLoadBalancerName: string;
-    referencedFromType?: StpResourceType | 'alarm';
-    referencedFrom: string;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message:
-        `Error in ${referencedFromType ? `${referencedFromType} ` : ''}resource ${tuiManager.makeBold(
-          referencedFrom
-        )} when referencing application-load-balancer ${tuiManager.makeBold(stpLoadBalancerName)}.\n` +
-        `You cannot specify ${tuiManager.makeBold(
-          'listenerPort'
-        )} property when application-load-balancer does not use custom ${tuiManager.makeBold('listeners')}.`
-    };
-  },
-  e45({
-    stpLoadBalancerName,
-    listenerPort,
-    referencedFromType,
-    referencedFrom
-  }: {
-    stpLoadBalancerName: string;
-    listenerPort: number;
-    referencedFromType?: StpResourceType | 'alarm';
-    referencedFrom: string;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message:
-        `Error in ${referencedFromType || ''} resource ${tuiManager.makeBold(referencedFrom)}.\n` +
-        `Referenced application-load-balancer ${tuiManager.makeBold(
-          stpLoadBalancerName
-        )} does NOT have listener on port ${tuiManager.makeBold(listenerPort)}.`
-    };
-  },
-  e46({
-    stpLoadBalancerName,
-    referencedFromType,
-    referencedFrom
-  }: {
-    stpLoadBalancerName: string;
-    referencedFromType?: StpResourceType | 'alarm';
-    referencedFrom: string;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message:
-        `Error in ${referencedFromType ? `${referencedFromType} ` : ''}resource ${tuiManager.makeBold(
-          referencedFrom
-        )} when referencing application-load-balancer ${tuiManager.makeBold(stpLoadBalancerName)}.\n` +
-        `You need to specify ${tuiManager.makeBold(
-          'listenerPort'
-        )} property when application-load-balancer uses custom ${tuiManager.makeBold('listeners')}.`
-    };
-  },
-  e47({ fullDomainName, associations }: { fullDomainName: string; associations: string[] }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `You are trying to associate single domain (${tuiManager.makeBold(
-        fullDomainName
-      )}) to multiple resources.\nAssociated resources: ${associations
-        .map((resource) => `${tuiManager.makeBold(resource)}`)
-        .join(', ')}`,
-      hint: 'Single domain can be associated only to single resource.'
-    };
-  },
   e48({ domainName }: { domainName: string }): ReturnedError {
     return {
       type: 'DOMAIN_MANAGEMENT',
@@ -675,22 +522,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       )} option.\nAvailable containers: ${availableContainers.map(tuiManager.makeBold).join(', ')}`
     };
   },
-  e54({
-    stpResourceName,
-    resourceType
-  }: {
-    stpResourceName: string;
-    resourceType: StpContainerWorkload['configParentResourceType'];
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType(resourceType)} ${tuiManager.prettyResourceName(
-        stpResourceName
-      )}: The compute resource must use application-load-balancer ${tuiManager.makeBold(
-        'event'
-      )} integration to use ${tuiManager.prettyConfigProperty('deployment')}.`
-    };
-  },
   e55({ invalidEmail }: { invalidEmail: string }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
@@ -739,38 +570,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       )} with trigger of type ${alarmType} cannot be used with ${tuiManager.makeBold(
         stpResourceName
       )}, which uses aurora serverless engine. Memory for aurora serverless databases is automatically scaled based on the demand.`
-    };
-  },
-  e60({
-    alarmReference,
-    referencedFromType,
-    referencedFrom
-  }: {
-    alarmReference: string;
-    referencedFromType?: StpResourceType | 'alarm';
-    referencedFrom: string;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Alarm ${tuiManager.makeBold(alarmReference)} referenced from ${tuiManager.makeBold(referencedFrom)} ${
-        referencedFromType ? `(${referencedFromType})` : ''
-      } is not defined in this config.`
-    };
-  },
-  e61({
-    stpResourceName,
-    resourceType
-  }: {
-    stpResourceName: string;
-    resourceType: StpContainerWorkload['configParentResourceType'];
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType(resourceType)} ${tuiManager.makeBold(
-        stpResourceName
-      )}: Only one container of compute resource can be targeted by exactly one application-load-balancer listener when using ${tuiManager.makeBold(
-        'deployment'
-      )} property.`
     };
   },
   e62({ stpContainerWorkloadName }: { stpContainerWorkloadName: string }): ReturnedError {
@@ -999,20 +798,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       hint: 'Is referenced export valid construct class?'
     };
   },
-  e75({
-    workloadName,
-    workloadType
-  }: {
-    workloadName: string;
-    workloadType: StpContainerWorkload['configParentResourceType'];
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType(workloadType)} ${tuiManager.makeBold(
-        workloadName
-      )}: Property "${tuiManager.makeBold('deployment')}" cannot be used when using "service-connect" events.`
-    };
-  },
   e76({ stackName, command }: { stackName: string; command: StacktapeCommand }): ReturnedError {
     return {
       type: 'STACK',
@@ -1059,54 +844,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
           .map((param) => tuiManager.prettyConfigProperty(param))
           .join(', ')}.`
       ]
-    };
-  },
-  e79({ webServiceName }: { webServiceName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType('web-service')} ${tuiManager.prettyResourceName(
-        webServiceName
-      )}. When using ${tuiManager.prettyConfigProperty(
-        'deployment'
-      )} property, you must use load balancing type "application-load-balancer".`
-    };
-  },
-  e80({ webServiceName }: { webServiceName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType('web-service')} ${tuiManager.prettyResourceName(
-        webServiceName
-      )}. You can only use ${tuiManager.prettyConfigProperty(
-        'alarms'
-      )} compatible with web service load balancing type (i.e ${tuiManager.prettyResourceType(
-        'application-load-balancer'
-      )} alarms for ${tuiManager.prettyResourceType('application-load-balancer')} and ${tuiManager.prettyResourceType(
-        'http-api-gateway'
-      )} alarms for ${tuiManager.prettyResourceType('http-api-gateway')}).`
-    };
-  },
-  e81({ stpSqsQueueName }: { stpSqsQueueName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType('sqs-queue')} ${tuiManager.prettyResourceName(
-        stpSqsQueueName
-      )}. Properties ${tuiManager.prettyConfigProperty('fifoHighThroughput')} and ${tuiManager.prettyConfigProperty(
-        'contentBasedDeduplication'
-      )} can only be used when fifo is enabled(property ${tuiManager.prettyConfigProperty(
-        'fifoEnabled'
-      )} is set to ${tuiManager.makeBold('true')}).`
-    };
-  },
-  e82({ stpSqsQueueName }: { stpSqsQueueName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType('sns-topic')} ${tuiManager.prettyResourceName(
-        stpSqsQueueName
-      )}. Property ${tuiManager.prettyConfigProperty(
-        'contentBasedDeduplication'
-      )} can only be used when fifo is enabled(property ${tuiManager.prettyConfigProperty(
-        'fifoEnabled'
-      )} is set to ${tuiManager.makeBold('true')}).`
     };
   },
   e83({
@@ -1177,33 +914,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       )} in the event, because it has fifo enabled.`
     };
   },
-  e87({
-    workloadName,
-    workloadType
-  }: {
-    workloadName: string;
-    workloadType: StpContainerWorkload['type'];
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: [
-        `Error in ${tuiManager.prettyResourceType(workloadType)} ${tuiManager.makeBold(
-          workloadName
-        )}: When configuring ${tuiManager.prettyConfigProperty('resources')} you must choose one of:`,
-        `1. Specify ${tuiManager.prettyConfigProperty('cpu')} and ${tuiManager.prettyConfigProperty(
-          'memory'
-        )} properties only (FARGATE launch type will be used).`,
-        `2. Specify ${tuiManager.prettyConfigProperty(
-          'instanceTypes'
-        )} property (EC2 launch type will be used). You can optionally also configure ${tuiManager.prettyConfigProperty(
-          'cpu'
-        )} and ${tuiManager.prettyConfigProperty('memory')}`
-      ].join('\n'),
-      hint: [
-        `See resource docs to learn more: https://docs.stacktape.com/compute-resources/${workloadType}s/#resources`
-      ]
-    };
-  },
   e88({ domainName }: { domainName: string }): ReturnedError {
     return {
       type: 'DOMAIN_MANAGEMENT',
@@ -1217,112 +927,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
         )} to ${tuiManager.makeBold('true')} and specify ${tuiManager.prettyConfigProperty('customCertificateArn')}.`,
         `Docs: ${DOMAINS_DOCS_URL}`
       ].join('\n')
-    };
-  },
-  e89({
-    workloadName,
-    workloadType
-  }: {
-    workloadName: string;
-    workloadType: StpContainerWorkload['type'];
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType(workloadType)} ${tuiManager.makeBold(
-        workloadName
-      )}: ${tuiManager.prettyConfigProperty('scaling.minInstances')} and ${tuiManager.prettyConfigProperty(
-        'scaling.maxInstances'
-      )} must both be at least 1, and ${tuiManager.prettyConfigProperty(
-        'scaling.maxInstances'
-      )} must be greater than or equal to ${tuiManager.prettyConfigProperty('scaling.minInstances')}.`
-    };
-  },
-  // e90(_arg: null): ReturnedError {
-  //   return {
-  //     type: 'CLI',
-  //     message: `You must specify one of:\n1. ${tuiManager.prettyOption('stackName')} option\n2. ${tuiManager.prettyOption(
-  //       'stage'
-  //     )} and ${tuiManager.prettyOption('configPath')} options.`,
-  //     hint: `If you use ${tuiManager.prettyOption('stage')} and ${tuiManager.prettyOption(
-  //       'configPath'
-  //     )} options, stack name will be derived from the supplied configuration. If you use ${tuiManager.prettyOption(
-  //       'stackName'
-  //     )}, the stackName will be used.`
-  //   };
-  // },
-  e91({
-    workloadType,
-    workloadName,
-    appVariable
-  }: {
-    workloadType: StpResourceType;
-    workloadName: string;
-    appVariable: string;
-  }): ReturnedError {
-    return {
-      type: 'PACKAGING_CONFIG',
-      message: `Error in ${tuiManager.prettyResourceType(workloadType)} ${tuiManager.prettyResourceName(workloadName)}:
-You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in your ${tuiManager.prettyConfigProperty(
-        'entryfilePath'
-      )}. In this case, you must also specify ${tuiManager.prettyConfigProperty(
-        'runAppAs'
-      )} property in the ${tuiManager.prettyConfigProperty('languageSpecificConfig')}`
-    };
-  },
-  e92({
-    stpHttpApiGatewayName,
-    stpResourceName1,
-    stpResourceName2
-  }: {
-    stpHttpApiGatewayName: string;
-    stpResourceName1: string;
-    stpResourceName2: string;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in event integrations of ${tuiManager.prettyResourceType(
-        'http-api-gateway'
-      )} ${tuiManager.prettyResourceName(
-        stpHttpApiGatewayName
-      )}. Events on two different resources(${tuiManager.prettyResourceName(
-        stpResourceName1
-      )} and ${tuiManager.prettyResourceName(stpResourceName2)}) are using the same ${tuiManager.prettyConfigProperty(
-        'path'
-      )} and ${tuiManager.prettyConfigProperty('method')} which is not allowed.`
-    };
-  },
-  e93({
-    stpApplicationLoadBalancerName,
-    stpResourceName1,
-    stpResourceName2
-  }: {
-    stpApplicationLoadBalancerName: string;
-    stpResourceName1: string;
-    stpResourceName2: string;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in event integrations of ${tuiManager.prettyResourceType(
-        'application-load-balancer'
-      )} ${tuiManager.prettyResourceName(
-        stpApplicationLoadBalancerName
-      )}. Events on two different resources(${tuiManager.prettyResourceName(
-        stpResourceName1
-      )} and ${tuiManager.prettyResourceName(stpResourceName2)}) are using the same ${tuiManager.prettyConfigProperty(
-        'priority'
-      )} which is not allowed.`
-    };
-  },
-  e94({
-    scriptType
-  }: {
-    scriptType: Subtype<Script['type'], 'bastion-script' | 'local-script-with-bastion-tunneling'>;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.makeBold('script')}. You cannot use script of type ${tuiManager.makeBold(
-        scriptType
-      )} if resource of type ${tuiManager.prettyResourceType('bastion')} does not exist in the config.`
     };
   },
   e95({ stpResourceName }: { stpResourceName: string }): ReturnedError {
@@ -1451,49 +1055,10 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
       )}.\nValid child resources are: ${childResources.join(', ')}.`
     };
   },
-  e102({ functionName }: { functionName: string }): ReturnedError {
-    return {
-      type: 'CONFIG',
-      message: `${tuiManager.prettyConfigProperty('Handler')} property of lambda function ${tuiManager.prettyResourceName(
-        functionName
-      )} has invalid format.`,
-      hint: `Handler must be in shape ${tuiManager.makeBold('{{filePath}}:{{handlerFunction}}')}`
-    };
-  },
   e103(_arg: null): ReturnedError {
     return {
       type: 'INPUT',
       message: `Invalid arguments. Please specify ${tuiManager.prettyOption('projectName')} option.`
-    };
-  },
-  e105({ stpResourceName }: { stpResourceName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceName(stpResourceName)} (${tuiManager.prettyResourceType('nextjs-web')}) Cannot use edge lambdas ${tuiManager.prettyConfigProperty('useEdgeLambda')} together with streaming responses ${tuiManager.prettyConfigProperty('streamingEnabled')}.`
-    };
-  },
-  e106({
-    directoryPath,
-    stpResourceName,
-    resolvedPath
-  }: {
-    directoryPath: string;
-    stpResourceName: string;
-    resolvedPath?: string;
-  }): ReturnedError {
-    const resolvedPathHint = resolvedPath
-      ? `\nResolved absolute path: "${tuiManager.prettyFilePath(resolvedPath)}"`
-      : '';
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceName(stpResourceName)} resource: Specified directory "${tuiManager.prettyFilePath(directoryPath)}" is not accessible or not a directory.${resolvedPathHint}`,
-      hint: 'The appDirectory path is relative to the directory containing your Stacktape config file. If your config is already inside the app directory, use "." (the default) instead.'
-    };
-  },
-  e107({ directoryPath, stpResourceName }: { directoryPath: string; stpResourceName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceName(stpResourceName)} resource: Specified directory "${tuiManager.prettyFilePath(directoryPath)}" does not seem to contain Next.js project (does not contain next.config.(js/ts)).`
     };
   },
   e108({ reason, command }: { reason?: string; command: StacktapeCommand }) {
@@ -1559,16 +1124,6 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
         .join(', ')}`
     };
   },
-  e112({ sqsQueueReferencerStpName }: { sqsQueueReferencerStpName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType('sqs-queue')} ${tuiManager.prettyResourceName(
-        sqsQueueReferencerStpName
-      )}. When referencing target sqs queue in redrive policy, you must specify exactly one of ${tuiManager.prettyConfigProperty(
-        'targetSqsQueueName'
-      )} or ${tuiManager.prettyConfigProperty('targetSqsQueueArn')} properties.`
-    };
-  },
   e113({ providerType }: { providerType: 'Upstash' | 'Atlas Mongo' }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
@@ -1609,48 +1164,6 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
       ].join('\n')
     };
   },
-  e116({
-    stpLoadBalancerName,
-    referencingWorkloadNames,
-    port
-  }: {
-    stpLoadBalancerName: string;
-    referencingWorkloadNames: string[];
-    port: number;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in network load-balancer ${tuiManager.prettyResourceName(
-        stpLoadBalancerName
-      )}. Listener with port ${port} has ${referencingWorkloadNames.length} integrations (${referencingWorkloadNames.join(
-        ', '
-      )}). Each network load balancer listener must have exactly one integration.`
-    };
-  },
-  e117({ webServiceName }: { webServiceName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType('web-service')} ${tuiManager.prettyResourceName(
-        webServiceName
-      )}. CDN can only be used with web services that use ${tuiManager.prettyConfigProperty('http-api-gateway')} (default) or ${tuiManager.prettyConfigProperty('application-load-balancer')} load balancing types.`
-    };
-  },
-  e118({
-    resourceName,
-    resourceType
-  }: {
-    resourceName: string;
-    resourceType: 'web-service' | 'application-load-balancer' | 'network-load-balancer';
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType(resourceType)} ${tuiManager.prettyResourceName(
-        resourceName
-      )}. If ${tuiManager.prettyConfigProperty(
-        'disableDnsRecordCreation'
-      )} is set to true, you must also specify ${tuiManager.prettyConfigProperty('customCertificateArn')}.`
-    };
-  },
   e119({ containerResourceName }: { containerResourceName: string }): ReturnedError {
     return {
       type: 'NON_EXISTING_RESOURCE',
@@ -1675,15 +1188,6 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
         .join(', ')}. Specify which container to connect to using ${tuiManager.prettyOption('container')}.`
     };
   },
-  e121({ lambdaStpResourceName }: { lambdaStpResourceName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType('function')} ${tuiManager.prettyResourceName(lambdaStpResourceName)}: When using ${tuiManager.prettyConfigProperty(
-        'volumeMounts'
-      )}, the property ${tuiManager.prettyConfigProperty('joinDefaultVpc')} must be set to ${tuiManager.makeBold('true')}.`,
-      hint: 'Be aware that a Lambda function joined to a VPC cannot access the internet.'
-    };
-  },
   e122({
     stpResourceName,
     stpResourceType
@@ -1706,59 +1210,10 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
       hint: `Supported resource types are: ${supportedResourceTypes.map((type) => tuiManager.prettyResourceType(type)).join(', ')}.`
     };
   },
-  e123({ stpResourceName }: { stpResourceName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType('relational-database')} ${tuiManager.prettyResourceName(stpResourceName)}. Preferred maintenance window must be in format "day:hour:minute-day:hour:minute" (e.g. ${tuiManager.makeBold('Sun:02:00-Sun:04:00')}).`
-    };
-  },
-  e124({ stpResourceName }: { stpResourceName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType('nextjs-web')} ${tuiManager.prettyResourceName(stpResourceName)}. You cannot use ${tuiManager.prettyConfigProperty('joinDefaultVpc')} property when using edge lambda.`
-    };
-  },
-  e125({
-    stpResourceName,
-    stpResourceType
-  }: {
-    stpResourceName: string;
-    stpResourceType: StpContainerWorkload['configParentResourceType'];
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType(stpResourceType)} ${tuiManager.prettyResourceName(stpResourceName)}. Property ${tuiManager.prettyConfigProperty('enableWarmPool')} can only be used when you specify exactly one instance type in ${tuiManager.prettyConfigProperty('instanceTypes')}. Warm pools are not supported with mixed instance types.`
-    };
-  },
-  e126({
-    stpResourceName,
-    stpResourceType
-  }: {
-    stpResourceName: string;
-    stpResourceType: StpContainerWorkload['configParentResourceType'];
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType(stpResourceType)} ${tuiManager.prettyResourceName(stpResourceName)}. Property ${tuiManager.prettyConfigProperty('cpuArchitecture')} cannot be used when ${tuiManager.prettyConfigProperty('instanceTypes')} is specified.`,
-      hint: `Property ${tuiManager.prettyConfigProperty('cpuArchitecture')} is only used when using Fargate launch type (when ${tuiManager.prettyConfigProperty('instanceTypes')} is not specified). When using EC2 launch type, CPU architecture is determined by the instance type.`
-    };
-  },
   e127({ stpLoadBalancerName }: { stpLoadBalancerName: string }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
       message: `No valid target container services found for load balancer ${tuiManager.prettyResourceName(stpLoadBalancerName)}. Cannot create unhealthy targets alarm.`
-    };
-  },
-  e128({ configPath }: { configPath: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `When loading config from ${tuiManager.prettyFilePath(configPath)}: Export ${tuiManager.makeBold('getConfig')} must be a function.`
-    };
-  },
-  e129({ configPath, config }: { configPath: string; config: any }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Could not load valid config object from file ${tuiManager.prettyFilePath(configPath)}. Returned value: ${config}`
     };
   },
   e130({ port }: { port: string | number }): ReturnedError {
@@ -1829,59 +1284,6 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
       message: `Can't find template with ID ${templateId}.`
     };
   },
-
-  e1001({
-    entryfilePath,
-    workloadType,
-    workloadName
-  }: {
-    entryfilePath: string;
-    workloadType: StpResourceType;
-    workloadName: string;
-  }): ReturnedError {
-    return {
-      type: 'PACKAGING_CONFIG',
-      message: `Error in ${tuiManager.prettyResourceType(workloadType)} ${tuiManager.prettyResourceName(workloadName)}:
-If you want to run the app as WSGI/ASGI, specify the app variable (WSGI/ASGI callable) in ${tuiManager.prettyConfigProperty(
-        'entryfilePath'
-      )}, e.g. ${tuiManager.prettyFilePath(`${entryfilePath}:<<app_variable>>`)}.`,
-      hint: `${tuiManager.makeBold('Typical paths')} for common frameworks:
-Django: ${tuiManager.prettyFilePath('project/asgi.py:application')}
-Flask: ${tuiManager.prettyFilePath('project/app.py:application')}
-FastAPI: ${tuiManager.prettyFilePath('project/main.py:app')}`
-    };
-  },
-  e1002({ workloadType, workloadName }: { workloadType: StpResourceType; workloadName: string }): ReturnedError {
-    return {
-      type: 'PACKAGING_CONFIG',
-      message: `Error in ${tuiManager.prettyResourceType(workloadType)} ${tuiManager.prettyResourceName(workloadName)}:
-Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only for ${tuiManager.prettyConfigProperty(
-        'stacktape-image-buildpack'
-      )} packaging type.`
-    };
-  },
-  e1003({ webServiceName }: { webServiceName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType('web-service')} ${tuiManager.prettyResourceName(
-        webServiceName
-      )}. You can only use ${tuiManager.prettyConfigProperty('useFirewall')} with ${tuiManager.prettyResourceType(
-        'application-load-balancer'
-      )} load balancing type.`
-    };
-  },
-  e1004({ firewallName }: { firewallName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType('web-app-firewall')} ${tuiManager.prettyResourceName(
-        firewallName
-      )}. Firewall with ${tuiManager.prettyConfigProperty(
-        'scope: cdn'
-      )} can't be used with regional resources without CDN, and firewall with ${tuiManager.prettyConfigProperty(
-        'scope: regional'
-      )} can't be used with resources using CDN.`
-    };
-  },
   e1005({ firewallName }: { firewallName: string }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
@@ -1923,16 +1325,6 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
       hint: 'You can only reuse VPC from other Stacktape stacks that have been deployed.'
     };
   },
-  e132(_arg: null): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Invalid ${tuiManager.prettyConfigProperty(
-        'stackConfig.vpc.reuseVpc'
-      )} configuration. Specify either ${tuiManager.prettyConfigProperty('vpcId')} or both ${tuiManager.prettyConfigProperty(
-        'projectName'
-      )} and ${tuiManager.prettyConfigProperty('stage')}, but not both methods.`
-    };
-  },
   e133({ vpcId, foundCount }: { vpcId: string; foundCount: number }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
@@ -1970,77 +1362,12 @@ Property ${tuiManager.prettyConfigProperty('runAppAs')} can be specified only fo
       hint: `The following resources require private subnets: ${requiringResources.map((r) => tuiManager.prettyResourceName(r)).join(', ')}. Private subnets are identified by NOT having a direct route to an Internet Gateway in their route table.`
     };
   },
-  e136({ configPath, packageName }: { configPath: string; packageName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Cannot find package ${tuiManager.makeBold(packageName)} when loading config from ${tuiManager.prettyFilePath(configPath)}.`,
-      hint: `Install it with ${tuiManager.makeBold(`npm install ${packageName}`)} or ${tuiManager.makeBold(
-        `bun add ${packageName}`
-      )}.`
-    };
-  },
-  e137({ configPath, errorMessage }: { configPath: string; errorMessage: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Syntax error in TypeScript config ${tuiManager.prettyFilePath(configPath)}.`,
-      hint: `Error details: ${errorMessage}`
-    };
-  },
-  e138({
-    configPath,
-    errorMessage,
-    userStackTrace
-  }: {
-    configPath: string;
-    errorMessage: string;
-    userStackTrace?: string;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Failed to execute TypeScript config ${tuiManager.prettyFilePath(configPath)}.`,
-      errorDetails: { title: errorMessage, codeFrame: userStackTrace }
-    };
-  },
-  e139({ configPath }: { configPath: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `TypeScript config ${tuiManager.prettyFilePath(configPath)} must export a default function (using ${tuiManager.makeBold('defineConfig')}) or a ${tuiManager.makeBold('getConfig')} function.`,
-      hint: `Example:\n${tuiManager.makeBold(`import { defineConfig } from 'stacktape';\nexport default defineConfig(({ stage }) => ({ resources: {} }));`)}`
-    };
-  },
-  e140({ configPath, exportValue }: { configPath: string; exportValue: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Config function in ${tuiManager.prettyFilePath(configPath)} must return an object, but returned ${tuiManager.makeBold(exportValue)}.`,
-      hint: `Make sure your config function returns a valid Stacktape configuration object with at least a ${tuiManager.makeBold('resources')} property.`
-    };
-  },
   e141({ stackName, stage }: { stackName: string; stage: string }): ReturnedError {
     return {
       type: 'CLI',
       message: `Stack ${tuiManager.colorize('cyan', stackName)} is a dev stack and cannot be deployed using ${tuiManager.prettyCommand('deploy')}.`,
       hint: `Dev stacks are created and managed by ${tuiManager.prettyCommand('dev')}. To deploy a production stack, use a different stage name (e.g., --stage production).
 If you want to delete the dev stack, run: ${tuiManager.prettyCommand(`delete --stage ${stage}`)}`
-    };
-  },
-  e142({
-    directoryPath,
-    stpResourceName,
-    propertyName,
-    resolvedPath
-  }: {
-    directoryPath: string;
-    stpResourceName: string;
-    propertyName: string;
-    resolvedPath?: string;
-  }): ReturnedError {
-    const resolvedPathHint = resolvedPath
-      ? `\nResolved absolute path: "${tuiManager.prettyFilePath(resolvedPath)}"`
-      : '';
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceName(stpResourceName)} resource: Directory from ${tuiManager.prettyConfigProperty(propertyName)} ("${tuiManager.prettyFilePath(directoryPath)}") is not accessible or not a directory.${resolvedPathHint}`,
-      hint: 'Relative paths are resolved from the directory containing your Stacktape config file. If your config is already inside that app directory, use "." (the default) instead.'
     };
   },
   e999({ message, hint }: { message: string; hint: string }): ReturnedError {

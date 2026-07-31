@@ -13,22 +13,20 @@ import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types
 import type { StpWebService } from '@domain-services/config-manager/resolved-types/web-services';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@application-services/tui-manager';
 import {
   lambdaRuntimesForFileExtension,
   linksMap,
   supportedAwsCdkConstructExtensions,
   supportedWorkloadExtensions
 } from '@config';
-import { stpErrors } from '@errors';
 import { isDirAccessible, isFileAccessible } from '@utils/fs-utils';
 import { capitalizeFirstLetter, getUniqueDuplicates, isAlphanumeric } from '@utils/misc';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { parseUserCodeFilepath } from '@utils/file-loaders';
 import { configManager } from '../index';
 import { validateApplicationLoadBalancerConfig } from './application-load-balancers';
 import { resolveReferenceToBastion } from './bastion';
-import { validateBucketConfig, validateHostingBucketConfig } from './buckets';
+import { validateHostingBucketConfig } from './buckets';
 import { validateConvexConfig } from './convex';
 import { validateHttpApiGatewayConfig } from './http-api-gateways';
 import { validateLambdaConfig } from './lambdas';
@@ -51,6 +49,7 @@ import type {
 import type { LambdaRuntime } from '@stacktape/config/primitives';
 import type { AuroraEngine, RdsEngine } from '@stacktape/config/relational-databases';
 import type { BastionScript, LocalScriptWithBastionTunneling } from '@stacktape/config/shared';
+import { configErrors } from '../errors';
 
 export const validatePackagingProps = ({
   packaging,
@@ -65,18 +64,15 @@ export const validatePackagingProps = ({
   lambdaRuntime?: LambdaRuntime;
   workloadType: StpWorkloadType;
 }) => {
-  const prettyIdentifier = `${capitalizeFirstLetter(workloadType)} ${tuiManager.makeBold(workloadName)}${
-    containerName && workloadType === 'multi-container-workload'
-      ? ` (container ${tuiManager.makeBold(containerName)})`
-      : ''
+  const workloadDescription = `${capitalizeFirstLetter(workloadType)} \`${workloadName}\`${
+    containerName && workloadType === 'multi-container-workload' ? ` (container \`${containerName}\`)` : ''
   }`;
-  const cwdHint = `The path is resolved relative to the directory specified using ${tuiManager.prettyOption(
-    'currentWorkingDirectory'
-  )} or the directory containing Stacktape configuration file.`;
+  const cwdHint =
+    'Paths are resolved relative to `--currentWorkingDirectory` or the directory containing the Stacktape config.';
   if (packaging.type === 'stacktape-image-buildpack' || packaging.type === 'stacktape-lambda-buildpack') {
     const { entryfilePath } = packaging.properties;
     const { extension, filePath, handler, hasExplicitHandler } = parseUserCodeFilepath({
-      codeType: `${prettyIdentifier} entryfilePath`,
+      codeType: `${workloadDescription} entryfilePath`,
       fullPath: entryfilePath,
       workingDir: globalStateManager.workingDir
     });
@@ -89,38 +85,45 @@ export const validatePackagingProps = ({
         go: linksMap.goWorkloadIssue
       }[extension];
       if (!issue) {
-        throw new ExpectedError('PACKAGING_CONFIG', `${prettyIdentifier} has unsupported file extension ${extension}`);
+        throw new CliError({
+          category: 'PACKAGING_CONFIG',
+          code: 'PACKAGING_ENTRYFILE_EXTENSION_UNSUPPORTED',
+          message: `${workloadDescription} has unsupported entry-file extension \`.${extension}\`.`
+        });
       }
-      throw new ExpectedError(
-        'NOT_YET_IMPLEMENTED',
-        `Packaging .${extension} compute resources is not yet supported.`,
-        issue
-      );
+      throw new CliError({
+        category: 'NOT_YET_IMPLEMENTED',
+        code: 'PACKAGING_LANGUAGE_NOT_SUPPORTED',
+        message: `Packaging \`.${extension}\` compute resources is not yet supported.`,
+        hints: issue
+      });
     }
 
     if (filePath && workloadType === 'function') {
       const allowedRuntimes = lambdaRuntimesForFileExtension[extension];
       if (!allowedRuntimes) {
-        throw new ExpectedError(
-          'PACKAGING_CONFIG',
-          `${prettyIdentifier} has unsupported entryfile extension ${extension} for file ${tuiManager.prettyFilePath(
-            filePath
-          )}`
-        );
+        throw new CliError({
+          category: 'PACKAGING_CONFIG',
+          code: 'PACKAGING_LAMBDA_ENTRYFILE_EXTENSION_UNSUPPORTED',
+          message: `${workloadDescription} cannot use entry file \`${filePath}\` with extension \`.${extension}\`.`
+        });
       }
       if (lambdaRuntime && !allowedRuntimes.includes(lambdaRuntime)) {
-        throw new ExpectedError(
-          'PACKAGING_CONFIG',
-          `${prettyIdentifier} has unsupported runtime ${lambdaRuntime} for entryfile with extension .${extension}`
-        );
+        throw new CliError({
+          category: 'PACKAGING_CONFIG',
+          code: 'PACKAGING_LAMBDA_RUNTIME_INCOMPATIBLE',
+          message: `${workloadDescription} cannot use runtime \`${lambdaRuntime}\` with a \`.${extension}\` entry file.`,
+          hints: `Compatible runtimes: ${allowedRuntimes.map((runtime) => `\`${runtime}\``).join(', ')}.`
+        });
       }
     }
     if (!isFileAccessible(filePath)) {
-      throw new ExpectedError(
-        'PACKAGING_CONFIG',
-        `${prettyIdentifier}'s entryfilePath ${filePath} doesn't exist or is not accessible.`,
-        cwdHint
-      );
+      throw new CliError({
+        category: 'PACKAGING_CONFIG',
+        code: 'PACKAGING_ENTRYFILE_MISSING',
+        message: `${workloadDescription} entry file \`${filePath}\` does not exist or is not accessible.`,
+        hints: cwdHint
+      });
     }
     if (extension === 'py') {
       validateStacktapeBuildpackPythonPackagingProps({
@@ -137,35 +140,34 @@ export const validatePackagingProps = ({
       ? join(globalStateManager.workingDir, buildContextPath, dockerfilePath || 'Dockerfile')
       : join(globalStateManager.workingDir, dockerfilePath || 'Dockerfile');
     if (!isFileAccessible(fullLocation)) {
-      throw new ExpectedError(
-        'PACKAGING_CONFIG',
-        `${prettyIdentifier}'s dockerfilePath ${tuiManager.prettyFilePath(
-          fullLocation
-        )} doesn't exist or is not accessible.`,
-        cwdHint
-      );
+      throw new CliError({
+        category: 'PACKAGING_CONFIG',
+        code: 'PACKAGING_DOCKERFILE_MISSING',
+        message: `${workloadDescription} Dockerfile \`${fullLocation}\` does not exist or is not accessible.`,
+        hints: cwdHint
+      });
     }
   } else if (packaging.type === 'custom-artifact') {
     const { packagePath } = packaging.properties;
     const fullLocation = join(globalStateManager.workingDir, packagePath);
     if (!isFileAccessible(fullLocation) && !isDirAccessible(fullLocation)) {
-      throw new ExpectedError(
-        'PACKAGING_CONFIG',
-        `${prettyIdentifier}'s packagePath ${tuiManager.prettyFilePath(fullLocation)} doesn't exist or is not accessible.`,
-        cwdHint
-      );
+      throw new CliError({
+        category: 'PACKAGING_CONFIG',
+        code: 'PACKAGING_ARTIFACT_PATH_MISSING',
+        message: `${workloadDescription} artifact path \`${fullLocation}\` does not exist or is not accessible.`,
+        hints: cwdHint
+      });
     }
   } else if (packaging.type === 'external-buildpack') {
     const { sourceDirectoryPath } = packaging.properties;
     const fullLocation = join(globalStateManager.workingDir, sourceDirectoryPath);
     if (!isFileAccessible(fullLocation) && !isDirAccessible(fullLocation)) {
-      throw new ExpectedError(
-        'PACKAGING_CONFIG',
-        `${prettyIdentifier}'s sourceDirectoryPath ${tuiManager.prettyFilePath(
-          fullLocation
-        )} doesn't exist or is not accessible.`,
-        cwdHint
-      );
+      throw new CliError({
+        category: 'PACKAGING_CONFIG',
+        code: 'PACKAGING_SOURCE_DIRECTORY_MISSING',
+        message: `${workloadDescription} source directory \`${fullLocation}\` does not exist or is not accessible.`,
+        hints: cwdHint
+      });
     }
   }
   // @todo validate prebuilt-image?
@@ -187,47 +189,53 @@ const validateStacktapeBuildpackPythonPackagingProps = ({
   const languageSpecificConfig: PyLanguageSpecificConfig = packaging.properties
     .languageSpecificConfig as PyLanguageSpecificConfig;
   if (packaging.type === 'stacktape-lambda-buildpack' && languageSpecificConfig?.runAppAs) {
-    throw stpErrors.e1002({ workloadName, workloadType });
+    throw configErrors.runAppAsPackagingInvalid({ workloadName, workloadType });
   }
   if (!hasAppVariableSpecified && languageSpecificConfig?.runAppAs) {
-    throw stpErrors.e1001({ entryfilePath: packaging.properties.entryfilePath, workloadName, workloadType });
+    throw configErrors.pythonAppVariableRequired({
+      entryfilePath: packaging.properties.entryfilePath,
+      workloadName,
+      workloadType
+    });
   }
   if (hasAppVariableSpecified && !languageSpecificConfig?.runAppAs) {
-    throw stpErrors.e91({ workloadName, workloadType, appVariable });
+    throw configErrors.pythonAppVariableRequiresRunAppAs({ workloadName, workloadType, appVariable });
   }
 };
 
 export const validateAwsCdkConstructProps = ({ construct }: { construct: StpAwsCdkConstruct }) => {
-  const prettyIdentifier = `${capitalizeFirstLetter('aws-cdk-construct')} ${tuiManager.makeBold(construct.name)}`;
-  const cwdHint = `The path is resolved relative to the directory specified using ${tuiManager.prettyOption(
-    'currentWorkingDirectory'
-  )} or the directory containing Stacktape configuration file.`;
+  const constructDescription = `${capitalizeFirstLetter('aws-cdk-construct')} \`${construct.name}\``;
+  const cwdHint =
+    'Paths are resolved relative to `--currentWorkingDirectory` or the directory containing the Stacktape config.';
 
   const { entryfilePath } = construct;
   if (!entryfilePath) {
-    throw new ExpectedError(
-      'CONFIG',
-      `${prettyIdentifier} is missing ${tuiManager.prettyConfigProperty('properties.entryfilePath')}.`,
-      `Point it at the file exporting your construct class. ${cwdHint}`
-    );
+    throw new CliError({
+      category: 'CONFIG',
+      code: 'CONFIG_CDK_ENTRYFILE_REQUIRED',
+      message: `${constructDescription} is missing \`properties.entryfilePath\`.`,
+      hints: `Point it to the file exporting your construct class. ${cwdHint}`
+    });
   }
   const { extension, filePath } = parseUserCodeFilepath({
-    codeType: `${prettyIdentifier} entryfilePath`,
+    codeType: `${constructDescription} entryfilePath`,
     fullPath: entryfilePath,
     workingDir: globalStateManager.workingDir
   });
   if (!supportedAwsCdkConstructExtensions.includes(extension as SupportedFileExt)) {
-    throw new ExpectedError(
-      'NOT_YET_IMPLEMENTED',
-      `Packaging ${tuiManager.makeBold(`.${extension}`)} constructs is not yet supported.`
-    );
+    throw new CliError({
+      category: 'NOT_YET_IMPLEMENTED',
+      code: 'PACKAGING_CDK_LANGUAGE_NOT_SUPPORTED',
+      message: `Packaging \`.${extension}\` AWS CDK constructs is not yet supported.`
+    });
   }
   if (!isFileAccessible(filePath)) {
-    throw new ExpectedError(
-      'CONFIG',
-      `${prettyIdentifier}'s entryfilePath ${filePath} doesn't exist or is not accessible.`,
-      cwdHint
-    );
+    throw new CliError({
+      category: 'CONFIG',
+      code: 'CONFIG_CDK_ENTRYFILE_MISSING',
+      message: `${constructDescription} entry file \`${filePath}\` does not exist or is not accessible.`,
+      hints: cwdHint
+    });
   }
 };
 
@@ -243,7 +251,11 @@ export const validateConfigStructure = async ({
   // Use Zod validator for better error messages (especially for discriminated unions)
   const zodResult = validateConfigWithZod({ config, configPath, templateId });
   if (!zodResult.valid && 'errorMessage' in zodResult) {
-    throw new ExpectedError('CONFIG_VALIDATION', zodResult.errorMessage);
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_SCHEMA_INVALID',
+      message: zodResult.errorMessage
+    });
   }
 };
 
@@ -251,23 +263,32 @@ export const validateResourceNameUniqueness = () => {
   const resourceNames = configManager.allConfigResources.map(({ name }) => name);
   const duplicates = getUniqueDuplicates(resourceNames);
   if (duplicates.length) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Workload names must be unique across whole service. Duplicates: ${duplicates.join(', ')}.`
-    );
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_RESOURCE_NAME_DUPLICATE',
+      message: `Resource names must be unique. Duplicates: ${duplicates.map((name) => `\`${name}\``).join(', ')}.`
+    });
   }
 };
 
 export const validateResourceNames = () => {
   configManager.allConfigResources.forEach(({ name }) => {
     if (!isAlphanumeric(name)) {
-      throw new ExpectedError(
-        'CONFIG_VALIDATION',
-        `Resource name "${name}" is not valid. Each resource name must be alphanumeric.`
-      );
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_RESOURCE_NAME_INVALID',
+        message: `Resource name \`${name}\` is invalid. Resource names must be alphanumeric.`
+      });
     }
   });
 };
+
+const guardrailViolation = (code: string, message: string) =>
+  new CliError({
+    category: 'GUARDRAIL',
+    code,
+    message
+  });
 
 export const validateGuardrails = ({
   guardrails,
@@ -281,9 +302,9 @@ export const validateGuardrails = ({
       case 'stage-restriction': {
         const { allowedStages } = guardrail.properties;
         if (allowedStages?.length && !allowedStages.includes(globalStateManager.targetStack.stage)) {
-          throw new ExpectedError(
-            'GUARDRAIL',
-            `Stage "${globalStateManager.targetStack.stage}" is not allowed. Allowed stages: ${allowedStages.join(', ')}.`
+          throw guardrailViolation(
+            'GUARDRAIL_STAGE_RESTRICTED',
+            `Stage \`${globalStateManager.targetStack.stage}\` is not allowed. Allowed stages: ${allowedStages.map((stage) => `\`${stage}\``).join(', ')}.`
           );
         }
         break;
@@ -291,9 +312,9 @@ export const validateGuardrails = ({
       case 'region-restriction': {
         const { allowedRegions } = guardrail.properties;
         if (allowedRegions?.length && !allowedRegions.includes(globalStateManager.region)) {
-          throw new ExpectedError(
-            'GUARDRAIL',
-            `Region "${globalStateManager.region}" is not allowed. Allowed regions: ${allowedRegions.join(', ')}.`
+          throw guardrailViolation(
+            'GUARDRAIL_REGION_RESTRICTED',
+            `Region \`${globalStateManager.region}\` is not allowed. Allowed regions: ${allowedRegions.map((region) => `\`${region}\``).join(', ')}.`
           );
         }
         break;
@@ -301,9 +322,9 @@ export const validateGuardrails = ({
       case 'command-restriction': {
         const { blockedCommands } = guardrail.properties;
         if (blockedCommands?.length && blockedCommands.includes(globalStateManager.command)) {
-          throw new ExpectedError(
-            'GUARDRAIL',
-            `Command "${globalStateManager.command}" is blocked by organization guardrails. Blocked commands: ${blockedCommands.join(', ')}.`
+          throw guardrailViolation(
+            'GUARDRAIL_COMMAND_BLOCKED',
+            `Command \`${globalStateManager.command}\` is blocked. Blocked commands: ${blockedCommands.map((command) => `\`${command}\``).join(', ')}.`
           );
         }
         break;
@@ -314,9 +335,9 @@ export const validateGuardrails = ({
         if (!blockedResourceTypes?.length) break;
         for (const resource of configManager.allConfigResources) {
           if (blockedResourceTypes.includes(resource.type)) {
-            throw new ExpectedError(
-              'GUARDRAIL',
-              `Resource "${resource.name}" uses type "${resource.type}" which is blocked. Blocked resource types: ${blockedResourceTypes.join(', ')}.`
+            throw guardrailViolation(
+              'GUARDRAIL_RESOURCE_TYPE_BLOCKED',
+              `Resource \`${resource.name}\` uses blocked type \`${resource.type}\`. Blocked resource types: ${blockedResourceTypes.map((type) => `\`${type}\``).join(', ')}.`
             );
           }
         }
@@ -328,18 +349,18 @@ export const validateGuardrails = ({
         for (const db of configManager.databases) {
           const accessibilityMode = (db as StpRelationalDatabase).accessibility?.accessibilityMode || 'internet';
           if (!vpcOnlyModes.includes(accessibilityMode)) {
-            throw new ExpectedError(
-              'GUARDRAIL',
-              `Database "${db.name}" has accessibility mode "${accessibilityMode}". All databases must use VPC-only accessibility (vpc or scoping-workloads-in-vpc).`
+            throw guardrailViolation(
+              'GUARDRAIL_DATABASE_VPC_REQUIRED',
+              `Database \`${db.name}\` uses accessibility mode \`${accessibilityMode}\`. It must use \`vpc\` or \`scoping-workloads-in-vpc\`.`
             );
           }
         }
         for (const os of configManager.openSearchDomains) {
           const accessibilityMode = (os as StpOpenSearchDomain).accessibility?.accessibilityMode || 'internet';
           if (!vpcOnlyModes.includes(accessibilityMode)) {
-            throw new ExpectedError(
-              'GUARDRAIL',
-              `OpenSearch domain "${os.name}" has accessibility mode "${accessibilityMode}". All databases must use VPC-only accessibility (vpc or scoping-workloads-in-vpc).`
+            throw guardrailViolation(
+              'GUARDRAIL_OPENSEARCH_VPC_REQUIRED',
+              `OpenSearch domain \`${os.name}\` uses accessibility mode \`${accessibilityMode}\`. It must use \`vpc\` or \`scoping-workloads-in-vpc\`.`
             );
           }
         }
@@ -349,9 +370,9 @@ export const validateGuardrails = ({
         if (!hasConfig || !guardrail.properties.enabled) break;
         for (const db of configManager.databases) {
           if (!(db as StpRelationalDatabase).deletionProtection) {
-            throw new ExpectedError(
-              'GUARDRAIL',
-              `Database "${db.name}" does not have deletionProtection enabled. All relational databases must have deletion protection.`
+            throw guardrailViolation(
+              'GUARDRAIL_DATABASE_DELETION_PROTECTION_REQUIRED',
+              `Database \`${db.name}\` must enable \`deletionProtection\`.`
             );
           }
         }
@@ -361,9 +382,9 @@ export const validateGuardrails = ({
         if (!hasConfig || !guardrail.properties.enabled) break;
         for (const queue of configManager.sqsQueues) {
           if (!(queue as StpSqsQueue).redrivePolicy) {
-            throw new ExpectedError(
-              'GUARDRAIL',
-              `SQS queue "${queue.name}" does not have a redrivePolicy (dead-letter queue) configured. All SQS queues must have a dead-letter queue.`
+            throw guardrailViolation(
+              'GUARDRAIL_SQS_DEAD_LETTER_QUEUE_REQUIRED',
+              `SQS queue \`${queue.name}\` must configure a \`redrivePolicy\` with a dead-letter queue.`
             );
           }
         }
@@ -377,9 +398,9 @@ export const validateGuardrails = ({
         for (const fn of allFnsForMemory) {
           const memory = (fn as StpLambdaFunction).memory || 1024;
           if (memory > maxMemoryMB) {
-            throw new ExpectedError(
-              'GUARDRAIL',
-              `Function "${fn.name}" has memory ${memory}MB which exceeds the limit of ${maxMemoryMB}MB.`
+            throw guardrailViolation(
+              'GUARDRAIL_FUNCTION_MEMORY_EXCEEDED',
+              `Function \`${fn.name}\` uses \`${memory} MB\`, exceeding the \`${maxMemoryMB} MB\` limit.`
             );
           }
         }
@@ -393,9 +414,9 @@ export const validateGuardrails = ({
         for (const fn of allFnsForTimeout) {
           const timeout = (fn as StpLambdaFunction).timeout || 20;
           if (timeout > maxTimeoutSeconds) {
-            throw new ExpectedError(
-              'GUARDRAIL',
-              `Function "${fn.name}" has timeout ${timeout}s which exceeds the limit of ${maxTimeoutSeconds}s.`
+            throw guardrailViolation(
+              'GUARDRAIL_FUNCTION_TIMEOUT_EXCEEDED',
+              `Function \`${fn.name}\` uses a \`${timeout}s\` timeout, exceeding the \`${maxTimeoutSeconds}s\` limit.`
             );
           }
         }
@@ -407,15 +428,15 @@ export const validateGuardrails = ({
         for (const workload of configManager.allContainerWorkloads) {
           const resources = (workload as StpContainerWorkload).resources;
           if (maxCpu && resources?.cpu && resources.cpu > maxCpu) {
-            throw new ExpectedError(
-              'GUARDRAIL',
-              `Container workload "${workload.name}" has ${resources.cpu} vCPU which exceeds the limit of ${maxCpu} vCPU.`
+            throw guardrailViolation(
+              'GUARDRAIL_CONTAINER_CPU_EXCEEDED',
+              `Container workload \`${workload.name}\` uses \`${resources.cpu} vCPU\`, exceeding the \`${maxCpu} vCPU\` limit.`
             );
           }
           if (maxMemoryMB && resources?.memory && resources.memory > maxMemoryMB) {
-            throw new ExpectedError(
-              'GUARDRAIL',
-              `Container workload "${workload.name}" has ${resources.memory}MB memory which exceeds the limit of ${maxMemoryMB}MB.`
+            throw guardrailViolation(
+              'GUARDRAIL_CONTAINER_MEMORY_EXCEEDED',
+              `Container workload \`${workload.name}\` uses \`${resources.memory} MB\`, exceeding the \`${maxMemoryMB} MB\` limit.`
             );
           }
         }
@@ -428,9 +449,9 @@ export const validateGuardrails = ({
         for (const db of configManager.databases) {
           const engineType = (db as StpRelationalDatabase).engine?.type;
           if (engineType && !allowedEngines.includes(engineType)) {
-            throw new ExpectedError(
-              'GUARDRAIL',
-              `Database "${db.name}" uses engine "${engineType}" which is not allowed. Allowed engines: ${allowedEngines.join(', ')}.`
+            throw guardrailViolation(
+              'GUARDRAIL_DATABASE_ENGINE_RESTRICTED',
+              `Database \`${db.name}\` uses disallowed engine \`${engineType}\`. Allowed engines: ${allowedEngines.map((engine) => `\`${engine}\``).join(', ')}.`
             );
           }
         }
@@ -445,9 +466,9 @@ export const validateGuardrails = ({
           const instanceSizes = getDbInstanceSizes(engine);
           for (const size of instanceSizes) {
             if (blockedInstanceSizes.includes(size)) {
-              throw new ExpectedError(
-                'GUARDRAIL',
-                `Database "${db.name}" uses instance size "${size}" which is blocked. Blocked instance sizes: ${blockedInstanceSizes.join(', ')}.`
+              throw guardrailViolation(
+                'GUARDRAIL_DATABASE_INSTANCE_SIZE_BLOCKED',
+                `Database \`${db.name}\` uses blocked instance size \`${size}\`. Blocked sizes: ${blockedInstanceSizes.map((instanceSize) => `\`${instanceSize}\``).join(', ')}.`
               );
             }
           }
@@ -458,9 +479,9 @@ export const validateGuardrails = ({
         if (!hasConfig || !guardrail.properties.enabled) break;
         for (const alb of configManager.applicationLoadBalancers) {
           if (!(alb as StpApplicationLoadBalancer).useFirewall) {
-            throw new ExpectedError(
-              'GUARDRAIL',
-              `Application load balancer "${alb.name}" does not have a web application firewall (useFirewall) configured.`
+            throw guardrailViolation(
+              'GUARDRAIL_WAF_REQUIRED',
+              `Application load balancer \`${alb.name}\` must enable \`useFirewall\`.`
             );
           }
         }
@@ -470,14 +491,17 @@ export const validateGuardrails = ({
         if (!hasConfig || !guardrail.properties.enabled) break;
         for (const ws of configManager.webServices) {
           if (!(ws as StpWebService).customDomains?.length) {
-            throw new ExpectedError('GUARDRAIL', `Web service "${ws.name}" does not have a custom domain configured.`);
+            throw guardrailViolation(
+              'GUARDRAIL_CUSTOM_DOMAIN_REQUIRED',
+              `Web service \`${ws.name}\` must configure a custom domain.`
+            );
           }
         }
         for (const hb of configManager.hostingBuckets) {
           if (!(hb as StpHostingBucket).customDomains?.length) {
-            throw new ExpectedError(
-              'GUARDRAIL',
-              `Hosting bucket "${hb.name}" does not have a custom domain configured.`
+            throw guardrailViolation(
+              'GUARDRAIL_CUSTOM_DOMAIN_REQUIRED',
+              `Hosting bucket \`${hb.name}\` must configure a custom domain.`
             );
           }
         }
@@ -489,9 +513,9 @@ export const validateGuardrails = ({
         if (!maxResources) break;
         const resourceCount = configManager.allConfigResources.length;
         if (resourceCount > maxResources) {
-          throw new ExpectedError(
-            'GUARDRAIL',
-            `Stack has ${resourceCount} resources which exceeds the limit of ${maxResources}.`
+          throw guardrailViolation(
+            'GUARDRAIL_RESOURCE_COUNT_EXCEEDED',
+            `Stack has \`${resourceCount}\` resources, exceeding the limit of \`${maxResources}\`.`
           );
         }
         break;
@@ -520,21 +544,6 @@ const getDbInstanceSizes = (engine: StpRelationalDatabase['engine']): string[] =
   return sizes;
 };
 
-// const validateProviders = () => {
-//   if (configManager.atlasMongoClusters.length && !configManager.mongoDbAtlasProvider) {
-//     throw new ExpectedError(
-//       'CONFIG_VALIDATION',
-//       'Error in config. If you want to use atlas-mongo-cluster resources, you need to define "providerConfig.mongoDbAtlas" section in your config.'
-//     );
-//   }
-//   if (
-//     (configManager.upstashKafkaTopics.length || configManager.upstashRedisDatabases.length) &&
-//     !configManager.upstashProvider
-//   ) {
-//     throw stpErrors.e21(null);
-//   }
-// };
-
 const validateBastionReferences = () => {
   [
     ...Object.values(configManager.scripts)
@@ -545,7 +554,7 @@ const validateBastionReferences = () => {
       if (bastionResource) {
         resolveReferenceToBastion({ referencedFrom: type, stpResourceReference: bastionResource });
       } else if (!configManager.bastions.length) {
-        throw stpErrors.e94({ scriptType: type });
+        throw configErrors.bastionScriptRequiresBastion({ scriptType: type });
       }
     });
 };
@@ -562,12 +571,12 @@ export const validateReuseVpcConfig = () => {
 
   // XOR validation: exactly one method must be specified
   if (hasVpcId === hasProjectStage) {
-    throw stpErrors.e132(null);
+    throw configErrors.reusedVpcSelectorInvalid(null);
   }
 
   // If using projectName/stage, both must be present
   if (!hasVpcId && (!reuseVpc.projectName || !reuseVpc.stage)) {
-    throw stpErrors.e132(null);
+    throw configErrors.reusedVpcSelectorInvalid(null);
   }
 };
 
@@ -618,10 +627,6 @@ export const runInitialValidations = () => {
   configManager.networkLoadBalancers.forEach((definition) => {
     validateNetworkLoadBalancerConfig({ definition });
   });
-  // buckets
-  configManager.allBuckets.forEach((definition) => {
-    validateBucketConfig({ definition });
-  });
   configManager.hostingBuckets.forEach((definition) => {
     validateHostingBucketConfig({ definition });
   });
@@ -671,9 +676,5 @@ export const runInitialValidations = () => {
   // lambdas
   configManager.functions.forEach((resource) => {
     validateLambdaConfig({ definition: resource });
-  });
-  // buckets
-  configManager.buckets.forEach((resource) => {
-    validateBucketConfig({ definition: resource });
   });
 };

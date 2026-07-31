@@ -1,9 +1,9 @@
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import { stpErrors } from '@errors';
 import { configManager } from '../index.js';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 import type { HttpApiIntegration } from '@stacktape/config/events';
+import { configErrors } from '../errors';
 
 export const resolveReferenceToHttpApiGateway = ({
   referencedFrom,
@@ -27,7 +27,7 @@ export const resolveReferenceToHttpApiGateway = ({
   //       .filter(({ _nestedResources: { httpApiGateway } }) => httpApiGateway)
   //       .find(({ name }) => name === stpResourceName)._nestedResources.httpApiGateway;
   //     if (!resource) {
-  //       throw stpErrors.e36({
+  //       throw configErrors.unresolvedResourceReference({
   //         stpResourceName,
   //         stpResourceType: 'http-api-gateway',
   //         referencedFrom,
@@ -87,7 +87,7 @@ const validateHttpApiGatewayIntegrations = ({ resource }: { resource: StpHttpApi
   getAllIntegrationsForHttpApiGateway({ resource }).forEach(({ workloadName, properties }) => {
     const uniqueKey = `${properties.path}-${properties.method}`;
     if (uniqueRouteKeys[uniqueKey]) {
-      throw stpErrors.e92({
+      throw configErrors.httpApiRouteConflict({
         stpHttpApiGatewayName: name,
         stpResourceName1: workloadName,
         stpResourceName2: uniqueRouteKeys[uniqueKey]

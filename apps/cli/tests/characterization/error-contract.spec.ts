@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { normalizeCliError } from '@application-services/application-manager';
 import { renderErrorToString } from '@application-services/tui-manager/error-rendering';
+import { configErrors } from '@domain-services/config-manager/errors';
 import { stpErrors } from 'src/config/error-messages';
 import { CliError, getReturnableError } from '@utils/errors';
 import { validateCommand, validateS3BucketName } from '@utils/validator';
@@ -28,6 +29,18 @@ describe('CLI error contract', () => {
 
     expect(error).toBeInstanceOf(CliError);
     expect(error).toMatchObject({ category: 'CONFIG_VALIDATION', code: 'CONFIG_VALIDATION_E14' });
+  });
+
+  test('uses semantic, presentation-neutral config errors', () => {
+    const error = configErrors.configFileMissing();
+
+    expect(error).toMatchObject({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_FILE_REQUIRED'
+    });
+    expect(error.hints).toEqual([expect.stringContaining('stacktape init')]);
+    expect(error.message).not.toContain('\u001b[');
+    expect(error.hints.join('\n')).not.toContain('\u001b[');
   });
 
   test('normalizes unknown failures once without requiring a stack trace', () => {

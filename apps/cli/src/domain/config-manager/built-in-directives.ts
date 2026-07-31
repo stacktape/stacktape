@@ -1,7 +1,6 @@
 import type { Directive } from '@domain-services/config-manager/directive-types';
 import type { IntrinsicFunction } from '@cloudform/dataTypes';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@application-services/tui-manager';
 import { GetAtt, ImportValue, Ref, Sub } from '@cloudform/functions';
 import { IDENTIFIER_FOR_MISSING_OUTPUT, linksMap } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -13,7 +12,7 @@ import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regi
 import { serialize } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { SubWithoutMapping } from '@utils/cloudformation';
-import { CliError, ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { loadFromAnySupportedFile, loadRawFileContent } from '@utils/file-loaders';
 import { gitInfoManager } from '@utils/git-info-manager';
 import { getAllReferencableParams, referenceableTypes } from '@utils/referenceable-types';
@@ -34,17 +33,20 @@ export const builtInDirectives: Directive[] = [
         workingDir: globalStateManager.workingDir
       });
       if (res === null) {
-        throw new ExpectedError(
-          'DIRECTIVE',
-          `$File directive cannot load data from file ${tuiManager.makeBold(sourcePath)}. File directive can only load from .env, JSON, YAML or INI files. Loaded file is automatically parsed and its properties can be accessed like this:${tuiManager.makeBold('$File("myfile.json").myProperty')}`,
-          'If you wish to load raw file content as string, use $FileRaw directive. Docs: https://docs.stacktape.com/configuration/directives/#file-raw'
-        );
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_FILE_TYPE_UNSUPPORTED',
+          message: `\`$File\` cannot load \`${sourcePath}\`. It supports .env, JSON, YAML and INI files, which it parses automatically. Parsed properties can be accessed as \`$File("myfile.json").myProperty\`.`,
+          hints:
+            'Use `$FileRaw` to load raw file content as a string. See https://docs.stacktape.com/configuration/directives/#file-raw.'
+        });
       }
       if (res === undefined) {
-        throw new ExpectedError(
-          'DIRECTIVE',
-          `$File directive that references file ${tuiManager.makeBold(sourcePath)} did not return a value.`
-        );
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_FILE_VALUE_MISSING',
+          message: `\`$File\` did not resolve a value from \`${sourcePath}\`.`
+        });
       }
       return res;
     }
@@ -227,28 +229,40 @@ export const builtInDirectives: Directive[] = [
       let secret;
       try {
         secret = await awsSdkManager.secrets.get({ secretId: secretName });
-      } catch (err) {
-        throw new ExpectedError(
-          'DIRECTIVE',
-          `Error resolving directive \`$Secret('${secretName}')\`:\n${err}`,
-          `If you did not create the secret yet, create it using ${tuiManager.prettyCommand('secret:set')}`
-        );
+      } catch (error) {
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_SECRET_UNRESOLVED',
+          message: `Cannot resolve \`$Secret('${secretName}')\`.\n${String(error)}`,
+          hints: `If the secret does not exist yet, create it using \`stacktape secret:set\`.`,
+          cause: error
+        });
       }
       if (jsonKey) {
-        let parsedSecret;
+        let parsedSecret: unknown;
         try {
           parsedSecret = JSON.parse(secret.SecretString);
-        } catch {
-          throw new ExpectedError(
-            'DIRECTIVE',
-            `Error resolving directive \`$Secret('${secretName}')\`:\nThe key ${tuiManager.makeBold(jsonKey)} cannot be resolved, because the secret ${tuiManager.makeBold(secretName)} is not a valid JSON object.`
-          );
+        } catch (error) {
+          throw new CliError({
+            category: 'DIRECTIVE',
+            code: 'DIRECTIVE_SECRET_JSON_INVALID',
+            message: `Cannot resolve key \`${jsonKey}\` from \`$Secret('${secretName}')\` because the secret is not valid JSON.`,
+            cause: error
+          });
         }
-        if (!parsedSecret[jsonKey]) {
-          throw new ExpectedError(
-            'DIRECTIVE',
-            `Error resolving directive \`$Secret('${secretName}')\`:\nThe key ${tuiManager.makeBold(jsonKey)} is not specified in the JSON secret ${tuiManager.makeBold(secretName)}.`
-          );
+        if (typeof parsedSecret !== 'object' || parsedSecret === null || Array.isArray(parsedSecret)) {
+          throw new CliError({
+            category: 'DIRECTIVE',
+            code: 'DIRECTIVE_SECRET_JSON_INVALID',
+            message: `Cannot resolve key \`${jsonKey}\` from \`$Secret('${secretName}')\` because the secret is not a JSON object.`
+          });
+        }
+        if (!Object.hasOwn(parsedSecret, jsonKey)) {
+          throw new CliError({
+            category: 'DIRECTIVE',
+            code: 'DIRECTIVE_SECRET_JSON_KEY_MISSING',
+            message: `Secret \`${secretName}\` does not contain JSON key \`${jsonKey}\` required by \`$Secret('${secretName}.${jsonKey}')\`.`
+          });
         }
       }
 
@@ -267,17 +281,6 @@ export const builtInDirectives: Directive[] = [
       const secretName = secretReference.split('.')[0];
       const secretVersionId =
         stackManager?.existingStackDetails?.stackOutput[getStackOutputName(secretName, 'CurrentSecretVersionId')];
-      // if (!secretVersionId) {
-      //   if (!globalStateManager.args.disableEmulation) {
-      //     // @todo think about this
-      //     throw new ExpectedError(
-      //       'DIRECTIVE',
-      //       `Can't resolve the current version of secret ${secretName}. The secret can only be injected if it was used in a stack deployment.`,
-      //       getDisableEmulationHint()
-      //     );
-      //   }
-      //   return IDENTIFIER_FOR_MISSING_OUTPUT;
-      // }
       try {
         const { SecretString: secretValue } = await awsSdkManager.secrets.get({
           secretId: secretName,
@@ -286,18 +289,20 @@ export const builtInDirectives: Directive[] = [
         if (!secretValue) {
           throw new Error(`Secret "${secretName}" is not valid string secret.`);
         }
-        const finalValue = secretReference.split('.')[1]
-          ? JSON.parse(secretValue)[secretReference.split('.')[1]]
-          : secretValue;
-        if (!finalValue) {
-          throw new Error(`Secret "${secretName}" does not contain property "${secretReference.split('.')[1]}"`);
+        const jsonKey = secretReference.split('.')[1];
+        const finalValue = jsonKey ? JSON.parse(secretValue)[jsonKey] : secretValue;
+        if (finalValue === undefined) {
+          throw new Error(`Secret "${secretName}" does not contain property "${jsonKey}"`);
         }
         return finalValue;
-      } catch (err) {
-        throw new ExpectedError(
-          'DIRECTIVE',
-          `Error when resolving Secret directive for secret with name ${secretName}.\n${err}`
-        );
+      } catch (error) {
+        if (error instanceof CliError) throw error;
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_SECRET_UNRESOLVED',
+          message: `Cannot resolve secret \`${secretName}\`.\n${String(error)}`,
+          cause: error
+        });
       }
     }
   },
@@ -309,12 +314,14 @@ export const builtInDirectives: Directive[] = [
       let param;
       try {
         param = await awsSdkManager.parameterStore.get({ name: paramReference });
-      } catch (err) {
-        throw new ExpectedError(
-          'DIRECTIVE',
-          `Error resolving directive \`$SsmParam('${paramReference}')\`:\n${err}`,
-          `If you did not create the parameter yet, create it in the Stacktape console: ${linksMap.ssmParams}`
-        );
+      } catch (error) {
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_SSM_PARAMETER_UNRESOLVED',
+          message: `Cannot resolve \`$SsmParam('${paramReference}')\`.\n${String(error)}`,
+          hints: `If the parameter does not exist yet, create it in the Stacktape Console: ${linksMap.ssmParams}`,
+          cause: error
+        });
       }
       const paramType = param.Parameter.Type;
       const paramVersion = String(param.Parameter.Version);
@@ -339,11 +346,13 @@ export const builtInDirectives: Directive[] = [
           throw new Error(`SSM parameter "${paramReference}" has no value.`);
         }
         return value;
-      } catch (err) {
-        throw new ExpectedError(
-          'DIRECTIVE',
-          `Error when resolving SsmParam directive for parameter with name ${paramReference}.\n${err}`
-        );
+      } catch (error) {
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_SSM_PARAMETER_UNRESOLVED',
+          message: `Cannot resolve SSM parameter \`${paramReference}\`.\n${String(error)}`,
+          cause: error
+        });
       }
     }
   },
@@ -404,11 +413,14 @@ export const builtInDirectives: Directive[] = [
       const gitInfo = await gitInfoManager.gitInfo;
       const res = gitInfo[property];
       if (!res) {
-        throw new ExpectedError(
-          'DIRECTIVE',
-          `$GitInfo directive argument "${tuiManager.makeBold(property)}" is not a valid argument.`,
-          [`Valid arguments are: ${Object.keys(gitInfo).map(tuiManager.makeBold).join(', ')}`]
-        );
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_GIT_PROPERTY_INVALID',
+          message: `\`$GitInfo\` property \`${property}\` is invalid.`,
+          hints: `Valid properties: ${Object.keys(gitInfo)
+            .map((key) => `\`${key}\``)
+            .join(', ')}.`
+        });
       }
       return res;
     }
@@ -416,10 +428,7 @@ export const builtInDirectives: Directive[] = [
 ];
 
 const getDisableEmulationHint = () =>
-  `If you want to disable the automatic injection, use the ${tuiManager.colorize(
-    'yellow',
-    '--disableEmulation'
-  )} (--de) flag`;
+  'Use `--disableEmulation` (`--de`) to disable automatic injection of deployed resource values.';
 
 const resolveStackOutput = async ({
   directive,
@@ -436,32 +445,41 @@ const resolveStackOutput = async ({
   const stackDetails = await awsSdkManager.getStackDetails(stackName, region);
   if (!stackDetails) {
     if (!globalStateManager.args.disableEmulation) {
-      throw new ExpectedError('DIRECTIVE', `$${directive} error: can't fetch stack outputs of stack "${stackName}"`, [
-        'Make sure the stack is deployed and correctly spelled (full stack names are formatted as {stackName}-{stage})'
-      ]);
+      throw new CliError({
+        category: 'DIRECTIVE',
+        code: 'DIRECTIVE_STACK_NOT_FOUND',
+        message: `\`$${directive}\` cannot fetch outputs from stack \`${stackName}\`.`,
+        hints:
+          'Make sure the stack is deployed and its full name is correct. Full stack names use the `{stackName}-{stage}` format.'
+      });
     }
     return IDENTIFIER_FOR_MISSING_OUTPUT;
   }
   const result = stackDetails.Outputs.find(({ OutputKey }) => OutputKey === outputName);
   if (!result) {
-    throw new ExpectedError(
-      'DIRECTIVE',
-      `$${directive} error: cannot find output with name "${outputName}" on stack "${stackName}".`,
-      [
-        `Only exported outputs can be referenced in $${directive} directive`,
-        `Referencable output names: ${stackDetails.Outputs.filter(({ ExportName }) => ExportName)
-          .map(({ OutputKey }) => `"${OutputKey}"`)
-          .join(', ')}`,
-        'If output you are trying to reference is not among referencable outputs, try exporting it first.'
-      ]
+    const exportedOutputNames = stackDetails.Outputs.filter(({ ExportName }) => ExportName).map(
+      ({ OutputKey }) => `\`${OutputKey}\``
     );
+    throw new CliError({
+      category: 'DIRECTIVE',
+      code: 'DIRECTIVE_STACK_OUTPUT_NOT_FOUND',
+      message: `\`$${directive}\` cannot find output \`${outputName}\` on stack \`${stackName}\`.`,
+      hints: [
+        `Only exported outputs can be referenced by \`$${directive}\`.`,
+        exportedOutputNames.length
+          ? `Exported output names: ${exportedOutputNames.join(', ')}.`
+          : `Stack \`${stackName}\` has no exported outputs.`,
+        `Export \`${outputName}\` before referencing it.`
+      ]
+    });
   }
   if (!result.ExportName) {
-    throw new ExpectedError(
-      'DIRECTIVE',
-      `$${directive} error: output with name "${outputName}" on stack "${stackName}" is not exported.`,
-      `Export output "${outputName}" on stack "${stackName}" first, before referencing it in $${directive} directive`
-    );
+    throw new CliError({
+      category: 'DIRECTIVE',
+      code: 'DIRECTIVE_STACK_OUTPUT_NOT_EXPORTED',
+      message: `Output \`${outputName}\` on stack \`${stackName}\` is not exported.`,
+      hints: `Export the output before referencing it with \`$${directive}\`.`
+    });
   }
   return directive === 'StackOutput' ? result.OutputValue : ImportValue(result.ExportName);
 };

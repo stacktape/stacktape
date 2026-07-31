@@ -4,11 +4,11 @@ import type {
 } from '@domain-services/config-manager/resolved-types/relational-databases';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import { resolveCloudwatchLogExports } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/databases/utils';
-import { stpErrors } from '@errors';
 import { normalizeEngineType } from '@stacktape/config/relational-database-engines';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 import type { MysqlLoggingOptions, PostgresLoggingOptions } from '@stacktape/config/relational-databases';
+import { configErrors } from '../errors';
 
 export const resolveReferenceToRelationalDatabase = ({
   referencedFrom,
@@ -52,16 +52,18 @@ const validEngineSpecificLogOptions: {
 const validateLogOptions = ({ resource }: { resource: StpRelationalDatabase }) => {
   const logExports = resolveCloudwatchLogExports({ resource });
   if (resource.engine.type === 'aurora-mysql-serverless' && !logExports.includes('error')) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in ${resource.type} "${resource.name}". You cannot disable "error" log type when using engine type ${resource.engine.type}`
-    );
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_DATABASE_REQUIRED_LOG_DISABLED',
+      message: `Database \`${resource.name}\` cannot disable the \`error\` log when using engine \`${resource.engine.type}\`.`
+    });
   }
   if (resource.engine.type === 'aurora-postgresql-serverless' && !logExports.includes('postgresql')) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in ${resource.type} "${resource.name}". You cannot disable "postgresql" log type when using engine type ${resource.engine.type}`
-    );
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_DATABASE_REQUIRED_LOG_DISABLED',
+      message: `Database \`${resource.name}\` cannot disable the \`postgresql\` log when using engine \`${resource.engine.type}\`.`
+    });
   }
 
   const validOptions = validEngineSpecificLogOptions[normalizeEngineType(resource.engine.type)];
@@ -70,10 +72,11 @@ const validateLogOptions = ({ resource }: { resource: StpRelationalDatabase }) =
       (option) => !validOptions.includes(option as any)
     );
     if (invalidOption) {
-      throw new ExpectedError(
-        'CONFIG_VALIDATION',
-        `Error in ${resource.type} "${resource.name}". Engine specific logging option "${invalidOption}" is not usable with engine type ${resource.engine.type}`
-      );
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_DATABASE_LOG_OPTION_UNSUPPORTED',
+        message: `Logging option \`${invalidOption}\` is not supported by engine \`${resource.engine.type}\` on database \`${resource.name}\`.`
+      });
     }
   }
 };
@@ -92,10 +95,11 @@ const validateAuroraServerlessV2ReadersCount = ({ resource }: { resource: StpRel
   }
 
   if (!Number.isInteger(serverlessReadersCount) || serverlessReadersCount < 0) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in ${resource.type} "${resource.name}". Property "serverlessReadersCount" must be a non-negative integer when using engine type ${resource.engine.type}`
-    );
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_DATABASE_SERVERLESS_READERS_INVALID',
+      message: `\`serverlessReadersCount\` must be a non-negative integer for database \`${resource.name}\` using engine \`${resource.engine.type}\`.`
+    });
   }
 };
 
@@ -148,7 +152,7 @@ export const isValidDayTimeStringRange = (rangeString: string): boolean => {
 
 export const validateRelationalDatabaseConfig = ({ resource }: { resource: StpRelationalDatabase }) => {
   if (resource.preferredMaintenanceWindow && !isValidDayTimeStringRange(resource.preferredMaintenanceWindow)) {
-    throw stpErrors.e123({ stpResourceName: resource.name });
+    throw configErrors.rdsMaintenanceWindowInvalid({ stpResourceName: resource.name });
   }
   validateAuroraServerlessV2ReadersCount({ resource });
   validateLogOptions({ resource });

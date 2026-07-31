@@ -104,6 +104,16 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   fail-closed guard for normal AWS SDK paths, not an operating-system network sandbox; tests that spawn processes or
   use raw sockets still own their isolation.
 
+## Errors
+
+- Intentional user-actionable failures use `CliError` with a stable semantic code such as
+  `CONFIG_RESOURCE_NAME_INVALID`; do not add numbered `stpErrors.e*` entries or new `ExpectedError` call sites.
+- Keep one-off errors next to the behavior that detects them. Add a domain-local factory only when a complex message is
+  reused or centralizing it makes the owning rule clearer; do not recreate a global error catalog.
+- Error messages and hints are plain text. Mark values, paths, options and commands with backticks, and let the TUI
+  presentation boundary add color or emphasis. Domain code must not embed ANSI styling in an error.
+- When translating an unknown lower-level failure, preserve it as `cause`. Re-throw an existing `CliError` unchanged.
+
 ## Checks
 
 ```sh

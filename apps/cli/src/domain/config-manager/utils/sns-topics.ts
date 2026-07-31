@@ -1,7 +1,7 @@
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import type { StpSnsTopic } from '@domain-services/config-manager/resolved-types/sns-topic';
-import { stpErrors } from '@errors';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import { configErrors } from '../errors';
 
 export const resolveReferenceToSnsTopic = ({
   referencedFrom,
@@ -22,6 +22,6 @@ export const resolveReferenceToSnsTopic = ({
 
 export const validateSnsTopicConfig = ({ resource }: { resource: StpSnsTopic }) => {
   if (resource.contentBasedDeduplication && !resource.fifoEnabled) {
-    throw stpErrors.e82({ stpSqsQueueName: resource.name });
+    throw configErrors.snsContentDeduplicationRequiresFifo({ stpSqsQueueName: resource.name });
   }
 };

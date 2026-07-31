@@ -6,8 +6,8 @@ import type { StpSvelteKitWeb } from '@domain-services/config-manager/resolved-t
 import type { StpTanStackWeb } from '@domain-services/config-manager/resolved-types/tanstack-web';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { stpErrors } from '@errors';
 import { dirExists } from '@utils/fs-utils';
+import { configErrors } from '../errors';
 
 type SsrWebResource = StpAstroWeb | StpNuxtWeb | StpSvelteKitWeb | StpSolidStartWeb | StpTanStackWeb | StpRemixWeb;
 
@@ -16,7 +16,7 @@ export const validateSsrWebConfig = ({ resource }: { resource: SsrWebResource })
   const absoluteAppDirectory = join(globalStateManager.workingDir, appDirectory);
 
   if (!dirExists(absoluteAppDirectory)) {
-    throw stpErrors.e106({
+    throw configErrors.appDirectoryMissing({
       directoryPath: appDirectory,
       stpResourceName: resource.name,
       resolvedPath: absoluteAppDirectory

@@ -3,11 +3,11 @@ import type {
   StpResolvedLoadBalancerReference
 } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import { stpErrors } from '@errors';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { configManager } from '../index';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 import type { ApplicationLoadBalancerListener } from '@stacktape/config/application-load-balancers';
+import { configErrors } from '../errors';
 import type {
   ApplicationLoadBalancerIntegrationProps,
   ContainerWorkloadLoadBalancerIntegrationProps
@@ -31,7 +31,7 @@ export const resolveReferenceToApplicationLoadBalancer = (
     if (lbReference.listenerPort !== undefined) {
       // if there are no custom listeners while listenerPort is specified - throw error
       if (!referencedLoadBalancer?.listeners?.length) {
-        throw stpErrors.e44({
+        throw configErrors.listenerPortWithoutCustomListeners({
           stpLoadBalancerName: referencedLoadBalancer.name,
           referencedFrom,
           referencedFromType
@@ -41,7 +41,7 @@ export const resolveReferenceToApplicationLoadBalancer = (
         ({ port }) => port === lbReference.listenerPort
       );
       if (!referencedListener) {
-        throw stpErrors.e45({
+        throw configErrors.listenerNotFound({
           stpLoadBalancerName: referencedLoadBalancer.name,
           referencedFrom,
           referencedFromType,
@@ -61,7 +61,7 @@ export const resolveReferenceToApplicationLoadBalancer = (
     // if listenerPort is not specified but the load balancer has custom listeners - throw error
     // console.log(referencedLoadBalancer.listeners?.length, !!referencedLoadBalancer.listeners?.length);
     if (referencedLoadBalancer.listeners?.length) {
-      throw stpErrors.e46({
+      throw configErrors.listenerPortRequired({
         stpLoadBalancerName: referencedLoadBalancer.name,
         referencedFrom,
         referencedFromType
@@ -135,7 +135,7 @@ const validateApplicationLoadBalancerIntegrations = ({
       listenerPort: port
     }).forEach(({ workloadName, priority }) => {
       if (uniquePriorities[priority]) {
-        throw stpErrors.e93({
+        throw configErrors.albPriorityConflict({
           stpApplicationLoadBalancerName: loadBalancerDefinition.name,
           stpResourceName1: workloadName,
           stpResourceName2: uniquePriorities[priority]
@@ -211,24 +211,18 @@ const validateListenerPortOverlap = ({ loadBalancer }: { loadBalancer: Applicati
   const encounteredPorts = new Set<number>();
   loadBalancer.listeners.forEach(({ port }) => {
     if (encounteredPorts.has(port)) {
-      throw new ExpectedError(
-        'CONFIG_VALIDATION',
-        `Error in load-balancer ${loadBalancer.name}. Two or more listeners are using the same port "${port}".`,
-        'Each listener must use unique port'
-      );
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_ALB_LISTENER_PORT_DUPLICATE',
+        message: `Application load balancer \`${loadBalancer.name}\` defines more than one listener on port \`${port}\`.`,
+        hints: 'Each listener must use a unique port.'
+      });
     }
     encounteredPorts.add(port);
   });
 };
 
 export const validateApplicationLoadBalancerConfig = ({ definition }: { definition: StpApplicationLoadBalancer }) => {
-  // if (definition.listeners?.length && definition.useHttps !== undefined) {
-  //   throw stpErrors.e42({ stpLoadBalancerName: definition.name });
-  // }
-  // if (definition.useHttps && !definition.customDomains?.length) {
-  //   throw stpErrors.e43({ stpLoadBalancerName: definition.name });
-  // }
-
   const finalDefinition = transformLoadBalancerToListenerForm({ definition });
 
   if (
@@ -236,7 +230,10 @@ export const validateApplicationLoadBalancerConfig = ({ definition }: { definiti
       ({ disableDnsRecordCreation, customCertificateArn }) => disableDnsRecordCreation && !customCertificateArn
     )
   ) {
-    throw stpErrors.e118({ resourceName: finalDefinition.name, resourceType: finalDefinition.type });
+    throw configErrors.customCertificateRequiredWhenDnsDisabled({
+      resourceName: finalDefinition.name,
+      resourceType: finalDefinition.type
+    });
   }
 
   validateListenerPortOverlap({ loadBalancer: finalDefinition });

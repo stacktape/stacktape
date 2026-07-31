@@ -1,5 +1,4 @@
 import type { z } from 'zod';
-import { tuiManager } from '@application-services/tui-manager';
 import { capitalizeFirstLetter } from '@utils/misc';
 import { getIsDirective } from '@utils/directives';
 import { readFileSync } from 'fs-extra';
@@ -22,6 +21,8 @@ type FormattedError = {
 type ZodIssue = z.core.$ZodIssue;
 
 type SourceMap = Map<string, { line: number; col: number }>;
+
+const inlineCode = (value: unknown) => `\`${String(value)}\``;
 
 // Levenshtein distance for "did you mean?" suggestions
 const levenshteinDistance = (a: string, b: string): number => {
@@ -235,9 +236,9 @@ const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap |
 
     // Handle missing required property (undefined value)
     if (actualValue === undefined || received === 'undefined') {
-      message = `Required property is missing (expected ${tuiManager.makeBold(expected)})`;
+      message = `Required property is missing (expected ${inlineCode(expected)})`;
     } else {
-      message = `Expected ${tuiManager.makeBold(expected)}, received ${tuiManager.makeBold(received)} (${formatActualValue(actualValue)})`;
+      message = `Expected ${inlineCode(expected)}, received ${inlineCode(received)} (${formatActualValue(actualValue)})`;
     }
   } else if (issue.code === 'invalid_union') {
     // Handle missing required union property
@@ -253,16 +254,16 @@ const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap |
         const thingType = isTopLevelScriptType ? 'script' : 'resource';
         const validTypes = isTopLevelScriptType ? SCRIPT_TYPES : RESOURCE_TYPES;
 
-        message = `Invalid ${thingType} type ${tuiManager.makeBold(formatActualValue(actualValue))}`;
+        message = `Invalid ${thingType} type ${inlineCode(formatActualValue(actualValue))}`;
 
         if (typeof actualValue === 'string') {
           const suggestion = findClosestMatch(actualValue, validTypes);
           if (suggestion) {
-            hint = `Did you mean ${tuiManager.makeBold(`"${suggestion}"`)}?`;
+            hint = `Did you mean ${inlineCode(`"${suggestion}"`)}?`;
           }
         }
       } else {
-        message = `Invalid type ${tuiManager.makeBold(formatActualValue(actualValue))}`;
+        message = `Invalid type ${inlineCode(formatActualValue(actualValue))}`;
       }
     } else if ('errors' in issue && Array.isArray((issue as any).errors)) {
       // Regular union error - try to find the best matching union member
@@ -304,28 +305,28 @@ const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap |
               }
             }
 
-            message = `Invalid type ${tuiManager.makeBold(`"${nestedType}"`)} at ${tuiManager.prettyConfigProperty(formatZodIssuePath(nestedPath))}`;
+            message = `Invalid type ${inlineCode(`"${nestedType}"`)} at ${inlineCode(formatZodIssuePath(nestedPath))}`;
             if (validTypes.length > 0) {
               const suggestion = findClosestMatch(nestedType, validTypes);
               if (suggestion) {
-                hint = `Did you mean ${tuiManager.makeBold(`"${suggestion}"`)}? Valid types: ${validTypes.join(', ')}`;
+                hint = `Did you mean ${inlineCode(`"${suggestion}"`)}? Valid types: ${validTypes.map(inlineCode).join(', ')}`;
               } else {
-                hint = `Valid types: ${validTypes.join(', ')}`;
+                hint = `Valid types: ${validTypes.map(inlineCode).join(', ')}`;
               }
             }
           } else {
-            message = `Invalid configuration at ${tuiManager.prettyConfigProperty(formatZodIssuePath(nestedPath))}`;
+            message = `Invalid configuration at ${inlineCode(formatZodIssuePath(nestedPath))}`;
           }
         } else if (firstError.code === 'invalid_value' && firstError.values) {
           // Invalid enum value error
           const errorPath = [...issue.path, ...firstError.path];
           const errorValue = get(config, errorPath.join('.'));
           const values = firstError.values as string[];
-          message = `Invalid value ${tuiManager.makeBold(formatActualValue(errorValue))} at ${tuiManager.prettyConfigProperty(formatZodIssuePath(errorPath))}`;
+          message = `Invalid value ${inlineCode(formatActualValue(errorValue))} at ${inlineCode(formatZodIssuePath(errorPath))}`;
           if (typeof errorValue === 'string') {
             const suggestion = findClosestMatch(errorValue, values);
             if (suggestion) {
-              hint = `Did you mean ${tuiManager.makeBold(`"${suggestion}"`)}?`;
+              hint = `Did you mean ${inlineCode(`"${suggestion}"`)}?`;
             }
           }
         } else if (firstError.code === 'invalid_type') {
@@ -333,20 +334,20 @@ const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap |
           const errorPath = [...issue.path, ...firstError.path];
           const errorValue = get(config, errorPath.join('.'));
           if (errorValue === undefined) {
-            message = `Required property ${tuiManager.prettyConfigProperty(formatZodIssuePath(errorPath))} is missing (expected ${tuiManager.makeBold(firstError.expected)})`;
+            message = `Required property ${inlineCode(formatZodIssuePath(errorPath))} is missing (expected ${inlineCode(firstError.expected)})`;
           } else {
-            message = `Expected ${tuiManager.makeBold(firstError.expected)}, received ${tuiManager.makeBold(firstError.received || typeof errorValue)} at ${tuiManager.prettyConfigProperty(formatZodIssuePath(errorPath))}`;
+            message = `Expected ${inlineCode(firstError.expected)}, received ${inlineCode(firstError.received || typeof errorValue)} at ${inlineCode(formatZodIssuePath(errorPath))}`;
           }
         } else if (firstError.code === 'unrecognized_keys') {
           // Unknown property error
           const unknownKeys = firstError.keys as string[];
           const errorPath = [...issue.path, ...firstError.path];
-          const formattedKeys = unknownKeys.map((k: string) => tuiManager.prettyConfigProperty(k)).join(', ');
-          message = `Unknown ${unknownKeys.length === 1 ? 'property' : 'properties'} ${formattedKeys} at ${tuiManager.prettyConfigProperty(formatZodIssuePath(errorPath))}`;
+          const formattedKeys = unknownKeys.map(inlineCode).join(', ');
+          message = `Unknown ${unknownKeys.length === 1 ? 'property' : 'properties'} ${formattedKeys} at ${inlineCode(formatZodIssuePath(errorPath))}`;
         } else {
           // Other type of error
           const errorPath = [...issue.path, ...(firstError.path || [])];
-          message = `Invalid configuration at ${tuiManager.prettyConfigProperty(formatZodIssuePath(errorPath))}`;
+          message = `Invalid configuration at ${inlineCode(formatZodIssuePath(errorPath))}`;
         }
       } else if (configType && typeof configType === 'string') {
         // No matching member found - the type itself is invalid
@@ -354,19 +355,19 @@ const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap |
         const isTopLevelScript = issue.path[0] === 'scripts' && issue.path.length === 2;
 
         if (isTopLevelResource) {
-          message = `Invalid resource type ${tuiManager.makeBold(`"${configType}"`)}`;
+          message = `Invalid resource type ${inlineCode(`"${configType}"`)}`;
           const suggestion = findClosestMatch(configType, RESOURCE_TYPES);
           if (suggestion) {
-            hint = `Did you mean ${tuiManager.makeBold(`"${suggestion}"`)}?`;
+            hint = `Did you mean ${inlineCode(`"${suggestion}"`)}?`;
           }
         } else if (isTopLevelScript) {
-          message = `Invalid script type ${tuiManager.makeBold(`"${configType}"`)}`;
+          message = `Invalid script type ${inlineCode(`"${configType}"`)}`;
           const suggestion = findClosestMatch(configType, SCRIPT_TYPES);
           if (suggestion) {
-            hint = `Did you mean ${tuiManager.makeBold(`"${suggestion}"`)}?`;
+            hint = `Did you mean ${inlineCode(`"${suggestion}"`)}?`;
           }
         } else {
-          message = `Invalid type ${tuiManager.makeBold(`"${configType}"`)}`;
+          message = `Invalid type ${inlineCode(`"${configType}"`)}`;
         }
       }
     }
@@ -377,24 +378,24 @@ const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap |
       if (actualValue === undefined) {
         message = `Required property is missing. Expected one of: ${values
           .slice(0, 5)
-          .map((v: string) => tuiManager.makeBold(`"${v}"`))
+          .map((value: string) => inlineCode(`"${value}"`))
           .join(', ')}${values.length > 5 ? ', ...' : ''}`;
       } else {
         const actualStr = formatActualValue(actualValue);
-        message = `Invalid value ${tuiManager.makeBold(actualStr)}`;
+        message = `Invalid value ${inlineCode(actualStr)}`;
 
         // Try to find a close match for "did you mean?"
         if (typeof actualValue === 'string') {
           const suggestion = findClosestMatch(actualValue, values);
           if (suggestion) {
-            hint = `Did you mean ${tuiManager.makeBold(`"${suggestion}"`)}?`;
+            hint = `Did you mean ${inlineCode(`"${suggestion}"`)}?`;
           }
         }
       }
     }
   } else if (issue.code === 'unrecognized_keys') {
     const unknownKeys = issue.keys as string[];
-    const formattedKeys = unknownKeys.map((k: string) => tuiManager.prettyConfigProperty(k)).join(', ');
+    const formattedKeys = unknownKeys.map(inlineCode).join(', ');
     message = `Unknown ${unknownKeys.length === 1 ? 'property' : 'properties'}: ${formattedKeys}`;
 
     // For single unknown property, try to suggest
@@ -402,7 +403,7 @@ const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap |
       const allowed = (issue as any).allowedKeys as string[];
       const suggestion = findClosestMatch(unknownKeys[0], allowed);
       if (suggestion) {
-        hint = `Did you mean ${tuiManager.prettyConfigProperty(suggestion)}?`;
+        hint = `Did you mean ${inlineCode(suggestion)}?`;
       }
     }
   }
@@ -470,7 +471,7 @@ const groupErrorsByResource = (errors: FormattedError[]): Map<string, FormattedE
 const formatErrorGroup = (key: string, errors: FormattedError[], configPath: string, showSnippets: boolean): string => {
   // Fixed indent for code snippets and hints
   const snippetIndent = '      ';
-  const hintPrefix = `${snippetIndent}${tuiManager.colorize('cyan', 'Hint:')} `;
+  const hintPrefix = `${snippetIndent}Hint: `;
 
   // Format snippet with proper indentation - colorize each line separately to preserve spacing
   const formatSnippet = (snippetLines: SnippetLine[]): string => {
@@ -483,13 +484,13 @@ const formatErrorGroup = (key: string, errors: FormattedError[], configPath: str
           if (commentMatch) {
             const [, code, comment] = commentMatch;
             const lineText = `${lineNum} | ${code}`;
-            return `${snippetIndent}${tuiManager.makeBold('> ')}${tuiManager.colorize('gray', lineText)}${tuiManager.makeBold(comment)}`;
+            return `${snippetIndent}> ${lineText}${comment}`;
           }
           const lineText = `${lineNum} | ${content}`;
-          return `${snippetIndent}${tuiManager.makeBold('> ')}${tuiManager.colorize('gray', lineText)}`;
+          return `${snippetIndent}> ${lineText}`;
         }
         const lineText = `  ${lineNum} | ${content}`;
-        return `${snippetIndent}${tuiManager.colorize('gray', lineText)}`;
+        return `${snippetIndent}${lineText}`;
       })
       .join('\n');
   };
@@ -498,7 +499,7 @@ const formatErrorGroup = (key: string, errors: FormattedError[], configPath: str
     return errors
       .map((e) => {
         const lineInfo = e.lineNumber ? `Line ${e.lineNumber}, ` : '';
-        let errorLine = `• ${lineInfo}${tuiManager.prettyConfigProperty(e.path || '/')}: ${e.message}`;
+        let errorLine = `• ${lineInfo}${inlineCode(e.path || '/')}: ${e.message}`;
 
         // Add hint if available
         if (e.hint) {
@@ -520,13 +521,13 @@ const formatErrorGroup = (key: string, errors: FormattedError[], configPath: str
   const [section, name] = key.split(':');
   const sectionName = capitalizeFirstLetter(section.slice(0, -1)); // "resources" -> "Resource"
 
-  const header = `${sectionName} ${tuiManager.prettyResourceName(name)} is invalid:`;
+  const header = `${sectionName} ${inlineCode(name)} is invalid:`;
 
   const errorLines = errors.map((e) => {
     // Remove the resource prefix from path for cleaner output
     const shortPath = e.path.replace(new RegExp(`^\\.${section}\\.${name}`), '') || '/';
     const lineInfo = e.lineNumber ? `Line ${e.lineNumber}, ` : '';
-    let errorLine = `• ${lineInfo}${tuiManager.prettyConfigProperty(shortPath)}: ${e.message}`;
+    let errorLine = `• ${lineInfo}${inlineCode(shortPath)}: ${e.message}`;
 
     // Add hint if available
     if (e.hint) {
@@ -588,7 +589,7 @@ export const validateConfigWithZod = ({
   // Build error message
   const configLocation = templateId
     ? `https://console.stacktape.com/template-editor?templateId=${templateId}`
-    : tuiManager.prettyFilePath(configPath);
+    : inlineCode(configPath);
 
   const configType = isYamlConfig ? '' : ' (TypeScript)';
   const baseMessage = `Config${configType} at ${configLocation} is invalid.\n\n`;
