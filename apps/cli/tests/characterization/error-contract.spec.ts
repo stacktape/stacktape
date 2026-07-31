@@ -3,6 +3,7 @@ import { normalizeCliError } from '@application-services/application-manager';
 import { renderErrorToString } from '@application-services/tui-manager/error-rendering';
 import { awsCdkConstructErrors } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/aws-cdk-construct/errors';
 import { configErrors } from '@domain-services/config-manager/errors';
+import { vpcErrors } from '@domain-services/vpc-manager/errors';
 import { stpErrors } from 'src/config/error-messages';
 import { CliError, getReturnableError } from '@utils/errors';
 import { validateCommand, validateS3BucketName } from '@utils/validator';
@@ -67,6 +68,28 @@ describe('CLI error contract', () => {
       code: 'AWS_CDK_CONSTRUCT_DEPENDENCIES_MISSING'
     });
     expect(dependencyError.message).toContain('constructs');
+  });
+
+  test('keeps VPC reuse validation local and presentation-neutral', () => {
+    const missingVpc = vpcErrors.reuseTargetNotFound('orders-production');
+    const privateSubnets = vpcErrors.privateSubnetsInsufficient({
+      vpcId: 'vpc-123',
+      foundCount: 1,
+      requiringResources: ['database', 'worker']
+    });
+
+    expect(missingVpc).toMatchObject({
+      category: 'CONFIG_VALIDATION',
+      code: 'VPC_REUSE_TARGET_NOT_FOUND'
+    });
+    expect(privateSubnets).toMatchObject({
+      category: 'CONFIG_VALIDATION',
+      code: 'VPC_PRIVATE_SUBNETS_INSUFFICIENT'
+    });
+    expect(privateSubnets.hints).toEqual([expect.stringContaining('`database`')]);
+    expect(`${missingVpc.message}\n${privateSubnets.message}\n${privateSubnets.hints.join('\n')}`).not.toContain(
+      '\u001b['
+    );
   });
 
   test('normalizes unknown failures once without requiring a stack trace', () => {

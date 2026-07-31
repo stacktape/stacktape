@@ -2,13 +2,13 @@ import type { StpResource } from '@domain-services/config-manager/resolved-types
 import type { Subnet, Vpc } from '@aws-sdk/client-ec2';
 import { eventManager } from '@application-services/event-manager';
 import { Ref } from '@cloudform/functions';
-import { stpErrors } from '@errors';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getStackName } from '@stacktape/naming/stacks';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import type { VpcReuseConfig } from '@stacktape/config/shared';
+import { vpcErrors } from './errors';
 
 type SubnetDetails = {
   subnet: Subnet;
@@ -77,7 +77,7 @@ export class VpcManager {
       const vpcResource = stackResources.find((resource) => resource.LogicalResourceId === vpcLogicalName);
 
       if (!vpcResource || !vpcResource.PhysicalResourceId) {
-        throw stpErrors.e131({ stackName: targetStackName });
+        throw vpcErrors.reuseTargetNotFound(targetStackName);
       }
 
       vpcId = vpcResource.PhysicalResourceId;
@@ -88,14 +88,14 @@ export class VpcManager {
     this.#vpc = vpcs[0];
 
     if (!this.#vpc?.CidrBlock || !this.#vpc?.VpcId) {
-      throw stpErrors.e131({
-        stackName: reuseVpc.projectName && reuseVpc.stage ? getStackName(reuseVpc.projectName, reuseVpc.stage) : vpcId
-      });
+      throw vpcErrors.reuseTargetNotFound(
+        reuseVpc.projectName && reuseVpc.stage ? getStackName(reuseVpc.projectName, reuseVpc.stage) : vpcId
+      );
     }
 
     // Validate VPC CIDR is within private IP ranges
     if (!isPrivateCidr(this.#vpc.CidrBlock)) {
-      throw stpErrors.e134({ vpcId, cidrBlock: this.#vpc.CidrBlock });
+      throw vpcErrors.cidrNotPrivate({ vpcId, cidrBlock: this.#vpc.CidrBlock });
     }
 
     // Get all subnets in the VPC
@@ -152,12 +152,12 @@ export class VpcManager {
 
     // Validate minimum 3 public subnets
     if (this.#publicSubnets.length < 3) {
-      throw stpErrors.e133({ vpcId, foundCount: this.#publicSubnets.length });
+      throw vpcErrors.publicSubnetsInsufficient({ vpcId, foundCount: this.#publicSubnets.length });
     }
 
     // Validate minimum 2 private subnets if resources require them
     if (resourcesRequiringPrivateSubnet.length > 0 && this.#privateSubnets.length < 2) {
-      throw stpErrors.e135({
+      throw vpcErrors.privateSubnetsInsufficient({
         vpcId,
         foundCount: this.#privateSubnets.length,
         requiringResources: resourcesRequiringPrivateSubnet.map((r) => r.name)

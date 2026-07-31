@@ -1200,52 +1200,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       )} can be used only with instances that support EBS (not with the instances that have dedicated storage space).`
     };
   },
-  e131({ stackName }: { stackName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Stack cannot reuse VPC from stack ${tuiManager.prettyStackName(
-        stackName
-      )} because no valid VPC was found.`,
-      hint: 'You can only reuse VPC from other Stacktape stacks that have been deployed.'
-    };
-  },
-  e133({ vpcId, foundCount }: { vpcId: string; foundCount: number }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `VPC ${tuiManager.makeBold(vpcId)} does not have enough public subnets. Found ${tuiManager.makeBold(
-        String(foundCount)
-      )}; at least ${tuiManager.makeBold('3')} are required.`,
-      hint: 'Public subnets are identified by having a route to an Internet Gateway (0.0.0.0/0 -> igw-*) in their associated route table.'
-    };
-  },
-  e134({ vpcId, cidrBlock }: { vpcId: string; cidrBlock: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `VPC ${tuiManager.makeBold(vpcId)} has an invalid CIDR block ${tuiManager.makeBold(
-        cidrBlock
-      )}. VPC must use a private IP range.`,
-      hint: `Valid private IP ranges are: ${tuiManager.makeBold('10.0.0.0/8')}, ${tuiManager.makeBold('172.16.0.0/12')}, and ${tuiManager.makeBold('192.168.0.0/16')} (RFC 1918).`
-    };
-  },
-  e135({
-    vpcId,
-    foundCount,
-    requiringResources
-  }: {
-    vpcId: string;
-    foundCount: number;
-    requiringResources: string[];
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `VPC ${tuiManager.makeBold(vpcId)} does not have enough private subnets. Found ${tuiManager.makeBold(
-        String(foundCount)
-      )}; at least ${tuiManager.makeBold('2')} are required when resources use ${tuiManager.prettyConfigProperty(
-        'usePrivateSubnetsWithNAT'
-      )}.`,
-      hint: `The following resources require private subnets: ${requiringResources.map((r) => tuiManager.prettyResourceName(r)).join(', ')}. Private subnets are identified by NOT having a direct route to an Internet Gateway in their route table.`
-    };
-  },
   e141({ stackName, stage }: { stackName: string; stage: string }): ReturnedError {
     return {
       type: 'CLI',
