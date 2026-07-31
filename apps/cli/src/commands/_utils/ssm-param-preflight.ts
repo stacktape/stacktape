@@ -23,7 +23,7 @@ export const ensureMissingSsmParamsCreated = async () => {
   const missingParams: string[] = [];
   for (const paramName of paramRefs) {
     try {
-      await awsSdkManager.getSsmParameterValue({ ssmParameterName: paramName });
+      await awsSdkManager.parameterStore.get({ name: paramName });
     } catch {
       missingParams.push(paramName);
     }
@@ -59,10 +59,10 @@ const promptAndCreateParams = async (paramNames: string[]) => {
       isPassword: isSecure
     });
     const spinner = tuiManager.createSpinner({ text: `Creating SSM parameter ${tuiManager.makeBold(paramName)}` });
-    await awsSdkManager.putSsmParameterValue({
-      ssmParameterName: paramName,
+    await awsSdkManager.parameterStore.put({
+      name: paramName,
       value,
-      encrypt: isSecure
+      encrypted: isSecure
     });
     spinner.success({ text: `SSM parameter ${tuiManager.makeBold(paramName)} created` });
   }

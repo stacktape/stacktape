@@ -48,7 +48,7 @@ const locallyResolveSSMParameter = async ({ ssmParameterName }: { ssmParameterNa
   try {
     const {
       Parameter: { Value }
-    } = await awsSdkManager.getSsmParameterValue({ ssmParameterName });
+    } = await awsSdkManager.parameterStore.get({ name: ssmParameterName });
     return Value;
   } catch (err) {
     if (globalStateManager.logLevel === 'debug') {

@@ -31,8 +31,8 @@ export class ThirdPartyProviderManager {
       if (requireAtlasCredentialsParameter) {
         try {
           // trying to obtain credentials in
-          await awsSdkManager.getSsmParameterValue({
-            ssmParameterName: getSsmParameterNameForThirdPartyCredentials({
+          await awsSdkManager.parameterStore.get({
+            name: getSsmParameterNameForThirdPartyCredentials({
               credentialsIdentifier: MONGODB_PROVIDER_DEFAULT_CREDENTIALS_ID,
               region: THIRD_PARTY_PROVIDER_CREDENTIALS_REGION
             }),
@@ -48,8 +48,8 @@ export class ThirdPartyProviderManager {
       if (requireUpstashCredentialsParameter) {
         try {
           // trying to obtain credentials in
-          await awsSdkManager.getSsmParameterValue({
-            ssmParameterName: getSsmParameterNameForThirdPartyCredentials({
+          await awsSdkManager.parameterStore.get({
+            name: getSsmParameterNameForThirdPartyCredentials({
               credentialsIdentifier: UPSTASH_PROVIDER_DEFAULT_CREDENTIALS_ID,
               region: THIRD_PARTY_PROVIDER_CREDENTIALS_REGION
             }),

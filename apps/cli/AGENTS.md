@@ -14,7 +14,10 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   does not make the modules a reusable workspace package. The historical catch-all `shared/` directory is gone.
   `src/aws/context.ts` owns the per-session client inputs: a refreshable credential provider, region, optional local
   endpoint and middleware. Service clients must use that context so refreshed credentials and emulator endpoints are
-  not bypassed. `AwsSdkManager` is the transitional service-operation façade, not the owner of credential refresh.
+  not bypassed. `AwsSdkManager` is the transitional invocation-scoped composition object, not the owner of credential
+  refresh. New AWS behavior must not add another unrelated flat method to that class. Extract a cohesive boundary only
+  when it has real callers and behavior of its own; SSM Parameter Store is the first such boundary and is reached as
+  `awsSdkManager.parameterStore`, while SSM sessions remain separate workflow behavior.
   `package`, `synth`, and `validate` initialize that context from the standard local AWS credential provider chain and
   do not require Stacktape Console authentication. Account identity remains required because it participates in
   deterministic names and synthesized ARNs.

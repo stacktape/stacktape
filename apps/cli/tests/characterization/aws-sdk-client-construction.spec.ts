@@ -4,6 +4,15 @@ import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
 import { LambdaClient } from '@aws-sdk/client-lambda';
 import { Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
 import { S3Client } from '@aws-sdk/client-s3';
+import {
+  DeleteParameterCommand,
+  GetParameterCommand,
+  GetParametersCommand,
+  ParameterNotFound,
+  ParameterType,
+  PutParameterCommand,
+  SSMClient
+} from '@aws-sdk/client-ssm';
 import type { Pluggable } from '@aws-sdk/types';
 import { AwsSdkManager } from '../../src/aws/sdk-manager';
 
@@ -242,5 +251,71 @@ describe.serial('AWS SDK client construction', () => {
     expect(appliedStacks).toHaveLength(2);
     expect(appliedStacks[0]).toBe(clients[0].middlewareStack);
     expect(appliedStacks[1]).toBe(clients[1].middlewareStack);
+  });
+
+  test.serial('gets and decrypts a parameter in the explicitly requested region', async () => {
+    const clients: SSMClient[] = [];
+    const commands: GetParameterCommand[] = [];
+    const originalSend = SSMClient.prototype.send;
+    SSMClient.prototype.send = async function (this: SSMClient, command: GetParameterCommand) {
+      clients.push(this);
+      commands.push(command);
+      return { Parameter: { Name: command.input.Name, Value: 'synthetic-value' } };
+    } as typeof originalSend;
+    restores.push(() => {
+      SSMClient.prototype.send = originalSend;
+    });
+
+    const result = await managerWith().parameterStore.get({ name: '/example/key', region: 'us-east-2' });
+
+    expect(result.Parameter?.Value).toBe('synthetic-value');
+    expect(commands[0].input).toEqual({ Name: '/example/key', WithDecryption: true });
+    expect(await clients[0].config.region()).toBe('us-east-2');
+  });
+
+  test.serial('reads Parameter Store values in AWS-sized batches', async () => {
+    const batches: string[][] = [];
+    const originalSend = SSMClient.prototype.send;
+    SSMClient.prototype.send = async function (_command: GetParametersCommand) {
+      const names = _command.input.Names || [];
+      batches.push(names);
+      return { Parameters: names.map((Name) => ({ Name, Value: `value:${Name}` })) };
+    } as typeof originalSend;
+    restores.push(() => {
+      SSMClient.prototype.send = originalSend;
+    });
+    const names = Array.from({ length: 23 }, (_, index) => `/example/${index}`);
+
+    const parameters = await managerWith().parameterStore.getMany({ names });
+
+    expect(batches.map((batch) => batch.length)).toEqual([10, 10, 3]);
+    expect(parameters.map(({ Name }) => Name)).toEqual(names);
+  });
+
+  test.serial('writes encrypted values and treats deleting an absent parameter as successful cleanup', async () => {
+    const commands: (DeleteParameterCommand | PutParameterCommand)[] = [];
+    const originalSend = SSMClient.prototype.send;
+    SSMClient.prototype.send = async function (command: DeleteParameterCommand | PutParameterCommand) {
+      commands.push(command);
+      if (command instanceof DeleteParameterCommand) {
+        throw new ParameterNotFound({ $metadata: {}, message: 'missing' });
+      }
+      return {};
+    } as typeof originalSend;
+    restores.push(() => {
+      SSMClient.prototype.send = originalSend;
+    });
+    const manager = managerWith();
+
+    await manager.parameterStore.put({ name: '/example/secret', value: 'synthetic-secret', encrypted: true });
+    await expect(manager.parameterStore.delete({ name: '/example/missing' })).resolves.toBeUndefined();
+
+    expect(commands[0].input).toEqual({
+      Name: '/example/secret',
+      Overwrite: true,
+      Type: ParameterType.SECURE_STRING,
+      Value: 'synthetic-secret'
+    });
+    expect(commands[1].input).toEqual({ Name: '/example/missing' });
   });
 });

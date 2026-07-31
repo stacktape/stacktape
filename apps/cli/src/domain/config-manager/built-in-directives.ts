@@ -308,7 +308,7 @@ export const builtInDirectives: Directive[] = [
     resolveFunction: () => async (paramReference: string) => {
       let param;
       try {
-        param = await awsSdkManager.getSsmParameterValue({ ssmParameterName: paramReference });
+        param = await awsSdkManager.parameterStore.get({ name: paramReference });
       } catch (err) {
         throw new ExpectedError(
           'DIRECTIVE',
@@ -333,7 +333,7 @@ export const builtInDirectives: Directive[] = [
     },
     localResolveFunction: () => async (paramReference: string) => {
       try {
-        const result = await awsSdkManager.getSsmParameterValue({ ssmParameterName: paramReference });
+        const result = await awsSdkManager.parameterStore.get({ name: paramReference });
         const value = result.Parameter?.Value;
         if (!value) {
           throw new Error(`SSM parameter "${paramReference}" has no value.`);

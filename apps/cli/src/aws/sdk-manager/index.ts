@@ -225,13 +225,7 @@ import {
 import { GetIdentityVerificationAttributesCommand, SESClient, VerifyDomainDkimCommand } from '@aws-sdk/client-ses';
 import { GetAccountCommand, SESv2Client } from '@aws-sdk/client-sesv2';
 import {
-  DeleteParameterCommand,
-  GetParameterCommand,
-  GetParametersCommand,
   ListCommandInvocationsCommand,
-  ParameterNotFound,
-  ParameterType,
-  PutParameterCommand,
   SendCommandCommand,
   SSMClient,
   StartSessionCommand,
@@ -269,6 +263,7 @@ import {
   type AwsClientWithMiddleware
 } from '../context';
 import { S3Sync } from '../s3-sync';
+import { AwsParameterStore } from '../parameter-store';
 import {
   automaticUploadFilterPresets,
   defaultGetErrorFunction,
@@ -362,6 +357,7 @@ const hasVersionArn = (version: TypeVersionSummary): version is RegisteredPrivat
 
 export class AwsSdkManager {
   #context?: AwsClientContext;
+  #parameterStore?: AwsParameterStore;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -383,6 +379,11 @@ export class AwsSdkManager {
     this.#context = createAwsClientContext({ credentials, endpoint, plugins, region });
     this.#getErrorHandler = getErrorHandlerFn || defaultGetErrorFunction;
     this.printer = printer;
+    this.#parameterStore = new AwsParameterStore({
+      createClient: (clientRegion) => this.#ssm(clientRegion),
+      getErrorHandler: this.#getErrorHandler,
+      printer
+    });
   }
 
   get isInitialized() {
@@ -399,6 +400,14 @@ export class AwsSdkManager {
 
   get credentialsProvider() {
     return this.#getContext().credentials;
+  }
+
+  get parameterStore() {
+    this.#getContext();
+    if (!this.#parameterStore) {
+      throw new Error('AWS Parameter Store has not been initialized.');
+    }
+    return this.#parameterStore;
   }
 
   #getContext() {
@@ -2026,66 +2035,6 @@ export class AwsSdkManager {
         })
       )
       .catch(errHandler);
-  };
-
-  getSsmParameterValue = async ({ ssmParameterName, region }: { ssmParameterName: string; region?: string }) => {
-    const errHandler = this.#getErrorHandler('Failed to get ssm parameter from store.');
-
-    const ssmClient = this.#ssm(region);
-    return ssmClient.send(new GetParameterCommand({ Name: ssmParameterName, WithDecryption: true })).catch(errHandler);
-  };
-
-  putSsmParameterValue = async ({
-    ssmParameterName,
-    value,
-    encrypt
-  }: {
-    ssmParameterName: string;
-    value: string;
-    encrypt?: boolean;
-  }) => {
-    const errHandler = this.#getErrorHandler('Failed to put parameter to SSM parameter store.');
-    return this.#ssm()
-      .send(
-        new PutParameterCommand({
-          Name: ssmParameterName,
-          Value: value,
-          Type: encrypt ? ParameterType.SECURE_STRING : ParameterType.STRING,
-          Overwrite: true
-        })
-      )
-      .catch(errHandler);
-  };
-
-  deleteSsmParameter = async ({ ssmParameterName }: { ssmParameterName: string }) => {
-    const errHandler = this.#getErrorHandler(`Failed to delete SSM parameter ${ssmParameterName}.`);
-    return this.#ssm()
-      .send(
-        new DeleteParameterCommand({
-          Name: ssmParameterName
-        })
-      )
-      .catch((err) => {
-        if (err instanceof ParameterNotFound) {
-          this.printer?.debug(`Could not delete SSM parameter "${ssmParameterName}", because it does not exist.`);
-          return;
-        }
-        return errHandler(err);
-      });
-  };
-
-  getSsmParametersValues = async ({ ssmParametersNames }: { ssmParametersNames: string[] }) => {
-    const errHandler = this.#getErrorHandler('Failed to get ssm parameters from store.');
-    return (
-      await Promise.all(
-        chunkArray(ssmParametersNames, 10).map(async (chunk) => {
-          const { Parameters } = await this.#ssm()
-            .send(new GetParametersCommand({ Names: chunk, WithDecryption: true }))
-            .catch(errHandler);
-          return Parameters || [];
-        })
-      )
-    ).flat();
   };
 
   deleteSecret = async (secretId: string) => {

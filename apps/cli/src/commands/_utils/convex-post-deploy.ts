@@ -107,15 +107,15 @@ const writeSensitiveParam = async ({
   paramName: 'adminKey' | 'instanceSecret';
   value: string;
 }) => {
-  await awsSdkManager.putSsmParameterValue({
-    ssmParameterName: buildSSMParameterNameForReferencableParam({
+  await awsSdkManager.parameterStore.put({
+    name: buildSSMParameterNameForReferencableParam({
       nameChain: convex.nameChain,
       paramName,
       stackName: globalStateManager.targetStack.stackName,
       region: globalStateManager.region
     }),
     value,
-    encrypt: true
+    encrypted: true
   });
 };
 

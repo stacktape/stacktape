@@ -184,10 +184,10 @@ export const startCodebuildDeployment = async ({
     invocationId,
     userId: stacktapeUserInfo.id
   });
-  await awsSdkManager.putSsmParameterValue({
-    ssmParameterName: apiKeySsmParameterName,
+  await awsSdkManager.parameterStore.put({
+    name: apiKeySsmParameterName,
     value: stacktapeUserInfo.apiKey,
-    encrypt: true
+    encrypted: true
   });
   let build: Build;
   try {
@@ -220,7 +220,7 @@ export const startCodebuildDeployment = async ({
     });
   } finally {
     // attempt to delete SSM parameter in case Codebuild failed to do so
-    await awsSdkManager.deleteSsmParameter({ ssmParameterName: apiKeySsmParameterName });
+    await awsSdkManager.parameterStore.delete({ name: apiKeySsmParameterName });
   }
   return awsSdkManager.getCodebuildDeployment({ buildId: build.id });
 };
@@ -282,10 +282,10 @@ const _startCodebuildDelete = async ({
     invocationId,
     userId: stacktapeUserInfo.id
   });
-  await awsSdkManager.putSsmParameterValue({
-    ssmParameterName: apiKeySsmParameterName,
+  await awsSdkManager.parameterStore.put({
+    name: apiKeySsmParameterName,
     value: stacktapeUserInfo.apiKey,
-    encrypt: true
+    encrypted: true
   });
   let build: Build;
   try {
@@ -312,7 +312,7 @@ const _startCodebuildDelete = async ({
     });
   } finally {
     // attempt to delete SSM parameter in case Codebuild failed to do so
-    await awsSdkManager.deleteSsmParameter({ ssmParameterName: apiKeySsmParameterName });
+    await awsSdkManager.parameterStore.delete({ name: apiKeySsmParameterName });
   }
   return awsSdkManager.getCodebuildDeployment({ buildId: build.id });
 };

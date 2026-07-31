@@ -4,8 +4,10 @@ import { describe, expect, mock, test } from 'bun:test';
 
 const awsSdkManager = {
   getCertificateInfo: mock(),
-  getSsmParametersValues: mock(),
-  putSsmParameterValue: mock()
+  parameterStore: {
+    getMany: mock(),
+    put: mock()
+  }
 };
 
 mock.module('@application-services/application-manager', () => ({
@@ -83,7 +85,7 @@ describe('DomainManager', () => {
     const issuedRegionalCert = cert({ arn: regionalCertArn, status: CertificateStatus.ISSUED });
     const issuedUsEast1Cert = cert({ arn: usEast1CertArn, status: CertificateStatus.ISSUED });
 
-    awsSdkManager.getSsmParametersValues.mockResolvedValue([
+    awsSdkManager.parameterStore.getMany.mockResolvedValue([
       {
         Name: '/stp/eu-west-1/docstube.dev',
         Value: JSON.stringify({
@@ -108,7 +110,7 @@ describe('DomainManager', () => {
     awsSdkManager.getCertificateInfo.mockImplementation(async (arn: string) => {
       return arn === regionalCertArn ? issuedRegionalCert : issuedUsEast1Cert;
     });
-    awsSdkManager.putSsmParameterValue.mockResolvedValue(undefined);
+    awsSdkManager.parameterStore.put.mockResolvedValue(undefined);
 
     const domainManager = new DomainManager();
     domainManager.resolveCurrentNameServersForDomain = mock(async () => ['ns-1.example.net']);
@@ -122,9 +124,9 @@ describe('DomainManager', () => {
       regionalCertArn
     );
     expect(domainManager.getCertificateForDomain('events.docstube.dev', 'cdn')).toBe(usEast1CertArn);
-    expect(awsSdkManager.putSsmParameterValue).toHaveBeenCalledTimes(1);
+    expect(awsSdkManager.parameterStore.put).toHaveBeenCalledTimes(1);
 
-    const storedValue = JSON.parse(awsSdkManager.putSsmParameterValue.mock.calls[0][0].value);
+    const storedValue = JSON.parse(awsSdkManager.parameterStore.put.mock.calls[0][0].value);
     expect(storedValue.regionalCert.Status).toBe(CertificateStatus.ISSUED);
     expect(storedValue.usEast1Cert.Status).toBe(CertificateStatus.ISSUED);
     expect(storedValue.regionalCert.DomainValidationOptions).toBeUndefined();

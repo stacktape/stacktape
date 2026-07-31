@@ -140,8 +140,8 @@ export class DomainManager {
   };
 
   #fetchDomainStatusesFromParameterStore = async ({ domains }: { domains: string[] }) => {
-    const parameters = await awsSdkManager.getSsmParametersValues({
-      ssmParametersNames: domains.map((domainName) =>
+    const parameters = await awsSdkManager.parameterStore.getMany({
+      names: domains.map((domainName) =>
         getSsmParameterNameForDomainInfo({ domainName, region: globalStateManager.region })
       )
     });
@@ -197,8 +197,8 @@ export class DomainManager {
     delete cleanedStatus.usEast1Cert?.RenewalSummary;
     cleanedStatus.regionalCerts?.forEach((cert) => delete cert.RenewalSummary);
     cleanedStatus.usEast1Certs?.forEach((cert) => delete cert.RenewalSummary);
-    await awsSdkManager.putSsmParameterValue({
-      ssmParameterName: getSsmParameterNameForDomainInfo({ domainName, region: globalStateManager.region }),
+    await awsSdkManager.parameterStore.put({
+      name: getSsmParameterNameForDomainInfo({ domainName, region: globalStateManager.region }),
       value: JSON.stringify(cleanedStatus)
     });
   };
