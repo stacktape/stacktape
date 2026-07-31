@@ -10,7 +10,12 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { CertificateStatus } from '@aws-sdk/client-acm';
 import { stpErrors } from '@errors';
-import { getPrefixForUserAppResourceDefaultDomainName } from '@stacktape/naming/domain-names';
+import {
+  CURRENT_DEFAULT_DOMAINS_VERSION,
+  getDefaultDomainRootSuffix,
+  getDefaultDomainSuffixForStack,
+  getPrefixForUserAppResourceDefaultDomainName
+} from '@stacktape/naming/domain-names';
 import {
   getSsmParameterNameForDomainInfo,
   parseDomainNameFromSmmParamName
@@ -50,11 +55,13 @@ export class DomainManager {
     stackName,
     domains,
     fromParameterStore,
+    loadDefaultDomainsFromControlPlane = true,
     parentEventType
   }: {
     stackName?: string;
     domains: string[];
     fromParameterStore?: boolean;
+    loadDefaultDomainsFromControlPlane?: boolean;
     /** Optional parent event for grouping (e.g., LOAD_METADATA_FROM_AWS) */
     parentEventType?: LoggableEventType;
   }) => {
@@ -72,11 +79,22 @@ export class DomainManager {
     this.#stackName = stackName;
     const [fetchedDefaultDomainsInfo] = await Promise.all([
       stackName
-        ? stacktapeTrpcApiManager.apiClient.defaultDomainsInfo({
-            stackName,
-            region: globalStateManager.region,
-            awsAccountId: globalStateManager.targetAwsAccount.awsAccountId
-          })
+        ? loadDefaultDomainsFromControlPlane
+          ? stacktapeTrpcApiManager.apiClient.defaultDomainsInfo({
+              stackName,
+              region: globalStateManager.region,
+              awsAccountId: globalStateManager.targetAwsAccount.awsAccountId
+            })
+          : {
+              suffix: getDefaultDomainSuffixForStack({
+                stackName,
+                region: globalStateManager.region,
+                accountId: globalStateManager.targetAwsAccount.awsAccountId,
+                version: CURRENT_DEFAULT_DOMAINS_VERSION
+              }),
+              certDomainSuffix: getDefaultDomainRootSuffix({ version: CURRENT_DEFAULT_DOMAINS_VERSION }),
+              version: CURRENT_DEFAULT_DOMAINS_VERSION
+            }
         : undefined,
       fromParameterStore
         ? domains.length && this.#fetchDomainStatusesFromParameterStore({ domains })

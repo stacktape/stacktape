@@ -17,8 +17,10 @@ pnpm install --frozen-lockfile
 
 Nothing in this repository holds a credential, and nothing should start to.
 
-- **Stacktape** — `STACKTAPE_API_KEY` in the environment, or log in once with the development CLI
-  (`pnpm --filter @stacktape/cli run dev login`), which persists the session outside the repository.
+- **Stacktape** — needed for deploys and commands that read or mutate Stacktape organization data. Set
+  `STACKTAPE_API_KEY` in the environment, or log in once with the development CLI
+  (`pnpm --filter @stacktape/cli run dev login`), which persists the session outside the repository. The local
+  `package`, `synth`, and `validate` commands do not use this credential.
 - **AWS** — the standard AWS credential chain. The two selection flags are not interchangeable:
   - `--profile <name>` selects a **local AWS profile** from your `~/.aws` configuration (the `aws-profile:*` commands
     manage these, and `defaults:configure` can set a default one);
@@ -32,6 +34,9 @@ Nothing in this repository holds a credential, and nothing should start to.
 The development CLI additionally loads `apps/cli/.env.local` on every run. That file is git-ignored and is the
 intended home for a local `STACKTAPE_API_KEY`; keep real values only there or in your shell. Set `SKIP_LOADING_ENV=1`
 to run without it.
+
+`projectName` may be declared once at the top level of `stacktape.ts`/YAML. `--projectName` remains useful for
+temporary stacks and overrides the configured value. In v4, the old top-level `serviceName` property no longer exists.
 
 The pre-commit hook scans staged changes for credential patterns; `pnpm check:secrets` scans everything tracked.
 
@@ -86,6 +91,18 @@ pnpm --filter @stacktape/cli run dev version
 pnpm --filter @stacktape/cli run dev help
 pnpm --filter @stacktape/cli run dev info:whoami
 ```
+
+Local project checks use only the selected AWS profile and do not contact the Stacktape Console:
+
+```powershell
+pnpm --filter @stacktape/cli run dev package --configPath <config> --stage dev --region eu-west-1 --profile <profile>
+pnpm --filter @stacktape/cli run dev synth --configPath <config> --stage dev --region eu-west-1 --profile <profile>
+pnpm --filter @stacktape/cli run dev validate --withPackage --configPath <config> --stage dev --region eu-west-1 --profile <profile>
+```
+
+These commands still resolve the AWS account identity because account ID and region are part of Stacktape's stable
+resource names. `synth` and `validate` also read AWS metadata needed to produce the same account-specific template a
+deploy would use; they are Console-independent, not AWS-free.
 
 Notes that save time:
 

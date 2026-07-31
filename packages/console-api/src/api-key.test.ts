@@ -3,16 +3,14 @@ import test from 'node:test';
 import { recordStackOperationInputSchema } from './api-key.js';
 
 /**
- * `recordStackOperation` is called by every released Stacktape CLI, so its schema has to keep accepting
- * what those CLIs send. `commandArgs` is the awkward part: it is the CLI's whole parsed flag object, and
- * the CLI's argument parser decides the value types, not the Console. These checks pin what the Console
- * promises to accept there.
+ * `commandArgs` is the CLI's whole parsed flag object. The CLI's argument parser decides the value types,
+ * not the Console, so these checks pin the v4 wire contract.
  */
 
 const operation = (commandArgs: unknown) => ({
   invocationId: 'inv-1',
   command: 'deploy',
-  serviceName: 'my-project',
+  projectName: 'my-project',
   commandArgs
 });
 
@@ -56,7 +54,7 @@ test('commandArgs is an object, not any value at all', () => {
   }
 });
 
-test('the rest of the operation stays optional so older clients keep recording', () => {
+test('the minimal v4 operation requires only its invocation identity', () => {
   const minimal = recordStackOperationInputSchema.parse({ invocationId: 'inv-2' });
 
   assert.equal(minimal.invocationId, 'inv-2');

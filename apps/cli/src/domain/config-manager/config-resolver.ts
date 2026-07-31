@@ -260,11 +260,13 @@ export class ConfigResolver {
       region: globalStateManager.region,
       command: globalStateManager.command,
       awsProfile: globalStateManager.awsProfileName,
-      user: {
-        id: globalStateManager.userData.id,
-        name: globalStateManager.userData.name,
-        email: globalStateManager.userData.email
-      },
+      user: globalStateManager.userData
+        ? {
+            id: globalStateManager.userData.id,
+            name: globalStateManager.userData.name,
+            email: globalStateManager.userData.email
+          }
+        : undefined,
       cliArgs: globalStateManager.args
     };
 
@@ -382,11 +384,13 @@ export class ConfigResolver {
           region: globalStateManager.region,
           command: globalStateManager.command,
           awsProfile: globalStateManager.awsProfileName,
-          user: {
-            id: globalStateManager.userData.id,
-            name: globalStateManager.userData.name,
-            email: globalStateManager.userData.email
-          },
+          user: globalStateManager.userData
+            ? {
+                id: globalStateManager.userData.id,
+                name: globalStateManager.userData.name,
+                email: globalStateManager.userData.email
+              }
+            : undefined,
           cliArgs: globalStateManager.args
         });
       }

@@ -79,7 +79,7 @@ class StacktapeTrpcApiManager {
       command: globalStateManager.command,
       region: globalStateManager.region,
       stackName,
-      serviceName: projectName,
+      projectName,
       accountConnectionId: globalStateManager.targetAwsAccount.id || undefined,
       codebuildBuildArn,
       logStreamName,

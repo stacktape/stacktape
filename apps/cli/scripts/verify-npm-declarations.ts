@@ -44,7 +44,7 @@ const iotTrigger = new IotIntegration(iotProperties);
 const minimalIotTrigger = new IotIntegration({ sql: "SELECT * FROM 'devices/#'" });
 
 export const config = defineConfig(() => ({
-  serviceName: 'consumer-fixture',
+  projectName: 'consumer-fixture',
   resources: { api, site, uploads, backend },
   variables: { secret: $Secret('db-password'), iot: iotTrigger.type, minimalIot: minimalIotTrigger.type }
 }));

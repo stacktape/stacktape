@@ -1457,19 +1457,6 @@ You have specified ${tuiManager.makeBold('app_variable')} "${appVariable}" in yo
       message: `Invalid arguments. Please specify ${tuiManager.prettyOption('projectName')} option.`
     };
   },
-  e104({ serviceName }: { serviceName: string }): ReturnedError {
-    return {
-      type: 'CONFIG',
-      message: `Using ${tuiManager.prettyConfigProperty(
-        'serviceName'
-      )} in your config is deprecated. Use ${tuiManager.prettyOption(
-        'projectName'
-      )} instead (e.g. ${tuiManager.prettyOption('projectName')} ${serviceName}).`,
-      hint: `Use your current ${tuiManager.prettyConfigProperty(
-        'serviceName'
-      )} value as ${tuiManager.prettyOption('projectName')} to keep using the same stack.`
-    };
-  },
   e105({ stpResourceName }: { stpResourceName: string }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',

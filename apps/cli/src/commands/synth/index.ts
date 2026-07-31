@@ -11,7 +11,8 @@ export const commandSynth = async () => {
   await initializeAllStackServices({
     commandModifiesStack: false,
     commandRequiresDeployedStack: false,
-    loadGlobalConfig: true,
+    loadGlobalConfig: false,
+    requiresControlPlane: false,
     requiresSubscription: false
   });
 

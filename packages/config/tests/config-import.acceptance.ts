@@ -64,7 +64,7 @@ export const rawSubscription: CloudformationResource = {
 const resources: Record<string, StacktapeResourceDefinition> = { api, site, uploads };
 
 export const acceptedConfiguration: StacktapeConfig = {
-  serviceName: 'acceptance',
+  projectName: 'acceptance',
   resources,
   cloudformationResources: { LegacyTopic: rawTopic }
 };

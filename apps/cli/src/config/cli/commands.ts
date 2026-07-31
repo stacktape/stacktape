@@ -34,6 +34,8 @@ import {
   limit,
   listVersions,
   localTunnelingPort,
+  localConfigDependentArgs,
+  localUniversalArgs,
   logLevel,
   newVersion,
   noCache,
@@ -230,9 +232,9 @@ This action is irreversible and will permanently remove all resources in the sta
 
 By default, the template is saved to \`./compiled-template.yaml\`. Use the \`--outFile\` option to specify a different path.`,
     args: {
-      ...universalArgs,
+      ...localUniversalArgs,
       ...stackArgs,
-      ...configDependentArgs,
+      ...localConfigDependentArgs,
       outFile: outFile.optional(),
       preserveTempFiles: preserveTempFiles.optional()
     },
@@ -244,9 +246,9 @@ By default, the template is saved to \`./compiled-template.yaml\`. Use the \`--o
 
 By default, this command loads and validates the configuration, resolves resources, and synthesizes the CloudFormation template in memory. Use \`--withPackage\` to also validate workload packaging, and \`--thorough\` to validate workload packaging and ask AWS CloudFormation to validate the synthesized template.`,
     args: {
-      ...universalArgs,
+      ...localUniversalArgs,
       ...stackArgs,
-      ...configDependentArgs,
+      ...localConfigDependentArgs,
       withPackage: withPackage.optional(),
       thorough: thorough.optional()
     },
@@ -393,9 +395,9 @@ For rolling back to a specific previous deployment version, use \`rollback\` ins
 
 This is useful for inspecting the packaged artifacts before deploying.`,
     args: {
-      ...universalArgs,
+      ...localUniversalArgs,
       ...stackArgs,
-      ...configDependentArgs
+      ...localConfigDependentArgs
     },
     requiredArgs: ['stage', 'region'] as const
   },
@@ -1030,5 +1032,8 @@ export const commandsNotRequiringApiKey: StacktapeCommand[] = [
   'defaults:list',
   'defaults:configure',
   'upgrade',
-  'init'
+  'init',
+  'package',
+  'synth',
+  'validate'
 ];

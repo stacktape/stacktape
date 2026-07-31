@@ -183,7 +183,7 @@ export class ConfigManager {
 
   /**
    * Loads only the raw config (without directives resolution or validation).
-   * Used to extract serviceName before full initialization.
+   * Used to extract projectName before full initialization.
    */
   loadRawConfigOnly = async () => {
     const detectedConfigPath = getConfigPath();

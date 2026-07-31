@@ -327,7 +327,7 @@ const createTransformer = (hovers: HoverData[]) => {
 // --- Entry point ---
 
 const STACKTAPE_CONFIG_RE =
-  /^(?:resources|scripts|hooks|serviceName|variables|directives|deploymentConfig|providerConfig|budgetControl|stackConfig|cloudformationResources)\s*:/m;
+  /^(?:resources|scripts|hooks|projectName|variables|directives|deploymentConfig|providerConfig|budgetControl|stackConfig|cloudformationResources)\s*:/m;
 
 // Compute hovers for a YAML code block.
 // `originalCode` is the full valid YAML (before any focus filtering).

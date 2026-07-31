@@ -25,12 +25,15 @@ import {
 } from '@config';
 import { stpErrors } from '@errors';
 import type { LoadedAwsCredentials, ValidatedAwsCredentials } from 'src/aws/credentials';
+import type { AwsCredentialsProvider } from 'src/aws/context';
+import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { SUPPORTED_AWS_REGIONS, type SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { getRoleArnFromSessionArn } from '@stacktape/naming/arns';
 import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { propertyFromObjectOrNull } from '@utils/misc';
 import { listAwsProfiles, loadAwsConfigFileContent } from '@utils/aws-config';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { getAwsCredentialsIdentity } from '@utils/aws-sdk-manager/utils';
 import { memoizeGetters } from '@utils/decorators';
 import { loadHelperLambdaDetails } from '@utils/helper-lambdas';
 import { getAwsSynchronizedTime } from '@utils/time';
@@ -93,6 +96,8 @@ export class GlobalStateManager {
   userData?: GlobalStateUser;
   organizationData?: GlobalStateOrganization;
   connectedAwsAccounts?: GlobalStateConnectedAwsAccount[];
+  localTargetAwsAccount?: GlobalStateConnectedAwsAccount;
+  localCredentialsProvider?: AwsCredentialsProvider;
   projects: GlobalStateProject[];
   permissions: string[] = [];
   isProjectScoped = false;
@@ -102,7 +107,7 @@ export class GlobalStateManager {
     globallyUniqueStackHash: string;
     stage: string;
     projectName: string;
-    projectId: string;
+    projectId?: string;
   };
 
   apiKey: string;
@@ -279,6 +284,9 @@ export class GlobalStateManager {
   }
 
   get targetAwsAccount(): GlobalStateConnectedAwsAccount {
+    if (this.localTargetAwsAccount) {
+      return this.localTargetAwsAccount;
+    }
     // this is to make resource resolving work without trpc api (to speed it up)
     if (this.invokedFrom === 'server') {
       return {
@@ -345,6 +353,47 @@ export class GlobalStateManager {
       await this.loadUserDataFromTrpcApi();
     }
     await this.loadValidatedAwsCredentials();
+  };
+
+  loadLocalAwsCredentials = async (): Promise<AwsCredentialsProvider> => {
+    await eventManager.startEvent({ eventType: 'LOAD_AWS_CREDENTIALS', description: 'Loading AWS credentials' });
+
+    const selectedProfile =
+      this.rawArgs.profile || process.env.AWS_PROFILE || this.persistedState?.cliArgsDefaults.profile;
+    const credentialsProvider = defaultProvider(selectedProfile ? { profile: selectedProfile } : {});
+    const credentials = await credentialsProvider();
+    const identity = await getAwsCredentialsIdentity({ credentials });
+    if (!identity.Account || !identity.Arn) {
+      throw new Error('AWS STS returned an incomplete caller identity.');
+    }
+
+    this.localCredentialsProvider = credentialsProvider;
+    this.credentials = {
+      ...credentials,
+      source: 'providerChain',
+      identity: {
+        account: identity.Account,
+        arn: identity.Arn
+      }
+    };
+    this.localTargetAwsAccount = {
+      id: `local:${identity.Account}`,
+      organizationId: 'local',
+      awsAccountId: identity.Account,
+      connectionMode: 'BASIC',
+      name: selectedProfile || 'local credential chain',
+      state: 'ACTIVE',
+      primaryRegions: [this.region],
+      defaultRegion: this.region
+    };
+
+    await eventManager.finishEvent({
+      eventType: 'LOAD_AWS_CREDENTIALS',
+      finalMessage: selectedProfile
+        ? `Loaded from AWS profile ${tuiManager.makeBold(selectedProfile)}.`
+        : 'Loaded from the standard AWS credential chain.'
+    });
+    return credentialsProvider;
   };
 
   loadUserDataFromTrpcApi = async () => {
@@ -430,6 +479,12 @@ export class GlobalStateManager {
         case 'credentialsFile':
           creds = loadCredentialsUsingCredentialsFile();
           break;
+        case 'providerChain':
+          creds = {
+            ...(await this.localCredentialsProvider()),
+            source: 'providerChain'
+          };
+          break;
       }
     } else if (process.env.AWS_ACCESS_KEY_ID && process.env.AWS_SECRET_ACCESS_KEY) {
       creds = loadCredentialsUsingEnv();
@@ -455,6 +510,7 @@ export class GlobalStateManager {
     const loadedFrom = {
       envVar: 'Environment variables',
       credentialsFile: 'System-wide credentials file',
+      providerChain: 'AWS credential provider chain',
       api: 'Stacktape API',
       assumeRole: 'Assumed role'
     }[this.credentials.source];
@@ -487,12 +543,12 @@ export class GlobalStateManager {
     this.configPath = configPath;
   };
 
-  loadTargetStackInfo = async ({ legacyConfigServiceName }: { legacyConfigServiceName?: string } = {}) => {
+  loadTargetStackInfo = async ({ configProjectName }: { configProjectName?: string } = {}) => {
     // await eventManager.startEvent({
     //   eventType: 'LOAD_TARGET_STACK_INFO',
     //   description: 'Loading target stack info'
     // });
-    const { id: projectId, name: projectName } = await this.#resolveTargetProject({ legacyConfigServiceName });
+    const { id: projectId, name: projectName } = await this.#resolveTargetProject({ configProjectName });
     const stage = await this.#resolveStage();
     const stackName = `${projectName}-${stage}`;
     const globallyUniqueStackHash = getGloballyUniqueStackHash({
@@ -512,6 +568,34 @@ export class GlobalStateManager {
     // });
   };
 
+  loadLocalTargetStackInfo = async ({ configProjectName }: { configProjectName?: string } = {}) => {
+    let projectName = this.args.projectName || this.persistedState?.cliArgsDefaults.projectName || configProjectName;
+    if (!projectName) {
+      if (this.invokedFrom !== 'cli' || !process.stdout.isTTY) {
+        throw stpErrors.e103(null);
+      }
+      projectName = await tuiManager.promptText({
+        message: `Enter the project name (you can save it in config as ${tuiManager.prettyConfigProperty(
+          'projectName'
+        )})`
+      });
+    }
+    validateProjectName(projectName);
+
+    const stage = await this.#resolveStage();
+    const stackName = `${projectName}-${stage}`;
+    this.targetStack = {
+      projectName,
+      stackName,
+      stage,
+      globallyUniqueStackHash: getGloballyUniqueStackHash({
+        region: this.region,
+        accountId: this.targetAwsAccount.awsAccountId,
+        stackName
+      })
+    };
+  };
+
   #resolveStage = async () => {
     let stage = this.args.stage || this.persistedState?.cliArgsDefaults.stage;
     if (!stage) {
@@ -523,7 +607,7 @@ export class GlobalStateManager {
     return stage;
   };
 
-  #resolveTargetProject = async ({ legacyConfigServiceName }: { legacyConfigServiceName?: string }) => {
+  #resolveTargetProject = async ({ configProjectName }: { configProjectName?: string }) => {
     const createNewProject = async (projectName?: string) => {
       let chosenProjectName = projectName;
       if (!chosenProjectName) {
@@ -552,15 +636,7 @@ export class GlobalStateManager {
       });
       return this.projects.find(({ name }) => name === existingProjectName);
     };
-    if (legacyConfigServiceName) {
-      tuiManager.warn(
-        `Config ${tuiManager.prettyConfigProperty('serviceName')} is deprecated. Use ${tuiManager.prettyOption(
-          'projectName'
-        )} (e.g. ${tuiManager.colorize('gray', `--projectName ${legacyConfigServiceName}`)}).`
-      );
-    }
-    const projectName =
-      this.args.projectName || this.persistedState?.cliArgsDefaults.projectName || legacyConfigServiceName;
+    const projectName = this.args.projectName || this.persistedState?.cliArgsDefaults.projectName || configProjectName;
     if (!projectName) {
       if (this.invokedFrom !== 'cli' || (this.args as StacktapeCliArgs).autoConfirmOperation || !process.stdout.isTTY) {
         throw stpErrors.e103(null);
@@ -586,14 +662,10 @@ export class GlobalStateManager {
       return userSpecifiedExistingProject;
     }
 
-    const projectNameComesFromConfigServiceName = projectName === legacyConfigServiceName;
+    const projectNameComesFromConfig = projectName === configProjectName;
 
-    // if there are no projects or autoConfirmOperation is enabled, or projectName comes from service name, we will automatically create a new one for the user
-    if (
-      !this.projects?.length ||
-      (this.args as StacktapeCliArgs).autoConfirmOperation ||
-      projectNameComesFromConfigServiceName
-    ) {
+    // A project declared in config is intentional, so it can be created without a second confirmation.
+    if (!this.projects?.length || (this.args as StacktapeCliArgs).autoConfirmOperation || projectNameComesFromConfig) {
       return createNewProject(projectName);
     }
 
@@ -602,9 +674,8 @@ export class GlobalStateManager {
       throw stpErrors.e103(null);
     }
 
-    // if project name comes from serviceName we will skip this prompt and create project
-    // otherwise we assume that user might have mistyped the "--projectName"
-    if (!projectNameComesFromConfigServiceName) {
+    // An explicit CLI value may be a typo, so confirm before creating it.
+    if (!projectNameComesFromConfig) {
       const newOrExisting = await tuiManager.promptSelect({
         message: `Project with name ${tuiManager.colorize('gray', projectName)} does not exist.`,
         options: [

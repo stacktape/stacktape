@@ -455,6 +455,14 @@ export const universalArgs = {
   outputFormat: outputFormat.optional()
 };
 
+export const localUniversalArgs = {
+  profile: profile.optional(),
+  logLevel: logLevel.optional(),
+  help: help.optional(),
+  agent: agent.optional(),
+  outputFormat: outputFormat.optional()
+};
+
 export const stackArgs = {
   stage: stage.optional(),
   region: awsRegion.optional(),
@@ -465,6 +473,11 @@ export const configDependentArgs = {
   configPath: configPath.optional(),
   currentWorkingDirectory: currentWorkingDirectory.optional(),
   templateId: templateId.optional()
+};
+
+export const localConfigDependentArgs = {
+  configPath: configPath.optional(),
+  currentWorkingDirectory: currentWorkingDirectory.optional()
 };
 
 // ============ Arg Aliases ============

@@ -49,12 +49,29 @@ describe('CLI capability contract', () => {
     expect(commandDefinitions['query:sql'].requiredArgs).toEqual(['region', 'stage', 'resourceName', 'sql']);
   });
 
-  test('keeps local discovery commands usable before authentication', () => {
+  test('keeps local commands usable before Stacktape authentication', () => {
     expect(commandsNotRequiringApiKey).toEqual(
-      expect.arrayContaining(['help', 'version', 'init', 'login', 'logout', 'mcp', 'defaults:list'])
+      expect.arrayContaining([
+        'help',
+        'version',
+        'init',
+        'login',
+        'logout',
+        'mcp',
+        'defaults:list',
+        'package',
+        'synth',
+        'validate'
+      ])
     );
     expect(commandsNotRequiringApiKey).not.toContain('deploy');
     expect(commandsNotRequiringApiKey).not.toContain('secret:get');
+
+    for (const command of ['package', 'synth', 'validate'] as const) {
+      expect(commandDefinitions[command].args).toHaveProperty('profile');
+      expect(commandDefinitions[command].args).not.toHaveProperty('awsAccount');
+      expect(commandDefinitions[command].args).not.toHaveProperty('templateId');
+    }
   });
 
   test('answers help and version without update or announcement traffic', () => {

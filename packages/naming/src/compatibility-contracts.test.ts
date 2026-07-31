@@ -1,7 +1,14 @@
 import { describe, expect, test } from 'bun:test';
 import { getStpNameForAlarm } from './alarm-names';
 import { cfLogicalNames } from './cloudformation-logical-names';
-import { getPrefixForUserAppResourceDefaultDomainName, getUserPoolDomainPrefix } from './domain-names';
+import {
+  CURRENT_DEFAULT_DOMAINS_VERSION,
+  getDefaultDomainRootSuffix,
+  getDefaultDomainSuffixForStack,
+  getPrefixForUserAppResourceDefaultDomainName,
+  getUserPoolDomainPrefix,
+  isDefaultDomainSuffixForStack
+} from './domain-names';
 import { helperLambdaAwsResourceNames } from './helper-lambda-resource-names';
 import { stackMetadataNames } from './stack-metadata-names';
 import { getStpNameForResource } from './stacktape-resource-names';
@@ -92,6 +99,21 @@ describe('migrated naming compatibility contracts', () => {
         alarmIndexOrGlobalAlarmName: 2
       })
     ).toBe('ErrorRateForApiLatency2');
+  });
+
+  test('derives and validates the default domain suffix from stack identity', () => {
+    const stack = {
+      accountId: '123456789012',
+      region: 'eu-west-1',
+      stackName: 'my-project-production',
+      version: CURRENT_DEFAULT_DOMAINS_VERSION
+    };
+    const suffix = getDefaultDomainSuffixForStack(stack);
+
+    expect(suffix).toBe('-de773011.stacktape-app.com');
+    expect(getDefaultDomainRootSuffix({ version: CURRENT_DEFAULT_DOMAINS_VERSION })).toBe('.stacktape-app.com');
+    expect(isDefaultDomainSuffixForStack({ domainName: `api${suffix}`, ...stack })).toBe(true);
+    expect(getDefaultDomainSuffixForStack({ ...stack, version: 2 })).toBeUndefined();
   });
 
   test('preserves helper Lambda physical names and truncation', () => {

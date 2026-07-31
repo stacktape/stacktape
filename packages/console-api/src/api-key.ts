@@ -21,8 +21,7 @@ export const recordStackOperationInputSchema = z.object({
   invocationId: z.string(),
   command: z.string().optional().nullable(),
   stackName: z.string().optional().nullable(),
-  // Named `serviceName` rather than `projectName` so that older clients keep working against a new Console.
-  serviceName: z.string().optional().nullable(),
+  projectName: z.string().optional().nullable(),
   awsAccessKeyId: z.string().optional().nullable(),
   awsAccountId: z.string().optional().nullable(),
   region: z.string().optional().nullable(),

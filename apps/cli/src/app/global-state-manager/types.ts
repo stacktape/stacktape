@@ -1,11 +1,11 @@
 import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
-export type ConfigurableCliArgsDefaults = {
-  [propName in Partial<keyof (typeof import('src/config/random'))['configurableGlobalDefaultCliArgs']>]: string;
-};
+export type ConfigurableCliArgsDefaults = Partial<{
+  [propName in keyof (typeof import('src/config/random'))['configurableGlobalDefaultCliArgs']]: string;
+}>;
 
-export type ConfigurableOtherDefaults = {
-  [propName in Partial<keyof (typeof import('src/config/random'))['configurableGlobalDefaultOtherProps']>]: string;
-};
+export type ConfigurableOtherDefaults = Partial<{
+  [propName in keyof (typeof import('src/config/random'))['configurableGlobalDefaultOtherProps']]: string;
+}>;
 
 export type GlobalStateUser = CurrentUserAndOrgDataResponse['user'];
 export type GlobalStateOrganization = CurrentUserAndOrgDataResponse['organization'];

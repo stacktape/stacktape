@@ -141,7 +141,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
         'providerConfig',
         'resources',
         'scripts',
-        'serviceName',
+        'projectName',
         'stackConfig',
         'deploymentConfig'
       ].sort()
@@ -159,7 +159,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
   test('product documentation survives the move into the package', async () => {
     const schema = await configSchema();
 
-    expect(schema.properties.serviceName.description).toContain('#### The name of this service.');
+    expect(schema.properties.projectName.description).toContain('#### Project name');
     expect(schema.definitions.LambdaFunction.description).toContain('serverless compute resource');
     expect(countDescriptions(schema)).toBe(1407);
     // Examples are the documented product content the schema, docs and editor hovers all render.

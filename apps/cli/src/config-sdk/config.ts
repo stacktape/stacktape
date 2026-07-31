@@ -460,9 +460,10 @@ export type GetConfigParams = {
    */
   awsProfile: string;
   /**
-   * Information about the user performing the stack operation
+   * Information about the authenticated Stacktape user, when the command uses the Stacktape control plane.
+   * Local commands such as `package`, `synth`, and `validate` do not authenticate a Stacktape user.
    */
-  user: {
+  user?: {
     id: string;
     name: string;
     email: string;

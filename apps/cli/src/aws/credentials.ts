@@ -5,7 +5,7 @@ export type AwsCredentials = {
 };
 
 export type LoadedAwsCredentials = AwsCredentials & {
-  source: 'envVar' | 'credentialsFile' | 'api' | 'assumeRole';
+  source: 'envVar' | 'credentialsFile' | 'providerChain' | 'api' | 'assumeRole';
 };
 
 export type ValidatedAwsCredentials = LoadedAwsCredentials & {

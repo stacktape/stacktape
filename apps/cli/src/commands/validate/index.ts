@@ -19,7 +19,8 @@ export const commandValidate = async () => {
   await initializeAllStackServices({
     commandModifiesStack: false,
     commandRequiresDeployedStack: false,
-    loadGlobalConfig: true,
+    loadGlobalConfig: false,
+    requiresControlPlane: false,
     requiresSubscription: false
   });
 

@@ -62,6 +62,13 @@ retained only as history.
 - JSONL/machine output may be redesigned for v4. The v3 byte-level envelope is not a public compatibility constraint.
   The v4 format must be intentionally specified and tested for ordering, terminal results, redaction, cancellation,
   and error semantics.
+- `projectName` is part of the authored configuration and `--projectName` overrides it. The obsolete top-level
+  `serviceName` property and `recordStackOperation.serviceName` wire field are removed rather than carried as v4
+  aliases.
+- `package`, `synth`, and `validate` do not authenticate with the Stacktape Console. They use the standard local AWS
+  credential chain: account identity is part of deterministic infrastructure naming, and synthesis/validation read
+  the AWS metadata needed for an account-specific template. Deploy and organization/account-management commands keep
+  their Console authorization boundary.
 
 The validated [public proof of concept](https://github.com/matuscongrady/stacktape-monorepo-poc) at `6631d7d` and its
 private Console submodule at `4d1b604` demonstrate this contract-first boundary on TypeScript 6 in both public-only

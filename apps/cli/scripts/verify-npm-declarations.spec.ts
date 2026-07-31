@@ -42,7 +42,7 @@ const installMinimalPackage = ({ plainDeclarations }: { plainDeclarations: strin
     join(packageDir, 'types.d.ts'),
     [
       'export type StacktapeConfig = {',
-      '  serviceName?: string;',
+      '  projectName?: string;',
       '  resources?: Record<string, unknown>;',
       '  variables?: Record<string, unknown>;',
       '};',

@@ -33,27 +33,43 @@ import { logCollectorStream } from '@utils/log-collector';
 import { ensureAwsAccountConnected } from './aws-connection-preflight';
 import { assertCommandPermissions, assertScopedProjectAccess } from './permission-guards';
 
-/**
- * Raw config is loaded before project selection so the deprecated `serviceName`
- * fallback remains available without making global application state depend on
- * the configuration subsystem.
- */
 export const loadTargetStackContext = async () => {
   await configManager.loadRawConfigOnly();
   await globalStateManager.loadTargetStackInfo({
-    legacyConfigServiceName: configManager.configResolver.rawConfig?.serviceName
+    configProjectName: configManager.configResolver.rawConfig?.projectName
   });
+};
+
+export const loadLocalTargetStackContext = async () => {
+  await configManager.loadRawConfigOnly();
+  await globalStateManager.loadLocalTargetStackInfo({
+    configProjectName: configManager.configResolver.rawConfig?.projectName
+  });
+};
+
+export const loadLocalAwsContext = async () => {
+  const credentialsProvider = await globalStateManager.loadLocalAwsCredentials();
+  awsSdkManager.init({
+    credentials: credentialsProvider,
+    region: globalStateManager.region,
+    getErrorHandlerFn: getErrorHandler,
+    plugins: [loggingPlugin, retryPlugin, redirectPlugin],
+    printer: tuiManager
+  });
+  await loadLocalTargetStackContext();
 };
 
 export const initializeAllStackServices = async ({
   commandModifiesStack,
   commandRequiresDeployedStack,
   loadGlobalConfig,
+  requiresControlPlane = true,
   requiresSubscription
 }: {
   commandModifiesStack?: boolean;
   commandRequiresDeployedStack?: boolean;
   loadGlobalConfig?: boolean;
+  requiresControlPlane?: boolean;
   requiresSubscription?: boolean;
 }) => {
   const getHeaderAction = () => {
@@ -72,36 +88,40 @@ export const initializeAllStackServices = async ({
   });
   eventManager.setPhase('INITIALIZE');
 
-  await loadUserCredentials();
-  await recordStackOperationStart();
+  if (requiresControlPlane) {
+    await loadUserCredentials();
+    await recordStackOperationStart();
 
-  const userProvidedProjectName = globalStateManager.args.projectName;
-  if (userProvidedProjectName) {
-    assertScopedProjectAccess({
-      role: globalStateManager.organizationData?.role,
-      projects: globalStateManager.projects,
-      projectName: userProvidedProjectName
-    });
-  }
-
-  if (requiresSubscription) {
-    const { message, canDeploy } = await stacktapeTrpcApiManager.apiClient.canDeploy();
-    if (!canDeploy) {
-      throw stpErrors.e502({ message });
+    const userProvidedProjectName = globalStateManager.args.projectName;
+    if (userProvidedProjectName) {
+      assertScopedProjectAccess({
+        role: globalStateManager.organizationData?.role,
+        projects: globalStateManager.projects,
+        projectName: userProvidedProjectName
+      });
     }
+
+    if (requiresSubscription) {
+      const { message, canDeploy } = await stacktapeTrpcApiManager.apiClient.canDeploy();
+      if (!canDeploy) {
+        throw stpErrors.e502({ message });
+      }
+    }
+    await loadTargetStackContext();
+    assertCommandPermissions({
+      command: globalStateManager.command,
+      stage: globalStateManager.stage,
+      projectName: globalStateManager.targetStack?.projectName,
+      role: globalStateManager.organizationData?.role,
+      permissions: globalStateManager.permissions,
+      projects: globalStateManager.projects
+    });
+  } else {
+    await loadLocalAwsContext();
   }
-  await loadTargetStackContext();
-  assertCommandPermissions({
-    command: globalStateManager.command,
-    stage: globalStateManager.stage,
-    projectName: globalStateManager.targetStack?.projectName,
-    role: globalStateManager.organizationData?.role,
-    permissions: globalStateManager.permissions,
-    projects: globalStateManager.projects
-  });
   await configManager.init({ configRequired: true });
 
-  if (loadGlobalConfig) {
+  if (loadGlobalConfig && requiresControlPlane) {
     await configManager.loadGlobalConfig();
   }
 
@@ -134,18 +154,23 @@ export const initializeAllStackServices = async ({
       stackName: globalStateManager.targetStack.stackName,
       domains: configManager.allUsedDomainsInConfig,
       fromParameterStore: true,
+      loadDefaultDomainsFromControlPlane: requiresControlPlane,
       parentEventType: 'LOAD_METADATA_FROM_AWS'
     }),
-    startStackOperationRecording({
-      stackName: globalStateManager.targetStack.stackName,
-      projectName: globalStateManager.targetStack.projectName
-    }),
+    ...(requiresControlPlane
+      ? [
+          startStackOperationRecording({
+            stackName: globalStateManager.targetStack.stackName,
+            projectName: globalStateManager.targetStack.projectName
+          })
+        ]
+      : []),
     sesManager.init({ identities: configManager.allEmailsUsedInAlertNotifications }),
     thirdPartyProviderManager.init({
       requireAtlasCredentialsParameter: configManager.requireAtlasCredentialsParameter,
       requireUpstashCredentialsParameter: configManager.requireUpstashCredentialsParameter
     }),
-    notificationManager.init()
+    notificationManager.init({ consoleApiAccess: requiresControlPlane })
   ]);
   await Promise.all([
     templateManager.init({ stackDetails: stackManager.existingStackDetails }),

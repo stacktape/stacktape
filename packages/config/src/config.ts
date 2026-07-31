@@ -3,17 +3,15 @@ import type { CloudformationResource } from './cloudformation';
 import type { MongoDbAtlasProvider, UpstashProvider } from './providers';
 export interface StacktapeConfig {
   /**
-   * #### The name of this service.
+   * #### Project name
    *
    * ---
    *
-   * > **Deprecated:** Use the `--projectName` option in the CLI instead.
-   *
-   * The CloudFormation stack name will be in the format: `{serviceName}-{stage}`.
+   * Identifies the Stacktape project. Together with the selected stage, this determines the
+   * CloudFormation stack name: `{projectName}-{stage}`.
    *
    * Must be alphanumeric and can contain dashes. Must match the regex `[a-zA-Z][-a-zA-Z0-9]*`.
-   *
-   * @deprecated
+   * The CLI's `--projectName` option overrides this value.
    *
    * ---
    *
@@ -21,7 +19,7 @@ export interface StacktapeConfig {
    *
    * ```yaml
    * # stp-focus
-   * serviceName: my-web-app
+   * projectName: my-web-app
    * # stp-end-focus
    * resources:
    *   api:
@@ -52,14 +50,14 @@ export interface StacktapeConfig {
    *
    *   return {
    *     // stp-focus
-   *     serviceName: 'my-web-app',
+   *     projectName: 'my-web-app',
    *     // stp-end-focus
    *     resources: { api }
    *   };
    * });
    * ```
    */
-  serviceName?: string;
+  projectName?: string;
   /**
    * #### Credentials and settings for 3rd-party services (MongoDB Atlas, Upstash).
    *

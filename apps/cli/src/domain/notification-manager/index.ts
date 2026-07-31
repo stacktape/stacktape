@@ -41,10 +41,9 @@ export class NotificationManager {
   isInitialized: boolean;
   #hasConsoleApiAccess = false;
 
-  init = async () => {
+  init = async ({ consoleApiAccess = true }: { consoleApiAccess?: boolean } = {}) => {
     this.isInitialized = true;
-    // Check if we have console API access for server-side routing
-    this.#hasConsoleApiAccess = !!stacktapeTrpcApiManager?.apiClient;
+    this.#hasConsoleApiAccess = consoleApiAccess;
   };
 
   reportEvent = async ({
