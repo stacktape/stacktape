@@ -6,7 +6,8 @@
   "exports": {
     "./anonymous": "./src/anonymous.ts",
     "./api-key": "./src/api-key.ts",
-    "./aws-identity": "./src/aws-identity.ts"
+    "./aws-identity": "./src/aws-identity.ts",
+    "./permissions": "./src/permissions.ts"
   },
   "scripts": {
     "test": "node --import=tsx --test src/*.test.ts",

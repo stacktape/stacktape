@@ -56,6 +56,9 @@ retained only as history.
 - Public clients expose distinct typed surfaces for anonymous, API-key, AWS-identity, and any other external
   authentication modes.
 - The private API imports public schemas and carries compile-time conformance checks.
+- `@stacktape/console-api/permissions` is the shared source of truth for role names, permission names, role policy,
+  hierarchy, and project-scoping rules. The private Console API remains the enforcement boundary; UI checks are only
+  presentation and must not replace server authorization.
 - Public artifacts must not be generated from the complete private router and must not expose Prisma-inferred models,
   private procedure names, or database column shapes.
 - The Console UI migrates to `@trpc/tanstack-react-query`.
