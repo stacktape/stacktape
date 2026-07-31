@@ -1,69 +1,7 @@
-import type { LoadableFileExtensions } from '@utils/file-types';
-import { isAbsolute, join } from 'node:path';
 import { tuiManager } from '@application-services/tui-manager';
-import { getFileExtension, getPathRelativeTo } from '@utils/fs-utils';
+import { getPathRelativeTo } from '@utils/fs-utils';
 import { ExpectedError, UserCodeError } from './errors';
-import { getCallablePythonFunc, getJavascriptExport, getTypescriptExport, isFile } from './file-loaders';
-
-export const parseUserCodeFilepath = ({
-  codeType,
-  fullPath,
-  workingDir
-}: {
-  fullPath: string;
-  codeType: string;
-  workingDir: string;
-}): { extension: LoadableFileExtensions; handler: string; filePath: string; hasExplicitHandler: boolean } => {
-  let handler: string;
-  let filePath: string;
-  let parsedHandler: string;
-  let hasExplicitHandler = true;
-  const pathParts = (isAbsolute(fullPath) ? fullPath : join(workingDir, fullPath)).split(':');
-  if (pathParts.length === 1) {
-    filePath = pathParts[0];
-  } else if (pathParts.length === 2) {
-    const [first, second] = pathParts;
-    if (first.includes('.') || first.length > 1) {
-      filePath = first;
-      parsedHandler = second;
-    } else {
-      filePath = [first, second].join(':');
-    }
-  } else {
-    const [first, second, third] = pathParts;
-    filePath = [first, second].join(':');
-    parsedHandler = third;
-  }
-
-  filePath = isAbsolute(filePath) ? filePath : join(workingDir, filePath);
-
-  if (!isFile(filePath)) {
-    throw new ExpectedError(
-      'CONFIG',
-      `${codeType} at ${tuiManager.prettyFilePath(filePath)} doesn't exist or is not accessible.`,
-      `The path is resolved relative to the directory specified using ${tuiManager.prettyOption(
-        'currentWorkingDirectory'
-      )} or the directory containing Stacktape configuration file.`
-    );
-  }
-
-  const extension = getFileExtension(filePath);
-  if (parsedHandler) {
-    handler = parsedHandler;
-  } else {
-    hasExplicitHandler = false;
-    handler =
-      {
-        js: 'default',
-        ts: 'default',
-        py: 'main',
-        java: 'main',
-        go: 'main'
-      }[extension] || null;
-  }
-
-  return { handler, filePath, extension, hasExplicitHandler };
-};
+import { getCallablePythonFunc, getJavascriptExport, getTypescriptExport, parseUserCodeFilepath } from './file-loaders';
 
 export const getUserCodeAsFn = ({
   filePath: rawFilePath,

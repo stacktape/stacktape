@@ -12,8 +12,7 @@ import { ExpectedError } from '@utils/errors';
 import { fsPaths } from 'src/config/runtime-paths';
 import { dynamicRequireLibraryFromUserNodeModules } from '@utils/fs-utils';
 import { capitalizeFirstLetter } from '@utils/misc';
-import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';
-import { parseUserCodeFilepath } from '@utils/user-code-processing';
+import { loadFromJavascript, loadFromTypescript, parseUserCodeFilepath } from '@utils/file-loaders';
 import { readJsonSync } from 'fs-extra';
 
 declare class CDKConstruct extends ImportedCdkStack {

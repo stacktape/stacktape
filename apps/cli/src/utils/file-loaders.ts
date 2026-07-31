@@ -1,16 +1,23 @@
+import type { LoadableFileExtensions } from '@utils/file-types';
 import { basename, isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { VALID_CONFIG_PATHS } from '@config';
 import { stpErrors } from '@errors';
 import { checkExecutableInPath } from '@utils/bin-executable';
-import { dynamicRequire, getBaseName, getFileContent, getIniFileContent, isFileAccessible } from '@utils/fs-utils';
+import {
+  dynamicRequire,
+  getBaseName,
+  getFileContent,
+  getFileExtension,
+  getIniFileContent,
+  isFileAccessible
+} from '@utils/fs-utils';
 import { parseYaml } from '@utils/yaml';
 import { parseDotenv } from '@utils/dotenv';
 import { ExpectedError } from '@utils/errors';
 import { pythonBridge } from '@utils/python-bridge';
 import fsExtra, { lstatSync, readdirSync, readFileSync } from 'fs-extra';
-import { parseUserCodeFilepath } from './user-code-processing';
 
 // Bun has native TypeScript support - no registration needed
 export const activateTypescriptResolving = () => {
@@ -188,6 +195,66 @@ export const isFile = (filePath: string) => {
   } catch {
     return false;
   }
+};
+
+export const parseUserCodeFilepath = ({
+  codeType,
+  fullPath,
+  workingDir
+}: {
+  fullPath: string;
+  codeType: string;
+  workingDir: string;
+}): { extension: LoadableFileExtensions; handler: string; filePath: string; hasExplicitHandler: boolean } => {
+  let handler: string;
+  let filePath: string;
+  let parsedHandler: string;
+  let hasExplicitHandler = true;
+  const pathParts = (isAbsolute(fullPath) ? fullPath : join(workingDir, fullPath)).split(':');
+  if (pathParts.length === 1) {
+    filePath = pathParts[0];
+  } else if (pathParts.length === 2) {
+    const [first, second] = pathParts;
+    if (first.includes('.') || first.length > 1) {
+      filePath = first;
+      parsedHandler = second;
+    } else {
+      filePath = [first, second].join(':');
+    }
+  } else {
+    const [first, second, third] = pathParts;
+    filePath = [first, second].join(':');
+    parsedHandler = third;
+  }
+
+  filePath = isAbsolute(filePath) ? filePath : join(workingDir, filePath);
+
+  if (!isFile(filePath)) {
+    throw new ExpectedError(
+      'CONFIG',
+      `${codeType} at ${tuiManager.prettyFilePath(filePath)} doesn't exist or is not accessible.`,
+      `The path is resolved relative to the directory specified using ${tuiManager.prettyOption(
+        'currentWorkingDirectory'
+      )} or the directory containing Stacktape configuration file.`
+    );
+  }
+
+  const extension = getFileExtension(filePath);
+  if (parsedHandler) {
+    handler = parsedHandler;
+  } else {
+    hasExplicitHandler = false;
+    handler =
+      {
+        js: 'default',
+        ts: 'default',
+        py: 'main',
+        java: 'main',
+        go: 'main'
+      }[extension] || null;
+  }
+
+  return { handler, filePath, extension, hasExplicitHandler };
 };
 
 const configFilePathPrecedence = [

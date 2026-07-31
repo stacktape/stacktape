@@ -588,27 +588,6 @@
   },
   {
     "type": "cycle",
-    "from": "apps/cli/src/utils/file-loaders.ts",
-    "to": "apps/cli/src/utils/user-code-processing.ts",
-    "unresolvedTo": "./user-code-processing",
-    "dependencyTypes": ["local", "require"],
-    "rule": {
-      "severity": "error",
-      "name": "no-cycles"
-    },
-    "cycle": [
-      {
-        "name": "apps/cli/src/utils/user-code-processing.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/utils/file-loaders.ts",
-        "dependencyTypes": ["local", "require"]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
     "from": "apps/console/api/shared/naming/arns.ts",
     "to": "apps/console/api/shared/naming/aws-resource-names.ts",
     "unresolvedTo": "./aws-resource-names",

@@ -24,7 +24,7 @@ import { stpErrors } from '@errors';
 import { isDirAccessible, isFileAccessible } from '@utils/fs-utils';
 import { capitalizeFirstLetter, getUniqueDuplicates, isAlphanumeric } from '@utils/misc';
 import { ExpectedError } from '@utils/errors';
-import { parseUserCodeFilepath } from '@utils/user-code-processing';
+import { parseUserCodeFilepath } from '@utils/file-loaders';
 import { configManager } from '../index';
 import { validateApplicationLoadBalancerConfig } from './application-load-balancers';
 import { resolveReferenceToBastion } from './bastion';

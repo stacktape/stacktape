@@ -18,8 +18,8 @@ import {
   getIsDirective
 } from '@utils/directives';
 import { ExpectedError, getUserCodeStackTrace, UnexpectedError } from '@utils/errors';
-import { loadFromAnySupportedFile, loadFromTypescript } from '@utils/file-loaders';
-import { getUserCodeAsFn, parseUserCodeFilepath } from '@utils/user-code-processing';
+import { loadFromAnySupportedFile, loadFromTypescript, parseUserCodeFilepath } from '@utils/file-loaders';
+import { getUserCodeAsFn } from '@utils/user-code-processing';
 import { validatePrimitiveFunctionParams } from '@utils/validation-utils';
 import { remove, writeFile } from 'fs-extra';
 import { builtInDirectives } from './built-in-directives';
