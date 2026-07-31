@@ -23,7 +23,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { thirdPartyProviderManager } from '@domain-services/third-party-provider-credentials-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { stpErrors } from '@errors';
-import { redirectPlugin, retryPlugin } from 'src/aws/sdk-manager/utils';
+import { redirectPlugin, retryPlugin } from 'src/aws/client-middleware';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { dependencyInstaller } from '@domain-services/packaging-manager/dependency-installer';
 import { settleAllBeforeThrowing } from '@utils/misc';
@@ -294,7 +294,7 @@ export const initializeStackServicesForDevPhase1 = async () => {
 
   await globalStateManager.loadUserCredentials();
   awsSdkManager.init({
-    credentials: globalStateManager.credentials,
+    credentials: () => globalStateManager.credentials,
     region: globalStateManager.region,
     getErrorHandlerFn: getErrorHandler,
     plugins: [loggingPlugin, retryPlugin, redirectPlugin],
@@ -420,7 +420,7 @@ export const loadUserCredentials = async () => {
   // Now load credentials (this will access targetAwsAccount which is now guaranteed to exist)
   await globalStateManager.loadUserCredentials();
   awsSdkManager.init({
-    credentials: globalStateManager.credentials,
+    credentials: () => globalStateManager.credentials,
     region: globalStateManager.region,
     getErrorHandlerFn: getErrorHandler,
     plugins: [loggingPlugin, retryPlugin, redirectPlugin],

@@ -24,13 +24,11 @@ refactoring scope. Revisit them before the v4 release where marked.
 - Review credential/key rotation and versioning for the Console security-hardening work before a production rollout.
 - AWS SDK debug middleware serializes most operation inputs and only redacts a small set of body/log fields. Secret
   Manager values, SSM values, and CodeBuild environment variables need a centralized field-aware redaction policy.
-- The CLI's override-region CloudFormation and SSM clients do not attach the manager's configured middleware. Revisit
-  whether retry, redirect, diagnostics, and redaction behavior must be identical to the normal client path.
 - Console connected-account credential construction currently asserts optional STS response fields into a complete
   credential object. Validate the response explicitly before constructing an initialized AWS manager.
 - Long-running Console operations retain one assumed-role credential set without refresh, while the CLI's timer-based
-  refresh has no owning await/catch path. Define explicit refresh and failure ownership when the AWS manager is
-  refactored.
+  refresh has no owning await/catch path. CLI AWS clients now resolve refreshed credentials through their session
+  provider, but the timer's failure still needs explicit operational ownership.
 - The Console `temporaryCredentials` procedure is authorized with `observability:view`, but callers can request any
   allowlisted managed policy, including mutation-capable policies. Some browser S3 operations also request no session
   policy, so the session then inherits the connected-account role's effective permissions. Before production rollout,
@@ -40,15 +38,9 @@ refactoring scope. Revisit them before the v4 release where marked.
 
 ## Known v3 behavior debt
 
-- A second permanent-credential load can use an unassigned local `creds` value when the existing source is a
-  credentials file, or environment variables without expiration. Strict mode already identifies the unsafe branch in
-  `GlobalStateManager.loadValidatedAwsCredentials`.
 - Automatic re-assume requests the AWS manager's default 12-hour session even when the CodeBuild role it refreshes
   allows only ten hours. The same duration expression also raises every explicit duration at or below one hour to
   exactly one hour, rather than preserving shorter valid requests.
-- AWS-manager operations are not uniformly guarded before `init()`. Every traced real producer initializes first, but
-  accidental pre-init use can fail incidentally or allow AWS SDK fallback resolution; a fail-fast state contract needs
-  an explicit compatibility decision.
 
 ## Operational note from the smoke test
 

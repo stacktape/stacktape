@@ -1,31 +1,6 @@
 [
   {
     "type": "cycle",
-    "from": "apps/cli/shared/naming/arns.ts",
-    "to": "apps/cli/shared/naming/aws-resource-names.ts",
-    "unresolvedTo": "./aws-resource-names",
-    "dependencyTypes": ["local", "require"],
-    "rule": {
-      "severity": "error",
-      "name": "no-cycles"
-    },
-    "cycle": [
-      {
-        "name": "apps/cli/shared/naming/aws-resource-names.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/shared/naming/utils.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/shared/naming/arns.ts",
-        "dependencyTypes": ["local", "require"]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
     "from": "apps/cli/src/commands/dev/agent-server.ts",
     "to": "apps/cli/src/commands/dev/parallel-runner/index.ts",
     "unresolvedTo": "./parallel-runner",
@@ -582,31 +557,6 @@
       },
       {
         "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
-        "dependencyTypes": ["local", "require"]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
-    "from": "apps/console/api/shared/naming/arns.ts",
-    "to": "apps/console/api/shared/naming/aws-resource-names.ts",
-    "unresolvedTo": "./aws-resource-names",
-    "dependencyTypes": ["local", "require"],
-    "rule": {
-      "severity": "error",
-      "name": "no-cycles"
-    },
-    "cycle": [
-      {
-        "name": "apps/console/api/shared/naming/aws-resource-names.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/console/api/shared/naming/utils.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/console/api/shared/naming/arns.ts",
         "dependencyTypes": ["local", "require"]
       }
     ]

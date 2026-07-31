@@ -31,9 +31,9 @@ const recordingErrorHandler = () => {
 };
 
 /**
- * `AwsSdkManager` is constructed and then initialized synchronously by every one of its producers, and the type
- * contract on `credentials`, `region` and the error handler says so. These pin the lifecycle that claim rests on, and
- * the one boundary where a *successful* AWS response is not trusted on its own: `AssumeRole`.
+ * `AwsSdkManager` is constructed and then initialized synchronously by every one of its producers. These pin that
+ * lifecycle, its refreshable credential-provider contract, and the one boundary where a *successful* AWS response is
+ * not trusted on its own: `AssumeRole`.
  *
  * Everything lives under one serial group because the only available seam is `STSClient.prototype.send`, which is
  * global to the process. Two things follow, and both are needed:
@@ -96,7 +96,7 @@ describe.serial('AWS SDK manager', () => {
       expect(manager.isInitialized).toBe(false);
     });
 
-    test.serial('keeps the exact objects init was given rather than copying them', () => {
+    test.serial('normalizes credentials into a provider without copying the credential object', async () => {
       const credentials = credentialsFor('ONE');
       const plugins: Pluggable<any, any>[] = [];
       const { getErrorHandlerFn } = recordingErrorHandler();
@@ -105,24 +105,23 @@ describe.serial('AWS SDK manager', () => {
       manager.init({ credentials, region: 'eu-west-1', plugins, getErrorHandlerFn, printer: tuiManager });
 
       expect(manager.isInitialized).toBe(true);
-      expect(manager.credentials).toBe(credentials);
+      expect(await manager.credentialsProvider()).toBe(credentials);
       expect(manager.region).toBe('eu-west-1');
       expect(manager.plugins).toBe(plugins);
       expect(manager.printer).toBe(tuiManager);
     });
 
-    test.serial('sees later mutation of the supplied credential object', () => {
-      // Credentials are refreshed in place elsewhere in the CLI, so holding the reference is the contract, not a copy.
-      const credentials = credentialsFor('ONE');
+    test.serial('resolves credentials from the supplied provider for every client request', async () => {
+      let credentials = credentialsFor('ONE');
       const manager = new AwsSdkManager();
-      manager.init({ credentials, region: 'eu-west-1' });
+      manager.init({ credentials: () => credentials, region: 'eu-west-1' });
 
-      credentials.accessKeyId = 'AKIAROTATED';
+      credentials = credentialsFor('TWO');
 
-      expect(manager.credentials.accessKeyId).toBe('AKIAROTATED');
+      expect(await manager.credentialsProvider()).toBe(credentials);
     });
 
-    test.serial('re-initializes in place, swapping the credential reference', () => {
+    test.serial('re-initializes in place, swapping the credential provider', async () => {
       const first = credentialsFor('ONE');
       const second = credentialsFor('TWO');
       const manager = new AwsSdkManager();
@@ -132,8 +131,14 @@ describe.serial('AWS SDK manager', () => {
       manager.init({ credentials: second, region: 'us-east-1' });
 
       expect(manager).toBe(identity);
-      expect(manager.credentials).toBe(second);
+      expect(await manager.credentialsProvider()).toBe(second);
       expect(manager.region).toBe('us-east-1');
+    });
+
+    test.serial('fails explicitly when an AWS operation runs before initialization', async () => {
+      const manager = new AwsSdkManager();
+
+      await expect(manager.listStacks()).rejects.toThrow('AWS SDK manager has not been initialized.');
     });
 
     test.serial('resets optional arguments omitted on re-initialization back to their defaults', () => {

@@ -45,7 +45,7 @@ import type { DomainPrice } from '@aws-sdk/client-route-53-domains';
 import type { _Object, ObjectIdentifier, ObjectVersion } from '@aws-sdk/client-s3';
 import type { SecretListEntry } from '@aws-sdk/client-secrets-manager';
 import type { StartSessionCommandInput, StartSessionResponse } from '@aws-sdk/client-ssm';
-import type { Credentials, Pluggable } from '@aws-sdk/types';
+import type { Credentials } from '@aws-sdk/types';
 import type TaskDefinition from '@cloudform/ecs/taskDefinition';
 import type { Policy } from '@cloudform/iam/role';
 import type { Stats } from 'node:fs';
@@ -242,9 +242,7 @@ import { Upload } from '@aws-sdk/lib-storage';
 // import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node';
 import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
-import type { AwsCredentials } from 'src/aws/credentials';
 import { consoleLinks } from '@stacktape/naming/console-links';
-import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { resourceURIs } from 'src/utils/aws-resource-uris';
 import { COMMENT_FOR_STACKTAPE_ZONE } from 'src/config/constants';
 import { getRelativePath } from '@utils/fs-utils';
@@ -260,17 +258,22 @@ import {
 } from '@utils/misc';
 import { getForwardableOperationInvocationEnv } from '@application-services/operation-invocation-context';
 import { parseYaml } from '@utils/yaml';
-import { createFetchHandler } from 'src/aws/fetch-handler';
 import { kebabCase, pascalCase } from 'change-case';
 import fsExtra from 'fs-extra';
 import pRetry from 'p-retry';
+import {
+  applyAwsClientPlugins,
+  awsClientConfig,
+  createAwsClientContext,
+  type AwsClientContext,
+  type AwsClientContextInput,
+  type AwsClientWithMiddleware
+} from '../context';
 import { S3Sync } from '../s3-sync';
 import {
   automaticUploadFilterPresets,
   defaultGetErrorFunction,
   isBucketNativelySupportedHeader,
-  redirectPlugin,
-  retryPlugin,
   transformToCliArgs
 } from './utils';
 import type { DirectoryUpload } from '@stacktape/config/buckets';
@@ -359,263 +362,211 @@ export type RegisteredPrivateTypeVersion = TypeVersionSummary & {
 const hasVersionArn = (version: TypeVersionSummary): version is RegisteredPrivateTypeVersion => Boolean(version.Arn);
 
 export class AwsSdkManager {
-  /**
-   * These three are assigned by `init()`, which every producer of this manager calls synchronously after constructing
-   * it and before any AWS operation runs.
-   *
-   * The `!` records that lifecycle rather than waiving it. It is a declaration-site statement about when the field is
-   * assigned, not a per-use claim that some expression is non-null: every read still gets the full `AwsCredentials`,
-   * `AWSRegion` and handler types, so nothing downstream is weakened. Declaring them optional instead would be the
-   * dishonest option — it would describe an initialized manager as one that might have no region, and would spread
-   * that doubt into every caller of an API that never actually hands out an uninitialized manager.
-   *
-   * `isInitialized` below is the runtime counterpart, and stays exactly as it was: before `init()` these really are
-   * absent, which is the one thing callers can ask about.
-   */
-  credentials!: AwsCredentials;
-  region!: AWSRegion;
-  plugins: Pluggable<any, any>[] = [];
+  #context?: AwsClientContext;
   printer?: Printer;
-  #getErrorHandler!: (message: string) => (err: Error) => never;
+  #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
   init({
     credentials,
+    endpoint,
     region,
     plugins,
     getErrorHandlerFn,
     printer
   }: {
-    credentials: AwsCredentials;
-    region: AWSRegion;
-    plugins?: Pluggable<any, any>[];
+    credentials: AwsClientContextInput['credentials'];
+    endpoint?: string;
+    region: AwsClientContextInput['region'];
+    plugins?: AwsClientContextInput['plugins'];
     getErrorHandlerFn?: (message: string) => (err: Error) => never;
     printer?: Printer | undefined;
   }) {
-    this.credentials = credentials;
-    this.region = region;
-    this.plugins = plugins || [redirectPlugin, retryPlugin];
+    this.#context = createAwsClientContext({ credentials, endpoint, plugins, region });
     this.#getErrorHandler = getErrorHandlerFn || defaultGetErrorFunction;
     this.printer = printer;
   }
 
   get isInitialized() {
-    return !!this.credentials;
+    return this.#context !== undefined;
   }
 
-  #getClientArgs() {
-    return {
-      region: this.region,
-      credentials: this.credentials,
-      requestHandler: createFetchHandler()
-    };
+  get region() {
+    return this.#getContext().region;
+  }
+
+  get plugins() {
+    return this.#getContext().plugins;
+  }
+
+  get credentialsProvider() {
+    return this.#getContext().credentials;
+  }
+
+  #getContext() {
+    if (!this.#context) {
+      throw new Error('AWS SDK manager has not been initialized.');
+    }
+    return this.#context;
+  }
+
+  #getClientArgs(overrides?: Parameters<typeof awsClientConfig>[1]) {
+    return awsClientConfig(this.#getContext(), overrides);
+  }
+
+  #applyPlugins<TClient extends AwsClientWithMiddleware>(client: TClient): TClient {
+    return applyAwsClientPlugins(client, this.plugins);
   }
 
   #iam() {
-    const iam = new IAMClient(this.#getClientArgs());
-    this.plugins.forEach(iam.middlewareStack.use);
-    return iam;
+    return this.#applyPlugins(new IAMClient(this.#getClientArgs()));
   }
 
   #secretsManager() {
-    const secretsManager = new SecretsManagerClient(this.#getClientArgs());
-    this.plugins.forEach(secretsManager.middlewareStack.use);
-    return secretsManager;
+    return this.#applyPlugins(new SecretsManagerClient(this.#getClientArgs()));
   }
 
-  #ssm() {
-    const ssmManager = new SSMClient(this.#getClientArgs());
-    this.plugins.forEach(ssmManager.middlewareStack.use);
-    return ssmManager;
+  #ssm(region: string = this.region) {
+    return this.#applyPlugins(new SSMClient(this.#getClientArgs({ region })));
   }
 
   #cognito() {
-    const cognito = new CognitoIdentityProviderClient(this.#getClientArgs());
-    this.plugins.forEach(cognito.middlewareStack.use);
-    return cognito;
+    return this.#applyPlugins(new CognitoIdentityProviderClient(this.#getClientArgs()));
   }
 
-  #cloudformation() {
-    const cloudformation = new CloudFormationClient({
-      ...this.#getClientArgs(),
-      apiVersion: '2015-07-09'
-    });
-    this.plugins.forEach(cloudformation.middlewareStack.use);
-    return cloudformation;
+  #cloudformation(region: string = this.region) {
+    return this.#applyPlugins(
+      new CloudFormationClient({
+        ...this.#getClientArgs({ region }),
+        apiVersion: '2015-07-09'
+      })
+    );
   }
 
   #codedeploy() {
-    const codeDeploy = new CodeDeployClient({ ...this.#getClientArgs() });
-    this.plugins.forEach(codeDeploy.middlewareStack.use);
-    return codeDeploy;
+    return this.#applyPlugins(new CodeDeployClient(this.#getClientArgs()));
   }
 
   #codebuild() {
-    const codeBuild = new CodeBuildClient({ ...this.#getClientArgs() });
-    this.plugins.forEach(codeBuild.middlewareStack.use);
-    return codeBuild;
+    return this.#applyPlugins(new CodeBuildClient(this.#getClientArgs()));
   }
 
   #cloudfront() {
-    const cloudfront = new CloudFrontClient(this.#getClientArgs());
-    this.plugins.forEach(cloudfront.middlewareStack.use);
-    return cloudfront;
+    return this.#applyPlugins(new CloudFrontClient(this.#getClientArgs()));
   }
 
   #usEast1Acm() {
-    const usEast1Acm = new ACMClient({ ...this.#getClientArgs(), region: 'us-east-1' });
-    this.plugins.forEach(usEast1Acm.middlewareStack.use);
-    return usEast1Acm;
+    return this.#applyPlugins(new ACMClient(this.#getClientArgs({ region: 'us-east-1' })));
   }
 
   #acceleratedS3() {
-    const acceleratedS3Client = new S3Client({
-      ...this.#getClientArgs(),
-      endpoint: 'https://s3-accelerate.amazonaws.com'
-    });
-    this.plugins.forEach(acceleratedS3Client.middlewareStack.use);
-    return acceleratedS3Client;
+    return this.#applyPlugins(
+      new S3Client(
+        this.#getClientArgs({
+          endpoint: this.#getContext().endpoint || 'https://s3-accelerate.amazonaws.com'
+        })
+      )
+    );
   }
 
   #syncS3() {
     return new S3Sync({
       s3RetryCount: 5,
       clientArgs: this.#getClientArgs(),
-      s3Plugins: this.plugins
+      s3Plugins: [...this.plugins]
     });
   }
 
   #acceleratedSyncS3() {
     return new S3Sync({
       s3RetryCount: 5,
-      clientArgs: { ...this.#getClientArgs(), endpoint: 'https://s3-accelerate.amazonaws.com' },
-      s3Plugins: this.plugins
+      clientArgs: this.#getClientArgs({
+        endpoint: this.#getContext().endpoint || 'https://s3-accelerate.amazonaws.com'
+      }),
+      s3Plugins: [...this.plugins]
     });
   }
 
   #acm() {
-    const acm = new ACMClient({ ...this.#getClientArgs() });
-    this.plugins.forEach(acm.middlewareStack.use);
-    return acm;
+    return this.#applyPlugins(new ACMClient(this.#getClientArgs()));
   }
 
   #dynamo() {
-    const dynamoClient = new DynamoDBClient({ ...this.#getClientArgs() });
-    this.plugins.forEach(dynamoClient.middlewareStack.use);
-    return dynamoClient;
+    return this.#applyPlugins(new DynamoDBClient(this.#getClientArgs()));
   }
 
   #route53() {
-    const route53 = new Route53Client(this.#getClientArgs());
-    this.plugins.forEach(route53.middlewareStack.use);
-    return route53;
+    return this.#applyPlugins(new Route53Client(this.#getClientArgs()));
   }
 
   #route53Domains() {
-    const route53 = new Route53DomainsClient({ ...this.#getClientArgs(), region: 'us-east-1' });
-    this.plugins.forEach(route53.middlewareStack.use);
-    return route53;
+    return this.#applyPlugins(new Route53DomainsClient(this.#getClientArgs({ region: 'us-east-1' })));
   }
 
   #sts() {
-    const sts = new STSClient(this.#getClientArgs());
-    this.plugins.forEach(sts.middlewareStack.use);
-    return sts;
+    return this.#applyPlugins(new STSClient(this.#getClientArgs()));
   }
 
   #ecr() {
-    const ecr = new ECRClient({ ...this.#getClientArgs() });
-    this.plugins.forEach(ecr.middlewareStack.use);
-    return ecr;
+    return this.#applyPlugins(new ECRClient(this.#getClientArgs()));
   }
 
   #ecs() {
-    const ecs = new ECSClient({ ...this.#getClientArgs() });
-    this.plugins.forEach((plugin) => ecs.middlewareStack.use(plugin as any));
-    return ecs;
+    return this.#applyPlugins(new ECSClient(this.#getClientArgs()));
   }
 
   #ec2() {
-    const ec2 = new EC2Client({ ...this.#getClientArgs() });
-    this.plugins.forEach(ec2.middlewareStack.use);
-    return ec2;
+    return this.#applyPlugins(new EC2Client(this.#getClientArgs()));
   }
 
   #ec2AutoScaling() {
-    const ec2AutoScaling = new AutoScaling({ ...this.#getClientArgs() });
-    this.plugins.forEach(ec2AutoScaling.middlewareStack.use);
-    return ec2AutoScaling;
+    return this.#applyPlugins(new AutoScaling(this.#getClientArgs()));
   }
 
   #ses() {
-    const ses = new SESClient({ ...this.#getClientArgs() });
-    this.plugins.forEach(ses.middlewareStack.use);
-    return ses;
+    return this.#applyPlugins(new SESClient(this.#getClientArgs()));
   }
 
   // note: we need both ses and sesv2 client because at the time of writing their methods do not overlap
   #sesv2() {
-    const sesv2 = new SESv2Client({ ...this.#getClientArgs() });
-    this.plugins.forEach(sesv2.middlewareStack.use);
-    return sesv2;
+    return this.#applyPlugins(new SESv2Client(this.#getClientArgs()));
   }
 
   #s3() {
-    const s3 = new S3Client({ ...this.#getClientArgs() });
-    this.plugins.forEach(s3.middlewareStack.use);
-    return s3;
+    return this.#applyPlugins(new S3Client(this.#getClientArgs()));
   }
 
   #rds() {
-    const rds = new RDSClient({ ...this.#getClientArgs() });
-    this.plugins.forEach(rds.middlewareStack.use);
-    return rds;
+    return this.#applyPlugins(new RDSClient(this.#getClientArgs()));
   }
 
   #cloudwatchLogs() {
-    const cloudWatchLogs = new CloudWatchLogsClient(this.#getClientArgs());
-    this.plugins.forEach(cloudWatchLogs.middlewareStack.use);
-    return cloudWatchLogs;
+    return this.#applyPlugins(new CloudWatchLogsClient(this.#getClientArgs()));
   }
 
   #cloudwatch() {
-    const cloudWatch = new CloudWatchClient(this.#getClientArgs());
-    this.plugins.forEach(cloudWatch.middlewareStack.use);
-    return cloudWatch;
+    return this.#applyPlugins(new CloudWatchClient(this.#getClientArgs()));
   }
 
   #lambda() {
-    const lambda = new LambdaClient({
-      ...this.#getClientArgs(),
-      // In order to honor the overall maximum timeout set for the target process when invoking lambda,
-      // the default 2 minutes from AWS SDK has to be overridden
-      requestHandler: createFetchHandler({ requestTimeout: 900_000 })
-    });
-    this.plugins.forEach(lambda.middlewareStack.use);
-    return lambda;
+    // In order to honor the overall maximum timeout set for the target process when invoking lambda,
+    // the default 2 minutes from AWS SDK has to be overridden.
+    return this.#applyPlugins(new LambdaClient(this.#getClientArgs({ requestTimeout: 900_000 })));
   }
 
   #openSearch() {
-    const openSearch = new OpenSearchClient(this.#getClientArgs());
-    this.plugins.forEach(openSearch.middlewareStack.use);
-    return openSearch;
+    return this.#applyPlugins(new OpenSearchClient(this.#getClientArgs()));
   }
 
   #resourceGroupsTaggingApi() {
-    const taggingApi = new ResourceGroupsTaggingAPIClient(this.#getClientArgs());
-    this.plugins.forEach(taggingApi.middlewareStack.use);
-    return taggingApi;
+    return this.#applyPlugins(new ResourceGroupsTaggingAPIClient(this.#getClientArgs()));
   }
 
   #costExplorer() {
-    const costExplorer = new CostExplorerClient(this.#getClientArgs());
-    this.plugins.forEach(costExplorer.middlewareStack.use);
-    return costExplorer;
+    return this.#applyPlugins(new CostExplorerClient(this.#getClientArgs()));
   }
 
   #budgets() {
-    const budgets = new BudgetsClient(this.#getClientArgs());
-    this.plugins.forEach(budgets.middlewareStack.use);
-    return budgets;
+    return this.#applyPlugins(new BudgetsClient(this.#getClientArgs()));
   }
 
   validateCloudformationTemplate = ({ templateBody, templateUrl }: { templateUrl?: string; templateBody?: string }) => {
@@ -970,10 +921,7 @@ export class AwsSdkManager {
 
   getStackDetails = async (stackName: string, region?: string): Promise<StackDetails> => {
     const errHandler = this.#getErrorHandler('Could not fetch existing stack information.');
-    const cfClient =
-      region && region !== this.#getClientArgs().region
-        ? new CloudFormationClient({ ...this.#getClientArgs(), region })
-        : this.#cloudformation();
+    const cfClient = this.#cloudformation(region);
     const stackDescription = await cfClient.send(new DescribeStacksCommand({ StackName: stackName })).catch((err) => {
       if (err.message.startsWith('Stack with id') && err.message.endsWith('does not exist')) {
         return null;
@@ -2078,10 +2026,7 @@ export class AwsSdkManager {
   getSsmParameterValue = async ({ ssmParameterName, region }: { ssmParameterName: string; region?: string }) => {
     const errHandler = this.#getErrorHandler('Failed to get ssm parameter from store.');
 
-    const ssmClient =
-      region && region !== this.#getClientArgs().region
-        ? new SSMClient({ ...this.#getClientArgs(), region })
-        : this.#ssm();
+    const ssmClient = this.#ssm(region);
     return ssmClient.send(new GetParameterCommand({ Name: ssmParameterName, WithDecryption: true })).catch(errHandler);
   };
 
@@ -2419,7 +2364,7 @@ export class AwsSdkManager {
   };
 
   getCloudfrontDistributionForBucketName = async ({ bucketName }) => {
-    const bucketDomainName = resourceURIs.bucket({ bucketName, region: this.#getClientArgs().region });
+    const bucketDomainName = resourceURIs.bucket({ bucketName, region: this.region });
     const errHandler = this.#getErrorHandler('Failed to fetch CloudFront distribution ids.');
 
     const result: DistributionSummary[][] = [];

@@ -12,6 +12,9 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   application utilities live in `src/utils`. Helper Lambdas may import those modules because they are CLI-owned
   deployment artifacts; co-location
   does not make the modules a reusable workspace package. The historical catch-all `shared/` directory is gone.
+  `src/aws/context.ts` owns the per-session client inputs: a refreshable credential provider, region, optional local
+  endpoint and middleware. Service clients must use that context so refreshed credentials and emulator endpoints are
+  not bypassed. `AwsSdkManager` is the transitional service-operation façade, not the owner of credential refresh.
   Packaging implementation lives entirely in `@stacktape/packaging`; the CLI's
   `PackagingManager` remains its composition root and supplies the concrete dependency installer, error constructor,
   process/Docker/binary actions, invocation-specific paths and progress loggers. Global runtime state, artifact

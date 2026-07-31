@@ -159,22 +159,4 @@ describe('sdk-manager/utils', () => {
       expect(firstIndex).toBeLessThan(secondIndex);
     });
   });
-
-  describe('retryPlugin', () => {
-    test('should have applyToStack method', async () => {
-      const { retryPlugin } = await import('./utils');
-
-      expect(retryPlugin.applyToStack).toBeDefined();
-      expect(typeof retryPlugin.applyToStack).toBe('function');
-    });
-  });
-
-  describe('redirectPlugin', () => {
-    test('should have applyToStack method', async () => {
-      const { redirectPlugin } = await import('./utils');
-
-      expect(redirectPlugin.applyToStack).toBeDefined();
-      expect(typeof redirectPlugin.applyToStack).toBe('function');
-    });
-  });
 });

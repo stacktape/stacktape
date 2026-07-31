@@ -3,7 +3,7 @@ import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import type { AwsCredentials } from 'src/aws/credentials';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { AwsSdkManager } from 'src/aws/sdk-manager';
-import { retryPlugin } from 'src/aws/sdk-manager/utils';
+import { retryPlugin } from 'src/aws/client-middleware';
 
 export const getAwsSdkManager = async (input?: {
   region?: string;

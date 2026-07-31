@@ -9,6 +9,7 @@ import { AwsSdkManager } from '../../src/aws/sdk-manager';
 
 type AwsClient = {
   config: {
+    credentials: () => Promise<{ accessKeyId: string }>;
     endpoint?: () => Promise<{ hostname: string; protocol: string }>;
     region: () => Promise<string>;
     requestHandler: unknown;
@@ -70,6 +71,57 @@ describe.serial('AWS SDK client construction', () => {
     await managerWith().listStacks();
 
     expect(await captured().config.region()).toBe('eu-west-1');
+  });
+
+  test.serial('passes an explicit local endpoint to ordinary clients', async () => {
+    const captured = captureSend<CloudFormationClient>(CloudFormationClient.prototype, {
+      StackSummaries: []
+    });
+    const manager = new AwsSdkManager();
+    manager.init({
+      credentials,
+      endpoint: 'http://127.0.0.1:4566',
+      plugins: [],
+      region: 'eu-west-1'
+    });
+
+    await manager.listStacks();
+
+    const endpoint = captured().config.endpoint;
+    if (!endpoint) {
+      throw new Error('Expected the client to carry the explicitly configured endpoint.');
+    }
+    expect(await endpoint()).toMatchObject({
+      hostname: '127.0.0.1',
+      port: 4566,
+      protocol: 'http:'
+    });
+  });
+
+  test.serial('lets an already constructed client refresh expiring credentials', async () => {
+    let currentCredentials = {
+      ...credentials,
+      expiration: new Date(Date.now() + 60_000)
+    };
+    const captured = captureSend<CloudFormationClient>(CloudFormationClient.prototype, {
+      StackSummaries: []
+    });
+    const manager = new AwsSdkManager();
+    manager.init({
+      credentials: () => currentCredentials,
+      plugins: [],
+      region: 'eu-west-1'
+    });
+
+    await manager.listStacks();
+    expect((await captured().config.credentials()).accessKeyId).toBe('synthetic-access-key');
+
+    currentCredentials = {
+      accessKeyId: 'refreshed-access-key',
+      expiration: new Date(Date.now() + 60 * 60_000),
+      secretAccessKey: 'refreshed-secret'
+    };
+    expect((await captured().config.credentials()).accessKeyId).toBe('refreshed-access-key');
   });
 
   test.serial('uses the initialized ACM region unless the operation explicitly requires us-east-1', async () => {
@@ -164,7 +216,7 @@ describe.serial('AWS SDK client construction', () => {
     expect(appliedStacks).toHaveLength(1);
   });
 
-  test.serial('does not apply manager plugins to an override-region CloudFormation client', async () => {
+  test.serial('applies manager plugins to default and override-region CloudFormation clients', async () => {
     const appliedStacks: unknown[] = [];
     const clients: CloudFormationClient[] = [];
     const plugin: Pluggable<any, any> = {
@@ -187,8 +239,8 @@ describe.serial('AWS SDK client construction', () => {
 
     expect(await clients[0].config.region()).toBe('eu-west-1');
     expect(await clients[1].config.region()).toBe('us-east-2');
-    expect(appliedStacks).toHaveLength(1);
+    expect(appliedStacks).toHaveLength(2);
     expect(appliedStacks[0]).toBe(clients[0].middlewareStack);
-    expect(appliedStacks[0]).not.toBe(clients[1].middlewareStack);
+    expect(appliedStacks[1]).toBe(clients[1].middlewareStack);
   });
 });

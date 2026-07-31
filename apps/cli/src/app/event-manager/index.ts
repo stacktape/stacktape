@@ -234,19 +234,6 @@ export class EventManager implements ProgressLogger {
     });
   };
 
-  /**
-   * @deprecated Use createChildLogger instead. Will be removed in future version.
-   */
-  getNamespacedInstance = ({
-    identifier,
-    eventType
-  }: {
-    identifier: string;
-    eventType: LoggableEventType;
-  }): EventManager => {
-    return this.createChildLogger({ instanceId: identifier, parentEventType: eventType });
-  };
-
   handleEvent = async ({
     eventType,
     description,

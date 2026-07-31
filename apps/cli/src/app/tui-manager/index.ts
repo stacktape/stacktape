@@ -113,13 +113,6 @@ class TuiManager {
     return this._guidedMode;
   }
 
-  /** @deprecated Use setOutputFormat() instead. Kept for backward compatibility. */
-  setAgentMode(enabled: boolean) {
-    if (enabled) {
-      this.setOutputFormat('jsonl');
-    }
-  }
-
   setOutputFormat(mode: OutputMode) {
     this.explicitOutputMode = mode;
     this.outputMode = resolveOutputMode({

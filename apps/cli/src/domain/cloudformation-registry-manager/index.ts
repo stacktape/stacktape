@@ -10,7 +10,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { S3Client } from '@aws-sdk/client-s3';
 import { SUPPORTED_CF_INFRASTRUCTURE_MODULES } from '@config';
 import { createFetchHandler } from 'src/aws/fetch-handler';
-import { retryPlugin } from 'src/aws/sdk-manager/utils';
+import { retryPlugin } from 'src/aws/client-middleware';
 import { cfRegistryNames } from '@domain-services/cloudformation-registry-manager/names';
 import { UNKNOWN_CLOUDFORMATION_PRIVATE_TYPE_VERSION_IDENTIFIER } from 'src/config/constants';
 import { wait } from '@utils/misc';

@@ -5,7 +5,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { hintMessages } from '@errors';
 import { createFetchHandler } from 'src/aws/fetch-handler';
-import { retryPlugin } from 'src/aws/sdk-manager/utils';
+import { retryPlugin } from 'src/aws/client-middleware';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { serialize } from '@utils/misc';
 import { ExpectedError } from '@utils/errors';
