@@ -5,7 +5,6 @@ import type {
 } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpCdnAttachableResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import type { FunctionProperties } from '@cloudform/lambda/function';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import Application from '@cloudform/codeDeploy/application';
 import { GetAtt, Join, Ref } from '@cloudform/functions';
@@ -96,7 +95,7 @@ export const resolveFunctions = async () => {
 
     // Create the LayerVersion resource with the S3 key computed during packaging
     const layerResource = new LayerVersion({
-      LayerName: `${globalStateManager.targetStack.stackName}-shared-chunk-layer-${layer.layerNumber}`,
+      LayerName: `${calculatedStackOverviewManager.context.stackName}-shared-chunk-layer-${layer.layerNumber}`,
       Description: `Shared chunk layer ${layer.layerNumber} for code splitting`,
       CompatibleRuntimes: [`nodejs${DEFAULT_LAMBDA_NODE_VERSION}.x`],
       Content: {
@@ -118,7 +117,7 @@ export const resolveFunctions = async () => {
 };
 
 export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunction | StpHelperLambdaFunction }) => {
-  const { stackName } = globalStateManager.targetStack;
+  const { stackName } = calculatedStackOverviewManager.context;
 
   const {
     name,
@@ -502,7 +501,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
           nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL, 'stacktapeServiceLambda'],
           resource: new LambdaPermission({
             Action: 'lambda:InvokeFunction',
-            Principal: `logs.${globalStateManager.region}.amazonaws.com`,
+            Principal: `logs.${calculatedStackOverviewManager.context.region}.amazonaws.com`,
             FunctionName: serviceLambdaArn,
             SourceAccount: Ref('AWS::AccountId')
           })
@@ -611,7 +610,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
         cfLogicalName: cfLogicalNames.lambdaCodeDeployApp(),
         resource: new Application({
-          ApplicationName: awsResourceNames.lambdaCodeDeployApp(globalStateManager.targetStack.stackName),
+          ApplicationName: awsResourceNames.lambdaCodeDeployApp(calculatedStackOverviewManager.context.stackName),
           ComputePlatform: 'Lambda'
         })
       });
@@ -861,7 +860,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         cdn: true,
         customPrefix:
           isCompositeWebResourceType(configParentResourceType) &&
-          `${configManager.findImmediateParent({ nameChain }).name.toLowerCase()}-${globalStateManager.targetStack.stackName}`
+          `${configManager.findImmediateParent({ nameChain }).name.toLowerCase()}-${calculatedStackOverviewManager.context.stackName}`
       });
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.cloudfrontDistribution(

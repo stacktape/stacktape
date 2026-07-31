@@ -1,5 +1,4 @@
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Ref } from '@cloudform/functions';
 import SqsQueue from '@cloudform/sqs/queue';
 import QueuePolicy from '@cloudform/sqs/queuePolicy';
@@ -48,7 +47,7 @@ export const resolveSqsQueue = ({ resource }: { resource: StpSqsQueue }) => {
       ReceiveMessageWaitTimeSeconds: resource.longPollingSeconds,
       QueueName: awsResourceNames.sqsQueue(
         resource.name,
-        globalStateManager.targetStack.stackName,
+        calculatedStackOverviewManager.context.stackName,
         resource.fifoEnabled
       ),
       RedrivePolicy: resource.redrivePolicy
@@ -73,9 +72,9 @@ export const resolveSqsQueue = ({ resource }: { resource: StpSqsQueue }) => {
     nameChain: resource.nameChain,
     linkName: 'console',
     linkValue: consoleLinks.sqsQueue(
-      globalStateManager.region,
-      globalStateManager.targetAwsAccount.awsAccountId,
-      awsResourceNames.sqsQueue(resource.name, globalStateManager.targetStack.stackName, resource.fifoEnabled)
+      calculatedStackOverviewManager.context.region,
+      calculatedStackOverviewManager.context.accountId,
+      awsResourceNames.sqsQueue(resource.name, calculatedStackOverviewManager.context.stackName, resource.fifoEnabled)
     )
   });
   calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({

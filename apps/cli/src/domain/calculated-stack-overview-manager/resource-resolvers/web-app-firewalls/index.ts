@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -33,8 +32,8 @@ export const resolveWebAppFirewalls = () => {
 
     const wafAwsResourceName = awsResourceNames.wafWebACLName(
       definition.name,
-      globalStateManager.targetStack.stackName,
-      globalStateManager.targetStack.globallyUniqueStackHash
+      calculatedStackOverviewManager.context.stackName,
+      calculatedStackOverviewManager.context.globallyUniqueStackHash
     );
 
     calculatedStackOverviewManager.addCfChildResource({
@@ -62,7 +61,7 @@ export const resolveWebAppFirewalls = () => {
       nameChain: definition.nameChain,
       linkName: 'console',
       linkValue: cfEvaluatedLinks.firewall({
-        region: scope === 'cdn' ? 'global' : globalStateManager.region,
+        region: scope === 'cdn' ? 'global' : calculatedStackOverviewManager.context.region,
         awsWebACLName: wafAwsResourceName,
         awsWebACLId: GetAtt(cfLogicalNames.webAppFirewallCustomResource(definition.name), 'Id')
       })
@@ -73,7 +72,7 @@ export const resolveWebAppFirewalls = () => {
         nameChain: definition.nameChain,
         linkName: 'metrics',
         linkValue: consoleLinks.firewallMetrics({
-          region: scope === 'cdn' ? 'us-east-1' : globalStateManager.region
+          region: scope === 'cdn' ? 'us-east-1' : calculatedStackOverviewManager.context.region
         })
       });
     }

@@ -1,6 +1,6 @@
 import type { ResourcePropsFromConfig } from '@domain-services/stack-info/types';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { GetAtt, Ref, Sub } from '@cloudform/functions';
 import Role from '@cloudform/iam/role';
 import DeliveryStream from '@cloudform/kinesisFirehose/deliveryStream';
@@ -153,8 +153,8 @@ const getFailedEventsBucket = ({ resource }: { resource: ResourcePropsFromConfig
   return new Bucket({
     BucketName: awsResourceNames.logForwardingFailedEventsBucket(
       resource.name,
-      globalStateManager.targetStack.stackName,
-      globalStateManager.targetStack.globallyUniqueStackHash
+      calculatedStackOverviewManager.context.stackName,
+      calculatedStackOverviewManager.context.globallyUniqueStackHash
     ),
     BucketEncryption: {
       ServerSideEncryptionConfiguration: [

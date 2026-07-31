@@ -2,7 +2,7 @@ import type { StpRedisCluster } from '@domain-services/config-manager/resolved-t
 import type { List } from '@cloudform/dataTypes';
 import type { Ingress } from '@cloudform/ec2/securityGroup';
 import type { UpdatePolicy } from '@cloudform/resource';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import SecurityGroup from '@cloudform/ec2/securityGroup';
 import ParameterGroup from '@cloudform/elastiCache/parameterGroup';
 import ReplicationGroup from '@cloudform/elastiCache/replicationGroup';
@@ -18,7 +18,7 @@ import { ExpectedError } from '@utils/errors';
 export const getRedisParameterGroupResource = ({ resource }: { resource: StpRedisCluster }) => {
   return new ParameterGroup({
     CacheParameterGroupFamily: getCacheParameterGroupFamily({ resource }),
-    Description: `Parameter group for ${resource.name} replica group in ${globalStateManager.targetStack.stackName} stack.`,
+    Description: `Parameter group for ${resource.name} replica group in ${calculatedStackOverviewManager.context.stackName} stack.`,
     Properties: {
       'cluster-enabled': resource.enableSharding ? 'yes' : 'no'
     }
@@ -29,7 +29,7 @@ export const getRedisSubnetGroupResource = ({ resource }: { resource: StpRedisCl
   return new SubnetGroup({
     Description: `${awsResourceNames.redisReplicationGroupDescription(
       resource.name,
-      globalStateManager.targetStack.stackName
+      calculatedStackOverviewManager.context.stackName
     )} subnet group`,
     SubnetIds: vpcManager.getPublicSubnetIds()
   });
@@ -62,7 +62,7 @@ export const getRedisReplicationGroupResource = ({ resource }: { resource: StpRe
     AutomaticFailoverEnabled: !!(resource.enableSharding || resource.enableAutomaticFailover),
     ReplicationGroupDescription: awsResourceNames.redisReplicationGroupDescription(
       resource.name,
-      globalStateManager.targetStack.stackName
+      calculatedStackOverviewManager.context.stackName
     ),
     CacheSubnetGroupName: Ref(cfLogicalNames.redisSubnetGroup(resource.name)),
     Port: getRedisPort({ resource }),
@@ -91,7 +91,7 @@ export const getRedisReplicationGroupResource = ({ resource }: { resource: StpRe
     SnapshotRetentionLimit: resource.automatedBackupRetentionDays,
     ReplicationGroupId: awsResourceNames.redisReplicationGroupId(
       resource.name,
-      globalStateManager.targetStack.stackName
+      calculatedStackOverviewManager.context.stackName
     )
   });
   replicationGroup.UpdatePolicy = {
@@ -130,8 +130,11 @@ export const getRedisSecurityGroupResource = ({ resource }: { resource: StpRedis
         : [];
   return new SecurityGroup({
     VpcId: vpcManager.getVpcId(),
-    GroupName: awsResourceNames.redisClusterSecurityGroup(resource.name, globalStateManager.targetStack.stackName),
-    GroupDescription: `Stacktape generated security group for redis cluster ${resource.name} in stack ${globalStateManager.targetStack.stackName}`,
+    GroupName: awsResourceNames.redisClusterSecurityGroup(
+      resource.name,
+      calculatedStackOverviewManager.context.stackName
+    ),
+    GroupDescription: `Stacktape generated security group for redis cluster ${resource.name} in stack ${calculatedStackOverviewManager.context.stackName}`,
     SecurityGroupIngress: basicIngressRules
   });
 };
@@ -144,7 +147,7 @@ export const getLogGroupResource = ({
   retentionDays: number;
 }) => {
   return new LogGroup({
-    LogGroupName: awsResourceNames.redisLogGroup(resource.name, globalStateManager.targetStack.stackName),
+    LogGroupName: awsResourceNames.redisLogGroup(resource.name, calculatedStackOverviewManager.context.stackName),
     RetentionInDays: retentionDays
   });
 };

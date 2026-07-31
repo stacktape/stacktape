@@ -1,5 +1,5 @@
 import type { StpNetworkLoadBalancer } from '@domain-services/config-manager/resolved-types/network-load-balancer';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import SecurityGroup, { Ingress } from '@cloudform/ec2/securityGroup';
 import Listener, { Certificate } from '@cloudform/elasticLoadBalancingV2/listener';
 import ListenerCertificate from '@cloudform/elasticLoadBalancingV2/listenerCertificate';
@@ -29,8 +29,11 @@ export const getNetworkLoadBalancerSecurityGroup = (
   loadBalancerConfig: StpNetworkLoadBalancer
 ) =>
   new SecurityGroup({
-    GroupDescription: `Stacktape generated security group for network load balancer ${loadBalancerName} in stack ${globalStateManager.targetStack.stackName}`,
-    GroupName: awsResourceNames.loadBalancerSecurityGroup(loadBalancerName, globalStateManager.targetStack.stackName),
+    GroupDescription: `Stacktape generated security group for network load balancer ${loadBalancerName} in stack ${calculatedStackOverviewManager.context.stackName}`,
+    GroupName: awsResourceNames.loadBalancerSecurityGroup(
+      loadBalancerName,
+      calculatedStackOverviewManager.context.stackName
+    ),
     VpcId: vpcManager.getVpcId(),
     SecurityGroupIngress: loadBalancerConfig.listeners
       .map((listenerConfig) =>

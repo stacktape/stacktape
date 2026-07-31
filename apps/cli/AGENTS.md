@@ -15,7 +15,11 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   does not make the modules a reusable workspace package. The historical catch-all `shared/` directory is gone.
   TypeScript config loading accepts only a default `defineConfig` export. That authoring runtime compiles the plain
   config and its transform side channel in one invocation; the CLI must never execute a config factory again to
-  rediscover functions. YAML remains a plain-data input and has no transform side channel.
+  rediscover functions. `ConfigResolver` receives the config source and authoring parameters explicitly; it must not
+  read the CLI global-state manager. YAML remains a plain-data input and has no transform side channel.
+  `src/domain/stack-context.ts` is the immutable stack identity captured after account/project/stage resolution.
+  Configuration normalization, calculated-resource synthesis and template finalization use that same value. Resource
+  resolvers must not reach back into mutable CLI global state for names, regions, account IDs or invocation paths.
   `src/aws/context.ts` owns the per-session client inputs: a refreshable credential provider, region, optional local
   endpoint and middleware. Service clients must use that context so refreshed credentials and emulator endpoints are
   not bypassed. `AwsSdkManager` is the transitional invocation-scoped composition object, not the owner of credential

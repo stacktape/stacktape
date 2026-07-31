@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt } from '@cloudform/functions';
 import SnsTopic from '@cloudform/sns/topic';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -19,7 +18,7 @@ export const resolveSnsTopics = async () => {
         DisplayName: resource.smsDisplayName,
         TopicName: awsResourceNames.snsTopic(
           resource.name,
-          globalStateManager.targetStack.stackName,
+          calculatedStackOverviewManager.context.stackName,
           resource.fifoEnabled
         ),
         Tags: stackManager.getTags()
@@ -29,9 +28,9 @@ export const resolveSnsTopics = async () => {
       nameChain: resource.nameChain,
       linkName: 'console',
       linkValue: consoleLinks.snsTopic(
-        globalStateManager.region,
-        globalStateManager.targetAwsAccount.awsAccountId,
-        awsResourceNames.snsTopic(resource.name, globalStateManager.targetStack.stackName, resource.fifoEnabled)
+        calculatedStackOverviewManager.context.region,
+        calculatedStackOverviewManager.context.accountId,
+        awsResourceNames.snsTopic(resource.name, calculatedStackOverviewManager.context.stackName, resource.fifoEnabled)
       )
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({

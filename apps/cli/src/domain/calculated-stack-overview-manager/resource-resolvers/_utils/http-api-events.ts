@@ -1,4 +1,4 @@
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import Authorizer from '@cloudform/apiGatewayV2/authorizer';
 import Route from '@cloudform/apiGatewayV2/route';
 import { GetAtt, Join, Ref } from '@cloudform/functions';
@@ -24,7 +24,7 @@ export const getHttpApiLambdaPermission = ({
     Action: 'lambda:InvokeFunction',
     Principal: 'apigateway.amazonaws.com',
     SourceArn: Join('', [
-      `arn:aws:execute-api:${globalStateManager.region}:${globalStateManager.targetAwsAccount.awsAccountId}:`,
+      `arn:aws:execute-api:${calculatedStackOverviewManager.context.region}:${calculatedStackOverviewManager.context.accountId}:`,
       Ref(cfLogicalNames.httpApi(stpResourceName)),
       '/*'
     ])
@@ -44,7 +44,7 @@ export const getHttpApiAuthorizerResource = (
       JwtConfiguration: {
         Audience: [Ref(cfLogicalNames.userPoolClient(authorizerConfig.properties.userPoolName))],
         Issuer: Join('/', [
-          `https://cognito-idp.${globalStateManager.region}.amazonaws.com`,
+          `https://cognito-idp.${calculatedStackOverviewManager.context.region}.amazonaws.com`,
           Ref(cfLogicalNames.userPool(authorizerConfig.properties.userPoolName))
         ])
       },
@@ -60,15 +60,15 @@ export const getHttpApiAuthorizerResource = (
       ? Ref(authorizerLambdaProps.aliasLogicalName)
       : GetAtt(authorizerLambdaProps.cfLogicalName, 'Arn');
     // `${arns.lambdaFromFullName({
-    //   accountId: globalStateManager.targetAwsAccount.awsAccountId,
+    //   accountId: calculatedStackOverviewManager.context.accountId,
     //   lambdaAwsName: authorizerLambdaProps.resourceName,
-    //   region: globalStateManager.region
+    //   region: calculatedStackOverviewManager.context.region
     // })}${authorizerLambdaProps.aliasLogicalName ? `:${awsResourceNames.lambdaStpAlias()}` : ''}`;
     return new Authorizer({
       ApiId: Ref(cfLogicalNames.httpApi(stpResourceName)),
       AuthorizerType: 'REQUEST',
       AuthorizerUri: resourceURIs.lambdaAuthorizer({
-        region: globalStateManager.region,
+        region: calculatedStackOverviewManager.context.region,
         lambdaEndpointArn: authorizerLambdaEndpointArn
       }),
       IdentitySource: authorizerConfig.properties.identitySources || [],

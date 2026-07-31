@@ -1,6 +1,6 @@
 import type { StacktapeResourceOutput } from '@domain-services/stack-info/types';
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import Api, { Cors } from '@cloudform/apiGatewayV2/api';
 import HttpApiMapping from '@cloudform/apiGatewayV2/apiMapping';
 import HttpApiDomain from '@cloudform/apiGatewayV2/domainName';
@@ -29,7 +29,7 @@ export const getHttpApi = (httpApiConfig: StpHttpApiGateway) => {
     tagObject[Key] = Value;
   });
   return new Api({
-    Name: awsResourceNames.httpApi(globalStateManager.targetStack.stackName),
+    Name: awsResourceNames.httpApi(calculatedStackOverviewManager.context.stackName),
     CorsConfiguration: httpApiConfig?.cors?.enabled ? getCorsConfiguration({ resource: httpApiConfig }) : undefined,
     ProtocolType: 'HTTP',
     Tags: tagObject
@@ -67,7 +67,7 @@ export const getHttpApiLogGroup = ({
 }) => {
   return new LogGroup({
     LogGroupName: awsResourceNames.httpApiLogGroup({
-      stackName: globalStateManager.targetStack.stackName,
+      stackName: calculatedStackOverviewManager.context.stackName,
       stpResourceName: httpApiUserResourceName
     }),
     RetentionInDays: retentionDays
@@ -201,10 +201,10 @@ export const getHttpApiGatewayVpcLinkSecurityGroupResource = ({
   return new SecurityGroup({
     VpcId: vpcManager.getVpcId(),
     GroupName: awsResourceNames.httpApiVpcLinkSecurityGroup({
-      stackName: globalStateManager.targetStack.stackName,
+      stackName: calculatedStackOverviewManager.context.stackName,
       stpResourceName: stpHttpApiGatewayName
     }),
-    GroupDescription: `Security group generated for http api vpc link ${stpHttpApiGatewayName} in stack ${globalStateManager.targetStack.stackName}`,
+    GroupDescription: `Security group generated for http api vpc link ${stpHttpApiGatewayName} in stack ${calculatedStackOverviewManager.context.stackName}`,
     SecurityGroupIngress: Array.from(ports, (portNumber) => ({
       IpProtocol: 'tcp',
       CidrIp: '0.0.0.0/0',
@@ -221,7 +221,7 @@ export const getHttpApiGatewayVpcLinkResource = ({ stpHttpApiGatewayName }: { st
   });
   return new VpcLink({
     Name: awsResourceNames.httpApiVpcLink({
-      stackName: globalStateManager.targetStack.stackName,
+      stackName: calculatedStackOverviewManager.context.stackName,
       stpResourceName: stpHttpApiGatewayName
     }),
     SubnetIds: vpcManager.getPublicSubnetIds(),

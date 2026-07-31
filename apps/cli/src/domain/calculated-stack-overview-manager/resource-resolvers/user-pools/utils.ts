@@ -1,6 +1,6 @@
 import type { StpUserAuthPool } from '@domain-services/config-manager/resolved-types/user-pools';
 import type { SchemaAttribute } from '@cloudform/cognito/userPool';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import UserPool from '@cloudform/cognito/userPool';
 import UserPoolClient from '@cloudform/cognito/userPoolClient';
 import UserPoolDomain from '@cloudform/cognito/userPoolDomain';
@@ -57,7 +57,7 @@ export const getUserPoolResource = ({
   });
 
   return new UserPool({
-    UserPoolName: awsResourceNames.userPool(name, globalStateManager.targetStack.stackName),
+    UserPoolName: awsResourceNames.userPool(name, calculatedStackOverviewManager.context.stackName),
     AccountRecoverySetting: {
       RecoveryMechanisms: [
         { Name: 'verified_email', Priority: 1 },
@@ -236,7 +236,7 @@ export const getUserPoolClientResource = (
     SupportedIdentityProviders: (allowOnlyExternalIdentityProviders ? [] : ['COGNITO']).concat(
       (identityProviders || []).map((provider) => provider.type)
     ),
-    ClientName: awsResourceNames.userPoolClient(userPoolName, globalStateManager.targetStack.stackName),
+    ClientName: awsResourceNames.userPoolClient(userPoolName, calculatedStackOverviewManager.context.stackName),
     GenerateSecret: generateClientSecret
   });
 };
@@ -341,7 +341,8 @@ export const getUserPoolDomainResource = (userPool: StpUserAuthPool, userPoolNam
   return new UserPoolDomain({
     UserPoolId: Ref(cfLogicalNames.userPool(userPoolName)),
     Domain:
-      userPool.hostedUiDomainPrefix || getUserPoolDomainPrefix(globalStateManager.targetStack.stackName, userPoolName)
+      userPool.hostedUiDomainPrefix ||
+      getUserPoolDomainPrefix(calculatedStackOverviewManager.context.stackName, userPoolName)
   });
 };
 

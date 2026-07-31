@@ -2,7 +2,6 @@ import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Ref } from '@cloudform/functions';
 import KinesisConsumer from '@cloudform/kinesis/streamConsumer';
 import EventSourceMapping from '@cloudform/lambda/eventSourceMapping';
@@ -89,7 +88,11 @@ export const resolveKinesisEvents = ({
           nameChain,
           resource: new KinesisConsumer({
             StreamARN: streamArn,
-            ConsumerName: awsResourceNames.kinesisEventConsumer(globalStateManager.targetStack.stackName, name, index)
+            ConsumerName: awsResourceNames.kinesisEventConsumer(
+              calculatedStackOverviewManager.context.stackName,
+              name,
+              index
+            )
           })
         });
         consumerArn = GetAtt(cfLogicalNames.kinesisEventConsumer(name, index), 'ConsumerARN') as unknown as string;

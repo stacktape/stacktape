@@ -2,7 +2,7 @@ import type { CloudformationTemplate } from '@domain-services/cloudformation-sta
 import type { CacheBehavior } from '@cloudform/cloudFront/distribution';
 import type Distribution from '@cloudform/cloudFront/distribution';
 import { join } from 'node:path';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import CloudfrontFunction from '@cloudform/cloudFront/function';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { readdir, stat, pathExists } from 'fs-extra';
@@ -24,7 +24,11 @@ export const getHostHeaderRewriteCloudfrontFunction = (
   awsResourceNameFn: (name: string, stackName: string, region: string) => string
 ) => {
   return new CloudfrontFunction({
-    Name: awsResourceNameFn(resourceName, globalStateManager.targetStack.stackName, globalStateManager.region),
+    Name: awsResourceNameFn(
+      resourceName,
+      calculatedStackOverviewManager.context.stackName,
+      calculatedStackOverviewManager.context.region
+    ),
     AutoPublish: true,
     FunctionCode:
       '\nfunction handler(event) {\n  var request = event.request;\n  request.headers["x-forwarded-host"] = request.headers.host;\n  \n  return request;\n}',

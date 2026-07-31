@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -103,8 +102,8 @@ export const resolveUserPools = async () => {
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'domain',
         nameChain,
-        paramValue: `${getUserPoolDomainPrefix(globalStateManager.targetStack.stackName, name)}.auth.${
-          globalStateManager.region
+        paramValue: `${getUserPoolDomainPrefix(calculatedStackOverviewManager.context.stackName, name)}.auth.${
+          calculatedStackOverviewManager.context.region
         }.amazoncognito.com`,
         showDuringPrint: false
       });

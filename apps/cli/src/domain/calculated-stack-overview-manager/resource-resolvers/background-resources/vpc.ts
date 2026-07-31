@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import EIP from '@cloudform/ec2/eip';
 import InternetGateway from '@cloudform/ec2/internetGateway';
 import NatGateway from '@cloudform/ec2/natGateway';
@@ -80,8 +79,8 @@ const getVpcGatewayEndpoint = ({ type }: { type: 's3' | 'dynamo-db' }) => {
     VpcId: vpcManager.getVpcId(),
     ServiceName:
       type === 's3'
-        ? `com.amazonaws.${globalStateManager.region}.s3`
-        : `com.amazonaws.${globalStateManager.region}.dynamodb`,
+        ? `com.amazonaws.${calculatedStackOverviewManager.context.region}.s3`
+        : `com.amazonaws.${calculatedStackOverviewManager.context.region}.dynamodb`,
     VpcEndpointType: 'Gateway',
     RouteTableIds: routeTableIds
   });
@@ -140,7 +139,7 @@ export const resolveAwsVpcDeployment = async () => {
     // Create public subnet
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.subnet(true, i),
-      resource: getSubnet(cidr, true, i, globalStateManager.region),
+      resource: getSubnet(cidr, true, i, calculatedStackOverviewManager.context.region),
       nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
     });
 
@@ -210,7 +209,7 @@ export const resolveAwsVpcDeployment = async () => {
       // Create private subnet
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.subnet(false, i),
-        resource: getSubnet(cidr, false, i, globalStateManager.region),
+        resource: getSubnet(cidr, false, i, calculatedStackOverviewManager.context.region),
         nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
       });
 

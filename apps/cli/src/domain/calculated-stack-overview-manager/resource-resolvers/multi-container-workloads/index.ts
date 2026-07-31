@@ -1,6 +1,5 @@
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { ContainerDefinition, KeyValuePair, TaskDefinitionProperties } from '@cloudform/ecs/taskDefinition';
-import { globalStateManager } from '@application-services/global-state-manager';
 import Application from '@cloudform/codeDeploy/application';
 import { GetAtt, Ref } from '@cloudform/functions';
 import LambdaPermission from '@cloudform/lambda/permission';
@@ -188,7 +187,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
         nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
         cfLogicalName: cfLogicalNames.ecsCodeDeployApp(),
         resource: new Application({
-          ApplicationName: awsResourceNames.ecsCodeDeployApp(globalStateManager.targetStack.stackName),
+          ApplicationName: awsResourceNames.ecsCodeDeployApp(calculatedStackOverviewManager.context.stackName),
           ComputePlatform: 'ECS'
         })
       });
@@ -243,7 +242,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
         cfLogicalName: cfLogicalNames.ecsLogGroup(definition.name, containerName),
         resource: getEcsLogGroup({
           workloadName: definition.name,
-          stackName: globalStateManager.targetStack.stackName,
+          stackName: calculatedStackOverviewManager.context.stackName,
           containerName,
           retentionDays: logging?.retentionDays || defaultLogRetentionDays.containerWorkload
         }),
@@ -254,7 +253,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
         nameChain,
         linkValue: cfEvaluatedLinks.logGroup(
           awsResourceNames.containerLogGroup({
-            stackName: globalStateManager.targetStack.stackName,
+            stackName: calculatedStackOverviewManager.context.stackName,
             stpResourceName: definition.name,
             containerName
           })
@@ -300,7 +299,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
             nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL, 'stacktapeServiceLambda'],
             resource: new LambdaPermission({
               Action: 'lambda:InvokeFunction',
-              Principal: `logs.${globalStateManager.region}.amazonaws.com`,
+              Principal: `logs.${calculatedStackOverviewManager.context.region}.amazonaws.com`,
               FunctionName: serviceLambdaArn,
               SourceAccount: Ref('AWS::AccountId')
             })
@@ -310,7 +309,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
         const containerLogGroupLogicalName = cfLogicalNames.ecsLogGroup(definition.name, containerName);
         const subscriptionFilterResource = new SubscriptionFilter({
           LogGroupName: awsResourceNames.containerLogGroup({
-            stackName: globalStateManager.targetStack.stackName,
+            stackName: calculatedStackOverviewManager.context.stackName,
             stpResourceName: definition.name,
             containerName
           }),
@@ -418,7 +417,7 @@ export const getTaskDefinitionTemplateOverrideFns = ({
         if (hotSwapDeploy) {
           // we also substitute log group name with actual name
           containerDef.LogConfiguration.Options['awslogs-group'] = awsResourceNames.containerLogGroup({
-            stackName: globalStateManager.targetStack.stackName,
+            stackName: calculatedStackOverviewManager.context.stackName,
             stpResourceName: resource.name,
             containerName: containerDef.Name as string
           });

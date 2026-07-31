@@ -1,7 +1,7 @@
 import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import type { Dimension } from '@cloudform/cloudWatch/alarm';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
 import { GetAtt } from '@cloudform/functions';
 import { configManager } from '@domain-services/config-manager';
@@ -125,11 +125,11 @@ export const getApplicationLoadBalancerUnhealthyTargetsAlarm = ({
   });
 
   return new CloudwatchAlarm({
-    AlarmName: awsResourceNames.cloudwatchAlarm(globalStateManager.targetStack.stackName, alarm.name),
+    AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
     AlarmDescription:
       alarm.description ||
       getAlarmDescription({
-        stackName: globalStateManager.targetStack.stackName,
+        stackName: calculatedStackOverviewManager.context.stackName,
         stpResourceName: resource.name,
         triggerType: trigger.type,
         comparisonOperator,

@@ -36,7 +36,11 @@ import type { StpTanStackWeb } from '@domain-services/config-manager/resolved-ty
 import type { StpWebService } from '@domain-services/config-manager/resolved-types/web-services';
 import type { StpWorkerService } from '@domain-services/config-manager/resolved-types/worker-services';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
-import type { FinalTransform, ResourceTransform as CfResourceTransform } from '@stacktape/config-authoring/tooling';
+import type {
+  FinalTransform,
+  GetConfigParams,
+  ResourceTransform as CfResourceTransform
+} from '@stacktape/config-authoring/tooling';
 import type { DefaultedResource, ResourceDefinitionOf, StacktapeResourceType } from './normalized-resource';
 import { isAbsolute, join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
@@ -56,7 +60,6 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getJobName, getSimpleServiceDefaultContainerName } from '@stacktape/naming/workload-names';
 import { getStpNameForResource } from '@stacktape/naming/stacktape-resource-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
-import { getGloballyUniqueStackHash } from '@stacktape/naming/stack-identity';
 import { processAllNodesSync, traverseToMaximalExtent } from '@utils/misc';
 import { isAuroraEngine } from 'src/aws/rds-engines';
 import compose from '@utils/basic-compose-shim';
@@ -65,7 +68,7 @@ import { getDirectiveParams, getIsDirective } from '@utils/directives';
 import { getApexDomain } from '@utils/domains';
 import { getConfigPath } from '@utils/file-loaders';
 import { builtInDirectives } from './built-in-directives';
-import { ConfigResolver } from './config-resolver';
+import { ConfigResolver, type ConfigResolverContext } from './config-resolver';
 import { getAuthoredOverrides, getNestedResourceIdentity } from './normalized-resource';
 import { getAlarmsToBeAppliedToResource, isGlobalAlarmEligibleForStack } from './utils/alarms';
 import { DEFAULT_TEST_LISTENER_PORT } from './utils/application-load-balancers';
@@ -113,6 +116,7 @@ import type { DomainConfiguration, StackConfig, StackOutput } from '@stacktape/c
 import type { SsrWebPathCachingOverride } from '@stacktape/config/ssr-web-shared';
 import type { WebServiceAlbLoadBalancing, WebServiceNlbLoadBalancing } from '@stacktape/config/web-services';
 import { configErrors } from './errors';
+import type { StackContext } from '@domain-services/stack-context';
 
 const normalizeCdnPath = ({ path }: { path: string }) => path.replace(/^\//, '');
 
@@ -178,6 +182,46 @@ export class ConfigManager {
   globalConfigAlarms: AlarmDefinition[] = [];
   transforms: { [logicalName: string]: CfResourceTransform } = {};
   finalTransform: FinalTransform | null = null;
+  #stackContext: StackContext | undefined;
+
+  private get stackContext(): StackContext {
+    if (!this.#stackContext) {
+      throw new Error('Config manager was used before its stack context was initialized.');
+    }
+    return this.#stackContext;
+  }
+
+  setStackContext = (stackContext: StackContext) => {
+    this.#stackContext = Object.freeze({ ...stackContext });
+  };
+
+  private getConfigResolverContext = (): ConfigResolverContext => {
+    const args = globalStateManager.args;
+    const user = globalStateManager.userData;
+    const authoringParams: GetConfigParams = {
+      projectName: globalStateManager.targetStack?.projectName || args.projectName,
+      stage: globalStateManager.targetStack?.stage || args.stage,
+      region: globalStateManager.region,
+      command: globalStateManager.command,
+      awsProfile: globalStateManager.awsProfileName,
+      user: user
+        ? {
+            id: user.id,
+            name: user.name,
+            email: user.email
+          }
+        : undefined,
+      cliArgs: args
+    };
+
+    return {
+      authoringParams,
+      configPath: globalStateManager.configPath,
+      presetConfig: globalStateManager.presetConfig,
+      templateId: args.templateId,
+      workingDir: globalStateManager.workingDir
+    };
+  };
 
   /**
    * Loads only the raw config (without directives resolution or validation).
@@ -189,11 +233,12 @@ export class ConfigManager {
       globalStateManager.setConfigPath(detectedConfigPath);
     }
     if (globalStateManager.configPath) {
-      await this.configResolver.loadRawConfig();
+      await this.configResolver.loadRawConfig({ context: this.getConfigResolverContext() });
     }
   };
 
-  init = async ({ configRequired = true }: { configRequired: boolean }) => {
+  init = async ({ configRequired = true, stackContext }: { configRequired: boolean; stackContext: StackContext }) => {
+    this.setStackContext(stackContext);
     const { templateId } = globalStateManager.args;
     await eventManager.startEvent({
       eventType: 'LOAD_CONFIG_FILE',
@@ -215,7 +260,7 @@ export class ConfigManager {
     if (shouldLoadConfig) {
       // Skip loadRawConfig if already loaded by loadRawConfigOnly
       if (!this.configResolver.rawConfig) {
-        await this.configResolver.loadRawConfig();
+        await this.configResolver.loadRawConfig({ context: this.getConfigResolverContext() });
       }
       this.transforms = this.configResolver.transforms;
       this.finalTransform = this.configResolver.finalTransform;
@@ -229,7 +274,7 @@ export class ConfigManager {
 
     await eventManager.finishEvent({
       eventType: 'LOAD_CONFIG_FILE',
-      data: { stackName: globalStateManager.targetStack.stackName, config: this.config },
+      data: { stackName: this.stackContext.stackName, config: this.config },
       phase: 'INITIALIZE'
     });
   };
@@ -245,6 +290,7 @@ export class ConfigManager {
     // TypeScript config, so without clearing them here a later YAML configuration would inherit the previous one's.
     this.transforms = {};
     this.finalTransform = null;
+    this.#stackContext = undefined;
   };
 
   loadGlobalConfig = async () => {
@@ -252,8 +298,8 @@ export class ConfigManager {
     this.globalConfigAlarms = ((globalConfig.alarms as unknown as AlarmDefinition[]) || []).filter((alarm) =>
       isGlobalAlarmEligibleForStack({
         alarm,
-        projectName: globalStateManager.targetStack.projectName,
-        stage: globalStateManager.targetStack.stage
+        projectName: this.stackContext.projectName,
+        stage: this.stackContext.stage
       })
     );
     this.globalConfigDeploymentNotifications = (globalConfig.deploymentNotifications ||
@@ -337,11 +383,7 @@ export class ConfigManager {
   };
 
   private get globallyUniqueStackHash() {
-    return getGloballyUniqueStackHash({
-      region: globalStateManager.region,
-      accountId: globalStateManager.targetAwsAccount.awsAccountId,
-      stackName: globalStateManager.targetStack.stackName
-    });
+    return this.stackContext.globallyUniqueStackHash;
   }
 
   get mongoDbAtlasProvider() {
@@ -400,7 +442,7 @@ export class ConfigManager {
         packaging,
         artifactName: name,
         handler: getLambdaHandler({ name, packaging }),
-        resourceName: awsResourceNames.lambda(name, globalStateManager.targetStack.stackName),
+        resourceName: awsResourceNames.lambda(name, this.stackContext.stackName),
         cfLogicalName: cfLogicalNames.lambda(name),
         aliasLogicalName:
           (definition.deployment || definition.provisionedConcurrency) && cfLogicalNames.lambdaStpAlias(name),
@@ -438,7 +480,7 @@ export class ConfigManager {
             name: triggerLambdaStpName,
             packaging: { type: 'helper-lambda', properties: helperLambdaData },
             type: 'function',
-            resourceName: awsResourceNames.lambda(triggerLambdaStpName, globalStateManager.targetStack.stackName),
+            resourceName: awsResourceNames.lambda(triggerLambdaStpName, this.stackContext.stackName),
             cfLogicalName: cfLogicalNames.lambda(triggerLambdaStpName),
             artifactName,
             artifactPath: helperLambdaData.artifactPath,
@@ -448,7 +490,7 @@ export class ConfigManager {
             runtime: 'nodejs22.x' as const,
             events: batchJob.events || [],
             environment: getBatchJobTriggerLambdaEnvironment({
-              stackName: globalStateManager.targetStack.stackName,
+              stackName: this.stackContext.stackName,
               batchJobName: batchJob.name
             }),
             iamRoleStatements: getBatchJobTriggerLambdaAccessControl({ batchJobName: batchJob.name })
@@ -657,7 +699,7 @@ export class ConfigManager {
                   (convex.customDomains?.site?.domainName && `https://${convex.customDomains.site.domainName}`) ||
                   '__resolver_overrides_this__'
               },
-              { name: 'AWS_REGION', value: globalStateManager.region },
+              { name: 'AWS_REGION', value: this.stackContext.region },
               // Convex skips its own TLS init when this is set. Combined with the
               // `rds.force_ssl=0` parameter-group override the convex resolver
               // injects, the connection goes plaintext over the VPC's internal
@@ -900,7 +942,7 @@ export class ConfigManager {
               name: stpName,
               packaging: customResourceDefinition.packaging
             }),
-            resourceName: awsResourceNames.lambda(stpName, globalStateManager.targetStack.stackName),
+            resourceName: awsResourceNames.lambda(stpName, this.stackContext.stackName),
             cfLogicalName: cfLogicalNames.lambda(stpName),
             artifactName: stpName,
             events: []
@@ -944,7 +986,7 @@ export class ConfigManager {
               parentResourceType: deploymentScript.type
             }),
             handler: getLambdaHandler({ name: stpName, packaging: deploymentScript.packaging }),
-            resourceName: awsResourceNames.lambda(stpName, globalStateManager.targetStack.stackName),
+            resourceName: awsResourceNames.lambda(stpName, this.stackContext.stackName),
             cfLogicalName: cfLogicalNames.lambda(stpName),
             artifactName: stpName,
             type: 'function',
@@ -963,8 +1005,8 @@ export class ConfigManager {
     return this.getResourcesFromConfig('edge-lambda-function').map((edgeLambda) => {
       const lambdaResourceName = awsResourceNames.edgeLambda(
         edgeLambda.name,
-        globalStateManager.targetStack.stackName,
-        globalStateManager.region
+        this.stackContext.stackName,
+        this.stackContext.region
       );
       return {
         ...edgeLambda,
@@ -1105,7 +1147,7 @@ export class ConfigManager {
       };
 
       const openNextBuildPath = fsPaths.absoluteNextjsBuiltProjectFolderPath({
-        invocationId: globalStateManager.invocationId,
+        invocationId: this.stackContext.invocationId,
         stpResourceName: name
       });
 
@@ -1270,7 +1312,7 @@ export class ConfigManager {
                   },
                   {
                     name: 'CACHE_BUCKET_REGION',
-                    value: globalStateManager.region
+                    value: this.stackContext.region
                   },
                   {
                     name: 'REVALIDATION_QUEUE_URL',
@@ -1278,7 +1320,7 @@ export class ConfigManager {
                   },
                   {
                     name: 'REVALIDATION_QUEUE_REGION',
-                    value: globalStateManager.region
+                    value: this.stackContext.region
                   },
                   {
                     name: 'CACHE_DYNAMO_TABLE',
@@ -1298,7 +1340,7 @@ export class ConfigManager {
                 artifactName: nestedResourceInfo.serverFunction.stpResourceName,
                 resourceName: awsResourceNames.lambda(
                   nestedResourceInfo.serverFunction.stpResourceName,
-                  globalStateManager.targetStack.stackName
+                  this.stackContext.stackName
                 ),
                 cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName),
                 configParentResourceType,
@@ -1341,8 +1383,8 @@ export class ConfigManager {
                     getLambdaLogResourceArnsForPermissions({
                       lambdaResourceName: awsResourceNames.edgeLambda(
                         nestedResourceInfo.serverEdgeFunction.stpResourceName,
-                        globalStateManager.targetStack.stackName,
-                        globalStateManager.region
+                        this.stackContext.stackName,
+                        this.stackContext.region
                       ),
                       edgeLambda: true
                     }),
@@ -1353,8 +1395,8 @@ export class ConfigManager {
                 artifactName: nestedResourceInfo.serverEdgeFunction.stpResourceName,
                 resourceName: awsResourceNames.edgeLambda(
                   nestedResourceInfo.serverEdgeFunction.stpResourceName,
-                  globalStateManager.targetStack.stackName,
-                  globalStateManager.region
+                  this.stackContext.stackName,
+                  this.stackContext.region
                 ),
                 configParentResourceType,
                 logging: {
@@ -1394,7 +1436,7 @@ export class ConfigManager {
             artifactName: nestedResourceInfo.imageFunction.stpResourceName,
             resourceName: awsResourceNames.lambda(
               nestedResourceInfo.imageFunction.stpResourceName,
-              globalStateManager.targetStack.stackName
+              this.stackContext.stackName
             ),
             cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.imageFunction.stpResourceName),
             configParentResourceType,
@@ -1422,7 +1464,7 @@ export class ConfigManager {
             artifactName: nestedResourceInfo.revalidationFunction.stpResourceName,
             resourceName: awsResourceNames.lambda(
               nestedResourceInfo.revalidationFunction.stpResourceName,
-              globalStateManager.targetStack.stackName
+              this.stackContext.stackName
             ),
             cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.revalidationFunction.stpResourceName),
             configParentResourceType,
@@ -1488,7 +1530,7 @@ export class ConfigManager {
             artifactName: nestedResourceInfo.revalidationInsertFunction.stpResourceName,
             resourceName: awsResourceNames.lambda(
               nestedResourceInfo.revalidationInsertFunction.stpResourceName,
-              globalStateManager.targetStack.stackName
+              this.stackContext.stackName
             ),
             cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.revalidationInsertFunction.stpResourceName),
             configParentResourceType,
@@ -1540,7 +1582,7 @@ export class ConfigManager {
                   artifactName: nestedResourceInfo.warmerFunction.stpResourceName,
                   resourceName: awsResourceNames.lambda(
                     nestedResourceInfo.warmerFunction.stpResourceName,
-                    globalStateManager.targetStack.stackName
+                    this.stackContext.stackName
                   ),
                   cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.warmerFunction.stpResourceName),
                   configParentResourceType,
@@ -1619,7 +1661,7 @@ export class ConfigManager {
       };
 
       const buildPath = fsPaths.absoluteSsrWebBuiltProjectFolderPath({
-        invocationId: globalStateManager.invocationId,
+        invocationId: this.stackContext.invocationId,
         stpResourceName: name,
         resourceType: 'astro-web'
       });
@@ -1712,7 +1754,7 @@ export class ConfigManager {
             artifactName: nestedResourceInfo.serverFunction.stpResourceName,
             resourceName: awsResourceNames.lambda(
               nestedResourceInfo.serverFunction.stpResourceName,
-              globalStateManager.targetStack.stackName
+              this.stackContext.stackName
             ),
             cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName),
             configParentResourceType,
@@ -1785,7 +1827,7 @@ export class ConfigManager {
       };
 
       const buildPath = fsPaths.absoluteSsrWebBuiltProjectFolderPath({
-        invocationId: globalStateManager.invocationId,
+        invocationId: this.stackContext.invocationId,
         stpResourceName: name,
         resourceType: 'nuxt-web'
       });
@@ -1878,7 +1920,7 @@ export class ConfigManager {
             artifactName: nestedResourceInfo.serverFunction.stpResourceName,
             resourceName: awsResourceNames.lambda(
               nestedResourceInfo.serverFunction.stpResourceName,
-              globalStateManager.targetStack.stackName
+              this.stackContext.stackName
             ),
             cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName),
             configParentResourceType,
@@ -1951,7 +1993,7 @@ export class ConfigManager {
       };
 
       const buildPath = fsPaths.absoluteSsrWebBuiltProjectFolderPath({
-        invocationId: globalStateManager.invocationId,
+        invocationId: this.stackContext.invocationId,
         stpResourceName: name,
         resourceType: 'sveltekit-web'
       });
@@ -2044,7 +2086,7 @@ export class ConfigManager {
             artifactName: nestedResourceInfo.serverFunction.stpResourceName,
             resourceName: awsResourceNames.lambda(
               nestedResourceInfo.serverFunction.stpResourceName,
-              globalStateManager.targetStack.stackName
+              this.stackContext.stackName
             ),
             cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName),
             configParentResourceType,
@@ -2117,7 +2159,7 @@ export class ConfigManager {
       };
 
       const buildPath = fsPaths.absoluteSsrWebBuiltProjectFolderPath({
-        invocationId: globalStateManager.invocationId,
+        invocationId: this.stackContext.invocationId,
         stpResourceName: name,
         resourceType: 'solidstart-web'
       });
@@ -2210,7 +2252,7 @@ export class ConfigManager {
             artifactName: nestedResourceInfo.serverFunction.stpResourceName,
             resourceName: awsResourceNames.lambda(
               nestedResourceInfo.serverFunction.stpResourceName,
-              globalStateManager.targetStack.stackName
+              this.stackContext.stackName
             ),
             cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName),
             configParentResourceType,
@@ -2283,7 +2325,7 @@ export class ConfigManager {
       };
 
       const buildPath = fsPaths.absoluteSsrWebBuiltProjectFolderPath({
-        invocationId: globalStateManager.invocationId,
+        invocationId: this.stackContext.invocationId,
         stpResourceName: name,
         resourceType: 'tanstack-web'
       });
@@ -2376,7 +2418,7 @@ export class ConfigManager {
             artifactName: nestedResourceInfo.serverFunction.stpResourceName,
             resourceName: awsResourceNames.lambda(
               nestedResourceInfo.serverFunction.stpResourceName,
-              globalStateManager.targetStack.stackName
+              this.stackContext.stackName
             ),
             cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName),
             configParentResourceType,
@@ -2449,7 +2491,7 @@ export class ConfigManager {
       };
 
       const buildPath = fsPaths.absoluteSsrWebBuiltProjectFolderPath({
-        invocationId: globalStateManager.invocationId,
+        invocationId: this.stackContext.invocationId,
         stpResourceName: name,
         resourceType: 'remix-web'
       });
@@ -2542,7 +2584,7 @@ export class ConfigManager {
             artifactName: nestedResourceInfo.serverFunction.stpResourceName,
             resourceName: awsResourceNames.lambda(
               nestedResourceInfo.serverFunction.stpResourceName,
-              globalStateManager.targetStack.stackName
+              this.stackContext.stackName
             ),
             cfLogicalName: cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName),
             configParentResourceType,
@@ -3057,7 +3099,7 @@ export class ConfigManager {
           issuesEventSamplingRate?: number;
         })
       | undefined;
-    const stage = globalStateManager.targetStack?.stage;
+    const stage = this.stackContext.stage;
     const eventSamplingRate = Math.min(100, Math.max(1, Number(organization?.issuesEventSamplingRate || 100)));
 
     if (!organization || !stage) {
@@ -3085,7 +3127,7 @@ export class ConfigManager {
       };
     }
 
-    const projectName = globalStateManager.targetStack?.projectName;
+    const projectName = this.stackContext.projectName;
     const project = globalStateManager.projects?.find((projectData) => projectData.name === projectName) as
       | ((typeof globalStateManager.projects)[number] & { issuesEnabled?: boolean })
       | undefined;
@@ -3119,7 +3161,7 @@ export class ConfigManager {
 
   get isS3TransferAccelerationAvailableInDeploymentRegion(): boolean {
     return isTransferAccelerationEnabledInRegion({
-      region: globalStateManager.region
+      region: this.stackContext.region
     }); // 'ap-southeast-3']
   }
 
@@ -3127,7 +3169,7 @@ export class ConfigManager {
     return this.stackConfig.disableStackInfoSaving
       ? null
       : fsPaths.stackInfoDirectory({
-          workingDir: globalStateManager.workingDir,
+          workingDir: this.stackContext.workingDir,
           directoryName: this.stackConfig.stackInfoDirectory
         });
   }
@@ -3738,7 +3780,7 @@ export class ConfigManager {
       packaging: { type: 'helper-lambda', properties: helperLambdaData },
       type: 'function',
       artifactName,
-      resourceName: awsResourceNames.stpServiceLambda(globalStateManager.targetStack.stackName),
+      resourceName: awsResourceNames.stpServiceLambda(this.stackContext.stackName),
       cfLogicalName: cfLogicalNames.lambda(artifactName, true),
       timeout: 900,
       memory: 2048,
@@ -3749,9 +3791,9 @@ export class ConfigManager {
       configParentResourceType: 'custom-resource-definition',
       nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL, artifactName],
       environment: getStacktapeServiceLambdaEnvironment({
-        projectName: globalStateManager.targetStack.projectName,
+        projectName: this.stackContext.projectName,
         globallyUniqueStackHash: this.globallyUniqueStackHash,
-        stackName: globalStateManager.targetStack.stackName
+        stackName: this.stackContext.stackName
       }),
       iamRoleStatements: [
         ...getStacktapeServiceLambdaCustomResourceInducedStatements(),
@@ -3767,8 +3809,8 @@ export class ConfigManager {
     const artifactName = 'cdnOriginRequestLambda';
     const helperLambdaData = globalStateManager.helperLambdaDetails[artifactName];
     const lambdaResourceName = helperLambdaAwsResourceNames.originRequestEdgeLambda(
-      globalStateManager.targetStack.stackName,
-      globalStateManager.region
+      this.stackContext.stackName,
+      this.stackContext.region
     );
     return {
       name: artifactName,
@@ -3809,8 +3851,8 @@ export class ConfigManager {
     const artifactName = 'cdnOriginResponseLambda';
     const helperLambdaData = globalStateManager.helperLambdaDetails[artifactName];
     const lambdaResourceName = helperLambdaAwsResourceNames.originResponseEdgeLambda(
-      globalStateManager.targetStack.stackName,
-      globalStateManager.region
+      this.stackContext.stackName,
+      this.stackContext.region
     );
     return {
       name: artifactName,
@@ -4001,16 +4043,12 @@ export class ConfigManager {
     return this.allBuckets
       .filter((bucket) => bucket.directoryUpload)
       .map(({ name, directoryUpload }) => ({
-        bucketName: awsResourceNames.bucket(
-          name,
-          globalStateManager.targetStack.stackName,
-          this.globallyUniqueStackHash
-        ),
+        bucketName: awsResourceNames.bucket(name, this.stackContext.stackName, this.globallyUniqueStackHash),
         uploadConfiguration: {
           ...directoryUpload,
           directoryPath: isAbsolute(directoryUpload.directoryPath)
             ? directoryUpload.directoryPath
-            : join(globalStateManager.workingDir, directoryUpload.directoryPath)
+            : join(this.stackContext.workingDir, directoryUpload.directoryPath)
         },
         deleteRemoved: true,
         stpConfigBucketName: name

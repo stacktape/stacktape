@@ -3,7 +3,6 @@ import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
-import { globalStateManager } from '@application-services/global-state-manager';
 import TargetGroup from '@cloudform/elasticLoadBalancingV2/targetGroup';
 import LambdaPermission from '@cloudform/lambda/permission';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -58,10 +57,10 @@ export const resolveApplicationLoadBalancerEvents = ({
 };
 
 const buildLambdaTargetGroupArnArtificially = (targetDetails: LambdaTargetDetails) =>
-  `arn:aws:elasticloadbalancing:${globalStateManager.region}:${
-    globalStateManager.targetAwsAccount.awsAccountId
+  `arn:aws:elasticloadbalancing:${calculatedStackOverviewManager.context.region}:${
+    calculatedStackOverviewManager.context.accountId
   }:targetgroup/${awsResourceNames.lambdaTargetGroup(
-    globalStateManager.targetStack.stackName,
+    calculatedStackOverviewManager.context.stackName,
     targetDetails.stpResourceName,
     targetDetails.loadBalancerName
   )}/*`;
@@ -75,7 +74,7 @@ const getLambdaTargetGroup = (targetDetails: LambdaTargetDetails) => {
       }
     ],
     Name: awsResourceNames.lambdaTargetGroup(
-      globalStateManager.targetStack.stackName,
+      calculatedStackOverviewManager.context.stackName,
       targetDetails.stpResourceName,
       targetDetails.loadBalancerName
     )

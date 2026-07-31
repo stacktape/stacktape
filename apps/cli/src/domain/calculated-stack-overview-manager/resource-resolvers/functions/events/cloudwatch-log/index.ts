@@ -2,7 +2,6 @@ import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Ref, Select, Split } from '@cloudform/functions';
 import LambdaPermission from '@cloudform/lambda/permission';
 import SubscriptionFilter from '@cloudform/logs/subscriptionFilter';
@@ -73,7 +72,7 @@ const getLogServiceLambdaPermission = ({
 }) => {
   return new LambdaPermission({
     Action: 'lambda:InvokeFunction',
-    Principal: `logs.${globalStateManager.region}.amazonaws.com`,
+    Principal: `logs.${calculatedStackOverviewManager.context.region}.amazonaws.com`,
     FunctionName: lambdaEndpointArn,
     SourceArn: logGroupArn
   });

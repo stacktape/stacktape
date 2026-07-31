@@ -1,5 +1,5 @@
 import type { StpEfsFilesystem } from '@domain-services/config-manager/resolved-types/efs-filesystem';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import SecurityGroup from '@cloudform/ec2/securityGroup';
 import EfsFilesystem from '@cloudform/efs/fileSystem';
 import EfsMountTarget from '@cloudform/efs/mountTarget';
@@ -27,7 +27,7 @@ export const getEfsFilesystem = ({ efsConfig }: { efsConfig: StpEfsFilesystem })
 };
 
 export const getEfsSecurityGroup = ({ efsConfig }: { efsConfig: StpEfsFilesystem }) => {
-  const { stackName } = globalStateManager.targetStack;
+  const { stackName } = calculatedStackOverviewManager.context;
   const { name, nameChain } = efsConfig;
   return new SecurityGroup({
     GroupDescription: `Security group for EFS filesystem ${name}`,

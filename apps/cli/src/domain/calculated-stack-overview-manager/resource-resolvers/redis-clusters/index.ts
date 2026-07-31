@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Join, Ref } from '@cloudform/functions';
 import { defaultLogRetentionDays } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -32,7 +31,7 @@ export const resolveRedisClusters = async () => {
     });
 
     if (
-      globalStateManager.command === 'deploy' &&
+      calculatedStackOverviewManager.context.command === 'deploy' &&
       deployedStackOverviewManager.getStpResource({ nameChain: resource.nameChain }) &&
       existingRedisClusterSharding !== (isSharded ? 'enabled' : 'disabled')
     ) {

@@ -3,8 +3,18 @@ import { dirname, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
 import type { StacktapeConfig } from '@stacktape/config';
+import type { GetConfigParams } from '@stacktape/config-authoring/tooling';
 
 const smokeConfigPath = join(process.cwd(), '_test-stacks', 'config-loading-smoke', 'stacktape.ts');
+const smokeAuthoringParams: GetConfigParams = {
+  projectName: 'smoke',
+  stage: 'tst',
+  region: 'eu-west-1',
+  command: 'synth',
+  awsProfile: '',
+  cliArgs: {},
+  user: { id: 'smoke-user', name: 'Smoke User', email: 'smoke@example.com' }
+};
 
 const setSmokeState = () => {
   (globalStateManager as any).rawCommands = ['synth'];
@@ -34,7 +44,10 @@ const setSmokeState = () => {
 
 const smokeTestTsConfigLoading = async () => {
   const configResolver = new ConfigResolver();
-  const { config } = await configResolver.loadTypescriptConfig({ filePath: smokeConfigPath });
+  const { config } = await configResolver.loadTypescriptConfig({
+    filePath: smokeConfigPath,
+    authoringParams: smokeAuthoringParams
+  });
 
   assert.ok(config);
   assert.equal(config.resources.lambda.type, 'function');
@@ -42,6 +55,18 @@ const smokeTestTsConfigLoading = async () => {
     {
       name: 'CONFIG_LOADING_SUFFIX',
       value: 'config-loading-from-pkg-b'
+    },
+    {
+      name: 'CONFIG_LOADING_PROJECT',
+      value: 'smoke'
+    },
+    {
+      name: 'CONFIG_LOADING_REGION',
+      value: 'eu-west-1'
+    },
+    {
+      name: 'CONFIG_LOADING_STAGE',
+      value: 'tst'
     }
   ]);
 };

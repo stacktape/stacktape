@@ -1,5 +1,4 @@
 import type { StpBastion } from '@domain-services/config-manager/resolved-types/bastion';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -80,7 +79,7 @@ const resolveBastion = ({ bastion }: { bastion: StpBastion }) => {
       linkName: 'logs-audit',
       linkValue: cfEvaluatedLinks.logGroup(
         awsResourceNames.bastionLogGroup({
-          stackName: globalStateManager.targetStack.stackName,
+          stackName: calculatedStackOverviewManager.context.stackName,
           logType: 'audit',
           stpResourceName: bastion.name
         })
@@ -113,7 +112,7 @@ const resolveBastion = ({ bastion }: { bastion: StpBastion }) => {
       linkName: 'logs-secure',
       linkValue: cfEvaluatedLinks.logGroup(
         awsResourceNames.bastionLogGroup({
-          stackName: globalStateManager.targetStack.stackName,
+          stackName: calculatedStackOverviewManager.context.stackName,
           logType: 'secure',
           stpResourceName: bastion.name
         })
@@ -146,7 +145,7 @@ const resolveBastion = ({ bastion }: { bastion: StpBastion }) => {
       linkName: 'logs-messages',
       linkValue: cfEvaluatedLinks.logGroup(
         awsResourceNames.bastionLogGroup({
-          stackName: globalStateManager.targetStack.stackName,
+          stackName: calculatedStackOverviewManager.context.stackName,
           logType: 'messages',
           stpResourceName: bastion.name
         })

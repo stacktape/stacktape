@@ -3,7 +3,7 @@ import type {
   StpEdgeLambdaFunction,
   StpHelperEdgeLambdaFunction
 } from '@domain-services/config-manager/resolved-types/edge-lambda-functions';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { getLambdaRuntime } from '@domain-services/config-manager/utils/lambdas';
 import { resolveConnectToList } from '@domain-services/config-manager/utils/resource-references';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
@@ -18,7 +18,7 @@ import type { LambdaRuntime } from '@stacktape/config/primitives';
 
 export const getEdgeLambdaBucketCustomResource = () => {
   return getStpServiceCustomResource<'edgeLambdaBucket'>({
-    edgeLambdaBucket: { globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash }
+    edgeLambdaBucket: { globallyUniqueStackHash: calculatedStackOverviewManager.context.globallyUniqueStackHash }
   });
 };
 
@@ -72,16 +72,18 @@ const getEdgeLambdaCustomResourceProperties = (lambdaProps: StpEdgeLambdaFunctio
   }
   return {
     ...lambdaProps,
-    artifactBucketName: awsResourceNames.deploymentBucket(globalStateManager.targetStack.globallyUniqueStackHash),
-    globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+    artifactBucketName: awsResourceNames.deploymentBucket(
+      calculatedStackOverviewManager.context.globallyUniqueStackHash
+    ),
+    globallyUniqueStackHash: calculatedStackOverviewManager.context.globallyUniqueStackHash,
     artifactS3Key: NOT_YET_KNOWN_IDENTIFIER,
     lambdaLogGroupName: awsResourceNames.lambdaLogGroup({
       lambdaAwsResourceName: lambdaProps.resourceName,
       edgeLambda: true
     }),
     lambdaRoleResourceName: awsResourceNames.edgeLambdaRole(
-      globalStateManager.targetStack.stackName,
-      globalStateManager.region,
+      calculatedStackOverviewManager.context.stackName,
+      calculatedStackOverviewManager.context.region,
       lambdaProps.name
     ),
     preprocessedRolePolicies: getPoliciesForRoles({

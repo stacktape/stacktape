@@ -37,6 +37,24 @@ module.exports = {
       to: { path: '^apps/(?!cli/)' }
     },
     {
+      name: 'synthesis-does-not-read-cli-global-state',
+      severity: 'error',
+      from: { path: '^apps/cli/src/domain/calculated-stack-overview-manager/' },
+      to: { path: '^apps/cli/src/app/global-state-manager/' }
+    },
+    {
+      name: 'config-resolver-does-not-read-cli-global-state',
+      severity: 'error',
+      from: { path: '^apps/cli/src/domain/config-manager/config-resolver\\.ts$' },
+      to: { path: '^apps/cli/src/app/global-state-manager/' }
+    },
+    {
+      name: 'template-finalization-does-not-read-cli-global-state',
+      severity: 'error',
+      from: { path: '^apps/cli/src/domain/template-manager/finalize\\.ts$' },
+      to: { path: '^apps/cli/src/app/global-state-manager/' }
+    },
+    {
       name: 'docs-does-not-import-other-apps',
       severity: 'error',
       from: { path: '^apps/docs/' },

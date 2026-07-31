@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import EventBusArchive from '@cloudform/events/archive';
 import EventBus from '@cloudform/events/eventBus';
 
@@ -17,15 +16,16 @@ export const resolveEventBuses = async () => {
       resource: new EventBus({
         EventSourceName: eventBusConfig.eventSourceName,
         Name:
-          eventBusConfig.eventSourceName || awsResourceNames.eventBus(globalStateManager.targetStack.stackName, name)
+          eventBusConfig.eventSourceName ||
+          awsResourceNames.eventBus(calculatedStackOverviewManager.context.stackName, name)
       })
     });
     calculatedStackOverviewManager.addStacktapeResourceLink({
       nameChain,
       linkName: 'console',
       linkValue: consoleLinks.eventBus(
-        globalStateManager.region,
-        awsResourceNames.eventBus(globalStateManager.targetStack.stackName, name)
+        calculatedStackOverviewManager.context.region,
+        awsResourceNames.eventBus(calculatedStackOverviewManager.context.stackName, name)
       )
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({

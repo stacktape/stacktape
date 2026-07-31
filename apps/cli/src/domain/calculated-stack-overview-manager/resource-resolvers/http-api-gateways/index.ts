@@ -1,6 +1,5 @@
 import type { StacktapeResourceOutput } from '@domain-services/stack-info/types';
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Join } from '@cloudform/functions';
 import { defaultLogRetentionDays } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -53,7 +52,7 @@ export const resolveHttpApiGateways = async () => {
 };
 
 export const resolveHttpApiGateway = (definition: StpHttpApiGateway) => {
-  const { stackName } = globalStateManager.targetStack;
+  const { stackName } = calculatedStackOverviewManager.context;
   const { name, nameChain } = definition;
 
   resolveAlarmsForResource({ resource: definition });

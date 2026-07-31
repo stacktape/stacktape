@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Ref, Sub } from '@cloudform/functions';
 import { SUPPORTED_CF_INFRASTRUCTURE_MODULES } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -46,7 +45,7 @@ export const resolveAtlasMongoClusters = async () => {
     ) {
       throw new ExpectedError(
         'EXISTING_STACK',
-        `There is already a stack with name ${globalStateManager.targetStack.stackName} deployed in ${globalStateManager.region} which uses atlasMongo resources in major version "${existingMongoDeploymentMajorVersionMetadata}".\n` +
+        `There is already a stack with name ${calculatedStackOverviewManager.context.stackName} deployed in ${calculatedStackOverviewManager.context.region} which uses atlasMongo resources in major version "${existingMongoDeploymentMajorVersionMetadata}".\n` +
           `This version of stacktape uses major version "${SUPPORTED_CF_INFRASTRUCTURE_MODULES.atlasMongo.privateTypesMajorVersionUsed}". Updating stack might result in replacement of resources and data-loss.`
       );
     }

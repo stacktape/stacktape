@@ -1,7 +1,6 @@
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import Integration from '@cloudform/apiGatewayV2/integration';
 import { GetAtt, Ref } from '@cloudform/functions';
@@ -72,7 +71,7 @@ export const resolveHttpApiEvents = (definition: StpContainerWorkload) => {
         resource: getHttpApiRoute({ workloadName: definition.name, eventDetails: event.properties })
       });
       const authorizerName = awsResourceNames.httpApiAuthorizer({
-        stackName: globalStateManager.targetStack.stackName,
+        stackName: calculatedStackOverviewManager.context.stackName,
         workloadName: definition.name,
         path,
         method,
@@ -98,9 +97,9 @@ export const resolveHttpApiEvents = (definition: StpContainerWorkload) => {
             ? Ref(authorizerLambdaProps.aliasLogicalName)
             : GetAtt(authorizerLambdaProps.cfLogicalName, 'Arn');
           // `${arns.lambdaFromFullName({
-          //   accountId: globalStateManager.targetAwsAccount.awsAccountId,
+          //   accountId: calculatedStackOverviewManager.context.accountId,
           //   lambdaAwsName: authorizerLambdaProps.resourceName,
-          //   region: globalStateManager.region
+          //   region: calculatedStackOverviewManager.context.region
           // })}${authorizerLambdaProps.aliasLogicalName ? `:${awsResourceNames.lambdaStpAlias()}` : ''}`;
 
           const authorizerLambdaPermissionLogicalName = cfLogicalNames.httpApiLambdaPermission({
@@ -195,7 +194,7 @@ const getHttpApiContainerWorkloadIntegration = ({
 
 const getServiceDiscoveryEcsService = () => {
   return new ServiceDiscoveryService({
-    // Name: awsResourceNames.serviceDiscoveryEcsService(globalStateManager.targetStack.stackName, workloadName, targetContainerPort),
+    // Name: awsResourceNames.serviceDiscoveryEcsService(calculatedStackOverviewManager.context.stackName, workloadName, targetContainerPort),
     DnsConfig: {
       RoutingPolicy: 'MULTIVALUE',
       DnsRecords: [{ TTL: 60, Type: 'SRV' }]

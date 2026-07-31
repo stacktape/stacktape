@@ -1,7 +1,7 @@
 import type { CloudformationIamRoleStatement } from '@domain-services/cloudformation-stack-manager/types';
 import type { StpBucket } from '@domain-services/config-manager/resolved-types/buckets';
 import type { CorsConfiguration, CorsRule } from '@cloudform/s3/bucket';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { GetAtt, Join } from '@cloudform/functions';
 import S3Bucket, { Rule } from '@cloudform/s3/bucket';
 import S3BucketPolicy from '@cloudform/s3/bucketPolicy';
@@ -14,8 +14,8 @@ import type { BucketCorsConfig } from '@stacktape/config/buckets';
 export const getBucketPolicy = (stpBucketName: string, bucketConfig: StpBucket) => {
   const bucketName = awsResourceNames.bucket(
     stpBucketName,
-    globalStateManager.targetStack.stackName,
-    globalStateManager.targetStack.globallyUniqueStackHash
+    calculatedStackOverviewManager.context.stackName,
+    calculatedStackOverviewManager.context.globallyUniqueStackHash
   );
   const bucketPolicy = new S3BucketPolicy({
     Bucket: bucketName,
@@ -139,8 +139,8 @@ export const getBucketResource = (stpBucketName: string, bucketConfig: StpBucket
   return new S3Bucket({
     BucketName: awsResourceNames.bucket(
       stpBucketName,
-      globalStateManager.targetStack.stackName,
-      globalStateManager.targetStack.globallyUniqueStackHash
+      calculatedStackOverviewManager.context.stackName,
+      calculatedStackOverviewManager.context.globallyUniqueStackHash
     ),
     NotificationConfiguration: bucketConfig.enableEventBusNotifications
       ? {

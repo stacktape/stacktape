@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { RESOURCE_DEFAULTS } from '@config';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { ConfigManager, configManager } from '@domain-services/config-manager';
+import type { StackContext } from '@domain-services/stack-context';
 import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
@@ -27,31 +27,33 @@ import type { StacktapeConfig } from '@stacktape/config';
  */
 
 const configWith = (resources: StacktapeConfig['resources']): StacktapeConfig => ({ resources });
+const normalizationStackContext: StackContext = {
+  accountId: '123456789999',
+  command: 'synth',
+  globallyUniqueStackHash: 'xxxxxxxx',
+  invocationId: 'normalization-invocation',
+  projectName: 'normalization',
+  region: 'eu-west-1',
+  stackName: 'normalization-test',
+  stage: 'test',
+  workingDir: process.cwd()
+};
 
 const managerFor = (resources: StacktapeConfig['resources']) => {
   const manager = new ConfigManager();
+  manager.setStackContext(normalizationStackContext);
   manager.config = configWith(resources);
   return manager;
 };
 
-const originalTargetStack = globalStateManager.targetStack;
 const originalSingletonConfig = configManager.config;
-const originalRawArgs = globalStateManager.rawArgs;
 
 beforeAll(() => {
-  globalStateManager.targetStack = {
-    stackName: 'normalization-test',
-    globallyUniqueStackHash: 'xxxxxxxx',
-    stage: 'test',
-    projectName: 'normalization',
-    projectId: 'normalization-project'
-  };
-  globalStateManager.rawArgs = { ...(originalRawArgs || {}), region: 'eu-west-1' };
+  configManager.setStackContext(normalizationStackContext);
 });
 
 afterAll(() => {
-  globalStateManager.targetStack = originalTargetStack;
-  globalStateManager.rawArgs = originalRawArgs;
+  configManager.reset();
   configManager.config = originalSingletonConfig;
 });
 

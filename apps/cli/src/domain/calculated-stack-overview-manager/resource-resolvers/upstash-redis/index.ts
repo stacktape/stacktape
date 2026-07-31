@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Join } from '@cloudform/functions';
 import { SUPPORTED_CF_INFRASTRUCTURE_MODULES } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -59,8 +58,8 @@ export const resolveUpstashRedisDatabases = async () => {
         moduleType: 'upstashRedis',
         moduleMajorVersionUsedByStacktape:
           SUPPORTED_CF_INFRASTRUCTURE_MODULES.upstashRedis.privateTypesMajorVersionUsed,
-        region: globalStateManager.region,
-        stackName: globalStateManager.targetStack.stackName
+        region: calculatedStackOverviewManager.context.region,
+        stackName: calculatedStackOverviewManager.context.stackName
       });
     }
 

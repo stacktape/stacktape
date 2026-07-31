@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import PrivateDnsNamespace from '@cloudform/serviceDiscovery/privateDnsNamespace';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -14,7 +13,7 @@ export const resolveServiceDiscoveryPrivateNamespace = async () => {
       cfLogicalName: cfLogicalNames.serviceDiscoveryPrivateNamespace(),
       nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
       resource: new PrivateDnsNamespace({
-        Name: awsResourceNames.serviceDiscoveryPrivateNamespace(globalStateManager.targetStack.stackName),
+        Name: awsResourceNames.serviceDiscoveryPrivateNamespace(calculatedStackOverviewManager.context.stackName),
         Vpc: vpcManager.getVpcId(),
         Tags: stackManager.getTags()
       })

@@ -1,6 +1,5 @@
 import { GetAtt } from '@cloudform/functions';
 import Role, { Policy } from '@cloudform/iam/role';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { tagNames } from '@stacktape/naming/tag-names';
@@ -15,7 +14,7 @@ const DEBUG_AGENT_ROLE_LOGICAL_NAME = 'StpDebugAgentRole';
  * Also allows SSM parameter access for connection strings.
  */
 export const resolveDebugAgentRole = () => {
-  const { stackName, globallyUniqueStackHash } = globalStateManager.targetStack;
+  const { stackName, globallyUniqueStackHash } = calculatedStackOverviewManager.context;
 
   const stackTagCondition = {
     StringEquals: {

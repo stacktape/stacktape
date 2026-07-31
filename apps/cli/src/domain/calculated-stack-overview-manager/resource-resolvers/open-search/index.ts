@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -37,7 +36,7 @@ export const resolveOpenSearchDomains = () => {
           resource: {
             ...openSearchDomain,
             logging: finalLoggingConfig
-            // name: awsResourceNames.openSearchDomainName(openSearchDomain.name, globalStateManager.targetStack.stackName)
+            // name: awsResourceNames.openSearchDomainName(openSearchDomain.name, calculatedStackOverviewManager.context.stackName)
           }
         }),
         DependsOn: [cfLogicalNames.openSearchCustomResource(openSearchDomain.name)]
@@ -68,8 +67,8 @@ export const resolveOpenSearchDomains = () => {
               domainName: openSearchDomain.name,
               logGroupType: logType,
               retentionDays: loggingConfig.retentionDays,
-              region: globalStateManager.region,
-              stackName: globalStateManager.targetStack.stackName
+              region: calculatedStackOverviewManager.context.region,
+              stackName: calculatedStackOverviewManager.context.stackName
             })
           });
         }

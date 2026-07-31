@@ -1,6 +1,6 @@
 import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getAlarmDescription } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/alarms/descriptions';
@@ -58,11 +58,11 @@ const getDatabaseCPUUtilizationAlarmForAurora = ({
     })
   );
   return new CloudwatchAlarm({
-    AlarmName: awsResourceNames.cloudwatchAlarm(globalStateManager.targetStack.stackName, alarm.name),
+    AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
     AlarmDescription:
       alarm.description ||
       getAlarmDescription({
-        stackName: globalStateManager.targetStack.stackName,
+        stackName: calculatedStackOverviewManager.context.stackName,
         stpResourceName: resource.name,
         triggerType: trigger.type,
         comparisonOperator,
@@ -102,11 +102,11 @@ const getDatabaseCPUUtilizationAlarmForAuroraServerless = ({
   const threshold = trigger.properties.thresholdPercent;
   const statFunction = getStatFunction({ alarm });
   return new CloudwatchAlarm({
-    AlarmName: awsResourceNames.cloudwatchAlarm(globalStateManager.targetStack.stackName, alarm.name),
+    AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
     AlarmDescription:
       alarm.description ||
       getAlarmDescription({
-        stackName: globalStateManager.targetStack.stackName,
+        stackName: calculatedStackOverviewManager.context.stackName,
         stpResourceName: resource.name,
         triggerType: trigger.type,
         comparisonOperator,
@@ -144,11 +144,11 @@ const getDatabaseCPUUtilizationAlarmForRegularRds = ({
   const threshold = trigger.properties.thresholdPercent;
   const statFunction = getStatFunction({ alarm });
   return new CloudwatchAlarm({
-    AlarmName: awsResourceNames.cloudwatchAlarm(globalStateManager.targetStack.stackName, alarm.name),
+    AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
     AlarmDescription:
       alarm.description ||
       getAlarmDescription({
-        stackName: globalStateManager.targetStack.stackName,
+        stackName: calculatedStackOverviewManager.context.stackName,
         stpResourceName: resource.name,
         triggerType: trigger.type,
         comparisonOperator,

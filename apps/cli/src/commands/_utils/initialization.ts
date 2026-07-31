@@ -32,6 +32,19 @@ import { getErrorHandler, loggingPlugin } from '@utils/aws-sdk-manager/utils';
 import { logCollectorStream } from '@utils/log-collector';
 import { ensureAwsAccountConnected } from './aws-connection-preflight';
 import { assertCommandPermissions, assertScopedProjectAccess } from './permission-guards';
+import type { StackContext } from '@domain-services/stack-context';
+
+export const getStackContext = (): StackContext => ({
+  accountId: globalStateManager.targetAwsAccount.awsAccountId,
+  command: globalStateManager.command,
+  globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+  invocationId: globalStateManager.invocationId,
+  projectName: globalStateManager.targetStack.projectName,
+  region: globalStateManager.region,
+  stackName: globalStateManager.targetStack.stackName,
+  stage: globalStateManager.targetStack.stage,
+  workingDir: globalStateManager.workingDir
+});
 
 export const loadTargetStackContext = async () => {
   await configManager.loadRawConfigOnly();
@@ -119,7 +132,8 @@ export const initializeAllStackServices = async ({
   } else {
     await loadLocalAwsContext();
   }
-  await configManager.init({ configRequired: true });
+  const stackContext = getStackContext();
+  await configManager.init({ configRequired: true, stackContext });
 
   if (loadGlobalConfig && requiresControlPlane) {
     await configManager.loadGlobalConfig();
@@ -179,7 +193,7 @@ export const initializeAllStackServices = async ({
       stackResources: stackManager.existingStackResources,
       budgetInfo: budgetManager.getBudgetInfoForSpecifiedStack({ stackName: globalStateManager.targetStack.stackName })
     }),
-    calculatedStackOverviewManager.init(),
+    calculatedStackOverviewManager.init({ context: stackContext }),
     cloudfrontManager.init(),
     deploymentArtifactManager.init({
       accountId: globalStateManager.targetAwsAccount.awsAccountId,
@@ -219,7 +233,8 @@ export const initializeStackServicesForLocalResolve = async () => {
   await recordStackOperationStart();
 
   await loadTargetStackContext();
-  await configManager.init({ configRequired: true });
+  const stackContext = getStackContext();
+  await configManager.init({ configRequired: true, stackContext });
 
   await settleAllBeforeThrowing([
     startStackOperationRecording({
@@ -243,7 +258,7 @@ export const initializeStackServicesForLocalResolve = async () => {
       stackDetails: stackManager.existingStackDetails,
       stackResources: stackManager.existingStackResources
     }),
-    calculatedStackOverviewManager.init(),
+    calculatedStackOverviewManager.init({ context: stackContext }),
     packagingManager.init()
   ]);
   await eventManager.registerHooks(configManager.hooks);
@@ -255,7 +270,8 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
   await recordStackOperationStart();
 
   await loadTargetStackContext();
-  await configManager.init({ configRequired: true });
+  const stackContext = getStackContext();
+  await configManager.init({ configRequired: true, stackContext });
 
   await settleAllBeforeThrowing([
     startStackOperationRecording({
@@ -282,7 +298,7 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
       stackDetails: stackManager.existingStackDetails,
       stackResources: stackManager.existingStackResources
     }),
-    calculatedStackOverviewManager.init(),
+    calculatedStackOverviewManager.init({ context: stackContext }),
     packagingManager.init(),
     deploymentArtifactManager.init({
       globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
@@ -327,7 +343,9 @@ export const initializeStackServicesForDevPhase1 = async () => {
   });
 
   await loadTargetStackContext();
-  await configManager.init({ configRequired: true });
+  const stackContext = getStackContext();
+  await configManager.init({ configRequired: true, stackContext });
+  await calculatedStackOverviewManager.init({ context: stackContext });
   await packagingManager.init();
 
   // Register hooks (but don't process yet - local resources need to start first)
@@ -395,7 +413,8 @@ export const initializeStackServicesForWorkingWithDeployedStack = async ({
   });
   await startStackOperationRecording({ stackName: globalStateManager.targetStack.stackName });
 
-  await configManager.init({ configRequired: commandRequiresConfig });
+  const stackContext = getStackContext();
+  await configManager.init({ configRequired: commandRequiresConfig, stackContext });
 
   const stackName = globalStateManager.targetStack.stackName;
 

@@ -1,7 +1,7 @@
 import type { StpBatchJob } from '@domain-services/config-manager/resolved-types/batch-jobs';
 import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
 import type { ContainerProperties } from '@cloudform/batch/jobDefinition';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import ComputeEnvironment, { ComputeResources } from '@cloudform/batch/computeEnvironment';
 import JobDefinition from '@cloudform/batch/jobDefinition';
 import JobQueue from '@cloudform/batch/jobQueue';
@@ -67,7 +67,7 @@ export const getBatchStateMachineExecutionRole = () =>
             {
               Action: ['events:PutTargets', 'events:PutRule', 'events:DescribeRule'],
               Resource: [
-                `arn:aws:events:${globalStateManager.region}:${globalStateManager.targetAwsAccount.awsAccountId}:rule/StepFunctionsGetEventsForBatchJobsRule`
+                `arn:aws:events:${calculatedStackOverviewManager.context.region}:${calculatedStackOverviewManager.context.accountId}:rule/StepFunctionsGetEventsForBatchJobsRule`
               ],
               Effect: 'Allow'
             }
@@ -94,8 +94,8 @@ export const getBatchJobExecutionRole = ({
   new IAMRole({
     Path: '/',
     RoleName: awsResourceNames.batchJobRole(
-      globalStateManager.targetStack.stackName,
-      globalStateManager.region,
+      calculatedStackOverviewManager.context.stackName,
+      calculatedStackOverviewManager.context.region,
       workloadName
     ),
     AssumeRolePolicyDocument: {
@@ -144,15 +144,15 @@ export const getBatchInstanceProfile = () =>
 export const getBatchInstanceDefaultSecurityGroup = () =>
   new SecurityGroup({
     VpcId: vpcManager.getVpcId(),
-    GroupName: awsResourceNames.batchInstanceDefaultSecurityGroup(globalStateManager.targetStack.stackName),
-    GroupDescription: `Stacktape generated security group for batch ec2 instances in stack ${globalStateManager.targetStack.stackName}`
+    GroupName: awsResourceNames.batchInstanceDefaultSecurityGroup(calculatedStackOverviewManager.context.stackName),
+    GroupDescription: `Stacktape generated security group for batch ec2 instances in stack ${calculatedStackOverviewManager.context.stackName}`
   });
 /**
  * Generates Launch Template used by compute environments. This launch template increases disk size for every instance spawned into compute environment
  */
 export const getIncreasedDiskSizeLaunchTemplate = () =>
   new LaunchTemplate({
-    LaunchTemplateName: awsResourceNames.batchInstanceLaunchTemplate(globalStateManager.targetStack.stackName),
+    LaunchTemplateName: awsResourceNames.batchInstanceLaunchTemplate(calculatedStackOverviewManager.context.stackName),
     LaunchTemplateData: {
       BlockDeviceMappings: [
         {
@@ -197,7 +197,7 @@ export const getBatchComputeEnvironment = ({ spot, gpu }: { spot: boolean; gpu: 
     tagObject[Key] = Value;
   });
   return new ComputeEnvironment({
-    // ComputeEnvironmentName: awsResourceNames.batchComputeEnvironment(globalStateManager.targetStack.stackName, spot, gpu),
+    // ComputeEnvironmentName: awsResourceNames.batchComputeEnvironment(calculatedStackOverviewManager.context.stackName, spot, gpu),
     ServiceRole: GetAtt(cfLogicalNames.batchServiceRole(), 'Arn'),
     State: 'ENABLED',
     Type: 'MANAGED',
@@ -208,7 +208,7 @@ export const getBatchComputeEnvironment = ({ spot, gpu }: { spot: boolean; gpu: 
 
 export const getBatchJobQueue = ({ spot, gpu }: { spot: boolean; gpu: boolean }) =>
   new JobQueue({
-    JobQueueName: awsResourceNames.batchJobQueue(globalStateManager.targetStack.stackName, spot, gpu),
+    JobQueueName: awsResourceNames.batchJobQueue(calculatedStackOverviewManager.context.stackName, spot, gpu),
     Priority: 10,
     State: 'ENABLED',
     ComputeEnvironmentOrder: [
@@ -259,7 +259,7 @@ export const getBatchJobDefinitionContainerProperties = ({
       ? {
           LogDriver: 'awslogs',
           Options: {
-            'awslogs-region': globalStateManager.region as string,
+            'awslogs-region': calculatedStackOverviewManager.context.region as string,
             'awslogs-group': Ref(cfLogicalNames.batchJobLogGroup(name)),
             'awslogs-stream-prefix': 'batch'
           }
@@ -279,7 +279,7 @@ export const getBatchJobDefinitionContainerProperties = ({
 
 export const getBatchJobDefinition = ({ name, workload }: { name: string; workload: StpBatchJob }) => {
   return new JobDefinition({
-    JobDefinitionName: awsResourceNames.batchJobDefinition(name, globalStateManager.targetStack.stackName),
+    JobDefinitionName: awsResourceNames.batchJobDefinition(name, calculatedStackOverviewManager.context.stackName),
     Type: 'container',
     PropagateTags: true,
     ContainerProperties: getBatchJobDefinitionContainerProperties({
@@ -347,7 +347,7 @@ export const getBatchStateMachineDefinitionString = (
               },
               {
                 Name: 'AWS_REGION',
-                Value: globalStateManager.region
+                Value: calculatedStackOverviewManager.context.region
               }
             ]
           },

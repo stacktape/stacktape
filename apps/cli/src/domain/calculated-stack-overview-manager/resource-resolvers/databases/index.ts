@@ -1,5 +1,4 @@
 import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Join, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -93,7 +92,7 @@ export const resolveDatabases = async () => {
           linkName: `logs-${logGroupType}`,
           linkValue: cfEvaluatedLinks.logGroup(
             awsResourceNames.dbLogGroup(
-              awsResourceNames.dbCluster(globalStateManager.targetStack.stackName, name),
+              awsResourceNames.dbCluster(calculatedStackOverviewManager.context.stackName, name),
               true,
               logGroupType
             )
@@ -283,7 +282,7 @@ export const resolveDatabases = async () => {
           linkName: `logs-${logGroupType}`,
           linkValue: cfEvaluatedLinks.logGroup(
             awsResourceNames.dbLogGroup(
-              awsResourceNames.dbInstance(name, globalStateManager.targetStack.stackName),
+              awsResourceNames.dbInstance(name, calculatedStackOverviewManager.context.stackName),
               false,
               logGroupType
             )
@@ -381,7 +380,7 @@ export const resolveDatabases = async () => {
                 linkName: `logs-replica-${index}-${logGroupType}`,
                 linkValue: cfEvaluatedLinks.logGroup(
                   awsResourceNames.dbLogGroup(
-                    awsResourceNames.dbReplicaInstance(name, globalStateManager.targetStack.stackName, index),
+                    awsResourceNames.dbReplicaInstance(name, calculatedStackOverviewManager.context.stackName, index),
                     false,
                     logGroupType
                   )

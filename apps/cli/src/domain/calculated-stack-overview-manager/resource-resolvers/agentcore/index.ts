@@ -13,7 +13,6 @@ import RuntimeEndpoint from '@cloudform/bedrockAgentCore/runtimeEndpoint';
 import type SecurityGroup from '@cloudform/ec2/securityGroup';
 import { GetAtt, Join, Ref } from '@cloudform/functions';
 import Role, { Policy } from '@cloudform/iam/role';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToLambdaFunction } from '@domain-services/config-manager/utils/lambdas';
@@ -55,7 +54,7 @@ export const resolveAgentCoreResources = async () => {
 const resolveAgentCoreRuntimes = () => {
   configManager.agentCoreRuntimes.forEach((runtime) => {
     const { name, nameChain } = runtime;
-    const stackName = globalStateManager.targetStack.stackName;
+    const stackName = calculatedStackOverviewManager.context.stackName;
     const {
       accessToResourcesRequiringRoleChanges,
       accessToResourcesPotentiallyRequiringSecurityGroupCreation,
@@ -216,7 +215,7 @@ const resolveAgentCoreMemories = () => {
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName,
       resource: new Memory({
-        Name: awsResourceNames.agentCoreMemory(globalStateManager.targetStack.stackName, memory.name),
+        Name: awsResourceNames.agentCoreMemory(calculatedStackOverviewManager.context.stackName, memory.name),
         Description: memory.description,
         EventExpiryDuration: memory.eventExpiryDuration || memory.expirationDays || 30,
         EncryptionKeyArn: memory.encryptionKeyArn,
@@ -258,7 +257,7 @@ const resolveAgentCoreGateways = () => {
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName,
       resource: new Gateway({
-        Name: awsResourceNames.agentCoreGateway(globalStateManager.targetStack.stackName, name),
+        Name: awsResourceNames.agentCoreGateway(calculatedStackOverviewManager.context.stackName, name),
         Description: gateway.description,
         AuthorizerType: gateway.authorizer ? 'CUSTOM_JWT' : 'NONE',
         AuthorizerConfiguration: getAuthorizerConfiguration(gateway.authorizer),
@@ -302,7 +301,11 @@ const resolveAgentCoreGateways = () => {
         cfLogicalName: targetLogicalName,
         resource: new GatewayTarget({
           GatewayIdentifier: Ref(cfLogicalName),
-          Name: awsResourceNames.agentCoreGatewayTarget(globalStateManager.targetStack.stackName, name, tool.name),
+          Name: awsResourceNames.agentCoreGatewayTarget(
+            calculatedStackOverviewManager.context.stackName,
+            name,
+            tool.name
+          ),
           Description: tool.description,
           CredentialProviderConfigurations: [{ CredentialProviderType: 'GATEWAY_IAM_ROLE' }],
           TargetConfiguration: {
@@ -355,7 +358,7 @@ const resolveAgentCoreBrowsers = () => {
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName,
       resource: new BrowserCustom({
-        Name: awsResourceNames.agentCoreBrowser(globalStateManager.targetStack.stackName, browser.name),
+        Name: awsResourceNames.agentCoreBrowser(calculatedStackOverviewManager.context.stackName, browser.name),
         Description: browser.description,
         ExecutionRoleArn: GetAtt(roleLogicalName, 'Arn'),
         NetworkConfiguration: { NetworkMode: 'PUBLIC' },
@@ -390,7 +393,10 @@ const resolveAgentCoreCodeInterpreters = () => {
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName,
       resource: new CodeInterpreterCustom({
-        Name: awsResourceNames.agentCoreCodeInterpreter(globalStateManager.targetStack.stackName, codeInterpreter.name),
+        Name: awsResourceNames.agentCoreCodeInterpreter(
+          calculatedStackOverviewManager.context.stackName,
+          codeInterpreter.name
+        ),
         Description: codeInterpreter.description,
         ExecutionRoleArn: GetAtt(roleLogicalName, 'Arn'),
         NetworkConfiguration: { NetworkMode: 'PUBLIC' },
@@ -417,8 +423,8 @@ const getAgentCoreExecutionRole = ({
 }) =>
   new Role({
     RoleName: awsResourceNames.agentCoreRole(
-      globalStateManager.targetStack.stackName,
-      globalStateManager.region,
+      calculatedStackOverviewManager.context.stackName,
+      calculatedStackOverviewManager.context.region,
       stpResourceName,
       roleSuffix
     ),

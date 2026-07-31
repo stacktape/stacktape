@@ -5,7 +5,7 @@ import type {
 } from '@domain-services/config-manager/resolved-types/mongo-db-atlas-clusters';
 import type { IntrinsicFunction } from '@cloudform/dataTypes';
 import type Resource from '@cloudform/resource';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import Route from '@cloudform/ec2/route';
 import { GetAtt, Ref } from '@cloudform/functions';
 import { configManager } from '@domain-services/config-manager';
@@ -29,8 +29,8 @@ export const getAtlasMongoProjectResource = () => {
     Type: resourceType,
     Properties: {
       Name: awsResourceNames.atlasMongoProject(
-        globalStateManager.targetStack.stackName,
-        globalStateManager.targetStack.globallyUniqueStackHash
+        calculatedStackOverviewManager.context.stackName,
+        calculatedStackOverviewManager.context.globallyUniqueStackHash
       ),
       OrgId: atlasMongoProviderConfig.organizationId,
       ApiKeys: {
@@ -49,7 +49,7 @@ export const getAtlasMongoNetworkContainerResource = () => {
     DependsOn: [cfLogicalNames.atlasMongoProject()],
     Properties: {
       ProjectId: Ref(cfLogicalNames.atlasMongoProject()),
-      RegionName: snakeCase(globalStateManager.region).toUpperCase(),
+      RegionName: snakeCase(calculatedStackOverviewManager.context.region).toUpperCase(),
       ProviderName: 'AWS',
       AtlasCidrBlock: getAtlasVpcNetworkContainerCidrBlock(),
       ApiKeys: {
@@ -69,8 +69,8 @@ export const getAtlasMongoNetworkPeeringResource = () => {
     Properties: {
       ProjectId: Ref(cfLogicalNames.atlasMongoProject()),
       ContainerId: Ref(cfLogicalNames.atlasMongoProjectVpcNetworkContainer()),
-      AccepterRegionName: globalStateManager.region, // snakeCase(configManager.region).toUpperCase(),
-      AwsAccountId: globalStateManager.targetAwsAccount.awsAccountId,
+      AccepterRegionName: calculatedStackOverviewManager.context.region, // snakeCase(configManager.region).toUpperCase(),
+      AwsAccountId: calculatedStackOverviewManager.context.accountId,
       RouteTableCidrBlock: vpcManager.getVpcCidr(),
       VpcId: vpcManager.getVpcId(),
       ProviderName: 'AWS',
@@ -321,8 +321,10 @@ export const getAtlasMongoClusterResource = ({
         InstanceSizeName: resource.clusterTier,
         RegionName: snakeCase(
           resource.clusterTier === 'M2' || resource.clusterTier === 'M5'
-            ? findBestFittingRegionForMongoSharedTier({ stackDeploymentRegion: globalStateManager.region })
-            : globalStateManager.region
+            ? findBestFittingRegionForMongoSharedTier({
+                stackDeploymentRegion: calculatedStackOverviewManager.context.region
+              })
+            : calculatedStackOverviewManager.context.region
         ).toUpperCase(),
         AutoScaling: resource.autoScaling &&
           (resource.autoScaling.minClusterTier || resource.autoScaling.maxClusterTier) && {
@@ -338,7 +340,7 @@ export const getAtlasMongoClusterResource = ({
           NumShards: resource.numShards || 1,
           RegionsConfig: [
             {
-              RegionName: snakeCase(globalStateManager.region).toUpperCase(),
+              RegionName: snakeCase(calculatedStackOverviewManager.context.region).toUpperCase(),
               AnalyticsNodes: resource.replication.numAnalyticsNodes || 0,
               ElectableNodes: resource.replication.numElectableNodes || 3,
               ReadOnlyNodes: resource.replication.numReadOnlyNodes || 0,

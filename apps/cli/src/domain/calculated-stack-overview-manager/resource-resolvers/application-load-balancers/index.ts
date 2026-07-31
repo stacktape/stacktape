@@ -1,6 +1,5 @@
 import type { StacktapeResourceOutput } from '@domain-services/stack-info/types';
 import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Join, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -53,7 +52,7 @@ export const resolveApplicationLoadBalancers = async () => {
 };
 
 export const resolveApplicationLoadBalancer = ({ definition }: { definition: StpApplicationLoadBalancer }) => {
-  const { stackName } = globalStateManager.targetStack;
+  const { stackName } = calculatedStackOverviewManager.context;
   const finalDefinition = transformLoadBalancerToListenerForm({ definition });
 
   resolveAlarmsForResource({ resource: definition });

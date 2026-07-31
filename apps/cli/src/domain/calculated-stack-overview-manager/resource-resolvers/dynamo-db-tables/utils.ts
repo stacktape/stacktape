@@ -1,7 +1,7 @@
 import type { Subtype } from '@utils/type-helpers';
 import type { StpDynamoTable } from '@domain-services/config-manager/resolved-types/dynamo-db-tables';
 import type { AttributeDefinition, KeySchema } from '@cloudform/dynamoDb/table';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import ScalableTarget from '@cloudform/applicationAutoScaling/scalableTarget';
 import ScalingPolicy from '@cloudform/applicationAutoScaling/scalingPolicy';
 import GlobalTable from '@cloudform/dynamoDb/globalTable';
@@ -60,7 +60,7 @@ export const getDynamoGlobalTableResource = ({ resource }: { resource: StpDynamo
     BillingMode: resource.provisionedThroughput ? 'PROVISIONED' : 'PAY_PER_REQUEST',
     Replicas: [
       {
-        Region: globalStateManager.region,
+        Region: calculatedStackOverviewManager.context.region,
         PointInTimeRecoverySpecification: {
           PointInTimeRecoveryEnabled: resource.enablePointInTimeRecovery || false
         },
@@ -91,8 +91,8 @@ export const getDynamoGlobalTableResource = ({ resource }: { resource: StpDynamo
     StreamSpecification: resource.streamType && { StreamViewType: resource.streamType },
     TableName: awsResourceNames.dynamoGlobalTable(
       resource.name,
-      globalStateManager.targetStack.globallyUniqueStackHash,
-      globalStateManager.targetStack.stackName
+      calculatedStackOverviewManager.context.globallyUniqueStackHash,
+      calculatedStackOverviewManager.context.stackName
     ),
     GlobalSecondaryIndexes: resource.secondaryIndexes?.length
       ? resource.secondaryIndexes.map(({ name, partitionKey, sortKey, projections }) => ({
@@ -123,7 +123,7 @@ export const getDynamoTableResource = ({ resource }: { resource: StpDynamoTable 
       WriteCapacityUnits: resource.provisionedThroughput.writeUnits
     },
     StreamSpecification: resource.streamType && { StreamViewType: resource.streamType },
-    TableName: awsResourceNames.dynamoRegionalTable(resource.name, globalStateManager.targetStack.stackName)
+    TableName: awsResourceNames.dynamoRegionalTable(resource.name, calculatedStackOverviewManager.context.stackName)
   });
 
 export const getScalingPolicyForDynamoTableProvisionedCapacity = ({
@@ -134,7 +134,11 @@ export const getScalingPolicyForDynamoTableProvisionedCapacity = ({
   metric: Subtype<keyof StpDynamoTable['provisionedThroughput'], 'readScaling' | 'writeScaling'>;
 }) => {
   return new ScalingPolicy({
-    PolicyName: awsResourceNames.autoScalingPolicy(resource.name, globalStateManager.targetStack.stackName, metric),
+    PolicyName: awsResourceNames.autoScalingPolicy(
+      resource.name,
+      calculatedStackOverviewManager.context.stackName,
+      metric
+    ),
     PolicyType: 'TargetTrackingScaling',
     ScalingTargetId: Ref(cfLogicalNames.dynamoAutoScalingTarget(resource.name, metric)),
     TargetTrackingScalingPolicyConfiguration: {

@@ -1,6 +1,6 @@
 import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getCustomAlarmDescription } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/alarms/descriptions';
@@ -21,11 +21,11 @@ export const getApplicationLoadBalancerCustomAlarm = ({
   const threshold = trigger.properties.threshold;
   const statFunction = getStatFunction({ alarm });
   return new CloudwatchAlarm({
-    AlarmName: awsResourceNames.cloudwatchAlarm(globalStateManager.targetStack.stackName, alarm.name),
+    AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
     AlarmDescription:
       alarm.description ||
       getCustomAlarmDescription({
-        stackName: globalStateManager.targetStack.stackName,
+        stackName: calculatedStackOverviewManager.context.stackName,
         stpResourceName: resource.name,
         metricName: trigger.properties.metric,
         comparisonOperator,

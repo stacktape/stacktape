@@ -1,7 +1,7 @@
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import type { Dimension } from '@cloudform/cloudWatch/alarm';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
 import { Join, Ref } from '@cloudform/functions';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -43,11 +43,11 @@ export const getLambdaDurationAlarm = ({
   const threshold = trigger.properties.thresholdMilliseconds;
   const statFunction = getStatFunction({ alarm });
   return new CloudwatchAlarm({
-    AlarmName: awsResourceNames.cloudwatchAlarm(globalStateManager.targetStack.stackName, alarm.name),
+    AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
     AlarmDescription:
       alarm.description ||
       getAlarmDescription({
-        stackName: globalStateManager.targetStack.stackName,
+        stackName: calculatedStackOverviewManager.context.stackName,
         stpResourceName: resource.name,
         triggerType: trigger.type,
         comparisonOperator,

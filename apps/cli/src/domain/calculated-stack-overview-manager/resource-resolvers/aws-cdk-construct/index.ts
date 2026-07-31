@@ -3,7 +3,6 @@ import type { StpAwsCdkConstruct } from '@domain-services/config-manager/resolve
 import type { Stack as ImportedCdkStack } from 'aws-cdk-lib';
 import type { Construct as ImportedCdkConstruct } from 'constructs';
 import { dirname, join } from 'node:path';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
@@ -30,7 +29,7 @@ export const resolveAwsCdkConstructs = async () => {
       const { filePath, extension } = parseUserCodeFilepath({
         fullPath: entryfilePath,
         codeType: 'CONSTRUCT',
-        workingDir: globalStateManager.workingDir
+        workingDir: calculatedStackOverviewManager.context.workingDir
       });
       // find out if cdk libs (aws-cdk-lib + constructs) are available in folder of the construct
       // if yes, we will load them (to match exact aws-cdk-lib that user used for developing construct)
@@ -59,7 +58,7 @@ export const resolveAwsCdkConstructs = async () => {
 
       const synthOutDir = fsPaths.absoluteAwsCdkConstructArtifactFolderPath({
         constructName: resource.name,
-        invocationId: globalStateManager.invocationId
+        invocationId: calculatedStackOverviewManager.context.invocationId
       });
       // instantiate app into which we will add construct
       const cdkApp = new App({

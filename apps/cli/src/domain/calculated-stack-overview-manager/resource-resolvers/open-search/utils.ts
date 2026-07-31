@@ -1,7 +1,7 @@
 import type { StpOpenSearchDomain } from '@domain-services/config-manager/resolved-types/open-search';
 import type { Ingress } from '@cloudform/ec2/securityGroup';
 import type { DomainProperties } from '@cloudform/openSearchService/domain';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import SecurityGroup from '@cloudform/ec2/securityGroup';
 import { GetAtt, Ref } from '@cloudform/functions';
 import LogGroup from '@cloudform/logs/logGroup';
@@ -16,7 +16,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 export const getOpenSearchDomainResource = ({ resource }: { resource: StpOpenSearchDomain }) => {
   const input: DomainProperties = {
-    DomainName: awsResourceNames.openSearchDomainName(resource.name, globalStateManager.targetStack.stackName),
+    DomainName: awsResourceNames.openSearchDomainName(resource.name, calculatedStackOverviewManager.context.stackName),
     ClusterConfig: {
       InstanceType: resource.clusterConfig?.instanceType,
       InstanceCount: resource.clusterConfig?.instanceCount
@@ -166,8 +166,8 @@ export const getOpenSearchDomainSecurityGroup = ({ resource }: { resource: StpOp
         : [];
   return new SecurityGroup({
     VpcId: vpcManager.getVpcId(),
-    GroupName: awsResourceNames.dbSecurityGroup(resource.name, globalStateManager.targetStack.stackName),
-    GroupDescription: `Stacktape generated security group for database ${resource.name} in stack ${globalStateManager.targetStack.stackName}`,
+    GroupName: awsResourceNames.dbSecurityGroup(resource.name, calculatedStackOverviewManager.context.stackName),
+    GroupDescription: `Stacktape generated security group for database ${resource.name} in stack ${calculatedStackOverviewManager.context.stackName}`,
     SecurityGroupIngress: basicIngressRules
   });
 };

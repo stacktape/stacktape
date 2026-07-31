@@ -1,6 +1,5 @@
 import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
 import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -16,11 +15,8 @@ import type { ResourceOverrides } from '@stacktape/config/shared';
 import { templateManager } from '.';
 
 const setTemplateDescriptions = () => {
-  const description = getStackCfTemplateDescription(
-    globalStateManager.targetStack.projectName,
-    globalStateManager.targetStack.stage,
-    globalStateManager.targetStack.globallyUniqueStackHash
-  );
+  const { globallyUniqueStackHash, projectName, stage } = calculatedStackOverviewManager.context;
+  const description = getStackCfTemplateDescription(projectName, stage, globallyUniqueStackHash);
   templateManager.template.Description = description;
   templateManager.initialTemplate.Description = description;
 };

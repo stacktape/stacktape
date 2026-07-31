@@ -8,7 +8,6 @@ import {
 } from '@stacktape/config-authoring/tooling';
 import type { DirectiveParam } from '@utils/directives';
 import { join } from 'node:path';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { supportedCodeConfigLanguages } from '@config';
 import { getFileExtension } from '@utils/fs-utils';
@@ -130,6 +129,14 @@ type DirectiveToProcess = Directive & {
   definitionWithoutPath: string;
 };
 
+export type ConfigResolverContext = Readonly<{
+  authoringParams: GetConfigParams;
+  configPath?: string;
+  presetConfig?: StacktapeConfig;
+  templateId?: string;
+  workingDir: string;
+}>;
+
 export class ConfigResolver {
   directivesToProcess = new Stack<DirectiveToProcess>();
   registeredDirectives: { [name: string]: Directive } = {};
@@ -139,14 +146,17 @@ export class ConfigResolver {
   resolvedConfig: StacktapeConfig = null;
   transforms: Record<string, ResourceTransform> = {};
   finalTransform: FinalTransform | null = null;
+  #context: ConfigResolverContext | undefined;
 
-  loadConfig = async () => {
-    await this.loadRawConfig();
-    this.registerUserDirectives(this.rawConfig?.directives || []);
-    await this.loadResolvedConfig();
-  };
+  private get context(): ConfigResolverContext {
+    if (!this.#context) {
+      throw new Error('Config resolver was used before its invocation context was initialized.');
+    }
+    return this.#context;
+  }
 
-  loadRawConfig = async () => {
+  loadRawConfig = async ({ context }: { context: ConfigResolverContext }) => {
+    this.#context = Object.freeze({ ...context });
     this.rawConfig = await this.getRawConfig();
   };
 
@@ -159,9 +169,16 @@ export class ConfigResolver {
     this.resolvedConfig = null;
     this.transforms = {};
     this.finalTransform = null;
+    this.#context = undefined;
   };
 
-  loadTypescriptConfig = async ({ filePath }: { filePath: string }): Promise<CompiledStacktapeConfig> => {
+  loadTypescriptConfig = async ({
+    filePath,
+    authoringParams
+  }: {
+    filePath: string;
+    authoringParams: GetConfigParams;
+  }): Promise<CompiledStacktapeConfig> => {
     let defaultExport: unknown;
 
     try {
@@ -173,22 +190,6 @@ export class ConfigResolver {
       handleTypescriptConfigError(error as Error, filePath);
     }
 
-    const params: GetConfigParams = {
-      projectName: globalStateManager.targetStack?.projectName || globalStateManager.args.projectName,
-      stage: globalStateManager.targetStack?.stage || globalStateManager.args.stage,
-      region: globalStateManager.region,
-      command: globalStateManager.command,
-      awsProfile: globalStateManager.awsProfileName,
-      user: globalStateManager.userData
-        ? {
-            id: globalStateManager.userData.id,
-            name: globalStateManager.userData.name,
-            email: globalStateManager.userData.email
-          }
-        : undefined,
-      cliArgs: globalStateManager.args
-    };
-
     if (!defaultExport) {
       throw configErrors.typescriptExportMissing({ configPath: filePath });
     }
@@ -198,7 +199,7 @@ export class ConfigResolver {
 
     try {
       const configFn = defaultExport as (params: GetConfigParams) => unknown;
-      const result = configFn(params);
+      const result = configFn(authoringParams);
       if (!isCompiledStacktapeConfig(result)) {
         throw configErrors.typescriptDefineConfigRequired({ configPath: filePath });
       }
@@ -216,16 +217,17 @@ export class ConfigResolver {
   };
 
   getRawConfig = async () => {
+    const { authoringParams, configPath, presetConfig, templateId, workingDir } = this.context;
     this.transforms = {};
     this.finalTransform = null;
 
-    if (globalStateManager.presetConfig) {
-      return globalStateManager.presetConfig;
+    if (presetConfig) {
+      return presetConfig;
     }
 
-    if (globalStateManager.args.templateId) {
+    if (templateId) {
       const downloadedTemplate = await stacktapeTrpcApiManager.apiClient.template({
-        templateId: globalStateManager.args.templateId
+        templateId
       });
 
       // Try parsing as YAML first
@@ -241,7 +243,7 @@ export class ConfigResolver {
 
       let typescriptParseError: Error | null = null;
       try {
-        const compiledConfig = await this.loadTypescriptConfig({ filePath: tempConfigPath });
+        const compiledConfig = await this.loadTypescriptConfig({ filePath: tempConfigPath, authoringParams });
         return this.useCompiledTypescriptConfig(compiledConfig);
       } catch (err) {
         typescriptParseError = err;
@@ -259,44 +261,34 @@ export class ConfigResolver {
       return null;
     }
 
+    if (!configPath) {
+      return null;
+    }
+
     // Handle TypeScript config files
-    if (globalStateManager.configPath.endsWith('.ts')) {
-      const compiledConfig = await this.loadTypescriptConfig({ filePath: globalStateManager.configPath });
+    if (configPath.endsWith('.ts')) {
+      const compiledConfig = await this.loadTypescriptConfig({ filePath: configPath, authoringParams });
       return this.useCompiledTypescriptConfig(compiledConfig);
     }
 
     // Handle other config file types (YAML, JSON, etc.)
     try {
       let config = await loadFromAnySupportedFile({
-        sourcePath: globalStateManager.configPath,
+        sourcePath: configPath,
         codeType: 'config',
-        workingDir: globalStateManager.workingDir
+        workingDir
       });
 
       // If returned value is a function, run it
       if (typeof config === 'function') {
-        config = config({
-          projectName: globalStateManager.targetStack?.projectName || globalStateManager.args.projectName,
-          stage: globalStateManager.targetStack?.stage || globalStateManager.args.stage,
-          region: globalStateManager.region,
-          command: globalStateManager.command,
-          awsProfile: globalStateManager.awsProfileName,
-          user: globalStateManager.userData
-            ? {
-                id: globalStateManager.userData.id,
-                name: globalStateManager.userData.name,
-                email: globalStateManager.userData.email
-              }
-            : undefined,
-          cliArgs: globalStateManager.args
-        });
+        config = config(authoringParams);
       }
 
       if (config === null) {
         throw new CliError({
           category: 'FILE_ACCESS',
           code: 'CONFIG_FILE_TYPE_UNSUPPORTED',
-          message: `Cannot load Stacktape config from unsupported file type \`${globalStateManager.configPath}\`.`
+          message: `Cannot load Stacktape config from unsupported file type \`${configPath}\`.`
         });
       }
 
@@ -304,7 +296,7 @@ export class ConfigResolver {
         try {
           JSON.parse(JSON.stringify(config));
         } catch {
-          throw configErrors.configObjectInvalid({ configPath: globalStateManager.configPath, config });
+          throw configErrors.configObjectInvalid({ configPath, config });
         }
       }
 
@@ -316,7 +308,7 @@ export class ConfigResolver {
       throw new CliError({
         category: 'CONFIG_VALIDATION',
         code: 'CONFIG_FILE_MALFORMED',
-        message: `Malformed configuration file at \`${globalStateManager.configPath}\`.\n${String(error)}`,
+        message: `Malformed configuration file at \`${configPath}\`.\n${String(error)}`,
         cause: error
       });
     }
@@ -327,13 +319,14 @@ export class ConfigResolver {
   };
 
   registerUserDirectives = (userDirectives: { name: string; filePath: string }[]) => {
+    const { workingDir } = this.context;
     for (const directive of userDirectives) {
       const rawFilePath = directive.filePath;
       const codeType = `directive ${directive.name}`;
       const { filePath } = parseUserCodeFilepath({
         fullPath: rawFilePath,
         codeType,
-        workingDir: globalStateManager.workingDir
+        workingDir
       });
       if (supportedCodeConfigLanguages.includes(getFileExtension(filePath))) {
         this.registerDirective({
@@ -343,7 +336,7 @@ export class ConfigResolver {
               filePath: rawFilePath,
               cache: true,
               codeType,
-              workingDir: globalStateManager.workingDir
+              workingDir
             })
         });
       } else {

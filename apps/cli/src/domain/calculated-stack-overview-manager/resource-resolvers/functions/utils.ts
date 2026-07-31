@@ -6,7 +6,7 @@ import type {
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import CustomResource from '@cloudform/cloudFormation/customResource';
 import DeploymentGroup from '@cloudform/codeDeploy/deploymentGroup';
 import SecurityGroup from '@cloudform/ec2/securityGroup';
@@ -80,11 +80,11 @@ export const getLambdaFunctionRole = ({
   mountedEfsFilesystems?: StpEfsFilesystem[];
   mountedS3FilesAccessPointArns?: (string | IntrinsicFunction)[];
 }) => {
-  const isDevStack = globalStateManager.command === 'dev';
+  const isDevStack = calculatedStackOverviewManager.context.command === 'dev';
   const role = new Role({
     RoleName: awsResourceNames.lambdaRole(
-      globalStateManager.targetStack.stackName,
-      globalStateManager.region,
+      calculatedStackOverviewManager.context.stackName,
+      calculatedStackOverviewManager.context.region,
       workloadName,
       configParentResourceType
     ),
@@ -251,7 +251,7 @@ export const getCodeDeployDeploymentGroup = ({
       Events: ['DEPLOYMENT_FAILURE', 'DEPLOYMENT_STOP_ON_ALARM', 'DEPLOYMENT_STOP_ON_REQUEST']
     },
     DeploymentGroupName: awsResourceNames.codeDeployDeploymentGroup({
-      stackName: globalStateManager.targetStack.stackName,
+      stackName: calculatedStackOverviewManager.context.stackName,
       stpResourceName: lambdaProps.name
     }),
     DeploymentStyle: {

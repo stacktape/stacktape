@@ -4,7 +4,7 @@ import type { StpEfsFilesystem } from '@domain-services/config-manager/resolved-
 import type { StpMongoDbAtlasCluster } from '@domain-services/config-manager/resolved-types/mongo-db-atlas-clusters';
 import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
 import type CfResource from '@cloudform/resource';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { GetAtt, Join, Ref, Select, Split } from '@cloudform/functions';
 import { Policy } from '@cloudform/iam/role';
 import { configManager } from '@domain-services/config-manager';
@@ -83,7 +83,7 @@ const getStatementsForAccessingContainerWorkloads = (statementProps: StatementPr
       accountId: statementProps.accountId,
       stackName: statementProps.stackName,
       workloadName: statementProps.stacktapeResourceName,
-      region: globalStateManager.region
+      region: calculatedStackOverviewManager.context.region
     })
   },
   {
@@ -101,11 +101,11 @@ const getSubmitJobStatement = (
   return {
     Action: ['batch:SubmitJob'],
     Resource: [
-      `arn:aws:batch:${globalStateManager.region}:${accountId}:job-definition/${awsResourceNames.batchJobDefinition(
+      `arn:aws:batch:${calculatedStackOverviewManager.context.region}:${accountId}:job-definition/${awsResourceNames.batchJobDefinition(
         stacktapeResourceName,
         stackName
       )}*`,
-      `arn:aws:batch:${globalStateManager.region}:${accountId}:job-queue/${awsResourceNames.batchJobQueue(
+      `arn:aws:batch:${calculatedStackOverviewManager.context.region}:${accountId}:job-queue/${awsResourceNames.batchJobQueue(
         stackName,
         isSpotInstance,
         hasGpu
@@ -343,10 +343,10 @@ export const getPoliciesForRoles = ({
     accessToResourcesRequiringRoleChanges.forEach((resource) => {
       const statementProps: StatementProps = {
         stacktapeResourceName: resource.name,
-        accountId: globalStateManager.targetAwsAccount.awsAccountId,
+        accountId: calculatedStackOverviewManager.context.accountId,
         // stackBaseName: configManager.stackBaseName,
-        stackName: globalStateManager.targetStack.stackName,
-        region: globalStateManager.region
+        stackName: calculatedStackOverviewManager.context.stackName,
+        region: calculatedStackOverviewManager.context.region
       };
       switch (resource.type) {
         case 'function': {

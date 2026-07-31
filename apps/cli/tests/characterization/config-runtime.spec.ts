@@ -8,6 +8,7 @@ import { ConfigResolver } from '@domain-services/config-manager/config-resolver'
 import { configManager } from '@domain-services/config-manager';
 import { stacktapeConfigSchema, validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
 import { resolveOpenSearchLoggingDefaults } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/open-search';
+import { getStackContext } from '../../src/commands/_utils/initialization';
 
 import type { StacktapeConfig } from '@stacktape/config';
 import get from 'lodash/get';
@@ -15,6 +16,7 @@ import {
   $ResourceParam,
   $Stage,
   type CloudFormationTemplate,
+  type GetConfigParams,
   defineConfig,
   DynamoDbTable,
   LambdaFunction,
@@ -27,6 +29,15 @@ const fixturePath = join(process.cwd(), '_test-stacks', 'config-loading-smoke', 
 const executionFixturePath = join(import.meta.dir, 'fixtures', 'config-execution', 'stacktape.ts');
 const executionErrorFixturePath = join(import.meta.dir, 'fixtures', 'config-execution-error', 'stacktape.ts');
 const originalState: Record<string, unknown> = {};
+const fixtureAuthoringParams: GetConfigParams = {
+  projectName: 'explicit-authoring-context',
+  stage: 'explicit-stage',
+  region: 'us-west-2',
+  cliArgs: {} as any,
+  command: 'synth',
+  awsProfile: '',
+  user: { id: 'test-user', name: 'Test User', email: 'test@example.com' }
+};
 
 // The fixture config imports `pkg-a`, which re-exports a value from `pkg-b`, so that config loading is exercised
 // against real installed packages. The two packages are tracked next to this spec and staged into the fixture's
@@ -84,13 +95,28 @@ afterAll(async () => {
 
 describe('configuration runtime contract', () => {
   test('loads TypeScript config through tsconfig paths and transitive node_modules', async () => {
-    const { config } = await new ConfigResolver().loadTypescriptConfig({ filePath: fixturePath });
+    const { config } = await new ConfigResolver().loadTypescriptConfig({
+      filePath: fixturePath,
+      authoringParams: fixtureAuthoringParams
+    });
 
     expect(config.resources.lambda.type).toBe('function');
     expect((config.resources.lambda as { properties: { environment: unknown } }).properties.environment).toEqual([
       {
         name: 'CONFIG_LOADING_SUFFIX',
         value: 'config-loading-from-pkg-b'
+      },
+      {
+        name: 'CONFIG_LOADING_PROJECT',
+        value: 'explicit-authoring-context'
+      },
+      {
+        name: 'CONFIG_LOADING_REGION',
+        value: 'us-west-2'
+      },
+      {
+        name: 'CONFIG_LOADING_STAGE',
+        value: 'explicit-stage'
       }
     ]);
   });
@@ -189,7 +215,7 @@ describe('configuration runtime contract', () => {
       await globalStateManager.loadLocalTargetStackInfo({
         configProjectName: configManager.configResolver.rawConfig.projectName
       });
-      await configManager.init({ configRequired: true });
+      await configManager.init({ configRequired: true, stackContext: getStackContext() });
 
       const getExecutionCounts = getTypescriptExport({
         filePath: executionFixturePath,
@@ -224,7 +250,10 @@ describe('configuration runtime contract', () => {
 
     try {
       await expect(
-        new ConfigResolver().loadTypescriptConfig({ filePath: executionErrorFixturePath })
+        new ConfigResolver().loadTypescriptConfig({
+          filePath: executionErrorFixturePath,
+          authoringParams: fixtureAuthoringParams
+        })
       ).rejects.toMatchObject({ code: 'CONFIG_TYPESCRIPT_EXECUTION_FAILED' });
       expect(await readFile(markerPath, 'utf8')).toBe('executed\n');
     } finally {

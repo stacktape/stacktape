@@ -4,7 +4,6 @@ import type {
 } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import Integration from '@cloudform/apiGatewayV2/integration';
 import { GetAtt, Ref } from '@cloudform/functions';
@@ -63,7 +62,7 @@ export const resolveHttpApiEvents = ({
         resource: getHttpApiRoute({ workloadName: name, eventDetails: event.properties })
       });
       const authorizerName = awsResourceNames.httpApiAuthorizer({
-        stackName: globalStateManager.targetStack.stackName,
+        stackName: calculatedStackOverviewManager.context.stackName,
         workloadName: name,
         path,
         method,
@@ -91,9 +90,9 @@ export const resolveHttpApiEvents = ({
             : GetAtt(authorizerLambdaProps.cfLogicalName, 'Arn');
 
           // `${arns.lambdaFromFullName({
-          //   accountId: globalStateManager.targetAwsAccount.awsAccountId,
+          //   accountId: calculatedStackOverviewManager.context.accountId,
           //   lambdaAwsName: authorizerLambdaProps.resourceName,
-          //   region: globalStateManager.region
+          //   region: calculatedStackOverviewManager.context.region
           // })}${authorizerLambdaProps.aliasLogicalName ? `:${awsResourceNames.lambdaStpAlias()}` : ''}`;
 
           const authorizerLambdaPermissionLogicalName = cfLogicalNames.httpApiLambdaPermission({

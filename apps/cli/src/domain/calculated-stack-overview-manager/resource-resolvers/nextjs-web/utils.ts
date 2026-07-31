@@ -4,7 +4,7 @@ import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-type
 import type { CacheBehavior } from '@cloudform/cloudFront/distribution';
 import type Distribution from '@cloudform/cloudFront/distribution';
 import { join } from 'node:path';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import CloudfrontFunction from '@cloudform/cloudFront/function';
 import { GetAtt, Ref } from '@cloudform/functions';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
@@ -22,8 +22,8 @@ export const getHostHeaderRewriteCloudfrontFunction = (nextjsWeb: StpNextjsWeb) 
   return new CloudfrontFunction({
     Name: awsResourceNames.openNextHostHeaderRewriteFunction(
       nextjsWeb.name,
-      globalStateManager.targetStack.stackName,
-      globalStateManager.region
+      calculatedStackOverviewManager.context.stackName,
+      calculatedStackOverviewManager.context.region
     ),
     AutoPublish: true,
     FunctionCode:
@@ -54,7 +54,7 @@ export const getAssetReplacerResource = (nextjsWeb: StpNextjsWeb) => {
         {
           includeFilesPattern: '**/*.@(*js|json|html)',
           searchString: '{{ CACHE_BUCKET_REGION }}',
-          replaceString: globalStateManager.region
+          replaceString: calculatedStackOverviewManager.context.region
         }
       ]
     }
@@ -73,7 +73,7 @@ export const getCacheBehaviourTemplateOverride =
     const assetsDirPath = join(
       fsPaths.absoluteNextjsBuiltProjectFolderPath({
         stpResourceName: nextjsWeb.name,
-        invocationId: globalStateManager.invocationId
+        invocationId: calculatedStackOverviewManager.context.invocationId
       }),
       'bucket-content',
       '_assets'
@@ -165,9 +165,9 @@ export const getAssetReplacerTemplateOverride =
           ...varsObj,
           CACHE_BUCKET_NAME: Ref(cfLogicalNames.bucket(nextjsWeb._nestedResources.bucket.name)),
           CACHE_BUCKET_KEY_PREFIX: '_cache',
-          CACHE_BUCKET_REGION: globalStateManager.region,
+          CACHE_BUCKET_REGION: calculatedStackOverviewManager.context.region,
           REVALIDATION_QUEUE_URL: Ref(cfLogicalNames.sqsQueue(nextjsWeb._nestedResources.revalidationQueue.name)),
-          REVALIDATION_QUEUE_REGION: globalStateManager.region,
+          REVALIDATION_QUEUE_REGION: calculatedStackOverviewManager.context.region,
           CACHE_DYNAMO_TABLE: Ref(cfLogicalNames.dynamoGlobalTable(nextjsWeb._nestedResources.revalidationTable.name))
         }) as unknown as string
       });

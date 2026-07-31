@@ -1,6 +1,6 @@
 import type { StacktapeResourceOutput } from '@domain-services/stack-info/types';
 import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import SecurityGroup, { Ingress } from '@cloudform/ec2/securityGroup';
 import Listener, { Action, Certificate } from '@cloudform/elasticLoadBalancingV2/listener';
 import ListenerCertificate from '@cloudform/elasticLoadBalancingV2/listenerCertificate';
@@ -22,7 +22,7 @@ import type { ApplicationLoadBalancerIntegrationProps } from '@stacktape/config/
 export const getLoadBalancer = (loadBalancerName: string, loadBalancerConfig: StpApplicationLoadBalancer) =>
   new ElasticLoadBalancer({
     IpAddressType: 'ipv4',
-    // Name: getLoadBalancerResourceName(workloadName, loadBalancerName, globalStateManager.targetStack.stackName),
+    // Name: getLoadBalancerResourceName(workloadName, loadBalancerName, calculatedStackOverviewManager.context.stackName),
     Scheme: loadBalancerConfig.interface === 'internal' ? 'internal' : 'internet-facing',
     SecurityGroups: [Ref(cfLogicalNames.loadBalancerSecurityGroup(loadBalancerName))],
     Subnets: vpcManager.getPublicSubnetIds(),
@@ -34,8 +34,11 @@ export const getLoadBalancerSecurityGroup = (
   loadBalancerConfig: ApplicationLoadBalancerWithListeners
 ) =>
   new SecurityGroup({
-    GroupDescription: `Stacktape generated security group for redis cluster ${loadBalancerName} in stack ${globalStateManager.targetStack.stackName}`,
-    GroupName: awsResourceNames.loadBalancerSecurityGroup(loadBalancerName, globalStateManager.targetStack.stackName),
+    GroupDescription: `Stacktape generated security group for redis cluster ${loadBalancerName} in stack ${calculatedStackOverviewManager.context.stackName}`,
+    GroupName: awsResourceNames.loadBalancerSecurityGroup(
+      loadBalancerName,
+      calculatedStackOverviewManager.context.stackName
+    ),
     VpcId: vpcManager.getVpcId(),
     SecurityGroupIngress: loadBalancerConfig.listeners
       .map((listenerConfig) =>

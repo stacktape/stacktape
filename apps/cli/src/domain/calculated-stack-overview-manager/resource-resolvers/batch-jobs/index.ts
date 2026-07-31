@@ -1,6 +1,5 @@
 import type { StpBatchJob } from '@domain-services/config-manager/resolved-types/batch-jobs';
 import type { Environment, JobDefinitionProperties } from '@cloudform/batch/jobDefinition';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Ref } from '@cloudform/functions';
 import { defaultLogRetentionDays } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -35,11 +34,7 @@ import {
 
 export const resolveBatchJobs = async () => {
   const { batchJobs } = configManager;
-  const { stackName } = globalStateManager.targetStack;
-  const {
-    targetAwsAccount: { awsAccountId }
-  } = globalStateManager;
-  const { region } = globalStateManager;
+  const { accountId: awsAccountId, region, stackName } = calculatedStackOverviewManager.context;
   if (batchJobs.length) {
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.batchServiceRole(),
@@ -196,7 +191,7 @@ export const resolveBatchJobs = async () => {
           nameChain,
           linkValue: cfEvaluatedLinks.logGroup(
             awsResourceNames.batchJobLogGroup({
-              stackName: globalStateManager.targetStack.stackName,
+              stackName: calculatedStackOverviewManager.context.stackName,
               stpResourceName: name
             })
           )

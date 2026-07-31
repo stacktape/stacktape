@@ -7,7 +7,6 @@ import type {
 } from '@domain-services/config-manager/resolved-types/resources';
 import type { CloudformationResourceType } from '@cloudform/resource-types';
 import { eventManager } from '@application-services/event-manager';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { consoleLinks } from '@stacktape/naming/console-links';
@@ -83,17 +82,30 @@ import { resolveWebAppFirewalls } from './resource-resolvers/web-app-firewalls';
 import { resolveWebServices } from './resource-resolvers/web-services';
 import { resolveWorkerServices } from './resource-resolvers/worker-services';
 import type { CloudformationResource, IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { StackContext } from '@domain-services/stack-context';
 
 export class CalculatedStackOverviewManager {
   stackInfoMap: StackInfoMap = { metadata: {}, resources: {}, customOutputs: {} };
+  #context: StackContext | undefined;
 
-  init = async () => {};
+  get context(): StackContext {
+    if (!this.#context) {
+      throw new Error('Calculated stack overview manager was used before its synthesis context was initialized.');
+    }
+    return this.#context;
+  }
+
+  init = async ({ context }: { context: StackContext }) => {
+    this.#context = Object.freeze({ ...context });
+  };
 
   reset = () => {
     this.stackInfoMap = { metadata: {}, resources: {}, customOutputs: {} };
+    this.#context = undefined;
   };
 
   resolveAllResources = async () => {
+    void this.context;
     await eventManager.startEvent({
       eventType: 'RESOLVE_CONFIG',
       description: 'Resolving configuration',
@@ -300,8 +312,8 @@ export class CalculatedStackOverviewManager {
         ? buildSSMParameterNameForReferencableParam({
             nameChain,
             paramName,
-            stackName: globalStateManager.targetStack.stackName,
-            region: globalStateManager.region
+            stackName: this.context.stackName,
+            region: this.context.region
           })
         : undefined
     };
@@ -371,11 +383,7 @@ export class CalculatedStackOverviewManager {
   populateStackMetadata = async () => {
     this.addStackMetadata({
       metaName: stackMetadataNames.stackConsole(),
-      metaValue: consoleLinks.stackUrl(
-        globalStateManager.region,
-        globalStateManager.targetStack.stackName,
-        'resources'
-      ),
+      metaValue: consoleLinks.stackUrl(this.context.region, this.context.stackName, 'resources'),
       showDuringPrint: true
     });
 

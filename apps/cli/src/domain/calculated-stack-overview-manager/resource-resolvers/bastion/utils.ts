@@ -1,5 +1,5 @@
 import type { StpBastion } from '@domain-services/config-manager/resolved-types/bastion';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import AutoScalingGroup from '@cloudform/autoScaling/autoScalingGroup';
 import LaunchTemplate from '@cloudform/ec2/launchTemplate';
 import SecurityGroup from '@cloudform/ec2/securityGroup';
@@ -37,7 +37,7 @@ export const getEc2AutoscalingGroup = ({ definition }: { definition: StpBastion 
     },
     AutoScalingGroupName: awsResourceNames.bastionEc2AutoscalingGroup(
       definition.name,
-      globalStateManager.targetStack.stackName
+      calculatedStackOverviewManager.context.stackName
     ),
     VPCZoneIdentifier: vpcManager.getPublicSubnetIds()
   });
@@ -52,8 +52,8 @@ export const getEc2AutoscalingGroup = ({ definition }: { definition: StpBastion 
 
 export const getSecurityGroup = ({ definition }: { definition: StpBastion }) => {
   return new SecurityGroup({
-    GroupDescription: `Security group for bastion host ${definition.name} in stack ${globalStateManager.targetStack.stackName}.`,
-    GroupName: awsResourceNames.bastionSecurityGroup(definition.name, globalStateManager.targetStack.stackName),
+    GroupDescription: `Security group for bastion host ${definition.name} in stack ${calculatedStackOverviewManager.context.stackName}.`,
+    GroupName: awsResourceNames.bastionSecurityGroup(definition.name, calculatedStackOverviewManager.context.stackName),
     VpcId: vpcManager.getVpcId()
   });
 };
@@ -96,7 +96,7 @@ ${(definition.runCommandsAtLaunch || []).join('\n')}`)
               name: tagNames.autoscalingGroupName(),
               value: awsResourceNames.bastionEc2AutoscalingGroup(
                 definition.name,
-                globalStateManager.targetStack.stackName
+                calculatedStackOverviewManager.context.stackName
               )
             }
           ])
@@ -108,7 +108,7 @@ ${(definition.runCommandsAtLaunch || []).join('\n')}`)
               name: tagNames.autoscalingGroupName(),
               value: awsResourceNames.bastionEc2AutoscalingGroup(
                 definition.name,
-                globalStateManager.targetStack.stackName
+                calculatedStackOverviewManager.context.stackName
               )
             }
           ])
@@ -120,7 +120,7 @@ ${(definition.runCommandsAtLaunch || []).join('\n')}`)
               name: tagNames.autoscalingGroupName(),
               value: awsResourceNames.bastionEc2AutoscalingGroup(
                 definition.name,
-                globalStateManager.targetStack.stackName
+                calculatedStackOverviewManager.context.stackName
               )
             }
           ])
@@ -145,7 +145,7 @@ const cloudwatchAgentConfig = ({ definition }: { definition: StpBastion }) => {
                   {
                     file_path: '/var/log/secure',
                     log_group_name: awsResourceNames.bastionLogGroup({
-                      stackName: globalStateManager.targetStack.stackName,
+                      stackName: calculatedStackOverviewManager.context.stackName,
                       stpResourceName: definition.name,
                       logType: 'secure'
                     }),
@@ -158,7 +158,7 @@ const cloudwatchAgentConfig = ({ definition }: { definition: StpBastion }) => {
                   {
                     file_path: '/var/log/audit/audit.log',
                     log_group_name: awsResourceNames.bastionLogGroup({
-                      stackName: globalStateManager.targetStack.stackName,
+                      stackName: calculatedStackOverviewManager.context.stackName,
                       stpResourceName: definition.name,
                       logType: 'audit'
                     }),
@@ -171,7 +171,7 @@ const cloudwatchAgentConfig = ({ definition }: { definition: StpBastion }) => {
                   {
                     file_path: '/var/log/messages',
                     log_group_name: awsResourceNames.bastionLogGroup({
-                      stackName: globalStateManager.targetStack.stackName,
+                      stackName: calculatedStackOverviewManager.context.stackName,
                       stpResourceName: definition.name,
                       logType: 'messages'
                     }),
@@ -209,7 +209,7 @@ export const getEc2InstanceRole = () =>
     //             return {
     //               'Fn::Sub': `arn:\${AWS::Partition}:logs:*:\${AWS::AccountId}:log-group:${awsResourceNames.bastionLogGroup(
     //                 {
-    //                   stackName: globalStateManager.targetStack.stackName,
+    //                   stackName: calculatedStackOverviewManager.context.stackName,
     //                   stpResourceName: definition.name,
     //                   logType
     //                 }
@@ -297,7 +297,7 @@ export const getLogGroup = ({
 }) => {
   return new LogGroup({
     LogGroupName: awsResourceNames.bastionLogGroup({
-      stackName: globalStateManager.targetStack.stackName,
+      stackName: calculatedStackOverviewManager.context.stackName,
       stpResourceName: definition.name,
       logType
     }),

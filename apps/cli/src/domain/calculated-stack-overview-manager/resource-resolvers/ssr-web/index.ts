@@ -10,7 +10,6 @@ import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { fsPaths } from 'src/config/runtime-paths';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
 import { resolveBucket } from '../buckets';
 import { resolveFunction } from '../functions';
@@ -46,7 +45,7 @@ const resolveSsrWeb = (ssrWeb: SsrWebResource, resourceType: SsrWebResourceType)
 
   // Add template override for static assets cache behaviors
   const buildPath = fsPaths.absoluteSsrWebBuiltProjectFolderPath({
-    invocationId: globalStateManager.invocationId,
+    invocationId: calculatedStackOverviewManager.context.invocationId,
     stpResourceName: ssrWeb.name,
     resourceType
   });

@@ -19,7 +19,7 @@ import type {
   QueryStringsConfig as OriginRequestQueryStringsConfig
 } from '@cloudform/cloudFront/originRequestPolicy';
 import type { IntrinsicFunction } from '@cloudform/dataTypes';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import CloudfrontCachePolicy, {
   CookiesConfig as CacheCookiesConfig,
   HeadersConfig as CacheHeadersConfig,
@@ -1300,7 +1300,7 @@ const buildBucketCacheBehaviour = ({
     lambdaAssociations: edgeLambdaFunctions,
     functionAssociations: cloudfrontFunctions,
     cacheBehaviourIndex,
-    stackName: globalStateManager.targetStack.stackName
+    stackName: calculatedStackOverviewManager.context.stackName
   });
 };
 
@@ -1337,7 +1337,7 @@ const buildHttpApiGatewayCacheBehaviour = ({
     targetOriginType: 'http-api-gateway',
     viewerProtocolPolicy: 'redirect-to-https',
     cacheBehaviourIndex,
-    stackName: globalStateManager.targetStack.stackName
+    stackName: calculatedStackOverviewManager.context.stackName
   });
 };
 
@@ -1375,7 +1375,7 @@ const buildLambdaFunctionCacheBehaviour = ({
     targetOriginType: 'function',
     viewerProtocolPolicy: 'redirect-to-https',
     cacheBehaviourIndex,
-    stackName: globalStateManager.targetStack.stackName
+    stackName: calculatedStackOverviewManager.context.stackName
   });
 };
 
@@ -1411,7 +1411,7 @@ const buildLoadBalancerCacheBehaviour = ({
     targetOriginType: 'application-load-balancer',
     viewerProtocolPolicy: 'redirect-to-https',
     cacheBehaviourIndex,
-    stackName: globalStateManager.targetStack.stackName
+    stackName: calculatedStackOverviewManager.context.stackName
   });
 };
 
@@ -1444,7 +1444,7 @@ const buildCustomOriginCacheBehaviour = ({
     targetOriginType: 'custom-origin',
     viewerProtocolPolicy: 'redirect-to-https',
     cacheBehaviourIndex,
-    stackName: globalStateManager.targetStack.stackName
+    stackName: calculatedStackOverviewManager.context.stackName
   });
 };
 

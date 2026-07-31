@@ -5,7 +5,7 @@ import type {
 import type { List } from '@cloudform/dataTypes';
 import type { Ingress } from '@cloudform/ec2/securityGroup';
 import type { OptionConfiguration } from '@cloudform/rds/optionGroup';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import SecurityGroup from '@cloudform/ec2/securityGroup';
 import { Ref, Sub } from '@cloudform/functions';
 import LogGroup from '@cloudform/logs/logGroup';
@@ -68,9 +68,15 @@ export const resolveDatabasePort = ({ definition }: { definition: StpRelationalD
 
 export const getDbSubnetGroup = ({ stpResourceName }: { stpResourceName: string }) =>
   new DBSubnetGroup({
-    DBSubnetGroupName: awsResourceNames.dbSubnetGroup(globalStateManager.targetStack.stackName, stpResourceName),
+    DBSubnetGroupName: awsResourceNames.dbSubnetGroup(
+      calculatedStackOverviewManager.context.stackName,
+      stpResourceName
+    ),
     SubnetIds: vpcManager.getPublicSubnetIds(),
-    DBSubnetGroupDescription: awsResourceNames.dbSubnetGroup(globalStateManager.targetStack.stackName, stpResourceName)
+    DBSubnetGroupDescription: awsResourceNames.dbSubnetGroup(
+      calculatedStackOverviewManager.context.stackName,
+      stpResourceName
+    )
   });
 
 export const getDbSecurityGroup = ({ resource }: { resource: StpRelationalDatabase }) => {
@@ -92,8 +98,8 @@ export const getDbSecurityGroup = ({ resource }: { resource: StpRelationalDataba
           : [];
   return new SecurityGroup({
     VpcId: vpcManager.getVpcId(),
-    GroupName: awsResourceNames.dbSecurityGroup(resource.name, globalStateManager.targetStack.stackName),
-    GroupDescription: `Stacktape generated security group for database ${resource.name} in stack ${globalStateManager.targetStack.stackName}`,
+    GroupName: awsResourceNames.dbSecurityGroup(resource.name, calculatedStackOverviewManager.context.stackName),
+    GroupDescription: `Stacktape generated security group for database ${resource.name} in stack ${calculatedStackOverviewManager.context.stackName}`,
     SecurityGroupIngress: basicIngressRules.concat(
       resource.accessibility?.whitelistedIps?.map((cidrOrIp) => ({
         CidrIp: transformToCidr({ cidrOrIp }),
@@ -123,7 +129,7 @@ export const getAuroraDbInstance = ({
     DBParameterGroupName: Ref(cfLogicalNames.auroraDbInstanceParameterGroup(stpResourceName)),
     DBInstanceIdentifier: awsResourceNames.auroraDbInstance(
       stpResourceName,
-      globalStateManager.targetStack.stackName,
+      calculatedStackOverviewManager.context.stackName,
       instanceNum
     ),
     Engine: normalizeEngineType(resource.engine.type),
@@ -154,7 +160,7 @@ export const getAuroraDbClusterParameterGroup = ({
       engineVersion: resource.engine.properties?.version,
       instanceType: null
     }).family,
-    Description: `${globalStateManager.targetStack.stackName} ${stpResourceName} cluster param group`,
+    Description: `${calculatedStackOverviewManager.context.stackName} ${stpResourceName} cluster param group`,
     Parameters: parameters
   });
 };
@@ -178,7 +184,7 @@ export const getAuroraDbCluster = ({
     BackupRetentionPeriod: resource.automatedBackupRetentionDays,
     AutoMinorVersionUpgrade: !resource.engine.properties?.disableAutoMinorVersionUpgrade,
     DBSubnetGroupName: Ref(cfLogicalNames.dbSubnetGroup(stpResourceName)),
-    DBClusterIdentifier: awsResourceNames.dbCluster(globalStateManager.targetStack.stackName, stpResourceName),
+    DBClusterIdentifier: awsResourceNames.dbCluster(calculatedStackOverviewManager.context.stackName, stpResourceName),
     DBClusterParameterGroupName: Ref(cfLogicalNames.auroraDbClusterParameterGroup(stpResourceName)),
     Engine: engineType,
     DatabaseName: getDatabaseName({ resource }),
@@ -309,10 +315,14 @@ export const getDbLogGroup = ({
   readReplicaNum?: number;
 }) => {
   const awsDatabaseIdentifier = isAuroraCluster({ resource })
-    ? awsResourceNames.dbCluster(globalStateManager.targetStack.stackName, resource.name)
+    ? awsResourceNames.dbCluster(calculatedStackOverviewManager.context.stackName, resource.name)
     : readReplicaNum === undefined
-      ? awsResourceNames.dbInstance(resource.name, globalStateManager.targetStack.stackName)
-      : awsResourceNames.dbReplicaInstance(resource.name, globalStateManager.targetStack.stackName, readReplicaNum);
+      ? awsResourceNames.dbInstance(resource.name, calculatedStackOverviewManager.context.stackName)
+      : awsResourceNames.dbReplicaInstance(
+          resource.name,
+          calculatedStackOverviewManager.context.stackName,
+          readReplicaNum
+        );
   return new LogGroup({
     LogGroupName: awsResourceNames.dbLogGroup(awsDatabaseIdentifier, isAuroraCluster({ resource }), logGroupType),
     RetentionInDays: resource.logging?.retentionDays || defaultLogRetentionDays.relationalDatabase
@@ -335,7 +345,7 @@ export const getDbInstanceParameterGroup = ({
     ...getLoggingParameters({ resource, addAuroraClusterParams: false })
   };
   return new DBInstanceParameterGroup({
-    Description: `${globalStateManager.targetStack.stackName} ${stpResourceName} param group${
+    Description: `${calculatedStackOverviewManager.context.stackName} ${stpResourceName} param group${
       replicaNum !== undefined ? ` rep ${replicaNum}` : ''
     }`,
     Family: getEngineVersionConfigurationData({
@@ -542,8 +552,12 @@ export const getBasicRdsInstance = ({
     DBInstanceClass: instanceSize,
     DBInstanceIdentifier:
       replicaNum === undefined
-        ? awsResourceNames.dbInstance(stpResourceName, globalStateManager.targetStack.stackName)
-        : awsResourceNames.dbReplicaInstance(stpResourceName, globalStateManager.targetStack.stackName, replicaNum),
+        ? awsResourceNames.dbInstance(stpResourceName, calculatedStackOverviewManager.context.stackName)
+        : awsResourceNames.dbReplicaInstance(
+            stpResourceName,
+            calculatedStackOverviewManager.context.stackName,
+            replicaNum
+          ),
     MultiAZ: multiAz,
     AutoMinorVersionUpgrade: !resource.engine.properties.disableAutoMinorVersionUpgrade,
     DBName: replicaNum === undefined ? getDatabaseName({ resource }) : undefined,
@@ -629,7 +643,7 @@ export const getDbOptionGroup = ({
       engineVersion: resource.engine.properties?.version,
       instanceType: instanceSize
     }).majorVersion,
-    OptionGroupDescription: `${globalStateManager.targetStack.stackName} ${resource.name} option group`,
+    OptionGroupDescription: `${calculatedStackOverviewManager.context.stackName} ${resource.name} option group`,
     OptionConfigurations: optionConfigurations
   });
 };
@@ -994,7 +1008,7 @@ const getPreferredBackupWindow = (preferredMaintenanceWindowRange: string): stri
 const getDbBackupAndMaintenanceWindow = (resource: StpRelationalDatabase) => {
   let preferredMaintenanceWindow = resource.preferredMaintenanceWindow;
   if (!preferredMaintenanceWindow) {
-    preferredMaintenanceWindow = getPreferredMaintenanceWindow(globalStateManager.region);
+    preferredMaintenanceWindow = getPreferredMaintenanceWindow(calculatedStackOverviewManager.context.region);
   }
 
   // Calculate the preferred backup window

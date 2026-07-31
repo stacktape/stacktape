@@ -1,5 +1,4 @@
 import type { StpKinesisStream } from '@domain-services/config-manager/resolved-types/kinesis-streams';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt } from '@cloudform/functions';
 import Stream, { StreamEncryption, StreamModeDetails } from '@cloudform/kinesis/stream';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -16,7 +15,7 @@ export const resolveKinesisStreams = async () => {
 };
 
 export const resolveKinesisStream = ({ resource }: { resource: StpKinesisStream }) => {
-  const streamAwsName = awsResourceNames.kinesisStream(resource.name, globalStateManager.targetStack.stackName);
+  const streamAwsName = awsResourceNames.kinesisStream(resource.name, calculatedStackOverviewManager.context.stackName);
   const capacityMode = resource.capacityMode || 'ON_DEMAND';
 
   calculatedStackOverviewManager.addCfChildResource({
@@ -42,7 +41,7 @@ export const resolveKinesisStream = ({ resource }: { resource: StpKinesisStream 
   calculatedStackOverviewManager.addStacktapeResourceLink({
     nameChain: resource.nameChain,
     linkName: 'console',
-    linkValue: consoleLinks.kinesisStream(globalStateManager.region, streamAwsName)
+    linkValue: consoleLinks.kinesisStream(calculatedStackOverviewManager.context.region, streamAwsName)
   });
 
   calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({

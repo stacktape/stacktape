@@ -5,7 +5,7 @@ import type { StpResource } from '@domain-services/config-manager/resolved-types
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import type { Dimension, MetricDataQuery } from '@cloudform/cloudWatch/alarm';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { Ref } from '@cloudform/functions';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
@@ -146,21 +146,21 @@ export const getAffectedResourceInfo = ({
     case 'application-load-balancer-custom': {
       return {
         displayName: resource.nameChain.join('.'),
-        link: consoleLinks.cloudwatchAlbDashboard(globalStateManager.region)
+        link: consoleLinks.cloudwatchAlbDashboard(calculatedStackOverviewManager.context.region)
       };
     }
     case 'sqs-queue-received-messages-count':
     case 'sqs-queue-not-empty': {
       const queueAwsName = awsResourceNames.sqsQueue(
         resource.name,
-        globalStateManager.targetStack?.stackName,
+        calculatedStackOverviewManager.context.stackName,
         (resource as StpSqsQueue).fifoEnabled
       );
       return {
         displayName: resource.nameChain.join('.'),
         link: consoleLinks.sqsQueue(
-          globalStateManager.region,
-          globalStateManager.targetAwsAccount?.awsAccountId,
+          calculatedStackOverviewManager.context.region,
+          calculatedStackOverviewManager.context.accountId,
           queueAwsName
         )
       };

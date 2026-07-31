@@ -9,7 +9,6 @@ import type { StpRelationalDatabase } from '@domain-services/config-manager/reso
 import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
-import { globalStateManager } from '@application-services/global-state-manager';
 import EventBridgeRule from '@cloudform/events/rule';
 import { GetAtt, Ref } from '@cloudform/functions';
 import LambdaPermission from '@cloudform/lambda/permission';
@@ -78,7 +77,7 @@ const addSharedAlarmNotificationPermission = () => {
   }
 
   const ruleNamePrefix = awsResourceNames.cloudwatchAlarmNotificationRulePrefix(
-    globalStateManager.targetStack.stackName
+    calculatedStackOverviewManager.context.stackName
   );
 
   calculatedStackOverviewManager.addCfChildResource({
@@ -136,14 +135,17 @@ const getCloudwatchAlarmResource = ({ alarm, resource }: { alarm: AlarmDefinitio
 };
 
 const getInputTemplate = ({ alarm, resource }: { alarm: AlarmDefinition; resource: StpResource }) => {
-  const alarmAwsResourceName = awsResourceNames.cloudwatchAlarm(globalStateManager.targetStack.stackName, alarm.name);
+  const alarmAwsResourceName = awsResourceNames.cloudwatchAlarm(
+    calculatedStackOverviewManager.context.stackName,
+    alarm.name
+  );
   const inputTemplate: AlarmNotificationEventRuleInput = {
     sourceEventId: '<sourceEventId>',
     description: '<description>',
     time: '<time>',
     stateValue: '<stateValue>',
     alarmAwsResourceName,
-    stackName: globalStateManager.targetStack.stackName,
+    stackName: calculatedStackOverviewManager.context.stackName,
     alarmConfig: alarm,
     affectedResource: getAffectedResourceInfo({ alarm, resource }),
     comparisonOperator: getComparisonOperator({ alarm }),
@@ -155,12 +157,12 @@ const getInputTemplate = ({ alarm, resource }: { alarm: AlarmDefinition; resourc
 };
 
 const getEventRuleForAlarmNotification = ({ alarm, resource }: { alarm: AlarmDefinition; resource: StpResource }) => {
-  // const alarmAwsResourceName = awsResourceNames.cloudwatchAlarm(globalStateManager.targetStack.stackName, alarm.name);
+  // const alarmAwsResourceName = awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name);
   // const inputTemplate: AlarmNotificationEventRuleInput = {
   //   description: '<description>',
   //   time: '<time>',
   //   alarmAwsResourceName,
-  //   stackName: globalStateManager.targetStack.stackName,
+  //   stackName: calculatedStackOverviewManager.context.stackName,
   //   alarmConfig: alarm,
   //   affectedResource: getAffectedResourceInfo({ alarm, resource }),
   //   comparisonOperator: getComparisonOperator({ alarm }),
@@ -170,7 +172,10 @@ const getEventRuleForAlarmNotification = ({ alarm, resource }: { alarm: AlarmDef
   // };
   return new EventBridgeRule({
     State: 'ENABLED',
-    Name: awsResourceNames.cloudwatchAlarmNotificationRule(globalStateManager.targetStack.stackName, alarm.name),
+    Name: awsResourceNames.cloudwatchAlarmNotificationRule(
+      calculatedStackOverviewManager.context.stackName,
+      alarm.name
+    ),
     EventPattern: {
       source: ['aws.cloudwatch'],
       'detail-type': ['CloudWatch Alarm State Change'],

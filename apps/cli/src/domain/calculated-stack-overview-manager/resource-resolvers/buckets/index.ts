@@ -1,5 +1,4 @@
 import type { StpBucket } from '@domain-services/config-manager/resolved-types/buckets';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Join, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -37,7 +36,7 @@ export const resolveBuckets = async () => {
 
 export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
   const { simplifiedCdnAssociations } = configManager;
-  const { stackName } = globalStateManager.targetStack;
+  const { stackName } = calculatedStackOverviewManager.context;
   const { name, nameChain } = definition;
   calculatedStackOverviewManager.addCfChildResource({
     cfLogicalName: cfLogicalNames.bucket(name),
@@ -120,7 +119,7 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.cloudfrontDefaultCachePolicy('DefStatic'),
         nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
-        resource: getCloudfrontDefaultStaticCachePolicyResource(globalStateManager.targetStack.stackName)
+        resource: getCloudfrontDefaultStaticCachePolicyResource(calculatedStackOverviewManager.context.stackName)
       });
     }
     // now we deal with policies from route rewrites
@@ -270,7 +269,7 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
         customPrefix:
           isCompositeWebResourceType(definition.configParentResourceType) &&
           `${configManager.findImmediateParent({ nameChain: definition.nameChain }).name.toLowerCase()}-${
-            globalStateManager.targetStack.stackName
+            calculatedStackOverviewManager.context.stackName
           }`
       });
       calculatedStackOverviewManager.addCfChildResource({

@@ -6,6 +6,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import type { StackContext } from '@domain-services/stack-context';
 import {
   hasEnabledCdn,
   type ResourceWithPresentCdn
@@ -19,6 +20,7 @@ import { ec2Manager } from '@domain-services/ec2-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { finalizeTemplate } from '@domain-services/template-manager/finalize';
 import { outputNames } from '@stacktape/naming/stack-output-names';
+import { getStackCfTemplateDescription } from '@stacktape/naming/stacks';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import {
   ApplicationLoadBalancer,
@@ -212,7 +214,11 @@ const createDenseConfig = () =>
     user: { id: 'test-user', name: 'Test User', email: 'test@example.com' }
   });
 
-export const synthesizeDenseFixture = async () => {
+export const synthesizeDenseFixture = async ({
+  synthesisContext
+}: {
+  synthesisContext?: Partial<StackContext>;
+} = {}) => {
   return withCredentiallessSynthesisBoundary(async () => {
     calculatedStackOverviewManager.reset();
     configManager.reset();
@@ -271,8 +277,20 @@ export const synthesizeDenseFixture = async () => {
       projectName: 'characterization',
       projectId: 'characterization-project'
     };
+    const stackContext: StackContext = {
+      accountId: globalStateManager.targetAwsAccount.awsAccountId,
+      command: globalStateManager.command,
+      globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+      invocationId: globalStateManager.invocationId,
+      projectName: globalStateManager.targetStack.projectName,
+      region: globalStateManager.region,
+      stackName: globalStateManager.targetStack.stackName,
+      stage: globalStateManager.targetStack.stage,
+      workingDir: globalStateManager.workingDir,
+      ...synthesisContext
+    };
     await eventManager.init();
-    await configManager.init({ configRequired: true });
+    await configManager.init({ configRequired: true, stackContext });
     configManager.transforms = compiledConfig.transforms;
     configManager.finalTransform = compiledConfig.finalTransform;
     await ec2Manager.init({
@@ -291,7 +309,12 @@ export const synthesizeDenseFixture = async () => {
       commandRequiresDeployedStack: false
     });
 
-    await Promise.all([templateManager.init({ stackDetails: undefined }), calculatedStackOverviewManager.init()]);
+    await Promise.all([
+      templateManager.init({ stackDetails: undefined }),
+      calculatedStackOverviewManager.init({
+        context: stackContext
+      })
+    ]);
     await calculatedStackOverviewManager.resolveAllResources();
     await finalizeTemplate();
     return templateManager.getTemplate();
@@ -579,6 +602,28 @@ export const createNormalizedIamManifest = (template: CloudformationTemplate) =>
 };
 
 describe('full synthesis contract', () => {
+  test('resource resolvers use the immutable synthesis context instead of mutable CLI state', async () => {
+    const template = await synthesizeDenseFixture({
+      synthesisContext: {
+        accountId: '987654321000',
+        globallyUniqueStackHash: 'yyyyyyyy',
+        projectName: 'context-project',
+        region: 'us-west-2',
+        stackName: 'context-owned-stack',
+        stage: 'context-stage'
+      }
+    });
+    const resources = template.Resources as Record<string, any>;
+
+    expect(globalStateManager.targetStack.stackName).toBe('characterization-baseline');
+    expect(globalStateManager.region).toBe('eu-west-1');
+    expect(Object.isFrozen(calculatedStackOverviewManager.context)).toBe(true);
+    expect(resources.ApiFunction.Properties.FunctionName).toBe('context-owned-stack-api');
+    expect(resources.JobsQueue.Properties.QueueName).toBe('context-owned-stack-jobs.fifo');
+    expect(resources.RecordsGlobalTable.Properties.TableName).toBe('context-owned-stack-records-yyyyyyyy');
+    expect(template.Description).toBe(getStackCfTemplateDescription('context-project', 'context-stage', 'yyyyyyyy'));
+  });
+
   test('fails closed if credential-free synthesis attempts an unclassified network request', async () => {
     await expect(
       withCredentiallessSynthesisBoundary(async () => {

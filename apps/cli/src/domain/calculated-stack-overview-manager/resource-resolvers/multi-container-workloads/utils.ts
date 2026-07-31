@@ -11,7 +11,7 @@ import type {
 import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
 import type { ServiceConnectService, ServiceProperties, ServiceRegistry } from '@cloudform/ecs/service';
 import type { KeyValuePair, MountPoint, Volume } from '@cloudform/ecs/taskDefinition';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import ScalableTarget from '@cloudform/applicationAutoScaling/scalableTarget';
 import ScalingPolicy from '@cloudform/applicationAutoScaling/scalingPolicy';
 import AutoScalingGroup from '@cloudform/autoScaling/autoScalingGroup';
@@ -81,7 +81,7 @@ const BLUE_GREEN_SERVICE_RESOURCE_TYPE: SupportedEcsBlueGreenV1ResourceType = 'S
 
 export const getEcsCluster = ({ workload }: { workload: StpContainerWorkload }) => {
   const cluster = new EcsCluster({
-    ClusterName: awsResourceNames.ecsCluster(workload.name, globalStateManager.targetStack.stackName)
+    ClusterName: awsResourceNames.ecsCluster(workload.name, calculatedStackOverviewManager.context.stackName)
   });
   // if (workload.resources.instanceTypes) {
   //   cluster.DependsOn = [cfLogicalNames.ecsEc2ForceDeleteAutoscalingGroupCustomResource(workload.name)];
@@ -171,11 +171,11 @@ export const getEcsTaskRole = ({
   mountedEfsFilesystems: StpEfsFilesystem[];
   enableRemoteSessions: boolean;
 }) => {
-  const isDevStack = globalStateManager.command === 'dev';
+  const isDevStack = calculatedStackOverviewManager.context.command === 'dev';
   return new Role({
     RoleName: awsResourceNames.containerWorkloadRole(
-      globalStateManager.targetStack.stackName,
-      globalStateManager.region,
+      calculatedStackOverviewManager.context.stackName,
+      calculatedStackOverviewManager.context.region,
       workloadName
     ),
     AssumeRolePolicyDocument: {
@@ -283,7 +283,7 @@ const getEfsVolumeName = (efsFilesystemName: string, rootDirectory?: string): st
 };
 
 const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload): ContainerDefinition[] => {
-  const { region } = globalStateManager;
+  const { region } = calculatedStackOverviewManager.context;
 
   return workload.containers.map((container) => {
     const repositoryCredentialsSecretArn = (container.packaging.properties as PrebuiltImageCwPackagingProps)
@@ -410,7 +410,10 @@ export const getEcsEc2InstanceLaunchTemplate = ({ workload }: { workload: StpCon
           Tags: stackManager.getTags([
             {
               name: tagNames.autoscalingGroupName(),
-              value: awsResourceNames.ecsEc2AutoscalingGroup(workload.name, globalStateManager.targetStack.stackName)
+              value: awsResourceNames.ecsEc2AutoscalingGroup(
+                workload.name,
+                calculatedStackOverviewManager.context.stackName
+              )
             }
           ])
         },
@@ -419,7 +422,10 @@ export const getEcsEc2InstanceLaunchTemplate = ({ workload }: { workload: StpCon
           Tags: stackManager.getTags([
             {
               name: tagNames.autoscalingGroupName(),
-              value: awsResourceNames.ecsEc2AutoscalingGroup(workload.name, globalStateManager.targetStack.stackName)
+              value: awsResourceNames.ecsEc2AutoscalingGroup(
+                workload.name,
+                calculatedStackOverviewManager.context.stackName
+              )
             }
           ])
         },
@@ -429,7 +435,10 @@ export const getEcsEc2InstanceLaunchTemplate = ({ workload }: { workload: StpCon
           Tags: stackManager.getTags([
             {
               name: tagNames.autoscalingGroupName(),
-              value: awsResourceNames.ecsEc2AutoscalingGroup(workload.name, globalStateManager.targetStack.stackName)
+              value: awsResourceNames.ecsEc2AutoscalingGroup(
+                workload.name,
+                calculatedStackOverviewManager.context.stackName
+              )
             }
           ])
         }
@@ -471,7 +480,7 @@ export const getEc2AutoscalingGroup = ({ workload }: { workload: StpContainerWor
         : undefined,
     AutoScalingGroupName: awsResourceNames.ecsEc2AutoscalingGroup(
       workload.name,
-      globalStateManager.targetStack.stackName
+      calculatedStackOverviewManager.context.stackName
     ),
     VPCZoneIdentifier: workload.usePrivateSubnetsWithNAT
       ? vpcManager.getPrivateSubnetIds()
@@ -694,9 +703,9 @@ export const getEcsServiceSecurityGroup = ({ workload }: { workload: StpContaine
   new SecurityGroup({
     GroupDescription: awsResourceNames.workloadSecurityGroupGroupDescription(
       workload.name,
-      globalStateManager.targetStack.stackName
+      calculatedStackOverviewManager.context.stackName
     ),
-    GroupName: awsResourceNames.workloadSecurityGroup(workload.name, globalStateManager.targetStack.stackName),
+    GroupName: awsResourceNames.workloadSecurityGroup(workload.name, calculatedStackOverviewManager.context.stackName),
     VpcId: vpcManager.getVpcId(),
     SecurityGroupIngress: getEcsServiceSecurityGroupIngress({ workload, workloadName: workload.name })
   });
@@ -821,7 +830,11 @@ export const getAutoScalingPolicy = (
   targetValue: number
 ) =>
   new ScalingPolicy({
-    PolicyName: awsResourceNames.autoScalingPolicy(workloadName, globalStateManager.targetStack.stackName, metric),
+    PolicyName: awsResourceNames.autoScalingPolicy(
+      workloadName,
+      calculatedStackOverviewManager.context.stackName,
+      metric
+    ),
     PolicyType: 'TargetTrackingScaling',
     ScalingTargetId: Ref(cfLogicalNames.autoScalingTarget(workloadName)),
     TargetTrackingScalingPolicyConfiguration: {
@@ -933,7 +946,7 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
     // blue green properties
     DeploymentController: blueGreen ? { Type: 'CODE_DEPLOY' } : undefined,
     ServiceName: blueGreen
-      ? awsResourceNames.ecsService(workload.name, globalStateManager.targetStack.stackName, blueGreen)
+      ? awsResourceNames.ecsService(workload.name, calculatedStackOverviewManager.context.stackName, blueGreen)
       : undefined,
     DesiredCount: blueGreen ? 1 : undefined
   };
@@ -949,10 +962,10 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
         Type: BLUE_GREEN_SERVICE_RESOURCE_TYPE,
         Properties: {
           ECSService: serviceProps,
-          StackName: globalStateManager.targetStack.stackName,
+          StackName: calculatedStackOverviewManager.context.stackName,
           CodeDeployApplicationName: Ref(cfLogicalNames.ecsCodeDeployApp()),
           CodeDeployDeploymentGroupName: awsResourceNames.codeDeployDeploymentGroup({
-            stackName: globalStateManager.targetStack.stackName,
+            stackName: calculatedStackOverviewManager.context.stackName,
             stpResourceName: workload.name
           }),
           LifecycleEventHooks:
@@ -1088,7 +1101,7 @@ export const getCodeDeployDeploymentGroup = ({ workload }: { workload: StpContai
       ]
     },
     DeploymentGroupName: awsResourceNames.codeDeployDeploymentGroup({
-      stackName: globalStateManager.targetStack.stackName,
+      stackName: calculatedStackOverviewManager.context.stackName,
       stpResourceName: workload.name
     }),
     DeploymentStyle: {
@@ -1098,8 +1111,8 @@ export const getCodeDeployDeploymentGroup = ({ workload }: { workload: StpContai
     DeploymentConfigName: `CodeDeployDefault.ECS${workload.deployment.strategy}`,
     ECSServices: [
       {
-        ClusterName: awsResourceNames.ecsCluster(workload.name, globalStateManager.targetStack.stackName),
-        ServiceName: awsResourceNames.ecsService(workload.name, globalStateManager.targetStack.stackName, true)
+        ClusterName: awsResourceNames.ecsCluster(workload.name, calculatedStackOverviewManager.context.stackName),
+        ServiceName: awsResourceNames.ecsService(workload.name, calculatedStackOverviewManager.context.stackName, true)
       }
     ],
     ServiceRoleArn: GetAtt(cfLogicalNames.codeDeployServiceRole(), 'Arn')
@@ -1193,7 +1206,7 @@ export const getEcsTaskDefinition = (workload: StpContainerWorkload): TaskDefini
   const cpuArchitecture =
     packagingManager.getTargetCpuArchitectureForContainer(workload.resources) === 'linux/arm64' ? 'ARM64' : 'X86_64';
   return new TaskDefinition({
-    Family: awsResourceNames.ecsTaskDefinitionFamily(workload.name, globalStateManager.targetStack.stackName),
+    Family: awsResourceNames.ecsTaskDefinitionFamily(workload.name, calculatedStackOverviewManager.context.stackName),
     NetworkMode: workload.resources.instanceTypes ? 'bridge' : 'awsvpc',
     RequiresCompatibilities: workload.resources.instanceTypes ? ['EC2'] : ['FARGATE'],
     Cpu: cpu,

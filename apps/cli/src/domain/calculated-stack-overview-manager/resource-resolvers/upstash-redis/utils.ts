@@ -1,7 +1,7 @@
 import type { SupportedUpstashRedisV1ResourceType } from '@domain-services/cloudformation-registry-manager/types';
 import type { StpUpstashRedis } from '@domain-services/config-manager/resolved-types/upstash-redis';
 import type Resource from '@cloudform/resource';
-import { globalStateManager } from '@application-services/global-state-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { thirdPartyProviderManager } from '@domain-services/third-party-provider-credentials-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { findBestFittingAvailableRegion } from '../_utils/regions';
@@ -15,10 +15,12 @@ export const getUpstashDatabaseResource = (resource: StpUpstashRedis) => {
     Properties: {
       DatabaseName: awsResourceNames.upstashRedisDatabase({
         stpResourceName: resource.name,
-        globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
-        stackName: globalStateManager.targetStack.stackName
+        globallyUniqueStackHash: calculatedStackOverviewManager.context.globallyUniqueStackHash,
+        stackName: calculatedStackOverviewManager.context.stackName
       }),
-      Region: findBestFittingRegionForUpstashDatabase({ stackDeploymentRegion: globalStateManager.region }),
+      Region: findBestFittingRegionForUpstashDatabase({
+        stackDeploymentRegion: calculatedStackOverviewManager.context.region
+      }),
       EvictionEnabled: resource.enableEviction,
       ApiCredentials: {
         Email: upstashProvider.accountEmail,
