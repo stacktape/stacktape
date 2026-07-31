@@ -593,7 +593,7 @@ export class DeploymentArtifactManager {
   loadPreviousImages = async (repositoryName: string, stackActionType: StackActionType) => {
     let imagesInRepo: ImageIdentifier[] = [];
     try {
-      imagesInRepo = await awsSdkManager.listAllImagesInEcrRepo(repositoryName);
+      imagesInRepo = await awsSdkManager.ecr.listImages(repositoryName);
     } catch (err) {
       if (stackActionType === 'delete' && err.toString().includes('RepositoryNotFoundException')) {
         tuiManager.debug(`ECR repo ${repositoryName} not found; skipping image load.`);
@@ -613,13 +613,13 @@ export class DeploymentArtifactManager {
   };
 
   loginToEcr = async () => {
-    const loginDetails = await awsSdkManager.getEcrAuthDetails();
+    const loginDetails = await awsSdkManager.ecr.getAuthorization();
     await dockerLogin(loginDetails);
   };
 
   deleteImagesFromEcrRepo = (imageTags: string[], imageDigests: string[]) => {
     if (imageDigests.length || imageTags.length) {
-      return awsSdkManager.batchDeleteImages(this.repositoryName, imageTags, imageDigests);
+      return awsSdkManager.ecr.deleteImages(this.repositoryName, imageTags, imageDigests);
     }
   };
 

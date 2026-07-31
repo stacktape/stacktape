@@ -112,7 +112,7 @@ const handler: CloudFormationCustomResourceHandler = async (event, context) => {
         PhysicalResourceId: physicalResourceId || (event as CloudFormationCustomResourceUpdateEvent).PhysicalResourceId,
         attempt: attempt + 1
       };
-      await awsSdkManager.invokeLambdaFunction({
+      await awsSdkManager.lambda.invoke({
         lambdaResourceName: context.functionName,
         payload,
         asynchronous: true

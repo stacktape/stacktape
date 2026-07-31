@@ -152,21 +152,21 @@ export const updateFunctionCode = async ({
     });
   }
 
-  const { FunctionArn } = await awsSdkManager.updateExistingLambdaFunctionCode({
+  const { FunctionArn } = await awsSdkManager.lambda.updateFunctionCode({
     lambdaResourceName,
     artifactBucketName: awsResourceNames.deploymentBucket(globalStateManager.targetStack.globallyUniqueStackHash),
     artifactS3Key: s3Key
   });
 
   await Promise.all([
-    awsSdkManager.waitUntilFunctionIsUpdated({ lambdaResourceName }).then(async () => {
+    awsSdkManager.lambda.waitUntilUpdated({ lambdaResourceName }).then(async () => {
       // if lambda uses alias we must update it as well
       if (aliasName) {
-        const { Version: version } = await awsSdkManager.publishFunctionVersion({ lambdaResourceName });
-        return awsSdkManager.updateFunctionAlias({ lambdaResourceName, aliasName, version });
+        const { Version: version } = await awsSdkManager.lambda.publishVersion({ lambdaResourceName });
+        return awsSdkManager.lambda.updateAlias({ lambdaResourceName, aliasName, version });
       }
     }),
-    awsSdkManager.tagLambdaFunction({
+    awsSdkManager.lambda.tagFunction({
       lambdaArn: FunctionArn,
       tags: [
         { key: tagNames.hotSwapDeploy(), value: 'true' },

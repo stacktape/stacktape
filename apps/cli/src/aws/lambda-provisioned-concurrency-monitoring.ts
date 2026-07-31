@@ -1,7 +1,8 @@
 import type { TuiManager as Printer } from '@application-services/tui-manager';
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
-import type { AwsSdkManager } from './sdk-manager';
+import type { AwsLambda } from './lambda';
+import type { AwsObservability } from './observability';
 import { ResourceStatus } from '@aws-sdk/client-cloudformation';
 import { ProvisionedConcurrencyStatusEnum } from '@aws-sdk/client-lambda';
 import { consoleLinks } from '@stacktape/naming/console-links';
@@ -11,7 +12,9 @@ export class LambdaProvisionedConcurrencyPoller {
   #functionName: string;
   #aliasName: string;
   #pollerPrintName?: string;
-  #awsSdkManager: AwsSdkManager;
+  #lambda: Pick<AwsLambda, 'getProvisionedConcurrencyConfig'>;
+  #observability: Pick<AwsObservability, 'getLogEvents' | 'listLogStreams'>;
+  #region: string;
   #pollInterval: NodeJS.Timeout;
   #pollInProgress = false;
   #printer?: Printer;
@@ -26,19 +29,27 @@ export class LambdaProvisionedConcurrencyPoller {
     functionName,
     aliasName,
     pollerPrintName,
-    awsSdkManager,
+    lambda,
+    observability,
+    region,
+    printer,
     logGroupName
   }: {
     functionName: string;
     aliasName: string;
     pollerPrintName?: string;
-    awsSdkManager: AwsSdkManager;
+    lambda: Pick<AwsLambda, 'getProvisionedConcurrencyConfig'>;
+    observability: Pick<AwsObservability, 'getLogEvents' | 'listLogStreams'>;
+    region: string;
+    printer?: Printer;
     logGroupName?: string;
   }) {
     this.#functionName = functionName;
     this.#aliasName = aliasName;
-    this.#awsSdkManager = awsSdkManager;
-    this.#printer = this.#awsSdkManager.printer;
+    this.#lambda = lambda;
+    this.#observability = observability;
+    this.#region = region;
+    this.#printer = printer;
     this.#pollerPrintName = pollerPrintName || functionName;
     this.#logGroupName = logGroupName;
     this.#startTime = new Date();
@@ -61,7 +72,7 @@ export class LambdaProvisionedConcurrencyPoller {
     }
 
     try {
-      const config = await this.#awsSdkManager.getProvisionedConcurrencyConfig({
+      const config = await this.#lambda.getProvisionedConcurrencyConfig({
         functionName: this.#functionName,
         qualifier: this.#aliasName
       });
@@ -85,7 +96,7 @@ export class LambdaProvisionedConcurrencyPoller {
     }
 
     try {
-      const logStreams = await this.#awsSdkManager.observability.listLogStreams({
+      const logStreams = await this.#observability.listLogStreams({
         logGroupName: this.#logGroupName,
         limit: 10,
         orderBy: 'LastEventTime'
@@ -104,7 +115,7 @@ export class LambdaProvisionedConcurrencyPoller {
         this.#logStreamName = streamsToUse[0].logStreamName;
 
         // Fetch logs from these streams
-        const logs = await this.#awsSdkManager.observability.getLogEvents({
+        const logs = await this.#observability.getLogEvents({
           logGroupName: this.#logGroupName,
           logStreamNames: streamsToUse.map((s) => s.logStreamName),
           startTime: this.#startTime.getTime()
@@ -161,10 +172,10 @@ export class LambdaProvisionedConcurrencyPoller {
     // AWS Console links
     lines.push('');
     if (this.#logGroupName && this.#logStreamName) {
-      const logStreamLink = consoleLinks.logStream(this.#awsSdkManager.region, this.#logGroupName, this.#logStreamName);
+      const logStreamLink = consoleLinks.logStream(this.#region, this.#logGroupName, this.#logStreamName);
       lines.push(this.#printer.terminalLink('Full logs', logStreamLink));
     } else if (this.#logGroupName) {
-      const logGroupLink = consoleLinks.logGroup(this.#awsSdkManager.region, this.#logGroupName);
+      const logGroupLink = consoleLinks.logGroup(this.#region, this.#logGroupName);
       lines.push(this.#printer.terminalLink('Function logs', logGroupLink));
     }
 

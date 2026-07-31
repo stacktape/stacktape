@@ -1,6 +1,5 @@
 import type { TuiManager as Printer } from '@application-services/tui-manager';
 import type { CostExplorerTagsError } from '@domain-services/budget-manager/types';
-import type { InvokeLambdaReturnValue } from '@domain-services/cloudformation-stack-manager/types';
 import type { GitInformation } from '@utils/git-info-manager/types';
 import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
 import type { Budget } from '@aws-sdk/client-budgets';
@@ -8,7 +7,6 @@ import type { DistributionSummary } from '@aws-sdk/client-cloudfront';
 import type { BatchGetBuildsCommandInput } from '@aws-sdk/client-codebuild';
 import type { CreateDeploymentCommandInput } from '@aws-sdk/client-codedeploy';
 import type { _InstanceType, InstanceTypeInfo, RouteTable, Subnet, Vpc } from '@aws-sdk/client-ec2';
-import type { ImageIdentifier } from '@aws-sdk/client-ecr';
 import type {
   DescribeServicesCommandInput,
   DesiredStatus,
@@ -18,7 +16,6 @@ import type {
 import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
 import type { StartSessionCommandInput, StartSessionResponse } from '@aws-sdk/client-ssm';
 import type TaskDefinition from '@cloudform/ecs/taskDefinition';
-import { Buffer } from 'node:buffer';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { AutoScaling, DescribeAutoScalingGroupsCommand } from '@aws-sdk/client-auto-scaling';
 import { BudgetsClient, DescribeBudgetsCommand } from '@aws-sdk/client-budgets';
@@ -54,12 +51,7 @@ import {
   DescribeVpcsCommand,
   EC2Client
 } from '@aws-sdk/client-ec2';
-import {
-  BatchDeleteImageCommand,
-  ECRClient,
-  GetAuthorizationTokenCommand,
-  ListImagesCommand
-} from '@aws-sdk/client-ecr';
+import { ECRClient } from '@aws-sdk/client-ecr';
 import {
   DeploymentRolloutState,
   DescribeServicesCommand,
@@ -73,18 +65,7 @@ import {
   UpdateServiceCommand
 } from '@aws-sdk/client-ecs';
 import { IAMClient } from '@aws-sdk/client-iam';
-import {
-  GetFunctionConfigurationCommand,
-  GetProvisionedConcurrencyConfigCommand,
-  InvokeCommand,
-  LambdaClient,
-  ListTagsCommand,
-  PublishVersionCommand,
-  TagResourceCommand as TagLambdaResource,
-  UpdateAliasCommand,
-  UpdateFunctionCodeCommand,
-  waitUntilFunctionUpdated
-} from '@aws-sdk/client-lambda';
+import { LambdaClient } from '@aws-sdk/client-lambda';
 import { DescribeInstanceTypeLimitsCommand, OpenSearchClient } from '@aws-sdk/client-opensearch';
 import { DescribeDBClustersCommand, DescribeDBInstancesCommand, RDSClient } from '@aws-sdk/client-rds';
 import { GetTagKeysCommand, ResourceGroupsTaggingAPIClient } from '@aws-sdk/client-resource-groups-tagging-api';
@@ -103,7 +84,6 @@ import {
 } from '@aws-sdk/client-ssm';
 import { STSClient } from '@aws-sdk/client-sts';
 // import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
-import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node';
 import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import { resourceURIs } from 'src/utils/aws-resource-uris';
@@ -129,6 +109,8 @@ import { AwsS3 } from '../s3';
 import { S3Sync } from '../s3-sync';
 import { AwsIam } from '../iam';
 import { AwsSts } from '../identity';
+import { AwsEcr } from '../ecr';
+import { AwsLambda } from '../lambda';
 import { defaultGetErrorFunction, transformToCliArgs } from './utils';
 
 const getOperationInvocationCodebuildEnvVariables = () => {
@@ -150,6 +132,8 @@ export class AwsSdkManager {
   #s3?: AwsS3;
   #iam?: AwsIam;
   #sts?: AwsSts;
+  #ecr?: AwsEcr;
+  #lambda?: AwsLambda;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -218,6 +202,14 @@ export class AwsSdkManager {
       createClient: () => this.#stsClient(),
       getErrorHandler: this.#getErrorHandler,
       printer
+    });
+    this.#ecr = new AwsEcr({
+      createClient: () => this.#ecrClient(),
+      getErrorHandler: this.#getErrorHandler
+    });
+    this.#lambda = new AwsLambda({
+      createClient: () => this.#lambdaClient(),
+      getErrorHandler: this.#getErrorHandler
     });
   }
 
@@ -307,6 +299,22 @@ export class AwsSdkManager {
       throw new Error('AWS STS has not been initialized.');
     }
     return this.#sts;
+  }
+
+  get ecr() {
+    this.#getContext();
+    if (!this.#ecr) {
+      throw new Error('AWS ECR has not been initialized.');
+    }
+    return this.#ecr;
+  }
+
+  get lambda() {
+    this.#getContext();
+    if (!this.#lambda) {
+      throw new Error('AWS Lambda has not been initialized.');
+    }
+    return this.#lambda;
   }
 
   #getContext() {
@@ -405,7 +413,7 @@ export class AwsSdkManager {
     return this.#applyPlugins(new STSClient(this.#getClientArgs()));
   }
 
-  #ecr() {
+  #ecrClient() {
     return this.#applyPlugins(new ECRClient(this.#getClientArgs()));
   }
 
@@ -446,7 +454,7 @@ export class AwsSdkManager {
     return this.#applyPlugins(new CloudWatchClient(this.#getClientArgs()));
   }
 
-  #lambda() {
+  #lambdaClient() {
     // In order to honor the overall maximum timeout set for the target process when invoking lambda,
     // the default 2 minutes from AWS SDK has to be overridden.
     return this.#applyPlugins(new LambdaClient(this.#getClientArgs({ requestTimeout: 900_000 })));
@@ -526,111 +534,6 @@ export class AwsSdkManager {
       errHandler(err);
     }
     return { tags: result };
-  };
-
-  listAllImagesInEcrRepo = async (repositoryName: string): Promise<ImageIdentifier[]> => {
-    const errHandler = this.#getErrorHandler(`Failed to list images in ECR repository ${repositoryName}.`);
-    const pagedImageIds: ImageIdentifier[][] = [];
-    let { nextToken, imageIds } = await this.#ecr().send(new ListImagesCommand({ repositoryName })).catch(errHandler);
-    pagedImageIds.push(imageIds);
-    while (nextToken) {
-      ({ nextToken, imageIds } = await this.#ecr()
-        .send(new ListImagesCommand({ repositoryName, nextToken }))
-        .catch(errHandler));
-      pagedImageIds.push(imageIds);
-    }
-    return pagedImageIds.flat();
-  };
-
-  batchDeleteImages = async (repositoryName: string, imageTags: string[], imageDigests: string[]) => {
-    const errHandler = this.#getErrorHandler(
-      `Failed to batch delete images with tags/digests: ${imageTags.join(', ')}, ${imageDigests.join(', ')}.`
-    );
-    const imageIds = [
-      ...imageTags.map((tag) => ({ imageTag: tag })),
-      ...imageDigests.map((digest) => ({ imageDigest: digest }))
-    ];
-    if (imageIds.length) {
-      for (const imageIdsBatch of chunkArray(imageIds, 100)) {
-        await this.#ecr()
-          .send(
-            new BatchDeleteImageCommand({
-              repositoryName,
-              imageIds: imageIdsBatch
-            })
-          )
-          .catch(errHandler);
-      }
-      return;
-    }
-    return Promise.resolve();
-  };
-
-  getEcrAuthDetails = async () => {
-    const errHandler = this.#getErrorHandler('Failed to get authorization data for Docker registry from AWS ECR.');
-    const getAuthResponse = await this.#ecr().send(new GetAuthorizationTokenCommand({})).catch(errHandler);
-    // @note https://docs.aws.amazon.com/AmazonECR/latest/userguide/Registries.html
-    const { authorizationToken, proxyEndpoint } = getAuthResponse.authorizationData[0];
-    const [user, password] = Buffer.from(authorizationToken, 'base64').toString().split(':');
-    return { user, password, proxyEndpoint };
-  };
-
-  updateExistingLambdaFunctionCode = async ({
-    lambdaResourceName,
-    artifactBucketName,
-    artifactS3Key
-  }: {
-    lambdaResourceName: string;
-    artifactBucketName: string;
-    artifactS3Key: string;
-  }) => {
-    const errHandler = this.#getErrorHandler(`Failed to update function code of function ${lambdaResourceName}.`);
-    return this.#lambda()
-      .send(
-        new UpdateFunctionCodeCommand({
-          FunctionName: lambdaResourceName,
-          S3Bucket: artifactBucketName,
-          S3Key: artifactS3Key
-        })
-      )
-      .catch(errHandler);
-  };
-
-  getLambda = async ({ lambdaResourceName }: { lambdaResourceName: string }) => {
-    const errHandler = this.#getErrorHandler(`Failed to get configuration of function ${lambdaResourceName}.`);
-    return this.#lambda()
-      .send(
-        new GetFunctionConfigurationCommand({
-          FunctionName: lambdaResourceName
-        })
-      )
-      .catch(errHandler);
-  };
-
-  invokeLambdaFunction = async ({
-    lambdaResourceName,
-    payload,
-    asynchronous
-  }: {
-    lambdaResourceName: string;
-    payload: { [key: string]: any };
-    asynchronous?: boolean;
-  }): Promise<InvokeLambdaReturnValue> => {
-    const errHandler = this.#getErrorHandler(`Failed to invoke function ${lambdaResourceName}.`);
-
-    const response = await this.#lambda()
-      .send(
-        new InvokeCommand({
-          FunctionName: lambdaResourceName,
-          Payload: fromUtf8(JSON.stringify(payload)),
-          InvocationType: asynchronous ? 'Event' : 'RequestResponse'
-        })
-      )
-      .catch(errHandler);
-    return {
-      ...response,
-      Payload: toUtf8(response.Payload)
-    };
   };
 
   //   getStackDriftInformation = async (stackName: string): Promise<DriftDetail[]> => {
@@ -760,46 +663,6 @@ export class AwsSdkManager {
     return service;
   };
 
-  getLambdaTags = async ({ lambdaArn }: { lambdaArn: string }) => {
-    const errHandler = this.#getErrorHandler('Failed to get lambda tags.');
-    return (
-      (
-        await this.#lambda()
-          .send(new ListTagsCommand({ Resource: lambdaArn }))
-          .catch(errHandler)
-      ).Tags || {}
-    );
-  };
-
-  getProvisionedConcurrencyConfig = async ({
-    functionName,
-    qualifier
-  }: {
-    functionName: string;
-    qualifier: string;
-  }) => {
-    const errHandler = this.#getErrorHandler('Failed to get provisioned concurrency config.');
-    return this.#lambda()
-      .send(new GetProvisionedConcurrencyConfigCommand({ FunctionName: functionName, Qualifier: qualifier }))
-      .catch(errHandler);
-  };
-
-  tagLambdaFunction = async ({ lambdaArn, tags }: { lambdaArn: string; tags: { key: string; value: string }[] }) => {
-    const errHandler = this.#getErrorHandler('Failed to tag lambda.');
-    const tagObject = {};
-    tags.forEach(({ key, value }) => {
-      tagObject[key] = value;
-    });
-    return this.#lambda()
-      .send(
-        new TagLambdaResource({
-          Resource: lambdaArn,
-          Tags: tagObject
-        })
-      )
-      .catch(errHandler);
-  };
-
   registerEcsTaskDefinition = async ({
     cloudformationEcsTaskDefinition
   }: {
@@ -907,40 +770,6 @@ export class AwsSdkManager {
     if (waiterResult.state !== WaiterState.SUCCESS) {
       throw errHandler(new Error(waiterResult.reason));
     }
-  };
-
-  waitUntilFunctionIsUpdated = async ({ lambdaResourceName }: { lambdaResourceName: string }) => {
-    const errHandler = this.#getErrorHandler(
-      `Failure when waiting for update of lambda function ${lambdaResourceName}.`
-    );
-    await waitUntilFunctionUpdated(
-      { client: this.#lambda(), maxWaitTime: 120 },
-      { FunctionName: lambdaResourceName }
-    ).catch(errHandler);
-  };
-
-  publishFunctionVersion = async ({ lambdaResourceName }: { lambdaResourceName: string }) => {
-    const errHandler = this.#getErrorHandler(`Failure when publishing lambda function ${lambdaResourceName} version.`);
-    return this.#lambda()
-      .send(new PublishVersionCommand({ FunctionName: lambdaResourceName }))
-      .catch(errHandler);
-  };
-
-  updateFunctionAlias = async ({
-    lambdaResourceName,
-    aliasName,
-    version
-  }: {
-    lambdaResourceName: string;
-    aliasName: string;
-    version: string;
-  }) => {
-    const errHandler = this.#getErrorHandler(
-      `Failure when updating lambda function ${lambdaResourceName} alias ${aliasName}.`
-    );
-    return this.#lambda()
-      .send(new UpdateAliasCommand({ FunctionName: lambdaResourceName, Name: aliasName, FunctionVersion: version }))
-      .catch(errHandler);
   };
 
   getCodebuildProject = async ({ projectName }: { projectName: string }) => {

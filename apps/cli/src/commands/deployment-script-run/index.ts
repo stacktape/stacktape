@@ -1,4 +1,4 @@
-import type { InvokeLambdaReturnValue } from '@domain-services/cloudformation-stack-manager/types';
+import type { InvokeLambdaReturnValue } from 'src/aws/lambda';
 import type { StpDeploymentScript } from '@domain-services/config-manager/resolved-types/deployment-script';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { eventManager } from '@application-services/event-manager';
@@ -23,7 +23,7 @@ export const commandDeploymentScriptRun = async () => {
 
   const { lambdaArn } = await buildAndUpdateFunctionCode(resourceName);
 
-  await awsSdkManager.tagLambdaFunction({
+  await awsSdkManager.lambda.tagFunction({
     lambdaArn,
     tags: [{ key: tagNames.hotSwapDeploy(), value: 'true' }]
   });
@@ -40,7 +40,7 @@ export const commandDeploymentScriptRun = async () => {
     eventType: 'RUN_DEPLOYMENT_SCRIPT',
     description: `Running deployment script ${resourceName}`
   });
-  const response = await awsSdkManager.invokeLambdaFunction({
+  const response = await awsSdkManager.lambda.invoke({
     lambdaResourceName: lambdaArn,
     payload: scriptParametersResolvedLocally
   });

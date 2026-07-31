@@ -31,7 +31,10 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   directory synchronization are reached as `awsSdkManager.s3`; upload presets and native-header classification live
   beside that capability in `src/aws/s3-upload-options.ts`. IAM role/policy operations and STS role assumption are
   reached as `awsSdkManager.iam` and `awsSdkManager.sts`; keep the policy-repair and credential-validation behavior in
-  those boundaries. SSM Parameter Store, Secrets Manager, CloudWatch
+  those boundaries. ECR image/auth operations and Lambda invocation/deployment operations are reached as
+  `awsSdkManager.ecr` and `awsSdkManager.lambda`; Lambda clients retain the extended invocation timeout. Pollers and
+  other workflow objects receive the narrow capabilities they use instead of the complete manager. SSM Parameter
+  Store, Secrets Manager, CloudWatch
   logs/metrics/alarms, and Route 53/ACM/SES domain operations are reached as `awsSdkManager.parameterStore`,
   `awsSdkManager.secrets`, `awsSdkManager.observability`, and `awsSdkManager.domains`; SSM sessions remain separate
   workflow behavior. Capability extraction must keep using `src/aws/context.ts` client construction so credential

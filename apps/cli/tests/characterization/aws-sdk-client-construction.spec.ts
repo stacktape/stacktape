@@ -285,7 +285,7 @@ describe.serial('AWS SDK client construction', () => {
   test.serial('gives Lambda invocations the fifteen-minute request timeout', async () => {
     const captured = captureSend<LambdaClient>(LambdaClient.prototype, {});
 
-    await managerWith().getLambda({ lambdaResourceName: 'example-function' });
+    await managerWith().lambda.getFunction({ lambdaResourceName: 'example-function' });
 
     const requestHandler = captured().config.requestHandler;
     if (typeof requestHandler !== 'object' || requestHandler === null || !('configProvider' in requestHandler)) {

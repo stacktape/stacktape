@@ -1246,7 +1246,10 @@ export class StackManager {
             functionName,
             aliasName,
             pollerPrintName: stpParentResourceName,
-            awsSdkManager,
+            lambda: awsSdkManager.lambda,
+            observability: awsSdkManager.observability,
+            printer: awsSdkManager.printer,
+            region: awsSdkManager.region,
             logGroupName
           }
         );
@@ -1397,7 +1400,7 @@ export class StackManager {
               lambdaAwsName: resource.PhysicalResourceId
             });
             const resourceTags: Tag[] = Object.entries(
-              await awsSdkManager.getLambdaTags({
+              await awsSdkManager.lambda.listTags({
                 lambdaArn
               })
             ).map(([key, value]) => ({ key, value }));

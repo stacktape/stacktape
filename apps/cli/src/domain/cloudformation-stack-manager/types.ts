@@ -42,10 +42,6 @@ export type StackDetails = import('@aws-sdk/client-cloudformation').Stack & {
   };
 };
 
-export type InvokeLambdaReturnValue = Omit<import('@aws-sdk/client-lambda').InvokeCommandOutput, 'Payload'> & {
-  Payload: string;
-};
-
 export type EnrichedStackResourceInfo = import('@aws-sdk/client-cloudformation').StackResourceSummary & {
   tags?: { key?: string; value?: string }[]; // applicable to and AWS::Lambda::Function
   ecsServiceTaskDefinition?: import('@aws-sdk/client-ecs').TaskDefinition; // applicable to AWS::ECS::Service and Stacktape::ECSBlueGreen::Service
