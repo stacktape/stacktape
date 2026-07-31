@@ -33,7 +33,10 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   reached as `awsSdkManager.iam` and `awsSdkManager.sts`; keep the policy-repair and credential-validation behavior in
   those boundaries. ECR image/auth operations and Lambda invocation/deployment operations are reached as
   `awsSdkManager.ecr` and `awsSdkManager.lambda`; Lambda clients retain the extended invocation timeout. Pollers and
-  other workflow objects receive the narrow capabilities they use instead of the complete manager. SSM Parameter
+  other workflow objects receive the narrow capabilities they use instead of the complete manager. ECS discovery,
+  task registration, service updates, ECS Exec and ECS-targeted CodeDeploy operations are reached as
+  `awsSdkManager.ecs`; the CodeDeploy client belongs there because it implements the ECS blue-green deployment
+  workflow rather than a general CodeDeploy surface. SSM Parameter
   Store, Secrets Manager, CloudWatch
   logs/metrics/alarms, and Route 53/ACM/SES domain operations are reached as `awsSdkManager.parameterStore`,
   `awsSdkManager.secrets`, `awsSdkManager.observability`, and `awsSdkManager.domains`; SSM sessions remain separate

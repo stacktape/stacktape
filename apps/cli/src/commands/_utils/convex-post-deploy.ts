@@ -80,7 +80,7 @@ const getBackendEcsTarget = async (convex: StpConvex) => {
   }
 
   for (let attempt = 1; attempt <= 30; attempt += 1) {
-    const tasks = await awsSdkManager.listEcsTasks({
+    const tasks = await awsSdkManager.ecs.listTasks({
       ecsClusterName: clusterArn,
       desiredStatus: DesiredStatus.RUNNING
     });

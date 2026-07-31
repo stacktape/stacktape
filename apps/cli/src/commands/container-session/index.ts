@@ -56,7 +56,7 @@ const resolveTargetContainer = async () => {
     throw stpErrors.e120({ containerResourceName: resourceName, availableContainers: containersInTaskDefinition });
   }
 
-  const tasks = await awsSdkManager.listEcsTasks({
+  const tasks = await awsSdkManager.ecs.listTasks({
     ecsClusterName: clusterArn,
     desiredStatus: DesiredStatus.RUNNING
   });

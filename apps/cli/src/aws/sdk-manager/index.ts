@@ -5,17 +5,9 @@ import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
 import type { Budget } from '@aws-sdk/client-budgets';
 import type { DistributionSummary } from '@aws-sdk/client-cloudfront';
 import type { BatchGetBuildsCommandInput } from '@aws-sdk/client-codebuild';
-import type { CreateDeploymentCommandInput } from '@aws-sdk/client-codedeploy';
 import type { _InstanceType, InstanceTypeInfo, RouteTable, Subnet, Vpc } from '@aws-sdk/client-ec2';
-import type {
-  DescribeServicesCommandInput,
-  DesiredStatus,
-  ExecuteCommandCommandInput,
-  UpdateServiceCommandInput
-} from '@aws-sdk/client-ecs';
 import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
 import type { StartSessionCommandInput, StartSessionResponse } from '@aws-sdk/client-ssm';
-import type TaskDefinition from '@cloudform/ecs/taskDefinition';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { AutoScaling, DescribeAutoScalingGroupsCommand } from '@aws-sdk/client-auto-scaling';
 import { BudgetsClient, DescribeBudgetsCommand } from '@aws-sdk/client-budgets';
@@ -42,7 +34,7 @@ import {
   StartBuildCommand,
   StatusType
 } from '@aws-sdk/client-codebuild';
-import { CodeDeployClient, CreateDeploymentCommand, waitUntilDeploymentSuccessful } from '@aws-sdk/client-codedeploy';
+import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
 import { CostExplorerClient, GetTagsCommand } from '@aws-sdk/client-cost-explorer';
 import {
   DescribeInstanceTypesCommand,
@@ -52,18 +44,7 @@ import {
   EC2Client
 } from '@aws-sdk/client-ec2';
 import { ECRClient } from '@aws-sdk/client-ecr';
-import {
-  DeploymentRolloutState,
-  DescribeServicesCommand,
-  DescribeTaskDefinitionCommand,
-  DescribeTasksCommand,
-  ECSClient,
-  ExecuteCommandCommand,
-  ListTasksCommand,
-  PutAccountSettingDefaultCommand,
-  RegisterTaskDefinitionCommand,
-  UpdateServiceCommand
-} from '@aws-sdk/client-ecs';
+import { ECSClient } from '@aws-sdk/client-ecs';
 import { IAMClient } from '@aws-sdk/client-iam';
 import { LambdaClient } from '@aws-sdk/client-lambda';
 import { DescribeInstanceTypeLimitsCommand, OpenSearchClient } from '@aws-sdk/client-opensearch';
@@ -87,7 +68,7 @@ import { STSClient } from '@aws-sdk/client-sts';
 import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import { resourceURIs } from 'src/utils/aws-resource-uris';
-import { chunkArray, lowerCaseFirstCharacterOfObjectKeys, serialize, wait } from '@utils/misc';
+import { wait } from '@utils/misc';
 import { CliError } from '@utils/errors';
 import { getForwardableOperationInvocationEnv } from '@application-services/operation-invocation-context';
 import { kebabCase } from 'change-case';
@@ -111,6 +92,7 @@ import { AwsIam } from '../iam';
 import { AwsSts } from '../identity';
 import { AwsEcr } from '../ecr';
 import { AwsLambda } from '../lambda';
+import { AwsEcs } from '../ecs';
 import { defaultGetErrorFunction, transformToCliArgs } from './utils';
 
 const getOperationInvocationCodebuildEnvVariables = () => {
@@ -134,6 +116,7 @@ export class AwsSdkManager {
   #sts?: AwsSts;
   #ecr?: AwsEcr;
   #lambda?: AwsLambda;
+  #ecs?: AwsEcs;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -209,6 +192,11 @@ export class AwsSdkManager {
     });
     this.#lambda = new AwsLambda({
       createClient: () => this.#lambdaClient(),
+      getErrorHandler: this.#getErrorHandler
+    });
+    this.#ecs = new AwsEcs({
+      createClient: () => this.#ecsClient(),
+      createCodeDeployClient: () => this.#codeDeployClient(),
       getErrorHandler: this.#getErrorHandler
     });
   }
@@ -317,6 +305,14 @@ export class AwsSdkManager {
     return this.#lambda;
   }
 
+  get ecs() {
+    this.#getContext();
+    if (!this.#ecs) {
+      throw new Error('AWS ECS has not been initialized.');
+    }
+    return this.#ecs;
+  }
+
   #getContext() {
     if (!this.#context) {
       throw new Error('AWS SDK manager has not been initialized.');
@@ -353,7 +349,7 @@ export class AwsSdkManager {
     );
   }
 
-  #codedeploy() {
+  #codeDeployClient() {
     return this.#applyPlugins(new CodeDeployClient(this.#getClientArgs()));
   }
 
@@ -417,7 +413,7 @@ export class AwsSdkManager {
     return this.#applyPlugins(new ECRClient(this.#getClientArgs()));
   }
 
-  #ecs() {
+  #ecsClient() {
     return this.#applyPlugins(new ECSClient(this.#getClientArgs()));
   }
 
@@ -558,15 +554,6 @@ export class AwsSdkManager {
   //     return res;
   //   };
 
-  setAwsAccountEcsSetting = async (settingName: string, settingValue: 'enabled' | 'disabled') => {
-    const errHandler = this.#getErrorHandler(
-      `Unable to set ecs setting ${settingName} to desired value ${settingValue}`
-    );
-    return this.#ecs()
-      .send(new PutAccountSettingDefaultCommand({ name: settingName, value: settingValue }))
-      .catch(errHandler);
-  };
-
   invalidateCloudfrontDistributionCache = async ({
     distributionId,
     invalidatePaths
@@ -645,131 +632,6 @@ export class AwsSdkManager {
       result.push(Budgets);
     }
     return result.flat().filter((budget) => budget !== undefined);
-  };
-
-  getEcsTaskDefinition = async ({ ecsTaskDefinitionFamily }: { ecsTaskDefinitionFamily: string }) => {
-    const errHandler = this.#getErrorHandler('Failed to get ECS task definition with tags.');
-    return this.#ecs()
-      .send(new DescribeTaskDefinitionCommand({ taskDefinition: ecsTaskDefinitionFamily, include: ['TAGS'] }))
-      .catch(errHandler);
-  };
-
-  getEcsService = async ({ serviceArn }: { serviceArn: string }) => {
-    const errHandler = this.#getErrorHandler('Failed to get ECS Service information');
-    const ecsClusterName = serviceArn.split('/')[1];
-    const { services: [service] = [] } = await this.#ecs()
-      .send(new DescribeServicesCommand({ services: [serviceArn], cluster: ecsClusterName }))
-      .catch(errHandler);
-    return service;
-  };
-
-  registerEcsTaskDefinition = async ({
-    cloudformationEcsTaskDefinition
-  }: {
-    cloudformationEcsTaskDefinition: TaskDefinition;
-  }) => {
-    const errHandler = this.#getErrorHandler('Failed to register new ECS task definition.');
-    const lowerCasedProps = serialize(lowerCaseFirstCharacterOfObjectKeys(cloudformationEcsTaskDefinition.Properties));
-    return (await this.#ecs().send(new RegisterTaskDefinitionCommand(lowerCasedProps)).catch(errHandler))
-      .taskDefinition;
-  };
-
-  startEcsServiceCodeDeployUpdate = async (parameters: CreateDeploymentCommandInput) => {
-    const errHandler = this.#getErrorHandler('Failed to start the update of ECS service (using CodeDeploy).');
-    return this.#codedeploy()
-      .send(new CreateDeploymentCommand({ ...parameters }))
-      .catch(errHandler);
-  };
-
-  waitForEcsServiceCodeDeployUpdateToFinish = async ({ deploymentId }: { deploymentId: string }) => {
-    const errHandler = this.#getErrorHandler(`CodeDeploy ECS service deployment ${deploymentId} failed.`);
-
-    await waitUntilDeploymentSuccessful(
-      { client: this.#codedeploy(), maxWaitTime: 3600, minDelay: 3, maxDelay: 3 },
-      { deploymentId }
-    ).catch((err) => {
-      let error = err;
-      try {
-        const parsedError = JSON.parse(`${err}`.slice(7));
-        if (parsedError.result.reason.deploymentInfo.errorInformation) {
-          error = new Error(
-            `[${parsedError.result.reason.deploymentInfo.errorInformation.code}]: ${parsedError.result.reason.deploymentInfo.errorInformation.message}`
-          );
-        }
-        // if we were not able to parse out error, just use original error
-      } catch {}
-      errHandler(error);
-    });
-  };
-
-  startEcsServiceRollingUpdate = async (parameters: UpdateServiceCommandInput) => {
-    const errHandler = this.#getErrorHandler('Failed to start the update of ECS service.');
-    await this.#ecs()
-      .send(new UpdateServiceCommand({ ...parameters }))
-      .catch(errHandler);
-  };
-
-  waitForEcsServiceRollingUpdateToFinish = async ({ ecsServiceArn }: { ecsServiceArn: string }) => {
-    const errHandler = this.#getErrorHandler(`ECS service ${ecsServiceArn} failed to update.`);
-    // wait for 2 seconds before starting to poll to make sure that process has started
-    let targetDeploymentId: string;
-    await wait(2000);
-    const ecsClusterName = ecsServiceArn.split('/')[1];
-    const waiterInput: DescribeServicesCommandInput = { services: [ecsServiceArn], cluster: ecsClusterName };
-    const waiterResult = await createWaiter(
-      { client: this.#ecs(), maxWaitTime: 3600, minDelay: 3, maxDelay: 3 },
-      waiterInput,
-      async (ecsCli, input) => {
-        const serviceState = await ecsCli.send(new DescribeServicesCommand(input));
-        // this assumes there cannot be more than one primary deployments
-        // I was not able to find information on that but it makes sense
-        const targetedDeployment = targetDeploymentId
-          ? serviceState.services[0].deployments.find(({ id }) => id === targetDeploymentId)
-          : serviceState.services[0].deployments.find(({ status }) => status === 'PRIMARY');
-
-        if (!targetedDeployment) {
-          return {
-            state: WaiterState.RETRY,
-            reason: `ECS service ${ecsServiceArn} update in progress.`
-          };
-        }
-        targetDeploymentId = targetedDeployment.id;
-
-        // this waiter conditions are motivated by https://github.com/aws/aws-cdk/blob/main/packages/aws-cdk/lib/api/hotswap/ecs-services.ts
-        const failure =
-          (targetedDeployment.rolloutState === DeploymentRolloutState.FAILED
-            ? targetedDeployment.rolloutStateReason
-            : undefined) ||
-          serviceState.failures?.find(({ reason }) => reason === 'MISSING')?.detail ||
-          serviceState.services?.find(({ status }) => status === 'DRAINING')?.status ||
-          serviceState.services?.find(({ status }) => status === 'INACTIVE')?.status;
-
-        if (failure) {
-          return {
-            state: WaiterState.FAILURE,
-            reason: `ECS service ${ecsServiceArn} failed to update. Reason: ${failure}`
-          };
-        }
-
-        // this is alternative condition which is more robust and waits for compute resource (service) to fully stabilize
-        // it waits for deployment to complete end even waits for health-checks, more info https://docs.aws.amazon.com/AmazonECS/latest/developerguide/deployment-type-ecs.html
-        // on the other hand, it takes more than double the time, than looking only at "desired" vs "running" count (which we are currently doing)
-        // if (targetedDeployment.rolloutState === DeploymentRolloutState.COMPLETED)
-        if (targetedDeployment.desiredCount && targetedDeployment.runningCount === targetedDeployment.desiredCount) {
-          return {
-            state: WaiterState.SUCCESS,
-            reason: `ECS service ${ecsServiceArn} updated successfully.`
-          };
-        }
-        return {
-          state: WaiterState.RETRY,
-          reason: `ECS service ${ecsServiceArn} update in progress.`
-        };
-      }
-    );
-    if (waiterResult.state !== WaiterState.SUCCESS) {
-      throw errHandler(new Error(waiterResult.reason));
-    }
   };
 
   getCodebuildProject = async ({ projectName }: { projectName: string }) => {
@@ -1260,27 +1122,6 @@ export class AwsSdkManager {
     return result.Vpcs || [];
   };
 
-  startEcsExecSsmSession = async (startSessionInput: ExecuteCommandCommandInput) => {
-    const errHandler = this.#getErrorHandler('Unable to start container session');
-    const {
-      session: { sessionId, streamUrl, tokenValue }
-    } = await this.#ecs()
-      .send(new ExecuteCommandCommand(startSessionInput))
-      .catch((err) => {
-        if (
-          `${err}`.includes('The execute command failed because execute command was not enabled when the task was run')
-        ) {
-          return errHandler(
-            new Error(
-              'Container sessions are not enabled for this workload. Please set `enableRemoteSessions: true` on your container service definition.'
-            )
-          );
-        }
-        return errHandler(err);
-      });
-    return { SessionId: sessionId, StreamUrl: streamUrl, TokenValue: tokenValue } as StartSessionResponse;
-  };
-
   startSsmSession = async (startSessionInput: StartSessionCommandInput) => {
     const errHandler = this.#getErrorHandler('Unable to start SSM session');
     const { SessionId, StreamUrl, TokenValue } = await this.#ssm()
@@ -1358,38 +1199,6 @@ export class AwsSdkManager {
         EngineVersion: `OpenSearch_${openSearchVersion}`
       })
     );
-  };
-
-  listEcsTasks = async ({
-    ecsClusterName,
-    desiredStatus
-  }: {
-    ecsClusterName: string;
-    desiredStatus?: DesiredStatus;
-  }) => {
-    const taskArnsList: string[] = [];
-    let { nextToken, taskArns } = await this.#ecs().send(
-      new ListTasksCommand({ cluster: ecsClusterName, desiredStatus })
-    );
-    taskArnsList.push(...taskArns);
-    while (nextToken) {
-      ({ nextToken, taskArns } = await this.#ecs().send(
-        new ListTasksCommand({ cluster: ecsClusterName, nextToken, desiredStatus })
-      ));
-      taskArnsList.push(...taskArns);
-    }
-    return (
-      await Promise.all(
-        chunkArray(taskArnsList, 100).map(async (chunk) =>
-          this.#ecs().send(new DescribeTasksCommand({ tasks: chunk, cluster: ecsClusterName }))
-        )
-      )
-    )
-      .flat()
-      .map(({ tasks }) => {
-        return tasks;
-      })
-      .flat();
   };
 
   getRdsInstanceDetail = async ({ rdsInstanceIdentifier }: { rdsInstanceIdentifier: string }) => {

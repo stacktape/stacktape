@@ -233,7 +233,7 @@ export const updateEcsService = async ({
       eventType: 'REGISTER_ECS_TASK_DEFINITION',
       description: 'Registering new task definition'
     });
-    ({ taskDefinitionArn } = await awsSdkManager.registerEcsTaskDefinition({
+    ({ taskDefinitionArn } = await awsSdkManager.ecs.registerTaskDefinition({
       cloudformationEcsTaskDefinition: newCfTaskDefinition
     }));
     await updateWorkloadLogger.finishEvent({
@@ -251,7 +251,10 @@ export const updateEcsService = async ({
     const statusPoller = new EcsServiceDeploymentStatusPoller({
       ecsServiceArn,
       pollerPrintName: workload.nameChain[0],
-      awsSdkManager,
+      ecs: awsSdkManager.ecs,
+      observability: awsSdkManager.observability,
+      printer: awsSdkManager.printer,
+      region: awsSdkManager.region,
       inspectDeploymentsCreatedAfterDate: await getAwsSynchronizedTime()
     });
     try {
@@ -259,7 +262,7 @@ export const updateEcsService = async ({
         const {
           Properties: { ECSService }
         } = getEcsService({ workload, blueGreen: true }) as ECSBlueGreenService;
-        const { deploymentId } = await awsSdkManager.startEcsServiceCodeDeployUpdate({
+        const { deploymentId } = await awsSdkManager.ecs.startCodeDeployUpdate({
           applicationName: awsResourceNames.ecsCodeDeployApp(stackName),
           autoRollbackConfiguration: {
             enabled: true,
@@ -305,7 +308,7 @@ export const updateEcsService = async ({
             }
           }
         });
-        await awsSdkManager.waitForEcsServiceCodeDeployUpdateToFinish({ deploymentId });
+        await awsSdkManager.ecs.waitForCodeDeployUpdate({ deploymentId });
       } else {
         const serviceRegistriesFromTemplate = (getEcsService({ workload, blueGreen: false }) as any).Properties
           ?.ServiceRegistries;
@@ -345,8 +348,8 @@ export const updateEcsService = async ({
         }
         normalizeAndValidateCapacityProviderStrategyForEcsApi(updateServiceInput);
         normalizeAndValidateServiceRegistriesForEcsApi(updateServiceInput);
-        await awsSdkManager.startEcsServiceRollingUpdate(updateServiceInput);
-        await awsSdkManager.waitForEcsServiceRollingUpdateToFinish({ ecsServiceArn });
+        await awsSdkManager.ecs.startRollingUpdate(updateServiceInput);
+        await awsSdkManager.ecs.waitForRollingUpdate({ ecsServiceArn });
       }
     } finally {
       statusPoller.stopPolling();

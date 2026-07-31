@@ -614,7 +614,7 @@ export class StackManager {
       ecsServiceArns.map(async (ecsServiceArn) => {
         const cluster = ecsServiceArn.split('/')[1];
         if (!cluster) return;
-        await awsSdkManager.startEcsServiceRollingUpdate({
+        await awsSdkManager.ecs.startRollingUpdate({
           service: ecsServiceArn,
           cluster,
           desiredCount: 0
@@ -630,7 +630,7 @@ export class StackManager {
       const services = await Promise.all(
         ecsServiceArns.map(async (ecsServiceArn) => {
           try {
-            return await awsSdkManager.getEcsService({ serviceArn: ecsServiceArn });
+            return await awsSdkManager.ecs.getService({ serviceArn: ecsServiceArn });
           } catch {
             // If the service is already gone, treat it as drained.
             return null;
@@ -1226,7 +1226,10 @@ export class StackManager {
         pollerPrintName: stpParentResourceName,
         // time of event minus 10 seconds
         inspectDeploymentsCreatedAfterDate: new Date(new Date(stackEvent.Timestamp).getTime() - 10000),
-        awsSdkManager
+        ecs: awsSdkManager.ecs,
+        observability: awsSdkManager.observability,
+        printer: awsSdkManager.printer,
+        region: awsSdkManager.region
       });
     }
     // Monitor Lambda alias provisioned concurrency configuration
@@ -1358,7 +1361,7 @@ export class StackManager {
             resource.ResourceType === 'AWS::ECS::Service' ||
             resource.ResourceType === 'Stacktape::ECSBlueGreenV1::Service'
           ) {
-            const ecsService = await awsSdkManager.getEcsService({
+            const ecsService = await awsSdkManager.ecs.getService({
               serviceArn: resource.PhysicalResourceId
             });
             if (!ecsService) {
@@ -1382,7 +1385,7 @@ export class StackManager {
               ecsService.taskSets?.find(({ status }) => status === 'PRIMARY')?.taskDefinition;
 
             const { tags = [], taskDefinition = {} } = taskDefinitionInUse
-              ? await awsSdkManager.getEcsTaskDefinition({
+              ? await awsSdkManager.ecs.getTaskDefinition({
                   ecsTaskDefinitionFamily: taskDefinitionInUse
                 })
               : {};

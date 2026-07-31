@@ -3,7 +3,8 @@ import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
 // import { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import type { Deployment, Task, TaskSet } from '@aws-sdk/client-ecs';
-import type { AwsSdkManager } from './sdk-manager';
+import type { AwsEcs } from './ecs';
+import type { AwsObservability } from './observability';
 import { ResourceStatus } from '@aws-sdk/client-cloudformation';
 import { DeploymentControllerType, DesiredStatus } from '@aws-sdk/client-ecs';
 import { consoleLinks } from '@stacktape/naming/console-links';
@@ -13,7 +14,9 @@ export class EcsServiceDeploymentStatusPoller {
   #serviceArn: string;
   #pollerPrintName?: string;
   #clusterName: string;
-  #awsSdkManager: AwsSdkManager;
+  #ecs: Pick<AwsEcs, 'getService' | 'getTaskDefinition' | 'listTasks'>;
+  #observability: Pick<AwsObservability, 'getLogEvents'>;
+  #region: string;
   #targetDeploymentOrTaskSet: Deployment | TaskSet;
   #pollInterval: NodeJS.Timeout;
   #inspectDeploymentsCreatedAfterDate: Date;
@@ -34,18 +37,26 @@ export class EcsServiceDeploymentStatusPoller {
   constructor({
     ecsServiceArn,
     pollerPrintName,
-    awsSdkManager,
+    ecs,
+    observability,
+    printer,
+    region,
     inspectDeploymentsCreatedAfterDate
   }: {
     ecsServiceArn: string;
     pollerPrintName?: string;
-    awsSdkManager: AwsSdkManager;
+    ecs: Pick<AwsEcs, 'getService' | 'getTaskDefinition' | 'listTasks'>;
+    observability: Pick<AwsObservability, 'getLogEvents'>;
+    printer?: Printer;
+    region: string;
     inspectDeploymentsCreatedAfterDate?: Date;
   }) {
     this.#serviceArn = ecsServiceArn;
     this.#clusterName = ecsServiceArn.split('/')[1];
-    this.#awsSdkManager = awsSdkManager;
-    this.#printer = this.#awsSdkManager.printer;
+    this.#ecs = ecs;
+    this.#observability = observability;
+    this.#printer = printer;
+    this.#region = region;
     this.#pollerPrintName = pollerPrintName || this.#serviceArn.split('/').at(-1);
     this.#pollInterval = setInterval(this.#pollStatus, 4000);
     this.#inspectDeploymentsCreatedAfterDate = inspectDeploymentsCreatedAfterDate || new Date(Date.now() - 30000);
@@ -70,7 +81,7 @@ export class EcsServiceDeploymentStatusPoller {
       return;
     }
 
-    const service = await this.#awsSdkManager.getEcsService({ serviceArn: this.#serviceArn });
+    const service = await this.#ecs.getService({ serviceArn: this.#serviceArn });
 
     this.#targetDeploymentOrTaskSet =
       service.deploymentController?.type === DeploymentControllerType.CODE_DEPLOY
@@ -84,7 +95,7 @@ export class EcsServiceDeploymentStatusPoller {
           );
 
     if (this.#targetDeploymentOrTaskSet) {
-      const tasks = await this.#awsSdkManager.listEcsTasks({
+      const tasks = await this.#ecs.listTasks({
         ecsClusterName: this.#clusterName,
         desiredStatus: DesiredStatus.STOPPED
       });
@@ -95,7 +106,7 @@ export class EcsServiceDeploymentStatusPoller {
       if (this.#failedTask) {
         // wait for logs to be delivered and other things before inspecting
         await wait(20000);
-        const { taskDefinition } = await this.#awsSdkManager.getEcsTaskDefinition({
+        const { taskDefinition } = await this.#ecs.getTaskDefinition({
           ecsTaskDefinitionFamily: this.#failedTask.taskDefinitionArn
         });
         const essentialContainers = taskDefinition.containerDefinitions
@@ -111,7 +122,7 @@ export class EcsServiceDeploymentStatusPoller {
               const logStreamName = logGroupName && runtimeId ? `ecs/${name}/${runtimeId.split('-')[0]}` : undefined;
               const logs =
                 logGroupName && logStreamName
-                  ? await this.#awsSdkManager.observability.getLogEvents({
+                  ? await this.#observability.getLogEvents({
                       logGroupName,
                       logStreamNames: [logStreamName]
                     })
@@ -124,7 +135,7 @@ export class EcsServiceDeploymentStatusPoller {
                 logs,
                 logStreamLink:
                   logGroupName && logStreamName
-                    ? consoleLinks.logStream(this.#awsSdkManager.region, logGroupName, logStreamName)
+                    ? consoleLinks.logStream(this.#region, logGroupName, logStreamName)
                     : undefined
               });
             })
@@ -186,7 +197,7 @@ export class EcsServiceDeploymentStatusPoller {
       lines.push('');
       const taskLink = consoleLinks.ecsTask({
         clusterName: this.#clusterName,
-        region: this.#awsSdkManager.region,
+        region: this.#region,
         taskId: failedTaskId,
         selectedContainer: name
       });

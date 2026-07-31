@@ -2,6 +2,8 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
+import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
+import { ECSClient } from '@aws-sdk/client-ecs';
 import { IAMClient, NoSuchEntityException } from '@aws-sdk/client-iam';
 import { LambdaClient } from '@aws-sdk/client-lambda';
 import { Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
@@ -296,6 +298,27 @@ describe.serial('AWS SDK client construction', () => {
       throw new Error('Expected the Lambda request handler to expose its request timeout.');
     }
     expect(handlerConfig.requestTimeout).toBe(900_000);
+  });
+
+  test.serial('constructs ECS and its CodeDeploy client from the same manager context', async () => {
+    const capturedEcs = captureSend<ECSClient>(ECSClient.prototype, {});
+    const capturedCodeDeploy = captureSend<CodeDeployClient>(CodeDeployClient.prototype, {
+      deploymentId: 'deployment-1'
+    });
+    let pluginApplications = 0;
+    const plugin: Pluggable<any, any> = {
+      applyToStack: () => {
+        pluginApplications += 1;
+      }
+    };
+    const ecs = managerWith([plugin]).ecs;
+
+    await ecs.startRollingUpdate({ cluster: 'application', service: 'api' });
+    await ecs.startCodeDeployUpdate({ applicationName: 'application', deploymentGroupName: 'api' });
+
+    expect(await capturedEcs().config.region()).toBe('eu-west-1');
+    expect(await capturedCodeDeploy().config.region()).toBe('eu-west-1');
+    expect(pluginApplications).toBe(2);
   });
 
   test.serial('applies explicit plugins to ordinary clients', async () => {

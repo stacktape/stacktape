@@ -198,7 +198,7 @@ export const runEcsExecSsmShellSession = async ({
     container: containerName
   };
 
-  const startSessionResponse = await awsSdkManager.startEcsExecSsmSession(executeCommandCommandInput);
+  const startSessionResponse = await awsSdkManager.ecs.startExecSession(executeCommandCommandInput);
 
   const clusterName = task.clusterArn.split('/').pop();
   const taskId = task.taskArn.split('/').pop();
@@ -240,13 +240,13 @@ export const runEcsExecCommand = async ({
     container: containerName
   };
 
-  const startSessionResponse = await awsSdkManager.startEcsExecSsmSession(executeCommandCommandInput);
+  const startSessionResponse = await awsSdkManager.ecs.startExecSession(executeCommandCommandInput);
 
   const clusterName = clusterArn.split('/').pop();
   const taskId = taskArn.split('/').pop();
 
   // Get task details to find container runtime ID
-  const tasks = await awsSdkManager.listEcsTasks({
+  const tasks = await awsSdkManager.ecs.listTasks({
     ecsClusterName: clusterArn,
     desiredStatus: DesiredStatus.RUNNING
   });

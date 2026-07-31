@@ -34,7 +34,7 @@ export class EC2Manager {
           awsSdkManager.getEc2InstanceTypesInfo({
             instanceTypes: instanceTypes as _InstanceType[]
           }),
-        // awsSdkManager.setAwsAccountEcsSetting('awsvpcTrunking', 'enabled'),
+        // awsSdkManager.ecs.setAccountSetting('awsvpcTrunking', 'enabled'),
         openSearchInstanceTypes &&
           Promise.all(
             openSearchInstanceTypes.map(async ({ version, instanceType }) => {
