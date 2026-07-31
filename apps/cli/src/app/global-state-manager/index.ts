@@ -34,7 +34,6 @@ import { propertyFromObjectOrNull } from '@utils/misc';
 import { listAwsProfiles, loadAwsConfigFileContent } from '@utils/aws-config';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { getAwsCredentialsIdentity } from '@utils/aws-sdk-manager/utils';
-import { memoizeGetters } from '@utils/decorators';
 import { loadHelperLambdaDetails } from '@utils/helper-lambdas';
 import { getAwsSynchronizedTime } from '@utils/time';
 import { generateShortUuid, generateUuid } from '@utils/uuid';
@@ -67,7 +66,6 @@ export type DomainServiceName =
   | 'SesManager'
   | 'ThirdPartyProviderManager';
 
-@memoizeGetters
 export class GlobalStateManager {
   isInitialized = false;
   persistedState: PersistedState;
@@ -76,10 +74,7 @@ export class GlobalStateManager {
   helperLambdaDetails: HelperLambdaDetails;
   rawCommands: StacktapeCommand[];
   rawArgs: StacktapeArgs;
-  maxAllowedResources: number;
-  commandRequiresConfig: boolean;
   presetConfig?: StacktapeConfig;
-  rawOptions?: StacktapeProgrammaticOptions;
   initializedDomainServices: DomainServiceName[] = [];
   additionalArgs: Record<string, string | boolean>;
   invokedFrom: InvokedFrom;
@@ -112,9 +107,8 @@ export class GlobalStateManager {
 
   apiKey: string;
 
-  init = async (opts?: StacktapeProgrammaticOptions) => {
+  init = async (opts: StacktapeProgrammaticOptions) => {
     this.operationStart = new Date();
-    this.rawOptions = opts;
     const { commands, args, config, invokedFrom, additionalArgs } = opts;
     if (invokedFrom === 'server') {
       this.targetStack = {
@@ -189,7 +183,6 @@ export class GlobalStateManager {
     if (!persistedSystemId) {
       await this.saveSystemId();
     }
-    this.maxAllowedResources = Infinity; // maxAllowedResources || freeMaxAllowedResources;
     this.apiKey = process.env.STACKTAPE_API_KEY || this.persistedState?.otherDefaults?.apiKey;
     if (!this.apiKey && !commandsNotRequiringApiKey.includes(this.command) && this.invokedFrom !== 'server') {
       if (process.stdout.isTTY) {
@@ -212,11 +205,6 @@ export class GlobalStateManager {
       return {};
     }
     return this.rawArgs;
-    // const { awsRegion, stage, profile } = this.persistedState?.defaults || {};
-    // return deletePropertiesWithValues({ region: awsRegion as AWSRegion, profile, stage, ...this.rawArgs }, [
-    //   undefined,
-    //   null
-    // ]);
   }
 
   get command(): StacktapeCommand {
@@ -237,10 +225,6 @@ export class GlobalStateManager {
       return dirname(this.configPath);
     }
     return process.cwd();
-  }
-
-  get folderContainingUserModules() {
-    return this.workingDir;
   }
 
   get isDebugMode() {

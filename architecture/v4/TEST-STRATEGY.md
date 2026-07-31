@@ -15,20 +15,15 @@ Use three complementary layers:
 
 Every production defect receives a regression at the cheapest layer capable of reproducing it.
 
-## Compatibility classification
+## v4 behavior policy
 
-Every v3 baseline and v4 difference is classified:
+V4 may intentionally change configuration, commands and machine output. Tests should protect behavior we deliberately
+want, not preserve v3 compatibility by default.
 
-- `must-preserve`;
-- `intentional-v4-break`;
-- `known-v3-bug`;
-- `implementation-detail`.
-
-Do not freeze the exact v3 JSONL/TUI representation. Define the v4 machine protocol intentionally and test semantic
-invariants.
-
-CloudFormation logical IDs, deterministic resource names, replacement-sensitive properties, artifact hashes, and
-security scoping default to `must-preserve`.
+When a refactor exposes a better product surface, record the proposed behavior in the relevant architecture decision
+or migration plan and discuss it before implementing a broad user-facing redesign. Within an approved redesign, test
+the new contract directly. Continue to protect infrastructure properties whose accidental changes can replace or
+orphan resources, including logical IDs, deterministic resource names and replacement-sensitive properties.
 
 ## Layer 1 — deterministic and static tests
 
@@ -67,8 +62,8 @@ zero.
 
 ## Layer 2 — proposed Floci-certified integration
 
-[Floci](https://github.com/floci-io/floci) is MIT licensed and is the preferred open emulator candidate, but this
-repository does not yet contain a Floci lane and Floci is not an AWS oracle.
+[Floci](https://github.com/floci-io/floci) is MIT licensed and is the preferred open emulator candidate. The repository
+contains a direct provider-feasibility baseline, but no Stacktape end-to-end Floci lane. Floci is not an AWS oracle.
 
 Its [CloudFormation documentation](https://floci.io/floci/services/cloudformation/) states that unsupported resources
 can receive synthetic IDs while stacks still reach `CREATE_COMPLETE`. Template validation is success-only, change sets

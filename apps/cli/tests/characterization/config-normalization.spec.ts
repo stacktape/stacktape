@@ -36,7 +36,7 @@ const managerFor = (resources: StacktapeConfig['resources']) => {
 
 const originalTargetStack = globalStateManager.targetStack;
 const originalSingletonConfig = configManager.config;
-let installedRegionShadow = false;
+const originalRawArgs = globalStateManager.rawArgs;
 
 beforeAll(() => {
   globalStateManager.targetStack = {
@@ -46,26 +46,13 @@ beforeAll(() => {
     projectName: 'normalization',
     projectId: 'normalization-project'
   };
-  // The composite web getters below read `region`, and `GlobalStateManager` is decorated with `memoizeGetters`: the
-  // first read caches both `args` and `region` as non-configurable own properties that nothing can remove. Shadowing
-  // `region` with a configurable own value stops that getter from ever running here. If something has already
-  // memoized it the shadow is neither needed nor permitted, so it is only installed when no own property exists —
-  // these tests depend on not causing that first read themselves, never on the region's value. Inspecting and
-  // defining are synchronous, so nothing can memoize between the two.
-  if (!Object.getOwnPropertyDescriptor(globalStateManager, 'region')) {
-    Object.defineProperty(globalStateManager, 'region', { value: 'eu-west-1', configurable: true });
-    installedRegionShadow = true;
-  }
+  globalStateManager.rawArgs = { ...(originalRawArgs || {}), region: 'eu-west-1' };
 });
 
 afterAll(() => {
   globalStateManager.targetStack = originalTargetStack;
+  globalStateManager.rawArgs = originalRawArgs;
   configManager.config = originalSingletonConfig;
-  // Only ever remove this suite's own shadow; a descriptor another suite left behind is not this suite's to touch.
-  if (installedRegionShadow) {
-    Reflect.deleteProperty(globalStateManager, 'region');
-    installedRegionShadow = false;
-  }
 });
 
 describe('authored-to-runtime normalization', () => {

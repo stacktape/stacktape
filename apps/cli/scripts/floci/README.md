@@ -16,7 +16,7 @@ The test uses a unique container, volume and stack name and removes the containe
 assertion fails. Failed-stack deletion is best-effort and bounded to two seconds; nested cleanup then removes the
 container and its private volume even if the emulator request hangs.
 
-## Result on 2026-07-30
+## Result, reverified on 2026-07-31
 
 Floci is useful enough to investigate further, but this version is not ready to own Stacktape's CloudFormation
 lifecycle tests.
