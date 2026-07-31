@@ -229,9 +229,7 @@ export const deployWithCodebuildRunner = async () => {
       })
     });
   }
-  if (globalStateManager.invokedFrom === 'cli') {
-    eventManager.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());
-  }
+  eventManager.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());
   // @todo end
 
   const consoleUrl = `https://console.stacktape.com/projects/${globalStateManager.targetStack.projectName}/${globalStateManager.targetStack.stage}/overview`;

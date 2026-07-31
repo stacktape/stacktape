@@ -41,20 +41,18 @@ export const commandValidate = async () => {
     await stackManager.validateTemplate({ templateBody: stringifyToYaml(template) });
   }
 
-  if (globalStateManager.invokedFrom === 'cli') {
-    const details = [
-      'config',
-      'resources',
-      'template',
-      shouldPackage && 'packaging',
-      thorough && 'cloudformation'
-    ].filter(Boolean);
-    tuiManager.setPendingCompletion({
-      success: true,
-      message: `VALIDATION SUCCESSFUL (${details.join(', ')})`,
-      links: []
-    });
-  }
+  const details = [
+    'config',
+    'resources',
+    'template',
+    shouldPackage && 'packaging',
+    thorough && 'cloudformation'
+  ].filter(Boolean);
+  tuiManager.setPendingCompletion({
+    success: true,
+    message: `VALIDATION SUCCESSFUL (${details.join(', ')})`,
+    links: []
+  });
 
   return {
     valid: true,

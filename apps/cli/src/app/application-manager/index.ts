@@ -123,7 +123,7 @@ export class ApplicationManager {
       await tuiManager.stop();
       tuiManager.info(`Received ${signal}. Exiting.`);
     }
-    if (globalStateManager.invokedFrom === 'cli') {
+    if (globalStateManager.isInitialized) {
       await this.reportTelemetryEvent({ outcome: 'USER_INTERRUPTION' });
     }
     if (this.usesStdinWatch) {
@@ -170,7 +170,6 @@ export class ApplicationManager {
     if (!IS_TELEMETRY_DISABLED) {
       return reportTelemetryEvent({
         outcome,
-        invokedFrom: propertyFromObjectOrNull(globalStateManager, 'invokedFrom'),
         args: propertyFromObjectOrNull(globalStateManager, 'args'),
         command: propertyFromObjectOrNull(globalStateManager, 'command'),
         invocationId: propertyFromObjectOrNull(globalStateManager, 'invocationId')

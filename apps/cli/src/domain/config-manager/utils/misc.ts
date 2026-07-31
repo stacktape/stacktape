@@ -1,7 +1,5 @@
 import { RESOURCE_DEFAULTS } from '@config';
-import { removePropertiesFromObject, serialize } from '@utils/misc';
 import { UnexpectedError } from '@utils/errors';
-import type { StacktapeConfig } from '@stacktape/config';
 import type { DefaultedResource, NormalizedResource, StacktapeResourceType } from '../normalized-resource';
 
 /**
@@ -101,18 +99,4 @@ export const mergeStacktapeDefaults = <
   // merge(globalDefaults, res);
   applyDefaults(RESOURCE_DEFAULTS[resourceDefinition.type], res);
   return res;
-};
-
-export const cleanConfigForMinimalTemplateCompilerMode = (conf: StacktapeConfig): StacktapeConfig => {
-  const cleanedConfig = removePropertiesFromObject(serialize(conf), [
-    'budgetControl',
-    'customDomains',
-    'directives'
-  ]) as StacktapeConfig;
-  for (const key in cleanedConfig?.resources || {}) {
-    if (cleanedConfig.resources[key].type === 'aws-cdk-construct') {
-      delete cleanedConfig.resources[key];
-    }
-  }
-  return cleanedConfig;
 };

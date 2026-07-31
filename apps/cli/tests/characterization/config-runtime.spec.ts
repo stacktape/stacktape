@@ -3,7 +3,6 @@ import { cp, rm } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
-import { cleanConfigForMinimalTemplateCompilerMode } from '@domain-services/config-manager/utils/misc';
 import { stacktapeConfigSchema, validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
 import { resolveOpenSearchLoggingDefaults } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/open-search';
 
@@ -146,28 +145,6 @@ describe('configuration runtime contract', () => {
       })
     );
     expect(validateConfigWithZod({ config, configPath: 'stacktape.ts' })).toEqual({ valid: true });
-  });
-
-  test('removes CDK constructs only from resources for server template compilation', () => {
-    const config: StacktapeConfig = {
-      stackConfig: {},
-      resources: {
-        stackConfig: {
-          type: 'aws-cdk-construct',
-          properties: { entryfilePath: './src/construct.ts' }
-        },
-        ordinaryBucket: { type: 'bucket' }
-      }
-    };
-
-    const cleanedConfig = cleanConfigForMinimalTemplateCompilerMode(config);
-
-    expect(cleanedConfig.stackConfig).toEqual({});
-    expect(cleanedConfig.resources).toEqual({ ordinaryBucket: { type: 'bucket' } });
-    expect(config.resources.stackConfig).toEqual({
-      type: 'aws-cdk-construct',
-      properties: { entryfilePath: './src/construct.ts' }
-    });
   });
 
   test('resolves directives returned by other directives to a fixed point', async () => {

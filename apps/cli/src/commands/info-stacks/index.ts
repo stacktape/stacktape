@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { StackStatus as StackStatusEnum } from '@aws-sdk/client-cloudformation';
 import { budgetManager } from '@domain-services/budget-manager';
@@ -30,12 +29,10 @@ export const commandInfoStacks = async () => {
     }
   );
 
-  if (globalStateManager.invokedFrom === 'cli') {
-    if (isAgentMode()) {
-      tuiManager.info(JSON.stringify(result, null, 2));
-    } else {
-      tuiManager.printListStack(result);
-    }
+  if (isAgentMode()) {
+    tuiManager.info(JSON.stringify(result, null, 2));
+  } else {
+    tuiManager.printListStack(result);
   }
 
   return result;

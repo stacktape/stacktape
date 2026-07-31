@@ -155,17 +155,15 @@ export const finalizeTemplate = async () => {
   setTemplateDescriptions();
   applyResourceOverrides();
 
-  if (globalStateManager.invokedFrom !== 'server') {
-    for (const overrideTemplate of templateManager.templateOverrideFunctions) {
-      await overrideTemplate(templateManager.template);
-    }
-    for (const [logicalName, transform] of Object.entries(configManager.transforms)) {
-      const resource = templateManager.template.Resources[logicalName];
-      resource.Properties = transform(resource.Properties);
-    }
-    if (configManager.finalTransform) {
-      templateManager.template = configManager.finalTransform(templateManager.template);
-    }
+  for (const overrideTemplate of templateManager.templateOverrideFunctions) {
+    await overrideTemplate(templateManager.template);
+  }
+  for (const [logicalName, transform] of Object.entries(configManager.transforms)) {
+    const resource = templateManager.template.Resources[logicalName];
+    resource.Properties = transform(resource.Properties);
+  }
+  if (configManager.finalTransform) {
+    templateManager.template = configManager.finalTransform(templateManager.template);
   }
 
   // Overrides and transforms may introduce runtime directives.

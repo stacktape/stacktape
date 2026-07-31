@@ -5,9 +5,8 @@ import type {
   GlobalStateOrganization,
   GlobalStateProject,
   GlobalStateUser,
-  InvokedFrom,
   PersistedState,
-  StacktapeProgrammaticOptions
+  RunCommandOptions
 } from '@application-services/global-state-manager/types';
 import type { HelperLambdaDetails } from '@utils/helper-lambdas';
 import type { StacktapeRecordedCommand } from '@config';
@@ -77,7 +76,6 @@ export class GlobalStateManager {
   presetConfig?: StacktapeConfig;
   initializedDomainServices: DomainServiceName[] = [];
   additionalArgs: Record<string, string | boolean>;
-  invokedFrom: InvokedFrom;
   systemId: string;
   operationStart: Date;
   configPath: string = null;
@@ -107,19 +105,9 @@ export class GlobalStateManager {
 
   apiKey: string;
 
-  init = async (opts: StacktapeProgrammaticOptions) => {
+  init = async (opts: RunCommandOptions) => {
     this.operationStart = new Date();
-    const { commands, args, config, invokedFrom, additionalArgs } = opts;
-    if (invokedFrom === 'server') {
-      this.targetStack = {
-        stackName: 'project-stage',
-        globallyUniqueStackHash: 'xxxxxxxx',
-        stage: 'stage',
-        projectName: 'project',
-        projectId: 'project-id'
-      };
-    }
-    this.invokedFrom = invokedFrom || 'cli';
+    const { commands, args, config, additionalArgs } = opts;
     this.rawCommands = commands;
     this.rawArgs = args;
     this.additionalArgs = additionalArgs || {};
@@ -134,7 +122,7 @@ export class GlobalStateManager {
         loadPersistedState(),
         loadAwsConfigFileContent(),
         listAwsProfiles(),
-        loadHelperLambdaDetails({ invokedFrom, invocationId: this.invocationId })
+        loadHelperLambdaDetails({ invocationId: this.invocationId })
       ]);
     if (config) {
       this.presetConfig = config;
@@ -149,7 +137,7 @@ export class GlobalStateManager {
       this.persistedState?.cliArgsDefaults?.region ||
       this.awsConfigFileContent?.[this.rawArgs.profile || process.env.AWS_PROFILE || 'default']?.region;
     const regionIsMissing = commandRequiresRegion && !regionFromArgs;
-    const shouldPromptForRegion = regionIsMissing && process.stdout.isTTY && this.invokedFrom === 'cli';
+    const shouldPromptForRegion = regionIsMissing && process.stdout.isTTY;
 
     validateArgs({
       rawArgs: this.rawArgs,
@@ -184,7 +172,7 @@ export class GlobalStateManager {
       await this.saveSystemId();
     }
     this.apiKey = process.env.STACKTAPE_API_KEY || this.persistedState?.otherDefaults?.apiKey;
-    if (!this.apiKey && !commandsNotRequiringApiKey.includes(this.command) && this.invokedFrom !== 'server') {
+    if (!this.apiKey && !commandsNotRequiringApiKey.includes(this.command)) {
       if (process.stdout.isTTY) {
         // Run interactive auth flow (sign up, login, or Google OAuth)
         const authResult = await runAuthFlow();
@@ -270,14 +258,6 @@ export class GlobalStateManager {
   get targetAwsAccount(): GlobalStateConnectedAwsAccount {
     if (this.localTargetAwsAccount) {
       return this.localTargetAwsAccount;
-    }
-    // this is to make resource resolving work without trpc api (to speed it up)
-    if (this.invokedFrom === 'server') {
-      return {
-        awsAccountId: '123456789999',
-        connectionMode: 'BASIC',
-        name: 'Dummy'
-      } as unknown as GlobalStateConnectedAwsAccount;
     }
     const awsAccount = this.args.awsAccount || this.persistedState?.cliArgsDefaults.awsAccount;
     if (awsAccount) {
@@ -555,7 +535,7 @@ export class GlobalStateManager {
   loadLocalTargetStackInfo = async ({ configProjectName }: { configProjectName?: string } = {}) => {
     let projectName = this.args.projectName || this.persistedState?.cliArgsDefaults.projectName || configProjectName;
     if (!projectName) {
-      if (this.invokedFrom !== 'cli' || !process.stdout.isTTY) {
+      if (!process.stdout.isTTY) {
         throw stpErrors.e103(null);
       }
       projectName = await tuiManager.promptText({
@@ -621,7 +601,7 @@ export class GlobalStateManager {
     };
     const projectName = this.args.projectName || this.persistedState?.cliArgsDefaults.projectName || configProjectName;
     if (!projectName) {
-      if (this.invokedFrom !== 'cli' || (this.args as StacktapeCliArgs).autoConfirmOperation || !process.stdout.isTTY) {
+      if ((this.args as StacktapeCliArgs).autoConfirmOperation || !process.stdout.isTTY) {
         throw stpErrors.e103(null);
       }
       if (this.projects.length) {

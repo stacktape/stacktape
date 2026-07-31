@@ -1,4 +1,4 @@
-import type { StacktapeProgrammaticOptions } from '@application-services/global-state-manager/types';
+import type { RunCommandOptions } from '@application-services/global-state-manager/types';
 import type { StacktapeCommand } from 'src/config/cli/types';
 import { announcementsManager } from '@application-services/announcements-manager';
 import { applicationManager } from '@application-services/application-manager';
@@ -122,7 +122,7 @@ const commandsWithoutTui: StacktapeCommand[] = [
   'cf-module:update'
 ];
 
-export const runCommand = async (opts: StacktapeProgrammaticOptions) => {
+export const runCommand = async (opts: RunCommandOptions) => {
   let commandResult: any = null;
   try {
     initializeSentry();

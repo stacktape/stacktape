@@ -1,4 +1,3 @@
-import type { InvokedFrom } from '@application-services/global-state-manager/types';
 import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
 import { PostHog } from 'posthog-node';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -47,13 +46,11 @@ export const reportTelemetryEvent = async ({
   outcome,
   args,
   command,
-  invokedFrom,
   invocationId
 }: {
   outcome: string;
   args: StacktapeArgs;
   command: StacktapeCommand;
-  invokedFrom: InvokedFrom;
   invocationId: string;
 }) => {
   const userId = globalStateManager.userData?.id;
@@ -71,7 +68,7 @@ export const reportTelemetryEvent = async ({
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
       version: getStacktapeVersion(),
       platform: process.platform,
-      invoked_from: invokedFrom,
+      invoked_from: 'cli',
       invocation_id: invocationId
     },
     // only create person profiles for identified users

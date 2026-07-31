@@ -193,9 +193,7 @@ const deployLocally = async () => {
       })
     });
   }
-  if (globalStateManager.invokedFrom === 'cli') {
-    eventManager.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());
-  }
+  eventManager.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());
 
   await notificationManager.sendDeploymentNotification({
     message: {
@@ -217,7 +215,7 @@ const deployLocally = async () => {
   });
 
   // Prompt for CI/CD setup after successful deploy (only for new stacks in TTY mode)
-  if (stackManager.stackActionType === 'create' && globalStateManager.invokedFrom === 'cli') {
+  if (stackManager.stackActionType === 'create') {
     eventManager.addFinalAction(() => promptCiCdSetupAfterDeploy());
   }
 

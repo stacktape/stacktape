@@ -32,9 +32,6 @@ export const memoizeGetters = (targetClass) => {
 };
 
 export const skipInitIfInitialized = <T extends { init: (...args: any[]) => Promise<any> }>(instance: T): T => {
-  if (process.env.STP_INVOKED_FROM === 'server') {
-    return instance;
-  }
   const originalInit = instance.init;
   const className = instance.constructor.name as DomainServiceName;
 

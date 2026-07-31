@@ -15,7 +15,6 @@ import { SUPPORTED_AWS_REGIONS, type SupportedAWSRegion as AWSRegion } from '@st
 import { getError, isAlphanumeric, isSmallAlphanumericDashCase } from '@utils/misc';
 import { ExpectedError } from '@utils/errors';
 import { renderPrettyJson } from '@utils/pretty-json';
-import { camelCase } from 'change-case';
 import { cliCommands, type StacktapeCommand } from '../config/cli/commands';
 import { argAliases as cliArgsAliases } from '../config/cli/options';
 import { getAllowedArgs, getArgInfo, getRequiredArgs } from '../config/cli/utils';
@@ -77,9 +76,6 @@ export const validateScript = ({ type, properties, scriptName }: Script) => {
 };
 
 export const validateCommand = ({ rawCommands }: { rawCommands: StacktapeCommand[] }) => {
-  if (globalStateManager.invokedFrom !== 'cli') {
-    return;
-  }
   const hint = `Use ${tuiManager.prettyCommand(
     'help'
   )} to see all available commands and their options or visit ${tuiManager.getLink('docsCli', 'CLI documentation')}`;
@@ -118,12 +114,8 @@ export const validateCommand = ({ rawCommands }: { rawCommands: StacktapeCommand
 };
 
 const getLink = (command: string) => {
-  if (globalStateManager.invokedFrom === 'cli') {
-    const cmdLink = command.replaceAll(':', '-');
-    return `https://docs.stacktape.com/cli/commands/${cmdLink}/`;
-  }
-  const methodLink = camelCase(command.replaceAll(':', '-'));
-  return `https://docs.stacktape.com/sdk/methods/${methodLink}/`;
+  const cmdLink = command.replaceAll(':', '-');
+  return `https://docs.stacktape.com/cli/commands/${cmdLink}/`;
 };
 
 export const validateArgs = ({

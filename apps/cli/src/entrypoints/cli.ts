@@ -1,9 +1,7 @@
-import type { InvokedFrom } from '@application-services/global-state-manager/types';
 const main = async () => {
   const { configureNativeRuntimeForPlatform } = await import('@utils/bin-executable');
   configureNativeRuntimeForPlatform();
 
-  const { INVOKED_FROM_ENV_VAR_NAME } = await import('@config');
   const { getCliInput } = await import('@utils/cli');
   const { resolveOutputMode } = await import('@application-services/tui-manager/output-mode');
   const { runCommand } = await import('../index');
@@ -31,16 +29,14 @@ const main = async () => {
     return runCommand({
       args: mergedArgs,
       commands: [launcherResult.command],
-      additionalArgs,
-      invokedFrom: (process.env[INVOKED_FROM_ENV_VAR_NAME] as InvokedFrom) || 'cli'
+      additionalArgs
     });
   }
 
   return runCommand({
     args: options,
     commands,
-    additionalArgs,
-    invokedFrom: (process.env[INVOKED_FROM_ENV_VAR_NAME] as InvokedFrom) || 'cli'
+    additionalArgs
   });
 };
 

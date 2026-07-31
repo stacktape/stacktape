@@ -144,9 +144,7 @@ export const deployWithEc2Runner = async () => {
       })
     });
   }
-  if (globalStateManager.invokedFrom === 'cli') {
-    eventManager.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());
-  }
+  eventManager.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());
 
   const consoleUrl = `https://console.stacktape.com/projects/${globalStateManager.targetStack.projectName}/${globalStateManager.targetStack.stage}/overview`;
 
@@ -186,11 +184,7 @@ const ensureProjectEc2RunnerConfigured = async () => {
     ''
   ]);
 
-  if (
-    globalStateManager.args.autoConfirmOperation ||
-    !process.stdout.isTTY ||
-    globalStateManager.invokedFrom !== 'cli'
-  ) {
+  if (globalStateManager.args.autoConfirmOperation || !process.stdout.isTTY) {
     throw new ExpectedError(
       'CLI',
       `Project ${globalStateManager.targetStack.projectName} is not configured to use an EC2 runner.`,

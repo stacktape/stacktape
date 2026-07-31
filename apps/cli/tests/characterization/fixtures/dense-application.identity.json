@@ -32,7 +32,15 @@
       "physicalNames": {
         "FunctionName": "characterization-baseline-api"
       },
-      "dependencies": ["ApiLogGroup", "ApiRole"]
+      "dependencies": [
+        "ApiLogGroup",
+        "ApiRole",
+        "DatabaseDbInstance",
+        "EventsEventBus",
+        "FilesBucket",
+        "JobsQueue",
+        "RecordsGlobalTable"
+      ]
     },
     "ApiGatewayApi": {
       "type": "AWS::ApiGatewayV2::Api",
@@ -408,7 +416,7 @@
     },
     "StpSensitiveDataCustomResource": {
       "type": "AWS::CloudFormation::CustomResource",
-      "dependencies": ["StacktapeServiceLambdaCustomResourceFunction"]
+      "dependencies": ["DatabaseDbInstance", "StacktapeServiceLambdaCustomResourceFunction"]
     },
     "StpStpCustomTaggingScheduleRule": {
       "type": "AWS::Events::Rule",
@@ -530,7 +538,7 @@
       "physicalNames": {
         "Family": "characterization-baseline-web-task-definition"
       },
-      "dependencies": ["StpEcsExecutionRole", "WebRole", "WebServiceContainerLogGroup"]
+      "dependencies": ["DatabaseDbInstance", "StpEcsExecutionRole", "WebRole", "WebServiceContainerLogGroup"]
     },
     "WebVpcLink": {
       "type": "AWS::ApiGatewayV2::VpcLink",
@@ -558,7 +566,7 @@
       "physicalNames": {
         "FunctionName": "characterization-baseline-worker"
       },
-      "dependencies": ["WorkerLogGroup", "WorkerRole"]
+      "dependencies": ["EventsEventBus", "RecordsGlobalTable", "WorkerLogGroup", "WorkerRole"]
     },
     "WorkerLogGroup": {
       "type": "AWS::Logs::LogGroup",

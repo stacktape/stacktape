@@ -24,14 +24,12 @@ export const commandSynth = async () => {
 
   const template = templateManager.getTemplate();
 
-  if (globalStateManager.invokedFrom === 'cli') {
-    await fsExtra.writeFile(templatePath, stringifyToYaml(template));
-    tuiManager.setPendingCompletion({
-      success: true,
-      message: 'TEMPLATE COMPILED',
-      links: []
-    });
-  }
+  await fsExtra.writeFile(templatePath, stringifyToYaml(template));
+  tuiManager.setPendingCompletion({
+    success: true,
+    message: 'TEMPLATE COMPILED',
+    links: []
+  });
 
   return template;
 };

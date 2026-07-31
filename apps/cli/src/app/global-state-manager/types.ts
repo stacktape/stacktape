@@ -21,12 +21,9 @@ export type PersistedState = {
 import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-key';
 import type { StacktapeConfig } from '@stacktape/config';
 
-export type StacktapeProgrammaticOptions = {
+export type RunCommandOptions = {
   commands: StacktapeCommand[];
   args: StacktapeArgs;
   config?: StacktapeConfig;
-  invokedFrom: InvokedFrom;
   additionalArgs?: Record<string, string | boolean>;
 };
-
-export type InvokedFrom = 'cli' | 'server';

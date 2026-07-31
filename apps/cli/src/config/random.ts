@@ -257,8 +257,6 @@ export const CF_TEMPLATE_FILE_NAME = `${CF_TEMPLATE_FILE_NAME_WITHOUT_EXT}.yml`;
 export const STP_TEMPLATE_FILE_NAME = `${STP_TEMPLATE_FILE_NAME_WITHOUT_EXT}.yml`;
 export const IDENTIFIER_FOR_MISSING_OUTPUT = '<<missing_output>>';
 
-export const INVOKED_FROM_ENV_VAR_NAME = '_STP_INVOKED_FROM';
-
 export const HELPER_LAMBDA_NAMES = [
   'batchJobTriggerLambda',
   'stacktapeServiceLambda',

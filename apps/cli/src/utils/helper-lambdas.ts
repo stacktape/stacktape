@@ -1,4 +1,3 @@
-import type { InvokedFrom } from '@application-services/global-state-manager/types';
 import type { HelperLambdaName } from '@config';
 import { basename, join } from 'node:path';
 import { fsPaths } from 'src/config/runtime-paths';
@@ -59,22 +58,10 @@ export const loadHelperLambdaDetailsFromDir = async ({
 };
 
 export const loadHelperLambdaDetails = async ({
-  invocationId,
-  invokedFrom
+  invocationId
 }: {
   invocationId?: string;
-  invokedFrom: InvokedFrom;
 }): Promise<HelperLambdaDetails> => {
-  if (invokedFrom === 'server') {
-    const dummyData = { digest: 'xxx', artifactPath: 'xxx', handler: 'index.default', size: 10 };
-    return {
-      batchJobTriggerLambda: dummyData,
-      cdnOriginRequestLambda: dummyData,
-      cdnOriginResponseLambda: dummyData,
-      stacktapeServiceLambda: dummyData
-    };
-  }
-
   const helperLambdasDir = fsPaths.helperLambdasDir();
   const snapshotDir = invocationId
     ? join(fsPaths.absoluteTempFolderPath({ invocationId }), HELPER_LAMBDAS_FOLDER_NAME)

@@ -1,6 +1,7 @@
 import { beforeAll, describe, expect, test } from 'bun:test';
 import http from 'node:http';
 import https from 'node:https';
+import { join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -200,16 +201,48 @@ export const synthesizeDenseFixture = async () => {
     eventManager.setSilentMode(true);
 
     await applicationManager.init();
-    await globalStateManager.init({
-      config: createDenseConfig(),
-      commands: ['synth'],
-      args: {
-        stage: 'baseline',
-        region: 'eu-west-1',
-        projectName: 'characterization'
-      },
-      invokedFrom: 'server'
-    });
+    const helperLambda = {
+      digest: 'characterization',
+      artifactPath: 'characterization-helper.zip',
+      handler: 'index.default',
+      size: 10
+    };
+    globalStateManager.operationStart = new Date();
+    globalStateManager.rawCommands = ['synth'];
+    globalStateManager.rawArgs = {
+      stage: 'baseline',
+      region: 'eu-west-1',
+      projectName: 'characterization',
+      currentWorkingDirectory: join(import.meta.dir, 'fixtures', 'dense-application')
+    };
+    globalStateManager.additionalArgs = {};
+    globalStateManager.presetConfig = createDenseConfig();
+    globalStateManager.persistedState = {
+      systemId: 'characterization-system',
+      cliArgsDefaults: {},
+      otherDefaults: {}
+    };
+    globalStateManager.systemId = globalStateManager.persistedState.systemId;
+    globalStateManager.awsConfigFileContent = {};
+    globalStateManager.availableAwsProfiles = [];
+    globalStateManager.helperLambdaDetails = {
+      batchJobTriggerLambda: helperLambda,
+      stacktapeServiceLambda: helperLambda,
+      cdnOriginRequestLambda: helperLambda,
+      cdnOriginResponseLambda: helperLambda
+    };
+    globalStateManager.localTargetAwsAccount = {
+      id: 'characterization-account',
+      organizationId: 'characterization-organization',
+      awsAccountId: '123456789999',
+      connectionMode: 'BASIC',
+      name: 'characterization',
+      state: 'ACTIVE',
+      primaryRegions: ['eu-west-1'],
+      defaultRegion: 'eu-west-1'
+    };
+    globalStateManager.initializedDomainServices = [];
+    globalStateManager.isInitialized = true;
     globalStateManager.targetStack = {
       stackName: 'characterization-baseline',
       globallyUniqueStackHash: 'xxxxxxxx',

@@ -13,7 +13,7 @@ describe('applicationManager.handleExitSignal()', () => {
     applicationManager.cleanUpHooks = [];
     globalStateManager.rawArgs = { preserveTempFiles: true } as any;
     globalStateManager.rawCommands = ['dev'] as any;
-    globalStateManager.invokedFrom = 'server';
+    globalStateManager.isInitialized = false;
   });
 
   afterEach(() => {

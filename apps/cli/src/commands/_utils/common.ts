@@ -113,7 +113,7 @@ export const isPromptBeforeOperationNeeded = ({
 }) => {
   const args = globalStateManager.args as StacktapeCliArgs;
   // Skip prompts if auto-confirm is set or agent mode is enabled
-  if (globalStateManager.invokedFrom === 'cli' && !args.autoConfirmOperation && !args.agent) {
+  if (!args.autoConfirmOperation && !args.agent) {
     if (operation === 'update' && possiblyImpactedResources.length) {
       return true;
     }

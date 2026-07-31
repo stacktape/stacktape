@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { listAwsProfiles } from '@utils/aws-config';
 
@@ -12,17 +11,15 @@ export const commandAwsProfileList = async () => {
     profile.AWS_SECRET_ACCESS_KEY
   ]);
 
-  if (globalStateManager.invokedFrom === 'cli') {
-    if (!rows.length) {
-      tuiManager.warn(
-        `No AWS profiles found. Create one with \`${tuiManager.colorize('yellow', 'stacktape aws-profile:create')}\`.`
-      );
-    } else {
-      tuiManager.printTable({
-        header,
-        rows: rows.map((row) => [...row.slice(0, -1), '*'.repeat(36) + row[2].slice(36)])
-      });
-    }
+  if (!rows.length) {
+    tuiManager.warn(
+      `No AWS profiles found. Create one with \`${tuiManager.colorize('yellow', 'stacktape aws-profile:create')}\`.`
+    );
+  } else {
+    tuiManager.printTable({
+      header,
+      rows: rows.map((row) => [...row.slice(0, -1), '*'.repeat(36) + row[2].slice(36)])
+    });
   }
 
   return rows.map((row) => ({

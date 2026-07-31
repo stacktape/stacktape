@@ -85,7 +85,7 @@ import {
   getStacktapeServiceLambdaEnvironment,
   getStacktapeServiceLambdaIssueDetectionStatements
 } from './utils/lambdas';
-import { cleanConfigForMinimalTemplateCompilerMode, mergeStacktapeDefaults } from './utils/misc';
+import { mergeStacktapeDefaults } from './utils/misc';
 import { runInitialValidations, validateConfigStructure } from './utils/validation';
 import { isDevCommand, isResourceTypeExcludedInDevMode } from '../../commands/dev/dev-mode-utils';
 import type { StacktapeConfig } from '@stacktape/config';
@@ -229,16 +229,10 @@ export class ConfigManager {
       }
       this.configResolver.registerUserDirectives(this.configResolver.rawConfig?.directives || []);
       await this.configResolver.loadResolvedConfig();
-      if (globalStateManager.invokedFrom !== 'server') {
-        this.config = this.configResolver.resolvedConfig;
-      } else {
-        this.config = cleanConfigForMinimalTemplateCompilerMode(this.configResolver.resolvedConfig);
-      }
+      this.config = this.configResolver.resolvedConfig;
       this.rawConfig = this.configResolver.rawConfig;
       await validateConfigStructure({ config: this.config, configPath: globalStateManager.configPath, templateId });
-      if (globalStateManager.invokedFrom !== 'server') {
-        runInitialValidations();
-      }
+      runInitialValidations();
     }
 
     await eventManager.finishEvent({
