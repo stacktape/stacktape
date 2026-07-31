@@ -148,9 +148,9 @@ describe.serial('AWS SDK client construction', () => {
     });
     const manager = managerWith();
 
-    await manager.listCertificatesForAccount();
-    await manager.listCertificatesForAccount(undefined, true);
-    await manager.listTopLevelDomainPrices();
+    await manager.domains.listCertificates();
+    await manager.domains.listCertificates(undefined, true);
+    await manager.domains.listTopLevelDomainPrices();
 
     expect(await acmClients[0].config.region()).toBe('eu-west-1');
     expect(await acmClients[1].config.region()).toBe('us-east-1');

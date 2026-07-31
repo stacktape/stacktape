@@ -20,10 +20,8 @@ export class SesManager {
         description: 'Fetching email info'
       });
       [this.#sesAccountInfo, this.#identities] = await Promise.all([
-        awsSdkManager.getSesAccountDetail(),
-        awsSdkManager.getSesIdentitiesStatus({
-          identities: identities.map(this.#getRelevantIdentitiesForVerification).flat()
-        })
+        awsSdkManager.domains.getSesAccount(),
+        awsSdkManager.domains.getSesIdentitiesStatus(identities.map(this.#getRelevantIdentitiesForVerification).flat())
       ]);
       await eventManager.finishEvent({
         eventType: 'FETCH_MAIL_INFO'

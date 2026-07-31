@@ -340,7 +340,7 @@ export class DomainManager {
       const useUsEast1Acm = cert.CertificateArn.includes(':us-east-1:');
       const cacheKey = `${useUsEast1Acm}:${cert.CertificateArn}`;
       if (!refreshedCertificates.has(cacheKey)) {
-        refreshedCertificates.set(cacheKey, awsSdkManager.getCertificateInfo(cert.CertificateArn, useUsEast1Acm));
+        refreshedCertificates.set(cacheKey, awsSdkManager.domains.getCertificate(cert.CertificateArn, useUsEast1Acm));
       }
       return refreshedCertificates.get(cacheKey);
     };
@@ -368,14 +368,14 @@ export class DomainManager {
   };
 
   #listAllPublicHostedZones = async () => {
-    return (await awsSdkManager.listAllHostedZones()).filter(({ Config: { PrivateZone } }) => !PrivateZone);
+    return (await awsSdkManager.domains.listHostedZones()).filter(({ Config: { PrivateZone } }) => !PrivateZone);
   };
 
   #findMatchingHostedZone = async (lookupNameServers: string[], domainName: string) => {
     const relevantPublicHostedZones = await Promise.all(
       this.publicHostedZones
         .filter(({ Name }) => Name.startsWith(domainName))
-        .map(async ({ Id }) => awsSdkManager.getInfoForHostedZone(Id))
+        .map(async ({ Id }) => awsSdkManager.domains.getHostedZone(Id))
     );
 
     const fullMatch = relevantPublicHostedZones.find(({ DelegationSet: { NameServers } }) => {
@@ -445,23 +445,23 @@ export class DomainManager {
     const [certsForDomain, usEast1CertsForDomain] = await Promise.all([
       Promise.all(
         (
-          await awsSdkManager.listCertificatesForAccount(
+          await awsSdkManager.domains.listCertificates(
             [CertificateStatus.ISSUED, CertificateStatus.PENDING_VALIDATION],
             false
           )
         )
           .filter((certSummary) => this.#certificateMayCoverApexDomain(certSummary, domainName))
-          .map(({ CertificateArn }) => awsSdkManager.getCertificateInfo(CertificateArn))
+          .map(({ CertificateArn }) => awsSdkManager.domains.getCertificate(CertificateArn))
       ),
       Promise.all(
         (
-          await awsSdkManager.listCertificatesForAccount(
+          await awsSdkManager.domains.listCertificates(
             [CertificateStatus.ISSUED, CertificateStatus.PENDING_VALIDATION],
             true
           )
         )
           .filter((certSummary) => this.#certificateMayCoverApexDomain(certSummary, domainName))
-          .map(({ CertificateArn }) => awsSdkManager.getCertificateInfo(CertificateArn, true))
+          .map(({ CertificateArn }) => awsSdkManager.domains.getCertificate(CertificateArn, true))
       )
     ]).then((certificateLists) =>
       certificateLists.map((certList) =>
@@ -472,7 +472,7 @@ export class DomainManager {
     if (!certsForDomain?.length && !usEast1CertsForDomain?.length) {
       return {};
     }
-    const recordsForHostedZone = await awsSdkManager.getRecordsForHostedZone(hostedZoneId);
+    const recordsForHostedZone = await awsSdkManager.domains.listHostedZoneRecords(hostedZoneId);
 
     const regionalCerts = certsForDomain.filter((certInfo) =>
       this.#certificateHasValidationRecordInHostedZone(certInfo, recordsForHostedZone)

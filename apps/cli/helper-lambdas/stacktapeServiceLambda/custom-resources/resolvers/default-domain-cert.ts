@@ -68,14 +68,14 @@ const refreshCertificateInfo = async (certArn: string) => {
   const region = certArn.split(':')[3];
   const awsSdkManager = await getAwsSdkManager({ region });
   console.info(`Refreshing cert info ${certArn}`);
-  return awsSdkManager.getCertificateInfo(certArn);
+  return awsSdkManager.domains.getCertificate(certArn);
 };
 
 const getSuitableCertificateForRegion = async (certDomainSuffix: string, region: string) => {
   const wildcardDomainName = `*${certDomainSuffix}`;
   console.info(`Getting cert info in region ${region}`);
   const awsSdkManager = await getAwsSdkManager({ region });
-  const certList = await awsSdkManager.listCertificatesForAccount([
+  const certList = await awsSdkManager.domains.listCertificates([
     CertificateStatus.ISSUED,
     CertificateStatus.PENDING_VALIDATION
   ]);
@@ -84,12 +84,12 @@ const getSuitableCertificateForRegion = async (certDomainSuffix: string, region:
 
   if (certArn) {
     console.info(`Found suitable cert in region ${region}: ${certArn}`);
-    return awsSdkManager.getCertificateInfo(certArn);
+    return awsSdkManager.domains.getCertificate(certArn);
   }
 
   console.info(`No suitable cert for region ${region} found. Creating new one...`);
 
-  const cert = await awsSdkManager.requestCertificateForDomainName(wildcardDomainName);
+  const cert = await awsSdkManager.domains.requestCertificate(wildcardDomainName);
 
   console.info(`Successfully created cert in region ${region}.`);
 

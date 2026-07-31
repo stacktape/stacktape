@@ -6,9 +6,7 @@ import type {
   StackDetails
 } from '@domain-services/cloudformation-stack-manager/types';
 import type { GitInformation } from '@utils/git-info-manager/types';
-import type { CertificateDetail } from '@domain-services/domain-manager/types';
 import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
-import type { CertificateStatus, ResourceRecord } from '@aws-sdk/client-acm';
 import type { Budget } from '@aws-sdk/client-budgets';
 import type {
   CreateChangeSetInput,
@@ -36,8 +34,6 @@ import type {
 } from '@aws-sdk/client-ecs';
 import type { GetRoleCommandOutput } from '@aws-sdk/client-iam';
 import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
-import type { HostedZone, ResourceRecordSet } from '@aws-sdk/client-route-53';
-import type { DomainPrice } from '@aws-sdk/client-route-53-domains';
 import type { _Object, ObjectIdentifier, ObjectVersion } from '@aws-sdk/client-s3';
 import type { StartSessionCommandInput, StartSessionResponse } from '@aws-sdk/client-ssm';
 import type { Credentials } from '@aws-sdk/types';
@@ -47,12 +43,7 @@ import type { Stats } from 'node:fs';
 import type { Readable } from 'node:stream';
 import { Buffer } from 'node:buffer';
 import path from 'node:path';
-import {
-  ACMClient,
-  DescribeCertificateCommand,
-  ListCertificatesCommand,
-  RequestCertificateCommand
-} from '@aws-sdk/client-acm';
+import { ACMClient } from '@aws-sdk/client-acm';
 import { AutoScaling, DescribeAutoScalingGroupsCommand } from '@aws-sdk/client-auto-scaling';
 import { BudgetsClient, DescribeBudgetsCommand } from '@aws-sdk/client-budgets';
 import {
@@ -158,15 +149,8 @@ import {
 import { DescribeInstanceTypeLimitsCommand, OpenSearchClient } from '@aws-sdk/client-opensearch';
 import { DescribeDBClustersCommand, DescribeDBInstancesCommand, RDSClient } from '@aws-sdk/client-rds';
 import { GetTagKeysCommand, ResourceGroupsTaggingAPIClient } from '@aws-sdk/client-resource-groups-tagging-api';
-import {
-  ChangeResourceRecordSetsCommand,
-  CreateHostedZoneCommand,
-  GetHostedZoneCommand,
-  ListHostedZonesCommand,
-  ListResourceRecordSetsCommand,
-  Route53Client
-} from '@aws-sdk/client-route-53';
-import { ListPricesCommand, Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
+import { Route53Client } from '@aws-sdk/client-route-53';
+import { Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
 import {
   CopyObjectCommand,
   CreateBucketCommand,
@@ -184,8 +168,8 @@ import {
   waitUntilBucketExists
 } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
-import { GetIdentityVerificationAttributesCommand, SESClient, VerifyDomainDkimCommand } from '@aws-sdk/client-ses';
-import { GetAccountCommand, SESv2Client } from '@aws-sdk/client-sesv2';
+import { SESClient } from '@aws-sdk/client-ses';
+import { SESv2Client } from '@aws-sdk/client-sesv2';
 import {
   ListCommandInvocationsCommand,
   SendCommandCommand,
@@ -200,7 +184,6 @@ import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node';
 import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import { resourceURIs } from 'src/utils/aws-resource-uris';
-import { COMMENT_FOR_STACKTAPE_ZONE } from 'src/config/constants';
 import { getRelativePath } from '@utils/fs-utils';
 import {
   chunkArray,
@@ -228,6 +211,7 @@ import { S3Sync } from '../s3-sync';
 import { AwsObservability } from '../observability';
 import { AwsParameterStore } from '../parameter-store';
 import { AwsSecrets } from '../secrets';
+import { AwsDomains } from '../domains';
 import {
   automaticUploadFilterPresets,
   defaultGetErrorFunction,
@@ -324,6 +308,7 @@ export class AwsSdkManager {
   #observability?: AwsObservability;
   #parameterStore?: AwsParameterStore;
   #secrets?: AwsSecrets;
+  #domains?: AwsDomains;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -358,6 +343,14 @@ export class AwsSdkManager {
     });
     this.#secrets = new AwsSecrets({
       createClient: () => this.#secretsManager(),
+      getErrorHandler: this.#getErrorHandler
+    });
+    this.#domains = new AwsDomains({
+      createAcmClient: (useUsEast1) => (useUsEast1 ? this.#usEast1Acm() : this.#acm()),
+      createRoute53Client: () => this.#route53(),
+      createRoute53DomainsClient: () => this.#route53Domains(),
+      createSesClient: () => this.#ses(),
+      createSesV2Client: () => this.#sesv2(),
       getErrorHandler: this.#getErrorHandler
     });
   }
@@ -400,6 +393,14 @@ export class AwsSdkManager {
       throw new Error('AWS Secrets Manager has not been initialized.');
     }
     return this.#secrets;
+  }
+
+  get domains() {
+    this.#getContext();
+    if (!this.#domains) {
+      throw new Error('AWS domain services have not been initialized.');
+    }
+    return this.#domains;
   }
 
   #getContext() {
@@ -1664,131 +1665,6 @@ export class AwsSdkManager {
     return allPolicies.flat();
   };
 
-  listAllHostedZones = async (): Promise<HostedZone[]> => {
-    const errHandler = this.#getErrorHandler('Failed to list hosted zones.');
-    let { HostedZones: hostedZones, NextMarker: nextMarker } = await this.#route53()
-      .send(new ListHostedZonesCommand({ MaxItems: 100 }))
-      .catch(errHandler);
-    while (nextMarker) {
-      const { HostedZones: newZones, NextMarker: newMarker } = await this.#route53()
-        .send(new ListHostedZonesCommand({ MaxItems: 100, Marker: nextMarker }))
-        .catch(errHandler);
-      hostedZones = hostedZones.concat(newZones);
-      nextMarker = newMarker;
-    }
-    return hostedZones;
-  };
-
-  getInfoForHostedZone = async (hostedZoneId: string) => {
-    const errHandler = this.#getErrorHandler('Failed to get hosted zone details.');
-    return this.#route53()
-      .send(new GetHostedZoneCommand({ Id: hostedZoneId }))
-      .catch(errHandler);
-  };
-
-  createCertificateValidationRecordInHostedZone = async (hostedZoneId: string, resourceRecord: ResourceRecord) => {
-    const errHandler = this.#getErrorHandler(
-      `Failed to create certificate validation record for hosted zone ${hostedZoneId}.`
-    );
-    return this.#route53()
-      .send(
-        new ChangeResourceRecordSetsCommand({
-          HostedZoneId: hostedZoneId,
-          ChangeBatch: {
-            Changes: [
-              {
-                Action: 'UPSERT',
-                ResourceRecordSet: {
-                  Name: resourceRecord.Name,
-                  Type: resourceRecord.Type,
-                  TTL: 300,
-                  ResourceRecords: [{ Value: resourceRecord.Value }]
-                }
-              }
-            ]
-          }
-        })
-      )
-      .catch(errHandler);
-  };
-
-  getRecordsForHostedZone = async (hostedZoneId: string) => {
-    const errHandler = this.#getErrorHandler(`Failed fetch get records for hosted zone ${hostedZoneId}.`);
-    const result: ResourceRecordSet[] = [];
-    let { ResourceRecordSets, IsTruncated, NextRecordName, NextRecordType, NextRecordIdentifier } =
-      await this.#route53()
-        .send(
-          new ListResourceRecordSetsCommand({
-            HostedZoneId: hostedZoneId
-          })
-        )
-        .catch(errHandler);
-    result.push(...ResourceRecordSets);
-    while (IsTruncated) {
-      ({ ResourceRecordSets, IsTruncated, NextRecordName, NextRecordType, NextRecordIdentifier } = await this.#route53()
-        .send(
-          new ListResourceRecordSetsCommand({
-            HostedZoneId: hostedZoneId,
-            StartRecordName: NextRecordName,
-            StartRecordType: NextRecordType,
-            StartRecordIdentifier: NextRecordIdentifier
-          })
-        )
-        .catch(errHandler));
-      result.push(...ResourceRecordSets);
-    }
-    return result;
-  };
-
-  createHostedZone = async (domainName: string) => {
-    const errHandler = this.#getErrorHandler(`Failed create hosted zone for domain ${domainName}.`);
-    return this.#route53()
-      .send(
-        new CreateHostedZoneCommand({
-          Name: domainName,
-          CallerReference: `${new Date().getTime().toString()}-${domainName}`,
-          HostedZoneConfig: { Comment: COMMENT_FOR_STACKTAPE_ZONE }
-        })
-      )
-      .catch(errHandler);
-  };
-
-  requestCertificateForDomainName = async (domainName: string, useUsEast1Acm?: boolean) => {
-    const errHandler = this.#getErrorHandler(`Failed to request certificate for domain ${domainName}.`);
-    const { CertificateArn: newCertArn } = await (useUsEast1Acm ? this.#usEast1Acm() : this.#acm())
-      .send(
-        new RequestCertificateCommand({
-          DomainName: domainName,
-          ValidationMethod: 'DNS',
-          SubjectAlternativeNames: domainName.split('.').length === 2 ? [`*.${domainName}`] : undefined
-        })
-      )
-      .catch(errHandler);
-    await wait(5000);
-    let certInfo = await this.getCertificateInfo(newCertArn, useUsEast1Acm);
-    // We have to wait until the records in domain validation options are part of the response
-    // We need this records for domain DNS validation through route 53
-    while (!certInfo.DomainValidationOptions?.some((domainValidOpt) => domainValidOpt.ResourceRecord)) {
-      await wait(3000);
-      certInfo = await this.getCertificateInfo(newCertArn, useUsEast1Acm);
-    }
-    return certInfo;
-  };
-
-  listCertificatesForAccount = async (statuses?: CertificateStatus[], useUsEast1Acm?: boolean) => {
-    const errHandler = this.#getErrorHandler('Failed to list certificates.');
-    const acmClient = useUsEast1Acm ? this.#usEast1Acm() : this.#acm();
-    const res = await acmClient.send(new ListCertificatesCommand({ CertificateStatuses: statuses })).catch(errHandler);
-    return res.CertificateSummaryList;
-  };
-
-  getCertificateInfo = async (certArn: string, useUsEast1Acm?: boolean) => {
-    const errHandler = this.#getErrorHandler('Failed to fetch certificate details.');
-    const acmClient = useUsEast1Acm ? this.#usEast1Acm() : this.#acm();
-    const res = await acmClient.send(new DescribeCertificateCommand({ CertificateArn: certArn })).catch(errHandler);
-    return res.Certificate as CertificateDetail;
-  };
-
   //   getStackDriftInformation = async (stackName: string): Promise<DriftDetail[]> => {
   //     let driftInformation: DescribeStackResourceDriftsCommandOutput;
   //     try {
@@ -2144,74 +2020,6 @@ export class AwsSdkManager {
     );
     return this.#lambda()
       .send(new UpdateAliasCommand({ FunctionName: lambdaResourceName, Name: aliasName, FunctionVersion: version }))
-      .catch(errHandler);
-  };
-
-  listTopLevelDomainPrices = async () => {
-    const errHandler = this.#getErrorHandler('Failed to list Route53 domain TLDs.');
-    let { Prices, NextPageMarker } = await this.#route53Domains()
-      .send(new ListPricesCommand({ MaxItems: 100 }))
-      .catch(errHandler);
-    let result: DomainPrice[] = Prices;
-    while (NextPageMarker) {
-      ({ Prices, NextPageMarker } = await this.#route53Domains()
-        .send(new ListPricesCommand({ MaxItems: 100, Marker: NextPageMarker }))
-        .catch(errHandler));
-      result = result.concat(Prices);
-    }
-    return result;
-  };
-
-  getSesIdentitiesStatus = async ({ identities }: { identities: string[] }) => {
-    const errHandler = this.#getErrorHandler('Failure when listing AWS SES identities status');
-    const { VerificationAttributes } = await this.#ses()
-      .send(new GetIdentityVerificationAttributesCommand({ Identities: identities }))
-      .catch(errHandler);
-    return VerificationAttributes;
-  };
-
-  verifyDomainForSesUsingDkim = async ({ domainName }: { domainName: string }) => {
-    const errHandler = this.#getErrorHandler(`Failure when verifying domain ${domainName} for SES using DKIM.`);
-    const result = await this.#ses()
-      .send(new VerifyDomainDkimCommand({ Domain: domainName }))
-      .catch(errHandler);
-    return result.DkimTokens;
-  };
-
-  getSesAccountDetail = async () => {
-    const errHandler = this.#getErrorHandler('Unable to get information about AWS SES account');
-    return this.#sesv2().send(new GetAccountCommand({})).catch(errHandler);
-  };
-
-  createDkimAuthenticationRecordInHostedZone = async ({
-    hostedZoneId,
-    domainName,
-    dkimTokens
-  }: {
-    hostedZoneId: string;
-    domainName: string;
-    dkimTokens: string[];
-  }) => {
-    const errHandler = this.#getErrorHandler(
-      `Failed to create certificate validation record for hosted zone ${hostedZoneId}.`
-    );
-    return this.#route53()
-      .send(
-        new ChangeResourceRecordSetsCommand({
-          HostedZoneId: hostedZoneId,
-          ChangeBatch: {
-            Changes: dkimTokens.map((token) => ({
-              Action: 'UPSERT',
-              ResourceRecordSet: {
-                Name: `${token}._domainkey.${domainName}`,
-                Type: 'CNAME',
-                TTL: 1800,
-                ResourceRecords: [{ Value: `${token}.dkim.amazonses.com` }]
-              }
-            }))
-          }
-        })
-      )
       .catch(errHandler);
   };
 

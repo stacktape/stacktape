@@ -85,7 +85,7 @@ export const commandDomainAdd = async () => {
         tuiManager.warn('Domain add canceled.');
         return;
       }
-      zoneInfo = await awsSdkManager.createHostedZone(apexDomain);
+      zoneInfo = await awsSdkManager.domains.createHostedZone(apexDomain);
     }
     tuiManager.success(
       `Hosted zone created. Update your registrar to use these name servers:\n${tuiManager.colorize(
@@ -140,10 +140,10 @@ export const commandDomainAdd = async () => {
     }
     const certRequests: Promise<CertificateDetail>[] = [];
     if (!regionalCert) {
-      certRequests.push(awsSdkManager.requestCertificateForDomainName(domainName, false));
+      certRequests.push(awsSdkManager.domains.requestCertificate(domainName, false));
     }
     if (!usEast1Cert && globalStateManager.region !== 'us-east-1') {
-      certRequests.push(awsSdkManager.requestCertificateForDomainName(domainName, true));
+      certRequests.push(awsSdkManager.domains.requestCertificate(domainName, true));
     }
     const requestedCerts = await Promise.all(certRequests);
     regionalCert ||= requestedCerts.find(({ CertificateArn }) => !CertificateArn.includes(':us-east-1:'));
@@ -162,7 +162,7 @@ export const commandDomainAdd = async () => {
   if (certsNeedingValidationRecord.length) {
     await Promise.all(
       certsNeedingValidationRecord.map((cert) =>
-        awsSdkManager.createCertificateValidationRecordInHostedZone(
+        awsSdkManager.domains.upsertCertificateValidationRecord(
           zoneInfo.HostedZone.Id,
           cert.DomainValidationOptions.find((domainValOpt) => domainValOpt.ResourceRecord).ResourceRecord
         )
@@ -194,8 +194,8 @@ export const commandDomainAdd = async () => {
       message: 'Do you wish to verify your domain for using with AWS SES?'
     });
     if (prepareForSES) {
-      const dkimTokens = await awsSdkManager.verifyDomainForSesUsingDkim({ domainName: apexDomain });
-      await awsSdkManager.createDkimAuthenticationRecordInHostedZone({
+      const dkimTokens = await awsSdkManager.domains.verifyDomainForSesUsingDkim(apexDomain);
+      await awsSdkManager.domains.upsertDkimRecords({
         hostedZoneId: zoneInfo.HostedZone.Id,
         domainName: apexDomain,
         dkimTokens

@@ -3,7 +3,9 @@ import { CertificateStatus } from '@aws-sdk/client-acm';
 import { describe, expect, mock, test } from 'bun:test';
 
 const awsSdkManager = {
-  getCertificateInfo: mock(),
+  domains: {
+    getCertificate: mock()
+  },
   parameterStore: {
     getMany: mock(),
     put: mock()
@@ -107,7 +109,7 @@ describe('DomainManager', () => {
         })
       }
     ]);
-    awsSdkManager.getCertificateInfo.mockImplementation(async (arn: string) => {
+    awsSdkManager.domains.getCertificate.mockImplementation(async (arn: string) => {
       return arn === regionalCertArn ? issuedRegionalCert : issuedUsEast1Cert;
     });
     awsSdkManager.parameterStore.put.mockResolvedValue(undefined);
@@ -117,9 +119,9 @@ describe('DomainManager', () => {
 
     await domainManager.init({ domains: [domainName], fromParameterStore: true });
 
-    expect(awsSdkManager.getCertificateInfo).toHaveBeenCalledTimes(2);
-    expect(awsSdkManager.getCertificateInfo).toHaveBeenCalledWith(regionalCertArn, false);
-    expect(awsSdkManager.getCertificateInfo).toHaveBeenCalledWith(usEast1CertArn, true);
+    expect(awsSdkManager.domains.getCertificate).toHaveBeenCalledTimes(2);
+    expect(awsSdkManager.domains.getCertificate).toHaveBeenCalledWith(regionalCertArn, false);
+    expect(awsSdkManager.domains.getCertificate).toHaveBeenCalledWith(usEast1CertArn, true);
     expect(domainManager.getCertificateForDomain('events.docstube.dev', 'application-load-balancer')).toBe(
       regionalCertArn
     );
