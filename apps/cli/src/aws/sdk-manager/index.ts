@@ -1,7 +1,6 @@
 import type { TuiManager as Printer } from '@application-services/tui-manager';
-import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
 import { ACMClient } from '@aws-sdk/client-acm';
-import { AutoScaling, DescribeAutoScalingGroupsCommand } from '@aws-sdk/client-auto-scaling';
+import { AutoScaling } from '@aws-sdk/client-auto-scaling';
 import { BudgetsClient } from '@aws-sdk/client-budgets';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront';
@@ -15,8 +14,8 @@ import { ECRClient } from '@aws-sdk/client-ecr';
 import { ECSClient } from '@aws-sdk/client-ecs';
 import { IAMClient } from '@aws-sdk/client-iam';
 import { LambdaClient } from '@aws-sdk/client-lambda';
-import { DescribeInstanceTypeLimitsCommand, OpenSearchClient } from '@aws-sdk/client-opensearch';
-import { DescribeDBClustersCommand, DescribeDBInstancesCommand, RDSClient } from '@aws-sdk/client-rds';
+import { OpenSearchClient } from '@aws-sdk/client-opensearch';
+import { RDSClient } from '@aws-sdk/client-rds';
 import { ResourceGroupsTaggingAPIClient } from '@aws-sdk/client-resource-groups-tagging-api';
 import { Route53Client } from '@aws-sdk/client-route-53';
 import { Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
@@ -54,6 +53,9 @@ import { AwsSystemsManager } from '../systems-manager';
 import { AwsCostManagement } from '../cost-management';
 import { AwsCloudFront } from '../cloudfront';
 import { AwsEc2 } from '../ec2';
+import { AwsAutoScaling } from '../auto-scaling';
+import { AwsOpenSearch } from '../open-search';
+import { AwsRds } from '../rds';
 import { defaultGetErrorFunction } from './utils';
 
 export class AwsSdkManager {
@@ -75,6 +77,9 @@ export class AwsSdkManager {
   #costManagement?: AwsCostManagement;
   #cloudFront?: AwsCloudFront;
   #ec2?: AwsEc2;
+  #autoScaling?: AwsAutoScaling;
+  #openSearch?: AwsOpenSearch;
+  #rds?: AwsRds;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -181,6 +186,15 @@ export class AwsSdkManager {
     });
     this.#ec2 = new AwsEc2({
       createClient: () => this.#ec2Client(),
+      getErrorHandler: this.#getErrorHandler
+    });
+    this.#autoScaling = new AwsAutoScaling({
+      createClient: () => this.#autoScalingClient(),
+      getErrorHandler: this.#getErrorHandler
+    });
+    this.#openSearch = new AwsOpenSearch({ createClient: () => this.#openSearchClient() });
+    this.#rds = new AwsRds({
+      createClient: () => this.#rdsClient(),
       getErrorHandler: this.#getErrorHandler
     });
   }
@@ -337,6 +351,30 @@ export class AwsSdkManager {
     return this.#ec2;
   }
 
+  get autoScaling() {
+    this.#getContext();
+    if (!this.#autoScaling) {
+      throw new Error('AWS Auto Scaling has not been initialized.');
+    }
+    return this.#autoScaling;
+  }
+
+  get openSearch() {
+    this.#getContext();
+    if (!this.#openSearch) {
+      throw new Error('AWS OpenSearch has not been initialized.');
+    }
+    return this.#openSearch;
+  }
+
+  get rds() {
+    this.#getContext();
+    if (!this.#rds) {
+      throw new Error('AWS RDS has not been initialized.');
+    }
+    return this.#rds;
+  }
+
   #getContext() {
     if (!this.#context) {
       throw new Error('AWS SDK manager has not been initialized.');
@@ -445,7 +483,7 @@ export class AwsSdkManager {
     return this.#applyPlugins(new EC2Client(this.#getClientArgs()));
   }
 
-  #ec2AutoScaling() {
+  #autoScalingClient() {
     return this.#applyPlugins(new AutoScaling(this.#getClientArgs()));
   }
 
@@ -462,7 +500,7 @@ export class AwsSdkManager {
     return this.#applyPlugins(new S3Client(this.#getClientArgs()));
   }
 
-  #rds() {
+  #rdsClient() {
     return this.#applyPlugins(new RDSClient(this.#getClientArgs()));
   }
 
@@ -480,7 +518,7 @@ export class AwsSdkManager {
     return this.#applyPlugins(new LambdaClient(this.#getClientArgs({ requestTimeout: 900_000 })));
   }
 
-  #openSearch() {
+  #openSearchClient() {
     return this.#applyPlugins(new OpenSearchClient(this.#getClientArgs()));
   }
 
@@ -517,45 +555,4 @@ export class AwsSdkManager {
 
   //     return res;
   //   };
-
-  getAutoscalingGroupInfo = async ({ autoscalingGroupAwsName }: { autoscalingGroupAwsName: string }) => {
-    const errHandler = this.#getErrorHandler(
-      `Unable to get information for autoscaling group ${autoscalingGroupAwsName}`
-    );
-    const result = await this.#ec2AutoScaling()
-      .send(new DescribeAutoScalingGroupsCommand({ AutoScalingGroupNames: [autoscalingGroupAwsName] }))
-      .catch(errHandler);
-    return result.AutoScalingGroups[0];
-  };
-
-  getOpenSearchInstanceTypeLimits = async ({
-    instanceType,
-    openSearchVersion
-  }: {
-    instanceType: OpenSearchPartitionInstanceType;
-    openSearchVersion: string;
-  }) => {
-    return this.#openSearch().send(
-      new DescribeInstanceTypeLimitsCommand({
-        InstanceType: instanceType,
-        EngineVersion: `OpenSearch_${openSearchVersion}`
-      })
-    );
-  };
-
-  getRdsInstanceDetail = async ({ rdsInstanceIdentifier }: { rdsInstanceIdentifier: string }) => {
-    const errHandler = this.#getErrorHandler('Unable to get RDS DB instance detail');
-    const response = await this.#rds()
-      .send(new DescribeDBInstancesCommand({ DBInstanceIdentifier: rdsInstanceIdentifier }))
-      .catch(errHandler);
-    return response.DBInstances?.[0];
-  };
-
-  getRdsClusterDetail = async ({ rdsClusterIdentifier }: { rdsClusterIdentifier: string }) => {
-    const errHandler = this.#getErrorHandler('Unable to get RDS cluster detail');
-    const response = await this.#rds()
-      .send(new DescribeDBClustersCommand({ DBClusterIdentifier: rdsClusterIdentifier }))
-      .catch(errHandler);
-    return response.DBClusters?.[0];
-  };
 }

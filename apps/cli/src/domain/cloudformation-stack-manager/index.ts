@@ -1410,20 +1410,20 @@ export class StackManager {
             return { ...resource, tags: resourceTags };
           }
           if (resource.ResourceType === 'AWS::AutoScaling::AutoScalingGroup') {
-            const asgDetail = await awsSdkManager.getAutoscalingGroupInfo({
-              autoscalingGroupAwsName: resource.PhysicalResourceId
+            const asgDetail = await awsSdkManager.autoScaling.getGroup({
+              name: resource.PhysicalResourceId
             });
             return { ...resource, asgDetail };
           }
           if (resource.ResourceType === 'AWS::RDS::DBInstance') {
-            const rdsInstanceDetail = await awsSdkManager.getRdsInstanceDetail({
-              rdsInstanceIdentifier: resource.PhysicalResourceId
+            const rdsInstanceDetail = await awsSdkManager.rds.getInstance({
+              identifier: resource.PhysicalResourceId
             });
             return { ...resource, rdsInstanceDetail };
           }
           if (resource.ResourceType === 'AWS::RDS::DBCluster') {
-            const auroraClusterDetail = await awsSdkManager.getRdsClusterDetail({
-              rdsClusterIdentifier: resource.PhysicalResourceId
+            const auroraClusterDetail = await awsSdkManager.rds.getCluster({
+              identifier: resource.PhysicalResourceId
             });
             return { ...resource, auroraClusterDetail };
           }

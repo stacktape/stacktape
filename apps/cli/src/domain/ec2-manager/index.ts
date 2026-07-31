@@ -41,12 +41,11 @@ export class EC2Manager {
               if (!this.openSearchInstanceTypes[version]) {
                 this.openSearchInstanceTypes[version] = {};
               }
-              this.openSearchInstanceTypes[version][instanceType] = await awsSdkManager.getOpenSearchInstanceTypeLimits(
-                {
+              this.openSearchInstanceTypes[version][instanceType] =
+                await awsSdkManager.openSearch.getInstanceTypeLimits({
                   openSearchVersion: version,
                   instanceType: instanceType as OpenSearchPartitionInstanceType
-                }
-              );
+                });
             })
           )
       ]);

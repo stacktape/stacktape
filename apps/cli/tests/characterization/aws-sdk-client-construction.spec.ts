@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { ACMClient } from '@aws-sdk/client-acm';
+import { AutoScaling } from '@aws-sdk/client-auto-scaling';
 import { BudgetsClient } from '@aws-sdk/client-budgets';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
 import { CloudFrontClient } from '@aws-sdk/client-cloudfront';
@@ -11,6 +12,8 @@ import { EC2Client } from '@aws-sdk/client-ec2';
 import { ECSClient } from '@aws-sdk/client-ecs';
 import { IAMClient, NoSuchEntityException } from '@aws-sdk/client-iam';
 import { LambdaClient } from '@aws-sdk/client-lambda';
+import { OpenSearchClient } from '@aws-sdk/client-opensearch';
+import { RDSClient } from '@aws-sdk/client-rds';
 import { Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
 import { ResourceGroupsTaggingAPIClient } from '@aws-sdk/client-resource-groups-tagging-api';
 import { S3Client } from '@aws-sdk/client-s3';
@@ -416,6 +419,31 @@ describe.serial('AWS SDK client construction', () => {
 
     expect(await captured().config.region()).toBe('eu-west-1');
     expect(pluginApplications).toBe(1);
+  });
+
+  test.serial('constructs resource-detail clients from the manager context', async () => {
+    const capturedAutoScaling = captureSend<AutoScaling>(AutoScaling.prototype, { AutoScalingGroups: [] });
+    const capturedOpenSearch = captureSend<OpenSearchClient>(OpenSearchClient.prototype, {});
+    const capturedRds = captureSend<RDSClient>(RDSClient.prototype, { DBInstances: [] });
+    let pluginApplications = 0;
+    const plugin: Pluggable<any, any> = {
+      applyToStack: () => {
+        pluginApplications += 1;
+      }
+    };
+    const manager = managerWith([plugin]);
+
+    await manager.autoScaling.getGroup({ name: 'application' });
+    await manager.openSearch.getInstanceTypeLimits({
+      instanceType: 'm6g.large.search',
+      openSearchVersion: '2.17'
+    });
+    await manager.rds.getInstance({ identifier: 'database' });
+
+    expect(await capturedAutoScaling().config.region()).toBe('eu-west-1');
+    expect(await capturedOpenSearch().config.region()).toBe('eu-west-1');
+    expect(await capturedRds().config.region()).toBe('eu-west-1');
+    expect(pluginApplications).toBe(3);
   });
 
   test.serial('applies explicit plugins to ordinary clients', async () => {

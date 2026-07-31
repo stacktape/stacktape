@@ -47,6 +47,9 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   Distribution lookup and cache invalidation are reached as `awsSdkManager.cloudFront`; invalidation deliberately
   confirms that AWS accepted the request after 1.5 seconds rather than waiting for completion.
   EC2 instance-type, VPC, subnet and route-table discovery are reached as `awsSdkManager.ec2`.
+  Auto Scaling group, OpenSearch instance-limit, and RDS instance/cluster lookups retain separate service boundaries
+  at `awsSdkManager.autoScaling`, `awsSdkManager.openSearch`, and `awsSdkManager.rds`; do not collapse them into a
+  generic resource-details adapter.
   Capability extraction must keep using `src/aws/context.ts` client construction so credential
   refresh, endpoint overrides, retry/redirect middleware and service-specific timeouts do not drift.
   `package`, `synth`, and `validate` initialize that context from the standard local AWS credential provider chain and
