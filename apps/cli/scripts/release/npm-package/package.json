@@ -36,6 +36,9 @@
     "./types": {
       "types": "./types.d.ts"
     },
+    "./plain": {
+      "types": "./plain.d.ts"
+    },
     "./cloudformation": {
       "types": "./cloudformation.d.ts"
     }

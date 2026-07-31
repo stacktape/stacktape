@@ -36,8 +36,8 @@ import type { StpTanStackWeb } from '@domain-services/config-manager/resolved-ty
 import type { StpWebService } from '@domain-services/config-manager/resolved-types/web-services';
 import type { StpWorkerService } from '@domain-services/config-manager/resolved-types/worker-services';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
+import type { FinalTransform, ResourceTransform as CfResourceTransform } from '@stacktape/config-authoring/tooling';
 import type { DefaultedResource, ResourceDefinitionOf, StacktapeResourceType } from './normalized-resource';
-import type { CfResourceTransform, FinalTransform } from './transforms-resolver';
 import { isAbsolute, join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -67,7 +67,6 @@ import { getConfigPath } from '@utils/file-loaders';
 import { builtInDirectives } from './built-in-directives';
 import { ConfigResolver } from './config-resolver';
 import { getAuthoredOverrides, getNestedResourceIdentity } from './normalized-resource';
-import { TransformsResolver } from './transforms-resolver';
 import { getAlarmsToBeAppliedToResource, isGlobalAlarmEligibleForStack } from './utils/alarms';
 import { DEFAULT_TEST_LISTENER_PORT } from './utils/application-load-balancers';
 import { normalizeCustomDomains } from './utils/custom-domains';
@@ -174,7 +173,6 @@ export class ConfigManager {
   rawConfig: StacktapeConfig;
   name = this.constructor.name;
   configResolver = new ConfigResolver();
-  transformsResolver = new TransformsResolver();
   globalConfigGuardrails: GuardrailDefinition[] = [];
   globalConfigDeploymentNotifications: DeploymentNotificationDefinition[] = [];
   globalConfigAlarms: AlarmDefinition[] = [];
@@ -215,18 +213,12 @@ export class ConfigManager {
     const shouldLoadConfig = configRequired || detectedConfigPath || templateId;
     this.configResolver.registerBuiltInDirectives();
     if (shouldLoadConfig) {
-      // Only load transforms for TypeScript configs with defineConfig pattern
-      if (this.transformsResolver.isDefineConfigStyle(globalStateManager.configPath)) {
-        const { transforms, finalTransform } = await this.transformsResolver.loadTransforms(
-          globalStateManager.configPath
-        );
-        this.transforms = transforms;
-        this.finalTransform = finalTransform;
-      }
       // Skip loadRawConfig if already loaded by loadRawConfigOnly
       if (!this.configResolver.rawConfig) {
         await this.configResolver.loadRawConfig();
       }
+      this.transforms = this.configResolver.transforms;
+      this.finalTransform = this.configResolver.finalTransform;
       this.configResolver.registerUserDirectives(this.configResolver.rawConfig?.directives || []);
       await this.configResolver.loadResolvedConfig();
       this.config = this.configResolver.resolvedConfig;

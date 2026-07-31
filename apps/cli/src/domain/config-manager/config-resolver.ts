@@ -1,5 +1,11 @@
 import type { CustomDirective, Directive } from '@domain-services/config-manager/directive-types';
-import type { GetConfigParams } from '@stacktape/config-authoring/tooling';
+import {
+  isCompiledStacktapeConfig,
+  type CompiledStacktapeConfig,
+  type FinalTransform,
+  type GetConfigParams,
+  type ResourceTransform
+} from '@stacktape/config-authoring/tooling';
 import type { DirectiveParam } from '@utils/directives';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -92,72 +98,12 @@ const handleTypescriptConfigError = (error: Error, configPath: string): never =>
   // Prefix the error message with its class name (TypeError, ReferenceError, ...) so the
   // user knows what kind of failure occurred, not just the bare message.
   const errorClassName = error.name && error.name !== 'Error' ? error.name : null;
-  let errorMessage = errorClassName ? `${errorClassName}: ${rawMessage}` : rawMessage;
+  const errorMessage = errorClassName ? `${errorClassName}: ${rawMessage}` : rawMessage;
 
-  // Extract a user-friendly stack trace. Many runtime errors thrown during top-level
-  // module evaluation (TDZ errors, "undefined is not an object", bare property reads
-  // on undefined globals, etc.) reach us without any user frames in the in-process
-  // stack — Bun has already unwound the call stack by the time we catch. In those
-  // cases we re-execute the config file in a subprocess so we can parse Bun's own
-  // stderr, which includes a code frame pointing at the offending line/column.
-  let userStackTrace = getUserCodeStackTrace(error) ?? getFilteredRawStack(error);
-  const hasUsefulTrace = !!userStackTrace && /:\d+(:\d+)?/.test(userStackTrace);
-  const looksLikeTdz = /Cannot access '.*' before initialization/.test(rawMessage);
-  if (!hasUsefulTrace || looksLikeTdz) {
-    const reExecOutput = reExecuteConfigForError(configPath);
-    if (reExecOutput) {
-      const { message, codeFrame } = reExecOutput;
-      if (message) errorMessage = message;
-      if (codeFrame) userStackTrace = codeFrame;
-    }
-  }
+  // A config module is user code and may have side effects. Preserve the best stack Bun gives us, but never execute
+  // the module a second time merely to improve an error's code frame.
+  const userStackTrace = getUserCodeStackTrace(error) ?? getFilteredRawStack(error);
   throw configErrors.typescriptExecutionFailed({ configPath, errorMessage, userStackTrace });
-};
-
-/**
- * Re-execute the config file in a subprocess to surface the real top-level error
- * (including Bun's code frame) when the in-process error is a wrapper like
- * "Cannot access 'default' before initialization".
- */
-const reExecuteConfigForError = (configPath: string): { message: string; codeFrame: string } | null => {
-  try {
-    const result = Bun.spawnSync({
-      cmd: [process.execPath, configPath],
-      stdout: 'pipe',
-      stderr: 'pipe',
-      env: { ...process.env, NODE_ENV: 'production' }
-    });
-    const stderr = result.stderr?.toString() ?? '';
-    if (!stderr.trim()) return null;
-    return parseBunErrorOutput(stderr);
-  } catch {
-    return null;
-  }
-};
-
-const parseBunErrorOutput = (stderr: string): { message: string; codeFrame: string } | null => {
-  const lines = stderr.split('\n');
-  // Find the primary error line. Bun prints either the uppercase JS error class
-  // ("TypeError: …", "ReferenceError: …") or a bare lowercase "error: …" for
-  // generic throws — match both.
-  const errorLineIndex = lines.findIndex((l) => {
-    const trimmed = l.trim();
-    return (
-      /^(Error|TypeError|ReferenceError|SyntaxError|RangeError|AggregateError|URIError|EvalError):/.test(trimmed) ||
-      trimmed.startsWith('error:')
-    );
-  });
-  if (errorLineIndex === -1) return null;
-  const message = lines[errorLineIndex].trim();
-  // Collect the code-frame block that precedes the error (lines like "  4 | const x = ...")
-  // plus the "at ..." frames that follow.
-  const frameStart = Math.max(0, errorLineIndex - 10);
-  const frameLines = lines
-    .slice(frameStart, errorLineIndex)
-    .concat(lines.slice(errorLineIndex + 1).filter((l) => l.trim().startsWith('at ')))
-    .map((l) => l.trimEnd())
-    .filter(Boolean);
-  return { message, codeFrame: frameLines.join('\n') };
 };
 
 const getFilteredRawStack = (error: Error): string | null => {
@@ -191,6 +137,8 @@ export class ConfigResolver {
   resultsWithPath: { [rawDefinitionWithPath: string]: any } = {};
   rawConfig: StacktapeConfig = null;
   resolvedConfig: StacktapeConfig = null;
+  transforms: Record<string, ResourceTransform> = {};
+  finalTransform: FinalTransform | null = null;
 
   loadConfig = async () => {
     await this.loadRawConfig();
@@ -209,47 +157,18 @@ export class ConfigResolver {
     this.resultsWithPath = {};
     this.rawConfig = null;
     this.resolvedConfig = null;
+    this.transforms = {};
+    this.finalTransform = null;
   };
 
-  /**
-   * Strips transforms and finalTransform from the config object.
-   * Transforms are functions and cannot be serialized.
-   * They are extracted separately by TransformsResolver.
-   */
-  private stripTransformsFromConfig = (config: StacktapeConfig) => {
-    // Strip finalTransform from the root config
-    if ('finalTransform' in (config as any)) {
-      delete (config as any).finalTransform;
-    }
-
-    if (!config?.resources) {
-      return;
-    }
-
-    // Strip transforms from each resource
-    for (const resourceName in config.resources) {
-      const resource = config.resources[resourceName] as Record<string, any>;
-      if (resource && 'transforms' in resource) {
-        delete resource.transforms;
-      }
-    }
-  };
-
-  loadTypescriptConfig = async ({ filePath }: { filePath: string }) => {
-    let getConfigFunction: unknown;
+  loadTypescriptConfig = async ({ filePath }: { filePath: string }): Promise<CompiledStacktapeConfig> => {
     let defaultExport: unknown;
 
     try {
-      [getConfigFunction, defaultExport] = await Promise.all([
-        loadFromTypescript({
-          filePath,
-          exportName: 'getConfig'
-        }),
-        loadFromTypescript({
-          filePath,
-          exportName: 'default'
-        })
-      ]);
+      defaultExport = await loadFromTypescript({
+        filePath,
+        exportName: 'default'
+      });
     } catch (error) {
       handleTypescriptConfigError(error as Error, filePath);
     }
@@ -270,52 +189,36 @@ export class ConfigResolver {
       cliArgs: globalStateManager.args
     };
 
-    // Prefer getConfig export over default export
-    if (getConfigFunction) {
-      if (typeof getConfigFunction !== 'function') {
-        throw configErrors.getConfigExportNotFunction({ configPath: filePath });
-      }
-      try {
-        const result = getConfigFunction(params);
-        if (result === null || result === undefined || typeof result !== 'object') {
-          throw configErrors.configFunctionReturnInvalid({ configPath: filePath, exportValue: String(result) });
-        }
-        return result;
-      } catch (error) {
-        if (error instanceof CliError) throw error;
-        handleTypescriptConfigError(error as Error, filePath);
-      }
-    }
-
-    // Handle defineConfig-style config files
-    if (defaultExport && typeof defaultExport === 'function') {
-      try {
-        const configFn = defaultExport as (params: GetConfigParams) => unknown;
-        const result = configFn(params);
-        if (result === null || result === undefined || typeof result !== 'object') {
-          throw configErrors.configFunctionReturnInvalid({ configPath: filePath, exportValue: String(result) });
-        }
-        return result;
-      } catch (error) {
-        if (error instanceof CliError) throw error;
-        handleTypescriptConfigError(error as Error, filePath);
-      }
-    }
-
-    // No valid export found
-    if (!getConfigFunction && !defaultExport) {
+    if (!defaultExport) {
       throw configErrors.typescriptExportMissing({ configPath: filePath });
     }
-
-    // Export exists but is not a function
-    if (defaultExport && typeof defaultExport !== 'function') {
-      throw configErrors.getConfigExportNotFunction({ configPath: filePath });
+    if (typeof defaultExport !== 'function') {
+      throw configErrors.typescriptDefaultExportNotFunction({ configPath: filePath });
     }
 
-    return null;
+    try {
+      const configFn = defaultExport as (params: GetConfigParams) => unknown;
+      const result = configFn(params);
+      if (!isCompiledStacktapeConfig(result)) {
+        throw configErrors.typescriptDefineConfigRequired({ configPath: filePath });
+      }
+      return result;
+    } catch (error) {
+      if (error instanceof CliError) throw error;
+      handleTypescriptConfigError(error as Error, filePath);
+    }
+  };
+
+  private useCompiledTypescriptConfig = (compiledConfig: CompiledStacktapeConfig): StacktapeConfig => {
+    this.transforms = compiledConfig.transforms;
+    this.finalTransform = compiledConfig.finalTransform;
+    return compiledConfig.config;
   };
 
   getRawConfig = async () => {
+    this.transforms = {};
+    this.finalTransform = null;
+
     if (globalStateManager.presetConfig) {
       return globalStateManager.presetConfig;
     }
@@ -338,7 +241,8 @@ export class ConfigResolver {
 
       let typescriptParseError: Error | null = null;
       try {
-        return await this.loadTypescriptConfig({ filePath: tempConfigPath });
+        const compiledConfig = await this.loadTypescriptConfig({ filePath: tempConfigPath });
+        return this.useCompiledTypescriptConfig(compiledConfig);
       } catch (err) {
         typescriptParseError = err;
       } finally {
@@ -357,15 +261,8 @@ export class ConfigResolver {
 
     // Handle TypeScript config files
     if (globalStateManager.configPath.endsWith('.ts')) {
-      const config = await this.loadTypescriptConfig({ filePath: globalStateManager.configPath });
-
-      // Strip transforms from config (they are functions and can't be serialized)
-      // Transforms are extracted separately by TransformsResolver
-      if (config) {
-        this.stripTransformsFromConfig(config);
-      }
-
-      return config;
+      const compiledConfig = await this.loadTypescriptConfig({ filePath: globalStateManager.configPath });
+      return this.useCompiledTypescriptConfig(compiledConfig);
     }
 
     // Handle other config file types (YAML, JSON, etc.)
@@ -410,10 +307,6 @@ export class ConfigResolver {
           throw configErrors.configObjectInvalid({ configPath: globalStateManager.configPath, config });
         }
       }
-
-      // Strip transforms from config (they are functions and can't be serialized)
-      // Transforms are extracted separately by TransformsResolver
-      this.stripTransformsFromConfig(config);
 
       return config;
     } catch (error) {

@@ -9,7 +9,7 @@ import { getResourceClassDescription } from './jsdoc-extractor';
 /**
  * Generates getter declarations for a resource's referenceable parameters
  */
-function generateGetters(params: ReferenceableParam[]): string {
+function generateGetters(params: ReadonlyArray<ReferenceableParam>): string {
   if (params.length === 0) {
     return '';
   }
@@ -72,10 +72,7 @@ function formatConstructorJSDoc(description: JSDocComment | undefined, className
 }
 
 /**
- * Generates a single resource class declaration with constructor overloads.
- * Supports both:
- * - new Resource(properties) - name derived from object key
- * - new Resource(name, properties) - explicit name (backwards compatible)
+ * Generates a single resource class declaration. Its resource name is derived from the key used in `resources`.
  *
  * The description is added to the constructor so it shows when hovering over `new ClassName()`
  */
@@ -85,7 +82,7 @@ function generateResourceClass(
   resourceType: string,
   hasAugmentedProps: boolean,
   supportsOverrides: boolean,
-  referenceableParams: ReferenceableParam[],
+  referenceableParams: ReadonlyArray<ReferenceableParam>,
   description: JSDocComment | undefined
 ): string {
   const finalPropsType = determinePropsType(propsType, hasAugmentedProps, supportsOverrides);
@@ -97,7 +94,6 @@ function generateResourceClass(
     `export declare class ${className} extends BaseResource {`,
     constructorJsDoc,
     `  constructor(properties: ${finalPropsType});`,
-    `  constructor(name: string, properties: ${finalPropsType});`,
     getters,
     '}'
   ];

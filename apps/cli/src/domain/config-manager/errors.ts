@@ -541,11 +541,11 @@ export const configErrors = {
       hints: `Property ${inlineCode('cpuArchitecture')} is only used when using Fargate launch type (when ${inlineCode('instanceTypes')} is not specified). When using EC2 launch type, CPU architecture is determined by the instance type.`
     });
   },
-  getConfigExportNotFunction({ configPath }: { configPath: string }): CliError {
+  typescriptDefaultExportNotFunction({ configPath }: { configPath: string }): CliError {
     return new CliError({
       category: 'CONFIG_VALIDATION',
-      code: 'CONFIG_GET_CONFIG_EXPORT_INVALID',
-      message: `When loading config from ${inlineCode(configPath)}: Export ${inlineCode('getConfig')} must be a function.`
+      code: 'CONFIG_TYPESCRIPT_DEFAULT_EXPORT_INVALID',
+      message: `The default export from ${inlineCode(configPath)} must be created with ${inlineCode('defineConfig')}.`
     });
   },
   configObjectInvalid({ configPath, config }: { configPath: string; config: any }): CliError {
@@ -602,16 +602,16 @@ export const configErrors = {
     return new CliError({
       category: 'CONFIG_VALIDATION',
       code: 'CONFIG_TYPESCRIPT_EXPORT_MISSING',
-      message: `TypeScript config ${inlineCode(configPath)} must export a default function (using ${inlineCode('defineConfig')}) or a ${inlineCode('getConfig')} function.`,
+      message: `TypeScript config ${inlineCode(configPath)} must export the result of ${inlineCode('defineConfig')} as its default export.`,
       hints: `Example:\n${inlineCode(`import { defineConfig } from 'stacktape';\nexport default defineConfig(({ stage }) => ({ resources: {} }));`)}`
     });
   },
-  configFunctionReturnInvalid({ configPath, exportValue }: { configPath: string; exportValue: string }): CliError {
+  typescriptDefineConfigRequired({ configPath }: { configPath: string }): CliError {
     return new CliError({
       category: 'CONFIG_VALIDATION',
-      code: 'CONFIG_FUNCTION_RETURN_INVALID',
-      message: `Config function in ${inlineCode(configPath)} must return an object, but returned ${inlineCode(exportValue)}.`,
-      hints: `Make sure your config function returns a valid Stacktape configuration object with at least a ${inlineCode('resources')} property.`
+      code: 'CONFIG_TYPESCRIPT_DEFINE_CONFIG_REQUIRED',
+      message: `The default export from ${inlineCode(configPath)} did not produce a Stacktape configuration.`,
+      hints: `Wrap the configuration factory with ${inlineCode('defineConfig')} and export it as the default export.`
     });
   },
   resourceDirectoryMissing({

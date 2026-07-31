@@ -1,1 +1,1 @@
-export { getConfig as default } from '@/helper';
+export { default } from '@/helper';

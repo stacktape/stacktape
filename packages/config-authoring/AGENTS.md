@@ -11,6 +11,22 @@ application. The authored plain-object model remains separately owned by depende
 The root export is the customer-facing authoring runtime. Tooling and metadata use explicit subpath exports. Do not add
 a wildcard export or a re-export-only compatibility layer under `apps/cli`.
 
+`defineConfig` is the only supported executable TypeScript-config entry point. It returns a branded compiled result
+containing the serializable config and an explicit side channel for resource/final transforms. The CLI must execute a
+config module and its factory once; never recover transforms by loading or invoking customer code a second time. Do
+not restore the legacy named `getConfig` export or constructors that accept an explicit resource name. A resource's
+name is the key under `resources`, and one class instance may not be reused under two keys.
+
+The sole factory evaluation happens before a config-declared `projectName` can become target-stack context, so
+`GetConfigParams.projectName` is intentionally optional. It is present when selected by a CLI argument or persisted
+default; a config that declares its own project name reads that value from its returned configuration. Do not fake a
+required value with a second execution or an AST pre-parser.
+
+Resource constructor props are derived from `@stacktape/config`'s discriminated resource union. Keep that model as
+the source of truth instead of hand-maintaining a parallel props hierarchy. `resources.ts` deliberately exports each
+runtime class explicitly: the source exports, generator metadata, npm declarations and Monaco declarations must name
+the same set of resources.
+
 `child-resources.ts` is a declarative CloudFormation-resource matrix. Its repeated lists are intentionally excluded
 from the duplicate-code metric; prefer readable explicit data over builders that obscure which resources a type owns.
 
@@ -21,4 +37,6 @@ pnpm --filter @stacktape/config-authoring run typecheck
 pnpm --filter @stacktape/config-authoring run test
 pnpm --filter @stacktape/cli run test:config-unit
 pnpm --filter @stacktape/cli run test:characterization
+pnpm --filter @stacktape/cli run build:npm:main
+pnpm --filter @stacktape/cli run generate:monaco:check
 ```

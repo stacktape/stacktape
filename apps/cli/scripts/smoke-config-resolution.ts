@@ -34,7 +34,7 @@ const setSmokeState = () => {
 
 const smokeTestTsConfigLoading = async () => {
   const configResolver = new ConfigResolver();
-  const config = await configResolver.loadTypescriptConfig({ filePath: smokeConfigPath });
+  const { config } = await configResolver.loadTypescriptConfig({ filePath: smokeConfigPath });
 
   assert.ok(config);
   assert.equal(config.resources.lambda.type, 'function');

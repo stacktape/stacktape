@@ -59,7 +59,13 @@ const createDenseConfig = () =>
       }
     });
     const files = new Bucket({
-      cors: { enabled: true }
+      cors: { enabled: true },
+      transforms: {
+        bucket: (properties) => ({
+          ...properties,
+          VersioningConfiguration: { Status: 'Enabled' }
+        })
+      }
     });
     const deadLetters = new SqsQueue({
       fifoEnabled: true
@@ -190,7 +196,11 @@ const createDenseConfig = () =>
           }
         ],
         tags: [{ name: 'suite', value: 'characterization' }]
-      }
+      },
+      finalTransform: (template) => ({
+        ...template,
+        Metadata: { ...template.Metadata, ConfigAuthoringFinalTransform: true }
+      })
     };
   })({
     projectName: 'characterization',
@@ -226,7 +236,8 @@ export const synthesizeDenseFixture = async () => {
       currentWorkingDirectory: join(import.meta.dir, 'fixtures', 'dense-application')
     };
     globalStateManager.additionalArgs = {};
-    globalStateManager.presetConfig = createDenseConfig();
+    const compiledConfig = createDenseConfig();
+    globalStateManager.presetConfig = compiledConfig.config;
     globalStateManager.persistedState = {
       systemId: 'characterization-system',
       cliArgsDefaults: {},
@@ -262,6 +273,8 @@ export const synthesizeDenseFixture = async () => {
     };
     await eventManager.init();
     await configManager.init({ configRequired: true });
+    configManager.transforms = compiledConfig.transforms;
+    configManager.finalTransform = compiledConfig.finalTransform;
     await ec2Manager.init({
       instanceTypes: configManager.allUsedEc2InstanceTypes,
       openSearchInstanceTypes: configManager.allUsedOpenSearchVersionsAndInstanceTypes
@@ -618,6 +631,13 @@ describe('full synthesis contract', () => {
     ]) {
       expect(resourceTypes).toContain(expectedType);
     }
+  });
+
+  test('applies resource and final transforms during real template finalization', () => {
+    const resources = synthesizedTemplate.Resources as Record<string, any>;
+
+    expect(resources.FilesBucket.Properties.VersioningConfiguration).toEqual({ Status: 'Enabled' });
+    expect(synthesizedTemplate.Metadata).toMatchObject({ ConfigAuthoringFinalTransform: true });
   });
 
   test('preserves resource identities, physical names, and dependency edges', async () => {

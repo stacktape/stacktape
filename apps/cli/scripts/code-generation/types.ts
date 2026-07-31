@@ -24,7 +24,7 @@ export type ChildResourcesMap = Record<string, ChildResourceMetadata[]>;
 /**
  * Map of resource types to their referenceable parameters
  */
-export type ReferenceableParamsMap = Record<string, ReferenceableParam[]>;
+export type ReferenceableParamsMap = Readonly<Record<string, ReadonlyArray<ReferenceableParam>>>;
 
 /**
  * JSDoc comment extracted from a type definition

@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { basename } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { basename, join } from 'node:path';
 import {
   compileDeclarations,
   createDeclarationProgram,
@@ -23,6 +24,14 @@ const declarations = compileDeclarations();
 describe('the npm declaration program is the CLI project', () => {
   test('publishes the four files consumed by Console Monaco', () => {
     expect(NPM_DECLARATION_FILE_NAMES).toEqual(['index.d.ts', 'types.d.ts', 'plain.d.ts', 'cloudformation.d.ts']);
+  });
+
+  test('exports every advertised declaration subpath from the npm package', () => {
+    const packageJson = JSON.parse(
+      readFileSync(join(import.meta.dir, 'release', 'npm-package', 'package.json'), 'utf8')
+    ) as { exports: Record<string, { types?: string }> };
+
+    expect(packageJson.exports['./plain']?.types).toBe('./plain.d.ts');
   });
 
   test('inherits the real target/lib and path mappings rather than a second copy', () => {

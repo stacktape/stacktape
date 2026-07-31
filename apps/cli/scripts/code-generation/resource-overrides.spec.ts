@@ -42,7 +42,7 @@ describe('resources without modelled CloudFormation children have no overrides',
 
     // No augmented props and no overrides: the plain authored props, straight from ./plain.
     expect(convex).toContain("constructor(properties: import('./plain').ConvexProps)");
-    expect(convex).toContain("constructor(name: string, properties: import('./plain').ConvexProps)");
+    expect(convex).not.toContain('constructor(name: string');
     expect(convex).not.toContain('ConvexPropsWithOverrides');
   });
 

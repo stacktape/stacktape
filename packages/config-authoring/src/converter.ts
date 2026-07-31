@@ -1,4 +1,9 @@
-import type { GetConfigParams } from './config.js';
+import type {
+  AuthoringStacktapeConfig,
+  CompiledStacktapeConfig,
+  DefinedStacktapeConfig,
+  GetConfigParams
+} from './config.js';
 import {
   ENGINE_TYPE_TO_CLASS,
   MISC_TYPES_CONVERTIBLE_TO_CLASSES,
@@ -6,7 +11,7 @@ import {
   RESOURCE_TYPE_TO_CLASS,
   SCRIPT_TYPE_TO_CLASS
 } from './class-config.js';
-import { defineConfig, transformConfigWithResources } from './config.js';
+import { defineConfig, isCompiledStacktapeConfig, transformConfigWithResources } from './config.js';
 import { $CfFormat, $CfResourceParam, $CfStackOutput, $GitInfo, $ResourceParam, $Secret } from './directives.js';
 import { AWS_SES } from './global-aws-services.js';
 import * as resourceClasses from './resources.js';
@@ -558,17 +563,27 @@ const validateSerializable = (config: Record<string, unknown>): void => {
  * Converts a TypeScript config (with classes) to a plain serialized config object.
  * Handles both defineConfig style (function) and plain object configs.
  */
+type ConfigExport = Record<string, unknown> | DefinedStacktapeConfig;
+
 const typescriptConfigToObject = (
-  configOrFn: Record<string, unknown> | ((params: GetConfigParams) => Record<string, unknown>),
+  configOrFn: ConfigExport,
   params: Partial<GetConfigParams> = {}
 ): Record<string, unknown> => {
   const mergedParams = { ...DEFAULT_CONFIG_PARAMS, ...params };
 
   // If it's a function (from defineConfig), call it
-  const config = typeof configOrFn === 'function' ? configOrFn(mergedParams) : configOrFn;
+  const configOrCompiled: Record<string, unknown> | CompiledStacktapeConfig =
+    typeof configOrFn === 'function' ? configOrFn(mergedParams) : configOrFn;
+
+  if (isCompiledStacktapeConfig(configOrCompiled)) {
+    return configOrCompiled.config as unknown as Record<string, unknown>;
+  }
 
   // Transform classes to plain objects
-  return transformConfigWithResources(config);
+  return transformConfigWithResources(configOrCompiled as unknown as AuthoringStacktapeConfig) as unknown as Record<
+    string,
+    unknown
+  >;
 };
 
 /**
@@ -576,10 +591,10 @@ const typescriptConfigToObject = (
  * @throws Error if config contains dynamic/non-serializable content
  */
 export const convertTypescriptToYaml = (
-  input: string | Record<string, unknown> | ((params: GetConfigParams) => Record<string, unknown>),
+  input: string | ConfigExport,
   params: Partial<GetConfigParams> = {}
 ): string => {
-  let configOrFn: Record<string, unknown> | ((params: GetConfigParams) => Record<string, unknown>);
+  let configOrFn: ConfigExport;
 
   // If input is a string, evaluate it as TypeScript code
   if (typeof input === 'string') {
@@ -600,9 +615,7 @@ export const convertTypescriptToYaml = (
  * Evaluates TypeScript config code and returns the exported config.
  * Works in both Node.js and browser environments using Function constructor.
  */
-const evaluateTypescriptConfig = (
-  tsCode: string
-): Record<string, unknown> | ((params: GetConfigParams) => Record<string, unknown>) => {
+const evaluateTypescriptConfig = (tsCode: string): ConfigExport => {
   // Transform the code:
   // 1. Remove import statements (we inject stacktape exports)
   // 2. Replace "export default" with a return statement
@@ -628,9 +641,7 @@ const evaluateTypescriptConfig = (
     const evaluator = new Function(...paramNames, transformedCode) as (...args: unknown[]) => unknown;
 
     // Execute with stacktape exports
-    const result = evaluator(...paramValues) as
-      | Record<string, unknown>
-      | ((params: GetConfigParams) => Record<string, unknown>);
+    const result = evaluator(...paramValues) as ConfigExport;
 
     if (!result) {
       throw new Error('TypeScript config must have a default export (defineConfig) or return a config object');

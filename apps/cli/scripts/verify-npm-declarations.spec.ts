@@ -29,11 +29,13 @@ const installMinimalPackage = ({ plainDeclarations }: { plainDeclarations: strin
     [
       'export declare class LambdaFunction { constructor(properties: Record<string, unknown>); }',
       'export declare class WebService { constructor(properties: Record<string, unknown>); }',
-      'export declare class Bucket { constructor(properties: Record<string, unknown>); }',
+      'export declare class Bucket { constructor(properties: { versioning?: boolean }); }',
       'export declare class Convex { constructor(properties: Record<string, unknown>); }',
       // Typed exactly as the real generator emits it, so the fixture exercises the class/type pair together.
       "export declare class IotIntegration { constructor(properties: import('./plain').IotIntegrationProps); readonly type: 'iot'; }",
-      'export declare function defineConfig<T>(factory: () => T): T;',
+      'export type CloudFormationTemplate = { Resources: Record<string, { Type?: string }>; Metadata?: Record<string, unknown> };',
+      'export type FinalTransform = <Template extends CloudFormationTemplate>(template: Template) => Template;',
+      'export declare function defineConfig<T>(factory: () => T): (params: Record<string, unknown>) => { config: T };',
       'export declare function $Secret(name: string): string;'
     ].join('\n'),
     'utf-8'

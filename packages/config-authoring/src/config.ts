@@ -1,6 +1,7 @@
 import { CHILD_RESOURCES } from './child-resources.js';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { StacktapeResourceType } from '@stacktape/config/schema-inspection';
+import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
 
 // Private symbols for internal methods - not accessible from outside
 // Use Symbol.for() so it can be accessed across modules (crucial for npm package interop)
@@ -158,26 +159,18 @@ export class Alarm {
  * Base resource class that provides common functionality
  */
 export class BaseResource {
-  private readonly _type: string;
+  private readonly _type: StacktapeResourceType;
   private _properties: any;
   private _overrides?: any;
   private _transforms?: any;
   private _resourceName: string | undefined;
-  private _explicitName: boolean;
 
-  constructor(name: string | undefined, type: string, properties: any, overrides?: any) {
-    this._resourceName = name;
-    this._explicitName = name !== undefined;
+  constructor(type: StacktapeResourceType, properties: any, overrides?: any) {
     this._type = type;
 
     // Store properties and overrides initially - they'll be processed when name is set
     this._properties = properties;
     this._overrides = overrides;
-
-    // If name is already set, process overrides and transforms now
-    if (name !== undefined) {
-      this._processOverridesAndTransforms();
-    }
   }
 
   /**
@@ -241,9 +234,10 @@ export class BaseResource {
    * Called by transformConfigWithResources.
    */
   [setResourceNameSymbol](name: string): void {
-    if (this._explicitName && this._resourceName !== name) {
-      // If an explicit name was provided and it differs from the key, use the explicit name
-      return;
+    if (this._resourceName !== undefined && this._resourceName !== name) {
+      throw new Error(
+        `The same Stacktape resource instance cannot be registered as both "${this._resourceName}" and "${name}".`
+      );
     }
     if (this._resourceName === undefined) {
       this._resourceName = name;
@@ -386,11 +380,119 @@ function transformTransformsToLogicalNames(resourceName: string, resourceType: s
 
 export type ConfigCliArgs = Readonly<Record<string, unknown>>;
 
+export type ResourceTransform = (
+  properties: Record<string, unknown>
+) => Partial<Record<string, unknown>> | Record<string, unknown>;
+
+export type CloudFormationTemplateResource = {
+  Type?: string;
+  Properties?: Record<string, unknown>;
+  [attribute: string]: unknown;
+};
+
+export type CloudFormationTemplate = {
+  AWSTemplateFormatVersion?: string;
+  Description?: string;
+  Metadata?: Record<string, unknown>;
+  Transform?: string | string[];
+  Parameters?: Record<string, unknown>;
+  Mappings?: Record<string, unknown>;
+  Conditions?: Record<string, unknown>;
+  Resources: Record<string, CloudFormationTemplateResource>;
+  Outputs?: Record<string, { Value: unknown; Description?: unknown; Export?: unknown }>;
+  Hooks?: Record<string, unknown>;
+};
+
+export type FinalTransform = <Template extends CloudFormationTemplate>(template: Template) => Template;
+
+export type AuthoringResourceCustomization = {
+  overrides?: Record<string, Record<string, unknown>>;
+  transforms?: Record<string, ResourceTransform>;
+};
+
+type ResourceDefinitionOf<Type extends StacktapeResourceType> = Extract<StacktapeResourceDefinition, { type: Type }>;
+
+type ResourcePropertiesOf<Type extends StacktapeResourceType> =
+  ResourceDefinitionOf<Type> extends {
+    properties?: infer Properties;
+  }
+    ? NonNullable<Properties>
+    : Record<string, never>;
+
+type AuthoringEnvironment = Record<string, string | number | boolean>;
+
+type WithAuthoringEnvironment<Value> = Value extends object
+  ? Omit<Value, 'environment'> &
+      ('environment' extends keyof Value ? { environment?: AuthoringEnvironment } : Record<never, never>)
+  : Value;
+
+type WithAuthoringArrayEnvironment<
+  Properties,
+  Key extends PropertyKey,
+  Required extends boolean = false
+> = Key extends keyof Properties
+  ? Omit<Properties, Key> &
+      (Required extends true
+        ? {
+            [CurrentKey in Key]: NonNullable<Properties[CurrentKey]> extends Array<infer Item>
+              ? Array<WithAuthoringEnvironment<Item>>
+              : Properties[CurrentKey];
+          }
+        : {
+            [CurrentKey in Key]?: NonNullable<Properties[CurrentKey]> extends Array<infer Item>
+              ? Array<WithAuthoringEnvironment<Item>>
+              : Properties[CurrentKey];
+          })
+  : Properties;
+
+type WithAuthoringObjectEnvironment<Properties, Key extends PropertyKey> = Key extends keyof Properties
+  ? Omit<Properties, Key> & {
+      [CurrentKey in Key]: WithAuthoringEnvironment<NonNullable<Properties[CurrentKey]>>;
+    }
+  : Properties;
+
+type WithAuthoringResourceReferences<Properties> = Omit<Properties, 'connectTo' | 'environment' | 'injectEnvironment'> &
+  ('connectTo' extends keyof Properties ? { connectTo?: Array<string | BaseResource> } : Record<never, never>) &
+  ('environment' extends keyof Properties ? { environment?: AuthoringEnvironment } : Record<never, never>) &
+  ('injectEnvironment' extends keyof Properties ? { injectEnvironment?: AuthoringEnvironment } : Record<never, never>);
+
+type ResourcesWithoutCloudFormationCustomization =
+  | 'convex'
+  | 'mongo-db-atlas-cluster'
+  | 'upstash-redis'
+  | 'aws-cdk-construct';
+
+export type AuthoringResourceProps<Type extends StacktapeResourceType> = WithAuthoringObjectEnvironment<
+  WithAuthoringArrayEnvironment<
+    WithAuthoringArrayEnvironment<WithAuthoringResourceReferences<ResourcePropertiesOf<Type>>, 'containers', true>,
+    'sideContainers'
+  >,
+  'container'
+> &
+  (Type extends ResourcesWithoutCloudFormationCustomization ? Record<never, never> : AuthoringResourceCustomization);
+
+export type AuthoringStacktapeConfig = Omit<StacktapeConfig, 'resources' | 'scripts'> & {
+  resources: Record<string, BaseResource | StacktapeResourceDefinition>;
+  scripts?: Record<string, BaseTypeProperties | NonNullable<StacktapeConfig['scripts']>[string]>;
+  finalTransform?: FinalTransform;
+};
+
+export type CompiledStacktapeConfig = {
+  readonly format: 'stacktape-compiled-config';
+  readonly version: 1;
+  readonly config: StacktapeConfig;
+  readonly transforms: Record<string, ResourceTransform>;
+  readonly finalTransform: FinalTransform | null;
+};
+
+export type DefinedStacktapeConfig = (params: GetConfigParams) => CompiledStacktapeConfig;
+
 export type GetConfigParams = {
   /**
-   * Project name used for this operation
+   * Project name selected before the configuration is evaluated. This is absent when the project name is declared
+   * by the configuration itself rather than supplied by a CLI/default value.
    */
-  projectName: string;
+  projectName?: string;
   /**
    * Stage ("environment") used for this operation
    */
@@ -428,19 +530,24 @@ export type GetConfigParams = {
  * Helper function to define a config with automatic transformation
  * Use this when exporting your config for the Stacktape CLI
  */
-export const defineConfig = (configFn: (params: GetConfigParams) => StacktapeConfig) => {
-  return (params: GetConfigParams) => {
-    const config = configFn(params);
-    return transformConfigWithResources(config);
-  };
-};
+export const defineConfig =
+  (configFn: (params: GetConfigParams) => AuthoringStacktapeConfig): DefinedStacktapeConfig =>
+  (params) =>
+    compileAuthoringConfig(configFn(params));
+
+export const isCompiledStacktapeConfig = (value: unknown): value is CompiledStacktapeConfig =>
+  value !== null &&
+  typeof value === 'object' &&
+  (value as Partial<CompiledStacktapeConfig>).format === 'stacktape-compiled-config' &&
+  (value as Partial<CompiledStacktapeConfig>).version === 1;
 
 /**
- * Transforms a config with resource instances into a plain config object
+ * Compiles the TypeScript authoring model into the serializable configuration consumed by the CLI and keeps
+ * executable CloudFormation transforms in an explicit side channel.
  */
-export const transformConfigWithResources = (config: any): any => {
+export const compileAuthoringConfig = (config: AuthoringStacktapeConfig): CompiledStacktapeConfig => {
   if (!config || typeof config !== 'object') {
-    return config;
+    throw new TypeError('A Stacktape configuration factory must return an object.');
   }
 
   // First pass: set all resource names from object keys
@@ -455,20 +562,38 @@ export const transformConfigWithResources = (config: any): any => {
   }
 
   // Second pass: transform the config
-  const result: any = {};
+  const result: Record<string, unknown> = {};
+  const transforms: Record<string, ResourceTransform> = {};
+  let finalTransform: FinalTransform | null = null;
   for (const key in config) {
     if (key === 'resources') {
-      // Resources are transformed as definitions
-      result[key] = transformResourceDefinitions(config[key]);
+      const compiledResources = transformResourceDefinitions(config[key]);
+      result[key] = compiledResources.resources;
+      Object.assign(transforms, compiledResources.transforms);
     } else if (key === 'scripts') {
       // Scripts are also transformed as definitions
       result[key] = transformScriptDefinitions(config[key]);
+    } else if (key === 'finalTransform') {
+      if (config.finalTransform !== undefined && typeof config.finalTransform !== 'function') {
+        throw new TypeError('Stacktape config finalTransform must be a function.');
+      }
+      finalTransform = config.finalTransform ?? null;
     } else {
-      result[key] = transformValue(config[key]);
+      result[key] = transformValue((config as unknown as Record<string, unknown>)[key]);
     }
   }
-  return result;
+  return {
+    format: 'stacktape-compiled-config',
+    version: 1,
+    config: result as unknown as StacktapeConfig,
+    transforms,
+    finalTransform
+  };
 };
+
+/** Convert an authored configuration to its serializable form for converters and other tooling. */
+export const transformConfigWithResources = (config: AuthoringStacktapeConfig): StacktapeConfig =>
+  compileAuthoringConfig(config).config;
 
 /**
  * Transforms environment object to array format
@@ -488,12 +613,15 @@ const transformEnvironment = (env: any): any => {
 /**
  * Transforms resource definitions (values in the resources object)
  */
-const transformResourceDefinitions = (resources: any): any => {
+const transformResourceDefinitions = (
+  resources: AuthoringStacktapeConfig['resources']
+): { resources: StacktapeConfig['resources']; transforms: Record<string, ResourceTransform> } => {
   if (!resources || typeof resources !== 'object') {
-    return resources;
+    return { resources: resources as unknown as StacktapeConfig['resources'], transforms: {} };
   }
 
   const result: any = {};
+  const collectedTransforms: Record<string, ResourceTransform> = {};
   for (const key in resources) {
     const resource = resources[key];
     if (isBaseResource(resource)) {
@@ -504,14 +632,38 @@ const transformResourceDefinitions = (resources: any): any => {
       result[key] = {
         type,
         properties: transformValue(properties),
-        ...(overrides !== undefined && { overrides: transformValue(overrides) }),
-        ...(transforms !== undefined && { transforms })
+        ...(overrides !== undefined && { overrides: transformValue(overrides) })
       };
+      collectResourceTransforms(transforms, collectedTransforms, key);
     } else {
-      result[key] = transformValue(resource);
+      const transformedResource = transformValue(resource);
+      if (transformedResource?.transforms !== undefined) {
+        collectResourceTransforms(transformedResource.transforms, collectedTransforms, key);
+        delete transformedResource.transforms;
+      }
+      result[key] = transformedResource;
     }
   }
-  return result;
+  return { resources: result, transforms: collectedTransforms };
+};
+
+const collectResourceTransforms = (
+  transforms: unknown,
+  collectedTransforms: Record<string, ResourceTransform>,
+  resourceName: string
+): void => {
+  if (transforms === undefined) {
+    return;
+  }
+  if (transforms === null || typeof transforms !== 'object' || Array.isArray(transforms)) {
+    throw new TypeError(`Transforms for resource "${resourceName}" must be an object of functions.`);
+  }
+  for (const [logicalName, transform] of Object.entries(transforms)) {
+    if (typeof transform !== 'function') {
+      throw new TypeError(`Transform "${logicalName}" for resource "${resourceName}" must be a function.`);
+    }
+    collectedTransforms[logicalName] = transform as ResourceTransform;
+  }
 };
 
 /**

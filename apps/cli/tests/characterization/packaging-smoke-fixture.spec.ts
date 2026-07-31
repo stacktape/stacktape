@@ -21,7 +21,7 @@ import getPackagingSmokeConfig from '../../_test-stacks/packaging-smoke/stacktap
 
 const STATUS_CLASSES: StatusClass[] = ['informational', 'success', 'redirection', 'client-error', 'server-error'];
 
-const smokeConfig = getPackagingSmokeConfig({
+const { config: smokeConfig } = getPackagingSmokeConfig({
   projectName: 'stacktape-v4-packaging-smoke',
   stage: 'dev',
   region: 'eu-west-1',

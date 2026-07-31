@@ -1,7 +1,7 @@
 import pkgA from 'pkg-a';
 import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from '@stacktape/config-authoring';
 
-export const getConfig = defineConfig(() => {
+export default defineConfig(() => {
   const lambda = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({
       entryfilePath: './src/handler.ts'

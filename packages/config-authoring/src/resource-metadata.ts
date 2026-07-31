@@ -10,6 +10,7 @@ import {
   type ResourceDefinition,
   type TypePropertiesDefinition
 } from './class-config.js';
+import type { StacktapeResourceType } from '@stacktape/config/schema-inspection';
 
 export type { ResourceDefinition, TypePropertiesDefinition };
 export {
@@ -24,7 +25,7 @@ export {
 };
 
 // These can be referenced using $ResourceParam directive
-export const REFERENCEABLE_PARAMS: Record<string, Array<{ name: string; description: string }>> = {
+export const REFERENCEABLE_PARAMS = {
   'relational-database': [
     { name: 'connectionString', description: 'Connection string for the database' },
     { name: 'jdbcConnectionString', description: 'JDBC connection string' },
@@ -160,4 +161,6 @@ export const REFERENCEABLE_PARAMS: Record<string, Array<{ name: string; descript
     { name: 'id', description: 'AgentCore code interpreter ID' },
     { name: 'arn', description: 'AgentCore code interpreter ARN' }
   ]
-};
+} as const satisfies Partial<
+  Record<StacktapeResourceType, ReadonlyArray<{ readonly name: string; readonly description: string }>>
+>;

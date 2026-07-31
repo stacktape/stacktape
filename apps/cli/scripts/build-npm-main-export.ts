@@ -299,11 +299,11 @@ const _PLAIN_TYPES_TO_GENERATE = [
 function generateEssentialDeclarations(): string {
   return `
 /**
- * Parameters passed to the getConfig/defineConfig function.
+ * Parameters passed to the defineConfig function.
  */
 export type GetConfigParams = {
-  /** Project name used for this operation */
-  projectName: string;
+  /** Project name selected before config evaluation; absent when the config itself declares it. */
+  projectName?: string;
   /** Stage ("environment") used for this operation */
   stage: string;
   /** AWS region used for this operation */
@@ -321,6 +321,8 @@ export type GetConfigParams = {
     email: string;
   };
 };
+
+type StacktapeResourceType = import('./plain').StacktapeResourceDefinition['type'];
 
 declare const getParamReferenceSymbol: unique symbol;
 declare const getTypeSymbol: unique symbol;
@@ -386,8 +388,7 @@ export declare class BaseResource {
   private _overrides?;
   private _transforms?;
   private _resourceName;
-  private _explicitName;
-  constructor(name: string | undefined, type: string, properties: any, overrides?: any);
+  constructor(type: string, properties: any, overrides?: any);
   private _processOverridesAndTransforms;
   get resourceName(): string;
   [setResourceNameSymbol](name: string): void;
@@ -705,80 +706,6 @@ ${auxiliaryTypeDefs.join('\n\n')}
 }
 
 /**
- * Generates plain section types for stacktape/types export
- */
-function generatePlainSectionTypes(): string {
-  return `
-// ==========================================
-// PLAIN SECTION TYPES (for getConfig pattern)
-// ==========================================
-
-/**
- * Plain resources section type (YAML-equivalent).
- * Use this with GetConfigFunction for legacy configs.
- */
-export type StacktapeResourcesPlain = import('./plain').StacktapeConfig['resources'];
-
-/**
- * Plain scripts section type (YAML-equivalent).
- * Use this with GetConfigFunction for legacy configs.
- */
-export type StacktapeScriptsPlain = import('./plain').StacktapeConfig['scripts'];
-
-/**
- * Plain hooks section type.
- */
-export type StacktapeHooksPlain = import('./plain').Hooks;
-
-/**
- * Plain deployment config section type.
- */
-export type StacktapeDeploymentConfigPlain = import('./plain').DeploymentConfig;
-
-/**
- * Plain stack config section type.
- */
-export type StacktapeStackConfigPlain = import('./plain').StackConfig;
-
-/**
- * Plain cloudformation resources section type.
- */
-export type StacktapeCloudformationResourcesPlain = import('./plain').StacktapeConfig['cloudformationResources'];
-
-/**
- * Plain stack outputs type (stackConfig.outputs).
- */
-export type StacktapeOutputsPlain = import('./plain').StackConfig['outputs'];
-
-/**
- * Plain variables section type.
- */
-export type StacktapeVariablesPlain = import('./plain').StacktapeConfig['variables'];
-
-/**
- * Plain provider config section type.
- */
-export type StacktapeProviderConfigPlain = import('./plain').StacktapeConfig['providerConfig'];
-
-/**
- * Plain budget control section type.
- */
-export type StacktapeBudgetControlPlain = import('./plain').BudgetControl;
-
-/**
- * Plain directives section type.
- */
-export type StacktapeDirectivesPlain = import('./plain').StacktapeConfig['directives'];
-
-/**
- * Function type for plain config (legacy getConfig pattern).
- * Returns plain objects (YAML-equivalent), no class instances.
- */
-export type GetConfigFunction = (params: GetConfigParams) => import('./plain').StacktapeConfig;
-`;
-}
-
-/**
  * Generates augmented section types for stacktape (index) export
  */
 function generateAugmentedSectionTypes(resourceClassNames: string[]): string {
@@ -851,6 +778,23 @@ export type StacktapeBudgetControl = import('./plain').BudgetControl;
  * Directives section type.
  */
 export type StacktapeDirectives = import('./plain').StacktapeConfig['directives'];
+`;
+}
+
+/** Convenient aliases for consumers that need one plain YAML-equivalent configuration section. */
+function generatePlainSectionTypes(): string {
+  return `
+export type StacktapeResourcesPlain = import('./plain').StacktapeConfig['resources'];
+export type StacktapeScriptsPlain = import('./plain').StacktapeConfig['scripts'];
+export type StacktapeHooksPlain = import('./plain').Hooks;
+export type StacktapeDeploymentConfigPlain = import('./plain').DeploymentConfig;
+export type StacktapeStackConfigPlain = import('./plain').StackConfig;
+export type StacktapeCloudformationResourcesPlain = import('./plain').StacktapeConfig['cloudformationResources'];
+export type StacktapeOutputsPlain = import('./plain').StackConfig['outputs'];
+export type StacktapeVariablesPlain = import('./plain').StacktapeConfig['variables'];
+export type StacktapeProviderConfigPlain = import('./plain').StacktapeConfig['providerConfig'];
+export type StacktapeBudgetControlPlain = import('./plain').BudgetControl;
+export type StacktapeDirectivesPlain = import('./plain').StacktapeConfig['directives'];
 `;
 }
 
@@ -953,11 +897,11 @@ ${propertiesInterfaces}
 ${cloudFormationResourceType}
 `;
 
-  // Generate types.d.ts - plain section types + GetConfigFunction
+  // Generate types.d.ts - authoring types and class declarations
   const typesDts = `/* eslint-disable */
 // Generated file - Do not edit manually
 // Types export for 'stacktape/types'
-// For plain configs using getConfig pattern
+// Plain YAML-equivalent types remain available from './plain'.
 
 // ==========================================
 // CLOUDFORMATION TYPE IMPORTS (for overrides/transforms)
@@ -998,7 +942,7 @@ ${generatePropsTypeAliases()}
 // ==========================================
 
 /**
- * CLI arguments passed to the getConfig function.
+ * CLI arguments passed to the defineConfig function.
  * Contains any additional arguments passed via --arg flag.
  */
 export type StacktapeArgs = Record<string, string | number | boolean>;
@@ -1065,7 +1009,7 @@ ${generatePlainSectionTypes()}
   const indexDts = `/* eslint-disable */
 // Generated file - Do not edit manually
 // Main export for 'stacktape' - classes, directives, defineConfig, augmented section types
-// For plain types (getConfig pattern), use: import type { X } from 'stacktape/types'
+// Plain YAML-equivalent types are available from 'stacktape/plain'.
 
 // Re-export classes and defineConfig from types
 export {
@@ -1073,8 +1017,16 @@ export {
   ${allClassNames.join(',\n  ')}
 } from './types';
 
-// Re-export GetConfigParams for convenience
-export type { GetConfigParams, StacktapeConfig } from './types';
+// Re-export authoring types for convenience
+export type {
+  CloudFormationTemplate,
+  CompiledStacktapeConfig,
+  DefinedStacktapeConfig,
+  FinalTransform,
+  GetConfigParams,
+  ResourceTransform,
+  StacktapeConfig
+} from './types';
 
 // ==========================================
 // DIRECTIVES

@@ -1,4 +1,13 @@
 import { Alarm, defineConfig } from './config.js';
+export type {
+  CloudFormationTemplate,
+  CompiledStacktapeConfig,
+  DefinedStacktapeConfig,
+  FinalTransform,
+  GetConfigParams,
+  ResourceTransform
+} from './config.js';
+export type { StacktapeConfig } from '@stacktape/config';
 import {
   $CfFormat,
   $CfResourceParam,
@@ -18,10 +27,12 @@ import {
   AgentCoreMemory,
   AgentCoreRuntime,
   ApplicationLoadBalancer,
+  AstroWeb,
   AwsCdkConstruct,
   Bastion,
   BatchJob,
   Bucket,
+  Convex,
   DynamoDbTable,
   EfsFilesystem,
   EventBus,
@@ -33,18 +44,23 @@ import {
   MultiContainerWorkload,
   NetworkLoadBalancer,
   NextjsWeb,
+  NuxtWeb,
   OpenSearchDomain,
   PrivateService,
   RedisCluster,
   RelationalDatabase,
   SnsTopic,
+  SolidStartWeb,
   SqsQueue,
   StateMachine,
+  SvelteKitWeb,
+  TanStackWeb,
   UpstashRedis,
   UserAuthPool,
   WebAppFirewall,
   WebService,
-  WorkerService
+  WorkerService,
+  RemixWeb
 } from './resources.js';
 import {
   AlarmIntegration,
@@ -159,6 +175,7 @@ export {
   AuroraServerlessV2EngineMysql,
   AuroraServerlessV2EnginePostgresql,
   AWS_SES,
+  AstroWeb,
   AwsCdkConstruct,
   Bastion,
   BastionScript,
@@ -172,6 +189,7 @@ export {
   CloudwatchLogIntegration,
   CognitoAuthorizer,
   ContainerEfsMount,
+  Convex,
   CustomArtifactLambdaPackaging,
   CustomDockerfilePackaging,
   CustomResourceDefinition,
@@ -218,6 +236,7 @@ export {
   NetworkLoadBalancer,
   NextjsWeb,
   NixpacksPackaging,
+  NuxtWeb,
   NonCurrentVersionExpirationLifecycleRule,
   OpenSearchDomain,
   PrebuiltImagePackaging,
@@ -244,6 +263,7 @@ export {
   ScheduleIntegration,
   SnsIntegration,
   SnsTopic,
+  SolidStartWeb,
   SqsIntegration,
   SqsQueue,
   SqsQueueEventBusIntegration,
@@ -252,9 +272,12 @@ export {
   StacktapeImageBuildpackPackaging,
   StacktapeLambdaBuildpackPackaging,
   StateMachine,
+  SvelteKitWeb,
+  TanStackWeb,
   UpstashRedis,
   UserAuthPool,
   WebAppFirewall,
   WebService,
-  WorkerService
+  WorkerService,
+  RemixWeb
 };

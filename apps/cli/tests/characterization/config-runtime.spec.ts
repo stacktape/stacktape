@@ -1,8 +1,11 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { cp, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { eventManager } from '@application-services/event-manager';
 import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
+import { configManager } from '@domain-services/config-manager';
 import { stacktapeConfigSchema, validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
 import { resolveOpenSearchLoggingDefaults } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/open-search';
 
@@ -11,14 +14,18 @@ import get from 'lodash/get';
 import {
   $ResourceParam,
   $Stage,
+  type CloudFormationTemplate,
   defineConfig,
   DynamoDbTable,
   LambdaFunction,
   StacktapeLambdaBuildpackPackaging
 } from '@stacktape/config-authoring';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
+import { getTypescriptExport } from '@utils/file-loaders';
 
 const fixturePath = join(process.cwd(), '_test-stacks', 'config-loading-smoke', 'stacktape.ts');
+const executionFixturePath = join(import.meta.dir, 'fixtures', 'config-execution', 'stacktape.ts');
+const executionErrorFixturePath = join(import.meta.dir, 'fixtures', 'config-execution-error', 'stacktape.ts');
 const originalState: Record<string, unknown> = {};
 
 // The fixture config imports `pkg-a`, which re-exports a value from `pkg-b`, so that config loading is exercised
@@ -77,10 +84,10 @@ afterAll(async () => {
 
 describe('configuration runtime contract', () => {
   test('loads TypeScript config through tsconfig paths and transitive node_modules', async () => {
-    const config = await new ConfigResolver().loadTypescriptConfig({ filePath: fixturePath });
+    const { config } = await new ConfigResolver().loadTypescriptConfig({ filePath: fixturePath });
 
     expect(config.resources.lambda.type).toBe('function');
-    expect(config.resources.lambda.properties.environment).toEqual([
+    expect((config.resources.lambda as { properties: { environment: unknown } }).properties.environment).toEqual([
       {
         name: 'CONFIG_LOADING_SUFFIX',
         value: 'config-loading-from-pkg-b'
@@ -89,7 +96,7 @@ describe('configuration runtime contract', () => {
   });
 
   test('transforms class-based config to a plain, valid Stacktape configuration', () => {
-    const getConfig = defineConfig(({ stage }) => {
+    const definedConfig = defineConfig(({ stage }) => {
       const records = new DynamoDbTable({
         primaryKey: {
           partitionKey: { name: 'id', type: 'string' }
@@ -114,7 +121,7 @@ describe('configuration runtime contract', () => {
       };
     });
 
-    const config = getConfig({
+    const { config } = definedConfig({
       projectName: 'characterization',
       stage: 'test',
       region: 'eu-west-1',
@@ -145,6 +152,89 @@ describe('configuration runtime contract', () => {
       })
     );
     expect(validateConfigWithZod({ config, configPath: 'stacktape.ts' })).toEqual({ valid: true });
+  });
+
+  test('executes the production config-loading sequence once while retaining executable transforms', async () => {
+    const previousPresetConfig = globalStateManager.presetConfig;
+    const previousInitializedDomainServices = globalStateManager.initializedDomainServices;
+    const previousLocalTargetAwsAccount = globalStateManager.localTargetAwsAccount;
+    const previousTargetStack = globalStateManager.targetStack;
+    try {
+      configManager.reset();
+      eventManager.reset();
+      eventManager.setSilentMode(true);
+      (globalStateManager as any).rawArgs = {
+        stage: 'test',
+        region: 'eu-west-1',
+        configPath: executionFixturePath,
+        currentWorkingDirectory: dirname(executionFixturePath)
+      };
+      (globalStateManager as any).configPath = executionFixturePath;
+      (globalStateManager as any).targetStack = undefined;
+      globalStateManager.localTargetAwsAccount = {
+        id: 'execution-account',
+        organizationId: 'execution-organization',
+        awsAccountId: '123456789999',
+        connectionMode: 'BASIC',
+        name: 'execution',
+        state: 'ACTIVE',
+        primaryRegions: ['eu-west-1'],
+        defaultRegion: 'eu-west-1'
+      };
+      globalStateManager.presetConfig = null;
+      globalStateManager.initializedDomainServices = [];
+
+      await configManager.loadRawConfigOnly();
+      expect(configManager.configResolver.rawConfig.projectName).toBe('execution-config-project');
+      await globalStateManager.loadLocalTargetStackInfo({
+        configProjectName: configManager.configResolver.rawConfig.projectName
+      });
+      await configManager.init({ configRequired: true });
+
+      const getExecutionCounts = getTypescriptExport({
+        filePath: executionFixturePath,
+        cache: true,
+        exportName: 'getExecutionCounts'
+      }) as () => { module: number; factory: number };
+
+      expect(getExecutionCounts()).toEqual({ module: 1, factory: 1 });
+      expect(globalStateManager.targetStack.projectName).toBe('execution-config-project');
+      expect(Object.keys(configManager.transforms)).toHaveLength(1);
+      expect(configManager.finalTransform).toBeFunction();
+      expect(configManager.rawConfig.resources.uploads).not.toHaveProperty('transforms');
+      expect(configManager.transforms.UploadsBucket({})).toEqual({
+        VersioningConfiguration: { Status: 'Enabled' }
+      });
+      const template: CloudFormationTemplate = { Resources: {} };
+      expect(configManager.finalTransform?.(template).Metadata).toEqual({ ConfigExecutionFixture: true });
+    } finally {
+      configManager.reset();
+      globalStateManager.presetConfig = previousPresetConfig;
+      globalStateManager.initializedDomainServices = previousInitializedDomainServices;
+      globalStateManager.localTargetAwsAccount = previousLocalTargetAwsAccount;
+      globalStateManager.targetStack = previousTargetStack;
+    }
+  });
+
+  test('does not execute a failing TypeScript config again to improve its error trace', async () => {
+    const tempDirectory = await mkdtemp(join(tmpdir(), 'stacktape-config-execution-'));
+    const markerPath = join(tempDirectory, 'executions.txt');
+    const previousMarkerPath = process.env.STACKTAPE_CONFIG_EXECUTION_MARKER;
+    process.env.STACKTAPE_CONFIG_EXECUTION_MARKER = markerPath;
+
+    try {
+      await expect(
+        new ConfigResolver().loadTypescriptConfig({ filePath: executionErrorFixturePath })
+      ).rejects.toMatchObject({ code: 'CONFIG_TYPESCRIPT_EXECUTION_FAILED' });
+      expect(await readFile(markerPath, 'utf8')).toBe('executed\n');
+    } finally {
+      if (previousMarkerPath === undefined) {
+        delete process.env.STACKTAPE_CONFIG_EXECUTION_MARKER;
+      } else {
+        process.env.STACKTAPE_CONFIG_EXECUTION_MARKER = previousMarkerPath;
+      }
+      await rm(tempDirectory, { recursive: true, force: true });
+    }
   });
 
   test('resolves directives returned by other directives to a fixed point', async () => {

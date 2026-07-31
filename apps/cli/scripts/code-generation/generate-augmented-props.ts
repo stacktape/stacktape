@@ -415,21 +415,6 @@ export function generateStacktapeConfigType(): string {
 import type { StacktapeResourceDefinition } from './plain';
 import type { CloudFormationResource } from './cloudformation';
 
-/**
- * CloudFormation template structure
- */
-export type CloudFormationTemplate = {
-  AWSTemplateFormatVersion?: string;
-  Description?: string;
-  Transform?: string[];
-  Parameters?: Record<string, unknown>;
-  Mappings?: Record<string, unknown>;
-  Conditions?: Record<string, unknown>;
-  Resources: { [logicalName: string]: CloudFormationResource };
-  Outputs?: Record<string, { Value: unknown; Description?: string; Export?: { Name: string } }>;
-  Hooks?: Record<string, unknown>;
-};
-
 export type StacktapeConfig = Omit<import('./plain').StacktapeConfig, 'resources' | 'cloudformationResources' | 'scripts'> & {
   resources: { [resourceName: string]: ${resourceClassNames.join(' | ')} | StacktapeResourceDefinition };
   /**
@@ -475,6 +460,6 @@ export type StacktapeConfig = Omit<import('./plain').StacktapeConfig, 'resources
    *   return template;
    * }
    */
-  finalTransform?: (template: CloudFormationTemplate) => CloudFormationTemplate;
+  finalTransform?: FinalTransform;
 };`;
 }

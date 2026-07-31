@@ -11,12 +11,12 @@ export const getTypescriptConfig = (yamlConfig: string) => {
       return match.replace(/"/g, '');
     });
 
-  return `import type { GetConfigFunction } from 'stacktape';
+  return `import { defineConfig } from 'stacktape';
 
-export const getConfig: GetConfigFunction = () => {
+export default defineConfig(() => {
   return {
 ${prettyJsObjectString}
   };
-};
+});
 `;
 };

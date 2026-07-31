@@ -23,7 +23,10 @@ const consumerFixtureFor = (packageDir: string) => {
   const entry = (name: string) => join(packageDir, name).split('\\').join('/');
   return `
 import { LambdaFunction, WebService, Bucket, Convex, IotIntegration, defineConfig, $Secret } from '${entry('index')}';
+import type { CloudFormationTemplate, FinalTransform } from '${entry('index')}';
 import type { StacktapeConfig, StacktapeBudgetControlPlain, IotIntegrationProps } from '${entry('types')}';
+// @ts-expect-error v4 TypeScript configs no longer expose the legacy named getConfig function type
+import type { GetConfigFunction } from '${entry('types')}';
 import type { CloudFormationResource } from '${entry('cloudformation')}';
 
 const api = new LambdaFunction({
@@ -34,6 +37,10 @@ const site = new WebService({
   resources: { cpu: 0.25, memory: 512 }
 });
 const uploads = new Bucket({ versioning: true });
+// @ts-expect-error resource names come from their key in the resources object
+new Bucket('legacy-explicit-name', { versioning: true });
+// @ts-expect-error resource constructors are source-typed rather than accepting arbitrary bags
+new Bucket({ propertyThatDoesNotExist: true });
 // Convex has no modelled CloudFormation children, so its constructor takes the ordinary authored props.
 const backend = new Convex({ appDirectory: './convex' });
 
@@ -42,18 +49,30 @@ const backend = new Convex({ appDirectory: './convex' });
 const iotProperties: IotIntegrationProps = { sql: "SELECT * FROM 'devices/+/telemetry'", sqlVersion: '2016-03-23' };
 const iotTrigger = new IotIntegration(iotProperties);
 const minimalIotTrigger = new IotIntegration({ sql: "SELECT * FROM 'devices/#'" });
+const template: CloudFormationTemplate = { Resources: {} };
+const finalTransform: FinalTransform = (value) => value;
 
 export const config = defineConfig(() => ({
   projectName: 'consumer-fixture',
   resources: { api, site, uploads, backend },
-  variables: { secret: $Secret('db-password'), iot: iotTrigger.type, minimalIot: minimalIotTrigger.type }
+  variables: { secret: $Secret('db-password'), iot: iotTrigger.type, minimalIot: minimalIotTrigger.type },
+  finalTransform
 }));
+export const compiledConfig = config({
+  stage: 'test',
+  region: 'eu-west-1',
+  cliArgs: {},
+  command: 'synth',
+  awsProfile: ''
+});
+export const compiledResources = compiledConfig.config.resources;
 
 export type EveryPublishedNameResolves = [
   StacktapeConfig,
   StacktapeBudgetControlPlain,
   IotIntegrationProps,
-  CloudFormationResource
+  CloudFormationResource,
+  typeof template
 ];
 `;
 };

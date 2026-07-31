@@ -163,7 +163,9 @@ export const finalizeTemplate = async () => {
     resource.Properties = transform(resource.Properties);
   }
   if (configManager.finalTransform) {
-    templateManager.template = configManager.finalTransform(templateManager.template);
+    // This is the validation boundary for customer-authored whole-template transforms. The public authoring type
+    // intentionally describes CloudFormation broadly; the CLI continues with its more precise synthesized shape.
+    templateManager.template = configManager.finalTransform(templateManager.template) as CloudformationTemplate;
   }
 
   // Overrides and transforms may introduce runtime directives.
