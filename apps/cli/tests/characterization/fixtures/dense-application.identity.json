@@ -250,12 +250,25 @@
       },
       "dependencies": []
     },
+    "JobsEvent0Rule": {
+      "type": "AWS::Events::Rule",
+      "physicalNames": {
+        "EventBusName": {
+          "Fn::GetAtt": ["EventsEventBus", "Arn"]
+        }
+      },
+      "dependencies": ["DeadLettersQueue", "EventsEventBus", "JobsQueue"]
+    },
     "JobsQueue": {
       "type": "AWS::SQS::Queue",
       "physicalNames": {
         "QueueName": "characterization-baseline-jobs.fifo"
       },
       "dependencies": ["DeadLettersQueue"]
+    },
+    "JobsQueuePolicy": {
+      "type": "AWS::SQS::QueuePolicy",
+      "dependencies": ["JobsEvent0Rule", "JobsQueue"]
     },
     "RecordsGlobalTable": {
       "type": "AWS::DynamoDB::GlobalTable",

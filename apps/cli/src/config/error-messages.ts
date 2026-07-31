@@ -772,24 +772,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       ]
     };
   },
-  e83({
-    eventBusReferencerStpName,
-    eventBusReferencerStpType
-  }: {
-    eventBusReferencerStpName: string;
-    eventBusReferencerStpType: StpResourceType;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType(eventBusReferencerStpType)} ${tuiManager.prettyResourceName(
-        eventBusReferencerStpName
-      )}. When referencing event bus you must specify exactly one of ${tuiManager.prettyConfigProperty(
-        'eventBusName'
-      )}, ${tuiManager.prettyConfigProperty('eventBusArn')} or ${tuiManager.prettyConfigProperty(
-        'useDefaultBus'
-      )} properties.`
-    };
-  },
   e84({
     sqsQueueReferencerStpName,
     sqsQueueReferencerStpType
@@ -992,24 +974,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       type: 'CONFIRMATION_REQUIRED',
       message: `Operation ${tuiManager.prettyCommand(command)} requires confirmation.${reason ? `Reason:\n${reason}` : ''} `,
       hint: `To automatically provide confirmation use auto-confirm option (${tuiManager.prettyOption('autoConfirmOperation')}) during this operation.`
-    };
-  },
-  e109({
-    eventBusReferencerStpName,
-    eventBusReferencerStpType
-  }: {
-    eventBusReferencerStpName: string;
-    eventBusReferencerStpType: StpResourceType;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType(eventBusReferencerStpType)} ${tuiManager.prettyResourceName(
-        eventBusReferencerStpName
-      )}. When using ${tuiManager.prettyConfigProperty(
-        'onDeliveryFailure'
-      )} for event bus integration, you must specify exactly one of ${tuiManager.prettyConfigProperty(
-        'sqsQueueName'
-      )} or ${tuiManager.prettyConfigProperty('sqsQueueArn')} properties.`
     };
   },
   e110({

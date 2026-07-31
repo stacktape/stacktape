@@ -1,4 +1,4 @@
-import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 
 export const resolveReferenceToEventBus = ({
@@ -7,7 +7,7 @@ export const resolveReferenceToEventBus = ({
   stpResourceReference
 }: {
   referencedFrom: string;
-  referencedFromType?: StpWorkloadType | 'alarm';
+  referencedFromType?: StpResourceType | 'alarm';
   stpResourceReference: string | undefined;
 }) => {
   return getPropsOfResourceReferencedInConfig({

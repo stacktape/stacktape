@@ -34,6 +34,7 @@ import {
   RelationalDatabase,
   SqsIntegration,
   SqsQueue,
+  SqsQueueEventBusIntegration,
   StacktapeImageBuildpackPackaging,
   StacktapeLambdaBuildpackPackaging,
   UserAuthPool,
@@ -68,7 +69,16 @@ const createDenseConfig = () =>
       redrivePolicy: {
         targetSqsQueueName: 'deadLetters',
         maxReceiveCount: 4
-      }
+      },
+      events: [
+        new SqsQueueEventBusIntegration({
+          eventBusName: 'events',
+          eventPattern: { source: ['queued.jobs'] },
+          input: { source: 'event-bus' },
+          messageGroupId: 'job-events',
+          onDeliveryFailure: { sqsQueueName: 'deadLetters' }
+        })
+      ]
     });
     const events = new EventBus({});
     // Authors no listeners, so synthesis has to supply the defaulted HTTP-redirect/HTTPS pair. The CDN rewrite omits
@@ -603,6 +613,7 @@ describe('full synthesis contract', () => {
       'AWS::S3::Bucket',
       'AWS::SQS::Queue',
       'AWS::Events::EventBus',
+      'AWS::Events::Rule',
       'AWS::Lambda::Function'
     ]) {
       expect(resourceTypes).toContain(expectedType);
@@ -615,6 +626,20 @@ describe('full synthesis contract', () => {
     ).json();
 
     expect(createSynthesisIdentityManifest(synthesizedTemplate)).toEqual(expectedManifest);
+  });
+
+  test('applies the shared EventBridge target contract to an SQS queue', () => {
+    const rule = (synthesizedTemplate.Resources as Record<string, any>).JobsEvent0Rule;
+
+    expect(rule.Properties.Targets).toEqual([
+      expect.objectContaining({
+        Arn: { 'Fn::GetAtt': ['JobsQueue', 'Arn'] },
+        DeadLetterConfig: { Arn: { 'Fn::GetAtt': ['DeadLettersQueue', 'Arn'] } },
+        Id: 'jobs-event-bus-target-0',
+        Input: { 'Fn::Sub': '{"source":"event-bus"}' },
+        SqsParameters: { MessageGroupId: 'job-events' }
+      })
+    ]);
   });
 
   test('preserves IAM principals, effects, actions, resources, and conditions', async () => {

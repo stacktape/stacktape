@@ -1,19 +1,10 @@
-import type { StpEventBus } from '@domain-services/config-manager/resolved-types/event-buses';
-import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import EventBridgeRule from '@cloudform/events/rule';
 import { GetAtt } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { configManager } from '@domain-services/config-manager';
-import { resolveReferenceToEventBus } from '@domain-services/config-manager/utils/event-buses';
-import { resolveReferenceToSqsQueue } from '@domain-services/config-manager/utils/sqs-queues';
-import { templateManager } from '@domain-services/template-manager';
-import { stpErrors } from '@errors';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { isValidJson } from '@utils/misc';
-import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
-import { ExpectedError } from '@utils/errors';
+import { prepareEventBusIntegration } from '../../../_utils/event-bus-integration';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 import type { SqsQueueEventBusIntegration, SqsQueueEventBusIntegrationProps } from '@stacktape/config/sqs-queues';
@@ -54,114 +45,23 @@ const getSqsQueueEventBusEventRule = ({
   eventDetails: SqsQueueEventBusIntegrationProps;
   configParentResourceType: StpSqsQueue['configParentResourceType'];
 }) => {
-  const inputOptions = [eventDetails.input, eventDetails.inputPath, eventDetails.inputTransformer].filter((i) => i);
-  if (inputOptions.length > 1) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in SQS queue ${queueName}. ` +
-        'You can only set one of input, inputPath, or inputTransformer properties at the same time for eventBus. ' +
-        'Please check the docs for more info.'
-    );
-  }
-
-  if (
-    (eventDetails.input && !isValidJson(eventDetails.input)) ||
-    (eventDetails.inputTransformer && !isValidJson(eventDetails.inputTransformer.inputTemplate))
-  ) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in SQS queue ${queueName}. ` +
-        'When specifying "input" or "inputTransformer.inputTemplate" properties in event, property can only be valid object or stringified JSON.'
-    );
-  }
-
-  if (
-    [eventDetails.eventBusArn, eventDetails.eventBusName, eventDetails.useDefaultBus].filter((element) => element)
-      .length !== 1
-  ) {
-    throw stpErrors.e83({
-      eventBusReferencerStpName: queueName,
-      eventBusReferencerStpType: configParentResourceType
-    });
-  }
-
-  if (eventDetails.input || eventDetails.inputTransformer) {
-    templateManager.addFinalTemplateOverrideFn(async (template) => {
-      const ruleTarget = template.Resources[cfLogicalNames.eventBusRule(queueName, eventIndex)].Properties.Targets[0];
-
-      if (ruleTarget.InputTransformer) {
-        ruleTarget.InputTransformer.InputTemplate = transformIntoCloudformationSubstitutedString(
-          await configManager.resolveDirectives({
-            itemToResolve: eventDetails.inputTransformer.inputTemplate,
-            resolveRuntime: true
-          })
-        );
-      }
-      if (ruleTarget.Input) {
-        ruleTarget.Input = transformIntoCloudformationSubstitutedString(
-          await configManager.resolveDirectives({
-            itemToResolve: eventDetails.input,
-            resolveRuntime: true
-          })
-        );
-      }
-    });
-  }
-
-  // this resolving is just for checking that event bus is referenced properly
-  let resource: StpEventBus;
-  if (eventDetails.eventBusName) {
-    resource = resolveReferenceToEventBus({
-      referencedFrom: queueName,
-      referencedFromType: configParentResourceType as StpWorkloadType,
-      stpResourceReference: eventDetails.eventBusName
-    });
-  }
-
-  let onDeliveryFailureSqsQueueResource: StpSqsQueue;
-  if (eventDetails.onDeliveryFailure) {
-    if (
-      [eventDetails.onDeliveryFailure.sqsQueueArn, eventDetails.onDeliveryFailure.sqsQueueName].filter(
-        (element) => element
-      ).length !== 1
-    ) {
-      throw stpErrors.e109({
-        eventBusReferencerStpName: queueName,
-        eventBusReferencerStpType: configParentResourceType
-      });
-    }
-    if (eventDetails.onDeliveryFailure.sqsQueueName) {
-      onDeliveryFailureSqsQueueResource = resolveReferenceToSqsQueue({
-        referencedFrom: queueName,
-        referencedFromType: configParentResourceType as StpWorkloadType,
-        stpResourceReference: eventDetails.onDeliveryFailure.sqsQueueName
-      });
-    }
-  }
+  const ruleLogicalName = cfLogicalNames.eventBusRule(queueName, eventIndex);
+  const { eventBusName, input, inputPath, inputTransformer, deadLetterConfig } = prepareEventBusIntegration({
+    eventDetails,
+    referencerName: queueName,
+    referencerType: configParentResourceType,
+    ruleLogicalName
+  });
 
   return new EventBridgeRule({
     State: 'ENABLED',
     EventPattern: eventDetails.eventPattern,
-    EventBusName: eventDetails.eventBusArn
-      ? eventDetails.eventBusArn
-      : eventDetails.eventBusName
-        ? GetAtt(cfLogicalNames.eventBus(resource.name), 'Arn')
-        : undefined,
+    EventBusName: eventBusName,
     Targets: [
       {
-        Input: eventDetails.input
-          ? typeof eventDetails.input === 'object'
-            ? JSON.stringify(eventDetails.input)
-            : eventDetails.input
-          : undefined,
-        InputPath: eventDetails.inputPath,
-        InputTransformer: eventDetails.inputTransformer && {
-          InputPathsMap: eventDetails.inputTransformer.inputPathsMap,
-          InputTemplate:
-            typeof eventDetails.inputTransformer.inputTemplate === 'object'
-              ? JSON.stringify(eventDetails.inputTransformer.inputTemplate)
-              : eventDetails.inputTransformer.inputTemplate
-        },
+        Input: input,
+        InputPath: inputPath,
+        InputTransformer: inputTransformer,
         Arn: sqsQueueArn,
         ...(eventDetails.messageGroupId
           ? {
@@ -170,15 +70,7 @@ const getSqsQueueEventBusEventRule = ({
               }
             }
           : {}),
-        ...(eventDetails.onDeliveryFailure
-          ? {
-              DeadLetterConfig: {
-                Arn:
-                  eventDetails.onDeliveryFailure.sqsQueueArn ||
-                  GetAtt(cfLogicalNames.sqsQueue(onDeliveryFailureSqsQueueResource.name), 'Arn')
-              }
-            }
-          : {}),
+        ...(deadLetterConfig ? { DeadLetterConfig: deadLetterConfig } : {}),
         Id: awsResourceNames.sqsQueueEventBusRuleTargetId(queueName, eventIndex)
       }
     ]
