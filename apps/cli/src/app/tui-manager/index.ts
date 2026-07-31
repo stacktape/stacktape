@@ -1,6 +1,6 @@
 import type { DeploymentPhase, LoggableEventType } from '@application-services/event-manager/types';
 import type { LogLevel } from 'src/config/cli/types';
-import type { ExpectedError, UnexpectedError } from '@utils/errors';
+import { CliError, type HandledError } from '@utils/errors';
 import type {
   TuiCancelDeployment,
   TuiDeploymentHeader,
@@ -1165,8 +1165,8 @@ class TuiManager {
   }
 
   error(message: string): void;
-  error(error: UnexpectedError | ExpectedError): void;
-  error(input: string | UnexpectedError | ExpectedError) {
+  error(error: HandledError): void;
+  error(input: string | HandledError) {
     if (typeof input === 'string') {
       this.log('error', input);
       return;
@@ -1175,33 +1175,30 @@ class TuiManager {
     this.displayError(this.toErrorDisplayData(input));
   }
 
-  private toErrorDisplayData(error: UnexpectedError | ExpectedError): ErrorDisplayData {
-    const { hint } = error as ExpectedError;
+  private toErrorDisplayData(error: HandledError): ErrorDisplayData {
     const { prettyStackTrace, errorType, sentryEventId } = error.details;
+    const isExpected = error instanceof CliError;
 
     const errorMessage =
-      !IS_DEV && !error.isExpected
+      !IS_DEV && !isExpected
         ? `An unexpected error occurred. Last captured event: ${eventManager.lastEvent?.eventType || '-'}.`
         : error.message;
 
-    const hints: string[] = [];
-    if (hint) {
-      hints.push(...(Array.isArray(hint) ? hint : [hint]));
-    }
+    const hints: string[] = isExpected ? [...error.hints] : [];
     if (sentryEventId) {
       hints.push(`This error has been anonymously reported to our error monitoring service with id ${sentryEventId}.`);
     }
     hints.push(`To get help, reach out to our team at support@stacktape.com`);
 
     return {
-      errorType: errorType.replace('_ERROR', ''),
+      errorType,
       message: errorMessage,
       hints: this.logLevel !== 'error' ? hints : undefined,
       stackTrace: prettyStackTrace || undefined,
-      userStackTrace: (error as ExpectedError).userStackTrace || (error as any).userStackTrace || undefined,
-      errorDetails: (error as any).errorDetails || undefined,
+      userStackTrace: isExpected ? error.userStackTrace : undefined,
+      errorDetails: isExpected ? error.errorDetails : undefined,
       sentryEventId: sentryEventId || undefined,
-      isExpected: error.isExpected
+      isExpected
     };
   }
 
@@ -1211,7 +1208,7 @@ class TuiManager {
    * displayError() then knows the error is already shown and skips the plain
    * stderr fallback. No-op in non-TTY modes (stderr/jsonl handles those).
    */
-  setFatalError(error: UnexpectedError | ExpectedError) {
+  setFatalError(error: HandledError) {
     if (!scrollbackFeed.enabled) return;
     this._pendingErrorData = this.toErrorDisplayData(error);
   }

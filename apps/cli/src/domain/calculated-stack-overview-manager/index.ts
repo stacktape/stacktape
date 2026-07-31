@@ -19,7 +19,6 @@ import { getCloudformationChildResources } from '@utils/stack-info-map';
 import compose from '@utils/basic-compose-shim';
 import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
-import { UnexpectedError } from '@utils/errors';
 import { kebabCase } from 'change-case';
 import get from 'lodash/get';
 import { resolveAgentCoreResources } from './resource-resolvers/agentcore';
@@ -241,9 +240,9 @@ export class CalculatedStackOverviewManager {
   }) => {
     const parentResource = this.#ensureMapResource({ nameChain });
     if (parentResource.cloudformationChildResources[cfLogicalName]) {
-      throw new UnexpectedError({
-        customMessage: `Error when resolving. Child resource with cloudformation logical name "${cfLogicalName}" for parent "${nameChain}" is already in resource map.`
-      });
+      throw new Error(
+        `Error when resolving. Child resource with cloudformation logical name "${cfLogicalName}" for parent "${nameChain}" is already in resource map.`
+      );
     }
     parentResource.cloudformationChildResources[cfLogicalName] = {
       cloudformationResourceType: resource.Type as CloudformationResourceType

@@ -1,11 +1,17 @@
 import type { CleanupHookFunction } from '@application-services/event-manager/types';
-import type { ExpectedError } from '@utils/errors';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { getCanonicalCommand } from '../../config/cli/commands';
 import { tuiManager, UserCancelledError } from '@application-services/tui-manager';
 import { IS_DEV, IS_TELEMETRY_DISABLED } from '@config';
 import { propertyFromObjectOrNull } from '@utils/misc';
-import { attemptToGetUsefulExpectedError, getErrorDetails, getReturnableError, UnexpectedError } from '@utils/errors';
+import {
+  attemptToGetUsefulExpectedError,
+  CliError,
+  getErrorDetails,
+  getReturnableError,
+  type HandledError,
+  UnexpectedError
+} from '@utils/errors';
 import { killPythonBridge } from '@utils/file-loaders';
 import { reportErrorToSentry } from '@utils/sentry';
 import { reportTelemetryEvent } from '@utils/telemetry';
@@ -13,18 +19,16 @@ import { deleteTempFolder } from '@utils/temp-files';
 import { tuiDebug } from '@application-services/tui-manager/tui-debug-log';
 import kill from 'tree-kill';
 
-const getStacktapeError = (err: any) => {
-  if (err.isNewApproachError) {
-    err.details = getErrorDetails(err);
+export const normalizeCliError = (value: unknown): HandledError => {
+  let error: HandledError;
+  if (value instanceof CliError || value instanceof UnexpectedError) {
+    error = value;
+  } else {
+    const originalError = value instanceof Error ? value : new Error(String(value));
+    error = attemptToGetUsefulExpectedError(originalError) || new UnexpectedError({ error: originalError });
   }
-  if (err.isExpected || err.details) {
-    return err as ExpectedError | UnexpectedError;
-  }
-  const usefulExpectedError = attemptToGetUsefulExpectedError(err);
-  if (usefulExpectedError) {
-    return usefulExpectedError as ExpectedError;
-  }
-  return new UnexpectedError({ error: err });
+  error.details = getErrorDetails(error);
+  return error;
 };
 
 export class ApplicationManager {
@@ -65,7 +69,7 @@ export class ApplicationManager {
 
   gracefullyHandleError = async (err: any) => {
     tuiDebug('APP', 'gracefullyHandleError()', { message: err?.message?.slice?.(0, 200) });
-    const stacktapeError = getStacktapeError(err);
+    const stacktapeError = normalizeCliError(err);
     // Capture the error before teardown so it streams into scrollback as a styled
     // block while the renderer is still alive.
     tuiManager.setFatalError(stacktapeError);
@@ -86,17 +90,16 @@ export class ApplicationManager {
     if (err instanceof UserCancelledError) {
       return this.handleExitSignal('SIGINT');
     }
-    const stacktapeError = getStacktapeError(err);
-    // Capture the error first so stop() can stream it into scrollback as a styled
-    // block while the renderer is still mounted; stop() then flushes and tears down.
-    tuiManager.setFatalError(stacktapeError);
-    await tuiManager.stop();
+    const stacktapeError = normalizeCliError(err);
     this.cancelPendingPromises(stacktapeError);
     await this.reportTelemetryEvent({ outcome: stacktapeError.details.code });
-    if (!IS_DEV && !stacktapeError.isExpected && !IS_TELEMETRY_DISABLED) {
+    if (!IS_DEV && !(stacktapeError instanceof CliError) && !IS_TELEMETRY_DISABLED) {
       const sentryEventId = await reportErrorToSentry(stacktapeError);
       stacktapeError.details.sentryEventId = sentryEventId;
     }
+    // Capture only after Sentry reporting so the TTY snapshot includes its error ID.
+    tuiManager.setFatalError(stacktapeError);
+    await tuiManager.stop();
     tuiManager.error(stacktapeError);
     if (!skipCleanup) {
       await this.cleanUp({ success: false, err });
@@ -201,7 +204,7 @@ export class ApplicationManager {
       }
     });
     if (cleanupErrorMessages.length) {
-      this.handleError(new UnexpectedError({ error: new Error(cleanupErrorMessages.join('\n')) }), true);
+      this.handleError(new Error(cleanupErrorMessages.join('\n')), true);
     }
     return promiseResults;
   };

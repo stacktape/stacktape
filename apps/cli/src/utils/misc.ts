@@ -1,4 +1,4 @@
-import type { ErrorType, StacktapeError } from '@utils/errors';
+import { CliError, type ErrorCategory } from '@utils/errors';
 import type { ArgsType } from '@utils/type-helpers';
 import type { Readable } from 'node:stream';
 import { Buffer } from 'node:buffer';
@@ -41,7 +41,7 @@ export const getError = ({
   errorDetails
 }: {
   message: string;
-  type: ErrorType;
+  type: ErrorCategory;
   code?: string;
   hint?: string | string[];
   data?: any;
@@ -49,18 +49,18 @@ export const getError = ({
   userStackTrace?: string;
   errorDetails?: { title: string; codeFrame?: string };
 }) => {
-  const error = new Error(message) as StacktapeError;
+  const error = new CliError({
+    category: type,
+    code: code ? `${type}_${code.toUpperCase()}` : `${type}_ERROR`,
+    message,
+    hints: hint,
+    userStackTrace,
+    detail: errorDetails
+  });
   if (stack) {
     error.stack = stack;
   }
-  error.hint = hint;
-  error.data = data;
-  error.type = type;
-  error.code = code || null;
-  error.isExpected = type !== 'UNEXPECTED';
-  error.isNewApproachError = true;
-  error.userStackTrace = userStackTrace;
-  error.errorDetails = errorDetails;
+  void data;
   return error;
 };
 

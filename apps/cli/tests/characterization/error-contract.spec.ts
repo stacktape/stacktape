@@ -1,0 +1,99 @@
+import { describe, expect, test } from 'bun:test';
+import { normalizeCliError } from '@application-services/application-manager';
+import { renderErrorToString } from '@application-services/tui-manager/error-rendering';
+import { CliError, getReturnableError } from '@utils/errors';
+import { getError } from '@utils/misc';
+import { validateCommand, validateS3BucketName } from '@utils/validator';
+
+describe('CLI error contract', () => {
+  test('keeps intentional failures structured and preserves their cause', () => {
+    const cause = new Error('root cause');
+    const error = new CliError({
+      category: 'CLI',
+      code: 'CLI_EXAMPLE_FAILURE',
+      message: 'Could not use `example`.',
+      hints: ['Try `stacktape help`.', 'Read the documentation.'],
+      cause
+    });
+
+    expect(error).toBeInstanceOf(Error);
+    expect(error.category).toBe('CLI');
+    expect(error.code).toBe('CLI_EXAMPLE_FAILURE');
+    expect(error.hints).toEqual(['Try `stacktape help`.', 'Read the documentation.']);
+    expect(error.cause).toBe(cause);
+  });
+
+  test('adapts the numbered registry to the same class while it is migrated', () => {
+    const error = getError({
+      type: 'CONFIG',
+      code: 'e14',
+      message: 'Configuration is invalid.',
+      hint: 'Fix it.'
+    });
+
+    expect(error).toBeInstanceOf(CliError);
+    expect(error).toMatchObject({ category: 'CONFIG', code: 'CONFIG_E14' });
+    expect(error.hints).toEqual(['Fix it.']);
+  });
+
+  test('normalizes unknown failures once without requiring a stack trace', () => {
+    const error = new Error('broken without a stack');
+    error.stack = undefined;
+
+    const normalized = normalizeCliError(error);
+
+    expect(normalized.details).toMatchObject({
+      code: 'UNEXPECTED_ERROR',
+      errorType: 'UNEXPECTED',
+      originalErrorType: 'Error'
+    });
+  });
+
+  test('returns the stable code and hints to machine consumers', () => {
+    const normalized = normalizeCliError(
+      new CliError({
+        category: 'CLI',
+        code: 'CLI_COMMAND_UNKNOWN',
+        message: 'Unknown command `oops`.',
+        hints: 'Use `stacktape help`.'
+      })
+    );
+
+    const returned = getReturnableError(normalized) as Error & {
+      details: { errorId: string | null; code: string; errorType: string; hints: string[] };
+    };
+
+    expect(returned.details).toEqual({
+      errorId: null,
+      errorType: 'CLI',
+      code: 'CLI_COMMAND_UNKNOWN',
+      hints: ['Use `stacktape help`.']
+    });
+  });
+
+  test('renders backtick spans only at the presentation boundary', () => {
+    const rendered = renderErrorToString(
+      {
+        errorType: 'CLI',
+        message: 'Unknown command `oops`.',
+        hints: ['Use `stacktape help`.'],
+        isExpected: true
+      },
+      (color, text) => `<${color}>${text}</${color}>`,
+      (text) => `<bold>${text}</bold>`
+    );
+
+    expect(rendered).toContain('<cyan><bold>oops</bold></cyan>');
+    expect(rendered).toContain('<cyan><bold>stacktape help</bold></cyan>');
+  });
+
+  test('uses descriptive validation codes and accepts a valid S3 bucket name', () => {
+    expect(() => validateS3BucketName('valid-bucket-name')).not.toThrow();
+    expect(() => validateS3BucketName('INVALID')).toThrow(
+      expect.objectContaining({ code: 'CONFIG_VALIDATION_BUCKET_NAME_INVALID' })
+    );
+    expect(() => validateCommand({ rawCommands: ['not-a-command' as any] })).toThrow(
+      expect.objectContaining({ code: 'CLI_COMMAND_UNKNOWN' })
+    );
+  });
+});

@@ -48,7 +48,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { stacktapeCloudfrontHeaders } from '@helper-lambdas/cloudfront/cloudfront-origin-headers';
 import { shortHash } from '@stacktape/naming/short-hash';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
-import { ExpectedError, UnexpectedError } from '@utils/errors';
+import { ExpectedError } from '@utils/errors';
 import objectHash from 'object-hash';
 import { getStpServiceCustomResource } from './custom-resource';
 import type {
@@ -1613,11 +1613,13 @@ const getCacheBehavioursForRouteRewrites = ({
         PathPattern: routeRewrite.path
       };
     }
-    throw new UnexpectedError({
-      customMessage: `Invalid cdn route rewrite shape in "${cdnCompatibleResource.nameChain.join(
-        '.'
-      )}".\n${JSON.stringify(routeRewrite, null, 2)}`
-    });
+    throw new Error(
+      `Invalid cdn route rewrite shape in "${cdnCompatibleResource.nameChain.join('.')}".\n${JSON.stringify(
+        routeRewrite,
+        null,
+        2
+      )}`
+    );
   });
 };
 

@@ -17,7 +17,7 @@ import {
   getDirectiveWithoutPath,
   getIsDirective
 } from '@utils/directives';
-import { ExpectedError, getUserCodeStackTrace, UnexpectedError } from '@utils/errors';
+import { CliError, ExpectedError, getUserCodeStackTrace } from '@utils/errors';
 import { loadFromAnySupportedFile, loadFromTypescript, parseUserCodeFilepath } from '@utils/file-loaders';
 import { getUserCodeAsFn } from '@utils/user-code-processing';
 import { validatePrimitiveFunctionParams } from '@utils/validation-utils';
@@ -282,7 +282,7 @@ export class ConfigResolver {
         }
         return result;
       } catch (error) {
-        if ((error as any).isExpected) throw error;
+        if (error instanceof CliError) throw error;
         handleTypescriptConfigError(error as Error, filePath);
       }
     }
@@ -297,7 +297,7 @@ export class ConfigResolver {
         }
         return result;
       } catch (error) {
-        if ((error as any).isExpected) throw error;
+        if (error instanceof CliError) throw error;
         handleTypescriptConfigError(error as Error, filePath);
       }
     }
@@ -416,7 +416,7 @@ export class ConfigResolver {
 
       return config;
     } catch (err) {
-      if ((err as any).isExpected) {
+      if (err instanceof CliError) {
         throw err;
       }
       throw new ExpectedError(
@@ -649,13 +649,10 @@ export class ConfigResolver {
           });
         }
       } catch (err) {
-        if (err.isExpected) {
+        if (err instanceof CliError) {
           throw err;
         }
-        throw new UnexpectedError({
-          customMessage: `Error processing directive ${directive.definitionWithoutPath}.\n`,
-          error: err
-        });
+        throw new Error(`Error processing directive ${directive.definitionWithoutPath}.`, { cause: err });
       }
       for (const rawDefinition in this.resultsWithPath) {
         const value = this.resultsWithPath[rawDefinition];

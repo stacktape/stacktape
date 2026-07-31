@@ -8,10 +8,10 @@ import { createFetchHandler } from 'src/aws/fetch-handler';
 import { retryPlugin } from 'src/aws/client-middleware';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { serialize } from '@utils/misc';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 
 export const getErrorHandler = (message: string) => (err: Error) => {
-  if ((err as ExpectedError).isExpected) {
+  if (err instanceof CliError) {
     throw err;
   }
   let additionalMessage = '';
@@ -22,11 +22,13 @@ export const getErrorHandler = (message: string) => (err: Error) => {
       source: globalStateManager.credentials.source
     });
   }
-  throw new ExpectedError(
-    'AWS',
-    `${message}\nError message:\n${err}${additionalMessage ? `\n${additionalMessage}` : ''}`,
-    getHintsForAWSError(err)
-  );
+  throw new CliError({
+    category: 'AWS',
+    code: 'AWS_REQUEST_FAILED',
+    message: `${message}\nError message:\n${err}${additionalMessage ? `\n${additionalMessage}` : ''}`,
+    hints: getHintsForAWSError(err),
+    cause: err
+  });
 };
 
 const getHintsForAWSError = (err: Error) => {

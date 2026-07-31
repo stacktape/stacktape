@@ -127,13 +127,18 @@ export const runCommand = async (opts: RunCommandOptions) => {
   try {
     initializeSentry();
     await applicationManager.init();
+    const requestedOutputMode = opts.args.outputFormat || (opts.args.agent ? 'jsonl' : undefined);
+    if (requestedOutputMode && ['jsonl', 'plain', 'tty'].includes(requestedOutputMode)) {
+      tuiManager.setOutputFormat(requestedOutputMode);
+    }
+    // Output must be configured before argument validation so early failures use the requested machine format.
+    tuiManager.init({ logLevel: opts.args.logLevel });
     await deleteTempFolder();
     await globalStateManager.init(opts);
     await eventManager.init();
     await announcementsManager.init();
     setSentryTags({ invocationId: globalStateManager.invocationId, command: globalStateManager.command });
 
-    tuiManager.init({ logLevel: globalStateManager.logLevel });
     // Initialize agent mode (sets non-TTY output for spinners)
     initAgentMode();
     // Start TUI for all commands except purely interactive/informational ones
@@ -223,7 +228,7 @@ export const runCommand = async (opts: RunCommandOptions) => {
     const errorDetails = (returnableError as any).details || {};
     tuiManager.emitJsonlResult({
       ok: false,
-      code: errorDetails.errorType || 'INTERNAL_ERROR',
+      code: errorDetails.code || 'INTERNAL_ERROR',
       message: returnableError.message || 'Command failed',
       data: {
         ...(errorDetails.errorId ? { errorId: errorDetails.errorId } : {}),

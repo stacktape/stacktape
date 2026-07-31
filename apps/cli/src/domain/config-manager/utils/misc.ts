@@ -1,5 +1,4 @@
 import { RESOURCE_DEFAULTS } from '@config';
-import { UnexpectedError } from '@utils/errors';
 import type { DefaultedResource, NormalizedResource, StacktapeResourceType } from '../normalized-resource';
 
 /**
@@ -32,15 +31,11 @@ const merge = (from: Record<string, any>, to: Record<string, any>) => {
       } else if (to[prop] !== undefined) {
         if (typeof from[prop] === 'object') {
           if (typeof to[prop] !== 'object') {
-            throw new UnexpectedError({
-              customMessage: `Can't merge defaults. Property ${prop} has different type (${from[prop]}, ${to[prop]})`
-            });
+            throw new Error(`Can't merge defaults. Property ${prop} has different type (${from[prop]}, ${to[prop]})`);
           }
           if (Array.isArray(from[prop])) {
             if (!Array.isArray(to[prop])) {
-              throw new UnexpectedError({
-                customMessage: `Can't merge defaults. Property ${prop} has different type (${from[prop]}, ${to[prop]})`
-              });
+              throw new Error(`Can't merge defaults. Property ${prop} has different type (${from[prop]}, ${to[prop]})`);
             }
             to[prop] = to[prop].concat(from[prop]);
           } else {

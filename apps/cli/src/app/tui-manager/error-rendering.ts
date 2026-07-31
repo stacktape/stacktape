@@ -55,6 +55,12 @@ const getErrorLabel = (errorType: string): string => {
   return ERROR_TYPE_LABELS[errorType] || `${errorType.replace(/_/g, ' ')} Error`;
 };
 
+const renderInlineCode = (
+  text: string,
+  colorize: (color: string, text: string) => string,
+  makeBold: (text: string) => string
+) => text.replace(/`([^`\n]+)`/g, (_match, content: string) => colorize('cyan', makeBold(content)));
+
 const wrapText = (text: string, maxWidth: number): string[] => {
   const lines: string[] = [];
   const paragraphs = text.split('\n');
@@ -100,7 +106,7 @@ export const renderErrorToString = (
   lines.push('');
   const messageLines = wrapText(error.message, 100);
   for (const msgLine of messageLines) {
-    lines.push(msgLine);
+    lines.push(renderInlineCode(msgLine, colorize, makeBold));
   }
 
   if (error.errorDetails) {
@@ -124,7 +130,7 @@ export const renderErrorToString = (
     lines.push('');
     lines.push(colorize('blue', makeBold('Hints:')));
     for (const hint of hints) {
-      lines.push(`  ${colorize('gray', '→')} ${hint}`);
+      lines.push(`  ${colorize('gray', '→')} ${renderInlineCode(hint, colorize, makeBold)}`);
     }
   }
 

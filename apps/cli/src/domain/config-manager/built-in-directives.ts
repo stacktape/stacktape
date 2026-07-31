@@ -155,18 +155,14 @@ export const builtInDirectives: Directive[] = [
         });
       }
       if (value === undefined || value === null) {
-        const err = getError({
-          type: 'DIRECTIVE',
-          message: `Can't resolve the result of $ResourceParam('${resourceReference}', '${property}') directive.`
-        });
-        if (isLocalInvoke) {
-          if (globalStateManager.args.disableEmulation) {
-            return IDENTIFIER_FOR_MISSING_OUTPUT;
-          }
-          err.hint = getDisableEmulationHint();
-          throw err;
+        if (isLocalInvoke && globalStateManager.args.disableEmulation) {
+          return IDENTIFIER_FOR_MISSING_OUTPUT;
         }
-        throw err;
+        throw getError({
+          type: 'DIRECTIVE',
+          message: `Can't resolve the result of $ResourceParam('${resourceReference}', '${property}') directive.`,
+          hint: isLocalInvoke ? getDisableEmulationHint() : undefined
+        });
       }
 
       return value;

@@ -590,10 +590,7 @@ export const dockerRun = async ({
   onStart?: (msg: string) => any;
 }) => {
   if (command && entryPoint) {
-    throw getError({
-      type: 'UNEXPECTED',
-      message: 'Only one of command and entryPoint can be specified when running Docker container.'
-    });
+    throw new Error('Only one of command and entryPoint can be specified when running Docker container.');
   }
   assertDockerIsInstalled();
   const containerEnvironment = toContainerEnvironmentPassthrough(environment);

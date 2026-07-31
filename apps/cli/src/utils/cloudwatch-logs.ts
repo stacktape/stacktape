@@ -87,7 +87,13 @@ export class LambdaCloudwatchLogPrinter {
       } catch {
         errorString = logContent;
       }
-      const logContentPart = errorType === 'Invoke Error ' ? getErrorFromString(errorString).trim() : logContent;
+      const logContentPart =
+        errorType === 'Invoke Error '
+          ? getErrorFromString(errorString, {
+              message: (message) => tuiManager.makeBold(message),
+              dependencyFrame: (frame) => tuiManager.colorize('gray', frame)
+            }).trim()
+          : logContent;
       this.#output(
         `${this.#getPrefix(requestId)} ${this.#getFormattedTimeStamp(
           event

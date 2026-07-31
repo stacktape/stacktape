@@ -1,23 +1,10 @@
 import { isAbsolute, join } from 'node:path';
-import { eventManager } from '@application-services/event-manager';
-import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV } from '@config';
 import { getRelativePath, isFileAccessible } from '@utils/fs-utils';
 import stacktrace from 'stack-trace';
 import stripAnsi from 'strip-ansi';
 
-export type StacktapeError = Error & {
-  type: ErrorType;
-  code?: string;
-  hint?: string | string[];
-  data?: any;
-  isExpected: boolean;
-  isNewApproachError: boolean;
-  userStackTrace?: string;
-  errorDetails?: { title: string; codeFrame?: string };
-};
-
-export type ErrorType =
+export type ErrorCategory =
   | 'API_KEY'
   | 'CLI'
   | 'MISSING_PREREQUISITE'
@@ -50,7 +37,6 @@ export type ErrorType =
   | 'SYNC_BUCKET'
   | 'USERPOOL'
   | 'INPUT'
-  | 'UNEXPECTED'
   | 'BUILD_CODE'
   | 'API_SERVER'
   | 'SCRIPT'
@@ -67,6 +53,55 @@ export type ErrorType =
   | 'CONFIRMATION_REQUIRED'
   | 'DEVICE';
 
+/** @deprecated Use ErrorCategory while legacy error call sites are migrated. */
+export type ErrorType = ErrorCategory;
+
+export type CliErrorOptions = {
+  category: ErrorCategory;
+  code: string;
+  message: string;
+  hints?: string | string[];
+  cause?: unknown;
+  userStackTrace?: string;
+  detail?: { title: string; codeFrame?: string };
+};
+
+export type ErrorDetails = {
+  prettyStackTrace: string | null;
+  originalErrorType: string;
+  code: string;
+  errorType: ErrorCategory | 'UNEXPECTED';
+  sentryEventId: string | null;
+};
+
+export class CliError extends Error {
+  readonly category: ErrorCategory;
+  readonly code: string;
+  readonly hints: string[];
+  readonly userStackTrace?: string;
+  readonly errorDetails?: { title: string; codeFrame?: string };
+  details?: ErrorDetails;
+
+  // Transitional aliases for catch sites that have not moved to instanceof yet.
+  readonly isExpected = true;
+  readonly type: ErrorCategory;
+  readonly hint?: string | string[];
+
+  constructor({ category, code, message, hints, cause, userStackTrace, detail }: CliErrorOptions) {
+    super(message, cause === undefined ? undefined : { cause });
+    this.name = 'CliError';
+    this.category = category;
+    this.type = category;
+    this.code = code;
+    this.hints = hints ? (Array.isArray(hints) ? hints : [hints]) : [];
+    this.hint = hints;
+    this.userStackTrace = userStackTrace;
+    this.errorDetails = detail;
+  }
+}
+
+export type StacktapeError = CliError;
+
 const isBundledStacktapeInternalFrame = (fileName: string) => {
   const normalizedFileName = fileName.replaceAll('\\', '/').replace(/^[./]+/, '');
   const bundledInternalPrefixes = ['src/', 'scripts/', 'helper-lambdas/', '@generated/'];
@@ -77,80 +112,78 @@ const isBundledStacktapeInternalFrame = (fileName: string) => {
   );
 };
 
-export class ExpectedError extends Error {
-  type: ErrorType;
-  isExpected: boolean;
-  hint?: string | string[];
-  details?: ReturnType<typeof getErrorDetails>;
+/** @deprecated Prefer CliError with a descriptive machine-readable code. */
+export class ExpectedError extends CliError {
   metadata?: Record<string, any>;
-  userStackTrace?: string;
 
   constructor(type: ErrorType, message: string, hint?: string | string[], metadata?: Record<string, any>) {
-    super(message);
-    this.isExpected = true;
+    super({ category: type, code: `${type}_ERROR`, message, hints: hint });
     this.name = type;
-    this.type = type;
-    this.hint = hint;
     this.metadata = metadata;
-
-    this.details = getErrorDetails(this);
   }
 }
 
 export class UnexpectedError extends Error {
-  message: string;
-  isExpected = false;
-  details?: ReturnType<typeof getErrorDetails>;
+  readonly isExpected = false;
+  details?: ErrorDetails;
 
-  constructor({ error, customMessage }: { error?: Error; customMessage?: string }) {
-    const message = `${customMessage || ''}${error ? `${error?.message}` : ''}`;
-    const lastCapturedEventPart = `Last captured event: ${eventManager.lastEvent?.eventType || 'NONE'}`;
-    const fullMessage = `${message}${message.endsWith('.') ? '' : '.'} ${lastCapturedEventPart}`;
-    super(fullMessage);
-    this.message = fullMessage;
-    if (error?.stack) {
-      this.stack = error.stack;
+  constructor({ error, customMessage }: { error?: unknown; customMessage?: string }) {
+    const originalError = error instanceof Error ? error : error === undefined ? undefined : new Error(String(error));
+    const message = [customMessage?.trimEnd(), originalError?.message].filter(Boolean).join('\n') || 'Unknown error';
+    super(message, originalError ? { cause: originalError } : undefined);
+    this.name = originalError?.name || 'UnexpectedError';
+    if (originalError?.stack) {
+      this.stack = originalError.stack;
     }
-    this.details = getErrorDetails(this);
   }
 }
 
-export class UserCodeError extends ExpectedError {
+export class UserCodeError extends CliError {
   constructor(message: string, originalError: Error, hint?: string | string[]) {
-    super('SOURCE_CODE', `${message}\n${originalError.message}`, hint);
+    super({
+      category: 'SOURCE_CODE',
+      code: 'SOURCE_CODE_LOAD_FAILED',
+      message: `${message}\n${originalError.message}`,
+      hints: hint,
+      cause: originalError
+    });
     this.stack = originalError.stack;
     const hintArray = Array.isArray(hint) ? hint : hint ? [hint] : [];
-    const errHint = (originalError as ExpectedError).hint;
-    if (errHint) {
-      hintArray.push(...(Array.isArray(errHint) ? errHint : [errHint]));
+    if (originalError instanceof CliError) {
+      hintArray.push(...originalError.hints);
     }
-    this.hint = hintArray;
+    this.hints.splice(0, this.hints.length, ...hintArray);
   }
 }
 
-export const getReturnableError = (error: ExpectedError | UnexpectedError): Error => {
+export type HandledError = CliError | UnexpectedError;
+
+export const getReturnableError = (error: HandledError): Error => {
+  const details = error.details || getErrorDetails(error);
   const res = new Error();
   delete res.stack;
   res.message = stripAnsi(error.message);
   if (IS_DEV) {
-    res.stack = stripAnsi(`[${error.details.errorType}] ${error.message}\n${error.details.prettyStackTrace}`);
+    res.stack = stripAnsi(`[${details.errorType}] ${error.message}\n${details.prettyStackTrace}`);
   }
-  const { sentryEventId, errorType } = error.details;
-
-  const hint = (error as ExpectedError).hint;
+  const hints = error instanceof CliError ? error.hints : [];
   (res as any).details = {
-    errorId: sentryEventId,
-    errorType,
-    hints: hint ? (Array.isArray(hint) ? hint : [hint]) : null
+    errorId: details.sentryEventId,
+    errorType: details.errorType,
+    code: details.code,
+    hints: hints.length ? hints : null
   };
   return res;
 };
 
 export const getPrettyStacktrace = (
-  error: ExpectedError | UnexpectedError,
+  error: Error,
   colorizeOwnCode?: (msg: string) => string,
   colorizeDependencyCode?: (msg: string) => string
 ) => {
+  if (!error.stack) {
+    return '';
+  }
   const trace = stacktrace.parse(error);
   return trace
     .filter(({ fileName, native }) => {
@@ -214,6 +247,9 @@ export const getPrettyStacktrace = (
  * Get a pretty stack trace showing only user code frames (for config errors)
  */
 export const getUserCodeStackTrace = (error: Error, colorize?: (msg: string) => string): string | null => {
+  if (!error.stack) {
+    return null;
+  }
   const trace = stacktrace.parse(error);
   const userFrames = trace
     .filter(({ fileName, native }) => {
@@ -257,13 +293,12 @@ export const getUserCodeStackTrace = (error: Error, colorize?: (msg: string) => 
   return userFrames.length > 0 ? userFrames.join('\n') : null;
 };
 
-export const getErrorDetails = (error: UnexpectedError | ExpectedError) => {
-  const prettyStackTrace: string = IS_DEV
-    ? getPrettyStacktrace(error, (msg) => tuiManager.colorize('cyan', msg))
-    : null;
-  const originalErrorType = error.name && !error.isExpected ? error.stack.slice(0, error.stack.indexOf(':')) : '';
-  const errorType = error.isExpected ? `${(error as ExpectedError).type}_ERROR` : 'UNEXPECTED_ERROR';
-  const code = error.isExpected ? `${errorType}_${(error as any).code || 'UNKNOWN_CODE'}` : errorType;
+export const getErrorDetails = (error: HandledError): ErrorDetails => {
+  const isExpected = error instanceof CliError;
+  const prettyStackTrace: string = IS_DEV ? getPrettyStacktrace(error) : null;
+  const originalErrorType = isExpected ? '' : error.name || 'Error';
+  const errorType = isExpected ? error.category : 'UNEXPECTED';
+  const code = isExpected ? error.code : 'UNEXPECTED_ERROR';
   return {
     prettyStackTrace,
     originalErrorType,
@@ -275,27 +310,39 @@ export const getErrorDetails = (error: UnexpectedError | ExpectedError) => {
 
 export const attemptToGetUsefulExpectedError = (error: Error) => {
   if (`${error}`.includes('ENOSPC')) {
-    return new ExpectedError(
-      'DEVICE',
-      `There seems to be no space left on the device. Error: ${error}`,
-      'Please free up some space on the device and try again.'
-    );
+    return new CliError({
+      category: 'DEVICE',
+      code: 'DEVICE_NO_SPACE',
+      message: `There seems to be no space left on the device. Error: ${error}`,
+      hints: 'Please free up some space on the device and try again.',
+      cause: error
+    });
   }
   if (
     `${error?.message || error}`.includes(
       'Resource name not set. Make sure to add the resource to the resources object in your config.'
     )
   ) {
-    return new ExpectedError(
-      'CONFIG_VALIDATION',
-      'Resource name not set. Make sure to add the resource to the resources object in your config. The resource name is automatically derived from the object key.',
-      'If you create a resource instance, assign it under config.resources (for example resources: { myApi: api }).'
-    );
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_VALIDATION_RESOURCE_NAME_MISSING',
+      message:
+        'Resource name not set. Make sure to add the resource to the resources object in your config. The resource name is automatically derived from the object key.',
+      hints:
+        'If you create a resource instance, assign it under config.resources (for example resources: { myApi: api }).',
+      cause: error
+    });
   }
   return null;
 };
 
-export const getErrorFromString = (errorString: string) => {
+export const getErrorFromString = (
+  errorString: string,
+  format: {
+    message?: (message: string) => string;
+    dependencyFrame?: (frame: string) => string;
+  } = {}
+) => {
   let [message, ...stackArray] = errorString.split('    at');
 
   // Stacktape-built image
@@ -308,11 +355,7 @@ export const getErrorFromString = (errorString: string) => {
   error.stack = `${message}\n    at${stack}`;
 
   // console.log(error);
-  let prettyStacktrace = getPrettyStacktrace(
-    error as any,
-    (msg) => msg,
-    (msg) => tuiManager.colorize('gray', msg)
-  );
+  let prettyStacktrace = getPrettyStacktrace(error, undefined, format.dependencyFrame);
 
   if (!prettyStacktrace.endsWith('\n')) {
     prettyStacktrace += '\n';
@@ -321,7 +364,7 @@ export const getErrorFromString = (errorString: string) => {
     message += '\n';
   }
 
-  return `\n${tuiManager.makeBold(message)}${prettyStacktrace}`;
+  return `\n${format.message ? format.message(message) : message}${prettyStacktrace}`;
 };
 
 export const parseContainerError = (errorString: string): { message: string; stackTrace?: string } => {

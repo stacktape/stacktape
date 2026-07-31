@@ -19,7 +19,6 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { loggingPlugin } from '@utils/aws-sdk-manager/utils';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
-import { UnexpectedError } from '@utils/errors';
 import { pRateLimit } from 'p-ratelimit';
 
 export class CloudformationRegistryManager {
@@ -125,17 +124,17 @@ export class CloudformationRegistryManager {
       privateTypesMinimalRequiredSubversion.length !== 7 ||
       Number.isNaN(Number(privateTypesMinimalRequiredSubversion))
     ) {
-      throw new UnexpectedError({
-        customMessage: `Static check of privateTypesMinimalRequiredSubversion of module ${type} failed. "${privateTypesMinimalRequiredSubversion}" is not a valid value.`
-      });
+      throw new Error(
+        `Static check of privateTypesMinimalRequiredSubversion of module ${type} failed. "${privateTypesMinimalRequiredSubversion}" is not a valid value.`
+      );
     }
     const corruptedPrivateTypeName = Object.keys(privateTypesSpecs).find(
       (privateTypeName) => !privateTypeName.split('::')[1].endsWith(privateTypesMajorVersionUsed)
     );
     if (corruptedPrivateTypeName) {
-      throw new UnexpectedError({
-        customMessage: `Static check of private type "${corruptedPrivateTypeName}" in module ${type} failed. Private type name service name should end in privateTypesMajorVersionUsed (${privateTypesMajorVersionUsed})`
-      });
+      throw new Error(
+        `Static check of private type "${corruptedPrivateTypeName}" in module ${type} failed. Private type name service name should end in privateTypesMajorVersionUsed (${privateTypesMajorVersionUsed})`
+      );
     }
   };
 
@@ -401,9 +400,9 @@ export class CloudformationRegistryManager {
     const newestCompatiblePrivateTypesVersion = sortedPrivateTypesAvailableSubversion.find((subversion) => {
       if (Number(subversion) < Number(privateTypesMinimalRequiredSubversion)) {
         // if we have gotten here, we are in trouble. see above ^^^^^^
-        throw new UnexpectedError({
-          customMessage: `No valid infrastructure private types for module ${type} ${privateTypesMajorVersionUsed} satisfying minimal required subversion (${privateTypesMinimalRequiredSubversion}) that can be used with this Stacktape version could were found.`
-        });
+        throw new Error(
+          `No valid infrastructure private types for module ${type} ${privateTypesMajorVersionUsed} satisfying minimal required subversion (${privateTypesMinimalRequiredSubversion}) that can be used with this Stacktape version could were found.`
+        );
       }
       // For correct operation of this module stacktape needs private types defined in "privateTypesSpecs"
       // following loop will check if this "subversion" release contains all of those private types
@@ -424,9 +423,9 @@ export class CloudformationRegistryManager {
       // if this block gets executed, we are in trouble
       // it means we went through all the private types subversions and were not able to find any compatible with this stacktape version
       // this should never happen
-      throw new UnexpectedError({
-        customMessage: `No valid infrastructure private types for module ${type} ${privateTypesMajorVersionUsed} satisfying minimal required subversion (${privateTypesMinimalRequiredSubversion}) that can be used with this Stacktape version were found.`
-      });
+      throw new Error(
+        `No valid infrastructure private types for module ${type} ${privateTypesMajorVersionUsed} satisfying minimal required subversion (${privateTypesMinimalRequiredSubversion}) that can be used with this Stacktape version were found.`
+      );
     }
     statusDetail.newestCompatibleCloudformationPrivateTypeVersion = newestCompatiblePrivateTypesVersion;
 
