@@ -32,6 +32,7 @@ describe('global state runtime values', () => {
         organizationId: 'organization',
         name: 'connected',
         awsAccountId: '111111111111',
+        connectionMode: 'BASIC',
         state: 'ACTIVE',
         primaryRegions: ['eu-west-1'],
         defaultRegion: 'eu-west-1'
@@ -51,6 +52,7 @@ describe('global state runtime values', () => {
       organizationId: 'local',
       name: 'local',
       awsAccountId: '222222222222',
+      connectionMode: 'BASIC',
       state: 'ACTIVE',
       primaryRegions: ['eu-west-1'],
       defaultRegion: 'eu-west-1'

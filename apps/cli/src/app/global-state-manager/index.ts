@@ -47,10 +47,10 @@ import {
 } from '@utils/validator';
 import { kebabCase } from 'change-case';
 import dayjs from 'dayjs';
-import { normalizeCurrentUserAndOrgData } from './user-data-mapper';
 import { loadPersistedState, savePersistedState } from './utils';
 import { runAuthFlow } from '../../commands/_utils/auth';
 import type { StacktapeConfig } from '@stacktape/config';
+import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-key';
 
 export type DomainServiceName =
   | 'ConfigManager'
@@ -381,16 +381,16 @@ export class GlobalStateManager {
   };
 
   loadUserDataFromTrpcApi = async () => {
-    const normalizedUserData = normalizeCurrentUserAndOrgData(
-      await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData()
-    );
-    this.userData = normalizedUserData.userData;
-    this.organizationData = normalizedUserData.organizationData;
-    this.connectedAwsAccounts = normalizedUserData.connectedAwsAccounts;
-    this.projects = normalizedUserData.projects;
-    this.permissions = normalizedUserData.permissions;
-    this.isProjectScoped = normalizedUserData.isProjectScoped;
-    // const displayedOrgName = organization.name.endsWith('-personal-org') ? 'Personal' : organization.name;
+    this.setCurrentUserAndOrgData(await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData());
+  };
+
+  setCurrentUserAndOrgData = (data: CurrentUserAndOrgDataResponse) => {
+    this.userData = data.user;
+    this.organizationData = data.organization;
+    this.connectedAwsAccounts = data.connectedAwsAccounts;
+    this.projects = data.projects;
+    this.permissions = data.permissions;
+    this.isProjectScoped = data.isProjectScoped;
   };
 
   loadValidatedAwsCredentials = async (): Promise<ValidatedAwsCredentials> => {

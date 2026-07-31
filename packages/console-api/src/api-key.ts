@@ -289,9 +289,10 @@ export type CurrentUserAndOrgDataResponse = {
     organizationId: string;
     name: string;
     awsAccountId: string | null;
-    state: string;
+    state: 'PENDING' | 'ACTIVE' | 'BLOCKED';
     primaryRegions: string[];
     defaultRegion: string | null;
+    connectionMode: 'PRIVILEGED' | 'BASIC' | null;
     deleted?: boolean | null;
     [otherProperties: string]: unknown;
   }>;

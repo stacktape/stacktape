@@ -20,6 +20,7 @@ const makeState = ({ projectName }: { projectName?: string } = {}) => {
     organizationId: 'local',
     name: 'test credentials',
     awsAccountId: '123456789012',
+    connectionMode: 'BASIC',
     state: 'ACTIVE',
     primaryRegions: ['eu-west-1'],
     defaultRegion: 'eu-west-1'
