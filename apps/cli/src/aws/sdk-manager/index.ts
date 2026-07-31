@@ -1,12 +1,10 @@
 import type { TuiManager as Printer } from '@application-services/tui-manager';
-import type { CostExplorerTagsError } from '@domain-services/budget-manager/types';
-import type { Budget } from '@aws-sdk/client-budgets';
 import type { DistributionSummary } from '@aws-sdk/client-cloudfront';
 import type { _InstanceType, InstanceTypeInfo, RouteTable, Subnet, Vpc } from '@aws-sdk/client-ec2';
 import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { AutoScaling, DescribeAutoScalingGroupsCommand } from '@aws-sdk/client-auto-scaling';
-import { BudgetsClient, DescribeBudgetsCommand } from '@aws-sdk/client-budgets';
+import { BudgetsClient } from '@aws-sdk/client-budgets';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
 import {
   CloudFrontClient,
@@ -18,7 +16,7 @@ import { CloudWatchClient } from '@aws-sdk/client-cloudwatch';
 import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
 import { CodeBuildClient } from '@aws-sdk/client-codebuild';
 import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
-import { CostExplorerClient, GetTagsCommand } from '@aws-sdk/client-cost-explorer';
+import { CostExplorerClient } from '@aws-sdk/client-cost-explorer';
 import {
   DescribeInstanceTypesCommand,
   DescribeRouteTablesCommand,
@@ -32,7 +30,7 @@ import { IAMClient } from '@aws-sdk/client-iam';
 import { LambdaClient } from '@aws-sdk/client-lambda';
 import { DescribeInstanceTypeLimitsCommand, OpenSearchClient } from '@aws-sdk/client-opensearch';
 import { DescribeDBClustersCommand, DescribeDBInstancesCommand, RDSClient } from '@aws-sdk/client-rds';
-import { GetTagKeysCommand, ResourceGroupsTaggingAPIClient } from '@aws-sdk/client-resource-groups-tagging-api';
+import { ResourceGroupsTaggingAPIClient } from '@aws-sdk/client-resource-groups-tagging-api';
 import { Route53Client } from '@aws-sdk/client-route-53';
 import { Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
 import { S3Client } from '@aws-sdk/client-s3';
@@ -67,6 +65,7 @@ import { AwsLambda } from '../lambda';
 import { AwsEcs } from '../ecs';
 import { AwsCodeBuild } from '../codebuild';
 import { AwsSystemsManager } from '../systems-manager';
+import { AwsCostManagement } from '../cost-management';
 import { defaultGetErrorFunction } from './utils';
 
 export class AwsSdkManager {
@@ -85,6 +84,7 @@ export class AwsSdkManager {
   #ecs?: AwsEcs;
   #codeBuild?: AwsCodeBuild;
   #systemsManager?: AwsSystemsManager;
+  #costManagement?: AwsCostManagement;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -175,6 +175,12 @@ export class AwsSdkManager {
     });
     this.#systemsManager = new AwsSystemsManager({
       createClient: () => this.#ssm(),
+      getErrorHandler: this.#getErrorHandler
+    });
+    this.#costManagement = new AwsCostManagement({
+      createBudgetsClient: () => this.#budgets(),
+      createCostExplorerClient: () => this.#costExplorer(),
+      createResourceTaggingClient: () => this.#resourceGroupsTaggingApi(),
       getErrorHandler: this.#getErrorHandler
     });
   }
@@ -305,6 +311,14 @@ export class AwsSdkManager {
       throw new Error('AWS Systems Manager has not been initialized.');
     }
     return this.#systemsManager;
+  }
+
+  get costManagement() {
+    this.#getContext();
+    if (!this.#costManagement) {
+      throw new Error('AWS cost management services have not been initialized.');
+    }
+    return this.#costManagement;
   }
 
   #getContext() {
@@ -466,66 +480,6 @@ export class AwsSdkManager {
     return this.#applyPlugins(new BudgetsClient(this.#getClientArgs()));
   }
 
-  getAllTagsUsedInRegion = async () => {
-    const errHandler = this.#getErrorHandler('Could not fetch information about tags used in this region');
-    const result: string[] = [];
-    let { TagKeys, PaginationToken } = await this.#resourceGroupsTaggingApi()
-      .send(new GetTagKeysCommand({}))
-      .catch(errHandler);
-    result.push(...(TagKeys || []));
-    while (PaginationToken) {
-      ({ TagKeys, PaginationToken } = await this.#resourceGroupsTaggingApi()
-        .send(new GetTagKeysCommand({ PaginationToken }))
-        .catch(errHandler));
-
-      result.push(...(TagKeys || []));
-    }
-    return result;
-  };
-
-  getTagsUsableInCostExploring = async (): Promise<{ error?: CostExplorerTagsError; tags: string[] }> => {
-    const errHandler = this.#getErrorHandler('Could not fetch information about tags usable for budget');
-    const result: string[] = [];
-    const currentDate = new Date();
-    const yearBeforeNowDate = new Date();
-    yearBeforeNowDate.setFullYear(currentDate.getFullYear() - 1);
-    try {
-      let { Tags, NextPageToken } = await this.#costExplorer().send(
-        new GetTagsCommand({
-          TimePeriod: {
-            Start: yearBeforeNowDate.toISOString().slice(0, 10),
-            End: currentDate.toISOString().slice(0, 10)
-          }
-        })
-      );
-      // .catch(errHandler);
-      result.push(...(Tags || []));
-      while (NextPageToken) {
-        ({ Tags, NextPageToken } = await this.#costExplorer().send(
-          new GetTagsCommand({
-            NextPageToken,
-            TimePeriod: {
-              Start: yearBeforeNowDate.toISOString().slice(0, 10),
-              End: currentDate.toISOString().slice(0, 10)
-            }
-          })
-        ));
-        // .catch(errHandler));
-
-        result.push(...(Tags || []));
-      }
-    } catch (err) {
-      if (`${err}`.includes('Data is not available')) {
-        return { error: 'DATA_UNAVAILABLE', tags: [] };
-      }
-      if (`${err}`.includes('User not enabled for cost explorer')) {
-        return { error: 'USER_NOT_ENABLED_FOR_COST_EXPLORER', tags: [] };
-      }
-      errHandler(err);
-    }
-    return { tags: result };
-  };
-
   //   getStackDriftInformation = async (stackName: string): Promise<DriftDetail[]> => {
   //     let driftInformation: DescribeStackResourceDriftsCommandOutput;
   //     try {
@@ -610,22 +564,6 @@ export class AwsSdkManager {
         return originItem.DomainName === bucketDomainName;
       })
     );
-  };
-
-  listBudgets = async ({ accountId }: { accountId: string }) => {
-    const errHandler = this.#getErrorHandler('Failed to list budgets in the account.');
-    const result: Budget[][] = [];
-    let { NextToken, Budgets } = await this.#budgets()
-      .send(new DescribeBudgetsCommand({ AccountId: accountId }))
-      .catch(errHandler);
-    result.push(Budgets);
-    while (NextToken) {
-      ({ NextToken, Budgets } = await this.#budgets()
-        .send(new DescribeBudgetsCommand({ AccountId: accountId, NextToken }))
-        .catch(errHandler));
-      result.push(Budgets);
-    }
-    return result.flat().filter((budget) => budget !== undefined);
   };
 
   getEc2InstanceTypesInfo = async ({ instanceTypes }: { instanceTypes: _InstanceType[] }) => {

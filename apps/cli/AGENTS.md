@@ -42,8 +42,9 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   sessions and Run Command shell execution are reached as `awsSdkManager.systemsManager`; Parameter Store is a
   separate capability despite using the same AWS service client. SSM Parameter Store, Secrets Manager, CloudWatch
   logs/metrics/alarms, and Route 53/ACM/SES domain operations are reached as `awsSdkManager.parameterStore`,
-  `awsSdkManager.secrets`, `awsSdkManager.observability`, and `awsSdkManager.domains`. Capability extraction must keep
-  using `src/aws/context.ts` client construction so credential
+  `awsSdkManager.secrets`, `awsSdkManager.observability`, and `awsSdkManager.domains`. Regional resource-tag discovery,
+  Cost Explorer tags and account budgets form the budget workflow's `awsSdkManager.costManagement` boundary.
+  Capability extraction must keep using `src/aws/context.ts` client construction so credential
   refresh, endpoint overrides, retry/redirect middleware and service-specific timeouts do not drift.
   `package`, `synth`, and `validate` initialize that context from the standard local AWS credential provider chain and
   do not require Stacktape Console authentication. Account identity remains required because it participates in

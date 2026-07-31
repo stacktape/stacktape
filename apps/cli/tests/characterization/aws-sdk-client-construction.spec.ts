@@ -1,13 +1,16 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { ACMClient } from '@aws-sdk/client-acm';
+import { BudgetsClient } from '@aws-sdk/client-budgets';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
 import { CodeBuildClient } from '@aws-sdk/client-codebuild';
 import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
+import { CostExplorerClient } from '@aws-sdk/client-cost-explorer';
 import { ECSClient } from '@aws-sdk/client-ecs';
 import { IAMClient, NoSuchEntityException } from '@aws-sdk/client-iam';
 import { LambdaClient } from '@aws-sdk/client-lambda';
 import { Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
+import { ResourceGroupsTaggingAPIClient } from '@aws-sdk/client-resource-groups-tagging-api';
 import { S3Client } from '@aws-sdk/client-s3';
 import {
   DeleteParameterCommand,
@@ -354,6 +357,31 @@ describe.serial('AWS SDK client construction', () => {
 
     expect(await captured().config.region()).toBe('eu-west-1');
     expect(pluginApplications).toBe(1);
+  });
+
+  test.serial('constructs all cost-management clients from the manager context', async () => {
+    const capturedResourceTagging = captureSend<ResourceGroupsTaggingAPIClient>(
+      ResourceGroupsTaggingAPIClient.prototype,
+      { TagKeys: [] }
+    );
+    const capturedCostExplorer = captureSend<CostExplorerClient>(CostExplorerClient.prototype, { Tags: [] });
+    const capturedBudgets = captureSend<BudgetsClient>(BudgetsClient.prototype, { Budgets: [] });
+    let pluginApplications = 0;
+    const plugin: Pluggable<any, any> = {
+      applyToStack: () => {
+        pluginApplications += 1;
+      }
+    };
+    const costManagement = managerWith([plugin]).costManagement;
+
+    await costManagement.listResourceTagKeys();
+    await costManagement.listCostExplorerTags();
+    await costManagement.listBudgets({ accountId: '123456789012' });
+
+    expect(await capturedResourceTagging().config.region()).toBe('eu-west-1');
+    expect(await capturedCostExplorer().config.region()).toBe('eu-west-1');
+    expect(await capturedBudgets().config.region()).toBe('eu-west-1');
+    expect(pluginApplications).toBe(3);
   });
 
   test.serial('applies explicit plugins to ordinary clients', async () => {

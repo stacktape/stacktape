@@ -22,8 +22,8 @@ export class BudgetManager {
       instanceId: parentEventType ? 'Cost budgets' : undefined
     });
     const [tagsUsedInRegion, tagsUsableInCostExploring] = await Promise.all([
-      awsSdkManager.getAllTagsUsedInRegion(),
-      awsSdkManager.getTagsUsableInCostExploring(),
+      awsSdkManager.costManagement.listResourceTagKeys(),
+      awsSdkManager.costManagement.listCostExplorerTags(),
       this.loadBudgets()
     ]);
     // await this.loadBudgets();
@@ -37,7 +37,9 @@ export class BudgetManager {
   };
 
   loadBudgets = async () => {
-    this.budgets = await awsSdkManager.listBudgets({ accountId: globalStateManager.targetAwsAccount.awsAccountId });
+    this.budgets = await awsSdkManager.costManagement.listBudgets({
+      accountId: globalStateManager.targetAwsAccount.awsAccountId
+    });
   };
 
   isBudgetingEnabled = () => {
