@@ -1,5 +1,4 @@
 import type { TuiManager as Printer } from '@application-services/tui-manager';
-import type { _InstanceType, InstanceTypeInfo, RouteTable, Subnet, Vpc } from '@aws-sdk/client-ec2';
 import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { AutoScaling, DescribeAutoScalingGroupsCommand } from '@aws-sdk/client-auto-scaling';
@@ -11,13 +10,7 @@ import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
 import { CodeBuildClient } from '@aws-sdk/client-codebuild';
 import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
 import { CostExplorerClient } from '@aws-sdk/client-cost-explorer';
-import {
-  DescribeInstanceTypesCommand,
-  DescribeRouteTablesCommand,
-  DescribeSubnetsCommand,
-  DescribeVpcsCommand,
-  EC2Client
-} from '@aws-sdk/client-ec2';
+import { EC2Client } from '@aws-sdk/client-ec2';
 import { ECRClient } from '@aws-sdk/client-ecr';
 import { ECSClient } from '@aws-sdk/client-ecs';
 import { IAMClient } from '@aws-sdk/client-iam';
@@ -60,6 +53,7 @@ import { AwsCodeBuild } from '../codebuild';
 import { AwsSystemsManager } from '../systems-manager';
 import { AwsCostManagement } from '../cost-management';
 import { AwsCloudFront } from '../cloudfront';
+import { AwsEc2 } from '../ec2';
 import { defaultGetErrorFunction } from './utils';
 
 export class AwsSdkManager {
@@ -80,6 +74,7 @@ export class AwsSdkManager {
   #systemsManager?: AwsSystemsManager;
   #costManagement?: AwsCostManagement;
   #cloudFront?: AwsCloudFront;
+  #ec2?: AwsEc2;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -183,6 +178,10 @@ export class AwsSdkManager {
       getErrorHandler: this.#getErrorHandler,
       region,
       wait
+    });
+    this.#ec2 = new AwsEc2({
+      createClient: () => this.#ec2Client(),
+      getErrorHandler: this.#getErrorHandler
     });
   }
 
@@ -330,6 +329,14 @@ export class AwsSdkManager {
     return this.#cloudFront;
   }
 
+  get ec2() {
+    this.#getContext();
+    if (!this.#ec2) {
+      throw new Error('AWS EC2 has not been initialized.');
+    }
+    return this.#ec2;
+  }
+
   #getContext() {
     if (!this.#context) {
       throw new Error('AWS SDK manager has not been initialized.');
@@ -434,7 +441,7 @@ export class AwsSdkManager {
     return this.#applyPlugins(new ECSClient(this.#getClientArgs()));
   }
 
-  #ec2() {
+  #ec2Client() {
     return this.#applyPlugins(new EC2Client(this.#getClientArgs()));
   }
 
@@ -510,67 +517,6 @@ export class AwsSdkManager {
 
   //     return res;
   //   };
-
-  getEc2InstanceTypesInfo = async ({ instanceTypes }: { instanceTypes: _InstanceType[] }) => {
-    const errHandler = this.#getErrorHandler('Could not list EC2 instance types.');
-    const result: InstanceTypeInfo[] = [];
-    let { InstanceTypes, NextToken } = await this.#ec2()
-      .send(new DescribeInstanceTypesCommand({ InstanceTypes: instanceTypes }))
-      .catch(errHandler);
-    result.push(...(InstanceTypes || []));
-    while (NextToken) {
-      ({ InstanceTypes, NextToken } = await this.#ec2()
-        .send(new DescribeInstanceTypesCommand({ InstanceTypes: instanceTypes, NextToken }))
-        .catch(errHandler));
-      result.push(...(InstanceTypes || []));
-    }
-    return result;
-  };
-
-  describeSubnets = async (params: { subnetIds?: string[]; vpcId?: string }): Promise<Subnet[]> => {
-    const errHandler = this.#getErrorHandler('Could not describe subnets.');
-
-    const filters = params.vpcId ? [{ Name: 'vpc-id', Values: [params.vpcId] }] : undefined;
-
-    const result = await this.#ec2()
-      .send(
-        new DescribeSubnetsCommand({
-          SubnetIds: params.subnetIds,
-          Filters: filters
-        })
-      )
-      .catch(errHandler);
-
-    return result.Subnets || [];
-  };
-
-  describeRouteTables = async (vpcId: string): Promise<RouteTable[]> => {
-    const errHandler = this.#getErrorHandler('Could not describe route tables.');
-
-    const result = await this.#ec2()
-      .send(
-        new DescribeRouteTablesCommand({
-          Filters: [{ Name: 'vpc-id', Values: [vpcId] }]
-        })
-      )
-      .catch(errHandler);
-
-    return result.RouteTables || [];
-  };
-
-  describeVpcs = async (vpcIds: string[]): Promise<Vpc[]> => {
-    const errHandler = this.#getErrorHandler('Could not describe VPCs.');
-
-    const result = await this.#ec2()
-      .send(
-        new DescribeVpcsCommand({
-          VpcIds: vpcIds
-        })
-      )
-      .catch(errHandler);
-
-    return result.Vpcs || [];
-  };
 
   getAutoscalingGroupInfo = async ({ autoscalingGroupAwsName }: { autoscalingGroupAwsName: string }) => {
     const errHandler = this.#getErrorHandler(

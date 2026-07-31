@@ -7,6 +7,7 @@ import { CloudFrontClient } from '@aws-sdk/client-cloudfront';
 import { CodeBuildClient } from '@aws-sdk/client-codebuild';
 import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
 import { CostExplorerClient } from '@aws-sdk/client-cost-explorer';
+import { EC2Client } from '@aws-sdk/client-ec2';
 import { ECSClient } from '@aws-sdk/client-ecs';
 import { IAMClient, NoSuchEntityException } from '@aws-sdk/client-iam';
 import { LambdaClient } from '@aws-sdk/client-lambda';
@@ -397,6 +398,21 @@ describe.serial('AWS SDK client construction', () => {
     };
 
     await managerWith([plugin]).cloudFront.findDistributionsForBucket({ bucketName: 'assets' });
+
+    expect(await captured().config.region()).toBe('eu-west-1');
+    expect(pluginApplications).toBe(1);
+  });
+
+  test.serial('constructs EC2 discovery clients from the manager context', async () => {
+    const captured = captureSend<EC2Client>(EC2Client.prototype, { Vpcs: [] });
+    let pluginApplications = 0;
+    const plugin: Pluggable<any, any> = {
+      applyToStack: () => {
+        pluginApplications += 1;
+      }
+    };
+
+    await managerWith([plugin]).ec2.describeVpcs(['vpc-1']);
 
     expect(await captured().config.region()).toBe('eu-west-1');
     expect(pluginApplications).toBe(1);

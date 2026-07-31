@@ -84,7 +84,7 @@ export class VpcManager {
     }
 
     // Get VPC details from EC2 API
-    const vpcs = await awsSdkManager.describeVpcs([vpcId]);
+    const vpcs = await awsSdkManager.ec2.describeVpcs([vpcId]);
     this.#vpc = vpcs[0];
 
     if (!this.#vpc?.CidrBlock || !this.#vpc?.VpcId) {
@@ -99,10 +99,10 @@ export class VpcManager {
     }
 
     // Get all subnets in the VPC
-    const allSubnets = await awsSdkManager.describeSubnets({ vpcId });
+    const allSubnets = await awsSdkManager.ec2.describeSubnets({ vpcId });
 
     // Get route tables for the VPC
-    const routeTables = await awsSdkManager.describeRouteTables(vpcId);
+    const routeTables = await awsSdkManager.ec2.describeRouteTables(vpcId);
 
     // Build subnet-to-route-table mapping
     const subnetToRouteTableMap = new Map<string, string>();

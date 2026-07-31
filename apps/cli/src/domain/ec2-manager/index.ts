@@ -31,7 +31,7 @@ export class EC2Manager {
       });
       const [ec2InstanceTypes] = await Promise.all([
         instanceTypes.length &&
-          awsSdkManager.getEc2InstanceTypesInfo({
+          awsSdkManager.ec2.getInstanceTypes({
             instanceTypes: instanceTypes as _InstanceType[]
           }),
         // awsSdkManager.ecs.setAccountSetting('awsvpcTrunking', 'enabled'),
