@@ -121,7 +121,7 @@ const writeSensitiveParam = async ({
 
 const ensureConvexAdminKey = async (convex: StpConvex) => {
   const convexSecretName = getConvexSecretName({ nameChain: convex.nameChain });
-  const { SecretString } = await awsSdkManager.getSecretValue({ secretId: convexSecretName });
+  const { SecretString } = await awsSdkManager.secrets.get({ secretId: convexSecretName });
   if (!SecretString) {
     throw new ExpectedError(
       'DEPLOYMENT',
@@ -172,7 +172,7 @@ const ensureConvexAdminKey = async (convex: StpConvex) => {
       );
     }
     secretValue.adminKey = parseConvexAdminKey(result.output);
-    await awsSdkManager.updateExistingSecret(convexSecretName, JSON.stringify(secretValue));
+    await awsSdkManager.secrets.update({ secretId: convexSecretName, value: JSON.stringify(secretValue) });
   }
 
   await Promise.all([

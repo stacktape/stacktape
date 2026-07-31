@@ -26,7 +26,7 @@ export const commandSecretGet = async () => {
   }
 
   const spinner = tuiManager.createSpinner({ text: 'Retrieving secret' });
-  const secretValue = await awsSdkManager.getSecretValue({ secretId: secretName });
+  const secretValue = await awsSdkManager.secrets.get({ secretId: secretName });
   spinner.success({ text: `Retrieved secret ${tuiManager.makeBold(secretName)}` });
 
   const parsedValue = isJson(secretValue.SecretString)

@@ -26,7 +26,7 @@ export const commandSecretDelete = async () => {
     });
   }
 
-  await awsSdkManager.deleteSecret(secretName);
+  await awsSdkManager.secrets.delete({ secretId: secretName });
   tuiManager.success(`Secret "${secretName}" deleted.`);
   await notificationManager.reportEvent({ type: 'SECRET_DELETED', title: `Secret "${secretName}" deleted` });
 

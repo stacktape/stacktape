@@ -82,7 +82,7 @@ export const commandSecretSet = async () => {
 const createNamedSecret = async (secretName: string, secretValue: string, forceUpdate?: boolean) => {
   const spinner = tuiManager.createSpinner({ text: 'Creating secret' });
 
-  const secretList = await awsSdkManager.listAllSecrets();
+  const secretList = await awsSdkManager.secrets.list();
   const matchingSecret = secretList.find(({ Name }) => Name === secretName);
   if (matchingSecret) {
     spinner.success({ text: 'Checked existing secrets' });
@@ -90,7 +90,7 @@ const createNamedSecret = async (secretName: string, secretValue: string, forceU
     if (isAgentMode()) {
       if (forceUpdate) {
         const updateSpinner = tuiManager.createSpinner({ text: 'Updating secret' });
-        await awsSdkManager.updateExistingSecret(matchingSecret.ARN, secretValue);
+        await awsSdkManager.secrets.update({ secretId: matchingSecret.ARN, value: secretValue });
         updateSpinner.success({ text: `Secret "${secretName}" updated` });
         await notificationManager.reportEvent({ type: 'SECRET_UPDATED', title: `Secret "${secretName}" updated` });
         return;
@@ -106,7 +106,7 @@ const createNamedSecret = async (secretName: string, secretValue: string, forceU
     });
     if (shouldUpdate) {
       const updateSpinner = tuiManager.createSpinner({ text: 'Updating secret' });
-      await awsSdkManager.updateExistingSecret(matchingSecret.ARN, secretValue);
+      await awsSdkManager.secrets.update({ secretId: matchingSecret.ARN, value: secretValue });
       updateSpinner.success({ text: `Secret "${secretName}" updated` });
       await notificationManager.reportEvent({ type: 'SECRET_UPDATED', title: `Secret "${secretName}" updated` });
       tuiManager.outro('Secret updated!');
@@ -115,7 +115,7 @@ const createNamedSecret = async (secretName: string, secretValue: string, forceU
     }
     return;
   }
-  await awsSdkManager.createNewSecret(secretName, secretValue);
+  await awsSdkManager.secrets.create({ name: secretName, value: secretValue });
   spinner.success({ text: `Secret "${secretName}" created` });
   await notificationManager.reportEvent({ type: 'SECRET_CREATED', title: `Secret "${secretName}" created` });
   if (!isAgentMode()) {

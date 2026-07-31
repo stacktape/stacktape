@@ -65,7 +65,7 @@ const promptAndCreateUserInputSecrets = async (secrets: [string, Set<string>][])
         jsonObject[key] = value;
       }
       const spinner = tuiManager.createSpinner({ text: `Creating secret ${tuiManager.makeBold(secretName)}` });
-      await awsSdkManager.createNewSecret(secretName, JSON.stringify(jsonObject));
+      await awsSdkManager.secrets.create({ name: secretName, value: JSON.stringify(jsonObject) });
       spinner.success({ text: `Secret ${tuiManager.makeBold(secretName)} created` });
     } else {
       const value = await tuiManager.promptText({
@@ -73,7 +73,7 @@ const promptAndCreateUserInputSecrets = async (secrets: [string, Set<string>][])
         isPassword: true
       });
       const spinner = tuiManager.createSpinner({ text: `Creating secret ${tuiManager.makeBold(secretName)}` });
-      await awsSdkManager.createNewSecret(secretName, value);
+      await awsSdkManager.secrets.create({ name: secretName, value });
       spinner.success({ text: `Secret ${tuiManager.makeBold(secretName)} created` });
     }
   }
@@ -96,7 +96,7 @@ export const ensureMissingSecretsCreated = async () => {
     return;
   }
 
-  const existingSecrets = await awsSdkManager.listAllSecrets();
+  const existingSecrets = await awsSdkManager.secrets.list();
   const existingSecretNames = new Set(existingSecrets.map(({ Name }) => Name));
   const missingSecrets = [...secretRefs.entries()].filter(([name]) => !existingSecretNames.has(name));
 
@@ -163,7 +163,7 @@ export const ensureMissingSecretsCreated = async () => {
     const spinner = tuiManager.createSpinner({ text: `Creating ${autoGenerable.length} database secret(s)` });
     for (const [secretName, jsonKeys] of autoGenerable) {
       const secretValue = buildSecretValue(jsonKeys);
-      await awsSdkManager.createNewSecret(secretName, secretValue);
+      await awsSdkManager.secrets.create({ name: secretName, value: secretValue });
     }
     spinner.success({
       text: `Created ${autoGenerable.length} secret(s): ${autoGenerable.map(([n]) => tuiManager.makeBold(n)).join(', ')}`

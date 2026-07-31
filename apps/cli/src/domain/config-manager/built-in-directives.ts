@@ -226,7 +226,7 @@ export const builtInDirectives: Directive[] = [
       const [secretName, jsonKey] = secretReference.split('.');
       let secret;
       try {
-        secret = await awsSdkManager.getSecretValue({ secretId: secretName });
+        secret = await awsSdkManager.secrets.get({ secretId: secretName });
       } catch (err) {
         throw new ExpectedError(
           'DIRECTIVE',
@@ -279,7 +279,7 @@ export const builtInDirectives: Directive[] = [
       //   return IDENTIFIER_FOR_MISSING_OUTPUT;
       // }
       try {
-        const { SecretString: secretValue } = await awsSdkManager.getSecretValue({
+        const { SecretString: secretValue } = await awsSdkManager.secrets.get({
           secretId: secretName,
           versionId: secretVersionId
         });

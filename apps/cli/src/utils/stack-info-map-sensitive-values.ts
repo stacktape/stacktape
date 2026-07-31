@@ -70,7 +70,7 @@ const locallyResolveSecret = async ({
   jsonKey?: string;
 }) => {
   try {
-    const { SecretString } = await awsSdkManager.getSecretValue({ secretId, versionId, versionStage });
+    const { SecretString } = await awsSdkManager.secrets.get({ secretId, versionId, versionStage });
     if (jsonKey) {
       return JSON.parse(SecretString)[jsonKey];
     }

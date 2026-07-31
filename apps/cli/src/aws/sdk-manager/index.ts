@@ -43,7 +43,6 @@ import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch
 import type { HostedZone, ResourceRecordSet } from '@aws-sdk/client-route-53';
 import type { DomainPrice } from '@aws-sdk/client-route-53-domains';
 import type { _Object, ObjectIdentifier, ObjectVersion } from '@aws-sdk/client-s3';
-import type { SecretListEntry } from '@aws-sdk/client-secrets-manager';
 import type { StartSessionCommandInput, StartSessionResponse } from '@aws-sdk/client-ssm';
 import type { Credentials } from '@aws-sdk/types';
 import type TaskDefinition from '@cloudform/ecs/taskDefinition';
@@ -214,14 +213,7 @@ import {
   S3ServiceException,
   waitUntilBucketExists
 } from '@aws-sdk/client-s3';
-import {
-  CreateSecretCommand,
-  DeleteSecretCommand,
-  GetSecretValueCommand,
-  ListSecretsCommand,
-  SecretsManagerClient,
-  UpdateSecretCommand
-} from '@aws-sdk/client-secrets-manager';
+import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { GetIdentityVerificationAttributesCommand, SESClient, VerifyDomainDkimCommand } from '@aws-sdk/client-ses';
 import { GetAccountCommand, SESv2Client } from '@aws-sdk/client-sesv2';
 import {
@@ -264,6 +256,7 @@ import {
 } from '../context';
 import { S3Sync } from '../s3-sync';
 import { AwsParameterStore } from '../parameter-store';
+import { AwsSecrets } from '../secrets';
 import {
   automaticUploadFilterPresets,
   defaultGetErrorFunction,
@@ -358,6 +351,7 @@ const hasVersionArn = (version: TypeVersionSummary): version is RegisteredPrivat
 export class AwsSdkManager {
   #context?: AwsClientContext;
   #parameterStore?: AwsParameterStore;
+  #secrets?: AwsSecrets;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -384,6 +378,10 @@ export class AwsSdkManager {
       getErrorHandler: this.#getErrorHandler,
       printer
     });
+    this.#secrets = new AwsSecrets({
+      createClient: () => this.#secretsManager(),
+      getErrorHandler: this.#getErrorHandler
+    });
   }
 
   get isInitialized() {
@@ -408,6 +406,14 @@ export class AwsSdkManager {
       throw new Error('AWS Parameter Store has not been initialized.');
     }
     return this.#parameterStore;
+  }
+
+  get secrets() {
+    this.#getContext();
+    if (!this.#secrets) {
+      throw new Error('AWS Secrets Manager has not been initialized.');
+    }
+    return this.#secrets;
   }
 
   #getContext() {
@@ -1994,70 +2000,6 @@ export class AwsSdkManager {
       )
       .catch(errHandler);
     return response.MetricDataResults || [];
-  };
-
-  updateExistingSecret = async (secretArn: string, newSecretString: string) => {
-    const errHandler = this.#getErrorHandler('Failed to update secret.');
-    return this.#secretsManager()
-      .send(new UpdateSecretCommand({ SecretId: secretArn, SecretString: newSecretString }))
-      .catch(errHandler);
-  };
-
-  createNewSecret = async (secretName: string, secretString: string) => {
-    const errHandler = this.#getErrorHandler('Failed to create new secret.');
-    return this.#secretsManager()
-      .send(
-        new CreateSecretCommand({
-          Name: secretName,
-          SecretString: secretString,
-          Description: 'Created by Stacktape'
-        })
-      )
-      .catch(errHandler);
-  };
-
-  getSecretValue = async ({
-    secretId,
-    versionId,
-    versionStage
-  }: {
-    secretId: string;
-    versionId?: string;
-    versionStage?: string;
-  }) => {
-    const errHandler = this.#getErrorHandler('Failed to get secret value.');
-    return this.#secretsManager()
-      .send(
-        new GetSecretValueCommand({
-          SecretId: secretId,
-          ...(versionId && { VersionId: versionId }),
-          ...(versionStage && { VersionStage: versionStage })
-        })
-      )
-      .catch(errHandler);
-  };
-
-  deleteSecret = async (secretId: string) => {
-    const errHandler = this.#getErrorHandler(`Failed to delete secret with id ${secretId}.`);
-    return this.#secretsManager()
-      .send(new DeleteSecretCommand({ SecretId: secretId }))
-      .catch(errHandler);
-  };
-
-  listAllSecrets = async (): Promise<SecretListEntry[]> => {
-    const errHandler = this.#getErrorHandler('Failed to list secrets.');
-    const secrets: SecretListEntry[][] = [];
-    const { SecretList, NextToken } = await this.#secretsManager().send(new ListSecretsCommand({})).catch(errHandler);
-    secrets.push(SecretList);
-    let nextToken = NextToken;
-    while (nextToken) {
-      const { SecretList: newList, NextToken: newToken } = await this.#secretsManager()
-        .send(new ListSecretsCommand({ NextToken: nextToken }))
-        .catch(errHandler);
-      secrets.push(newList);
-      nextToken = newToken;
-    }
-    return secrets.flat();
   };
 
   listAllHostedZones = async (): Promise<HostedZone[]> => {
