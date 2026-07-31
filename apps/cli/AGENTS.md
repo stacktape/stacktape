@@ -36,7 +36,9 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   other workflow objects receive the narrow capabilities they use instead of the complete manager. ECS discovery,
   task registration, service updates, ECS Exec and ECS-targeted CodeDeploy operations are reached as
   `awsSdkManager.ecs`; the CodeDeploy client belongs there because it implements the ECS blue-green deployment
-  workflow rather than a general CodeDeploy surface. SSM Parameter
+  workflow rather than a general CodeDeploy surface. CodeBuild API operations and buildspec construction are reached
+  as `awsSdkManager.codeBuild`; the cross-service pipeline setup and secret lifecycle remain in
+  `src/aws/codebuild-deployment.ts`. Do not restore the removed, unreachable remote-delete runner. SSM Parameter
   Store, Secrets Manager, CloudWatch
   logs/metrics/alarms, and Route 53/ACM/SES domain operations are reached as `awsSdkManager.parameterStore`,
   `awsSdkManager.secrets`, `awsSdkManager.observability`, and `awsSdkManager.domains`; SSM sessions remain separate

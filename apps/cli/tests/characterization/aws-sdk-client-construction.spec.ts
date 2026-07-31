@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
+import { CodeBuildClient } from '@aws-sdk/client-codebuild';
 import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
 import { ECSClient } from '@aws-sdk/client-ecs';
 import { IAMClient, NoSuchEntityException } from '@aws-sdk/client-iam';
@@ -319,6 +320,21 @@ describe.serial('AWS SDK client construction', () => {
     expect(await capturedEcs().config.region()).toBe('eu-west-1');
     expect(await capturedCodeDeploy().config.region()).toBe('eu-west-1');
     expect(pluginApplications).toBe(2);
+  });
+
+  test.serial('constructs CodeBuild clients from the manager context', async () => {
+    const captured = captureSend<CodeBuildClient>(CodeBuildClient.prototype, { builds: [] });
+    let pluginApplications = 0;
+    const plugin: Pluggable<any, any> = {
+      applyToStack: () => {
+        pluginApplications += 1;
+      }
+    };
+
+    await managerWith([plugin]).codeBuild.getBuilds({ buildIds: ['build-1'] });
+
+    expect(await captured().config.region()).toBe('eu-west-1');
+    expect(pluginApplications).toBe(1);
   });
 
   test.serial('applies explicit plugins to ordinary clients', async () => {

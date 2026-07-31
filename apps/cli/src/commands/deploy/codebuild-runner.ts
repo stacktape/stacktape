@@ -19,7 +19,7 @@ import {
   getCodebuildLogStreamNameFromBuildInfo,
   preparePipelineResources,
   startCodebuildDeployment
-} from 'src/aws/codebuild';
+} from 'src/aws/codebuild-deployment';
 import { fsPaths } from 'src/config/runtime-paths';
 import { serialize, wait } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
@@ -175,7 +175,7 @@ export const deployWithCodebuildRunner = async () => {
 
   do {
     await wait(1000);
-    build = await awsSdkManager.getCodebuildDeployment({ buildId: build.id });
+    build = await awsSdkManager.codeBuild.getBuild({ buildId: build.id });
     if (
       [StatusType.FAILED, StatusType.FAULT, StatusType.STOPPED, StatusType.TIMED_OUT].includes(
         build.buildStatus as StatusType as any

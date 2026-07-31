@@ -1,10 +1,7 @@
 import type { TuiManager as Printer } from '@application-services/tui-manager';
 import type { CostExplorerTagsError } from '@domain-services/budget-manager/types';
-import type { GitInformation } from '@utils/git-info-manager/types';
-import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
 import type { Budget } from '@aws-sdk/client-budgets';
 import type { DistributionSummary } from '@aws-sdk/client-cloudfront';
-import type { BatchGetBuildsCommandInput } from '@aws-sdk/client-codebuild';
 import type { _InstanceType, InstanceTypeInfo, RouteTable, Subnet, Vpc } from '@aws-sdk/client-ec2';
 import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
 import type { StartSessionCommandInput, StartSessionResponse } from '@aws-sdk/client-ssm';
@@ -20,20 +17,7 @@ import {
 } from '@aws-sdk/client-cloudfront';
 import { CloudWatchClient } from '@aws-sdk/client-cloudwatch';
 import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
-import {
-  ArtifactsType,
-  BatchGetBuildsCommand,
-  BatchGetProjectsCommand,
-  BuildPhaseType,
-  CodeBuildClient,
-  ComputeType,
-  CreateProjectCommand,
-  EnvironmentType,
-  EnvironmentVariableType,
-  SourceType,
-  StartBuildCommand,
-  StatusType
-} from '@aws-sdk/client-codebuild';
+import { CodeBuildClient } from '@aws-sdk/client-codebuild';
 import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
 import { CostExplorerClient, GetTagsCommand } from '@aws-sdk/client-cost-explorer';
 import {
@@ -65,13 +49,8 @@ import {
 } from '@aws-sdk/client-ssm';
 import { STSClient } from '@aws-sdk/client-sts';
 // import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
-import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
-import { consoleLinks } from '@stacktape/naming/console-links';
 import { resourceURIs } from 'src/utils/aws-resource-uris';
 import { wait } from '@utils/misc';
-import { CliError } from '@utils/errors';
-import { getForwardableOperationInvocationEnv } from '@application-services/operation-invocation-context';
-import { kebabCase } from 'change-case';
 import {
   applyAwsClientPlugins,
   awsClientConfig,
@@ -93,15 +72,8 @@ import { AwsSts } from '../identity';
 import { AwsEcr } from '../ecr';
 import { AwsLambda } from '../lambda';
 import { AwsEcs } from '../ecs';
-import { defaultGetErrorFunction, transformToCliArgs } from './utils';
-
-const getOperationInvocationCodebuildEnvVariables = () => {
-  return Object.entries(getForwardableOperationInvocationEnv()).map(([name, value]) => ({
-    name,
-    value,
-    type: EnvironmentVariableType.PLAINTEXT
-  }));
-};
+import { AwsCodeBuild } from '../codebuild';
+import { defaultGetErrorFunction } from './utils';
 
 export class AwsSdkManager {
   #context?: AwsClientContext;
@@ -117,6 +89,7 @@ export class AwsSdkManager {
   #ecr?: AwsEcr;
   #lambda?: AwsLambda;
   #ecs?: AwsEcs;
+  #codeBuild?: AwsCodeBuild;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -198,6 +171,12 @@ export class AwsSdkManager {
       createClient: () => this.#ecsClient(),
       createCodeDeployClient: () => this.#codeDeployClient(),
       getErrorHandler: this.#getErrorHandler
+    });
+    this.#codeBuild = new AwsCodeBuild({
+      createClient: () => this.#codeBuildClient(),
+      getErrorHandler: this.#getErrorHandler,
+      printer,
+      region
     });
   }
 
@@ -313,6 +292,14 @@ export class AwsSdkManager {
     return this.#ecs;
   }
 
+  get codeBuild() {
+    this.#getContext();
+    if (!this.#codeBuild) {
+      throw new Error('AWS CodeBuild has not been initialized.');
+    }
+    return this.#codeBuild;
+  }
+
   #getContext() {
     if (!this.#context) {
       throw new Error('AWS SDK manager has not been initialized.');
@@ -353,7 +340,7 @@ export class AwsSdkManager {
     return this.#applyPlugins(new CodeDeployClient(this.#getClientArgs()));
   }
 
-  #codebuild() {
+  #codeBuildClient() {
     return this.#applyPlugins(new CodeBuildClient(this.#getClientArgs()));
   }
 
@@ -632,433 +619,6 @@ export class AwsSdkManager {
       result.push(Budgets);
     }
     return result.flat().filter((budget) => budget !== undefined);
-  };
-
-  getCodebuildProject = async ({ projectName }: { projectName: string }) => {
-    const errHandler = this.#getErrorHandler(`Cannot retrieve information about codebuild project ${projectName}`);
-    const result = await this.#codebuild()
-      .send(new BatchGetProjectsCommand({ names: [projectName] }))
-      .catch(errHandler);
-
-    if ((result.projectsNotFound || []).includes(projectName)) {
-      this.printer?.debug(`Codebuild project with name ${projectName} could not be found.`);
-    }
-    return result.projects?.[0];
-  };
-
-  createDummyCodebuildProject = async ({
-    projectName,
-    serviceRoleArn,
-    logGroupName
-  }: {
-    projectName: string;
-    serviceRoleArn: string;
-    logGroupName: string;
-  }) => {
-    const errHandler = this.#getErrorHandler('Unable to create codebuild project.');
-    const result = await this.#codebuild()
-      .send(
-        new CreateProjectCommand({
-          artifacts: { type: ArtifactsType.NO_ARTIFACTS },
-          name: projectName,
-          environment: {
-            computeType: ComputeType.BUILD_GENERAL1_MEDIUM,
-            type: EnvironmentType.LINUX_CONTAINER,
-            image: 'aws/codebuild/amazonlinux2-x86_64-standard:5.0' // 'aws/codebuild/standard:6.0'
-          },
-          serviceRole: serviceRoleArn,
-          source: {
-            type: SourceType.NO_SOURCE,
-            buildspec: JSON.stringify({
-              version: '0.2',
-              env: {
-                shell: 'bash'
-              },
-              phases: {
-                install: {
-                  'on-failure': 'ABORT',
-                  commands: ['curl -L https://installs.stacktape.com/linux.sh | sh']
-                },
-                build: {
-                  'on-failure': 'ABORT',
-                  commands: ['/root/.stacktape/bin/stacktape help']
-                }
-              }
-            })
-          },
-          logsConfig: {
-            cloudWatchLogs: {
-              status: 'ENABLED',
-              groupName: logGroupName,
-              streamName: 'test'
-            }
-          }
-        })
-      )
-      .catch(errHandler);
-    return result.project;
-  };
-
-  startCodebuildDelete = async ({
-    codebuildProjectName,
-    codebuildRoleArn,
-    commandArgs,
-    logGroupName,
-    stackName,
-    apiKeySsmParameterName,
-    systemId,
-    invocationId,
-    useStacktapeVersion,
-    codebuildBuildImage,
-    stacktapeTrpcEndpoint
-  }: {
-    codebuildProjectName: string;
-    codebuildRoleArn: string;
-    commandArgs: StacktapeArgs;
-    logGroupName: string;
-    stackName: string;
-    apiKeySsmParameterName: string;
-    systemId: string;
-    invocationId: string;
-    useStacktapeVersion?: string;
-    codebuildBuildImage?: string;
-    stacktapeTrpcEndpoint?: string;
-  }) => {
-    const errHandler = this.#getErrorHandler('Failed to start codebuild deplete stack.');
-
-    const bashInitiationFile = '/root/.local/bashrc';
-    const poetryCodebuildInstallationPath = '/root/.local/bin';
-    const stacktapeCodebuildInstallationPath = '/root/.stacktape/bin';
-
-    const { build } = await this.#codebuild()
-      .send(
-        new StartBuildCommand({
-          projectName: codebuildProjectName,
-          sourceTypeOverride: SourceType.NO_SOURCE,
-          environmentVariablesOverride: [
-            {
-              name: 'STACKTAPE_API_KEY',
-              value: apiKeySsmParameterName,
-              type: EnvironmentVariableType.PARAMETER_STORE
-            },
-            { name: 'STP_CODEBUILD', value: 'TRUE', type: EnvironmentVariableType.PLAINTEXT },
-            { name: 'STP_INVOCATION_ID', value: invocationId, type: EnvironmentVariableType.PLAINTEXT },
-            {
-              name: 'STP_ORIGINAL_SYSTEM_ID',
-              value: systemId,
-              type: EnvironmentVariableType.PLAINTEXT
-            },
-            ...getOperationInvocationCodebuildEnvVariables(),
-            {
-              name: 'BASH_ENV',
-              value: bashInitiationFile,
-              type: EnvironmentVariableType.PLAINTEXT
-            },
-            ...(stacktapeTrpcEndpoint
-              ? [
-                  {
-                    name: 'STP_CUSTOM_TRPC_API_ENDPOINT',
-                    value: stacktapeTrpcEndpoint,
-                    type: EnvironmentVariableType.PLAINTEXT
-                  }
-                ]
-              : [])
-          ],
-          privilegedModeOverride: true,
-          logsConfigOverride: {
-            cloudWatchLogs: {
-              status: 'ENABLED',
-              groupName: logGroupName,
-              streamName: `${stackName}/${kebabCase('deploy' as StacktapeCommand)}/${invocationId}`
-            }
-          },
-          imageOverride: codebuildBuildImage || 'aws/codebuild/amazonlinux2-x86_64-standard:5.0',
-          buildspecOverride: JSON.stringify({
-            version: '0.2',
-            env: {
-              shell: 'bash'
-            },
-            phases: {
-              install: {
-                'on-failure': 'ABORT',
-                commands: [
-                  // "export STACKTAPE_VERSION" line must be deleted prior to releasing 2.0 production version. This ensures that the newest version is installed
-                  // If you are testing runner deploys before a production release, specify the Stacktape version here.
-                  ...(useStacktapeVersion ? [`export STACKTAPE_VERSION="${useStacktapeVersion}"`] : []),
-                  'curl -L https://installs.stacktape.com/linux.sh | sh',
-                  `echo "export PATH="${stacktapeCodebuildInstallationPath}:${poetryCodebuildInstallationPath}:\\$PATH"" >> ${bashInitiationFile}`,
-                  `. ${bashInitiationFile}`,
-                  `ASSUME_ROLE_ARN="${codebuildRoleArn}"`,
-                  'TEMP_ROLE=$(aws sts assume-role --role-arn $ASSUME_ROLE_ARN --role-session-name codebuild-deploy)',
-                  'export TEMP_ROLE',
-
-                  `export AWS_ACCESS_KEY_ID=$(echo "\${TEMP_ROLE}" | jq -r '.Credentials.AccessKeyId')`,
-
-                  `export AWS_SECRET_ACCESS_KEY=$(echo "\${TEMP_ROLE}" | jq -r '.Credentials.SecretAccessKey')`,
-
-                  `export AWS_SESSION_TOKEN=$(echo "\${TEMP_ROLE}" | jq -r '.Credentials.SessionToken')`,
-
-                  `export EXPIRATION=$(echo "\${TEMP_ROLE}" | jq -r '.Credentials.Expiration')`
-                ],
-                finally: [`aws ssm delete-parameters --names "${apiKeySsmParameterName}"`]
-              },
-              build: {
-                'on-failure': 'ABORT',
-                commands: ['stacktape delete '.concat(transformToCliArgs(commandArgs).join(' '))]
-              }
-            }
-          })
-        })
-      )
-      .catch(errHandler);
-    return build;
-  };
-
-  startCodebuildDeployment = async ({
-    codebuildProjectName,
-    // codebuildRoleArn,
-    projectZipBucketName,
-    projectZipS3Key,
-    commandArgs,
-    logGroupName,
-    gitInfo,
-    stackName,
-    apiKeySsmParameterName,
-    systemId,
-    invocationId,
-    useStacktapeVersion,
-    codebuildBuildImage,
-    additionalBuildCommands = [],
-    additionalInstallCommands = [],
-    stacktapeTrpcEndpoint,
-    computeTypeOverride
-  }: {
-    codebuildProjectName: string;
-    codebuildRoleArn: string;
-    projectZipBucketName: string;
-    projectZipS3Key: string;
-    commandArgs: StacktapeArgs;
-    logGroupName: string;
-    gitInfo: GitInformation;
-    stackName: string;
-    apiKeySsmParameterName: string;
-    systemId: string;
-    invocationId: string;
-    useStacktapeVersion?: string;
-    additionalBuildCommands?: string[];
-    additionalInstallCommands?: string[];
-    computeTypeOverride?: ComputeType;
-    codebuildBuildImage?: string;
-    stacktapeTrpcEndpoint?: string;
-  }) => {
-    const errHandler = this.#getErrorHandler('Failure when starting codebuild deployment.');
-
-    const bashInitiationFile = '/root/.local/bashrc';
-    const poetryCodebuildInstallationPath = '/root/.local/bin';
-    const stacktapeCodebuildInstallationPath = '/root/.stacktape/bin';
-    const pnpmHome = '/root/.local/share/pnpm';
-    const bunHome = '/root/.bun/bin';
-
-    const { build } = await this.#codebuild()
-      .send(
-        new StartBuildCommand({
-          projectName: codebuildProjectName,
-          sourceTypeOverride: SourceType.S3,
-          sourceLocationOverride: `${projectZipBucketName}/${projectZipS3Key}`,
-          environmentVariablesOverride: [
-            {
-              name: 'STACKTAPE_API_KEY',
-              value: apiKeySsmParameterName,
-              type: EnvironmentVariableType.PARAMETER_STORE
-            },
-            { name: 'STP_CODEBUILD', value: 'TRUE', type: EnvironmentVariableType.PLAINTEXT },
-
-            { name: 'STP_GIT_USER_NAME', value: gitInfo.username || '', type: EnvironmentVariableType.PLAINTEXT },
-            { name: 'STP_GIT_BRANCH_NAME', value: gitInfo.branch || '', type: EnvironmentVariableType.PLAINTEXT },
-            { name: 'STP_GIT_COMMIT_SHA', value: gitInfo.commit || '', type: EnvironmentVariableType.PLAINTEXT },
-            { name: 'STP_GIT_URL', value: gitInfo.gitUrl || '', type: EnvironmentVariableType.PLAINTEXT },
-            { name: 'STP_INVOCATION_ID', value: invocationId, type: EnvironmentVariableType.PLAINTEXT },
-            {
-              name: 'STP_ORIGINAL_SYSTEM_ID',
-              value: systemId,
-              type: EnvironmentVariableType.PLAINTEXT
-            },
-            ...getOperationInvocationCodebuildEnvVariables(),
-            {
-              name: 'BASH_ENV',
-              value: bashInitiationFile,
-              type: EnvironmentVariableType.PLAINTEXT
-            },
-            ...(stacktapeTrpcEndpoint
-              ? [
-                  {
-                    name: 'STP_CUSTOM_TRPC_API_ENDPOINT',
-                    value: stacktapeTrpcEndpoint,
-                    type: EnvironmentVariableType.PLAINTEXT
-                  }
-                ]
-              : [])
-          ],
-          privilegedModeOverride: true,
-          logsConfigOverride: {
-            cloudWatchLogs: {
-              status: 'ENABLED',
-              groupName: logGroupName,
-              streamName: `${stackName}/${kebabCase('deploy' as StacktapeCommand)}/${invocationId}`
-            }
-          },
-          ...(computeTypeOverride ? { computeTypeOverride } : {}),
-          imageOverride: codebuildBuildImage || 'aws/codebuild/amazonlinux2-x86_64-standard:5.0',
-          buildspecOverride: JSON.stringify({
-            version: '0.2',
-            env: {
-              shell: 'bash'
-            },
-            phases: {
-              install: {
-                'on-failure': 'RETRY-2', // will retry up to 3 times
-                commands: [
-                  // track attempt count
-                  'if [ -z "${CODEBUILD_ATTEMPT+x}" ]; then export CODEBUILD_ATTEMPT=1; else CODEBUILD_ATTEMPT=$((CODEBUILD_ATTEMPT+1)); export CODEBUILD_ATTEMPT; fi',
-                  'echo "Install Phase - Attempt #${CODEBUILD_ATTEMPT}"',
-                  'docker run --privileged --rm public.ecr.aws/vend/tonistiigi/binfmt:latest --install arm64',
-                  ...additionalInstallCommands,
-                  'yum install -y libatomic',
-                  'curl -fsSL https://get.pnpm.io/install.sh | sh -',
-                  'curl -fsSL https://bun.sh/install | bash',
-                  ...(useStacktapeVersion ? [`export STACKTAPE_VERSION="${useStacktapeVersion}"`] : []),
-                  'curl -L https://installs.stacktape.com/linux.sh | sh',
-                  `echo "export PATH="${stacktapeCodebuildInstallationPath}:${poetryCodebuildInstallationPath}:${pnpmHome}:${bunHome}:\\$PATH"" >> ${bashInitiationFile}`,
-                  `. ${bashInitiationFile}`
-                  // `ASSUME_ROLE_ARN="${codebuildRoleArn}"`,
-                  // 'TEMP_ROLE=$(aws sts assume-role --role-arn $ASSUME_ROLE_ARN --role-session-name codebuild-deploy)',
-                  // 'export TEMP_ROLE',
-                  // // eslint-disable-next-line quotes
-                  // `export AWS_ACCESS_KEY_ID=$(echo "\${TEMP_ROLE}" | jq -r '.Credentials.AccessKeyId')`,
-                  // // eslint-disable-next-line quotes
-                  // `export AWS_SECRET_ACCESS_KEY=$(echo "\${TEMP_ROLE}" | jq -r '.Credentials.SecretAccessKey')`,
-                  // // eslint-disable-next-line quotes
-                  // `export AWS_SESSION_TOKEN=$(echo "\${TEMP_ROLE}" | jq -r '.Credentials.SessionToken')`,
-                  // // eslint-disable-next-line quotes
-                  // `export EXPIRATION=$(echo "\${TEMP_ROLE}" | jq -r '.Credentials.Expiration')`
-                ],
-                finally: [
-                  'if [ "$CODEBUILD_ATTEMPT" -ge 3 ] || [ "$CODEBUILD_BUILD_SUCCEEDING" -eq 1 ]; then ' +
-                    `  echo "Running cleanup…"; aws ssm delete-parameters --names "${apiKeySsmParameterName}"; ` +
-                    'else ' +
-                    '  echo "Install failed on attempt #${CODEBUILD_ATTEMPT}, sleeping 10s before retry…"; ' +
-                    '  sleep 10; ' +
-                    'fi'
-                ]
-              },
-              build: {
-                'on-failure': 'ABORT',
-                commands: [
-                  'if [ -f package.json ] && [ ! -d node_modules ]; then ' +
-                    'if [ -f pnpm-lock.yaml ]; then pnpm install --frozen-lockfile; ' +
-                    'elif [ -f yarn.lock ] && [ -f .yarnrc.yml ]; then corepack yarn install --immutable; ' +
-                    'elif [ -f yarn.lock ]; then corepack yarn install --frozen-lockfile; ' +
-                    'elif [ -f bun.lock ] || [ -f bun.lockb ]; then bun install --frozen-lockfile; ' +
-                    'elif [ -f package-lock.json ] || [ -f npm-shrinkwrap.json ]; then npm ci; ' +
-                    'else npm install; fi; fi',
-                  ...additionalBuildCommands,
-                  'stacktape deploy '.concat(transformToCliArgs(commandArgs).join(' '))
-                ]
-              }
-            }
-          })
-        })
-      )
-      .catch(errHandler);
-    return build;
-  };
-
-  getCodebuildDeployment = async ({ buildId }: { buildId: string }) => {
-    const errHandler = this.#getErrorHandler(`Error getting codebuild deployment with buildId ${buildId}.`);
-    const build = (
-      await this.#codebuild()
-        .send(new BatchGetBuildsCommand({ ids: [buildId] }))
-        .catch(errHandler)
-    ).builds.at(0);
-    return build;
-  };
-
-  getCodebuildBuilds = async ({ buildIds }: { buildIds: string[] }) => {
-    const errHandler = this.#getErrorHandler('Error getting codebuild builds.');
-    const { builds } = await this.#codebuild()
-      .send(new BatchGetBuildsCommand({ ids: buildIds }))
-      .catch(errHandler);
-    return builds;
-  };
-
-  waitForCodebuildDeploymentToReachBuildPhase = async ({
-    buildId,
-    awsAccountId
-  }: {
-    buildId: string;
-    awsAccountId: string;
-  }) => {
-    const errHandler = this.#getErrorHandler(
-      `Codebuild deployment with buildId ${buildId} failed to reach desired state.`
-    );
-    const failureStatusTypes = [
-      StatusType.FAILED,
-      StatusType.FAULT,
-      StatusType.STOPPED,
-      StatusType.TIMED_OUT,
-      'CLIENT_ERROR'
-    ];
-    const waiterInput: BatchGetBuildsCommandInput = { ids: [buildId] };
-    const waiterResult = await createWaiter(
-      { client: this.#codebuild(), maxWaitTime: 1500, minDelay: 1, maxDelay: 1 },
-      waiterInput,
-      async (codebuildCli, input) => {
-        const {
-          builds: [build]
-        } = await codebuildCli.send(new BatchGetBuildsCommand(input));
-        // this waiter conditions are motivated by https://github.com/aws/aws-cdk/blob/450f7ca695f5f0bab758c31f3fd8390649adce51/packages/aws-cdk/lib/api/hotswap/ecs-services.ts#L129
-        if (failureStatusTypes.includes(build.buildStatus as StatusType)) {
-          // if entire build failed, the last phase should also be failed (and the cause of failure)
-          const lastPhase = build.phases.find(({ phaseStatus }) =>
-            failureStatusTypes.includes(phaseStatus as StatusType)
-          );
-          const additionalMessage = (lastPhase.contexts || [])
-            .map(({ statusCode, message }) => `[Status code ${statusCode}]: ${message}`)
-            .join('\n');
-          throw new CliError({
-            category: 'CODEBUILD',
-            code: 'CODEBUILD_START_FAILED',
-            message: `Start of codebuild deployment failed in phase "${
-              lastPhase.phaseType
-            }" with status before stacktape operation could be started.${
-              additionalMessage ? `\nAdditional message: ${additionalMessage}.` : ''
-            }`,
-            hints: `Deployment logs: ${consoleLinks.codebuildDeployment(
-              this.region,
-              awsAccountId,
-              build.projectName,
-              buildId
-            )}`
-          });
-        }
-
-        const buildPhaseStarted = build.phases.find(({ phaseType }) => phaseType === BuildPhaseType.BUILD);
-
-        if (buildPhaseStarted) {
-          return {
-            state: WaiterState.SUCCESS,
-            reason: `Build successfully reached "${BuildPhaseType.BUILD}" phase`
-          };
-        }
-        return {
-          state: WaiterState.RETRY,
-          reason: 'Build in progress'
-        };
-      }
-    );
-    if (waiterResult.state !== WaiterState.SUCCESS) {
-      throw errHandler(new Error(waiterResult.reason));
-    }
   };
 
   getEc2InstanceTypesInfo = async ({ instanceTypes }: { instanceTypes: _InstanceType[] }) => {
