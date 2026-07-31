@@ -13,7 +13,6 @@ import type { HelperLambdaDetails } from '@utils/helper-lambdas';
 import type { StacktapeRecordedCommand } from '@config';
 import type { LogLevel, StacktapeArgs, StacktapeCliArgs, StacktapeCommand } from 'src/config/cli/types';
 import { dirname, isAbsolute, join } from 'node:path';
-import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -24,7 +23,6 @@ import {
   DEFAULT_CLOUDFORMATION_REGISTRY_BUCKET_REGION,
   RECORDED_STACKTAPE_COMMANDS
 } from '@config';
-import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
 import type { LoadedAwsCredentials, ValidatedAwsCredentials } from 'src/aws/credentials';
 import { SUPPORTED_AWS_REGIONS, type SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
@@ -91,7 +89,7 @@ export class GlobalStateManager {
     identity: { account: '123456789999', arn: 'arn:aws:iam::123456789999:user/dummy' }
   } as ValidatedAwsCredentials;
 
-  credentialsRefreshTimeout: NodeJS.Timeout;
+  credentialsRefreshTimeout?: ReturnType<typeof setTimeout>;
   userData?: GlobalStateUser;
   organizationData?: GlobalStateOrganization;
   connectedAwsAccounts?: GlobalStateConnectedAwsAccount[];
@@ -468,7 +466,6 @@ export class GlobalStateManager {
     if (this.credentials.expiration) {
       clearTimeout(this.credentialsRefreshTimeout);
       this.credentialsRefreshTimeout = await getRefreshTimeout(this.credentials.expiration);
-      applicationManager.registerCleanUpHook(() => clearTimeout(this.credentialsRefreshTimeout));
     }
     const loadedFrom = {
       envVar: 'Environment variables',
@@ -481,6 +478,11 @@ export class GlobalStateManager {
       finalMessage: `Loaded from ${tuiManager.makeBold(loadedFrom)}.`
     });
     return this.credentials;
+  };
+
+  stopCredentialRefresh = () => {
+    clearTimeout(this.credentialsRefreshTimeout);
+    this.credentialsRefreshTimeout = undefined;
   };
 
   getStackOperationLogStreamName = ({ stackName }: { stackName: string }) => {
@@ -500,12 +502,12 @@ export class GlobalStateManager {
     this.configPath = configPath;
   };
 
-  loadTargetStackInfo = async () => {
+  loadTargetStackInfo = async ({ legacyConfigServiceName }: { legacyConfigServiceName?: string } = {}) => {
     // await eventManager.startEvent({
     //   eventType: 'LOAD_TARGET_STACK_INFO',
     //   description: 'Loading target stack info'
     // });
-    const { id: projectId, name: projectName } = await this.#resolveTargetProject();
+    const { id: projectId, name: projectName } = await this.#resolveTargetProject({ legacyConfigServiceName });
     const stage = await this.#resolveStage();
     const stackName = `${projectName}-${stage}`;
     const globallyUniqueStackHash = getGloballyUniqueStackHash({
@@ -536,7 +538,7 @@ export class GlobalStateManager {
     return stage;
   };
 
-  #resolveTargetProject = async () => {
+  #resolveTargetProject = async ({ legacyConfigServiceName }: { legacyConfigServiceName?: string }) => {
     const createNewProject = async (projectName?: string) => {
       let chosenProjectName = projectName;
       if (!chosenProjectName) {
@@ -565,17 +567,15 @@ export class GlobalStateManager {
       });
       return this.projects.find(({ name }) => name === existingProjectName);
     };
-    if (configManager.configResolver.rawConfig?.serviceName) {
+    if (legacyConfigServiceName) {
       tuiManager.warn(
         `Config ${tuiManager.prettyConfigProperty('serviceName')} is deprecated. Use ${tuiManager.prettyOption(
           'projectName'
-        )} (e.g. ${tuiManager.colorize('gray', `--projectName ${configManager.configResolver.rawConfig?.serviceName}`)}).`
+        )} (e.g. ${tuiManager.colorize('gray', `--projectName ${legacyConfigServiceName}`)}).`
       );
     }
     const projectName =
-      this.args.projectName ||
-      this.persistedState?.cliArgsDefaults.projectName ||
-      configManager.configResolver.rawConfig?.serviceName; // || this.targetStack.projectName
+      this.args.projectName || this.persistedState?.cliArgsDefaults.projectName || legacyConfigServiceName;
     if (!projectName) {
       if (this.invokedFrom !== 'cli' || (this.args as StacktapeCliArgs).autoConfirmOperation || !process.stdout.isTTY) {
         throw stpErrors.e103(null);
@@ -601,7 +601,7 @@ export class GlobalStateManager {
       return userSpecifiedExistingProject;
     }
 
-    const projectNameComesFromConfigServiceName = projectName === configManager.configResolver.rawConfig?.serviceName;
+    const projectNameComesFromConfigServiceName = projectName === legacyConfigServiceName;
 
     // if there are no projects or autoConfirmOperation is enabled, or projectName comes from service name, we will automatically create a new one for the user
     if (

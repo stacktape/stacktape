@@ -16,6 +16,7 @@ import type { CloudformationTemplate } from '@domain-services/cloudformation-sta
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { templateManager } from '@domain-services/template-manager';
+import { finalizeTemplate } from '@domain-services/template-manager/finalize';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import {
@@ -236,7 +237,7 @@ export const synthesizeDenseFixture = async () => {
 
     await Promise.all([templateManager.init({ stackDetails: undefined }), calculatedStackOverviewManager.init()]);
     await calculatedStackOverviewManager.resolveAllResources();
-    await templateManager.finalizeTemplate();
+    await finalizeTemplate();
     return templateManager.getTemplate();
   });
 };

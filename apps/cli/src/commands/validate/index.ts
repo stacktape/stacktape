@@ -8,6 +8,7 @@ import { validateGuardrails } from '@domain-services/config-manager/utils/valida
 import { packagingManager } from '@domain-services/packaging-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { templateManager } from '@domain-services/template-manager';
+import { finalizeTemplate } from '@domain-services/template-manager/finalize';
 import { stringifyToYaml } from '@utils/yaml';
 import { initializeAllStackServices } from '../_utils/initialization';
 
@@ -32,7 +33,7 @@ export const commandValidate = async () => {
   }
 
   await calculatedStackOverviewManager.resolveAllResources();
-  await templateManager.finalizeTemplate();
+  await finalizeTemplate();
 
   const template = templateManager.getTemplate();
   if (thorough) {

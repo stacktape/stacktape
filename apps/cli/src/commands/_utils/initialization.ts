@@ -33,6 +33,18 @@ import { logCollectorStream } from '@utils/log-collector';
 import { ensureAwsAccountConnected } from './aws-connection-preflight';
 import { assertCommandPermissions, assertScopedProjectAccess } from './permission-guards';
 
+/**
+ * Raw config is loaded before project selection so the deprecated `serviceName`
+ * fallback remains available without making global application state depend on
+ * the configuration subsystem.
+ */
+export const loadTargetStackContext = async () => {
+  await configManager.loadRawConfigOnly();
+  await globalStateManager.loadTargetStackInfo({
+    legacyConfigServiceName: configManager.configResolver.rawConfig?.serviceName
+  });
+};
+
 export const initializeAllStackServices = async ({
   commandModifiesStack,
   commandRequiresDeployedStack,
@@ -78,7 +90,7 @@ export const initializeAllStackServices = async ({
       throw stpErrors.e502({ message });
     }
   }
-  await globalStateManager.loadTargetStackInfo();
+  await loadTargetStackContext();
   assertCommandPermissions({
     command: globalStateManager.command,
     stage: globalStateManager.stage,
@@ -181,7 +193,7 @@ export const initializeStackServicesForLocalResolve = async () => {
   await loadUserCredentials();
   await recordStackOperationStart();
 
-  await globalStateManager.loadTargetStackInfo();
+  await loadTargetStackContext();
   await configManager.init({ configRequired: true });
 
   await settleAllBeforeThrowing([
@@ -217,7 +229,7 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
   await loadUserCredentials();
   await recordStackOperationStart();
 
-  await globalStateManager.loadTargetStackInfo();
+  await loadTargetStackContext();
   await configManager.init({ configRequired: true });
 
   await settleAllBeforeThrowing([
@@ -289,9 +301,7 @@ export const initializeStackServicesForDevPhase1 = async () => {
     printer: tuiManager
   });
 
-  // Load raw config first to get serviceName for project resolution
-  await configManager.loadRawConfigOnly();
-  await globalStateManager.loadTargetStackInfo();
+  await loadTargetStackContext();
   await configManager.init({ configRequired: true });
   await packagingManager.init();
 
@@ -349,7 +359,7 @@ export const initializeStackServicesForWorkingWithDeployedStack = async ({
   await loadUserCredentials();
   await recordStackOperationStart();
 
-  await globalStateManager.loadTargetStackInfo();
+  await loadTargetStackContext();
   assertCommandPermissions({
     command: globalStateManager.command,
     stage: globalStateManager.stage,

@@ -3,13 +3,13 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
-import { loadUserCredentials } from '../_utils/initialization';
+import { loadTargetStackContext, loadUserCredentials } from '../_utils/initialization';
 
 export const commandPackage = async () => {
   const { onlyWorkloads } = globalStateManager.args as StacktapeCliArgs;
 
   await loadUserCredentials();
-  await globalStateManager.loadTargetStackInfo();
+  await loadTargetStackContext();
   await configManager.init({ configRequired: true });
 
   await packagingManager.init();

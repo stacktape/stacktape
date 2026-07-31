@@ -20,6 +20,7 @@ import { deploymentArtifactManager } from '@domain-services/deployment-artifact-
 import { notificationManager } from '@domain-services/notification-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
+import { prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
 import { fsPaths } from 'src/config/runtime-paths';
 import { obfuscatedNamesStateHolder } from '@stacktape/naming/resource-names';
 import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';
@@ -120,7 +121,7 @@ const deployLocally = async () => {
         });
         // after we repackaged some of the resources (potentially)
         // we must rerun prepare deploy to reflect changes in cloudformation template
-        await templateManager.prepareForDeploy();
+        await prepareTemplateForDeploy();
       }
     }
   }
@@ -235,7 +236,7 @@ export const prepareArtifactsForStackDeployment = async (): Promise<{
   }
 
   await calculatedStackOverviewManager.populateStackMetadata();
-  await templateManager.prepareForDeploy();
+  await prepareTemplateForDeploy();
 
   const cfTemplateDiff = templateManager.getOldTemplateDiff();
   const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff });

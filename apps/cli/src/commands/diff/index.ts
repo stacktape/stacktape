@@ -7,6 +7,7 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
+import { prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
 import { initializeAllStackServices } from '../_utils/initialization';
 import { isAgentMode } from '../_utils/agent-mode';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
@@ -133,7 +134,7 @@ export const commandDiff = async () => {
   await packagingManager.packageAllWorkloads({ commandCanUseCache: true });
   await calculatedStackOverviewManager.resolveAllResources();
   await calculatedStackOverviewManager.populateStackMetadata();
-  await templateManager.prepareForDeploy();
+  await prepareTemplateForDeploy();
 
   const cfTemplateDiff = getNormalizedPreviewTemplateDiff({
     oldTemplate: templateManager.oldTemplate,

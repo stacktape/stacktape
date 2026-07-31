@@ -11,6 +11,7 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
+import { prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { obfuscatedNamesStateHolder } from '@stacktape/naming/resource-names';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
@@ -45,7 +46,7 @@ export const deployDevStack = async (): Promise<void> => {
   }
 
   await calculatedStackOverviewManager.populateStackMetadata();
-  await templateManager.prepareForDeploy();
+  await prepareTemplateForDeploy();
 
   // Register cloudformation private types if needed
   await cloudformationRegistryManager.registerLatestCfPrivateTypes(configManager.requiredCloudformationPrivateTypes);

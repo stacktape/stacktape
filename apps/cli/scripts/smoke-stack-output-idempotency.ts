@@ -1,5 +1,5 @@
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { templateManager } from '@domain-services/template-manager';
+import { prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
 import { initializeAllStackServices } from '../src/commands/_utils/initialization';
 
 const main = async () => {
@@ -13,8 +13,8 @@ const main = async () => {
   await calculatedStackOverviewManager.resolveAllResources();
   await calculatedStackOverviewManager.populateStackMetadata();
 
-  await templateManager.prepareForDeploy();
-  await templateManager.prepareForDeploy();
+  await prepareTemplateForDeploy();
+  await prepareTemplateForDeploy();
 
   console.info('Stack output idempotency smoke passed.');
 };

@@ -188,6 +188,7 @@ export class ApplicationManager {
     err?: Error;
   }) => {
     const { command, args } = globalStateManager;
+    globalStateManager.stopCredentialRefresh();
     const shouldCleanTemp =
       !args.preserveTempFiles && getCanonicalCommand(command) !== 'package' && !(this.usesStdinWatch && success);
     const promiseResults = await Promise.allSettled([

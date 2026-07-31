@@ -10,12 +10,12 @@ import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { ExpectedError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { printFormattedLogs } from '../_utils/debug-formatters';
-import { loadUserCredentials } from '../_utils/initialization';
+import { loadTargetStackContext, loadUserCredentials } from '../_utils/initialization';
 import { getLogGroupInfoForStacktapeResource } from '../_utils/logs';
 
 export const commandLogs = async () => {
   await loadUserCredentials();
-  await globalStateManager.loadTargetStackInfo();
+  await loadTargetStackContext();
   await configManager.init({ configRequired: true });
 
   await stackManager.init({
