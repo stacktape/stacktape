@@ -19,7 +19,7 @@ export const preparePipelineResources = async ({
   // it is assumed that passed AWS SDK manager was initialized and we draw region from its properties
   const region = awsSdkManager.region;
   // check if role for codebuild exists in account
-  let role = await awsSdkManager.getRole({ roleName: awsResourceNames.codebuildServiceRole() });
+  let role = await awsSdkManager.iam.getRole({ roleName: awsResourceNames.codebuildServiceRole() });
   if (!role) {
     const assumeRolePolicyDocumentStatements: { [key: string]: any }[] = [
       {
@@ -30,7 +30,7 @@ export const preparePipelineResources = async ({
         Action: 'sts:AssumeRole'
       }
     ];
-    role = await awsSdkManager.createIamRole({
+    role = await awsSdkManager.iam.createRole({
       roleName: awsResourceNames.codebuildServiceRole(),
       assumeRolePolicyDocument: {
         Version: '2012-10-17',
@@ -51,7 +51,7 @@ export const preparePipelineResources = async ({
       },
       Action: 'sts:AssumeRole'
     });
-    await awsSdkManager.updateIamRoleAssumePolicy({
+    await awsSdkManager.iam.updateRoleAssumePolicy({
       roleName: role.RoleName,
       assumeRolePolicyDocument: {
         Version: '2012-10-17',
@@ -59,7 +59,7 @@ export const preparePipelineResources = async ({
       }
     });
     // add policy
-    await awsSdkManager.attachPolicyToRole({
+    await awsSdkManager.iam.attachManagedPolicyToRole({
       roleName: role.RoleName,
       policyArn: 'arn:aws:iam::aws:policy/AdministratorAccess'
     });

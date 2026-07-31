@@ -237,12 +237,12 @@ export class CloudformationRegistryManager {
         ].packagePrefix,
       region
     });
-    let role = await awsSdkManager.getRole({
+    let role = await awsSdkManager.iam.getRole({
       roleName
     });
     // if there is no role yet, we will create it
     if (!role) {
-      role = await awsSdkManager.createIamRole({
+      role = await awsSdkManager.iam.createRole({
         roleName,
         assumeRolePolicyDocument: getAssumeRolePolicy({
           accountId: globalStateManager.targetAwsAccount.awsAccountId,
@@ -254,7 +254,7 @@ export class CloudformationRegistryManager {
       });
     }
     // finally adding modifying role inline policies
-    await awsSdkManager.modifyInlinePoliciesForIamRole({
+    await awsSdkManager.iam.reconcileInlineRolePolicies({
       roleName,
       desiredPolicies: parsedRoleProperties.Policies as Policy[]
       // only required if we decide to use logging

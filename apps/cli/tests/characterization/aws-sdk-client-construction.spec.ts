@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { EventEmitter } from 'node:events';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
+import { IAMClient, NoSuchEntityException } from '@aws-sdk/client-iam';
 import { LambdaClient } from '@aws-sdk/client-lambda';
 import { Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
 import { S3Client } from '@aws-sdk/client-s3';
@@ -15,6 +16,7 @@ import {
   SSMClient
 } from '@aws-sdk/client-ssm';
 import type { Pluggable } from '@aws-sdk/types';
+import type { TuiManager } from '@application-services/tui-manager';
 import { AwsSdkManager } from '../../src/aws/sdk-manager';
 import { S3Sync } from '../../src/aws/s3-sync';
 
@@ -133,6 +135,34 @@ describe.serial('AWS SDK client construction', () => {
       secretAccessKey: 'refreshed-secret'
     };
     expect((await captured().config.credentials()).accessKeyId).toBe('refreshed-access-key');
+  });
+
+  test.serial('resets IAM absence logging while preserving explicit missing-role failures', async () => {
+    const originalSend = IAMClient.prototype.send;
+    IAMClient.prototype.send = async () => {
+      throw new NoSuchEntityException({ $metadata: {}, message: 'Role does not exist.' });
+    };
+    restores.push(() => {
+      IAMClient.prototype.send = originalSend;
+    });
+    const debugMessages: string[] = [];
+    const printer = {
+      debug: (message: string) => {
+        debugMessages.push(message);
+      }
+    } as TuiManager;
+    const manager = new AwsSdkManager();
+    manager.init({ credentials, plugins: [], printer, region: 'eu-west-1' });
+
+    await expect(manager.iam.getRole({ roleName: 'missing-role' })).resolves.toBeUndefined();
+    await expect(
+      manager.iam.getRole({ roleName: 'missing-role', throwErrorWhenRoleNotExists: true })
+    ).rejects.toBeInstanceOf(NoSuchEntityException);
+    expect(debugMessages).toEqual(['Role with name missing-role does NOT exist.']);
+
+    manager.init({ credentials, plugins: [], region: 'eu-west-1' });
+    await expect(manager.iam.getRole({ roleName: 'still-missing' })).resolves.toBeUndefined();
+    expect(debugMessages).toHaveLength(1);
   });
 
   test.serial('uses the initialized ACM region unless the operation explicitly requires us-east-1', async () => {

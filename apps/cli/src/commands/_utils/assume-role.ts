@@ -12,7 +12,7 @@ export const addCallerToAssumeRolePolicy = async ({ roleName }: { roleName: stri
     ? getRoleArnFromSessionArn(globalStateManager.credentials.identity.arn)
     : globalStateManager.credentials.identity.arn;
 
-  return awsSdkManager.addUserToRolePrincipals({
+  return awsSdkManager.iam.addUserToRolePrincipals({
     userArn: callerIdentityArn,
     roleName
   });
@@ -43,14 +43,14 @@ export const getLocalInvokeAwsCredentials = async ({
   });
 
   const getCredentials = () =>
-    awsSdkManager.getAssumedRoleCredentials({
+    awsSdkManager.sts.assumeRoleCredentials({
       durationSeconds,
       roleArn,
       roleSessionName: `local-assume-by-${globalStateManager.userData.id}`,
       retry: { count: 10, delaySeconds: 5 }
     });
 
-  let credentials: Awaited<ReturnType<typeof awsSdkManager.getAssumedRoleCredentials>>;
+  let credentials: Awaited<ReturnType<typeof awsSdkManager.sts.assumeRoleCredentials>>;
   try {
     credentials = await getCredentials();
   } catch (err) {

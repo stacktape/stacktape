@@ -2,6 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { AssumeRoleCommand, STSClient } from '@aws-sdk/client-sts';
 import { tuiManager } from '@application-services/tui-manager';
 import { AwsSdkManager } from '../../src/aws/sdk-manager';
+import type { AwsSts } from '../../src/aws/identity';
 import type { Pluggable } from '@aws-sdk/types';
 
 type InitArguments = Parameters<AwsSdkManager['init']>[0];
@@ -65,11 +66,11 @@ describe.serial('AWS SDK manager', () => {
   };
 
   /** Every assumed-role call goes through here, so an un-stubbed one cannot silently become a real STS request. */
-  const callAssumeRole = (manager: AwsSdkManager, args: Parameters<AwsSdkManager['getAssumedRoleCredentials']>[0]) => {
+  const callAssumeRole = (manager: AwsSdkManager, args: Parameters<AwsSts['assumeRoleCredentials']>[0]) => {
     if (!stubInstalledByThisTest) {
       throw new Error('Refusing to call AssumeRole without a stubbed STSClient.prototype.send.');
     }
-    return manager.getAssumedRoleCredentials(args);
+    return manager.sts.assumeRoleCredentials(args);
   };
 
   afterEach(() => {

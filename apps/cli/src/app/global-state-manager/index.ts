@@ -404,7 +404,7 @@ export class GlobalStateManager {
 
     // loading method re-ASSUME ROLE
     const loadCredentialsUsingReAssumeRole = async (): Promise<LoadedAwsCredentials> => {
-      const credentials = await awsSdkManager.getAssumedRoleCredentials({
+      const credentials = await awsSdkManager.sts.assumeRoleCredentials({
         roleArn: getRoleArnFromSessionArn(this.credentials.identity.arn),
         roleSessionName: `stp-user-session_${this.userData.id}`
       });

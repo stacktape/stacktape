@@ -29,7 +29,9 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   when it has real callers and behavior of its own. Stack lifecycle and private-type registry operations are reached
   as `awsSdkManager.cloudFormation` and `awsSdkManager.cloudFormationRegistry`. Bucket/object/version operations and
   directory synchronization are reached as `awsSdkManager.s3`; upload presets and native-header classification live
-  beside that capability in `src/aws/s3-upload-options.ts`. SSM Parameter Store, Secrets Manager, CloudWatch
+  beside that capability in `src/aws/s3-upload-options.ts`. IAM role/policy operations and STS role assumption are
+  reached as `awsSdkManager.iam` and `awsSdkManager.sts`; keep the policy-repair and credential-validation behavior in
+  those boundaries. SSM Parameter Store, Secrets Manager, CloudWatch
   logs/metrics/alarms, and Route 53/ACM/SES domain operations are reached as `awsSdkManager.parameterStore`,
   `awsSdkManager.secrets`, `awsSdkManager.observability`, and `awsSdkManager.domains`; SSM sessions remain separate
   workflow behavior. Capability extraction must keep using `src/aws/context.ts` client construction so credential

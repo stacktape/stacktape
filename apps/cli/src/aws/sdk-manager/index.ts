@@ -15,12 +15,9 @@ import type {
   ExecuteCommandCommandInput,
   UpdateServiceCommandInput
 } from '@aws-sdk/client-ecs';
-import type { GetRoleCommandOutput } from '@aws-sdk/client-iam';
 import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
 import type { StartSessionCommandInput, StartSessionResponse } from '@aws-sdk/client-ssm';
-import type { Credentials } from '@aws-sdk/types';
 import type TaskDefinition from '@cloudform/ecs/taskDefinition';
-import type { Policy } from '@cloudform/iam/role';
 import { Buffer } from 'node:buffer';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { AutoScaling, DescribeAutoScalingGroupsCommand } from '@aws-sdk/client-auto-scaling';
@@ -75,20 +72,7 @@ import {
   RegisterTaskDefinitionCommand,
   UpdateServiceCommand
 } from '@aws-sdk/client-ecs';
-import {
-  AttachRolePolicyCommand,
-  CreateRoleCommand,
-  DeleteRolePolicyCommand,
-  GetRoleCommand,
-  IAMClient,
-  ListRolePoliciesCommand,
-  MalformedPolicyDocumentException,
-  NoSuchEntityException,
-  PutRolePolicyCommand,
-  UpdateAssumeRolePolicyCommand,
-  waitUntilPolicyExists,
-  waitUntilRoleExists
-} from '@aws-sdk/client-iam';
+import { IAMClient } from '@aws-sdk/client-iam';
 import {
   GetFunctionConfigurationCommand,
   GetProvisionedConcurrencyConfigCommand,
@@ -117,7 +101,7 @@ import {
   StartSessionCommand,
   TerminateSessionCommand
 } from '@aws-sdk/client-ssm';
-import { AssumeRoleCommand, STSClient } from '@aws-sdk/client-sts';
+import { STSClient } from '@aws-sdk/client-sts';
 // import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node';
 import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
@@ -127,7 +111,6 @@ import { chunkArray, lowerCaseFirstCharacterOfObjectKeys, serialize, wait } from
 import { CliError } from '@utils/errors';
 import { getForwardableOperationInvocationEnv } from '@application-services/operation-invocation-context';
 import { kebabCase } from 'change-case';
-import pRetry from 'p-retry';
 import {
   applyAwsClientPlugins,
   awsClientConfig,
@@ -144,6 +127,8 @@ import { AwsCloudFormationStacks } from '../cloudformation-stacks';
 import { AwsCloudFormationRegistry } from '../cloudformation-registry';
 import { AwsS3 } from '../s3';
 import { S3Sync } from '../s3-sync';
+import { AwsIam } from '../iam';
+import { AwsSts } from '../identity';
 import { defaultGetErrorFunction, transformToCliArgs } from './utils';
 
 const getOperationInvocationCodebuildEnvVariables = () => {
@@ -163,6 +148,8 @@ export class AwsSdkManager {
   #cloudFormation?: AwsCloudFormationStacks;
   #cloudFormationRegistry?: AwsCloudFormationRegistry;
   #s3?: AwsS3;
+  #iam?: AwsIam;
+  #sts?: AwsSts;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -221,6 +208,16 @@ export class AwsSdkManager {
       createSyncClient: () => this.#syncS3Client(),
       createAcceleratedSyncClient: () => this.#acceleratedSyncS3Client(),
       getErrorHandler: this.#getErrorHandler
+    });
+    this.#iam = new AwsIam({
+      createClient: () => this.#iamClient(),
+      getErrorHandler: this.#getErrorHandler,
+      printer
+    });
+    this.#sts = new AwsSts({
+      createClient: () => this.#stsClient(),
+      getErrorHandler: this.#getErrorHandler,
+      printer
     });
   }
 
@@ -296,6 +293,22 @@ export class AwsSdkManager {
     return this.#s3;
   }
 
+  get iam() {
+    this.#getContext();
+    if (!this.#iam) {
+      throw new Error('AWS IAM has not been initialized.');
+    }
+    return this.#iam;
+  }
+
+  get sts() {
+    this.#getContext();
+    if (!this.#sts) {
+      throw new Error('AWS STS has not been initialized.');
+    }
+    return this.#sts;
+  }
+
   #getContext() {
     if (!this.#context) {
       throw new Error('AWS SDK manager has not been initialized.');
@@ -311,7 +324,7 @@ export class AwsSdkManager {
     return applyAwsClientPlugins(client, this.plugins);
   }
 
-  #iam() {
+  #iamClient() {
     return this.#applyPlugins(new IAMClient(this.#getClientArgs()));
   }
 
@@ -388,7 +401,7 @@ export class AwsSdkManager {
     return this.#applyPlugins(new Route53DomainsClient(this.#getClientArgs({ region: 'us-east-1' })));
   }
 
-  #sts() {
+  #stsClient() {
     return this.#applyPlugins(new STSClient(this.#getClientArgs()));
   }
 
@@ -454,118 +467,6 @@ export class AwsSdkManager {
   #budgets() {
     return this.#applyPlugins(new BudgetsClient(this.#getClientArgs()));
   }
-
-  getAssumedRoleCredentials = async ({
-    roleArn,
-    roleSessionName,
-    durationSeconds,
-    retry
-  }: {
-    roleArn: string;
-    roleSessionName: string;
-    durationSeconds?: number;
-    retry?: { count: number; delaySeconds: number };
-  }): Promise<Credentials> => {
-    const errHandler = this.#getErrorHandler('Failed to get credentials for assumed role.');
-    // max session duration is 12 hours
-    const duration = durationSeconds && durationSeconds <= 60 * 60 ? 60 * 60 : durationSeconds || 60 * 60 * 12;
-
-    const executeAssumeRole = async (): Promise<Credentials> => {
-      // Don't catch errors here - let them propagate for retry logic
-      const result = await this.#sts().send(
-        new AssumeRoleCommand({
-          RoleArn: roleArn,
-          DurationSeconds: duration,
-          RoleSessionName: roleSessionName
-        })
-      );
-      const { AccessKeyId, SecretAccessKey, Expiration, SessionToken } = result.Credentials || {};
-      // A successful AssumeRole carries all four, and callers here depend on the expiration and the session token to
-      // refresh and to sign. Checking inside `executeAssumeRole` rather than after it is what puts a malformed
-      // response on the same footing as a failed call: it reaches the retry wrapper below, and only an exhausted
-      // retry reaches `errHandler`. Returning the partly populated object instead would hand invalid credentials on.
-      if (!AccessKeyId || !SecretAccessKey || !Expiration || !SessionToken) {
-        throw new Error(`AssumeRole for ${roleArn} succeeded but returned an incomplete set of credentials.`);
-      }
-      return {
-        accessKeyId: AccessKeyId,
-        secretAccessKey: SecretAccessKey,
-        expiration: Expiration,
-        sessionToken: SessionToken
-      };
-    };
-
-    if (retry) {
-      // Apply error handler after all retries exhausted
-      return pRetry(executeAssumeRole, {
-        retries: retry.count,
-        onFailedAttempt: async (error) => {
-          this.printer?.debug(`Attempt ${error.attemptNumber} failed. There are ${error.retriesLeft} retries left.`);
-          await wait(retry.delaySeconds * 1000);
-        }
-      }).catch(errHandler);
-    }
-
-    return executeAssumeRole().catch(errHandler);
-  };
-
-  addUserToRolePrincipals = async ({ userArn, roleName }: { userArn: string; roleName: string }) => {
-    const errHandler = this.#getErrorHandler(`Failed to add user ${userArn} to be a principal in role ${roleName}.`);
-
-    const role = await this.getRole({ roleName, throwErrorWhenRoleNotExists: true }).catch(errHandler);
-    const { AssumeRolePolicyDocument } = role;
-
-    const parsedAssumeRolePolicy = JSON.parse(decodeURIComponent(AssumeRolePolicyDocument));
-
-    const rolePolicyAlreadyHasStatementForThisUser = parsedAssumeRolePolicy.Statement.find(
-      ({ Principal }) => Principal?.AWS === userArn
-    );
-    if (rolePolicyAlreadyHasStatementForThisUser) {
-      this.printer?.debug(`User ${userArn} is already principal for the role ${roleName}.`);
-      return;
-    }
-    parsedAssumeRolePolicy.Statement.push({
-      Effect: 'Allow',
-      Principal: {
-        AWS: userArn
-      },
-      Action: 'sts:AssumeRole'
-    });
-
-    return this.#iam()
-      .send(
-        new UpdateAssumeRolePolicyCommand({
-          PolicyDocument: JSON.stringify(parsedAssumeRolePolicy),
-          RoleName: roleName
-        })
-      )
-      .catch(async (err) => {
-        // if there is some invalid principal in policy (possibly due to deleted connected account or deleted identity)
-        // remove it
-        if (
-          err instanceof MalformedPolicyDocumentException &&
-          `${err}`.includes('Invalid principal in policy') &&
-          !`${err}`.includes(userArn)
-        ) {
-          const malformedPrincipalIndex = parsedAssumeRolePolicy.Statement.findIndex(
-            ({ Principal }) => Principal.AWS && `${err}`.includes(Principal.AWS)
-          );
-          if (malformedPrincipalIndex !== -1) {
-            parsedAssumeRolePolicy.Statement.splice(malformedPrincipalIndex, 1);
-            await this.#iam()
-              .send(
-                new UpdateAssumeRolePolicyCommand({
-                  PolicyDocument: JSON.stringify(parsedAssumeRolePolicy),
-                  RoleName: roleName
-                })
-              )
-              .catch(errHandler);
-            return;
-          }
-        }
-        errHandler(err);
-      });
-  };
 
   getAllTagsUsedInRegion = async () => {
     const errHandler = this.#getErrorHandler('Could not fetch information about tags used in this region');
@@ -674,25 +575,6 @@ export class AwsSdkManager {
     return { user, password, proxyEndpoint };
   };
 
-  getRole = async ({
-    roleName,
-    throwErrorWhenRoleNotExists
-  }: {
-    roleName: string;
-    throwErrorWhenRoleNotExists?: boolean;
-  }): Promise<GetRoleCommandOutput['Role']> => {
-    try {
-      const existingRole = await this.#iam().send(new GetRoleCommand({ RoleName: roleName }));
-      return existingRole.Role;
-    } catch (err) {
-      if (err instanceof NoSuchEntityException && !throwErrorWhenRoleNotExists) {
-        this.printer?.debug(`Role with name ${roleName} does NOT exist.`);
-        return undefined;
-      }
-      throw err;
-    }
-  };
-
   updateExistingLambdaFunctionCode = async ({
     lambdaResourceName,
     artifactBucketName,
@@ -749,126 +631,6 @@ export class AwsSdkManager {
       ...response,
       Payload: toUtf8(response.Payload)
     };
-  };
-
-  createIamRole = async ({
-    roleName,
-    assumeRolePolicyDocument,
-    description,
-    maxSessionDuration
-  }: {
-    roleName: string;
-    assumeRolePolicyDocument: { [key: string]: any };
-    description?: string;
-    maxSessionDuration?: number;
-  }) => {
-    const errHandler = this.#getErrorHandler(`Unable to create role ${roleName}.`);
-    const cmdOut = await this.#iam()
-      .send(
-        new CreateRoleCommand({
-          RoleName: roleName,
-          AssumeRolePolicyDocument: JSON.stringify(assumeRolePolicyDocument),
-          Description: description,
-          MaxSessionDuration: maxSessionDuration
-        })
-      )
-      .catch(errHandler);
-    await waitUntilRoleExists({ client: this.#iam(), maxWaitTime: 60 }, { RoleName: cmdOut.Role.RoleName });
-    return cmdOut.Role;
-  };
-
-  updateIamRoleAssumePolicy = async ({
-    roleName,
-    assumeRolePolicyDocument
-  }: {
-    roleName: string;
-    assumeRolePolicyDocument: { [key: string]: any };
-  }) => {
-    const errHandler = this.#getErrorHandler(`Unable to update role ${roleName} assume policy.`);
-    return this.#iam()
-      .send(
-        new UpdateAssumeRolePolicyCommand({
-          RoleName: roleName,
-          PolicyDocument: JSON.stringify(assumeRolePolicyDocument)
-        })
-      )
-      .catch(errHandler);
-  };
-
-  attachPolicyToRole = async ({ roleName, policyArn }: { roleName: string; policyArn: string }) => {
-    const errHandler = this.#getErrorHandler(`Unable to add policy ${policyArn} to role ${roleName}.`);
-    await this.#iam()
-      .send(
-        new AttachRolePolicyCommand({
-          RoleName: roleName,
-          PolicyArn: policyArn
-        })
-      )
-      .catch(errHandler);
-    await waitUntilPolicyExists({ client: this.#iam(), maxWaitTime: 60 }, { PolicyArn: policyArn });
-  };
-
-  modifyInlinePoliciesForIamRole = async ({
-    roleName,
-    desiredPolicies
-  }: {
-    roleName: string;
-    desiredPolicies: Policy[];
-  }) => {
-    const errHandler = this.#getErrorHandler(`Failed to modify role policies of role ${roleName}.`);
-    // first we list policies for a role
-    const currentPolicyNames = await this.listAllInlinePoliciesForIamRole({ roleName });
-    // we are determining which policies are to be deleted
-    const policiesToBeDeleted = currentPolicyNames.filter(
-      (currentlyIncludedPolicy) => !desiredPolicies.some(({ PolicyName }) => PolicyName === currentlyIncludedPolicy)
-    );
-    // here happens the actual modification
-    // we are adding/updating according to desiredPolicies
-    await Promise.all(
-      desiredPolicies.map(async (policyConfig) => {
-        return this.#iam().send(
-          new PutRolePolicyCommand({
-            PolicyName: `${policyConfig.PolicyName}`,
-            PolicyDocument: JSON.stringify(policyConfig.PolicyDocument),
-            RoleName: roleName
-          })
-        );
-      })
-    ).catch(errHandler);
-
-    // here we are deleting policies that are no longer desired
-    if (policiesToBeDeleted?.length) {
-      await Promise.all(
-        policiesToBeDeleted.map(async (PolicyName) => {
-          return this.#iam().send(new DeleteRolePolicyCommand({ PolicyName, RoleName: roleName }));
-        })
-      ).catch(errHandler);
-    }
-  };
-
-  listAllInlinePoliciesForIamRole = async ({ roleName }: { roleName: string }) => {
-    const errHandler = this.#getErrorHandler(`Failed to list role policies of role ${roleName}.`);
-    const allPolicies: string[][] = [];
-    let { Marker, PolicyNames } = await this.#iam()
-      .send(
-        new ListRolePoliciesCommand({
-          RoleName: roleName
-        })
-      )
-      .catch(errHandler);
-    allPolicies.push(PolicyNames || []);
-    while (Marker) {
-      ({ Marker, PolicyNames } = await this.#iam()
-        .send(
-          new ListRolePoliciesCommand({
-            RoleName: roleName,
-            Marker
-          })
-        )
-        .catch(errHandler));
-      allPolicies.push(PolicyNames || []);
-    }
-    return allPolicies.flat();
   };
 
   //   getStackDriftInformation = async (stackName: string): Promise<DriftDetail[]> => {
