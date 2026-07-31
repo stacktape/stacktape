@@ -194,16 +194,13 @@ the instruction text.
 - Direct installers require manifests from `3.7.1` onward and retain the legacy path only for older pinned versions;
   unknown or malformed version labels fail closed.
 
-## v4 compatibility policy
+## v4 behavior policy
 
-Each behavioral baseline or observed v3/v4 difference must be marked as one of:
+V4 may break customer-facing configuration and CLI behavior. Do not maintain a general v3 compatibility or removal
+ledger and do not add compatibility shims by default. Record broad product choices in this decision register and test
+the chosen v4 contract directly.
 
-1. `must-preserve` — changing it risks customer infrastructure, data, security, or an explicitly retained interface.
-2. `intentional-v4-break` — reviewed and documented as part of the major release.
-3. `known-v3-bug` — changed with a regression test describing the corrected behavior.
-4. `implementation-detail` — deliberately not captured as a contract.
-
-Even for v4, the following default to `must-preserve` unless explicitly approved:
+The following remain risk-sensitive and must not change accidentally during structural work:
 
 - CloudFormation logical IDs and deterministic physical/resource names for unchanged configurations;
 - references, dependency ordering, IAM intent, and replacement-sensitive resource properties;
@@ -211,7 +208,10 @@ Even for v4, the following default to `must-preserve` unless explicitly approved
 - safe database migration behavior;
 - authentication and organization/project/account scoping;
 - cleanup of temporary credentials and deployment artifacts;
-- the npm binary/exports/config-authoring surface unless a v4 replacement is documented.
+- the npm binary/exports/config-authoring surface unless a v4 replacement is deliberately chosen.
+
+The correction tables below are retained as historical reasoning for already-completed work; they do not establish an
+ongoing per-change classification process.
 
 ### Classified published-declaration corrections
 

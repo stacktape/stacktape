@@ -16,10 +16,10 @@ The migration must still produce:
 - agent instructions and automation that make the unusual Git topology and generated artifacts difficult to misuse;
 - a fresh v4 history while retaining the existing GitHub repository identities.
 
-The migration is allowed to make intentional v4 breaking changes. It must not accidentally alter deployed
-CloudFormation identities, resource names, security boundaries, packaging semantics, or customer data migrations.
-Every observed v3/v4 difference must be classified as intentional, a preserved contract, a fixed bug, or an
-implementation detail.
+The migration may redesign customer-facing configuration and CLI behavior without maintaining a v3 compatibility
+ledger. Broad product changes should be discussed and the chosen v4 contract tested directly. Structural work must
+not accidentally alter deployed CloudFormation identities, resource names, security boundaries, packaging semantics,
+or customer data migrations.
 
 ## Current status
 

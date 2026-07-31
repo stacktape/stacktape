@@ -39,9 +39,9 @@ The orchestrator:
 7. Integrates reviewed commits and resolves the resulting private pointer.
 8. Runs affected checks after every integration checkpoint.
 9. Runs complete public-only and integrated validation at phase gates.
-10. Records intentional v4 differences and newly discovered constraints.
+10. Records approved v4 product contracts and newly discovered constraints.
 
-The orchestrator must not treat a passing typecheck as proof of behavioral compatibility.
+The orchestrator must not treat a passing typecheck as proof of correct behavior.
 
 ### Implementer
 
@@ -74,8 +74,8 @@ The reviewer is read-only until the orchestrator explicitly assigns a follow-up 
 
 ### Verification agent
 
-At major phase gates, a verification agent may run the full matrix, inspect artifacts, compare v3/v4 outputs, and test
-clean clones. It must be distinct from the agents that implemented the majority of the phase.
+At major phase gates, a verification agent may run the full matrix, inspect artifacts, exercise chosen v4 contracts,
+and test clean clones. It must be distinct from the agents that implemented the majority of the phase.
 
 ## Slice dossier
 
@@ -89,8 +89,8 @@ Prerequisite integration commit(s):
 Current implementation and known constraints:
 Target package/app ownership:
 Provisional interfaces:
-Must-preserve behaviors:
-Intentional v4 changes allowed:
+Infrastructure/data invariants:
+Approved v4 product behavior:
 Owned paths:
 Shared/frozen paths:
 Required deterministic tests:
@@ -123,7 +123,7 @@ For a shared seam, the implementer writes a short proposal containing:
 - the problem demonstrated by current code or tests;
 - the old and proposed signatures;
 - affected active/completed slices;
-- compatibility and migration cost;
+- blast radius and migration cost;
 - why an adapter cannot reasonably localize the change.
 
 The orchestrator either accepts it, requests a smaller seam, or schedules a dedicated interface slice. Dependent agents
@@ -218,9 +218,9 @@ A slice is not complete until:
 - generated outputs are fresh;
 - public-only checks pass when public files changed;
 - integrated checks pass when private files changed;
-- behavioral differences are classified;
+- behavioral changes are deliberate and tested;
 - the orchestrator integrates it without carrying a dirty worktree;
-- the migration matrix records its new coverage and remaining risk.
+- the decision register records broad product choices and remaining risk.
 
 No deployment is implied by code integration. Real AWS gates require separate explicit authorization and trusted
 credentials.

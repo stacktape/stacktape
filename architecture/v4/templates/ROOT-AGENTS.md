@@ -52,7 +52,10 @@ mode, and the guarded real-AWS validation lane including the reusable packaging 
 - The existing CLI implementation is the v4 starting point. Do not build a parallel runtime or compatibility shell.
 - Create a package only for a concrete present-day responsibility or consumer. Empty and speculative packages are not
   architecture.
-- Preserve compatibility-sensitive naming, synthesis, packaging, and release behavior during structural moves.
+- V4 may redesign customer-facing configuration and CLI behavior. Do not add v3 compatibility shims or maintain a
+  general compatibility-removal ledger. Discuss broad product changes, then test the chosen v4 contract directly.
+- Structural refactors must still avoid accidental infrastructure replacement, data loss, security-scope changes, or
+  packaging/release drift. Change those behaviors only as an explicit product decision.
 - Do not create generic `utils`, `common`, or `shared` dumping-ground packages.
 - Do not create re-export-only barrel modules. Define explicit package subpath exports.
 - Avoid hidden side effects at module import time.
