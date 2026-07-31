@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import { normalizeCliError } from '@application-services/application-manager';
 import { renderErrorToString } from '@application-services/tui-manager/error-rendering';
+import { awsCdkConstructErrors } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/aws-cdk-construct/errors';
 import { configErrors } from '@domain-services/config-manager/errors';
 import { stpErrors } from 'src/config/error-messages';
 import { CliError, getReturnableError } from '@utils/errors';
@@ -41,6 +42,31 @@ describe('CLI error contract', () => {
     expect(error.hints).toEqual([expect.stringContaining('stacktape init')]);
     expect(error.message).not.toContain('\u001b[');
     expect(error.hints.join('\n')).not.toContain('\u001b[');
+  });
+
+  test('keeps AWS CDK construct failures local, actionable, and machine-readable', () => {
+    const cause = new Error('Cannot find module ./construct');
+    const importError = awsCdkConstructErrors.importFailed({
+      constructName: 'billing',
+      exportName: 'BillingConstruct',
+      filePath: 'infra/billing.ts',
+      cause
+    });
+    const dependencyError = awsCdkConstructErrors.dependenciesMissing();
+
+    expect(importError).toMatchObject({
+      category: 'CONFIG_VALIDATION',
+      code: 'AWS_CDK_CONSTRUCT_IMPORT_FAILED',
+      cause
+    });
+    expect(importError.message).toContain('BillingConstruct');
+    expect(importError.hints).toEqual([expect.stringContaining('exports')]);
+    expect(importError.message).not.toContain('\u001b[');
+    expect(dependencyError).toMatchObject({
+      category: 'MISSING_PREREQUISITE',
+      code: 'AWS_CDK_CONSTRUCT_DEPENDENCIES_MISSING'
+    });
+    expect(dependencyError.message).toContain('constructs');
   });
 
   test('normalizes unknown failures once without requiring a stack trace', () => {

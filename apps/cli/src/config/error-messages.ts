@@ -724,80 +724,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       )}(AWS account id: ${credentialsOriginAwsAccount}).`
     };
   },
-  e70({
-    constructName,
-    constructExportName,
-    constructFilePath,
-    rootError
-  }: {
-    constructName: string;
-    constructExportName: string;
-    constructFilePath: string;
-    rootError: Error;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in construct ${tuiManager.makeBold(
-        constructName
-      )}: Unable to import construct class (export "${tuiManager.makeBold(
-        constructExportName
-      )}") exported from file ${tuiManager.makeBold(constructFilePath)}.\nRoot cause: ${rootError}`,
-      hint: 'Are you sure you are referencing correct export?'
-    };
-  },
-  e71({
-    constructName,
-    constructExportName,
-    constructFilePath
-  }: {
-    constructName: string;
-    constructExportName: string;
-    constructFilePath: string;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in construct ${tuiManager.makeBold(constructName)}: Export "${tuiManager.makeBold(
-        constructExportName
-      )}" from file ${tuiManager.makeBold(constructFilePath)} is not a valid construct.`,
-      hint: 'Are you sure you are referencing correct export?'
-    };
-  },
-  e72({ constructName, rootError }: { constructName: string; rootError: Error }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error when synthesizing CDK construct ${tuiManager.makeBold(constructName)}\nRoot cause: ${rootError}`
-    };
-  },
-  e73({ constructName, constructClassName }: { constructName: string; constructClassName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `AWS CDK construct ${tuiManager.makeBold(
-        constructName
-      )} is of type (${constructClassName} extends Stack). Currently, we do not allow using "Stack" constructs in ${tuiManager.makeBold(
-        'aws-cdk-construct'
-      )}.`,
-      hint: ['Try wrapping your construct resources in a generic construct instead of a "Stack".']
-    };
-  },
-  e74({
-    constructName,
-    constructExportName,
-    rootError
-  }: {
-    constructName: string;
-    constructExportName: string;
-    rootError: Error;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in construct ${tuiManager.makeBold(
-        constructName
-      )}: Unable to instantiate imported construct class (export "${tuiManager.makeBold(
-        constructExportName
-      )}").\nRoot cause: ${rootError}`,
-      hint: 'Is referenced export valid construct class?'
-    };
-  },
   e76({ stackName, command }: { stackName: string; command: StacktapeCommand }): ReturnedError {
     return {
       type: 'STACK',
@@ -1264,12 +1190,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
     return {
       type: 'CLI',
       message: `Starter project ${projectId} does not exist.`
-    };
-  },
-  e507({ missingLibs, feature }: { missingLibs: string[]; feature: string }): ReturnedError {
-    return {
-      type: 'MISSING_PREREQUISITE',
-      message: `Using ${tuiManager.makeBold(feature)} requires ${missingLibs.join(', ')} to be installed in the project.`
     };
   },
   e508({ errorDetails }: { errorDetails: string }): ReturnedError {

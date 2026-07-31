@@ -7,13 +7,12 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
-import { stpErrors } from '@errors';
-import { ExpectedError } from '@utils/errors';
 import { fsPaths } from 'src/config/runtime-paths';
 import { dynamicRequireLibraryFromUserNodeModules } from '@utils/fs-utils';
 import { capitalizeFirstLetter } from '@utils/misc';
 import { loadFromJavascript, loadFromTypescript, parseUserCodeFilepath } from '@utils/file-loaders';
 import { readJsonSync } from 'fs-extra';
+import { awsCdkConstructErrors } from './errors';
 
 declare class CDKConstruct extends ImportedCdkStack {
   constructor(scope: ImportedCdkStack, id: string, props?: any);
@@ -26,11 +25,7 @@ export const resolveAwsCdkConstructs = async () => {
       // The authored definition may omit its whole `properties` bag. `validateAwsCdkConstructProps` reports that with
       // a fuller message, but it does not run when the CLI is invoked as a server, so the path is checked here too.
       if (!entryfilePath) {
-        throw new ExpectedError(
-          'CONFIG_VALIDATION',
-          `Error in construct ${resource.name}: no entryfilePath is configured.`,
-          'Set properties.entryfilePath to the file exporting your construct class.'
-        );
+        throw awsCdkConstructErrors.entryfileRequired(resource.name);
       }
       const { filePath, extension } = parseUserCodeFilepath({
         fullPath: entryfilePath,
@@ -54,11 +49,11 @@ export const resolveAwsCdkConstructs = async () => {
           UserConstructClass = await loadFromTypescript({ filePath, exportName: resource.exportName });
         }
       } catch (err) {
-        throw stpErrors.e70({
+        throw awsCdkConstructErrors.importFailed({
           constructName: resource.name,
-          constructExportName: resource.exportName || 'default',
-          constructFilePath: entryfilePath,
-          rootError: err
+          exportName: resource.exportName || 'default',
+          filePath: entryfilePath,
+          cause: err
         });
       }
 
@@ -79,10 +74,10 @@ export const resolveAwsCdkConstructs = async () => {
       });
 
       if (!isConstruct) {
-        throw stpErrors.e71({
+        throw awsCdkConstructErrors.invalidExport({
           constructName: resource.name,
-          constructExportName: resource.exportName || 'default',
-          constructFilePath: entryfilePath
+          exportName: resource.exportName || 'default',
+          filePath: entryfilePath
         });
       }
       // we currently do not allow stack construct to be added as there are multiple questions/problems
@@ -90,9 +85,9 @@ export const resolveAwsCdkConstructs = async () => {
       // 2. logical name of resources could overlap if multiple stack constructs instances are made (logical names do not include stack name - we would need to do custom renaming)
       // instead of adding "Stack" user can wrap resources in more generic construct - this way SDK will resolve resources and logical names correctly. Also IMO makes more sense to user.
       if (isStack) {
-        throw stpErrors.e73({
+        throw awsCdkConstructErrors.stackNotSupported({
           constructName: resource.name,
-          constructClassName: UserConstructClass.name
+          className: UserConstructClass.name
         });
       }
 
@@ -103,7 +98,7 @@ export const resolveAwsCdkConstructs = async () => {
         new UserConstructClass(stack, capitalizeFirstLetter(resource.name), resource.constructProperties);
         cdkApp.synth();
       } catch (err) {
-        throw stpErrors.e72({ constructName: resource.name, rootError: err });
+        throw awsCdkConstructErrors.synthesisFailed({ constructName: resource.name, cause: err });
       }
 
       // after we successfully synthesized the construct we will parse the resulting template and add resources and outputs to our template
@@ -154,7 +149,7 @@ const getCdkLibs = ({ constructFilePath }: { constructFilePath: string }) => {
       })
     };
   } catch {
-    throw stpErrors.e507({ missingLibs: ['aws-cdk-lib', 'construct'], feature: 'AWS CDK constructs' });
+    throw awsCdkConstructErrors.dependenciesMissing();
   }
 };
 
@@ -181,10 +176,10 @@ const getUserConstructClassInfo = ({
     }
     return { isConstruct: true, isStack: true };
   } catch (err) {
-    throw stpErrors.e74({
+    throw awsCdkConstructErrors.instantiationFailed({
       constructName: constructResource.name,
-      constructExportName: constructResource.exportName || 'default',
-      rootError: err
+      exportName: constructResource.exportName || 'default',
+      cause: err
     });
   }
 };
