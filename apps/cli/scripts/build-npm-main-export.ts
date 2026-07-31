@@ -440,6 +440,35 @@ function cleanDeclarations(content: string, keepSdkImports: boolean = false): st
   return cleaned.trim();
 }
 
+/**
+ * `resource-metadata.ts` also exports the class metadata used by Stacktape's generators. That data is an internal
+ * build-time API; historically, only `REFERENCEABLE_PARAMS` was copied into the published `stacktape/types`
+ * declaration. Select that declaration explicitly so a change in how the source module re-exports its internal
+ * metadata cannot leak dangling symbols into the assembled npm declarations.
+ */
+export function extractReferenceableParamsDeclaration(content: string): string {
+  const sourceFile = ts.createSourceFile(
+    'resource-metadata.d.ts',
+    content,
+    ts.ScriptTarget.Latest,
+    true,
+    ts.ScriptKind.TS
+  );
+  const matches = sourceFile.statements.filter(
+    (statement): statement is ts.VariableStatement =>
+      ts.isVariableStatement(statement) &&
+      statement.declarationList.declarations.some(
+        (declaration) => ts.isIdentifier(declaration.name) && declaration.name.text === 'REFERENCEABLE_PARAMS'
+      )
+  );
+
+  if (matches.length !== 1) {
+    throw new Error(`Expected one REFERENCEABLE_PARAMS declaration, got ${matches.length}.`);
+  }
+
+  return matches[0].getText(sourceFile);
+}
+
 function removeDuplicateDeclarations(content: string): string {
   const duplicatePatterns = [
     'declare const getParamReferenceSymbol:',
@@ -1027,7 +1056,7 @@ ${stacktapeConfigType}
 
 ${cleanDeclarations(declarations.get('global-aws-services') || '')}
 
-${cleanDeclarations(declarations.get('resource-metadata') || '')}
+${extractReferenceableParamsDeclaration(declarations.get('resource-metadata') || '')}
 
 ${generatePlainSectionTypes()}
 `;

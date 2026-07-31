@@ -3,6 +3,7 @@ import { basename } from 'node:path';
 import {
   compileDeclarations,
   createDeclarationProgram,
+  extractReferenceableParamsDeclaration,
   NPM_DECLARATION_FILE_NAMES,
   NPM_SOURCE_FILES
 } from './build-npm-main-export';
@@ -54,6 +55,14 @@ describe('the npm declaration program is the CLI project', () => {
     expect(declarations.get('config')).toContain('defineConfig');
     expect(declarations.get('resources')).toContain('LambdaFunction');
     expect(declarations.get('directives')).toContain('$Secret');
+  });
+
+  test('publishes referenceable parameters without leaking generator metadata', () => {
+    const publishedMetadata = extractReferenceableParamsDeclaration(declarations.get('resource-metadata') || '');
+
+    expect(publishedMetadata).toContain('REFERENCEABLE_PARAMS');
+    expect(publishedMetadata).not.toContain('ResourceDefinition');
+    expect(publishedMetadata).not.toContain('getResourcesWithOverrides');
   });
 
   test('emit stays scoped to the npm sources', () => {
