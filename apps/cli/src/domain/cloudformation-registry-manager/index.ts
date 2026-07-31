@@ -3,7 +3,7 @@ import type {
   StpCfInfrastructureModuleType,
   SupportedPrivateCfResourceType
 } from '@domain-services/cloudformation-registry-manager/types';
-import type { RegisteredPrivateTypeVersion } from 'src/aws/sdk-manager';
+import type { RegisteredPrivateTypeVersion } from 'src/aws/cloudformation-registry';
 import type { Policy, RoleProperties } from '@cloudform/iam/role';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -140,7 +140,7 @@ export class CloudformationRegistryManager {
 
   loadRegisteredCloudformationPrivateTypes = async () => {
     this.cloudformationPrivateTypesInfo.registeredCloudformationPrivateTypes =
-      await awsSdkManager.listAllPrivateCloudformationResourceTypesWithVersions();
+      await awsSdkManager.cloudFormationRegistry.listTypesWithVersions();
   };
 
   areMinimalRequirementsForModulePrivateTypesMet = ({
@@ -498,7 +498,7 @@ export class CloudformationRegistryManager {
           // we are putting some random jitter before function calls to avoid rate exceeded error
           // printer.info(`Registering private type ${privateTypeName} ...`);
           await wait(Math.random() * 500);
-          const typeVersionArn = await awsSdkManager.registerPrivateCloudformationResourceType({
+          const typeVersionArn = await awsSdkManager.cloudFormationRegistry.registerType({
             schemaHandlerPackageS3Url: `s3://${
               globalStateManager.cloudformationRegistryBucketName
             }/${this.buildNewestAvailableFileBucketKeyForPrivateType({
@@ -516,7 +516,7 @@ export class CloudformationRegistryManager {
           // printer.info(
           //   `Registered private type ${privateTypeName} at version ${this.stacktapeInfrastructureModulesStatus[infrastructureModuleType].newestCompatibleCloudformationPrivateTypeVersion}(newest available)`
           // );
-          await awsSdkManager.setPrivateCloudformationResourceTypeAsDefault({
+          await awsSdkManager.cloudFormationRegistry.setDefaultVersion({
             typeVersionArn,
             // we are passing rate limiter that globally limits amount of request for cloudformation Api
             // see also comments on top of function
@@ -530,7 +530,7 @@ export class CloudformationRegistryManager {
             await Promise.all(
               this.cloudformationPrivateTypesInfo.registeredCloudformationPrivateTypes[privateTypeName].map(
                 async ({ Arn }) =>
-                  awsSdkManager.deregisterPrivateCloudformationType({
+                  awsSdkManager.cloudFormationRegistry.deregisterVersion({
                     typeVersionArn: Arn,
                     // we are passing rate limiter that globally limits amount of request for cloudformation Api
                     // see also comments on top of function

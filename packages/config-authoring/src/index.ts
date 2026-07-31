@@ -1,5 +1,5 @@
 import { Alarm, defineConfig } from './config.js';
-export type {
+import type {
   CloudFormationTemplate,
   CompiledStacktapeConfig,
   DefinedStacktapeConfig,
@@ -7,7 +7,7 @@ export type {
   GetConfigParams,
   ResourceTransform
 } from './config.js';
-export type { StacktapeConfig } from '@stacktape/config';
+import type { StacktapeConfig } from '@stacktape/config';
 import {
   $CfFormat,
   $CfResourceParam,
@@ -280,4 +280,14 @@ export {
   WebService,
   WorkerService,
   RemixWeb
+};
+
+export type {
+  CloudFormationTemplate,
+  CompiledStacktapeConfig,
+  DefinedStacktapeConfig,
+  FinalTransform,
+  GetConfigParams,
+  ResourceTransform,
+  StacktapeConfig
 };

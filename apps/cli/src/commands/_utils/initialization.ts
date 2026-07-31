@@ -33,6 +33,10 @@ import { logCollectorStream } from '@utils/log-collector';
 import { ensureAwsAccountConnected } from './aws-connection-preflight';
 import { assertCommandPermissions, assertScopedProjectAccess } from './permission-guards';
 import type { StackContext } from '@domain-services/stack-context';
+import type { ConfigResolverContext } from '@domain-services/config-manager/config-resolver';
+import type { ConfigManagerInitContext } from '@domain-services/config-manager/context';
+import type { GetConfigParams } from '@stacktape/config-authoring/tooling';
+import { getConfigPath } from '@utils/file-loaders';
 
 export const getStackContext = (): StackContext => ({
   accountId: globalStateManager.targetAwsAccount.awsAccountId,
@@ -46,15 +50,83 @@ export const getStackContext = (): StackContext => ({
   workingDir: globalStateManager.workingDir
 });
 
+export const getConfigResolverContext = (stackContext?: StackContext): ConfigResolverContext => {
+  const args = globalStateManager.args;
+  const user = globalStateManager.userData;
+  const authoringParams: GetConfigParams = {
+    projectName: stackContext?.projectName || globalStateManager.targetStack?.projectName || args.projectName,
+    stage: stackContext?.stage || globalStateManager.targetStack?.stage || args.stage,
+    region: stackContext?.region || globalStateManager.region,
+    command: stackContext?.command || globalStateManager.command,
+    awsProfile: globalStateManager.awsProfileName,
+    user: user ? { id: user.id, name: user.name, email: user.email } : undefined,
+    cliArgs: { ...args }
+  };
+
+  return {
+    authoringParams,
+    builtInDirectives: {
+      accountId: stackContext?.accountId || globalStateManager.targetAwsAccount.awsAccountId,
+      additionalArgs: { ...(globalStateManager.additionalArgs || {}) },
+      awsProfile: globalStateManager.awsProfileName,
+      cliArgs: { ...args },
+      command: stackContext?.command || globalStateManager.command,
+      disableEmulation: Boolean(args.disableEmulation),
+      region: stackContext?.region || globalStateManager.region,
+      stage: stackContext?.stage || globalStateManager.targetStack?.stage || args.stage,
+      workingDir: stackContext?.workingDir || globalStateManager.workingDir
+    },
+    configPath: globalStateManager.configPath,
+    presetConfig: globalStateManager.presetConfig,
+    templateId: args.templateId,
+    workingDir: stackContext?.workingDir || globalStateManager.workingDir
+  };
+};
+
+export const getConfigManagerContext = (stackContext: StackContext): ConfigManagerInitContext => {
+  const organization = globalStateManager.organizationData as
+    | (typeof globalStateManager.organizationData & {
+        issuesAllProjectsEnabled?: boolean;
+        issuesEnabledStages?: string[];
+        issuesEventSamplingRate?: number;
+      })
+    | undefined;
+  const projects = globalStateManager.projects as
+    | ((typeof globalStateManager.projects)[number] & { issuesEnabled?: boolean })[]
+    | undefined;
+
+  return {
+    helperLambdaDetails: globalStateManager.helperLambdaDetails,
+    issueDetection: {
+      organization: organization
+        ? {
+            issuesAllProjectsEnabled: organization.issuesAllProjectsEnabled,
+            issuesEnabledStages: organization.issuesEnabledStages,
+            issuesEventSamplingRate: organization.issuesEventSamplingRate
+          }
+        : undefined,
+      projects: projects?.map(({ issuesEnabled, name }) => ({ issuesEnabled, name }))
+    },
+    resolver: getConfigResolverContext(stackContext),
+    stack: stackContext
+  };
+};
+
+const detectConfigPath = () => {
+  globalStateManager.setConfigPath(getConfigPath());
+};
+
 export const loadTargetStackContext = async () => {
-  await configManager.loadRawConfigOnly();
+  detectConfigPath();
+  await configManager.loadRawConfigOnly({ context: getConfigResolverContext() });
   await globalStateManager.loadTargetStackInfo({
     configProjectName: configManager.configResolver.rawConfig?.projectName
   });
 };
 
 export const loadLocalTargetStackContext = async () => {
-  await configManager.loadRawConfigOnly();
+  detectConfigPath();
+  await configManager.loadRawConfigOnly({ context: getConfigResolverContext() });
   await globalStateManager.loadLocalTargetStackInfo({
     configProjectName: configManager.configResolver.rawConfig?.projectName
   });
@@ -133,7 +205,7 @@ export const initializeAllStackServices = async ({
     await loadLocalAwsContext();
   }
   const stackContext = getStackContext();
-  await configManager.init({ configRequired: true, stackContext });
+  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
 
   if (loadGlobalConfig && requiresControlPlane) {
     await configManager.loadGlobalConfig();
@@ -187,7 +259,7 @@ export const initializeAllStackServices = async ({
     notificationManager.init({ consoleApiAccess: requiresControlPlane })
   ]);
   await Promise.all([
-    templateManager.init({ stackDetails: stackManager.existingStackDetails }),
+    templateManager.init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName }),
     deployedStackOverviewManager.init({
       stackDetails: stackManager.existingStackDetails,
       stackResources: stackManager.existingStackResources,
@@ -234,7 +306,7 @@ export const initializeStackServicesForLocalResolve = async () => {
 
   await loadTargetStackContext();
   const stackContext = getStackContext();
-  await configManager.init({ configRequired: true, stackContext });
+  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
 
   await settleAllBeforeThrowing([
     startStackOperationRecording({
@@ -253,7 +325,7 @@ export const initializeStackServicesForLocalResolve = async () => {
   ]);
   await notificationManager.init();
   await Promise.all([
-    templateManager.init({ stackDetails: stackManager.existingStackDetails }),
+    templateManager.init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName }),
     deployedStackOverviewManager.init({
       stackDetails: stackManager.existingStackDetails,
       stackResources: stackManager.existingStackResources
@@ -271,7 +343,7 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
 
   await loadTargetStackContext();
   const stackContext = getStackContext();
-  await configManager.init({ configRequired: true, stackContext });
+  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
 
   await settleAllBeforeThrowing([
     startStackOperationRecording({
@@ -344,8 +416,11 @@ export const initializeStackServicesForDevPhase1 = async () => {
 
   await loadTargetStackContext();
   const stackContext = getStackContext();
-  await configManager.init({ configRequired: true, stackContext });
-  await calculatedStackOverviewManager.init({ context: stackContext });
+  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+  await Promise.all([
+    templateManager.init({ stackDetails: undefined, stackName: stackContext.stackName }),
+    calculatedStackOverviewManager.init({ context: stackContext })
+  ]);
   await packagingManager.init();
 
   // Register hooks (but don't process yet - local resources need to start first)
@@ -414,7 +489,7 @@ export const initializeStackServicesForWorkingWithDeployedStack = async ({
   await startStackOperationRecording({ stackName: globalStateManager.targetStack.stackName });
 
   const stackContext = getStackContext();
-  await configManager.init({ configRequired: commandRequiresConfig, stackContext });
+  await configManager.init({ configRequired: commandRequiresConfig, context: getConfigManagerContext(stackContext) });
 
   const stackName = globalStateManager.targetStack.stackName;
 
@@ -425,7 +500,7 @@ export const initializeStackServicesForWorkingWithDeployedStack = async ({
   });
 
   await Promise.all([
-    templateManager.init({ stackDetails: stackManager.existingStackDetails }),
+    templateManager.init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName }),
     deployedStackOverviewManager.init({
       stackDetails: stackManager.existingStackDetails,
       stackResources: stackManager.existingStackResources

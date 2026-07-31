@@ -24,7 +24,7 @@ const version = (typeName: string, versionId: string, overrides: Partial<TypeVer
 });
 
 /**
- * `listAllPrivateCloudformationResourceTypesWithVersions` is the boundary between the registry pages CloudFormation
+ * `cloudFormationRegistry.listTypesWithVersions` is the boundary between the registry pages CloudFormation
  * returns and the type/version map the registry manager keys, compares and deregisters by. These pin what it
  * accumulates, what it rejects, and how it pages.
  *
@@ -100,7 +100,7 @@ describe.serial('private registry pagination', () => {
     if (!stubInstalledByThisTest) {
       throw new Error('Refusing to call the registry without a stubbed CloudFormationClient.prototype.send.');
     }
-    return managerWith(getErrorHandlerFn).listAllPrivateCloudformationResourceTypesWithVersions();
+    return managerWith(getErrorHandlerFn).cloudFormationRegistry.listTypesWithVersions();
   };
 
   const recordingErrorHandler = () => {
@@ -239,7 +239,7 @@ describe.serial('private registry pagination', () => {
 
   const malformedVersionArns: [string, string | undefined][] = [
     ['without an ARN', undefined],
-    // An empty ARN would otherwise be carried all the way to `deregisterPrivateCloudformationType`, which addresses
+    // An empty ARN would otherwise be carried all the way to `cloudFormationRegistry.deregisterVersion`, which addresses
     // the version by exactly this string.
     ['whose ARN is empty', '']
   ];
@@ -317,7 +317,7 @@ describe.serial('private registry pagination', () => {
     // Keeps the guard non-vacuous and proves this stub cannot serve the stack-event suite's command.
     stubRegistry({ typePages: [{ TypeSummaries: [] }] });
 
-    await expect(managerWith().getStackEvents('some-stack', new Date())).rejects.toThrow(
+    await expect(managerWith().cloudFormation.getEvents('some-stack', new Date())).rejects.toThrow(
       /other than ListTypes or ListTypeVersions/
     );
 

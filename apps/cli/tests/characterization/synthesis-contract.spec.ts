@@ -22,6 +22,7 @@ import { finalizeTemplate } from '@domain-services/template-manager/finalize';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { getStackCfTemplateDescription } from '@stacktape/naming/stacks';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { getConfigManagerContext } from '../../src/commands/_utils/initialization';
 import {
   ApplicationLoadBalancer,
   ApplicationLoadBalancerIntegration,
@@ -194,7 +195,8 @@ const createDenseConfig = () =>
         outputs: [
           {
             name: 'apiUrl',
-            value: "$ResourceParam('apiGateway','url')"
+            value: "$ResourceParam('apiGateway','url')",
+            export: true
           }
         ],
         tags: [{ name: 'suite', value: 'characterization' }]
@@ -290,7 +292,7 @@ export const synthesizeDenseFixture = async ({
       ...synthesisContext
     };
     await eventManager.init();
-    await configManager.init({ configRequired: true, stackContext });
+    await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
     configManager.transforms = compiledConfig.transforms;
     configManager.finalTransform = compiledConfig.finalTransform;
     await ec2Manager.init({
@@ -310,7 +312,7 @@ export const synthesizeDenseFixture = async ({
     });
 
     await Promise.all([
-      templateManager.init({ stackDetails: undefined }),
+      templateManager.init({ stackDetails: undefined, stackName: stackContext.stackName }),
       calculatedStackOverviewManager.init({
         context: stackContext
       })
@@ -332,6 +334,13 @@ const protectedAwsEnvironment = [
 ] as const;
 
 export const withCredentiallessSynthesisBoundary = async <Result>(operation: () => Promise<Result>) => {
+  if (!awsSdkManager.isInitialized) {
+    awsSdkManager.init({
+      credentials: { accessKeyId: 'characterization-forbidden', secretAccessKey: 'characterization-forbidden' },
+      region: 'eu-west-1'
+    });
+  }
+  const cloudFormation = awsSdkManager.cloudFormation;
   const originalEnvironment = Object.fromEntries(
     protectedAwsEnvironment.map((name) => [name, process.env[name]])
   ) as Record<(typeof protectedAwsEnvironment)[number], string | undefined>;
@@ -340,8 +349,8 @@ export const withCredentiallessSynthesisBoundary = async <Result>(operation: () 
   const originalHttpGet = http.get;
   const originalHttpsRequest = https.request;
   const originalHttpsGet = https.get;
-  const originalGetStackDetails = awsSdkManager.getStackDetails;
-  const originalGetStackResources = awsSdkManager.getStackResources;
+  const originalGetStackDetails = cloudFormation.getDetails;
+  const originalGetStackResources = cloudFormation.getResources;
 
   process.env.AWS_ACCESS_KEY_ID = 'characterization-forbidden';
   process.env.AWS_SECRET_ACCESS_KEY = 'characterization-forbidden';
@@ -369,8 +378,8 @@ export const withCredentiallessSynthesisBoundary = async <Result>(operation: () 
   http.get = rejectNodeRequest as typeof http.get;
   https.request = rejectNodeRequest as typeof https.request;
   https.get = rejectNodeRequest as typeof https.get;
-  awsSdkManager.getStackDetails = async () => null;
-  awsSdkManager.getStackResources = async () => [];
+  cloudFormation.getDetails = async () => null;
+  cloudFormation.getResources = async () => [];
 
   try {
     return await operation();
@@ -380,8 +389,8 @@ export const withCredentiallessSynthesisBoundary = async <Result>(operation: () 
     http.get = originalHttpGet;
     https.request = originalHttpsRequest;
     https.get = originalHttpsGet;
-    awsSdkManager.getStackDetails = originalGetStackDetails;
-    awsSdkManager.getStackResources = originalGetStackResources;
+    cloudFormation.getDetails = originalGetStackDetails;
+    cloudFormation.getResources = originalGetStackResources;
     for (const name of protectedAwsEnvironment) {
       const value = originalEnvironment[name];
       if (value === undefined) {
@@ -683,6 +692,12 @@ describe('full synthesis contract', () => {
 
     expect(resources.FilesBucket.Properties.VersioningConfiguration).toEqual({ Status: 'Enabled' });
     expect(synthesizedTemplate.Metadata).toMatchObject({ ConfigAuthoringFinalTransform: true });
+  });
+
+  test('names exported outputs from the explicitly initialized stack context', () => {
+    expect((synthesizedTemplate.Outputs.apiUrl as { Export: { Name: string } }).Export.Name).toBe(
+      'CharacterizationBaselineApiUrl'
+    );
   });
 
   test('preserves resource identities, physical names, and dependency edges', async () => {

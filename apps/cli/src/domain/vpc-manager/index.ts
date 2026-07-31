@@ -71,7 +71,7 @@ export class VpcManager {
     } else {
       // Method 2: Find VPC in target stack using projectName/stage
       const targetStackName = getStackName(reuseVpc.projectName, reuseVpc.stage);
-      const stackResources = await awsSdkManager.getStackResources(targetStackName);
+      const stackResources = await awsSdkManager.cloudFormation.getResources(targetStackName);
 
       const vpcLogicalName = cfLogicalNames.vpc();
       const vpcResource = stackResources.find((resource) => resource.LogicalResourceId === vpcLogicalName);

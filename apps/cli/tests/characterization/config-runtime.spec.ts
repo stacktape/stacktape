@@ -8,7 +8,11 @@ import { ConfigResolver } from '@domain-services/config-manager/config-resolver'
 import { configManager } from '@domain-services/config-manager';
 import { stacktapeConfigSchema, validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
 import { resolveOpenSearchLoggingDefaults } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/open-search';
-import { getStackContext } from '../../src/commands/_utils/initialization';
+import {
+  getConfigManagerContext,
+  getConfigResolverContext,
+  getStackContext
+} from '../../src/commands/_utils/initialization';
 
 import type { StacktapeConfig } from '@stacktape/config';
 import get from 'lodash/get';
@@ -37,6 +41,21 @@ const fixtureAuthoringParams: GetConfigParams = {
   command: 'synth',
   awsProfile: '',
   user: { id: 'test-user', name: 'Test User', email: 'test@example.com' }
+};
+const fixtureResolverContext = {
+  authoringParams: fixtureAuthoringParams,
+  builtInDirectives: {
+    accountId: '123456789999',
+    additionalArgs: {},
+    awsProfile: '',
+    cliArgs: fixtureAuthoringParams.cliArgs,
+    command: 'synth' as const,
+    disableEmulation: false,
+    region: 'us-west-2' as const,
+    stage: 'explicit-directive-stage',
+    workingDir: process.cwd()
+  },
+  workingDir: process.cwd()
 };
 
 // The fixture config imports `pkg-a`, which re-exports a value from `pkg-b`, so that config loading is exercised
@@ -210,12 +229,13 @@ describe('configuration runtime contract', () => {
       globalStateManager.presetConfig = null;
       globalStateManager.initializedDomainServices = [];
 
-      await configManager.loadRawConfigOnly();
+      await configManager.loadRawConfigOnly({ context: getConfigResolverContext() });
       expect(configManager.configResolver.rawConfig.projectName).toBe('execution-config-project');
       await globalStateManager.loadLocalTargetStackInfo({
         configProjectName: configManager.configResolver.rawConfig.projectName
       });
-      await configManager.init({ configRequired: true, stackContext: getStackContext() });
+      const stackContext = getStackContext();
+      await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
 
       const getExecutionCounts = getTypescriptExport({
         filePath: executionFixturePath,
@@ -269,6 +289,7 @@ describe('configuration runtime contract', () => {
   test('resolves directives returned by other directives to a fixed point', async () => {
     const resolver = new ConfigResolver();
     resolver.rawConfig = { resources: {} } as StacktapeConfig;
+    resolver.setContext(fixtureResolverContext);
     resolver.registerBuiltInDirectives();
     resolver.registerDirective({
       name: 'Characterization',
@@ -282,11 +303,12 @@ describe('configuration runtime contract', () => {
         itemToResolve: { value: '$Characterization()' },
         resolveRuntime: true
       })
-    ).resolves.toEqual({ value: 'prefix-test' });
+    ).resolves.toEqual({ value: 'prefix-explicit-directive-stage' });
   });
 
   test('reports unknown directives with a stable semantic error code', () => {
     const resolver = new ConfigResolver();
+    resolver.setContext(fixtureResolverContext);
     resolver.registerBuiltInDirectives();
 
     expect(() => resolver.getDirectiveInfo('$DoesNotExist()')).toThrow(

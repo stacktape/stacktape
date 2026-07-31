@@ -1,26 +1,9 @@
 import type { TuiManager as Printer } from '@application-services/tui-manager';
 import type { CostExplorerTagsError } from '@domain-services/budget-manager/types';
-import type {
-  CloudformationTemplate,
-  InvokeLambdaReturnValue,
-  StackDetails
-} from '@domain-services/cloudformation-stack-manager/types';
+import type { InvokeLambdaReturnValue } from '@domain-services/cloudformation-stack-manager/types';
 import type { GitInformation } from '@utils/git-info-manager/types';
 import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
 import type { Budget } from '@aws-sdk/client-budgets';
-import type {
-  CreateChangeSetInput,
-  CreateStackInput,
-  ListStackResourcesCommandOutput,
-  SetStackPolicyInput,
-  Stack,
-  StackEvent,
-  StackResourceSummary,
-  StackSummary,
-  TypeSummary,
-  TypeVersionSummary,
-  UpdateStackInput
-} from '@aws-sdk/client-cloudformation';
 import type { DistributionSummary } from '@aws-sdk/client-cloudfront';
 import type { BatchGetBuildsCommandInput } from '@aws-sdk/client-codebuild';
 import type { CreateDeploymentCommandInput } from '@aws-sdk/client-codedeploy';
@@ -46,31 +29,7 @@ import path from 'node:path';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { AutoScaling, DescribeAutoScalingGroupsCommand } from '@aws-sdk/client-auto-scaling';
 import { BudgetsClient, DescribeBudgetsCommand } from '@aws-sdk/client-budgets';
-import {
-  CancelUpdateStackCommand,
-  CloudFormationClient,
-  ContinueUpdateRollbackCommand,
-  CreateChangeSetCommand,
-  CreateStackCommand,
-  DeleteStackCommand,
-  DeregisterTypeCommand,
-  DescribeChangeSetCommand,
-  DescribeStackEventsCommand,
-  DescribeStacksCommand,
-  DescribeTypeRegistrationCommand,
-  GetTemplateCommand,
-  ListStackResourcesCommand,
-  ListStacksCommand,
-  ListTypesCommand,
-  ListTypeVersionsCommand,
-  RegisterTypeCommand,
-  RollbackStackCommand,
-  SetStackPolicyCommand,
-  SetTypeDefaultVersionCommand,
-  UpdateStackCommand,
-  UpdateTerminationProtectionCommand,
-  ValidateTemplateCommand
-} from '@aws-sdk/client-cloudformation';
+import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
 import {
   CloudFrontClient,
   CreateInvalidationCommand,
@@ -195,7 +154,6 @@ import {
 } from '@utils/misc';
 import { CliError } from '@utils/errors';
 import { getForwardableOperationInvocationEnv } from '@application-services/operation-invocation-context';
-import { parseYaml } from '@utils/yaml';
 import { kebabCase, pascalCase } from 'change-case';
 import fsExtra from 'fs-extra';
 import pRetry from 'p-retry';
@@ -212,6 +170,8 @@ import { AwsObservability } from '../observability';
 import { AwsParameterStore } from '../parameter-store';
 import { AwsSecrets } from '../secrets';
 import { AwsDomains } from '../domains';
+import { AwsCloudFormationStacks } from '../cloudformation-stacks';
+import { AwsCloudFormationRegistry } from '../cloudformation-registry';
 import {
   automaticUploadFilterPresets,
   defaultGetErrorFunction,
@@ -241,74 +201,14 @@ const getOperationInvocationCodebuildEnvVariables = () => {
   }));
 };
 
-/**
- * A stack event the deployment monitor can act on: one carrying the four fields it addresses events by.
- *
- * The SDK declares those four in two different ways, and this narrows both. `EventId` and `Timestamp` are required
- * keys whose values may still be `undefined`; `LogicalResourceId` and `ResourceStatus` are optional keys, because
- * CloudFormation also reports hook and other non-resource events that carry no resource identity at all. Such events
- * are not monitorable and are dropped rather than allowed to crash monitoring.
- *
- * Nothing else is promised. In particular `PhysicalResourceId` stays optional: a resource that has not been created
- * yet, or failed before it was, genuinely has none. The one place the monitor reads it is already guarded by
- * `isEcsServiceCreateOrUpdateCloudformationEvent`, which tests it and narrows it for that branch alone.
- */
-export type MonitoredStackEvent = StackEvent & {
-  Timestamp: NonNullable<StackEvent['Timestamp']>;
-  EventId: NonNullable<StackEvent['EventId']>;
-  LogicalResourceId: NonNullable<StackEvent['LogicalResourceId']>;
-  ResourceStatus: NonNullable<StackEvent['ResourceStatus']>;
-};
-
-const hasUsableTimestamp = (event: StackEvent): event is StackEvent & { Timestamp: Date } =>
-  event.Timestamp instanceof Date && Number.isFinite(event.Timestamp.getTime());
-
-const isMonitoredStackEvent = (event: StackEvent): event is MonitoredStackEvent =>
-  hasUsableTimestamp(event) &&
-  typeof event.EventId === 'string' &&
-  typeof event.LogicalResourceId === 'string' &&
-  typeof event.ResourceStatus === 'string';
-
-/**
- * The oldest timestamp a page can be bounded by. Pages arrive newest first, so this walks back from the end and takes
- * the first event that carries a usable one, ignoring events that have none.
- */
-const findOldestUsableTimestamp = (events: StackEvent[]): Date | undefined => {
-  for (let index = events.length - 1; index >= 0; index -= 1) {
-    const event = events[index];
-    if (hasUsableTimestamp(event)) {
-      return event.Timestamp;
-    }
-  }
-  return undefined;
-};
-
-/**
- * A registered version of a private CloudFormation resource type, carrying the ARN the CLI addresses it by.
- *
- * `Arn` is optional on the SDK summary, but the registry manager deregisters versions by it, so a version without one
- * is a malformed success rather than something to carry around. `Description`, `IsDefaultVersion` and the rest stay
- * optional: the registry manager already treats each as genuinely absent.
- */
-export type RegisteredPrivateTypeVersion = TypeVersionSummary & {
-  Arn: NonNullable<TypeVersionSummary['Arn']>;
-};
-
-/**
- * Whether a version carries an ARN the CLI can later deregister by.
- *
- * Truthiness rather than a `typeof` test, so that this agrees with the type-name and type-ARN checks in the listing
- * below: an empty string is not a usable deregistration identifier, and accepting one would put `''` where a real ARN
- * is expected. The type cannot say "non-empty", so the guard is what carries it.
- */
-const hasVersionArn = (version: TypeVersionSummary): version is RegisteredPrivateTypeVersion => Boolean(version.Arn);
-
 export class AwsSdkManager {
   #context?: AwsClientContext;
   #observability?: AwsObservability;
   #parameterStore?: AwsParameterStore;
   #secrets?: AwsSecrets;
   #domains?: AwsDomains;
+  #cloudFormation?: AwsCloudFormationStacks;
+  #cloudFormationRegistry?: AwsCloudFormationRegistry;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -351,6 +251,14 @@ export class AwsSdkManager {
       createRoute53DomainsClient: () => this.#route53Domains(),
       createSesClient: () => this.#ses(),
       createSesV2Client: () => this.#sesv2(),
+      getErrorHandler: this.#getErrorHandler
+    });
+    this.#cloudFormation = new AwsCloudFormationStacks({
+      createClient: (clientRegion) => this.#cloudformation(clientRegion),
+      getErrorHandler: this.#getErrorHandler
+    });
+    this.#cloudFormationRegistry = new AwsCloudFormationRegistry({
+      createClient: () => this.#cloudformation(),
       getErrorHandler: this.#getErrorHandler
     });
   }
@@ -401,6 +309,22 @@ export class AwsSdkManager {
       throw new Error('AWS domain services have not been initialized.');
     }
     return this.#domains;
+  }
+
+  get cloudFormation() {
+    this.#getContext();
+    if (!this.#cloudFormation) {
+      throw new Error('AWS CloudFormation has not been initialized.');
+    }
+    return this.#cloudFormation;
+  }
+
+  get cloudFormationRegistry() {
+    this.#getContext();
+    if (!this.#cloudFormationRegistry) {
+      throw new Error('AWS CloudFormation registry has not been initialized.');
+    }
+    return this.#cloudFormationRegistry;
   }
 
   #getContext() {
@@ -562,84 +486,6 @@ export class AwsSdkManager {
     return this.#applyPlugins(new BudgetsClient(this.#getClientArgs()));
   }
 
-  validateCloudformationTemplate = ({ templateBody, templateUrl }: { templateUrl?: string; templateBody?: string }) => {
-    return this.#cloudformation()
-      .send(
-        new ValidateTemplateCommand({
-          ...(templateUrl && { TemplateURL: templateUrl }),
-          ...(templateBody && { TemplateBody: templateBody })
-        })
-      )
-      .catch((err) => {
-        throw new CliError({
-          category: 'CLOUDFORMATION',
-          code: 'CLOUDFORMATION_TEMPLATE_INVALID',
-          message: `Template validation failed.\nCode: ${err.code}\nMessage: ${err.message}`,
-          cause: err
-        });
-      });
-  };
-
-  createStack = (template: CloudformationTemplate, stackParams: CreateStackInput) => {
-    const errHandler = this.#getErrorHandler('Failed to initiate stack creation.');
-    return this.#cloudformation()
-      .send(new CreateStackCommand({ ...stackParams, TemplateBody: JSON.stringify(template) }))
-      .catch(errHandler);
-  };
-
-  updateStack = (templateUrl: string, stackParams: UpdateStackInput) => {
-    const errHandler = this.#getErrorHandler('Failed to initiate stack update.');
-    return this.#cloudformation()
-      .send(new UpdateStackCommand({ ...stackParams, TemplateURL: templateUrl }))
-      .then((result) => ({
-        ...result,
-        skipped: false
-      }))
-      .catch((err) => {
-        if (err.message === 'No updates are to be performed.') {
-          return { skipped: true };
-        }
-        errHandler(err);
-      });
-  };
-
-  cancelUpdateStack = (stackName: string) => {
-    const errHandler = this.#getErrorHandler('Failed to cancel update stack.');
-    return this.#cloudformation()
-      .send(new CancelUpdateStackCommand({ StackName: stackName }))
-      .catch(errHandler);
-  };
-
-  deleteStack = (stackName: string, { roleArn }: { roleArn?: string }) => {
-    const errHandler = this.#getErrorHandler('Failed to initiate stack deletion.');
-    return this.#cloudformation()
-      .send(new DeleteStackCommand({ StackName: stackName, RoleARN: roleArn }))
-      .catch(errHandler);
-  };
-
-  rollbackStack = (stackName: string, { roleArn }: { roleArn: string }) => {
-    const errHandler = this.#getErrorHandler('Failed to initiate stack rollback.');
-    return this.#cloudformation()
-      .send(new RollbackStackCommand({ StackName: stackName, RoleARN: roleArn }))
-      .catch(errHandler);
-  };
-
-  continueUpdateRollback = (
-    stackName: string,
-    { roleArn, resourcesToSkip }: { roleArn: string; resourcesToSkip?: string[] }
-  ) => {
-    const errHandler = this.#getErrorHandler('Failed to initiate stack rollback continuation.');
-    return this.#cloudformation()
-      .send(
-        new ContinueUpdateRollbackCommand({
-          StackName: stackName,
-          RoleARN: roleArn,
-          ResourcesToSkip: resourcesToSkip
-        })
-      )
-      .catch(errHandler);
-  };
-
   getAssumedRoleCredentials = async ({
     roleArn,
     roleSessionName,
@@ -752,69 +598,6 @@ export class AwsSdkManager {
       });
   };
 
-  /**
-   * Fetches the stack events at or after `since`, newest first, exactly as CloudFormation orders them. The deployment
-   * monitor does its own single reversal before processing, so the order is deliberately left alone here.
-   *
-   * Every page is filtered, including the last one. The previous version filtered only the first page and appended
-   * the rest wholesale, which let an event older than the cutoff off the terminal page seed monitoring state.
-   *
-   * Paging continues while CloudFormation offers a token and stops once a page's oldest usable timestamp falls before
-   * the cutoff — the raw timestamp, so a page made entirely of hook events cannot end paging early. A page with a
-   * token but no usable timestamp at all is not a boundary, so paging continues through it.
-   */
-  getStackEvents = async (stackName: string, since: Date): Promise<MonitoredStackEvent[]> => {
-    const errHandler = this.#getErrorHandler('Failed to fetch stack events.');
-    const result: MonitoredStackEvent[][] = [];
-    let nextToken: string | undefined;
-
-    do {
-      const page = await this.#cloudformation()
-        .send(
-          new DescribeStackEventsCommand(
-            nextToken ? { StackName: stackName, NextToken: nextToken } : { StackName: stackName }
-          )
-        )
-        .catch(errHandler);
-      const events = page.StackEvents || [];
-      result.push(events.filter(isMonitoredStackEvent).filter(({ Timestamp }) => Timestamp >= since));
-      nextToken = page.NextToken;
-      const oldestUsableTimestamp = findOldestUsableTimestamp(events);
-      if (oldestUsableTimestamp && oldestUsableTimestamp < since) {
-        break;
-      }
-    } while (nextToken);
-
-    return result.flat();
-  };
-
-  getStackResources = async (stackName: string): Promise<StackResourceSummary[]> => {
-    const errHandler = this.#getErrorHandler('Could not fetch existing stack information.');
-    const result: StackResourceSummary[] = [];
-    let { StackResourceSummaries, NextToken } = (await this.#cloudformation()
-      .send(new ListStackResourcesCommand({ StackName: stackName }))
-      .catch((err) => {
-        if (err.message.startsWith('Stack with id') && err.message.endsWith('does not exist')) {
-          return [];
-        }
-        errHandler(err);
-      })) as ListStackResourcesCommandOutput;
-    result.push(...(StackResourceSummaries || []));
-    while (NextToken) {
-      ({ StackResourceSummaries, NextToken } = (await this.#cloudformation()
-        .send(new ListStackResourcesCommand({ StackName: stackName, NextToken }))
-        .catch((err) => {
-          if (err.message.startsWith('Stack with id') && err.message.endsWith('does not exist')) {
-            return [];
-          }
-          errHandler(err);
-        })) as ListStackResourcesCommandOutput);
-
-      result.push(...(StackResourceSummaries || []));
-    }
-    return result;
-  };
-
   getAllTagsUsedInRegion = async () => {
     const errHandler = this.#getErrorHandler('Could not fetch information about tags used in this region');
     const result: string[] = [];
@@ -873,45 +656,6 @@ export class AwsSdkManager {
       errHandler(err);
     }
     return { tags: result };
-  };
-
-  listStacks = async (): Promise<StackSummary[]> => {
-    const errHandler = this.#getErrorHandler('Could not list stacks');
-    const result: StackSummary[] = [];
-    let { StackSummaries, NextToken } = await this.#cloudformation().send(new ListStacksCommand({})).catch(errHandler);
-    result.push(...(StackSummaries || []));
-    while (NextToken) {
-      ({ StackSummaries, NextToken } = await this.#cloudformation()
-        .send(new ListStacksCommand({ NextToken }))
-        .catch(errHandler));
-      result.push(...(StackSummaries || []));
-    }
-    return result;
-  };
-
-  getStackDetails = async (stackName: string, region?: string): Promise<StackDetails> => {
-    const errHandler = this.#getErrorHandler('Could not fetch existing stack information.');
-    const cfClient = this.#cloudformation(region);
-    const stackDescription = await cfClient.send(new DescribeStacksCommand({ StackName: stackName })).catch((err) => {
-      if (err.message.startsWith('Stack with id') && err.message.endsWith('does not exist')) {
-        return null;
-      }
-      errHandler(err);
-    });
-    if (stackDescription) {
-      const stackData = stackDescription.Stacks[0] as Stack;
-      return {
-        ...stackData,
-        Outputs: stackData?.Outputs || [],
-        stackOutput: (stackData.Outputs || []).reduce((acc, val) => {
-          acc[val.OutputKey] = val.OutputValue;
-          return acc;
-        }, {}) as {
-          [outputName: string]: string;
-        }
-      };
-    }
-    return null;
   };
 
   createBucket = async ({
@@ -1326,148 +1070,6 @@ export class AwsSdkManager {
     return result;
   };
 
-  /**
-   * Lists every private resource type in the account's registry together with its registered versions.
-   *
-   * A page that omits its summaries is an empty page rather than an absent one, and a token is still followed after
-   * it. A type with no name or ARN cannot be keyed or have its versions requested, and a version with no ARN cannot
-   * later be deregistered; CloudFormation reporting success without them is malformed, so those go to the same error
-   * handler as a failed request rather than travelling on as holes.
-   *
-   * Types are listed in service order, each type's versions keep their page order, and versions for independent types
-   * are still paginated concurrently.
-   */
-  listAllPrivateCloudformationResourceTypesWithVersions = async (): Promise<{
-    [typeName: string]: RegisteredPrivateTypeVersion[];
-  }> => {
-    const errHandler = this.#getErrorHandler('Failed to list private cloudformation types.');
-    const listTypesInput = { DeprecatedStatus: 'LIVE', Type: 'RESOURCE', Visibility: 'PRIVATE' } as const;
-
-    const typesList: TypeSummary[] = [];
-    let nextToken: string | undefined;
-    do {
-      const page = await this.#cloudformation()
-        .send(new ListTypesCommand(nextToken ? { ...listTypesInput, NextToken: nextToken } : listTypesInput))
-        .catch(errHandler);
-      typesList.push(...(page.TypeSummaries || []));
-      nextToken = page.NextToken;
-    } while (nextToken);
-
-    const typesVersions: { [typeName: string]: RegisteredPrivateTypeVersion[] } = {};
-    await Promise.all(
-      typesList.map(async ({ TypeArn, TypeName }) => {
-        if (!TypeName || !TypeArn) {
-          return errHandler(
-            new Error('CloudFormation listed a private resource type without a type name or a type ARN.')
-          );
-        }
-        const versions: RegisteredPrivateTypeVersion[] = [];
-        typesVersions[TypeName] = versions;
-        let versionNextToken: string | undefined;
-        do {
-          const page = await this.#cloudformation()
-            .send(
-              new ListTypeVersionsCommand(
-                versionNextToken ? { Arn: TypeArn, NextToken: versionNextToken } : { Arn: TypeArn }
-              )
-            )
-            .catch(errHandler);
-          for (const version of page.TypeVersionSummaries || []) {
-            if (!hasVersionArn(version)) {
-              return errHandler(new Error(`CloudFormation listed a version of ${TypeName} without an ARN.`));
-            }
-            versions.push(version);
-          }
-          versionNextToken = page.NextToken;
-        } while (versionNextToken);
-      })
-    );
-    return typesVersions;
-  };
-
-  registerPrivateCloudformationResourceType = async ({
-    schemaHandlerPackageS3Url,
-    typeName,
-    executionRoleArn,
-    rateLimiter
-  }: {
-    schemaHandlerPackageS3Url: string;
-    typeName: string;
-    executionRoleArn?: string;
-    // logGroupName: string;
-    rateLimiter: <T>(fn: () => Promise<T>) => Promise<T>;
-  }) => {
-    const errHandler = this.#getErrorHandler(`Failed to register private cloudformation resource type ${typeName}.`);
-    const { RegistrationToken } = await rateLimiter(() =>
-      this.#cloudformation()
-        .send(
-          new RegisterTypeCommand({
-            SchemaHandlerPackage: schemaHandlerPackageS3Url,
-            TypeName: typeName,
-            ExecutionRoleArn: executionRoleArn,
-            Type: 'RESOURCE'
-            // for now we are not logging from custom resources, due to leaky credentials
-            // LoggingConfig: { LogGroupName: logGroupName, LogRoleArn: executionRoleArn }
-          })
-        )
-        .catch(errHandler)
-    );
-    // await wait(500);
-    let { ProgressStatus, Description, TypeVersionArn } = await rateLimiter(() =>
-      this.#cloudformation().send(new DescribeTypeRegistrationCommand({ RegistrationToken })).catch(errHandler)
-    );
-
-    while (ProgressStatus !== 'COMPLETE') {
-      // await wait(1000);
-      ({ ProgressStatus, Description, TypeVersionArn } = await rateLimiter(() =>
-        this.#cloudformation().send(new DescribeTypeRegistrationCommand({ RegistrationToken })).catch(errHandler)
-      ));
-      await wait(10000);
-      if (ProgressStatus === 'FAILED') {
-        throw new CliError({
-          category: 'AWS',
-          code: 'AWS_CLOUDFORMATION_TYPE_REGISTRATION_FAILED',
-          message: `Registration of private cloudformation resource type ${typeName} failed. Registration description: ${Description}`
-        });
-      }
-    }
-    return TypeVersionArn;
-  };
-
-  setPrivateCloudformationResourceTypeAsDefault = async ({
-    typeVersionArn,
-    rateLimiter
-  }: {
-    typeVersionArn: string;
-    rateLimiter: <T>(fn: () => Promise<T>) => Promise<T>;
-  }) => {
-    const errHandler = this.#getErrorHandler(
-      `Failed to set private cloudformation resource type version ${typeVersionArn} as default`
-    );
-    await rateLimiter(() =>
-      this.#cloudformation()
-        .send(new SetTypeDefaultVersionCommand({ Arn: typeVersionArn }))
-        .catch(errHandler)
-    );
-  };
-
-  deregisterPrivateCloudformationType = async ({
-    typeVersionArn,
-    rateLimiter
-  }: {
-    typeVersionArn: string;
-    rateLimiter: <T>(fn: () => Promise<T>) => Promise<T>;
-  }) => {
-    const errHandler = this.#getErrorHandler(
-      `Failed to deregister private cloudformation resource type version ${typeVersionArn}.`
-    );
-    await rateLimiter(() =>
-      this.#cloudformation()
-        .send(new DeregisterTypeCommand({ Arn: typeVersionArn }))
-        .catch(errHandler)
-    );
-  };
-
   getRole = async ({
     roleName,
     throwErrorWhenRoleNotExists
@@ -1687,39 +1289,6 @@ export class AwsSdkManager {
   //     return res;
   //   };
 
-  createCloudformationChangeSet = async (input: CreateChangeSetInput & { includePropertyValues?: boolean }) => {
-    const errHandler = this.#getErrorHandler('Failed to fetch change-set details.');
-    const { includePropertyValues, ...createChangeSetInput } = input;
-
-    const { Id, StackId } = await this.#cloudformation()
-      .send(new CreateChangeSetCommand(createChangeSetInput))
-      .catch(this.#getErrorHandler('Failed to initiate creation of changes set.'));
-
-    let changeSet = await this.#cloudformation()
-      .send(new DescribeChangeSetCommand({ ChangeSetName: Id, IncludePropertyValues: includePropertyValues }))
-      .catch(errHandler);
-    while (changeSet.Status !== 'CREATE_COMPLETE') {
-      await wait(750);
-      changeSet = await this.#cloudformation()
-        .send(new DescribeChangeSetCommand({ ChangeSetName: Id, IncludePropertyValues: includePropertyValues }))
-        .catch(errHandler);
-    }
-
-    return { changes: changeSet.Changes, changeSetId: Id, stackId: StackId };
-  };
-
-  setStackPolicy = async (input: SetStackPolicyInput) => {
-    const errHandler = this.#getErrorHandler('Failed to update stack policy.');
-    return this.#cloudformation().send(new SetStackPolicyCommand(input)).catch(errHandler);
-  };
-
-  setTerminationProtection = async (enabled: boolean, stackName: string) => {
-    const errHandler = this.#getErrorHandler('Failed to set termination protection');
-    return this.#cloudformation()
-      .send(new UpdateTerminationProtectionCommand({ EnableTerminationProtection: enabled, StackName: stackName }))
-      .catch(errHandler);
-  };
-
   setAwsAccountEcsSetting = async (settingName: string, settingValue: 'enabled' | 'disabled') => {
     const errHandler = this.#getErrorHandler(
       `Unable to set ecs setting ${settingName} to desired value ${settingValue}`
@@ -1727,21 +1296,6 @@ export class AwsSdkManager {
     return this.#ecs()
       .send(new PutAccountSettingDefaultCommand({ name: settingName, value: settingValue }))
       .catch(errHandler);
-  };
-
-  getCfStackTemplate = async (stackName: string) => {
-    const errHandler = this.#getErrorHandler(
-      `Unable to retrieve template of a Cloudformation stack with name ${stackName}`
-    );
-    // const templateString = (await this.#cloudformation().send(new GetTemplateCommand({ StackName: stackName })))
-    //   .TemplateBody;
-    return parseYaml(
-      (
-        await this.#cloudformation()
-          .send(new GetTemplateCommand({ StackName: stackName }))
-          .catch(errHandler)
-      ).TemplateBody
-    );
   };
 
   invalidateCloudfrontDistributionCache = async ({

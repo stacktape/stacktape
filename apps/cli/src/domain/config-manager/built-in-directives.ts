@@ -1,6 +1,5 @@
 import type { Directive } from '@domain-services/config-manager/directive-types';
 import type { IntrinsicFunction } from '@cloudform/dataTypes';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, ImportValue, Ref, Sub } from '@cloudform/functions';
 import { IDENTIFIER_FOR_MISSING_OUTPUT, linksMap } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -18,10 +17,23 @@ import { gitInfoManager } from '@utils/git-info-manager';
 import { getAllReferencableParams, referenceableTypes } from '@utils/referenceable-types';
 import { validateFormatDirectiveParams, validateStackOutputName } from '@utils/validator';
 import { getNonExistingResourceError, getReferencableParamsError } from './utils/resource-references';
+import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
 
 // @note !!! BE CAREFUL !!! with using services in directives... some of them might not be initialized yet
 
-export const builtInDirectives: Directive[] = [
+export type BuiltInDirectiveContext = Readonly<{
+  accountId: string;
+  additionalArgs: Readonly<Record<string, string | boolean>>;
+  awsProfile: string;
+  cliArgs: Readonly<StacktapeArgs>;
+  command: StacktapeCommand;
+  disableEmulation: boolean;
+  region: AWSRegion;
+  stage: string;
+  workingDir: string;
+}>;
+
+export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Directive[] => [
   {
     name: 'File',
     isRuntime: false,
@@ -30,7 +42,7 @@ export const builtInDirectives: Directive[] = [
       const res = await loadFromAnySupportedFile({
         sourcePath,
         codeType: '$File directive input',
-        workingDir: globalStateManager.workingDir
+        workingDir: context.workingDir
       });
       if (res === null) {
         throw new CliError({
@@ -58,7 +70,7 @@ export const builtInDirectives: Directive[] = [
     resolveFunction: () => async (filePath: string) => {
       const res = await loadRawFileContent({
         filePath,
-        workingDir: globalStateManager.workingDir
+        workingDir: context.workingDir
       });
       return res;
     }
@@ -68,32 +80,32 @@ export const builtInDirectives: Directive[] = [
     isRuntime: false,
     requiredParams: { argName: 'string' },
     resolveFunction: () => (argName, defaultValue) => {
-      return { ...globalStateManager.args, ...globalStateManager.additionalArgs }[argName] ?? defaultValue;
+      return { ...context.cliArgs, ...context.additionalArgs }[argName] ?? defaultValue;
     }
   },
   {
     name: 'Stage',
     isRuntime: false,
     requiredParams: {},
-    resolveFunction: () => () => globalStateManager.targetStack.stage
+    resolveFunction: () => () => context.stage
   },
   {
     name: 'Region',
     isRuntime: false,
     requiredParams: {},
-    resolveFunction: () => () => globalStateManager.region
+    resolveFunction: () => () => context.region
   },
   {
     name: 'Profile',
     isRuntime: false,
     requiredParams: {},
-    resolveFunction: () => () => globalStateManager.awsProfileName
+    resolveFunction: () => () => context.awsProfile
   },
   {
     name: 'AwsAccountId',
     isRuntime: false,
     requiredParams: {},
-    resolveFunction: () => () => globalStateManager.targetAwsAccount.awsAccountId
+    resolveFunction: () => () => context.accountId
   },
   {
     name: 'Format',
@@ -144,7 +156,7 @@ export const builtInDirectives: Directive[] = [
     localResolveFunction: () => (resourceReference: string, property: string) => {
       const resource = deployedStackOverviewManager.getStpResource({ nameChain: resourceReference });
       const value = resource?.referencableParams?.[property]?.value;
-      const isLocalInvoke = ['dev'].includes(globalStateManager.command);
+      const isLocalInvoke = context.command === 'dev';
       if (!resource) {
         throw getNonExistingResourceError({ resourceName: resourceReference, directiveType: '$ResourceParam' });
       }
@@ -157,7 +169,7 @@ export const builtInDirectives: Directive[] = [
         });
       }
       if (value === undefined || value === null) {
-        if (isLocalInvoke && globalStateManager.args.disableEmulation) {
+        if (isLocalInvoke && context.disableEmulation) {
           return IDENTIFIER_FOR_MISSING_OUTPUT;
         }
         throw new CliError({
@@ -389,7 +401,13 @@ export const builtInDirectives: Directive[] = [
     requiredParams: { stackName: 'string', outputName: 'string' },
     isRuntime: false,
     resolveFunction: () => async (stackName: string, outputName: string, region?: AWSRegion) => {
-      return resolveStackOutput({ directive: 'StackOutput', outputName, stackName, region });
+      return resolveStackOutput({
+        directive: 'StackOutput',
+        disableEmulation: context.disableEmulation,
+        outputName,
+        stackName,
+        region
+      });
     }
   },
   {
@@ -397,11 +415,23 @@ export const builtInDirectives: Directive[] = [
     requiredParams: { stackName: 'string', outputName: 'string' },
     isRuntime: true,
     resolveFunction: () => async (stackName: string, outputName: string, region?: AWSRegion) => {
-      return resolveStackOutput({ directive: 'CfStackOutput', outputName, stackName, region });
+      return resolveStackOutput({
+        directive: 'CfStackOutput',
+        disableEmulation: context.disableEmulation,
+        outputName,
+        stackName,
+        region
+      });
     },
     localResolveFunction: () => async (stackName: string, outputName: string, region?: AWSRegion) => {
       // in case of local resolving of CfStackOutput, we treat it as StackOutput.
-      return resolveStackOutput({ directive: 'StackOutput', outputName, stackName, region });
+      return resolveStackOutput({
+        directive: 'StackOutput',
+        disableEmulation: context.disableEmulation,
+        outputName,
+        stackName,
+        region
+      });
     }
   },
   {
@@ -432,19 +462,21 @@ const getDisableEmulationHint = () =>
 
 const resolveStackOutput = async ({
   directive,
+  disableEmulation,
   outputName,
   stackName,
   region
 }: {
   directive: 'StackOutput' | 'CfStackOutput';
+  disableEmulation: boolean;
   outputName: string;
   stackName: string;
   region?: string;
 }) => {
   validateStackOutputName(outputName);
-  const stackDetails = await awsSdkManager.getStackDetails(stackName, region);
+  const stackDetails = await awsSdkManager.cloudFormation.getDetails(stackName, region);
   if (!stackDetails) {
-    if (!globalStateManager.args.disableEmulation) {
+    if (!disableEmulation) {
       throw new CliError({
         category: 'DIRECTIVE',
         code: 'DIRECTIVE_STACK_NOT_FOUND',

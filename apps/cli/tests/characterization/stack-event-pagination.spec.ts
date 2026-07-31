@@ -28,7 +28,7 @@ const resourceEvent = (id: string, timestamp: Date, overrides: Partial<StackEven
 });
 
 /**
- * `getStackEvents` is the boundary between the pages CloudFormation returns and the events the deployment monitor can
+ * `cloudFormation.getEvents` is the boundary between the pages CloudFormation returns and the events the deployment monitor can
  * act on. These pin what it keeps, what it drops, and when it stops asking for more.
  *
  * The only seam is `CloudFormationClient.prototype.send`, which is global to the process, so the same discipline the
@@ -70,7 +70,7 @@ describe.serial('stack event pagination', () => {
     }
     const manager = new AwsSdkManager();
     manager.init({ credentials: { accessKeyId: 'AKIA', secretAccessKey: 'secret' }, region: 'eu-west-1' });
-    return manager.getStackEvents('test-stack', since);
+    return manager.cloudFormation.getEvents('test-stack', since);
   };
 
   afterEach(() => {
@@ -239,18 +239,18 @@ describe.serial('stack event pagination', () => {
       }
     });
 
-    await expect(manager.getStackEvents('test-stack', CUTOFF)).rejects.toThrow('Throttling');
+    await expect(manager.cloudFormation.getEvents('test-stack', CUTOFF)).rejects.toThrow('Throttling');
 
     expect(seen).toEqual(['Failed to fetch stack events.']);
   });
 
   test.serial('refuses a CloudFormation command other than DescribeStackEvents', async () => {
-    // Keeps the guard above non-vacuous: `getStackResources` reaches the same stubbed `send` with a different command.
+    // Keeps the guard above non-vacuous: `cloudFormation.getResources` reaches the same stubbed `send` with a different command.
     stubPages([{ StackEvents: [resourceEvent('a', at(1))] }]);
     const manager = new AwsSdkManager();
     manager.init({ credentials: { accessKeyId: 'AKIA', secretAccessKey: 'secret' }, region: 'eu-west-1' });
 
-    await expect(manager.getStackResources('test-stack')).rejects.toThrow(/non-DescribeStackEvents command/);
+    await expect(manager.cloudFormation.getResources('test-stack')).rejects.toThrow(/non-DescribeStackEvents command/);
 
     // The refused call is not recorded, so it cannot be mistaken for a page request.
     expect(sentCommands).toHaveLength(0);

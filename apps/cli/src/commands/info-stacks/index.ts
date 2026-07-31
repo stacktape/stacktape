@@ -9,7 +9,7 @@ import { isAgentMode } from '../_utils/agent-mode';
 export const commandInfoStacks = async () => {
   await loadUserCredentials();
 
-  const [stacks] = await Promise.all([awsSdkManager.listStacks(), budgetManager.init()]);
+  const [stacks] = await Promise.all([awsSdkManager.cloudFormation.list(), budgetManager.init()]);
   const nonDeletedStacks = stacks.filter(({ StackStatus }) => StackStatus !== StackStatusEnum.DELETE_COMPLETE);
   const result = nonDeletedStacks.map(
     ({ CreationTime, StackName, StackStatus, StackStatusReason, LastUpdatedTime, TemplateDescription, StackId }) => {

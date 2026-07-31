@@ -77,7 +77,7 @@ describe.serial('AWS SDK client construction', () => {
       StackSummaries: []
     });
 
-    await managerWith().listStacks();
+    await managerWith().cloudFormation.list();
 
     expect(await captured().config.region()).toBe('eu-west-1');
   });
@@ -94,7 +94,7 @@ describe.serial('AWS SDK client construction', () => {
       region: 'eu-west-1'
     });
 
-    await manager.listStacks();
+    await manager.cloudFormation.list();
 
     const endpoint = captured().config.endpoint;
     if (!endpoint) {
@@ -122,7 +122,7 @@ describe.serial('AWS SDK client construction', () => {
       region: 'eu-west-1'
     });
 
-    await manager.listStacks();
+    await manager.cloudFormation.list();
     expect((await captured().config.credentials()).accessKeyId).toBe('synthetic-access-key');
 
     currentCredentials = {
@@ -220,7 +220,7 @@ describe.serial('AWS SDK client construction', () => {
       StackSummaries: []
     });
 
-    await managerWith([plugin]).listStacks();
+    await managerWith([plugin]).cloudFormation.list();
 
     expect(appliedStacks).toHaveLength(1);
   });
@@ -243,8 +243,8 @@ describe.serial('AWS SDK client construction', () => {
     });
     const manager = managerWith([plugin]);
 
-    await manager.getStackDetails('example-stack');
-    await manager.getStackDetails('example-stack', 'us-east-2');
+    await manager.cloudFormation.getDetails('example-stack');
+    await manager.cloudFormation.getDetails('example-stack', 'us-east-2');
 
     expect(await clients[0].config.region()).toBe('eu-west-1');
     expect(await clients[1].config.region()).toBe('us-east-2');

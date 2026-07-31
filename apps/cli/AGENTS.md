@@ -15,8 +15,10 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   does not make the modules a reusable workspace package. The historical catch-all `shared/` directory is gone.
   TypeScript config loading accepts only a default `defineConfig` export. That authoring runtime compiles the plain
   config and its transform side channel in one invocation; the CLI must never execute a config factory again to
-  rediscover functions. `ConfigResolver` receives the config source and authoring parameters explicitly; it must not
-  read the CLI global-state manager. YAML remains a plain-data input and has no transform side channel.
+  rediscover functions. The command composition layer captures raw authoring inputs before target-stack resolution,
+  then supplies the final stack identity for directive resolution and normalization. `ConfigManager`,
+  `ConfigResolver`, and built-in directives receive those contexts explicitly; they must not read the CLI global-state
+  manager. YAML remains a plain-data input and has no transform side channel.
   `src/domain/stack-context.ts` is the immutable stack identity captured after account/project/stage resolution.
   Configuration normalization, calculated-resource synthesis and template finalization use that same value. Resource
   resolvers must not reach back into mutable CLI global state for names, regions, account IDs or invocation paths.
@@ -24,10 +26,12 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   endpoint and middleware. Service clients must use that context so refreshed credentials and emulator endpoints are
   not bypassed. `AwsSdkManager` is the transitional invocation-scoped composition object, not the owner of credential
   refresh. New AWS behavior must not add another unrelated flat method to that class. Extract a cohesive boundary only
-  when it has real callers and behavior of its own. SSM Parameter Store, Secrets Manager, CloudWatch
+  when it has real callers and behavior of its own. Stack lifecycle and private-type registry operations are reached
+  as `awsSdkManager.cloudFormation` and `awsSdkManager.cloudFormationRegistry`. SSM Parameter Store, Secrets Manager, CloudWatch
   logs/metrics/alarms, and Route 53/ACM/SES domain operations are reached as `awsSdkManager.parameterStore`,
   `awsSdkManager.secrets`, `awsSdkManager.observability`, and `awsSdkManager.domains`; SSM sessions remain separate
-  workflow behavior.
+  workflow behavior. Capability extraction must keep using `src/aws/context.ts` client construction so credential
+  refresh, endpoint overrides, retry/redirect middleware and service-specific timeouts do not drift.
   `package`, `synth`, and `validate` initialize that context from the standard local AWS credential provider chain and
   do not require Stacktape Console authentication. Account identity remains required because it participates in
   deterministic names and synthesized ARNs.

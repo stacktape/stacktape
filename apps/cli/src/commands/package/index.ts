@@ -3,13 +3,14 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
-import { getStackContext, loadLocalAwsContext } from '../_utils/initialization';
+import { getConfigManagerContext, getStackContext, loadLocalAwsContext } from '../_utils/initialization';
 
 export const commandPackage = async () => {
   const { onlyWorkloads } = globalStateManager.args as StacktapeCliArgs;
 
   await loadLocalAwsContext();
-  await configManager.init({ configRequired: true, stackContext: getStackContext() });
+  const stackContext = getStackContext();
+  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
 
   await packagingManager.init();
 

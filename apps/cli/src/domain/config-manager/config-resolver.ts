@@ -26,7 +26,7 @@ import { loadFromAnySupportedFile, loadFromTypescript, parseUserCodeFilepath } f
 import { getUserCodeAsFn } from '@utils/user-code-processing';
 import { validatePrimitiveFunctionParams } from '@utils/validation-utils';
 import { remove, writeFile } from 'fs-extra';
-import { builtInDirectives } from './built-in-directives';
+import { createBuiltInDirectives, type BuiltInDirectiveContext } from './built-in-directives';
 import type { StacktapeConfig } from '@stacktape/config';
 import { configErrors } from './errors';
 
@@ -131,6 +131,7 @@ type DirectiveToProcess = Directive & {
 
 export type ConfigResolverContext = Readonly<{
   authoringParams: GetConfigParams;
+  builtInDirectives: BuiltInDirectiveContext;
   configPath?: string;
   presetConfig?: StacktapeConfig;
   templateId?: string;
@@ -147,6 +148,8 @@ export class ConfigResolver {
   transforms: Record<string, ResourceTransform> = {};
   finalTransform: FinalTransform | null = null;
   #context: ConfigResolverContext | undefined;
+  #builtInDirectiveNames = new Set<string>();
+  #builtInRuntimeDirectiveNames = new Set<string>();
 
   private get context(): ConfigResolverContext {
     if (!this.#context) {
@@ -156,9 +159,17 @@ export class ConfigResolver {
   }
 
   loadRawConfig = async ({ context }: { context: ConfigResolverContext }) => {
-    this.#context = Object.freeze({ ...context });
+    this.setContext(context);
     this.rawConfig = await this.getRawConfig();
   };
+
+  setContext = (context: ConfigResolverContext) => {
+    this.#context = Object.freeze({ ...context });
+  };
+
+  get builtInRuntimeDirectiveNames() {
+    return [...this.#builtInRuntimeDirectiveNames];
+  }
 
   reset = () => {
     this.directivesToProcess = new Stack<DirectiveToProcess>();
@@ -170,6 +181,8 @@ export class ConfigResolver {
     this.transforms = {};
     this.finalTransform = null;
     this.#context = undefined;
+    this.#builtInDirectiveNames = new Set<string>();
+    this.#builtInRuntimeDirectiveNames = new Set<string>();
   };
 
   loadTypescriptConfig = async ({
@@ -350,7 +363,12 @@ export class ConfigResolver {
   };
 
   registerBuiltInDirectives = () => {
-    builtInDirectives.forEach(this.registerDirective);
+    const directives = createBuiltInDirectives(this.context.builtInDirectives);
+    this.#builtInDirectiveNames = new Set(directives.map(({ name }) => name));
+    this.#builtInRuntimeDirectiveNames = new Set(
+      directives.filter(({ isRuntime }) => isRuntime).map(({ name }) => name)
+    );
+    directives.forEach(this.registerDirective);
   };
 
   registerDirective = (directive: Directive | CustomDirective) => {
@@ -359,9 +377,7 @@ export class ConfigResolver {
         category: 'DIRECTIVE',
         code: 'DIRECTIVE_NAME_DUPLICATE',
         message: `Cannot register multiple directives named \`${directive.name}\`. ${
-          builtInDirectives.map((d) => d.name).includes(directive.name)
-            ? `\`${directive.name}\` is a built-in directive`
-            : ''
+          this.#builtInDirectiveNames.has(directive.name) ? `\`${directive.name}\` is a built-in directive` : ''
         }.`
       });
     }

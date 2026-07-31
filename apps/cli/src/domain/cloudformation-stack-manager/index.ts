@@ -7,7 +7,7 @@ import type {
 } from '@domain-services/cloudformation-stack-manager/types';
 import type { LoggableEventType, ProgressLogger } from '@application-services/event-manager/types';
 import type { Capability, StackEvent, StackResourceSummary } from '@aws-sdk/client-cloudformation';
-import type { MonitoredStackEvent } from 'src/aws/sdk-manager';
+import type { MonitoredStackEvent } from 'src/aws/cloudformation-stacks';
 import type { Tag } from '@aws-sdk/client-ecs';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -167,7 +167,7 @@ export class StackManager {
     });
     this.#stackName = stackName;
 
-    let stackDetails = await awsSdkManager.getStackDetails(stackName);
+    let stackDetails = await awsSdkManager.cloudFormation.getDetails(stackName);
     const instanceId = parentEventType ? 'Stack data' : undefined;
     ({ stackDetails } = await this.waitForStackToBeReadyForOperation({
       stackDetails,
@@ -179,8 +179,8 @@ export class StackManager {
 
     // globalStateManager.args.disableDriftDetection ? [] : awsSdkManager.getStackDriftInformation(stackName),
 
-    const stackResources = await awsSdkManager
-      .getStackResources(stackName)
+    const stackResources = await awsSdkManager.cloudFormation
+      .getResources(stackName)
       .then(this.#filterNonExistentResources)
       .then(this.#getDetailOfSelectedResources);
 
@@ -240,9 +240,9 @@ export class StackManager {
   refetchStackDetails = async (stackName: string) => {
     await eventManager.startEvent({ eventType: 'REFETCH_STACK_DATA', description: 'Fetching stack data' });
     const [existingStackDetails, existingStackResources] = await Promise.all([
-      awsSdkManager.getStackDetails(stackName),
-      awsSdkManager
-        .getStackResources(stackName)
+      awsSdkManager.cloudFormation.getDetails(stackName),
+      awsSdkManager.cloudFormation
+        .getResources(stackName)
         .then(this.#filterNonExistentResources)
         .then(this.#getDetailOfSelectedResources)
     ]);
@@ -366,7 +366,7 @@ export class StackManager {
     // therefore this policy is not valid during stack creation.
     // eslint-disable-next-line
     const { StackPolicyBody, ...onCreateParams } = stackParams;
-    const { StackId } = await awsSdkManager.createStack(templateManager.initialTemplate, {
+    const { StackId } = await awsSdkManager.cloudFormation.create(templateManager.initialTemplate, {
       ...onCreateParams,
       ...(this.isAutoRollbackEnabled && { OnFailure: OnFailure.DELETE })
     });
@@ -417,7 +417,7 @@ export class StackManager {
           instanceId: eventContext?.instanceId
         });
         await wait(4000);
-        stackDetails = await awsSdkManager.getStackDetails(stackName);
+        stackDetails = await awsSdkManager.cloudFormation.getDetails(stackName);
       }
       // check state after stack was stabilized
       const stackIsNotReadyForOperation =
@@ -441,7 +441,7 @@ export class StackManager {
       eventType: 'VALIDATE_TEMPLATE',
       description: 'Validating template'
     });
-    await awsSdkManager.validateCloudformationTemplate({ templateBody, templateUrl });
+    await awsSdkManager.cloudFormation.validateTemplate({ templateBody, templateUrl });
     await eventManager.finishEvent({ eventType: 'VALIDATE_TEMPLATE' });
   };
 
@@ -458,7 +458,7 @@ export class StackManager {
       eventType: 'CALCULATE_CHANGES',
       description: 'Calculating changes'
     });
-    const res = await awsSdkManager.createCloudformationChangeSet({
+    const res = await awsSdkManager.cloudFormation.createChangeSet({
       ...this.getStackParams(),
       ChangeSetName: `${this.#stackName}-${Date.now()}-${this.nextVersion}`,
       includePropertyValues,
@@ -497,7 +497,7 @@ export class StackManager {
       eventType: 'UPDATE_STACK',
       description: 'Deploying infrastructure resources'
     });
-    const { skipped } = await awsSdkManager.updateStack(templateUrl, stackParams);
+    const { skipped } = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
     if (!skipped) {
       const result = await this.monitorStack('update', stackParams.StackName, (progress) => {
         eventManager.updateEvent({
@@ -507,9 +507,12 @@ export class StackManager {
         });
       });
       if (stackParams.StackPolicyBody) {
-        await awsSdkManager.setStackPolicy(stackParams);
+        await awsSdkManager.cloudFormation.setPolicy(stackParams);
       }
-      await awsSdkManager.setTerminationProtection(!!stackParams.EnableTerminationProtection, this.#stackName);
+      await awsSdkManager.cloudFormation.setTerminationProtection(
+        !!stackParams.EnableTerminationProtection,
+        this.#stackName
+      );
       await eventManager.finishEvent({
         eventType: 'UPDATE_STACK',
         finalMessage: 'Deployment successful.'
@@ -540,7 +543,7 @@ export class StackManager {
       eventType: 'UPDATE_STACK',
       description: 'Deploying infrastructure resources'
     });
-    const { skipped } = await awsSdkManager.updateStack(templateUrl, stackParams);
+    const { skipped } = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
     if (!skipped) {
       const result = await this.monitorStack('update', stackName, (progress) => {
         eventManager.updateEvent({
@@ -574,7 +577,7 @@ export class StackManager {
     // which commonly happens when ECS tasks take a long time to drain/stop.
     await this.#scaleDownEcsServicesBeforeDelete().catch(() => {});
 
-    await awsSdkManager.deleteStack(this.#stackName, {
+    await awsSdkManager.cloudFormation.delete(this.#stackName, {
       roleArn
     });
     const result = await this.monitorStack('delete', this.existingStackDetails.StackId, (progress) =>
@@ -659,11 +662,11 @@ export class StackManager {
       this.existingStackDetails.StackStatus === StackStatus.UPDATE_FAILED ||
       this.existingStackDetails.StackStatus === StackStatus.CREATE_FAILED
     ) {
-      await awsSdkManager.rollbackStack(this.#stackName, {
+      await awsSdkManager.cloudFormation.rollback(this.#stackName, {
         roleArn
       });
     } else if (this.existingStackDetails.StackStatus === StackStatus.UPDATE_ROLLBACK_FAILED) {
-      await awsSdkManager.continueUpdateRollback(this.#stackName, {
+      await awsSdkManager.cloudFormation.continueRollback(this.#stackName, {
         roleArn,
         resourcesToSkip
       });
@@ -774,7 +777,7 @@ export class StackManager {
             cancelRequested = true;
             tuiManager.updateCancelDeployment({ isCancelling: true });
             try {
-              await awsSdkManager.cancelUpdateStack(this.#stackName);
+              await awsSdkManager.cloudFormation.cancelUpdate(this.#stackName);
               // Don't continue monitoring - just resolve and let the user know rollback is happening
               // The rollback will continue in AWS even after we exit
               cleanupMonitoring();
@@ -1026,11 +1029,11 @@ export class StackManager {
         try {
           // we are only fetching for new events "fetchSince"
           const [stackEvents, stackDetailsFromBatch] = await Promise.all([
-            awsSdkManager.getStackEvents(stackId, fetchSince),
+            awsSdkManager.cloudFormation.getEvents(stackId, fetchSince),
             // Every fourth poll also asks for stack details; the other three contribute no details to this batch.
             // `null` rather than `false` says that in a way the result type can carry — both are falsy, so the
             // fallback below behaves exactly as before.
-            fetchNumber % 4 === 0 ? awsSdkManager.getStackDetails(stackId) : null
+            fetchNumber % 4 === 0 ? awsSdkManager.cloudFormation.getDetails(stackId) : null
           ]).catch((err) => {
             // if there was an error when fetching stack events we cancel entire interval
             cleanupMonitoring();
@@ -1044,7 +1047,7 @@ export class StackManager {
           // this is critical - without this check, the monitoring could hang indefinitely if completion events are missed
           if (!stackEvents.length) {
             if (lastStackActionTimestamp) handleProgress();
-            const stackDetails = stackDetailsFromBatch || (await awsSdkManager.getStackDetails(stackId));
+            const stackDetails = stackDetailsFromBatch || (await awsSdkManager.cloudFormation.getDetails(stackId));
             if (
               this.#stackStatusSignalsStackOperationSuccess({
                 stackStatus: stackDetails?.StackStatus as StackStatus,

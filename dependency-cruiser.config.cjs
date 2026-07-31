@@ -43,15 +43,23 @@ module.exports = {
       to: { path: '^apps/cli/src/app/global-state-manager/' }
     },
     {
-      name: 'config-resolver-does-not-read-cli-global-state',
+      name: 'config-entry-boundary-does-not-read-cli-global-state',
       severity: 'error',
-      from: { path: '^apps/cli/src/domain/config-manager/config-resolver\\.ts$' },
+      from: {
+        path: '^apps/cli/src/domain/config-manager/(index|built-in-directives|config-resolver|context)\\.ts$'
+      },
       to: { path: '^apps/cli/src/app/global-state-manager/' }
     },
     {
-      name: 'template-finalization-does-not-read-cli-global-state',
+      name: 'template-manager-does-not-read-cli-global-state',
       severity: 'error',
-      from: { path: '^apps/cli/src/domain/template-manager/finalize\\.ts$' },
+      from: { path: '^apps/cli/src/domain/template-manager/' },
+      to: { path: '^apps/cli/src/app/global-state-manager/' }
+    },
+    {
+      name: 'aws-capabilities-do-not-read-cli-global-state',
+      severity: 'error',
+      from: { path: '^apps/cli/src/aws/' },
       to: { path: '^apps/cli/src/app/global-state-manager/' }
     },
     {

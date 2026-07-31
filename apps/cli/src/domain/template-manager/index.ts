@@ -1,6 +1,5 @@
 import type { CloudformationTemplate, StackDetails } from '@domain-services/cloudformation-stack-manager/types';
 import type { IntrinsicFunction } from '@cloudform/dataTypes';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 import { StackStatus } from '@aws-sdk/client-cloudformation';
@@ -18,17 +17,15 @@ export class TemplateManager {
   template: CloudformationTemplate = getInitialCfTemplate();
   initialTemplate: CloudformationTemplate = getInitialCfTemplate();
   oldTemplate: CloudformationTemplate = getInitialCfTemplate();
+  #stackName: string | undefined;
   // template which is passed as a part of props is modified in-place
   templateOverrideFunctions: ((template: CloudformationTemplate) => Promise<void>)[] = [];
 
-  init = async ({ stackDetails }: { stackDetails: StackDetails }) => {
+  init = async ({ stackDetails, stackName }: { stackDetails: StackDetails; stackName: string }) => {
+    this.#stackName = stackName;
     // if stack is deleted we do not bother with getting the template (CF stores it for 90 days)
-    if (
-      stackDetails &&
-      stackDetails.StackStatus !== StackStatus.DELETE_COMPLETE
-      // globalStateManager.command === 'deploy'
-    ) {
-      this.oldTemplate = await awsSdkManager.getCfStackTemplate(stackDetails.StackName);
+    if (stackDetails && stackDetails.StackStatus !== StackStatus.DELETE_COMPLETE) {
+      this.oldTemplate = await awsSdkManager.cloudFormation.getTemplate(stackDetails.StackName);
     }
   };
 
@@ -37,6 +34,7 @@ export class TemplateManager {
     this.initialTemplate = getInitialCfTemplate();
     this.oldTemplate = getInitialCfTemplate();
     this.templateOverrideFunctions = [];
+    this.#stackName = undefined;
   };
 
   getTemplate = (): CloudformationTemplate => {
@@ -111,6 +109,9 @@ export class TemplateManager {
     exportOutput?: boolean;
     overwriteExisting?: boolean;
   }) => {
+    if (exportOutput && !this.#stackName) {
+      throw new Error('Template manager was used before its stack name was initialized.');
+    }
     let Value: any = value.toString ? value.toString() : value;
     if (Value === '[object Object]') {
       Value = value.valueOf();
@@ -123,9 +124,7 @@ export class TemplateManager {
     const output = {
       Value,
       ...(description ? { Description: description } : {}),
-      ...(exportOutput
-        ? { Export: { Name: getExportedStackOutputName(cfOutputName, globalStateManager.targetStack.stackName) } }
-        : {})
+      ...(exportOutput ? { Export: { Name: getExportedStackOutputName(cfOutputName, this.#stackName) } } : {})
     };
 
     this.template.Outputs[cfOutputName] = output;

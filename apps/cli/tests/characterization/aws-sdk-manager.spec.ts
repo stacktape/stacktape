@@ -138,7 +138,7 @@ describe.serial('AWS SDK manager', () => {
     test.serial('fails explicitly when an AWS operation runs before initialization', async () => {
       const manager = new AwsSdkManager();
 
-      await expect(manager.listStacks()).rejects.toThrow('AWS SDK manager has not been initialized.');
+      expect(() => manager.cloudFormation).toThrow('AWS SDK manager has not been initialized.');
     });
 
     test.serial('resets optional arguments omitted on re-initialization back to their defaults', () => {

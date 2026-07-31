@@ -36,15 +36,10 @@ import type { StpTanStackWeb } from '@domain-services/config-manager/resolved-ty
 import type { StpWebService } from '@domain-services/config-manager/resolved-types/web-services';
 import type { StpWorkerService } from '@domain-services/config-manager/resolved-types/worker-services';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
-import type {
-  FinalTransform,
-  GetConfigParams,
-  ResourceTransform as CfResourceTransform
-} from '@stacktape/config-authoring/tooling';
+import type { FinalTransform, ResourceTransform as CfResourceTransform } from '@stacktape/config-authoring/tooling';
 import type { DefaultedResource, ResourceDefinitionOf, StacktapeResourceType } from './normalized-resource';
 import { isAbsolute, join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { GetAtt, Ref } from '@cloudform/functions';
 import {
@@ -66,8 +61,6 @@ import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import { getDirectiveParams, getIsDirective } from '@utils/directives';
 import { getApexDomain } from '@utils/domains';
-import { getConfigPath } from '@utils/file-loaders';
-import { builtInDirectives } from './built-in-directives';
 import { ConfigResolver, type ConfigResolverContext } from './config-resolver';
 import { getAuthoredOverrides, getNestedResourceIdentity } from './normalized-resource';
 import { getAlarmsToBeAppliedToResource, isGlobalAlarmEligibleForStack } from './utils/alarms';
@@ -117,6 +110,8 @@ import type { SsrWebPathCachingOverride } from '@stacktape/config/ssr-web-shared
 import type { WebServiceAlbLoadBalancing, WebServiceNlbLoadBalancing } from '@stacktape/config/web-services';
 import { configErrors } from './errors';
 import type { StackContext } from '@domain-services/stack-context';
+import type { ConfigManagerInitContext, IssueDetectionContext } from './context';
+import type { HelperLambdaDetails } from '@utils/helper-lambdas';
 
 const normalizeCdnPath = ({ path }: { path: string }) => path.replace(/^\//, '');
 
@@ -183,6 +178,8 @@ export class ConfigManager {
   transforms: { [logicalName: string]: CfResourceTransform } = {};
   finalTransform: FinalTransform | null = null;
   #stackContext: StackContext | undefined;
+  #helperLambdaDetails: HelperLambdaDetails | undefined;
+  #issueDetection: IssueDetectionContext = {};
 
   private get stackContext(): StackContext {
     if (!this.#stackContext) {
@@ -195,72 +192,48 @@ export class ConfigManager {
     this.#stackContext = Object.freeze({ ...stackContext });
   };
 
-  private getConfigResolverContext = (): ConfigResolverContext => {
-    const args = globalStateManager.args;
-    const user = globalStateManager.userData;
-    const authoringParams: GetConfigParams = {
-      projectName: globalStateManager.targetStack?.projectName || args.projectName,
-      stage: globalStateManager.targetStack?.stage || args.stage,
-      region: globalStateManager.region,
-      command: globalStateManager.command,
-      awsProfile: globalStateManager.awsProfileName,
-      user: user
-        ? {
-            id: user.id,
-            name: user.name,
-            email: user.email
-          }
-        : undefined,
-      cliArgs: args
-    };
-
-    return {
-      authoringParams,
-      configPath: globalStateManager.configPath,
-      presetConfig: globalStateManager.presetConfig,
-      templateId: args.templateId,
-      workingDir: globalStateManager.workingDir
-    };
-  };
+  private get helperLambdaDetails(): HelperLambdaDetails {
+    if (!this.#helperLambdaDetails) {
+      throw new Error('Config manager was used before helper Lambda details were initialized.');
+    }
+    return this.#helperLambdaDetails;
+  }
 
   /**
    * Loads only the raw config (without directives resolution or validation).
    * Used to extract projectName before full initialization.
    */
-  loadRawConfigOnly = async () => {
-    const detectedConfigPath = getConfigPath();
-    if (detectedConfigPath) {
-      globalStateManager.setConfigPath(detectedConfigPath);
-    }
-    if (globalStateManager.configPath) {
-      await this.configResolver.loadRawConfig({ context: this.getConfigResolverContext() });
+  loadRawConfigOnly = async ({ context }: { context: ConfigResolverContext }) => {
+    // Preserve the existing two-phase contract: only a discovered local config participates in project-name
+    // discovery. Preset and remote-template configs are loaded by full initialization.
+    if (context.configPath) {
+      await this.configResolver.loadRawConfig({ context });
     }
   };
 
-  init = async ({ configRequired = true, stackContext }: { configRequired: boolean; stackContext: StackContext }) => {
-    this.setStackContext(stackContext);
-    const { templateId } = globalStateManager.args;
+  init = async ({ configRequired = true, context }: { configRequired: boolean; context: ConfigManagerInitContext }) => {
+    this.setStackContext(context.stack);
+    this.#helperLambdaDetails = context.helperLambdaDetails;
+    this.#issueDetection = context.issueDetection;
+    this.configResolver.setContext(context.resolver);
+    const { configPath, presetConfig, templateId } = context.resolver;
     await eventManager.startEvent({
       eventType: 'LOAD_CONFIG_FILE',
       description: 'Loading configuration',
       phase: 'INITIALIZE'
     });
-    let detectedConfigPath: string;
-
-    if (!templateId && !globalStateManager.presetConfig) {
-      detectedConfigPath = getConfigPath();
-      if (!detectedConfigPath && configRequired) {
-        throw configErrors.configFileMissing();
-      }
-      globalStateManager.setConfigPath(detectedConfigPath);
+    if (!templateId && !presetConfig && !configPath && configRequired) {
+      throw configErrors.configFileMissing();
     }
 
-    const shouldLoadConfig = configRequired || detectedConfigPath || templateId;
+    // Preserve the legacy optional-config behavior: a preset config is only consumed when the command requires
+    // configuration. For optional commands, a preset takes precedence over (and suppresses) local-path discovery.
+    const shouldLoadConfig = configRequired || Boolean(templateId || (!presetConfig && configPath));
     this.configResolver.registerBuiltInDirectives();
     if (shouldLoadConfig) {
       // Skip loadRawConfig if already loaded by loadRawConfigOnly
       if (!this.configResolver.rawConfig) {
-        await this.configResolver.loadRawConfig({ context: this.getConfigResolverContext() });
+        await this.configResolver.loadRawConfig({ context: context.resolver });
       }
       this.transforms = this.configResolver.transforms;
       this.finalTransform = this.configResolver.finalTransform;
@@ -268,7 +241,7 @@ export class ConfigManager {
       await this.configResolver.loadResolvedConfig();
       this.config = this.configResolver.resolvedConfig;
       this.rawConfig = this.configResolver.rawConfig;
-      await validateConfigStructure({ config: this.config, configPath: globalStateManager.configPath, templateId });
+      await validateConfigStructure({ config: this.config, configPath, templateId });
       runInitialValidations();
     }
 
@@ -291,6 +264,8 @@ export class ConfigManager {
     this.transforms = {};
     this.finalTransform = null;
     this.#stackContext = undefined;
+    this.#helperLambdaDetails = undefined;
+    this.#issueDetection = {};
   };
 
   loadGlobalConfig = async () => {
@@ -318,7 +293,7 @@ export class ConfigManager {
 
   invalidatePotentiallyChangedDirectiveResults = () => {
     // currently we consider runtime directives the ones that potentially changed
-    const directivesToInvalidate = builtInDirectives.filter(({ isRuntime }) => isRuntime).map(({ name }) => `$${name}`);
+    const directivesToInvalidate = this.configResolver.builtInRuntimeDirectiveNames.map((name) => `$${name}`);
 
     // we delete results of runtime directives from configResolver.results
     for (const directiveDef in this.configResolver.results) {
@@ -466,7 +441,7 @@ export class ConfigManager {
   get batchJobs() {
     return this.getResourcesFromConfig('batch-job').map((batchJob) => {
       const artifactName = 'batchJobTriggerLambda';
-      const helperLambdaData = globalStateManager.helperLambdaDetails.batchJobTriggerLambda;
+      const helperLambdaData = this.helperLambdaDetails.batchJobTriggerLambda;
       const triggerLambdaIdentifier: keyof StpBatchJob['_nestedResources'] = 'triggerFunction';
       const triggerLambdaStpName = getStpNameForResource({
         nameChain: [...batchJob.nameChain, triggerLambdaIdentifier],
@@ -3092,13 +3067,7 @@ export class ConfigManager {
     reason: string;
     eventSamplingRate: number;
   } {
-    const organization = globalStateManager.organizationData as
-      | (typeof globalStateManager.organizationData & {
-          issuesAllProjectsEnabled?: boolean;
-          issuesEnabledStages?: string[];
-          issuesEventSamplingRate?: number;
-        })
-      | undefined;
+    const organization = this.#issueDetection.organization;
     const stage = this.stackContext.stage;
     const eventSamplingRate = Math.min(100, Math.max(1, Number(organization?.issuesEventSamplingRate || 100)));
 
@@ -3128,9 +3097,7 @@ export class ConfigManager {
     }
 
     const projectName = this.stackContext.projectName;
-    const project = globalStateManager.projects?.find((projectData) => projectData.name === projectName) as
-      | ((typeof globalStateManager.projects)[number] & { issuesEnabled?: boolean })
-      | undefined;
+    const project = this.#issueDetection.projects?.find((projectData) => projectData.name === projectName);
 
     if (project?.issuesEnabled) {
       return {
@@ -3774,7 +3741,7 @@ export class ConfigManager {
 
   get stacktapeServiceLambdaProps(): StpHelperLambdaFunction {
     const artifactName = 'stacktapeServiceLambda';
-    const helperLambdaData = globalStateManager.helperLambdaDetails[artifactName];
+    const helperLambdaData = this.helperLambdaDetails[artifactName];
     return {
       name: artifactName,
       packaging: { type: 'helper-lambda', properties: helperLambdaData },
@@ -3807,7 +3774,7 @@ export class ConfigManager {
 
   get stacktapeOriginRequestLambdaProps(): StpHelperEdgeLambdaFunction {
     const artifactName = 'cdnOriginRequestLambda';
-    const helperLambdaData = globalStateManager.helperLambdaDetails[artifactName];
+    const helperLambdaData = this.helperLambdaDetails[artifactName];
     const lambdaResourceName = helperLambdaAwsResourceNames.originRequestEdgeLambda(
       this.stackContext.stackName,
       this.stackContext.region
@@ -3849,7 +3816,7 @@ export class ConfigManager {
 
   get stacktapeOriginResponseLambdaProps(): StpHelperEdgeLambdaFunction {
     const artifactName = 'cdnOriginResponseLambda';
-    const helperLambdaData = globalStateManager.helperLambdaDetails[artifactName];
+    const helperLambdaData = this.helperLambdaDetails[artifactName];
     const lambdaResourceName = helperLambdaAwsResourceNames.originResponseEdgeLambda(
       this.stackContext.stackName,
       this.stackContext.region
