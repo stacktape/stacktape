@@ -64,12 +64,12 @@ export const commandBucketSync = async () => {
   });
 
   if (globalStateManager.args.invalidateCdnCache) {
-    const connectedCloudfrontDistributions = await awsSdkManager.getCloudfrontDistributionForBucketName({ bucketName });
+    const connectedCloudfrontDistributions = await awsSdkManager.cloudFront.findDistributionsForBucket({ bucketName });
     if (connectedCloudfrontDistributions.length) {
       await eventManager.startEvent({ eventType: 'INVALIDATE_CACHE', description: 'Invalidating CDN caches' });
       await Promise.all(
         connectedCloudfrontDistributions.map((distribution) =>
-          awsSdkManager.invalidateCloudfrontDistributionCache({
+          awsSdkManager.cloudFront.invalidateCache({
             distributionId: distribution.Id,
             invalidatePaths: ['/*']
           })

@@ -61,7 +61,7 @@ export class CloudfrontManager {
   };
 
   #invalidateCache = async ({ distributionId, paths }: { distributionId: string; paths: string[] }) => {
-    return awsSdkManager.invalidateCloudfrontDistributionCache({ distributionId, invalidatePaths: paths });
+    return awsSdkManager.cloudFront.invalidateCache({ distributionId, invalidatePaths: paths });
   };
 }
 

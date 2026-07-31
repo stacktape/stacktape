@@ -3,6 +3,7 @@ import { EventEmitter } from 'node:events';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { BudgetsClient } from '@aws-sdk/client-budgets';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
+import { CloudFrontClient } from '@aws-sdk/client-cloudfront';
 import { CodeBuildClient } from '@aws-sdk/client-codebuild';
 import { CodeDeployClient } from '@aws-sdk/client-codedeploy';
 import { CostExplorerClient } from '@aws-sdk/client-cost-explorer';
@@ -382,6 +383,23 @@ describe.serial('AWS SDK client construction', () => {
     expect(await capturedCostExplorer().config.region()).toBe('eu-west-1');
     expect(await capturedBudgets().config.region()).toBe('eu-west-1');
     expect(pluginApplications).toBe(3);
+  });
+
+  test.serial('constructs CloudFront clients from the manager context', async () => {
+    const captured = captureSend<CloudFrontClient>(CloudFrontClient.prototype, {
+      DistributionList: { Items: [] }
+    });
+    let pluginApplications = 0;
+    const plugin: Pluggable<any, any> = {
+      applyToStack: () => {
+        pluginApplications += 1;
+      }
+    };
+
+    await managerWith([plugin]).cloudFront.findDistributionsForBucket({ bucketName: 'assets' });
+
+    expect(await captured().config.region()).toBe('eu-west-1');
+    expect(pluginApplications).toBe(1);
   });
 
   test.serial('applies explicit plugins to ordinary clients', async () => {

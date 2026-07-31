@@ -44,6 +44,8 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   logs/metrics/alarms, and Route 53/ACM/SES domain operations are reached as `awsSdkManager.parameterStore`,
   `awsSdkManager.secrets`, `awsSdkManager.observability`, and `awsSdkManager.domains`. Regional resource-tag discovery,
   Cost Explorer tags and account budgets form the budget workflow's `awsSdkManager.costManagement` boundary.
+  Distribution lookup and cache invalidation are reached as `awsSdkManager.cloudFront`; invalidation deliberately
+  confirms that AWS accepted the request after 1.5 seconds rather than waiting for completion.
   Capability extraction must keep using `src/aws/context.ts` client construction so credential
   refresh, endpoint overrides, retry/redirect middleware and service-specific timeouts do not drift.
   `package`, `synth`, and `validate` initialize that context from the standard local AWS credential provider chain and

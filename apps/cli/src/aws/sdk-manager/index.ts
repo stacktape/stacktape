@@ -1,17 +1,11 @@
 import type { TuiManager as Printer } from '@application-services/tui-manager';
-import type { DistributionSummary } from '@aws-sdk/client-cloudfront';
 import type { _InstanceType, InstanceTypeInfo, RouteTable, Subnet, Vpc } from '@aws-sdk/client-ec2';
 import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { AutoScaling, DescribeAutoScalingGroupsCommand } from '@aws-sdk/client-auto-scaling';
 import { BudgetsClient } from '@aws-sdk/client-budgets';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
-import {
-  CloudFrontClient,
-  CreateInvalidationCommand,
-  GetInvalidationCommand,
-  ListDistributionsCommand
-} from '@aws-sdk/client-cloudfront';
+import { CloudFrontClient } from '@aws-sdk/client-cloudfront';
 import { CloudWatchClient } from '@aws-sdk/client-cloudwatch';
 import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
 import { CodeBuildClient } from '@aws-sdk/client-codebuild';
@@ -40,7 +34,6 @@ import { SESv2Client } from '@aws-sdk/client-sesv2';
 import { SSMClient } from '@aws-sdk/client-ssm';
 import { STSClient } from '@aws-sdk/client-sts';
 // import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
-import { resourceURIs } from 'src/utils/aws-resource-uris';
 import { wait } from '@utils/misc';
 import {
   applyAwsClientPlugins,
@@ -66,6 +59,7 @@ import { AwsEcs } from '../ecs';
 import { AwsCodeBuild } from '../codebuild';
 import { AwsSystemsManager } from '../systems-manager';
 import { AwsCostManagement } from '../cost-management';
+import { AwsCloudFront } from '../cloudfront';
 import { defaultGetErrorFunction } from './utils';
 
 export class AwsSdkManager {
@@ -85,6 +79,7 @@ export class AwsSdkManager {
   #codeBuild?: AwsCodeBuild;
   #systemsManager?: AwsSystemsManager;
   #costManagement?: AwsCostManagement;
+  #cloudFront?: AwsCloudFront;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -182,6 +177,12 @@ export class AwsSdkManager {
       createCostExplorerClient: () => this.#costExplorer(),
       createResourceTaggingClient: () => this.#resourceGroupsTaggingApi(),
       getErrorHandler: this.#getErrorHandler
+    });
+    this.#cloudFront = new AwsCloudFront({
+      createClient: () => this.#cloudfront(),
+      getErrorHandler: this.#getErrorHandler,
+      region,
+      wait
     });
   }
 
@@ -319,6 +320,14 @@ export class AwsSdkManager {
       throw new Error('AWS cost management services have not been initialized.');
     }
     return this.#costManagement;
+  }
+
+  get cloudFront() {
+    this.#getContext();
+    if (!this.#cloudFront) {
+      throw new Error('AWS CloudFront has not been initialized.');
+    }
+    return this.#cloudFront;
   }
 
   #getContext() {
@@ -501,70 +510,6 @@ export class AwsSdkManager {
 
   //     return res;
   //   };
-
-  invalidateCloudfrontDistributionCache = async ({
-    distributionId,
-    invalidatePaths
-  }: {
-    distributionId: string;
-    invalidatePaths: string[];
-  }) => {
-    const errHandler = this.#getErrorHandler('Invalidation of CloudFront CDN cache has failed.');
-    const {
-      Invalidation: { Id }
-    } = await this.#cloudfront()
-      .send(
-        new CreateInvalidationCommand({
-          DistributionId: distributionId,
-          InvalidationBatch: {
-            CallerReference: `stacktape_invalidation${Date.now()}`,
-            Paths: { Quantity: invalidatePaths.length, Items: invalidatePaths }
-          }
-        })
-      )
-      .catch(errHandler);
-    await wait(1500);
-    // just checking if invalidation exists (possibly still InProgress but we do not care)
-    await this.#cloudfront()
-      .send(new GetInvalidationCommand({ DistributionId: distributionId, Id }))
-      .catch(errHandler);
-
-    // while (Status !== 'Completed') {
-    //   await wait(2000);
-    //   ({
-    //     Invalidation: { Status }
-    //   } = await this.#cloudfront()
-    //     .send(new GetInvalidationCommand({ DistributionId: distributionId, Id }))
-    //     .catch(errHandler));
-    // }
-    return distributionId;
-  };
-
-  getCloudfrontDistributionForBucketName = async ({ bucketName }) => {
-    const bucketDomainName = resourceURIs.bucket({ bucketName, region: this.region });
-    const errHandler = this.#getErrorHandler('Failed to fetch CloudFront distribution ids.');
-
-    const result: DistributionSummary[][] = [];
-
-    let {
-      DistributionList: { Items, NextMarker }
-    } = await this.#cloudfront().send(new ListDistributionsCommand({})).catch(errHandler);
-    result.push(Items);
-    while (NextMarker) {
-      ({
-        DistributionList: { Items, NextMarker }
-      } = await this.#cloudfront()
-        .send(new ListDistributionsCommand({ Marker: NextMarker }))
-        .catch(errHandler));
-      result.push(Items);
-    }
-
-    return result.flat().filter((item) =>
-      item?.Origins.Items.find((originItem) => {
-        return originItem.DomainName === bucketDomainName;
-      })
-    );
-  };
 
   getEc2InstanceTypesInfo = async ({ instanceTypes }: { instanceTypes: _InstanceType[] }) => {
     const errHandler = this.#getErrorHandler('Could not list EC2 instance types.');
