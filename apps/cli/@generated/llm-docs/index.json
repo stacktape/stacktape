@@ -14693,8 +14693,6 @@
         "page:/cli/dev#usage",
         "page:/cli/dev#cli-options-stacktape-dev",
         "page:/cli/dev#what-it-does",
-        "page:/cli/dev#normal-mode-default",
-        "page:/cli/dev#legacy-mode",
         "page:/cli/dev#supported-resource-types",
         "page:/cli/dev#important-flags",
         "page:/cli/dev#resources-skipresources",
@@ -14707,7 +14705,6 @@
         "page:/cli/dev#interactive-commands",
         "page:/cli/dev#examples",
         "page:/cli/dev#faq",
-        "page:/cli/dev#what-is-the-difference-between-normal-and-legacy-dev-mode",
         "page:/cli/dev#does-stacktape-dev-require-docker",
         "page:/cli/dev#when-should-i-use-stacktape-dev-vs-stacktape-deploy",
         "page:/cli/dev#how-can-i-connect-to-a-real-deployed-database-instead-of-the-local-one",
@@ -16726,7 +16723,6 @@
         "page:/getting-started/use-the-dev-mode#useful-flags",
         "page:/getting-started/use-the-dev-mode#agent-mode",
         "page:/getting-started/use-the-dev-mode#debugging",
-        "page:/getting-started/use-the-dev-mode#legacy-mode",
         "page:/getting-started/use-the-dev-mode#next-step"
       ]
     },
@@ -17068,8 +17064,7 @@
         "page:/local-development/debugging-lambda-functions#historical-logs-with-logs",
         "page:/local-development/debugging-lambda-functions#connecting-to-local-databases",
         "page:/local-development/debugging-lambda-functions#disabling-tunnels",
-        "page:/local-development/debugging-lambda-functions#normal-vs-legacy-dev-mode",
-        "page:/local-development/debugging-lambda-functions#feature-comparison",
+        "page:/local-development/debugging-lambda-functions#using-deployed-databases",
         "page:/local-development/debugging-lambda-functions#environment-cleanup",
         "page:/local-development/debugging-lambda-functions#agent-mode",
         "page:/local-development/debugging-lambda-functions#debugging-strategies",
@@ -17081,7 +17076,6 @@
         "page:/local-development/debugging-lambda-functions#can-i-set-breakpoints-in-lambda-functions-during-dev-mode",
         "page:/local-development/debugging-lambda-functions#do-my-lambda-function-s-event-sources-work-in-dev-mode",
         "page:/local-development/debugging-lambda-functions#can-i-debug-only-some-functions-while-keeping-others-untouched",
-        "page:/local-development/debugging-lambda-functions#what-s-the-difference-between-normal-and-legacy-dev-mode",
         "page:/local-development/debugging-lambda-functions#why-does-dev-mode-refuse-to-start-on-my-stage",
         "page:/local-development/debugging-lambda-functions#how-do-my-local-databases-connect-to-functions-running-on-aws",
         "page:/local-development/debugging-lambda-functions#how-much-does-running-dev-mode-cost",
@@ -17116,9 +17110,7 @@
         "page:/local-development/dev-mode-overview#environment-variables",
         "page:/local-development/dev-mode-overview#rebuilding-workloads",
         "page:/local-development/dev-mode-overview#lifecycle-hooks",
-        "page:/local-development/dev-mode-overview#normal-mode-vs-legacy-mode",
-        "page:/local-development/dev-mode-overview#normal-mode",
-        "page:/local-development/dev-mode-overview#legacy-mode",
+        "page:/local-development/dev-mode-overview#dev-stack-isolation",
         "page:/local-development/dev-mode-overview#agent-mode",
         "page:/local-development/dev-mode-overview#command-reference",
         "page:/local-development/dev-mode-overview#faq",
@@ -17127,8 +17119,7 @@
         "page:/local-development/dev-mode-overview#how-do-lambda-functions-connect-to-local-databases-in-dev-mode",
         "page:/local-development/dev-mode-overview#how-do-i-reset-my-local-database-data",
         "page:/local-development/dev-mode-overview#what-is-the-difference-between-dev-mode-and-deploying-to-a-dev-stage",
-        "page:/local-development/dev-mode-overview#does-dev-mode-cost-anything-on-aws",
-        "page:/local-development/dev-mode-overview#when-should-i-use-legacy-mode-instead-of-normal-dev-mode"
+        "page:/local-development/dev-mode-overview#does-dev-mode-cost-anything-on-aws"
       ]
     },
     {

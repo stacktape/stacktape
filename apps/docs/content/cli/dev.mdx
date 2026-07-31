@@ -129,20 +129,6 @@ stacktape dev --stage dev-john --region eu-west-1
     "longDescription": "<p>The working directory for the operation. All file paths in your configuration will be resolved relative to this directory. By default, this is the directory containing the configuration file.</p>\n"
   },
   {
-    "name": "devMode",
-    "required": false,
-    "alias": "dm",
-    "allowedTypes": [
-      "string"
-    ],
-    "allowedValues": [
-      "normal",
-      "legacy"
-    ],
-    "shortDescription": "<p> Dev Mode</p>\n",
-    "longDescription": "<p>Specifies which dev mode to use:</p>\n<ul>\n<li><code>normal</code> (default): Deploys a minimal &quot;dev stack&quot; to AWS (IAM roles, secrets only) and runs workloads locally. Databases (PostgreSQL, MySQL, DynamoDB) and Redis are emulated locally using Docker. Tunnels are automatically created so Lambda functions can reach local databases.</li>\n<li><code>legacy</code>: Requires an already deployed stack. Runs selected workloads locally while connecting to all deployed AWS resources. No local database emulation - uses deployed databases directly. Useful for testing against production-like data.</li>\n</ul>\n"
-  },
-  {
     "name": "disableEmulation",
     "required": false,
     "alias": "de",
@@ -204,7 +190,7 @@ stacktape dev --stage dev-john --region eu-west-1
       "boolean"
     ],
     "shortDescription": "<p> No Tunnel</p>\n",
-    "longDescription": "<p>Disables automatic tunneling for Lambda functions. In normal dev mode, Stacktape creates tunnels (using bore.pub) so that AWS Lambda functions can reach your locally emulated databases. Use this flag if you don&#39;t need Lambda-to-local connectivity or if tunneling causes issues.</p>\n"
+    "longDescription": "<p>Disables automatic tunneling for Lambda functions. Stacktape creates tunnels (using bore.pub) so that AWS Lambda functions can reach your locally emulated databases. Use this flag if you don&#39;t need Lambda-to-local connectivity or if tunneling causes issues.</p>\n"
   },
   {
     "name": "outputFormat",
@@ -259,7 +245,7 @@ stacktape dev --stage dev-john --region eu-west-1
       "array"
     ],
     "shortDescription": "<p> Remote Resources</p>\n",
-    "longDescription": "<p>In normal dev mode, databases and Redis run locally by default. Use this flag to connect to deployed AWS resources instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: <code>--remoteResources myDb</code>, <code>--remoteResources postgres,redis</code>.</p>\n"
+    "longDescription": "<p>Databases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: <code>--remoteResources myDb</code>, <code>--remoteResources postgres,redis</code>.</p>\n"
   },
   {
     "name": "resourceName",
@@ -315,29 +301,13 @@ stacktape dev --stage dev-john --region eu-west-1
 
 ## What it does
 
-The `dev` command supports two modes, selected via the `--devMode` flag.
-
-### Normal mode (default)
-
-Normal mode deploys a minimal "dev stack" to AWS containing only essential infrastructure (IAM roles, secrets), then runs everything else locally. This is the recommended mode for day-to-day development.
+The `dev` command deploys a minimal dev stack to AWS containing only essential infrastructure (IAM roles and secrets), then runs development workloads locally.
 
 - Runs containers, Lambda functions, and frontend workloads locally on your machine
 - Emulates databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally using Docker
 - Sets up tunnels so Lambda functions can reach local databases when Lambda-to-local connectivity is needed
 - Creates the dev stack automatically on first run — no pre-deployment required
 - Injects environment variables, secrets, and AWS credentials into local workloads
-
-### Legacy mode
-
-Legacy mode requires an already-deployed stack and connects local workloads to the real AWS resources in that stack. Use it when you need to test against production-like data or services that cannot be emulated locally.
-
-```bash
-stacktape dev --stage prod --region eu-west-1 --devMode legacy
-```
-
-- No local database emulation — uses deployed databases directly
-- Requires a stack deployed with [`stacktape deploy`](/cli/deploy) beforehand
-- Useful for reproducing issues that only appear against real data
 
 ## Supported resource types
 
@@ -348,7 +318,7 @@ The `dev` command can run the following resource types locally:
 | Containers | web-service, private-service, worker-service, multi-container-workload |
 | Functions | Lambda functions |
 | Frontends | nextjs-web, astro-web, nuxt-web, sveltekit-web, solidstart-web, tanstack-web, remix-web, hosting-bucket (with `dev` config) |
-| Databases (emulated in normal mode) | PostgreSQL, MySQL, MariaDB, DynamoDB, Redis, OpenSearch |
+| Databases (locally emulated by default) | PostgreSQL, MySQL, MariaDB, DynamoDB, Redis, OpenSearch |
 
 ## Important flags
 
@@ -384,7 +354,7 @@ stacktape dev --stage dev --region eu-west-1 --watch
 
 ### --remoteResources
 
-In normal dev mode, databases and Redis run locally by default. Use `--remoteResources` to connect selected resources to deployed AWS resources instead. This is useful when you need to test against real data or when local emulation is insufficient.
+Databases and Redis run locally by default. Use `--remoteResources` to connect selected resources to deployed AWS resources instead. This is useful when you need to test against real data or when local emulation is insufficient.
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --remoteResources myPostgres
@@ -400,7 +370,7 @@ stacktape dev --stage dev --region eu-west-1 --freshDb
 
 ### --noTunnel
 
-Disables automatic tunneling for Lambda functions. In normal dev mode, Stacktape sets up tunnels so Lambda functions can reach local databases when Lambda-to-local connectivity is needed. Disable this if you don't need that connectivity or if tunneling causes issues.
+Disables automatic tunneling for Lambda functions. Stacktape sets up tunnels so Lambda functions can reach local databases when Lambda-to-local connectivity is needed. Disable this if you don't need that connectivity or if tunneling causes issues.
 
 ```bash
 stacktape dev --stage dev --region eu-west-1 --noTunnel
@@ -455,12 +425,6 @@ Run only the API function and database, skip everything else:
 stacktape dev --stage dev --region eu-west-1 --resources myApi,myDatabase
 ```
 
-Use legacy mode against a deployed staging stack:
-
-```bash
-stacktape dev --stage staging --region eu-west-1 --devMode legacy
-```
-
 Run locally but connect to a deployed database instead of emulating it:
 
 ```bash
@@ -481,13 +445,9 @@ stacktape dev --stage dev --region eu-west-1 --freshDb
 
 ## FAQ
 
-### What is the difference between normal and legacy dev mode?
-
-Normal mode (default) deploys a minimal dev stack to AWS and emulates databases and Redis locally using Docker. Legacy mode requires an already-deployed stack and connects local workloads to real AWS resources — no local emulation. Use normal mode for day-to-day development; use legacy mode when you need to test against production-like data or services that cannot be emulated.
-
 ### Does `stacktape dev` require Docker?
 
-Normal dev mode uses Docker to emulate databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally. You need Docker installed and running on your machine for local database emulation. If you use `--remoteResources` for all databases or run in legacy mode, Docker is not required for database emulation, though container workloads may still use it for local builds.
+Dev mode uses Docker to emulate databases (PostgreSQL, MySQL, MariaDB, DynamoDB, OpenSearch) and Redis locally. You need Docker installed and running for local database emulation. If you use `--remoteResources` for all databases, Docker is not required for database emulation, though container workloads may still use it for local builds.
 
 ### When should I use `stacktape dev` vs `stacktape deploy`?
 
@@ -495,7 +455,7 @@ Use [`stacktape dev`](/cli/dev) for iterating on code locally with fast feedback
 
 ### How can I connect to a real deployed database instead of the local one?
 
-Use `--remoteResources` with a comma-separated list of resource names (for example `--remoteResources myPostgres,myRedis`). In normal dev mode, databases and Redis run locally by default; this flag points the selected ones at their deployed AWS counterparts, which is useful when local emulation is insufficient or you need to test against real data. To connect every workload to real AWS resources instead, use legacy mode (`--devMode legacy`), which requires an already-deployed stack.
+Use `--remoteResources` with a comma-separated list of resource names (for example `--remoteResources myPostgres,myRedis`). Databases and Redis run locally by default; this flag points the selected ones at their deployed AWS counterparts when local emulation is insufficient or you need to test against real data.
 
 ### What is agent mode and when should I use it?
 
@@ -504,5 +464,5 @@ Agent mode (`--agent`) runs dev mode as a detached daemon with an HTTP server fo
 ## Related commands
 
 - [`dev:stop`](/cli/dev-stop) — stop a running dev agent
-- [`deploy`](/cli/deploy) — deploy your stack to AWS (required before using legacy mode)
+- [`deploy`](/cli/deploy) — deploy your stack to AWS
 - [`logs`](/cli/logs) — fetch logs from deployed resources

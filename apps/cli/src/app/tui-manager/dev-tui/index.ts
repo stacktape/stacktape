@@ -224,13 +224,7 @@ class DevTuiManager {
   private hookStatusSignatures: Map<string, string> = new Map();
   private _agentMode = false;
 
-  start(config: {
-    projectName: string;
-    stageName: string;
-    onReady?: ReadyHandler;
-    devMode?: 'normal' | 'legacy';
-    agentMode?: boolean;
-  }) {
+  start(config: { projectName: string; stageName: string; onReady?: ReadyHandler; agentMode?: boolean }) {
     if (this.isRunning) return;
 
     this.isRunning = true;
@@ -252,8 +246,7 @@ class DevTuiManager {
     }
     devTuiState.init({
       projectName: config.projectName,
-      stageName: config.stageName,
-      devMode: config.devMode || 'normal'
+      stageName: config.stageName
     });
   }
 

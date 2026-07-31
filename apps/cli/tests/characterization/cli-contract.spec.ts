@@ -7,6 +7,7 @@ import {
   type StacktapeCommand
 } from '../../src/config/cli/commands';
 import { getArgInfo, validateCommandArgs } from '../../src/config/cli/utils';
+import { argAliases } from '../../src/config/cli/options';
 
 const capabilityCommands: Record<string, StacktapeCommand[]> = {
   lifecycle: ['deploy', 'delete', 'dev', 'synth', 'diff', 'rollback'],
@@ -104,5 +105,10 @@ describe('CLI option semantics', () => {
     expect(getArgInfo('deploy', 'region').alias).toContain('r');
     expect(getArgInfo('deploy', 'stage').alias).toContain('s');
     expect(getArgInfo('deploy', 'outputFormat').allowedValues).toEqual(['jsonl', 'plain', 'tty']);
+  });
+
+  test('exposes one dev workflow without the retired legacy mode selector', () => {
+    expect(commandDefinitions.dev.args).not.toHaveProperty('devMode');
+    expect(argAliases).not.toHaveProperty('devMode');
   });
 });

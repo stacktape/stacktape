@@ -274,7 +274,7 @@ The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `se
 `stacktape_dev` manages [dev mode](/local-development/dev-mode-overview) lifecycle without requiring a terminal. The dev mode agent listens on a local HTTP port (default `7331`) for control commands.
 
 - **`plan`** scans the project and returns suggested start arguments without starting anything. `plan` defaults `stage` to `dev` and infers `projectName`, `region`, `awsAccount`, `currentWorkingDirectory`, and `configPath` from deploy scripts and project scan when available. A dev-mode plan is only complete when `stage`, `region`, and `configPath` are resolved; otherwise the tool returns `MISSING_ARGS` with next steps. Since `stage` defaults to `dev`, the most common missing arguments are `region` and `configPath`.
-- **`start`** launches dev mode as a subprocess with a 12-minute timeout for initial setup. Pass `projectName`, `stage`, `region`, `configPath`, and optionally `awsAccount`, `agentPort`, `currentWorkingDirectory`, `devMode`, `resources`, `skipResources`, `watch`, `remoteResources`, or `freshDb`.
+- **`start`** launches dev mode as a subprocess with a 12-minute timeout for initial setup. Pass `projectName`, `stage`, `region`, `configPath`, and optionally `awsAccount`, `agentPort`, `currentWorkingDirectory`, `resources`, `skipResources`, `watch`, `remoteResources`, or `freshDb`.
 - **`status`** returns the current state of the running session.
 - **`logs`** paginates structured log entries. Accepts `cursor`, `limit`, and `workload` for filtering.
 - **`rebuild`** triggers a rebuild of a single workload (pass `workload` name). **`rebuild_all`** triggers a rebuild of every workload.

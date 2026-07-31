@@ -1,9 +1,7 @@
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { globalStateManager } from '@application-services/global-state-manager';
 
-export type DevModeType = 'normal' | 'legacy';
-
-/** Resource types that are emulated locally and should not be deployed to the dev stack (unless dev.remote: true) */
+/** Resource types that are emulated locally and should not be deployed to the dev stack unless selected as remote. */
 export const LOCAL_EMULATED_RESOURCE_TYPES: StpResourceType[] = [
   'relational-database',
   'redis-cluster',
@@ -32,27 +30,8 @@ export const isDevCommand = (): boolean => {
   return globalStateManager.command === 'dev';
 };
 
-/** Get the current dev mode type (normal or legacy) */
-export const getDevModeType = (): DevModeType => {
-  return globalStateManager.args.devMode || 'normal';
-};
-
-/** Check if running in legacy dev mode */
-export const isLegacyDevMode = (): boolean => {
-  return isDevCommand() && getDevModeType() === 'legacy';
-};
-
-/** Check if running in normal dev mode */
-export const isNormalDevMode = (): boolean => {
-  return isDevCommand() && getDevModeType() === 'normal';
-};
-
 /** Check if a resource type should be completely excluded from the dev stack template */
 export const isResourceTypeExcludedInDevMode = (resourceType: StpResourceType): boolean => {
-  // In legacy mode, nothing is excluded - we use the existing deployed stack
-  if (isLegacyDevMode()) {
-    return false;
-  }
   return LOCALLY_RUN_RESOURCE_TYPES.includes(resourceType);
 };
 

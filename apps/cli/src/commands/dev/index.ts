@@ -33,7 +33,6 @@ import {
   updateAgentState
 } from './agent-server';
 import { initDevAgentCredentials } from './dev-agent-credentials';
-import { getDevModeType, isLegacyDevMode } from './dev-mode-utils';
 import { registerDevServerCleanupHook } from './dev-server';
 import { deployDevStack } from './dev-stack-deployer';
 import {
@@ -274,10 +273,6 @@ const getSelectedResources = async (allResources: SelectableResource[]): Promise
 /**
  * Main dev command.
  *
- * Supports two modes:
- * - normal (default): Deploys a stripped-down "dev stack" and emulates databases locally
- * - legacy: Requires existing deployed stack, no local database emulation
- *
  * Agent mode (--agent):
  * - Spawns as a detached daemon process
  * - Parent waits for AGENT_READY signal, then exits
@@ -287,9 +282,8 @@ const getSelectedResources = async (allResources: SelectableResource[]): Promise
  * Flow:
  * 1. Initialize credentials and config
  * 2. Show resource picker (or use --resources/--skipResources)
- * 3. (normal mode) Check if dev stack exists, deploy if not
- * 3. (legacy mode) Verify existing stack is deployed
- * 4. (normal mode) Start local emulated resources (databases, redis, dynamodb)
+ * 3. Check if the dev stack exists and deploy it if needed
+ * 4. Start local emulated resources (databases, Redis, DynamoDB)
  * 5. Start local workloads (containers, frontends)
  * 6. Deploy and stream logs for functions
  */
@@ -397,9 +391,6 @@ export const commandDev = async () => {
   registerLambdaEnvCleanupHook();
   registerNamedProxyCleanupHook();
 
-  const devMode = getDevModeType();
-  const isLegacy = isLegacyDevMode();
-
   // Phase 1: Initialize credentials, config, packagingManager
   // This also prompts for stage if not provided
   await initializeStackServicesForDevPhase1();
@@ -428,7 +419,7 @@ export const commandDev = async () => {
   }
 
   const devHeader = {
-    action: `RUNNING DEV MODE${isLegacy ? ' (legacy)' : ''}`,
+    action: 'RUNNING DEV MODE',
     projectName: globalStateManager.targetStack.projectName,
     stageName: globalStateManager.targetStack.stage,
     region: globalStateManager.region
@@ -441,9 +432,8 @@ export const commandDev = async () => {
   }
 
   const allWorkloads = getDevCompatibleResources();
-  // In legacy mode, we don't offer local database emulation
-  const allEmulateableResources = isLegacy ? [] : getLocalEmulateableResources();
-  const remoteResourceNames = isLegacy ? new Set<string>() : getRemoteResourceNames();
+  const allEmulateableResources = getLocalEmulateableResources();
+  const remoteResourceNames = getRemoteResourceNames();
 
   // Validate that we have something to run
   if (allWorkloads.length === 0 && allEmulateableResources.length === 0) {
@@ -456,7 +446,6 @@ export const commandDev = async () => {
   }
 
   // Build selectable resources and get user selection
-  // In legacy mode, only workloads are selectable (not databases)
   const allSelectableResources = buildSelectableResources(allWorkloads, allEmulateableResources);
   const selectedResourceNames = await getSelectedResources(allSelectableResources);
 
@@ -489,111 +478,94 @@ export const commandDev = async () => {
   await ensureMissingSecretsCreated();
   await ensureMissingSsmParamsCreated();
 
-  if (isLegacy) {
-    // Legacy mode: require existing deployed stack
-    if (!stackManager.existingStackDetails) {
-      throw new CliError({
-        category: 'CLI',
-        code: 'CLI_DEV_STACK_NOT_FOUND',
-        message: `Stack \`${globalStateManager.targetStack.stackName}\` does not exist.`,
-        hints: `Legacy dev mode requires a deployed stack. Run \`stacktape deploy --stage ${globalStateManager.targetStack.stage}\` first, or use \`--devMode normal\` to create a dev stack.`
-      });
-    }
-  } else {
-    // Normal mode: check for dev stack or deploy one
-    if (stackManager.existingStackDetails) {
-      const isDevStack = deployedStackOverviewManager.getStackMetadata(stackMetadataNames.isDevStack());
-      if (!isDevStack) {
-        const stackStatus = stackManager.existingStackDetails.StackStatus;
-        const failedStatuses = new Set([
-          'CREATE_FAILED',
-          'ROLLBACK_COMPLETE',
-          'ROLLBACK_FAILED',
-          'UPDATE_ROLLBACK_COMPLETE',
-          'UPDATE_ROLLBACK_FAILED',
-          'UPDATE_FAILED'
-        ]);
-        const inProgressStatuses = new Set([
-          'CREATE_IN_PROGRESS',
-          'ROLLBACK_IN_PROGRESS',
-          'UPDATE_IN_PROGRESS',
-          'UPDATE_COMPLETE_CLEANUP_IN_PROGRESS',
-          'UPDATE_ROLLBACK_IN_PROGRESS'
-        ]);
-        const stageName = globalStateManager.targetStack.stage.toLowerCase();
-        const isProbablyDevStage = stageName.includes('dev') || stageName.includes('local');
-        const stackLacksStackInfoMapOutput =
-          !stackManager.existingStackDetails?.stackOutput?.[outputNames.stackInfoMap()];
-        const stackIsInRecoverableState = failedStatuses.has(stackStatus) || inProgressStatuses.has(stackStatus);
+  // Check for a dev stack or deploy one.
+  if (stackManager.existingStackDetails) {
+    const isDevStack = deployedStackOverviewManager.getStackMetadata(stackMetadataNames.isDevStack());
+    if (!isDevStack) {
+      const stackStatus = stackManager.existingStackDetails.StackStatus;
+      const failedStatuses = new Set([
+        'CREATE_FAILED',
+        'ROLLBACK_COMPLETE',
+        'ROLLBACK_FAILED',
+        'UPDATE_ROLLBACK_COMPLETE',
+        'UPDATE_ROLLBACK_FAILED',
+        'UPDATE_FAILED'
+      ]);
+      const inProgressStatuses = new Set([
+        'CREATE_IN_PROGRESS',
+        'ROLLBACK_IN_PROGRESS',
+        'UPDATE_IN_PROGRESS',
+        'UPDATE_COMPLETE_CLEANUP_IN_PROGRESS',
+        'UPDATE_ROLLBACK_IN_PROGRESS'
+      ]);
+      const stageName = globalStateManager.targetStack.stage.toLowerCase();
+      const isProbablyDevStage = stageName.includes('dev') || stageName.includes('local');
+      const stackLacksStackInfoMapOutput =
+        !stackManager.existingStackDetails?.stackOutput?.[outputNames.stackInfoMap()];
+      const stackIsInRecoverableState = failedStatuses.has(stackStatus) || inProgressStatuses.has(stackStatus);
 
-        const shouldAutoRecoverNonDevStack =
-          stackIsInRecoverableState && (isProbablyDevStage || stackLacksStackInfoMapOutput);
+      const shouldAutoRecoverNonDevStack =
+        stackIsInRecoverableState && (isProbablyDevStage || stackLacksStackInfoMapOutput);
 
-        if (shouldAutoRecoverNonDevStack) {
-          const warnMsg = `Stack '${globalStateManager.targetStack.stackName}' exists but isn't marked as a dev stack and is in ${stackStatus}.`;
-          const infoMsg = 'Deleting the failed stack and redeploying a fresh dev stack...';
-          if (agentEnabled) {
-            tuiManager.warn(warnMsg);
-            tuiManager.info(infoMsg);
-          } else {
-            tuiManager.warn(warnMsg);
-            tuiManager.info(infoMsg);
-          }
-          await stackManager.deleteStack();
-          await stackManager.refetchStackDetails(globalStateManager.targetStack.stackName);
-        } else {
-          throw new CliError({
-            category: 'CLI',
-            code: 'CLI_DEV_STACK_CONFLICT',
-            message: `Stack \`${globalStateManager.targetStack.stackName}\` exists but is not a dev stack.`,
-            hints: `Use a different dev stage (for example \`--stage dev-${globalStateManager.userData?.name?.split(' ')[0]?.toLowerCase() || 'local'}\`), or use \`--devMode legacy\` with the existing stack.`
-          });
-        }
-      }
-    }
-
-    // Deploy dev stack if it doesn't exist
-    if (!stackManager.existingStackDetails) {
-      if (agentEnabled) {
-        // Agent mode: plain text output for dev stack deployment
-        tuiManager.info('[~] Deploying dev stack (minimal stack for dev mode)...');
-        try {
-          await deployDevStack();
-          tuiManager.success('[+] Dev stack deployed successfully');
-        } catch (err) {
-          tuiManager.error('[x] Dev stack deployment failed');
-          throw err;
-        }
+      if (shouldAutoRecoverNonDevStack) {
+        const warnMsg = `Stack '${globalStateManager.targetStack.stackName}' exists but isn't marked as a dev stack and is in ${stackStatus}.`;
+        const infoMsg = 'Deleting the failed stack and redeploying a fresh dev stack...';
+        tuiManager.warn(warnMsg);
+        tuiManager.info(infoMsg);
+        await stackManager.deleteStack();
+        await stackManager.refetchStackDetails(globalStateManager.targetStack.stackName);
       } else {
-        // Interactive mode: use TUI to show deployment progress.
-        // Set a header that explains this is an automatic dev-stack setup step.
-        eventManager.setSilentMode(false);
-        tuiManager.showCommandHeader({
-          action: 'DEPLOYING DEV STACK',
-          projectName: globalStateManager.targetStack.projectName,
-          stageName: globalStateManager.targetStack.stage,
-          region: globalStateManager.region
+        throw new CliError({
+          category: 'CLI',
+          code: 'CLI_DEV_STACK_CONFLICT',
+          message: `Stack \`${globalStateManager.targetStack.stackName}\` exists but is not a dev stack.`,
+          hints: `Use a different dev stage, for example \`--stage dev-${globalStateManager.userData?.name?.split(' ')[0]?.toLowerCase() || 'local'}\`.`
         });
-        tuiManager.start();
-        tuiManager.setSimpleMode(true);
-        tuiManager.setShowPhaseHeaders(false);
-        try {
-          await deployDevStack();
-        } finally {
-          await tuiManager.stop();
-          tuiManager.setSimpleMode(false);
-          tuiManager.setShowPhaseHeaders(true);
-          eventManager.setSilentMode(true);
-        }
       }
-
-      // Refresh stack details after deployment
-      await stackManager.refetchStackDetails(globalStateManager.targetStack.stackName);
-      await deployedStackOverviewManager.refreshStackInfoMap({
-        stackDetails: stackManager.existingStackDetails,
-        stackResources: stackManager.existingStackResources
-      });
     }
+  }
+
+  // Deploy the dev stack if it does not exist.
+  if (!stackManager.existingStackDetails) {
+    if (agentEnabled) {
+      // Agent mode: plain text output for dev stack deployment
+      tuiManager.info('[~] Deploying dev stack (minimal stack for dev mode)...');
+      try {
+        await deployDevStack();
+        tuiManager.success('[+] Dev stack deployed successfully');
+      } catch (err) {
+        tuiManager.error('[x] Dev stack deployment failed');
+        throw err;
+      }
+    } else {
+      // Interactive mode: use TUI to show deployment progress.
+      // Set a header that explains this is an automatic dev-stack setup step.
+      eventManager.setSilentMode(false);
+      tuiManager.showCommandHeader({
+        action: 'DEPLOYING DEV STACK',
+        projectName: globalStateManager.targetStack.projectName,
+        stageName: globalStateManager.targetStack.stage,
+        region: globalStateManager.region
+      });
+      tuiManager.start();
+      tuiManager.setSimpleMode(true);
+      tuiManager.setShowPhaseHeaders(false);
+      try {
+        await deployDevStack();
+      } finally {
+        await tuiManager.stop();
+        tuiManager.setSimpleMode(false);
+        tuiManager.setShowPhaseHeaders(true);
+        eventManager.setSilentMode(true);
+      }
+    }
+
+    // Refresh stack details after deployment
+    await stackManager.refetchStackDetails(globalStateManager.targetStack.stackName);
+    await deployedStackOverviewManager.refreshStackInfoMap({
+      stackDetails: stackManager.existingStackDetails,
+      stackResources: stackManager.existingStackResources
+    });
   }
 
   // Now start the Dev TUI
@@ -669,7 +641,6 @@ export const commandDev = async () => {
           ]);
         }
       : undefined,
-    devMode,
     agentMode: agentEnabled
   });
 
@@ -769,7 +740,6 @@ export const commandDev = async () => {
   });
 
   // Register local resources in TUI (only selected ones that aren't remote)
-  // In legacy mode, this is skipped (no local database emulation)
   for (const resource of emulateableResources) {
     if (!remoteResourceNames.has(resource.name)) {
       const resourceType = mapResourceType(resource.type, resource.engineType);
@@ -808,9 +778,8 @@ export const commandDev = async () => {
   // Start the renderer after all items are registered so the first frame has the complete layout
   devTuiManager.startRenderer();
 
-  // Build set of selected database names for local resource handling
-  // In legacy mode, this is empty (all databases use deployed AWS resources)
-  const selectedLocalResourceNames = isLegacy ? new Set<string>() : new Set(emulateableResources.map((r) => r.name));
+  // Build the set of selected database names for local resource handling.
+  const selectedLocalResourceNames = new Set(emulateableResources.map((resource) => resource.name));
 
   // Run all dev-compatible resources (this will update TUI as things start)
   try {

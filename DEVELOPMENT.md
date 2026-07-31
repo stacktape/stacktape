@@ -136,10 +136,9 @@ each, and let Git — not the filesystem — move changes between them.
 
 ## Semi-local development mode
 
-`dev` runs selected workloads on your machine against a stack. It is still supported and has two modes:
-
-- default — deploys a minimal dev stack (IAM roles, secrets) and emulates databases and Redis locally in Docker;
-- `--devMode legacy` — requires an already deployed stack and connects local workloads to its real AWS resources.
+`dev` runs selected workloads on your machine, deploys a minimal dev stack (IAM roles and secrets), and emulates
+databases and Redis locally in Docker. Use `--remoteResources` to connect selected databases or Redis resources to
+their deployed AWS counterparts instead.
 
 ```powershell
 pnpm --filter @stacktape/cli run dev dev --projectName <project> --stage dev --region eu-west-1 --resources <name> --agent

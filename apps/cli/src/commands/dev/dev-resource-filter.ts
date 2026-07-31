@@ -1,22 +1,13 @@
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
-import {
-  isDevCommand,
-  isLegacyDevMode,
-  isResourceTypeExcludedInDevMode,
-  isResourceTypeLocallyEmulatable
-} from './dev-mode-utils';
+import { isDevCommand, isResourceTypeExcludedInDevMode, isResourceTypeLocallyEmulatable } from './dev-mode-utils';
 import { getRemoteResourceNames } from './local-resources';
 
-export { isDevCommand, isLegacyDevMode };
+export { isDevCommand };
 
 /**
  * Check if a resource should be excluded from deployment in dev mode.
  *
- * In legacy mode:
- * - No resources are excluded - we use the existing deployed stack as-is
- *
- * In normal mode:
- * - For locally emulated resources (databases, redis, dynamodb):
+ * - For locally emulated resources (databases, Redis, DynamoDB):
  *   Excluded by default unless dev.remote: true or --remoteResources flag
  * - For locally run resources (containers, frontends):
  *   Always excluded in dev mode
@@ -27,11 +18,6 @@ export { isDevCommand, isLegacyDevMode };
  */
 export const shouldExcludeResourceInDevMode = (resourceName: string, resourceType: StpResourceType): boolean => {
   if (!isDevCommand()) {
-    return false;
-  }
-
-  // In legacy mode, nothing is excluded - we use the existing deployed stack
-  if (isLegacyDevMode()) {
     return false;
   }
 

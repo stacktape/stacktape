@@ -17,7 +17,6 @@ type Listener = (state: DevTuiState) => void;
 
 const createInitialState = (): DevTuiState => ({
   phase: 'startup',
-  devMode: 'normal',
   projectName: '',
   stageName: '',
   localResources: [],
@@ -71,12 +70,11 @@ class DevTuiStateManager {
     this.notify();
   }
 
-  init(config: { projectName: string; stageName: string; devMode?: 'normal' | 'legacy' }) {
+  init(config: { projectName: string; stageName: string }) {
     this.state = {
       ...createInitialState(),
       projectName: config.projectName,
       stageName: config.stageName,
-      devMode: config.devMode || 'normal',
       startTime: Date.now()
     };
     this.notify();

@@ -28,7 +28,7 @@ const renderDashboard = async (opts = { width: 100, height: 10 }) => {
 };
 
 const initRunningState = () => {
-  devTuiState.init({ projectName: 'test-project', stageName: 'dev', devMode: 'normal' });
+  devTuiState.init({ projectName: 'test-project', stageName: 'dev' });
   devTuiState.addWorkload({ name: 'api', type: 'container' });
   devTuiState.addWorkload({ name: 'worker', type: 'function' });
   devTuiState.setWorkloadStatus('api', 'running', { url: 'http://localhost:3000' });
@@ -38,7 +38,7 @@ const initRunningState = () => {
 
 describe('DevDashboard footer', () => {
   test('startup phase shows header and running setup steps', async () => {
-    devTuiState.init({ projectName: 'test-project', stageName: 'dev', devMode: 'normal' });
+    devTuiState.init({ projectName: 'test-project', stageName: 'dev' });
     devTuiState.addSetupStep({ id: 'deploy', label: 'Deploying dev stack' });
     devTuiState.setSetupStepStatus('deploy', 'running');
 

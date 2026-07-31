@@ -4,19 +4,18 @@ import { configManager } from '@domain-services/config-manager';
 import { resolveReferencesToMountedEfsFilesystems } from '@domain-services/config-manager/utils/efs-filesystems';
 import { resolveConnectToList } from '@domain-services/config-manager/utils/resource-references';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { isDevCommand, isLegacyDevMode, LOCALLY_RUN_RESOURCE_TYPES } from '../../../../commands/dev/dev-mode-utils';
+import { isDevCommand, LOCALLY_RUN_RESOURCE_TYPES } from '../../../../commands/dev/dev-mode-utils';
 import { getEcsTaskRole } from './utils';
 
 /**
- * In normal dev mode, container workloads (web-service, private-service, worker-service, multi-container-workload)
+ * In dev mode, container workloads (web-service, private-service, worker-service, multi-container-workload)
  * are excluded from the dev stack because they run locally. However, these workloads still need their IAM roles
  * to be created so that locally running containers can assume them and get the correct AWS permissions.
  *
  * This resolver creates ONLY the IAM roles for container workloads that would normally be excluded in dev mode.
  */
 export const resolveDevContainerWorkloadRoles = () => {
-  // Only run in normal dev mode (not legacy, not regular deploy)
-  if (!isDevCommand() || isLegacyDevMode()) {
+  if (!isDevCommand()) {
     return;
   }
 

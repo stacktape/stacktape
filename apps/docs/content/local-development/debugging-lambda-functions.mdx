@@ -7,17 +7,17 @@ seoDescription: 'Debug AWS Lambda functions with Stacktape dev mode. Stream logs
 
 # Debugging Lambda Functions
 
-Stacktape [dev mode](/local-development/dev-mode-overview) runs Lambda functions on real AWS infrastructure while you iterate on code locally. In normal mode, Stacktape deploys a dev stack to run selected functions on AWS. The dev TUI shows logs and supports on-demand rebuilds — giving you a fast edit-test loop without running a full stack deployment.
+Stacktape [dev mode](/local-development/dev-mode-overview) runs Lambda functions on real AWS infrastructure while you iterate on code locally. Stacktape deploys a dev stack to run selected functions on AWS. The dev TUI shows logs and supports on-demand rebuilds — giving you a fast edit-test loop without running a full stack deployment.
 
 ## How it works
 
 Lambda functions are dev-compatible workloads that deploy to the AWS-backed dev stack and execute on AWS Lambda. Unlike [container workloads](/local-development/debugging-containers) that run locally in Docker, Lambda functions run in their real cloud environment. This surfaces issues that local emulation would miss — you test against AWS Lambda rather than a local approximation.
 
-In normal mode, Stacktape deploys a dev stack when one does not already exist for the target stage. Your selection in the resource picker controls which workloads dev mode starts and renders in the TUI. Subsequent runs reuse the existing dev stack, making startup faster. The dev TUI then launches with log output, keyboard controls for rebuilding functions, and status for any [local databases](/local-development/local-databases) you selected.
+Stacktape deploys a dev stack when one does not already exist for the target stage. Your selection in the resource picker controls which workloads dev mode starts and renders in the TUI. Subsequent runs reuse the existing dev stack, making startup faster. The dev TUI then launches with log output, keyboard controls for rebuilding functions, and status for any [local databases](/local-development/local-databases) you selected.
 
 1. **Load config** — Stacktape reads your configuration and discovers dev-compatible resources (functions, containers, databases)
 2. **Select resources** — Choose which resources to run via the interactive picker or `--resources` / `--skipResources` flags
-3. **Deploy dev stack** — A dev stack is deployed automatically on first run (normal mode only)
+3. **Deploy dev stack** — A dev stack is deployed automatically on first run
 4. **Start local databases** — Selected databases run as Docker containers on your machine
 5. **Set up tunnels and environment** — TCP tunnels connect deployed Lambda functions to local databases; an "Injecting environment" setup step configures the active dev session
 6. **Run workloads and stream logs** — Functions are deployed, logs appear in the dev TUI, and you can rebuild on demand
@@ -81,11 +81,11 @@ The `memory` property sets the function's memory allocation in MB — AWS Lambda
 
 ### First-time setup
 
-The first run deploys a dev stack, which takes longer than subsequent runs. If the target stage already has a healthy non-dev stack (from a prior [`stacktape deploy`](/cli/deploy)), normal dev mode refuses to overwrite it and asks you to use a different stage name. A failed or in-progress non-dev stack may be auto-deleted and recreated as a dev stack when it appears to belong to a dev/local stage or lacks the Stacktape stack-info metadata.
+The first run deploys a dev stack, which takes longer than subsequent runs. If the target stage already has a healthy non-dev stack (from a prior [`stacktape deploy`](/cli/deploy)), dev mode refuses to overwrite it and asks you to use a different stage name. A failed or in-progress non-dev stack may be auto-deleted and recreated as a dev stack when it appears to belong to a dev/local stage or lacks the Stacktape stack-info metadata.
 
-Use a dedicated stage name for dev mode — `dev`, `dev-local`, or a personal stage like `dev-jane`. Alternatively, use `--devMode legacy` to run dev mode against an existing deployed stack (see [Normal vs legacy dev mode](#normal-vs-legacy-dev-mode) below).
+Use a dedicated stage name for dev mode — `dev`, `dev-local`, or a personal stage like `dev-jane`.
 
-<Warning>Normal dev mode and full deployments share the same stage namespace. Running `stacktape dev --stage production` against a healthy `production` deployment will be rejected. Always use a separate stage name for dev mode.</Warning>
+<Warning>Dev mode and full deployments share the same stage namespace. Running `stacktape dev --stage production` against a healthy `production` deployment will be rejected. Always use a separate stage name for dev mode.</Warning>
 
 If your config includes `beforeDev` [hooks](/configuration/hooks-and-scripts) with a `scriptName`, dev mode registers those hook names in the dev TUI during startup.
 
@@ -183,30 +183,15 @@ stacktape dev --stage dev --noTunnel
 
 `--noTunnel` skips the Lambda tunnel setup step. When selected non-remote local resources exist, dev mode still registers the "Injecting environment" step. Resources configured as remote are excluded from local resource registration in dev mode. See [local databases](/local-development/local-databases) for remote-resource configuration.
 
-## Normal vs legacy dev mode
+## Using deployed databases
 
-Stacktape dev mode supports two modes, controlled by the `--devMode` flag. Normal mode is the default and the recommended choice for most development workflows.
-
-<FeatureComparisonTable
-  columns={["Normal mode (default)", "Legacy mode"]}
-  features={[
-    { name: "Dev stack", values: { "Normal mode (default)": "Deploys its own dev stack", "Legacy mode": "Requires a pre-deployed stack" } },
-    { name: "Local databases", values: { "Normal mode (default)": true, "Legacy mode": false } },
-    { name: "Tunnels to local databases", values: { "Normal mode (default)": true, "Legacy mode": "Not applicable" } },
-    { name: "First-run speed", values: { "Normal mode (default)": "Slower (deploys dev stack)", "Legacy mode": "Immediate" } },
-    { name: "Best for", values: { "Normal mode (default)": "Day-to-day development", "Legacy mode": "Testing against full deployed stack" } }
-  ]}
-/>
-
-**Normal mode** is the right choice for most development. It gives you an isolated environment with local database emulation, fast rebuilds, and no dependency on a previously deployed stack. Your selection in the resource picker controls which workloads dev mode starts and renders in the TUI.
-
-**Legacy mode** is useful when you need to test against your full deployed stack — for example, when debugging an issue that only reproduces with production data, or when your function depends on resources that dev mode doesn't emulate locally. Start legacy mode explicitly:
+Dev mode uses an isolated dev stack and emulates supported databases locally. When a function needs a real deployed database or Redis resource, pass its name through `--remoteResources`:
 
 ```bash
-stacktape dev --stage staging --devMode legacy
+stacktape dev --stage dev --remoteResources myDatabase
 ```
 
-<Info>Legacy mode requires that the specified stage has an existing deployed stack. If the stack doesn't exist, Stacktape shows an error suggesting you deploy first with `stacktape deploy` or switch to `--devMode normal`.</Info>
+This keeps the dev stack isolated while wiring the selected resource to its deployed AWS counterpart.
 
 ## Environment cleanup
 
@@ -308,19 +293,15 @@ Lambda functions in dev mode run on AWS Lambda infrastructure, not on your local
 
 ### Do my Lambda function's event sources work in dev mode?
 
-Lambda functions are included as dev-compatible workloads, and normal dev mode deploys a dev stack that includes selected functions. To verify a trigger during dev mode, invoke the function's configured entry point — call the HTTP endpoint directly, send a message to a connected queue, or wait for a scheduled trigger — and watch the dev TUI logs for output. See [triggers overview](/resources/triggers/overview) for the available event source types.
+Lambda functions are included as dev-compatible workloads, and dev mode deploys a dev stack that includes selected functions. To verify a trigger during dev mode, invoke the function's configured entry point — call the HTTP endpoint directly, send a message to a connected queue, or wait for a scheduled trigger — and watch the dev TUI logs for output. See [triggers overview](/resources/triggers/overview) for the available event source types.
 
 ### Can I debug only some functions while keeping others untouched?
 
 Yes. Use `--resources myApi,myWorker` to select specific functions, or `--skipResources heavyBatchJob` to exclude some. Only selected resources are started and rendered in the dev TUI during the session. This is useful when you're iterating on one function and don't want to rebuild or disrupt others.
 
-### What's the difference between normal and legacy dev mode?
-
-Normal dev mode (the default) deploys its own dev stack and supports running databases locally in Docker with tunnel connectivity to deployed Lambda functions. Legacy dev mode (`--devMode legacy`) requires an already-deployed stack and does not support local database emulation. Use normal mode for day-to-day development; use legacy mode when you need to test against a full production-equivalent stack or an existing deployed stage.
-
 ### Why does dev mode refuse to start on my stage?
 
-Normal dev mode and full deployments share the same stage namespace, so running `stacktape dev` against a stage that already has a healthy non-dev stack (from a prior [`stacktape deploy`](/cli/deploy)) is rejected to avoid overwriting it. Use a dedicated stage name like `dev`, `dev-local`, or `dev-jane`, or run `--devMode legacy` to attach to the existing deployed stack instead.
+Dev mode and full deployments share the same stage namespace, so running `stacktape dev` against a stage that already has a healthy non-dev stack (from a prior [`stacktape deploy`](/cli/deploy)) is rejected to avoid overwriting it. Use a dedicated stage name like `dev`, `dev-local`, or `dev-jane`.
 
 ### How do my local databases connect to functions running on AWS?
 

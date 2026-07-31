@@ -129,11 +129,11 @@ Disables the automatic injection of parameters and credentials during local emul
 
 export const noTunnel = z.boolean().describe(`#### No Tunnel
 ---
-Disables automatic tunneling for Lambda functions. In normal dev mode, Stacktape creates tunnels (using bore.pub) so that AWS Lambda functions can reach your locally emulated databases. Use this flag if you don't need Lambda-to-local connectivity or if tunneling causes issues.`);
+Disables automatic tunneling for Lambda functions. Stacktape creates tunnels (using bore.pub) so that AWS Lambda functions can reach your locally emulated databases. Use this flag if you don't need Lambda-to-local connectivity or if tunneling causes issues.`);
 
 export const remoteResources = z.array(z.string()).describe(`#### Remote Resources
 ---
-In normal dev mode, databases and Redis run locally by default. Use this flag to connect to deployed AWS resources instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: \`--remoteResources myDb\`, \`--remoteResources postgres,redis\`.`);
+Databases and Redis run locally by default. Use this flag to connect selected resources to their deployed AWS counterparts instead. Useful when you need to test against real data or when local emulation is insufficient. Examples: \`--remoteResources myDb\`, \`--remoteResources postgres,redis\`.`);
 
 export const resources = z.array(z.string()).describe(`#### Resources
 ---
@@ -142,12 +142,6 @@ Specify which resources to run in dev mode. Can include workloads (containers, f
 export const skipResources = z.array(z.string()).describe(`#### Skip Resources
 ---
 Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: \`--skipResources myHeavyDb\`, \`--skipResources fn1,fn2\`.`);
-
-export const devMode = z.enum(['normal', 'legacy']).describe(`#### Dev Mode
----
-Specifies which dev mode to use:
-- \`normal\` (default): Deploys a minimal "dev stack" to AWS (IAM roles, secrets only) and runs workloads locally. Databases (PostgreSQL, MySQL, DynamoDB) and Redis are emulated locally using Docker. Tunnels are automatically created so Lambda functions can reach local databases.
-- \`legacy\`: Requires an already deployed stack. Runs selected workloads locally while connecting to all deployed AWS resources. No local database emulation - uses deployed databases directly. Useful for testing against production-like data.`);
 
 export const outputFormat = z.enum(['jsonl', 'plain', 'tty']).describe(`#### Output Format
 ---
@@ -543,7 +537,6 @@ export const argAliases = {
   remoteResources: 'rr',
   resources: 'res',
   skipResources: 'sr',
-  devMode: 'dm',
   agent: 'ag',
   agentPort: 'ap',
   outputFormat: 'ofmt',
@@ -638,7 +631,6 @@ export const allCliArgsSchema = z.object({
   resourcesToSkip: resourcesToSkip.optional(),
   resources: resources.optional(),
   skipResources: skipResources.optional(),
-  devMode: devMode.optional(),
   agent: agent.optional(),
   agentPort: agentPort.optional(),
   agentChild: agentChild.optional(),

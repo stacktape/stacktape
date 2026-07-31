@@ -1,7 +1,5 @@
 export type DevPhase = 'startup' | 'running' | 'rebuilding';
 
-export type DevModeType = 'normal' | 'legacy';
-
 export type ResourceStatus = 'pending' | 'starting' | 'running' | 'error' | 'stopped';
 
 export type LocalResource = {
@@ -74,7 +72,6 @@ export type RebuildWorkloadState = {
 
 export type DevTuiState = {
   phase: DevPhase;
-  devMode: DevModeType;
   projectName: string;
   stageName: string;
 

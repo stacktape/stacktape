@@ -1278,7 +1278,6 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
         ? toolArgs.currentWorkingDirectory
         : scan.suggestedDefaults.currentWorkingDirectory,
     configPath: typeof toolArgs.configPath === 'string' ? toolArgs.configPath : scan.suggestedDefaults.configPath,
-    ...(typeof toolArgs.devMode === 'string' ? { devMode: toolArgs.devMode } : {}),
     ...(typeof toolArgs.agentPort === 'number' ? { agentPort: toolArgs.agentPort } : {}),
     ...(toolArgs.resources !== undefined ? { resources: toolArgs.resources } : {}),
     ...(toolArgs.skipResources !== undefined ? { skipResources: toolArgs.skipResources } : {}),
