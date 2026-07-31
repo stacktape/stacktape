@@ -22,6 +22,7 @@
     "clean": "rimraf __stacktape-dist __source-maps __publish-folder .stacktape __starter-projects __binary-dist __release __release-npm __platform-packages",
     "compile:cf:schema": "bun scripts/compile-cf-schema.ts",
     "dev": "bun run scripts/dev.ts",
+    "tui:demo": "bun scripts/tui-demo.ts",
     "docker:clean": "docker system prune --all --force --volumes",
     "esp": "bun scripts/execute-starter-project.ts",
     "generate": "bun scripts/generate-starter-projects-metadata.ts && bun scripts/generate-schemas.ts",
