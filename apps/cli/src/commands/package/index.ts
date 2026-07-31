@@ -1,29 +1,22 @@
-import type { StacktapeCliArgs } from 'src/config/cli/types';
-import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@application-services/tui-manager';
-import { configManager } from '@domain-services/config-manager';
-import { packagingManager } from '@domain-services/packaging-manager';
-import { getConfigManagerContext, getStackContext, loadLocalAwsContext } from '../_utils/initialization';
+import { initializePackageOperation } from '../_utils/initialization';
 
 export const commandPackage = async () => {
-  const { onlyWorkloads } = globalStateManager.args as StacktapeCliArgs;
-
-  await loadLocalAwsContext();
-  const stackContext = getStackContext();
-  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
-
-  await packagingManager.init();
+  const {
+    args: { onlyWorkloads },
+    stackContext,
+    services: { packaging, tui }
+  } = await initializePackageOperation();
 
   const workloadsList = onlyWorkloads?.length ? ` (${onlyWorkloads.join(', ')})` : '';
-  const spinner = tuiManager.createSpinner({ text: `Packaging compute resources${workloadsList}` });
+  const spinner = tui.createSpinner({ text: `Packaging compute resources${workloadsList}` });
 
-  const packagedWorkloads = await packagingManager.packageAllWorkloads({
+  const packagedWorkloads = await packaging.packageAllWorkloads({
     commandCanUseCache: false,
     onlyWorkloads
   });
 
   spinner.success({
-    text: `Packaged compute resources${workloadsList} for stack ${tuiManager.prettyStackName(globalStateManager.targetStack.stackName)}`
+    text: `Packaged compute resources${workloadsList} for stack ${tui.prettyStackName(stackContext.stackName)}`
   });
 
   return packagedWorkloads;

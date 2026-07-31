@@ -1,43 +1,35 @@
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
-import type { StacktapeCliArgs } from 'src/config/cli/types';
-import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@application-services/tui-manager';
-import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { configManager } from '@domain-services/config-manager';
-import { packagingManager } from '@domain-services/packaging-manager';
-import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import { templateManager } from '@domain-services/template-manager';
-import { finalizeTemplate } from '@domain-services/template-manager/finalize';
 import { stringifyToYaml } from '@utils/yaml';
 import { initializeAllStackServices } from '../_utils/initialization';
 
 export const commandValidate = async () => {
-  const { withPackage, thorough } = globalStateManager.args as StacktapeCliArgs;
-  const shouldPackage = Boolean(withPackage || thorough);
-
-  await initializeAllStackServices({
+  const {
+    args: { thorough, withPackage },
+    services: { calculatedStackOverview, config, finalizeTemplate, packaging, stack, template, tui }
+  } = await initializeAllStackServices({
     commandModifiesStack: false,
     commandRequiresDeployedStack: false,
     loadGlobalConfig: false,
     requiresControlPlane: false,
     requiresSubscription: false
   });
+  const shouldPackage = Boolean(withPackage || thorough);
 
-  configManager.validateGuardrails({ hasConfig: true });
+  config.validateGuardrails({ hasConfig: true });
 
   let packagedWorkloads: PackageWorkloadOutput[] | undefined;
   if (shouldPackage) {
-    packagedWorkloads = await packagingManager.packageAllWorkloads({
+    packagedWorkloads = await packaging.packageAllWorkloads({
       commandCanUseCache: false
     });
   }
 
-  await calculatedStackOverviewManager.resolveAllResources();
+  await calculatedStackOverview.resolveAllResources();
   await finalizeTemplate();
 
-  const template = templateManager.getTemplate();
+  const synthesizedTemplate = template.getTemplate();
   if (thorough) {
-    await stackManager.validateTemplate({ templateBody: stringifyToYaml(template) });
+    await stack.validateTemplate({ templateBody: stringifyToYaml(synthesizedTemplate) });
   }
 
   const details = [
@@ -47,7 +39,7 @@ export const commandValidate = async () => {
     shouldPackage && 'packaging',
     thorough && 'cloudformation'
   ].filter(Boolean);
-  tuiManager.setPendingCompletion({
+  tui.setPendingCompletion({
     success: true,
     message: `VALIDATION SUCCESSFUL (${details.join(', ')})`,
     links: []

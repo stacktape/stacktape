@@ -36,19 +36,22 @@ import type { StackContext } from '@domain-services/stack-context';
 import type { ConfigResolverContext } from '@domain-services/config-manager/config-resolver';
 import type { ConfigManagerInitContext } from '@domain-services/config-manager/context';
 import type { GetConfigParams } from '@stacktape/config-authoring/tooling';
+import type { StacktapeCliArgs } from '../../config/cli/types';
 import { getConfigPath } from '@utils/file-loaders';
+import { finalizeTemplate } from '@domain-services/template-manager/finalize';
 
-export const getStackContext = (): StackContext => ({
-  accountId: globalStateManager.targetAwsAccount.awsAccountId,
-  command: globalStateManager.command,
-  globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
-  invocationId: globalStateManager.invocationId,
-  projectName: globalStateManager.targetStack.projectName,
-  region: globalStateManager.region,
-  stackName: globalStateManager.targetStack.stackName,
-  stage: globalStateManager.targetStack.stage,
-  workingDir: globalStateManager.workingDir
-});
+export const getStackContext = (): StackContext =>
+  Object.freeze({
+    accountId: globalStateManager.targetAwsAccount.awsAccountId,
+    command: globalStateManager.command,
+    globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+    invocationId: globalStateManager.invocationId,
+    projectName: globalStateManager.targetStack.projectName,
+    region: globalStateManager.region,
+    stackName: globalStateManager.targetStack.stackName,
+    stage: globalStateManager.targetStack.stage,
+    workingDir: globalStateManager.workingDir
+  });
 
 export const getConfigResolverContext = (stackContext?: StackContext): ConfigResolverContext => {
   const args = globalStateManager.args;
@@ -142,6 +145,24 @@ export const loadLocalAwsContext = async () => {
     printer: tuiManager
   });
   await loadLocalTargetStackContext();
+};
+
+const getCommandArgs = (): Readonly<StacktapeCliArgs> => Object.freeze({ ...globalStateManager.args });
+
+export const initializePackageOperation = async () => {
+  await loadLocalAwsContext();
+  const stackContext = getStackContext();
+  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+  await packagingManager.init();
+
+  return {
+    args: getCommandArgs(),
+    stackContext,
+    services: {
+      packaging: packagingManager,
+      tui: tuiManager
+    }
+  } as const;
 };
 
 export const initializeAllStackServices = async ({
@@ -289,6 +310,20 @@ export const initializeAllStackServices = async ({
     });
   }
   await eventManager.processHooks({ captureType: 'START' });
+
+  return {
+    args: getCommandArgs(),
+    stackContext,
+    services: {
+      calculatedStackOverview: calculatedStackOverviewManager,
+      config: configManager,
+      finalizeTemplate,
+      packaging: packagingManager,
+      stack: stackManager,
+      template: templateManager,
+      tui: tuiManager
+    }
+  } as const;
 };
 
 export const initializeStackServicesForLocalResolve = async () => {
