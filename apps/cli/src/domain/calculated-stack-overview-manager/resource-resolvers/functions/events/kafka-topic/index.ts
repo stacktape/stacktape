@@ -1,3 +1,7 @@
+import type {
+  StpHelperLambdaFunction,
+  StpLambdaFunction
+} from '@domain-services/config-manager/resolved-types/functions';
 import type { SourceAccessConfiguration } from '@cloudform/lambda/eventSourceMapping';
 import { GetAtt, Ref } from '@cloudform/functions';
 import EventSourceMapping from '@cloudform/lambda/eventSourceMapping';

@@ -1,3 +1,4 @@
+import type { StpDynamoTable } from '@domain-services/config-manager/resolved-types/dynamo-db-tables';
 import { GetAtt, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';

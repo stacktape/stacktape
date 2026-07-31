@@ -1,3 +1,8 @@
+import type {
+  CloudformationPrivateTypeFile,
+  StpCfInfrastructureModuleType,
+  SupportedPrivateCfResourceType
+} from '@domain-services/cloudformation-registry-manager/types';
 import type { RegisteredPrivateTypeVersion } from 'src/aws/sdk-manager';
 import type { Policy, RoleProperties } from '@cloudform/iam/role';
 import { eventManager } from '@application-services/event-manager';

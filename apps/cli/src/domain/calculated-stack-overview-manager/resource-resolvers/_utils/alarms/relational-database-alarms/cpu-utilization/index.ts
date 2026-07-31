@@ -1,3 +1,4 @@
+import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import { globalStateManager } from '@application-services/global-state-manager';
 import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';

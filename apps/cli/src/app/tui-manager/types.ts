@@ -1,3 +1,4 @@
+import type { DeploymentPhase, LoggableEventType } from '@application-services/event-manager/types';
 export type TuiEventStatus = 'pending' | 'running' | 'success' | 'error' | 'warning';
 
 export type CfProgressData = {
@@ -170,3 +171,5 @@ export const CODEBUILD_DEPLOY_PHASE_NAMES: Partial<Record<DeploymentPhase, strin
   UPLOAD: 'Prepare Pipeline',
   DEPLOY: 'Deploy'
 };
+
+export type SupportedConsoleColor = 'cyan' | 'blue' | 'gray' | 'yellow' | 'green' | 'red' | 'magenta';

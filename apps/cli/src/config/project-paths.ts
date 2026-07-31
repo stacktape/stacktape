@@ -45,8 +45,8 @@ export const CLOUDFORM_ROOT_HELPER_FOLDER_PATH = join(process.cwd(), 'scripts', 
  */
 const CONFIG_PACKAGE_PATH = join(process.cwd(), '..', '..', 'packages', 'config');
 export const CONFIG_PACKAGE_SRC_PATH = join(CONFIG_PACKAGE_PATH, 'src');
-/** CLI-owned resolved/internal declarations that schema and npm generation still read. */
-export const RETAINED_AMBIENT_CONFIG_PATH = join(process.cwd(), 'types', 'stacktape-config');
+/** CLI-owned resolved resource model consumed by synthesis and configuration-reference generation. */
+export const RESOLVED_CONFIG_TYPES_PATH = join(process.cwd(), 'src', 'domain', 'config-manager', 'resolved-types');
 
 export const CONFIG_SCHEMA_PATH = join(CONFIG_PACKAGE_PATH, 'generated', 'config-schema.json');
 

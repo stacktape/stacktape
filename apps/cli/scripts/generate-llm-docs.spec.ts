@@ -102,7 +102,7 @@ describe('generated LLM docs corpus', () => {
     expect(manifest.generatedAt).toBeUndefined();
     expect(manifest.sourceRoots).toContain('apps/docs/content');
     expect(manifest.sourceRoots).toContain('packages/config/src');
-    expect(manifest.sourceRoots).toContain('apps/cli/types/stacktape-config');
+    expect(manifest.sourceRoots).toContain('apps/cli/src/domain/config-manager/resolved-types');
     const docsPages = manifest.pages.filter((page) => page.docKind === 'docs-page');
     const configPages = manifest.pages.filter((page) => page.docKind === 'config-reference');
     expect(docsPages).toHaveLength(194);

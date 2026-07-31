@@ -1,6 +1,6 @@
 import { existsSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
-import { CONFIG_PACKAGE_SRC_PATH, RETAINED_AMBIENT_CONFIG_PATH } from 'src/config/project-paths';
+import { CONFIG_PACKAGE_SRC_PATH, RESOLVED_CONFIG_TYPES_PATH } from 'src/config/project-paths';
 
 /** Package tests and acceptance fixtures are not authored configuration model modules. */
 const isConfigModelModule = (file: string) => file.endsWith('.ts') && !file.endsWith('.acceptance.ts');
@@ -37,8 +37,8 @@ export const resolveConfigSourceFile = (logicalSourceName: string): string => {
 };
 
 /**
- * Every source that carries configuration declarations, for callers that process the whole model: the package
- * modules plus the CLI's retained resolved/internal declarations in `types/stacktape-config`.
+ * Every source that carries configuration declarations, for callers that process the whole model: the authored
+ * package modules plus the CLI's explicitly imported resolved-resource model.
  *
  * Never returns an empty list.
  */
@@ -51,11 +51,11 @@ export const listConfigSourceFiles = (): string[] => {
     throw new Error(`No configuration modules found in ${CONFIG_PACKAGE_SRC_PATH}.`);
   }
 
-  const retainedAmbient = existsSync(RETAINED_AMBIENT_CONFIG_PATH)
-    ? readdirSync(RETAINED_AMBIENT_CONFIG_PATH)
-        .filter((file) => file.endsWith('.d.ts'))
-        .map((file) => join(RETAINED_AMBIENT_CONFIG_PATH, file))
+  const resolvedResourceTypes = existsSync(RESOLVED_CONFIG_TYPES_PATH)
+    ? readdirSync(RESOLVED_CONFIG_TYPES_PATH)
+        .filter((file) => file.endsWith('.ts'))
+        .map((file) => join(RESOLVED_CONFIG_TYPES_PATH, file))
     : [];
 
-  return [...packageModules, ...retainedAmbient].sort();
+  return [...packageModules, ...resolvedResourceTypes].sort();
 };

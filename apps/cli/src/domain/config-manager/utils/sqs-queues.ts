@@ -1,3 +1,5 @@
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
+import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import { GetAtt } from '@cloudform/functions';
 import { stpErrors } from '@errors';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';

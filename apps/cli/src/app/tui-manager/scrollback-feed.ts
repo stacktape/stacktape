@@ -1,3 +1,4 @@
+import type { DeploymentPhase } from '@application-services/event-manager/types';
 import type { ErrorDisplayData } from './error-rendering';
 import type { TuiDeploymentHeader, TuiEvent, TuiMessageType, TuiPhase, TuiSummary } from './types';
 

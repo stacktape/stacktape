@@ -1,3 +1,4 @@
+import type { CertificateDetail } from '@domain-services/domain-manager/types';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { CertificateStatus } from '@aws-sdk/client-acm';

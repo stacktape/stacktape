@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
-import { readFileSync } from 'node:fs';
-import { join, relative, resolve } from 'node:path';
+import { existsSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import { CONFIG_PACKAGE_SRC_PATH } from 'src/config/project-paths';
 import { listConfigSourceFiles, resolveConfigSourceFile } from '../../scripts/code-generation/config-sources';
 import {
@@ -30,29 +30,6 @@ const countDescriptions = (value: unknown): number => {
     (typeof record.description === 'string' ? 1 : 0) +
     Object.values(record).reduce<number>((count, child) => count + countDescriptions(child), 0)
   );
-};
-
-const readPackageExportNames = (): Set<string> => {
-  const packageFiles = listConfigSourceFiles().filter((file) =>
-    resolve(file).startsWith(resolve(CONFIG_PACKAGE_SRC_PATH))
-  );
-  if (packageFiles.length === 0) throw new Error(`No configuration modules found in ${CONFIG_PACKAGE_SRC_PATH}.`);
-  const program = ts.createProgram(packageFiles, {
-    noEmit: true,
-    target: ts.ScriptTarget.ES2022,
-    moduleResolution: ts.ModuleResolutionKind.Bundler,
-    types: []
-  });
-  const checker = program.getTypeChecker();
-  const names = new Set<string>();
-
-  for (const file of packageFiles) {
-    const sourceFile = program.getSourceFile(file);
-    const moduleSymbol = sourceFile && checker.getSymbolAtLocation(sourceFile);
-    if (!moduleSymbol) throw new Error(`${file} is not an importable configuration module.`);
-    for (const exported of checker.getExportsOfModule(moduleSymbol)) names.add(exported.getName());
-  }
-  return names;
 };
 
 const readGlobalDeclarationNames = (sourceFile: ts.SourceFile): string[] => {
@@ -94,15 +71,23 @@ const readGlobalDeclarationNames = (sourceFile: ts.SourceFile): string[] => {
   return names;
 };
 
-const readCliGlobalDeclarationNames = (typesPath = join(process.cwd(), 'types')): Map<string, string[]> => {
+const readCliGlobalDeclarationNames = (
+  sourceRoots = ['src', 'scripts', 'helper-lambdas'].map((directory) => join(process.cwd(), directory))
+): Map<string, string[]> => {
   const declarations = new Map<string, string[]>();
-  const files = ts.sys.readDirectory(typesPath, ['.d.ts']);
-  if (files.length === 0) throw new Error(`No .d.ts files found in ${typesPath}.`);
+  const files = sourceRoots.flatMap((sourceRoot) =>
+    ts.sys.readDirectory(
+      sourceRoot,
+      ['.ts', '.tsx'],
+      ['**/@generated/**', '**/generated/**', '**/node_modules/**'],
+      ['**/*']
+    )
+  );
 
   for (const file of files) {
     const sourceFile = ts.createSourceFile(file, readFileSync(file, 'utf-8'), ts.ScriptTarget.Latest, true);
     for (const name of readGlobalDeclarationNames(sourceFile)) {
-      declarations.set(name, [...(declarations.get(name) ?? []), relative(typesPath, file)]);
+      declarations.set(name, [...(declarations.get(name) ?? []), file]);
     }
   }
 
@@ -182,21 +167,11 @@ describe('the configuration model is owned by @stacktape/config', () => {
     expect(descriptions.split('**Example (YAML):**').length - 1).toBeGreaterThan(900);
     expect(descriptions.split('**Example (TypeScript):**').length - 1).toBeGreaterThan(900);
   });
-  test('retained internal declarations do not redefine package-owned names', () => {
-    const packageNames = readPackageExportNames();
+  test('CLI-owned source publishes no application types through the global namespace', () => {
     const cliGlobals = readCliGlobalDeclarationNames();
-    const redefined = [...cliGlobals]
-      .filter(([name]) => packageNames.has(name))
-      .map(([name, files]) => `${files.join(', ')}: ${name}`)
-      .sort();
 
-    // A top-level file and a nested file pin both declaration shapes and recursive discovery.
-    expect(cliGlobals.get('StacktapeArgs')).toContain('args.d.ts');
-    expect(cliGlobals.get('StpBucket')).toContain(join('stacktape-config', 'buckets.d.ts'));
-    expect(() => readCliGlobalDeclarationNames(join(process.cwd(), 'types', 'does-not-exist'))).toThrow(
-      'No .d.ts files found'
-    );
-    expect(redefined).toEqual([]);
+    expect(existsSync(join(process.cwd(), 'types'))).toBe(false);
+    expect(cliGlobals).toEqual(new Map());
   }, 30_000);
 
   test('the declaration scan ignores module-local helpers', () => {

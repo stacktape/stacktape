@@ -1,3 +1,4 @@
+import type { StpOpenSearchDomain } from '@domain-services/config-manager/resolved-types/open-search';
 import type { Ingress } from '@cloudform/ec2/securityGroup';
 import type { DomainProperties } from '@cloudform/openSearchService/domain';
 import { globalStateManager } from '@application-services/global-state-manager';

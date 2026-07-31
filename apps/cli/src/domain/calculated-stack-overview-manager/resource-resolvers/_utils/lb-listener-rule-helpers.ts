@@ -1,3 +1,4 @@
+import type { StpResolvedLoadBalancerReference } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import ListenerRule, {
   Action,
   QueryStringKeyValue,

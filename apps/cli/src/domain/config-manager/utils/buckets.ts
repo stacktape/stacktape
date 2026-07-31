@@ -1,3 +1,8 @@
+import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type { StpBucket } from '@domain-services/config-manager/resolved-types/buckets';
+import type { StpHostingBucket } from '@domain-services/config-manager/resolved-types/hosting-buckets';
+import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stpErrors } from '@errors';

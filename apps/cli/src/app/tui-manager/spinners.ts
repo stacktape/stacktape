@@ -1,3 +1,4 @@
+import type { LoggableEventType, ProgressLogger } from '@application-services/event-manager/types';
 import { formatDuration, stripAnsi } from './utils';
 
 const SPINNER_FRAMES = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏'];

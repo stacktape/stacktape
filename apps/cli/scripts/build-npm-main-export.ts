@@ -479,12 +479,11 @@ function removeDuplicateDeclarations(content: string): string {
 }
 
 /**
- * The npm entry sources compiled as the CLI project actually compiles them.
+ * The npm entry sources compiled with the CLI project's real compiler options.
  *
  * The npm sources are ordinary CLI files: they use `String.replaceAll`, which needs the CLI's `ES2023` lib, and
- * they are typed against ambient declarations (`StacktapeConfig`, `StpResourceType`, `HttpMethod`, …) that only
- * exist because `types/**` is part of the CLI project. A hand-written approximation of that project drops both,
- * so this reuses the parsed `tsconfig.json`: its resolved options, and its declaration files as extra roots.
+ * their dependencies are ordinary explicit imports. This reuses the parsed `tsconfig.json` so its target, library,
+ * module resolution and path mappings cannot drift from the application build.
  *
  * Only `declaration`/`emit` are overridden; nothing else is second-guessed, so this cannot drift from the
  * project the same files are type-checked under.
@@ -502,14 +501,7 @@ export function createDeclarationProgram(): { program: ts.Program; sourceFiles: 
     );
   }
 
-  // Ambient declarations only. Adding them as roots makes the names the npm sources are written against
-  // resolvable; because they are declaration files they contribute nothing to the emit.
-  const declarationRoots = parsed.fileNames.filter((fileName) => fileName.endsWith('.d.ts'));
-  if (declarationRoots.length === 0) {
-    throw new Error(`${configPath} resolves to no declaration files; the npm sources would not compile.`);
-  }
-
-  const program = ts.createProgram([...NPM_SOURCE_FILES, ...declarationRoots], {
+  const program = ts.createProgram(NPM_SOURCE_FILES, {
     ...parsed.options,
     declaration: true,
     emitDeclarationOnly: true,
@@ -559,10 +551,9 @@ export function compileDeclarations(): Map<string, string> {
 
   // Every repository-owned `.ts` diagnostic fails this build; third-party files are excluded by path.
   //
-  // Declaration files are not checked here: the project inherits the CLI's `skipLibCheck: true`, which is what
-  // `pnpm typecheck` also uses, so an error inside `types/**` is invisible to both. Turning it off is a separate
-  // strict migration, not part of this build. The published artifact is covered independently — the consumer
-  // check in `verifyNpmDeclarations` compiles the emitted declarations with `skipLibCheck` off.
+  // Third-party declaration files are skipped because the CLI project uses `skipLibCheck`; repository-owned source
+  // types are ordinary `.ts` modules and are checked here. The published artifact is covered independently — the
+  // consumer check in `verifyNpmDeclarations` compiles the emitted declarations with `skipLibCheck` off.
   const diagnostics = [...ts.getPreEmitDiagnostics(program), ...emitDiagnostics].filter(
     (diagnostic) => !diagnostic.file || !diagnostic.file.fileName.includes('node_modules')
   );

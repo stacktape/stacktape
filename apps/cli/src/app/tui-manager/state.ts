@@ -1,3 +1,4 @@
+import type { DeploymentPhase, LoggableEventType } from '@application-services/event-manager/types';
 import type {
   TuiCancelDeployment,
   TuiDeploymentHeader,

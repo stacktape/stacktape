@@ -1,4 +1,8 @@
 import type {
+  StpServiceCustomResourceOpenSearchProps,
+  StpServiceCustomResourceSensitiveDataProps
+} from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type {
   CloudFormationCustomResourceDeleteEvent,
   CloudFormationCustomResourceEvent,
   CloudFormationCustomResourceResponse,

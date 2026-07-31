@@ -1,3 +1,4 @@
+import type { StpBucket } from '@domain-services/config-manager/resolved-types/buckets';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Join, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';

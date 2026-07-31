@@ -1,3 +1,6 @@
+import type { StackInfoMapResource } from '@domain-services/stack-info/types';
+import type { DetailedStackInfoMap, DetailedStackResourceInfo, StackInfoMap } from '@domain-services/stack-info/types';
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { getStpNameForResource } from '@stacktape/naming/stacktape-resource-names';
 
 export const getCloudformationChildResources = <T extends StackInfoMapResource | DetailedStackResourceInfo>({

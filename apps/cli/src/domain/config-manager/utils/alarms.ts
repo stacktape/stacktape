@@ -1,3 +1,9 @@
+import type {
+  AlarmTriggerType,
+  StpAlarm,
+  StpAlarmEnabledResource
+} from '@domain-services/config-manager/resolved-types/alarms';
+import type { StpResource, StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import { stpErrors } from '@errors';
 import { getStpNameForAlarm } from '@stacktape/naming/alarm-names';

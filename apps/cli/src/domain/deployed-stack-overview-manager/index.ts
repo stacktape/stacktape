@@ -1,3 +1,15 @@
+import type { StackInfoMapResource } from '@domain-services/stack-info/types';
+import type { HelperLambdaName } from '@config';
+import type { BudgetInfo } from '@domain-services/budget-manager/types';
+import type { EnrichedStackResourceInfo, StackDetails } from '@domain-services/cloudformation-stack-manager/types';
+import type { OutputValue, StackInfoMap, StacktapeResourceOutput } from '@domain-services/stack-info/types';
+import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
+import type {
+  ResolvedRemoteTarget,
+  StacktapeResourceReferenceableParam,
+  StpResourceType,
+  TunnelTargetInfo
+} from '@domain-services/config-manager/resolved-types/resources';
 import type { ResourceDifference, TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import type { CloudformationResourceType } from '@cloudform/resource-types';
 import { globalStateManager } from '@application-services/global-state-manager';

@@ -1,3 +1,4 @@
+import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
 import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));

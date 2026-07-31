@@ -1,3 +1,4 @@
+import type { AlarmNotificationEventRuleInput } from '@domain-services/config-manager/resolved-types/alarms';
 import { WebClient } from '@slack/web-api';
 import { getCauseString } from '../utils';
 import type { SlackIntegration } from '@stacktape/config/user-integrations';

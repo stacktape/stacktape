@@ -1,3 +1,4 @@
+import type { StpCfInfrastructureModuleType } from '@domain-services/cloudformation-registry-manager/types';
 import { tuiManager } from '@application-services/tui-manager';
 import { cloudformationRegistryManager } from '@domain-services/cloudformation-registry-manager';
 import { loadUserCredentials } from '../_utils/initialization';

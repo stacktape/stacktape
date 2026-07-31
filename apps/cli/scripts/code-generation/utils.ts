@@ -1,6 +1,6 @@
 import type { JsonSchemaGenerator } from 'typescript-json-schema';
 import { dirname, join, resolve } from 'node:path';
-import { CONFIG_PACKAGE_SRC_PATH, CONFIG_SCHEMA_PATH } from 'src/config/project-paths';
+import { CONFIG_PACKAGE_SRC_PATH, CONFIG_SCHEMA_PATH, RESOLVED_CONFIG_TYPES_PATH } from 'src/config/project-paths';
 import { logInfo } from '@scripts/support/logging';
 import fastGlob from 'fast-glob';
 import { readJson, writeJSON } from 'fs-extra';
@@ -22,20 +22,20 @@ export const sortConfigSchemaSourcePaths = (paths: string[]) =>
 
 /**
  * The files the published config schema is generated from: `@stacktape/config`, which owns the authored
- * configuration model, plus the CLI's remaining ambient declarations.
+ * configuration model, plus the CLI's explicit resolved-resource types.
  *
  * The CLI's `src/**` used to be part of this program because the ambient model reached back into it through
- * `typeof import('../../src/...')`. Those back-edges are gone, and the implementation never described the
+ * `typeof import('../../src/...')`. Those back-edges are gone, and unrelated implementation never described the
  * configuration format, so it is no longer compiled here. Dropping it takes the program from 568 files to 112
  * and produces the same schema.
  *
  * Discovery fails closed. An empty match used to mean "generate whatever the remaining files happen to
  * describe", which silently produces a smaller schema; the model moving out of `types/` is exactly the kind
- * of change that would otherwise pass unnoticed.
+ * of ownership change that would otherwise pass unnoticed.
  */
-export const findConfigSchemaSourceFiles = async (rootDir = process.cwd()) => {
+export const findConfigSchemaSourceFiles = async () => {
   const groups = [
-    { name: 'CLI ambient declarations', cwd: rootDir, pattern: 'types/**/*' },
+    { name: 'CLI resolved resource types', cwd: RESOLVED_CONFIG_TYPES_PATH, pattern: '**/*' },
     { name: '@stacktape/config', cwd: CONFIG_PACKAGE_SRC_PATH, pattern: '**/*' }
   ];
 
@@ -57,7 +57,7 @@ export const findConfigSchemaSourceFiles = async (rootDir = process.cwd()) => {
 };
 
 export const getJsonSchemaGenerator = async (rootDir = process.cwd()) => {
-  const sourceFiles = await findConfigSchemaSourceFiles(rootDir);
+  const sourceFiles = await findConfigSchemaSourceFiles();
   const compilerOptions = { ...(await readJson(join(rootDir, 'tsconfig.json'))).compilerOptions };
 
   logInfo('Building JSON schema generator');

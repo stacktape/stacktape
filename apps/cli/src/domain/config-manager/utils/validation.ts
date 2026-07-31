@@ -1,3 +1,16 @@
+import type { SupportedFileExt } from '@utils/file-types';
+import type { AllSupportedPackagingConfig } from '@domain-services/packaging-manager/types';
+import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type { StpAwsCdkConstruct } from '@domain-services/config-manager/resolved-types/aws-cdk-construct';
+import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
+import type { GuardrailDefinition } from '@domain-services/config-manager/resolved-types/guardrails';
+import type { StpHostingBucket } from '@domain-services/config-manager/resolved-types/hosting-buckets';
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
+import type { StpOpenSearchDomain } from '@domain-services/config-manager/resolved-types/open-search';
+import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
+import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
+import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
+import type { StpWebService } from '@domain-services/config-manager/resolved-types/web-services';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';

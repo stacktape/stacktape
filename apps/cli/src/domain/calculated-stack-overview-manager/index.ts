@@ -1,3 +1,10 @@
+import type { StackInfoMapResource } from '@domain-services/stack-info/types';
+import type { OutputValue, StackInfoMap, StacktapeResourceOutput } from '@domain-services/stack-info/types';
+import type {
+  StacktapeResourceReferenceableParam,
+  StpResource,
+  StpResourceType
+} from '@domain-services/config-manager/resolved-types/resources';
 import type { CloudformationResourceType } from '@cloudform/resource-types';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';

@@ -62,8 +62,7 @@ service-manager aliases. They stay with their real owners.
 JSDoc here is rendered to customers: the config schema's `description`/`markdownDescription`, editor hovers, the
 documentation site's YAML and TypeScript examples, and the `stacktape` npm `.d.ts`. Treat it as bytes.
 
-- `packages/config/src/**` is excluded from oxfmt, exactly as `apps/cli/types/**` is. Formatting it rewrites 1,407
-  published descriptions.
+- `packages/config/src/**` is excluded from oxfmt. Formatting it rewrites 1,407 published descriptions.
 - A comment that should _not_ reach a customer must not be JSDoc. The CloudFormation module uses `//` for this
   reason: every JSDoc block reachable from `StacktapeConfig` becomes a schema `description`.
 - `typescript/no-explicit-any` and the duplication check are disabled for `src/**`. Both exemptions moved here with
@@ -72,13 +71,12 @@ documentation site's YAML and TypeScript examples, and the `stacktape` npm `.d.t
 
 ## How the CLI reaches these types
 
-Ordinary CLI sources import them explicitly. The CLI's retained resolved/internal declarations do the same, then
-publish their existing global API from `declare global` blocks. Making those `.d.ts` files external modules keeps
-their package dependencies explicit without changing the global names the CLI implementation consumes. There is no
-generated ambient bridge or parallel alias surface.
+Ordinary CLI sources import them explicitly. The CLI's resolved/internal configuration model lives in ordinary
+modules under `apps/cli/src/domain/config-manager/resolved-types`; those modules also import authored types
+explicitly. There is no generated ambient bridge, global application-type surface, or parallel alias layer.
 
-The configuration-ownership characterization test prevents a retained CLI declaration from redefining a name owned
-by this package. Direct imports and that no-redeclaration invariant are the complete boundary.
+The configuration-ownership characterization test scans CLI-owned source trees and rejects application types
+published through the global namespace. Explicit imports are the complete boundary.
 
 ## Checks
 
@@ -87,7 +85,7 @@ pnpm --filter @stacktape/cli run gen:schema          # regenerate the committed 
 pnpm check:generated-diff                            # prove both committed outputs are current after generation
 pnpm --filter @stacktape/config run typecheck          # strict, skipLibCheck false, includes the acceptance fixture
 pnpm --filter @stacktape/cli run test:characterization # schema probes: 449 definitions, 44-resource union, examples
-pnpm --filter @stacktape/cli run typecheck             # direct imports plus retained global declaration compatibility
+pnpm --filter @stacktape/cli run typecheck             # direct package and resolved-model imports
 ```
 
 `exactOptionalPropertyTypes` is off. Every optional property models a key a user may omit from YAML, not a key whose

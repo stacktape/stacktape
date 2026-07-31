@@ -1,3 +1,4 @@
+import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
 import type { Subnet, Vpc } from '@aws-sdk/client-ec2';
 import { eventManager } from '@application-services/event-manager';
 import { Ref } from '@cloudform/functions';

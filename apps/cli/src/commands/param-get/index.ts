@@ -1,3 +1,7 @@
+import type {
+  StacktapeResourceReferenceableParam,
+  StpResourceType
+} from '@domain-services/config-manager/resolved-types/resources';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';

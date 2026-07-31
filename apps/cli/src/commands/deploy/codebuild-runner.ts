@@ -1,3 +1,4 @@
+import type { StacktapeArgs, StacktapeCliArgs } from 'src/config/cli/types';
 import type { Build } from '@aws-sdk/client-codebuild';
 import { relative, resolve } from 'node:path';
 import { eventManager } from '@application-services/event-manager';

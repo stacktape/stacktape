@@ -1,3 +1,6 @@
+import type { SupportedPackagingType } from '@domain-services/packaging-manager/types';
+import type { AnyFunction } from '@utils/type-helpers';
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import type { FSWatcher } from 'chokidar';
 import type { Stats } from 'node:fs';

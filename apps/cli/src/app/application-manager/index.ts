@@ -1,3 +1,4 @@
+import type { CleanupHookFunction } from '@application-services/event-manager/types';
 import type { ExpectedError } from '@utils/errors';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { getCanonicalCommand } from '../../config/cli/commands';

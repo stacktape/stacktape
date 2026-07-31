@@ -1,3 +1,4 @@
+import type { RequiredDirectivePrimitiveParams } from '@domain-services/config-manager/directive-types';
 import { tuiManager } from '@application-services/tui-manager';
 import type { StacktapeCommand } from '../config/cli/commands';
 import { getCommandDescription } from '../config/cli/utils';

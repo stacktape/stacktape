@@ -1,3 +1,8 @@
+import type {
+  StpAgentCoreGateway,
+  StpAgentCoreRuntime
+} from '@domain-services/config-manager/resolved-types/agentcore';
+import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
 import BrowserCustom from '@cloudform/bedrockAgentCore/browserCustom';
 import CodeInterpreterCustom from '@cloudform/bedrockAgentCore/codeInterpreterCustom';
 import Gateway from '@cloudform/bedrockAgentCore/gateway';

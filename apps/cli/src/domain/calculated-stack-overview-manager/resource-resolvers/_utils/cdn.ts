@@ -1,3 +1,15 @@
+import type { Entries } from '@utils/type-helpers';
+import type {
+  StpApplicationLoadBalancer,
+  StpResolvedLoadBalancerReference
+} from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type { StpBucket } from '@domain-services/config-manager/resolved-types/buckets';
+import type {
+  StpCdnAttachableResourceType,
+  StpCdnCompatibleResource,
+  StpCdnOriginTargetableByRouteRewrite,
+  StpResourceType
+} from '@domain-services/config-manager/resolved-types/resources';
 import type { CachePolicyConfig } from '@cloudform/cloudFront/cachePolicy';
 import type { CacheBehavior, DistributionConfig, OriginCustomHeader } from '@cloudform/cloudFront/distribution';
 import type {
@@ -51,6 +63,14 @@ import type {
   EdgeFunctionsConfig
 } from '@stacktape/config/cdn';
 import type { ApplicationLoadBalancerIntegrationProps } from '@stacktape/config/events';
+
+type EdgeLambdaReferencedUsingArn = {
+  edgeLambdaVersionArn: string | IntrinsicFunction;
+};
+
+type CloudfrontFunctionReferencedUsingArn = {
+  cloudfrontFunctionArn: string | IntrinsicFunction;
+};
 
 /**
  * A CDN-compatible resource whose `cdn` block is present.

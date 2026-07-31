@@ -1,3 +1,4 @@
+import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
 import { createMemo, createSignal, For, Show } from 'solid-js';
 import { useKeyboard } from '@opentui/solid';
 import { getAllowedArgs, getArgInfo, validateCommandArgs } from '../../../config/cli/utils';

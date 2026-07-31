@@ -1,3 +1,4 @@
+import type { SupportedPlatform } from '@utils/platform';
 import { arch } from 'node:os';
 import { basename, join } from 'node:path';
 import {

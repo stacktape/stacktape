@@ -1,3 +1,4 @@
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { globalStateManager } from '@application-services/global-state-manager';
 
 export type DevModeType = 'normal' | 'legacy';

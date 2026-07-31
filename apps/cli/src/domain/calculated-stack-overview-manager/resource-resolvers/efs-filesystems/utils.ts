@@ -1,3 +1,4 @@
+import type { StpEfsFilesystem } from '@domain-services/config-manager/resolved-types/efs-filesystem';
 import { globalStateManager } from '@application-services/global-state-manager';
 import SecurityGroup from '@cloudform/ec2/securityGroup';
 import EfsFilesystem from '@cloudform/efs/fileSystem';

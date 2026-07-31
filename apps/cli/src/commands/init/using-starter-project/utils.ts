@@ -1,3 +1,4 @@
+import type { StarterProjectMetadata } from '@scripts/types';
 import { join } from 'node:path';
 import { tuiManager } from '@application-services/tui-manager';
 import { DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY } from '@config';

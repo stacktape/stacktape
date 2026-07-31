@@ -1,3 +1,4 @@
+import type { AnyFunction } from '@utils/type-helpers';
 import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';

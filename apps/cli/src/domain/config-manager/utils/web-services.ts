@@ -1,3 +1,4 @@
+import type { StpWebService } from '@domain-services/config-manager/resolved-types/web-services';
 import { stpErrors } from '@errors';
 
 export const validateWebServiceConfig = ({ resource }: { resource: StpWebService }) => {

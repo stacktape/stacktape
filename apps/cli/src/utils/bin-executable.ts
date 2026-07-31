@@ -1,3 +1,4 @@
+import type { SupportedPlatform } from '@utils/platform';
 import path from 'node:path';
 import fsExtra from 'fs-extra';
 

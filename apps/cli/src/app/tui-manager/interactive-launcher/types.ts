@@ -1,3 +1,4 @@
+import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
 import type { OrganizationActivityResponse } from '@stacktape-api/api-key-protected';
 
 export type InteractiveLauncherResult = {

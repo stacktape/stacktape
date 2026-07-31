@@ -1,3 +1,5 @@
+import type { CloudformationIamRoleStatement } from '@domain-services/cloudformation-stack-manager/types';
+import type { StpBucket } from '@domain-services/config-manager/resolved-types/buckets';
 import type { CorsConfiguration, CorsRule } from '@cloudform/s3/bucket';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Join } from '@cloudform/functions';

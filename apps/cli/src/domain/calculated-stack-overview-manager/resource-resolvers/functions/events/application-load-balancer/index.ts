@@ -1,3 +1,8 @@
+import type { LambdaTargetDetails } from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type {
+  StpHelperLambdaFunction,
+  StpLambdaFunction
+} from '@domain-services/config-manager/resolved-types/functions';
 import { globalStateManager } from '@application-services/global-state-manager';
 import TargetGroup from '@cloudform/elasticLoadBalancingV2/targetGroup';
 import LambdaPermission from '@cloudform/lambda/permission';

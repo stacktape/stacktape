@@ -1,3 +1,4 @@
+import type { RawStarterProjectMetadata, StarterProjectMetadata, UsedResourceData } from '@scripts/types';
 import { rename } from 'node:fs/promises';
 import { basename, join, sep } from 'node:path';
 import { STARTER_PROJECTS_SOURCE_PATH } from 'src/config/project-paths';

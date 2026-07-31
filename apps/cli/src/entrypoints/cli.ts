@@ -1,3 +1,4 @@
+import type { InvokedFrom } from '@application-services/global-state-manager/types';
 const main = async () => {
   const { configureNativeRuntimeForPlatform } = await import('@utils/bin-executable');
   configureNativeRuntimeForPlatform();

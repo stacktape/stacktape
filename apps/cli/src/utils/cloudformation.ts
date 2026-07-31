@@ -1,3 +1,4 @@
+import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
 import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import type { Value } from '@cloudform/dataTypes';
 import { IntrinsicFunction } from '@cloudform/dataTypes';

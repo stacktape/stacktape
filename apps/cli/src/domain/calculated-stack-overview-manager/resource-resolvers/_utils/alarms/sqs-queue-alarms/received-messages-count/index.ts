@@ -1,3 +1,4 @@
+import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import { globalStateManager } from '@application-services/global-state-manager';
 import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';

@@ -1,3 +1,4 @@
+import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';

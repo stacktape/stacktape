@@ -1,3 +1,7 @@
+import type { HelperLambdaName } from '@config';
+import type { HelperLambdaPackaging } from '@domain-services/packaging-manager/types';
+import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
+import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Ref, Sub } from '@cloudform/functions';
 import { IS_DEV } from '../../../config/random';

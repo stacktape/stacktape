@@ -1,3 +1,5 @@
+import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import { ECSClient, UpdateCapacityProviderCommand } from '@aws-sdk/client-ecs';
 
 const ecsClient = new ECSClient({});

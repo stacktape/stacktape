@@ -1,3 +1,5 @@
+import type { HelperLambdaName } from '@config';
+import type { DeploymentBucketObjectType } from '@domain-services/deployment-artifact-manager/types';
 import { CF_TEMPLATE_FILE_NAME_WITHOUT_EXT, HELPER_LAMBDAS, STP_TEMPLATE_FILE_NAME_WITHOUT_EXT } from '@config';
 
 export const getDeploymentBucketObjectType = (name: string): DeploymentBucketObjectType => {

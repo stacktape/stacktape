@@ -1,3 +1,4 @@
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { ContainerDefinition, KeyValuePair, TaskDefinitionProperties } from '@cloudform/ecs/taskDefinition';
 import { globalStateManager } from '@application-services/global-state-manager';
 import Application from '@cloudform/codeDeploy/application';

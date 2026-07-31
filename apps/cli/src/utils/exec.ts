@@ -1,3 +1,4 @@
+import type { StdTransformer } from '@utils/streams';
 import type { CommonOptions } from 'execa';
 import { EventEmitter } from 'node:events';
 import execa from 'execa';

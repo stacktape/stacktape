@@ -1,3 +1,8 @@
+import type {
+  StpHelperLambdaFunction,
+  StpLambdaFunction
+} from '@domain-services/config-manager/resolved-types/functions';
+import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import EventBridgeRule from '@cloudform/events/rule';
 import { GetAtt, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';

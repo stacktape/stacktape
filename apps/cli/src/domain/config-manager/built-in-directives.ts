@@ -1,3 +1,4 @@
+import type { Directive } from '@domain-services/config-manager/directive-types';
 import type { IntrinsicFunction } from '@cloudform/dataTypes';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';

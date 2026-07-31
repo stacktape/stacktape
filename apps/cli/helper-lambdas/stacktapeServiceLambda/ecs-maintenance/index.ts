@@ -1,3 +1,4 @@
+import type { EcsServiceScheduledMaintenanceRuleInput } from '@domain-services/config-manager/resolved-types/resources';
 import {
   AutoScalingClient,
   DescribeAutoScalingGroupsCommand,

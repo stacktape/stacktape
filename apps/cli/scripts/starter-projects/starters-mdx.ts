@@ -1,3 +1,4 @@
+import type { StarterProjectMetadata, UsedResourceData } from '@scripts/types';
 import { join } from 'node:path';
 import { outputFile, pathExistsSync, readFile } from 'fs-extra';
 

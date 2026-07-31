@@ -1,3 +1,5 @@
+import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import { CertificateStatus, DomainStatus } from '@aws-sdk/client-acm';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { getAwsSdkManager } from '@helper-lambdas/stacktapeServiceLambda/utils';

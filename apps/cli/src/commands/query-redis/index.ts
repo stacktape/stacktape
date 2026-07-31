@@ -1,3 +1,4 @@
+import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';

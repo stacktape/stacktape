@@ -1,3 +1,4 @@
+import type { Script } from '@domain-services/config-manager/resolved-types/resources';
 import type { ScriptFn } from '@utils/scripts';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import { join, resolve } from 'node:path';

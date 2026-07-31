@@ -5,7 +5,7 @@
     "apps/docs/.resources.json",
     "packages/config/src",
     "packages/config/generated/config-schema.json",
-    "apps/cli/types/stacktape-config",
+    "apps/cli/src/domain/config-manager/resolved-types",
     "apps/cli/@generated/schemas/enhanced-config-schema.json"
   ],
   "pages": [

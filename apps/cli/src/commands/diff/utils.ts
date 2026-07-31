@@ -1,3 +1,10 @@
+import type { StackInfoMapResource } from '@domain-services/stack-info/types';
+import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
+import type {
+  CfChildResourceOverview,
+  DetailedStackResourceInfo,
+  StackInfoMap
+} from '@domain-services/stack-info/types';
 import type { ResourceDifference, TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import type { Change } from '@aws-sdk/client-cloudformation';
 import { ResourceImpact, diffTemplate } from '@aws-cdk/cloudformation-diff';

@@ -1,3 +1,9 @@
+import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
+import type {
+  ECSBlueGreenService,
+  StpContainerWorkload
+} from '@domain-services/config-manager/resolved-types/multi-container-workloads';
+import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
 import type { UpdateServiceCommandInput } from '@aws-sdk/client-ecs';
 import type { LoadBalancer } from '@cloudform/ecs/service';
 import type { KeyValuePair as CfKeyValuePair, ContainerDefinition } from '@cloudform/ecs/taskDefinition';

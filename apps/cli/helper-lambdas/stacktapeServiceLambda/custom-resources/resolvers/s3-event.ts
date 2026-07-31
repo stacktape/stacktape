@@ -1,3 +1,8 @@
+import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type {
+  StpServiceCustomResourceEventProps,
+  StpServiceCustomResourceProperties
+} from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import type { FilterRuleName, LambdaFunctionConfiguration, NotificationConfiguration } from '@aws-sdk/client-s3';
 import { createHash } from 'node:crypto';
 import { Lambda, ResourceNotFoundException } from '@aws-sdk/client-lambda';

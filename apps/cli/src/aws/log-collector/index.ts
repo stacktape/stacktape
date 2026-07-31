@@ -1,3 +1,4 @@
+import type { CleanupHookFunction } from '@application-services/event-manager/types';
 import type { InputLogEvent } from '@aws-sdk/client-cloudwatch-logs';
 import type { AwsSdkManager } from '../sdk-manager';
 import { Writable } from 'node:stream';

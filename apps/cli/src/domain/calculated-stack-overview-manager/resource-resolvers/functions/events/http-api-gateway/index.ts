@@ -1,3 +1,9 @@
+import type {
+  StpHelperLambdaFunction,
+  StpLambdaFunction
+} from '@domain-services/config-manager/resolved-types/functions';
+import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
+import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import Integration from '@cloudform/apiGatewayV2/integration';

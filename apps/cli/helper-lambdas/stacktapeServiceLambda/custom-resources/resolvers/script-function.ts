@@ -1,3 +1,5 @@
+import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import { CloudFormationClient, DescribeStacksCommand, StackStatus } from '@aws-sdk/client-cloudformation';
 import { InvokeCommand, LambdaClient } from '@aws-sdk/client-lambda';
 import { NodeHttpHandler } from '@aws-sdk/node-http-handler';

@@ -1,3 +1,4 @@
+import type { SupportedPlatform } from '@utils/platform';
 export const PARENT_IDENTIFIER_SHARED_GLOBAL = 'SHARED_GLOBAL';
 export const PARENT_IDENTIFIER_CUSTOM_CF = 'CUSTOM_CLOUDFORMATION';
 export const NOT_YET_KNOWN_IDENTIFIER = '<<not-yet-known>>';

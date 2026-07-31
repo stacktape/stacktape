@@ -1,3 +1,15 @@
+import type { LoggableEventType, ProgressLogger } from '@application-services/event-manager/types';
+import type { HelperLambdaPackaging, PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
+import type { Subtype } from '@utils/type-helpers';
+import type { StpAstroWeb } from '@domain-services/config-manager/resolved-types/astro-web';
+import type { StpEdgeLambdaFunction } from '@domain-services/config-manager/resolved-types/edge-lambda-functions';
+import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
+import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-types/nextjs-web';
+import type { StpNuxtWeb } from '@domain-services/config-manager/resolved-types/nuxt-web';
+import type { StpRemixWeb } from '@domain-services/config-manager/resolved-types/remix-web';
+import type { StpSolidStartWeb } from '@domain-services/config-manager/resolved-types/solidstart-web';
+import type { StpSvelteKitWeb } from '@domain-services/config-manager/resolved-types/sveltekit-web';
+import type { StpTanStackWeb } from '@domain-services/config-manager/resolved-types/tanstack-web';
 import type { NativeBinaryLayerResult } from '@stacktape/packaging/es/native-dependencies';
 import type { DockerBuildOutputArchitecture, PackagingOutput } from '@stacktape/packaging/runtime-contracts';
 import type {

@@ -1,3 +1,4 @@
+import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
 import type { Dimension } from '@cloudform/cloudWatch/alarm';
 import { Ref } from '@cloudform/functions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';

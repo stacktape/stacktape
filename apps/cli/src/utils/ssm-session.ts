@@ -1,3 +1,4 @@
+import type { ResolvedRemoteTarget } from '@domain-services/config-manager/resolved-types/resources';
 import type { Task as ECSTask, ExecuteCommandCommandInput } from '@aws-sdk/client-ecs';
 import { DesiredStatus } from '@aws-sdk/client-ecs';
 import type { StartSessionCommandInput } from '@aws-sdk/client-ssm';

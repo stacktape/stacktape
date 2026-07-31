@@ -1,3 +1,4 @@
+import type { ExpectedError } from '@utils/errors';
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';

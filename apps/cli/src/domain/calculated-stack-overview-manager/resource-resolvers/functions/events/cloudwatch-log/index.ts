@@ -1,3 +1,7 @@
+import type {
+  StpHelperLambdaFunction,
+  StpLambdaFunction
+} from '@domain-services/config-manager/resolved-types/functions';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Ref, Select, Split } from '@cloudform/functions';
 import LambdaPermission from '@cloudform/lambda/permission';

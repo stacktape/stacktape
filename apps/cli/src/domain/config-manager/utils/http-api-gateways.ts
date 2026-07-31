@@ -1,3 +1,5 @@
+import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
+import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import { stpErrors } from '@errors';
 import { configManager } from '../index.js';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';

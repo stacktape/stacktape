@@ -1,3 +1,8 @@
+import type {
+  StpApplicationLoadBalancer,
+  StpResolvedLoadBalancerReference
+} from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import { stpErrors } from '@errors';
 import { ExpectedError } from '@utils/errors';
 import { configManager } from '../index';

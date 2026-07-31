@@ -16,7 +16,7 @@ shape exactly.
 - `apps/cli/src/domain/config-manager/normalized-resource.ts`
 - `apps/cli/src/domain/config-manager/utils/misc.ts`
 - `apps/cli/src/domain/config-manager/index.ts` (only the generic defaulted-resource return boundary)
-- `apps/cli/types/stacktape-config/multi-container-workloads.d.ts`
+- `apps/cli/src/domain/config-manager/resolved-types/multi-container-workloads.ts`
 - `apps/cli/tests/characterization/config-normalization.spec.ts`
 - this dossier
 

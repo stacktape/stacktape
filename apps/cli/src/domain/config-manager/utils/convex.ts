@@ -1,3 +1,4 @@
+import type { StpConvex } from '@domain-services/config-manager/resolved-types/convex';
 /**
  * Convex config preprocessing.
  *

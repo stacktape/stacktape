@@ -1,3 +1,8 @@
+import type {
+  StpNetworkLoadBalancer,
+  StpResolvedNetworkLoadBalancerReference
+} from '@domain-services/config-manager/resolved-types/network-load-balancer';
+import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
 import { ExpectedError } from '@utils/errors';

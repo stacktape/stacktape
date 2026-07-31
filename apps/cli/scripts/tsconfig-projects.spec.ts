@@ -53,7 +53,7 @@ describe('TypeScript project ownership', () => {
       readJson(join(cliPath, '@generated', 'tsconfig.json'))
     ]);
 
-    expect(testsConfig.include).toEqual(['../types/**/*.d.ts', './characterization/**/*.ts']);
+    expect(testsConfig.include).toEqual(['../src/environment.d.ts', './characterization/**/*.ts']);
     expect(generatedConfig.include).toEqual([
       './cloudform/**/*.ts',
       './cloudformation-ts-types/**/*.ts',

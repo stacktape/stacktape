@@ -1,3 +1,4 @@
+import type { SupportedFileExt } from '@utils/file-types';
 import { createRequire } from 'node:module';
 import { basename, dirname, extname, isAbsolute, join, sep as pathSeparator, relative } from 'node:path';
 import fsExtra, { outputFile, remove } from 'fs-extra';

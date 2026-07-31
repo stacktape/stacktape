@@ -2,6 +2,9 @@ import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
 import { RESOURCE_DEFAULTS } from '@config';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { ConfigManager, configManager } from '@domain-services/config-manager';
+import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import {
   getNestedResourceIdentity,
   type DefaultedResource,

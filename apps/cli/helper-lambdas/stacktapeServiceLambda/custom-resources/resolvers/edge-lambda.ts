@@ -1,3 +1,5 @@
+import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import { edgeFunctions } from './edge-functions';
 
 export const edgeLambda: ServiceLambdaResolver<StpServiceCustomResourceProperties['edgeLambda']> = async (

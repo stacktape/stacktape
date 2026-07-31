@@ -1,3 +1,4 @@
+import type { GlobalStateProject } from '@application-services/global-state-manager/types';
 import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
 import type { ConfigureEc2RunnerFromCliParams } from '@stacktape-api/api-key-protected';
 import { CommandInvocationStatus } from '@aws-sdk/client-ssm';

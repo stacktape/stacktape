@@ -1,3 +1,8 @@
+import type {
+  NormalizedSQLEngine,
+  StpRelationalDatabase
+} from '@domain-services/config-manager/resolved-types/relational-databases';
+import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import { resolveCloudwatchLogExports } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/databases/utils';
 import { stpErrors } from '@errors';
 import { normalizeEngineType } from '@stacktape/config/relational-database-engines';

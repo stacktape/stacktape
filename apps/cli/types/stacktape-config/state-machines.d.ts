@@ -1,1 +1,0 @@
-type StateMachineReferencableParam = 'arn' | 'name';

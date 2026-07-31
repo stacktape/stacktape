@@ -1,3 +1,4 @@
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
 import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '@stacktape/config/container-workload-resources';

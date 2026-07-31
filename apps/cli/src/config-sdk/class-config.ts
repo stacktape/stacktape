@@ -1,3 +1,5 @@
+import type { KebabToPascalCase } from '@utils/type-helpers';
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 /**
  * This file defines type-properties shaped definitions (e.g. Stacktape resources, packaging types etc.)
  * that can be converted to a Typescript class. These classes are then exported from stacktape/classes

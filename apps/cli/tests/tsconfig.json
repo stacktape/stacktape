@@ -1,4 +1,4 @@
 {
   "extends": "../tsconfig.json",
-  "include": ["../types/**/*.d.ts", "./characterization/**/*.ts"]
+  "include": ["../src/environment.d.ts", "./characterization/**/*.ts"]
 }

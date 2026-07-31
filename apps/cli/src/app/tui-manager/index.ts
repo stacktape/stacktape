@@ -1,3 +1,5 @@
+import type { DeploymentPhase, LoggableEventType } from '@application-services/event-manager/types';
+import type { LogLevel } from 'src/config/cli/types';
 import type { ExpectedError, UnexpectedError } from '@utils/errors';
 import type {
   TuiCancelDeployment,

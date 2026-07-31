@@ -1,3 +1,4 @@
+import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import type { Dimension } from '@cloudform/cloudWatch/alarm';
 import { GetAtt } from '@cloudform/functions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';

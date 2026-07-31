@@ -1,3 +1,4 @@
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 
 export const resolveReferenceToEdgeLambdaFunction = ({

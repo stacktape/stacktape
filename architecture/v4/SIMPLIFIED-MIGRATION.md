@@ -37,9 +37,9 @@ The directory list is a destination, not a requirement to create empty packages.
 real code.
 
 The helper Lambdas are deliberately not in that list. They are separately built deployment artifacts, but their source
-transitively needs general CLI implementation and the ambient `types/` declarations that produce the published config
-schema. They stay in `apps/cli/helper-lambdas`, whose `AGENTS.md` records the measurement and the condition for
-revisiting. The narrow `naming` package exists because the migrated CLI and Console had duplicated the same
+transitively needs general CLI implementation and CLI-owned resolved configuration contracts. They stay in
+`apps/cli/helper-lambdas`, whose `AGENTS.md` records the measurement and the condition for revisiting. The narrow
+`naming` package exists because the migrated CLI and Console had duplicated the same
 replacement-sensitive AWS names, ARNs, links, and SSM paths; it does not imply a broader helper-Lambda extraction.
 
 ## Conceptual-complexity budget

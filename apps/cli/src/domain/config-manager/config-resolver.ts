@@ -1,3 +1,4 @@
+import type { CustomDirective, Directive } from '@domain-services/config-manager/directive-types';
 import type { GetConfigParams } from 'src/config-sdk/config';
 import type { DirectiveParam } from '@utils/directives';
 import { join } from 'node:path';

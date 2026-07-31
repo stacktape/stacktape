@@ -1,3 +1,5 @@
+import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import { ModifyDBClusterCommand, ModifyDBInstanceCommand, RDS } from '@aws-sdk/client-rds';
 
 export const setDatabaseDeletionProtection: ServiceLambdaResolver<

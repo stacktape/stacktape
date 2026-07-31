@@ -1,3 +1,4 @@
+import type { StacktapeRecordedCommand } from '@config';
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';

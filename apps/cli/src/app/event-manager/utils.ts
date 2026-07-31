@@ -1,3 +1,9 @@
+import type {
+  ChildEventLogEntry,
+  EventLogEntry,
+  FormattedEventData,
+  LoggableEventType
+} from '@application-services/event-manager/types';
 import { getFirstAndLastItem } from '@utils/misc';
 
 type LifecycleGroup = {

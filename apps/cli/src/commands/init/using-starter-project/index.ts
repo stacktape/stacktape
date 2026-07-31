@@ -1,3 +1,4 @@
+import type { StarterProjectMetadata } from '@scripts/types';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';

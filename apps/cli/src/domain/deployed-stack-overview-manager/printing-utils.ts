@@ -1,3 +1,6 @@
+import type { StackInfoMapResource } from '@domain-services/stack-info/types';
+import type { StacktapeResourceOutput } from '@domain-services/stack-info/types';
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 

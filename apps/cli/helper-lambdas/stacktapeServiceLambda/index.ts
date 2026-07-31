@@ -1,3 +1,8 @@
+import type { AlarmNotificationEventRuleInput } from '@domain-services/config-manager/resolved-types/alarms';
+import type {
+  CustomTaggingScheduledRuleInput,
+  EcsServiceScheduledMaintenanceRuleInput
+} from '@domain-services/config-manager/resolved-types/resources';
 import type { CloudFormationCustomResourceEvent } from 'aws-lambda';
 import alarmNotificationHandler from './alarm-notifications';
 import customResourcesHandler from './custom-resources';

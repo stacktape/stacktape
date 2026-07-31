@@ -1,3 +1,6 @@
+import type { InvokeLambdaReturnValue } from '@domain-services/cloudformation-stack-manager/types';
+import type { StpDeploymentScript } from '@domain-services/config-manager/resolved-types/deployment-script';
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { configManager } from '@domain-services/config-manager';

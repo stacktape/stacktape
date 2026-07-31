@@ -1,3 +1,4 @@
+import type { StackInfoMapResource } from '@domain-services/stack-info/types';
 import type { ResourceDifference } from '@aws-cdk/cloudformation-diff';
 import type { ContainerDefinition, TaskDefinition as SdkTaskDefinition } from '@aws-sdk/client-ecs';
 import type CloudformationTaskDefinition from '@cloudform/ecs/taskDefinition';

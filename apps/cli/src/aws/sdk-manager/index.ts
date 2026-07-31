@@ -1,3 +1,13 @@
+import type { TuiManager as Printer } from '@application-services/tui-manager';
+import type { CostExplorerTagsError } from '@domain-services/budget-manager/types';
+import type {
+  CloudformationTemplate,
+  InvokeLambdaReturnValue,
+  StackDetails
+} from '@domain-services/cloudformation-stack-manager/types';
+import type { GitInformation } from '@utils/git-info-manager/types';
+import type { CertificateDetail } from '@domain-services/domain-manager/types';
+import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
 import type { CertificateStatus, ResourceRecord } from '@aws-sdk/client-acm';
 import type { Budget } from '@aws-sdk/client-budgets';
 import type {

@@ -1,3 +1,4 @@
+import type { AlarmNotificationEventRuleInput } from '@domain-services/config-manager/resolved-types/alarms';
 import { SendEmailCommand, SESv2Client } from '@aws-sdk/client-sesv2';
 import { getCauseString } from '../utils';
 import type { EmailIntegration } from '@stacktape/config/user-integrations';

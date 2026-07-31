@@ -1,3 +1,11 @@
+import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type { LambdaTargetDetails } from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type { StpEfsFilesystem } from '@domain-services/config-manager/resolved-types/efs-filesystem';
+import type {
+  StpHelperLambdaFunction,
+  StpLambdaFunction
+} from '@domain-services/config-manager/resolved-types/functions';
+import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
 import { globalStateManager } from '@application-services/global-state-manager';
 import CustomResource from '@cloudform/cloudFormation/customResource';
 import DeploymentGroup from '@cloudform/codeDeploy/deploymentGroup';

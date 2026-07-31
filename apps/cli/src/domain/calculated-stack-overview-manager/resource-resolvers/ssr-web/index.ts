@@ -1,3 +1,9 @@
+import type { StpAstroWeb } from '@domain-services/config-manager/resolved-types/astro-web';
+import type { StpNuxtWeb } from '@domain-services/config-manager/resolved-types/nuxt-web';
+import type { StpRemixWeb } from '@domain-services/config-manager/resolved-types/remix-web';
+import type { StpSolidStartWeb } from '@domain-services/config-manager/resolved-types/solidstart-web';
+import type { StpSvelteKitWeb } from '@domain-services/config-manager/resolved-types/sveltekit-web';
+import type { StpTanStackWeb } from '@domain-services/config-manager/resolved-types/tanstack-web';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';

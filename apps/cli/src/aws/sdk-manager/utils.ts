@@ -1,3 +1,4 @@
+import type { StacktapeArgs } from 'src/config/cli/types';
 import { HttpRequest } from '@aws-sdk/protocol-http';
 import { getRandomNumberFromInterval, wait } from '@utils/misc';
 import { pascalCase } from 'change-case';

@@ -1,3 +1,5 @@
+import type { StacktapeResourceOutput } from '@domain-services/stack-info/types';
+import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import { globalStateManager } from '@application-services/global-state-manager';
 import Api, { Cors } from '@cloudform/apiGatewayV2/api';
 import HttpApiMapping from '@cloudform/apiGatewayV2/apiMapping';

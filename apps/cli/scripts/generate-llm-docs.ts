@@ -49,8 +49,8 @@ type ManifestEntry = Omit<LlmDocPage, 'content'> & {
 const WORKSPACE_ROOT = join(process.cwd(), '..', '..');
 const DOCS_SOURCE_DIR = join(WORKSPACE_ROOT, 'apps', 'docs', 'content');
 const CONFIG_TYPES_DIR = join(WORKSPACE_ROOT, 'packages', 'config', 'src');
-const CLI_TYPES_DIR = join(process.cwd(), 'types', 'stacktape-config');
-const TYPE_SOURCE_DIRS = [CONFIG_TYPES_DIR, CLI_TYPES_DIR];
+const RESOLVED_CONFIG_TYPES_DIR = join(process.cwd(), 'src', 'domain', 'config-manager', 'resolved-types');
+const TYPE_SOURCE_DIRS = [CONFIG_TYPES_DIR, RESOLVED_CONFIG_TYPES_DIR];
 const DIST_DIR = LLM_DOCS_FOLDER_PATH;
 const ENHANCED_CONFIG_SCHEMA_PATH = join(process.cwd(), '@generated', 'schemas', 'enhanced-config-schema.json');
 const RESOURCES_JSON_PATH = join(WORKSPACE_ROOT, 'apps', 'docs', '.resources.json');
@@ -1048,7 +1048,7 @@ const writePagesAndChunks = async (pages: LlmDocPage[], outputDirectory: string)
       'apps/docs/.resources.json',
       'packages/config/src',
       'packages/config/generated/config-schema.json',
-      'apps/cli/types/stacktape-config',
+      'apps/cli/src/domain/config-manager/resolved-types',
       'apps/cli/@generated/schemas/enhanced-config-schema.json'
     ],
     pages: pages.map(

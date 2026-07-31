@@ -1,3 +1,4 @@
+import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import CustomResource from '@cloudform/cloudFormation/customResource';
 import { GetAtt } from '@cloudform/functions';
 import { configManager } from '@domain-services/config-manager';

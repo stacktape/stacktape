@@ -1,3 +1,4 @@
+import type { StpKinesisStream } from '@domain-services/config-manager/resolved-types/kinesis-streams';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt } from '@cloudform/functions';
 import Stream, { StreamEncryption, StreamModeDetails } from '@cloudform/kinesis/stream';

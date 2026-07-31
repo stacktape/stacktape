@@ -1,3 +1,4 @@
+import type { AlarmNotificationEventRuleInput } from '@domain-services/config-manager/resolved-types/alarms';
 import { GetSecretValueCommand, SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';

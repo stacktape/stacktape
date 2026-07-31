@@ -1,3 +1,8 @@
+import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type {
+  StpServiceCustomResourceEdgeFunctionProps,
+  StpServiceCustomResourceProperties
+} from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import type { FunctionConfiguration, Runtime } from '@aws-sdk/client-lambda';
 import {
   CloudWatchLogs,

@@ -1,3 +1,7 @@
+import type {
+  StpHelperLambdaFunction,
+  StpLambdaFunction
+} from '@domain-services/config-manager/resolved-types/functions';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 export const resolveS3Events = ({
   lambdaFunction: _

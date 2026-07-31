@@ -1,3 +1,14 @@
+import type { GlobalStateConnectedAwsAccount } from '@application-services/global-state-manager/types';
+import type { StacktapeError } from '@utils/errors';
+import type { StpCfInfrastructureModuleType } from '@domain-services/cloudformation-registry-manager/types';
+import type { ArgType, Subtype } from '@utils/type-helpers';
+import type { StacktapeCommand } from 'src/config/cli/types';
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
+import type {
+  Script,
+  StpDomainAttachableResourceType,
+  StpResourceType
+} from '@domain-services/config-manager/resolved-types/resources';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import { tuiManager } from '@application-services/tui-manager';
 import { StackStatus } from '@aws-sdk/client-cloudformation';

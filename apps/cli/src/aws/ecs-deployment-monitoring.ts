@@ -1,3 +1,4 @@
+import type { TuiManager as Printer } from '@application-services/tui-manager';
 import type { StackEvent } from '@aws-sdk/client-cloudformation';
 import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
 // import { TemplateDiff } from '@aws-cdk/cloudformation-diff';

@@ -1,3 +1,5 @@
+import type { GitInformation } from '@utils/git-info-manager/types';
+import type { StacktapeArgs } from 'src/config/cli/types';
 import type { Build, ComputeType } from '@aws-sdk/client-codebuild';
 import type { AwsSdkManager } from './sdk-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';

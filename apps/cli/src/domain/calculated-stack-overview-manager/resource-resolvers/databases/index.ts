@@ -1,3 +1,4 @@
+import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Join, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';

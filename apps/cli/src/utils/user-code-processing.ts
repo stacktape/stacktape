@@ -1,3 +1,4 @@
+import type { LoadableFileExtensions } from '@utils/file-types';
 import { isAbsolute, join } from 'node:path';
 import { tuiManager } from '@application-services/tui-manager';
 import { getFileExtension, getPathRelativeTo } from '@utils/fs-utils';

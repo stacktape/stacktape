@@ -1,3 +1,4 @@
+import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import type { Dimension } from '@cloudform/cloudWatch/alarm';
 import { globalStateManager } from '@application-services/global-state-manager';

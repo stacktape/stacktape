@@ -1,3 +1,4 @@
+import type { SupportedPlatform } from '@utils/platform';
 import { logInfo, logSuccess } from '@scripts/support/logging';
 import { readJson, writeJson } from 'fs-extra';
 import inquirer from 'inquirer';

@@ -1,3 +1,14 @@
+import type {
+  DeploymentPhase,
+  EventContext,
+  EventLogEntryType,
+  EventManagerProgressEvent,
+  LoggableEventType,
+  ProgressLogger
+} from '@application-services/event-manager/types';
+import type { AnyFunction } from '@utils/type-helpers';
+import type { HookableCommand, HookableEvent } from 'src/config/cli/types';
+import type { Script } from '@domain-services/config-manager/resolved-types/resources';
 import type { HookType, ScriptFn } from '@utils/scripts';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';

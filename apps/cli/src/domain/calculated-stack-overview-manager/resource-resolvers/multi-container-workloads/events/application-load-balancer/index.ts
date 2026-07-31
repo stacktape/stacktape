@@ -1,3 +1,5 @@
+import type { ContainerWorkloadTargetDetails } from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import {
   DEFAULT_TEST_LISTENER_PORT,

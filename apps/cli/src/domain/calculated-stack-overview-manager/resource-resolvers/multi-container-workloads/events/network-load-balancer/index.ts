@@ -1,3 +1,4 @@
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getContainerWorkloadTargetGroup, getTargetsForContainerWorkload } from '../../utils';

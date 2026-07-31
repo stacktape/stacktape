@@ -1,3 +1,8 @@
+import type { AlarmAffectedResourceInfo } from '@domain-services/config-manager/resolved-types/alarms';
+import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
+import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
+import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
+import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import type { Dimension, MetricDataQuery } from '@cloudform/cloudWatch/alarm';
 import { globalStateManager } from '@application-services/global-state-manager';

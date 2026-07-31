@@ -1,3 +1,4 @@
+import type { StacktapeArgs } from 'src/config/cli/types';
 import { CHILD_RESOURCES } from './child-resources';
 import type { StacktapeConfig } from '@stacktape/config';
 

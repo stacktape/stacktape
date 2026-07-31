@@ -1,3 +1,4 @@
+import type { StpConvex } from '@domain-services/config-manager/resolved-types/convex';
 import { basename, dirname, isAbsolute, join } from 'node:path';
 import { DesiredStatus } from '@aws-sdk/client-ecs';
 import { globalStateManager } from '@application-services/global-state-manager';

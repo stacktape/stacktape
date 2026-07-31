@@ -10,7 +10,9 @@ import {
   type ResourceWithPresentCdn
 } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/cdn';
 import { configManager } from '@domain-services/config-manager';
+import type { StpBucket } from '@domain-services/config-manager/resolved-types/buckets';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { templateManager } from '@domain-services/template-manager';

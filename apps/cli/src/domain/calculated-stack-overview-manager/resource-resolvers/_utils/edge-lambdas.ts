@@ -1,3 +1,8 @@
+import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type {
+  StpEdgeLambdaFunction,
+  StpHelperEdgeLambdaFunction
+} from '@domain-services/config-manager/resolved-types/edge-lambda-functions';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { getLambdaRuntime } from '@domain-services/config-manager/utils/lambdas';
 import { resolveConnectToList } from '@domain-services/config-manager/utils/resource-references';

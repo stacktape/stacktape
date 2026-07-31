@@ -1,3 +1,9 @@
+import type { HelperLambdaName } from '@config';
+import type {
+  StpHelperLambdaFunction,
+  StpLambdaFunction
+} from '@domain-services/config-manager/resolved-types/functions';
+import type { StpCdnAttachableResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import type { FunctionProperties } from '@cloudform/lambda/function';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';

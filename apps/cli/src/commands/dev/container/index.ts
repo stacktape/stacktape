@@ -1,3 +1,6 @@
+import type { EnrichedCwContainerProps } from '@domain-services/packaging-manager/types';
+import type { AnyFunction } from '@utils/type-helpers';
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { Spinner } from '@application-services/tui-manager';
 import type { SsmPortForwardingTunnel } from '@utils/ssm-session';
 import type { ExecaReturnBase } from 'execa';

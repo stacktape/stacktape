@@ -1,3 +1,5 @@
+import type { SupportedPackagingType } from '@domain-services/packaging-manager/types';
+import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 export type Language = 'javascript' | 'typescript' | 'python' | 'go' | 'java' | 'dotnet' | 'ruby' | 'php' | 'unknown';
 
 const JS_TS_EXTENSIONS = ['js', 'ts', 'mjs', 'mts', 'cjs', 'cts', 'jsx', 'tsx'];

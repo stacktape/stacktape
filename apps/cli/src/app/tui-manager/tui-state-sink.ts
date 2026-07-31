@@ -1,3 +1,4 @@
+import type { DeploymentPhase, LoggableEventType } from '@application-services/event-manager/types';
 import { scrollbackFeed } from './scrollback-feed';
 import { tuiState } from './state';
 import type { TuiDeploymentHeader, TuiEvent, TuiEventStatus, TuiMessageType } from './types';

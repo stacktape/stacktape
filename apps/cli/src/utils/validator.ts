@@ -1,3 +1,11 @@
+import type {
+  ConfigurableCliArgsDefaults,
+  GlobalStateConnectedAwsAccount,
+  GlobalStateOrganization
+} from '@application-services/global-state-manager/types';
+import type { CloudformationTemplate, DriftDetail } from '@domain-services/cloudformation-stack-manager/types';
+import type { StacktapeArgs } from 'src/config/cli/types';
+import type { Script } from '@domain-services/config-manager/resolved-types/resources';
 import type Resource from '@cloudform/resource';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';

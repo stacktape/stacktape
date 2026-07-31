@@ -1,3 +1,5 @@
+import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
+import type { StpAwsCdkConstruct } from '@domain-services/config-manager/resolved-types/aws-cdk-construct';
 import type { Stack as ImportedCdkStack } from 'aws-cdk-lib';
 import type { Construct as ImportedCdkConstruct } from 'constructs';
 import { dirname, join } from 'node:path';

@@ -1,3 +1,4 @@
+import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';

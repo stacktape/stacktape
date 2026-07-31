@@ -1,3 +1,4 @@
+import type { CertificateDetail } from '@domain-services/domain-manager/types';
 import { parse } from 'tldts';
 
 export const getApexDomain = (fullDomainName: string): string => parse(fullDomainName).domain;

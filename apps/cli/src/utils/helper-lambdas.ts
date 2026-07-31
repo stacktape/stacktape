@@ -1,7 +1,20 @@
+import type { InvokedFrom } from '@application-services/global-state-manager/types';
+import type { HelperLambdaName } from '@config';
 import { basename, join } from 'node:path';
 import { fsPaths } from 'src/config/runtime-paths';
 import { HELPER_LAMBDAS_FOLDER_NAME } from 'src/config/project-paths';
 import fsExtra from 'fs-extra';
+
+export type HelperLambdaData = {
+  digest: string;
+  artifactPath: string;
+  handler: string;
+  size: number;
+};
+
+export type HelperLambdaDetails = {
+  [name in HelperLambdaName]: HelperLambdaData;
+};
 
 export const loadHelperLambdaDetailsFromDir = async ({
   helperLambdasDir,

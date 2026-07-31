@@ -1,3 +1,5 @@
+import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import type { _Object, ObjectIdentifier } from '@aws-sdk/client-s3';
 import { BucketAlreadyExists, S3 } from '@aws-sdk/client-s3';
 import { helperLambdaAwsResourceNames } from '@stacktape/naming/helper-lambda-resource-names';

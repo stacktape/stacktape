@@ -1,3 +1,4 @@
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 export const CHILD_RESOURCES: Record<

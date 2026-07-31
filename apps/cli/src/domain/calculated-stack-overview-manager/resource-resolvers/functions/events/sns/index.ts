@@ -1,3 +1,7 @@
+import type {
+  StpHelperLambdaFunction,
+  StpLambdaFunction
+} from '@domain-services/config-manager/resolved-types/functions';
 import { GetAtt, Ref } from '@cloudform/functions';
 import Permission from '@cloudform/lambda/permission';
 import SnsSubscription from '@cloudform/sns/subscription';

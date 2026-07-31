@@ -1,3 +1,8 @@
+import type { SupportedMongoAtlasV1CfResourceType } from '@domain-services/cloudformation-registry-manager/types';
+import type {
+  StpAtlasMongoGeneralTierClusterInstanceSize,
+  StpMongoDbAtlasCluster
+} from '@domain-services/config-manager/resolved-types/mongo-db-atlas-clusters';
 import type { IntrinsicFunction } from '@cloudform/dataTypes';
 import type Resource from '@cloudform/resource';
 import { globalStateManager } from '@application-services/global-state-manager';

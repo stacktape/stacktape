@@ -1,3 +1,12 @@
+import type { StackInfoMapResource } from '@domain-services/stack-info/types';
+import type {
+  CfChildResourceOverview,
+  DetailedStackInfoMap,
+  DetailedStackResourceInfo,
+  StackInfoMap,
+  StackMetadata
+} from '@domain-services/stack-info/types';
+import type { SupportedPrivateCfResourceType } from '@domain-services/cloudformation-registry-manager/types';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import type { CloudformationResourceType } from '@cloudform/resource-types';
 import { ResourceImpact } from '@aws-cdk/cloudformation-diff';

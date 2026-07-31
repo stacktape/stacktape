@@ -1,3 +1,5 @@
+import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
+import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';

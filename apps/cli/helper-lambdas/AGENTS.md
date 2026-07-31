@@ -27,9 +27,9 @@ measurement that settled it remains the relevant baseline:
   filesystem, configuration, logical-naming, and miscellaneous CLI modules;
 - exactly one module is helper-only — `src/stacktape-api/aws-identity-protected.ts`, 78 lines — and it still depends on
   `src/aws/identity.ts` and `src/stacktape-api/client.ts`, which reach `src/aws/fetch-handler.ts` (13 other consumers);
-- alarm configuration now uses an explicit `AlarmDefinition` import from `@stacktape/config`, while the runtime still
-  consumes the CLI-only ambient `AlarmNotificationEventRuleInput` payload from
-  `types/stacktape-config/alarms.d.ts`. AWS credentials are imported explicitly from the general CLI facility
+- alarm configuration uses an explicit `AlarmDefinition` import from `@stacktape/config`, while the runtime imports
+  the CLI-only `AlarmNotificationEventRuleInput` payload from
+  `src/domain/config-manager/resolved-types/alarms.ts`. AWS credentials are imported explicitly from the general CLI facility
   `src/aws/credentials.ts`; supported region types come from the configuration vocabulary at
   `@stacktape/config/aws-regions`. Neither capability is helper-owned.
 
@@ -51,7 +51,7 @@ boundary plus the machinery required to pretend the dependency runs the other wa
 
 Extract the package when the helper runtimes no longer need general CLI implementation to run — concretely, when the
 non-helper closure is small and helper-dominant (a handful of modules whose honest owner is helper-Lambda runtime
-behavior), and the runtime source no longer depends on CLI-only ambient declarations such as
+behavior), and the runtime source no longer depends on CLI-only resolved configuration contracts such as
 `AlarmNotificationEventRuleInput`. A deliberate,
 separately justified slice that narrows the closure is the prerequisite; the package is the result, not the trigger.
 

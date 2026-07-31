@@ -1,3 +1,4 @@
+import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
 import type { CacheBehavior } from '@cloudform/cloudFront/distribution';
 import type Distribution from '@cloudform/cloudFront/distribution';
 import { join } from 'node:path';

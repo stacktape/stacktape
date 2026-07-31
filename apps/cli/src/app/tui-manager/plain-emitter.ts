@@ -1,3 +1,4 @@
+import type { DeploymentPhase } from '@application-services/event-manager/types';
 import { PHASE_NAMES } from './types';
 
 class PlainEmitter {

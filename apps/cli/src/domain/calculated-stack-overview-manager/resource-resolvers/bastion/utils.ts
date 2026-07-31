@@ -1,3 +1,4 @@
+import type { StpBastion } from '@domain-services/config-manager/resolved-types/bastion';
 import { globalStateManager } from '@application-services/global-state-manager';
 import AutoScalingGroup from '@cloudform/autoScaling/autoScalingGroup';
 import LaunchTemplate from '@cloudform/ec2/launchTemplate';

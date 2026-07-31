@@ -1,3 +1,5 @@
+import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import { LambdaClient, PublishVersionCommand } from '@aws-sdk/client-lambda';
 
 const lambdaClient = new LambdaClient({});

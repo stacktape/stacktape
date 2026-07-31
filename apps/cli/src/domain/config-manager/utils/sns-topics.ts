@@ -1,3 +1,5 @@
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
+import type { StpSnsTopic } from '@domain-services/config-manager/resolved-types/sns-topic';
 import { stpErrors } from '@errors';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 

@@ -1,3 +1,4 @@
+import type { SupportedPlatform } from '@utils/platform';
 import { join } from 'node:path';
 import { DIST_PACKAGE_FOLDER_PATH } from 'src/config/project-paths';
 import { getPlatform } from '@utils/bin-executable';

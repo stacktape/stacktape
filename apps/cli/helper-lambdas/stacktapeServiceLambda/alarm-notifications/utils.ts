@@ -1,3 +1,4 @@
+import type { AlarmNotificationEventRuleInput } from '@domain-services/config-manager/resolved-types/alarms';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import { capitalizeFirstLetter } from '@utils/misc';
 

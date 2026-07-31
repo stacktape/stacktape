@@ -1,3 +1,11 @@
+import type { IamRoleStatement } from '@domain-services/cloudformation-stack-manager/types';
+import type {
+  AwsCallerIdentity,
+  EnrichedStackResourceInfo,
+  StackActionType,
+  StackDetails
+} from '@domain-services/cloudformation-stack-manager/types';
+import type { LoggableEventType, ProgressLogger } from '@application-services/event-manager/types';
 import type { Capability, StackEvent, StackResourceSummary } from '@aws-sdk/client-cloudformation';
 import type { MonitoredStackEvent } from 'src/aws/sdk-manager';
 import type { Tag } from '@aws-sdk/client-ecs';

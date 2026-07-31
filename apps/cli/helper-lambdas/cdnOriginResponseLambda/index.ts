@@ -1,3 +1,4 @@
+import type { StpCdnAttachableResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import type { CloudFrontHeaders, CloudFrontResponseHandler } from 'aws-lambda';
 import { stacktapeCloudfrontHeaders } from '@helper-lambdas/cloudfront/cloudfront-origin-headers';
 

@@ -1,3 +1,4 @@
+import type { CustomTaggingScheduledRuleInput } from '@domain-services/config-manager/resolved-types/resources';
 import type { NetworkInterface } from '@aws-sdk/client-ec2';
 import { CreateTagsCommand, DescribeNetworkInterfacesCommand, EC2Client } from '@aws-sdk/client-ec2';
 import { ChangeTagsForResourceCommand, Route53Client } from '@aws-sdk/client-route-53';

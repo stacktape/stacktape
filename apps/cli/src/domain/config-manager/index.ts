@@ -1,3 +1,40 @@
+import type { StpCfInfrastructureModuleType } from '@domain-services/cloudformation-registry-manager/types';
+import type { EnrichedBjContainerProps, EnrichedCwContainerProps } from '@domain-services/packaging-manager/types';
+import type { StpAlarmEnabledResource } from '@domain-services/config-manager/resolved-types/alarms';
+import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type { StpAstroWeb } from '@domain-services/config-manager/resolved-types/astro-web';
+import type { StpBatchJob } from '@domain-services/config-manager/resolved-types/batch-jobs';
+import type { StpBucket } from '@domain-services/config-manager/resolved-types/buckets';
+import type { StpConvex } from '@domain-services/config-manager/resolved-types/convex';
+import type { StpCustomResourceDefinition } from '@domain-services/config-manager/resolved-types/custom-resources';
+import type { StpDeploymentScript } from '@domain-services/config-manager/resolved-types/deployment-script';
+import type {
+  StpEdgeLambdaFunction,
+  StpHelperEdgeLambdaFunction
+} from '@domain-services/config-manager/resolved-types/edge-lambda-functions';
+import type {
+  StpHelperLambdaFunction,
+  StpLambdaFunction
+} from '@domain-services/config-manager/resolved-types/functions';
+import type { GuardrailDefinition } from '@domain-services/config-manager/resolved-types/guardrails';
+import type { StpHostingBucket } from '@domain-services/config-manager/resolved-types/hosting-buckets';
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
+import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-types/nextjs-web';
+import type { DeploymentNotificationDefinition } from '@domain-services/config-manager/resolved-types/notifications';
+import type { StpNuxtWeb } from '@domain-services/config-manager/resolved-types/nuxt-web';
+import type { StpPrivateService } from '@domain-services/config-manager/resolved-types/private-services';
+import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
+import type { StpRemixWeb } from '@domain-services/config-manager/resolved-types/remix-web';
+import type {
+  StpCdnAttachableResourceType,
+  StpCdnCompatibleResource,
+  StpResource
+} from '@domain-services/config-manager/resolved-types/resources';
+import type { StpSolidStartWeb } from '@domain-services/config-manager/resolved-types/solidstart-web';
+import type { StpSvelteKitWeb } from '@domain-services/config-manager/resolved-types/sveltekit-web';
+import type { StpTanStackWeb } from '@domain-services/config-manager/resolved-types/tanstack-web';
+import type { StpWebService } from '@domain-services/config-manager/resolved-types/web-services';
+import type { StpWorkerService } from '@domain-services/config-manager/resolved-types/worker-services';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import type { DefaultedResource, ResourceDefinitionOf, StacktapeResourceType } from './normalized-resource';
 import type { CfResourceTransform, FinalTransform } from './transforms-resolver';

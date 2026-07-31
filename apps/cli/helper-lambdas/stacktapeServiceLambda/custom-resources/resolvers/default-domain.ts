@@ -1,3 +1,5 @@
+import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import { defaultProvider } from '@aws-sdk/credential-provider-node';
 import { AwsIdentityProtectedClient } from '@stacktape-api/aws-identity-protected';
 

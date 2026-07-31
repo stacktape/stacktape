@@ -1,3 +1,5 @@
+import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import type { Readable } from 'node:stream';
 import { writeFile } from 'node:fs/promises';
 import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';

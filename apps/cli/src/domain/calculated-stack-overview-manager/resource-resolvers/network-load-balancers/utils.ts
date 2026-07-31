@@ -1,3 +1,4 @@
+import type { StpNetworkLoadBalancer } from '@domain-services/config-manager/resolved-types/network-load-balancer';
 import { globalStateManager } from '@application-services/global-state-manager';
 import SecurityGroup, { Ingress } from '@cloudform/ec2/securityGroup';
 import Listener, { Certificate } from '@cloudform/elasticLoadBalancingV2/listener';

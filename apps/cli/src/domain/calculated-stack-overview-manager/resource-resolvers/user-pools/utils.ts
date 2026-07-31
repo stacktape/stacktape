@@ -1,3 +1,4 @@
+import type { StpUserAuthPool } from '@domain-services/config-manager/resolved-types/user-pools';
 import type { SchemaAttribute } from '@cloudform/cognito/userPool';
 import { globalStateManager } from '@application-services/global-state-manager';
 import UserPool from '@cloudform/cognito/userPool';

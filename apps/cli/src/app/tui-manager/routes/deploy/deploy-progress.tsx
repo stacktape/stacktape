@@ -1,3 +1,4 @@
+import type { LoggableEventType } from '@application-services/event-manager/types';
 import { Show, For } from 'solid-js';
 import type { TuiEvent, CfProgressData } from '../../types';
 import {

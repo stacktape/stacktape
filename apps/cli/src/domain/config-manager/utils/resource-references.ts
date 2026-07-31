@@ -1,3 +1,11 @@
+import type { ResourcePropsFromConfig } from '@domain-services/stack-info/types';
+import type { StpMongoDbAtlasCluster } from '@domain-services/config-manager/resolved-types/mongo-db-atlas-clusters';
+import type {
+  StpResource,
+  StpResourceScopableByConnectToAffectingRole,
+  StpResourceScopableByConnectToAffectingSecurityGroup,
+  StpResourceType
+} from '@domain-services/config-manager/resolved-types/resources';
 import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
 import { CONNECT_TO_AWS_SERVICE_MACROS } from '@stacktape/config/aws-service-macros';

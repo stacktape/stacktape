@@ -1,3 +1,4 @@
+import type { DeploymentPhase, ProgressLogger } from '@application-services/event-manager/types';
 import type { ExecaReturnValue } from 'execa';
 import { getLockFileData } from '@stacktape/packaging/bundlers/es/utils';
 import ci from 'ci-info';

@@ -351,7 +351,7 @@ const main = async () => {
       tool: 'stacktape_docs',
       args: {
         action: 'get',
-        sourcePath: 'types/stacktape-config/functions.d.ts',
+        sourcePath: 'src/domain/config-manager/resolved-types/functions.ts',
         propertyName: 'memory',
         maxChars: 3000
       },

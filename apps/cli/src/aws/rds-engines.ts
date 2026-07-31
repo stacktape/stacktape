@@ -1,3 +1,4 @@
+import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
 export const isAuroraEngine = (engineType: StpRelationalDatabase['engine']['type']) => {
   return (
     engineType === 'aurora-mysql' ||

@@ -1,3 +1,5 @@
+import type { CloudformationTemplate, StackDetails } from '@domain-services/cloudformation-stack-manager/types';
+import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
 import type { IntrinsicFunction } from '@cloudform/dataTypes';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';

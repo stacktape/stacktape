@@ -1,3 +1,4 @@
+import type { AlarmNotificationEventRuleInput } from '@domain-services/config-manager/resolved-types/alarms';
 import { beforeAll, beforeEach, describe, expect, mock, test } from 'bun:test';
 
 const postedMessages: Array<{ channel: string; text: string }> = [];

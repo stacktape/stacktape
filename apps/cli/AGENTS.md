@@ -23,7 +23,7 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 - `helper-lambdas/` — sources of the four Lambdas Stacktape deploys into customer accounts. Cross-artifact wire
   contracts used by synthesis live beside them (for example, `cloudfront/cloudfront-origin-headers.ts`). They are
   separately built artifacts that stay in this application because their source needs general CLI implementation and
-  the ambient `types/` declarations; see that directory's `AGENTS.md` for the measurement and the compatibility
+  CLI-owned resolved configuration types; see that directory's `AGENTS.md` for the measurement and the compatibility
   contract.
 - `scripts/` — build, code generation, release and publishing tooling, plus the committed platform binaries under
   `scripts/assets/` that release archives ship. The npm package manifest and JavaScript launcher are release inputs
@@ -34,10 +34,10 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   `tsconfig.node.json`) before publishing or use. `starter-projects-metadata.json` is derived from these sources by
   the CLI's Turbo `generate` task and is exported to integrated consumers as
   `@stacktape/cli/starter-projects-metadata.json`.
-- `types/` — the CLI's resolved/internal global declaration API. Declarations that depend on the authored
-  configuration model import their types explicitly from `@stacktape/config` and publish the existing globals
-  through `declare global`; there is no ambient alias bridge. The retained JSDoc still feeds generated schema/npm
-  content, so `types/` remains excluded from formatters.
+- `src/domain/config-manager/resolved-types/` — the CLI's resolved/internal configuration model. These are ordinary
+  modules with explicit exports and imports; application types must not be added to the global namespace.
+- `src/environment.d.ts` — asset-module declarations required by the bundler. Ambient declarations are limited to
+  environment and third-party module shims such as `src/aws/s3-sync/streamsink.d.ts`.
 - `@generated/` — committed generated data (CloudFormation types, config validators, LLM docs, price tables). The
   canonical config JSON schema lives with its model at `packages/config/generated/config-schema.json`. Never
   hand-edit; regenerate with the matching task. The main CLI project excludes this directory, so

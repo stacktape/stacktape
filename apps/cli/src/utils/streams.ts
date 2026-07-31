@@ -1,6 +1,8 @@
 import { Transform } from 'node:stream';
 import { applyAll } from './misc';
 
+export type StdTransformer = (line: string) => string | null;
+
 const IGNORE_LINE_MARK = '__IGNORE_LINE_MARK__';
 
 export class StreamTransformer extends Transform {

@@ -1,3 +1,4 @@
+import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import type { Dimension } from '@cloudform/cloudWatch/alarm';
 import { globalStateManager } from '@application-services/global-state-manager';

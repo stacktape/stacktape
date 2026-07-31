@@ -1,3 +1,5 @@
+import type { StpBatchJob } from '@domain-services/config-manager/resolved-types/batch-jobs';
+import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
 import type { ContainerProperties } from '@cloudform/batch/jobDefinition';
 import { globalStateManager } from '@application-services/global-state-manager';
 import ComputeEnvironment, { ComputeResources } from '@cloudform/batch/computeEnvironment';

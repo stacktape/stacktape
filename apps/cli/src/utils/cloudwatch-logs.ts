@@ -1,3 +1,4 @@
+import type { SupportedConsoleColor } from '@application-services/tui-manager/types';
 import type { FilteredLogEvent, LogStream } from '@aws-sdk/client-cloudwatch-logs';
 import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV } from '@config';

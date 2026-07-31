@@ -1,3 +1,4 @@
+import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { randomBytes } from 'node:crypto';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';

@@ -1,3 +1,4 @@
+import type { GitInformation } from '@utils/git-info-manager/types';
 import { tuiManager } from '@application-services/tui-manager';
 import { memoizeGetters } from '@utils/decorators';
 import { getGitVariable, sanitizeGitRemoteUrl } from '@utils/git';

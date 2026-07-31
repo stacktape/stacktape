@@ -1,3 +1,7 @@
+import type { StpEfsFilesystem } from '@domain-services/config-manager/resolved-types/efs-filesystem';
+import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
+import type { StpResource, StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { configManager } from '..';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';

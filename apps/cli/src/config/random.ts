@@ -1,3 +1,8 @@
+import type {
+  CfInfrastructureModuleData,
+  StpCfInfrastructureModuleType
+} from '@domain-services/cloudformation-registry-manager/types';
+import type { StacktapeCommand } from 'src/config/cli/types';
 import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
 
 export const IS_DEV = process.env.STP_DEV_MODE === 'true';
@@ -261,6 +266,8 @@ export const HELPER_LAMBDA_NAMES = [
   'cdnOriginResponseLambda'
 ] as const;
 
+export type HelperLambdaName = (typeof HELPER_LAMBDA_NAMES)[number];
+
 export const SUPPORTED_CF_INFRASTRUCTURE_MODULES: {
   [_infrastructureModuleType in StpCfInfrastructureModuleType]: CfInfrastructureModuleData;
 } = {
@@ -317,21 +324,23 @@ export const SUPPORTED_CF_INFRASTRUCTURE_MODULES: {
 
 export const PRINT_LOGS_INTERVAL = 500;
 
-export const HELPER_LAMBDAS: HelperLambdaName[] = [
+export const HELPER_LAMBDAS = [
   'batchJobTriggerLambda',
   'cdnOriginRequestLambda',
   'cdnOriginResponseLambda',
   'stacktapeServiceLambda'
-];
+] as const satisfies readonly HelperLambdaName[];
 
 // The console API/table still use the legacy "StackOperation" name, but these
 // are recorded CLI operations and may include commands that do not mutate a
 // CloudFormation stack.
-export const RECORDED_STACKTAPE_COMMANDS: StacktapeRecordedCommand[] = [
+export const RECORDED_STACKTAPE_COMMANDS = [
   'deploy',
   'delete',
   'deployment-script:run',
   'bucket:sync',
   'script:run',
   'rollback'
-];
+] as const satisfies readonly StacktapeCommand[];
+
+export type StacktapeRecordedCommand = (typeof RECORDED_STACKTAPE_COMMANDS)[number];

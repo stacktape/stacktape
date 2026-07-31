@@ -1,3 +1,4 @@
+import type { StpRedisCluster } from '@domain-services/config-manager/resolved-types/redis-cluster';
 import type { List } from '@cloudform/dataTypes';
 import type { Ingress } from '@cloudform/ec2/securityGroup';
 import type { UpdatePolicy } from '@cloudform/resource';

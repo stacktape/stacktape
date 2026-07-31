@@ -1,3 +1,4 @@
+import type { StpBatchJob } from '@domain-services/config-manager/resolved-types/batch-jobs';
 import type { Environment, JobDefinitionProperties } from '@cloudform/batch/jobDefinition';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Ref } from '@cloudform/functions';

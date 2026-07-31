@@ -1,3 +1,8 @@
+import type { CloudformationIamRoleStatement } from '@domain-services/cloudformation-stack-manager/types';
+import type { SupportedMongoAtlasV1CfResourceType } from '@domain-services/cloudformation-registry-manager/types';
+import type { StpEfsFilesystem } from '@domain-services/config-manager/resolved-types/efs-filesystem';
+import type { StpMongoDbAtlasCluster } from '@domain-services/config-manager/resolved-types/mongo-db-atlas-clusters';
+import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
 import type CfResource from '@cloudform/resource';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Join, Ref, Select, Split } from '@cloudform/functions';

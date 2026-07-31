@@ -1,3 +1,4 @@
+import type { CertificateDetail } from '@domain-services/domain-manager/types';
 import { CertificateStatus } from '@aws-sdk/client-acm';
 import { describe, expect, mock, test } from 'bun:test';
 

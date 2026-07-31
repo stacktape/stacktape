@@ -1,3 +1,5 @@
+import type { Subtype } from '@utils/type-helpers';
+import type { StpDynamoTable } from '@domain-services/config-manager/resolved-types/dynamo-db-tables';
 import type { AttributeDefinition, KeySchema } from '@cloudform/dynamoDb/table';
 import { globalStateManager } from '@application-services/global-state-manager';
 import ScalableTarget from '@cloudform/applicationAutoScaling/scalableTarget';

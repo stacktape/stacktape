@@ -1,3 +1,5 @@
+import type { ResourcePropsFromConfig } from '@domain-services/stack-info/types';
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Ref, Sub } from '@cloudform/functions';
 import Role from '@cloudform/iam/role';

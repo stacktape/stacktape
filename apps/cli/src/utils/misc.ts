@@ -1,3 +1,5 @@
+import type { ErrorType, StacktapeError } from '@utils/errors';
+import type { ArgsType } from '@utils/type-helpers';
 import type { Readable } from 'node:stream';
 import { Buffer } from 'node:buffer';
 import { homedir } from 'node:os';

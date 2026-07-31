@@ -1,3 +1,4 @@
+import type { SupportedFileExt } from '@utils/file-types';
 import { lambdaRuntimesForFileExtension } from '@config';
 import type { LambdaRuntime } from '@stacktape/config/primitives';
 

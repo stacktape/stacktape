@@ -1,3 +1,5 @@
+import type { StacktapeProgrammaticOptions } from '@application-services/global-state-manager/types';
+import type { StacktapeCommand } from 'src/config/cli/types';
 import { announcementsManager } from '@application-services/announcements-manager';
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';

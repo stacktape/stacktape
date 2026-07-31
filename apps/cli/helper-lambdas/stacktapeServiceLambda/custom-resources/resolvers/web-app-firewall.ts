@@ -1,3 +1,8 @@
+import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type {
+  StpServiceCustomResourceFirewallProps,
+  StpServiceCustomResourceProperties
+} from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import type { CreateWebACLCommandInput, Rule as Wafv2Rule } from '@aws-sdk/client-wafv2';
 import {
   CreateWebACLCommand,

@@ -1,3 +1,4 @@
+import type { StpCdnAttachableResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { stpErrors } from '@errors';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
 

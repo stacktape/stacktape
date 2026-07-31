@@ -23,16 +23,16 @@ They are separately built artifacts, but their source is not separable. Resolvin
 entrypoints shows the four artifacts transitively reach 31 non-helper CLI modules (~9,000 lines), and 30 of those 31
 have other CLI consumers — 1,809 distinct non-helper CLI files import at least one. The closure includes the 3,434-line
 AWS SDK manager, the 1,418-line S3 sync engine and the 760-line `aws-resource-names` model. The runtime source is also
-typed against ambient declarations in `types/`, which are the source of the published config schema and cannot leave
-`apps/cli`.
+typed against the CLI's resolved configuration modules, which are separate from the authored configuration package
+and remain owned by `apps/cli`.
 
 A package therefore requires a package-to-app dependency, duplicated deployed implementation, an
 `aws`/`naming`/`config` package cascade, or refactoring the runtimes to erase imports. Each costs more concepts than
 co-location and misrepresents who owns the code, so co-location is the decision rather than a deferral.
 
 Revisit when a separately justified slice has narrowed the closure to a small, helper-dominant set and removed the
-ambient `types/` dependency. `apps/cli/helper-lambdas/AGENTS.md` holds the measurement, the rejected alternatives and
-the compatibility contract.
+dependency on CLI-owned resolved configuration contracts. `apps/cli/helper-lambdas/AGENTS.md` holds the measurement,
+the rejected alternatives and the compatibility contract.
 
 ### No `packages/core` runtime extraction
 

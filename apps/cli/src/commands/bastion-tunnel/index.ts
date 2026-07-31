@@ -1,3 +1,5 @@
+import type { StackInfoMapResource } from '@domain-services/stack-info/types';
+import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { applicationManager } from '@application-services/application-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';

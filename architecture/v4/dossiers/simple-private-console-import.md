@@ -154,7 +154,7 @@ Public:
 
 - `packages/console-api/**`
 - Console-related client/type files under `apps/cli/shared/trpc/**`,
-  `apps/cli/types/console-app/**`, and their direct imports
+  `apps/cli/src/stacktape-api/**`, and their direct imports
 - root workspace/catalog/Turbo/tooling files only when strictly required for
   the two real private applications
 - this dossier if implementation evidence requires a factual correction

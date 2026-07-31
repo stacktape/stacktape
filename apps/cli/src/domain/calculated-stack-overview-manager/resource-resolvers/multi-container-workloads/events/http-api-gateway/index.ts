@@ -1,3 +1,6 @@
+import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
+import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
+import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import Integration from '@cloudform/apiGatewayV2/integration';

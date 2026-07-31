@@ -1,3 +1,5 @@
+import type { StacktapeResourceOutput } from '@domain-services/stack-info/types';
+import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Join } from '@cloudform/functions';
 import { defaultLogRetentionDays } from '@config';

@@ -1,3 +1,4 @@
+import type { StpBastion } from '@domain-services/config-manager/resolved-types/bastion';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';

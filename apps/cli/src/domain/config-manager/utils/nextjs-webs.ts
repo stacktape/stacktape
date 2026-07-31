@@ -1,3 +1,4 @@
+import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-types/nextjs-web';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stpErrors } from '@errors';

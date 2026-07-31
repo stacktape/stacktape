@@ -1,3 +1,5 @@
+import type { BudgetInfo, CostExplorerTagsError } from '@domain-services/budget-manager/types';
+import type { LoggableEventType } from '@application-services/event-manager/types';
 import type { Budget } from '@aws-sdk/client-budgets';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';

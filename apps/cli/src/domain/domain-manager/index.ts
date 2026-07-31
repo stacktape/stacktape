@@ -1,3 +1,7 @@
+import type { StpDomainStatus } from '@domain-services/domain-manager/types';
+import type { LoggableEventType } from '@application-services/event-manager/types';
+import type { CertificateDetail, StacktapeCertInfo } from '@domain-services/domain-manager/types';
+import type { StpDomainAttachableResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import type { HostedZone } from '@aws-sdk/client-route-53';
 import type { WhoisSearchResult } from 'whoiser';
 import { promises as dnsPromises } from 'node:dns';

@@ -1,3 +1,8 @@
+import type {
+  ConfigurableCliArgsDefaults,
+  ConfigurableOtherDefaults,
+  PersistedState
+} from '@application-services/global-state-manager/types';
 import { configurableGlobalDefaultCliArgs, configurableGlobalDefaultOtherProps } from '@config';
 import { fsPaths } from 'src/config/runtime-paths';
 import { ensureDir, outputJson, readJson } from 'fs-extra';

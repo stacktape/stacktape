@@ -1,3 +1,5 @@
+import type { StacktapeResourceOutput } from '@domain-services/stack-info/types';
+import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import { globalStateManager } from '@application-services/global-state-manager';
 import SecurityGroup, { Ingress } from '@cloudform/ec2/securityGroup';
 import Listener, { Action, Certificate } from '@cloudform/elasticLoadBalancingV2/listener';

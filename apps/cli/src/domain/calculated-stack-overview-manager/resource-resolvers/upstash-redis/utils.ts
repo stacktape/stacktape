@@ -1,3 +1,5 @@
+import type { SupportedUpstashRedisV1ResourceType } from '@domain-services/cloudformation-registry-manager/types';
+import type { StpUpstashRedis } from '@domain-services/config-manager/resolved-types/upstash-redis';
 import type Resource from '@cloudform/resource';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { thirdPartyProviderManager } from '@domain-services/third-party-provider-credentials-manager';

@@ -1,3 +1,5 @@
+import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import type { CloudFormationCustomResourceHandler, CloudFormationCustomResourceUpdateEvent } from 'aws-lambda';
 import { respondToCloudformation } from 'src/aws/cloudformation';
 import { getAwsSdkManager } from '../utils';

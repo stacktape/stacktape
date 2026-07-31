@@ -1,3 +1,4 @@
+import type { StpCdnOriginTargetableByRouteRewrite } from '@domain-services/config-manager/resolved-types/resources';
 import type { CloudFrontRequestHandler } from 'aws-lambda';
 import { S3 } from '@aws-sdk/client-s3';
 import { stacktapeCloudfrontHeaders } from '@helper-lambdas/cloudfront/cloudfront-origin-headers';

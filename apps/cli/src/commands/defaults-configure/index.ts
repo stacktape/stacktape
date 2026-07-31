@@ -1,3 +1,8 @@
+import type {
+  ConfigurableCliArgsDefaults,
+  ConfigurableOtherDefaults,
+  PersistedState
+} from '@application-services/global-state-manager/types';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configurableGlobalDefaultCliArgs, configurableGlobalDefaultOtherProps } from '@config';

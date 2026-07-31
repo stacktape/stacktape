@@ -56,8 +56,8 @@ None. This is a type-contract correction only.
 
 ## Owned paths
 
-- `apps/cli/types/packaging.d.ts`
-- `apps/cli/shared/packaging/custom-artifact.ts`
+- `apps/cli/src/domain/packaging-manager/types.ts`
+- `packages/packaging/src/artifact/custom-artifact.ts`
 - The six non-ES Lambda wrappers that contain now-unnecessary `as PackagingOutput` return casts.
 - `apps/cli/tests/characterization/packaging-contract.spec.ts`
 - This dossier.

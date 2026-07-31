@@ -1,3 +1,5 @@
+import type { ServiceLambdaResolver } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
+import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import { GetParameterCommand, SSMClient } from '@aws-sdk/client-ssm';
 
 export const ssmParameterRetrieve: ServiceLambdaResolver<

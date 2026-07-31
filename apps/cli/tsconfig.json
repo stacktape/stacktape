@@ -35,6 +35,6 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["./src/**/*", "./types/**/*", "./scripts/**/*", "./helper-lambdas/**/*"],
+  "include": ["./src/**/*", "./scripts/**/*", "./helper-lambdas/**/*"],
   "exclude": ["./@generated/**/*"]
 }

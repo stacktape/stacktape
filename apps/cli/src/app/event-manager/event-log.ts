@@ -1,3 +1,4 @@
+import type { DeploymentPhase, EventLogEntryType, LoggableEventType } from '@application-services/event-manager/types';
 import { tuiManager } from '@application-services/tui-manager';
 import { getFirstAndLastItem, groupBy, orderPropertiesOfObjectAccordingToKeys } from '@utils/misc';
 import { getGroupedEventsWithDetails } from './utils';

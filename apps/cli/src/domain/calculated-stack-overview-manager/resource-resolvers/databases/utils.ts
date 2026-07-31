@@ -1,3 +1,7 @@
+import type {
+  NormalizedSQLEngine,
+  StpRelationalDatabase
+} from '@domain-services/config-manager/resolved-types/relational-databases';
 import type { List } from '@cloudform/dataTypes';
 import type { Ingress } from '@cloudform/ec2/securityGroup';
 import type { OptionConfiguration } from '@cloudform/rds/optionGroup';

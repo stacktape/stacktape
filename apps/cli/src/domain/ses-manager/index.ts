@@ -1,3 +1,4 @@
+import type { NotificationEmailInformation } from '@domain-services/ses-manager/types';
 import type { IdentityVerificationAttributes } from '@aws-sdk/client-ses';
 import type { GetAccountCommandOutput } from '@aws-sdk/client-sesv2';
 import { eventManager } from '@application-services/event-manager';

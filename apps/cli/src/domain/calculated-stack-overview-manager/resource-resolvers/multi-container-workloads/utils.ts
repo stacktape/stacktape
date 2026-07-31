@@ -1,3 +1,14 @@
+import type { SupportedEcsBlueGreenV1ResourceType } from '@domain-services/cloudformation-registry-manager/types';
+import type {
+  ContainerWorkloadTargetDetails,
+  StpResolvedLoadBalancerReference
+} from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type { StpEfsFilesystem } from '@domain-services/config-manager/resolved-types/efs-filesystem';
+import type {
+  ECSBlueGreenService,
+  StpContainerWorkload
+} from '@domain-services/config-manager/resolved-types/multi-container-workloads';
+import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
 import type { ServiceConnectService, ServiceProperties, ServiceRegistry } from '@cloudform/ecs/service';
 import type { KeyValuePair, MountPoint, Volume } from '@cloudform/ecs/taskDefinition';
 import { globalStateManager } from '@application-services/global-state-manager';

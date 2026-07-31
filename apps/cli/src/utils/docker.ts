@@ -1,3 +1,5 @@
+import type { StdTransformer } from '@utils/streams';
+import type { StacktapeArgs } from 'src/config/cli/types';
 import type { ContainerInfo, ContainerInspectInfo, Port } from 'dockerode';
 import type { DockerBuildOutputArchitecture } from '@stacktape/packaging/runtime-contracts';
 import { isAbsolute, join } from 'node:path';

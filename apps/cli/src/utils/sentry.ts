@@ -1,3 +1,5 @@
+import type { ExpectedError, UnexpectedError } from '@utils/errors';
+import type { StacktapeCommand } from 'src/config/cli/types';
 import { IS_DEV, IS_TELEMETRY_DISABLED, SENTRY_CAPTURE_EXCEPTION_WAIT_TIME_MS, SENTRY_DSN } from '@config';
 import { captureException, init, rewriteFramesIntegration, setTags } from '@sentry/bun';
 import { wait } from '@utils/misc';

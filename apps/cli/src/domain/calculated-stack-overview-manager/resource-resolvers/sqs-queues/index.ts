@@ -1,3 +1,4 @@
+import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { GetAtt, Ref } from '@cloudform/functions';
 import SqsQueue from '@cloudform/sqs/queue';

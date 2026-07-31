@@ -6,6 +6,67 @@ import { getRelativePath, isFileAccessible } from '@utils/fs-utils';
 import stacktrace from 'stack-trace';
 import stripAnsi from 'strip-ansi';
 
+export type StacktapeError = Error & {
+  type: ErrorType;
+  code?: string;
+  hint?: string | string[];
+  data?: any;
+  isExpected: boolean;
+  isNewApproachError: boolean;
+  userStackTrace?: string;
+  errorDetails?: { title: string; codeFrame?: string };
+};
+
+export type ErrorType =
+  | 'API_KEY'
+  | 'CLI'
+  | 'MISSING_PREREQUISITE'
+  | 'EXISTING_STACK'
+  | 'NON_EXISTING_STACK'
+  | 'NON_EXISTING_RESOURCE'
+  | 'MISSING_OUTPUT'
+  | 'CONFIG_VALIDATION'
+  | 'CONFIG_GENERATION'
+  | 'PACKAGING'
+  | 'PACKAGING_CONFIG'
+  | 'DOCKER'
+  | 'CONFIG'
+  | 'SOURCE_CODE'
+  | 'LOGIN'
+  | 'QUOTA'
+  | 'DIRECTIVE'
+  | 'PARAMETER'
+  | 'HOOK'
+  | 'FILE_ACCESS'
+  | 'CREDENTIALS'
+  | 'NOT_YET_IMPLEMENTED'
+  | 'STACK'
+  | 'DEPLOYMENT'
+  | 'BUDGET'
+  | 'AWS'
+  | 'DOMAIN_MANAGEMENT'
+  | 'CLOUDFORMATION'
+  | 'STACK_MONITORING'
+  | 'SYNC_BUCKET'
+  | 'USERPOOL'
+  | 'INPUT'
+  | 'UNEXPECTED'
+  | 'BUILD_CODE'
+  | 'API_SERVER'
+  | 'SCRIPT'
+  | 'PACK'
+  | 'NIXPACKS'
+  | 'CODEBUILD'
+  | 'AWS_ACCOUNT'
+  | 'LIMIT_EXCEEDED'
+  | 'GUARDRAIL'
+  | 'SUBSCRIPTION_REQUIRED'
+  | 'SESSION_MANAGER'
+  | 'UNSUPPORTED_RESOURCE'
+  | 'INSTALL_DEPENDENCIES'
+  | 'CONFIRMATION_REQUIRED'
+  | 'DEVICE';
+
 const isBundledStacktapeInternalFrame = (fileName: string) => {
   const normalizedFileName = fileName.replaceAll('\\', '/').replace(/^[./]+/, '');
   const bundledInternalPrefixes = ['src/', 'scripts/', 'helper-lambdas/', '@generated/'];
