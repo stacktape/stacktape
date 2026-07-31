@@ -72,9 +72,9 @@ import {
   isDockerRunning
 } from '@utils/docker';
 import { dependencyInstaller } from '@domain-services/packaging-manager/dependency-installer';
+import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
 import { exec } from '@utils/exec';
 import { getFileExtension } from '@utils/fs-utils';
-import { getError } from '@utils/misc';
 import { execNixpacks } from '@domain-services/packaging-manager/nixpacks-command';
 import { execPack } from '@domain-services/packaging-manager/pack-command';
 import { archiveItem } from '@utils/zip';
@@ -444,7 +444,7 @@ export class PackagingManager {
           }
         });
       },
-      createPackagingError: ({ message, hint }) => getError({ type: 'PACKAGING', message, hint })
+      createPackagingError: ({ message, hint }) => createCliPackagingError({ type: 'PACKAGING', message, hint })
     });
 
     // Build native binaries (bcrypt, sharp, prisma, etc.) into a shared layer
@@ -752,7 +752,7 @@ export class PackagingManager {
                 name,
                 cwd: globalStateManager.workingDir,
                 build: build!,
-                createPackagingError: getError,
+                createPackagingError: createCliPackagingError,
                 executeProcess: exec,
                 progressLogger: eventManager.createChildLogger({
                   instanceId: name,
@@ -1127,7 +1127,7 @@ export class PackagingManager {
         eventManager.createChildLogger({ instanceId, parentEventType: 'PACKAGE_ARTIFACTS' }),
       progressLogger,
       archiveItem,
-      createPackagingError: getError,
+      createPackagingError: createCliPackagingError,
       executeProcess: exec,
       loadModuleExport: loadPackagingModuleExport
     });
@@ -1195,7 +1195,7 @@ export class PackagingManager {
           )
         : [],
       archiveItem,
-      createPackagingError: getError,
+      createPackagingError: createCliPackagingError,
       executeProcess: exec
     });
 
@@ -1252,7 +1252,7 @@ export class PackagingManager {
       archiveItem,
       buildDockerImage,
       checkDockerImageExists,
-      createPackagingError: getError,
+      createPackagingError: createCliPackagingError,
       getDockerImageDetails,
       installDependencies: dependencyInstaller.install,
       nativeDependencyInstallationRootPath: join(

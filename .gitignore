@@ -17,6 +17,7 @@ node_modules/
 
 # CLI build, release and scratch output (see apps/cli/AGENTS.md)
 .stacktape/
+compiled-template.yaml
 __binary-dist/
 __cli-dist/
 __dist/

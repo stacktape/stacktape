@@ -5,8 +5,9 @@ import { dirname, join } from 'node:path';
 import type { ProgressLogger } from '@application-services/event-manager/types';
 import AdmZip from 'adm-zip';
 import { buildUsingCustomArtifact } from '@stacktape/packaging/artifact/custom-artifact';
-import { getError } from '@utils/misc';
 import { archiveItem } from '@utils/zip';
+
+const createPackagingError = ({ message }: { message: string }) => new Error(message);
 
 const tempDirs: string[] = [];
 
@@ -48,7 +49,7 @@ const packageDirectory = async ({
     existingDigests,
     handler: 'index.handler',
     archiveItem,
-    createPackagingError: getError
+    createPackagingError
   });
 
 afterEach(async () => {
@@ -133,7 +134,7 @@ describe('custom artifact packaging contract', () => {
       existingDigests: [],
       handler: 'index.handler',
       archiveItem,
-      createPackagingError: getError
+      createPackagingError
     });
 
     expect(result.outcome).toBe('bundled');

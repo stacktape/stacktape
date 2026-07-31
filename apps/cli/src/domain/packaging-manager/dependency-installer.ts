@@ -9,7 +9,7 @@ import readPkgUp from 'read-pkg-up';
 import { checkExecutableInPath } from '@utils/bin-executable';
 import { getEsInstallScript } from './es-install-scripts';
 import { exec } from '@utils/exec';
-import { raiseError } from '@utils/misc';
+import { CliError } from '@utils/errors';
 import { findProjectRoot } from '@stacktape/packaging/es/project-root';
 
 const wait = async ({ ms }: { ms: number }) => {
@@ -91,10 +91,11 @@ const withInstallLock = async ({
       }
 
       if (Date.now() - startedAt > maxWaitMs) {
-        raiseError({
-          type: 'PACKAGING',
-          message: `Timed out waiting for dependency install lock in ${installDir}`,
-          hint: 'Another Stacktape process may be stuck. Remove .stacktape-install.lock and retry.'
+        throw new CliError({
+          category: 'PACKAGING',
+          code: 'PACKAGING_INSTALL_LOCK_TIMEOUT',
+          message: `Timed out waiting for the dependency install lock in \`${installDir}\`.`,
+          hints: 'Another Stacktape process may be stuck. Remove `.stacktape-install.lock` and retry.'
         });
       }
 
@@ -163,11 +164,12 @@ class DependencyInstaller {
 
     const isNodeInstalled = checkExecutableInPath('node') || checkExecutableInPath('nodejs');
     if (!isNodeInstalled) {
-      raiseError({
-        type: 'PACKAGING',
+      throw new CliError({
+        category: 'PACKAGING',
+        code: 'PACKAGING_NODE_MISSING',
         message:
           'NodeJS missing: This project seems to be using NodeJS (node), but it is not installed on your system.',
-        hint: 'To see how to install NodeJS, refer to NodeJS official website: https://nodejs.dev/en/learn/how-to-install-nodejs/.'
+        hints: 'Install Node.js by following https://nodejs.org/en/download/package-manager.'
       });
     }
 
@@ -192,9 +194,11 @@ class DependencyInstaller {
             })
         });
       } catch (err) {
-        raiseError({
-          type: 'PACKAGING',
-          message: `Failed to install dependencies. Error:\n${err.message}`
+        throw new CliError({
+          category: 'PACKAGING',
+          code: 'PACKAGING_DEPENDENCY_INSTALL_FAILED',
+          message: `Failed to install dependencies.\n${err.message}`,
+          cause: err
         });
       }
 

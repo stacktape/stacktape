@@ -1,12 +1,13 @@
-import { raiseError } from './misc';
+import { CliError } from './errors';
 
 export const validateEnvVariableValue = (propertyName: string, value: any) => {
   const type = typeof value;
   if (!['number', 'string', 'boolean'].includes(type)) {
-    raiseError({
-      type: 'CONFIG',
-      message: `Environment variable '${propertyName}' has unsupported type '${type}'. Only primitive types (string, number) are supported.`,
-      hint: 'If you want to pass object to an environment variable, you can stringify it using $JsonStringify() directive.'
+    throw new CliError({
+      category: 'CONFIG',
+      code: 'CONFIG_ENVIRONMENT_VALUE_TYPE_INVALID',
+      message: `Environment variable \`${propertyName}\` has unsupported type \`${type}\`. Only string, number, and boolean values are supported.`,
+      hints: 'To pass an object, stringify it with the `$JsonStringify()` directive.'
     });
   }
 };

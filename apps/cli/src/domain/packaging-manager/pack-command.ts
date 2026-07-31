@@ -1,6 +1,6 @@
 import { fsPaths } from 'src/config/runtime-paths';
 import { exec } from '@utils/exec';
-import { getError } from '@utils/misc';
+import { CliError } from '@utils/errors';
 
 export const execPack = async ({
   args,
@@ -17,9 +17,11 @@ export const execPack = async ({
     disableStderr: !onOutputLine,
     onOutputLine: onOutputLine ? (line) => onOutputLine(line) : undefined
   }).catch((err) => {
-    throw getError({
-      type: 'PACK',
-      message: `Failed to execute pack command '${args.join(' ')}' in directory ${cwd}:\n${err.message}`
+    throw new CliError({
+      category: 'PACK',
+      code: 'PACK_COMMAND_FAILED',
+      message: `Failed to execute pack command \`${args.join(' ')}\` in \`${cwd}\`:\n${err.message}`,
+      cause: err
     });
   });
 };

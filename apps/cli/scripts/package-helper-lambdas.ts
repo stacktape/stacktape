@@ -9,9 +9,10 @@ import {
 } from 'src/config/project-paths';
 import { buildUsingStacktapeEsLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-es-lambda-buildpack';
 import { dependencyInstaller } from '@domain-services/packaging-manager/dependency-installer';
+import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
 import { execDocker } from '@utils/docker';
 import { logInfo, logSuccess } from '@scripts/support/logging';
-import { getError, localBuildTsConfigPath } from '@utils/misc';
+import { localBuildTsConfigPath } from '@utils/misc';
 import { archiveItem } from '@utils/zip';
 import fsExtra, { remove } from 'fs-extra';
 import { generateSourceMapInstall } from './release/build-cli-sources';
@@ -70,7 +71,7 @@ export const packageHelperLambdas = async ({ distFolderPath }: { isDev?: boolean
         }
       },
       archiveItem,
-      createPackagingError: getError,
+      createPackagingError: createCliPackagingError,
       installDependencies: dependencyInstaller.install,
       nativeDependencyInstallationRootPath: join(lambdasDistFolderPath, '_bin-install'),
       runDocker: execDocker,

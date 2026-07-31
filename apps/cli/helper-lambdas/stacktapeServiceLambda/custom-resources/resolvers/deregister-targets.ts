@@ -6,7 +6,6 @@ import {
   ElasticLoadBalancingV2Client,
   ModifyTargetGroupAttributesCommand
 } from '@aws-sdk/client-elastic-load-balancing-v2';
-import { getError } from '@utils/misc';
 
 const elbv2Client = new ElasticLoadBalancingV2Client({});
 
@@ -65,10 +64,7 @@ export const deregisterTargets: ServiceLambdaResolver<StpServiceCustomResourcePr
       await elbv2Client.send(new DeregisterTargetsCommand({ TargetGroupArn: targetGroupArn, Targets: targets }));
       console.info(`Deregistered ${targets.length} targets from target group: ${targetGroupArn}`);
     } catch (err) {
-      throw getError({
-        type: 'AWS',
-        message: `Failed to deregister targets from target group ${targetGroupArn}. Error: ${err}`
-      });
+      throw new Error(`Failed to deregister targets from target group ${targetGroupArn}.`, { cause: err });
     }
   }
 

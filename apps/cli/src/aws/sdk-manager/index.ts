@@ -248,14 +248,13 @@ import { COMMENT_FOR_STACKTAPE_ZONE } from 'src/config/constants';
 import { getRelativePath } from '@utils/fs-utils';
 import {
   chunkArray,
-  getError,
   lowerCaseFirstCharacterOfObjectKeys,
-  raiseError,
   serialize,
   streamToString,
   stringMatchesGlob,
   wait
 } from '@utils/misc';
+import { CliError } from '@utils/errors';
 import { getForwardableOperationInvocationEnv } from '@application-services/operation-invocation-context';
 import { parseYaml } from '@utils/yaml';
 import { kebabCase, pascalCase } from 'change-case';
@@ -578,9 +577,11 @@ export class AwsSdkManager {
         })
       )
       .catch((err) => {
-        raiseError({
-          type: 'CLOUDFORMATION',
-          message: `Template validation error:\nCode: ${err.code}\nMessage: ${err.message}`
+        throw new CliError({
+          category: 'CLOUDFORMATION',
+          code: 'CLOUDFORMATION_TEMPLATE_INVALID',
+          message: `Template validation failed.\nCode: ${err.code}\nMessage: ${err.message}`,
+          cause: err
         });
       });
   };
@@ -1210,9 +1211,10 @@ export class AwsSdkManager {
     uploadConfiguration: DirectoryUpload;
   }): Promise<S3SyncInfo> => {
     if (!fsExtra.existsSync(directoryPath)) {
-      raiseError({
-        type: 'SYNC_BUCKET',
-        message: `Directory at "${directoryPath}" doesn't exists or is not accessible.`
+      throw new CliError({
+        category: 'SYNC_BUCKET',
+        code: 'SYNC_BUCKET_DIRECTORY_INACCESSIBLE',
+        message: `Directory \`${directoryPath}\` does not exist or is not accessible.`
       });
     }
 
@@ -1299,11 +1301,13 @@ export class AwsSdkManager {
     return new Promise((resolve, reject) => {
       uploader.on('error', (err: any) => {
         reject(
-          getError({
-            type: 'SYNC_BUCKET',
+          new CliError({
+            category: 'SYNC_BUCKET',
+            code: 'SYNC_BUCKET_UPLOAD_FAILED',
             message: `Syncing files from directory '${getRelativePath(
               directoryPath
-            )}' into ${bucketName} failed. Error:\n${err}.`
+            )}' into ${bucketName} failed. Error:\n${err}.`,
+            cause: err
           })
         );
       });
@@ -1487,8 +1491,9 @@ export class AwsSdkManager {
       ));
       await wait(10000);
       if (ProgressStatus === 'FAILED') {
-        raiseError({
-          type: 'AWS',
+        throw new CliError({
+          category: 'AWS',
+          code: 'AWS_CLOUDFORMATION_TYPE_REGISTRATION_FAILED',
           message: `Registration of private cloudformation resource type ${typeName} failed. Registration description: ${Description}`
         });
       }
@@ -3128,14 +3133,15 @@ export class AwsSdkManager {
           const additionalMessage = (lastPhase.contexts || [])
             .map(({ statusCode, message }) => `[Status code ${statusCode}]: ${message}`)
             .join('\n');
-          raiseError({
-            type: 'CODEBUILD',
+          throw new CliError({
+            category: 'CODEBUILD',
+            code: 'CODEBUILD_START_FAILED',
             message: `Start of codebuild deployment failed in phase "${
               lastPhase.phaseType
             }" with status before stacktape operation could be started.${
               additionalMessage ? `\nAdditional message: ${additionalMessage}.` : ''
             }`,
-            hint: `Deployment logs: ${consoleLinks.codebuildDeployment(
+            hints: `Deployment logs: ${consoleLinks.codebuildDeployment(
               this.region,
               awsAccountId,
               build.projectName,

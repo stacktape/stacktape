@@ -1,5 +1,5 @@
 import type { GlobalStateConnectedAwsAccount } from '@application-services/global-state-manager/types';
-import type { StacktapeError } from '@utils/errors';
+import { CliError, type ErrorCategory } from '@utils/errors';
 import type { StpCfInfrastructureModuleType } from '@domain-services/cloudformation-registry-manager/types';
 import type { ArgType, Subtype } from '@utils/type-helpers';
 import type { StacktapeCommand } from 'src/config/cli/types';
@@ -19,7 +19,6 @@ import {
 } from 'src/aws/cloudformation';
 import type { LoadedAwsCredentials, ValidatedAwsCredentials } from 'src/aws/credentials';
 import { consoleLinks } from '@stacktape/naming/console-links';
-import { getError } from '@utils/misc';
 import { getApexDomain } from '@utils/domains';
 
 const STACKTAPE_DOMAINS_CONSOLE_URL = 'https://console.stacktape.com/domains';
@@ -28,12 +27,22 @@ const DOMAINS_DOCS_URL = 'https://docs.stacktape.com/other-resources/domains-and
 const wrap = (
   errorsObj: typeof errors
 ): {
-  [errorCode in ErrorCode]: (arg: ArgType<(typeof errors)[errorCode]>) => StacktapeError;
+  [errorCode in ErrorCode]: (arg: ArgType<(typeof errors)[errorCode]>) => CliError;
 } => {
   const res = {};
   for (const errCode in errorsObj) {
     res[errCode] = (props) => {
-      return getError({ ...errorsObj[errCode](props), code: errCode });
+      const definition: ReturnedError = errorsObj[errCode](props);
+      const error = new CliError({
+        category: definition.type,
+        code: `${definition.type}_${errCode.toUpperCase()}`,
+        message: definition.message,
+        hints: definition.hint,
+        userStackTrace: definition.userStackTrace,
+        detail: definition.errorDetails
+      });
+      if (definition.stack) error.stack = definition.stack;
+      return error;
     };
   }
   return res as any;
@@ -2112,6 +2121,13 @@ After purchase, configure and verify the domain in Stacktape Console: ${STACKTAP
   }
 };
 
-type ReturnedError = ArgType<typeof getError>;
+type ReturnedError = {
+  type: ErrorCategory;
+  message: string;
+  hint?: string | string[];
+  stack?: string;
+  userStackTrace?: string;
+  errorDetails?: { title: string; codeFrame?: string };
+};
 
 export type ErrorCode = keyof typeof errors;

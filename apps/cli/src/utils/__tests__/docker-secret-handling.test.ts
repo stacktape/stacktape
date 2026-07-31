@@ -458,7 +458,8 @@ describe('process runner command descriptions', () => {
     );
 
     expect(error).toBeInstanceOf(Error);
-    expect(error.message).toContain('Cannot run command "docker login [arguments omitted]"');
+    expect(error).toMatchObject({ code: 'CLI_WORKING_DIRECTORY_INACCESSIBLE' });
+    expect(error.message).toContain('Cannot run `docker login [arguments omitted]`');
     expectNoSecretIn(error, SENTINEL_PASSWORD);
   });
 });

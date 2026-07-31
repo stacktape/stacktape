@@ -1,8 +1,8 @@
 import { describe, expect, test } from 'bun:test';
 import { normalizeCliError } from '@application-services/application-manager';
 import { renderErrorToString } from '@application-services/tui-manager/error-rendering';
+import { stpErrors } from 'src/config/error-messages';
 import { CliError, getReturnableError } from '@utils/errors';
-import { getError } from '@utils/misc';
 import { validateCommand, validateS3BucketName } from '@utils/validator';
 
 describe('CLI error contract', () => {
@@ -24,16 +24,10 @@ describe('CLI error contract', () => {
   });
 
   test('adapts the numbered registry to the same class while it is migrated', () => {
-    const error = getError({
-      type: 'CONFIG',
-      code: 'e14',
-      message: 'Configuration is invalid.',
-      hint: 'Fix it.'
-    });
+    const error = stpErrors.e14({ configPath: 'stacktape.yml' });
 
     expect(error).toBeInstanceOf(CliError);
-    expect(error).toMatchObject({ category: 'CONFIG', code: 'CONFIG_E14' });
-    expect(error.hints).toEqual(['Fix it.']);
+    expect(error).toMatchObject({ category: 'CONFIG_VALIDATION', code: 'CONFIG_VALIDATION_E14' });
   });
 
   test('normalizes unknown failures once without requiring a stack trace', () => {

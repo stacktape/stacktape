@@ -8,7 +8,7 @@ import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { outputNames } from '@stacktape/naming/stack-output-names';
-import { getError } from '@utils/misc';
+import { CliError } from '@utils/errors';
 import { join } from 'node:path';
 import { devTuiManager } from 'src/app/tui-manager/dev-tui';
 import { devTuiState } from 'src/app/tui-manager/dev-tui/state';
@@ -213,10 +213,11 @@ const getSelectedResources = async (allResources: SelectableResource[]): Promise
             ? `Did you mean: ${similar.slice(0, 3).join(', ')}? Available resources: ${allNamesArray.join(', ')}`
             : `Available resources: ${allNamesArray.join(', ')}`;
 
-        throw getError({
-          type: 'CLI',
-          message: `Resource "${name}" specified in --${argName} does not exist.`,
-          hint
+        throw new CliError({
+          category: 'CLI',
+          code: 'CLI_DEV_RESOURCE_NOT_FOUND',
+          message: `Resource \`${name}\` specified in \`--${argName}\` does not exist.`,
+          hints: hint
         });
       }
     }
@@ -321,10 +322,11 @@ export const commandDev = async () => {
     const defaultAgentPort = 7331;
     const agentPort = agentPortArg ?? (await findAvailablePort(defaultAgentPort));
     if (!agentPort) {
-      throw getError({
-        type: 'CLI',
+      throw new CliError({
+        category: 'CLI',
+        code: 'CLI_DEV_AGENT_PORT_UNAVAILABLE',
         message: `Could not find available port for agent server (tried ${defaultAgentPort}-${defaultAgentPort + 99}).`,
-        hint: 'Specify a port with --agentPort or free up ports in that range.'
+        hints: 'Specify a port with `--agentPort`, or free a port in that range.'
       });
     }
 
@@ -351,8 +353,9 @@ export const commandDev = async () => {
     });
 
     if (!result.success) {
-      throw getError({
-        type: 'CLI',
+      throw new CliError({
+        category: 'CLI',
+        code: 'CLI_DEV_AGENT_START_FAILED',
         message: `Failed to start dev agent: ${result.error || 'Unknown error'}`
       });
     }
@@ -411,10 +414,11 @@ export const commandDev = async () => {
     const defaultAgentPort = 7331;
     const agentPort = agentPortArg ?? (await findAvailablePort(defaultAgentPort));
     if (!agentPort) {
-      throw getError({
-        type: 'CLI',
+      throw new CliError({
+        category: 'CLI',
+        code: 'CLI_DEV_AGENT_PORT_UNAVAILABLE',
         message: `Could not find available port for agent server (tried ${defaultAgentPort}-${defaultAgentPort + 99}).`,
-        hint: 'Specify a port with --agentPort or free up ports in that range.'
+        hints: 'Specify a port with `--agentPort`, or free a port in that range.'
       });
     }
 
@@ -443,10 +447,11 @@ export const commandDev = async () => {
 
   // Validate that we have something to run
   if (allWorkloads.length === 0 && allEmulateableResources.length === 0) {
-    throw getError({
-      type: 'CLI',
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_DEV_NO_COMPATIBLE_RESOURCES',
       message: 'No dev-compatible resources found in your config.',
-      hint: 'Add a function, container workload, or database to use the dev command.'
+      hints: 'Add a function, container workload, or database to use `stacktape dev`.'
     });
   }
 
@@ -456,10 +461,11 @@ export const commandDev = async () => {
   const selectedResourceNames = await getSelectedResources(allSelectableResources);
 
   if (selectedResourceNames.size === 0) {
-    throw getError({
-      type: 'CLI',
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_DEV_NO_RESOURCES_SELECTED',
       message: 'No resources selected to run.',
-      hint: 'Select at least one resource or use --resources all to run everything.'
+      hints: 'Select at least one resource, or use `--resources all` to run everything.'
     });
   }
 
@@ -486,10 +492,11 @@ export const commandDev = async () => {
   if (isLegacy) {
     // Legacy mode: require existing deployed stack
     if (!stackManager.existingStackDetails) {
-      throw getError({
-        type: 'CLI',
-        message: `Stack '${globalStateManager.targetStack.stackName}' does not exist.`,
-        hint: `Legacy dev mode requires an already deployed stack. Deploy with 'stacktape deploy --stage ${globalStateManager.targetStack.stage}' first, or use '--devMode normal' to create a dev stack.`
+      throw new CliError({
+        category: 'CLI',
+        code: 'CLI_DEV_STACK_NOT_FOUND',
+        message: `Stack \`${globalStateManager.targetStack.stackName}\` does not exist.`,
+        hints: `Legacy dev mode requires a deployed stack. Run \`stacktape deploy --stage ${globalStateManager.targetStack.stage}\` first, or use \`--devMode normal\` to create a dev stack.`
       });
     }
   } else {
@@ -535,10 +542,11 @@ export const commandDev = async () => {
           await stackManager.deleteStack();
           await stackManager.refetchStackDetails(globalStateManager.targetStack.stackName);
         } else {
-          throw getError({
-            type: 'CLI',
-            message: `Stack '${globalStateManager.targetStack.stackName}' exists but is not a dev stack.`,
-            hint: `Use a different stage name for dev mode (e.g., --stage dev-${globalStateManager.userData?.name?.split(' ')[0]?.toLowerCase() || 'local'}), or use '--devMode legacy' to run against an existing stack.`
+          throw new CliError({
+            category: 'CLI',
+            code: 'CLI_DEV_STACK_CONFLICT',
+            message: `Stack \`${globalStateManager.targetStack.stackName}\` exists but is not a dev stack.`,
+            hints: `Use a different dev stage (for example \`--stage dev-${globalStateManager.userData?.name?.split(' ')[0]?.toLowerCase() || 'local'}\`), or use \`--devMode legacy\` with the existing stack.`
           });
         }
       }

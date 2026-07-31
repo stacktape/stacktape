@@ -18,7 +18,8 @@ import {
 } from 'src/config/constants';
 import { downloadFile } from '@utils/download-file';
 import { logInfo, logSuccess } from '@scripts/support/logging';
-import { getError, localBuildTsConfigPath } from '@utils/misc';
+import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
+import { localBuildTsConfigPath } from '@utils/misc';
 import { createStacktapeOpenTuiBuildPlugin } from '@scripts/support/opentui-loader';
 import { archiveItem, extractTgzArchive } from '@utils/zip';
 import {
@@ -56,7 +57,7 @@ export const buildEsbuildRegister = async ({ distFolderPath }: { distFolderPath?
   logInfo('Copying esbuild-register...');
   const esbuildRegisterDistFolderPath = join(distFolderPath, 'esbuild', 'esbuild-register.js');
   await buildEsCode({
-    createPackagingError: getError,
+    createPackagingError: createCliPackagingError,
     rawCode: 'require("esbuild-register/dist/node").register();',
     distPath: esbuildRegisterDistFolderPath,
     externals: [],
@@ -114,7 +115,7 @@ export const EXECUTABLE_FILE_PATTERNS = [
 export const generateSourceMapInstall = async ({ distFolderPath }: { distFolderPath: string }) => {
   logInfo('Generating source map install file...');
   await buildEsCode({
-    createPackagingError: getError,
+    createPackagingError: createCliPackagingError,
     rawCode: 'require("source-map-support").install({ environment: "node", handleUncaughtExceptions: false });',
     distPath: join(distFolderPath, SOURCE_MAP_INSTALL_FILE_NAME),
     externals: ['path'],

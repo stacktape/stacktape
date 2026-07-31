@@ -10,10 +10,10 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { templateManager } from '@domain-services/template-manager';
 import { getStackOutputName } from '@stacktape/naming/stack-output-names';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
-import { getError, serialize } from '@utils/misc';
+import { serialize } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { SubWithoutMapping } from '@utils/cloudformation';
-import { ExpectedError } from '@utils/errors';
+import { CliError, ExpectedError } from '@utils/errors';
 import { loadFromAnySupportedFile, loadRawFileContent } from '@utils/file-loaders';
 import { gitInfoManager } from '@utils/git-info-manager';
 import { getAllReferencableParams, referenceableTypes } from '@utils/referenceable-types';
@@ -158,10 +158,11 @@ export const builtInDirectives: Directive[] = [
         if (isLocalInvoke && globalStateManager.args.disableEmulation) {
           return IDENTIFIER_FOR_MISSING_OUTPUT;
         }
-        throw getError({
-          type: 'DIRECTIVE',
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_RESOURCE_PARAM_UNRESOLVED',
           message: `Can't resolve the result of $ResourceParam('${resourceReference}', '${property}') directive.`,
-          hint: isLocalInvoke ? getDisableEmulationHint() : undefined
+          hints: isLocalInvoke ? getDisableEmulationHint() : undefined
         });
       }
 

@@ -1,4 +1,4 @@
-import { getError } from '@utils/misc';
+import { CliError } from '@utils/errors';
 
 type GuardContext = {
   role?: string;
@@ -27,10 +27,11 @@ export const assertPermission = ({
   role?: string;
 }) => {
   if (permissions?.includes(permission)) return;
-  throw getError({
-    type: 'CLI',
+  throw new CliError({
+    category: 'CLI',
+    code: 'CLI_PERMISSION_DENIED',
     message: `Permission denied: ${reason}`,
-    hint: `Required permission: ${permission}. Current role: ${role || 'UNKNOWN'}. Run 'stacktape info:whoami' to inspect effective access.`
+    hints: `Required permission: \`${permission}\`. Current role: \`${role || 'UNKNOWN'}\`. Run \`stacktape info:whoami\` to inspect effective access.`
   });
 };
 
@@ -47,10 +48,11 @@ export const assertScopedProjectAccess = ({
   if (!projectName) return;
   const hasAccess = (projects || []).some(({ name }) => name === projectName);
   if (hasAccess) return;
-  throw getError({
-    type: 'CLI',
-    message: `Permission denied: You do not have access to project "${projectName}".`,
-    hint: `Run 'stacktape info:whoami' to view accessible projects for role ${role}.`
+  throw new CliError({
+    category: 'CLI',
+    code: 'CLI_PROJECT_ACCESS_DENIED',
+    message: `Permission denied: You do not have access to project \`${projectName}\`.`,
+    hints: `Run \`stacktape info:whoami\` to view projects accessible to role \`${role}\`.`
   });
 };
 

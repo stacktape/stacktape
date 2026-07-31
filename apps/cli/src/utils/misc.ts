@@ -1,5 +1,3 @@
-import { CliError, type ErrorCategory } from '@utils/errors';
-import type { ArgsType } from '@utils/type-helpers';
 import type { Readable } from 'node:stream';
 import { Buffer } from 'node:buffer';
 import { homedir } from 'node:os';
@@ -30,49 +28,11 @@ export const wait = (ms: number) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
 
-export const getError = ({
-  message,
-  type,
-  data,
-  hint,
-  stack,
-  code,
-  userStackTrace,
-  errorDetails
-}: {
-  message: string;
-  type: ErrorCategory;
-  code?: string;
-  hint?: string | string[];
-  data?: any;
-  stack?: Error['stack'];
-  userStackTrace?: string;
-  errorDetails?: { title: string; codeFrame?: string };
-}) => {
-  const error = new CliError({
-    category: type,
-    code: code ? `${type}_${code.toUpperCase()}` : `${type}_ERROR`,
-    message,
-    hints: hint,
-    userStackTrace,
-    detail: errorDetails
-  });
-  if (stack) {
-    error.stack = stack;
-  }
-  void data;
-  return error;
-};
-
 export const stringMatchesGlob = (testedString: string, globPattern: string): boolean => {
   return micromatch.isMatch(testedString, globPattern, { windows: true });
 };
 
 export const sortObjectKeys = (obj) => Object.fromEntries(Object.entries(obj).sort());
-
-export const raiseError = (props: ArgsType<typeof getError>[0]): never => {
-  throw getError(props);
-};
 
 export const splitStringIntoLines = (text: string, lineMaxLength: number, whitespaceLookup = 40) => {
   const regex = new RegExp(

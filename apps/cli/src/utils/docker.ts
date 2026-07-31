@@ -5,7 +5,8 @@ import type { DockerBuildOutputArchitecture } from '@stacktape/packaging/runtime
 import { isAbsolute, join } from 'node:path';
 import { exec } from '@utils/exec';
 import { transformToUnixPath } from '@utils/fs-utils';
-import { getByteSize, getError } from '@utils/misc';
+import { getByteSize } from '@utils/misc';
+import { CliError } from '@utils/errors';
 import { validateEnvVariableValue } from '@utils/validation';
 import { checkExecutableInPath, getPlatform } from './bin-executable';
 
@@ -100,12 +101,13 @@ const formatDuration = (ms: number) => {
   return `${days}d`;
 };
 
-const dockerNotInstalledError = (stack?: string) =>
-  getError({
-    type: 'DOCKER',
+const dockerNotInstalledError = (cause?: Error) =>
+  new CliError({
+    category: 'DOCKER',
+    code: 'DOCKER_NOT_INSTALLED',
     message: 'Docker is not installed or not found in PATH.',
-    hint: 'Install Docker Desktop from https://www.docker.com/products/docker-desktop/',
-    stack
+    hints: 'Install Docker Desktop from https://www.docker.com/products/docker-desktop/',
+    cause
   });
 
 /**
@@ -152,40 +154,43 @@ const isDockerNotRunningError = (err: Error) => {
 
 const handleDockerError = (err: Error, message?: string) => {
   if (isDockerNotInstalledError(err)) {
-    throw dockerNotInstalledError(err.stack);
+    throw dockerNotInstalledError(err);
   }
   if (isDockerNotRunningError(err)) {
-    throw getError({
-      type: 'DOCKER',
+    throw new CliError({
+      category: 'DOCKER',
+      code: 'DOCKER_NOT_RUNNING',
       message: 'Docker is not running.',
-      hint: [
+      hints: [
         'Make sure Docker Desktop is running.',
         getPlatform() === 'win'
-          ? '      If you have docker installed, run "Docker Desktop".'
+          ? 'If Docker is installed, start Docker Desktop.'
           : getPlatform() === 'macos'
-            ? '      If you have docker installed, run "Docker Desktop" from Applications.'
-            : '      If you have docker installed, run "sudo systemctl start docker".',
-        '      To install docker, see: https://www.docker.com/products/docker-desktop/'
-      ].join('\n'),
-      stack: err.stack
+            ? 'If Docker is installed, start Docker Desktop from Applications.'
+            : 'If Docker is installed, run `sudo systemctl start docker`.',
+        'To install Docker, visit https://www.docker.com/products/docker-desktop/.'
+      ],
+      cause: err
     });
   }
   if (err.message.includes('unauthenticated pull rate limit')) {
-    throw getError({
-      type: 'DOCKER',
-      message: typeof err === 'string' ? err : err.message,
-      hint: [
-        'To avoid rate limit problems, try using AWS ECR public repository mirror instead of Docker Hub for you base images.',
-        'Example: Instead of "node:21" use "public.ecr.aws/docker/library/node:21"',
-        'See all available images in AWS Public ECR registry: https://gallery.ecr.aws/'
-      ].join('\n'),
-      stack: err.stack
+    throw new CliError({
+      category: 'DOCKER',
+      code: 'DOCKER_PULL_RATE_LIMITED',
+      message: err.message,
+      hints: [
+        'To avoid rate limits, use the AWS ECR Public mirror instead of Docker Hub for base images.',
+        'For example, replace `node:21` with `public.ecr.aws/docker/library/node:21`.',
+        'Browse available images at https://gallery.ecr.aws/.'
+      ],
+      cause: err
     });
   }
-  throw getError({
-    type: 'DOCKER',
-    message: message || (typeof err === 'string' ? err : err.message),
-    stack: err.stack
+  throw new CliError({
+    category: 'DOCKER',
+    code: 'DOCKER_COMMAND_FAILED',
+    message: message || err.message,
+    cause: err
   });
 };
 
@@ -236,16 +241,19 @@ const toDockerEnvPassthrough = (
   const flags: string[] = [];
   for (const [name, value] of Object.entries(values || {})) {
     if (!name || name.includes('=')) {
-      throw getError({
-        type: 'CONFIG',
+      throw new CliError({
+        category: 'CONFIG',
+        code: 'CONFIG_DOCKER_ENV_NAME_INVALID',
         message: `${description} name "${name}" cannot be used: it is empty or contains "=".`
       });
     }
     if (isReservedDockerCliEnvName(name)) {
-      throw getError({
-        type: 'CONFIG',
+      throw new CliError({
+        category: 'CONFIG',
+        code: 'CONFIG_DOCKER_ENV_NAME_RESERVED',
         message: `${description} "${name}" uses a name reserved for the Docker CLI process itself.`,
-        hint: 'Stacktape hands these values to Docker through its environment so that they never appear in a command line, and this name would change how Docker itself runs. Rename it.'
+        hints:
+          "Stacktape passes these values through Docker's environment so they never appear on the command line. Rename this variable because it would change how Docker itself runs."
       });
     }
     env[name] = `${value}`;
@@ -336,17 +344,19 @@ export const getDockerImageDetails = async (tag: string) => {
   if (!image) {
     const fallbackReference = await resolveImageReference(normalizedTag);
     if (!fallbackReference) {
-      throw getError({
-        type: 'DOCKER',
-        message: `Docker image "${tag}" not found.`
+      throw new CliError({
+        category: 'DOCKER',
+        code: 'DOCKER_IMAGE_NOT_FOUND',
+        message: `Docker image \`${tag}\` was not found.`
       });
     }
     image = await inspectDockerImage(fallbackReference);
   }
   if (!image) {
-    throw getError({
-      type: 'DOCKER',
-      message: `Docker image "${tag}" not found.`
+    throw new CliError({
+      category: 'DOCKER',
+      code: 'DOCKER_IMAGE_NOT_FOUND',
+      message: `Docker image \`${tag}\` was not found.`
     });
   }
   return {
@@ -533,9 +543,10 @@ export const dockerLogin = async ({
 export const tagDockerImage = async (sourceImage: string, newTag: string) => {
   const { stderr } = await execDocker(['tag', sourceImage, newTag]);
   if (stderr) {
-    throw getError({
-      type: 'DOCKER',
-      message: `Failed to tag docker image. Error message:\n${stderr}`
+    throw new CliError({
+      category: 'DOCKER',
+      code: 'DOCKER_IMAGE_TAG_FAILED',
+      message: `Failed to tag Docker image.\n${stderr}`
     });
   }
 };
@@ -543,9 +554,10 @@ export const tagDockerImage = async (sourceImage: string, newTag: string) => {
 export const pushDockerImage = async (tagWithRepositoryUrl: string) => {
   const { stderr } = await execDocker(['push', `${tagWithRepositoryUrl}`]);
   if (stderr) {
-    throw getError({
-      type: 'DOCKER',
-      message: `Failed to push docker image ${tagWithRepositoryUrl} to remote repository. Error message:\n${stderr}`
+    throw new CliError({
+      category: 'DOCKER',
+      code: 'DOCKER_IMAGE_PUSH_FAILED',
+      message: `Failed to push Docker image \`${tagWithRepositoryUrl}\` to the remote repository.\n${stderr}`
     });
   }
 };
@@ -707,8 +719,9 @@ export const getDockerBuildxSupportedPlatforms = async (): Promise<string[]> => 
   const platformsLine = lines.find((line) => line.trim().startsWith('Platforms:'));
 
   if (!platformsLine) {
-    throw getError({
-      type: 'DOCKER',
+    throw new CliError({
+      category: 'DOCKER',
+      code: 'DOCKER_BUILDX_PLATFORMS_MISSING',
       message: 'Unable to find supported platforms in docker buildx inspect output'
     });
   }
@@ -716,8 +729,9 @@ export const getDockerBuildxSupportedPlatforms = async (): Promise<string[]> => 
   // Extract platforms from the line (format: "Platforms: linux/amd64, linux/arm64, ...")
   const platformsText = platformsLine.split('Platforms:')[1]?.trim();
   if (!platformsText) {
-    throw getError({
-      type: 'DOCKER',
+    throw new CliError({
+      category: 'DOCKER',
+      code: 'DOCKER_BUILDX_PLATFORMS_INVALID',
       message: 'Unable to parse supported platforms from docker buildx inspect output'
     });
   }
@@ -776,9 +790,10 @@ export const installDockerPlatforms = async (platforms: string[]): Promise<void>
   ]);
 
   if (exitCode !== 0) {
-    throw getError({
-      type: 'DOCKER',
-      message: `Failed to install Docker platforms ${platformsArg}. Error message:\n${stderr}`
+    throw new CliError({
+      category: 'DOCKER',
+      code: 'DOCKER_PLATFORM_INSTALL_FAILED',
+      message: `Failed to install Docker platforms \`${platformsArg}\`.\n${stderr}`
     });
   }
 };

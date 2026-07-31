@@ -5,7 +5,8 @@ import execa from 'execa';
 import { jsonlEmitter } from '../../src/app/tui-manager/jsonl-emitter';
 import { logCollectorStream } from '../../src/utils/log-collector';
 import { isDirAccessible } from './fs-utils';
-import { getError, serialize } from './misc';
+import { serialize } from './misc';
+import { CliError } from './errors';
 import { StreamTransformer } from './streams';
 
 EventEmitter.defaultMaxListeners = 0;
@@ -206,10 +207,12 @@ export const exec = async (command: string, args: string[], params: ExecProps) =
   const commandDescription = params.safeCommandDescription || [command, ...args].join(' ');
 
   if (params.cwd && !isDirAccessible(params.cwd)) {
-    throw getError({
-      type: 'CLI',
-      message: `Cannot run command "${commandDescription}" because working directory "${params.cwd}" does not exist or is not accessible.`,
-      hint: 'Check configured working directories such as appDirectory and build.workingDirectory. Relative paths are resolved from the directory containing your Stacktape config file.'
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_WORKING_DIRECTORY_INACCESSIBLE',
+      message: `Cannot run \`${commandDescription}\` because working directory \`${params.cwd}\` does not exist or is not accessible.`,
+      hints:
+        'Check configured paths such as `appDirectory` and `build.workingDirectory`. Relative paths resolve from the directory containing the Stacktape config.'
     });
   }
 
