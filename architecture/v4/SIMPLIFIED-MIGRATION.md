@@ -26,6 +26,8 @@ apps/
     └── ui/
 
 packages/
+├── config/              # dependency-free user-authored configuration model and schema
+├── config-authoring/    # TypeScript config runtime and YAML/TypeScript conversion shared by CLI and Console
 ├── packaging/           # extracted only after the migrated CLI works
 ├── naming/              # compatibility-sensitive deterministic Stacktape and infrastructure names
 ├── console-api/         # public external tRPC schemas/contracts when Console is migrated
@@ -83,7 +85,8 @@ An abstraction is justified only when it reduces the total number of concepts a 
 7. Add shared design tokens and React components only when real frontend consumers exist.
 
 The existing CLI implementation is the v4 starting point. There is no copied compatibility shell, parallel native
-compiler, SDK, or general-purpose headless runtime.
+compiler, operational SDK, or general-purpose headless runtime. `config-authoring` is the existing public TypeScript
+configuration language moved behind a real package boundary, not an API for executing Stacktape operations.
 
 ## Review process
 

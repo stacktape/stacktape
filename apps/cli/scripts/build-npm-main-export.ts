@@ -1,7 +1,11 @@
 import type { JsonSchemaGenerator } from 'typescript-json-schema';
 import type { ChildResourcesMap, ReferenceableParamsMap } from './code-generation/types';
 import { join } from 'node:path';
-import { NPM_RELEASE_FOLDER_PATH, SOURCE_FOLDER_PATH, SOURCE_MAP_INSTALL_DIST_PATH } from 'src/config/project-paths';
+import {
+  CONFIG_AUTHORING_PACKAGE_SRC_PATH,
+  NPM_RELEASE_FOLDER_PATH,
+  SOURCE_MAP_INSTALL_DIST_PATH
+} from 'src/config/project-paths';
 import { buildEsCode } from '@stacktape/packaging/bundlers/es';
 import { logInfo, logSuccess } from '@scripts/support/logging';
 import { createCliPackagingError } from '@domain-services/packaging-manager/errors';
@@ -13,7 +17,7 @@ import {
   getResourcesWithAugmentedProps,
   MISC_TYPES_CONVERTIBLE_TO_CLASSES,
   RESOURCES_CONVERTIBLE_TO_CLASSES
-} from '../src/config-sdk/resource-metadata';
+} from '@stacktape/config-authoring/resource-metadata';
 import {
   generateAugmentedPropsTypes,
   generatePlainPropsImports,
@@ -31,10 +35,10 @@ import { getJsonSchemaGenerator, getTsTypeDef } from './code-generation/utils';
 import { verifyNpmDeclarations } from './verify-npm-declarations';
 
 const PATHS = {
-  source: join(SOURCE_FOLDER_PATH, 'config-sdk', 'index.ts'),
+  source: join(CONFIG_AUTHORING_PACKAGE_SRC_PATH, 'index.ts'),
   distJs: join(NPM_RELEASE_FOLDER_PATH, 'index.js'),
-  childResources: join(SOURCE_FOLDER_PATH, 'config-sdk', 'child-resources.ts'),
-  resourceMetadata: join(SOURCE_FOLDER_PATH, 'config-sdk', 'resource-metadata.ts')
+  childResources: join(CONFIG_AUTHORING_PACKAGE_SRC_PATH, 'child-resources.ts'),
+  resourceMetadata: join(CONFIG_AUTHORING_PACKAGE_SRC_PATH, 'resource-metadata.ts')
 } as const;
 
 export const NPM_DECLARATION_FILE_NAMES = ['index.d.ts', 'types.d.ts', 'plain.d.ts', 'cloudformation.d.ts'] as const;
@@ -53,7 +57,7 @@ export const NPM_SOURCE_FILES = [
   'global-aws-services.ts',
   'directives.ts',
   'resource-metadata.ts'
-].map((file) => join(SOURCE_FOLDER_PATH, 'config-sdk', file));
+].map((file) => join(CONFIG_AUTHORING_PACKAGE_SRC_PATH, file));
 
 /**
  * Type aliases for Props types that need to extract 'properties' from discriminated unions
@@ -309,7 +313,13 @@ export type GetConfigParams = {
   /** Stacktape command used to perform this operation */
   command: string;
   /** Locally-configured AWS profile used to execute the operation */
-  profile: string | undefined;
+  awsProfile: string;
+  /** Authenticated Stacktape user, absent for local commands that do not use the control plane */
+  user?: {
+    id: string;
+    name: string;
+    email: string;
+  };
 };
 
 declare const getParamReferenceSymbol: unique symbol;

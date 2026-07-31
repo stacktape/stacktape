@@ -14,8 +14,9 @@ The committed JSON schema has the same owner: `generated/config-schema.json` is 
 imports the package subpath; do not create application-local copies.
 
 This package exists because that model used to be ~59,000 lines of ambient `.d.ts` under `apps/cli/types`. Ambient
-declarations have no owner, so `packages/packaging` ended up re-declaring `ModuleInfo` and `ProgressLogger` locally
-and both copies drifted. Nothing can be extracted safely until the configuration contract has one importable owner.
+declarations have no owner, so consumers re-declared pieces and the copies drifted. The runtime classes and directives
+that author this model live separately in `@stacktape/config-authoring`; keeping the plain model dependency-free lets
+schema generators and type-only consumers avoid loading that runtime.
 
 ## What belongs here
 

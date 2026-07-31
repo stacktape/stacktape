@@ -33,6 +33,7 @@
     "apps/console/ui/.starter-project.json",
     "apps/console/ui/src/**",
     "packages/config/src/**",
+    "packages/config-authoring/src/child-resources.ts",
     "packages/packaging/src/buildpacks/stacktape-dotnet-image-buildpack.ts",
     "packages/packaging/src/buildpacks/stacktape-dotnet-lambda-buildpack.ts",
     "packages/packaging/src/buildpacks/stacktape-es-image-buildpack.ts",

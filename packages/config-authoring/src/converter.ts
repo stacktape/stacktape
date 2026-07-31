@@ -1,24 +1,17 @@
-import type { GetConfigParams } from 'src/config-sdk/config';
+import type { GetConfigParams } from './config.js';
 import {
   ENGINE_TYPE_TO_CLASS,
   MISC_TYPES_CONVERTIBLE_TO_CLASSES,
   PACKAGING_TYPE_TO_CLASS,
   RESOURCE_TYPE_TO_CLASS,
   SCRIPT_TYPE_TO_CLASS
-} from 'src/config-sdk/class-config';
-import { defineConfig, transformConfigWithResources } from 'src/config-sdk/config';
-import {
-  $CfFormat,
-  $CfResourceParam,
-  $CfStackOutput,
-  $GitInfo,
-  $ResourceParam,
-  $Secret
-} from 'src/config-sdk/directives';
-import { AWS_SES } from 'src/config-sdk/global-aws-services';
-import * as resourceClasses from 'src/config-sdk/resources';
-import * as typePropertyClasses from 'src/config-sdk/type-properties';
-import { parseYaml, stringifyToYaml } from '@utils/yaml';
+} from './class-config.js';
+import { defineConfig, transformConfigWithResources } from './config.js';
+import { $CfFormat, $CfResourceParam, $CfStackOutput, $GitInfo, $ResourceParam, $Secret } from './directives.js';
+import { AWS_SES } from './global-aws-services.js';
+import * as resourceClasses from './resources.js';
+import * as typePropertyClasses from './type-properties.js';
+import { parseYaml, stringifyToYaml } from './yaml.js';
 
 /** Lambda function event types (from events.d.ts) */
 const LAMBDA_EVENT_TYPE_TO_CLASS: Record<string, string> = Object.fromEntries(
@@ -285,6 +278,9 @@ const configObjectToTypescriptCode = (config: Record<string, unknown>): string =
 
     for (const name of sortedNames) {
       const resource = resources[name];
+      if (!resource) {
+        throw new Error(`Resource ${name} disappeared while converting the configuration.`);
+      }
       const resourceType = resource.type as string;
       const className = RESOURCE_TYPE_TO_CLASS[resourceType];
       if (!className) {
@@ -318,7 +314,7 @@ const configObjectToTypescriptCode = (config: Record<string, unknown>): string =
   const lines: string[] = [];
 
   // Import statement
-  const sortedImports = Array.from(imports).sort();
+  const sortedImports = Array.from(imports).toSorted();
   lines.push(`import { ${sortedImports.join(', ')} } from 'stacktape';`);
   lines.push('');
 
@@ -358,8 +354,9 @@ const configObjectToTypescriptCode = (config: Record<string, unknown>): string =
   }
 
   // Remove trailing comma from last line
-  if (lines[lines.length - 1].endsWith(',')) {
-    lines[lines.length - 1] = lines[lines.length - 1].slice(0, -1);
+  const lastLine = lines.at(-1);
+  if (lastLine?.endsWith(',')) {
+    lines[lines.length - 1] = lastLine.slice(0, -1);
   }
 
   lines.push('};');
@@ -540,7 +537,8 @@ const generateArrayCode = (arr: unknown[], imports: Set<string>, indent: number,
   }
 
   if (items.length === 0) return '[]';
-  if (items.length === 1 && !items[0].includes('\n')) return `[${items[0]}]`;
+  const onlyItem = items.length === 1 ? items[0] : undefined;
+  if (onlyItem && !onlyItem.includes('\n')) return `[${onlyItem}]`;
 
   return `[\n${indentStr}  ${items.join(`,\n${indentStr}  `)}\n${indentStr}]`;
 };
@@ -641,7 +639,7 @@ const evaluateTypescriptConfig = (
     return result;
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to evaluate TypeScript config: ${message}`);
+    throw new Error(`Failed to evaluate TypeScript config: ${message}`, { cause: error });
   }
 };
 

@@ -1,7 +1,7 @@
-import type { ResourceClassName } from './class-config';
-import { RESOURCES_CONVERTIBLE_TO_CLASSES } from './class-config';
-import { BaseResource } from './config';
-import { REFERENCEABLE_PARAMS } from './resource-metadata';
+import type { ResourceClassName } from './class-config.js';
+import { RESOURCES_CONVERTIBLE_TO_CLASSES } from './class-config.js';
+import { BaseResource } from './config.js';
+import { REFERENCEABLE_PARAMS } from './resource-metadata.js';
 
 // Private symbol for accessing the internal param reference method
 const getParamReferenceSymbol = Symbol.for('stacktape:getParamReference');

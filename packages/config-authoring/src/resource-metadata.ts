@@ -1,4 +1,17 @@
-// Re-export from class-config (single source of truth)
+import {
+  getResourceByClassName,
+  getResourceByType,
+  getResourcesWithAugmentedProps,
+  getResourcesWithOverrides,
+  getTypePropertiesByClassName,
+  getTypePropertiesByTypeValue,
+  MISC_TYPES_CONVERTIBLE_TO_CLASSES,
+  RESOURCES_CONVERTIBLE_TO_CLASSES,
+  type ResourceDefinition,
+  type TypePropertiesDefinition
+} from './class-config.js';
+
+export type { ResourceDefinition, TypePropertiesDefinition };
 export {
   getResourceByClassName,
   getResourceByType,
@@ -7,10 +20,8 @@ export {
   getTypePropertiesByClassName,
   getTypePropertiesByTypeValue,
   MISC_TYPES_CONVERTIBLE_TO_CLASSES,
-  type ResourceDefinition,
-  RESOURCES_CONVERTIBLE_TO_CLASSES,
-  type TypePropertiesDefinition
-} from './class-config';
+  RESOURCES_CONVERTIBLE_TO_CLASSES
+};
 
 // These can be referenced using $ResourceParam directive
 export const REFERENCEABLE_PARAMS: Record<string, Array<{ name: string; description: string }>> = {

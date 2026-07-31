@@ -1,10 +1,10 @@
-import type { ResourceClassName } from '../../src/config-sdk/class-config';
+import type { ResourceClassName } from '@stacktape/config-authoring/class-config';
 import type { PropertyInfo } from './types';
 import {
   getResourcesWithAugmentedProps,
   getResourcesWithOverrides,
   RESOURCES_CONVERTIBLE_TO_CLASSES
-} from '../../src/config-sdk/resource-metadata';
+} from '@stacktape/config-authoring/resource-metadata';
 import { formatJSDoc, getSDKPropertyInfo } from './jsdoc-extractor';
 
 /**

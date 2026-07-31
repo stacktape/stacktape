@@ -1,8 +1,8 @@
-import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
+import type { StacktapeResourceType } from '@stacktape/config/schema-inspection';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 export const CHILD_RESOURCES: Record<
-  StpResourceType,
+  StacktapeResourceType,
   Array<{ logicalName: (...args: any[]) => string; resourceType: string; conditional?: true; unresolvable?: true }>
 > = {
   // ===== BUCKET =====

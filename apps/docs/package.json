@@ -7,7 +7,7 @@
     "build": "astro build && node scripts/validate-built-site.ts",
     "dev": "astro dev --port 9001",
     "preview": "astro preview --port 9001",
-    "test": "node --test tests/*.test.ts",
+    "test": "node --import=tsx --test tests/*.test.ts",
     "typecheck": "astro check",
     "validate:site": "node scripts/validate-built-site.ts"
   },
@@ -21,6 +21,7 @@
     "@nanostores/react": "1.0.0",
     "@shikijs/twoslash": "4.3.1",
     "@stacktape/config": "workspace:*",
+    "@stacktape/config-authoring": "workspace:*",
     "@stacktape/design-tokens": "workspace:*",
     "@typescript/vfs": "1.6.4",
     "astro": "catalog:",
@@ -46,6 +47,7 @@
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
-    "tailwindcss": "4.3.3"
+    "tailwindcss": "4.3.3",
+    "tsx": "catalog:"
   }
 }

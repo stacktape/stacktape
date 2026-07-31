@@ -15,7 +15,7 @@ import {
   DynamoDbTable,
   LambdaFunction,
   StacktapeLambdaBuildpackPackaging
-} from '../../src/config-sdk';
+} from '@stacktape/config-authoring';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
 
 const fixturePath = join(process.cwd(), '_test-stacks', 'config-loading-smoke', 'stacktape.ts');

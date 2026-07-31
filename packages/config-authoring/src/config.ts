@@ -1,6 +1,6 @@
-import type { StacktapeArgs } from 'src/config/cli/types';
-import { CHILD_RESOURCES } from './child-resources';
+import { CHILD_RESOURCES } from './child-resources.js';
 import type { StacktapeConfig } from '@stacktape/config';
+import type { StacktapeResourceType } from '@stacktape/config/schema-inspection';
 
 // Private symbols for internal methods - not accessible from outside
 // Use Symbol.for() so it can be accessed across modules (crucial for npm package interop)
@@ -143,8 +143,8 @@ export class Alarm {
   readonly [alarmSymbol] = true;
   public readonly trigger: any;
   public readonly evaluation?: any;
-  public readonly notificationTargets?: any[];
-  public readonly description?: string;
+  public readonly notificationTargets: any[] | undefined;
+  public readonly description: string | undefined;
 
   constructor(props: { trigger: any; evaluation?: any; notificationTargets?: any[]; description?: string }) {
     this.trigger = props.trigger;
@@ -306,131 +306,85 @@ function flattenToDotNotation(obj: any, prefix = ''): Record<string, any> {
   return result;
 }
 
-/**
- * Transform user-friendly overrides (with property names like 'bucket', 'lambdaLogGroup')
- * to CloudFormation logical names using cfLogicalNames
- */
+const transformChildResourceProperties = ({
+  resourceName,
+  resourceType,
+  values,
+  operation,
+  transformValue
+}: {
+  resourceName: string;
+  resourceType: string;
+  values: Record<string, any>;
+  operation: 'override' | 'transform';
+  transformValue: (value: any, currentValue: any) => any;
+}): Record<string, any> => {
+  const propertyNameMap = new Map(
+    (CHILD_RESOURCES[resourceType as StacktapeResourceType] || []).map((childResource) => [
+      childResource.logicalName.name,
+      childResource
+    ])
+  );
+  const result: Record<string, any> = {};
+  const unsupported = (propertyName: string) =>
+    new Error(
+      `${operation === 'override' ? 'Override' : 'Transform'} of property ${propertyName} of resource ${resourceName} is not supported.\n\n` +
+        `Remove the ${operation}, run 'stacktape compile:template' command, and find the logical name of the resource you want to ${operation} manually. Then add it to the ${operation}s object.`
+    );
+
+  for (const [propertyName, value] of Object.entries(values)) {
+    const childResource = propertyNameMap.get(propertyName);
+    if (!childResource) {
+      // An explicit CloudFormation logical name is already in its final form.
+      result[propertyName] = value;
+      continue;
+    }
+    if (childResource.unresolvable) {
+      throw unsupported(propertyName);
+    }
+
+    let logicalName: string;
+    try {
+      logicalName = childResource.logicalName(resourceName);
+    } catch {
+      try {
+        logicalName = childResource.logicalName();
+      } catch {
+        logicalName = propertyName;
+      }
+    }
+    if (logicalName.includes('undefined')) {
+      throw unsupported(propertyName);
+    }
+    result[logicalName] = transformValue(value, result[logicalName]);
+  }
+
+  return result;
+};
+
+/** Transform user-friendly override property names to CloudFormation logical names. */
 function transformOverridesToLogicalNames(resourceName: string, resourceType: string, overrides: any): any {
-  // Get child resources for this resource type
-  const childResources = CHILD_RESOURCES[resourceType] || [];
-
-  // Build a map of property names to child resources
-  const propertyNameMap = new Map<string, any>();
-
-  for (const childResource of childResources) {
-    // The logicalName function has a name property that matches the property name
-    if (childResource.logicalName && childResource.logicalName.name) {
-      propertyNameMap.set(childResource.logicalName.name, childResource);
-    }
-  }
-
-  // Transform overrides object
-  const transformedOverrides: any = {};
-  const errorMessage = `Override of property {propertyName} of resource ${resourceName} is not supported.\n
-Remove the override, run 'stacktape compile:template' command, and find the logical name of the resource you want to override manually. Then add it to the overrides object.`;
-
-  for (const propertyName in overrides) {
-    const childResource = propertyNameMap.get(propertyName);
-
-    // Skip unresolvable resources
-    if (childResource?.unresolvable) {
-      throw new Error(errorMessage.replace('{propertyName}', propertyName));
-    }
-
-    if (childResource) {
-      const logicalNameFn = childResource.logicalName;
-      // Call the cfLogicalNames function to get the actual CloudFormation logical name
-      // Try with resourceName first (most common), then try without arguments
-      let logicalName: string;
-      try {
-        logicalName = logicalNameFn(resourceName);
-      } catch {
-        try {
-          logicalName = logicalNameFn();
-        } catch {
-          // If both fail, use property name as-is
-          logicalName = propertyName;
-        }
-      }
-      if (logicalName.includes('undefined')) {
-        throw new Error(errorMessage.replace('{propertyName}', propertyName));
-      }
-      // When using SDK property names, flatten nested objects to dot-notation
-      // so { SmsConfiguration: { ExternalId: 'x' } } becomes { 'SmsConfiguration.ExternalId': 'x' }
-      const overrideValue = overrides[propertyName];
-      if (!transformedOverrides[logicalName]) {
-        transformedOverrides[logicalName] = {};
-      }
-      Object.assign(transformedOverrides[logicalName], flattenToDotNotation(overrideValue));
-    } else {
-      // If not found in map, use property name as-is (CF logical name used directly)
-      // Don't flatten - user is using CF logical names and may want full object replacement
-      transformedOverrides[propertyName] = overrides[propertyName];
-    }
-  }
-
-  return transformedOverrides;
+  return transformChildResourceProperties({
+    resourceName,
+    resourceType,
+    values: overrides,
+    operation: 'override',
+    transformValue: (value, currentValue = {}) => ({ ...currentValue, ...flattenToDotNotation(value) })
+  });
 }
 
-/**
- * Transform user-friendly transforms (with property names like 'lambda', 'lambdaLogGroup')
- * to CloudFormation logical names using cfLogicalNames
- * Similar to overrides but the values are functions instead of objects
- */
+/** Transform user-friendly transform property names to CloudFormation logical names. */
 function transformTransformsToLogicalNames(resourceName: string, resourceType: string, transforms: any): any {
-  // Get child resources for this resource type
-  const childResources = CHILD_RESOURCES[resourceType] || [];
-
-  // Build a map of property names to child resources
-  const propertyNameMap = new Map<string, any>();
-
-  for (const childResource of childResources) {
-    // The logicalName function has a name property that matches the property name
-    if (childResource.logicalName && childResource.logicalName.name) {
-      propertyNameMap.set(childResource.logicalName.name, childResource);
-    }
-  }
-
-  // Transform transforms object
-  const transformedTransforms: any = {};
-  const errorMessage = `Transform of property {propertyName} of resource ${resourceName} is not supported.\n
-Remove the transform, run 'stacktape compile:template' command, and find the logical name of the resource you want to transform manually. Then add it to the transforms object.`;
-
-  for (const propertyName in transforms) {
-    const childResource = propertyNameMap.get(propertyName);
-
-    // Skip unresolvable resources
-    if (childResource?.unresolvable) {
-      throw new Error(errorMessage.replace('{propertyName}', propertyName));
-    }
-
-    if (childResource) {
-      const logicalNameFn = childResource.logicalName;
-      // Call the cfLogicalNames function to get the actual CloudFormation logical name
-      // Try with resourceName first (most common), then try without arguments
-      let logicalName: string;
-      try {
-        logicalName = logicalNameFn(resourceName);
-      } catch {
-        try {
-          logicalName = logicalNameFn();
-        } catch {
-          // If both fail, use property name as-is
-          logicalName = propertyName;
-        }
-      }
-      if (logicalName.includes('undefined')) {
-        throw new Error(errorMessage.replace('{propertyName}', propertyName));
-      }
-      transformedTransforms[logicalName] = transforms[propertyName];
-    } else {
-      // If not found in map, use property name as-is (shouldn't happen with proper types)
-      transformedTransforms[propertyName] = transforms[propertyName];
-    }
-  }
-
-  return transformedTransforms;
+  return transformChildResourceProperties({
+    resourceName,
+    resourceType,
+    values: transforms,
+    operation: 'transform',
+    transformValue: (value) => value
+  });
 }
+
+export type ConfigCliArgs = Readonly<Record<string, unknown>>;
 
 export type GetConfigParams = {
   /**
@@ -449,7 +403,7 @@ export type GetConfigParams = {
   /**
    * List of arguments passed to the operation
    */
-  cliArgs: StacktapeArgs;
+  cliArgs: ConfigCliArgs;
   /**
    * Stacktape command used to perform this operation (for example deploy, delete, etc.)
    */
@@ -676,11 +630,8 @@ const rewriteEmbeddedDirectivesToCfFormat = (value: string): string | null => {
     return null;
   }
 
-  if (
-    embeddedDirectives.length === 1 &&
-    embeddedDirectives[0].startPos === 0 &&
-    embeddedDirectives[0].endPos === value.length
-  ) {
+  const onlyDirective = embeddedDirectives.length === 1 ? embeddedDirectives[0] : undefined;
+  if (onlyDirective?.startPos === 0 && onlyDirective.endPos === value.length) {
     return null;
   }
 
@@ -724,7 +675,7 @@ const getEmbeddedDirectives = (
       return null;
     }
 
-    while (idx < str.length && str[idx].match(/[\w$]/)) {
+    while (str[idx]?.match(/[\w$]/)) {
       idx++;
     }
 
@@ -769,7 +720,7 @@ const getEmbeddedDirectives = (
     let endPos = closingParenPos + 1;
     if (str[endPos] === '.') {
       endPos++;
-      while (endPos < str.length && str[endPos].match(/[\w$\.]/)) {
+      while (str[endPos]?.match(/[\w$.]/)) {
         endPos++;
       }
     }

@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test';
-import { CHILD_RESOURCES } from '../../src/config-sdk/child-resources';
-import { getResourceByClassName, getResourcesWithOverrides } from '../../src/config-sdk/class-config';
-import { REFERENCEABLE_PARAMS } from '../../src/config-sdk/resource-metadata';
+import { CHILD_RESOURCES } from '@stacktape/config-authoring/child-resources';
+import { getResourceByClassName, getResourcesWithOverrides } from '@stacktape/config-authoring/class-config';
+import { REFERENCEABLE_PARAMS } from '@stacktape/config-authoring/resource-metadata';
 import { generateAugmentedPropsTypes } from './generate-augmented-props';
 import { generateOverrideTypes, generateTransformsTypes } from './generate-overrides';
 import { generateResourceClassDeclarations } from './generate-resource-classes';

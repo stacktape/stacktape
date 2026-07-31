@@ -1,5 +1,5 @@
-import { MISC_TYPES_CONVERTIBLE_TO_CLASSES } from './class-config';
-import { BaseTypeProperties, BaseTypeOnly } from './config';
+import { MISC_TYPES_CONVERTIBLE_TO_CLASSES } from './class-config.js';
+import { BaseTypeProperties, BaseTypeOnly } from './config.js';
 
 function createTypePropertiesClass(className: string, typeValue: string, typeOnly?: boolean): any {
   if (typeOnly) {

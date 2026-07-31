@@ -39,7 +39,7 @@ import {
   UserAuthPool,
   WebService,
   defineConfig
-} from '../../src/config-sdk';
+} from '@stacktape/config-authoring';
 
 const createDenseConfig = () =>
   defineConfig(() => {

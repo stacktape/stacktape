@@ -1,5 +1,5 @@
 import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
-import type { GetConfigParams } from 'src/config-sdk/config';
+import type { GetConfigParams } from '@stacktape/config-authoring/tooling';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { getTypescriptExport } from '@utils/file-loaders';
 import type { StacktapeConfig } from '@stacktape/config';

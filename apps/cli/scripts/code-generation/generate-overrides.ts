@@ -1,5 +1,5 @@
 import type { ChildResourceMetadata, ChildResourcesMap } from './types';
-import { getResourcesWithOverrides } from '../../src/config-sdk/resource-metadata';
+import { getResourcesWithOverrides } from '@stacktape/config-authoring/resource-metadata';
 import { cfTypeToInterface, getPropertyNameFromLogicalName } from './cloudform-utils';
 
 /**

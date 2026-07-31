@@ -200,6 +200,9 @@ importers:
       '@stacktape/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@stacktape/config-authoring':
+        specifier: workspace:*
+        version: link:../../packages/config-authoring
       '@stacktape/console-api':
         specifier: workspace:*
         version: link:../../packages/console-api

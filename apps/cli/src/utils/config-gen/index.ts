@@ -1,5 +1,5 @@
 import { publicApiClient } from '@stacktape-api/public';
-import { convertYamlToTypescript } from '@utils/config-gen/config-converter';
+import { convertYamlToTypescript } from '@stacktape/config-authoring/converter';
 import { stringifyToYaml } from '@utils/yaml';
 import { writeFile, pathExists } from 'fs-extra';
 import { join } from 'node:path';

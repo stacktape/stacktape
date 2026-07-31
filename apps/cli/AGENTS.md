@@ -6,8 +6,9 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 
 ## Layout
 
-- `src/` — commands, application/domain managers, TUI, MCP, and the config-authoring SDK used to build the published
-  `stacktape` npm API (`src/config-sdk`). Executable process boundaries live in `src/entrypoints`; the outbound
+- `src/` — commands, application/domain managers, TUI, and MCP. The config-authoring runtime used to build the
+  published `stacktape` npm API lives in `@stacktape/config-authoring`. Executable process boundaries live in
+  `src/entrypoints`; the outbound
   Stacktape control-plane tRPC clients live in `src/stacktape-api`. CLI-owned AWS facilities live in `src/aws`, and
   application utilities live in `src/utils`. Helper Lambdas may import those modules because they are CLI-owned
   deployment artifacts; co-location

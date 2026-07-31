@@ -180,6 +180,14 @@
       "rules": {
         "typescript/no-explicit-any": "off"
       }
+    },
+    {
+      "files": ["packages/config-authoring/src/**"],
+      "rules": {
+        "eslint/no-underscore-dangle": "off",
+        "typescript/no-explicit-any": "off",
+        "unicorn/consistent-function-scoping": "off"
+      }
     }
   ],
   "ignorePatterns": [

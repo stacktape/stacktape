@@ -45,6 +45,7 @@ export const CLOUDFORM_ROOT_HELPER_FOLDER_PATH = join(process.cwd(), 'scripts', 
  */
 const CONFIG_PACKAGE_PATH = join(process.cwd(), '..', '..', 'packages', 'config');
 export const CONFIG_PACKAGE_SRC_PATH = join(CONFIG_PACKAGE_PATH, 'src');
+export const CONFIG_AUTHORING_PACKAGE_SRC_PATH = join(process.cwd(), '..', '..', 'packages', 'config-authoring', 'src');
 /** CLI-owned resolved resource model consumed by synthesis and configuration-reference generation. */
 export const RESOLVED_CONFIG_TYPES_PATH = join(process.cwd(), 'src', 'domain', 'config-manager', 'resolved-types');
 

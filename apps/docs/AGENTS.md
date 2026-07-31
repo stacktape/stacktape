@@ -74,6 +74,10 @@ Three invariants follow, and all three are enforced:
   extractor, which drifted — it stopped decoding HTML entities and shipped `&#39;` to readers. Do not
   reintroduce `enhance-config-schema`, `generate-api-reference`, or `generate-llm-docs` here.
   `src/utils/api-reference-text.ts` decodes at the presentation boundary as a second line of defence.
+- **Configuration conversion has one implementation.** Interactive YAML/TypeScript tabs use
+  `@stacktape/config-authoring/converter`, the same implementation as the CLI and Console editor. This application
+  only catches incomplete documentation fragments and falls back to the authored language; do not copy class maps or
+  conversion logic into Docs.
 
 ## Styling
 

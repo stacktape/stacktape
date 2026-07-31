@@ -48,6 +48,13 @@ extracted into a package only when the package has a concrete present-day respon
 `TARGET-ARCHITECTURE.md`, `ORCHESTRATION-PLAN.md`, and `MIGRATION-RUNBOOK.md` describe the rejected plan and are
 retained only as history.
 
+### Configuration model and authoring runtime
+
+`@stacktape/config` owns the dependency-free plain configuration model and schema. `@stacktape/config-authoring`
+owns the existing `defineConfig` runtime, resource/property classes, directives, metadata, and YAML/TypeScript
+converter used by the CLI, npm package assembly, and Console editor. This is not the rejected operational SDK: it
+cannot deploy, call AWS, execute commands, or access the Console.
+
 ## API and tRPC decisions
 
 - tRPC remains the transport and type-safe client mechanism.

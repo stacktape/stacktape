@@ -1,5 +1,8 @@
-import type { KebabToPascalCase } from '@utils/type-helpers';
-import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
+import type { StacktapeResourceType } from '@stacktape/config/schema-inspection';
+
+type KebabToPascalCase<Value extends string> = Value extends `${infer First}-${infer Rest}`
+  ? `${Capitalize<First>}${KebabToPascalCase<Rest>}`
+  : Capitalize<Value>;
 /**
  * This file defines type-properties shaped definitions (e.g. Stacktape resources, packaging types etc.)
  * that can be converted to a Typescript class. These classes are then exported from stacktape/classes
@@ -8,7 +11,7 @@ import type { StpResourceType } from '@domain-services/config-manager/resolved-t
  */
 
 export type ResourceClassName =
-  | KebabToPascalCase<StpResourceType>
+  | KebabToPascalCase<StacktapeResourceType>
   | 'Function'
   | 'Script'
   | 'LambdaFunction'
