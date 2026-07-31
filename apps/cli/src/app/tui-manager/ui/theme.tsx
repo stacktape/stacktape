@@ -3,49 +3,61 @@ import { createStore } from 'solid-js/store';
 import { createSimpleContext } from './context';
 
 /**
- * Dark theme (default). All values are hex strings for OpenTUI `fg` props.
- *
- * Brand colors: swap the accent values below with the official Stacktape palette
- * when available — `running` is the primary accent, `success`/`error`/`warning`
- * the semantic status colors.
+ * Stacktape brand palette (sourced from website/src/styles/variables.ts).
+ * Single source of truth for all three TUI apps (progress, dev, launcher).
  */
+export const brand = {
+  accent: '#36BEBE',
+  accentContrastText: '#0C1414',
+  success: '#0ABBB5',
+  error: '#EB6161',
+  warning: '#ED8B00',
+  bg: '#171D1D',
+  panelBg: '#202525',
+  textBright: '#F4F4F5',
+  text: '#DEDEDE',
+  muted: '#8C8C8C',
+  dim: '#5A6060'
+} as const;
+
+/** Dark theme (default). All values are hex strings for OpenTUI `fg` props. */
 export const darkTheme = {
   // Semantic status
-  pending: '#6b7280',
-  running: '#06b6d4',
-  success: '#22c55e',
-  error: '#ef4444',
-  warning: '#eab308',
+  pending: brand.dim,
+  running: brand.accent,
+  success: brand.success,
+  error: brand.error,
+  warning: brand.warning,
   rebuild: '#c084fc',
 
   // Text hierarchy
-  text: '#d1d5db',
-  textBright: '#e5e7eb',
-  muted: '#9ca3af',
-  dim: '#6b7280',
+  text: brand.text,
+  textBright: brand.textBright,
+  muted: brand.muted,
+  dim: brand.dim,
 
   // Surfaces
-  bg: '#1a1a2e',
-  border: '#374151',
-  separator: '#374151',
+  bg: brand.bg,
+  border: '#3a4444',
+  separator: '#3a4444',
 
   // Accent
   blue: '#3b82f6',
-  amber: '#f59e0b',
+  amber: brand.warning,
   purple: '#a78bfa',
   hint: '#8b5cf6',
-  announce: '#3b82f6'
+  announce: brand.accent
 } as const;
 
 export type Theme = { -readonly [K in keyof typeof darkTheme]: string };
 
-/** Light theme — darker, higher-contrast variants for light terminals. */
+/** Light theme — darker, higher-contrast brand variants for light terminals. */
 export const lightTheme: Theme = {
   pending: '#6b7280',
-  running: '#0891b2',
-  success: '#16a34a',
-  error: '#dc2626',
-  warning: '#ca8a04',
+  running: '#1a9c9c',
+  success: '#0a8c87',
+  error: '#d34848',
+  warning: '#c17000',
   rebuild: '#9333ea',
 
   text: '#1f2937',
@@ -58,10 +70,10 @@ export const lightTheme: Theme = {
   separator: '#d1d5db',
 
   blue: '#2563eb',
-  amber: '#d97706',
+  amber: '#c17000',
   purple: '#7c3aed',
   hint: '#7c3aed',
-  announce: '#2563eb'
+  announce: '#1a9c9c'
 };
 
 export type ThemeMode = 'light' | 'dark';

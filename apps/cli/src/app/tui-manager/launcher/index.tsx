@@ -4,6 +4,7 @@ import { useKeyboard } from '@opentui/solid';
 import { getAllowedArgs, getArgInfo, validateCommandArgs } from '../../../config/cli/utils';
 import { getStacktapeVersion } from '../../../utils/versioning';
 import { createOpenTuiApp } from '../runtime/opentui';
+import { brand } from '../ui/theme';
 import {
   commandSuggestions,
   fetchRecentCommandSuggestions,
@@ -37,19 +38,18 @@ type Hint = { key: string; label: string };
 const POPOVER_VISIBLE = 10;
 const PANEL_MAX_WIDTH = 84;
 
-// Stacktape brand palette (sourced from website/src/styles/variables.ts).
-const BG = '#171D1D'; // mainBackground
-const PANEL_BG = '#202525'; // inputBackground
-const ACCENT = '#36BEBE'; // stacktapeGreen — selection, cursor, accent bar
-const ACCENT_TEXT = '#0c1414'; // dark contrast on accent bg
-const LOGO_COLOR = '#36BEBE';
-const TEXT_BRIGHT = '#F4F4F5';
-const TEXT = '#DEDEDE';
-const MUTED = '#8C8C8C';
-const DIM = '#5A6060';
-const SUCCESS = '#0ABBB5';
-const ERROR = '#EB6161';
-const WARNING = '#ED8B00';
+const BG = brand.bg;
+const PANEL_BG = brand.panelBg;
+const ACCENT = brand.accent; // selection, cursor, accent bar
+const ACCENT_TEXT = brand.accentContrastText;
+const LOGO_COLOR = brand.accent;
+const TEXT_BRIGHT = brand.textBright;
+const TEXT = brand.text;
+const MUTED = brand.muted;
+const DIM = brand.dim;
+const SUCCESS = brand.success;
+const ERROR = brand.error;
+const WARNING = brand.warning;
 
 const launcherTheme = {
   bg: BG,
