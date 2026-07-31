@@ -24,7 +24,6 @@ import type {
   UpdateStackInput
 } from '@aws-sdk/client-cloudformation';
 import type { DistributionSummary } from '@aws-sdk/client-cloudfront';
-import type { FilteredLogEvent, InputLogEvent, OrderBy } from '@aws-sdk/client-cloudwatch-logs';
 import type { BatchGetBuildsCommandInput, Build } from '@aws-sdk/client-codebuild';
 import type { CreateDeploymentCommandInput } from '@aws-sdk/client-codedeploy';
 import type { UserType } from '@aws-sdk/client-cognito-identity-provider';
@@ -92,21 +91,8 @@ import {
   GetInvalidationCommand,
   ListDistributionsCommand
 } from '@aws-sdk/client-cloudfront';
-import type { StateValue, MetricDataQuery, MetricDataResult } from '@aws-sdk/client-cloudwatch';
-import { CloudWatchClient, DescribeAlarmsCommand, GetMetricDataCommand } from '@aws-sdk/client-cloudwatch';
-import {
-  CloudWatchLogsClient,
-  CreateLogGroupCommand,
-  CreateLogStreamCommand,
-  DescribeLogGroupsCommand,
-  DescribeLogStreamsCommand,
-  FilterLogEventsCommand,
-  GetQueryResultsCommand,
-  PutLogEventsCommand,
-  PutRetentionPolicyCommand,
-  ResourceNotFoundException,
-  StartQueryCommand
-} from '@aws-sdk/client-cloudwatch-logs';
+import { CloudWatchClient } from '@aws-sdk/client-cloudwatch';
+import { CloudWatchLogsClient } from '@aws-sdk/client-cloudwatch-logs';
 import {
   ArtifactsType,
   BatchGetBuildsCommand,
@@ -255,6 +241,7 @@ import {
   type AwsClientWithMiddleware
 } from '../context';
 import { S3Sync } from '../s3-sync';
+import { AwsObservability } from '../observability';
 import { AwsParameterStore } from '../parameter-store';
 import { AwsSecrets } from '../secrets';
 import {
@@ -350,6 +337,7 @@ const hasVersionArn = (version: TypeVersionSummary): version is RegisteredPrivat
 
 export class AwsSdkManager {
   #context?: AwsClientContext;
+  #observability?: AwsObservability;
   #parameterStore?: AwsParameterStore;
   #secrets?: AwsSecrets;
   printer?: Printer;
@@ -375,6 +363,12 @@ export class AwsSdkManager {
     this.printer = printer;
     this.#parameterStore = new AwsParameterStore({
       createClient: (clientRegion) => this.#ssm(clientRegion),
+      getErrorHandler: this.#getErrorHandler,
+      printer
+    });
+    this.#observability = new AwsObservability({
+      createCloudWatchClient: () => this.#cloudwatch(),
+      createLogsClient: () => this.#cloudwatchLogs(),
       getErrorHandler: this.#getErrorHandler,
       printer
     });
@@ -406,6 +400,14 @@ export class AwsSdkManager {
       throw new Error('AWS Parameter Store has not been initialized.');
     }
     return this.#parameterStore;
+  }
+
+  get observability() {
+    this.#getContext();
+    if (!this.#observability) {
+      throw new Error('AWS observability services have not been initialized.');
+    }
+    return this.#observability;
   }
 
   get secrets() {
@@ -1778,228 +1780,6 @@ export class AwsSdkManager {
       allPolicies.push(PolicyNames || []);
     }
     return allPolicies.flat();
-  };
-
-  getLogStreams = async ({
-    logGroupName,
-    logStreamNamePrefix,
-    limit = 50,
-    orderBy = 'LastEventTime'
-  }: {
-    logGroupName: string;
-    logStreamNamePrefix?: string;
-    limit?: number;
-    orderBy?: OrderBy;
-  }) => {
-    const errHandler = this.#getErrorHandler(`Failed to get log streams for log group ${logGroupName}.`);
-    const result = [];
-    let amount = 0;
-    let { logStreams, nextToken } = await this.#cloudwatchLogs()
-      .send(
-        new DescribeLogStreamsCommand({
-          logGroupName,
-          descending: true,
-          orderBy,
-          logStreamNamePrefix
-        })
-      )
-      .catch(errHandler);
-
-    result.push(logStreams);
-    amount += logStreams?.length || 0;
-    while (nextToken && amount < limit) {
-      ({ logStreams, nextToken } = await this.#cloudwatchLogs()
-        .send(
-          new DescribeLogStreamsCommand({
-            logGroupName,
-            descending: true,
-            orderBy,
-            logStreamNamePrefix,
-            nextToken
-          })
-        )
-        .catch(errHandler));
-      result.push(logStreams);
-      amount += logStreams?.length || 0;
-    }
-
-    return result.flat();
-  };
-
-  getLogEvents = async ({
-    startTime,
-    logGroupName,
-    logStreamNames,
-    logStreamPrefix,
-    filterPattern
-  }: {
-    logGroupName: string;
-    logStreamNames?: string[];
-    logStreamPrefix?: string;
-    startTime?: number;
-    filterPattern?: string;
-  }): Promise<FilteredLogEvent[]> => {
-    const errHandler = this.#getErrorHandler('Failed to get log event.');
-    const params = {
-      logGroupName,
-      logStreamNames,
-      logStreamNamePrefix: logStreamPrefix,
-      startTime,
-      ...(filterPattern && { filterPattern })
-    };
-    const result = [];
-    let { events, nextToken } = await this.#cloudwatchLogs()
-      .send(new FilterLogEventsCommand(params))
-      .catch((err) => {
-        if (err instanceof ResourceNotFoundException) {
-          this.printer?.debug(`Error when fetching for logs: ${err} (${logGroupName} / ${logStreamNames})`);
-          return { events: [] as FilteredLogEvent[], nextToken: undefined };
-        }
-        errHandler(err);
-      });
-    result.push(events);
-    while (nextToken) {
-      ({ events, nextToken } = await this.#cloudwatchLogs()
-        .send(new FilterLogEventsCommand({ ...params, nextToken }))
-        .catch(errHandler));
-      result.push(events);
-    }
-    return result.flat();
-  };
-
-  getLogGroup = async ({ logGroupName }: { logGroupName: string }) => {
-    return (await this.#cloudwatchLogs().send(new DescribeLogGroupsCommand({ logGroupNamePrefix: logGroupName })))
-      ?.logGroups?.[0];
-  };
-
-  createLogGroup = async ({
-    logGroupName,
-    retentionDays
-  }: {
-    logGroupName: string;
-    retentionDays?: 1 | 3 | 5 | 7 | 14 | 30 | 60 | 90 | 120 | 150 | 180 | 365 | 400 | 545 | 731 | 1827 | 3653;
-  }) => {
-    await this.#cloudwatchLogs().send(new CreateLogGroupCommand({ logGroupName, tags: { stp: 'stp' } }));
-    await wait(500);
-    if (retentionDays) {
-      await this.#cloudwatchLogs().send(
-        new PutRetentionPolicyCommand({ logGroupName, retentionInDays: retentionDays })
-      );
-    }
-
-    return this.getLogGroup({ logGroupName });
-  };
-
-  createLogStream = async ({ logGroupName, logStreamName }: { logGroupName: string; logStreamName: string }) => {
-    const errHandler = this.#getErrorHandler('Failed to create log stream.');
-    return this.#cloudwatchLogs().send(new CreateLogStreamCommand({ logGroupName, logStreamName })).catch(errHandler);
-  };
-
-  putLogEvents = async ({
-    logGroupName,
-    logStreamName,
-    logEvents
-  }: {
-    logGroupName: string;
-    logStreamName: string;
-    logEvents: InputLogEvent[];
-  }) => {
-    const errHandler = this.#getErrorHandler('Failed to send log events.');
-    return this.#cloudwatchLogs()
-      .send(new PutLogEventsCommand({ logGroupName, logStreamName, logEvents }))
-      .catch(errHandler);
-  };
-
-  /**
-   * Run CloudWatch Logs Insights query
-   */
-  runLogsInsightsQuery = async ({
-    logGroupName,
-    query,
-    startTime,
-    endTime
-  }: {
-    logGroupName: string;
-    query: string;
-    startTime: Date;
-    endTime: Date;
-  }): Promise<{ results: Record<string, string>[] }> => {
-    const errHandler = this.#getErrorHandler('Failed to run Logs Insights query.');
-    const startResponse = await this.#cloudwatchLogs()
-      .send(
-        new StartQueryCommand({
-          logGroupName,
-          queryString: query,
-          startTime: Math.floor(startTime.getTime() / 1000),
-          endTime: Math.floor(endTime.getTime() / 1000)
-        })
-      )
-      .catch(errHandler);
-
-    const queryId = startResponse.queryId;
-    let status = 'Running';
-    let results: Record<string, string>[] = [];
-
-    while (status === 'Running' || status === 'Scheduled') {
-      await wait(500);
-      const response = await this.#cloudwatchLogs().send(new GetQueryResultsCommand({ queryId })).catch(errHandler);
-      status = response.status;
-      if (response.results) {
-        results = response.results.map((row) =>
-          row.reduce(
-            (acc, field) => {
-              if (field.field && field.value) acc[field.field] = field.value;
-              return acc;
-            },
-            {} as Record<string, string>
-          )
-        );
-      }
-    }
-
-    return { results };
-  };
-
-  /**
-   * Describe CloudWatch alarms for a stack
-   */
-  describeAlarms = async ({ alarmNamePrefix, stateValue }: { alarmNamePrefix?: string; stateValue?: StateValue }) => {
-    const errHandler = this.#getErrorHandler('Failed to describe CloudWatch alarms.');
-    const response = await this.#cloudwatch()
-      .send(
-        new DescribeAlarmsCommand({
-          MaxRecords: 100,
-          ...(alarmNamePrefix && { AlarmNamePrefix: alarmNamePrefix }),
-          ...(stateValue && { StateValue: stateValue })
-        })
-      )
-      .catch(errHandler);
-    return response.MetricAlarms || [];
-  };
-
-  /**
-   * Get CloudWatch metric data
-   */
-  getMetricData = async ({
-    metricQueries,
-    startTime,
-    endTime
-  }: {
-    metricQueries: MetricDataQuery[];
-    startTime: Date;
-    endTime: Date;
-  }): Promise<MetricDataResult[]> => {
-    const errHandler = this.#getErrorHandler('Failed to get CloudWatch metric data.');
-    const response = await this.#cloudwatch()
-      .send(
-        new GetMetricDataCommand({
-          MetricDataQueries: metricQueries,
-          StartTime: startTime,
-          EndTime: endTime
-        })
-      )
-      .catch(errHandler);
-    return response.MetricDataResults || [];
   };
 
   listAllHostedZones = async (): Promise<HostedZone[]> => {

@@ -323,7 +323,7 @@ class CloudwatchLogStreamPrinter {
   }
 
   printLogs = async () => {
-    const events = await awsSdkManager.getLogEvents({
+    const events = await awsSdkManager.observability.getLogEvents({
       logGroupName: this.logGroupName,
       logStreamNames: [this.logStreamName],
       startTime: this.fetchSince

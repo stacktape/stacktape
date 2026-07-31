@@ -32,7 +32,7 @@ export const commandAlarms = async () => {
   const stateValue = state ? (StateValue[state as keyof typeof StateValue] as StateValue) : undefined;
 
   // Get all alarms with stack prefix
-  const alarms = await awsSdkManager.describeAlarms({
+  const alarms = await awsSdkManager.observability.describeAlarms({
     alarmNamePrefix: stackName,
     stateValue
   });

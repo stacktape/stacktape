@@ -45,11 +45,11 @@ export class LambdaCloudwatchLogPrinter {
 
   printLogs = async () => {
     if (!this.logStream) {
-      const logStreams = await awsSdkManager.getLogStreams({ logGroupName: this.logGroupName });
+      const logStreams = await awsSdkManager.observability.listLogStreams({ logGroupName: this.logGroupName });
       this.logStream = logStreams.find((ls) => ls.creationTime > this.fetchSince);
     }
     if (this.logStream) {
-      const events = await awsSdkManager.getLogEvents({
+      const events = await awsSdkManager.observability.getLogEvents({
         logGroupName: this.logGroupName,
         logStreamNames: [this.logStream.logStreamName],
         startTime: this.fetchSince + 1
@@ -252,7 +252,7 @@ export class CodebuildDeploymentCloudwatchLogPrinter {
   }
 
   printLogs = async () => {
-    const events = await awsSdkManager.getLogEvents({
+    const events = await awsSdkManager.observability.getLogEvents({
       logGroupName: this.logGroupName,
       logStreamNames: [this.logStreamName],
       startTime: this.fetchSince
@@ -335,7 +335,7 @@ export class SsmExecuteScriptCloudwatchLogPrinter {
   }
 
   printLogs = async () => {
-    const events = await awsSdkManager.getLogEvents({
+    const events = await awsSdkManager.observability.getLogEvents({
       logGroupName: this.logGroupName,
       logStreamPrefix: this.logStreamPrefix,
       startTime: this.fetchSince

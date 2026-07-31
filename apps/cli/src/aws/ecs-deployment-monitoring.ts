@@ -111,7 +111,10 @@ export class EcsServiceDeploymentStatusPoller {
               const logStreamName = logGroupName && runtimeId ? `ecs/${name}/${runtimeId.split('-')[0]}` : undefined;
               const logs =
                 logGroupName && logStreamName
-                  ? await this.#awsSdkManager.getLogEvents({ logGroupName, logStreamNames: [logStreamName] })
+                  ? await this.#awsSdkManager.observability.getLogEvents({
+                      logGroupName,
+                      logStreamNames: [logStreamName]
+                    })
                   : undefined;
               this.#failedContainersDetail.push({
                 name,

@@ -16,8 +16,9 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   endpoint and middleware. Service clients must use that context so refreshed credentials and emulator endpoints are
   not bypassed. `AwsSdkManager` is the transitional invocation-scoped composition object, not the owner of credential
   refresh. New AWS behavior must not add another unrelated flat method to that class. Extract a cohesive boundary only
-  when it has real callers and behavior of its own. SSM Parameter Store and Secrets Manager are reached as
-  `awsSdkManager.parameterStore` and `awsSdkManager.secrets`; SSM sessions remain separate workflow behavior.
+  when it has real callers and behavior of its own. SSM Parameter Store, Secrets Manager, and CloudWatch
+  logs/metrics/alarms are reached as `awsSdkManager.parameterStore`, `awsSdkManager.secrets`, and
+  `awsSdkManager.observability`; SSM sessions remain separate workflow behavior.
   `package`, `synth`, and `validate` initialize that context from the standard local AWS credential provider chain and
   do not require Stacktape Console authentication. Account identity remains required because it participates in
   deterministic names and synthesized ARNs.

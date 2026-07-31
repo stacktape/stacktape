@@ -127,7 +127,7 @@ export const commandMetrics = async () => {
     }
   };
 
-  const results = await awsSdkManager.getMetricData({
+  const results = await awsSdkManager.observability.getMetricData({
     metricQueries: [metricQuery],
     startTime,
     endTime

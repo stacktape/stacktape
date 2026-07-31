@@ -85,7 +85,7 @@ export class LambdaProvisionedConcurrencyPoller {
     }
 
     try {
-      const logStreams = await this.#awsSdkManager.getLogStreams({
+      const logStreams = await this.#awsSdkManager.observability.listLogStreams({
         logGroupName: this.#logGroupName,
         limit: 10,
         orderBy: 'LastEventTime'
@@ -104,7 +104,7 @@ export class LambdaProvisionedConcurrencyPoller {
         this.#logStreamName = streamsToUse[0].logStreamName;
 
         // Fetch logs from these streams
-        const logs = await this.#awsSdkManager.getLogEvents({
+        const logs = await this.#awsSdkManager.observability.getLogEvents({
           logGroupName: this.#logGroupName,
           logStreamNames: streamsToUse.map((s) => s.logStreamName),
           startTime: this.#startTime.getTime()

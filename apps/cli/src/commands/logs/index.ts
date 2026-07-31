@@ -59,7 +59,7 @@ export const commandLogs = async () => {
 
   // Use CloudWatch Logs Insights query if provided
   if (query) {
-    const result = await awsSdkManager.runLogsInsightsQuery({
+    const result = await awsSdkManager.observability.runLogsInsightsQuery({
       logGroupName,
       query,
       startTime,
@@ -127,7 +127,7 @@ export const commandLogs = async () => {
   }
 
   // Standard one-shot log fetching
-  const logStreams = await awsSdkManager.getLogStreams({ logGroupName });
+  const logStreams = await awsSdkManager.observability.listLogStreams({ logGroupName });
 
   if (!logStreams.length) {
     if (isAgentMode()) {
@@ -138,7 +138,7 @@ export const commandLogs = async () => {
     return null;
   }
 
-  const events = await awsSdkManager.getLogEvents({
+  const events = await awsSdkManager.observability.getLogEvents({
     logGroupName,
     logStreamNames: logStreams.map((logStream) => logStream.logStreamName),
     filterPattern: filter,

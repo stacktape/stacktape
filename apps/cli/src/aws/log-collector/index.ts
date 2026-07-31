@@ -74,21 +74,21 @@ export class LogCollectorStream extends Writable {
     }
     this.#sendingInProgress = true;
     if (!this.#logGroupExists) {
-      let logGroup = await this.#awsSdkManager.getLogGroup({ logGroupName: this.#logGroupName });
+      let logGroup = await this.#awsSdkManager.observability.getLogGroup({ logGroupName: this.#logGroupName });
       if (!logGroup) {
-        await this.#awsSdkManager.createLogGroup({
+        await this.#awsSdkManager.observability.createLogGroup({
           logGroupName: this.#logGroupName
         });
       }
       while (!logGroup) {
         await wait(1000);
-        logGroup = await this.#awsSdkManager.getLogGroup({ logGroupName: this.#logGroupName });
+        logGroup = await this.#awsSdkManager.observability.getLogGroup({ logGroupName: this.#logGroupName });
       }
       this.#logGroupExists = true;
     }
 
     if (!this.#logStreamExists) {
-      await this.#awsSdkManager.createLogStream({
+      await this.#awsSdkManager.observability.createLogStream({
         logGroupName: this.#logGroupName,
         logStreamName: this.#logStreamName
       });
@@ -99,7 +99,7 @@ export class LogCollectorStream extends Writable {
     if (eventsToSend.length) {
       try {
         for (const chunk of chunkArray(eventsToSend, 10000)) {
-          await this.#awsSdkManager.putLogEvents({
+          await this.#awsSdkManager.observability.putLogEvents({
             logGroupName: this.#logGroupName,
             logStreamName: this.#logStreamName,
             logEvents: chunk

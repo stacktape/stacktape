@@ -66,9 +66,11 @@ export const preparePipelineResources = async ({
     // after assume policies are updated, AWS needs to achieve consistency before trying to use the role in project
     await wait(10000);
   }
-  let logGroup = await awsSdkManager.getLogGroup({ logGroupName: awsResourceNames.stackOperationsLogGroup() });
+  let logGroup = await awsSdkManager.observability.getLogGroup({
+    logGroupName: awsResourceNames.stackOperationsLogGroup()
+  });
   if (!logGroup) {
-    logGroup = await awsSdkManager.createLogGroup({
+    logGroup = await awsSdkManager.observability.createLogGroup({
       logGroupName: awsResourceNames.stackOperationsLogGroup()
       // retentionDays: 30
     });

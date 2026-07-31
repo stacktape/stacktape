@@ -294,9 +294,9 @@ export class CloudformationRegistryManager {
           privateTypeName as SupportedPrivateCfResourceType
         ].packagePrefix
     });
-    let logGroup = await awsSdkManager.getLogGroup({ logGroupName });
+    let logGroup = await awsSdkManager.observability.getLogGroup({ logGroupName });
     if (!logGroup) {
-      logGroup = await awsSdkManager.createLogGroup({ logGroupName, retentionDays: 30 });
+      logGroup = await awsSdkManager.observability.createLogGroup({ logGroupName, retentionDays: 30 });
     }
     return {
       logGroupName: logGroup.logGroupName,
