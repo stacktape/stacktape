@@ -10,13 +10,7 @@ import type {
   TuiSelectOption
 } from './types';
 import { eventManager } from '@application-services/event-manager';
-import {
-  ARE_NOTIFICATIONS_DISABLED,
-  INVOKED_FROM_ENV_VAR_NAME,
-  IS_DEV,
-  linksMap,
-  NOTIFICATION_MIN_DURATION_MS
-} from '@config';
+import { ARE_NOTIFICATIONS_DISABLED, IS_DEV, linksMap, NOTIFICATION_MIN_DURATION_MS } from '@config';
 import { getRelativePath, transformToUnixPath } from '@utils/fs-utils';
 
 import kleur from 'kleur';
@@ -1258,19 +1252,6 @@ class TuiManager {
     try {
       process.stderr.write(`${errorString}\n`);
     } catch {}
-  }
-
-  printStacktapeLog(stacktapeLog: { type: string; data: Record<string, any> }) {
-    const message = { ...stacktapeLog, timestamp: Date.now() };
-    if (process.env[INVOKED_FROM_ENV_VAR_NAME] === 'sdk') {
-      process.send?.(message);
-    } else if (stacktapeLog.type === 'ERROR') {
-      console.error(message);
-    } else {
-      console.info(message);
-    }
-    const level: 'info' | 'warn' | 'error' = stacktapeLog.type === 'ERROR' ? 'error' : 'info';
-    this.emitOutputRecord({ type: 'log', level, source: 'stacktape-log', message: JSON.stringify(message) });
   }
 
   emitJsonlResult({

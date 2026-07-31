@@ -1,7 +1,5 @@
-import type { InvokedFrom } from '@application-services/global-state-manager/types';
 import type { StacktapeArgs, StacktapeCliArgs, StacktapeCommand } from 'src/config/cli/types';
 import { argAliases as cliArgsAliases } from '../config/cli/options';
-import { camelCase } from 'change-case';
 import yargsParser from 'yargs-parser';
 
 export const transformToCliArgs = (args: StacktapeArgs) => {
@@ -111,11 +109,4 @@ export const getCliInput = (): {
     options,
     additionalArgs: Object.keys(parsedAdditionalArgs).length > 0 ? parsedAdditionalArgs : {}
   };
-};
-
-export const getCommandForCurrentEnvironment = (command: StacktapeCommand, invokedFrom: InvokedFrom) => {
-  if (invokedFrom === 'cli') {
-    return command;
-  }
-  return camelCase(command.replaceAll(':', '-'));
 };

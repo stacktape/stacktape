@@ -600,7 +600,6 @@ export class GlobalStateManager {
         });
       }
       validateProjectName(chosenProjectName);
-      // console.log(' !!! do not forget to uncomment this !!!');
       const projectInfo = await stacktapeTrpcApiManager.apiClient.createProject({
         name: chosenProjectName,
         configPath: this.args.configPath,
