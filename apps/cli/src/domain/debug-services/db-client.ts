@@ -224,7 +224,14 @@ const isDestructiveSql = (sql: string): { destructive: boolean; reason?: string 
   return { destructive: false };
 };
 
-export type SqlQueryOpts = { sql: string; limit?: number; timeout?: number; confirm?: boolean };
+export type SqlQueryOpts = {
+  sql: string;
+  limit?: number;
+  timeout?: number;
+  confirm?: boolean;
+  /** Execute inside a database-enforced read-only transaction. */
+  readOnly?: boolean;
+};
 
 // ─────────────────────────────────────────────────────────────────────────────
 // PostgreSQL
@@ -266,7 +273,17 @@ export const postgresQuery = async (conn: PostgresConnectionOpts, opts: SqlQuery
     const isSelect = sqlLower.trimStart().startsWith('select');
     const sql = isSelect && !hasLimit ? `${opts.sql} LIMIT ${limit + 1}` : opts.sql;
 
-    const result = await client.query(sql);
+    if (opts.readOnly) await client.query('BEGIN READ ONLY');
+
+    let result;
+    try {
+      // PostgreSQL's extended query protocol accepts one statement only. This prevents a batch from committing the
+      // read-only transaction and running a mutation afterwards.
+      const query = opts.readOnly ? { text: sql, queryMode: 'extended' as const } : sql;
+      result = await client.query(query);
+    } finally {
+      if (opts.readOnly) await client.query('ROLLBACK').catch(() => {});
+    }
     const truncated = isSelect && !hasLimit && result.rows.length > limit;
     const rows = truncated ? result.rows.slice(0, limit) : result.rows;
 
@@ -640,7 +657,9 @@ export const mysqlQuery = async (conn: MysqlConnectionOpts, opts: SqlQueryOpts):
       user: conn.user,
       password: conn.password,
       database: conn.database,
-      connectTimeout: 5000
+      connectTimeout: 5000,
+      // Keep SQL batches disabled so a query cannot commit the read-only transaction before a later mutation.
+      multipleStatements: false
     });
 
     const sqlLower = opts.sql.toLowerCase();
@@ -648,7 +667,18 @@ export const mysqlQuery = async (conn: MysqlConnectionOpts, opts: SqlQueryOpts):
     const isSelect = sqlLower.trimStart().startsWith('select');
     const sql = isSelect && !hasLimit ? `${opts.sql} LIMIT ${limit + 1}` : opts.sql;
 
-    const [rows, fields] = await connection.query(sql);
+    if (opts.readOnly) {
+      await connection.query('SET TRANSACTION READ ONLY');
+      await connection.beginTransaction();
+    }
+
+    let rows;
+    let fields;
+    try {
+      [rows, fields] = await connection.query(sql);
+    } finally {
+      if (opts.readOnly) await connection.rollback().catch(() => {});
+    }
 
     if (Array.isArray(rows)) {
       const truncated = isSelect && !hasLimit && rows.length > limit;

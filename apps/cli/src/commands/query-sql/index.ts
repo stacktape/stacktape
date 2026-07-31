@@ -4,54 +4,76 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { postgresQuery, mysqlQuery, type PostgresConnectionOpts } from '@domain-services/debug-services/db-client';
-import { stpErrors } from '@errors';
 import { startPortForwardingSessions, type SsmPortForwardingTunnel } from '@utils/ssm-session';
 import { locallyResolveSensitiveValue } from '@utils/stack-info-map-sensitive-values';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 const SUPPORTED_DB_TYPES = ['relational-database'] as const;
-const READ_ONLY_SQL_PREFIXES = ['select', 'show', 'describe', 'explain', '\\d'] as const;
+const READ_ONLY_SQL_KEYWORDS = new Set(['select', 'show', 'describe', 'explain', 'with', 'values']);
 
-const parseConnectionString = ({ connectionString }: { connectionString: string }) => {
+export const parseSqlConnectionString = ({ connectionString }: { connectionString: string }) => {
   let url: URL;
   try {
     url = new URL(connectionString);
   } catch {
-    throw new ExpectedError(
-      'CLI',
-      'Could not parse database connection string',
-      `Connection string format not recognized: ${connectionString.substring(0, 30)}...`
-    );
+    // Do not retain the parser error as a cause: URL parser errors can include the credential-bearing input.
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_SQL_CONNECTION_STRING_INVALID',
+      message: 'Could not parse the database connection string.'
+    });
   }
 
   const protocol = url.protocol.replace(':', '');
   if (protocol !== 'postgresql' && protocol !== 'mysql') {
-    throw new ExpectedError('CLI', `Unsupported SQL protocol in connection string: ${protocol}`);
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_SQL_PROTOCOL_UNSUPPORTED',
+      message: `Unsupported SQL protocol \`${protocol}\` in the database connection string.`
+    });
   }
 
-  const username = decodeURIComponent(url.username);
-  const password = decodeURIComponent(url.password);
+  let username: string;
+  let password: string;
+  let database: string;
+  try {
+    username = decodeURIComponent(url.username);
+    password = decodeURIComponent(url.password);
+    database = decodeURIComponent(url.pathname.replace(/^\//, '') || 'defdb');
+  } catch {
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_SQL_CONNECTION_STRING_INVALID',
+      message: 'The database connection string contains invalid percent-encoding.'
+    });
+  }
   const host = url.hostname;
   const port = Number(url.port || (protocol === 'postgresql' ? 5432 : 3306));
-  const database = decodeURIComponent(url.pathname.replace(/^\//, '') || 'defdb');
 
   if (!username || !password || !host || !port) {
-    throw new ExpectedError('CLI', 'Could not parse complete database credentials from connection string');
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_SQL_CONNECTION_STRING_INCOMPLETE',
+      message: 'The database connection string does not contain complete credentials.'
+    });
   }
 
   return { protocol, username, password, host, port, database };
 };
 
-const validateReadOnlySql = ({ sql }: { sql: string }) => {
-  const sqlLower = sql.toLowerCase().trim();
-  if (!READ_ONLY_SQL_PREFIXES.some((prefix) => sqlLower.startsWith(prefix))) {
-    throw new ExpectedError(
-      'CLI',
-      'query:sql only supports read-only queries',
-      'Use SELECT, SHOW, DESCRIBE, or EXPLAIN statements only'
-    );
+export const assertReadOnlySql = ({ sql }: { sql: string }) => {
+  const normalizedSql = sql.toLowerCase().trimStart();
+  const firstKeyword = normalizedSql.match(/^[a-z]+/)?.[0];
+  const writesServerFile = /\binto\s+(?:out|dump)file\b/i.test(sql);
+  if (!firstKeyword || !READ_ONLY_SQL_KEYWORDS.has(firstKeyword) || writesServerFile) {
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_SQL_QUERY_NOT_READ_ONLY',
+      message: '`query:sql` only supports read-only queries.',
+      hints: 'Use `SELECT`, `WITH`, `VALUES`, `SHOW`, `DESCRIBE`, or `EXPLAIN` statements only.'
+    });
   }
 };
 
@@ -70,25 +92,40 @@ export const commandQuerySql = async () => {
   const { resourceName, bastionResource, sql, limit = 1000, timeout = 30000 } = args;
 
   if (!resourceName) {
-    throw new ExpectedError('CLI', 'Missing required flag: --resourceName', 'Provide --resourceName <databaseName>');
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_SQL_RESOURCE_REQUIRED',
+      message: 'Missing required flag `--resourceName`.',
+      hints: 'Provide `--resourceName <databaseName>`.'
+    });
   }
 
   if (!sql) {
-    throw new ExpectedError('CLI', 'Missing required flag: --sql', 'Provide --sql "SELECT * FROM table LIMIT 10"');
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_SQL_QUERY_REQUIRED',
+      message: 'Missing required flag `--sql`.',
+      hints: 'For example, provide `--sql "SELECT * FROM table LIMIT 10"`.'
+    });
   }
 
   // Get resource info
   const resource = deployedStackOverviewManager.getStpResource({ nameChain: resourceName });
   if (!resource) {
-    throw stpErrors.e98({ stpResourceName: resourceName });
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_SQL_RESOURCE_NOT_FOUND',
+      message: `Resource \`${resourceName}\` does not exist in the deployed stack.`
+    });
   }
 
   if (!SUPPORTED_DB_TYPES.includes(resource.resourceType as (typeof SUPPORTED_DB_TYPES)[number])) {
-    throw new ExpectedError(
-      'CLI',
-      `Resource "${resourceName}" is not a SQL database (type: ${resource.resourceType})`,
-      'query:sql supports relational-database resources only'
-    );
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_SQL_RESOURCE_TYPE_INVALID',
+      message: `Resource \`${resourceName}\` is not a SQL database (type: \`${resource.resourceType}\`).`,
+      hints: '`query:sql` supports `relational-database` resources only.'
+    });
   }
 
   // Get connection parameters from deployed resource
@@ -104,22 +141,24 @@ export const commandQuerySql = async () => {
 
   // Fetch connection string from SSM (contains credentials)
   if (!connectionStringSsmParam) {
-    throw new ExpectedError(
-      'CLI',
-      'Could not find connection string SSM parameter',
-      'Ensure the database is deployed and has a connectionString parameter'
-    );
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_SQL_CONNECTION_PARAMETER_MISSING',
+      message: 'Could not find the database connection-string SSM parameter.',
+      hints: 'Ensure the database is deployed and exposes a `connectionString` parameter.'
+    });
   }
 
   tuiManager.info(`Fetching connection string from SSM: ${connectionStringSsmParam}`);
   const connectionString = await locallyResolveSensitiveValue({ ssmParameterName: connectionStringSsmParam });
 
   if (!connectionString || connectionString === '<<UNABLE_TO_RESOLVE>>') {
-    throw new ExpectedError(
-      'CLI',
-      'Could not fetch database connection string from SSM',
-      'Ensure you have permission to read SSM parameters'
-    );
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_SQL_CONNECTION_PARAMETER_UNAVAILABLE',
+      message: 'Could not fetch the database connection string from SSM.',
+      hints: 'Ensure your AWS identity can read the relevant SSM parameter.'
+    });
   }
 
   const {
@@ -129,7 +168,7 @@ export const commandQuerySql = async () => {
     host: parsedHost,
     port: parsedPort,
     database
-  } = parseConnectionString({
+  } = parseSqlConnectionString({
     connectionString
   });
   const isPostgres = protocol === 'postgresql';
@@ -177,12 +216,12 @@ export const commandQuerySql = async () => {
     ssl: { rejectUnauthorized: false }
   };
 
-  validateReadOnlySql({ sql });
+  assertReadOnlySql({ sql });
 
   let result: Awaited<ReturnType<typeof postgresQuery>>;
   try {
     const queryFn = isPostgres ? postgresQuery : mysqlQuery;
-    result = await queryFn(conn, { sql, limit, timeout });
+    result = await queryFn(conn, { sql, limit, timeout, readOnly: true });
   } finally {
     if (tunnels.length > 0) {
       await Promise.all(tunnels.map((t) => t.kill()));
@@ -190,11 +229,12 @@ export const commandQuerySql = async () => {
   }
 
   if (!result.ok) {
-    throw new ExpectedError(
-      'CLI',
-      `Query failed: ${(result as { error: string }).error}`,
-      (result as { hint?: string }).hint
-    );
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_SQL_QUERY_FAILED',
+      message: `Query failed: ${(result as { error: string }).error}`,
+      hints: (result as { hint?: string }).hint
+    });
   }
 
   // Output results
