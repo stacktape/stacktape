@@ -96,7 +96,7 @@ export const deployWithCodebuildRunner = async () => {
     // upload zipped project
     await eventManager.startEvent({ eventType: 'UPLOAD_PROJECT', description: 'Uploading project' });
     const projectZipS3Key = `${globalStateManager.targetStack.stackName}/${globalStateManager.invocationId}/archive.zip`;
-    await awsSdkManager.uploadToBucket({
+    await awsSdkManager.s3.uploadFile({
       bucketName: codebuildPipeline.bucketName,
       contentType: 'application/zip',
       filePath: projectZipPath,

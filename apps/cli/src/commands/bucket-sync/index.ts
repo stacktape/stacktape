@@ -37,7 +37,7 @@ export const commandBucketSync = async () => {
     description: `Syncing ${prettyDirPath} to ${bucketName}`
   });
   let lastProgressPercent = null;
-  const stats = await awsSdkManager.syncDirectoryIntoBucket({
+  const stats = await awsSdkManager.s3.syncDirectory({
     bucketName,
     uploadConfiguration: {
       directoryPath: absoluteSourcePath,

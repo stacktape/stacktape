@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
+import { EventEmitter } from 'node:events';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { CloudFormationClient } from '@aws-sdk/client-cloudformation';
 import { LambdaClient } from '@aws-sdk/client-lambda';
@@ -15,6 +16,7 @@ import {
 } from '@aws-sdk/client-ssm';
 import type { Pluggable } from '@aws-sdk/types';
 import { AwsSdkManager } from '../../src/aws/sdk-manager';
+import { S3Sync } from '../../src/aws/s3-sync';
 
 type AwsClient = {
   config: {
@@ -169,12 +171,12 @@ describe.serial('AWS SDK client construction', () => {
     });
     const manager = managerWith();
 
-    await manager.uploadToBucket({
+    await manager.s3.uploadFile({
       bucketName: 'example-bucket',
       filePath: import.meta.path,
       s3Key: 'ordinary-upload.ts'
     });
-    await manager.uploadToBucket({
+    await manager.s3.uploadFile({
       bucketName: 'example-bucket',
       filePath: import.meta.path,
       s3Key: 'accelerated-upload.ts',
@@ -186,6 +188,63 @@ describe.serial('AWS SDK client construction', () => {
     const acceleratedEndpoint = clients[1].config.endpoint;
     if (!acceleratedEndpoint) {
       throw new Error('Expected the accelerated S3 client to carry an explicit endpoint.');
+    }
+    expect(await acceleratedEndpoint()).toMatchObject({
+      hostname: 's3-accelerate.amazonaws.com',
+      protocol: 'https:'
+    });
+  });
+
+  test.serial('preserves S3 sync retry, plugin, and acceleration client policy', async () => {
+    const syncClients: S3Sync[] = [];
+    const originalUploadDir = S3Sync.prototype.uploadDir;
+    S3Sync.prototype.uploadDir = function (this: S3Sync) {
+      syncClients.push(this);
+      const uploader = Object.assign(new EventEmitter(), {
+        activeTransfers: 0,
+        progressAmount: 1,
+        progressTotal: 1,
+        progressMd5Amount: 1,
+        progressMd5Total: 1,
+        objectsFound: 1,
+        filesFound: 1,
+        deleteAmount: 0,
+        deleteTotal: 0
+      });
+      queueMicrotask(() => uploader.emit('end'));
+      return uploader;
+    } as typeof originalUploadDir;
+    restores.push(() => {
+      S3Sync.prototype.uploadDir = originalUploadDir;
+    });
+    let pluginApplications = 0;
+    const plugin: Pluggable<any, any> = {
+      applyToStack: () => {
+        pluginApplications += 1;
+      }
+    };
+    const manager = managerWith([plugin]);
+    const baseInput = {
+      bucketName: 'example-bucket',
+      onProgress: () => undefined
+    };
+
+    await manager.s3.syncDirectory({
+      ...baseInput,
+      uploadConfiguration: { directoryPath: import.meta.dir, disableS3TransferAcceleration: true }
+    });
+    await manager.s3.syncDirectory({
+      ...baseInput,
+      uploadConfiguration: { directoryPath: import.meta.dir, disableS3TransferAcceleration: false }
+    });
+
+    expect(syncClients).toHaveLength(2);
+    expect(syncClients.map(({ s3RetryCount }) => s3RetryCount)).toEqual([5, 5]);
+    expect(pluginApplications).toBe(2);
+    expect(syncClients[0].s3.config.endpoint).toBeUndefined();
+    const acceleratedEndpoint = syncClients[1].s3.config.endpoint;
+    if (!acceleratedEndpoint) {
+      throw new Error('Expected accelerated S3 sync to carry an explicit endpoint.');
     }
     expect(await acceleratedEndpoint()).toMatchObject({
       hostname: 's3-accelerate.amazonaws.com',

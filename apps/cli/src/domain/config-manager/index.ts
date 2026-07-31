@@ -47,7 +47,7 @@ import {
   getLogGroupPolicyDocumentStatements
 } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/role-helpers';
 import { isTransferAccelerationEnabledInRegion } from 'src/aws/buckets';
-import { isBucketNativelySupportedHeader } from 'src/aws/sdk-manager/utils';
+import { isS3NativeUploadHeader } from 'src/aws/s3-upload-options';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { fsPaths } from 'src/config/runtime-paths';
 import { helperLambdaAwsResourceNames } from '@stacktape/naming/helper-lambda-resource-names';
@@ -3483,9 +3483,7 @@ export class ConfigManager {
   get allBucketsUsingCustomMetadataHeaders() {
     return this.allBuckets
       .filter(({ directoryUpload }) =>
-        directoryUpload?.fileOptions?.some(({ headers }) =>
-          headers.some(({ key }) => !isBucketNativelySupportedHeader(key))
-        )
+        directoryUpload?.fileOptions?.some(({ headers }) => headers.some(({ key }) => !isS3NativeUploadHeader(key)))
       )
       .map(({ name }) => name);
   }

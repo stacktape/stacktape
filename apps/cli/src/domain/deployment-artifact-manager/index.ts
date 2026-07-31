@@ -260,7 +260,7 @@ export class DeploymentArtifactManager {
       parentEventType: 'SYNC_BUCKET'
     });
     await childLogger.startEvent({ eventType: 'UPLOAD_BUCKET_CONTENT', description: 'Uploading content' });
-    const syncStats = await awsSdkManager.syncDirectoryIntoBucket({
+    const syncStats = await awsSdkManager.s3.syncDirectory({
       uploadConfiguration,
       bucketName,
       deleteRemoved,
@@ -470,7 +470,7 @@ export class DeploymentArtifactManager {
         // on some occasions i started getting "NoSuchBucket: The specified bucket does not exist" when creating fresh stacks
         // this waiting should prevent it (and lose no time otherwise)
         // Note: S3 bucket creation can take up to 30-60 seconds due to eventual consistency
-        awsSdkManager.waitForBucketExists({ bucketName: this.deploymentBucketName, maxTime: 60 })
+        awsSdkManager.s3.waitForBucketExists({ bucketName: this.deploymentBucketName, maxTime: 60 })
       ]);
 
       await processConcurrently(jobs, DEFAULT_MAXIMUM_PARALLEL_ARTIFACT_UPLOADS);
@@ -525,10 +525,10 @@ export class DeploymentArtifactManager {
     let emptyBucketsPromises = [];
     if (nonEmptyBuckets.length) {
       emptyBucketsPromises = nonEmptyBuckets.map(async ([bucketName, objects]) => {
-        await awsSdkManager.batchDeleteObjects(bucketName, objects as ObjectIdentifier[]);
+        await awsSdkManager.s3.deleteObjects(bucketName, objects as ObjectIdentifier[]);
         // after first delete, we need to list all versions (including delete markers) and delete them
-        const versionedObjects = await awsSdkManager.listAllVersionedObjectsInBucket(bucketName);
-        return awsSdkManager.batchDeleteObjects(bucketName, versionedObjects as ObjectIdentifier[]);
+        const versionedObjects = await awsSdkManager.s3.listObjectVersions(bucketName);
+        return awsSdkManager.s3.deleteObjects(bucketName, versionedObjects as ObjectIdentifier[]);
       });
     }
 
@@ -558,7 +558,7 @@ export class DeploymentArtifactManager {
   };
 
   getTemplate = async ({ version }: { version: string }): Promise<CloudformationTemplate> => {
-    const template = await awsSdkManager.getFromBucket({
+    const template = await awsSdkManager.s3.getObjectText({
       bucketName: this.deploymentBucketName,
       s3Key: getCfTemplateS3Key(version || stackManager.lastVersion)
     });
@@ -569,7 +569,7 @@ export class DeploymentArtifactManager {
   loadPreviousBucketObjects = async (deploymentBucketName: string, stackActionType: StackActionType) => {
     let objects: _Object[];
     try {
-      objects = await awsSdkManager.listAllObjectsInBucket(deploymentBucketName);
+      objects = await awsSdkManager.s3.listObjects(deploymentBucketName);
     } catch (err) {
       if (stackActionType === 'delete' && err.toString().includes('NoSuchBucket')) {
         tuiManager.debug(`Deployment bucket ${deploymentBucketName} not found; skipping artifact load.`);
@@ -637,7 +637,7 @@ export class DeploymentArtifactManager {
     metadata?: { [key: string]: string };
   }) => {
     const upload = async (useS3Acceleration?: boolean) => {
-      await awsSdkManager.uploadToBucket({
+      await awsSdkManager.s3.uploadFile({
         s3Key,
         filePath: artifactPath,
         bucketName: this.deploymentBucketName,
@@ -652,7 +652,7 @@ export class DeploymentArtifactManager {
     } catch (err) {
       const errMessage = err instanceof Error ? err.message : String(err);
       if (errMessage.includes('NoSuchBucket')) {
-        await awsSdkManager.waitForBucketExists({ bucketName: this.deploymentBucketName, maxTime: 60 });
+        await awsSdkManager.s3.waitForBucketExists({ bucketName: this.deploymentBucketName, maxTime: 60 });
         await upload();
       } else if (errMessage.includes('PermanentRedirect')) {
         await upload(false);
@@ -667,7 +667,7 @@ export class DeploymentArtifactManager {
   deleteObjectsFromDeploymentBucket = async (objectKeys: string[]) => {
     if (objectKeys.length) {
       try {
-        return await awsSdkManager.batchDeleteObjects(
+        return await awsSdkManager.s3.deleteObjects(
           this.deploymentBucketName,
           objectKeys.map((objKey) => ({ Key: objKey }))
         );
@@ -782,7 +782,7 @@ export class DeploymentArtifactManager {
         // Use the S3 key computed during packaging (ensures consistency with CF template)
         const s3Key = layer.s3Key;
 
-        await awsSdkManager.uploadToBucket({
+        await awsSdkManager.s3.uploadFile({
           s3Key,
           filePath: zipPath,
           bucketName: this.deploymentBucketName
@@ -843,12 +843,12 @@ export class DeploymentArtifactManager {
         )
         .map(async ({ PhysicalResourceId: bucketName }) => {
           // we are first listing all regular objects in the bucket
-          objectsToRemove[bucketName] = await awsSdkManager.listAllObjectsInBucket(bucketName);
+          objectsToRemove[bucketName] = await awsSdkManager.s3.listObjects(bucketName);
           // even if there are no regular objects, there can be some old versions (delete markers), which would fail bucket deletion as well
           // we only check for versioned objects to ensure the bucket is truly empty. We will still need to do list versioned objects after
           // the delete of regular objects, as that can create new delete markers, etc
           if (!objectsToRemove[bucketName].length) {
-            objectsToRemove[bucketName] = await awsSdkManager.listAllVersionedObjectsInBucket(bucketName);
+            objectsToRemove[bucketName] = await awsSdkManager.s3.listObjectVersions(bucketName);
           }
           return bucketName;
         })
@@ -870,7 +870,7 @@ export class DeploymentArtifactManager {
 
   prepareRollbackTemplate = async (sourceVersion: string, newVersion: string) => {
     const cfTemplateKey = getCfTemplateS3Key(sourceVersion);
-    const templateYaml = await awsSdkManager.getFromBucket({
+    const templateYaml = await awsSdkManager.s3.getObjectText({
       bucketName: this.deploymentBucketName,
       s3Key: cfTemplateKey
     });
@@ -879,7 +879,7 @@ export class DeploymentArtifactManager {
       template.Outputs[outputNames.deploymentVersion()].Value = newVersion;
     }
     const newKey = getCfTemplateS3Key(newVersion);
-    await awsSdkManager.putToBucket({
+    await awsSdkManager.s3.putObject({
       bucketName: this.deploymentBucketName,
       s3Key: newKey,
       body: stringifyToYaml(template),
@@ -936,7 +936,7 @@ export class DeploymentArtifactManager {
 
     for (const { bucketName } of configManager.allBucketsToSync) {
       try {
-        const versionedObjects = await awsSdkManager.listAllVersionedObjectsInBucket(bucketName);
+        const versionedObjects = await awsSdkManager.s3.listObjectVersions(bucketName);
         // Get only the latest (current) version of each object
         manifest[bucketName] = versionedObjects
           .filter((obj: any) => obj.IsLatest)
@@ -948,7 +948,7 @@ export class DeploymentArtifactManager {
 
     const manifestKey = `bucket-sync-manifest/${version}.json`;
     try {
-      await awsSdkManager.putToBucket({
+      await awsSdkManager.s3.putObject({
         bucketName: this.deploymentBucketName,
         s3Key: manifestKey,
         body: JSON.stringify(manifest),
@@ -964,7 +964,7 @@ export class DeploymentArtifactManager {
 
     let manifestJson: string;
     try {
-      manifestJson = await awsSdkManager.getFromBucket({
+      manifestJson = await awsSdkManager.s3.getObjectText({
         bucketName: this.deploymentBucketName,
         s3Key: manifestKey
       });
@@ -982,7 +982,7 @@ export class DeploymentArtifactManager {
       try {
         // Copy each object's old version to become the current version
         for (const { key, versionId } of objects) {
-          await awsSdkManager.copyObjectVersion({
+          await awsSdkManager.s3.restoreObjectVersion({
             bucketName,
             key,
             versionId
@@ -990,11 +990,11 @@ export class DeploymentArtifactManager {
         }
 
         // Delete objects that exist now but were not in the manifest (files added after the target version)
-        const currentObjects = await awsSdkManager.listAllObjectsInBucket(bucketName);
+        const currentObjects = await awsSdkManager.s3.listObjects(bucketName);
         const manifestKeys = new Set(objects.map((o) => o.key));
         const toDelete = currentObjects.filter((obj: any) => !manifestKeys.has(obj.Key));
         if (toDelete.length) {
-          await awsSdkManager.batchDeleteObjects(
+          await awsSdkManager.s3.deleteObjects(
             bucketName,
             toDelete.map((obj: any) => ({ Key: obj.Key }))
           );

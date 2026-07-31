@@ -17,15 +17,11 @@ import type {
 } from '@aws-sdk/client-ecs';
 import type { GetRoleCommandOutput } from '@aws-sdk/client-iam';
 import type { OpenSearchPartitionInstanceType } from '@aws-sdk/client-opensearch';
-import type { _Object, ObjectIdentifier, ObjectVersion } from '@aws-sdk/client-s3';
 import type { StartSessionCommandInput, StartSessionResponse } from '@aws-sdk/client-ssm';
 import type { Credentials } from '@aws-sdk/types';
 import type TaskDefinition from '@cloudform/ecs/taskDefinition';
 import type { Policy } from '@cloudform/iam/role';
-import type { Stats } from 'node:fs';
-import type { Readable } from 'node:stream';
 import { Buffer } from 'node:buffer';
-import path from 'node:path';
 import { ACMClient } from '@aws-sdk/client-acm';
 import { AutoScaling, DescribeAutoScalingGroupsCommand } from '@aws-sdk/client-auto-scaling';
 import { BudgetsClient, DescribeBudgetsCommand } from '@aws-sdk/client-budgets';
@@ -110,22 +106,7 @@ import { DescribeDBClustersCommand, DescribeDBInstancesCommand, RDSClient } from
 import { GetTagKeysCommand, ResourceGroupsTaggingAPIClient } from '@aws-sdk/client-resource-groups-tagging-api';
 import { Route53Client } from '@aws-sdk/client-route-53';
 import { Route53DomainsClient } from '@aws-sdk/client-route-53-domains';
-import {
-  CopyObjectCommand,
-  CreateBucketCommand,
-  DeleteObjectsCommand,
-  GetObjectCommand,
-  HeadBucketCommand,
-  ListObjectsV2Command,
-  ListObjectVersionsCommand,
-  PutBucketAccelerateConfigurationCommand,
-  PutBucketEncryptionCommand,
-  PutBucketPolicyCommand,
-  PutObjectCommand,
-  S3Client,
-  S3ServiceException,
-  waitUntilBucketExists
-} from '@aws-sdk/client-s3';
+import { S3Client } from '@aws-sdk/client-s3';
 import { SecretsManagerClient } from '@aws-sdk/client-secrets-manager';
 import { SESClient } from '@aws-sdk/client-ses';
 import { SESv2Client } from '@aws-sdk/client-sesv2';
@@ -137,25 +118,15 @@ import {
   TerminateSessionCommand
 } from '@aws-sdk/client-ssm';
 import { AssumeRoleCommand, STSClient } from '@aws-sdk/client-sts';
-import { Upload } from '@aws-sdk/lib-storage';
 // import { NodeHttpHandler } from '@aws-sdk/node-http-handler';
 import { fromUtf8, toUtf8 } from '@aws-sdk/util-utf8-node';
 import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import { resourceURIs } from 'src/utils/aws-resource-uris';
-import { getRelativePath } from '@utils/fs-utils';
-import {
-  chunkArray,
-  lowerCaseFirstCharacterOfObjectKeys,
-  serialize,
-  streamToString,
-  stringMatchesGlob,
-  wait
-} from '@utils/misc';
+import { chunkArray, lowerCaseFirstCharacterOfObjectKeys, serialize, wait } from '@utils/misc';
 import { CliError } from '@utils/errors';
 import { getForwardableOperationInvocationEnv } from '@application-services/operation-invocation-context';
-import { kebabCase, pascalCase } from 'change-case';
-import fsExtra from 'fs-extra';
+import { kebabCase } from 'change-case';
 import pRetry from 'p-retry';
 import {
   applyAwsClientPlugins,
@@ -165,33 +136,15 @@ import {
   type AwsClientContextInput,
   type AwsClientWithMiddleware
 } from '../context';
-import { S3Sync } from '../s3-sync';
 import { AwsObservability } from '../observability';
 import { AwsParameterStore } from '../parameter-store';
 import { AwsSecrets } from '../secrets';
 import { AwsDomains } from '../domains';
 import { AwsCloudFormationStacks } from '../cloudformation-stacks';
 import { AwsCloudFormationRegistry } from '../cloudformation-registry';
-import {
-  automaticUploadFilterPresets,
-  defaultGetErrorFunction,
-  isBucketNativelySupportedHeader,
-  transformToCliArgs
-} from './utils';
-import type { DirectoryUpload } from '@stacktape/config/buckets';
-
-type S3SyncInfo = {
-  progressPercent: number | string;
-  activeTransfers: number;
-  progressAmount: number;
-  progressTotal: number;
-  progressMd5Amount: number;
-  progressMd5Total: number;
-  objectsFound: number;
-  filesFound: number;
-  deleteAmount: number;
-  deleteTotal: number;
-};
+import { AwsS3 } from '../s3';
+import { S3Sync } from '../s3-sync';
+import { defaultGetErrorFunction, transformToCliArgs } from './utils';
 
 const getOperationInvocationCodebuildEnvVariables = () => {
   return Object.entries(getForwardableOperationInvocationEnv()).map(([name, value]) => ({
@@ -209,6 +162,7 @@ export class AwsSdkManager {
   #domains?: AwsDomains;
   #cloudFormation?: AwsCloudFormationStacks;
   #cloudFormationRegistry?: AwsCloudFormationRegistry;
+  #s3?: AwsS3;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -259,6 +213,13 @@ export class AwsSdkManager {
     });
     this.#cloudFormationRegistry = new AwsCloudFormationRegistry({
       createClient: () => this.#cloudformation(),
+      getErrorHandler: this.#getErrorHandler
+    });
+    this.#s3 = new AwsS3({
+      createClient: () => this.#s3Client(),
+      createAcceleratedClient: () => this.#acceleratedS3Client(),
+      createSyncClient: () => this.#syncS3Client(),
+      createAcceleratedSyncClient: () => this.#acceleratedSyncS3Client(),
       getErrorHandler: this.#getErrorHandler
     });
   }
@@ -327,6 +288,14 @@ export class AwsSdkManager {
     return this.#cloudFormationRegistry;
   }
 
+  get s3() {
+    this.#getContext();
+    if (!this.#s3) {
+      throw new Error('AWS S3 has not been initialized.');
+    }
+    return this.#s3;
+  }
+
   #getContext() {
     if (!this.#context) {
       throw new Error('AWS SDK manager has not been initialized.');
@@ -379,7 +348,7 @@ export class AwsSdkManager {
     return this.#applyPlugins(new ACMClient(this.#getClientArgs({ region: 'us-east-1' })));
   }
 
-  #acceleratedS3() {
+  #acceleratedS3Client() {
     return this.#applyPlugins(
       new S3Client(
         this.#getClientArgs({
@@ -389,7 +358,7 @@ export class AwsSdkManager {
     );
   }
 
-  #syncS3() {
+  #syncS3Client() {
     return new S3Sync({
       s3RetryCount: 5,
       clientArgs: this.#getClientArgs(),
@@ -397,7 +366,7 @@ export class AwsSdkManager {
     });
   }
 
-  #acceleratedSyncS3() {
+  #acceleratedSyncS3Client() {
     return new S3Sync({
       s3RetryCount: 5,
       clientArgs: this.#getClientArgs({
@@ -448,7 +417,7 @@ export class AwsSdkManager {
     return this.#applyPlugins(new SESv2Client(this.#getClientArgs()));
   }
 
-  #s3() {
+  #s3Client() {
     return this.#applyPlugins(new S3Client(this.#getClientArgs()));
   }
 
@@ -658,175 +627,6 @@ export class AwsSdkManager {
     return { tags: result };
   };
 
-  createBucket = async ({
-    bucketName,
-    setEncryption,
-    bucketPolicy,
-    enableTransferAcceleration
-  }: {
-    bucketName: string;
-    setEncryption?: boolean;
-    bucketPolicy?: any;
-    enableTransferAcceleration?: boolean;
-  }) => {
-    const errHandler = this.#getErrorHandler(`Error when creating bucket with name ${bucketName}.`);
-    await this.#s3()
-      .send(new CreateBucketCommand({ Bucket: bucketName }))
-      .catch(errHandler);
-    if (setEncryption) {
-      await this.#s3()
-        .send(
-          new PutBucketEncryptionCommand({
-            Bucket: bucketName,
-            ServerSideEncryptionConfiguration: {
-              Rules: [{ ApplyServerSideEncryptionByDefault: { SSEAlgorithm: 'AES256' } }]
-            }
-          })
-        )
-        .catch(errHandler);
-    }
-    if (bucketPolicy) {
-      await this.#s3()
-        .send(new PutBucketPolicyCommand({ Bucket: bucketName, Policy: JSON.stringify(bucketPolicy) }))
-        .catch(errHandler);
-    }
-    if (enableTransferAcceleration) {
-      await this.#s3().send(
-        new PutBucketAccelerateConfigurationCommand({
-          Bucket: bucketName,
-          AccelerateConfiguration: { Status: 'Enabled' }
-        })
-      );
-    }
-    await waitUntilBucketExists({ client: this.#s3(), maxWaitTime: 30 }, { Bucket: bucketName });
-  };
-
-  bucketExists = async ({ bucketName }: { bucketName: string }) => {
-    const errHandler = this.#getErrorHandler(`Error when checking for bucket with name ${bucketName}.`);
-    try {
-      await this.#s3().send(new HeadBucketCommand({ Bucket: bucketName }));
-    } catch (err) {
-      if (err instanceof S3ServiceException && err.name === 'NotFound') {
-        return false;
-      }
-      errHandler(err);
-    }
-    return true;
-  };
-
-  waitForBucketExists = async ({ bucketName, maxTime }: { bucketName: string; maxTime: number }) => {
-    const errHandler = this.#getErrorHandler(`Waiting for bucket creation timed-out (bucket ${bucketName}).`);
-    const waiterResult = await createWaiter(
-      { client: this.#s3(), maxWaitTime: maxTime, minDelay: 1, maxDelay: 1 },
-      { bucketName },
-      async (_s3Cli, input) => {
-        const bucketExists = await this.bucketExists(input);
-
-        if (bucketExists) {
-          return {
-            state: WaiterState.SUCCESS,
-            reason: `Bucket ${bucketName} created successfully (available).`
-          };
-        }
-        return {
-          state: WaiterState.RETRY,
-          reason: `Bucket ${bucketName} not available.`
-        };
-      }
-    );
-    if (waiterResult.state !== WaiterState.SUCCESS) {
-      throw errHandler(new Error(waiterResult.reason));
-    }
-  };
-
-  uploadToBucket = async ({
-    filePath,
-    s3Key,
-    contentType,
-    bucketName,
-    useS3Acceleration,
-    metadata
-  }: {
-    bucketName: string;
-    filePath: string;
-    s3Key: string;
-    contentType?: string;
-    useS3Acceleration?: boolean;
-    metadata?: { [key: string]: string };
-  }) => {
-    const errHandler = this.#getErrorHandler(
-      `Failed to upload file ${filePath} to bucket ${bucketName}. S3 key: ${s3Key}.`
-    );
-    const uploadCommand = new Upload({
-      params: {
-        Bucket: bucketName,
-        Key: s3Key,
-        Body: fsExtra.createReadStream(filePath),
-        ...(contentType ? { ContentType: contentType } : {}),
-        ...(metadata ? { Metadata: metadata } : {})
-      },
-      client: useS3Acceleration ? this.#acceleratedS3() : this.#s3()
-    });
-    return uploadCommand.done().catch(errHandler);
-  };
-
-  getFromBucket = async ({
-    bucketName,
-    s3Key,
-    injectedS3Client
-  }: {
-    bucketName: string;
-    s3Key: string;
-    injectedS3Client?: S3Client;
-  }) => {
-    const errHandler = this.#getErrorHandler(`Failed to get object from bucket ${bucketName}. S3 key: ${s3Key}.`);
-    const response = await (injectedS3Client || this.#s3())
-      .send(new GetObjectCommand({ Bucket: bucketName, Key: s3Key }))
-      .catch(errHandler);
-
-    return streamToString(response.Body as Readable);
-  };
-
-  putToBucket = async ({
-    bucketName,
-    s3Key,
-    body,
-    contentType
-  }: {
-    bucketName: string;
-    s3Key: string;
-    body: string;
-    contentType?: string;
-  }) => {
-    const errHandler = this.#getErrorHandler(`Failed to put object to bucket ${bucketName}. S3 key: ${s3Key}.`);
-    return this.#s3()
-      .send(new PutObjectCommand({ Bucket: bucketName, Key: s3Key, Body: body, ContentType: contentType }))
-      .catch(errHandler);
-  };
-
-  copyObjectVersion = async ({
-    bucketName,
-    key,
-    versionId
-  }: {
-    bucketName: string;
-    key: string;
-    versionId: string;
-  }) => {
-    const errHandler = this.#getErrorHandler(
-      `Failed to copy object version ${versionId} of ${key} in bucket ${bucketName}.`
-    );
-    return this.#s3()
-      .send(
-        new CopyObjectCommand({
-          Bucket: bucketName,
-          CopySource: `${bucketName}/${key}?versionId=${versionId}`,
-          Key: key
-        })
-      )
-      .catch(errHandler);
-  };
-
   listAllImagesInEcrRepo = async (repositoryName: string): Promise<ImageIdentifier[]> => {
     const errHandler = this.#getErrorHandler(`Failed to list images in ECR repository ${repositoryName}.`);
     const pagedImageIds: ImageIdentifier[][] = [];
@@ -872,202 +672,6 @@ export class AwsSdkManager {
     const { authorizationToken, proxyEndpoint } = getAuthResponse.authorizationData[0];
     const [user, password] = Buffer.from(authorizationToken, 'base64').toString().split(':');
     return { user, password, proxyEndpoint };
-  };
-
-  syncDirectoryIntoBucket = async ({
-    // directoryPath,
-    uploadConfiguration: {
-      directoryPath,
-      fileOptions,
-      excludeFilesPatterns,
-      disableS3TransferAcceleration,
-      headersPreset
-    },
-    bucketName,
-    deleteRemoved,
-    onProgress
-  }: {
-    bucketName: string;
-    deleteRemoved?: boolean;
-    onProgress: (params: S3SyncInfo) => any;
-    uploadConfiguration: DirectoryUpload;
-  }): Promise<S3SyncInfo> => {
-    if (!fsExtra.existsSync(directoryPath)) {
-      throw new CliError({
-        category: 'SYNC_BUCKET',
-        code: 'SYNC_BUCKET_DIRECTORY_INACCESSIBLE',
-        message: `Directory \`${directoryPath}\` does not exist or is not accessible.`
-      });
-    }
-
-    const finalFilters = (headersPreset ? automaticUploadFilterPresets[headersPreset] : []).concat(fileOptions || []);
-
-    const uploader = (disableS3TransferAcceleration === true ? this.#syncS3() : this.#acceleratedSyncS3()).uploadDir({
-      localDir: directoryPath,
-      deleteRemoved,
-      skipFiles: excludeFilesPatterns,
-      s3Params: {
-        Bucket: bucketName
-      },
-      // this function gets called for every file that needs to be uploaded
-      // everything that you put into callback's s3Params will be added to the S3 params of the S3 request for given file
-      getS3Params: (localFilePath: string, _localFileStats: Stats, callback: (err: any, s3Params: any) => void) => {
-        const localFileRelativePath = path.relative(directoryPath, localFilePath);
-        const cumulatedMetadataHeaders: { [key: string]: string } = {};
-        const cumulatedTags: string[] = [];
-        const nativelySupportedHeaders: { [key: string]: string } = {};
-        (finalFilters || []).forEach((filter) => {
-          if (
-            stringMatchesGlob(localFileRelativePath, filter.includePattern) &&
-            !(filter.excludePattern && stringMatchesGlob(localFileRelativePath, filter.excludePattern))
-          ) {
-            filter.headers?.forEach(({ key, value }) => {
-              if (isBucketNativelySupportedHeader(key)) {
-                nativelySupportedHeaders[pascalCase(key)] = value;
-              } else {
-                cumulatedMetadataHeaders[key] = value;
-              }
-            });
-            filter.tags?.forEach(({ key, value }) => {
-              cumulatedTags.push(`${encodeURIComponent(key)}=${encodeURIComponent(value)}`);
-            });
-          }
-        });
-        callback(null, {
-          Metadata: cumulatedMetadataHeaders,
-          Tagging: cumulatedTags.join('&'),
-          ...nativelySupportedHeaders
-        });
-      }
-    });
-    let maxProgressPercent = 0;
-    const getStats = (): S3SyncInfo => {
-      const {
-        activeTransfers,
-        progressAmount,
-        progressTotal,
-        progressMd5Amount,
-        progressMd5Total,
-        objectsFound,
-        filesFound,
-        deleteAmount,
-        deleteTotal
-      } = uploader as any;
-      // Only calculate percentage when progressTotal is valid and > 0 to avoid NaN/Infinity
-      const total = Number(progressTotal);
-      const amount = Number(progressAmount);
-      if (total > 0 && Number.isFinite(amount)) {
-        const rawPercent = (amount / total) * 100;
-        // Ensure percentage never decreases (total can grow as files are discovered)
-        if (rawPercent > maxProgressPercent) {
-          maxProgressPercent = Math.min(rawPercent, 100);
-        }
-      }
-      return {
-        activeTransfers,
-        progressAmount,
-        progressTotal,
-        progressMd5Amount,
-        progressMd5Total,
-        objectsFound,
-        filesFound,
-        deleteAmount,
-        deleteTotal,
-        progressPercent: maxProgressPercent > 0 ? maxProgressPercent.toFixed(2) : '0'
-      };
-    };
-    let lastStats = getStats();
-    const interval = setInterval(async () => {
-      await onProgress(lastStats);
-    }, 50);
-    return new Promise((resolve, reject) => {
-      uploader.on('error', (err: any) => {
-        reject(
-          new CliError({
-            category: 'SYNC_BUCKET',
-            code: 'SYNC_BUCKET_UPLOAD_FAILED',
-            message: `Syncing files from directory '${getRelativePath(
-              directoryPath
-            )}' into ${bucketName} failed. Error:\n${err}.`,
-            cause: err
-          })
-        );
-      });
-      uploader.on('progress', () => {
-        lastStats = getStats();
-      });
-      uploader.on('end', async () => {
-        clearInterval(interval);
-        resolve(getStats());
-      });
-    });
-  };
-
-  batchDeleteObjects = async (bucketName: string, objectKeys: ObjectIdentifier[]) => {
-    const errHandler = this.#getErrorHandler(`Failed to batch delete objects from bucket ${bucketName}.`);
-    // Explicitly extract only Key and VersionId to ensure clean ObjectIdentifier objects.
-    // This prevents issues when ObjectVersion/DeleteMarkerEntry objects are passed directly,
-    // which can contain extra properties that may cause serialization issues.
-    const validObjectKeys: ObjectIdentifier[] = objectKeys
-      .filter((obj) => obj?.Key)
-      .map(({ Key, VersionId }) => (VersionId ? { Key, VersionId } : { Key }));
-    if (validObjectKeys.length) {
-      return Promise.all(
-        chunkArray(validObjectKeys, 1000).map((chunk) =>
-          this.#s3()
-            .send(
-              new DeleteObjectsCommand({
-                Bucket: bucketName,
-                Delete: { Objects: chunk }
-              })
-            )
-            .catch(errHandler)
-        )
-      );
-    }
-    return Promise.resolve();
-  };
-
-  listAllObjectsInBucket = async (bucketName: string, injectedS3Client?: S3Client) => {
-    let result: _Object[] = [];
-    const errHandler = this.#getErrorHandler(`Failed to list all objects in bucket ${bucketName}.`);
-    let { Contents, NextContinuationToken } = await (injectedS3Client || this.#s3())
-      .send(new ListObjectsV2Command({ Bucket: bucketName }))
-      .catch(errHandler);
-
-    if (Contents) result = result.concat(Contents);
-    while (NextContinuationToken) {
-      ({ Contents, NextContinuationToken } = await (injectedS3Client || this.#s3())
-        .send(new ListObjectsV2Command({ Bucket: bucketName, ContinuationToken: NextContinuationToken }))
-        .catch(errHandler));
-      if (Contents) result = result.concat(Contents);
-    }
-    return result;
-  };
-
-  listAllVersionedObjectsInBucket = async (bucketName: string, injectedS3Client?: S3Client) => {
-    let result: ObjectVersion[] = [];
-    const errHandler = this.#getErrorHandler(`Failed to list all versioned objects in bucket ${bucketName}.`);
-    let { Versions, DeleteMarkers, NextKeyMarker, NextVersionIdMarker } = await (injectedS3Client || this.#s3())
-      .send(new ListObjectVersionsCommand({ Bucket: bucketName }))
-      .catch(errHandler);
-
-    if (Versions) result = result.concat(Versions);
-    if (DeleteMarkers) result = result.concat(DeleteMarkers);
-    while (NextKeyMarker || NextVersionIdMarker) {
-      ({ Versions, DeleteMarkers, NextKeyMarker, NextVersionIdMarker } = await (injectedS3Client || this.#s3())
-        .send(
-          new ListObjectVersionsCommand({
-            Bucket: bucketName,
-            KeyMarker: NextKeyMarker,
-            VersionIdMarker: NextVersionIdMarker
-          })
-        )
-        .catch(errHandler));
-      if (Versions) result = result.concat(Versions);
-      if (DeleteMarkers) result = result.concat(DeleteMarkers);
-    }
-    return result;
   };
 
   getRole = async ({

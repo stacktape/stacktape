@@ -27,7 +27,9 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   not bypassed. `AwsSdkManager` is the transitional invocation-scoped composition object, not the owner of credential
   refresh. New AWS behavior must not add another unrelated flat method to that class. Extract a cohesive boundary only
   when it has real callers and behavior of its own. Stack lifecycle and private-type registry operations are reached
-  as `awsSdkManager.cloudFormation` and `awsSdkManager.cloudFormationRegistry`. SSM Parameter Store, Secrets Manager, CloudWatch
+  as `awsSdkManager.cloudFormation` and `awsSdkManager.cloudFormationRegistry`. Bucket/object/version operations and
+  directory synchronization are reached as `awsSdkManager.s3`; upload presets and native-header classification live
+  beside that capability in `src/aws/s3-upload-options.ts`. SSM Parameter Store, Secrets Manager, CloudWatch
   logs/metrics/alarms, and Route 53/ACM/SES domain operations are reached as `awsSdkManager.parameterStore`,
   `awsSdkManager.secrets`, `awsSdkManager.observability`, and `awsSdkManager.domains`; SSM sessions remain separate
   workflow behavior. Capability extraction must keep using `src/aws/context.ts` client construction so credential

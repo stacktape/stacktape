@@ -80,7 +80,7 @@ export class CloudformationRegistryManager {
   };
 
   loadAvailableCloudformationPrivateTypePackages = async () => {
-    const availableModulePackages = await awsSdkManager.listAllObjectsInBucket(
+    const availableModulePackages = await awsSdkManager.s3.listObjects(
       globalStateManager.cloudformationRegistryBucketName,
       this.privateTypePackagesS3Client
     );
@@ -216,7 +216,7 @@ export class CloudformationRegistryManager {
     // logGroupArn: string;
   }): Promise<{ roleArn: string }> => {
     // downloading the file with role definition first
-    const rawRoleDefinition = await awsSdkManager.getFromBucket({
+    const rawRoleDefinition = await awsSdkManager.s3.getObjectText({
       bucketName: globalStateManager.cloudformationRegistryBucketName,
       injectedS3Client: this.privateTypePackagesS3Client,
       s3Key: this.buildNewestAvailableFileBucketKeyForPrivateType({

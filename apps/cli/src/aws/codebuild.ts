@@ -90,9 +90,9 @@ export const preparePipelineResources = async ({
   }
 
   const bucketName = awsResourceNames.codebuildDeploymentBucket(region, awsAccountId);
-  const bucketExists = await awsSdkManager.bucketExists({ bucketName });
+  const bucketExists = await awsSdkManager.s3.bucketExists({ bucketName });
   if (!bucketExists) {
-    await awsSdkManager.createBucket({
+    await awsSdkManager.s3.createBucket({
       bucketName,
       setEncryption: true,
       enableTransferAcceleration: deploymentBucketTransferAccelerationEnabled,
