@@ -9,11 +9,11 @@ import {
   dynamoDbSchema,
   dynamoDbSample
 } from '@domain-services/debug-services/db-client';
-import { stpErrors } from '@errors';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { getDebugAgentCredentials, initDebugAgentCredentials } from '../_utils/debug-agent-credentials';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
+import { parseJsonObjectArgument } from '../_utils/parse-json-argument';
 
 const SUPPORTED_OPERATIONS = ['scan', 'query', 'get', 'schema', 'sample'] as const;
 type Operation = (typeof SUPPORTED_OPERATIONS)[number];
@@ -37,29 +37,40 @@ export const commandQueryDynamodb = async () => {
   const { resourceName, operation = 'sample', pk, sk, index, limit = 100 } = args;
 
   if (!resourceName) {
-    throw new ExpectedError('CLI', 'Missing required flag: --resourceName', 'Provide --resourceName <tableName>');
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_DYNAMODB_RESOURCE_REQUIRED',
+      message: 'Missing required flag `--resourceName`.',
+      hints: 'Provide `--resourceName <tableName>`.'
+    });
   }
 
   if (!SUPPORTED_OPERATIONS.includes(operation as Operation)) {
-    throw new ExpectedError(
-      'CLI',
-      `Invalid operation: ${operation}`,
-      `Supported operations: ${SUPPORTED_OPERATIONS.join(', ')}`
-    );
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_DYNAMODB_OPERATION_INVALID',
+      message: `Invalid DynamoDB query operation \`${operation}\`.`,
+      hints: `Supported operations: ${SUPPORTED_OPERATIONS.join(', ')}.`
+    });
   }
 
   // Get resource info
   const resource = deployedStackOverviewManager.getStpResource({ nameChain: resourceName });
   if (!resource) {
-    throw stpErrors.e98({ stpResourceName: resourceName });
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_DYNAMODB_RESOURCE_NOT_FOUND',
+      message: `Resource \`${resourceName}\` does not exist in the deployed stack.`
+    });
   }
 
   if (resource.resourceType !== 'dynamo-db-table') {
-    throw new ExpectedError(
-      'CLI',
-      `Resource "${resourceName}" is not a DynamoDB table (type: ${resource.resourceType})`,
-      'query:dynamodb supports dynamo-db-table resources only'
-    );
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_DYNAMODB_RESOURCE_TYPE_INVALID',
+      message: `Resource \`${resourceName}\` is not a DynamoDB table (type: \`${resource.resourceType}\`).`,
+      hints: '`query:dynamodb` supports `dynamo-db-table` resources only.'
+    });
   }
 
   // Get table name from deployed resource
@@ -97,42 +108,55 @@ export const commandQueryDynamodb = async () => {
 
     case 'query':
       if (!pk) {
-        throw new ExpectedError(
-          'CLI',
-          'Missing required flag: --pk for query operation',
-          'Provide --pk \'{"partitionKeyName": "value"}\''
-        );
+        throw new CliError({
+          category: 'CLI',
+          code: 'CLI_DYNAMODB_PARTITION_KEY_REQUIRED',
+          message: 'Missing required flag `--pk` for the query operation.',
+          hints: 'For example, provide `--pk \'{"partitionKeyName":"value"}\'`.'
+        });
       }
-      try {
-        const pkObj = JSON.parse(pk);
-        const skObj = sk ? JSON.parse(sk) : undefined;
-        result = await dynamoDbQuery(conn, { pk: pkObj, sk: skObj, index, limit });
-      } catch {
-        throw new ExpectedError('CLI', 'Invalid JSON in --pk or --sk', 'Provide valid JSON objects');
-      }
+      result = await dynamoDbQuery(conn, {
+        pk: parseJsonObjectArgument({
+          value: pk,
+          flag: '--pk',
+          code: 'CLI_DYNAMODB_KEY_INVALID',
+          example: '--pk \'{"partitionKeyName":"value"}\''
+        }),
+        sk: sk ? parseJsonObjectArgument({ value: sk, flag: '--sk', code: 'CLI_DYNAMODB_KEY_INVALID' }) : undefined,
+        index,
+        limit
+      });
       break;
 
     case 'get':
       if (!pk) {
-        throw new ExpectedError(
-          'CLI',
-          'Missing required flag: --pk for get operation',
-          'Provide --pk \'{"partitionKeyName": "value"}\''
-        );
+        throw new CliError({
+          category: 'CLI',
+          code: 'CLI_DYNAMODB_PARTITION_KEY_REQUIRED',
+          message: 'Missing required flag `--pk` for the get operation.',
+          hints: 'For example, provide `--pk \'{"partitionKeyName":"value"}\'`.'
+        });
       }
-      try {
-        const pkObj = JSON.parse(pk);
-        const skObj = sk ? JSON.parse(sk) : undefined;
-        result = await dynamoDbGet(conn, { pk: pkObj, sk: skObj });
-      } catch {
-        throw new ExpectedError('CLI', 'Invalid JSON in --pk or --sk', 'Provide valid JSON objects');
-      }
+      result = await dynamoDbGet(conn, {
+        pk: parseJsonObjectArgument({
+          value: pk,
+          flag: '--pk',
+          code: 'CLI_DYNAMODB_KEY_INVALID',
+          example: '--pk \'{"partitionKeyName":"value"}\''
+        }),
+        sk: sk ? parseJsonObjectArgument({ value: sk, flag: '--sk', code: 'CLI_DYNAMODB_KEY_INVALID' }) : undefined
+      });
       break;
   }
 
   if (!result.ok) {
     const errResult = result as { ok: false; error: string; hint?: string };
-    throw new ExpectedError('CLI', `DynamoDB error: ${errResult.error}`, errResult.hint);
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_DYNAMODB_QUERY_FAILED',
+      message: `DynamoDB query failed: ${errResult.error}`,
+      hints: errResult.hint
+    });
   }
 
   // Output

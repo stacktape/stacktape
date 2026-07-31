@@ -4,10 +4,9 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { redisKeys, redisGet, redisTtl, redisInfo, redisType } from '@domain-services/debug-services/db-client';
-import { stpErrors } from '@errors';
 import { startPortForwardingSessions, type SsmPortForwardingTunnel } from '@utils/ssm-session';
 import { locallyResolveSensitiveValue } from '@utils/stack-info-map-sensitive-values';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
@@ -31,33 +30,40 @@ export const commandQueryRedis = async () => {
   const { resourceName, bastionResource, operation = 'info', key, pattern = '*', section, limit = 100 } = args;
 
   if (!resourceName) {
-    throw new ExpectedError(
-      'CLI',
-      'Missing required flag: --resourceName',
-      'Provide --resourceName <redisClusterName>'
-    );
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_REDIS_RESOURCE_REQUIRED',
+      message: 'Missing required flag `--resourceName`.',
+      hints: 'Provide `--resourceName <redisClusterName>`.'
+    });
   }
 
   if (!SUPPORTED_OPERATIONS.includes(operation as Operation)) {
-    throw new ExpectedError(
-      'CLI',
-      `Invalid operation: ${operation}`,
-      `Supported operations: ${SUPPORTED_OPERATIONS.join(', ')}`
-    );
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_REDIS_OPERATION_INVALID',
+      message: `Invalid Redis query operation \`${operation}\`.`,
+      hints: `Supported operations: ${SUPPORTED_OPERATIONS.join(', ')}.`
+    });
   }
 
   // Get resource info
   const resource = deployedStackOverviewManager.getStpResource({ nameChain: resourceName });
   if (!resource) {
-    throw stpErrors.e98({ stpResourceName: resourceName });
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_REDIS_RESOURCE_NOT_FOUND',
+      message: `Resource \`${resourceName}\` does not exist in the deployed stack.`
+    });
   }
 
   if (resource.resourceType !== 'redis-cluster') {
-    throw new ExpectedError(
-      'CLI',
-      `Resource "${resourceName}" is not a Redis cluster (type: ${resource.resourceType})`,
-      'query:redis supports redis-cluster resources only'
-    );
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_REDIS_RESOURCE_TYPE_INVALID',
+      message: `Resource \`${resourceName}\` is not a Redis cluster (type: \`${resource.resourceType}\`).`,
+      hints: '`query:redis` supports `redis-cluster` resources only.'
+    });
   }
 
   // Get connection parameters
@@ -69,11 +75,12 @@ export const commandQueryRedis = async () => {
   const port = (params.port?.value as number) || 6379;
 
   if (!host) {
-    throw new ExpectedError(
-      'CLI',
-      'Could not retrieve Redis connection parameters',
-      'Ensure the Redis cluster is deployed and accessible'
-    );
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_REDIS_CONNECTION_UNAVAILABLE',
+      message: 'Could not retrieve the Redis connection parameters.',
+      hints: 'Ensure the Redis cluster is deployed and accessible.'
+    });
   }
 
   // Fetch connection string from SSM to extract password
@@ -134,14 +141,24 @@ export const commandQueryRedis = async () => {
 
     case 'get':
       if (!key) {
-        throw new ExpectedError('CLI', 'Missing required flag: --key for get operation', 'Provide --key <keyName>');
+        throw new CliError({
+          category: 'CLI',
+          code: 'CLI_REDIS_KEY_REQUIRED',
+          message: 'Missing required flag `--key` for the get operation.',
+          hints: 'Provide `--key <keyName>`.'
+        });
       }
       result = await redisGet(conn, { key });
       break;
 
     case 'ttl':
       if (!key) {
-        throw new ExpectedError('CLI', 'Missing required flag: --key for ttl operation', 'Provide --key <keyName>');
+        throw new CliError({
+          category: 'CLI',
+          code: 'CLI_REDIS_KEY_REQUIRED',
+          message: 'Missing required flag `--key` for the ttl operation.',
+          hints: 'Provide `--key <keyName>`.'
+        });
       }
       result = await redisTtl(conn, { key });
       break;
@@ -152,7 +169,12 @@ export const commandQueryRedis = async () => {
 
     case 'type':
       if (!key) {
-        throw new ExpectedError('CLI', 'Missing required flag: --key for type operation', 'Provide --key <keyName>');
+        throw new CliError({
+          category: 'CLI',
+          code: 'CLI_REDIS_KEY_REQUIRED',
+          message: 'Missing required flag `--key` for the type operation.',
+          hints: 'Provide `--key <keyName>`.'
+        });
       }
       result = await redisType(conn, { key });
       break;
@@ -165,7 +187,12 @@ export const commandQueryRedis = async () => {
 
   if (!result.ok) {
     const errResult = result as { ok: false; error: string; hint?: string };
-    throw new ExpectedError('CLI', `Redis error: ${errResult.error}`, errResult.hint);
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_REDIS_QUERY_FAILED',
+      message: `Redis query failed: ${errResult.error}`,
+      hints: errResult.hint
+    });
   }
 
   // Output

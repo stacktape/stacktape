@@ -8,10 +8,11 @@ import {
   resolveAwsServiceName
 } from '@domain-services/debug-services/aws-read-only-operations';
 import { executeAwsSdkCommand } from '@domain-services/debug-services/aws-sdk-executor';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { getDebugAgentCredentials, initDebugAgentCredentials } from '../_utils/debug-agent-credentials';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
+import { parseJsonObjectArgument } from '../_utils/parse-json-argument';
 
 export const commandAwsCall = async () => {
   await initializeStackServicesForWorkingWithDeployedStack({
@@ -32,57 +33,65 @@ export const commandAwsCall = async () => {
   const supportedServices = Object.keys(AWS_READ_ONLY_OPERATIONS).join(', ');
 
   if (!service) {
-    throw new ExpectedError('CLI', 'Missing required flag: --service', `Supported services: ${supportedServices}`);
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_AWS_CALL_SERVICE_REQUIRED',
+      message: 'Missing required flag `--service`.',
+      hints: `Supported services: ${supportedServices}.`
+    });
   }
 
   // A service with no reviewed operations is rejected here rather than at the first command, so the message names the
   // real problem.
   if (!resolveAwsServiceName(service)) {
-    throw new ExpectedError(
-      'CLI',
-      `Service "${service}" has no operations aws:call is allowed to send`,
-      `Supported services: ${supportedServices}`
-    );
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_AWS_CALL_SERVICE_UNSUPPORTED',
+      message: `Service \`${service}\` has no operations that \`aws:call\` is allowed to send.`,
+      hints: `Supported services: ${supportedServices}.`
+    });
   }
 
   const acceptedOperations = getReadOnlyAwsOperations(service);
 
   if (!command) {
-    throw new ExpectedError(
-      'CLI',
-      'Missing required flag: --command',
-      `Accepted commands for ${service}: ${acceptedOperations.join(', ')}`
-    );
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_AWS_CALL_COMMAND_REQUIRED',
+      message: 'Missing required flag `--command`.',
+      hints: `Accepted commands for ${service}: ${acceptedOperations.join(', ')}.`
+    });
   }
 
   // The call may run with your own AWS credentials, so this allowlist is the only thing keeping it read-only.
   if (!isReadOnlyAwsCommand(service, command)) {
-    throw new ExpectedError(
-      'CLI',
-      `Command "${command}" is not an accepted read-only operation for service "${service}"`,
-      `aws:call sends only operations reviewed as read-only for the service they are called on. Accepted for ${service}: ${acceptedOperations.join(
-        ', '
-      )}`
-    );
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_AWS_CALL_COMMAND_NOT_ALLOWED',
+      message: `Command \`${command}\` is not an accepted read-only operation for service \`${service}\`.`,
+      hints: `\`aws:call\` sends only operations reviewed as read-only. Accepted for ${service}: ${acceptedOperations.join(', ')}.`
+    });
   }
 
   // Parse input JSON
   let inputObj: Record<string, unknown> = {};
   if (input) {
-    try {
-      inputObj = JSON.parse(input);
-    } catch {
-      throw new ExpectedError(
-        'CLI',
-        'Invalid JSON in --input',
-        'Provide valid JSON, e.g. --input \'{"Key": "value"}\''
-      );
-    }
+    inputObj = parseJsonObjectArgument({
+      value: input,
+      flag: '--input',
+      code: 'CLI_AWS_CALL_INPUT_INVALID',
+      example: '--input \'{"Key":"value"}\''
+    });
   }
 
   const awsRegion = region || globalStateManager.region;
   if (!awsRegion) {
-    throw new ExpectedError('CLI', 'AWS region not specified', 'Provide --region flag');
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_AWS_REGION_REQUIRED',
+      message: 'AWS region is not specified.',
+      hints: 'Provide the `--region` flag.'
+    });
   }
 
   // Get credentials (uses debug agent role if available, otherwise user credentials)
@@ -99,7 +108,12 @@ export const commandAwsCall = async () => {
 
   if (!result.ok) {
     const errResult = result as { ok: false; error: string; hint?: string };
-    throw new ExpectedError('CLI', `AWS SDK error: ${errResult.error}`, errResult.hint);
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_AWS_CALL_FAILED',
+      message: `AWS SDK request failed: ${errResult.error}`,
+      hints: errResult.hint
+    });
   }
 
   // Output
