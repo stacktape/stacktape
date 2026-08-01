@@ -1,9 +1,37 @@
 import { initializeCloudFormationRollbackOperation } from '../_utils/initialization';
 
+type RollbackSpinner = {
+  error: (text: string) => void;
+  success: ({ text }: { text: string }) => void;
+};
+
+type CloudFormationRollbackExecutionOperation = {
+  deploymentArtifacts: { deleteArtifactsRollbackedDeploy: () => Promise<unknown> };
+  stack: { rollbackStack: () => Promise<unknown> };
+  stackName: string;
+  tui: {
+    createSpinner: ({ text }: { text: string }) => RollbackSpinner;
+    prettyStackName: (stackName: string) => string;
+  };
+};
+
 export const commandCfRollback = async () => {
   const { deploymentArtifacts, stack, stackContext, tui } = await initializeCloudFormationRollbackOperation();
 
-  const stackName = stackContext.stackName;
+  return executeCloudFormationRollbackOperation({
+    deploymentArtifacts,
+    stack,
+    stackName: stackContext.stackName,
+    tui
+  });
+};
+
+export const executeCloudFormationRollbackOperation = async ({
+  deploymentArtifacts,
+  stack,
+  stackName,
+  tui
+}: CloudFormationRollbackExecutionOperation) => {
   const spinner = tui.createSpinner({ text: `Rolling back stack ${tui.prettyStackName(stackName)}` });
 
   try {

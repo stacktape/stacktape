@@ -6,11 +6,41 @@ import { initializeRollbackOperation } from '../_utils/initialization';
 
 type RollbackOperation = Awaited<ReturnType<typeof initializeRollbackOperation>>;
 
+type RollbackSpinner = {
+  error: (text: string) => void;
+  success: ({ text }: { text: string }) => void;
+};
+
+type RollbackExecutionOperation = {
+  args: Pick<RollbackOperation['args'], 'listVersions' | 'rollbackSteps' | 'targetVersion'>;
+  deployedStackOverview: Pick<RollbackOperation['deployedStackOverview'], 'getStackMetadata'>;
+  deploymentArtifacts: Pick<
+    RollbackOperation['deploymentArtifacts'],
+    | 'availablePreviousVersions'
+    | 'prepareRollbackTemplate'
+    | 'restoreBucketSyncFromManifest'
+    | 'verifyArtifactsForVersion'
+  >;
+  event: Pick<RollbackOperation['event'], 'setPhase'>;
+  stack: {
+    deployStackForRollback: (templateUrl: string) => Promise<unknown>;
+    lastVersion: string;
+    nextVersion: string;
+  };
+  stackName: string;
+  tui: {
+    createSpinner: ({ text }: { text: string }) => RollbackSpinner;
+    info: (message: string) => void;
+    prettyStackName: (stackName: string) => string;
+    warn: (message: string) => void;
+  };
+};
+
 const listAvailableVersions = async ({
   deploymentArtifacts,
   stack,
   tui
-}: Pick<RollbackOperation, 'deploymentArtifacts' | 'stack' | 'tui'>) => {
+}: Pick<RollbackExecutionOperation, 'deploymentArtifacts' | 'stack' | 'tui'>) => {
   const versions = deploymentArtifacts.availablePreviousVersions.sort();
   const currentVersion = stack.lastVersion;
   if (!versions.length) {
@@ -26,7 +56,7 @@ const listAvailableVersions = async ({
   return null;
 };
 
-const resolveTargetVersion = ({ args, stack }: Pick<RollbackOperation, 'args' | 'stack'>): string => {
+const resolveTargetVersion = ({ args, stack }: Pick<RollbackExecutionOperation, 'args' | 'stack'>): string => {
   const { targetVersion: versionArg, rollbackSteps } = args;
 
   if (versionArg) {
@@ -60,7 +90,7 @@ const verifyArtifactsExist = async ({
   deploymentArtifacts,
   targetVersion,
   tui
-}: Pick<RollbackOperation, 'deploymentArtifacts' | 'tui'> & { targetVersion: string }) => {
+}: Pick<RollbackExecutionOperation, 'deploymentArtifacts' | 'tui'> & { targetVersion: string }) => {
   const availableVersions = deploymentArtifacts.availablePreviousVersions;
   if (!availableVersions.includes(targetVersion)) {
     throw stpErrors.e999({
@@ -81,7 +111,7 @@ const verifyArtifactsExist = async ({
 
 const checkRollbackSafety = ({
   deployedStackOverview
-}: Pick<RollbackOperation, 'deployedStackOverview'>): { isSafe: boolean; warnings: string[] } => {
+}: Pick<RollbackExecutionOperation, 'deployedStackOverview'>): { isSafe: boolean; warnings: string[] } => {
   const warnings: string[] = [];
   const rollbackSafety = deployedStackOverview.getStackMetadata(stackMetadataNames.rollbackSafety());
 
@@ -119,6 +149,26 @@ export const commandRollback = async () => {
   const operation = await initializeRollbackOperation();
   const { args, deployedStackOverview, deploymentArtifacts, event, stack, stackContext, tui } = operation;
 
+  return executeRollbackOperation({
+    args,
+    deployedStackOverview,
+    deploymentArtifacts,
+    event,
+    stack,
+    stackName: stackContext.stackName,
+    tui
+  });
+};
+
+export const executeRollbackOperation = async ({
+  args,
+  deployedStackOverview,
+  deploymentArtifacts,
+  event,
+  stack,
+  stackName,
+  tui
+}: RollbackExecutionOperation) => {
   // Handle --listVersions
   if (args.listVersions) {
     return listAvailableVersions({ deploymentArtifacts, stack, tui });
@@ -149,7 +199,7 @@ export const commandRollback = async () => {
   const templateUrl = await deploymentArtifacts.prepareRollbackTemplate(targetVersion, newVersion);
 
   const spinner = tui.createSpinner({
-    text: `Deploying CF template from ${targetVersion} as ${newVersion} to stack ${tui.prettyStackName(stackContext.stackName)}`
+    text: `Deploying CF template from ${targetVersion} as ${newVersion} to stack ${tui.prettyStackName(stackName)}`
   });
 
   try {

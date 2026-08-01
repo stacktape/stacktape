@@ -2,6 +2,21 @@ import { ExpectedError } from '@utils/errors';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
 import { initializeDeleteOperation } from '../_utils/initialization';
 
+type DeleteOperation = Awaited<ReturnType<typeof initializeDeleteOperation>>;
+
+type DeleteExecutionOperation = {
+  config: Pick<DeleteOperation['config'], 'config' | 'hooks'>;
+  deploymentArtifacts: { deleteAllArtifacts: () => Promise<unknown> };
+  event: Pick<DeleteOperation['event'], 'processHooks' | 'registerHooks' | 'setPhase'>;
+  notification: Pick<DeleteOperation['notification'], 'sendDeploymentNotification'>;
+  stack: {
+    deleteStack: () => Promise<unknown>;
+    existingStackDetails: { EnableTerminationProtection?: boolean };
+  };
+  stackName: string;
+  tui: Pick<DeleteOperation['tui'], 'colorize' | 'setPendingCompletion'>;
+};
+
 export const commandDelete = async () => {
   const { application, config, deploymentArtifacts, event, notification, stack, stackContext, template, tui } =
     await initializeDeleteOperation();
@@ -18,6 +33,18 @@ export const commandDelete = async () => {
     return;
   }
 
+  return executeDeleteOperation({ config, deploymentArtifacts, event, notification, stack, stackName, tui });
+};
+
+export const executeDeleteOperation = async ({
+  config,
+  deploymentArtifacts,
+  event,
+  notification,
+  stack,
+  stackName,
+  tui
+}: DeleteExecutionOperation) => {
   event.setPhase('DEPLOY');
 
   if (stack.existingStackDetails.EnableTerminationProtection) {

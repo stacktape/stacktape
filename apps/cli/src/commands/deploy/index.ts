@@ -25,6 +25,21 @@ import { deployWithEc2Runner } from './ec2-runner';
 
 type DeployOperation = Awaited<ReturnType<typeof initializeDeployOperation>>;
 
+type FullDeployOperation = {
+  deploymentArtifacts: {
+    cloudformationTemplateUrl: string;
+    deleteAllObsoleteArtifacts: () => Promise<unknown>;
+    deleteArtifactsFixedDeploy: () => Promise<unknown>;
+    deleteArtifactsRollbackedDeploy: () => Promise<unknown>;
+  };
+  stack: {
+    deployStack: (templateUrl: string) => Promise<{ warningMessages?: string[] }>;
+    existingStackDetails?: { StackStatus?: string };
+    isAutoRollbackEnabled: boolean;
+  };
+  tui: Pick<DeployOperation['tui'], 'warn'>;
+};
+
 export const commandDeploy = async () => {
   const runner = globalStateManager.args.runner ?? 'local';
   if (runner === 'codebuild') {
@@ -256,11 +271,7 @@ export const prepareArtifactsForStackDeployment = async ({
   return { abort, packagedWorkloads, cfTemplateDiff };
 };
 
-const performFullDeploy = async ({
-  deploymentArtifacts,
-  stack,
-  tui
-}: Pick<DeployOperation, 'deploymentArtifacts' | 'stack' | 'tui'>) => {
+export const performFullDeploy = async ({ deploymentArtifacts, stack, tui }: FullDeployOperation) => {
   try {
     const { warningMessages } = await stack.deployStack(deploymentArtifacts.cloudformationTemplateUrl);
     warningMessages?.forEach((msg) => {
