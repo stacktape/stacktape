@@ -9,7 +9,7 @@ import { createSimpleContext } from './context';
 export const brand = {
   accent: '#36BEBE',
   accentContrastText: '#0C1414',
-  success: '#0ABBB5',
+  success: '#2ACF91',
   error: '#EB6161',
   warning: '#ED8B00',
   bg: '#171D1D',
@@ -55,7 +55,7 @@ export type Theme = { -readonly [K in keyof typeof darkTheme]: string };
 export const lightTheme: Theme = {
   pending: '#6b7280',
   running: '#1a9c9c',
-  success: '#0a8c87',
+  success: '#0d9058',
   error: '#d34848',
   warning: '#c17000',
   rebuild: '#9333ea',

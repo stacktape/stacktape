@@ -67,7 +67,7 @@ describe('PromptSink TUI mode', () => {
 
     await expect(promise).resolves.toBe(true);
     expect(tuiState.getSnapshot().activePrompt).toBeUndefined();
-    expect(received).toEqual([{ kind: 'prompt-answer', message: 'Deploy to production?', answer: 'yes' }]);
+    expect(received).toEqual([{ kind: 'prompt-answer', message: 'Deploy to production?', answer: 'Yes' }]);
   });
 
   test('text prompt masks password answers in the transcript', async () => {

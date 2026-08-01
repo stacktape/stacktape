@@ -103,7 +103,7 @@ export class PromptSink {
         type: 'confirm',
         message: config.message,
         defaultValue: config.defaultValue,
-        resolve: this.resolveAndClear(resolve, config.message, (value) => (value ? 'yes' : 'no')),
+        resolve: this.resolveAndClear(resolve, config.message, (value) => (value ? 'Yes' : 'No')),
         reject: this.rejectAndClear(reject)
       }));
     }

@@ -102,8 +102,8 @@ const OptionRow = (props: {
       </text>
       <Show when={props.description}>
         <text flexShrink={1} wrapMode="none" fg={theme.muted}>
-          {'  '}
-          {props.description}
+          {' '}
+          {glyphs.separator} {props.description}
         </text>
       </Show>
     </AccentRow>
@@ -153,6 +153,9 @@ const SelectPrompt = (props: { prompt: TuiPromptSelect }) => {
             {selectedIndex() + 1} of {total()}
           </text>
         </Show>
+      </AccentRow>
+      <AccentRow>
+        <text> </text>
       </AccentRow>
       <For each={visibleOptions()}>
         {(opt, i) => (
@@ -231,6 +234,9 @@ const MultiSelectPrompt = (props: { prompt: TuiPromptMultiSelect }) => {
             {glyphs.separator} {selectedIndex() + 1} of {total()}
           </Show>
         </text>
+      </AccentRow>
+      <AccentRow>
+        <text> </text>
       </AccentRow>
       <For each={visibleOptions()}>
         {(opt, i) => (

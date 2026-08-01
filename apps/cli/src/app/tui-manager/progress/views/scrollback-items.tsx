@@ -1,7 +1,7 @@
 import { Show, For, Switch, Match, type JSX } from 'solid-js';
 import type { ScrollbackItem } from '../feed';
 import type { ErrorDisplayData } from '../../format/errors';
-import { getErrorLabel, wrapText } from '../../format/errors';
+import { getErrorLabel, parseErrorMessage, wrapText } from '../../format/errors';
 import type { CfProgressData, TuiEvent, TuiPhase } from '../types';
 import type { TuiDeploymentHeader, TuiMessageType } from '../../types';
 import { ThemeProvider, useTheme } from '../../ui/theme';
@@ -280,7 +280,12 @@ const GutterRow = (props: { color: string; children?: JSX.Element }) => (
   </box>
 );
 
-const ErrorView = (props: { error: ErrorDisplayData; commandVerb?: string; width: number }) => {
+const ErrorView = (props: {
+  error: ErrorDisplayData;
+  commandVerb?: string;
+  header?: TuiDeploymentHeader;
+  width: number;
+}) => {
   const { theme } = useTheme();
   // Semantic line breaks: wrapping is done here, never by the terminal, so the
   // gutter column stays intact on every line.
@@ -290,6 +295,19 @@ const ErrorView = (props: { error: ErrorDisplayData; commandVerb?: string; width
     if (verb && verb !== 'RUN') return `${verb} FAILED`;
     return props.error.isExpected === false ? 'UNEXPECTED ERROR' : getErrorLabel(props.error.errorType).toUpperCase();
   };
+  const target = () => {
+    const header = props.header;
+    if (!header) return null;
+    return `${header.projectName} / ${header.stageName} ${glyphs.separator} ${header.region}`;
+  };
+  // CloudFormation resource errors get a subject line: stacktape name + logical id.
+  const parsed = () => parseErrorMessage(props.error.message);
+  const subject = () => {
+    const { resource, context } = parsed();
+    if (!resource) return null;
+    return context ? `${context} ${glyphs.separator} ${resource}` : resource;
+  };
+  const messageText = () => (subject() ? parsed().error : props.error.message);
 
   return (
     <box flexDirection="column" width="100%">
@@ -299,8 +317,24 @@ const ErrorView = (props: { error: ErrorDisplayData; commandVerb?: string; width
           {glyphs.accentBar} <b>{title()}</b>
         </text>
       </box>
+      <Show when={target()}>
+        <GutterRow color={theme.error}>
+          <text flexShrink={1} wrapMode="none" fg={theme.muted}>
+            {' '}
+            {target()}
+          </text>
+        </GutterRow>
+      </Show>
       <GutterRow color={theme.error} />
-      <For each={wrapText(props.error.message, textWidth())}>
+      <Show when={subject()}>
+        <GutterRow color={theme.error}>
+          <text flexShrink={1} wrapMode="none" fg={theme.textBright}>
+            {' '}
+            <b>{subject()}</b>
+          </text>
+        </GutterRow>
+      </Show>
+      <For each={wrapText(messageText(), textWidth())}>
         {(line) => (
           <GutterRow color={theme.error}>
             <text flexShrink={1} wrapMode="none" fg={theme.text}>
@@ -359,7 +393,7 @@ const ErrorView = (props: { error: ErrorDisplayData; commandVerb?: string; width
         <GutterRow color={theme.error}>
           <text flexShrink={0} wrapMode="none" fg={theme.textBright}>
             {' '}
-            <b>Fix</b>
+            <b>Next steps</b>
           </text>
         </GutterRow>
         <For each={props.error.hints}>
@@ -615,6 +649,7 @@ export const ScrollbackItemView = (props: { item: ScrollbackItem; width: number 
             <ErrorView
               error={(props.item as Extract<ScrollbackItem, { kind: 'error' }>).error}
               commandVerb={commandVerbLabel((props.item as Extract<ScrollbackItem, { kind: 'error' }>).header?.action)}
+              header={(props.item as Extract<ScrollbackItem, { kind: 'error' }>).header}
               width={documentWidth()}
             />
           </Match>

@@ -145,7 +145,7 @@ export const footerScenes: Scene[] = [
       tuiState.setCurrentPhase('INITIALIZE');
       tuiState.setActivePrompt({
         type: 'confirm',
-        message: 'Deploy demo-app to stage production?',
+        message: 'Deploy demo-app to the production stage?',
         defaultValue: true,
         resolve: () => {},
         reject: () => {}
@@ -291,7 +291,7 @@ export const scrollbackItems: Array<{ name: string; item: ScrollbackItem }> = [
   },
   {
     name: 'scrollback/prompt-answer',
-    item: { kind: 'prompt-answer', message: 'Deploy demo-app to stage production?', answer: 'yes' }
+    item: { kind: 'prompt-answer', message: 'Deploy demo-app to the production stage?', answer: 'Yes' }
   },
   {
     name: 'scrollback/error',
@@ -301,10 +301,10 @@ export const scrollbackItems: Array<{ name: string; item: ScrollbackItem }> = [
       error: {
         errorType: 'STACK',
         message:
-          'Resource MainDatabaseCluster (part of main-database): The specified instance class `db.r6g.16xlarge` is not available in eu-west-1. Stack was rolled back to its previous working state.',
+          'Resource MainDatabaseCluster (part of main-database): `db.r6g.16xlarge` is unavailable in eu-west-1. The stack was rolled back to its previous working state.',
         hints: [
-          'Use `instanceSize` supported in the target region.',
-          'Run with `--logLevel debug` to see the full CloudFormation event stream.'
+          'Choose an `instanceSize` available in eu-west-1.',
+          'Re-run with `--logLevel debug` for the full CloudFormation event stream.'
         ],
         isExpected: true
       }
@@ -332,7 +332,7 @@ export const scrollbackItems: Array<{ name: string; item: ScrollbackItem }> = [
           id: 'DEPLOY',
           name: 'Deploy',
           status: 'success',
-          duration: 9800,
+          duration: 9900,
           events: [finishedEvent({ id: 'UPDATE_STACK', eventType: 'UPDATE_STACK', data: cfDetail(14, true) as any })]
         },
         { id: 'POST_DEPLOY', name: 'Finalize', status: 'success', duration: 700, events: [] }

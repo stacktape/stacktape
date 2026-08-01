@@ -168,27 +168,19 @@ export const CfPanel = (props: { event: TuiEvent; rows: number }) => {
 
   const slotCount = () => Math.max(1, props.rows - 3);
   const visibleSlots = () => slotResources().slice(0, slotCount());
-  const hiddenActive = () => Math.max(0, slotResources().length - slotCount());
 
   const changesText = () => {
     const { created, updated, deleted } = snapshot().changeCounts;
     if (created + updated + deleted === 0) return '';
     const parts: string[] = [];
-    if (created > 0) parts.push(`${created} create`);
-    if (updated > 0) parts.push(`${updated} update`);
-    if (deleted > 0) parts.push(`${deleted} delete`);
-    return parts.join(` ${glyphs.separator} `);
-  };
-
-  const overflowText = () => {
-    const parts: string[] = [];
-    if (hiddenActive() > 0) parts.push(`+${hiddenActive()} active`);
-    if (snapshot().waitingCount > 0) parts.push(`${snapshot().waitingCount} queued`);
+    if (created > 0) parts.push(`${created} CREATE`);
+    if (updated > 0) parts.push(`${updated} UPDATE`);
+    if (deleted > 0) parts.push(`${deleted} DELETE`);
     return parts.join(` ${glyphs.separator} `);
   };
 
   return (
-    <box flexDirection="column" paddingLeft={2} overflow="hidden">
+    <box flexDirection="column" paddingLeft={2} paddingRight={1} overflow="hidden">
       <box height={1} flexShrink={0} flexDirection="row" overflow="hidden">
         <text flexShrink={1} wrapMode="none" fg={theme.textBright}>
           <b>{CF_ACTION_LABELS[snapshot().action] ?? 'CloudFormation'}</b>
@@ -207,19 +199,30 @@ export const CfPanel = (props: { event: TuiEvent; rows: number }) => {
             <Show
               when={snapshot().percent !== null && snapshot().totalPlanned > 0}
               fallback={
-                <box height={1} flexShrink={0} overflow="hidden">
-                  <text wrapMode="none" fg={theme.dim}>
-                    <Show when={snapshot().hasData} fallback={'starting CloudFormation operation'}>
+                <box height={1} flexShrink={0} flexDirection="row" overflow="hidden">
+                  <Show
+                    when={snapshot().hasData}
+                    fallback={
+                      <>
+                        <Spinner />
+                        <text wrapMode="none" fg={theme.text}>
+                          {' '}
+                          Starting {snapshot().action === 'rollback' ? 'rollback' : `stack ${snapshot().action}`}
+                        </text>
+                      </>
+                    }
+                  >
+                    <text wrapMode="none" fg={theme.dim}>
                       {`${snapshot().completedCount} complete`} {glyphs.separator} total calculating
-                    </Show>
-                  </text>
+                    </text>
+                  </Show>
                 </box>
               }
             >
               <ProgressBarRow
                 percent={snapshot().percent ?? 0}
-                suffixPrimary={`${snapshot().percent}%`}
-                suffixSecondary={`${snapshot().completedCount}/${snapshot().totalPlanned} resources`}
+                suffixPrimary={`${snapshot().percent}%`.padStart(4)}
+                suffixSecondary={`${String(snapshot().completedCount).padStart(2)}/${snapshot().totalPlanned} complete`}
               />
             </Show>
             <For each={visibleSlots()}>
@@ -246,11 +249,6 @@ export const CfPanel = (props: { event: TuiEvent; rows: number }) => {
             <For each={Array.from({ length: Math.max(0, slotCount() - visibleSlots().length) })}>
               {() => <box height={1} flexShrink={0} />}
             </For>
-            <box height={1} flexShrink={0} overflow="hidden">
-              <text wrapMode="none" fg={theme.dim}>
-                {overflowText() || ' '}
-              </text>
-            </box>
           </>
         }
       >
@@ -260,7 +258,7 @@ export const CfPanel = (props: { event: TuiEvent; rows: number }) => {
             suffixPrimary={'100%'}
             suffixSecondary={
               snapshot().totalPlanned > 0
-                ? `${snapshot().totalPlanned}/${snapshot().totalPlanned} resources`
+                ? `${String(snapshot().totalPlanned).padStart(2)}/${snapshot().totalPlanned} complete`
                 : undefined
             }
           />
@@ -315,13 +313,19 @@ const aggregateChildren = (children: TuiEvent[]): AggregatedChild[] => {
     else if (running) status = 'running';
     else if (allDone && events.length > 0) status = lastFinished?.status || 'success';
 
+    // The name is the first column; the outcome/detail is the second. When a
+    // finished message repeats the name ("api-lambda packaged (4.1 MB)"), the
+    // repeated prefix is stripped so columns align without duplication.
+    const finishedDetail = lastFinished?.finalMessage
+      ? lastFinished.finalMessage.startsWith(`${instanceId} `)
+        ? lastFinished.finalMessage.slice(instanceId.length + 1)
+        : lastFinished.finalMessage
+      : '';
     result.push({
       instanceId,
       status,
-      // Running rows show the name (+ live detail); finished rows show only the
-      // normalized outcome message, which already names its subject.
-      label: running || !lastFinished?.finalMessage ? instanceId : lastFinished.finalMessage,
-      detail: running ? running.additionalMessage || '' : ''
+      label: instanceId,
+      detail: running ? running.additionalMessage || '' : finishedDetail
     });
   }
   return result;
@@ -347,6 +351,11 @@ const RowIcon = (props: { status: TuiEvent['status'] }) => {
 const GenericRows = (props: { events: TuiEvent[]; rows: number }) => {
   const { theme } = useTheme();
 
+  const childLabelWidth = () => {
+    const labels = props.events.flatMap((event) => aggregateChildren(event.children).map((child) => child.label));
+    return Math.min(24, Math.max(0, ...labels.map((label) => label.length)));
+  };
+
   const allRows = (): LiveRow[] => {
     const rows: LiveRow[] = [];
     for (const event of [...props.events].sort((a, b) => a.startTime - b.startTime)) {
@@ -367,7 +376,7 @@ const GenericRows = (props: { events: TuiEvent[]; rows: number }) => {
   };
 
   return (
-    <box flexDirection="column" paddingLeft={2} overflow="hidden">
+    <box flexDirection="column" paddingLeft={2} paddingRight={1} overflow="hidden">
       <For each={visible()}>
         {(row) => (
           <box height={1} flexShrink={0} flexDirection="row" overflow="hidden">
@@ -393,9 +402,9 @@ const GenericRows = (props: { events: TuiEvent[]; rows: number }) => {
                 {' '}
               </text>
               <RowIcon status={(row as Extract<LiveRow, { kind: 'child' }>).child.status} />
-              <text flexShrink={1} wrapMode="none" fg={theme.text}>
+              <text flexShrink={0} wrapMode="none" fg={theme.text}>
                 {' '}
-                {(row as Extract<LiveRow, { kind: 'child' }>).child.label}
+                {(row as Extract<LiveRow, { kind: 'child' }>).child.label.padEnd(childLabelWidth())}
               </text>
               <Show when={(row as Extract<LiveRow, { kind: 'child' }>).child.detail}>
                 <text flexShrink={1} wrapMode="none" fg={theme.dim}>
@@ -422,7 +431,7 @@ export const HotswapPanel = (props: { event: TuiEvent; rows: number }) => {
   const doneCount = () => children().filter((c) => c.status === 'success' || c.status === 'error').length;
 
   return (
-    <box flexDirection="column" paddingLeft={2} overflow="hidden">
+    <box flexDirection="column" paddingLeft={2} paddingRight={1} overflow="hidden">
       <box height={1} flexShrink={0} flexDirection="row" overflow="hidden">
         <text flexShrink={1} wrapMode="none" fg={theme.textBright}>
           <b>Hot-swap update</b>

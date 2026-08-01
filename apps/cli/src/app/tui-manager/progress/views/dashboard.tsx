@@ -1,6 +1,6 @@
 import { createSignal, onCleanup, Show, For, ErrorBoundary } from 'solid-js';
 import { useKeyboard, useTerminalDimensions } from '@opentui/solid';
-import { actionSupportsCancel, type TuiDeploymentHeader } from '../../types';
+import type { TuiDeploymentHeader } from '../../types';
 import { ThemeProvider, useTheme } from '../../ui/theme';
 import { glyphs } from '../../ui/glyphs';
 import { formatClock } from '../../format/text';
@@ -182,7 +182,6 @@ const CompleteBanner = () => {
 
   return (
     <box flexDirection="column" paddingLeft={2}>
-      <box height={1} />
       <Show when={summary()}>
         {(s) => (
           <box height={1} flexDirection="row" overflow="hidden">
@@ -287,12 +286,8 @@ const StatusStrip = (props: { showCancelConfirm: boolean }) => {
   const isComplete = createTuiSignal((s) => s.isComplete);
 
   const content = () => {
-    const cd = cancelDeployment();
-    if (cd?.isCancelling) {
-      return { color: theme.warning, text: `${glyphs.warning} rolling back to the previous working state` };
-    }
-    if (cd && !props.showCancelConfirm && !isComplete()) {
-      return { color: theme.dim, text: `${cd.message} Press c to cancel and roll back.` };
+    if (cancelDeployment()?.isCancelling && !isComplete() && !props.showCancelConfirm) {
+      return { color: theme.warning, text: `${glyphs.warning} Rolling back to the previous working state` };
     }
     return null;
   };
@@ -340,9 +335,8 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
   const cancelDeployment = createTuiSignal((s) => s.cancelDeployment);
   const activePrompt = createTuiSignal((s) => s.activePrompt);
   const showPhases = createTuiSignal((s) => s.showPhaseHeaders !== false);
-  const action = createTuiSignal((s) => s.header?.action);
   const isCancelling = () => cancelDeployment()?.isCancelling;
-  const canCancel = () => actionSupportsCancel(action());
+  const canCancel = () => !!cancelDeployment() && !isCancelling();
 
   const handleCancelConfirm = () => {
     setShowCancelConfirm(false);
@@ -367,7 +361,7 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
       return;
     }
 
-    if ((key.sequence === 'c' || key.sequence === 'C') && canCancel() && !isCancelling()) {
+    if ((key.sequence === 'c' || key.sequence === 'C') && canCancel()) {
       setShowCancelConfirm(true);
     }
   });
@@ -382,14 +376,17 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
         { key: 'enter', label: 'choose' }
       ];
     }
-    if (isComplete() || isCancelling()) return [];
+    if (isComplete()) return [];
+    if (isCancelling()) {
+      return [{ key: 'ctrl+c', label: dimensions().width < 80 ? 'detach' : 'detach (rollback continues in AWS)' }];
+    }
     if (canCancel()) {
       return [
         { key: 'c', label: 'cancel & roll back' },
-        { key: 'ctrl+c', label: dimensions().width < 80 ? 'exit' : 'exit (operation continues in AWS)' }
+        { key: 'ctrl+c', label: dimensions().width < 80 ? 'detach' : 'detach (deployment continues in AWS)' }
       ];
     }
-    return [{ key: 'ctrl+c', label: 'exit' }];
+    return [{ key: 'ctrl+c', label: 'cancel' }];
   };
 
   const bodyRows = () => (showPhases() ? 6 : 3);

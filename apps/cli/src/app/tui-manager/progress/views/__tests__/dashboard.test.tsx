@@ -103,7 +103,8 @@ describe('ProgressDashboard footer', () => {
     });
 
     const frame = await renderDashboard();
-    expect(frame).toContain('api-lambda packaged (4.1 MB)');
+    // Name column + outcome column, with the repeated name prefix stripped.
+    expect(frame).toContain('api-lambda  packaged (4.1 MB)');
     expect(frame).not.toContain('api-lambda  api-lambda');
   });
 
@@ -115,17 +116,24 @@ describe('ProgressDashboard footer', () => {
 
     const frame = await renderDashboard();
     expect(frame).toContain('CloudFormation update');
-    expect(frame).toContain('36% · 5/14 resources');
+    expect(frame).toContain('36% ·  5/14 complete');
     expect(frame).toContain('UPDATE  web-service');
     expect(frame).toContain('AWS::ECS::Service');
-    expect(frame).toContain('1 queued');
-    expect(frame).toContain('3 create · 9 update · 2 delete');
+    expect(frame).toContain('3 CREATE · 9 UPDATE · 2 DELETE');
   });
 
-  test('shows cancel hint while running', async () => {
+  test('hints are phase-honest', async () => {
     initDeployState();
-    const frame = await renderDashboard();
-    expect(frame).toContain('cancel & roll back');
+    const early = await renderDashboard();
+    // Before a cancellable operation exists, only plain cancel is offered.
+    expect(early).toContain('ctrl+c cancel');
+    expect(early).not.toContain('roll back');
+
+    tuiState.setCancelDeployment({ message: 'Deployment in progress.', onCancel: () => {} });
+    await flushAndRender();
+    const during = testSetup.captureCharFrame();
+    expect(during).toContain('c cancel & roll back');
+    expect(during).toContain('detach (deployment continues in AWS)');
   });
 
   test('active prompt replaces the live area within the same geometry', async () => {
@@ -182,26 +190,26 @@ describe('ProgressDashboard stability', () => {
       .map((line, index) => (line === afterLines[index] ? null : index))
       .filter((index) => index !== null);
     // Only the progress row (5) and possibly spinner cells on resource rows
-    // (6-7) may change; identity, rail, title, queue and hints must not move.
+    // (6-8) may change; identity, rail, title and hints must not move.
     for (const row of changedRows) {
       expect(row).toBeGreaterThanOrEqual(5);
-      expect(row).toBeLessThanOrEqual(7);
+      expect(row).toBeLessThanOrEqual(8);
     }
   });
 
-  test('cancel offer and hints never overlap', async () => {
+  test('rollback state keeps status strip and hints on separate rows', async () => {
     initDeployState();
     tuiState.setCurrentPhase('DEPLOY');
     tuiState.startEvent({ eventType: 'UPDATE_STACK', description: 'Updating CloudFormation stack' });
-    tuiState.setCancelDeployment({ message: 'Deployment in progress.', onCancel: () => {} });
+    tuiState.setCancelDeployment({ message: 'Deployment in progress.', onCancel: () => {}, isCancelling: true });
 
     const frame = await renderDashboard();
     const lines = frameLines(frame);
     expect(lines).toHaveLength(12);
-    expect(frame).toContain('Press c to cancel and roll back.');
-    expect(frame).toContain('cancel & roll back');
-    // The status strip and the hint row are separate, uncorrupted rows.
-    const statusRow = lines.findIndex((l) => l.includes('Press c to cancel'));
+    expect(frame).toContain('CloudFormation rollback');
+    expect(frame).toContain('Rolling back to the previous working state');
+    expect(frame).toContain('detach (rollback continues in AWS)');
+    const statusRow = lines.findIndex((l) => l.includes('Rolling back to the previous'));
     const hintsRow = lines.findIndex((l) => l.includes('ctrl+c'));
     expect(statusRow).toBe(10);
     expect(hintsRow).toBe(11);

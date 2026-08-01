@@ -167,7 +167,7 @@ const cleanErrorMessage = (message: string): string => {
   return cleaned;
 };
 
-const parseErrorMessage = (message: string): { resource?: string; context?: string; error: string } => {
+export const parseErrorMessage = (message: string): { resource?: string; context?: string; error: string } => {
   const cleaned = cleanErrorMessage(message);
 
   const partOfMatch = cleaned.match(/^Resource\s+(\S+)\s+\(part of\s+([^)]+)\):\s*([\s\S]+)$/);

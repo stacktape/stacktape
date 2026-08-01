@@ -140,16 +140,18 @@ describe('scrollback document grammar', () => {
       error: {
         errorType: 'STACK',
         message:
-          'Resource MainDatabaseCluster: The specified instance class is not available in this region and the stack was rolled back to its previous working state after the failure.',
+          'Resource MainDatabaseCluster (part of main-database): The specified instance class is not available in this region and the stack was rolled back to its previous working state after the failure.',
         hints: ['Use a supported instance class.'],
         isExpected: true
       }
     });
     expect(frame).toContain('▌ DEPLOY FAILED');
-    expect(frame).toContain('Fix');
+    expect(frame).toContain('demo-app / prod · eu-west-1');
+    expect(frame).toContain('main-database · MainDatabaseCluster');
+    expect(frame).toContain('Next steps');
     expect(frame).toContain('› Use a supported instance class.');
     // Every non-empty body line keeps the gutter column.
-    const body = frame.split('\n').filter((line) => line.trim() && !line.includes('DEPLOY FAILED'));
+    const body = frame.split(String.fromCharCode(10)).filter((line) => line.trim() && !line.includes('DEPLOY FAILED'));
     for (const line of body) {
       expect(line.trimStart().startsWith('│') || line.trimStart().startsWith('›')).toBe(true);
     }

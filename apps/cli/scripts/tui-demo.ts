@@ -147,7 +147,7 @@ const runDeploy = async () => {
   tuiManager.start({ phases: 'deploy' });
 
   const confirmed = await tuiManager.promptConfirm({
-    message: 'Deploy demo-app to stage production?',
+    message: 'Deploy demo-app to the production stage?',
     defaultValue: true
   });
   if (!confirmed) {
@@ -217,10 +217,10 @@ const runFail = async () => {
     category: 'STACK',
     code: 'STACK_UPDATE_FAILED',
     message:
-      'Resource MainDatabaseCluster (part of main-database): The specified instance class `db.r6g.16xlarge` is not available in eu-west-1. Stack was rolled back to its previous working state.',
+      'Resource MainDatabaseCluster (part of main-database): `db.r6g.16xlarge` is unavailable in eu-west-1. The stack was rolled back to its previous working state.',
     hints: [
-      'Use `instanceSize` supported in the target region. See `stacktape info:stacks` for deployed stacks.',
-      'Run with `--logLevel debug` to see the full CloudFormation event stream.'
+      'Choose an `instanceSize` available in eu-west-1.',
+      'Re-run with `--logLevel debug` for the full CloudFormation event stream.'
     ]
   });
   error.details = getErrorDetails(error);
