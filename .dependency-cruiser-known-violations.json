@@ -185,35 +185,6 @@
   },
   {
     "type": "cycle",
-    "from": "apps/cli/src/domain/config-manager/utils/bastion.ts",
-    "to": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
-    "unresolvedTo": "./resource-references",
-    "dependencyTypes": ["local", "require"],
-    "rule": {
-      "severity": "error",
-      "name": "no-cycles"
-    },
-    "cycle": [
-      {
-        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/index.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/utils/bastion.ts",
-        "dependencyTypes": ["local", "require"]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
     "from": "apps/cli/src/domain/config-manager/utils/buckets.ts",
     "to": "apps/cli/src/domain/config-manager/index.ts",
     "unresolvedTo": "../index",
@@ -549,6 +520,10 @@
     "cycle": [
       {
         "name": "apps/cli/src/domain/config-manager/utils/lambdas.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
         "dependencyTypes": ["local", "require"]
       },
       {

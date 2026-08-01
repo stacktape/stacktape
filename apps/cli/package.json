@@ -161,7 +161,6 @@
     "dotenv-stringify": "^3.0.1",
     "entities": "6.0.1",
     "execa": "^5.1.1",
-    "express": "^5.1.0",
     "fast-glob": "^3.3.3",
     "find-free-ports": "^3.1.1",
     "fs-extra": "11.3.3",

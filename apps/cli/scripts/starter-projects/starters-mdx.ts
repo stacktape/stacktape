@@ -310,7 +310,7 @@ const getContainerResourceData = (usedResources: UsedResourceData[]) => {
   const containerTypes = ['multi-container-workload', 'web-service', 'worker-service', 'private-service'];
   const resource = usedResources.find((r) => containerTypes.includes(r.type));
   if (!resource) return null;
-  return { resourceName: resource.name, containerName: resource.containerNames?.[0] };
+  return { resourceName: resource.name };
 };
 
 const getLambdaData = (usedResources: UsedResourceData[]) => {
@@ -319,7 +319,7 @@ const getLambdaData = (usedResources: UsedResourceData[]) => {
   return { resourceName: resource.name };
 };
 
-const generateMdxDevMode = ({
+export const generateMdxDevMode = ({
   usedResourceTypes,
   usedResources
 }: Pick<StarterProjectMetadata, 'usedResourceTypes' | 'usedResources'>) => {
@@ -329,13 +329,12 @@ const generateMdxDevMode = ({
   if (hasContainerResource) {
     const data = getContainerResourceData(usedResources);
     if (!data) return '';
-    const { resourceName, containerName } = data;
-    const containerFlag = containerName ? ` --container ${containerName}` : '';
+    const { resourceName } = data;
     return `To run the service in the development mode (locally on your machine), you can use the
 [dev command](https://docs.stacktape.com/cli/commands/dev/).
 
 \`\`\`bash
-stacktape dev --region <<your-region>> --stage <<stage>> --resourceName ${resourceName}${containerFlag}
+stacktape dev --region <<your-region>> --stage <<stage>> --resources ${resourceName}
 \`\`\`
 
 Stacktape runs the container as closely to the deployed version as possible:
@@ -363,7 +362,7 @@ The container is rebuilt and restarted, when you either:
 [dev command](https://docs.stacktape.com/cli/commands/dev/). For example, to develop and debug lambda function \`${resourceName}\`, you can use
 
 \`\`\`bash
-stacktape dev --region <<your-region>> --stage <<stage>> --resourceName ${resourceName}
+stacktape dev --region <<your-region>> --stage <<stage>> --resources ${resourceName}
 \`\`\`
 
 The command will:

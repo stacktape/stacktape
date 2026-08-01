@@ -5,7 +5,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { writeFile } from 'fs-extra';
 import { devTuiManager } from 'src/app/tui-manager/dev-tui';
-import { formatDevServerStatus, startDevServer, stopDevServer } from '../dev-server';
+import { formatDevServerStatus, startDevServer } from '../dev-server';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 
 const DEFAULT_NEXTJS_DEV_COMMAND = 'next dev';
@@ -56,56 +56,6 @@ const writeDevEnvFile = async ({
 
 const getWorkingDirectory = (appDirectory: string): string => {
   return isAbsolute(appDirectory) ? appDirectory : join(globalStateManager.workingDir, appDirectory);
-};
-
-export const runDevNextjsWeb = async (): Promise<void> => {
-  const { resourceName } = globalStateManager.args;
-
-  const nextjsWeb = configManager.nextjsWebs.find((n) => n.name === resourceName);
-  if (!nextjsWeb) {
-    throw new Error(`Next.js web "${resourceName}" not found in config`);
-  }
-
-  const workingDirectory = getWorkingDirectory(nextjsWeb.appDirectory);
-
-  // Write .env.local with environment values
-  await writeDevEnvFile({
-    name: resourceName,
-    workingDirectory,
-    environment: nextjsWeb.environment
-  });
-
-  const devConfig = {
-    command: nextjsWeb.dev?.command || DEFAULT_NEXTJS_DEV_COMMAND,
-    workingDirectory: nextjsWeb.appDirectory
-  };
-
-  tuiManager.info(`Starting dev server for ${resourceName}...`);
-
-  const state = await startDevServer({
-    name: resourceName,
-    config: devConfig,
-    callbacks: {
-      onStateChange: (newState) => {
-        const status = formatDevServerStatus(newState);
-        if (status) {
-          tuiManager.info(`[${resourceName}] ${status}`);
-        }
-      },
-      onOutput: (line) => {
-        tuiManager.info(`[${resourceName}] ${line}`);
-      }
-    }
-  });
-
-  if (state.status === 'error') {
-    tuiManager.warn(`[${resourceName}] Dev server failed to start: ${state.error}`);
-  } else {
-    tuiManager.success(`[${resourceName}] Dev server running${state.url ? ` at ${state.url}` : ''}`);
-  }
-
-  // Keep process alive - the dev server is running in background
-  await new Promise(() => {});
 };
 
 export const startNextjsWebDevServer = async ({
@@ -185,5 +135,3 @@ export const startNextjsWebDevServer = async ({
     }
   });
 };
-
-export { stopDevServer };

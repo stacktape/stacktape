@@ -5,7 +5,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { writeFile } from 'fs-extra';
 import { devTuiManager } from 'src/app/tui-manager/dev-tui';
-import { formatDevServerStatus, startDevServer, stopDevServer } from '../dev-server';
+import { formatDevServerStatus, startDevServer } from '../dev-server';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 
 const writeDevEnvFile = async ({
@@ -58,58 +58,6 @@ const getWorkingDirectory = (dev: { workingDirectory?: string }): string => {
       ? dev.workingDirectory
       : join(globalStateManager.workingDir, dev.workingDirectory)
     : globalStateManager.workingDir;
-};
-
-export const runDevHostingBucket = async (): Promise<void> => {
-  const { resourceName } = globalStateManager.args;
-
-  const bucket = configManager.hostingBuckets.find((b) => b.name === resourceName);
-  if (!bucket) {
-    throw new Error(`Hosting bucket "${resourceName}" not found in config`);
-  }
-
-  if (!bucket.dev) {
-    throw new Error(
-      `Hosting bucket "${resourceName}" does not have a dev configuration. ` +
-        `Dev mode requires a dev property (e.g. { command: "npm run dev" }).`
-    );
-  }
-
-  const workingDirectory = getWorkingDirectory(bucket.dev);
-
-  // Write .env.local with injectEnvironment values
-  await writeDevEnvFile({
-    name: resourceName,
-    workingDirectory,
-    injectEnvironment: bucket.injectEnvironment
-  });
-
-  tuiManager.info(`Starting dev server for ${resourceName}...`);
-
-  const state = await startDevServer({
-    name: resourceName,
-    config: bucket.dev,
-    callbacks: {
-      onStateChange: (newState) => {
-        const status = formatDevServerStatus(newState);
-        if (status) {
-          tuiManager.info(`[${resourceName}] ${status}`);
-        }
-      },
-      onOutput: (line) => {
-        tuiManager.info(`[${resourceName}] ${line}`);
-      }
-    }
-  });
-
-  if (state.status === 'error') {
-    tuiManager.warn(`[${resourceName}] Dev server failed to start: ${state.error}`);
-  } else {
-    tuiManager.success(`[${resourceName}] Dev server running${state.url ? ` at ${state.url}` : ''}`);
-  }
-
-  // Keep process alive - the dev server is running in background
-  await new Promise(() => {});
 };
 
 export const startHostingBucketDevServer = async ({
@@ -189,5 +137,3 @@ export const startHostingBucketDevServer = async ({
     }
   });
 };
-
-export { stopDevServer };

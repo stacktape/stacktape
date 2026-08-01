@@ -6,7 +6,7 @@ import {
   commandDefinitions,
   type StacktapeCommand
 } from '../../src/config/cli/commands';
-import { getArgInfo, validateCommandArgs } from '../../src/config/cli/utils';
+import { getAllowedArgs, getArgInfo, validateCommandArgs } from '../../src/config/cli/utils';
 import { allCliArgsSchema, argAliases } from '../../src/config/cli/options';
 
 const capabilityCommands: Record<string, StacktapeCommand[]> = {
@@ -119,8 +119,12 @@ describe('CLI option semantics', () => {
     expect(getArgInfo('deploy', 'outputFormat').allowedValues).toEqual(['jsonl', 'plain', 'tty']);
   });
 
-  test('exposes one dev workflow without the retired legacy mode selector', () => {
+  test('exposes one dev workflow without retired single-resource selectors', () => {
     expect(commandDefinitions.dev.args).not.toHaveProperty('devMode');
+    expect(commandDefinitions.dev.args).not.toHaveProperty('resourceName');
+    expect(commandDefinitions.dev.args).not.toHaveProperty('container');
+    expect(getAllowedArgs('dev')).not.toContain('resourceName');
+    expect(getAllowedArgs('dev')).not.toContain('container');
     expect(argAliases).not.toHaveProperty('devMode');
   });
 });
