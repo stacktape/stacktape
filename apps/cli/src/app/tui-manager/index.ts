@@ -22,7 +22,12 @@ import type { OpenTuiHandle } from './opentui-renderer';
 import { tuiDebug } from './tui-debug-log';
 import type { JsonlEventDetail } from './jsonl-types';
 import { renderErrorToString, renderStackErrorsToString, type ErrorDisplayData } from './error-rendering';
-import { getOutputModeProfile, resolveOutputMode, type OutputMode } from './output-mode';
+import {
+  getOutputModeProfile,
+  resolveOutputMode,
+  shouldWriteTerminalControlSequences,
+  type OutputMode
+} from './output-mode';
 import type { OutputRecord } from './output-record';
 import { OutputRouter } from './output-router';
 import { PromptSink } from './prompt-sink';
@@ -286,7 +291,11 @@ class TuiManager {
     // destroyed (handle.destroy() already restores terminal state). Re-emitting
     // restore sequences after a successful destroy can move the cursor to the wrong
     // position on Windows terminals.
-    if (this._wasEverStarted && !handleDestroyed) {
+    if (
+      this._wasEverStarted &&
+      !handleDestroyed &&
+      shouldWriteTerminalControlSequences({ outputMode: this.outputMode, stdoutIsTty: process.stdout.isTTY })
+    ) {
       try {
         process.stdout.write('\x1B[?25h');
       } catch {}
@@ -486,9 +495,11 @@ class TuiManager {
    * cursor shape and raw mode. Safe to call when the renderer already cleaned up.
    */
   forceRestoreTerminal() {
-    try {
-      process.stdout.write('\x1B[?1000l\x1B[?1002l\x1B[?1003l\x1B[?1006l\x1B[?1015l\x1B[?25h\x1B[0 q');
-    } catch {}
+    if (shouldWriteTerminalControlSequences({ outputMode: this.outputMode, stdoutIsTty: process.stdout.isTTY })) {
+      try {
+        process.stdout.write('\x1B[?1000l\x1B[?1002l\x1B[?1003l\x1B[?1006l\x1B[?1015l\x1B[?25h\x1B[0 q');
+      } catch {}
+    }
     try {
       if (process.stdin.isTTY && process.stdin.isRaw) {
         process.stdin.setRawMode(false);

@@ -20,6 +20,14 @@ export const getOutputModeProfile = (mode: OutputMode): OutputModeProfile => {
   };
 };
 
+export const shouldWriteTerminalControlSequences = ({
+  outputMode,
+  stdoutIsTty
+}: {
+  outputMode: OutputMode;
+  stdoutIsTty: boolean | undefined;
+}) => outputMode === 'tty' && stdoutIsTty === true;
+
 export const resolveOutputMode = ({
   explicitMode,
   forceTty

@@ -17,6 +17,7 @@ import { reportErrorToSentry } from '@utils/sentry';
 import { reportTelemetryEvent } from '@utils/telemetry';
 import { deleteTempFolder } from '@utils/temp-files';
 import { tuiDebug } from '@application-services/tui-manager/tui-debug-log';
+import { shouldWriteTerminalControlSequences } from '@application-services/tui-manager/output-mode';
 import kill from 'tree-kill';
 
 export const normalizeCliError = (value: unknown): HandledError => {
@@ -283,10 +284,13 @@ export class ApplicationManager {
     const onSighup = () => this.handleExitSignal('SIGHUP');
     const onSigquit = () => this.handleExitSignal('SIGQUIT');
     const onExit = () => {
-      // Restore cursor visibility in case a spinner hid it and the process crashed
-      try {
-        process.stdout.write('\x1B[?25h');
-      } catch {}
+      // Only an interactive renderer may have hidden the cursor. Machine output
+      // must remain valid JSONL through the final byte written by the process.
+      if (shouldWriteTerminalControlSequences({ outputMode: tuiManager.mode, stdoutIsTty: process.stdout.isTTY })) {
+        try {
+          process.stdout.write('\x1B[?25h');
+        } catch {}
+      }
     };
 
     process.on('uncaughtException', onUncaughtException);
