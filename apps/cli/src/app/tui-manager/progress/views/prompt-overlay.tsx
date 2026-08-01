@@ -1,9 +1,42 @@
-import { createSignal, Show, For, Switch, Match } from 'solid-js';
+import { createSignal, Show, For, Switch, Match, type JSX } from 'solid-js';
 import { useKeyboard } from '@opentui/solid';
 import type { TuiPrompt, TuiPromptConfirm, TuiPromptMultiSelect, TuiPromptSelect, TuiPromptText } from '../types';
 import type { TuiSelectOption } from '../../types';
-import { createTuiSignal } from './signals';
+import { glyphs } from '../../ui/glyphs';
 import { useTheme } from '../../ui/theme';
+
+export type PromptHint = { key: string; label: string };
+
+/** Hints shown in the footer hint row while a prompt is active. */
+export const promptHints = (prompt: TuiPrompt): PromptHint[] => {
+  switch (prompt.type) {
+    case 'confirm':
+      return [
+        { key: 'y', label: 'yes' },
+        { key: 'n', label: 'no' },
+        { key: 'enter', label: 'confirm' },
+        { key: 'esc', label: 'cancel' }
+      ];
+    case 'select':
+      return [
+        { key: '↑↓', label: 'choose' },
+        { key: 'enter', label: 'select' },
+        { key: 'esc', label: 'cancel' }
+      ];
+    case 'multiSelect':
+      return [
+        { key: '↑↓', label: 'choose' },
+        { key: 'space', label: 'toggle' },
+        { key: 'enter', label: 'confirm' },
+        { key: 'esc', label: 'cancel' }
+      ];
+    case 'text':
+      return [
+        { key: 'enter', label: 'submit' },
+        { key: 'esc', label: 'cancel' }
+      ];
+  }
+};
 
 const ensureUniqueOptions = (options: TuiSelectOption[]) => {
   const valueCount = new Map<string, number>();
@@ -20,65 +53,117 @@ const ensureUniqueOptions = (options: TuiSelectOption[]) => {
   return { uniqueOptions, valueMap };
 };
 
+const AccentRow = (props: { children: JSX.Element }) => {
+  const { theme } = useTheme();
+  return (
+    <box height={1} flexShrink={0} flexDirection="row" overflow="hidden">
+      <text flexShrink={0} wrapMode="none" fg={theme.running}>
+        {glyphs.accentBar}
+      </text>
+      {props.children}
+    </box>
+  );
+};
+
+const MAX_VISIBLE_OPTIONS = 4;
+
+const OptionRow = (props: {
+  label: string;
+  description?: string;
+  selected: boolean;
+  checked?: boolean | undefined;
+  labelWidth: number;
+}) => {
+  const { theme } = useTheme();
+  return (
+    <AccentRow>
+      <Show
+        when={props.selected}
+        fallback={
+          <text flexShrink={0} wrapMode="none" fg={theme.dim}>
+            {'   '}
+          </text>
+        }
+      >
+        <text flexShrink={0} wrapMode="none" fg={theme.running}>
+          {' '}
+          {glyphs.selected}{' '}
+        </text>
+      </Show>
+      <Show when={props.checked !== undefined}>
+        <text flexShrink={0} wrapMode="none" fg={props.checked ? theme.success : theme.dim}>
+          {props.checked ? glyphs.success : glyphs.pending}{' '}
+        </text>
+      </Show>
+      <text flexShrink={0} wrapMode="none" fg={props.selected ? theme.textBright : theme.text}>
+        <Show when={props.selected} fallback={props.label.padEnd(props.labelWidth)}>
+          <b>{props.label.padEnd(props.labelWidth)}</b>
+        </Show>
+      </text>
+      <Show when={props.description}>
+        <text flexShrink={1} wrapMode="none" fg={theme.muted}>
+          {'  '}
+          {props.description}
+        </text>
+      </Show>
+    </AccentRow>
+  );
+};
+
 const SelectPrompt = (props: { prompt: TuiPromptSelect }) => {
   const { theme } = useTheme();
   const unique = () => ensureUniqueOptions(props.prompt.options);
-  const [selectedIndex, setSelectedIndex] = createSignal(0);
+  const initialIndex = () => {
+    if (props.prompt.defaultValue === undefined) return 0;
+    const index = props.prompt.options.findIndex((o) => o.value === props.prompt.defaultValue);
+    return index >= 0 ? index : 0;
+  };
+  const [selectedIndex, setSelectedIndex] = createSignal(initialIndex());
 
-  const maxVisible = () => Math.min(unique().uniqueOptions.length, 15);
-  const halfWindow = () => Math.floor(maxVisible() / 2);
+  const total = () => unique().uniqueOptions.length;
+  const windowSize = () => Math.min(total(), MAX_VISIBLE_OPTIONS);
   const startIndex = () =>
-    Math.max(0, Math.min(selectedIndex() - halfWindow(), unique().uniqueOptions.length - maxVisible()));
-  const visibleOptions = () => unique().uniqueOptions.slice(startIndex(), startIndex() + maxVisible());
+    Math.max(0, Math.min(selectedIndex() - Math.floor(windowSize() / 2), total() - windowSize()));
+  const visibleOptions = () => unique().uniqueOptions.slice(startIndex(), startIndex() + windowSize());
+  const labelWidth = () => Math.min(24, Math.max(...visibleOptions().map((o) => o.label.length), 1));
 
   useKeyboard((key) => {
-    const opts = unique().uniqueOptions;
     if (key.name === 'up') {
-      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : opts.length - 1));
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : total() - 1));
     } else if (key.name === 'down') {
-      setSelectedIndex((prev) => (prev < opts.length - 1 ? prev + 1 : 0));
+      setSelectedIndex((prev) => (prev < total() - 1 ? prev + 1 : 0));
     } else if (key.name === 'return') {
-      const uniqueValue = opts[selectedIndex()].value;
-      const originalValue = unique().valueMap.get(uniqueValue) || uniqueValue;
-      props.prompt.resolve(originalValue);
+      const uniqueValue = unique().uniqueOptions[selectedIndex()].value;
+      props.prompt.resolve(unique().valueMap.get(uniqueValue) || uniqueValue);
     } else if (key.name === 'escape') {
       props.prompt.reject?.();
     }
   });
 
   return (
-    <box flexDirection="column">
-      <text fg={theme.textBright}>
-        <b>{props.prompt.message}</b>
-      </text>
-      <box height={1} />
-      <Show when={startIndex() > 0}>
-        <text fg={theme.pending}> ^ {startIndex()} more above</text>
-      </Show>
+    <box flexDirection="column" overflow="hidden">
+      <AccentRow>
+        <text flexShrink={1} wrapMode="none" fg={theme.textBright}>
+          {' '}
+          <b>{props.prompt.message}</b>
+        </text>
+        <box flexGrow={1} />
+        <Show when={total() > windowSize()}>
+          <text flexShrink={0} wrapMode="none" fg={theme.dim}>
+            {selectedIndex() + 1} of {total()}
+          </text>
+        </Show>
+      </AccentRow>
       <For each={visibleOptions()}>
-        {(opt, i) => {
-          const actualIndex = () => startIndex() + i();
-          const isSelected = () => actualIndex() === selectedIndex();
-          return (
-            <box flexDirection="row">
-              <text fg={isSelected() ? theme.running : theme.muted}>{isSelected() ? '› ' : '  '}</text>
-              <Show when={isSelected()} fallback={<text fg={theme.text}>{opt.label}</text>}>
-                <text fg={theme.running}>
-                  <b>{opt.label}</b>
-                </text>
-              </Show>
-              <Show when={opt.description}>
-                <text fg={theme.pending}> {opt.description}</text>
-              </Show>
-            </box>
-          );
-        }}
+        {(opt, i) => (
+          <OptionRow
+            label={opt.label}
+            description={opt.description}
+            selected={startIndex() + i() === selectedIndex()}
+            labelWidth={labelWidth()}
+          />
+        )}
       </For>
-      <Show when={startIndex() + maxVisible() < unique().uniqueOptions.length}>
-        <text fg={theme.pending}> v {unique().uniqueOptions.length - startIndex() - maxVisible()} more below</text>
-      </Show>
-      <box height={1} />
-      <text fg={theme.dim}>↑↓ navigate Enter select Esc cancel</text>
     </box>
   );
 };
@@ -92,10 +177,10 @@ const MultiSelectPrompt = (props: { prompt: TuiPromptMultiSelect }) => {
       if (!props.prompt.defaultValues) return new Set<string>();
       const initial = new Set<string>();
       const { valueMap } = ensureUniqueOptions(props.prompt.options);
-      for (const v of props.prompt.defaultValues) {
-        for (const [uv, ov] of valueMap.entries()) {
-          if (ov === v) {
-            initial.add(uv);
+      for (const value of props.prompt.defaultValues) {
+        for (const [uniqueValue, originalValue] of valueMap.entries()) {
+          if (originalValue === value) {
+            initial.add(uniqueValue);
             break;
           }
         }
@@ -104,14 +189,20 @@ const MultiSelectPrompt = (props: { prompt: TuiPromptMultiSelect }) => {
     })()
   );
 
+  const total = () => unique().uniqueOptions.length;
+  const windowSize = () => Math.min(total(), MAX_VISIBLE_OPTIONS);
+  const startIndex = () =>
+    Math.max(0, Math.min(selectedIndex() - Math.floor(windowSize() / 2), total() - windowSize()));
+  const visibleOptions = () => unique().uniqueOptions.slice(startIndex(), startIndex() + windowSize());
+  const labelWidth = () => Math.min(24, Math.max(...visibleOptions().map((o) => o.label.length), 1));
+
   useKeyboard((key) => {
-    const opts = unique().uniqueOptions;
     if (key.name === 'up') {
-      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : opts.length - 1));
+      setSelectedIndex((prev) => (prev > 0 ? prev - 1 : total() - 1));
     } else if (key.name === 'down') {
-      setSelectedIndex((prev) => (prev < opts.length - 1 ? prev + 1 : 0));
+      setSelectedIndex((prev) => (prev < total() - 1 ? prev + 1 : 0));
     } else if (key.name === 'space') {
-      const value = opts[selectedIndex()].value;
+      const value = unique().uniqueOptions[selectedIndex()].value;
       setChecked((prev) => {
         const next = new Set(prev);
         if (next.has(value)) next.delete(value);
@@ -119,69 +210,74 @@ const MultiSelectPrompt = (props: { prompt: TuiPromptMultiSelect }) => {
         return next;
       });
     } else if (key.name === 'return') {
-      const originalValues = Array.from(checked()).map((v) => unique().valueMap.get(v) || v);
-      props.prompt.resolve(originalValues);
+      props.prompt.resolve(Array.from(checked()).map((v) => unique().valueMap.get(v) || v));
     } else if (key.name === 'escape') {
       props.prompt.reject?.();
     }
   });
 
   return (
-    <box flexDirection="column">
-      <text fg={theme.textBright}>
-        <b>{props.prompt.message}</b>
-      </text>
-      <box height={1} />
-      <For each={unique().uniqueOptions}>
-        {(opt, i) => {
-          const isSelected = () => i() === selectedIndex();
-          const isChecked = () => checked().has(opt.value);
-          const checkmark = () => (isChecked() ? '◉' : '○');
-          return (
-            <box flexDirection="row">
-              <text fg={isSelected() ? theme.running : theme.pending}>{isSelected() ? '› ' : '  '}</text>
-              <text fg={isChecked() ? theme.success : theme.pending}>{checkmark()} </text>
-              <Show when={isSelected()} fallback={<text fg={theme.text}>{opt.label}</text>}>
-                <text fg={theme.running}>
-                  <b>{opt.label}</b>
-                </text>
-              </Show>
-              <Show when={opt.description}>
-                <text fg={theme.pending}> {opt.description}</text>
-              </Show>
-            </box>
-          );
-        }}
+    <box flexDirection="column" overflow="hidden">
+      <AccentRow>
+        <text flexShrink={1} wrapMode="none" fg={theme.textBright}>
+          {' '}
+          <b>{props.prompt.message}</b>
+        </text>
+        <box flexGrow={1} />
+        <text flexShrink={0} wrapMode="none" fg={theme.dim}>
+          {checked().size} selected
+          <Show when={total() > windowSize()}>
+            {' '}
+            {glyphs.separator} {selectedIndex() + 1} of {total()}
+          </Show>
+        </text>
+      </AccentRow>
+      <For each={visibleOptions()}>
+        {(opt, i) => (
+          <OptionRow
+            label={opt.label}
+            description={opt.description}
+            selected={startIndex() + i() === selectedIndex()}
+            checked={checked().has(opt.value)}
+            labelWidth={labelWidth()}
+          />
+        )}
       </For>
-      <box height={1} />
-      <text fg={theme.dim}>↑↓ navigate Space toggle Enter confirm Esc cancel</text>
     </box>
   );
 };
 
 const ConfirmPrompt = (props: { prompt: TuiPromptConfirm }) => {
   const { theme } = useTheme();
+  const [choice, setChoice] = createSignal(props.prompt.defaultValue === false ? 1 : 0);
 
   useKeyboard((key) => {
     if (key.sequence === 'y' || key.sequence === 'Y') {
       props.prompt.resolve(true);
     } else if (key.sequence === 'n' || key.sequence === 'N') {
       props.prompt.resolve(false);
+    } else if (key.name === 'up' || key.name === 'down') {
+      setChoice((prev) => (prev === 0 ? 1 : 0));
     } else if (key.name === 'return') {
-      props.prompt.resolve(props.prompt.defaultValue !== false);
+      props.prompt.resolve(choice() === 0);
     } else if (key.name === 'escape') {
       props.prompt.reject?.();
     }
   });
 
-  const defaultHint = () => (props.prompt.defaultValue === false ? 'y/N' : 'Y/n');
-
   return (
-    <box flexDirection="row">
-      <text fg={theme.textBright}>
-        <b>{props.prompt.message}</b>
-      </text>
-      <text fg={theme.pending}> ({defaultHint()}) </text>
+    <box flexDirection="column" overflow="hidden">
+      <AccentRow>
+        <text flexShrink={1} wrapMode="none" fg={theme.textBright}>
+          {' '}
+          <b>{props.prompt.message}</b>
+        </text>
+      </AccentRow>
+      <AccentRow>
+        <text> </text>
+      </AccentRow>
+      <OptionRow label="Yes" selected={choice() === 0} labelWidth={3} />
+      <OptionRow label="No" selected={choice() === 1} labelWidth={3} />
     </box>
   );
 };
@@ -206,59 +302,61 @@ const TextPrompt = (props: { prompt: TuiPromptText }) => {
   const displayValue = () => (props.prompt.isPassword ? '•'.repeat(value().length) : value());
 
   return (
-    <box flexDirection="column">
-      <box flexDirection="row">
-        <text fg={theme.textBright}>
+    <box flexDirection="column" overflow="hidden">
+      <AccentRow>
+        <text flexShrink={1} wrapMode="none" fg={theme.textBright}>
+          {' '}
           <b>{props.prompt.message}</b>
         </text>
-        <Show when={props.prompt.description}>
-          <text fg={theme.pending}> {props.prompt.description}</text>
-        </Show>
-      </box>
-      <box flexDirection="row">
-        <text fg={theme.running}>{'> '}</text>
-        <text fg={theme.textBright}>{displayValue() || ''}</text>
-        <text fg={theme.running}>█</text>
+      </AccentRow>
+      <AccentRow>
+        <text flexShrink={0} wrapMode="none" fg={theme.running}>
+          {' '}
+          {glyphs.selected}{' '}
+        </text>
+        <text flexShrink={1} wrapMode="none" fg={theme.textBright}>
+          {displayValue()}
+        </text>
+        <text flexShrink={0} wrapMode="none" fg={theme.running}>
+          {glyphs.barFilled}
+        </text>
         <Show when={!value() && props.prompt.placeholder}>
-          <text fg={theme.dim}> {props.prompt.placeholder}</text>
+          <text flexShrink={1} wrapMode="none" fg={theme.dim}>
+            {' '}
+            {props.prompt.placeholder}
+          </text>
         </Show>
-      </box>
-      <box height={1} />
-      <text fg={theme.dim}>Enter submit Esc cancel</text>
+      </AccentRow>
+      <Show when={props.prompt.description}>
+        <AccentRow>
+          <text flexShrink={1} wrapMode="none" fg={theme.muted}>
+            {' '}
+            {props.prompt.description}
+          </text>
+        </AccentRow>
+      </Show>
     </box>
   );
 };
 
-const PromptRouter = (props: { prompt: TuiPrompt }) => {
+/** Accent-bar prompt block rendered inside the footer's reserved body rows. */
+export const PromptBlock = (props: { prompt: TuiPrompt }) => {
   return (
-    <Switch>
-      <Match when={props.prompt.type === 'select'}>
-        <SelectPrompt prompt={props.prompt as TuiPromptSelect} />
-      </Match>
-      <Match when={props.prompt.type === 'multiSelect'}>
-        <MultiSelectPrompt prompt={props.prompt as TuiPromptMultiSelect} />
-      </Match>
-      <Match when={props.prompt.type === 'confirm'}>
-        <ConfirmPrompt prompt={props.prompt as TuiPromptConfirm} />
-      </Match>
-      <Match when={props.prompt.type === 'text'}>
-        <TextPrompt prompt={props.prompt as TuiPromptText} />
-      </Match>
-    </Switch>
-  );
-};
-
-export const PromptOverlay = () => {
-  const { theme } = useTheme();
-  const activePrompt = createTuiSignal((s) => s.activePrompt);
-
-  return (
-    <Show when={activePrompt()}>
-      {(prompt) => (
-        <box flexDirection="column" borderStyle="single" borderColor={theme.running} paddingX={1} paddingY={1}>
-          <PromptRouter prompt={prompt()} />
-        </box>
-      )}
-    </Show>
+    <box flexDirection="column" paddingLeft={2} overflow="hidden">
+      <Switch>
+        <Match when={props.prompt.type === 'select'}>
+          <SelectPrompt prompt={props.prompt as TuiPromptSelect} />
+        </Match>
+        <Match when={props.prompt.type === 'multiSelect'}>
+          <MultiSelectPrompt prompt={props.prompt as TuiPromptMultiSelect} />
+        </Match>
+        <Match when={props.prompt.type === 'confirm'}>
+          <ConfirmPrompt prompt={props.prompt as TuiPromptConfirm} />
+        </Match>
+        <Match when={props.prompt.type === 'text'}>
+          <TextPrompt prompt={props.prompt as TuiPromptText} />
+        </Match>
+      </Switch>
+    </box>
   );
 };

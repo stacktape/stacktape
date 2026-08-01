@@ -687,6 +687,7 @@ export class StackManager {
     const handledEvents: string[] = [];
     const potentialErrorCausingEvents: { [logicalResourceId: string]: StackEvent } = {};
     const inProgressResources = new Set<string>();
+    const inProgressMeta = new Map<string, { resourceType?: string; since: number }>();
     const completeResources = new Set<string>();
     const seenResources = new Set<string>();
     let resourcesToHandleCount: number;
@@ -904,6 +905,22 @@ export class StackManager {
       const activeResources = plannedSet
         ? Array.from(inProgressResources).filter((name) => plannedSet.has(name))
         : Array.from(inProgressResources);
+      const resourceAction = (name: string): 'CREATE' | 'UPDATE' | 'DELETE' =>
+        changeSummary.lists.created.includes(name)
+          ? 'CREATE'
+          : changeSummary.lists.deleted.includes(name)
+            ? 'DELETE'
+            : cfStackAction === 'create'
+              ? 'CREATE'
+              : cfStackAction === 'delete'
+                ? 'DELETE'
+                : 'UPDATE';
+      const inProgressDetails = activeResources.map((name) => ({
+        name,
+        action: resourceAction(name),
+        resourceType: inProgressMeta.get(name)?.resourceType,
+        since: inProgressMeta.get(name)?.since
+      }));
       const waitingCandidates = plannedSet
         ? Array.from(plannedSet).filter((name) => !inProgressResources.has(name) && !completeResources.has(name))
         : [];
@@ -963,6 +980,7 @@ export class StackManager {
           totalPlanned,
           inProgressCount,
           inProgressResources: activeResources,
+          inProgressDetails,
           waitingResources: waitingCandidates,
           changeCounts: {
             created: changeSummary.counts.created,
@@ -1132,12 +1150,19 @@ export class StackManager {
                 cleanupAfterSuccessfulUpdateInProgress = true;
                 _isResourceToHandleCountPossiblyInaccurate = true;
                 inProgressResources.clear();
+                inProgressMeta.clear();
                 completeResources.clear();
               }
             }
             // if the new event says that some resource is in progress, we add event into inProgressResources
             else if (status.endsWith('IN_PROGRESS')) {
               inProgressResources.add(LogicalResourceId);
+              if (!inProgressMeta.has(LogicalResourceId)) {
+                inProgressMeta.set(LogicalResourceId, {
+                  resourceType: event.ResourceType,
+                  since: event.Timestamp?.getTime() ?? Date.now()
+                });
+              }
               seenResources.add(LogicalResourceId);
             }
             // if the new event says that some resource is complete, we add event into completedResources
@@ -1150,6 +1175,7 @@ export class StackManager {
             ) {
               completeResources.add(LogicalResourceId);
               inProgressResources.delete(LogicalResourceId);
+              inProgressMeta.delete(LogicalResourceId);
               seenResources.add(LogicalResourceId);
               delete potentialErrorCausingEvents[LogicalResourceId];
             }

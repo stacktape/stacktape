@@ -36,6 +36,13 @@ export type JsonlCloudFormationDetail = {
   percent?: number;
   inProgressCount?: number;
   inProgressResources?: string[];
+  /** Optional rich per-resource rows (additive; consumers may ignore). */
+  inProgressDetails?: Array<{
+    name: string;
+    action: 'CREATE' | 'UPDATE' | 'DELETE';
+    resourceType?: string;
+    since?: number;
+  }>;
   waitingResources?: string[];
   changeCounts?: {
     created: number;

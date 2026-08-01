@@ -13,8 +13,9 @@ afterEach(() => {
   }
 });
 
-const renderItem = async (item: ScrollbackItem, opts = { width: 80, height: 14 }) => {
+const renderItem = async (item: ScrollbackItem, opts = { width: 100, height: 20 }) => {
   testSetup = await testRender(() => <ScrollbackItemView item={item} width={opts.width} />, opts);
+  await new Promise((r) => setTimeout(r, 20));
   await testSetup.renderOnce();
   return testSetup.captureCharFrame();
 };
@@ -22,124 +23,191 @@ const renderItem = async (item: ScrollbackItem, opts = { width: 80, height: 14 }
 const finishedEvent = (overrides: Partial<TuiEvent> = {}): TuiEvent => ({
   id: 'PACKAGE_ARTIFACTS',
   eventType: 'PACKAGE_ARTIFACTS',
-  description: 'Packaging artifacts',
+  description: 'Packaging workloads',
   status: 'success',
-  startTime: Date.now() - 5000,
+  startTime: Date.now() - 4200,
   endTime: Date.now(),
-  duration: 5000,
+  duration: 4200,
+  finalMessage: '3 workloads packaged',
   children: [],
   ...overrides
 });
 
-describe('ScrollbackItemView', () => {
-  test('header renders action and target', async () => {
+describe('scrollback document grammar', () => {
+  test('command header block', async () => {
     const frame = await renderItem({
       kind: 'header',
-      header: { projectName: 'my-app', stageName: 'dev', region: 'eu-west-1', action: 'DEPLOYING' }
+      header: { projectName: 'demo-app', stageName: 'prod', region: 'eu-west-1', action: 'DEPLOYING' }
     });
-    expect(frame).toContain('DEPLOYING');
-    expect(frame).toContain('my-app');
-    expect(frame).toContain('dev');
+    expect(frame).toContain('▌ DEPLOY');
+    expect(frame).toContain('demo-app / prod');
     expect(frame).toContain('eu-west-1');
   });
 
-  test('phase header renders the phase name', async () => {
+  test('phase divider is a titled rule', async () => {
     const frame = await renderItem({ kind: 'phase-header', name: 'Build & Package' });
-    expect(frame).toContain('Build & Package');
+    expect(frame).toContain('── Build & Package ──');
   });
 
-  test('finished event renders icon, description and duration', async () => {
+  test('event line shows one outcome message with a duration rail', async () => {
     const frame = await renderItem({ kind: 'event', event: finishedEvent() });
-    expect(frame).toContain('✓');
-    expect(frame).toContain('Packaging artifacts');
-    expect(frame).toContain('5.0s');
+    expect(frame).toContain('✓ 3 workloads packaged');
+    expect(frame).toContain('4.2s');
+    // Never description AND finalMessage together.
+    expect(frame).not.toContain('Packaging workloads');
   });
 
-  test('finished event includes child rows (output streams separately, not in the block)', async () => {
+  test('children render as tree branches without name duplication', async () => {
     const frame = await renderItem({
       kind: 'event',
       event: finishedEvent({
         children: [
           {
-            ...finishedEvent({ id: 'BUILD_CODE-api', eventType: 'BUILD_CODE', description: 'api' }),
+            id: 'BUILD_CODE-web',
+            eventType: 'BUILD_CODE',
+            description: 'Building web',
+            status: 'success',
+            startTime: Date.now() - 3600,
+            duration: 3600,
+            finalMessage: 'web packaged (38.2 MB)',
+            instanceId: 'web',
+            children: []
+          },
+          {
+            id: 'BUILD_CODE-api',
+            eventType: 'BUILD_CODE',
+            description: 'Building api',
+            status: 'success',
+            startTime: Date.now() - 2300,
+            duration: 2300,
+            finalMessage: 'api packaged (4.1 MB)',
             instanceId: 'api',
-            finalMessage: '4.2 MB'
+            children: []
           }
-        ],
-        outputLines: ['hook output line']
+        ]
       })
     });
-    expect(frame).toContain('api');
-    expect(frame).toContain('4.2 MB');
-    // Output lines stream live as their own scrollback items; the finished block must NOT repeat them.
-    expect(frame).not.toContain('hook output line');
+    expect(frame).toContain('├ ✓ web packaged (38.2 MB)');
+    expect(frame).toContain('└ ✓ api packaged (4.1 MB)');
   });
 
-  test('output-line renders the raw line, no source prefix when alone', async () => {
-    const frame = await renderItem({ kind: 'output-line', line: 'Applying migration 20260101_init' });
-    expect(frame).toContain('Applying migration 20260101_init');
-    expect(frame).not.toContain('[');
-  });
-
-  test('output-line shows a [source] prefix when one is provided', async () => {
-    const frame = await renderItem({ kind: 'output-line', source: 'db-migrate', line: '2 migrations applied' });
-    expect(frame).toContain('[db-migrate]');
-    expect(frame).toContain('2 migrations applied');
-  });
-
-  test('failed event renders error icon', async () => {
-    const frame = await renderItem({ kind: 'event', event: finishedEvent({ status: 'error' }) });
-    expect(frame).toContain('✗');
-  });
-
-  test('message renders symbol and text', async () => {
-    const frame = await renderItem({ kind: 'message', type: 'warn', text: 'something needs attention' });
-    expect(frame).toContain('▲');
-    expect(frame).toContain('something needs attention');
-  });
-
-  test('error renders type label, message and hints as a styled block', async () => {
-    const frame = await renderItem(
-      {
-        kind: 'error',
-        error: {
-          errorType: 'CONFIG',
-          message: 'Invalid value for property "memory"',
-          hints: ['memory must be between 128 and 10240'],
-          isExpected: true
+  test('finished CF event is a single line with change counts', async () => {
+    const frame = await renderItem({
+      kind: 'event',
+      event: finishedEvent({
+        id: 'UPDATE_STACK',
+        eventType: 'UPDATE_STACK',
+        description: 'Updating CloudFormation stack',
+        duration: 92000,
+        data: {
+          kind: 'cloudformation-progress',
+          stackAction: 'update',
+          completedCount: 14,
+          changeCounts: { created: 3, updated: 9, deleted: 2 }
         }
-      },
-      { width: 100, height: 12 }
-    );
-    expect(frame).toContain('✗');
-    expect(frame).toContain('CONFIG Error');
-    expect(frame).toContain('Invalid value for property "memory"');
-    expect(frame).toContain('Hints:');
-    expect(frame).toContain('memory must be between 128 and 10240');
+      })
+    });
+    expect(frame).toContain('✓ CloudFormation update · 3 created · 9 updated · 2 deleted');
+    expect(frame).toContain('1m 32s');
   });
 
-  test('summary renders message, phase recap, links and total duration', async () => {
+  test('output lines use the gutter, with a source tag only when given', async () => {
+    const plain = await renderItem({ kind: 'output-line', line: 'built in 3.42s' });
+    expect(plain).toContain('│ built in 3.42s');
+
+    const sourced = await renderItem({ kind: 'output-line', source: 'build-web', line: 'built in 3.42s' });
+    expect(sourced).toContain('│ build-web');
+  });
+
+  test('messages use the ascii info/warning glyphs', async () => {
+    const info = await renderItem({ kind: 'message', type: 'info', text: 'Issues: enabled.' });
+    expect(info).toContain('i Issues: enabled.');
+
+    const warn = await renderItem({ kind: 'message', type: 'warn', text: 'Hook was slow.' });
+    expect(warn).toContain('! Hook was slow.');
+  });
+
+  test('prompt answer keeps the answer on the right rail', async () => {
+    const frame = await renderItem({ kind: 'prompt-answer', message: 'Deploy to prod?', answer: 'yes' });
+    expect(frame).toContain('? Deploy to prod?');
+    expect(frame.split('\n')[0]!.trimEnd().endsWith('yes')).toBe(true);
+  });
+
+  test('error block: command verb title, intact gutter on wrapped lines, Fix section', async () => {
+    const frame = await renderItem({
+      kind: 'error',
+      header: { projectName: 'demo-app', stageName: 'prod', region: 'eu-west-1', action: 'DEPLOYING' },
+      error: {
+        errorType: 'STACK',
+        message:
+          'Resource MainDatabaseCluster: The specified instance class is not available in this region and the stack was rolled back to its previous working state after the failure.',
+        hints: ['Use a supported instance class.'],
+        isExpected: true
+      }
+    });
+    expect(frame).toContain('▌ DEPLOY FAILED');
+    expect(frame).toContain('Fix');
+    expect(frame).toContain('› Use a supported instance class.');
+    // Every non-empty body line keeps the gutter column.
+    const body = frame.split('\n').filter((line) => line.trim() && !line.includes('DEPLOY FAILED'));
+    for (const line of body) {
+      expect(line.trimStart().startsWith('│') || line.trimStart().startsWith('›')).toBe(true);
+    }
+  });
+
+  test('deployment receipt: brand rule, links, changes and timing', async () => {
+    const frame = await renderItem({
+      kind: 'summary',
+      header: { projectName: 'demo-app', stageName: 'prod', region: 'eu-west-1', action: 'DEPLOYING' },
+      summary: {
+        success: true,
+        message: 'DEPLOYED',
+        links: [{ label: 'web-service', url: 'https://demo-app.example.com' }],
+        consoleUrl: 'https://console.stacktape.com/projects/demo-app'
+      },
+      phases: [
+        { id: 'INITIALIZE', name: 'Initialize', status: 'success', duration: 1400, events: [] },
+        {
+          id: 'DEPLOY',
+          name: 'Deploy',
+          status: 'success',
+          duration: 9800,
+          events: [
+            finishedEvent({
+              id: 'UPDATE_STACK',
+              eventType: 'UPDATE_STACK',
+              data: {
+                kind: 'cloudformation-progress',
+                stackAction: 'update',
+                completedCount: 14,
+                totalPlanned: 14,
+                changeCounts: { created: 3, updated: 9, deleted: 2 }
+              }
+            })
+          ]
+        }
+      ],
+      totalDurationMs: 17800
+    });
+    expect(frame).toContain('── stacktape ── ✓ DEPLOYED');
+    expect(frame).toContain('total 17.8s');
+    expect(frame).toContain('demo-app / prod · eu-west-1');
+    expect(frame).toContain('web-service');
+    expect(frame).toContain('console');
+    expect(frame).toContain('14 resources · +3 created · ~9 updated · -2 deleted');
+    expect(frame).toContain('init 1.4s');
+  });
+
+  test('document measure is capped at 100 cells', async () => {
     const frame = await renderItem(
       {
-        kind: 'summary',
-        summary: {
-          success: true,
-          message: 'DEPLOYMENT SUCCESSFUL',
-          links: [{ label: 'API URL', url: 'https://api.example.com' }],
-          consoleUrl: 'https://console.stacktape.com/stacks/my-app'
-        },
-        phases: [
-          { id: 'INITIALIZE', name: 'Initialize', status: 'success', duration: 2000, events: [] },
-          { id: 'DEPLOY', name: 'Deploy', status: 'success', duration: 60000, events: [] }
-        ],
-        totalDurationMs: 62000
+        kind: 'event',
+        event: finishedEvent()
       },
-      { width: 100, height: 14 }
+      { width: 140, height: 20 }
     );
-    expect(frame).toContain('DEPLOYMENT SUCCESSFUL');
-    expect(frame).toContain('Initialize 2.0s');
-    expect(frame).toContain('API URL');
-    expect(frame).toContain('https://api.example.com');
-    expect(frame).toContain('https://console.stacktape.com/stacks/my-app');
+    for (const line of frame.split('\n')) {
+      expect(line.trimEnd().length).toBeLessThanOrEqual(100);
+    }
   });
 });

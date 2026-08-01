@@ -9,6 +9,15 @@ import type { TuiDeploymentHeader, TuiEventStatus, TuiLink, TuiSelectOption } fr
 export const eventId = (eventType: LoggableEventType | string, instanceId?: string): string =>
   instanceId ? `${eventType}-${instanceId}` : `${eventType}`;
 
+export type CfResourceInProgress = {
+  name: string;
+  action: 'CREATE' | 'UPDATE' | 'DELETE';
+  /** CloudFormation resource type, e.g. AWS::ECS::Service. */
+  resourceType?: string;
+  /** Epoch ms of the first IN_PROGRESS event — used for stable oldest-first slots. */
+  since?: number;
+};
+
 export type CfProgressData = {
   kind: 'cloudformation-progress';
   stackAction: string;
@@ -17,6 +26,8 @@ export type CfProgressData = {
   totalPlanned?: number;
   inProgressCount?: number;
   inProgressResources?: string[];
+  /** Rich per-resource rows; falls back to inProgressResources names when absent. */
+  inProgressDetails?: CfResourceInProgress[];
   waitingResources?: string[];
   changeCounts: {
     created: number;
@@ -127,6 +138,10 @@ export type TuiState = {
  * switches preset at runtime once the runner choice is known.
  */
 export type PhasePreset = 'deploy' | 'delete' | 'codebuild-deploy';
+
+/** Fixed footer heights — the footer never changes height while mounted. */
+export const PHASE_FOOTER_HEIGHT = 12;
+export const SIMPLE_FOOTER_HEIGHT = 8;
 
 export const PHASE_NAMES: Record<DeploymentPhase, string> = {
   INITIALIZE: 'Initialize',

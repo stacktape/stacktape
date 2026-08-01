@@ -22,6 +22,30 @@ export const getProgressPercent = (estimatePercent: number | null, status: strin
   return Math.max(0, Math.min(100, estimatePercent));
 };
 
+/**
+ * Percent for the live CF progress bar. Prefers real resource counts; falls
+ * back to the estimate parsed from legacy formatted messages. Null when
+ * CloudFormation has not reported anything yet.
+ */
+export const resolveCfPercent = ({
+  completedCount,
+  totalPlanned,
+  estimatePercent,
+  status
+}: {
+  completedCount: number;
+  totalPlanned: number;
+  estimatePercent: number | null;
+  status: string;
+}): number | null => {
+  if (status !== 'running') return 100;
+  if (totalPlanned > 0) {
+    return Math.max(0, Math.min(100, Math.round((completedCount / totalPlanned) * 100)));
+  }
+  if (estimatePercent !== null) return Math.max(0, Math.min(100, estimatePercent));
+  return null;
+};
+
 export const parseResourceState = (message?: string) => {
   const cleaned = stripDeployMessageAnsi(message);
   if (!cleaned) return { active: null, waiting: null };

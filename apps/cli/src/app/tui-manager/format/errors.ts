@@ -51,7 +51,7 @@ const ERROR_TYPE_LABELS: Record<string, string> = {
   UNSUPPORTED_RESOURCE: 'Unsupported Resource'
 };
 
-const getErrorLabel = (errorType: string): string => {
+export const getErrorLabel = (errorType: string): string => {
   return ERROR_TYPE_LABELS[errorType] || `${errorType.replace(/_/g, ' ')} Error`;
 };
 
@@ -61,7 +61,7 @@ const renderInlineCode = (
   makeBold: (text: string) => string
 ) => text.replace(/`([^`\n]+)`/g, (_match, content: string) => colorize('cyan', makeBold(content)));
 
-const wrapText = (text: string, maxWidth: number): string[] => {
+export const wrapText = (text: string, maxWidth: number): string[] => {
   const lines: string[] = [];
   const paragraphs = text.split('\n');
 

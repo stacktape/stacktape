@@ -11,8 +11,14 @@ export type ScrollbackItem =
   | { kind: 'output-line'; source?: string; line: string }
   | { kind: 'message'; type: TuiMessageType; text: string }
   | { kind: 'prompt-answer'; message: string; answer: string }
-  | { kind: 'error'; error: ErrorDisplayData }
-  | { kind: 'summary'; summary: TuiSummary; phases: TuiPhase[]; totalDurationMs: number };
+  | { kind: 'error'; error: ErrorDisplayData; header?: TuiDeploymentHeader }
+  | {
+      kind: 'summary';
+      summary: TuiSummary;
+      phases: TuiPhase[];
+      totalDurationMs: number;
+      header?: TuiDeploymentHeader;
+    };
 
 class ProgressScrollbackFeed extends ScrollbackQueue<ScrollbackItem> {
   private lastPhaseHeader: DeploymentPhase | null = null;

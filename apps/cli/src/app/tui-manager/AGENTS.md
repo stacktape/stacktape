@@ -51,13 +51,29 @@ forces an explicit decision there.
 2. **All mounts and teardowns go through `TtyRuntime`.** Never store renderer handles or destroy flags
    elsewhere. On teardown the facade rejects pending prompts (`PromptSink.rejectPending`) — otherwise
    awaiting commands hang.
-3. **Spinners under a mounted TUI route through the spinner message sink** (silent while running, final
+3. **The footer has fixed geometry.** Phase mode is always exactly 12 rows, simple mode 8, with reserved
+   row ownership (divider / identity+clock / rail / body / status strip / hints) in every state — running,
+   prompt, cancel confirm, rollback, complete. Never insert or remove rows, never use a scrollbox in the
+   footer, never let the layout engine wrap a footer row (wrapMode="none" + truncation), and keep all
+   timers fixed-width (`formatClock`, hh:mm:ss). Only the clock, spinners, counters, bar fill and resource
+   slot contents may change between ticks — `dashboard.test.tsx` has frame-diff tests enforcing this.
+4. **One glyph vocabulary.** Every glyph comes from `ui/glyphs.ts` (verified single-cell across Windows
+   Terminal / macOS / Linux; ASCII `i`/`!` for info/warn to avoid emoji-style rendering). The scrollback is
+   a document with a fixed grammar: 2-cell icon gutter, right-aligned duration rail, `├`/`└` children,
+   `│` output gutter, `▌ VERB` command blocks, titled-rule phase dividers, and the deployment receipt
+   (`── stacktape ── ✓ DEPLOYED …`) as the closing signature block. The document measure is capped at 100
+   cells. Error blocks wrap semantically via `wrapText` — never rely on terminal auto-wrap inside a block.
+5. **Never render `description` and `finalMessage` together.** A finished row shows its one normalized
+   outcome message; a running row shows its subject (+ live detail). CF progress percent comes from real
+   resource counts (`resolveCfPercent`) — never show a bare percentage without a known denominator, and
+   never present resource progress as overall deploy progress.
+6. **Spinners under a mounted TUI route through the spinner message sink** (silent while running, final
    line → scrollback). Inline `\r` animation under capture-stdout would spam scrollback.
-4. **Theme is reactive via `createStore`** — read `theme.x` / `messageColors[type]` directly; never
+7. **Theme is reactive via `createStore`** — read `theme.x` / `messageColors[type]` directly; never
    destructure-and-cache. Brand tokens live in `ui/theme.tsx` (`brand`); the launcher shares them.
-5. **JSONL wire shapes (`output/jsonl-types.ts`) are a contract** consumed by agents/CI — change them
+8. **JSONL wire shapes (`output/jsonl-types.ts`) are a contract** consumed by agents/CI — change them
    deliberately, never as a refactor side effect.
-6. `forceFullRenders` in `runtime/opentui.ts` relies on renderer internals (`lib.render(ptr, true)`) to
+9. `forceFullRenders` in `runtime/opentui.ts` relies on renderer internals (`lib.render(ptr, true)`) to
    keep OSC-8 hyperlinks clickable — re-verify on any OpenTUI version bump.
 
 ## Testing

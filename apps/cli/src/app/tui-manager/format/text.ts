@@ -106,6 +106,15 @@ export const formatPhaseTimer = (ms: number): string => {
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
 };
 
+/** Fixed-width hh:mm:ss clock (8 cells) — never changes width while ticking. */
+export const formatClock = (ms: number): string => {
+  const totalSeconds = Math.floor(Math.max(0, ms) / 1000);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+};
+
 export const getElapsedTime = (startTime: number | undefined, duration: number | undefined): number => {
   if (duration !== undefined) return duration;
   if (startTime === undefined) return 0;

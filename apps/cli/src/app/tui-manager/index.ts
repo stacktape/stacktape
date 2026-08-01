@@ -23,6 +23,7 @@ import { renderExitSummaryLines } from './progress/exit-summary';
 import { TuiStateSink } from './progress/sink';
 import { tuiState } from './progress/state';
 import type { PhasePreset, TuiCancelDeployment, TuiState } from './progress/types';
+import { PHASE_FOOTER_HEIGHT, SIMPLE_FOOTER_HEIGHT } from './progress/types';
 import { PromptSink } from './prompt/sink';
 import { UserCancelledError } from './prompt/inline';
 import { forceRestoreTerminal, TtyRuntime } from './runtime/lifecycle';
@@ -43,8 +44,6 @@ export { tuiState } from './progress/state';
 
 export type { TuiEvent, TuiPhase, TuiState, TuiSummary } from './progress/types';
 export type { TuiDeploymentHeader, TuiLink, TuiSelectOption } from './types';
-
-const DEPLOY_FOOTER_HEIGHT = 12;
 
 /**
  * The CLI presentation facade. Every part of the application talks to the
@@ -151,11 +150,11 @@ class TuiManager {
     if (profile.useTtyUi) {
       scrollbackFeed.enable();
       setSpinnerTuiMessageSink((type, text) => this.stateSink.addMessage(type, text));
-      this.startProgressApp();
+      this.startProgressApp(options.phases ? PHASE_FOOTER_HEIGHT : SIMPLE_FOOTER_HEIGHT);
     }
   }
 
-  private startProgressApp() {
+  private startProgressApp(footerHeight: number) {
     let attachConsumer: ((renderer: CliRenderer) => () => void) | null = null;
 
     this.runtime.start(
@@ -194,7 +193,7 @@ class TuiManager {
 
         return createOpenTuiApp(() => ProgressDashboard({ onQuit, onCancel, onRenderError }), {
           screenMode: 'split-footer',
-          footerHeight: DEPLOY_FOOTER_HEIGHT
+          footerHeight
         });
       },
       {
@@ -253,8 +252,10 @@ class TuiManager {
   async stop() {
     tuiDebug('TUI', 'stop() called', { isEnabled: this._isEnabled });
     tuiState.setFinalizing();
-    // Give the footer one last paint and in-flight events a moment to land.
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    // Give the footer one last paint so the final state (all phases checked)
+    // is briefly visible before the receipt is written and the footer unmounts.
+    const holdMs = this.runtime.isActive ? 350 : 100;
+    await new Promise((resolve) => setTimeout(resolve, holdMs));
     await this.stopInternal();
   }
 
@@ -331,14 +332,14 @@ class TuiManager {
     const elapsed = fmt.formatDuration(Date.now() - startTime);
 
     if (summary) {
-      scrollbackFeed.push({ kind: 'summary', summary, phases, totalDurationMs: Date.now() - startTime });
+      scrollbackFeed.push({ kind: 'summary', summary, phases, totalDurationMs: Date.now() - startTime, header });
       return;
     }
 
     // A fatal error → stream the styled error block (covers the failure; the
     // plain-text stderr fallback in displayError is then skipped).
     if (this._pendingErrorData) {
-      scrollbackFeed.push({ kind: 'error', error: this._pendingErrorData });
+      scrollbackFeed.push({ kind: 'error', error: this._pendingErrorData, header });
       this._errorRenderedToScrollback = true;
       this._pendingErrorData = undefined;
       return;
@@ -519,17 +520,17 @@ class TuiManager {
   private printToConsole(type: TuiMessageType, message: string) {
     if (this.isTTY) {
       const symbols: Record<TuiMessageType, string> = {
-        info: this.colorize('cyan', 'ℹ'),
+        info: this.colorize('cyan', 'i'),
         success: this.colorize('green', '✓'),
-        error: this.colorize('red', '✖'),
-        warn: this.colorize('yellow', '▲'),
+        error: this.colorize('red', '✗'),
+        warn: this.colorize('yellow', '!'),
         debug: this.colorize('gray', '·'),
-        hint: this.colorize('blue', 'ℹ'),
-        start: this.colorize('cyan', '▶'),
-        announcement: this.colorize('cyan', '▶')
+        hint: this.colorize('blue', 'i'),
+        start: this.colorize('cyan', '›'),
+        announcement: this.colorize('cyan', '›')
       };
       const rendered = type === 'debug' ? this.colorize('gray', message) : message;
-      const line = `${symbols[type] || this.colorize('cyan', 'ℹ')} ${rendered}`;
+      const line = `${symbols[type] || this.colorize('cyan', 'i')} ${rendered}`;
       console.info(`${line}\n`);
       return;
     }
