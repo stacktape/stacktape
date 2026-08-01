@@ -2,7 +2,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { fsPaths } from 'src/config/runtime-paths';
 import { getIniFileContent } from '@utils/fs-utils';
 import { upsertAwsProfile } from '@utils/aws-config';
-import { ExpectedError } from '@utils/errors';
+import { assertAwsProfileDoesNotExist } from '../_utils/aws-profile-input';
 
 export const commandAwsProfileCreate = async () => {
   const profileInput = await tuiManager.promptText({
@@ -16,12 +16,11 @@ export const commandAwsProfileCreate = async () => {
     getIniFileContent(fsPaths.awsConfigFilePath())
   ]);
 
-  if (credsFileContent && credsFileContent[profile]) {
-    throw new ExpectedError('CREDENTIALS', `Credentials for profile ${profile} are already set in credentials file.`);
-  }
-  if (configFileContent && configFileContent[profile]) {
-    throw new ExpectedError('CREDENTIALS', `Credentials for profile ${profile} are already set in config file.`);
-  }
+  assertAwsProfileDoesNotExist({
+    profile,
+    credentialsProfiles: credsFileContent,
+    configProfiles: configFileContent
+  });
 
   const awsAccessKeyId = await tuiManager.promptText({
     message: 'AWS_ACCESS_KEY_ID:',

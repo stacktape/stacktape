@@ -1,9 +1,9 @@
 import { tuiManager } from '@application-services/tui-manager';
 import { notificationManager } from '@domain-services/notification-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { ExpectedError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { loadUserCredentials } from '../_utils/initialization';
+import { requireSecretName } from '../_utils/secret-input';
 
 export const commandSecretDelete = async () => {
   const { args } = await loadUserCredentials();
@@ -13,10 +13,7 @@ export const commandSecretDelete = async () => {
   let secretName: string;
 
   if (agentMode) {
-    if (!args.secretName) {
-      throw new ExpectedError('CLI', 'Missing required flag: --secretName', 'Provide --secretName <name>');
-    }
-    secretName = args.secretName;
+    secretName = requireSecretName(args.secretName);
   } else {
     secretName = await tuiManager.promptText({
       message: 'Secret name:',

@@ -2,10 +2,11 @@ import { tuiManager } from '@application-services/tui-manager';
 import { notificationManager } from '@domain-services/notification-manager';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { loadRawFileContent } from '@utils/file-loaders';
 import { isAgentMode } from '../_utils/agent-mode';
 import { loadUserCredentials } from '../_utils/initialization';
+import { requireSecretName, requireSecretValueInput } from '../_utils/secret-input';
 
 const provideOptions = ['Interactively using CLI', 'From file'];
 
@@ -17,16 +18,8 @@ export const commandSecretSet = async () => {
 
   // Agent mode: require flags instead of prompts
   if (agentMode) {
-    if (!args.secretName) {
-      throw new ExpectedError('CLI', 'Missing required flag: --secretName', 'Provide --secretName <name>');
-    }
-    if (!args.secretValue && !args.secretFile) {
-      throw new ExpectedError(
-        'CLI',
-        'Missing required flag: --secretValue or --secretFile',
-        'Provide --secretValue <value> or --secretFile <path>'
-      );
-    }
+    const secretName = requireSecretName(args.secretName);
+    requireSecretValueInput({ secretValue: args.secretValue, secretFile: args.secretFile });
 
     let secretString: string;
     if (args.secretFile) {
@@ -43,7 +36,7 @@ export const commandSecretSet = async () => {
       agentMode,
       forceUpdate: args.forceUpdate,
       region,
-      secretName: args.secretName,
+      secretName,
       secretValue: secretString
     });
     return null;
@@ -111,11 +104,12 @@ const createNamedSecret = async ({
         await notificationManager.reportEvent({ type: 'SECRET_UPDATED', title: `Secret "${secretName}" updated` });
         return;
       }
-      throw new ExpectedError(
-        'CLI',
-        `Secret "${secretName}" already exists.`,
-        'Use --forceUpdate to overwrite existing secret'
-      );
+      throw new CliError({
+        category: 'CLI',
+        code: 'SECRET_ALREADY_EXISTS',
+        message: `Secret \`${secretName}\` already exists.`,
+        hints: 'Use `--forceUpdate` to overwrite the existing secret.'
+      });
     }
     const shouldUpdate = await tuiManager.promptConfirm({
       message: `Secret with name "${secretName}" already exists. Would you like to update it?`

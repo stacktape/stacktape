@@ -2,9 +2,8 @@ import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { tuiManager } from '@application-services/tui-manager';
 import type { MetricDataQuery } from '@aws-sdk/client-cloudwatch';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { stpErrors } from '@errors';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { printMetricsChart } from '../_utils/debug-formatters';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
@@ -49,35 +48,36 @@ export const commandMetrics = async () => {
   const { resourceName, metric, period = 300, stat = 'Average' } = args;
   const stackName = stackContext.stackName;
 
-  if (!resourceName) {
-    throw new ExpectedError('CLI', 'Missing required flag: --resourceName', 'Provide --resourceName <name>');
-  }
-  if (!metric) {
-    throw new ExpectedError('CLI', 'Missing required flag: --metric', 'Provide --metric <metricName>');
-  }
-
   // Get resource info
   const resource = deployedStackOverviewManager.getStpResource({ nameChain: resourceName });
   if (!resource) {
-    throw stpErrors.e98({ stpResourceName: resourceName });
+    throw new CliError({
+      category: 'NON_EXISTING_RESOURCE',
+      code: 'METRICS_RESOURCE_NOT_FOUND',
+      message: `No resource named \`${resourceName}\` was found in the stack.`
+    });
   }
 
   const resourceType = resource.resourceType as string;
   const metricConfig = METRIC_CONFIGS[resourceType];
   if (!metricConfig) {
-    throw new ExpectedError(
-      'CLI',
-      `Metrics not supported for resource type: ${resourceType}`,
-      `Supported types: ${Object.keys(METRIC_CONFIGS).join(', ')}`
-    );
+    throw new CliError({
+      category: 'UNSUPPORTED_RESOURCE',
+      code: 'METRICS_RESOURCE_TYPE_UNSUPPORTED',
+      message: `Metrics are not supported for resource type \`${resourceType}\`.`,
+      hints: `Supported resource types: ${Object.keys(METRIC_CONFIGS)
+        .map((type) => `\`${type}\``)
+        .join(', ')}.`
+    });
   }
 
   if (!metricConfig.metrics.includes(metric)) {
-    throw new ExpectedError(
-      'CLI',
-      `Invalid metric "${metric}" for ${resourceType}`,
-      `Available metrics: ${metricConfig.metrics.join(', ')}`
-    );
+    throw new CliError({
+      category: 'CLI',
+      code: 'METRICS_METRIC_UNSUPPORTED',
+      message: `Metric \`${metric}\` is not supported for resource type \`${resourceType}\`.`,
+      hints: `Available metrics: ${metricConfig.metrics.map((name) => `\`${name}\``).join(', ')}.`
+    });
   }
 
   // Determine dimension value (AWS resource name)

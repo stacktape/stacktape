@@ -157,6 +157,12 @@ describe('diagnostic command invocation inputs', () => {
         stackName: 'another-stack',
         stackResources: [lambdaLogGroup]
       })
-    ).toThrow('No log group found for resource "api"');
+    ).toThrow(
+      expect.objectContaining({
+        category: 'CONFIG',
+        code: 'LOG_GROUP_NOT_FOUND',
+        message: 'No log group was found for resource `api`.'
+      })
+    );
   });
 });

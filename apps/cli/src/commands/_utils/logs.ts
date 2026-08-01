@@ -1,7 +1,7 @@
 import type { EnrichedStackResourceInfo } from '@domain-services/cloudformation-stack-manager/types';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getSimpleServiceDefaultContainerName } from '@stacktape/naming/workload-names';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 
 // Resource type patterns to match against CloudFormation logical IDs
 const RESOURCE_TYPE_PATTERNS = {
@@ -112,9 +112,11 @@ export const getLogGroupInfoForStacktapeResource = ({
     }
   }
 
-  throw new ExpectedError(
-    'CONFIG',
-    `No log group found for resource "${resourceName}"`,
-    'Check that the resource name matches one defined in your config and that it produces logs (Lambda, container service, batch job)'
-  );
+  throw new CliError({
+    category: 'CONFIG',
+    code: 'LOG_GROUP_NOT_FOUND',
+    message: `No log group was found for resource \`${resourceName}\`.`,
+    hints:
+      'Check that the resource name matches the configuration and that the resource produces logs (function, container workload, or batch job).'
+  });
 };

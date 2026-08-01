@@ -3,10 +3,10 @@ import { tuiManager } from '@application-services/tui-manager';
 import { DesiredStatus } from '@aws-sdk/client-ecs';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { stpErrors } from '@errors';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { runEcsExecCommand } from '@utils/ssm-session';
+import { containerErrors } from '../_utils/container-errors';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 type ContainerExecArgs = StacktapeCliArgs & { taskArn?: string };
@@ -19,18 +19,6 @@ export const commandContainerExec = async () => {
   const args = capturedArgs as ContainerExecArgs;
 
   const { command, resourceName } = args;
-
-  if (!command) {
-    throw new ExpectedError(
-      'CLI',
-      'Missing required flag: --command',
-      'Provide --command "<command to execute>" (e.g., --command "ls -la")'
-    );
-  }
-
-  if (!resourceName) {
-    throw new ExpectedError('CLI', 'Missing required flag: --resourceName', 'Provide --resourceName <service-name>');
-  }
 
   const { task, containerName, clusterArn } = await resolveTargetContainer({ args });
 
@@ -64,7 +52,7 @@ const resolveTargetContainer = async ({ args }: { args: ContainerExecArgs }) => 
     ({ nameChain }) => nameChain[0] === resourceName
   );
   if (!workloadInfo) {
-    throw stpErrors.e119({ containerResourceName: resourceName });
+    throw containerErrors.invalidResource(resourceName);
   }
 
   const ecsServiceEntry = Object.entries(workloadInfo.resource.cloudformationChildResources).find(
@@ -77,11 +65,12 @@ const resolveTargetContainer = async ({ args }: { args: ContainerExecArgs }) => 
   );
 
   if (!ecsServiceEntry) {
-    throw new ExpectedError(
-      'NON_EXISTING_RESOURCE',
-      `Resource "${resourceName}" does not have a deployed ECS service`,
-      'This resource may be a dev stack without running containers. Deploy a full stack to use this command.'
-    );
+    throw new CliError({
+      category: 'NON_EXISTING_RESOURCE',
+      code: 'CONTAINER_SERVICE_NOT_DEPLOYED',
+      message: `Resource \`${resourceName}\` does not have a deployed ECS service.`,
+      hints: 'The resource may be a dev stack without running containers. Deploy a full stack to use this command.'
+    });
   }
 
   const ecsServiceCfLogicalName = ecsServiceEntry[0];
@@ -99,7 +88,7 @@ const resolveTargetContainer = async ({ args }: { args: ContainerExecArgs }) => 
     (containersInTaskDefinition.length > 1 && !container) ||
     (container && !containersInTaskDefinition.includes(container))
   ) {
-    throw stpErrors.e120({ containerResourceName: resourceName, availableContainers: containersInTaskDefinition });
+    throw containerErrors.selectionRequired({ resourceName, availableContainers: containersInTaskDefinition });
   }
 
   const tasks = await awsSdkManager.ecs.listTasks({
@@ -108,11 +97,12 @@ const resolveTargetContainer = async ({ args }: { args: ContainerExecArgs }) => 
   });
 
   if (tasks.length === 0) {
-    throw new ExpectedError(
-      'NON_EXISTING_RESOURCE',
-      'No running tasks found for this resource',
-      'Wait for tasks to start or check the ECS service status'
-    );
+    throw new CliError({
+      category: 'NON_EXISTING_RESOURCE',
+      code: 'CONTAINER_TASK_NOT_RUNNING',
+      message: `No running task was found for resource \`${resourceName}\`.`,
+      hints: 'Wait for a task to start or check the ECS service status.'
+    });
   }
 
   let taskArn = tasks[0]?.taskArn;
@@ -123,11 +113,12 @@ const resolveTargetContainer = async ({ args }: { args: ContainerExecArgs }) => 
       (t) => t.taskArn === specifiedTaskArn || t.taskArn.endsWith(`/${specifiedTaskArn}`)
     );
     if (!matchingTask) {
-      throw new ExpectedError(
-        'NON_EXISTING_RESOURCE',
-        `Task not found: ${specifiedTaskArn}`,
-        `Available tasks: ${tasks.map((t) => t.taskArn.split('/').pop()).join(', ')}`
-      );
+      throw new CliError({
+        category: 'NON_EXISTING_RESOURCE',
+        code: 'CONTAINER_TASK_NOT_FOUND',
+        message: `Task \`${specifiedTaskArn}\` was not found.`,
+        hints: `Available tasks: ${tasks.map((task) => `\`${task.taskArn.split('/').pop()}\``).join(', ')}.`
+      });
     }
     taskArn = matchingTask.taskArn;
   }

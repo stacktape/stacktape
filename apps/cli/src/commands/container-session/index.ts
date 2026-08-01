@@ -2,9 +2,9 @@ import { tuiManager } from '@application-services/tui-manager';
 import { DesiredStatus } from '@aws-sdk/client-ecs';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { stpErrors } from '@errors';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { runEcsExecSsmShellSession } from '@utils/ssm-session';
+import { containerErrors } from '../_utils/container-errors';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 export const commandContainerSession = async () => {
@@ -29,7 +29,7 @@ const resolveTargetContainer = async ({ resourceName, container }: { resourceNam
     ({ nameChain }) => nameChain[0] === resourceName
   );
   if (!workloadInfo) {
-    throw stpErrors.e119({ containerResourceName: resourceName });
+    throw containerErrors.invalidResource(resourceName);
   }
   const ecsServiceCfLogicalName = Object.entries(workloadInfo.resource.cloudformationChildResources).find(
     ([, { cloudformationResourceType }]) => {
@@ -51,7 +51,7 @@ const resolveTargetContainer = async ({ resourceName, container }: { resourceNam
     (containersInTaskDefinition.length > 1 && !container) ||
     (container && !containersInTaskDefinition.includes(container))
   ) {
-    throw stpErrors.e120({ containerResourceName: resourceName, availableContainers: containersInTaskDefinition });
+    throw containerErrors.selectionRequired({ resourceName, availableContainers: containersInTaskDefinition });
   }
 
   const tasks = await awsSdkManager.ecs.listTasks({

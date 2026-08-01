@@ -7,7 +7,6 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
-import { ExpectedError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { printFormattedLogs } from '../_utils/debug-formatters';
 import {
@@ -39,10 +38,6 @@ export const commandLogs = async () => {
   });
 
   const { resourceName, raw, filter, container, query, limit = 100 } = args;
-
-  if (!resourceName) {
-    throw new ExpectedError('CLI', 'Missing required flag: --resourceName', 'Provide --resourceName <name>');
-  }
 
   // Parse time range
   const endTime = args.endTime ? new Date(args.endTime) : new Date();

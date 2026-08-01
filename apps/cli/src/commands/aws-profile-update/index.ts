@@ -1,13 +1,11 @@
 import { tuiManager } from '@application-services/tui-manager';
 import { getAvailableAwsProfiles, upsertAwsProfile } from '@utils/aws-config';
-import { ExpectedError } from '@utils/errors';
+import { assertAwsProfilesConfigured } from '../_utils/aws-profile-input';
 
 export const commandAwsProfileUpdate = async () => {
   const availableProfiles = await getAvailableAwsProfiles();
 
-  if (!availableProfiles.length) {
-    throw new ExpectedError('CREDENTIALS', 'No profile set in global AWS credentials file.');
-  }
+  assertAwsProfilesConfigured(availableProfiles);
 
   const profile = await tuiManager.promptSelect({
     message: 'Choose a profile to update:',
