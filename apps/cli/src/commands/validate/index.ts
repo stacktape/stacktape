@@ -1,10 +1,11 @@
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import { stringifyToYaml } from '@utils/yaml';
+import fsExtra from 'fs-extra';
 import { initializeValidateOperation } from '../_utils/initialization';
 
 export const commandValidate = async () => {
   const {
-    args: { thorough, withPackage },
+    args: { outFile, thorough, withPackage },
     calculatedStackOverview,
     config,
     finalizeTemplate,
@@ -28,8 +29,12 @@ export const commandValidate = async () => {
   await finalizeTemplate();
 
   const synthesizedTemplate = template.getTemplate();
+  const serializedTemplate = stringifyToYaml(synthesizedTemplate);
   if (thorough) {
-    await stack.validateTemplate({ templateBody: stringifyToYaml(synthesizedTemplate) });
+    await stack.validateTemplate({ templateBody: serializedTemplate });
+  }
+  if (outFile) {
+    await fsExtra.writeFile(outFile, serializedTemplate);
   }
 
   const details = [

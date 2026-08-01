@@ -107,6 +107,9 @@ describe('CLI option semantics', () => {
     expect(validateCommandArgs('deploy', { runner: 'unknown-runner' }).success).toBe(false);
     expect(validateCommandArgs('deploy', { dockerArgs: '--no-cache' }).success).toBe(false);
     expect(validateCommandArgs('dev', { outputFormat: 'xml' }).success).toBe(false);
+    expect(
+      validateCommandArgs('validate', { stage: 'test', region: 'eu-west-1', outFile: '/tmp/template.yaml' }).success
+    ).toBe(true);
   });
 
   test('retains documented aliases and machine-output choices', () => {

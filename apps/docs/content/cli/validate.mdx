@@ -7,7 +7,7 @@ seoDescription: 'Validate your Stacktape configuration, resource resolution, and
 
 # validate
 
-The `stacktape validate` command loads your Stacktape configuration, resolves resources, and synthesizes the CloudFormation template in memory — without writing deployment artifacts or modifying AWS resources. With `--thorough`, it also submits the synthesized template to AWS CloudFormation for server-side validation. Use it to catch config errors before deploying.
+The `stacktape validate` command loads your Stacktape configuration, resolves resources, and synthesizes the CloudFormation template in memory — without modifying AWS resources. With `--thorough`, it also submits the synthesized template to AWS CloudFormation for server-side validation. Add `--outFile` when you want to inspect the exact successfully validated template. Use it to catch config errors before deploying.
 
 ## Usage
 
@@ -59,9 +59,11 @@ The `validate` command is a fast pre-deploy check that confirms your configurati
 - **In CI pipelines.** Add `validate` (or `validate --thorough`) as a CI step on pull requests. This prevents broken configs from reaching [`deploy`](/cli/deploy).
 - **After config refactors.** When you reorganize resources, rename stages, or change packaging modes, `validate` confirms the config still synthesizes correctly.
 
-## When NOT to use validate
+## Inspecting the validated template
 
-The `validate` command produces only a pass/fail result. If you need to inspect the generated CloudFormation template, use [`synth`](/cli/synth) instead — it writes the compiled template to a file. If you need to see what a deploy would change against a live stack, use [`diff`](/cli/diff).
+By default, `validate` produces only a pass/fail result. Add `--outFile <path>` to write the template after every requested validation step succeeds. When packaging is enabled, this is the packaged template and includes generated Lambda layers and their function references.
+
+Use [`synth`](/cli/synth) when you only need the faster, un-packaged template compilation. Use [`diff`](/cli/diff) when you need to see what a deployment would change against a live stack.
 
 ## Important flags
 
@@ -69,6 +71,7 @@ The `validate` command produces only a pass/fail result. If you need to inspect 
 |------|-------------|
 | `--withPackage` | Runs workload packaging as part of validation, catching packaging errors for Lambda functions and container workloads. |
 | `--thorough` | Validates packaging and submits the template to AWS CloudFormation for server-side validation. Implies `--withPackage`. Requires AWS credentials. |
+| `--outFile` | Writes the template only after the requested validation steps succeed. With packaging enabled, the file includes generated artifact and layer references. |
 | `--stage` | Required. The stage name used for template synthesis (e.g., `dev`, `staging`, `production`). |
 | `--region` | Required. The AWS region used for template synthesis. |
 | `--configPath` | Path to your Stacktape configuration file if it is not in the default location. |
@@ -91,7 +94,7 @@ stacktape validate --stage dev --region eu-west-1 --configPath ./infra/stacktape
 Run the most thorough validation, including packaging and CloudFormation template validation, before merging a pull request.
 
 ```bash
-stacktape validate --stage ci --region eu-west-1 --thorough
+stacktape validate --stage ci --region eu-west-1 --thorough --outFile ./validated-template.yaml
 ```
 
 Use JSONL output for CI or AI-agent consumption.
@@ -212,6 +215,16 @@ stacktape validate --stage dev --region eu-west-1 --agent
     "longDescription": "<p>The level of logs to print to the console.</p>\n<ul>\n<li><code>info</code>: Basic information about the operation.</li>\n<li><code>error</code>: Only errors.</li>\n<li><code>debug</code>: Detailed information for debugging.</li>\n</ul>\n"
   },
   {
+    "name": "outFile",
+    "required": false,
+    "alias": "out",
+    "allowedTypes": [
+      "string"
+    ],
+    "shortDescription": "<p> Output File</p>\n",
+    "longDescription": "<p>The path to the file where the operation output will be saved.</p>\n"
+  },
+  {
     "name": "outputFormat",
     "required": false,
     "alias": "ofmt",
@@ -278,7 +291,7 @@ stacktape validate --stage dev --region eu-west-1 --agent
 
 ## Related commands
 
-- [`synth`](/cli/synth) — compiles the configuration into a CloudFormation template and writes it to a file. Use `synth` when you need to inspect the generated template; use `validate` when you want a validation gate instead of a written template file.
+- [`synth`](/cli/synth) — compiles the configuration into an un-packaged CloudFormation template and writes it to a file. Use `validate --withPackage --outFile ...` when you need the packaged template.
 - [`diff`](/cli/diff) — shows a preview of changes that would be applied to a deployed stack. Requires a deployed stack, unlike `validate`.
 - [`deploy`](/cli/deploy) — deploys or updates a stack. Running `validate` before `deploy` catches errors before they reach CloudFormation.
 - [`package`](/cli/package) — packages workloads and writes artifacts to disk. The `--withPackage` flag on `validate` runs workload packaging as part of validation, while `package` is the dedicated command for preparing packaged outputs for inspection or deployment.
@@ -287,15 +300,15 @@ stacktape validate --stage dev --region eu-west-1 --agent
 
 ### Does validate create or modify any AWS resources?
 
-No. The `validate` command does not create, update, or delete any AWS resources and does not require a deployed stack. The only AWS API call it makes is when `--thorough` is used — CloudFormation's `ValidateTemplate` API checks the template structure without creating a stack.
+No. The `validate` command does not create, update, or delete any AWS resources and does not require a deployed stack. Initialization can read AWS identity or metadata used during synthesis. With `--thorough`, CloudFormation's read-only `ValidateTemplate` API checks the template structure without creating a stack.
 
 ### How is validate different from synth?
 
-Both commands synthesize a CloudFormation template from your configuration. The difference is that [`synth`](/cli/synth) writes the compiled template to a file (default `compiled-template.yaml`), while `validate` does not write deployment artifacts and produces only a pass/fail result. Use `validate` in CI gates; use `synth` when you need to inspect or store the template.
+Both commands synthesize a CloudFormation template from your configuration. [`synth`](/cli/synth) writes an un-packaged template immediately (default `compiled-template.yaml`). `validate` runs the selected checks first and writes nothing unless `--outFile` is supplied; with `--withPackage` or `--thorough`, that file contains the packaged template. Use `validate` for CI gates and exact validated output, or `synth` for quick template inspection.
 
 ### Do I need AWS credentials to run validate in CI?
 
-Only for `--thorough`. The default and `--withPackage` levels run entirely locally — they synthesize the template in memory and never call AWS, so they work in CI without credentials and make a good lightweight pre-merge gate. `--thorough` calls the CloudFormation `ValidateTemplate` API and therefore requires valid AWS credentials in the CI environment.
+Stacktape normally needs an AWS identity because the account id participates in deterministic names and synthesized ARNs. `--thorough` additionally calls CloudFormation's `ValidateTemplate` API. Use a read-only CI profile scoped to the intended account.
 
 ### What errors does --thorough catch that the default level misses?
 

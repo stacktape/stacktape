@@ -160,6 +160,29 @@ one.
 Deploying is the only way to prove packaging, synthesis and IAM scoping. It is also the only lane here that spends
 money and can destroy something.
 
+### Read-only source CLI smoke
+
+Before a deployment, maintainers can repeatedly prove the source-built CLI's packaging, synthesis and thorough
+CloudFormation validation against the packaging smoke fixture. The lane performs only read-only AWS access: it first
+calls STS `GetCallerIdentity`, and source CLI initialization may read AWS metadata before thorough validation calls
+CloudFormation `ValidateTemplate`. It never deploys or changes AWS resources. It is deliberately absent from
+`pnpm check`, refuses Windows, ignores ambient AWS credentials and endpoint overrides, and requires both an explicit
+named profile and the exact expected account id:
+
+```sh
+STP_SOURCE_CLI_AWS_READONLY=1 \
+STP_SOURCE_CLI_AWS_PROFILE='<profile>' \
+STP_SOURCE_CLI_EXPECTED_ACCOUNT_ID='<12-digit-account-id>' \
+pnpm --filter @stacktape/cli run test:source-cli:aws-readonly
+```
+
+Run it from Linux, macOS, or a WSL-native checkout. It generates a unique project name and defaults to stage `dev` and
+region `eu-west-1`; override those non-mutating synthesis inputs with `STP_SOURCE_CLI_PROJECT_NAME`,
+`STP_SOURCE_CLI_STAGE`, and `STP_SOURCE_CLI_REGION`. The smoke requires successful JSONL results from the real source
+`package`, `synth`, and `validate --withPackage --thorough --outFile ...` commands. It checks the ordinary synthesized
+template's two fixture functions, then proves that the fully packaged and validated template contains one shared
+LayerVersion referenced by both functions. Both temporary templates are deleted even after failure.
+
 **Guardrails — all of them, every time.**
 
 1. Confirm who you are and where you are pointing _before_ the first mutating command.

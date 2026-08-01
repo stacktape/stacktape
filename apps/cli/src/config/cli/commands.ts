@@ -232,13 +232,14 @@ By default, the template is saved to \`./compiled-template.yaml\`. Use the \`--o
   validate: {
     description: `Validates your Stacktape project without writing deployment artifacts.
 
-By default, this command loads and validates the configuration, resolves resources, and synthesizes the CloudFormation template in memory. Use \`--withPackage\` to also validate workload packaging, and \`--thorough\` to validate workload packaging and ask AWS CloudFormation to validate the synthesized template.`,
+By default, this command loads and validates the configuration, resolves resources, and synthesizes the CloudFormation template in memory. Use \`--withPackage\` to also validate workload packaging, and \`--thorough\` to validate workload packaging and ask AWS CloudFormation to validate the synthesized template. Use \`--outFile\` to write the successfully validated template.`,
     args: {
       ...localUniversalArgs,
       ...stackArgs,
       ...localConfigDependentArgs,
       withPackage: withPackage.optional(),
-      thorough: thorough.optional()
+      thorough: thorough.optional(),
+      outFile: outFile.optional()
     },
     requiredArgs: ['stage', 'region'] as const
   },

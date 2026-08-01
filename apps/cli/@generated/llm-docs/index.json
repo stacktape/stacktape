@@ -15715,7 +15715,7 @@
         "page:/cli/validate#with-packaging-add-withpackage",
         "page:/cli/validate#thorough-add-thorough",
         "page:/cli/validate#when-to-use-validate",
-        "page:/cli/validate#when-not-to-use-validate",
+        "page:/cli/validate#inspecting-the-validated-template",
         "page:/cli/validate#important-flags",
         "page:/cli/validate#examples",
         "page:/cli/validate#flags-reference",

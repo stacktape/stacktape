@@ -193,6 +193,7 @@ describe('MCP CLI command tools', () => {
     expect(description?.requiredArgs).toEqual(['stage', 'region']);
     expect(description?.allowedArgs).toContain('withPackage');
     expect(description?.allowedArgs).toContain('thorough');
+    expect(description?.allowedArgs).toContain('outFile');
     expect(description?.allowedArgs).not.toContain('withCloud');
     expect(description?.allowedArgs).not.toContain('onlyWorkloads');
     expect(prepared.ok).toBe(true);
