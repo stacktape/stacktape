@@ -3,7 +3,6 @@ import { basename, isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { VALID_CONFIG_PATHS } from '@config';
-import { stpErrors } from '@errors';
 import { checkExecutableInPath } from '@utils/bin-executable';
 import {
   dynamicRequire,
@@ -11,17 +10,30 @@ import {
   getFileContent,
   getFileExtension,
   getIniFileContent,
-  isFileAccessible
+  getRelativePath,
+  isFileAccessible,
+  transformToUnixPath
 } from '@utils/fs-utils';
 import { parseYaml } from '@utils/yaml';
 import { parseDotenv } from '@utils/dotenv';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { pythonBridge } from '@utils/python-bridge';
 import fsExtra, { lstatSync, readdirSync, readFileSync } from 'fs-extra';
 
 // Bun has native TypeScript support - no registration needed
 export const activateTypescriptResolving = () => {
   // No-op: Bun's require() handles TypeScript natively
+};
+
+const formatFilePathForError = (filePath: string) => {
+  const relativePath = transformToUnixPath(getRelativePath(filePath));
+  const isOutsideWorkingTree =
+    relativePath === '..' ||
+    relativePath.startsWith('../') ||
+    isAbsolute(relativePath) ||
+    /^[A-Za-z]:\//.test(relativePath);
+  const safePath = isOutsideWorkingTree ? basename(filePath) : relativePath;
+  return safePath.startsWith('./') ? safePath : `./${safePath}`;
 };
 
 export const getTypescriptExport = ({
@@ -53,11 +65,12 @@ export const getPythonExecutable = () => {
     const isPythonExecInPath = checkExecutableInPath('python');
     const isPython3ExecInPath = checkExecutableInPath('python3');
     if (!isPythonExecInPath && !isPython3ExecInPath) {
-      throw new ExpectedError(
-        'MISSING_PREREQUISITE',
-        'Python executable is missing.',
-        "It should be either 'python' or 'python3'. If you use different python executable, you can configure it globally for your system using 'stacktape configureDefaults' command."
-      );
+      throw new CliError({
+        category: 'MISSING_PREREQUISITE',
+        code: 'PYTHON_EXECUTABLE_MISSING',
+        message: 'Python executable is missing.',
+        hints: 'Install `python` or `python3`, or configure another executable with `stacktape defaults:configure`.'
+      });
     }
     pythonExecutable = isPythonExecInPath ? 'python' : 'python3';
   }
@@ -90,7 +103,13 @@ export const getCallablePythonFunc = (filePath: string, functionName = 'main') =
 
       return res;
     } catch (error) {
-      throw new ExpectedError('SOURCE_CODE', `Error from python directive in file ${filePath}:\n${error.message}`);
+      const message = error instanceof Error ? error.message : String(error);
+      throw new CliError({
+        category: 'SOURCE_CODE',
+        code: 'PYTHON_DIRECTIVE_EXECUTION_FAILED',
+        message: `Python directive in \`${formatFilePathForError(filePath)}\` failed:\n${message}`,
+        cause: error
+      });
     }
   };
 };
@@ -178,13 +197,13 @@ export const loadFromAnySupportedFile = async ({
 export const loadRawFileContent = async ({ workingDir, filePath }: { filePath: string; workingDir: string }) => {
   const absoluteFilePath = isAbsolute(filePath) ? filePath : join(workingDir, filePath);
   if (!isFile(absoluteFilePath)) {
-    throw new ExpectedError(
-      'CONFIG',
-      `File at ${tuiManager.prettyFilePath(filePath)} doesn't exist or is not accessible.`,
-      `The path is resolved relative to the directory specified using ${tuiManager.prettyOption(
-        'currentWorkingDirectory'
-      )} or the directory containing Stacktape configuration file.`
-    );
+    throw new CliError({
+      category: 'CONFIG',
+      code: 'CONFIG_REFERENCED_FILE_UNAVAILABLE',
+      message: `File \`${formatFilePathForError(absoluteFilePath)}\` does not exist or is not accessible.`,
+      hints:
+        'Relative paths are resolved from `--currentWorkingDirectory` or the directory containing the Stacktape config.'
+    });
   }
   return getFileContent(absoluteFilePath);
 };
@@ -230,13 +249,13 @@ export const parseUserCodeFilepath = ({
   filePath = isAbsolute(filePath) ? filePath : join(workingDir, filePath);
 
   if (!isFile(filePath)) {
-    throw new ExpectedError(
-      'CONFIG',
-      `${codeType} at ${tuiManager.prettyFilePath(filePath)} doesn't exist or is not accessible.`,
-      `The path is resolved relative to the directory specified using ${tuiManager.prettyOption(
-        'currentWorkingDirectory'
-      )} or the directory containing Stacktape configuration file.`
-    );
+    throw new CliError({
+      category: 'CONFIG',
+      code: 'CONFIG_SOURCE_FILE_UNAVAILABLE',
+      message: `${codeType} source \`${formatFilePathForError(filePath)}\` does not exist or is not accessible.`,
+      hints:
+        'Relative paths are resolved from `--currentWorkingDirectory` or the directory containing the Stacktape config.'
+    });
   }
 
   const extension = getFileExtension(filePath);
@@ -291,7 +310,11 @@ export const getConfigPath = (): string => {
     // If configPath is already absolute, use it directly
     const absoluteConfigPath = isAbsolute(configPath) ? configPath : join(dirPath, configPath);
     if (!isFileAccessible(absoluteConfigPath)) {
-      throw stpErrors.e14({ configPath: absoluteConfigPath });
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_FILE_UNAVAILABLE',
+        message: `Config file \`${formatFilePathForError(absoluteConfigPath)}\` does not exist or is not accessible.`
+      });
     }
     return absoluteConfigPath;
   }
@@ -308,8 +331,5 @@ export const getConfigPath = (): string => {
 
     return selectedConfigPath;
   }
-  // if (matchingConfigPaths.length === 0) {
-  //   throw stpErrors.e16({});
-  // }
   return matchingConfigPaths[0];
 };

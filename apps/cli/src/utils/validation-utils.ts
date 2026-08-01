@@ -2,7 +2,7 @@ import type { RequiredDirectivePrimitiveParams } from '@domain-services/config-m
 import { tuiManager } from '@application-services/tui-manager';
 import type { StacktapeCommand } from '../config/cli/commands';
 import { getCommandDescription } from '../config/cli/utils';
-import { ExpectedError } from './errors';
+import { CliError } from './errors';
 
 export const validatePrimitiveFunctionParams = (
   actualParams: any[],
@@ -14,16 +14,18 @@ export const validatePrimitiveFunctionParams = (
     const actual = actualParams[idx];
     const type = requiredParams[requiredParamName];
     if (!actual) {
-      throw new ExpectedError(
-        'PARAMETER',
-        `${errorOwner} requires parameter ${requiredParamName} of type ${type} on position ${idx + 1}.`
-      );
+      throw new CliError({
+        category: 'PARAMETER',
+        code: 'DIRECTIVE_PARAMETER_REQUIRED',
+        message: `${errorOwner} requires parameter \`${requiredParamName}\` of type \`${type}\` at position ${idx + 1}.`
+      });
     }
     if (typeof actual !== type) {
-      throw new ExpectedError(
-        'PARAMETER',
-        `${errorOwner}: Parameter on position ${idx + 1} must be of type ${type} but got ${typeof actual}.`
-      );
+      throw new CliError({
+        category: 'PARAMETER',
+        code: 'DIRECTIVE_PARAMETER_TYPE_INVALID',
+        message: `${errorOwner} parameter \`${requiredParamName}\` at position ${idx + 1} must be of type \`${type}\`, but received \`${typeof actual}\`.`
+      });
     }
     idx++;
   }

@@ -8,7 +8,7 @@ import { serialize } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { validateStackOutput, validateUniqueness } from '@utils/validator';
 import { getInitialCfTemplate } from './utils';
 import type { CloudformationResource } from '@stacktape/config/cloudformation';
@@ -44,10 +44,12 @@ export class TemplateManager {
       tuiManager.warn(`Approaching CloudFormation 500-resource limit (used: ${amountOfResources}).`);
     }
     if (amountOfResources > 500) {
-      throw new ExpectedError(
-        'CLOUDFORMATION',
-        `Cloudformation template can't have more than 500 resources per stack. Resources used: ${amountOfResources}`
-      );
+      throw new CliError({
+        category: 'CLOUDFORMATION',
+        code: 'CLOUDFORMATION_RESOURCE_LIMIT_EXCEEDED',
+        message: `CloudFormation templates cannot contain more than 500 resources. This template contains ${amountOfResources}.`,
+        hints: 'Split the infrastructure across multiple stacks or remove resources that are no longer needed.'
+      });
     }
     return serialize(this.template);
   };

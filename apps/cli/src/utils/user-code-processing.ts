@@ -1,6 +1,5 @@
-import { tuiManager } from '@application-services/tui-manager';
 import { getPathRelativeTo } from '@utils/fs-utils';
-import { ExpectedError, UserCodeError } from './errors';
+import { CliError, UserCodeError } from './errors';
 import { getCallablePythonFunc, getJavascriptExport, getTypescriptExport, parseUserCodeFilepath } from './file-loaders';
 
 export const getUserCodeAsFn = ({
@@ -37,15 +36,17 @@ export const getUserCodeAsFn = ({
       functionToExecute = getCallablePythonFunc(filePath, handler);
     }
   } catch (err) {
+    if (err instanceof CliError) throw err;
     throw new UserCodeError(`Failed to load ${codeType} at ${userPrintableFilePath}`, err);
   }
 
   if (typeof functionToExecute !== 'function') {
-    throw new ExpectedError(
-      'SOURCE_CODE',
-      `${codeType} at ${userPrintableFilePath} doesn't export function with name '${handler}'.`,
-      'If you want to use another handler, adjust it in configuration using {filePath}:{handler} syntax.'
-    );
+    throw new CliError({
+      category: 'SOURCE_CODE',
+      code: 'SOURCE_CODE_HANDLER_MISSING',
+      message: `${codeType} at \`${userPrintableFilePath}\` does not export a function named \`${handler}\`.`,
+      hints: 'To use another handler, configure the source as `<filePath>:<handler>`.'
+    });
   }
 
   return async function processUserCode(...params) {
@@ -53,10 +54,8 @@ export const getUserCodeAsFn = ({
       const res = await functionToExecute(...params);
       return res;
     } catch (err) {
-      throw new UserCodeError(
-        `Failed to process ${tuiManager.makeBold(codeType)} at ${tuiManager.prettyFilePath(userPrintableFilePath)}`,
-        err
-      );
+      if (err instanceof CliError) throw err;
+      throw new UserCodeError(`Failed to process ${codeType} at \`${userPrintableFilePath}\``, err);
     }
   };
 };

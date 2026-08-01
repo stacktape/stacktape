@@ -39,6 +39,6 @@ describe('TemplateManager stack outputs', () => {
         cfOutputName: 'MyOutput',
         value: { second: true } as any
       });
-    }).toThrow(/already exists with different value/);
+    }).toThrow(/already exists with a different value/);
   });
 });

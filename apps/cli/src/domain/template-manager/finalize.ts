@@ -3,7 +3,6 @@ import type { StpResource } from '@domain-services/config-manager/resolved-types
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
-import { stpErrors } from '@errors';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { getStackCfTemplateDescription } from '@stacktape/naming/stacks';
 import { getCloudformationChildResources } from '@utils/stack-info-map';
@@ -12,6 +11,7 @@ import { stringifyToYaml } from '@utils/yaml';
 import merge from 'lodash/merge';
 import set from 'lodash/set';
 import type { ResourceOverrides } from '@stacktape/config/shared';
+import { CliError } from '@utils/errors';
 import { templateManager } from '.';
 
 const setTemplateDescriptions = () => {
@@ -37,10 +37,13 @@ const applyResourceOverrides = () => {
           cfLogicalName
         })
       ) {
-        throw stpErrors.e101({
-          stpResourceName: resource.name,
-          cfLogicalName,
-          childResources: Object.keys(childResources)
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_RESOURCE_OVERRIDE_TARGET_INVALID',
+          message: `CloudFormation resource \`${cfLogicalName}\` is not a child of Stacktape resource \`${resource.name}\`.`,
+          hints: `Valid child resources: ${Object.keys(childResources)
+            .map((childResource) => `\`${childResource}\``)
+            .join(', ')}.`
         });
       }
 

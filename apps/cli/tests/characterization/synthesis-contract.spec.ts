@@ -217,9 +217,11 @@ const createDenseConfig = () =>
   });
 
 export const synthesizeDenseFixture = async ({
-  synthesisContext
+  synthesisContext,
+  beforeFinalize
 }: {
   synthesisContext?: Partial<StackContext>;
+  beforeFinalize?: () => void;
 } = {}) => {
   return withCredentiallessSynthesisBoundary(async () => {
     calculatedStackOverviewManager.reset();
@@ -318,6 +320,7 @@ export const synthesizeDenseFixture = async ({
       })
     ]);
     await calculatedStackOverviewManager.resolveAllResources();
+    beforeFinalize?.();
     await finalizeTemplate();
     return templateManager.getTemplate();
   });
@@ -692,6 +695,23 @@ describe('full synthesis contract', () => {
 
     expect(resources.FilesBucket.Properties.VersioningConfiguration).toEqual({ Status: 'Enabled' });
     expect(synthesizedTemplate.Metadata).toMatchObject({ ConfigAuthoringFinalTransform: true });
+  });
+
+  test('rejects a resource override that targets an unrelated CloudFormation resource', async () => {
+    await expect(
+      synthesizeDenseFixture({
+        beforeFinalize: () => {
+          (configManager.config.resources.files as any).overrides = {
+            NotAChildResource: { BucketName: 'invalid-override-target' }
+          };
+        }
+      })
+    ).rejects.toMatchObject({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_RESOURCE_OVERRIDE_TARGET_INVALID',
+      message: 'CloudFormation resource `NotAChildResource` is not a child of Stacktape resource `files`.',
+      hints: [expect.stringContaining('`FilesBucket`')]
+    });
   });
 
   test('names exported outputs from the explicitly initialized stack context', () => {
