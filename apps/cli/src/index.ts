@@ -6,7 +6,7 @@ import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { tuiDebug } from '@application-services/tui-manager/tui-debug-log';
-import { commandsWithDisabledAnnouncements, getCanonicalCommand } from './config/cli/commands';
+import { commandsWithDisabledAnnouncements } from './config/cli/commands';
 import { notificationManager } from '@domain-services/notification-manager';
 import { initializeSentry, setSentryTags } from '@utils/sentry';
 import { deleteTempFolder } from '@utils/temp-files';
@@ -142,13 +142,13 @@ export const runCommand = async (opts: RunCommandOptions) => {
     // Initialize agent mode (sets non-TTY output for spinners)
     initAgentMode();
     // Start TUI for all commands except purely interactive/informational ones
-    const canonicalCommand = getCanonicalCommand(globalStateManager.command);
-    if (!commandsWithoutTui.includes(canonicalCommand)) {
+    const command = globalStateManager.command;
+    if (!commandsWithoutTui.includes(command)) {
       tuiDebug('MAIN', 'starting TUI', { command: globalStateManager.command });
       tuiManager.start();
       // Commands with multi-phase flows get phase headers; everything else uses simple mode
       const commandsWithPhaseFlow: StacktapeCommand[] = ['deploy', 'delete', 'rollback'];
-      if (!commandsWithPhaseFlow.includes(canonicalCommand)) {
+      if (!commandsWithPhaseFlow.includes(command)) {
         tuiManager.setSimpleMode(true);
       }
     }
@@ -178,7 +178,7 @@ export const runCommand = async (opts: RunCommandOptions) => {
     await tuiManager.stop();
 
     await applicationManager.cleanUpAfterSuccess();
-    if (!commandsWithDisabledAnnouncements.includes(canonicalCommand) && tuiManager.mode !== 'jsonl') {
+    if (!commandsWithDisabledAnnouncements.includes(command) && tuiManager.mode !== 'jsonl') {
       await announcementsManager.checkForUpdates();
       await announcementsManager.printAnnouncements();
     }
@@ -240,7 +240,7 @@ export const runCommand = async (opts: RunCommandOptions) => {
 };
 
 const getCommandExecutor = (command: StacktapeCommand) => {
-  const commandMap: { [_ in ReturnType<typeof getCanonicalCommand>]: () => any } = {
+  const commandMap: { [_ in StacktapeCommand]: () => any } = {
     synth: commandSynth,
     validate: commandValidate,
     'defaults:configure': commandDefaultsConfigure,
@@ -301,5 +301,5 @@ const getCommandExecutor = (command: StacktapeCommand) => {
     mcp: commandMcp,
     'mcp:add': commandMcpAdd
   };
-  return commandMap[getCanonicalCommand(command)];
+  return commandMap[command];
 };

@@ -100,7 +100,7 @@ import {
 
 // ============ Command Definitions ============
 
-const baseCommandDefinitions = {
+export const commandDefinitions = {
   deploy: {
     description: `Deploys your stack to AWS.
 
@@ -982,16 +982,10 @@ Shows error message, type, function name, project/stage, occurrence count, and s
   }
 } as const;
 
-export const commandDefinitions = baseCommandDefinitions;
-
 // ============ Derived Types ============
 
 export type CommandDefinitions = typeof commandDefinitions;
 export type StacktapeCommand = keyof CommandDefinitions;
-export type CanonicalStacktapeCommand = keyof typeof baseCommandDefinitions;
-
-export const getCanonicalCommand = (command: StacktapeCommand): CanonicalStacktapeCommand =>
-  command as CanonicalStacktapeCommand;
 
 // ============ Command Arrays ============
 

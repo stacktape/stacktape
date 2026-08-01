@@ -1,5 +1,5 @@
-import type { CanonicalStacktapeCommand, StacktapeCommand } from '../../config/cli/commands';
-import { cliCommands, getCanonicalCommand } from '../../config/cli/commands';
+import type { StacktapeCommand } from '../../config/cli/commands';
+import { cliCommands } from '../../config/cli/commands';
 import {
   getAllowedArgs,
   getCommandDescription,
@@ -33,7 +33,7 @@ export type CliCommandPolicy = {
 
 export type CliCommandSummary = {
   command: StacktapeCommand;
-  canonicalCommand: CanonicalStacktapeCommand;
+  canonicalCommand: StacktapeCommand;
   description: string;
   category: CliCommandCategory;
   safety: CliCommandSafety;
@@ -251,18 +251,14 @@ export const parseStacktapeScriptCommand = (scriptCommand: string): ParsedStackt
 };
 
 const commandMatchesScriptName = (command: StacktapeCommand, scriptName: string): boolean => {
-  const canonicalCommand = getCanonicalCommand(command);
   const normalizedCommand = command.replace(':', '-');
-  const normalizedCanonicalCommand = canonicalCommand.replace(':', '-');
   const normalizedScript = scriptName.replace(':', '-');
   if (normalizedScript === normalizedCommand) return true;
-  if (normalizedScript === normalizedCanonicalCommand) return true;
   if (normalizedScript.includes(normalizedCommand)) return true;
-  if (normalizedScript.includes(normalizedCanonicalCommand)) return true;
-  if (canonicalCommand === 'diff' && /\b(preview|diff)\b/.test(normalizedScript)) return true;
-  if (canonicalCommand === 'deploy' && /\bdeploy\b/.test(normalizedScript)) return true;
-  if (canonicalCommand.startsWith('query:') && normalizedScript.includes(canonicalCommand.split(':')[1])) return true;
-  if (canonicalCommand.startsWith('secret:') && normalizedScript.includes(canonicalCommand.split(':')[1])) return true;
+  if (command === 'diff' && /\b(preview|diff)\b/.test(normalizedScript)) return true;
+  if (command === 'deploy' && /\bdeploy\b/.test(normalizedScript)) return true;
+  if (command.startsWith('query:') && normalizedScript.includes(command.split(':')[1])) return true;
+  if (command.startsWith('secret:') && normalizedScript.includes(command.split(':')[1])) return true;
   return false;
 };
 
@@ -282,7 +278,7 @@ export const findStacktapePackageScript = ({
   for (const packageJson of packageJsonFiles) {
     for (const [scriptName, scriptCommand] of Object.entries(packageJson.relevantScripts)) {
       const parsed = parseStacktapeScriptCommand(scriptCommand);
-      if (!parsed || getCanonicalCommand(parsed.command) !== getCanonicalCommand(command)) continue;
+      if (!parsed || parsed.command !== command) continue;
 
       let score = 0;
       if (commandMatchesScriptName(command, scriptName)) score += 30;
@@ -442,7 +438,7 @@ export const listCliCommandSummaries = ({
       const policy = getCliCommandPolicy(command);
       return {
         command,
-        canonicalCommand: getCanonicalCommand(command),
+        canonicalCommand: command,
         description: getCommandDescription(command).split('\n')[0],
         category: policy.category,
         safety: policy.safety,
@@ -458,10 +454,9 @@ export const describeCliCommand = (command: string) => {
   }
 
   const policy = getCliCommandPolicy(command);
-  const canonicalCommand = getCanonicalCommand(command);
   return {
     command,
-    canonicalCommand,
+    canonicalCommand: command,
     description: getCommandDescription(command),
     category: policy.category,
     safety: policy.safety,

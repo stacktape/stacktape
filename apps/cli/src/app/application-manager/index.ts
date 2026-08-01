@@ -1,6 +1,5 @@
 import type { CleanupHookFunction } from '@application-services/event-manager/types';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { getCanonicalCommand } from '../../config/cli/commands';
 import { tuiManager, UserCancelledError } from '@application-services/tui-manager';
 import { IS_DEV, IS_TELEMETRY_DISABLED } from '@config';
 import { propertyFromObjectOrNull } from '@utils/misc';
@@ -192,8 +191,7 @@ export class ApplicationManager {
   }) => {
     const { command, args } = globalStateManager;
     globalStateManager.stopCredentialRefresh();
-    const shouldCleanTemp =
-      !args.preserveTempFiles && getCanonicalCommand(command) !== 'package' && !(this.usesStdinWatch && success);
+    const shouldCleanTemp = !args.preserveTempFiles && command !== 'package' && !(this.usesStdinWatch && success);
     const promiseResults = await Promise.allSettled([
       ...this.cleanUpHooks.map((hook) => hook({ success, interrupted, err })),
       shouldCleanTemp && deleteTempFolder()

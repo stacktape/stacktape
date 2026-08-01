@@ -3,7 +3,6 @@ import { z } from 'zod';
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
 import { pathExists, readFile } from 'fs-extra';
-import { getCanonicalCommand, type StacktapeCommand } from '../../config/cli/commands';
 import { buildIndex, search, formatAnswer } from './lexical-index';
 import type { LexicalIndex, DocKind } from './lexical-index';
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
@@ -757,7 +756,7 @@ const summarizeCliDataForAgent = ({
   command: string;
   data?: Record<string, unknown>;
 }): Record<string, unknown> | undefined => {
-  if (getCanonicalCommand(command as StacktapeCommand) === 'synth') {
+  if (command === 'synth') {
     return summarizeCompileTemplateData(data);
   }
   if (command === 'info:stack') {
@@ -1060,7 +1059,7 @@ const buildCliPlan = async ({
   }
 
   const scriptMatchKind =
-    matchedScript && getCanonicalCommand(matchedScript.parsedCommand) === canonicalCommand
+    matchedScript && matchedScript.parsedCommand === canonicalCommand
       ? 'exact'
       : matchedScript
         ? 'deploy-context'
@@ -1163,7 +1162,7 @@ const buildCliPlan = async ({
     message: `Prepared a read-only Stacktape CLI plan for ${command}.`,
     data: {
       command: prepared.command,
-      canonicalCommand: getCanonicalCommand(prepared.command),
+      canonicalCommand: prepared.command,
       args: prepared.args,
       policy: {
         category: prepared.policy.category,

@@ -16,7 +16,6 @@ import { OnFailure, ResourceStatus, StackStatus } from '@aws-sdk/client-cloudfor
 import { isAgentMode } from 'src/commands/_utils/agent-mode';
 import { DeploymentRolloutState } from '@aws-sdk/client-ecs';
 import { MONITORING_FREQUENCY_SECONDS } from '@config';
-import { getCanonicalCommand } from '../../config/cli/commands';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToAlarm } from '@domain-services/config-manager/utils/alarms';
@@ -209,7 +208,7 @@ export class StackManager {
   }
 
   get stackActionType(): StackActionType {
-    const command = getCanonicalCommand(globalStateManager.command);
+    const command = globalStateManager.command;
     if (command === 'delete') {
       return 'delete';
     }
@@ -392,7 +391,7 @@ export class StackManager {
     eventContext?: { parentEventType?: LoggableEventType; instanceId?: string };
   }) => {
     const stackName = this.#stackName;
-    const command = getCanonicalCommand(globalStateManager.command);
+    const command = globalStateManager.command;
 
     let stackDetails: StackDetails = currentStackDetails;
     if (!stackDetails) {

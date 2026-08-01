@@ -7,7 +7,7 @@ import type {
   ProgressLogger
 } from '@application-services/event-manager/types';
 import type { AnyFunction } from '@utils/type-helpers';
-import type { HookableCommand, HookableEvent } from 'src/config/cli/types';
+import type { HookableEvent } from 'src/config/cli/types';
 import type { Script } from '@domain-services/config-manager/resolved-types/resources';
 import type { HookType, ScriptFn } from '@utils/scripts';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -162,7 +162,7 @@ export class EventManager implements ProgressLogger {
     // error?: any;
   }) => {
     const hookType = { START: 'before', FINISH: 'after' }[captureType] as HookType;
-    const command = globalStateManager.command as HookableCommand;
+    const command = globalStateManager.command;
     const hookEvent: HookableEvent = camelCase(`${hookType}-${command}`) as keyof Hooks;
     const handledEvent: HookableEvent = `${hookEvent}`; // ${eventType ? `:${eventType}` : ''}
 

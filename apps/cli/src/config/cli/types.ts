@@ -13,21 +13,4 @@ export type LogLevel = 'info' | 'debug' | 'error';
 export type TokenType = 'idToken' | 'refreshToken' | 'accessToken';
 export type ResourceLogsType = 'access' | 'process';
 
-export type HookableCommand =
-  | 'compile-template'
-  | 'deploy'
-  | 'package-workloads'
-  | 'preview-changes'
-  | 'logs'
-  | 'userpool-create-user'
-  | 'userpool-get-token'
-  | 'fn:deploy-fast'
-  | 'fn:develop'
-  | 'cw:run-local'
-  | 'cw:deploy-fast'
-  | 'bucket:sync'
-  | 'stack-info'
-  | 'delete'
-  | 'rollback';
-
 export type HookableEvent = keyof Hooks;
