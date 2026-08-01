@@ -1,5 +1,4 @@
-import { globalStateManager } from '@application-services/global-state-manager';
-import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import type { EnrichedStackResourceInfo } from '@domain-services/cloudformation-stack-manager/types';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getSimpleServiceDefaultContainerName } from '@stacktape/naming/workload-names';
 import { ExpectedError } from '@utils/errors';
@@ -17,8 +16,14 @@ const RESOURCE_TYPE_PATTERNS = {
 type DetectedResourceType = keyof typeof RESOURCE_TYPE_PATTERNS;
 
 // Detect resource type from stack resources
-const detectResourceType = (resourceName: string): DetectedResourceType | null => {
-  for (const resource of stackManager.existingStackResources) {
+const detectResourceType = ({
+  resourceName,
+  stackResources
+}: {
+  resourceName: string;
+  stackResources: EnrichedStackResourceInfo[];
+}): DetectedResourceType | null => {
+  for (const resource of stackResources) {
     const logicalId = resource.LogicalResourceId || '';
     // Check if the logical ID contains the resource name
     if (!logicalId.toLowerCase().includes(resourceName.toLowerCase())) continue;
@@ -33,14 +38,16 @@ const detectResourceType = (resourceName: string): DetectedResourceType | null =
 };
 
 export const getLogGroupInfoForStacktapeResource = ({
+  stackName,
+  stackResources,
   resourceName,
   containerName
 }: {
+  stackName: string;
+  stackResources: EnrichedStackResourceInfo[];
   resourceName: string;
   containerName?: string;
 }) => {
-  const stackName = globalStateManager.targetStack.stackName;
-
   // Try to find log group directly by searching for it in stack resources
   const logGroupPatterns = [
     // Lambda log group pattern
@@ -62,7 +69,7 @@ export const getLogGroupInfoForStacktapeResource = ({
 
   // Try each pattern
   for (const pattern of logGroupPatterns) {
-    const logGroup = stackManager.existingStackResources.find((resource) => {
+    const logGroup = stackResources.find((resource) => {
       return resource.PhysicalResourceId === pattern;
     });
     if (logGroup) {
@@ -71,7 +78,7 @@ export const getLogGroupInfoForStacktapeResource = ({
   }
 
   // Fallback: detect resource type and build specific pattern
-  const detectedType = detectResourceType(resourceName);
+  const detectedType = detectResourceType({ resourceName, stackResources });
   if (detectedType) {
     let logGroupAwsResourceName: string;
     if (detectedType === 'web-service' || detectedType === 'private-service' || detectedType === 'worker-service') {
@@ -97,7 +104,7 @@ export const getLogGroupInfoForStacktapeResource = ({
       });
     }
 
-    const logGroup = stackManager.existingStackResources.find((resource) => {
+    const logGroup = stackResources.find((resource) => {
       return resource.PhysicalResourceId === logGroupAwsResourceName;
     });
     if (logGroup) {

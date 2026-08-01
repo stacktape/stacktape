@@ -1036,7 +1036,11 @@ const startFunctionWorkload = async (resourceName: string): Promise<void> => {
   // Setup log streaming
   const cloudwatchLogPrinter = new LambdaCloudwatchLogPrinter({
     fetchSince: (await getAwsSynchronizedTime()).getTime(),
-    logGroupAwsResourceName: getLogGroupInfoForStacktapeResource({ resourceName }).PhysicalResourceId,
+    logGroupAwsResourceName: getLogGroupInfoForStacktapeResource({
+      resourceName,
+      stackName: globalStateManager.targetStack.stackName,
+      stackResources: stackManager.existingStackResources
+    }).PhysicalResourceId,
     onLog: useDevTui
       ? (message, level) => {
           devTuiManager.log(resourceName, message, level === 'error' ? 'error' : level === 'warn' ? 'warn' : 'info');

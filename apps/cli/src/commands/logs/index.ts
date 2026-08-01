@@ -19,22 +19,25 @@ import {
 import { getLogGroupInfoForStacktapeResource } from '../_utils/logs';
 
 export const commandLogs = async () => {
+  const args = Object.freeze({ ...globalStateManager.args }) as Readonly<
+    StacktapeCliArgs & {
+      query?: string;
+      limit?: number;
+      endTime?: string;
+    }
+  >;
+
   await loadUserCredentials();
   await loadTargetStackContext();
   const stackContext = getStackContext();
   await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
 
   await stackManager.init({
-    stackName: globalStateManager.targetStack.stackName,
+    stackName: stackContext.stackName,
     commandModifiesStack: false,
     commandRequiresDeployedStack: true
   });
 
-  const args = globalStateManager.args as StacktapeCliArgs & {
-    query?: string;
-    limit?: number;
-    endTime?: string;
-  };
   const { resourceName, raw, filter, container, query, limit = 100 } = args;
 
   if (!resourceName) {
@@ -59,6 +62,8 @@ export const commandLogs = async () => {
   }
 
   const logGroupName = getLogGroupInfoForStacktapeResource({
+    stackName: stackContext.stackName,
+    stackResources: stackManager.existingStackResources,
     resourceName,
     containerName: container
   }).PhysicalResourceId;

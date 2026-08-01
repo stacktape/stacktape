@@ -1,3 +1,8 @@
+import type { StacktapeCliArgs } from 'src/config/cli/types';
+import type { StackContext } from '@domain-services/stack-context';
+import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
+import type { AwsCloudFront } from 'src/aws/cloudfront';
+import type { AwsS3 } from 'src/aws/s3';
 import { isAbsolute, join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -10,45 +15,126 @@ import { stpErrors } from '@errors';
 import { isDirAccessible } from '@utils/fs-utils';
 import { getCloudformationChildResources } from '@utils/stack-info-map';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { isTransferAccelerationEnabledInRegion } from 'src/aws/buckets';
 import { initializeStackServicesForWorkingWithDeployedStack, loadUserCredentials } from '../_utils/initialization';
 
-export const commandBucketSync = async () => {
-  validateInputs();
+type BucketSyncTarget =
+  | { kind: 'bucket-id'; initialization: 'credentials-only'; bucketName: string }
+  | { kind: 'stack-resource'; initialization: 'deployed-stack'; resourceName: string };
 
-  if (!globalStateManager.args.bucketId) {
-    await initializeStackServicesForWorkingWithDeployedStack({
+type BucketSyncInput =
+  | Readonly<
+      Extract<BucketSyncTarget, { kind: 'bucket-id' }> & {
+        args: Readonly<StacktapeCliArgs>;
+        region: AWSRegion;
+      }
+    >
+  | Readonly<
+      Extract<BucketSyncTarget, { kind: 'stack-resource' }> & {
+        args: Readonly<StacktapeCliArgs>;
+        stackContext: StackContext;
+      }
+    >;
+
+type BucketSyncExecutionServices = {
+  cloudFront: Pick<AwsCloudFront, 'findDistributionsForBucket' | 'invalidateCache'>;
+  event: Pick<typeof eventManager, 'finishEvent' | 'startEvent' | 'updateEvent'>;
+  notification: Pick<typeof notificationManager, 'sendDeploymentNotification'>;
+  s3: Pick<AwsS3, 'syncDirectory'>;
+};
+
+type BucketSyncCommandDependencies = {
+  getExecutionServices: () => BucketSyncExecutionServices;
+  initializeCredentials: typeof loadUserCredentials;
+  initializeDeployedStack: typeof initializeStackServicesForWorkingWithDeployedStack;
+};
+
+const getDefaultExecutionServices = (): BucketSyncExecutionServices => ({
+  cloudFront: awsSdkManager.cloudFront,
+  event: eventManager,
+  notification: notificationManager,
+  s3: awsSdkManager.s3
+});
+
+export const resolveBucketSyncTarget = ({
+  bucketId,
+  resourceName
+}: Pick<StacktapeCliArgs, 'bucketId' | 'resourceName'>): BucketSyncTarget =>
+  bucketId
+    ? { kind: 'bucket-id', initialization: 'credentials-only', bucketName: bucketId }
+    : { kind: 'stack-resource', initialization: 'deployed-stack', resourceName };
+
+export const getDirectBucketSyncUploadConfiguration = ({
+  args,
+  directoryPath,
+  region
+}: {
+  args: Pick<StacktapeCliArgs, 'headersPreset'>;
+  directoryPath: string;
+  region: AWSRegion;
+}) => ({
+  directoryPath,
+  headersPreset: args.headersPreset,
+  excludeFilesPatterns: undefined,
+  fileOptions: undefined,
+  disableS3TransferAcceleration: !isTransferAccelerationEnabledInRegion({ region })
+});
+
+export const commandBucketSync = async (dependencies: Partial<BucketSyncCommandDependencies> = {}) => {
+  const initializeCredentials = dependencies.initializeCredentials ?? loadUserCredentials;
+  const initializeDeployedStack =
+    dependencies.initializeDeployedStack ?? initializeStackServicesForWorkingWithDeployedStack;
+  const args = Object.freeze({ ...globalStateManager.args }) as Readonly<StacktapeCliArgs>;
+  validateInputs(args);
+  const target = resolveBucketSyncTarget(args);
+
+  let input: BucketSyncInput;
+  if (target.initialization === 'deployed-stack') {
+    const { stackContext } = await initializeDeployedStack({
       commandModifiesStack: false,
       commandRequiresConfig: true
     });
+    input = Object.freeze({ ...target, args, stackContext });
   } else {
-    await loadUserCredentials();
+    const { region } = await initializeCredentials();
+    input = Object.freeze({ ...target, args, region });
   }
+  const { cloudFront, event, notification, s3 } =
+    dependencies.getExecutionServices?.() ?? getDefaultExecutionServices();
 
-  const bucketName = getBucketName();
-  const absoluteSourcePath = getDirectoryPath();
+  const bucketName = getBucketName(input);
+  const absoluteSourcePath = getDirectoryPath(input);
   const prettyDirPath = tuiManager.prettyFilePath(absoluteSourcePath);
+  const uploadConfiguration =
+    input.kind === 'bucket-id'
+      ? getDirectBucketSyncUploadConfiguration({
+          args: input.args,
+          directoryPath: absoluteSourcePath,
+          region: input.region
+        })
+      : {
+          directoryPath: absoluteSourcePath,
+          headersPreset: getHeadersPreset(input),
+          excludeFilesPatterns: getSkipFilesConfig(input),
+          fileOptions: getFilterFilesConfig(input),
+          disableS3TransferAcceleration: getIsS3TransferAccelerationDisabled(input)
+        };
 
-  await notificationManager.sendDeploymentNotification({
+  await notification.sendDeploymentNotification({
     message: { text: `Syncing ${prettyDirPath} to bucket ${bucketName} (deletes removed files).`, type: 'progress' }
   });
 
-  await eventManager.startEvent({
+  await event.startEvent({
     eventType: 'SYNC_BUCKET',
     description: `Syncing ${prettyDirPath} to ${bucketName}`
   });
   let lastProgressPercent = null;
-  const stats = await awsSdkManager.s3.syncDirectory({
+  const stats = await s3.syncDirectory({
     bucketName,
-    uploadConfiguration: {
-      directoryPath: absoluteSourcePath,
-      headersPreset: getHeadersPreset(),
-      excludeFilesPatterns: getSkipFilesConfig(),
-      fileOptions: getFilterFilesConfig(),
-      disableS3TransferAcceleration: getIsS3TransferAccelerationDisabled()
-    },
+    uploadConfiguration,
     onProgress: async ({ progressPercent }) => {
       if (progressPercent !== lastProgressPercent && !Number.isNaN(Number(progressPercent))) {
-        await eventManager.updateEvent({
+        await event.updateEvent({
           eventType: 'SYNC_BUCKET',
           additionalMessage: `${progressPercent}%`
         });
@@ -57,43 +143,43 @@ export const commandBucketSync = async () => {
     },
     deleteRemoved: true
   });
-  await eventManager.finishEvent({
+  await event.finishEvent({
     eventType: 'SYNC_BUCKET',
     data: stats,
     finalMessage: `Files deleted from bucket: ${stats.deleteAmount}. Total files in destination bucket: ${stats.filesFound}.`
   });
 
-  if (globalStateManager.args.invalidateCdnCache) {
-    const connectedCloudfrontDistributions = await awsSdkManager.cloudFront.findDistributionsForBucket({ bucketName });
+  if (args.invalidateCdnCache) {
+    const connectedCloudfrontDistributions = await cloudFront.findDistributionsForBucket({ bucketName });
     if (connectedCloudfrontDistributions.length) {
-      await eventManager.startEvent({ eventType: 'INVALIDATE_CACHE', description: 'Invalidating CDN caches' });
+      await event.startEvent({ eventType: 'INVALIDATE_CACHE', description: 'Invalidating CDN caches' });
       await Promise.all(
         connectedCloudfrontDistributions.map((distribution) =>
-          awsSdkManager.cloudFront.invalidateCache({
+          cloudFront.invalidateCache({
             distributionId: distribution.Id,
             invalidatePaths: ['/*']
           })
         )
       );
-      await eventManager.finishEvent({
+      await event.finishEvent({
         eventType: 'INVALIDATE_CACHE',
         finalMessage: 'Invalidation has started but it might take few seconds until all edge locations are invalidated.'
       });
     }
   }
 
-  if (!globalStateManager.args.bucketId) {
-    deployedStackOverviewManager.printResourceInfo([globalStateManager.args.resourceName]);
+  if (input.kind === 'stack-resource') {
+    deployedStackOverviewManager.printResourceInfo([input.resourceName]);
   }
-  await notificationManager.sendDeploymentNotification({
+  await notification.sendDeploymentNotification({
     message: { text: `Synced ${prettyDirPath} to bucket ${bucketName}.`, type: 'success' }
   });
 
   return null;
 };
 
-const validateInputs = () => {
-  const { stage, resourceName, bucketId, sourcePath } = globalStateManager.args;
+const validateInputs = (args: Readonly<StacktapeCliArgs>) => {
+  const { stage, resourceName, bucketId, sourcePath } = args;
   const combinesWrongOptions = (stage || resourceName) && bucketId;
   const missesAllOptions = !stage && !resourceName && !bucketId;
   const missesOptionsForSyncFromConfig = (stage && !resourceName) || (resourceName && !stage);
@@ -103,15 +189,15 @@ const validateInputs = () => {
   }
 };
 
-const getBucketName = () => {
-  if (globalStateManager.args.bucketId) {
-    return globalStateManager.args.bucketId;
+const getBucketName = (input: BucketSyncInput) => {
+  if (input.kind === 'bucket-id') {
+    return input.bucketName;
   }
-  const resource = deployedStackOverviewManager.getStpResource({ nameChain: globalStateManager.args.resourceName });
+  const resource = deployedStackOverviewManager.getStpResource({ nameChain: input.resourceName });
   if (!resource) {
     throw stpErrors.e77({
-      stackName: globalStateManager.targetStack.stackName,
-      resourceName: globalStateManager.args.resourceName
+      stackName: input.stackContext.stackName,
+      resourceName: input.resourceName
     });
   }
   const [cfLogicalName] = Object.entries(getCloudformationChildResources({ resource })).find(
@@ -123,14 +209,16 @@ const getBucketName = () => {
   return bucketCfResourceInfo.PhysicalResourceId;
 };
 
-const getDirectoryPath = () => {
-  const { sourcePath, resourceName } = globalStateManager.args;
+const getDirectoryPath = (input: BucketSyncInput) => {
+  const { sourcePath, resourceName } = input.args;
   let res: string;
   if (sourcePath) {
     res = isAbsolute(sourcePath) ? sourcePath : join(process.cwd(), sourcePath);
-  } else {
+  } else if (input.kind === 'stack-resource') {
     const { directoryPath } = configManager.allBuckets.find((bucket) => bucket.name === resourceName).directoryUpload;
-    res = join(globalStateManager.workingDir, directoryPath);
+    res = join(input.stackContext.workingDir, directoryPath);
+  } else {
+    throw stpErrors.e12({});
   }
   if (!isDirAccessible(res)) {
     throw stpErrors.e13({ directoryPath: res });
@@ -138,8 +226,8 @@ const getDirectoryPath = () => {
   return res;
 };
 
-const getHeadersPreset = () => {
-  const { headersPreset, resourceName } = globalStateManager.args;
+const getHeadersPreset = ({ args }: Extract<BucketSyncInput, { kind: 'stack-resource' }>) => {
+  const { headersPreset, resourceName } = args;
   if (headersPreset) {
     return headersPreset;
   }
@@ -148,22 +236,22 @@ const getHeadersPreset = () => {
     : undefined;
 };
 
-const getSkipFilesConfig = () => {
-  const { resourceName } = globalStateManager.args;
+const getSkipFilesConfig = ({ args }: Extract<BucketSyncInput, { kind: 'stack-resource' }>) => {
+  const { resourceName } = args;
   return resourceName
     ? configManager?.allBuckets?.find((bucket) => bucket.name === resourceName)?.directoryUpload?.excludeFilesPatterns
     : undefined;
 };
 
-const getFilterFilesConfig = () => {
-  const { resourceName } = globalStateManager.args;
+const getFilterFilesConfig = ({ args }: Extract<BucketSyncInput, { kind: 'stack-resource' }>) => {
+  const { resourceName } = args;
   return resourceName
     ? configManager?.allBuckets?.find((bucket) => bucket.name === resourceName)?.directoryUpload?.fileOptions
     : undefined;
 };
 
-const getIsS3TransferAccelerationDisabled = () => {
-  const { resourceName } = globalStateManager.args;
+const getIsS3TransferAccelerationDisabled = ({ args }: Extract<BucketSyncInput, { kind: 'stack-resource' }>) => {
+  const { resourceName } = args;
   const disabledInConfig =
     resourceName &&
     configManager.allBuckets.find((bucket) => bucket.name === resourceName)?.directoryUpload

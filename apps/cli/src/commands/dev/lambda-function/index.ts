@@ -4,6 +4,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV, PRINT_LOGS_INTERVAL } from '@config';
 import { configManager } from '@domain-services/config-manager';
+import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
@@ -17,7 +18,11 @@ export const runDevLambdaFunction = async () => {
 
   const cloudwatchLogPrinter = new LambdaCloudwatchLogPrinter({
     fetchSince: (await getAwsSynchronizedTime()).getTime(),
-    logGroupAwsResourceName: getLogGroupInfoForStacktapeResource({ resourceName }).PhysicalResourceId
+    logGroupAwsResourceName: getLogGroupInfoForStacktapeResource({
+      resourceName,
+      stackName: globalStateManager.targetStack.stackName,
+      stackResources: stackManager.existingStackResources
+    }).PhysicalResourceId
   });
 
   const {
