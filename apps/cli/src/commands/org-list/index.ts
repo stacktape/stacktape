@@ -1,6 +1,5 @@
-import { globalStateManager } from '@application-services/global-state-manager';
-import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { initializeControlPlaneOperation } from '../_utils/initialization';
 
 const ROLE_LABELS: Record<string, string> = {
   OWNER: 'Owner',
@@ -11,8 +10,8 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export const commandOrgList = async () => {
-  await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
-  const organizations = await stacktapeTrpcApiManager.apiClient.listOrganizations();
+  const { apiClient } = await initializeControlPlaneOperation();
+  const organizations = await apiClient.listOrganizations();
 
   if (!organizations.length) {
     tuiManager.warn('No organizations found for this user.');

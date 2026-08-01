@@ -1,16 +1,15 @@
-import type { StacktapeCliArgs } from 'src/config/cli/types';
-import { globalStateManager } from '@application-services/global-state-manager';
-import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { ExpectedError } from '@utils/errors';
 import { validateProjectName } from '@utils/validator';
 import { isAgentMode } from '../_utils/agent-mode';
+import { captureCommandArgs, initializeControlPlaneOperation } from '../_utils/initialization';
 
 export const commandProjectCreate = async () => {
-  const args = globalStateManager.args as StacktapeCliArgs;
+  const args = captureCommandArgs();
+  const agentMode = isAgentMode(args);
   let name = args.projectName?.trim();
 
-  if (isAgentMode()) {
+  if (agentMode) {
     if (!name) {
       throw new ExpectedError('CLI', 'Missing required flag: --projectName', 'Provide --projectName <project-name>');
     }
@@ -29,8 +28,8 @@ export const commandProjectCreate = async () => {
 
   validateProjectName(name);
 
-  await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
-  const project = await stacktapeTrpcApiManager.apiClient.createProject({
+  const { apiClient } = await initializeControlPlaneOperation({ args });
+  const project = await apiClient.createProject({
     name,
     region: args.region
   });

@@ -1,15 +1,14 @@
-import type { StacktapeCliArgs } from 'src/config/cli/types';
-import { globalStateManager } from '@application-services/global-state-manager';
-import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { ExpectedError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
+import { captureCommandArgs, initializeControlPlaneOperation } from '../_utils/initialization';
 
 export const commandOrgCreate = async () => {
-  const args = globalStateManager.args as StacktapeCliArgs;
+  const args = captureCommandArgs();
+  const agentMode = isAgentMode(args);
   let organizationName = args.organizationName?.trim();
 
-  if (isAgentMode()) {
+  if (agentMode) {
     if (!organizationName) {
       throw new ExpectedError(
         'CLI',
@@ -30,8 +29,8 @@ export const commandOrgCreate = async () => {
     throw new ExpectedError('CLI', 'Organization name cannot be empty.');
   }
 
-  await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
-  const result = await stacktapeTrpcApiManager.apiClient.createOrganization({ name: organizationName });
+  const { apiClient } = await initializeControlPlaneOperation({ args });
+  const result = await apiClient.createOrganization({ name: organizationName });
 
   tuiManager.success(`Organization ${tuiManager.makeBold(result.organization.name)} created.`);
   tuiManager.info(`Organization ID: ${result.organization.id}`);

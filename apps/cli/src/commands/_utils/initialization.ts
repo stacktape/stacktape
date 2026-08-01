@@ -5,7 +5,6 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { RECORDED_STACKTAPE_COMMANDS } from '@config';
-import { getCanonicalCommand } from '../../config/cli/commands';
 import { budgetManager } from '@domain-services/budget-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { cloudformationRegistryManager } from '@domain-services/cloudformation-registry-manager';
@@ -147,7 +146,18 @@ export const loadLocalAwsContext = async () => {
   await loadLocalTargetStackContext();
 };
 
-const getCommandArgs = (): Readonly<StacktapeCliArgs> => Object.freeze({ ...globalStateManager.args });
+export const captureCommandArgs = (): Readonly<StacktapeCliArgs> => Object.freeze({ ...globalStateManager.args });
+
+export const initializeControlPlaneOperation = async ({
+  args = captureCommandArgs()
+}: {
+  args?: Readonly<StacktapeCliArgs>;
+} = {}) => {
+  const capturedArgs = Object.freeze({ ...args });
+  const workingDir = globalStateManager.workingDir;
+  await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
+  return Object.freeze({ args: capturedArgs, apiClient: stacktapeTrpcApiManager.apiClient, workingDir });
+};
 
 export const initializePackageOperation = async () => {
   await loadLocalAwsContext();
@@ -156,7 +166,7 @@ export const initializePackageOperation = async () => {
   await packagingManager.init();
 
   return {
-    args: getCommandArgs(),
+    args: captureCommandArgs(),
     stackContext,
     services: {
       packaging: packagingManager,
@@ -179,7 +189,7 @@ export const initializeStackOperationLifecycle = async ({
   requiresSubscription?: boolean;
 }) => {
   const getHeaderAction = () => {
-    const command = getCanonicalCommand(globalStateManager.command);
+    const command = globalStateManager.command;
     if (command === 'delete') return 'DELETING';
     if (command === 'synth') return 'COMPILING TEMPLATE';
     if (command === 'diff') return 'PREVIEWING CHANGES';
@@ -311,7 +321,7 @@ export const initializeStackOperationLifecycle = async ({
   }
   await eventManager.processHooks({ captureType: 'START' });
 
-  return { args: getCommandArgs(), stackContext } as const;
+  return { args: captureCommandArgs(), stackContext } as const;
 };
 
 export const initializeSynthOperation = async () => ({
@@ -422,7 +432,7 @@ export const initializeRemoteDeployOperation = async () => {
 };
 
 export const initializeStackServicesForLocalResolve = async () => {
-  const args = getCommandArgs();
+  const args = captureCommandArgs();
   const scriptName = args.scriptName;
   tuiManager.showCommandHeader({
     action: scriptName ? `RUNNING SCRIPT: ${scriptName}` : 'RUNNING SCRIPT',
@@ -471,7 +481,7 @@ export const initializeStackServicesForLocalResolve = async () => {
 };
 
 export const initializeStackServicesForHotSwapDeploy = async () => {
-  const args = getCommandArgs();
+  const args = captureCommandArgs();
   await loadUserCredentials();
   await recordStackOperationStart();
 
@@ -664,7 +674,7 @@ export const initializeStackServicesForWorkingWithDeployedStack = async ({
     stackActionType: stackManager.stackActionType
   });
 
-  return { args: getCommandArgs(), stackContext } as const;
+  return { args: captureCommandArgs(), stackContext } as const;
 };
 
 export const initializeDeleteOperation = async () => {
@@ -746,10 +756,16 @@ export const loadUserCredentials = async () => {
       globalStateManager.organizationData.name
     )}.`
   });
+
+  return Object.freeze({
+    args: captureCommandArgs(),
+    region: globalStateManager.region,
+    workingDir: globalStateManager.workingDir
+  });
 };
 
 export const recordStackOperationStart = async () => {
-  const command = getCanonicalCommand(globalStateManager.command);
+  const command = globalStateManager.command;
   const isCommandToBeRecorded = RECORDED_STACKTAPE_COMMANDS.includes(command as StacktapeRecordedCommand);
   if (isCommandToBeRecorded) {
     // stack operation start
@@ -781,7 +797,7 @@ export const startStackOperationRecording = async ({
 }) => {
   // for recorded stacktape commands we are sending logs into cloudwatch
   // we are also recording the start and end of operation through Stacktape API
-  const command = getCanonicalCommand(globalStateManager.command);
+  const command = globalStateManager.command;
   const isCommandToBeRecorded = RECORDED_STACKTAPE_COMMANDS.includes(command as StacktapeRecordedCommand);
 
   // const shouldRecordStackOperationProgress =

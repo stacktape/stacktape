@@ -7,8 +7,8 @@ import { setSpinnerAgentMode } from '@application-services/tui-manager/spinners'
 /**
  * Check if agent mode is enabled via --agent flag.
  */
-export const isAgentMode = (): boolean => {
-  const args = globalStateManager.args as StacktapeCliArgs;
+export const isAgentMode = (capturedArgs?: Readonly<StacktapeCliArgs>): boolean => {
+  const args = capturedArgs || (globalStateManager.args as StacktapeCliArgs);
   return !!(args?.agent || args?.agentPort !== undefined);
 };
 

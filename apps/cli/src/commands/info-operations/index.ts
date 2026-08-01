@@ -1,13 +1,11 @@
-import { globalStateManager } from '@application-services/global-state-manager';
-import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { initializeControlPlaneOperation } from '../_utils/initialization';
 
 export const commandInfoOperations = async () => {
-  await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
+  const { apiClient, args } = await initializeControlPlaneOperation();
+  const { currentUserOnly, projectName, stage, limit } = args;
 
-  const { currentUserOnly, projectName, stage, limit } = globalStateManager.args;
-
-  const activity = await stacktapeTrpcApiManager.apiClient.organizationActivity({
+  const activity = await apiClient.organizationActivity({
     currentUserOnly,
     projectName,
     stage,

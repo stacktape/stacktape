@@ -1,5 +1,4 @@
 import type { CertificateDetail } from '@domain-services/domain-manager/types';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { CertificateStatus } from '@aws-sdk/client-acm';
 import { domainManager } from '@domain-services/domain-manager';
@@ -27,7 +26,7 @@ export const commandDomainAdd = async () => {
   if (!apexDomain) {
     throw stpErrors.e38({ domainName });
   }
-  await loadUserCredentials();
+  const { region } = await loadUserCredentials();
 
   await domainManager.init({
     domains: [apexDomain]
@@ -142,13 +141,13 @@ export const commandDomainAdd = async () => {
     if (!regionalCert) {
       certRequests.push(awsSdkManager.domains.requestCertificate(domainName, false));
     }
-    if (!usEast1Cert && globalStateManager.region !== 'us-east-1') {
+    if (!usEast1Cert && region !== 'us-east-1') {
       certRequests.push(awsSdkManager.domains.requestCertificate(domainName, true));
     }
     const requestedCerts = await Promise.all(certRequests);
     regionalCert ||= requestedCerts.find(({ CertificateArn }) => !CertificateArn.includes(':us-east-1:'));
     usEast1Cert ||= requestedCerts.find(({ CertificateArn }) => CertificateArn.includes(':us-east-1:'));
-    if (globalStateManager.region === 'us-east-1') {
+    if (region === 'us-east-1') {
       usEast1Cert ||= regionalCert;
     }
   }
@@ -219,5 +218,5 @@ export const commandDomainAdd = async () => {
     usEast1Cert
   );
   await domainManager.storeDomainStatusIntoParameterStore({ domainName: apexDomain, status: domainStatus });
-  tuiManager.success(`Domain ready to use in ${globalStateManager.region}.`);
+  tuiManager.success(`Domain ready to use in ${region}.`);
 };

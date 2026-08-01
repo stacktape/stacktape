@@ -7,7 +7,7 @@ import { loadUserCredentials } from '../_utils/initialization';
 import { isAgentMode } from '../_utils/agent-mode';
 
 export const commandInfoStacks = async () => {
-  await loadUserCredentials();
+  const { args } = await loadUserCredentials();
 
   const [stacks] = await Promise.all([awsSdkManager.cloudFormation.list(), budgetManager.init()]);
   const nonDeletedStacks = stacks.filter(({ StackStatus }) => StackStatus !== StackStatusEnum.DELETE_COMPLETE);
@@ -29,7 +29,7 @@ export const commandInfoStacks = async () => {
     }
   );
 
-  if (isAgentMode()) {
+  if (isAgentMode(args)) {
     tuiManager.info(JSON.stringify(result, null, 2));
   } else {
     tuiManager.printListStack(result);

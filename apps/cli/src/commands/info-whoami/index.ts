@@ -1,6 +1,5 @@
-import { globalStateManager } from '@application-services/global-state-manager';
-import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { initializeControlPlaneOperation } from '../_utils/initialization';
 
 const ROLE_LABELS: Record<string, string> = {
   OWNER: 'Owner',
@@ -11,8 +10,8 @@ const ROLE_LABELS: Record<string, string> = {
 };
 
 export const commandInfoWhoami = async () => {
-  await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
-  const data = await stacktapeTrpcApiManager.apiClient.currentUserAndOrgData();
+  const { apiClient } = await initializeControlPlaneOperation();
+  const data = await apiClient.currentUserAndOrgData();
 
   const extData = data as typeof data & { isProjectScoped?: boolean; permissions?: string[] };
   const role = data.organization.role;

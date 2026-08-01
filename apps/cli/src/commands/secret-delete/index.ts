@@ -1,5 +1,3 @@
-import type { StacktapeCliArgs } from 'src/config/cli/types';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { notificationManager } from '@domain-services/notification-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
@@ -8,13 +6,13 @@ import { isAgentMode } from '../_utils/agent-mode';
 import { loadUserCredentials } from '../_utils/initialization';
 
 export const commandSecretDelete = async () => {
-  await loadUserCredentials();
+  const { args } = await loadUserCredentials();
   await notificationManager.init();
 
-  const args = globalStateManager.args as StacktapeCliArgs;
+  const agentMode = isAgentMode(args);
   let secretName: string;
 
-  if (isAgentMode()) {
+  if (agentMode) {
     if (!args.secretName) {
       throw new ExpectedError('CLI', 'Missing required flag: --secretName', 'Provide --secretName <name>');
     }

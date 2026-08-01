@@ -1,5 +1,3 @@
-import type { StacktapeCliArgs } from 'src/config/cli/types';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { isJson } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
@@ -8,12 +6,11 @@ import { isAgentMode } from '../_utils/agent-mode';
 import { loadUserCredentials } from '../_utils/initialization';
 
 export const commandSecretGet = async () => {
-  await loadUserCredentials();
-
-  const args = globalStateManager.args as StacktapeCliArgs;
+  const { args } = await loadUserCredentials();
+  const agentMode = isAgentMode(args);
   let secretName: string;
 
-  if (isAgentMode()) {
+  if (agentMode) {
     if (!args.secretName) {
       throw new ExpectedError('CLI', 'Missing required flag: --secretName', 'Provide --secretName <name>');
     }
@@ -33,7 +30,7 @@ export const commandSecretGet = async () => {
     ? JSON.parse(secretValue.SecretString)
     : secretValue.SecretString;
 
-  if (isAgentMode()) {
+  if (agentMode) {
     tuiManager.info(
       JSON.stringify(
         {

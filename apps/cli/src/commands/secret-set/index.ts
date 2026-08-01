@@ -1,5 +1,3 @@
-import type { StacktapeCliArgs } from 'src/config/cli/types';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { notificationManager } from '@domain-services/notification-manager';
 import { consoleLinks } from '@stacktape/naming/console-links';
@@ -12,13 +10,13 @@ import { loadUserCredentials } from '../_utils/initialization';
 const provideOptions = ['Interactively using CLI', 'From file'];
 
 export const commandSecretSet = async () => {
-  await loadUserCredentials();
+  const { args, region, workingDir } = await loadUserCredentials();
   await notificationManager.init();
 
-  const args = globalStateManager.args as StacktapeCliArgs;
+  const agentMode = isAgentMode(args);
 
   // Agent mode: require flags instead of prompts
-  if (isAgentMode()) {
+  if (agentMode) {
     if (!args.secretName) {
       throw new ExpectedError('CLI', 'Missing required flag: --secretName', 'Provide --secretName <name>');
     }
@@ -34,14 +32,20 @@ export const commandSecretSet = async () => {
     if (args.secretFile) {
       const fileContent = await loadRawFileContent({
         filePath: args.secretFile,
-        workingDir: globalStateManager.workingDir
+        workingDir
       });
       secretString = JSON.stringify(fileContent);
     } else {
       secretString = args.secretValue;
     }
 
-    await createNamedSecret(args.secretName, secretString, args.forceUpdate);
+    await createNamedSecret({
+      agentMode,
+      forceUpdate: args.forceUpdate,
+      region,
+      secretName: args.secretName,
+      secretValue: secretString
+    });
     return null;
   }
 
@@ -70,16 +74,28 @@ export const commandSecretSet = async () => {
     });
     const fileContent = await loadRawFileContent({
       filePath,
-      workingDir: globalStateManager.workingDir
+      workingDir
     });
     secretString = JSON.stringify(fileContent);
   }
-  await createNamedSecret(secretName, secretString, false);
+  await createNamedSecret({ agentMode, forceUpdate: false, region, secretName, secretValue: secretString });
 
   return null;
 };
 
-const createNamedSecret = async (secretName: string, secretValue: string, forceUpdate?: boolean) => {
+const createNamedSecret = async ({
+  agentMode,
+  forceUpdate,
+  region,
+  secretName,
+  secretValue
+}: {
+  agentMode: boolean;
+  forceUpdate?: boolean;
+  region: Parameters<typeof consoleLinks.secretUrl>[0];
+  secretName: string;
+  secretValue: string;
+}) => {
   const spinner = tuiManager.createSpinner({ text: 'Creating secret' });
 
   const secretList = await awsSdkManager.secrets.list();
@@ -87,7 +103,7 @@ const createNamedSecret = async (secretName: string, secretValue: string, forceU
   if (matchingSecret) {
     spinner.success({ text: 'Checked existing secrets' });
 
-    if (isAgentMode()) {
+    if (agentMode) {
       if (forceUpdate) {
         const updateSpinner = tuiManager.createSpinner({ text: 'Updating secret' });
         await awsSdkManager.secrets.update({ secretId: matchingSecret.ARN, value: secretValue });
@@ -118,8 +134,8 @@ const createNamedSecret = async (secretName: string, secretValue: string, forceU
   await awsSdkManager.secrets.create({ name: secretName, value: secretValue });
   spinner.success({ text: `Secret "${secretName}" created` });
   await notificationManager.reportEvent({ type: 'SECRET_CREATED', title: `Secret "${secretName}" created` });
-  if (!isAgentMode()) {
-    tuiManager.info(`View at ${consoleLinks.secretUrl(globalStateManager.region, secretName)}`);
+  if (!agentMode) {
+    tuiManager.info(`View at ${consoleLinks.secretUrl(region, secretName)}`);
     tuiManager.outro('Secret created!');
   }
 };

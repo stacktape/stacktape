@@ -1,10 +1,9 @@
-import { globalStateManager } from '@application-services/global-state-manager';
-import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { initializeControlPlaneOperation } from '../_utils/initialization';
 
 export const commandIssuesResolve = async () => {
-  await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
-  const { issueId } = globalStateManager.args;
-  await stacktapeTrpcApiManager.apiClient.resolveIssue({ issueId: issueId! });
+  const { apiClient, args } = await initializeControlPlaneOperation();
+  const { issueId } = args;
+  await apiClient.resolveIssue({ issueId: issueId! });
   tuiManager.success(`Issue ${tuiManager.makeBold(issueId!)} resolved.`);
 };

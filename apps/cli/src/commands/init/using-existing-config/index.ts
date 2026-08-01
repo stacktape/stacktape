@@ -1,15 +1,15 @@
 import { basename, isAbsolute, join } from 'node:path';
-import { globalStateManager } from '@application-services/global-state-manager';
-import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV } from '@config';
 import { stpErrors } from '@errors';
 import { outputFile } from 'fs-extra';
+import { captureCommandArgs, initializeControlPlaneOperation } from '../../_utils/initialization';
 import { getTypescriptConfig } from './utils';
 import { printInitPreflight } from '../utils/ui';
 
 export const initUsingExistingConfig = async () => {
-  const projectDirectory = globalStateManager.args.projectDirectory;
+  const args = captureCommandArgs();
+  const projectDirectory = args.projectDirectory;
   const cwd = projectDirectory
     ? isAbsolute(projectDirectory)
       ? projectDirectory
@@ -18,19 +18,19 @@ export const initUsingExistingConfig = async () => {
   const projectName = basename(cwd);
   printInitPreflight({ projectName, mode: 'template-import' });
 
-  await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
+  const { apiClient, workingDir } = await initializeControlPlaneOperation({ args });
 
-  const sourceCodePath = join(globalStateManager.workingDir, globalStateManager.args.projectDirectory || '');
+  const sourceCodePath = join(workingDir, projectDirectory || '');
 
   const subfolder = IS_DEV ? '_debug-test' : '';
 
   const templatePath = join(
     sourceCodePath,
     subfolder,
-    globalStateManager.args.configFormat === 'typescript' ? 'stacktape.ts' : 'stacktape.yml'
+    args.configFormat === 'typescript' ? 'stacktape.ts' : 'stacktape.yml'
   );
 
-  let templateId = globalStateManager.args.templateId;
+  let templateId = args.templateId;
   if (!templateId) {
     templateId = await tuiManager.promptText({
       message: 'Template ID:',
@@ -40,11 +40,11 @@ export const initUsingExistingConfig = async () => {
 
   let template;
   try {
-    template = await stacktapeTrpcApiManager.apiClient.template({ templateId: templateId.trim() });
+    template = await apiClient.template({ templateId: templateId.trim() });
   } catch {
     throw stpErrors.e509({ templateId });
   }
-  if (globalStateManager.args.configFormat === 'typescript') {
+  if (args.configFormat === 'typescript') {
     template.content = getTypescriptConfig(template.content);
   }
 

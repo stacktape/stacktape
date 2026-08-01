@@ -1,10 +1,9 @@
-import { globalStateManager } from '@application-services/global-state-manager';
-import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { tuiManager } from '@application-services/tui-manager';
+import { initializeControlPlaneOperation } from '../_utils/initialization';
 
 export const commandProjectList = async () => {
-  await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
-  const projects = await stacktapeTrpcApiManager.apiClient.projectsWithStages();
+  const { apiClient } = await initializeControlPlaneOperation();
+  const projects = await apiClient.projectsWithStages();
 
   const sortedProjects = [...projects].sort((projectA, projectB) => {
     const latestA = Math.max(0, ...projectA.stages.map((stage) => stage.lastUpdateTime || 0));
