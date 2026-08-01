@@ -31,7 +31,7 @@ export const commandValidate = async () => {
   const synthesizedTemplate = template.getTemplate();
   const serializedTemplate = stringifyToYaml(synthesizedTemplate);
   if (thorough) {
-    await stack.validateTemplate({ templateBody: serializedTemplate });
+    await stack.validateTemplate({ templateBody: JSON.stringify(synthesizedTemplate) });
   }
   if (outFile) {
     await fsExtra.writeFile(outFile, serializedTemplate);
