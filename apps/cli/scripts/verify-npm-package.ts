@@ -94,10 +94,11 @@ export const verifyNpmPackage = async ({
   assert.equal(typeof runtimeExports.$ResourceParam, 'function');
 
   const dryRun = Bun.spawnSync({
-    cmd: ['npm', 'pack', '--dry-run', '--json'],
+    cmd: ['npm', 'pack', '--dry-run', '--json', '--offline'],
     cwd: packageDir,
     stdout: 'pipe',
-    stderr: 'pipe'
+    stderr: 'pipe',
+    env: { ...process.env, COREPACK_ENABLE_NETWORK: '0', NPM_CONFIG_OFFLINE: 'true' }
   });
   assert.equal(dryRun.exitCode, 0, dryRun.stderr.toString());
   const [{ files }] = JSON.parse(dryRun.stdout.toString()) as [{ files: Array<{ path: string }> }];
