@@ -259,22 +259,17 @@ export const assertSynthesizedTemplate = async ({
   const functions = Object.values(template.Resources).filter(
     (resource): resource is Record<string, unknown> => isRecord(resource) && resource.Type === 'AWS::Lambda::Function'
   );
-  assert(
-    functions.length === 2,
-    `Expected two Lambda functions in the synthesized template; received ${functions.length}.`
-  );
-  const functionNames = functions
-    .map((resource) =>
-      isRecord(resource.Properties) && typeof resource.Properties.FunctionName === 'string'
-        ? resource.Properties.FunctionName
-        : undefined
-    )
-    .filter((name): name is string => Boolean(name))
-    .sort();
   const expectedNames = expectedWorkloads.map((name) => `${projectName}-${stage}-${name}`).sort();
+  const namedFunctions = functions.flatMap((resource) => {
+    const properties = resource.Properties;
+    if (!isRecord(properties) || typeof properties.FunctionName !== 'string') return [];
+    return [{ functionName: properties.FunctionName, resource }];
+  });
+  const workloadFunctions = namedFunctions.filter(({ functionName }) => expectedNames.includes(functionName));
+  const functionNames = workloadFunctions.map(({ functionName }) => functionName).sort();
   assert(
     JSON.stringify(functionNames) === JSON.stringify(expectedNames),
-    `Synthesized Lambda names differ from the requested stack: ${functionNames.join(', ') || '<none>'}.`
+    `Synthesized workload Lambda names differ from the requested stack: ${functionNames.join(', ') || '<none>'}.`
   );
 
   if (requireSharedLayer) {
@@ -288,7 +283,7 @@ export const assertSynthesizedTemplate = async ({
     );
     const [layerLogicalId] = layers[0];
 
-    for (const resource of functions) {
+    for (const { resource } of workloadFunctions) {
       assert(isRecord(resource.Properties), 'Validated Lambda has no Properties map.');
       const configuredLayers = resource.Properties.Layers;
       assert(Array.isArray(configuredLayers), `${String(resource.Properties.FunctionName)} has no Lambda layer.`);

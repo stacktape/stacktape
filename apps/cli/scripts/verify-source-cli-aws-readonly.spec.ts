@@ -103,7 +103,7 @@ describe('source CLI AWS read-only smoke guardrails', () => {
     expect(env.AWS_SESSION_TOKEN).toBeUndefined();
   });
 
-  test('requires one shared LayerVersion referenced by both validated functions', async () => {
+  test('requires one shared LayerVersion referenced by both validated workload functions', async () => {
     const directory = await mkdtemp(join(tmpdir(), 'stacktape-readonly-smoke-test-'));
     const templatePath = join(directory, 'template.json');
     const lambda = (name: string) => ({
@@ -117,7 +117,11 @@ describe('source CLI AWS read-only smoke guardrails', () => {
       Resources: {
         SharedLayer: { Type: 'AWS::Lambda::LayerVersion', Properties: {} },
         RetryAdvisor: lambda('retryAdvisor'),
-        CatalogReport: lambda('catalogReport')
+        CatalogReport: lambda('catalogReport'),
+        StacktapeService: {
+          Type: 'AWS::Lambda::Function',
+          Properties: { FunctionName: 'example-dev-stpService-CR' }
+        }
       }
     };
 
