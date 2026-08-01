@@ -4,6 +4,7 @@ import { readFile } from 'node:fs/promises';
 import { isAbsolute, join, normalize } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { NPM_RELEASE_FOLDER_PATH } from 'src/config/project-paths';
+import { pnpmPack } from './release/pnpm-pack';
 import { verifyNpmDeclarations } from './verify-npm-declarations';
 
 type PackageManifest = {
@@ -93,15 +94,7 @@ export const verifyNpmPackage = async ({
   assert.equal(typeof runtimeExports.LambdaFunction, 'function');
   assert.equal(typeof runtimeExports.$ResourceParam, 'function');
 
-  const dryRun = Bun.spawnSync({
-    cmd: ['npm', 'pack', '--dry-run', '--json', '--offline'],
-    cwd: packageDir,
-    stdout: 'pipe',
-    stderr: 'pipe',
-    env: { ...process.env, COREPACK_ENABLE_NETWORK: '0', NPM_CONFIG_OFFLINE: 'true' }
-  });
-  assert.equal(dryRun.exitCode, 0, dryRun.stderr.toString());
-  const [{ files }] = JSON.parse(dryRun.stdout.toString()) as [{ files: Array<{ path: string }> }];
+  const { files } = await pnpmPack({ packageDir, dryRun: true });
   const packedPaths = new Set(files.map(({ path }) => path.replaceAll('\\', '/')));
   const requiredPaths = [
     'package.json',
@@ -118,16 +111,16 @@ export const verifyNpmPackage = async ({
     assert.ok(existsSync(join(packageDir, 'SHA256SUMS')), 'NPM release artifact is missing SHA256SUMS');
   }
   for (const requiredPath of requiredPaths) {
-    assert.ok(packedPaths.has(requiredPath), `npm pack output is missing ${requiredPath}`);
+    assert.ok(packedPaths.has(requiredPath), `pnpm pack output is missing ${requiredPath}`);
   }
 
   assert.ok(
     [...packedPaths].some((path) => path.startsWith('llm-docs/')),
-    'npm pack output must include the bundled LLM documentation'
+    'pnpm pack output must include the bundled LLM documentation'
   );
   assert.ok(
     ![...packedPaths].some((path) => path.includes('node_modules/')),
-    'npm pack output must exclude node_modules'
+    'pnpm pack output must exclude node_modules'
   );
 
   return {

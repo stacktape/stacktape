@@ -9,6 +9,7 @@ import AdmZip from 'adm-zip';
 import stripAnsi from 'strip-ansi';
 import * as tar from 'tar';
 import { generateReleaseChecksums, verifyReleaseChecksum } from './release/checksums';
+import { pnpmPack } from './release/pnpm-pack';
 import { verifyHelperLambdaArtifacts } from './verify-helper-lambda-artifacts';
 import { verifyNpmPackage } from './verify-npm-package';
 
@@ -200,18 +201,8 @@ const verifyReleaseArtifact = async () => {
       throw new Error(`Release npm build failed with exit code ${build.exitCode}.`);
     }
 
-    const pack = Bun.spawnSync({
-      cmd: ['npm', 'pack', NPM_RELEASE_FOLDER_PATH, '--pack-destination', fixtureDirectory, '--json', '--offline'],
-      cwd: process.cwd(),
-      stdout: 'pipe',
-      stderr: 'pipe',
-      env: { ...process.env, ...OFFLINE_PACKAGE_MANAGER_ENV }
-    });
-    if (pack.exitCode !== 0) {
-      throw new Error(`npm pack failed: ${pack.stderr.toString()}`);
-    }
-    const [{ filename }] = JSON.parse(pack.stdout.toString()) as [{ filename: string }];
-    const tarballPath = join(fixtureDirectory, filename);
+    const { filename } = await pnpmPack({ packageDir: NPM_RELEASE_FOLDER_PATH, destination: fixtureDirectory });
+    const tarballPath = filename;
     const installedPackagePath = join(fixtureDirectory, 'node_modules', 'stacktape');
     await mkdir(installedPackagePath, { recursive: true });
     await tar.x({ file: tarballPath, cwd: installedPackagePath, strip: 1 });

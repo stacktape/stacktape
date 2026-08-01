@@ -58,7 +58,7 @@ describe('release candidate workflow', () => {
     const checksumsIndex = workflow.indexOf('pnpm run release:checksums');
     const npmBuildIndex = workflow.indexOf('pnpm run build:npm');
     const npmVerifyIndex = workflow.indexOf('bun scripts/verify-npm-package.ts --require-checksums');
-    const npmPackIndex = workflow.indexOf('npm pack ./__release-npm');
+    const npmPackIndex = workflow.indexOf('pnpm --dir ./__release-npm pack');
     const candidateUploadIndex = workflow.indexOf('name: Upload complete release candidate');
 
     expect(archiveVerificationIndex).toBeGreaterThan(-1);

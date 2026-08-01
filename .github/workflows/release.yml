@@ -191,7 +191,7 @@ jobs:
         run: |
           pnpm run build:npm --version "$RELEASE_VERSION" --require-checksums
           bun scripts/verify-npm-package.ts --require-checksums --expected-version "$RELEASE_VERSION"
-          npm pack ./__release-npm --pack-destination __dist
+          pnpm --dir ./__release-npm pack --pack-destination ../__dist
       - name: Upload complete release candidate
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
