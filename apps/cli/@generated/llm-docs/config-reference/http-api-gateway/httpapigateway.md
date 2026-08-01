@@ -24,7 +24,7 @@ type HttpApiGateway = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 

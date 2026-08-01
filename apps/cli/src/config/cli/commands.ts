@@ -94,7 +94,8 @@ import {
   redisPattern,
   redisSection,
   documentId,
-  deployRunner
+  deployRunner,
+  onlyWorkloads
 } from './options';
 
 // ============ Command Definitions ============
@@ -384,7 +385,8 @@ This is useful for inspecting the packaged artifacts before deploying.`,
     args: {
       ...localUniversalArgs,
       ...stackArgs,
-      ...localConfigDependentArgs
+      ...localConfigDependentArgs,
+      onlyWorkloads: onlyWorkloads.optional()
     },
     requiredArgs: ['stage', 'region'] as const
   },

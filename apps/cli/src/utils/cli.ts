@@ -72,7 +72,7 @@ export const getCliInput = (): {
       return arg;
     }),
     {
-      array: ['dockerArgs', 'portMapping', 'env', 'resourcesToSkip'],
+      array: ['dockerArgs', 'env', 'onlyWorkloads', 'resourcesToSkip'],
       configuration: {
         'camel-case-expansion': true,
         'strip-dashed': true
@@ -95,6 +95,15 @@ export const getCliInput = (): {
       }
     }
   });
+
+  if (options.onlyWorkloads !== undefined) {
+    const workloadValues = Array.isArray(options.onlyWorkloads) ? options.onlyWorkloads : [options.onlyWorkloads];
+    options.onlyWorkloads = workloadValues
+      .flatMap((value) => String(value).split(','))
+      .map((value) => value.trim())
+      .filter(Boolean);
+  }
+
   if (options.help) {
     return { commands: ['help'], options: commands.length ? { command: commands[0] } : {} };
   }

@@ -574,7 +574,7 @@ export interface StacktapeConfig {
    * ---
    *
    * Each entry is a named resource (e.g., `myApi`, `myDatabase`). Stacktape creates and manages
-   * the underlying AWS resources for you. Use `stacktape stack-info --detailed` to inspect them.
+   * the underlying AWS resources for you. Use `stacktape info:stack` to inspect them.
    *
    * **Example (YAML):**
    *
@@ -635,7 +635,7 @@ export interface StacktapeConfig {
    * ---
    *
    * For advanced use cases where Stacktape doesn't have a built-in resource type.
-   * These are merged into the CloudFormation template as-is. Use `stacktape stack-info --detailed`
+   * These are merged into the CloudFormation template as-is. Use `stacktape info:stack`
    * to check existing logical names and avoid conflicts.
    *
    * Does not count towards your resource limit.

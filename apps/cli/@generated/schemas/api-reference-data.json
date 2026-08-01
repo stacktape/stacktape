@@ -113,7 +113,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -196,7 +196,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -270,7 +270,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -557,7 +557,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -679,7 +679,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -4145,7 +4145,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -6086,7 +6086,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -7374,7 +7374,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -8081,7 +8081,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -11154,7 +11154,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -14908,7 +14908,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -18855,7 +18855,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -22495,7 +22495,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -23568,7 +23568,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -24175,7 +24175,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -26295,7 +26295,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -26799,7 +26799,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -27850,7 +27850,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -28375,7 +28375,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -29858,7 +29858,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -30826,7 +30826,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -32845,7 +32845,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -34069,7 +34069,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -40017,7 +40017,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -40353,7 +40353,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -41539,7 +41539,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -42049,7 +42049,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -43489,7 +43489,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -46087,7 +46087,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -46809,7 +46809,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -49799,7 +49799,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -52058,7 +52058,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -52186,7 +52186,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -52550,7 +52550,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -54246,7 +54246,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -57265,7 +57265,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -57559,7 +57559,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -58068,7 +58068,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -58141,7 +58141,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -59500,7 +59500,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -60252,7 +60252,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },
@@ -63836,7 +63836,7 @@
         "name": "overrides",
         "required": false,
         "shortDescription": "<p> Escape hatch to modify the underlying CloudFormation resources Stacktape creates.</p>",
-        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape stack-info --detailed</code>.</p>",
+        "longDescription": "<p>Use dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with <code>stacktape info:stack</code>.</p>",
         "typeInfo": {
           "kind": "unknown"
         },

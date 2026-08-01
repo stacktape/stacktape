@@ -29,10 +29,10 @@ Overrides and transforms target these child resources using Stacktape-defined pr
 
 To override a property, you need the Stacktape child resource property name. The table below lists the most common ones. For less common resources, two discovery methods help you find the right name.
 
-Use [`stacktape info:stack --detailed`](/cli/info-stack) to inspect child resources for a deployed stack:
+Use [`stacktape info:stack`](/cli/info-stack) to inspect child resources for a deployed stack:
 
 ```bash
-stacktape info:stack --stage dev --region eu-west-1 --detailed
+stacktape info:stack --stage dev --region eu-west-1
 ```
 
 Alternatively, run [`stacktape synth`](/cli/synth) to generate the full CloudFormation template locally and verify that your overrides produce the expected output:

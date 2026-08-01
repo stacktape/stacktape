@@ -34,7 +34,7 @@ type AgentCoreBrowser = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -143,7 +143,7 @@ type AgentCoreCodeInterpreter = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -246,7 +246,7 @@ type AgentCoreGateway = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -469,7 +469,7 @@ type AgentCoreMemory = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -596,7 +596,7 @@ type AgentCoreRuntime = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -6319,7 +6319,7 @@ type ApplicationLoadBalancer = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -8787,7 +8787,7 @@ type AstroWeb = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -9831,7 +9831,7 @@ type Bastion = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -10401,7 +10401,7 @@ type BatchJob = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -11917,7 +11917,7 @@ type Bucket = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -18633,7 +18633,7 @@ type Convex = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -20458,7 +20458,7 @@ type CustomResourceDefinition = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -21054,7 +21054,7 @@ type CustomResourceInstance = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -26794,7 +26794,7 @@ type DeploymentScript = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -27972,7 +27972,7 @@ type DynamoDbTable = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -28915,7 +28915,7 @@ type EdgeLambdaFunction = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -29449,7 +29449,7 @@ type EfsFilesystem = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -29748,7 +29748,7 @@ type EventBus = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -34625,7 +34625,7 @@ type LambdaFunction = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -41540,7 +41540,7 @@ type HostingBucket = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -43094,7 +43094,7 @@ type HttpApiGateway = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -43587,7 +43587,7 @@ type KinesisStream = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -46962,7 +46962,7 @@ type ContainerWorkload = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -49595,7 +49595,7 @@ type NetworkLoadBalancer = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -50493,7 +50493,7 @@ type NextjsWeb = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -51222,7 +51222,7 @@ type NuxtWeb = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -52384,7 +52384,7 @@ type OpenSearchDomain = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -53267,7 +53267,7 @@ type PrivateService = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -54740,7 +54740,7 @@ type RedisCluster = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -58146,7 +58146,7 @@ type RelationalDatabase = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -59230,7 +59230,7 @@ type RemixWeb = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -60138,7 +60138,7 @@ type SnsTopic = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -60405,7 +60405,7 @@ type SolidStartWeb = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -61045,7 +61045,7 @@ type SqsQueue = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -63897,7 +63897,7 @@ type StateMachine = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -64751,7 +64751,7 @@ type SvelteKitWeb = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -65446,7 +65446,7 @@ type TanStackWeb = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -66089,7 +66089,7 @@ type UpstashRedis = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -68293,7 +68293,7 @@ type UserAuthPool = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -73247,7 +73247,7 @@ type WebAppFirewall = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -74067,7 +74067,7 @@ type WebService = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 
@@ -76161,7 +76161,7 @@ type WorkerService = {
 Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
 
 Use dot-notation paths to override specific properties on any child resource.
-Find resource logical IDs with `stacktape stack-info --detailed`.
+Find resource logical IDs with `stacktape info:stack`.
 
 ### Example 1 (yaml)
 

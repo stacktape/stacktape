@@ -74,7 +74,7 @@ export default defineConfig(() => {
   ]}
 />
 
-The example uses `Resource: ['*']` for brevity, granting SES permissions across all identities. Scope the IAM resource to a specific ARN pattern according to your security requirements, especially when managing multiple SES identities. The map key (e.g. `sesEmailIdentity`) is the CloudFormation logical ID for that raw resource — reference it directly from other resources with `Ref` or `Fn::GetAtt`. To inspect logical names that Stacktape generates for its managed resources (so you can avoid collisions), run [`stacktape info:stack --detailed`](/cli/info-stack).
+The example uses `Resource: ['*']` for brevity, granting SES permissions across all identities. Scope the IAM resource to a specific ARN pattern according to your security requirements, especially when managing multiple SES identities. The map key (e.g. `sesEmailIdentity`) is the CloudFormation logical ID for that raw resource — reference it directly from other resources with `Ref` or `Fn::GetAtt`. To inspect logical names that Stacktape generates for its managed resources (so you can avoid collisions), run [`stacktape info:stack`](/cli/info-stack).
 
 ## Resource attributes
 
@@ -184,7 +184,7 @@ Common intrinsic function patterns in TypeScript config:
 | `!Join [",", [...]]` | `{ 'Fn::Join': [',', [...]] }` |
 
 <Warning>
-To reference Stacktape-managed resources by logical ID in intrinsic functions, run [`stacktape info:stack --detailed`](/cli/info-stack) to discover the logical names Stacktape generates. These are internal naming conventions and may change between Stacktape versions — always verify before hardcoding references.
+To reference Stacktape-managed resources by logical ID in intrinsic functions, run [`stacktape info:stack`](/cli/info-stack) to discover the logical names Stacktape generates. These are internal naming conventions and may change between Stacktape versions — always verify before hardcoding references.
 </Warning>
 
 ## Granting workload access to raw resources
@@ -241,13 +241,13 @@ Stacktape generates CloudFormation logical names for its managed resources inter
 To inspect the logical names Stacktape has assigned, run:
 
 ```bash
-stacktape info:stack --detailed
+stacktape info:stack
 ```
 
 Use descriptive, unique prefixes (like `Custom` or your team name) for your `cloudformationResources` keys to reduce collision risk. If your CLI build supports [`stacktape synth`](/cli/synth), it can also be used to preview the full generated CloudFormation template before deploying.
 
 <Warning>
-Stacktape's internal naming conventions are implementation details and may change between versions. Always verify logical names with `stacktape info:stack --detailed` rather than guessing or hardcoding references to Stacktape-managed names.
+Stacktape's internal naming conventions are implementation details and may change between versions. Always verify logical names with `stacktape info:stack` rather than guessing or hardcoding references to Stacktape-managed names.
 </Warning>
 
 ## Choosing an escape hatch
@@ -290,7 +290,7 @@ Yes. Raw CloudFormation resources are part of the stack's template. When you [de
 
 ### How do I reference a Stacktape-managed resource from a raw resource?
 
-Run [`stacktape info:stack --detailed`](/cli/info-stack) to discover the logical name Stacktape assigned, then reference it with `Ref`, `Fn::GetAtt`, or `DependsOn` (which all accept the logical name of any resource in the stack, including Stacktape-generated ones). Stacktape's internal naming is an implementation detail that can change between versions, so verify the name before each major Stacktape upgrade rather than hardcoding it.
+Run [`stacktape info:stack`](/cli/info-stack) to discover the logical name Stacktape assigned, then reference it with `Ref`, `Fn::GetAtt`, or `DependsOn` (which all accept the logical name of any resource in the stack, including Stacktape-generated ones). Stacktape's internal naming is an implementation detail that can change between versions, so verify the name before each major Stacktape upgrade rather than hardcoding it.
 
 ### Can I use connectTo with raw CloudFormation resources?
 

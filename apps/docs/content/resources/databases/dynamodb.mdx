@@ -397,7 +397,7 @@ The example below enables TTL on an attribute named `expiresAt`. Replace `Dynamo
 
 TTL is useful for session stores, cache entries, or any data with a natural expiration. AWS DynamoDB automatically deletes expired items at no additional write cost, though deletions may lag behind the expiration time by up to 48 hours. To enable server-side encryption with a customer-managed KMS key instead, override `Properties.SSESpecification` with `{ "SSEEnabled": true, "KMSMasterKeyId": "<your-key-arn>", "SSEType": "KMS" }`.
 
-Use [`stacktape info:stack --detailed`](/cli/info-stack) to inspect CloudFormation logical IDs before writing overrides. See [overrides and escape hatches](/configuration/overrides-and-escape-hatches) for the full workflow.
+Use [`stacktape info:stack`](/cli/info-stack) to inspect CloudFormation logical IDs before writing overrides. See [overrides and escape hatches](/configuration/overrides-and-escape-hatches) for the full workflow.
 
 ## Referenceable parameters
 

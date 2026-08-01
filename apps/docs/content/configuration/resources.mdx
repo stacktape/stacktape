@@ -197,7 +197,7 @@ Stacktape automatically adds `projectName`, `stage`, and `stackName` tags to eve
 
 Most Stacktape resources expose an `overrides` property that lets you modify the underlying CloudFormation resources directly. This is the escape hatch for edge cases where Stacktape's abstraction doesn't expose a specific AWS property you need. A few resource types that don't map to CloudFormation (such as MongoDB Atlas clusters) do not support overrides.
 
-Overrides use dot-notation paths to target specific CloudFormation properties on child resources. You can find resource logical IDs with `stacktape info:stack --detailed`.
+Overrides use dot-notation paths to target specific CloudFormation properties on child resources. You can find resource logical IDs with `stacktape info:stack`.
 
 For full details, see [Overrides and escape hatches](/configuration/overrides-and-escape-hatches).
 

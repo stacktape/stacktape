@@ -7,7 +7,7 @@ import {
   type StacktapeCommand
 } from '../../src/config/cli/commands';
 import { getArgInfo, validateCommandArgs } from '../../src/config/cli/utils';
-import { argAliases } from '../../src/config/cli/options';
+import { allCliArgsSchema, argAliases } from '../../src/config/cli/options';
 
 const capabilityCommands: Record<string, StacktapeCommand[]> = {
   lifecycle: ['deploy', 'delete', 'dev', 'synth', 'diff', 'rollback'],
@@ -85,6 +85,15 @@ describe('CLI capability contract', () => {
 });
 
 describe('CLI option semantics', () => {
+  test('every declared option and alias belongs to a live command', () => {
+    const commandArgs = new Set(
+      Object.values(commandDefinitions).flatMap((definition) => Object.keys(definition.args))
+    );
+
+    expect(Object.keys(allCliArgsSchema.shape).filter((option) => !commandArgs.has(option))).toEqual([]);
+    expect(Object.keys(argAliases).filter((option) => !commandArgs.has(option))).toEqual([]);
+  });
+
   test('validates representative scalar, enum, and array options', () => {
     expect(
       validateCommandArgs('deploy', {

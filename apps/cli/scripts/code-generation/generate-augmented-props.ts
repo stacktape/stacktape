@@ -433,7 +433,7 @@ export type StacktapeConfig = Omit<import('./plain').StacktapeConfig, 'resources
    * These resources will be merged with the resources managed by Stacktape.
    * Each CloudFormation resource consists of a logical name and its definition.
    *
-   * To avoid logical name conflicts, you can see all logical names for resources deployed by Stacktape using the \`stacktape stack-info --detailed\` command.
+   * To avoid logical name conflicts, you can see all logical names for resources deployed by Stacktape using the \`stacktape info:stack\` command.
    * Resources specified here do not count towards your resource limit.
    *
    * For a list of all supported AWS CloudFormation resources, see the [AWS documentation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html).

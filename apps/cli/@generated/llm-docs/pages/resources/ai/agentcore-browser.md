@@ -149,7 +149,7 @@ export default defineConfig(() => {
 
 ## Overrides
 
-AgentCore Browser accepts the standard [overrides](/configuration/overrides-and-escape-hatches) escape hatch for modifying generated CloudFormation child resources. Use dot-notation paths to override specific properties. Find resource logical IDs with [`stacktape stack-info --detailed`](/cli/info-stack).
+AgentCore Browser accepts the standard [overrides](/configuration/overrides-and-escape-hatches) escape hatch for modifying generated CloudFormation child resources. Use dot-notation paths to override specific properties. Find resource logical IDs with [`stacktape info:stack`](/cli/info-stack).
 
 ## Tags
 

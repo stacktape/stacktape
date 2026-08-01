@@ -167,10 +167,6 @@ export const agentChild = z.boolean().describe(`#### Agent Child (internal)
 ---
 Internal flag used when spawning the daemon child process. Do not use directly.`);
 
-export const stop = z.boolean().describe(`#### Stop Agent
----
-Stops a running dev agent daemon. Reads the lock file to find the running agent and sends a stop signal.`);
-
 export const cleanupContainers = z.boolean().describe(`#### Cleanup Containers
 ---
 Finds and removes orphaned Stacktape dev containers (containers whose dev agent is no longer running). Use this to clean up containers left behind after a crash or improper shutdown.`);
@@ -201,17 +197,9 @@ This argument has different meanings depending on the command:
 - With \`stacktape help\`, it specifies a command to show detailed help for.
 - With \`stacktape container:session\`, it specifies a command to run inside the container to start the interactive session.`);
 
-export const detailed = z.boolean().describe(`#### Detailed
----
-If \`true\`, creates a file with detailed stack information. You can specify the output file path with \`--outFile\` and the format with \`--outFormat\`.`);
-
 export const outFile = z.string().describe(`#### Output File
 ---
 The path to the file where the operation output will be saved.`);
-
-export const outFormat = z.enum(['json', 'yml']).describe(`#### Output Format
----
-The format of the output file for stack information.`);
 
 export const sourcePath = z.string().describe(`#### Source Path
 ---
@@ -349,14 +337,6 @@ export const alarmState = z.string().describe(`#### Alarm State Filter
 ---
 Filter alarms by state: OK, ALARM, or INSUFFICIENT_DATA.`);
 
-export const background = z.boolean().describe(`#### Background Mode
----
-Start the operation in background and return immediately with connection details.`);
-
-export const execCommand = z.string().describe(`#### Execute Command
----
-Command to execute in the container session.`);
-
 export const taskArn = z.string().describe(`#### Task ARN
 ---
 Specific ECS task ARN to connect to.`);
@@ -477,8 +457,6 @@ export const localConfigDependentArgs = {
 // ============ Arg Aliases ============
 
 export const argAliases = {
-  event: 'e',
-  jsonEvent: 'je',
   stage: 's',
   configPath: 'cp',
   profile: 'p',
@@ -489,7 +467,6 @@ export const argAliases = {
   watch: 'w',
   command: 'cmd',
   disableEmulation: 'de',
-  portMapping: 'pm',
   logLevel: 'll',
   filter: 'f',
   startTime: 'st',
@@ -500,16 +477,10 @@ export const argAliases = {
   currentWorkingDirectory: 'cwd',
   noCache: 'nc',
   env: 'env',
-  detailed: 'd',
   outFile: 'out',
-  outFormat: 'of',
-  config: 'cfg',
-  password: 'pw',
-  username: 'un',
   disableAutoRollback: 'dar',
   autoConfirmOperation: ['aco', 'yes', 'y'],
   showSensitiveValues: 'ssv',
-  fullHistory: 'fh',
   help: 'h',
   container: 'cnt',
   invalidateCdnCache: 'icc',
@@ -552,8 +523,6 @@ export const argAliases = {
   period: 'per',
   stat: 'st',
   state: 'sta',
-  background: 'bg',
-  execCommand: 'exec',
   taskArn: 'ta',
   organizationName: 'onm',
   organizationId: 'oid',
@@ -584,9 +553,6 @@ export const allCliArgsSchema = z.object({
   noTunnel: noTunnel.optional(),
   remoteResources: remoteResources.optional(),
   command: command.optional(),
-  portMapping: z.array(z.string()).optional(),
-  event: z.string().optional(),
-  jsonEvent: z.string().optional(),
   logLevel: logLevel.optional(),
   startTime: startTime.optional(),
   filter: filter.optional(),
@@ -602,13 +568,10 @@ export const allCliArgsSchema = z.object({
   starterProject: starterProject.optional(),
   env: env.optional(),
   scriptName: scriptName.optional(),
-  detailed: detailed.optional(),
   outFile: outFile.optional(),
-  outFormat: outFormat.optional(),
   disableAutoRollback: disableAutoRollback.optional(),
   autoConfirmOperation: autoConfirmOperation.optional(),
   showSensitiveValues: showSensitiveValues.optional(),
-  fullHistory: z.boolean().optional(),
   invalidateCdnCache: invalidateCdnCache.optional(),
   headersPreset: headersPreset.optional(),
   newVersion: newVersion.optional(),
@@ -635,7 +598,6 @@ export const allCliArgsSchema = z.object({
   agentPort: agentPort.optional(),
   agentChild: agentChild.optional(),
   outputFormat: outputFormat.optional(),
-  stop: stop.optional(),
   cleanupContainers: cleanupContainers.optional(),
   freshDb: freshDb.optional(),
   infrastructureType: infrastructureType.optional(),
@@ -650,8 +612,6 @@ export const allCliArgsSchema = z.object({
   period: period.optional(),
   stat: stat.optional(),
   state: alarmState.optional(),
-  background: background.optional(),
-  execCommand: execCommand.optional(),
   taskArn: taskArn.optional(),
   operation: dbOperation.optional(),
   pk: dynamoPk.optional(),
