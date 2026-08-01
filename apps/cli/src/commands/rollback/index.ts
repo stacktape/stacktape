@@ -1,39 +1,39 @@
-import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@application-services/tui-manager';
-import { eventManager } from '@application-services/event-manager';
-import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
-import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { getNumericVersion } from '@utils/versioning';
 
-import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
+import { initializeRollbackOperation } from '../_utils/initialization';
 
-const listAvailableVersions = async () => {
-  const versions = deploymentArtifactManager.availablePreviousVersions.sort();
-  const currentVersion = stackManager.lastVersion;
+type RollbackOperation = Awaited<ReturnType<typeof initializeRollbackOperation>>;
+
+const listAvailableVersions = async ({
+  deploymentArtifacts,
+  stack,
+  tui
+}: Pick<RollbackOperation, 'deploymentArtifacts' | 'stack' | 'tui'>) => {
+  const versions = deploymentArtifacts.availablePreviousVersions.sort();
+  const currentVersion = stack.lastVersion;
   if (!versions.length) {
-    tuiManager.info('No previous deployment versions found.');
+    tui.info('No previous deployment versions found.');
     return null;
   }
-  tuiManager.info(`Current version: ${currentVersion || 'unknown'}`);
-  tuiManager.info(`Available versions to rollback to:`);
+  tui.info(`Current version: ${currentVersion || 'unknown'}`);
+  tui.info(`Available versions to rollback to:`);
   for (const version of versions) {
     const isCurrent = version === currentVersion;
-    tuiManager.info(`  ${version}${isCurrent ? ' (current)' : ''}`);
+    tui.info(`  ${version}${isCurrent ? ' (current)' : ''}`);
   }
   return null;
 };
 
-const resolveTargetVersion = (): string => {
-  const { targetVersion: versionArg, rollbackSteps } = globalStateManager.args;
+const resolveTargetVersion = ({ args, stack }: Pick<RollbackOperation, 'args' | 'stack'>): string => {
+  const { targetVersion: versionArg, rollbackSteps } = args;
 
   if (versionArg) {
     return versionArg as string;
   }
 
-  const currentVersion = stackManager.lastVersion;
+  const currentVersion = stack.lastVersion;
 
   if (!currentVersion) {
     throw stpErrors.e999({
@@ -56,8 +56,12 @@ const resolveTargetVersion = (): string => {
   return `v${String(targetNumeric).padStart(6, '0')}`;
 };
 
-const verifyArtifactsExist = async (targetVersion: string) => {
-  const availableVersions = deploymentArtifactManager.availablePreviousVersions;
+const verifyArtifactsExist = async ({
+  deploymentArtifacts,
+  targetVersion,
+  tui
+}: Pick<RollbackOperation, 'deploymentArtifacts' | 'tui'> & { targetVersion: string }) => {
+  const availableVersions = deploymentArtifacts.availablePreviousVersions;
   if (!availableVersions.includes(targetVersion)) {
     throw stpErrors.e999({
       message: `Version ${targetVersion} not found in deployment bucket. Available versions: ${availableVersions.sort().join(', ') || 'none'}.`,
@@ -65,9 +69,9 @@ const verifyArtifactsExist = async (targetVersion: string) => {
     });
   }
 
-  const verifySpinner = tuiManager.createSpinner({ text: `Verifying artifacts for ${targetVersion}` });
+  const verifySpinner = tui.createSpinner({ text: `Verifying artifacts for ${targetVersion}` });
   try {
-    await deploymentArtifactManager.verifyArtifactsForVersion(targetVersion);
+    await deploymentArtifacts.verifyArtifactsForVersion(targetVersion);
     verifySpinner.success({ text: `All artifacts for ${targetVersion} verified` });
   } catch (error) {
     verifySpinner.error(`Artifact verification failed for ${targetVersion}`);
@@ -75,9 +79,11 @@ const verifyArtifactsExist = async (targetVersion: string) => {
   }
 };
 
-const checkRollbackSafety = (): { isSafe: boolean; warnings: string[] } => {
+const checkRollbackSafety = ({
+  deployedStackOverview
+}: Pick<RollbackOperation, 'deployedStackOverview'>): { isSafe: boolean; warnings: string[] } => {
   const warnings: string[] = [];
-  const rollbackSafety = deployedStackOverviewManager.getStackMetadata(stackMetadataNames.rollbackSafety());
+  const rollbackSafety = deployedStackOverview.getStackMetadata(stackMetadataNames.rollbackSafety());
 
   if (!rollbackSafety) {
     warnings.push(
@@ -110,46 +116,44 @@ const checkRollbackSafety = (): { isSafe: boolean; warnings: string[] } => {
 };
 
 export const commandRollback = async () => {
-  await initializeStackServicesForWorkingWithDeployedStack({
-    commandModifiesStack: true,
-    commandRequiresConfig: false
-  });
+  const operation = await initializeRollbackOperation();
+  const { args, deployedStackOverview, deploymentArtifacts, event, stack, stackContext, tui } = operation;
 
   // Handle --listVersions
-  if (globalStateManager.args.listVersions) {
-    return listAvailableVersions();
+  if (args.listVersions) {
+    return listAvailableVersions({ deploymentArtifacts, stack, tui });
   }
 
-  const currentVersion = stackManager.lastVersion;
-  const targetVersion = resolveTargetVersion();
+  const currentVersion = stack.lastVersion;
+  const targetVersion = resolveTargetVersion({ args, stack });
 
   if (targetVersion === currentVersion) {
-    tuiManager.info(`Target version ${targetVersion} is already the current version. Nothing to do.`);
+    tui.info(`Target version ${targetVersion} is already the current version. Nothing to do.`);
     return null;
   }
 
-  tuiManager.info(`Rolling back from ${currentVersion || 'unknown'} to ${targetVersion}`);
+  tui.info(`Rolling back from ${currentVersion || 'unknown'} to ${targetVersion}`);
 
   // Verify target version artifacts exist
-  await verifyArtifactsExist(targetVersion);
+  await verifyArtifactsExist({ deploymentArtifacts, targetVersion, tui });
 
   // Check rollback safety and warn
-  const { warnings } = checkRollbackSafety();
+  const { warnings } = checkRollbackSafety({ deployedStackOverview });
   for (const warning of warnings) {
-    tuiManager.warn(warning);
+    tui.warn(warning);
   }
 
   // Prepare rollback template: download old template, patch version output, re-upload
-  eventManager.setPhase('DEPLOY');
-  const newVersion = stackManager.nextVersion;
-  const templateUrl = await deploymentArtifactManager.prepareRollbackTemplate(targetVersion, newVersion);
+  event.setPhase('DEPLOY');
+  const newVersion = stack.nextVersion;
+  const templateUrl = await deploymentArtifacts.prepareRollbackTemplate(targetVersion, newVersion);
 
-  const spinner = tuiManager.createSpinner({
-    text: `Deploying CF template from ${targetVersion} as ${newVersion} to stack ${tuiManager.prettyStackName(globalStateManager.targetStack.stackName)}`
+  const spinner = tui.createSpinner({
+    text: `Deploying CF template from ${targetVersion} as ${newVersion} to stack ${tui.prettyStackName(stackContext.stackName)}`
   });
 
   try {
-    await stackManager.deployStackForRollback(templateUrl);
+    await stack.deployStackForRollback(templateUrl);
     spinner.success({ text: `Stack rolled back to ${targetVersion} (deployed as ${newVersion})` });
   } catch (err) {
     spinner.error(`Rollback deployment failed`);
@@ -158,14 +162,14 @@ export const commandRollback = async () => {
 
   // Restore bucket-synced content if versioning manifests are available
   try {
-    await deploymentArtifactManager.restoreBucketSyncFromManifest(targetVersion);
+    await deploymentArtifacts.restoreBucketSyncFromManifest(targetVersion);
   } catch {
-    tuiManager.warn(
+    tui.warn(
       'Could not restore bucket-synced content. If your stack has static websites, you may need to redeploy from the original commit.'
     );
   }
 
-  tuiManager.info(`Rollback to ${targetVersion} complete. New deployment version: ${newVersion}`);
+  tui.info(`Rollback to ${targetVersion} complete. New deployment version: ${newVersion}`);
 
   return null;
 };

@@ -632,7 +632,66 @@ export const initializeStackServicesForWorkingWithDeployedStack = async ({
     globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
     stackActionType: stackManager.stackActionType
   });
+
+  return { args: getCommandArgs(), stackContext } as const;
 };
+
+export const initializeDeleteOperation = async () => {
+  tuiManager.configureForDelete();
+  tuiManager.showCommandHeader({
+    action: 'DELETING',
+    projectName: globalStateManager.args.projectName || 'project',
+    stageName: globalStateManager.stage || 'stage',
+    region: globalStateManager.region || 'region'
+  });
+  eventManager.setPhase('INITIALIZE');
+
+  const operation = await initializeStackServicesForWorkingWithDeployedStack({
+    commandModifiesStack: true,
+    commandRequiresConfig: false
+  });
+
+  tuiManager.showCommandHeader({
+    action: 'DELETING',
+    projectName: operation.stackContext.projectName,
+    stageName: operation.stackContext.stage,
+    region: operation.stackContext.region
+  });
+
+  return {
+    ...operation,
+    application: applicationManager,
+    config: configManager,
+    deploymentArtifacts: deploymentArtifactManager,
+    event: eventManager,
+    notification: notificationManager,
+    stack: stackManager,
+    template: templateManager,
+    tui: tuiManager
+  } as const;
+};
+
+export const initializeRollbackOperation = async () => ({
+  ...(await initializeStackServicesForWorkingWithDeployedStack({
+    commandModifiesStack: true,
+    commandRequiresConfig: false
+  })),
+  deployedStackOverview: deployedStackOverviewManager,
+  deploymentArtifacts: deploymentArtifactManager,
+  event: eventManager,
+  stack: stackManager,
+  tui: tuiManager
+});
+
+export const initializeCloudFormationRollbackOperation = async () => ({
+  ...(await initializeStackServicesForWorkingWithDeployedStack({
+    commandModifiesStack: true,
+    commandRequiresConfig: false
+  })),
+  deploymentArtifacts: deploymentArtifactManager,
+  stack: stackManager,
+  tui: tuiManager
+});
 
 export const loadUserCredentials = async () => {
   await eventManager.startEvent({ eventType: 'LOAD_USER_DATA', description: 'Loading user data' });

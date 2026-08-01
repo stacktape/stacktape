@@ -1,81 +1,52 @@
-import { applicationManager } from '@application-services/application-manager';
-import { eventManager } from '@application-services/event-manager';
-import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@application-services/tui-manager';
-import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import { configManager } from '@domain-services/config-manager';
-import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
-import { notificationManager } from '@domain-services/notification-manager';
-import { templateManager } from '@domain-services/template-manager';
 import { ExpectedError } from '@utils/errors';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
-import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
+import { initializeDeleteOperation } from '../_utils/initialization';
 
 export const commandDelete = async () => {
-  // Set up TUI for delete operation BEFORE initialization (simplified phases: Initialize, Delete)
-  tuiManager.configureForDelete();
-  tuiManager.showCommandHeader({
-    action: 'DELETING',
-    projectName: globalStateManager.args.projectName || 'project',
-    stageName: globalStateManager.stage || 'stage',
-    region: globalStateManager.region || 'region'
-  });
-  eventManager.setPhase('INITIALIZE');
+  const { application, config, deploymentArtifacts, event, notification, stack, stackContext, template, tui } =
+    await initializeDeleteOperation();
 
-  await initializeStackServicesForWorkingWithDeployedStack({
-    commandModifiesStack: true,
-    commandRequiresConfig: false
-  });
+  await config.loadGlobalConfig();
+  config.validateGuardrails({ hasConfig: !!config.config });
+  await notification.init();
 
-  // Update header with actual values now that we have them
-  tuiManager.showCommandHeader({
-    action: 'DELETING',
-    projectName: globalStateManager.targetStack.projectName,
-    stageName: globalStateManager.targetStack.stage,
-    region: globalStateManager.region
-  });
+  const stackName = stackContext.stackName;
 
-  await configManager.loadGlobalConfig();
-  configManager.validateGuardrails({ hasConfig: !!configManager.config });
-  await notificationManager.init();
-
-  const stackName = globalStateManager.targetStack.stackName;
-
-  const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff: templateManager.getOldTemplateDiff() });
+  const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff: template.getOldTemplateDiff() });
   if (abort) {
-    await applicationManager.handleExitSignal('SIGINT');
+    await application.handleExitSignal('SIGINT');
     return;
   }
 
-  eventManager.setPhase('DEPLOY');
+  event.setPhase('DEPLOY');
 
-  if (stackManager.existingStackDetails.EnableTerminationProtection) {
+  if (stack.existingStackDetails.EnableTerminationProtection) {
     throw new ExpectedError(
       'STACK',
-      `Unable to delete stack "${tuiManager.colorize('red', stackName)}". Termination protection is enabled on the stack.`,
-      `To disable termination protection, you first need to deploy(update) stack with ${tuiManager.colorize(
+      `Unable to delete stack "${tui.colorize('red', stackName)}". Termination protection is enabled on the stack.`,
+      `To disable termination protection, you first need to deploy(update) stack with ${tui.colorize(
         'blue',
         'terminationProtection'
       )} property set to false.`
     );
   }
 
-  await notificationManager.sendDeploymentNotification({
+  await notification.sendDeploymentNotification({
     message: { text: `Deleting stack ${stackName}.`, type: 'progress' }
   });
 
-  if (configManager.config) {
-    await eventManager.registerHooks(configManager.hooks);
-    await eventManager.processHooks({ captureType: 'START' });
+  if (config.config) {
+    await event.registerHooks(config.hooks);
+    await event.processHooks({ captureType: 'START' });
   }
-  await deploymentArtifactManager.deleteAllArtifacts();
-  await stackManager.deleteStack();
+  await deploymentArtifacts.deleteAllArtifacts();
+  await stack.deleteStack();
 
-  await notificationManager.sendDeploymentNotification({
+  await notification.sendDeploymentNotification({
     message: { text: `Stack ${stackName} deleted successfully.`, type: 'success' }
   });
 
-  tuiManager.setPendingCompletion({
+  tui.setPendingCompletion({
     success: true,
     message: 'DELETION SUCCESSFUL',
     links: [],
