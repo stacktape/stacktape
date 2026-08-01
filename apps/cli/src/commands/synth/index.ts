@@ -1,18 +1,15 @@
 import { stringifyToYaml } from '@utils/yaml';
 import fsExtra from 'fs-extra';
-import { initializeAllStackServices } from '../_utils/initialization';
+import { initializeSynthOperation } from '../_utils/initialization';
 
 export const commandSynth = async () => {
   const {
     args,
-    services: { calculatedStackOverview, finalizeTemplate, template: templateManager, tui }
-  } = await initializeAllStackServices({
-    commandModifiesStack: false,
-    commandRequiresDeployedStack: false,
-    loadGlobalConfig: false,
-    requiresControlPlane: false,
-    requiresSubscription: false
-  });
+    calculatedStackOverview,
+    finalizeTemplate,
+    template: templateManager,
+    tui
+  } = await initializeSynthOperation();
 
   await calculatedStackOverview.resolveAllResources();
 

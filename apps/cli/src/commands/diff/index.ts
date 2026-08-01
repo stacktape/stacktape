@@ -1,13 +1,4 @@
-import { tuiManager } from '@application-services/tui-manager';
-import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import { configManager } from '@domain-services/config-manager';
-import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
-import { packagingManager } from '@domain-services/packaging-manager';
-import { templateManager } from '@domain-services/template-manager';
-import { prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
-import { initializeAllStackServices } from '../_utils/initialization';
+import { initializeDiffOperation } from '../_utils/initialization';
 import { isAgentMode } from '../_utils/agent-mode';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
@@ -70,18 +61,20 @@ const buildAgentPreviewOutput = ({
 
 const buildHumanPreviewOutput = ({
   resourceChanges,
-  rawChanges
+  rawChanges,
+  tui
 }: {
   resourceChanges: ReturnType<typeof buildPreviewResourceChanges>;
   rawChanges: number;
+  tui: Awaited<ReturnType<typeof initializeDiffOperation>>['tui'];
 }) => {
   const lines: string[] = [];
 
   if (resourceChanges.length === 0 && rawChanges > 0) {
     lines.push('');
-    lines.push(tuiManager.colorize('gray', '· No meaningful Stacktape resource changes detected'));
+    lines.push(tui.colorize('gray', '· No meaningful Stacktape resource changes detected'));
     lines.push(
-      tuiManager.colorize('gray', '  CloudFormation only reported internal runtime churn or dependency re-evaluation.')
+      tui.colorize('gray', '  CloudFormation only reported internal runtime churn or dependency re-evaluation.')
     );
     return lines;
   }
@@ -90,7 +83,7 @@ const buildHumanPreviewOutput = ({
     const color = actionToColor(resourceChange.action);
     lines.push('');
     lines.push(
-      `${tuiManager.colorize(color, actionToSymbol(resourceChange.action))} ${resourceChange.resourceName} ${tuiManager.colorize('gray', `(${resourceChange.resourceType})`)} ${tuiManager.colorize('gray', `- ${actionToLabel(resourceChange.action)}`)}`
+      `${tui.colorize(color, actionToSymbol(resourceChange.action))} ${resourceChange.resourceName} ${tui.colorize('gray', `(${resourceChange.resourceType})`)} ${tui.colorize('gray', `- ${actionToLabel(resourceChange.action)}`)}`
     );
     if (resourceChange.highlights.length) {
       lines.push(`    Changes: ${resourceChange.highlights.slice(0, 3).join('; ')}`);
@@ -99,10 +92,10 @@ const buildHumanPreviewOutput = ({
       lines.push(`    + ${resourceChange.changedChildCount - 3} more changed child resources`);
     }
     if (resourceChange.willReplace.length) {
-      lines.push(`    ${tuiManager.colorize('red', 'Will replace')}: ${resourceChange.willReplace.join(', ')}`);
+      lines.push(`    ${tui.colorize('red', 'Will replace')}: ${resourceChange.willReplace.join(', ')}`);
     }
     if (resourceChange.mayReplace.length) {
-      lines.push(`    ${tuiManager.colorize('yellow', 'May replace')}: ${resourceChange.mayReplace.join(', ')}`);
+      lines.push(`    ${tui.colorize('yellow', 'May replace')}: ${resourceChange.mayReplace.join(', ')}`);
     }
   });
 
@@ -110,45 +103,51 @@ const buildHumanPreviewOutput = ({
 };
 
 export const commandDiff = async () => {
-  await initializeAllStackServices({
-    commandModifiesStack: false,
-    commandRequiresDeployedStack: true,
-    loadGlobalConfig: true
-  });
+  const {
+    calculatedStackOverview,
+    config,
+    deployedStackOverview,
+    deploymentArtifacts,
+    packaging,
+    prepareTemplateForDeploy,
+    stack,
+    template,
+    tui
+  } = await initializeDiffOperation();
 
-  configManager.validateGuardrails({ hasConfig: true });
+  config.validateGuardrails({ hasConfig: true });
 
-  const issueDetectionPolicy = configManager.issueDetectionPolicy;
+  const issueDetectionPolicy = config.issueDetectionPolicy;
   if (issueDetectionPolicy.enabled) {
     const issueHighVolumeProtection =
       issueDetectionPolicy.eventSamplingRate < 100
         ? `, processing ${issueDetectionPolicy.eventSamplingRate}% of matching events`
         : ', processing all matching events';
-    tuiManager.info(`Issues: enabled (${issueDetectionPolicy.reason}${issueHighVolumeProtection}).`);
+    tui.info(`Issues: enabled (${issueDetectionPolicy.reason}${issueHighVolumeProtection}).`);
   }
 
   await ensureMissingSecretsCreated();
   await ensureMissingSsmParamsCreated();
 
-  await packagingManager.packageAllWorkloads({ commandCanUseCache: true });
-  await calculatedStackOverviewManager.resolveAllResources();
-  await calculatedStackOverviewManager.populateStackMetadata();
+  await packaging.packageAllWorkloads({ commandCanUseCache: true });
+  await calculatedStackOverview.resolveAllResources();
+  await calculatedStackOverview.populateStackMetadata();
   await prepareTemplateForDeploy();
 
   const cfTemplateDiff = getNormalizedPreviewTemplateDiff({
-    oldTemplate: templateManager.oldTemplate,
-    newTemplate: templateManager.getTemplate()
+    oldTemplate: template.oldTemplate,
+    newTemplate: template.getTemplate()
   });
 
-  await deploymentArtifactManager.uploadCloudFormationTemplate();
-  const templateUrl = deploymentArtifactManager.cloudformationTemplateUrl;
+  await deploymentArtifacts.uploadCloudFormationTemplate();
+  const templateUrl = deploymentArtifacts.cloudformationTemplateUrl;
 
-  await stackManager.validateTemplate({ templateUrl });
+  await stack.validateTemplate({ templateUrl });
 
-  const { changes } = await stackManager.getChangeSet({ templateUrl, includePropertyValues: true });
+  const { changes } = await stack.getChangeSet({ templateUrl, includePropertyValues: true });
   const resourceChanges = buildPreviewResourceChanges({
-    calculatedStackInfoMap: calculatedStackOverviewManager.stackInfoMap,
-    deployedStackInfoMap: deployedStackOverviewManager.stackInfoMap,
+    calculatedStackInfoMap: calculatedStackOverview.stackInfoMap,
+    deployedStackInfoMap: deployedStackOverview.stackInfoMap,
     cfTemplateDiff,
     changes
   });
@@ -158,16 +157,14 @@ export const commandDiff = async () => {
   const replacedCount = resourceChanges.filter(({ action }) => action === 'replace').length;
   const updatedCount = resourceChanges.filter(({ action }) => action === 'update').length;
 
-  await tuiManager.stop();
+  await tui.stop();
 
   if (isAgentMode()) {
     if (resourceChanges.length === 0 && changes.length === 0) {
-      tuiManager.info('NO CHANGES DETECTED');
+      tui.info('NO CHANGES DETECTED');
     } else {
-      tuiManager.info(
-        `SUMMARY: ${newCount} new, ${removedCount} removed, ${replacedCount} replaced, ${updatedCount} updated`
-      );
-      tuiManager.printLines(
+      tui.info(`SUMMARY: ${newCount} new, ${removedCount} removed, ${replacedCount} replaced, ${updatedCount} updated`);
+      tui.printLines(
         buildAgentPreviewOutput({
           resourceChanges,
           rawChanges: changes.length
@@ -190,15 +187,15 @@ export const commandDiff = async () => {
               .join(', ')}`;
 
     if (resourceChanges.length > 0 || changes.length > 0) {
-      tuiManager.printLines([
+      tui.printLines([
         '',
-        tuiManager.colorize('gray', 'Meaningful Stacktape resource changes'),
-        ...buildHumanPreviewOutput({ resourceChanges, rawChanges: changes.length }),
+        tui.colorize('gray', 'Meaningful Stacktape resource changes'),
+        ...buildHumanPreviewOutput({ resourceChanges, rawChanges: changes.length, tui }),
         ''
       ]);
     }
 
-    tuiManager.printLines([tuiManager.colorize('green', `✓ ${summary}`), tuiManager.colorize('gray', '─'.repeat(54))]);
+    tui.printLines([tui.colorize('green', `✓ ${summary}`), tui.colorize('gray', '─'.repeat(54))]);
   }
 
   return { changes, resourceChanges };

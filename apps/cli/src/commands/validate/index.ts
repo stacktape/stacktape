@@ -1,18 +1,18 @@
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import { stringifyToYaml } from '@utils/yaml';
-import { initializeAllStackServices } from '../_utils/initialization';
+import { initializeValidateOperation } from '../_utils/initialization';
 
 export const commandValidate = async () => {
   const {
     args: { thorough, withPackage },
-    services: { calculatedStackOverview, config, finalizeTemplate, packaging, stack, template, tui }
-  } = await initializeAllStackServices({
-    commandModifiesStack: false,
-    commandRequiresDeployedStack: false,
-    loadGlobalConfig: false,
-    requiresControlPlane: false,
-    requiresSubscription: false
-  });
+    calculatedStackOverview,
+    config,
+    finalizeTemplate,
+    packaging,
+    stack,
+    template,
+    tui
+  } = await initializeValidateOperation();
   const shouldPackage = Boolean(withPackage || thorough);
 
   config.validateGuardrails({ hasConfig: true });

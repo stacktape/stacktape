@@ -23,7 +23,7 @@ import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';
 import { getAwsSynchronizedTime } from '@utils/time';
 import { SsmExecuteScriptCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { potentiallyPromptBeforeOperation, saveDetailedStackInfoMap } from '../_utils/common';
-import { initializeAllStackServices } from '../_utils/initialization';
+import { initializeRemoteDeployOperation } from '../_utils/initialization';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 
@@ -41,12 +41,7 @@ const ec2RunnerInstanceOptions = [
 
 export const deployWithEc2Runner = async () => {
   tuiManager.configureForCodebuildDeploy();
-  await initializeAllStackServices({
-    commandRequiresDeployedStack: false,
-    commandModifiesStack: true,
-    loadGlobalConfig: true,
-    requiresSubscription: true
-  });
+  await initializeRemoteDeployOperation();
 
   await ensureProjectEc2RunnerConfigured();
 

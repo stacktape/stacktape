@@ -38,7 +38,7 @@ import type { ConfigManagerInitContext } from '@domain-services/config-manager/c
 import type { GetConfigParams } from '@stacktape/config-authoring/tooling';
 import type { StacktapeCliArgs } from '../../config/cli/types';
 import { getConfigPath } from '@utils/file-loaders';
-import { finalizeTemplate } from '@domain-services/template-manager/finalize';
+import { finalizeTemplate, prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
 
 export const getStackContext = (): StackContext =>
   Object.freeze({
@@ -165,7 +165,7 @@ export const initializePackageOperation = async () => {
   } as const;
 };
 
-export const initializeAllStackServices = async ({
+export const initializeStackOperationLifecycle = async ({
   commandModifiesStack,
   commandRequiresDeployedStack,
   loadGlobalConfig,
@@ -311,19 +311,89 @@ export const initializeAllStackServices = async ({
   }
   await eventManager.processHooks({ captureType: 'START' });
 
-  return {
-    args: getCommandArgs(),
-    stackContext,
-    services: {
-      calculatedStackOverview: calculatedStackOverviewManager,
-      config: configManager,
-      finalizeTemplate,
-      packaging: packagingManager,
-      stack: stackManager,
-      template: templateManager,
-      tui: tuiManager
-    }
-  } as const;
+  return { args: getCommandArgs(), stackContext } as const;
+};
+
+export const initializeSynthOperation = async () => ({
+  ...(await initializeStackOperationLifecycle({
+    commandModifiesStack: false,
+    commandRequiresDeployedStack: false,
+    loadGlobalConfig: false,
+    requiresControlPlane: false,
+    requiresSubscription: false
+  })),
+  calculatedStackOverview: calculatedStackOverviewManager,
+  finalizeTemplate,
+  template: templateManager,
+  tui: tuiManager
+});
+
+export const initializeValidateOperation = async () => ({
+  ...(await initializeStackOperationLifecycle({
+    commandModifiesStack: false,
+    commandRequiresDeployedStack: false,
+    loadGlobalConfig: false,
+    requiresControlPlane: false,
+    requiresSubscription: false
+  })),
+  calculatedStackOverview: calculatedStackOverviewManager,
+  config: configManager,
+  finalizeTemplate,
+  packaging: packagingManager,
+  stack: stackManager,
+  template: templateManager,
+  tui: tuiManager
+});
+
+export const initializeDiffOperation = async () => ({
+  ...(await initializeStackOperationLifecycle({
+    commandModifiesStack: false,
+    commandRequiresDeployedStack: true,
+    loadGlobalConfig: true
+  })),
+  calculatedStackOverview: calculatedStackOverviewManager,
+  config: configManager,
+  deployedStackOverview: deployedStackOverviewManager,
+  deploymentArtifacts: deploymentArtifactManager,
+  packaging: packagingManager,
+  prepareTemplateForDeploy,
+  stack: stackManager,
+  template: templateManager,
+  tui: tuiManager
+});
+
+export const initializeDeployOperation = async () => ({
+  ...(await initializeStackOperationLifecycle({
+    commandRequiresDeployedStack: false,
+    commandModifiesStack: true,
+    loadGlobalConfig: true,
+    requiresSubscription: true
+  })),
+  application: applicationManager,
+  budget: budgetManager,
+  calculatedStackOverview: calculatedStackOverviewManager,
+  cloudformationRegistry: cloudformationRegistryManager,
+  cloudfront: cloudfrontManager,
+  config: configManager,
+  deployedStackOverview: deployedStackOverviewManager,
+  deploymentArtifacts: deploymentArtifactManager,
+  event: eventManager,
+  notification: notificationManager,
+  packaging: packagingManager,
+  prepareTemplateForDeploy,
+  stack: stackManager,
+  stacktapeApi: stacktapeTrpcApiManager,
+  template: templateManager,
+  tui: tuiManager
+});
+
+export const initializeRemoteDeployOperation = async () => {
+  await initializeStackOperationLifecycle({
+    commandRequiresDeployedStack: false,
+    commandModifiesStack: true,
+    loadGlobalConfig: true,
+    requiresSubscription: true
+  });
 };
 
 export const initializeStackServicesForLocalResolve = async () => {

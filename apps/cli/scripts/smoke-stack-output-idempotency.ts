@@ -1,9 +1,9 @@
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
-import { initializeAllStackServices } from '../src/commands/_utils/initialization';
+import { initializeStackOperationLifecycle } from '../src/commands/_utils/initialization';
 
 const main = async () => {
-  await initializeAllStackServices({
+  await initializeStackOperationLifecycle({
     commandModifiesStack: false,
     commandRequiresDeployedStack: false,
     loadGlobalConfig: true,

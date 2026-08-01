@@ -1,25 +1,9 @@
 import type { ExpectedError } from '@utils/errors';
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
-import { applicationManager } from '@application-services/application-manager';
-import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
-import { tuiManager } from '@application-services/tui-manager';
-import { budgetManager } from '@domain-services/budget-manager';
-import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { cloudformationRegistryManager } from '@domain-services/cloudformation-registry-manager';
-import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import { cloudfrontManager } from '@domain-services/cloudfront-manager';
-import { configManager } from '@domain-services/config-manager';
-import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
-import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
-import { notificationManager } from '@domain-services/notification-manager';
-import { packagingManager } from '@domain-services/packaging-manager';
-import { templateManager } from '@domain-services/template-manager';
-import { prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
 import { fsPaths } from 'src/config/runtime-paths';
 import { obfuscatedNamesStateHolder } from '@stacktape/naming/resource-names';
 import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';
@@ -31,13 +15,15 @@ import {
 } from '../_utils/common';
 import { getECSHotswapInformation, updateEcsService } from '../_utils/cw-deployment';
 import { getLambdaFunctionHotswapInformation, updateFunctionCode } from '../_utils/fn-deployment';
-import { initializeAllStackServices } from '../_utils/initialization';
+import { initializeDeployOperation } from '../_utils/initialization';
 import { promptCiCdSetupAfterDeploy } from '../_utils/cicd-setup';
 import { deployConvexFunctions } from '../_utils/convex-post-deploy';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import { deployWithCodebuildRunner } from './codebuild-runner';
 import { deployWithEc2Runner } from './ec2-runner';
+
+type DeployOperation = Awaited<ReturnType<typeof initializeDeployOperation>>;
 
 export const commandDeploy = async () => {
   const runner = globalStateManager.args.runner ?? 'local';
@@ -51,69 +37,89 @@ export const commandDeploy = async () => {
 };
 
 const deployLocally = async () => {
-  await initializeAllStackServices({
-    commandRequiresDeployedStack: false,
-    commandModifiesStack: true,
-    loadGlobalConfig: true,
-    requiresSubscription: true
-  });
+  const {
+    args,
+    application,
+    budget,
+    calculatedStackOverview,
+    cloudformationRegistry,
+    cloudfront,
+    config,
+    deployedStackOverview,
+    deploymentArtifacts,
+    event,
+    notification,
+    packaging,
+    prepareTemplateForDeploy,
+    stack,
+    stackContext,
+    stacktapeApi,
+    template,
+    tui
+  } = await initializeDeployOperation();
 
   // Check if trying to deploy to an existing dev stack
-  if (deployedStackOverviewManager.getStackMetadata(stackMetadataNames.isDevStack())) {
+  if (deployedStackOverview.getStackMetadata(stackMetadataNames.isDevStack())) {
     throw stpErrors.e141({
-      stackName: globalStateManager.targetStack.stackName,
-      stage: globalStateManager.targetStack.stage
+      stackName: stackContext.stackName,
+      stage: stackContext.stage
     });
   }
 
-  configManager.validateGuardrails({ hasConfig: true });
+  config.validateGuardrails({ hasConfig: true });
 
-  const issueDetectionPolicy = configManager.issueDetectionPolicy;
+  const issueDetectionPolicy = config.issueDetectionPolicy;
   if (issueDetectionPolicy.enabled) {
     const issueHighVolumeProtection =
       issueDetectionPolicy.eventSamplingRate < 100
         ? `, processing ${issueDetectionPolicy.eventSamplingRate}% of matching events`
         : ', processing all matching events';
-    tuiManager.info(`Issues: enabled (${issueDetectionPolicy.reason}${issueHighVolumeProtection}).`);
+    tui.info(`Issues: enabled (${issueDetectionPolicy.reason}${issueHighVolumeProtection}).`);
   }
 
   await ensureMissingSecretsCreated();
   await ensureMissingSsmParamsCreated();
 
-  eventManager.setPhase('BUILD_AND_PACKAGE');
+  event.setPhase('BUILD_AND_PACKAGE');
   const [{ packagedWorkloads, abort, cfTemplateDiff }] = await Promise.all([
-    prepareArtifactsForStackDeployment(),
+    prepareArtifactsForStackDeployment({
+      calculatedStackOverview,
+      packaging,
+      prepareTemplateForDeploy,
+      template,
+      tui
+    }),
     // @note this can take a long time, so we do it in parallel with other stack activities
-    cloudformationRegistryManager.registerLatestCfPrivateTypes(configManager.requiredCloudformationPrivateTypes)
+    cloudformationRegistry.registerLatestCfPrivateTypes(config.requiredCloudformationPrivateTypes)
   ]);
 
   if (abort) {
-    await applicationManager.handleExitSignal('SIGINT');
+    await application.handleExitSignal('SIGINT');
     return;
   }
 
-  if (stackManager.stackActionType === 'create') {
-    await stackManager.createResourcesForArtifacts();
+  if (stack.stackActionType === 'create') {
+    await stack.createResourcesForArtifacts();
   }
 
   // here we decide if we will do hotswap(fast deploy) or full deploy
   let useHotswap = false;
-  if (globalStateManager.args.hotSwap) {
+  if (args.hotSwap) {
     const { isHotswapPossible = false, hotSwappableWorkloadsWhoseCodeWillBeUpdatedByCloudformation = [] } =
-      stackManager.stackActionType !== 'create' &&
-      deployedStackOverviewManager.analyzeCloudformationTemplateDiff({
+      stack.stackActionType !== 'create' &&
+      deployedStackOverview.analyzeCloudformationTemplateDiff({
         cfTemplateDiff
       });
     useHotswap = isHotswapPossible;
     if (!useHotswap) {
       // in this case we are falling back to standard Cloudformation deploy
-      tuiManager.warn('Hot-swap not possible; running full CloudFormation deploy.');
+      tui.warn('Hot-swap not possible; running full CloudFormation deploy.');
       // this means we might need to create new versions for some packages(jobs) that were previously skipped
       // otherwise Cloudformation might not detect the change
       // currently we are only able to create new versions by uploading new artifacts.
       // this can be skipped if we are creating new stack
-      if (stackManager.stackActionType !== 'create') {
-        await packagingManager.repackageSkippedPackagingJobsCurrentlyUsingHotSwapDeploy({
+      if (stack.stackActionType !== 'create') {
+        await packaging.repackageSkippedPackagingJobsCurrentlyUsingHotSwapDeploy({
           ignoreWorkloads: hotSwappableWorkloadsWhoseCodeWillBeUpdatedByCloudformation.map(
             ({ stpResourceName }) => stpResourceName
           )
@@ -126,10 +132,10 @@ const deployLocally = async () => {
   }
 
   // deploy all artifacts - use versions depending on whether this is hotswap or not
-  eventManager.setPhase('UPLOAD');
-  await deploymentArtifactManager.uploadAllArtifacts({ useHotswap });
+  event.setPhase('UPLOAD');
+  await deploymentArtifacts.uploadAllArtifacts({ useHotswap });
 
-  await notificationManager.sendDeploymentNotification({
+  await notification.sendDeploymentNotification({
     message: {
       text: 'Deployment started',
       type: 'progress',
@@ -137,64 +143,64 @@ const deployLocally = async () => {
     }
   });
 
-  eventManager.setPhase('DEPLOY');
+  event.setPhase('DEPLOY');
   if (useHotswap) {
-    await performHotswapDeploy();
+    await performHotswapDeploy({ config, event });
   } else {
-    await performFullDeploy();
+    await performFullDeploy({ deploymentArtifacts, stack, tui });
   }
 
-  eventManager.setPhase('POST_DEPLOY');
+  event.setPhase('POST_DEPLOY');
 
   // refreshing stack details is only useful if we used full deploy
   if (!useHotswap) {
     await Promise.all([
-      stackManager.refetchStackDetails(globalStateManager.targetStack.stackName),
-      budgetManager.loadBudgets(),
-      stacktapeTrpcApiManager.deleteUndeployedStage()
+      stack.refetchStackDetails(stackContext.stackName),
+      budget.loadBudgets(),
+      stacktapeApi.deleteUndeployedStage()
     ]);
-    await deployedStackOverviewManager.refreshStackInfoMap({
-      stackDetails: stackManager.existingStackDetails,
-      stackResources: stackManager.existingStackResources,
-      budgetInfo: budgetManager.getBudgetInfoForSpecifiedStack({ stackName: globalStateManager.targetStack.stackName })
+    await deployedStackOverview.refreshStackInfoMap({
+      stackDetails: stack.existingStackDetails,
+      stackResources: stack.existingStackResources,
+      budgetInfo: budget.getBudgetInfoForSpecifiedStack({ stackName: stackContext.stackName })
     });
   }
 
   await deployConvexFunctions();
 
-  if (configManager.allBucketsToSync.length) {
+  if (config.allBucketsToSync.length) {
     await injectEnvironmentToHostedHtmlFiles();
-    await deploymentArtifactManager.syncBuckets();
-    await deploymentArtifactManager.saveBucketSyncManifest(stackManager.nextVersion);
+    await deploymentArtifacts.syncBuckets();
+    await deploymentArtifacts.saveBucketSyncManifest(stack.nextVersion);
     await writeEnvironmentDotenvFile();
   }
 
-  if (configManager.allResourcesWithCdnsToInvalidate.length) {
-    await cloudfrontManager.invalidateCaches();
+  if (config.allResourcesWithCdnsToInvalidate.length) {
+    await cloudfront.invalidateCaches();
   }
 
   // we need two versions of detailed stack info (with and without sensitive values) - one for saving other for returning
   const detailedStackInfo = getDetailedStackInfoMap({
-    deployedStackInfoMap: deployedStackOverviewManager.stackInfoMap,
-    showSensitiveValues: globalStateManager.args.showSensitiveValues
+    deployedStackInfoMap: deployedStackOverview.stackInfoMap,
+    showSensitiveValues: args.showSensitiveValues
   });
   const detailedStackInfoSensitive = getDetailedStackInfoMap({
-    deployedStackInfoMap: deployedStackOverviewManager.stackInfoMap,
+    deployedStackInfoMap: deployedStackOverview.stackInfoMap,
     showSensitiveValues: true
   });
-  if (configManager.stackInfoDirPath) {
+  if (config.stackInfoDirPath) {
     await saveDetailedStackInfoMap({
       detailedStackInfo,
       outFormat: 'json',
       filePath: fsPaths.stackInfoPath({
-        dirPath: configManager.stackInfoDirPath,
-        stackName: globalStateManager.targetStack.stackName
+        dirPath: config.stackInfoDirPath,
+        stackName: stackContext.stackName
       })
     });
   }
-  eventManager.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());
+  event.addFinalAction(() => deployedStackOverview.printShortStackInfo());
 
-  await notificationManager.sendDeploymentNotification({
+  await notification.sendDeploymentNotification({
     message: {
       text: 'Deployment succeeded',
       type: 'success',
@@ -202,11 +208,11 @@ const deployLocally = async () => {
     }
   });
 
-  const consoleUrl = `https://console.stacktape.com/projects/${globalStateManager.targetStack.projectName}/${globalStateManager.stage}/overview`;
-  const resourceLinks = deployedStackOverviewManager.getResourceLinks();
+  const consoleUrl = `https://console.stacktape.com/projects/${stackContext.projectName}/${stackContext.stage}/overview`;
+  const resourceLinks = deployedStackOverview.getResourceLinks();
 
   // Store completion info - setComplete will be called after afterDeploy hooks finish
-  tuiManager.setPendingCompletion({
+  tui.setPendingCompletion({
     success: true,
     message: 'DEPLOYMENT SUCCESSFUL',
     links: resourceLinks,
@@ -214,92 +220,103 @@ const deployLocally = async () => {
   });
 
   // Prompt for CI/CD setup after successful deploy (only for new stacks in TTY mode)
-  if (stackManager.stackActionType === 'create') {
-    eventManager.addFinalAction(() => promptCiCdSetupAfterDeploy());
+  if (stack.stackActionType === 'create') {
+    event.addFinalAction(() => promptCiCdSetupAfterDeploy());
   }
 
   return { stackInfo: detailedStackInfoSensitive, packagedWorkloads };
 };
 
-export const prepareArtifactsForStackDeployment = async (): Promise<{
+export const prepareArtifactsForStackDeployment = async ({
+  calculatedStackOverview,
+  packaging,
+  prepareTemplateForDeploy,
+  template,
+  tui
+}: Pick<
+  DeployOperation,
+  'calculatedStackOverview' | 'packaging' | 'prepareTemplateForDeploy' | 'template' | 'tui'
+>): Promise<{
   packagedWorkloads: PackageWorkloadOutput[];
   cfTemplateDiff: TemplateDiff;
   abort: boolean;
 }> => {
-  const packagedWorkloads = await packagingManager.packageAllWorkloads({ commandCanUseCache: true });
-  await calculatedStackOverviewManager.resolveAllResources();
+  const packagedWorkloads = await packaging.packageAllWorkloads({ commandCanUseCache: true });
+  await calculatedStackOverview.resolveAllResources();
   if (obfuscatedNamesStateHolder.usingObfuscateNames) {
-    tuiManager.warn('Stack name too long (project+stage). Some resource names will be obfuscated.');
+    tui.warn('Stack name too long (project+stage). Some resource names will be obfuscated.');
   }
 
-  await calculatedStackOverviewManager.populateStackMetadata();
+  await calculatedStackOverview.populateStackMetadata();
   await prepareTemplateForDeploy();
 
-  const cfTemplateDiff = templateManager.getOldTemplateDiff();
+  const cfTemplateDiff = template.getOldTemplateDiff();
   const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff });
 
   return { abort, packagedWorkloads, cfTemplateDiff };
 };
 
-const performFullDeploy = async () => {
+const performFullDeploy = async ({
+  deploymentArtifacts,
+  stack,
+  tui
+}: Pick<DeployOperation, 'deploymentArtifacts' | 'stack' | 'tui'>) => {
   try {
-    const { warningMessages } = await stackManager.deployStack(deploymentArtifactManager.cloudformationTemplateUrl);
+    const { warningMessages } = await stack.deployStack(deploymentArtifacts.cloudformationTemplateUrl);
     warningMessages?.forEach((msg) => {
-      tuiManager.warn(msg);
+      tui.warn(msg);
     });
   } catch (err) {
     // cleanup in case error happened during deploy
     // when only monitoring failed, we do not know if stack operation failed or succeeded.
     // in such case we should not delete artifacts as that could result in broken stack
-    if (stackManager.isAutoRollbackEnabled && (err as ExpectedError).type !== 'STACK_MONITORING') {
-      await deploymentArtifactManager.deleteArtifactsRollbackedDeploy();
+    if (stack.isAutoRollbackEnabled && (err as ExpectedError).type !== 'STACK_MONITORING') {
+      await deploymentArtifacts.deleteArtifactsRollbackedDeploy();
     }
     throw err;
   }
   // if we have just fixed stack from UPDATE FAILED state, there can be some artifacts created during multiple fixing attempts
   // these artifacts need cleaning up before we delete old versions with deleteAllObsoleteArtifacts
-  if (stackManager.existingStackDetails?.StackStatus === 'UPDATE_FAILED') {
-    await deploymentArtifactManager.deleteArtifactsFixedDeploy();
+  if (stack.existingStackDetails?.StackStatus === 'UPDATE_FAILED') {
+    await deploymentArtifacts.deleteArtifactsFixedDeploy();
   }
 
-  await deploymentArtifactManager.deleteAllObsoleteArtifacts();
+  await deploymentArtifacts.deleteAllObsoleteArtifacts();
 };
 
-const performHotswapDeploy = async () => {
+const performHotswapDeploy = async ({ config, event }: Pick<DeployOperation, 'config' | 'event'>) => {
   // we need to invalidate directives, because we have previously resolved (and cached) them for usage with CF
   // directives in some resources(multi-container-workloads) need to be "resolved" again using the local resolve
-  configManager.invalidatePotentiallyChangedDirectiveResults();
+  config.invalidatePotentiallyChangedDirectiveResults();
 
-  await eventManager.startEvent({
+  await event.startEvent({
     eventType: 'HOTSWAP_UPDATE',
     description: 'Performing hotswap update'
   });
 
-  await eventManager.updateEvent({
+  await event.updateEvent({
     eventType: 'HOTSWAP_UPDATE',
     additionalMessage: 'Determining compute resources to update'
   });
   // this includes web-services, private-services and worker-services
   const containerWorkloadsToBeUpdated = (
-    await Promise.all(configManager.allContainerWorkloads.map((workload) => getECSHotswapInformation({ workload })))
+    await Promise.all(config.allContainerWorkloads.map((workload) => getECSHotswapInformation({ workload })))
   ).filter(({ ecsTaskDefinition, ecsService }) => ecsTaskDefinition.needsUpdate || ecsService.needsUpdate);
 
   const lambdaFunctionsToBeUpdated = (
     await Promise.all(
-      configManager.allLambdasEligibleForHotswap.map((lambdaProps) =>
-        getLambdaFunctionHotswapInformation({ lambdaProps })
-      )
+      config.allLambdasEligibleForHotswap.map((lambdaProps) => getLambdaFunctionHotswapInformation({ lambdaProps }))
     )
   ).filter(({ needsUpdate }) => needsUpdate);
 
-  await eventManager.updateEvent({ eventType: 'HOTSWAP_UPDATE' });
+  await event.updateEvent({ eventType: 'HOTSWAP_UPDATE' });
 
   const results = await Promise.all([
     ...containerWorkloadsToBeUpdated.map(updateEcsService),
     ...lambdaFunctionsToBeUpdated.map(updateFunctionCode)
   ]);
 
-  await eventManager.finishEvent({
+  await event.finishEvent({
     eventType: 'HOTSWAP_UPDATE',
     finalMessage: !results.length && 'No changes detected, nothing to update.'
   });

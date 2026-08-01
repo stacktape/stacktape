@@ -30,7 +30,7 @@ import { ensureTempFolder } from '@utils/temp-files';
 import { getAwsSynchronizedTime } from '@utils/time';
 import { getStacktapeVersion } from '@utils/versioning';
 import { potentiallyPromptBeforeOperation, saveDetailedStackInfoMap } from '../_utils/common';
-import { initializeAllStackServices } from '../_utils/initialization';
+import { initializeRemoteDeployOperation } from '../_utils/initialization';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 
@@ -41,12 +41,7 @@ export const deployWithCodebuildRunner = async () => {
   let build: Build;
   try {
     // we need to initialize most of the services as we are also doing resource resolving
-    await initializeAllStackServices({
-      commandRequiresDeployedStack: false,
-      commandModifiesStack: true,
-      loadGlobalConfig: true,
-      requiresSubscription: true
-    });
+    await initializeRemoteDeployOperation();
 
     configManager.validateGuardrails({ hasConfig: true });
 
