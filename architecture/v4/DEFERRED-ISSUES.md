@@ -24,8 +24,6 @@ refactoring scope. Revisit them before the v4 release where marked.
 - Review credential/key rotation and versioning for the Console security-hardening work before a production rollout.
 - AWS SDK debug middleware serializes most operation inputs and only redacts a small set of body/log fields. Secret
   Manager values, SSM values, and CodeBuild environment variables need a centralized field-aware redaction policy.
-- Console connected-account credential construction currently asserts optional STS response fields into a complete
-  credential object. Validate the response explicitly before constructing an initialized AWS manager.
 - Long-running Console operations retain one assumed-role credential set without refresh, while the CLI's timer-based
   refresh has no owning await/catch path. CLI AWS clients now resolve refreshed credentials through their session
   provider, but the timer's failure still needs explicit operational ownership.
