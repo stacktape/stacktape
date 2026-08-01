@@ -2,7 +2,6 @@ import type { InvokeLambdaReturnValue } from 'src/aws/lambda';
 import type { StpDeploymentScript } from '@domain-services/config-manager/resolved-types/deployment-script';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { eventManager } from '@application-services/event-manager';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
@@ -12,13 +11,13 @@ import { buildAndUpdateFunctionCode } from '../_utils/fn-deployment';
 import { initializeStackServicesForHotSwapDeploy } from '../_utils/initialization';
 
 export const commandDeploymentScriptRun = async () => {
-  await initializeStackServicesForHotSwapDeploy();
-
-  const { resourceName } = globalStateManager.args;
+  const { args, stackContext } = await initializeStackServicesForHotSwapDeploy();
+  const { resourceName } = args;
 
   validateCorrectResourceExistence({
     resourceName,
-    resourceType: 'deployment-script'
+    resourceType: 'deployment-script',
+    stackName: stackContext.stackName
   });
 
   const { lambdaArn } = await buildAndUpdateFunctionCode(resourceName);
@@ -74,10 +73,12 @@ const getScriptResultMessage = ({
 
 const validateCorrectResourceExistence = ({
   resourceName,
-  resourceType
+  resourceType,
+  stackName
 }: {
   resourceName: string;
   resourceType: StpResourceType;
+  stackName: string;
 }) => {
   const { resource } = configManager.findResourceInConfig({ nameChain: resourceName });
   if (!resource || resource.type !== 'deployment-script') {
@@ -86,6 +87,6 @@ const validateCorrectResourceExistence = ({
 
   const deployedStpResource = deployedStackOverviewManager.getStpResource({ nameChain: resourceName });
   if (!deployedStpResource || deployedStpResource.resourceType !== resourceType) {
-    throw stpErrors.e6({ resourceName, resourceType, stackName: globalStateManager.targetStack.stackName });
+    throw stpErrors.e6({ resourceName, resourceType, stackName });
   }
 };

@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
@@ -6,14 +5,12 @@ import { initializeStackServicesForLocalResolve } from '../_utils/initialization
 import { getExecutableScriptFunction } from './utils';
 
 export const commandScriptRun = async () => {
-  const { scriptName } = globalStateManager.args;
-
-  await initializeStackServicesForLocalResolve();
+  const { args } = await initializeStackServicesForLocalResolve();
+  const { assumeRoleOfResource: requestedRole, scriptName } = args;
 
   const scriptDefinition = configManager?.scripts?.[scriptName];
 
-  const assumeRoleOfResource =
-    globalStateManager.args.assumeRoleOfResource || scriptDefinition?.properties?.assumeRoleOfResource;
+  const assumeRoleOfResource = requestedRole || scriptDefinition?.properties?.assumeRoleOfResource;
 
   if (!scriptDefinition) {
     throw stpErrors.e20({ scriptName });

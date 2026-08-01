@@ -422,10 +422,11 @@ export const initializeRemoteDeployOperation = async () => {
 };
 
 export const initializeStackServicesForLocalResolve = async () => {
-  const scriptName = globalStateManager.args.scriptName;
+  const args = getCommandArgs();
+  const scriptName = args.scriptName;
   tuiManager.showCommandHeader({
     action: scriptName ? `RUNNING SCRIPT: ${scriptName}` : 'RUNNING SCRIPT',
-    projectName: globalStateManager.args.projectName || 'project',
+    projectName: args.projectName || 'project',
     stageName: globalStateManager.stage || 'stage',
     region: globalStateManager.region || 'region'
   });
@@ -440,11 +441,11 @@ export const initializeStackServicesForLocalResolve = async () => {
 
   await settleAllBeforeThrowing([
     startStackOperationRecording({
-      stackName: globalStateManager.targetStack.stackName,
-      projectName: globalStateManager.targetStack.projectName
+      stackName: stackContext.stackName,
+      projectName: stackContext.projectName
     }),
     stackManager.init({
-      stackName: globalStateManager.targetStack.stackName,
+      stackName: stackContext.stackName,
       commandModifiesStack: false,
       commandRequiresDeployedStack: false
     }),
@@ -465,9 +466,12 @@ export const initializeStackServicesForLocalResolve = async () => {
   ]);
   await eventManager.registerHooks(configManager.hooks);
   await eventManager.processHooks({ captureType: 'START' });
+
+  return { args, stackContext } as const;
 };
 
 export const initializeStackServicesForHotSwapDeploy = async () => {
+  const args = getCommandArgs();
   await loadUserCredentials();
   await recordStackOperationStart();
 
@@ -477,11 +481,11 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
 
   await settleAllBeforeThrowing([
     startStackOperationRecording({
-      stackName: globalStateManager.targetStack.stackName,
-      projectName: globalStateManager.targetStack.projectName
+      stackName: stackContext.stackName,
+      projectName: stackContext.projectName
     }),
     stackManager.init({
-      stackName: globalStateManager.targetStack.stackName,
+      stackName: stackContext.stackName,
       commandModifiesStack: false,
       commandRequiresDeployedStack: false
     }),
@@ -503,13 +507,15 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
     calculatedStackOverviewManager.init({ context: stackContext }),
     packagingManager.init(),
     deploymentArtifactManager.init({
-      globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
-      accountId: globalStateManager.targetAwsAccount.awsAccountId,
-      stackActionType: globalStateManager.command as any
+      globallyUniqueStackHash: stackContext.globallyUniqueStackHash,
+      accountId: stackContext.accountId,
+      stackActionType: 'deployment-script:run'
     })
   ]);
   await eventManager.registerHooks(configManager.hooks);
   await eventManager.processHooks({ captureType: 'START' });
+
+  return { args, stackContext } as const;
 };
 
 const DEFAULT_LOCAL_STAGE = 'dev';
