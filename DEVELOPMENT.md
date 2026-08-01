@@ -65,21 +65,37 @@ pnpm --filter @stacktape/packaging run test
 `pnpm dev` at the root is `turbo run dev` — the Astro dev servers for `apps/docs` and `apps/website`. It is unrelated
 to the Stacktape `dev` command described below.
 
-## Building a release candidate
+## Candidate and preview releases
 
-`.github/workflows/release.yml` is a manually dispatched, artifact-only workflow. It builds all six supported platform
-archives, generates checksums for that exact archive set, embeds the manifest in a verified npm package, smoke-tests
-the Alpine archive/runtime, and uploads one inspectable candidate artifact. It cannot publish npm packages, create a
-GitHub release, push a tag, or deploy anything.
+`.github/workflows/release.yml` is manually dispatched in one of two channels. Both build all six supported platform
+archives, generate checksums for that exact archive set, embed the manifest in a verified npm package, smoke-test the
+Alpine runtime, and upload one inspectable candidate artifact.
+
+- `candidate` stops there and has no publishing or AWS authority.
+- `preview` additionally runs the built Linux binary through the disposable real-AWS canary, creates a GitHub
+  prerelease, verifies the public assets through the npm launcher, then publishes the immutable tarball under npm's
+  `preview` dist-tag. It never changes `latest` or publishes mutable schemas, docs, or installer endpoints.
 
 ```powershell
-gh workflow run release.yml --ref v4/integration -f version=4.0.0-beta.1
+gh workflow run release.yml --ref v4/integration -f channel=candidate -f version=4.0.0-beta.1
 gh run watch <run-id>
 gh run download <run-id>
 ```
 
-Use a unique prerelease version for each inspection. Publishing and default-branch cutover require a separately
-reviewed protected stage and explicit approval.
+Preview versions use an explicit numeric prerelease sequence and are never overwritten:
+
+```powershell
+gh workflow run release.yml --ref v4/integration -f channel=preview -f version=4.0.0-preview.1
+pnpm add -D stacktape@preview
+pnpm add -D stacktape@4.0.0-preview.1 # reproducible pin
+```
+
+The preview jobs require two branch-restricted GitHub environments (`preview-canary` and `preview-publish`), repository
+variables `STACKTAPE_PREVIEW_AWS_ROLE_ARN`, `STACKTAPE_PREVIEW_AWS_ACCOUNT_ID`, and optionally
+`STACKTAPE_PREVIEW_AWS_REGION`, the existing `STACKTAPE_API_KEY` secret, and an npm trusted-publisher rule for
+`release.yml` plus the `preview-publish` environment. The AWS role trust policy must bind GitHub OIDC to the
+`preview-canary` environment, and the role/account must be disposable. Stable production publishing and default-branch
+cutover remain separate decisions.
 
 ## The development CLI
 
@@ -223,6 +239,28 @@ The reusable fixture for this is `apps/cli/_test-stacks/packaging-smoke/` — tw
 public function URLs. Give every run a unique project name, use stage `dev` and region `eu-west-1`, and follow its
 [README](apps/cli/_test-stacks/packaging-smoke/README.md) for the exact deploy, invoke, redeploy, inspect, and delete
 flow.
+
+The release-grade form is the guarded TypeScript runner. It performs initial deployment and live invocation, proves an
+exact redeploy is a CloudFormation no-op, changes only a Lambda environment revision and proves code/layer identity is
+stable, then deletes the stack and automatically-created log groups. It refuses Windows, implicit credentials,
+endpoint overrides, unsafe project names, a missing per-run owner, an account-id mismatch, or a missing
+disposable-account confirmation. Cleanup verifies the owner tag before it can delete an existing stack.
+
+```sh
+export STACKTAPE_API_KEY='<development API key>'
+export STP_AWS_CANARY_DEPLOY=1
+export STP_AWS_CANARY_CONFIRM_DISPOSABLE=this-is-a-disposable-test-account
+export STP_AWS_CANARY_EXPECTED_ACCOUNT_ID='<12-digit-disposable-account-id>'
+export STP_AWS_CANARY_CREDENTIAL_MODE=profile
+export STP_AWS_CANARY_PROFILE='<disposable-account-profile>'
+export STP_AWS_CANARY_PROJECT_NAME="v4canary-$(date -u +%s)"
+export STP_AWS_CANARY_OWNER="local-$(date -u +%s)"
+pnpm --filter @stacktape/cli run test:real-aws-canary
+```
+
+Do not point this runner at an account merely because it is called “development”; verify the account is disposable.
+The project name and unique owner are also written outside the runner in CI. A separate cancellation-preserving
+cleanup job reacquires AWS credentials and deletes only a stack carrying that exact owner tag.
 
 Useful read-only commands against a deployed stack:
 

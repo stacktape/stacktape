@@ -54,7 +54,7 @@
     "test:characterization:npm": "bun run test:release-artifact",
     "test:cli-smoke": "bun scripts/verify-cli-smoke.ts",
     "test:config-unit": "bun test ../../packages/config-authoring/src/config.spec.ts src/utils/directives.spec.ts",
-    "test:command-safety": "bun test src/domain/debug-services/aws-read-only-operations.spec.ts scripts/verify-source-cli-aws-readonly.spec.ts",
+    "test:command-safety": "bun test src/domain/debug-services/aws-read-only-operations.spec.ts scripts/verify-source-cli-aws-readonly.spec.ts scripts/real-aws/packaging-canary.spec.ts",
     "test:docker-secrets": "bun test src/utils/__tests__/docker-secret-handling.test.ts",
     "test:generated-types": "node ../../node_modules/typescript/bin/tsc -p @generated/tsconfig.json",
     "test:generators": "bun test scripts/generate-cloudform.spec.ts scripts/generate-cloudformation-types.spec.ts scripts/generate-starter-projects-metadata.spec.ts scripts/generate-llm-docs.spec.ts scripts/cloudform-root-helpers.spec.ts scripts/code-generation/jsdoc-extractor.spec.ts scripts/code-generation/resource-overrides.spec.ts scripts/code-generation/type-properties.spec.ts scripts/build-npm-declarations.spec.ts scripts/verify-npm-declarations.spec.ts scripts/tsconfig-projects.spec.ts",
@@ -66,7 +66,8 @@
     "test:mcp-smoke": "bun scripts/test-mcp-smoke.ts",
     "test:npm-declarations": "bun scripts/verify-npm-declarations.ts",
     "test:release-artifact": "bun scripts/verify-release-artifact.ts",
-    "test:release-security": "bun test scripts/release/checksums.spec.ts scripts/release-workflow.spec.ts scripts/platform-runtime.spec.ts scripts/release/npm-package/bin/stacktape.spec.ts scripts/install-scripts/checksums.spec.ts",
+    "test:release-security": "bun test scripts/release/checksums.spec.ts scripts/release/validate-release-input.spec.ts scripts/release/verify-published-preview.spec.ts scripts/release-workflow.spec.ts scripts/platform-runtime.spec.ts scripts/release/npm-package/bin/stacktape.spec.ts scripts/install-scripts/checksums.spec.ts",
+    "test:real-aws-canary": "bun scripts/real-aws/packaging-canary.ts",
     "test:source-cli:aws-readonly": "bun scripts/verify-source-cli-aws-readonly.ts",
     "test:starter-projects": "bun test scripts/starter-projects src/commands/init/using-starter-project/utils.spec.ts",
     "typecheck": "node ../../node_modules/typescript/bin/tsc -p tsconfig.json && node ../../node_modules/typescript/bin/tsc -p tsconfig.build.json && node ../../node_modules/typescript/bin/tsc -p tests/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/config-loading-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p _test-stacks/packaging-smoke/tsconfig.json && node ../../node_modules/typescript/bin/tsc -p @generated/tsconfig.json"

@@ -18,6 +18,7 @@ export const handler = async () => {
     body: JSON.stringify(
       {
         handler: HANDLER_NAME,
+        revision: process.env.CANARY_REVISION ?? 'base',
         catalog: catalogIdentity(),
         countsByClass,
         retryableCodes: retryableCodes()

@@ -16,9 +16,12 @@ import {
 } from '@stacktape/config-authoring';
 
 export default defineConfig(() => {
+  const canaryOwner = process.env.STP_AWS_CANARY_OWNER ?? 'local';
+  const canaryRevision = process.env.STP_AWS_CANARY_REVISION ?? 'base';
   const retryAdvisor = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/retry-advisor.ts' }),
     url: { enabled: true, authMode: 'NONE' },
+    environment: { CANARY_REVISION: canaryRevision },
     memory: 128,
     timeout: 10
   });
@@ -26,6 +29,7 @@ export default defineConfig(() => {
   const catalogReport = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/catalog-report.ts' }),
     url: { enabled: true, authMode: 'NONE' },
+    environment: { CANARY_REVISION: canaryRevision },
     memory: 128,
     timeout: 10
   });
@@ -33,6 +37,7 @@ export default defineConfig(() => {
   return {
     resources: { retryAdvisor, catalogReport },
     stackConfig: {
+      tags: [{ name: 'stacktape-canary-owner', value: canaryOwner }],
       outputs: [
         {
           name: 'retryAdvisorUrl',

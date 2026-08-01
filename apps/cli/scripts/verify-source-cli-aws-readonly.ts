@@ -224,7 +224,7 @@ const completedEvent = (events: JsonlEvent[], eventType: string, instanceId?: st
       (instanceId === undefined || event.instanceId === instanceId)
   );
 
-const assertPackagingStages = (events: JsonlEvent[]) => {
+export const assertPackagingStages = (events: JsonlEvent[]) => {
   assert(completedEvent(events, 'PACKAGE_ARTIFACTS'), 'Packaging never completed its PACKAGE_ARTIFACTS stage.');
   const layerEvent = completedEvent(events, 'BUILD_CODE', 'shared-lambda-layer');
   assert(layerEvent, 'Packaging did not complete the shared Lambda layer build.');

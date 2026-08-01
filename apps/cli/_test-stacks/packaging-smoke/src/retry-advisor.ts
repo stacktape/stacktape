@@ -22,6 +22,7 @@ export const handler = async (event: { queryStringParameters?: Record<string, st
   if (!Number.isInteger(code)) {
     return json(400, {
       handler: HANDLER_NAME,
+      revision: process.env.CANARY_REVISION ?? 'base',
       catalog: catalogIdentity(),
       error: `"${requested}" is not an HTTP status code.`
     });
@@ -31,6 +32,7 @@ export const handler = async (event: { queryStringParameters?: Record<string, st
   if (!status) {
     return json(404, {
       handler: HANDLER_NAME,
+      revision: process.env.CANARY_REVISION ?? 'base',
       catalog: catalogIdentity(),
       error: `Status ${code} is not in the catalog.`
     });
@@ -38,6 +40,7 @@ export const handler = async (event: { queryStringParameters?: Record<string, st
 
   return json(200, {
     handler: HANDLER_NAME,
+    revision: process.env.CANARY_REVISION ?? 'base',
     catalog: catalogIdentity(),
     status,
     advice: status.retryable ? 'retry-with-backoff' : 'do-not-retry'

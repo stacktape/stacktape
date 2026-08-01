@@ -78,7 +78,8 @@ describe('real-AWS packaging smoke fixture', () => {
               type: 'stacktape-lambda-buildpack',
               properties: expect.objectContaining({ entryfilePath: expect.stringMatching(/\.ts$/) })
             }),
-            url: { enabled: true, authMode: 'NONE' }
+            url: { enabled: true, authMode: 'NONE' },
+            environment: [{ name: 'CANARY_REVISION', value: 'base' }]
           })
         })
       );
@@ -88,6 +89,7 @@ describe('real-AWS packaging smoke fixture', () => {
   });
 
   test('both function URLs are exposed as stack outputs, so the operator can find them after a deploy', () => {
+    expect(smokeConfig.stackConfig?.tags).toEqual([{ name: 'stacktape-canary-owner', value: 'local' }]);
     expect(smokeConfig.stackConfig?.outputs).toEqual([
       expect.objectContaining({ name: 'retryAdvisorUrl', value: "$ResourceParam('retryAdvisor','url')" }),
       expect.objectContaining({ name: 'catalogReportUrl', value: "$ResourceParam('catalogReport','url')" })
@@ -100,6 +102,8 @@ describe('real-AWS packaging smoke fixture', () => {
 
     expect(advisor.payload.handler).toBe('retryAdvisor');
     expect(report.payload.handler).toBe('catalogReport');
+    expect(advisor.payload.revision).toBe('base');
+    expect(report.payload.revision).toBe('base');
     expect(advisor.payload.catalog).toEqual(catalogIdentity());
     expect(report.payload.catalog).toEqual(catalogIdentity());
   });

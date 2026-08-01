@@ -1,21 +1,36 @@
-name: v4 release candidate
-run-name: Build v4 release candidate ${{ inputs.version }}
+name: v4 release
+run-name: ${{ inputs.channel == 'preview' && 'Publish v4 preview' || 'Build v4 candidate' }} ${{ inputs.version }}
 
-# This workflow deliberately stops at an inspectable release candidate. Keeping the release.yml filename preserves
-# the npm trusted-publisher identity, but publishing remains disabled until the remaining v4 release blockers are
-# resolved and a separately reviewed, protected publishing stage is added.
+# Candidate runs stop at an inspectable artifact. Preview runs additionally prove the built Linux binary in a
+# disposable AWS account, publish immutable GitHub prerelease assets, and then publish the already-verified npm
+# tarball under the preview dist-tag. The protected GitHub environments and npm trusted-publisher binding are the
+# authorization boundary; the channel condition also prevents accidental publication.
 on:
   workflow_dispatch:
     inputs:
+      channel:
+        description: Build an artifact-only candidate or publish a tested preview
+        required: true
+        default: candidate
+        type: choice
+        options:
+          - candidate
+          - preview
       version:
-        description: Candidate version (for example, 4.0.0-beta.1)
+        description: SemVer version (preview publication requires, for example, 4.0.0-preview.1)
         required: true
         type: string
 
 permissions:
   contents: read
 
+concurrency:
+  group: v4-release-${{ inputs.channel }}
+  cancel-in-progress: false
+
 env:
+  PREVIEW_OWNER: github-${{ github.run_id }}-${{ github.run_attempt }}
+  RELEASE_CHANNEL: ${{ inputs.channel }}
   RELEASE_VERSION: ${{ inputs.version }}
 
 jobs:
@@ -37,12 +52,30 @@ jobs:
         with:
           bun-version: 1.3.9
       - run: pnpm install --frozen-lockfile
-      - name: Validate candidate version
+      - name: Validate release input
         working-directory: apps/cli
-        run: >-
-          node --input-type=module --eval
-          "import { valid } from 'semver';
-          if (!valid(process.env.RELEASE_VERSION)) throw new Error('version must be valid SemVer');"
+        run: bun scripts/release/validate-release-input.ts
+      - name: Refuse an already-used preview version
+        if: inputs.channel == 'preview'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          npm_lookup=$(npm view "stacktape@$RELEASE_VERSION" version 2>&1)
+          npm_status=$?
+          set -e
+          if [ "$npm_status" -eq 0 ]; then
+            echo "stacktape@$RELEASE_VERSION already exists on npm."
+            exit 1
+          fi
+          if ! printf '%s' "$npm_lookup" | grep -q 'E404'; then
+            printf 'Could not safely establish npm version availability:\n%s\n' "$npm_lookup"
+            exit 1
+          fi
+          if gh release view "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub release $RELEASE_VERSION already exists."
+            exit 1
+          fi
       - run: pnpm check:public
 
   build-binaries:
@@ -170,3 +203,291 @@ jobs:
             apps/cli/__dist/stacktape-*.tgz
           if-no-files-found: error
           retention-days: 14
+
+  canary:
+    name: Verify preview in disposable AWS account
+    if: inputs.channel == 'preview'
+    needs: assemble
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    environment: preview-canary
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
+      STP_AWS_CANARY_DEPLOY: '1'
+      STP_AWS_CANARY_CONFIRM_DISPOSABLE: this-is-a-disposable-test-account
+      STP_AWS_CANARY_EXPECTED_ACCOUNT_ID: ${{ vars.STACKTAPE_PREVIEW_AWS_ACCOUNT_ID }}
+      STP_AWS_CANARY_CREDENTIAL_MODE: environment
+      STP_AWS_CANARY_OWNER: github-${{ github.run_id }}-${{ github.run_attempt }}
+      STP_AWS_CANARY_PROJECT_NAME: v4canary-${{ github.run_id }}-${{ github.run_attempt }}
+      STP_AWS_CANARY_REGION: ${{ vars.STACKTAPE_PREVIEW_AWS_REGION || 'eu-west-1' }}
+      STP_AWS_CANARY_CLI_PATH: ${{ runner.temp }}/stacktape-preview/stacktape
+      STP_AWS_CANARY_EXPECTED_CLI_VERSION: ${{ inputs.version }}
+      STP_AWS_CANARY_STATE_FILE: ${{ runner.temp }}/stacktape-preview-canary-state.json
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.9
+      - run: pnpm install --frozen-lockfile
+      - name: Download verified candidate
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: stacktape-${{ inputs.version }}-candidate
+          path: apps/cli/__dist
+      - name: Verify and extract Linux candidate
+        run: |
+          cd apps/cli/__dist
+          sha256sum --check SHA256SUMS
+          mkdir -p "$RUNNER_TEMP/stacktape-preview"
+          tar -xzf linux.tar.gz -C "$RUNNER_TEMP/stacktape-preview"
+          chmod +x "$RUNNER_TEMP/stacktape-preview/stacktape"
+      - name: Acquire disposable AWS credentials
+        id: configure-aws
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          role-to-assume: ${{ vars.STACKTAPE_PREVIEW_AWS_ROLE_ARN }}
+          role-session-name: stacktape-preview-${{ github.run_id }}
+          aws-region: ${{ vars.STACKTAPE_PREVIEW_AWS_REGION || 'eu-west-1' }}
+          role-duration-seconds: 7200
+      - name: Deploy, invoke, update, and delete canary
+        working-directory: apps/cli
+        run: pnpm run test:real-aws-canary
+      - name: Verify canary cleanup
+        if: always() && steps.configure-aws.outcome == 'success'
+        working-directory: apps/cli
+        run: pnpm run test:real-aws-canary -- --cleanup-only
+
+  cleanup-canary:
+    name: Verify canary cleanup after job termination
+    if: ${{ always() && inputs.channel == 'preview' && needs.assemble.result == 'success' }}
+    needs:
+      - assemble
+      - canary
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    environment: preview-canary
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      STACKTAPE_API_KEY: ${{ secrets.STACKTAPE_API_KEY }}
+      STP_AWS_CANARY_DEPLOY: '1'
+      STP_AWS_CANARY_CONFIRM_DISPOSABLE: this-is-a-disposable-test-account
+      STP_AWS_CANARY_EXPECTED_ACCOUNT_ID: ${{ vars.STACKTAPE_PREVIEW_AWS_ACCOUNT_ID }}
+      STP_AWS_CANARY_CREDENTIAL_MODE: environment
+      STP_AWS_CANARY_OWNER: github-${{ github.run_id }}-${{ github.run_attempt }}
+      STP_AWS_CANARY_PROJECT_NAME: v4canary-${{ github.run_id }}-${{ github.run_attempt }}
+      STP_AWS_CANARY_REGION: ${{ vars.STACKTAPE_PREVIEW_AWS_REGION || 'eu-west-1' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.9
+      - run: pnpm install --frozen-lockfile
+      - name: Acquire disposable AWS credentials
+        uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
+        with:
+          role-to-assume: ${{ vars.STACKTAPE_PREVIEW_AWS_ROLE_ARN }}
+          role-session-name: stacktape-preview-cleanup-${{ github.run_id }}
+          aws-region: ${{ vars.STACKTAPE_PREVIEW_AWS_REGION || 'eu-west-1' }}
+          role-duration-seconds: 3600
+      - name: Delete only this run's owned canary
+        working-directory: apps/cli
+        run: pnpm run test:real-aws-canary -- --cleanup-only
+
+  publish-preview:
+    name: Publish immutable preview
+    if: ${{ !cancelled() && inputs.channel == 'preview' && needs.canary.result == 'success' && needs.cleanup-canary.result == 'success' }}
+    needs:
+      - assemble
+      - canary
+      - cleanup-canary
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    environment: preview-publish
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          submodules: false
+      - uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.17.0
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+          cache: pnpm
+          registry-url: https://registry.npmjs.org
+      - uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
+        with:
+          bun-version: 1.3.9
+      - run: pnpm install --frozen-lockfile
+      - name: Download tested release candidate
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          name: stacktape-${{ inputs.version }}-candidate
+          path: apps/cli/__dist
+      - name: Re-validate protected preview operation
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          test "$RELEASE_CHANNEL" = preview
+          bun apps/cli/scripts/release/validate-release-input.ts
+          set +e
+          npm_lookup=$(npm view "stacktape@$RELEASE_VERSION" version 2>&1)
+          npm_status=$?
+          set -e
+          if [ "$npm_status" -eq 0 ]; then
+            echo "stacktape@$RELEASE_VERSION already exists on npm."
+            exit 1
+          fi
+          if ! printf '%s' "$npm_lookup" | grep -q 'E404'; then
+            printf 'Could not safely establish npm version availability:\n%s\n' "$npm_lookup"
+            exit 1
+          fi
+          if gh release view "$RELEASE_VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "GitHub release $RELEASE_VERSION already exists."
+            exit 1
+          fi
+      - name: Record production dist-tag
+        id: dist-tags-before
+        run: echo "latest=$(npm view stacktape dist-tags.latest)" >> "$GITHUB_OUTPUT"
+      - name: Create GitHub prerelease and upload exact candidate bytes
+        id: create-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_id=$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
+            -f tag_name="$RELEASE_VERSION" \
+            -f target_commitish="$GITHUB_SHA" \
+            -f name="Stacktape $RELEASE_VERSION" \
+            -f body="Preview build from $GITHUB_SHA. Preview owner: $PREVIEW_OWNER. Install with: pnpm add -D stacktape@preview" \
+            -F prerelease=true \
+            -f make_latest=false \
+            --jq .id)
+          echo "release-id=$release_id" >> "$GITHUB_OUTPUT"
+          gh release upload "$RELEASE_VERSION" \
+            apps/cli/__dist/*.tar.gz \
+            apps/cli/__dist/*.zip \
+            apps/cli/__dist/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY"
+      - name: Verify public assets and npm launcher end to end
+        working-directory: apps/cli
+        env:
+          RELEASE_DIST_DIRECTORY: ${{ github.workspace }}/apps/cli/__dist
+        run: bun scripts/release/verify-published-preview.ts
+      - name: Publish npm preview
+        id: npm-publish
+        working-directory: apps/cli
+        run: npm publish __dist/stacktape-*.tgz --tag preview --provenance --access public
+      - name: Verify npm dist-tags
+        env:
+          LATEST_BEFORE: ${{ steps.dist-tags-before.outputs.latest }}
+        run: |
+          latest_after=$(npm view stacktape dist-tags.latest)
+          preview_after=$(npm view stacktape dist-tags.preview)
+          test "$latest_after" = "$LATEST_BEFORE"
+          test "$preview_after" = "$RELEASE_VERSION"
+      - name: Remove retryable GitHub release after pre-publish failure
+        if: always() && steps.create-release.outputs.release-id != '' && steps.npm-publish.outcome != 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set +e
+          npm_lookup=$(npm view "stacktape@$RELEASE_VERSION" version 2>&1)
+          npm_status=$?
+          set -e
+          if [ "$npm_status" -eq 0 ]; then
+            echo "npm accepted the immutable version; preserving its required GitHub assets."
+          elif printf '%s' "$npm_lookup" | grep -q 'E404'; then
+            gh release delete "$RELEASE_VERSION" --cleanup-tag --yes --repo "$GITHUB_REPOSITORY"
+          else
+            printf 'npm state is ambiguous; preserving GitHub assets:\n%s\n' "$npm_lookup"
+            exit 1
+          fi
+
+  cleanup-preview-publication:
+    name: Recover canceled preview publication
+    if: ${{ always() && inputs.channel == 'preview' && needs.publish-preview.result != 'success' }}
+    needs:
+      - publish-preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: preview-publish
+    permissions:
+      contents: write
+    steps:
+      - name: Remove only this run's retryable prerelease
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          release_json=''
+          release_lookup=''
+          release_status=1
+          for attempt in 1 2 3 4 5 6; do
+            set +e
+            release_lookup=$(gh api "repos/$GITHUB_REPOSITORY/releases/tags/$RELEASE_VERSION" 2>&1)
+            release_status=$?
+            set -e
+            if [ "$release_status" -eq 0 ]; then
+              release_json=$release_lookup
+              break
+            fi
+            [ "$attempt" -eq 6 ] || sleep 10
+          done
+          if [ "$release_status" -ne 0 ]; then
+            if printf '%s' "$release_lookup" | grep -q 'HTTP 404'; then
+              echo "No GitHub prerelease from this run needs cleanup."
+              exit 0
+            fi
+            printf 'GitHub release state is ambiguous; cleanup cannot report success:\n%s\n' "$release_lookup"
+            exit 1
+          fi
+          release_owner=$(printf '%s' "$release_json" | jq -r .body)
+          is_prerelease=$(printf '%s' "$release_json" | jq -r .prerelease)
+          if [ "$is_prerelease" != true ] || ! printf '%s' "$release_owner" | grep -Fq "Preview owner: $PREVIEW_OWNER."; then
+            echo "The existing release is not owned by this workflow run; preserving it."
+            exit 1
+          fi
+
+          npm_status=1
+          npm_lookup=''
+          for attempt in 1 2 3 4 5 6; do
+            set +e
+            npm_lookup=$(npm view "stacktape@$RELEASE_VERSION" version 2>&1)
+            npm_status=$?
+            set -e
+            if [ "$npm_status" -eq 0 ]; then
+              echo "npm accepted the immutable version; preserving its required GitHub assets."
+              exit 0
+            fi
+            if ! printf '%s' "$npm_lookup" | grep -q 'E404'; then
+              printf 'npm state is ambiguous; preserving GitHub assets:\n%s\n' "$npm_lookup"
+              exit 1
+            fi
+            [ "$attempt" -eq 6 ] || sleep 10
+          done
+          gh release delete "$RELEASE_VERSION" --cleanup-tag --yes --repo "$GITHUB_REPOSITORY"

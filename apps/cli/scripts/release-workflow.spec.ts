@@ -5,9 +5,19 @@ import { join } from 'node:path';
 import { NIXPACKS_BINARY_FILE_NAMES } from 'src/config/constants';
 import { BUN_COMPILE_TARGETS, OPENTUI_PLATFORM_IDENTIFIERS } from './release/build-cli-sources';
 import { EXPECTED_RELEASE_ARCHIVES, verifyCandidateArchives } from './release/verify-candidate-assets';
+import { parse as parseYaml } from 'yaml';
 
 const readReleaseWorkflow = () =>
   readFile(join(process.cwd(), '..', '..', '.github', 'workflows', 'release.yml'), 'utf8');
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
+const readReleaseWorkflowModel = async () => {
+  const parsed: unknown = parseYaml(await readReleaseWorkflow());
+  if (!isRecord(parsed)) throw new Error('Release workflow must be a YAML object.');
+  return parsed;
+};
 
 describe('release candidate workflow', () => {
   test('bundles both Linux libc variants for cross-compiled candidates', () => {
@@ -72,27 +82,106 @@ describe('release candidate workflow', () => {
     expect(workflow).toContain('timeout 3 /tmp/stacktape-candidate/stacktape');
   });
 
-  test('is artifact-only and has no publishing authority', async () => {
-    const workflow = await readReleaseWorkflow();
-    const forbiddenFragments = [
-      'contents: write',
-      'id-token: write',
-      'npm publish',
-      'npm stage',
-      'create-github-release',
-      'publish:install',
-      'publish:schemas',
-      'publish:llm',
-      'git push',
-      'git tag',
-      'gh release'
-    ];
+  test('keeps candidate runs artifact-only and isolates preview authority by job', async () => {
+    const model = await readReleaseWorkflowModel();
+    expect(model.permissions).toEqual({ contents: 'read' });
+    expect(model.concurrency).toEqual({
+      group: 'v4-release-${{ inputs.channel }}',
+      'cancel-in-progress': false
+    });
 
-    expect(workflow).toContain('permissions:\n  contents: read');
-    expect(workflow).not.toContain('if: ${{ false }}');
-    for (const fragment of forbiddenFragments) {
-      expect(workflow).not.toContain(fragment);
+    expect(isRecord(model.on)).toBe(true);
+    const dispatch = isRecord(model.on) && model.on.workflow_dispatch;
+    expect(isRecord(dispatch)).toBe(true);
+    const inputs = isRecord(dispatch) && dispatch.inputs;
+    expect(isRecord(inputs)).toBe(true);
+    const channel = isRecord(inputs) && inputs.channel;
+    expect(channel).toEqual(
+      expect.objectContaining({ type: 'choice', default: 'candidate', options: ['candidate', 'preview'] })
+    );
+
+    expect(isRecord(model.jobs)).toBe(true);
+    const jobs = isRecord(model.jobs) ? model.jobs : {};
+    const privilegedJobNames: string[] = [];
+    for (const [jobName, jobValue] of Object.entries(jobs)) {
+      expect(isRecord(jobValue)).toBe(true);
+      if (!isRecord(jobValue)) continue;
+      const permissions = isRecord(jobValue.permissions) ? jobValue.permissions : {};
+      const steps = Array.isArray(jobValue.steps) ? jobValue.steps : [];
+      const commands = steps
+        .filter(isRecord)
+        .map((step) => (typeof step.run === 'string' ? step.run : ''))
+        .join('\n');
+      const isPrivileged = permissions.contents === 'write' || permissions['id-token'] === 'write';
+      const publishes = commands.includes('npm publish') || commands.includes('repos/$GITHUB_REPOSITORY/releases');
+      if (isPrivileged || publishes) {
+        privilegedJobNames.push(jobName);
+        expect(jobValue.if).toContain("inputs.channel == 'preview'");
+        expect(typeof jobValue.environment).toBe('string');
+      }
     }
+
+    expect(privilegedJobNames.sort()).toEqual([
+      'canary',
+      'cleanup-canary',
+      'cleanup-preview-publication',
+      'publish-preview'
+    ]);
+    expect(isRecord(jobs.canary) && jobs.canary.permissions).toEqual({ contents: 'read', 'id-token': 'write' });
+    expect(isRecord(jobs['cleanup-canary']) && jobs['cleanup-canary'].permissions).toEqual({
+      contents: 'read',
+      'id-token': 'write'
+    });
+    expect(isRecord(jobs['publish-preview']) && jobs['publish-preview'].permissions).toEqual({
+      contents: 'write',
+      'id-token': 'write'
+    });
+    expect(isRecord(jobs['cleanup-preview-publication']) && jobs['cleanup-preview-publication'].permissions).toEqual({
+      contents: 'write'
+    });
+    for (const jobName of ['verify', 'build-binaries', 'assemble']) {
+      expect(isRecord(jobs[jobName]) && jobs[jobName].permissions).toBeUndefined();
+    }
+  });
+
+  test('publishes npm only after the public GitHub assets and launcher work', async () => {
+    const workflow = await readReleaseWorkflow();
+    const releaseIndex = workflow.indexOf('name: Create GitHub prerelease and upload exact candidate bytes');
+    const publicVerificationIndex = workflow.indexOf('name: Verify public assets and npm launcher end to end');
+    const npmPublishIndex = workflow.indexOf('name: Publish npm preview');
+
+    expect(releaseIndex).toBeGreaterThan(-1);
+    expect(publicVerificationIndex).toBeGreaterThan(releaseIndex);
+    expect(npmPublishIndex).toBeGreaterThan(publicVerificationIndex);
+    expect(workflow).toContain('npm publish __dist/stacktape-*.tgz --tag preview --provenance --access public');
+    expect(workflow).toContain('-F prerelease=true');
+    expect(workflow).toContain('-f make_latest=false');
+    expect(workflow).toContain('target_commitish="$GITHUB_SHA"');
+    expect(workflow).toContain('STP_AWS_CANARY_PROJECT_NAME: v4canary-${{ github.run_id }}-${{ github.run_attempt }}');
+    expect(workflow).toContain('STP_AWS_CANARY_OWNER: github-${{ github.run_id }}-${{ github.run_attempt }}');
+    expect(workflow).toContain("if: always() && steps.configure-aws.outcome == 'success'");
+    expect(workflow).not.toContain('publish:install');
+    expect(workflow).not.toContain('publish:schemas');
+    expect(workflow).not.toContain('publish:llm');
+  });
+
+  test('keeps AWS and GitHub cleanup available after cancellation', async () => {
+    const model = await readReleaseWorkflowModel();
+    expect(isRecord(model.jobs)).toBe(true);
+    const jobs = isRecord(model.jobs) ? model.jobs : {};
+    const canaryCleanup = isRecord(jobs['cleanup-canary']) ? jobs['cleanup-canary'] : {};
+    const publicationCleanup = isRecord(jobs['cleanup-preview-publication']) ? jobs['cleanup-preview-publication'] : {};
+
+    expect(canaryCleanup.if).toContain('always()');
+    expect(canaryCleanup.if).toContain("inputs.channel == 'preview'");
+    expect(publicationCleanup.if).toContain('always()');
+    expect(publicationCleanup.if).toContain("needs.publish-preview.result != 'success'");
+
+    const workflow = await readReleaseWorkflow();
+    expect(workflow).toContain('Preview owner: $PREVIEW_OWNER.');
+    expect(workflow).toContain('grep -Fq "Preview owner: $PREVIEW_OWNER."');
+    expect(workflow).toContain('GitHub release state is ambiguous; cleanup cannot report success:');
+    expect(workflow).toContain('pnpm run test:real-aws-canary -- --cleanup-only');
   });
 
   test('pins every third-party action and toolchain version', async () => {

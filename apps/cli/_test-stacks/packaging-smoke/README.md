@@ -8,6 +8,7 @@ size, so a correct deployment lifts the shared code into a Lambda layer instead 
 Each function is exposed through its own public function URL, and each response carries:
 
 - `handler` — which of the two handlers ran;
+- `revision` — the environment-only revision used by the automated update canary;
 - `catalog.entryCount` and `catalog.fingerprint` — the identity of the shared module that ran with it;
 - handler-specific work: `retryAdvisor` answers one status lookup, `catalogReport` aggregates the whole catalog.
 
@@ -31,7 +32,17 @@ but it is still a real stack in a real account. Delete it when you are done.
 Both function URLs are **public and unauthenticated**. They serve static HTTP semantics and read no input other than
 a status code, but do not leave them deployed longer than the check needs.
 
-## Commands
+## Automated canary
+
+The release lane runs this fixture through `scripts/real-aws/packaging-canary.ts`. That runner verifies the exact AWS
+account before mutation, refuses to delete a stack without the exact run-owner tag, deploys and invokes both functions, proves an unchanged deploy
+is a no-op, changes only `STP_AWS_CANARY_REVISION`, proves code and layer identity remain stable, and deletes the stack
+and automatic Lambda log groups. Its required opt-ins and local invocation are documented in the root
+[`DEVELOPMENT.md`](../../../../DEVELOPMENT.md).
+
+The commands below remain the human-readable manual diagnostic flow.
+
+## Manual commands
 
 Run on Linux, macOS, or a WSL-native checkout from the repository root. The Windows checkout cannot run this CLI
 because of the Bun bundling constraint in `DEVELOPMENT.md`. `--configPath` is resolved against `apps/cli`, where the

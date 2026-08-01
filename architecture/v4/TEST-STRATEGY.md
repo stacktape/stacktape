@@ -255,5 +255,7 @@ Next:
 
 1. Re-evaluate Floci after no-op, update and delete fidelity are fixed; then run a Stacktape-synthesized certified
    subset through it.
-2. Build the cheap real-AWS `serverless-mesh` canary after explicit authorization.
-3. Expand nightly/weekly coverage by observed risk and production defects.
+2. Certify the implemented packaging deploy/no-op/update/delete canary in a dedicated disposable AWS account through
+   the protected preview workflow. It is intentionally narrower than the proposed `serverless-mesh` project.
+3. Build `serverless-mesh` only after the packaging canary has demonstrated stable cleanup and useful failure signals.
+4. Expand nightly/weekly coverage by observed risk and production defects.
