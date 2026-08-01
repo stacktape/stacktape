@@ -10,10 +10,15 @@ import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { CliError } from '@utils/errors';
 import { join } from 'node:path';
+import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { devTuiManager } from 'src/app/tui-manager/dev-tui';
 import { devTuiState } from 'src/app/tui-manager/dev-tui/state';
 import type { DevTuiState } from 'src/app/tui-manager/dev-tui/types';
-import { initializeStackServicesForDevPhase1, initializeStackServicesForDevPhase2 } from '../_utils/initialization';
+import {
+  captureCommandArgs,
+  initializeStackServicesForDevPhase1,
+  initializeStackServicesForDevPhase2
+} from '../_utils/initialization';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import {
@@ -195,8 +200,11 @@ const findSimilarNames = (input: string, candidates: string[], maxDistance = 3):
 /**
  * Get selected resources based on CLI args or interactive picker.
  */
-const getSelectedResources = async (allResources: SelectableResource[]): Promise<Set<string>> => {
-  const { resources: resourcesArg, skipResources: skipResourcesArg } = globalStateManager.args;
+const getSelectedResources = async (
+  allResources: SelectableResource[],
+  args: Readonly<StacktapeCliArgs>
+): Promise<Set<string>> => {
+  const { resources: resourcesArg, skipResources: skipResourcesArg } = args;
 
   const allNames = new Set(allResources.map((r) => r.name));
   const allNamesArray = [...allNames];
@@ -288,9 +296,10 @@ const getSelectedResources = async (allResources: SelectableResource[]): Promise
  * 6. Deploy and stream logs for functions
  */
 export const commandDev = async () => {
-  const agentPortArg = globalStateManager.args.agentPort;
-  const agentEnabled = Boolean(globalStateManager.args.agent || agentPortArg !== undefined);
-  const isAgentChild = Boolean(globalStateManager.args.agentChild);
+  const initialArgs = captureCommandArgs();
+  const agentPortArg = initialArgs.agentPort;
+  const agentEnabled = Boolean(initialArgs.agent || agentPortArg !== undefined);
+  const isAgentChild = Boolean(initialArgs.agentChild);
 
   // Handle --agent (without --agent-child): spawn daemon and exit
   // The daemon child will have --agent-child flag set
@@ -393,7 +402,8 @@ export const commandDev = async () => {
 
   // Phase 1: Initialize credentials, config, packagingManager
   // This also prompts for stage if not provided
-  await initializeStackServicesForDevPhase1();
+  const { args, stackContext } = await initializeStackServicesForDevPhase1();
+  const suggestedLocalStage = globalStateManager.userData?.name?.split(' ')[0]?.toLowerCase() || 'local';
 
   // Set agent mode early so spinners use plain text output
   if (agentEnabled) {
@@ -415,14 +425,14 @@ export const commandDev = async () => {
 
     registerAgentCleanupHook();
     setRebuildFunctions(rebuildWorkload, rebuildAllWorkloads);
-    await startAgentServer(agentPort, join(globalStateManager.workingDir, '.stacktape', 'dev-agent'));
+    await startAgentServer(agentPort, join(stackContext.workingDir, '.stacktape', 'dev-agent'));
   }
 
   const devHeader = {
     action: 'RUNNING DEV MODE',
-    projectName: globalStateManager.targetStack.projectName,
-    stageName: globalStateManager.targetStack.stage,
-    region: globalStateManager.region
+    projectName: stackContext.projectName,
+    stageName: stackContext.stage,
+    region: stackContext.region
   } as const;
 
   tuiManager.showCommandHeader(devHeader, { renderStandalone: !agentEnabled });
@@ -447,7 +457,7 @@ export const commandDev = async () => {
 
   // Build selectable resources and get user selection
   const allSelectableResources = buildSelectableResources(allWorkloads, allEmulateableResources);
-  const selectedResourceNames = await getSelectedResources(allSelectableResources);
+  const selectedResourceNames = await getSelectedResources(allSelectableResources, args);
 
   if (selectedResourceNames.size === 0) {
     throw new CliError({
@@ -472,7 +482,7 @@ export const commandDev = async () => {
 
   // Phase 2: Load AWS metadata (stack info, etc.)
   const metadataSpinner = createSpinner('Loading metadata from AWS', tuiManager.colorize.bind(tuiManager));
-  await initializeStackServicesForDevPhase2();
+  await initializeStackServicesForDevPhase2(stackContext);
   metadataSpinner.success();
 
   await ensureMissingSecretsCreated();
@@ -498,7 +508,7 @@ export const commandDev = async () => {
         'UPDATE_COMPLETE_CLEANUP_IN_PROGRESS',
         'UPDATE_ROLLBACK_IN_PROGRESS'
       ]);
-      const stageName = globalStateManager.targetStack.stage.toLowerCase();
+      const stageName = stackContext.stage.toLowerCase();
       const isProbablyDevStage = stageName.includes('dev') || stageName.includes('local');
       const stackLacksStackInfoMapOutput =
         !stackManager.existingStackDetails?.stackOutput?.[outputNames.stackInfoMap()];
@@ -508,18 +518,18 @@ export const commandDev = async () => {
         stackIsInRecoverableState && (isProbablyDevStage || stackLacksStackInfoMapOutput);
 
       if (shouldAutoRecoverNonDevStack) {
-        const warnMsg = `Stack '${globalStateManager.targetStack.stackName}' exists but isn't marked as a dev stack and is in ${stackStatus}.`;
+        const warnMsg = `Stack '${stackContext.stackName}' exists but isn't marked as a dev stack and is in ${stackStatus}.`;
         const infoMsg = 'Deleting the failed stack and redeploying a fresh dev stack...';
         tuiManager.warn(warnMsg);
         tuiManager.info(infoMsg);
         await stackManager.deleteStack();
-        await stackManager.refetchStackDetails(globalStateManager.targetStack.stackName);
+        await stackManager.refetchStackDetails(stackContext.stackName);
       } else {
         throw new CliError({
           category: 'CLI',
           code: 'CLI_DEV_STACK_CONFLICT',
-          message: `Stack \`${globalStateManager.targetStack.stackName}\` exists but is not a dev stack.`,
-          hints: `Use a different dev stage, for example \`--stage dev-${globalStateManager.userData?.name?.split(' ')[0]?.toLowerCase() || 'local'}\`.`
+          message: `Stack \`${stackContext.stackName}\` exists but is not a dev stack.`,
+          hints: `Use a different dev stage, for example \`--stage dev-${suggestedLocalStage}\`.`
         });
       }
     }
@@ -543,9 +553,9 @@ export const commandDev = async () => {
       eventManager.setSilentMode(false);
       tuiManager.showCommandHeader({
         action: 'DEPLOYING DEV STACK',
-        projectName: globalStateManager.targetStack.projectName,
-        stageName: globalStateManager.targetStack.stage,
-        region: globalStateManager.region
+        projectName: stackContext.projectName,
+        stageName: stackContext.stage,
+        region: stackContext.region
       });
       tuiManager.start();
       tuiManager.setSimpleMode(true);
@@ -561,7 +571,7 @@ export const commandDev = async () => {
     }
 
     // Refresh stack details after deployment
-    await stackManager.refetchStackDetails(globalStateManager.targetStack.stackName);
+    await stackManager.refetchStackDetails(stackContext.stackName);
     await deployedStackOverviewManager.refreshStackInfoMap({
       stackDetails: stackManager.existingStackDetails,
       stackResources: stackManager.existingStackResources
@@ -569,8 +579,8 @@ export const commandDev = async () => {
   }
 
   // Now start the Dev TUI
-  const projectName = globalStateManager.targetStack.projectName;
-  const stageName = globalStateManager.targetStack.stage;
+  const projectName = stackContext.projectName;
+  const stageName = stackContext.stage;
 
   // Prepare resource info for agent startup message
   const workloadInfos = devCompatibleResources.map((r) => ({ name: r.name, type: r.category }));
@@ -592,7 +602,7 @@ export const commandDev = async () => {
             phase: 'ready',
             projectName,
             stage: stageName,
-            region: globalStateManager.region,
+            region: stackContext.region,
             startedAt: new Date().toISOString(),
             workloads: workloadInfos.map((w) => w.name),
             databases: databaseInfos.map((d) => d.name),
@@ -619,7 +629,7 @@ export const commandDev = async () => {
               port: port!,
               projectName,
               stage: stageName,
-              region: globalStateManager.region,
+              region: stackContext.region,
               workloads: workloadsWithUrls,
               databases: databasesWithPorts,
               logFile: getAgentLogFilePath() || ''
@@ -632,7 +642,7 @@ export const commandDev = async () => {
             buildStartupMessage({
               projectName,
               stage: stageName,
-              region: globalStateManager.region,
+              region: stackContext.region,
               workloads: workloadInfos,
               databases: databaseInfos,
               logFile: getAgentLogFilePath() || undefined
@@ -752,7 +762,7 @@ export const commandDev = async () => {
   // Register setup steps in TUI (if we have local resources)
   const hasLocalResources = emulateableResources.some((r) => !remoteResourceNames.has(r.name));
   if (hasLocalResources) {
-    if (!globalStateManager.args.noTunnel) {
+    if (!args.noTunnel) {
       devTuiManager.addSetupStep('tunnels', 'Lambda tunnels');
     }
     devTuiManager.addSetupStep('env-inject', 'Injecting environment');
@@ -783,7 +793,7 @@ export const commandDev = async () => {
 
   // Run all dev-compatible resources (this will update TUI as things start)
   try {
-    await runParallelWorkloads(devCompatibleResources, selectedLocalResourceNames);
+    await runParallelWorkloads(devCompatibleResources, selectedLocalResourceNames, { args, stackContext });
   } catch (err) {
     // When DevTui is running, show error in TUI and then re-throw
     if (devTuiManager.running) {

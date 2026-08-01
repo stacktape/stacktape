@@ -4,7 +4,6 @@ import type { LocalResourceInstance } from '../local-resources';
 import type { TunnelInfo } from '../tunnel-manager';
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { IS_DEV, PRINT_LOGS_INTERVAL } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -44,6 +43,8 @@ import {
 } from '../utils';
 import { updateAgentWorkloadStatus } from '../agent-server';
 import type { HttpApiIntegration } from '@stacktape/config/events';
+import type { StacktapeCliArgs } from 'src/config/cli/types';
+import type { StackContext } from '@domain-services/stack-context';
 
 type WorkloadType = 'container' | 'function' | 'hosting-bucket' | 'nextjs-web' | 'ssr-web';
 
@@ -82,9 +83,11 @@ const state: ParallelRunnerState = {
 
 export const runParallelWorkloads = async (
   resources: { name: string; type: string; category: WorkloadType }[],
-  selectedLocalResources?: Set<string>
+  selectedLocalResources: Set<string> | undefined,
+  operation: { args: Readonly<StacktapeCliArgs>; stackContext: StackContext }
 ): Promise<void> => {
-  const { watch } = globalStateManager.args;
+  const { args, stackContext } = operation;
+  const { watch } = args;
 
   // All resources run - no filtering needed in new dev mode
   const filteredResources = resources;
@@ -128,7 +131,7 @@ export const runParallelWorkloads = async (
 
   // Setup bore tunnels for Lambda functions that need to connect to local resources
   // Skip when: --no-tunnel is set or no local resources
-  const shouldSetupLambdaTunnels = state.localResources.length > 0 && !globalStateManager.args.noTunnel;
+  const shouldSetupLambdaTunnels = state.localResources.length > 0 && !args.noTunnel;
 
   if (shouldSetupLambdaTunnels) {
     if (useDevTui) devTuiManager.setSetupStepStatus('tunnels', 'running');
@@ -303,10 +306,11 @@ export const runParallelWorkloads = async (
         allLocalEnvVars,
         deployedResourceNames,
         localWorkloadAddresses,
-        containerPortBindings.get(resource.name)
+        containerPortBindings.get(resource.name),
+        args
       );
     } else if (resource.category === 'function') {
-      return startFunctionWorkload(resource.name);
+      return startFunctionWorkload(resource.name, stackContext);
     } else if (resource.category === 'hosting-bucket') {
       return startHostingBucketWorkload(resource.name, allLocalEnvVars);
     } else if (resource.category === 'nextjs-web') {
@@ -571,7 +575,8 @@ const startContainerWorkload = async (
   localResourceEnvVars: Record<string, string>,
   deployedConnectTo: string[],
   localWorkloadAddresses: Record<string, string>,
-  portBinding?: ContainerPortBinding
+  portBinding: ContainerPortBinding | undefined,
+  args: Readonly<StacktapeCliArgs>
 ): Promise<void> => {
   const useDevTui = devTuiManager.running;
 
@@ -682,7 +687,7 @@ const startContainerWorkload = async (
             stderrBuffer += `${line}\n`;
             return line;
           },
-      args: globalStateManager.args
+      args
     });
 
     // If container exits before onStart is called, it's an error
@@ -775,7 +780,7 @@ const startContainerWorkload = async (
               return null;
             }
           : undefined,
-        args: globalStateManager.args
+        args
       }).catch(() => {
         resolve();
       });
@@ -999,7 +1004,7 @@ const getFunctionIntegrationInfo = (resourceName: string): { url?: string; statu
   return { statusMessage: eventTypeLabels[eventType] || `${eventType} trigger` };
 };
 
-const startFunctionWorkload = async (resourceName: string): Promise<void> => {
+const startFunctionWorkload = async (resourceName: string, stackContext: StackContext): Promise<void> => {
   const useDevTui = devTuiManager.running;
 
   if (useDevTui) {
@@ -1011,12 +1016,11 @@ const startFunctionWorkload = async (resourceName: string): Promise<void> => {
     throw stpErrors.e6({
       resourceName,
       resourceType: 'function',
-      stackName: globalStateManager.targetStack.stackName
+      stackName: stackContext.stackName
     });
   }
 
   // Build and deploy
-  globalStateManager.args.resourceName = resourceName;
   const { packagingOutput } = await buildAndUpdateFunctionCode(resourceName, { devMode: true });
   packagingManager.clearPackagedJobs();
 
@@ -1038,7 +1042,7 @@ const startFunctionWorkload = async (resourceName: string): Promise<void> => {
     fetchSince: (await getAwsSynchronizedTime()).getTime(),
     logGroupAwsResourceName: getLogGroupInfoForStacktapeResource({
       resourceName,
-      stackName: globalStateManager.targetStack.stackName,
+      stackName: stackContext.stackName,
       stackResources: stackManager.existingStackResources
     }).PhysicalResourceId,
     onLog: useDevTui
@@ -1077,8 +1081,6 @@ const startFunctionWorkload = async (resourceName: string): Promise<void> => {
       } else {
         tuiManager.info(`[${resourceName}] Redeploying...`);
       }
-
-      globalStateManager.args.resourceName = resourceName;
 
       if (inRebuildPhase) {
         devTuiManager.setRebuildStep(resourceName, 'updating-code');

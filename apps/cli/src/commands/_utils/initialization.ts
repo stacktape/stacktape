@@ -571,16 +571,18 @@ export const initializeStackServicesForDevPhase1 = async () => {
 
   // Register hooks (but don't process yet - local resources need to start first)
   await eventManager.registerHooks(configManager.hooks);
+
+  return Object.freeze({ args: captureCommandArgs(), stackContext });
 };
 
 /**
  * Phase 2: Fetch AWS stack data (stackManager, deployedStackOverviewManager, deploymentArtifactManager).
  * Can run in parallel with build since it only needs credentials from phase 1.
  */
-export const initializeStackServicesForDevPhase2 = async () => {
+export const initializeStackServicesForDevPhase2 = async (stackContext: StackContext = getStackContext()) => {
   await settleAllBeforeThrowing([
     stackManager.init({
-      stackName: globalStateManager.targetStack.stackName,
+      stackName: stackContext.stackName,
       commandModifiesStack: true,
       commandRequiresDeployedStack: false
     }),
@@ -589,7 +591,7 @@ export const initializeStackServicesForDevPhase2 = async () => {
       resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
     }),
     domainManager.init({
-      stackName: globalStateManager.targetStack.stackName,
+      stackName: stackContext.stackName,
       domains: configManager.allUsedDomainsInConfig,
       fromParameterStore: true
     })
@@ -601,16 +603,17 @@ export const initializeStackServicesForDevPhase2 = async () => {
       stackResources: stackManager.existingStackResources
     }),
     deploymentArtifactManager.init({
-      accountId: globalStateManager.targetAwsAccount.awsAccountId,
-      globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+      accountId: stackContext.accountId,
+      globallyUniqueStackHash: stackContext.globallyUniqueStackHash,
       stackActionType: stackManager.stackActionType
     })
   ]);
 };
 
 export const initializeStackServicesForDev = async () => {
-  await initializeStackServicesForDevPhase1();
-  await initializeStackServicesForDevPhase2();
+  const operation = await initializeStackServicesForDevPhase1();
+  await initializeStackServicesForDevPhase2(operation.stackContext);
+  return operation;
 };
 
 export const initializeStackServicesForWorkingWithDeployedStack = async ({
