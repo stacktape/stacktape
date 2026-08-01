@@ -27,12 +27,16 @@ refactoring scope. Revisit them before the v4 release where marked.
 - Long-running Console operations retain one assumed-role credential set without refresh, while the CLI's timer-based
   refresh has no owning await/catch path. CLI AWS clients now resolve refreshed credentials through their session
   provider, but the timer's failure still needs explicit operational ownership.
-- The Console `temporaryCredentials` procedure is authorized with `observability:view`, but callers can request any
-  allowlisted managed policy, including mutation-capable policies. Some browser S3 operations also request no session
-  policy, so the session then inherits the connected-account role's effective permissions. Before production rollout,
-  authorize each credential request against the exact browser operation (and project or resource where applicable),
-  while preserving the existing organization/account-membership checks, and default browser sessions to least
-  privilege.
+- Console browser credentials are now narrowed to a server-owned capability and AWS action list, but direct AWS
+  credentials are still an organization/account boundary rather than a project boundary. A project-scoped member can
+  reuse issued credentials against resources from another project in the same connected account when the AWS API
+  cannot be resource-scoped (for example, CloudWatch `GetMetricData`). Do not treat a client-supplied project ID as a
+  fix. Enforcing project isolation requires server-proxied operations with server-verified resource context, narrowly
+  scoped per-stack roles, or presigned resource operations. Organization-wide Secrets Manager, Parameter Store and
+  domain access also need an explicit product decision before that redesign.
+- Console reads and writes of customer-managed KMS-encrypted Secrets Manager secrets and secure SSM parameters may
+  require additional key-specific KMS actions. The previous managed browser policies did not grant these actions
+  either. Add them only alongside a server-verified key/resource boundary rather than widening every browser session.
 
 ## Known v3 behavior debt
 

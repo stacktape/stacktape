@@ -22,6 +22,7 @@ export const PERMISSIONS = [
   'projects:delete',
   'projects:update-settings',
   'projects:view',
+  'resources:manage',
   'deployments:deploy',
   'deployments:delete-production',
   'deployments:delete-non-production',
@@ -52,6 +53,7 @@ const ROLE_PERMISSIONS: Record<Exclude<ConsoleRole, 'MEMBER'>, ReadonlySet<Permi
   DEVELOPER: new Set([
     'projects:update-settings',
     'projects:view',
+    'resources:manage',
     'deployments:deploy',
     'deployments:delete-non-production',
     'deployments:rollback',
