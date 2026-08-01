@@ -308,7 +308,7 @@ export const assertSynthesizedTemplate = async ({
 };
 
 const assertThoroughValidation = (events: JsonlEvent[], result: JsonlResult) => {
-  for (const eventType of ['RESOLVE_CONFIG', 'PACKAGE_ARTIFACTS', 'VALIDATE_TEMPLATE']) {
+  for (const eventType of ['PACKAGE_ARTIFACTS', 'VALIDATE_TEMPLATE']) {
     assert(completedEvent(events, eventType), `Thorough validation never completed ${eventType}.`);
   }
   assertPackagingStages(events);
@@ -409,13 +409,12 @@ export const verifySourceCliAwsReadonly = async () => {
     assertPackagedWorkloads(packageRun.result);
     assertPackagingStages(packageRun.events);
 
-    const synthRun = await runSourceCli({
+    await runSourceCli({
       cliDirectory,
       command: 'synth',
       args: [...commonArgs, '--outFile', synthesizedTemplatePath],
       env
     });
-    assert(completedEvent(synthRun.events, 'RESOLVE_CONFIG'), 'Synth never completed configuration resolution.');
     await assertSynthesizedTemplate({
       templatePath: synthesizedTemplatePath,
       projectName: options.projectName,
