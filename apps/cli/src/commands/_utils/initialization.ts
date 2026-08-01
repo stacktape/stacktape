@@ -388,12 +388,37 @@ export const initializeDeployOperation = async () => ({
 });
 
 export const initializeRemoteDeployOperation = async () => {
-  await initializeStackOperationLifecycle({
+  const operation = await initializeStackOperationLifecycle({
     commandRequiresDeployedStack: false,
     commandModifiesStack: true,
     loadGlobalConfig: true,
     requiresSubscription: true
   });
+
+  const currentProject = globalStateManager.projects.find(
+    ({ id, name }) => id === globalStateManager.targetStack.projectId || name === operation.stackContext.projectName
+  ) as
+    | ((typeof globalStateManager.projects)[number] & {
+        deploymentRunnerType?: string | null;
+        ec2RunnerInstanceType?: string | null;
+      })
+    | undefined;
+
+  return {
+    ...operation,
+    runner: Object.freeze({
+      accountConnectionId: globalStateManager.targetAwsAccount.id,
+      configPath: globalStateManager.configPath,
+      currentProject: currentProject
+        ? Object.freeze({
+            deploymentRunnerType: currentProject.deploymentRunnerType,
+            ec2RunnerInstanceType: currentProject.ec2RunnerInstanceType
+          })
+        : undefined,
+      systemId: globalStateManager.systemId,
+      userId: globalStateManager.userData.id
+    })
+  } as const;
 };
 
 export const initializeStackServicesForLocalResolve = async () => {

@@ -38,10 +38,12 @@ export const deployWithCodebuildRunner = async () => {
   // Configure TUI for codebuild deploy (Initialize, Prepare Pipeline, Deploy - no Build & Package)
   tuiManager.configureForCodebuildDeploy();
 
+  let operation: Awaited<ReturnType<typeof initializeRemoteDeployOperation>>;
   let build: Build;
   try {
     // we need to initialize most of the services as we are also doing resource resolving
-    await initializeRemoteDeployOperation();
+    operation = await initializeRemoteDeployOperation();
+    const { args, runner, stackContext } = operation;
 
     configManager.validateGuardrails({ hasConfig: true });
 
@@ -64,7 +66,7 @@ export const deployWithCodebuildRunner = async () => {
 
     await eventManager.startEvent({ eventType: 'PREPARE_PIPELINE', description: 'Preparing deployment pipeline' });
 
-    const { awsAccountId } = globalStateManager.targetAwsAccount;
+    const awsAccountId = stackContext.accountId;
 
     // prepare codebuild pipeline resources
     const codebuildPipeline = await preparePipelineResources({
@@ -78,18 +80,18 @@ export const deployWithCodebuildRunner = async () => {
     // zip artifact (project)
     await eventManager.startEvent({ eventType: 'ZIP_PROJECT', description: 'Zipping project' });
     const projectZipPath = `${fsPaths.absoluteTempFolderPath({
-      invocationId: globalStateManager.invocationId
+      invocationId: stackContext.invocationId
     })}/archive.zip`;
     await ensureTempFolder();
     await gitCreateZipArchive({
-      directory: globalStateManager.workingDir,
+      directory: stackContext.workingDir,
       outputPath: projectZipPath
     });
     await eventManager.finishEvent({ eventType: 'ZIP_PROJECT' });
 
     // upload zipped project
     await eventManager.startEvent({ eventType: 'UPLOAD_PROJECT', description: 'Uploading project' });
-    const projectZipS3Key = `${globalStateManager.targetStack.stackName}/${globalStateManager.invocationId}/archive.zip`;
+    const projectZipS3Key = `${stackContext.stackName}/${stackContext.invocationId}/archive.zip`;
     await awsSdkManager.s3.uploadFile({
       bucketName: codebuildPipeline.bucketName,
       contentType: 'application/zip',
@@ -102,47 +104,53 @@ export const deployWithCodebuildRunner = async () => {
     // start codebuild deployment
     await eventManager.startEvent({ eventType: 'START_DEPLOYMENT', description: 'Starting codebuild deployment' });
     const { apiKey: deploymentApiKey } = await stacktapeTrpcApiManager.apiClient.createDeploymentTokenFromCli({
-      projectName: globalStateManager.targetStack.projectName,
-      accountConnectionId: globalStateManager.targetAwsAccount.id,
+      projectName: stackContext.projectName,
+      accountConnectionId: runner.accountConnectionId,
       awsAccountId,
-      invocationId: globalStateManager.invocationId,
-      templateId: globalStateManager.args.templateId
+      invocationId: stackContext.invocationId,
+      templateId: args.templateId
     });
     build = await startCodebuildDeployment({
       awsSdkManager,
       awsAccountId,
       codebuildPipeline,
-      commandArgs: adjustArguments({ cliArguments: globalStateManager.rawArgs }),
+      commandArgs: adjustArguments({
+        cliArguments: args,
+        configPath: runner.configPath,
+        stackContext
+      }),
       gitInfo: await gitInfoManager.gitInfo,
-      invocationId: globalStateManager.invocationId,
-      systemId: globalStateManager.systemId,
+      invocationId: stackContext.invocationId,
+      systemId: runner.systemId,
       stacktapeUserInfo: {
-        id: globalStateManager.userData.id,
+        id: runner.userId,
         apiKey: deploymentApiKey
       },
       projectZipS3Key,
-      projectName: globalStateManager.targetStack.projectName,
+      projectName: stackContext.projectName,
       stacktapeVersion: process.env.STP_CODEBUILD_VERSION || getStacktapeVersion(),
       stacktapeTrpcEndpoint: STACKTAPE_TRPC_API_ENDPOINT,
       callbackAfterBuildStart: async (buildInfo) => {
         return stacktapeTrpcApiManager.recordStackOperationProgress({
-          stackName: globalStateManager.targetStack?.stackName,
+          stackName: stackContext.stackName,
           codebuildBuildArn: buildInfo.arn,
           logStreamName: getCodebuildLogStreamNameFromBuildInfo({ buildInfo }),
-          projectName: globalStateManager.targetStack.projectName
+          projectName: stackContext.projectName
         });
       }
     });
     await eventManager.finishEvent({ eventType: 'START_DEPLOYMENT' });
   } catch (err) {
     await stacktapeTrpcApiManager.recordStackOperationEnd({
-      stackName: globalStateManager.targetStack?.stackName,
+      stackName: operation?.stackContext.stackName || globalStateManager.targetStack?.stackName,
       error: err,
       success: false,
       interrupted: false
     });
     throw err;
   }
+
+  const { args, stackContext } = operation;
 
   const cloudwatchLogPrinter = new CodebuildDeploymentCloudwatchLogPrinter({
     fetchSince: (await getAwsSynchronizedTime()).getTime() - 30000,
@@ -155,10 +163,10 @@ export const deployWithCodebuildRunner = async () => {
 
   await eventManager.startEvent({ eventType: 'DEPLOY', description: 'Deploying using codebuild' });
   stacktapeTrpcApiManager.recordStackOperationProgress({
-    stackName: globalStateManager.targetStack.stackName,
+    stackName: stackContext.stackName,
     codebuildBuildArn: build.arn,
     logStreamName: build.logs?.streamName,
-    projectName: globalStateManager.targetStack.projectName
+    projectName: stackContext.projectName
   });
 
   tuiManager.printLines([
@@ -179,11 +187,11 @@ export const deployWithCodebuildRunner = async () => {
       await wait(10000);
       await cloudwatchLogPrinter.printLogs();
       throw stpErrors.e64({
-        stackName: globalStateManager.targetStack.stackName,
-        projectName: globalStateManager.targetStack.projectName,
-        invocationId: globalStateManager.invocationId,
+        stackName: stackContext.stackName,
+        projectName: stackContext.projectName,
+        invocationId: stackContext.invocationId,
         buildId: build.id,
-        stage: globalStateManager.targetStack.stage
+        stage: stackContext.stage
       });
     }
     await cloudwatchLogPrinter.printLogs();
@@ -192,14 +200,11 @@ export const deployWithCodebuildRunner = async () => {
   await eventManager.finishEvent({ eventType: 'DEPLOY' });
 
   // refreshing stack details to return to user and pretty print
-  await Promise.all([
-    stackManager.refetchStackDetails(globalStateManager.targetStack.stackName),
-    budgetManager.loadBudgets()
-  ]);
+  await Promise.all([stackManager.refetchStackDetails(stackContext.stackName), budgetManager.loadBudgets()]);
   await deployedStackOverviewManager.refreshStackInfoMap({
     stackDetails: stackManager.existingStackDetails,
     stackResources: stackManager.existingStackResources,
-    budgetInfo: budgetManager.getBudgetInfoForSpecifiedStack({ stackName: globalStateManager.targetStack.stackName })
+    budgetInfo: budgetManager.getBudgetInfoForSpecifiedStack({ stackName: stackContext.stackName })
   });
 
   // we need two versions of detailed stack info (with and without sensitive values) - one for saving other for returning
@@ -207,7 +212,7 @@ export const deployWithCodebuildRunner = async () => {
 
   const detailedStackInfo = getDetailedStackInfoMap({
     deployedStackInfoMap: deployedStackOverviewManager.stackInfoMap,
-    showSensitiveValues: globalStateManager.args.showSensitiveValues
+    showSensitiveValues: args.showSensitiveValues
   });
   const detailedStackInfoSensitive = getDetailedStackInfoMap({
     deployedStackInfoMap: deployedStackOverviewManager.stackInfoMap,
@@ -219,14 +224,14 @@ export const deployWithCodebuildRunner = async () => {
       outFormat: 'json',
       filePath: fsPaths.stackInfoPath({
         dirPath: configManager.stackInfoDirPath,
-        stackName: globalStateManager.targetStack.stackName
+        stackName: stackContext.stackName
       })
     });
   }
   eventManager.addFinalAction(() => deployedStackOverviewManager.printShortStackInfo());
   // @todo end
 
-  const consoleUrl = `https://console.stacktape.com/projects/${globalStateManager.targetStack.projectName}/${globalStateManager.targetStack.stage}/overview`;
+  const consoleUrl = `https://console.stacktape.com/projects/${stackContext.projectName}/${stackContext.stage}/overview`;
 
   tuiManager.setPendingCompletion({
     success: true,
@@ -238,14 +243,19 @@ export const deployWithCodebuildRunner = async () => {
   return { stackInfo: detailedStackInfoSensitive };
 };
 
-const adjustArguments = ({ cliArguments }: { cliArguments: StacktapeArgs }) => {
+const adjustArguments = ({
+  cliArguments,
+  configPath,
+  stackContext
+}: {
+  cliArguments: StacktapeArgs;
+  configPath: string;
+  stackContext: Awaited<ReturnType<typeof initializeRemoteDeployOperation>>['stackContext'];
+}) => {
   const finalArgs: StacktapeCliArgs = serialize(cliArguments);
   if (cliArguments.configPath) {
     // we need to adjust the config path, after unpacking in the codebuild job, stacktape config can have different location relative to STARTING cwd
-    finalArgs.configPath = relative(
-      resolve(globalStateManager.workingDir),
-      resolve(globalStateManager.configPath)
-    ).replaceAll('\\', '/');
+    finalArgs.configPath = relative(resolve(stackContext.workingDir), resolve(configPath)).replaceAll('\\', '/');
   }
   // setting auto confirm operation to skip potential prompt
   // if we have gotten here, than we were already prompted before, so this should be fine
@@ -258,8 +268,8 @@ const adjustArguments = ({ cliArguments }: { cliArguments: StacktapeArgs }) => {
   // The project archive is extracted into CodeBuild's working directory. A local
   // path here is both invalid remotely and may expose the caller's filesystem layout.
   delete finalArgs.currentWorkingDirectory;
-  finalArgs.projectName = globalStateManager.targetStack.projectName;
-  finalArgs.stage = globalStateManager.targetStack.stage;
+  finalArgs.projectName = stackContext.projectName;
+  finalArgs.stage = stackContext.stage;
 
   return finalArgs;
 };
