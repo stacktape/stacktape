@@ -1,5 +1,4 @@
 import type { StacktapeCliArgs } from 'src/config/cli/types';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { StateValue } from '@aws-sdk/client-cloudwatch';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
@@ -20,13 +19,13 @@ type AlarmInfo = {
 };
 
 export const commandAlarms = async () => {
-  await initializeStackServicesForWorkingWithDeployedStack({
+  const { args, stackContext } = await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
   });
 
-  const { resourceName, state } = globalStateManager.args as StacktapeCliArgs & { state?: string };
-  const stackName = globalStateManager.targetStack.stackName;
+  const { resourceName, state } = args as StacktapeCliArgs & { state?: string };
+  const stackName = stackContext.stackName;
 
   // Convert state string to StateValue enum
   const stateValue = state ? (StateValue[state as keyof typeof StateValue] as StateValue) : undefined;

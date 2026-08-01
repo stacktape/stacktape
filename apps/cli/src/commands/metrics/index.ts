@@ -1,5 +1,4 @@
 import type { StacktapeCliArgs } from 'src/config/cli/types';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import type { MetricDataQuery } from '@aws-sdk/client-cloudwatch';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
@@ -35,12 +34,12 @@ const METRIC_CONFIGS: Record<string, { namespace: string; dimensionName: string;
 };
 
 export const commandMetrics = async () => {
-  await initializeStackServicesForWorkingWithDeployedStack({
+  const { args: capturedArgs, stackContext } = await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
   });
 
-  const args = globalStateManager.args as StacktapeCliArgs & {
+  const args = capturedArgs as StacktapeCliArgs & {
     metric?: string;
     period?: number;
     stat?: string;
@@ -48,7 +47,7 @@ export const commandMetrics = async () => {
     endTime?: string;
   };
   const { resourceName, metric, period = 300, stat = 'Average' } = args;
-  const stackName = globalStateManager.targetStack.stackName;
+  const stackName = stackContext.stackName;
 
   if (!resourceName) {
     throw new ExpectedError('CLI', 'Missing required flag: --resourceName', 'Provide --resourceName <name>');

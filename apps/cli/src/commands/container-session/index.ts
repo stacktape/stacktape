@@ -1,4 +1,3 @@
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { DesiredStatus } from '@aws-sdk/client-ecs';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -9,24 +8,23 @@ import { runEcsExecSsmShellSession } from '@utils/ssm-session';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 export const commandContainerSession = async () => {
-  await initializeStackServicesForWorkingWithDeployedStack({
+  const { args, stackContext } = await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
   });
 
-  const { task, containerName } = await resolveTargetContainer();
-  const { command } = globalStateManager.args;
+  const { command, container, resourceName } = args;
+  const { task, containerName } = await resolveTargetContainer({ container, resourceName });
 
   await runEcsExecSsmShellSession({
     task,
     containerName,
-    region: globalStateManager.region,
+    region: stackContext.region,
     command
   });
 };
 
-const resolveTargetContainer = async () => {
-  const { resourceName, container } = globalStateManager.args;
+const resolveTargetContainer = async ({ resourceName, container }: { resourceName: string; container?: string }) => {
   const workloadInfo = deployedStackOverviewManager.deployedWorkloadsWithEcsTaskDefinition.find(
     ({ nameChain }) => nameChain[0] === resourceName
   );

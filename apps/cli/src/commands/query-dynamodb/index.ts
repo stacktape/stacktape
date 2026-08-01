@@ -1,5 +1,4 @@
 import type { StacktapeCliArgs } from 'src/config/cli/types';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import {
@@ -19,14 +18,14 @@ const SUPPORTED_OPERATIONS = ['scan', 'query', 'get', 'schema', 'sample'] as con
 type Operation = (typeof SUPPORTED_OPERATIONS)[number];
 
 export const commandQueryDynamodb = async () => {
-  await initializeStackServicesForWorkingWithDeployedStack({
+  const { args: capturedArgs, stackContext } = await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
   });
 
   initDebugAgentCredentials();
 
-  const args = globalStateManager.args as StacktapeCliArgs & {
+  const args = capturedArgs as StacktapeCliArgs & {
     operation?: string;
     pk?: string;
     sk?: string;
@@ -83,7 +82,7 @@ export const commandQueryDynamodb = async () => {
   const conn = {
     mode: 'deployed' as const,
     tableName,
-    region: globalStateManager.region,
+    region: stackContext.region,
     credentials: {
       accessKeyId: credentials.accessKeyId,
       secretAccessKey: credentials.secretAccessKey,

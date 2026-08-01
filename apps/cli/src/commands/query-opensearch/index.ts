@@ -1,5 +1,4 @@
 import type { StacktapeCliArgs } from 'src/config/cli/types';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import {
@@ -19,14 +18,14 @@ const SUPPORTED_OPERATIONS = ['search', 'get', 'indices', 'mapping', 'count'] as
 type Operation = (typeof SUPPORTED_OPERATIONS)[number];
 
 export const commandQueryOpensearch = async () => {
-  await initializeStackServicesForWorkingWithDeployedStack({
+  const { args: capturedArgs, stackContext } = await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
   });
 
   initDebugAgentCredentials();
 
-  const args = globalStateManager.args as StacktapeCliArgs & {
+  const args = capturedArgs as StacktapeCliArgs & {
     operation?: string;
     index?: string;
     id?: string;
@@ -92,7 +91,7 @@ export const commandQueryOpensearch = async () => {
   const conn = {
     mode: 'deployed' as const,
     endpoint: endpoint.startsWith('https://') ? endpoint : `https://${endpoint}`,
-    region: globalStateManager.region,
+    region: stackContext.region,
     credentials: {
       accessKeyId: credentials.accessKeyId,
       secretAccessKey: credentials.secretAccessKey,

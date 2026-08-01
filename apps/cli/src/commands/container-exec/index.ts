@@ -1,5 +1,4 @@
 import type { StacktapeCliArgs } from 'src/config/cli/types';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { DesiredStatus } from '@aws-sdk/client-ecs';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -10,13 +9,16 @@ import { ExpectedError } from '@utils/errors';
 import { runEcsExecCommand } from '@utils/ssm-session';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
+type ContainerExecArgs = StacktapeCliArgs & { taskArn?: string };
+
 export const commandContainerExec = async () => {
-  await initializeStackServicesForWorkingWithDeployedStack({
+  const { args: capturedArgs } = await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
   });
+  const args = capturedArgs as ContainerExecArgs;
 
-  const { command, resourceName } = globalStateManager.args;
+  const { command, resourceName } = args;
 
   if (!command) {
     throw new ExpectedError(
@@ -30,7 +32,7 @@ export const commandContainerExec = async () => {
     throw new ExpectedError('CLI', 'Missing required flag: --resourceName', 'Provide --resourceName <service-name>');
   }
 
-  const { task, containerName, clusterArn } = await resolveTargetContainer();
+  const { task, containerName, clusterArn } = await resolveTargetContainer({ args });
 
   const result = await runEcsExecCommand({
     clusterArn,
@@ -55,14 +57,8 @@ export const commandContainerExec = async () => {
   );
 };
 
-const resolveTargetContainer = async () => {
-  const {
-    resourceName,
-    container,
-    taskArn: specifiedTaskArn
-  } = globalStateManager.args as StacktapeCliArgs & {
-    taskArn?: string;
-  };
+const resolveTargetContainer = async ({ args }: { args: ContainerExecArgs }) => {
+  const { resourceName, container, taskArn: specifiedTaskArn } = args;
 
   const workloadInfo = deployedStackOverviewManager.deployedWorkloadsWithEcsTaskDefinition.find(
     ({ nameChain }) => nameChain[0] === resourceName

@@ -1,6 +1,5 @@
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { applicationManager } from '@application-services/application-manager';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { redisKeys, redisGet, redisTtl, redisInfo, redisType } from '@domain-services/debug-services/db-client';
@@ -14,12 +13,12 @@ const SUPPORTED_OPERATIONS = ['keys', 'get', 'ttl', 'info', 'type'] as const;
 type Operation = (typeof SUPPORTED_OPERATIONS)[number];
 
 export const commandQueryRedis = async () => {
-  await initializeStackServicesForWorkingWithDeployedStack({
+  const { args: capturedArgs } = await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
   });
 
-  const args = globalStateManager.args as StacktapeCliArgs & {
+  const args = capturedArgs as StacktapeCliArgs & {
     operation?: string;
     key?: string;
     pattern?: string;

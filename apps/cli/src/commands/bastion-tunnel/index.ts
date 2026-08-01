@@ -1,7 +1,6 @@
 import type { StackInfoMapResource } from '@domain-services/stack-info/types';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { applicationManager } from '@application-services/application-manager';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
@@ -10,12 +9,12 @@ import { startPortForwardingSessions } from '@utils/ssm-session';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 export const commandBastionTunnel = async () => {
-  await initializeStackServicesForWorkingWithDeployedStack({
+  const { args } = await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
   });
 
-  const { bastionResource, resourceName } = globalStateManager.args;
+  const { bastionResource, resourceName } = args;
 
   const deployedStpResource = deployedStackOverviewManager.getStpResource({ nameChain: resourceName });
   if (!deployedStpResource) {
@@ -35,7 +34,7 @@ export const commandBastionTunnel = async () => {
 
   const tunnels = await startPortForwardingSessions({
     targets,
-    startAtPort: globalStateManager.args.localTunnelingPort
+    startAtPort: args.localTunnelingPort
   });
 
   tuiManager.info(

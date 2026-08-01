@@ -1,6 +1,5 @@
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import { applicationManager } from '@application-services/application-manager';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { postgresQuery, mysqlQuery, type PostgresConnectionOpts } from '@domain-services/debug-services/db-client';
@@ -78,12 +77,12 @@ export const assertReadOnlySql = ({ sql }: { sql: string }) => {
 };
 
 export const commandQuerySql = async () => {
-  await initializeStackServicesForWorkingWithDeployedStack({
+  const { args: capturedArgs } = await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
   });
 
-  const args = globalStateManager.args as StacktapeCliArgs & {
+  const args = capturedArgs as StacktapeCliArgs & {
     sql?: string;
     limit?: number;
     timeout?: number;

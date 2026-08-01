@@ -1,5 +1,4 @@
 import type { StacktapeCliArgs } from 'src/config/cli/types';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import {
   AWS_READ_ONLY_OPERATIONS,
@@ -15,20 +14,20 @@ import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/in
 import { parseJsonObjectArgument } from '../_utils/parse-json-argument';
 
 export const commandAwsCall = async () => {
-  await initializeStackServicesForWorkingWithDeployedStack({
+  const { args, stackContext } = await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
   });
 
   initDebugAgentCredentials();
 
-  const args = globalStateManager.args as StacktapeCliArgs & {
+  const commandArgs = args as StacktapeCliArgs & {
     service?: string;
     command?: string;
     input?: string;
   };
 
-  const { service, command, input, region } = args;
+  const { service, command, input, region } = commandArgs;
 
   const supportedServices = Object.keys(AWS_READ_ONLY_OPERATIONS).join(', ');
 
@@ -84,7 +83,7 @@ export const commandAwsCall = async () => {
     });
   }
 
-  const awsRegion = region || globalStateManager.region;
+  const awsRegion = region || stackContext.region;
   if (!awsRegion) {
     throw new CliError({
       category: 'CLI',

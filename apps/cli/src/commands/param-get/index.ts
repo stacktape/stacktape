@@ -2,24 +2,22 @@ import type {
   StacktapeResourceReferenceableParam,
   StpResourceType
 } from '@domain-services/config-manager/resolved-types/resources';
-import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { stpErrors } from '@errors';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 export const commandParamGet = async () => {
-  const resourceName = globalStateManager.args.resourceName;
-  const paramName = globalStateManager.args.paramName;
   // we do not need to initialize all services yet
   // in case we only need to print existing stack non-detailed info, this is enough
-  await initializeStackServicesForWorkingWithDeployedStack({
+  const { args, stackContext } = await initializeStackServicesForWorkingWithDeployedStack({
     commandModifiesStack: false,
     commandRequiresConfig: false
   });
+  const { paramName, resourceName } = args;
   const resource = deployedStackOverviewManager.stackInfoMap.resources[resourceName];
   if (!resource) {
-    throw stpErrors.e77({ stackName: globalStateManager.targetStack.stackName, resourceName });
+    throw stpErrors.e77({ stackName: stackContext.stackName, resourceName });
   }
   const param =
     deployedStackOverviewManager.stackInfoMap.resources[resourceName].referencableParams[
@@ -34,7 +32,7 @@ export const commandParamGet = async () => {
     });
   }
   const isSensitive = Boolean(param.ssmParameterName);
-  const shouldShowSensitiveValue = Boolean(globalStateManager.args.showSensitiveValues);
+  const shouldShowSensitiveValue = Boolean(args.showSensitiveValues);
   const paramValue = isSensitive && !shouldShowSensitiveValue ? '<<OMITTED>>' : param.value;
   tuiManager.success(
     `Parameter retrieved: ${tuiManager.prettyResourceName(resourceName)}.${tuiManager.prettyConfigProperty(paramName)}`
