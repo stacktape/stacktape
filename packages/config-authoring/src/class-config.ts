@@ -628,6 +628,89 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     sourceFile: 'aws-cdk-construct.d.ts',
     supportsOverrides: false,
     canConnectTo: []
+  },
+  {
+    className: 'CustomResourceDefinition',
+    resourceType: 'custom-resource-definition',
+    propsType: 'CustomResourceDefinitionProps',
+    interfaceName: 'CustomResourceDefinition',
+    sourceFile: 'custom-resources.d.ts',
+    supportsOverrides: false,
+    hasAugmentedProps: true,
+    canConnectTo: [
+      'RelationalDatabase',
+      'Bucket',
+      'HostingBucket',
+      'DynamoDbTable',
+      'EventBus',
+      'RedisCluster',
+      'MongoDbAtlasCluster',
+      'UpstashRedis',
+      'SqsQueue',
+      'SnsTopic',
+      'KinesisStream',
+      'OpenSearchDomain',
+      'EfsFilesystem',
+      'PrivateService'
+    ]
+  },
+  {
+    className: 'CustomResourceInstance',
+    resourceType: 'custom-resource-instance',
+    propsType: 'CustomResourceInstanceProps',
+    interfaceName: 'CustomResourceInstance',
+    sourceFile: 'custom-resources.d.ts',
+    supportsOverrides: false,
+    canConnectTo: []
+  },
+  {
+    className: 'DeploymentScript',
+    resourceType: 'deployment-script',
+    propsType: 'DeploymentScriptProps',
+    interfaceName: 'DeploymentScript',
+    sourceFile: 'deployment-script.d.ts',
+    supportsOverrides: false,
+    hasAugmentedProps: true,
+    canConnectTo: [
+      'RelationalDatabase',
+      'Bucket',
+      'HostingBucket',
+      'DynamoDbTable',
+      'EventBus',
+      'RedisCluster',
+      'MongoDbAtlasCluster',
+      'UpstashRedis',
+      'SqsQueue',
+      'SnsTopic',
+      'KinesisStream',
+      'OpenSearchDomain',
+      'EfsFilesystem',
+      'PrivateService'
+    ]
+  },
+  {
+    className: 'EdgeLambdaFunction',
+    resourceType: 'edge-lambda-function',
+    propsType: 'EdgeLambdaFunctionProps',
+    interfaceName: 'EdgeLambdaFunction',
+    sourceFile: 'edge-lambda-functions.d.ts',
+    hasAugmentedProps: true,
+    canConnectTo: [
+      'RelationalDatabase',
+      'Bucket',
+      'HostingBucket',
+      'DynamoDbTable',
+      'EventBus',
+      'RedisCluster',
+      'MongoDbAtlasCluster',
+      'UpstashRedis',
+      'SqsQueue',
+      'SnsTopic',
+      'KinesisStream',
+      'OpenSearchDomain',
+      'EfsFilesystem',
+      'PrivateService'
+    ]
   }
 ];
 
@@ -1222,37 +1305,6 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
     interfaceName: 'LambdaDurationTrigger',
     sourceFile: 'alarms.d.ts',
     jsdoc: 'Triggers an alarm when Lambda function execution duration exceeds the threshold (in milliseconds).'
-  },
-  // Custom Resources
-  {
-    className: 'CustomResourceDefinition',
-    typeValue: 'custom-resource-definition',
-    propsType: 'CustomResourceDefinitionProps',
-    interfaceName: 'CustomResourceDefinition',
-    sourceFile: 'custom-resources.d.ts'
-  },
-  {
-    className: 'CustomResourceInstance',
-    typeValue: 'custom-resource-instance',
-    propsType: 'CustomResourceInstanceProps',
-    interfaceName: 'CustomResourceInstance',
-    sourceFile: 'custom-resources.d.ts'
-  },
-  // Deployment Scripts
-  {
-    className: 'DeploymentScript',
-    typeValue: 'deployment-script',
-    propsType: 'DeploymentScriptProps',
-    interfaceName: 'DeploymentScript',
-    sourceFile: 'deployment-script.d.ts'
-  },
-  // Edge Lambda Functions
-  {
-    className: 'EdgeLambdaFunction',
-    typeValue: 'edge-lambda-function',
-    propsType: 'EdgeLambdaFunctionProps',
-    interfaceName: 'EdgeLambdaFunction',
-    sourceFile: 'edge-lambda-functions.d.ts'
   }
 ];
 

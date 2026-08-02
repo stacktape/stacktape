@@ -121,7 +121,7 @@ ${constructorJsDoc}
     return `
 export declare class ${className} extends BaseTypeProperties {
 ${constructorJsDoc}
-  constructor(properties: ${propsTypeRef});
+  constructor(properties: WithAuthoringNamedResourceReferences<${propsTypeRef}>);
   readonly type: '${typeValue}';
 }`;
   }).join('\n');

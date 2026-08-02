@@ -54,7 +54,7 @@ export default defineConfig(({ stage }) => {
 
   const myFunction = new LambdaFunction({
     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/index.ts' }),
-    events: [new HttpApiIntegration({ httpApiGatewayName: api.resourceName, method: 'GET', path: '/' })],
+    events: [new HttpApiIntegration({ httpApiGatewayName: api, method: 'GET', path: '/' })],
     connectTo: [database],
     environment: { TABLE_NAME: database.name }
   });

@@ -25,7 +25,9 @@ describe('type-properties classes take their authored props', () => {
   test('IotIntegration constructs from the real IotIntegrationProps', () => {
     const iot = classBlockFor('IotIntegration');
 
-    expect(iot).toContain("constructor(properties: import('./plain').IotIntegrationProps)");
+    expect(iot).toContain(
+      "constructor(properties: WithAuthoringNamedResourceReferences<import('./plain').IotIntegrationProps>)"
+    );
     expect(iot).toContain("readonly type: 'iot'");
     expect(iot).not.toContain('Record<string, unknown>');
   });
@@ -46,7 +48,7 @@ describe('type-properties classes take their authored props', () => {
       if (typeOnly || scriptProps.includes(className)) continue;
       const block = classBlockFor(className);
       expect(block, `${className} should construct from ./plain`).toContain(
-        "constructor(properties: import('./plain')"
+        "constructor(properties: WithAuthoringNamedResourceReferences<import('./plain')"
       );
     }
   });

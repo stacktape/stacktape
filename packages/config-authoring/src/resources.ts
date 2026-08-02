@@ -85,3 +85,7 @@ export const AgentCoreGateway = createResourceClass('AgentCoreGateway', 'agentco
 export const AgentCoreBrowser = createResourceClass('AgentCoreBrowser', 'agentcore-browser');
 export const AgentCoreCodeInterpreter = createResourceClass('AgentCoreCodeInterpreter', 'agentcore-code-interpreter');
 export const AwsCdkConstruct = createResourceClass('AwsCdkConstruct', 'aws-cdk-construct');
+export const CustomResourceDefinition = createResourceClass('CustomResourceDefinition', 'custom-resource-definition');
+export const CustomResourceInstance = createResourceClass('CustomResourceInstance', 'custom-resource-instance');
+export const DeploymentScript = createResourceClass('DeploymentScript', 'deployment-script');
+export const EdgeLambdaFunction = createResourceClass('EdgeLambdaFunction', 'edge-lambda-function');

@@ -8,16 +8,15 @@ import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
 const getParamReferenceSymbol = Symbol.for('stacktape:getParamReference');
 const getTypeSymbol = Symbol.for('stacktape:getType');
 const getPropertiesSymbol = Symbol.for('stacktape:getProperties');
-const getOverridesSymbol = Symbol.for('stacktape:getOverrides');
-const getTransformsSymbol = Symbol.for('stacktape:getTransforms');
-const setResourceNameSymbol = Symbol.for('stacktape:setResourceName');
+const getReferencedResourceSymbol = Symbol.for('stacktape:getReferencedResource');
+const getReferencedParamSymbol = Symbol.for('stacktape:getReferencedParam');
 const resourceParamRefSymbol = Symbol.for('stacktape:isResourceParamRef');
 const baseTypePropertiesSymbol = Symbol.for('stacktape:isBaseTypeProperties');
 const alarmSymbol = Symbol.for('stacktape:isAlarm');
 
 // Duck-type checkers - use symbols instead of instanceof for cross-module compatibility
 const isBaseResource = (value: unknown): value is BaseResource =>
-  value !== null && typeof value === 'object' && setResourceNameSymbol in value;
+  value !== null && typeof value === 'object' && getTypeSymbol in value;
 
 const isBaseTypeProperties = (value: unknown): value is BaseTypeProperties =>
   value !== null && typeof value === 'object' && baseTypePropertiesSymbol in value;
@@ -27,73 +26,39 @@ const isAlarm = (value: unknown): value is Alarm => value !== null && typeof val
 const isResourceParamReference = (value: unknown): value is ResourceParamReference =>
   value !== null && typeof value === 'object' && resourceParamRefSymbol in value;
 
-const deferredNameSymbol = Symbol.for('stacktape:isDeferredResourceName');
-
-const isDeferredResourceName = (value: unknown): value is DeferredResourceName =>
-  value !== null && typeof value === 'object' && deferredNameSymbol in value;
-
-/**
- * A deferred reference to a resource's name.
- * Used when accessing resourceName before the name is set.
- * Resolves lazily during transformation.
- */
-class DeferredResourceName {
-  private __resource: BaseResource;
-  readonly [deferredNameSymbol] = true;
-
-  constructor(resource: BaseResource) {
-    this.__resource = resource;
-  }
-
-  resolve(): string {
-    // At resolution time, the name should be set
-    const name = (this.__resource as any)._resourceName;
-    if (name === undefined) {
-      throw new Error(
-        'Resource name not set. Make sure to add the resource to the resources object in your config. ' +
-          'The resource name is automatically derived from the object key.'
-      );
-    }
-    return name;
-  }
-
-  toString(): string {
-    return this.resolve();
-  }
-
-  toJSON(): string {
-    return this.resolve();
-  }
-
-  valueOf(): string {
-    return this.resolve();
-  }
-}
-
 /**
  * A reference to a resource parameter that will be resolved at runtime.
- * Stores a reference to the resource for lazy name resolution.
+ * The compiler resolves the target resource from the config's `resources` keys.
  */
 export class ResourceParamReference {
-  private __resource: BaseResource;
-  private __param: string;
+  readonly #resource: BaseResource;
+  readonly #param: string;
   readonly [resourceParamRefSymbol] = true;
 
   constructor(resource: BaseResource, param: string) {
-    this.__resource = resource;
-    this.__param = param;
+    this.#resource = resource;
+    this.#param = param;
   }
 
-  toString(): string {
-    return `$ResourceParam('${this.__resource.resourceName}', '${this.__param}')`;
+  [getReferencedResourceSymbol](): BaseResource {
+    return this.#resource;
   }
 
-  toJSON(): string {
+  [getReferencedParamSymbol](): string {
+    return this.#param;
+  }
+
+  toString(): never {
+    throw new TypeError(
+      'A Stacktape resource parameter reference cannot be converted to a string while the config is being authored. Pass it directly as a configuration value instead of interpolating it.'
+    );
+  }
+
+  toJSON(): never {
     return this.toString();
   }
 
-  // Allow the reference to be used directly in template strings
-  valueOf(): string {
+  valueOf(): never {
     return this.toString();
   }
 }
@@ -160,90 +125,12 @@ export class Alarm {
  */
 export class BaseResource {
   private readonly _type: StacktapeResourceType;
-  private _properties: any;
-  private _overrides?: any;
-  private _transforms?: any;
-  private _resourceName: string | undefined;
+  private readonly _properties: any;
 
-  constructor(type: StacktapeResourceType, properties: any, overrides?: any) {
+  constructor(type: StacktapeResourceType, properties: any) {
     this._type = type;
 
-    // Store properties and overrides initially - they'll be processed when name is set
     this._properties = properties;
-    this._overrides = overrides;
-  }
-
-  /**
-   * Process overrides and transforms extraction from properties.
-   * Called when the resource name is available.
-   */
-  private _processOverridesAndTransforms(): void {
-    const properties = this._properties;
-    if (properties && typeof properties === 'object') {
-      // Clone properties without overrides and transforms
-      const finalProperties = { ...properties };
-
-      // Handle overrides from properties (if they weren't extracted by child class)
-      if ('overrides' in finalProperties) {
-        const propertiesOverrides = finalProperties.overrides;
-        delete finalProperties.overrides;
-
-        // Transform overrides using cfLogicalNames
-        if (propertiesOverrides && typeof propertiesOverrides === 'object') {
-          this._overrides = transformOverridesToLogicalNames(this._resourceName!, this._type, propertiesOverrides);
-        }
-      }
-
-      // Handle transforms from properties (if they weren't extracted by child class)
-      if ('transforms' in finalProperties) {
-        const propertiesTransforms = finalProperties.transforms;
-        delete finalProperties.transforms;
-
-        // Transform transforms using cfLogicalNames (same mapping as overrides)
-        if (propertiesTransforms && typeof propertiesTransforms === 'object') {
-          this._transforms = transformTransformsToLogicalNames(this._resourceName!, this._type, propertiesTransforms);
-        }
-      }
-
-      this._properties = finalProperties;
-    }
-
-    // Also transform overrides/transforms that were passed directly via constructor
-    // (when child class extracts them before calling super)
-    if (this._overrides && typeof this._overrides === 'object') {
-      this._overrides = transformOverridesToLogicalNames(this._resourceName!, this._type, this._overrides);
-    }
-    if (this._transforms && typeof this._transforms === 'object') {
-      this._transforms = transformTransformsToLogicalNames(this._resourceName!, this._type, this._transforms);
-    }
-  }
-
-  // Public getter for resource name (used for referencing resources)
-  // Returns a deferred reference when name isn't set yet, which resolves during transformation
-  get resourceName(): string {
-    if (this._resourceName === undefined) {
-      // Return a deferred reference that will resolve during transformation
-      // TypeScript sees this as string due to toString/valueOf, runtime resolves lazily
-      return new DeferredResourceName(this) as unknown as string;
-    }
-    return this._resourceName;
-  }
-
-  /**
-   * Internal method to set the resource name from the object key.
-   * Called by transformConfigWithResources.
-   */
-  [setResourceNameSymbol](name: string): void {
-    if (this._resourceName !== undefined && this._resourceName !== name) {
-      throw new Error(
-        `The same Stacktape resource instance cannot be registered as both "${this._resourceName}" and "${name}".`
-      );
-    }
-    if (this._resourceName === undefined) {
-      this._resourceName = name;
-      // Now that we have a name, process overrides and transforms
-      this._processOverridesAndTransforms();
-    }
   }
 
   // Private methods using symbols - not accessible from outside or in autocomplete
@@ -257,14 +144,6 @@ export class BaseResource {
 
   [getPropertiesSymbol](): any {
     return this._properties;
-  }
-
-  [getOverridesSymbol](): any | undefined {
-    return this._overrides;
-  }
-
-  [getTransformsSymbol](): any | undefined {
-    return this._transforms;
   }
 }
 
@@ -421,6 +300,63 @@ type ResourcePropertiesOf<Type extends StacktapeResourceType> =
 
 type AuthoringEnvironment = Record<string, string | number | boolean>;
 
+export type ResourceReferencePropertyKey =
+  | 'afterTrafficShiftFunction'
+  | 'assumeRoleOfResource'
+  | 'bastionResource'
+  | 'beforeAllowTrafficFunction'
+  | 'bucketName'
+  | 'definitionName'
+  | 'efsFilesystemName'
+  | 'eventBusName'
+  | 'function'
+  | 'functionName'
+  | 'httpApiGatewayName'
+  | 'kinesisStreamName'
+  | 'loadBalancerName'
+  | 'onOriginRequest'
+  | 'onOriginResponse'
+  | 'onRequest'
+  | 'onResponse'
+  | 'snsTopicName'
+  | 'sqsQueueName'
+  | 'targetSqsQueueName'
+  | 'useBrowser'
+  | 'useCodeInterpreter'
+  | 'useFirewall'
+  | 'useGateway'
+  | 'useMemory'
+  | 'userPool'
+  | 'userPoolName';
+
+type IsDirectResourceReference<
+  Key,
+  ResourceType extends StacktapeResourceType | undefined
+> = Key extends ResourceReferencePropertyKey
+  ? Key extends 'bucketName'
+    ? ResourceType extends 'agentcore-browser'
+      ? false
+      : true
+    : true
+  : false;
+
+type WithAuthoringNamedResourceReferences<
+  Value,
+  ResourceType extends StacktapeResourceType | undefined = undefined
+> = Value extends (...args: any[]) => unknown
+  ? Value
+  : Value extends readonly (infer Item)[]
+    ? Array<WithAuthoringNamedResourceReferences<Item, ResourceType>>
+    : Value extends object
+      ? {
+          [Key in keyof Value]: IsDirectResourceReference<Key, ResourceType> extends true
+            ? Value[Key] extends string | undefined
+              ? Value[Key] | BaseResource
+              : WithAuthoringNamedResourceReferences<Value[Key], ResourceType>
+            : WithAuthoringNamedResourceReferences<Value[Key], ResourceType>;
+        }
+      : Value;
+
 type WithAuthoringEnvironment<Value> = Value extends object
   ? Omit<Value, 'environment'> &
       ('environment' extends keyof Value ? { environment?: AuthoringEnvironment } : Record<never, never>)
@@ -458,13 +394,20 @@ type WithAuthoringResourceReferences<Properties> = Omit<Properties, 'connectTo' 
 
 type ResourcesWithoutCloudFormationCustomization =
   | 'convex'
+  | 'custom-resource-definition'
+  | 'custom-resource-instance'
+  | 'deployment-script'
   | 'mongo-db-atlas-cluster'
   | 'upstash-redis'
   | 'aws-cdk-construct';
 
 export type AuthoringResourceProps<Type extends StacktapeResourceType> = WithAuthoringObjectEnvironment<
   WithAuthoringArrayEnvironment<
-    WithAuthoringArrayEnvironment<WithAuthoringResourceReferences<ResourcePropertiesOf<Type>>, 'containers', true>,
+    WithAuthoringArrayEnvironment<
+      WithAuthoringResourceReferences<WithAuthoringNamedResourceReferences<ResourcePropertiesOf<Type>, Type>>,
+      'containers',
+      true
+    >,
     'sideContainers'
   >,
   'container'
@@ -541,6 +484,35 @@ export const isCompiledStacktapeConfig = (value: unknown): value is CompiledStac
   (value as Partial<CompiledStacktapeConfig>).format === 'stacktape-compiled-config' &&
   (value as Partial<CompiledStacktapeConfig>).version === 1;
 
+type ResourceNames = ReadonlyMap<BaseResource, string>;
+
+const collectResourceNames = (resources: AuthoringStacktapeConfig['resources']): ResourceNames => {
+  const names = new Map<BaseResource, string>();
+  for (const [name, resource] of Object.entries(resources ?? {})) {
+    if (!isBaseResource(resource)) {
+      continue;
+    }
+    const previousName = names.get(resource);
+    if (previousName !== undefined && previousName !== name) {
+      throw new Error(
+        `The same Stacktape resource instance cannot be registered as both "${previousName}" and "${name}".`
+      );
+    }
+    names.set(resource, name);
+  }
+  return names;
+};
+
+const getRegisteredResourceName = (resource: BaseResource, resourceNames: ResourceNames): string => {
+  const name = resourceNames.get(resource);
+  if (name === undefined) {
+    throw new Error(
+      'A Stacktape resource is referenced but is not registered in the returned `resources` object. Add the resource there and use its object key as its name.'
+    );
+  }
+  return name;
+};
+
 /**
  * Compiles the TypeScript authoring model into the serializable configuration consumed by the CLI and keeps
  * executable CloudFormation transforms in an explicit side channel.
@@ -550,16 +522,7 @@ export const compileAuthoringConfig = (config: AuthoringStacktapeConfig): Compil
     throw new TypeError('A Stacktape configuration factory must return an object.');
   }
 
-  // First pass: set all resource names from object keys
-  // This must happen before any transformation so that ResourceParamReferences can resolve names
-  if (config.resources && typeof config.resources === 'object') {
-    for (const key in config.resources) {
-      const resource = config.resources[key];
-      if (isBaseResource(resource)) {
-        (resource as any)[setResourceNameSymbol](key);
-      }
-    }
-  }
+  const resourceNames = collectResourceNames(config.resources);
 
   // Second pass: transform the config
   const result: Record<string, unknown> = {};
@@ -567,19 +530,19 @@ export const compileAuthoringConfig = (config: AuthoringStacktapeConfig): Compil
   let finalTransform: FinalTransform | null = null;
   for (const key in config) {
     if (key === 'resources') {
-      const compiledResources = transformResourceDefinitions(config[key]);
+      const compiledResources = transformResourceDefinitions(config[key], resourceNames);
       result[key] = compiledResources.resources;
       Object.assign(transforms, compiledResources.transforms);
     } else if (key === 'scripts') {
       // Scripts are also transformed as definitions
-      result[key] = transformScriptDefinitions(config[key]);
+      result[key] = transformScriptDefinitions(config[key], resourceNames);
     } else if (key === 'finalTransform') {
       if (config.finalTransform !== undefined && typeof config.finalTransform !== 'function') {
         throw new TypeError('Stacktape config finalTransform must be a function.');
       }
       finalTransform = config.finalTransform ?? null;
     } else {
-      result[key] = transformValue((config as unknown as Record<string, unknown>)[key]);
+      result[key] = transformValue((config as unknown as Record<string, unknown>)[key], resourceNames);
     }
   }
   return {
@@ -598,7 +561,7 @@ export const transformConfigWithResources = (config: AuthoringStacktapeConfig): 
 /**
  * Transforms environment object to array format
  */
-const transformEnvironment = (env: any): any => {
+const transformEnvironment = (env: any, resourceNames: ResourceNames): any => {
   if (!env || typeof env !== 'object' || Array.isArray(env)) {
     return env;
   }
@@ -606,7 +569,7 @@ const transformEnvironment = (env: any): any => {
   // Convert { KEY: value } to [{ name: 'KEY', value }]
   return Object.entries(env).map(([name, value]) => ({
     name,
-    value: transformValue(value)
+    value: transformValue(value, resourceNames)
   }));
 };
 
@@ -614,7 +577,8 @@ const transformEnvironment = (env: any): any => {
  * Transforms resource definitions (values in the resources object)
  */
 const transformResourceDefinitions = (
-  resources: AuthoringStacktapeConfig['resources']
+  resources: AuthoringStacktapeConfig['resources'],
+  resourceNames: ResourceNames
 ): { resources: StacktapeConfig['resources']; transforms: Record<string, ResourceTransform> } => {
   if (!resources || typeof resources !== 'object') {
     return { resources: resources as unknown as StacktapeConfig['resources'], transforms: {} };
@@ -626,17 +590,37 @@ const transformResourceDefinitions = (
     const resource = resources[key];
     if (isBaseResource(resource)) {
       const type = (resource as any)[getTypeSymbol]();
-      const properties = (resource as any)[getPropertiesSymbol]();
-      const overrides = (resource as any)[getOverridesSymbol]();
-      const transforms = (resource as any)[getTransformsSymbol]();
+      const authoredProperties = (resource as any)[getPropertiesSymbol]();
+      let overrides: unknown;
+      let transforms: unknown;
+      let properties = authoredProperties;
+      if (authoredProperties && typeof authoredProperties === 'object' && !Array.isArray(authoredProperties)) {
+        properties = { ...authoredProperties };
+        if ('overrides' in properties) {
+          overrides = properties.overrides;
+          delete properties.overrides;
+        }
+        if ('transforms' in properties) {
+          transforms = properties.transforms;
+          delete properties.transforms;
+        }
+      }
+      const compiledOverrides =
+        overrides && typeof overrides === 'object' && !Array.isArray(overrides)
+          ? transformOverridesToLogicalNames(key, type, overrides)
+          : overrides;
+      const compiledTransforms =
+        transforms && typeof transforms === 'object' && !Array.isArray(transforms)
+          ? transformTransformsToLogicalNames(key, type, transforms)
+          : transforms;
       result[key] = {
         type,
-        properties: transformValue(properties),
-        ...(overrides !== undefined && { overrides: transformValue(overrides) })
+        properties: transformValue(properties, resourceNames),
+        ...(compiledOverrides !== undefined && { overrides: transformValue(compiledOverrides, resourceNames) })
       };
-      collectResourceTransforms(transforms, collectedTransforms, key);
+      collectResourceTransforms(compiledTransforms, collectedTransforms, key);
     } else {
-      const transformedResource = transformValue(resource);
+      const transformedResource = transformValue(resource, resourceNames);
       if (transformedResource?.transforms !== undefined) {
         collectResourceTransforms(transformedResource.transforms, collectedTransforms, key);
         delete transformedResource.transforms;
@@ -669,7 +653,7 @@ const collectResourceTransforms = (
 /**
  * Transforms script definitions (values in the scripts object)
  */
-const transformScriptDefinitions = (scripts: any): any => {
+const transformScriptDefinitions = (scripts: any, resourceNames: ResourceNames): any => {
   if (!scripts || typeof scripts !== 'object') {
     return scripts;
   }
@@ -680,16 +664,16 @@ const transformScriptDefinitions = (scripts: any): any => {
     if (isBaseTypeProperties(script)) {
       result[key] = {
         type: script.type,
-        properties: transformValue(script.properties)
+        properties: transformValue(script.properties, resourceNames)
       };
     } else {
-      result[key] = transformValue(script);
+      result[key] = transformValue(script, resourceNames);
     }
   }
   return result;
 };
 
-export const transformValue = (value: any): any => {
+export const transformValue = (value: any, resourceNames: ResourceNames = new Map()): any => {
   if (value === null || value === undefined) {
     return value;
   }
@@ -701,20 +685,17 @@ export const transformValue = (value: any): any => {
     }
   }
 
-  // Transform DeferredResourceName - resolve to actual name
-  if (isDeferredResourceName(value)) {
-    return value.resolve();
-  }
-
   // Transform ResourceParamReference
   if (isResourceParamReference(value)) {
-    return value.toString();
+    const resource = (value as any)[getReferencedResourceSymbol]() as BaseResource;
+    const param = (value as any)[getReferencedParamSymbol]() as string;
+    return `$ResourceParam('${getRegisteredResourceName(resource, resourceNames)}','${param}')`;
   }
 
   // Transform BaseResource references (not definitions) to resourceName
   // This handles cases like connectTo: [database]
   if (isBaseResource(value)) {
-    return value.resourceName;
+    return getRegisteredResourceName(value, resourceNames);
   }
 
   // Transform BaseTypeProperties (engines, packaging, events) to plain object
@@ -725,20 +706,20 @@ export const transformValue = (value: any): any => {
     }
     return {
       type: value.type,
-      properties: transformValue(value.properties)
+      properties: transformValue(value.properties, resourceNames)
     };
   }
 
   // Transform Alarm class to plain object
   if (isAlarm(value)) {
     const result: any = {
-      trigger: transformValue(value.trigger)
+      trigger: transformValue(value.trigger, resourceNames)
     };
     if (value.evaluation !== undefined) {
-      result.evaluation = transformValue(value.evaluation);
+      result.evaluation = transformValue(value.evaluation, resourceNames);
     }
     if (value.notificationTargets !== undefined) {
-      result.notificationTargets = transformValue(value.notificationTargets);
+      result.notificationTargets = transformValue(value.notificationTargets, resourceNames);
     }
     if (value.description !== undefined) {
       result.description = value.description;
@@ -748,13 +729,7 @@ export const transformValue = (value: any): any => {
 
   // Transform arrays
   if (Array.isArray(value)) {
-    return value.map((item) => {
-      // If it's a resource instance in an array (e.g., connectTo), transform to resourceName
-      if (isBaseResource(item)) {
-        return item.resourceName;
-      }
-      return transformValue(item);
-    });
+    return value.map((item) => transformValue(item, resourceNames));
   }
 
   // Transform objects
@@ -763,9 +738,9 @@ export const transformValue = (value: any): any => {
     for (const key in value) {
       // Special handling for environment and injectEnvironment properties
       if (key === 'environment' || key === 'injectEnvironment') {
-        result[key] = transformEnvironment(value[key]);
+        result[key] = transformEnvironment(value[key], resourceNames);
       } else {
-        result[key] = transformValue(value[key]);
+        result[key] = transformValue(value[key], resourceNames);
       }
     }
     return result;

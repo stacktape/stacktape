@@ -120,12 +120,5 @@ export const {
   SqsQueueReceivedMessagesCountTrigger,
   SqsQueueNotEmptyTrigger,
   LambdaErrorRateTrigger,
-  LambdaDurationTrigger,
-  // Custom Resources
-  CustomResourceDefinition,
-  CustomResourceInstance,
-  // Deployment Scripts
-  DeploymentScript,
-  // Edge Lambda Functions
-  EdgeLambdaFunction
+  LambdaDurationTrigger
 } = TYPE_PROPERTIES_CLASSES;

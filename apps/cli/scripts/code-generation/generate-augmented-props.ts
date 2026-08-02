@@ -345,7 +345,7 @@ export function generateAugmentedPropsTypes(): string {
       `Sdk${resource.propsType}`,
       resource.className,
       `${resource.className}ConnectTo`,
-      true // includeOverridesAndTransforms
+      resource.supportsOverrides !== false
     );
     result.push(augmentedType);
     result.push('');

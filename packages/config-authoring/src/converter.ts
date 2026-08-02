@@ -2,7 +2,8 @@ import type {
   AuthoringStacktapeConfig,
   CompiledStacktapeConfig,
   DefinedStacktapeConfig,
-  GetConfigParams
+  GetConfigParams,
+  ResourceReferencePropertyKey
 } from './config.js';
 import {
   ENGINE_TYPE_TO_CLASS,
@@ -87,6 +88,40 @@ const DIRECTIVE_YAML_TO_SDK: Record<string, string> = {
   $Format: '$CfFormat',
   $StackOutput: '$CfStackOutput'
 };
+
+const RESOURCE_REFERENCE_PROPERTY_KEYS = new Set<ResourceReferencePropertyKey>([
+  'afterTrafficShiftFunction',
+  'assumeRoleOfResource',
+  'bastionResource',
+  'beforeAllowTrafficFunction',
+  'bucketName',
+  'definitionName',
+  'efsFilesystemName',
+  'eventBusName',
+  'function',
+  'functionName',
+  'httpApiGatewayName',
+  'kinesisStreamName',
+  'loadBalancerName',
+  'onOriginRequest',
+  'onOriginResponse',
+  'onRequest',
+  'onResponse',
+  'snsTopicName',
+  'sqsQueueName',
+  'targetSqsQueueName',
+  'useBrowser',
+  'useCodeInterpreter',
+  'useFirewall',
+  'useGateway',
+  'useMemory',
+  'userPool',
+  'userPoolName'
+]);
+
+const isResourceReferencePropertyKey = (key: string, resourceType?: string): key is ResourceReferencePropertyKey =>
+  RESOURCE_REFERENCE_PROPERTY_KEYS.has(key as ResourceReferencePropertyKey) &&
+  !(key === 'bucketName' && resourceType === 'agentcore-browser');
 
 /** Check if a string is a directive */
 const isDirective = (value: unknown): value is string => {
@@ -180,7 +215,7 @@ const configObjectToYaml = (config: Record<string, unknown>): string => {
 };
 
 /** Collect resource names referenced in a properties tree (connectTo, *Name fields in events, etc.) */
-const collectResourceRefs = (obj: unknown, resourceNames: Set<string>): Set<string> => {
+const collectResourceRefs = (obj: unknown, resourceNames: Set<string>, resourceType?: string): Set<string> => {
   const refs = new Set<string>();
   const walk = (val: unknown, key?: string) => {
     if (!val) return;
@@ -196,8 +231,7 @@ const collectResourceRefs = (obj: unknown, resourceNames: Set<string>): Set<stri
     }
     if (typeof val === 'object') {
       for (const [k, v] of Object.entries(val as Record<string, unknown>)) {
-        // Fields like httpApiGatewayName, sqsQueueName, eventBusName, userPoolName, targetSqsQueueName
-        if (k.endsWith('Name') && typeof v === 'string' && resourceNames.has(v)) {
+        if (isResourceReferencePropertyKey(k, resourceType) && typeof v === 'string' && resourceNames.has(v)) {
           refs.add(v);
         }
         walk(v, k);
@@ -213,9 +247,10 @@ const topologicalSortResources = (resources: Record<string, Record<string, unkno
   const names = new Set(Object.keys(resources));
   const deps = new Map<string, Set<string>>();
   for (const [name, resource] of Object.entries(resources)) {
-    const refs = collectResourceRefs(resource.properties, names);
+    const resourceType = typeof resource.type === 'string' ? resource.type : undefined;
+    const refs = collectResourceRefs(resource.properties, names, resourceType);
     // Also check redrivePolicy.targetSqsQueueName at resource level
-    const allRefs = new Set([...refs, ...collectResourceRefs(resource, names)]);
+    const allRefs = new Set([...refs, ...collectResourceRefs(resource, names, resourceType)]);
     allRefs.delete(name); // no self-refs
     deps.set(name, allRefs);
   }
@@ -256,12 +291,14 @@ const configObjectToTypescriptCode = (config: Record<string, unknown>): string =
   const scriptDeclarations: string[] = [];
   const resourceNames: string[] = [];
   const scriptNames: string[] = [];
+  const availableResourceNames = new Set<string>();
 
   imports.add('defineConfig');
 
   // Process resources (topologically sorted so connectTo references are declared before use)
   if (config.resources && typeof config.resources === 'object') {
     const resources = config.resources as Record<string, Record<string, unknown>>;
+    Object.keys(resources).forEach((name) => availableResourceNames.add(name));
     const sortedNames = topologicalSortResources(resources);
 
     for (const name of sortedNames) {
@@ -276,7 +313,13 @@ const configObjectToTypescriptCode = (config: Record<string, unknown>): string =
       }
 
       imports.add(className as string);
-      const propsCode = generatePropsCode(resource.properties as Record<string, unknown>, imports, 2, resourceType);
+      const propsCode = generatePropsCode(
+        resource.properties as Record<string, unknown>,
+        imports,
+        2,
+        availableResourceNames,
+        resourceType
+      );
       resourceDeclarations.push(`const ${name} = new ${className}(${propsCode});`);
       resourceNames.push(name);
     }
@@ -292,7 +335,12 @@ const configObjectToTypescriptCode = (config: Record<string, unknown>): string =
       }
 
       imports.add(className);
-      const propsCode = generatePropsCode(script.properties as Record<string, unknown>, imports, 2);
+      const propsCode = generatePropsCode(
+        script.properties as Record<string, unknown>,
+        imports,
+        2,
+        availableResourceNames
+      );
       scriptDeclarations.push(`const ${name} = new ${className}(${propsCode});`);
       scriptNames.push(name);
     }
@@ -361,6 +409,7 @@ const generatePropsCode = (
   props: Record<string, unknown> | undefined,
   imports: Set<string>,
   indent: number,
+  resourceNames: ReadonlySet<string>,
   resourceType?: string
 ): string => {
   if (!props) return '{}';
@@ -378,6 +427,7 @@ const generatePropsCode = (
         PACKAGING_TYPE_TO_CLASS,
         imports,
         indent,
+        resourceNames,
         resourceType
       );
       entries.push(`${k}: ${code}`);
@@ -390,6 +440,7 @@ const generatePropsCode = (
         ENGINE_TYPE_TO_CLASS,
         imports,
         indent,
+        resourceNames,
         resourceType
       );
       entries.push(`${k}: ${code}`);
@@ -417,7 +468,7 @@ const generatePropsCode = (
     if (key === 'connectTo' && Array.isArray(value)) {
       const refs = (value as (string | unknown)[]).map((ref) => {
         // If it's a string like "mainDatabase", convert to variable reference
-        if (typeof ref === 'string') return ref;
+        if (typeof ref === 'string' && resourceNames.has(ref)) return ref;
         return JSON.stringify(ref);
       });
       entries.push(`${k}: [${refs.join(', ')}]`);
@@ -426,21 +477,32 @@ const generatePropsCode = (
 
     // Handle events array with context-aware mapping
     if (key === 'events' && Array.isArray(value)) {
-      const arrayCode = generateArrayCode(value, imports, indent + 1, resourceType);
+      const arrayCode = generateArrayCode(value, imports, indent + 1, resourceNames, resourceType);
       entries.push(`${k}: ${arrayCode}`);
+      continue;
+    }
+
+    if (isResourceReferencePropertyKey(key, resourceType) && typeof value === 'string' && resourceNames.has(value)) {
+      entries.push(`${k}: ${value}`);
       continue;
     }
 
     // Handle nested objects that might have typed properties
     if (value && typeof value === 'object' && !Array.isArray(value)) {
-      const nested = generatePropsCode(value as Record<string, unknown>, imports, indent + 1, resourceType);
+      const nested = generatePropsCode(
+        value as Record<string, unknown>,
+        imports,
+        indent + 1,
+        resourceNames,
+        resourceType
+      );
       entries.push(`${k}: ${nested}`);
       continue;
     }
 
     // Handle arrays with potential typed properties
     if (Array.isArray(value)) {
-      const arrayCode = generateArrayCode(value, imports, indent + 1, resourceType);
+      const arrayCode = generateArrayCode(value, imports, indent + 1, resourceNames, resourceType);
       entries.push(`${k}: ${arrayCode}`);
       continue;
     }
@@ -479,6 +541,7 @@ const generateTypedPropertyCode = (
   typeMap: Record<string, string>,
   imports: Set<string>,
   indent: number,
+  resourceNames: ReadonlySet<string>,
   resourceType?: string
 ): string => {
   const type = value.type as string;
@@ -490,12 +553,24 @@ const generateTypedPropertyCode = (
   }
 
   imports.add(className);
-  const propsCode = generatePropsCode(value.properties as Record<string, unknown>, imports, indent, resourceType);
+  const propsCode = generatePropsCode(
+    value.properties as Record<string, unknown>,
+    imports,
+    indent,
+    resourceNames,
+    resourceType
+  );
   return `new ${className}(${propsCode})`;
 };
 
 /** Generate code for arrays, handling nested typed properties */
-const generateArrayCode = (arr: unknown[], imports: Set<string>, indent: number, resourceType?: string): string => {
+const generateArrayCode = (
+  arr: unknown[],
+  imports: Set<string>,
+  indent: number,
+  resourceNames: ReadonlySet<string>,
+  resourceType?: string
+): string => {
   const indentStr = '  '.repeat(indent);
   const items: string[] = [];
   const eventTypeMap = getEventTypeMapping(resourceType);
@@ -511,13 +586,15 @@ const generateArrayCode = (arr: unknown[], imports: Set<string>, indent: number,
       // Check event types first (context-aware), then packaging/engine
       const className = eventTypeMap[type] || PACKAGING_TYPE_TO_CLASS[type] || ENGINE_TYPE_TO_CLASS[type];
       if (className) {
-        items.push(generateTypedPropertyCode(typed, { [type]: className }, imports, indent, resourceType));
+        items.push(
+          generateTypedPropertyCode(typed, { [type]: className }, imports, indent, resourceNames, resourceType)
+        );
       } else {
         // Unknown typed property - keep as plain object
         items.push(JSON.stringify(item, null, 2).split('\n').join(`\n${indentStr}`));
       }
     } else if (item && typeof item === 'object' && !Array.isArray(item)) {
-      const objCode = generatePropsCode(item as Record<string, unknown>, imports, indent, resourceType);
+      const objCode = generatePropsCode(item as Record<string, unknown>, imports, indent, resourceNames, resourceType);
       items.push(objCode);
     } else {
       items.push(generateValueCode(item, imports));

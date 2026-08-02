@@ -51,7 +51,18 @@ const smokeTestTsConfigLoading = async () => {
 
   assert.ok(config);
   assert.equal(config.resources.lambda.type, 'function');
+  assert.deepEqual(config.resources.lambda.properties.connectTo, ['uploads']);
+  const event = config.resources.lambda.properties.events[0];
+  assert.equal(event.type, 'http-api-gateway');
+  if (event.type !== 'http-api-gateway') {
+    throw new Error('Expected the config-loading smoke event to be an HTTP API event.');
+  }
+  assert.equal(event.properties.httpApiGatewayName, 'api');
   assert.deepEqual(config.resources.lambda.properties.environment, [
+    {
+      name: 'CONFIG_LOADING_BUCKET',
+      value: "$ResourceParam('uploads','name')"
+    },
     {
       name: 'CONFIG_LOADING_SUFFIX',
       value: 'config-loading-from-pkg-b'

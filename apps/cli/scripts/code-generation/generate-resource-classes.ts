@@ -93,7 +93,7 @@ function generateResourceClass(
     '',
     `export declare class ${className} extends BaseResource {`,
     constructorJsDoc,
-    `  constructor(properties: ${finalPropsType});`,
+    `  constructor(properties: WithAuthoringNamedResourceReferences<${finalPropsType}, '${resourceType}'>);`,
     getters,
     '}'
   ];

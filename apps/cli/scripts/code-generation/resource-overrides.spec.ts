@@ -41,7 +41,9 @@ describe('resources without modelled CloudFormation children have no overrides',
     const convex = classBlockFor('Convex');
 
     // No augmented props and no overrides: the plain authored props, straight from ./plain.
-    expect(convex).toContain("constructor(properties: import('./plain').ConvexProps)");
+    expect(convex).toContain(
+      "constructor(properties: WithAuthoringNamedResourceReferences<import('./plain').ConvexProps, 'convex'>)"
+    );
     expect(convex).not.toContain('constructor(name: string');
     expect(convex).not.toContain('ConvexPropsWithOverrides');
   });
@@ -51,6 +53,14 @@ describe('resources without modelled CloudFormation children have no overrides',
       expect(assembledDeclarations).not.toContain(dangling);
     }
   });
+
+  test('augmented resource props also honor the no-overrides metadata', () => {
+    for (const className of ['CustomResourceDefinition', 'DeploymentScript'] as const) {
+      expect(getResourceByClassName(className)?.supportsOverrides).toBe(false);
+      expect(assembledDeclarations).not.toContain(`${className}Overrides`);
+      expect(assembledDeclarations).not.toContain(`${className}Transforms`);
+    }
+  });
 });
 
 describe('resources with modelled children still get overrides', () => {
@@ -58,7 +68,7 @@ describe('resources with modelled children still get overrides', () => {
     // RelationalDatabase has no augmented props, so it is the form that actually takes `*PropsWithOverrides`.
     expect(getResourcesWithOverrides().map((resource) => resource.className)).toContain('RelationalDatabase');
     expect(classBlockFor('RelationalDatabase')).toContain(
-      'constructor(properties: RelationalDatabasePropsWithOverrides)'
+      "constructor(properties: WithAuthoringNamedResourceReferences<RelationalDatabasePropsWithOverrides, 'relational-database'>)"
     );
     expect(assembledDeclarations).toContain('RelationalDatabaseOverrides');
     expect(assembledDeclarations).toContain('RelationalDatabaseTransforms');

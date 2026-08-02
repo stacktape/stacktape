@@ -1331,7 +1331,7 @@
                           {
                             "name": "emitTsDecoratorMetadata",
                             "required": false,
-                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
                             "longDescription": "",
                             "typeInfo": {
                               "kind": "primitive",
@@ -8576,7 +8576,7 @@
                           {
                             "name": "emitTsDecoratorMetadata",
                             "required": false,
-                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
                             "longDescription": "",
                             "typeInfo": {
                               "kind": "primitive",
@@ -15502,7 +15502,7 @@
                           {
                             "name": "emitTsDecoratorMetadata",
                             "required": false,
-                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
                             "longDescription": "",
                             "typeInfo": {
                               "kind": "primitive",
@@ -22691,7 +22691,7 @@
                           {
                             "name": "emitTsDecoratorMetadata",
                             "required": false,
-                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
                             "longDescription": "",
                             "typeInfo": {
                               "kind": "primitive",
@@ -24371,7 +24371,7 @@
                           {
                             "name": "emitTsDecoratorMetadata",
                             "required": false,
-                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
                             "longDescription": "",
                             "typeInfo": {
                               "kind": "primitive",
@@ -26995,7 +26995,7 @@
                           {
                             "name": "emitTsDecoratorMetadata",
                             "required": false,
-                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
                             "longDescription": "",
                             "typeInfo": {
                               "kind": "primitive",
@@ -28238,7 +28238,7 @@
       {
         "name": "emitTsDecoratorMetadata",
         "required": false,
-        "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+        "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
@@ -28365,7 +28365,7 @@
       "requiredCount": 0,
       "optionalCount": 8
     },
-    "typeDeclaration": "// [!code focus-start]\ntype EsLanguageSpecificConfig = {\n  /** A list of dependencies to exclude from the main bundle. */\n  dependenciesToExcludeFromBundle?: Array<string>;\n  /** A list of dependencies to exclude from the deployment package. */\n  dependenciesToExcludeFromDeploymentPackage?: Array<string>;\n  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */\n  disableSourceMaps?: boolean;\n  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks. */\n  emitTsDecoratorMetadata?: boolean;\n  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;\n  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */\n  outputModuleFormat?: \"cjs\" | \"esm\";\n  /** Save source maps to a local directory instead of uploading them to AWS. */\n  outputSourceMapsTo?: string;\n  /** The path to the `tsconfig.json` file. */\n  tsConfigPath?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype EsLanguageSpecificConfig = {\n  /** A list of dependencies to exclude from the main bundle. */\n  dependenciesToExcludeFromBundle?: Array<string>;\n  /** A list of dependencies to exclude from the deployment package. */\n  dependenciesToExcludeFromDeploymentPackage?: Array<string>;\n  /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */\n  disableSourceMaps?: boolean;\n  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.\n\nSource maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers. */\n  emitTsDecoratorMetadata?: boolean;\n  /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;\n  /** Output module format: `cjs` (CommonJS) or `esm` (ES Modules, enables top-level `await`). */\n  outputModuleFormat?: \"cjs\" | \"esm\";\n  /** Save source maps to a local directory instead of uploading them to AWS. */\n  outputSourceMapsTo?: string;\n  /** The path to the `tsconfig.json` file. */\n  tsConfigPath?: string;\n};\n// [!code focus-end]"
   },
   "EventBus": {
     "definitionName": "EventBus",
@@ -34633,7 +34633,7 @@
                           {
                             "name": "emitTsDecoratorMetadata",
                             "required": false,
-                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
                             "longDescription": "",
                             "typeInfo": {
                               "kind": "primitive",
@@ -44097,7 +44097,7 @@
                           {
                             "name": "emitTsDecoratorMetadata",
                             "required": false,
-                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
                             "longDescription": "",
                             "typeInfo": {
                               "kind": "primitive",
@@ -50922,7 +50922,7 @@
                           {
                             "name": "emitTsDecoratorMetadata",
                             "required": false,
-                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
                             "longDescription": "",
                             "typeInfo": {
                               "kind": "primitive",
@@ -54760,7 +54760,7 @@
                 {
                   "name": "emitTsDecoratorMetadata",
                   "required": false,
-                  "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+                  "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
                   "longDescription": "",
                   "typeInfo": {
                     "kind": "primitive",
@@ -55600,7 +55600,7 @@
                 {
                   "name": "emitTsDecoratorMetadata",
                   "required": false,
-                  "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+                  "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
                   "longDescription": "",
                   "typeInfo": {
                     "kind": "primitive",
@@ -56436,7 +56436,7 @@
                 {
                   "name": "emitTsDecoratorMetadata",
                   "required": false,
-                  "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+                  "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
                   "longDescription": "",
                   "typeInfo": {
                     "kind": "primitive",
@@ -61165,7 +61165,7 @@
                           {
                             "name": "emitTsDecoratorMetadata",
                             "required": false,
-                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
                             "longDescription": "",
                             "typeInfo": {
                               "kind": "primitive",
@@ -64408,7 +64408,7 @@
                           {
                             "name": "emitTsDecoratorMetadata",
                             "required": false,
-                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>",
+                            "shortDescription": "<p> Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.</p>\n<p>Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their\nmappings accurately. Emitting a map would give production stack traces incorrect line numbers.</p>",
                             "longDescription": "",
                             "typeInfo": {
                               "kind": "primitive",

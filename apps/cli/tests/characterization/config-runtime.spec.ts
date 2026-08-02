@@ -313,7 +313,18 @@ describe('configuration runtime contract', () => {
     });
 
     expect(config.resources.lambda.type).toBe('function');
-    expect((config.resources.lambda as { properties: { environment: unknown } }).properties.environment).toEqual([
+    const lambdaProperties = config.resources.lambda.properties as {
+      connectTo: string[];
+      environment: unknown;
+      events: Array<{ properties: { httpApiGatewayName: string } }>;
+    };
+    expect(lambdaProperties.connectTo).toEqual(['uploads']);
+    expect(lambdaProperties.events[0]?.properties.httpApiGatewayName).toBe('api');
+    expect(lambdaProperties.environment).toEqual([
+      {
+        name: 'CONFIG_LOADING_BUCKET',
+        value: "$ResourceParam('uploads','name')"
+      },
       {
         name: 'CONFIG_LOADING_SUFFIX',
         value: 'config-loading-from-pkg-b'

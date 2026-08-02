@@ -1,7 +1,21 @@
 import { describe, expect, test } from 'bun:test';
 import * as authoringExports from './index.js';
-import { Bucket, defineConfig, RelationalDatabase } from './index.js';
-import { RESOURCES_CONVERTIBLE_TO_CLASSES } from './class-config.js';
+import {
+  Bucket,
+  CustomResourceDefinition,
+  CustomResourceInstance,
+  defineConfig,
+  EdgeLambdaFunction,
+  HttpApiGateway,
+  LambdaFunction,
+  RelationalDatabase
+} from './index.js';
+import { compileAuthoringConfig } from './config.js';
+import {
+  getResourceByType,
+  MISC_TYPES_CONVERTIBLE_TO_CLASSES,
+  RESOURCES_CONVERTIBLE_TO_CLASSES
+} from './class-config.js';
 import * as resourceClasses from './resources.js';
 import { AuroraServerlessV2EnginePostgresql } from './type-properties.js';
 
@@ -126,6 +140,112 @@ describe('TypeScript authoring compilation', () => {
         awsProfile: ''
       })
     ).toThrow('cannot be registered as both "uploads" and "duplicate"');
+  });
+
+  test('resolves direct resource and parameter references from the returned resource keys', () => {
+    const api = new HttpApiGateway({});
+    const database = new RelationalDatabase({
+      credentials: { masterUserName: 'app', masterUserPassword: 'secret' },
+      engine: { type: 'postgres', properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.micro' } } }
+    });
+    const handler = new LambdaFunction({
+      packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/handler.ts' } },
+      connectTo: [database],
+      environment: { DATABASE_URL: database.connectionString },
+      events: [
+        {
+          type: 'http-api-gateway',
+          properties: { httpApiGatewayName: api, method: 'GET', path: '/' }
+        }
+      ]
+    });
+
+    const { config } = defineConfig(() => ({ resources: { api, database, handler } }))({
+      projectName: 'p',
+      stage: 'test',
+      region: 'eu-west-1',
+      cliArgs: {},
+      command: 'synth',
+      awsProfile: ''
+    });
+    const handlerProperties = config.resources.handler!.properties as Record<string, any>;
+
+    expect(handlerProperties.connectTo).toEqual(['database']);
+    expect(handlerProperties.environment).toEqual([
+      { name: 'DATABASE_URL', value: "$ResourceParam('database','connectionString')" }
+    ]);
+    expect(handlerProperties.events[0].properties.httpApiGatewayName).toBe('api');
+  });
+
+  test('rejects references to resources omitted from the returned resources object', () => {
+    const database = new RelationalDatabase({
+      credentials: { masterUserName: 'app', masterUserPassword: 'secret' },
+      engine: { type: 'postgres', properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.micro' } } }
+    });
+    const handler = new LambdaFunction({
+      packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/handler.ts' } },
+      environment: { DATABASE_URL: database.connectionString }
+    });
+    const config = defineConfig(() => ({ resources: { handler } }));
+
+    expect(() =>
+      config({
+        projectName: 'p',
+        stage: 'test',
+        region: 'eu-west-1',
+        cliArgs: {},
+        command: 'synth',
+        awsProfile: ''
+      })
+    ).toThrow('referenced but is not registered in the returned `resources` object');
+  });
+
+  test('fails clearly when a parameter reference is interpolated before compilation', () => {
+    const database = new RelationalDatabase({
+      credentials: { masterUserName: 'app', masterUserPassword: 'secret' },
+      engine: { type: 'postgres', properties: { version: '16.6', primaryInstance: { instanceSize: 'db.t4g.micro' } } }
+    });
+
+    expect(() => `${database.connectionString}`).toThrow(
+      'Pass it directly as a configuration value instead of interpolating it'
+    );
+  });
+
+  test('does not retain a resource name between independent compilations', () => {
+    const bucket = new Bucket({});
+
+    expect(compileAuthoringConfig({ resources: { firstName: bucket } }).config.resources).toHaveProperty('firstName');
+    expect(compileAuthoringConfig({ resources: { secondName: bucket } }).config.resources).toHaveProperty('secondName');
+    expect(bucket).not.toHaveProperty('resourceName');
+  });
+
+  test('treats every top-level resource class as a resource, including the formerly misclassified classes', () => {
+    const provisioner = new CustomResourceDefinition({
+      packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/provisioner.ts' } }
+    });
+    const provisionedThing = new CustomResourceInstance({ definitionName: provisioner, resourceProperties: {} });
+    const edgeHandler = new EdgeLambdaFunction({
+      packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/edge.ts' } }
+    });
+    const api = new HttpApiGateway({ cdn: { enabled: true, edgeFunctions: { onRequest: edgeHandler } } });
+    const { config } = compileAuthoringConfig({ resources: { api, edgeHandler, provisionedThing, provisioner } });
+
+    expect((config.resources.provisionedThing!.properties as Record<string, unknown>).definitionName).toBe(
+      'provisioner'
+    );
+    expect(
+      ((config.resources.api!.properties as Record<string, any>).cdn.edgeFunctions as Record<string, unknown>).onRequest
+    ).toBe('edgeHandler');
+
+    for (const resourceType of [
+      'custom-resource-definition',
+      'custom-resource-instance',
+      'deployment-script',
+      'edge-lambda-function'
+    ]) {
+      expect(getResourceByType(resourceType)).toBeDefined();
+      expect(MISC_TYPES_CONVERTIBLE_TO_CLASSES.some(({ typeValue }) => typeValue === resourceType)).toBe(false);
+    }
   });
 
   test('exports every configured resource constructor at runtime', () => {

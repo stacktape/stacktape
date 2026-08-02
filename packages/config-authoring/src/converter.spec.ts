@@ -29,6 +29,109 @@ resources:
     expect(typescript).toContain('connectTo: [uploads]');
   });
 
+  test('emits direct objects only for registered resource references', () => {
+    const typescript = convertYamlToTypescript(`
+resources:
+  handler:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/handler.ts
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: api
+            method: GET
+            path: /
+      connectTo:
+        - api
+        - external-resource
+  api:
+    type: http-api-gateway
+`);
+
+    expect(typescript.indexOf('const api = new HttpApiGateway')).toBeLessThan(
+      typescript.indexOf('const handler = new LambdaFunction')
+    );
+    expect(typescript).toContain('httpApiGatewayName: api');
+    expect(typescript).toContain('connectTo: [api, "external-resource"]');
+  });
+
+  test('recognizes resource references whose property names do not end in Name', () => {
+    const typescript = convertYamlToTypescript(`
+resources:
+  site:
+    type: hosting-bucket
+    properties:
+      uploadDirectoryPath: dist
+      useFirewall: firewall
+  firewall:
+    type: web-app-firewall
+    properties:
+      scope: cdn
+  provisionedThing:
+    type: custom-resource-instance
+    properties:
+      definitionName: provisioner
+      resourceProperties: {}
+  provisioner:
+    type: custom-resource-definition
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/provisioner.ts
+`);
+
+    expect(typescript).toContain('useFirewall: firewall');
+    expect(typescript).toContain('definitionName: provisioner');
+  });
+
+  test('recognizes context-specific references and preserves literal AgentCore recording bucket names', () => {
+    const typescript = convertYamlToTypescript(`
+resources:
+  browser:
+    type: agentcore-browser
+    properties:
+      recording:
+        enabled: true
+        bucketName: recordings
+  runtime:
+    type: agentcore-runtime
+    properties:
+      packaging:
+        type: prebuilt-image
+        properties:
+          image: example/runtime
+      useBrowser: browser
+  api:
+    type: http-api-gateway
+    properties:
+      cdn:
+        enabled: true
+        edgeFunctions:
+          onRequest: edgeHandler
+  edgeHandler:
+    type: edge-lambda-function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/edge.ts
+  recordings:
+    type: bucket
+`);
+
+    expect(typescript).toContain('useBrowser: browser');
+    expect(typescript).toContain('onRequest: edgeHandler');
+    expect(typescript).toContain('bucketName: "recordings"');
+    expect(typescript.indexOf('const browser = new AgentCoreBrowser')).toBeLessThan(
+      typescript.indexOf('const recordings = new Bucket')
+    );
+  });
+
   test('TypeScript classes become plain YAML without leaking authoring-only fields', () => {
     const yaml = convertTypescriptToYaml(`
 import { Bucket, defineConfig } from 'stacktape';

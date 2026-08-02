@@ -15,7 +15,11 @@ a wildcard export or a re-export-only compatibility layer under `apps/cli`.
 containing the serializable config and an explicit side channel for resource/final transforms. The CLI must execute a
 config module and its factory once; never recover transforms by loading or invoking customer code a second time. Do
 not restore the legacy named `getConfig` export or constructors that accept an explicit resource name. A resource's
-name is the key under `resources`, and one class instance may not be reused under two keys.
+name is the key under `resources`, and one class instance may not be reused under two keys. Resource objects are inert:
+do not store their registered name or compilation state on the instance. Pass the object itself to `connectTo` and
+semantic resource-reference properties; compilation resolves that identity through the returned `resources` object.
+Every class representing an entry in `StacktapeConfig.resources` belongs in `RESOURCES_CONVERTIBLE_TO_CLASSES` and
+must extend `BaseResource`; do not model a top-level resource as a generic type-properties class.
 
 The sole factory evaluation happens before a config-declared `projectName` can become target-stack context, so
 `GetConfigParams.projectName` is intentionally optional. It is present when selected by a CLI argument or persisted

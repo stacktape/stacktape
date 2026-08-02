@@ -327,9 +327,8 @@ type StacktapeResourceType = import('./plain').StacktapeResourceDefinition['type
 declare const getParamReferenceSymbol: unique symbol;
 declare const getTypeSymbol: unique symbol;
 declare const getPropertiesSymbol: unique symbol;
-declare const getOverridesSymbol: unique symbol;
-declare const getTransformsSymbol: unique symbol;
-declare const setResourceNameSymbol: unique symbol;
+declare const getReferencedResourceSymbol: unique symbol;
+declare const getReferencedParamSymbol: unique symbol;
 declare const resourceParamRefSymbol: unique symbol;
 declare const baseTypePropertiesSymbol: unique symbol;
 declare const alarmSymbol: unique symbol;
@@ -343,9 +342,11 @@ export declare class ResourceParamReference {
   private __param;
   readonly [resourceParamRefSymbol]: true;
   constructor(resource: BaseResource, param: string);
-  toString(): string;
-  toJSON(): string;
-  valueOf(): string;
+  [getReferencedResourceSymbol](): BaseResource;
+  [getReferencedParamSymbol](): string;
+  toString(): never;
+  toJSON(): never;
+  valueOf(): never;
 }
 
 /**
@@ -384,20 +385,13 @@ export declare class Alarm {
  */
 export declare class BaseResource {
   private readonly _type;
-  private _properties;
-  private _overrides?;
-  private _transforms?;
-  private _resourceName;
-  constructor(type: string, properties: any, overrides?: any);
-  private _processOverridesAndTransforms;
-  get resourceName(): string;
-  [setResourceNameSymbol](name: string): void;
+  private readonly _properties;
+  constructor(type: string, properties: any);
   [getParamReferenceSymbol](paramName: string): ResourceParamReference;
   [getTypeSymbol](): string;
   [getPropertiesSymbol](): any;
-  [getOverridesSymbol](): any | undefined;
-  [getTransformsSymbol](): any | undefined;
 }
+
 `;
 }
 
@@ -475,9 +469,8 @@ function removeDuplicateDeclarations(content: string): string {
     'declare const getParamReferenceSymbol:',
     'declare const getTypeSymbol:',
     'declare const getPropertiesSymbol:',
-    'declare const getOverridesSymbol:',
-    'declare const getTransformsSymbol:',
-    'declare const setResourceNameSymbol:',
+    'declare const getReferencedResourceSymbol:',
+    'declare const getReferencedParamSymbol:',
     'declare const resourceParamRefSymbol:',
     'declare const baseTypePropertiesSymbol:',
     'declare const alarmSymbol:',

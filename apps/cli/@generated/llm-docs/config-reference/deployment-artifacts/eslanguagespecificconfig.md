@@ -10,7 +10,10 @@ type EsLanguageSpecificConfig = {
   dependenciesToExcludeFromDeploymentPackage?: Array<string>;
   /** Skip generating source maps. Reduces package size but makes production errors harder to debug. */
   disableSourceMaps?: boolean;
-  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks. */
+  /** Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.
+
+Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their
+mappings accurately. Emitting a map would give production stack traces incorrect line numbers. */
   emitTsDecoratorMetadata?: boolean;
   /** The major version of Node.js the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */
   nodeVersion?: 16 | 17 | 18 | 19 | 20 | 21 | 22 | 23 | 24;
@@ -178,6 +181,9 @@ export default defineConfig(() => {
 - Type: `boolean`
 
 Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.
+
+Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their
+mappings accurately. Emitting a map would give production stack traces incorrect line numbers.
 
 ### Example 1 (yaml)
 
