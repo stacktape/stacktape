@@ -31,8 +31,9 @@ const installMinimalPackage = ({ plainDeclarations }: { plainDeclarations: strin
       'export declare class WebService { constructor(properties: Record<string, unknown>); }',
       'export declare class Bucket { constructor(properties: { versioning?: boolean }); }',
       'export declare class Convex { constructor(properties: Record<string, unknown>); }',
+      "export declare class LambdaS3FilesMount { constructor(properties: { accessPointArn: string; mountPath: string }); readonly type: 's3files'; readonly properties: { accessPointArn: string; mountPath: string }; }",
       // Typed exactly as the real generator emits it, so the fixture exercises the class/type pair together.
-      "export declare class IotIntegration { constructor(properties: import('./plain').IotIntegrationProps); readonly type: 'iot'; }",
+      "export declare class IotIntegration { constructor(properties: import('./plain').IotIntegrationProps); readonly type: 'iot'; readonly properties: import('./plain').IotIntegrationProps; }",
       'export type CloudFormationTemplate = { Resources: Record<string, { Type?: string }>; Metadata?: Record<string, unknown> };',
       'export type FinalTransform = <Template extends CloudFormationTemplate>(template: Template) => Template;',
       'export declare function defineConfig<T>(factory: () => T): (params: Record<string, unknown>) => { config: T };',

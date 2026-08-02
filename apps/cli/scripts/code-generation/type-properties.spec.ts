@@ -44,7 +44,9 @@ describe('type-properties classes take their authored props', () => {
     // locally invented shape.
     const scriptProps = ['LocalScript', 'BastionScript', 'LocalScriptWithBastionTunneling'];
 
-    for (const { className, typeOnly } of MISC_TYPES_CONVERTIBLE_TO_CLASSES) {
+    for (const definition of MISC_TYPES_CONVERTIBLE_TO_CLASSES) {
+      const { className } = definition;
+      const typeOnly = 'typeOnly' in definition && definition.typeOnly;
       if (typeOnly || scriptProps.includes(className)) continue;
       const block = classBlockFor(className);
       expect(block, `${className} should construct from ./plain`).toContain(
@@ -53,9 +55,13 @@ describe('type-properties classes take their authored props', () => {
     }
   });
 
-  test('the discriminated-union and direct mappings still resolve through ./plain', () => {
-    // Unchanged behaviour, pinned so removing the stale branch cannot have shifted the other cases.
-    expect(classBlockFor('HttpApiIntegration')).toContain("import('./plain').HttpApiIntegration['properties']");
-    expect(classBlockFor('LambdaEfsMount')).toContain("import('./plain').LambdaEfsMount");
+  test('discriminated unions resolve to their properties and volume mounts take their inner props', () => {
+    expect(classBlockFor('HttpApiIntegration')).toContain(
+      "extends BaseTypeProperties<'http-api-gateway', WithAuthoringNamedResourceReferences<import('./plain').HttpApiIntegration['properties']>>"
+    );
+    expect(classBlockFor('ContainerEfsMount')).toContain("import('./plain').ContainerEfsMount['properties']");
+    expect(classBlockFor('LambdaEfsMount')).toContain("import('./plain').LambdaEfsMount['properties']");
+    expect(classBlockFor('LambdaS3FilesMount')).toContain("import('./plain').LambdaS3FilesMount['properties']");
+    expect(classBlockFor('SqsQueueNotEmptyTrigger')).toContain("extends BaseTypeOnly<'sqs-queue-not-empty'>");
   });
 });

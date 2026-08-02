@@ -7,7 +7,10 @@ import {
   defineConfig,
   EdgeLambdaFunction,
   HttpApiGateway,
+  HttpApiIntegration,
   LambdaFunction,
+  LambdaS3FilesMount,
+  LocalScript,
   RelationalDatabase
 } from './index.js';
 import { compileAuthoringConfig } from './config.js';
@@ -17,6 +20,7 @@ import {
   RESOURCES_CONVERTIBLE_TO_CLASSES
 } from './class-config.js';
 import * as resourceClasses from './resources.js';
+import * as typePropertyClasses from './type-properties.js';
 import { AuroraServerlessV2EnginePostgresql } from './type-properties.js';
 
 const getTransformedResourceOverrides = (overrides: Record<string, any>) => {
@@ -177,6 +181,42 @@ describe('TypeScript authoring compilation', () => {
     expect(handlerProperties.events[0].properties.httpApiGatewayName).toBe('api');
   });
 
+  test('compiles typed helper classes to the same plain configuration shape', () => {
+    const api = new HttpApiGateway({});
+    const uploads = new Bucket({});
+    const integration = new HttpApiIntegration({ httpApiGatewayName: api, method: 'POST', path: '/upload' });
+    const mount = new LambdaS3FilesMount({
+      accessPointArn: 'arn:aws:s3files:us-east-1:111111111111:fs/fs-abc/ap-abc',
+      mountPath: '/mnt/data'
+    });
+    const handler = new LambdaFunction({
+      packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/handler.ts' } },
+      events: [integration],
+      volumeMounts: [mount]
+    });
+    const seed = new LocalScript({ executeCommand: 'bun run seed.ts', connectTo: [uploads] });
+
+    const { config } = compileAuthoringConfig({ resources: { api, handler, uploads }, scripts: { seed } });
+    const handlerProperties = config.resources.handler!.properties as Record<string, any>;
+
+    expect(handlerProperties.events).toEqual([
+      {
+        type: 'http-api-gateway',
+        properties: { httpApiGatewayName: 'api', method: 'POST', path: '/upload' }
+      }
+    ]);
+    expect(handlerProperties.volumeMounts).toEqual([
+      {
+        type: 's3files',
+        properties: {
+          accessPointArn: 'arn:aws:s3files:us-east-1:111111111111:fs/fs-abc/ap-abc',
+          mountPath: '/mnt/data'
+        }
+      }
+    ]);
+    expect(config.scripts!.seed!.properties.connectTo).toEqual(['uploads']);
+  });
+
   test('rejects references to resources omitted from the returned resources object', () => {
     const database = new RelationalDatabase({
       credentials: { masterUserName: 'app', masterUserPassword: 'secret' },
@@ -253,6 +293,16 @@ describe('TypeScript authoring compilation', () => {
     const exportedConstructors: Record<string, unknown> = { ...authoringExports };
 
     expect(Object.keys(resourceClasses).toSorted()).toEqual(expectedClassNames);
+    for (const className of expectedClassNames) {
+      expect(exportedConstructors[className]).toBeFunction();
+    }
+  });
+
+  test('exports every configured helper constructor at runtime', () => {
+    const expectedClassNames = MISC_TYPES_CONVERTIBLE_TO_CLASSES.map(({ className }) => className).toSorted();
+    const exportedConstructors: Record<string, unknown> = { ...authoringExports };
+
+    expect(Object.keys(typePropertyClasses).toSorted()).toEqual(expectedClassNames);
     for (const className of expectedClassNames) {
       expect(exportedConstructors[className]).toBeFunction();
     }

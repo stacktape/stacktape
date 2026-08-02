@@ -51,7 +51,7 @@ const AUGMENTED_SCRIPT_PROPS = ['LocalScriptProps', 'BastionScriptProps', 'Local
  * These are integration/event types where the schema generates { type: '...', properties: {...} }
  * but we need just the properties part for the class constructor
  */
-const PROPS_TO_PLAIN_PROPERTIES_MAP: Record<string, string> = {
+export const TYPE_PROPERTY_PROPS_TO_PLAIN_PROPERTIES: Record<string, string> = {
   // Lambda event integration types - need ['properties'] accessor
   HttpApiIntegrationProps: "HttpApiIntegration['properties']",
   S3IntegrationProps: "S3Integration['properties']",
@@ -71,31 +71,28 @@ const PROPS_TO_PLAIN_PROPERTIES_MAP: Record<string, string> = {
   ContainerWorkloadLoadBalancerIntegrationProps: "ContainerWorkloadLoadBalancerIntegration['properties']",
   ContainerWorkloadNetworkLoadBalancerIntegrationProps: "ContainerWorkloadNetworkLoadBalancerIntegration['properties']",
   ContainerWorkloadInternalIntegrationProps: "ContainerWorkloadInternalIntegration['properties']",
-  ContainerWorkloadServiceConnectIntegrationProps: "ContainerWorkloadServiceConnectIntegration['properties']"
-};
-
-/**
- * Props type names that map directly to a different type name (no properties extraction)
- */
-const PROPS_TO_PLAIN_TYPE_MAP: Record<string, string> = {
-  // Volume mount types - these don't have type/properties structure
-  ContainerEfsMountProps: 'ContainerEfsMount',
-  LambdaEfsMountProps: 'LambdaEfsMount',
-  LambdaS3FilesMountProps: 'LambdaS3FilesMount'
+  ContainerWorkloadServiceConnectIntegrationProps: "ContainerWorkloadServiceConnectIntegration['properties']",
+  // Volume-mount property interfaces are inlined into their published discriminated unions.
+  ContainerEfsMountProps: "ContainerEfsMount['properties']",
+  LambdaEfsMountProps: "LambdaEfsMount['properties']",
+  LambdaS3FilesMountProps: "LambdaS3FilesMount['properties']"
 };
 
 /**
  * Generate type/properties class declarations
  */
 export function generateTypePropertiesClassDeclarations(): string {
-  return MISC_TYPES_CONVERTIBLE_TO_CLASSES.map(({ className, typeValue, propsType, typeOnly, jsdoc }) => {
+  return MISC_TYPES_CONVERTIBLE_TO_CLASSES.map((definition) => {
+    const { className, typeValue, propsType } = definition;
+    const typeOnly = 'typeOnly' in definition && definition.typeOnly;
+    const jsdoc = 'jsdoc' in definition ? definition.jsdoc : undefined;
     const description = getTypePropertiesDescription(className);
     const constructorJsDoc = formatConstructorJSDoc(description, className, jsdoc);
 
     // For type-only classes, extend BaseTypeOnly and have no constructor params
     if (typeOnly) {
       return `
-export declare class ${className} extends BaseTypeOnly {
+export declare class ${className} extends BaseTypeOnly<'${typeValue}'> {
 ${constructorJsDoc}
   constructor();
   readonly type: '${typeValue}';
@@ -107,19 +104,16 @@ ${constructorJsDoc}
     if (AUGMENTED_SCRIPT_PROPS.includes(propsType)) {
       // Script props have local augmented versions that accept class instances for connectTo
       propsTypeRef = propsType;
-    } else if (propsType in PROPS_TO_PLAIN_PROPERTIES_MAP) {
+    } else if (propsType in TYPE_PROPERTY_PROPS_TO_PLAIN_PROPERTIES) {
       // Types that need to extract the 'properties' field from discriminated union
-      propsTypeRef = `import('./plain').${PROPS_TO_PLAIN_PROPERTIES_MAP[propsType]}`;
-    } else if (propsType in PROPS_TO_PLAIN_TYPE_MAP) {
-      // Types that need mapping to different names in plain.d.ts
-      propsTypeRef = `import('./plain').${PROPS_TO_PLAIN_TYPE_MAP[propsType]}`;
+      propsTypeRef = `import('./plain').${TYPE_PROPERTY_PROPS_TO_PLAIN_PROPERTIES[propsType]}`;
     } else {
       // Default: use the propsType directly from plain.d.ts
       propsTypeRef = `import('./plain').${propsType}`;
     }
 
     return `
-export declare class ${className} extends BaseTypeProperties {
+export declare class ${className} extends BaseTypeProperties<'${typeValue}', WithAuthoringNamedResourceReferences<${propsTypeRef}>> {
 ${constructorJsDoc}
   constructor(properties: WithAuthoringNamedResourceReferences<${propsTypeRef}>);
   readonly type: '${typeValue}';

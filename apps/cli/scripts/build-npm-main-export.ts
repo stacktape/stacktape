@@ -29,7 +29,8 @@ import { generateOverrideTypes, generateTransformsTypes } from './code-generatio
 import { generateResourceClassDeclarations } from './code-generation/generate-resource-classes';
 import {
   generateTypePropertiesClassDeclarations,
-  getTypePropertiesImports
+  getTypePropertiesImports,
+  TYPE_PROPERTY_PROPS_TO_PLAIN_PROPERTIES
 } from './code-generation/generate-type-properties';
 import { getJsonSchemaGenerator, getTsTypeDef } from './code-generation/utils';
 import { verifyNpmDeclarations } from './verify-npm-declarations';
@@ -60,43 +61,6 @@ export const NPM_SOURCE_FILES = [
 ].map((file) => join(CONFIG_AUTHORING_PACKAGE_SRC_PATH, file));
 
 /**
- * Type aliases for Props types that need to extract 'properties' from discriminated unions
- * Maps expected propsType name to the path to access the properties
- */
-const PROPS_TYPE_PROPERTIES_ALIASES: Record<string, string> = {
-  // Lambda event integration types - need ['properties'] accessor
-  HttpApiIntegrationProps: "HttpApiIntegration['properties']",
-  S3IntegrationProps: "S3Integration['properties']",
-  ScheduleIntegrationProps: "ScheduleIntegration['properties']",
-  SnsIntegrationProps: "SnsIntegration['properties']",
-  SqsIntegrationProps: "SqsIntegration['properties']",
-  KinesisIntegrationProps: "KinesisIntegration['properties']",
-  DynamoDbIntegrationProps: "DynamoDbIntegration['properties']",
-  CloudwatchLogIntegrationProps: "CloudwatchLogIntegration['properties']",
-  ApplicationLoadBalancerIntegrationProps: "ApplicationLoadBalancerIntegration['properties']",
-  EventBusIntegrationProps: "EventBusIntegration['properties']",
-  KafkaTopicIntegrationProps: "KafkaTopicIntegration['properties']",
-  AlarmIntegrationProps: "AlarmIntegration['properties']",
-  // Container workload integration types
-  SqsQueueEventBusIntegrationProps: "SqsQueueEventBusIntegration['properties']",
-  ContainerWorkloadHttpApiIntegrationProps: "ContainerWorkloadHttpApiIntegration['properties']",
-  ContainerWorkloadLoadBalancerIntegrationProps: "ContainerWorkloadLoadBalancerIntegration['properties']",
-  ContainerWorkloadNetworkLoadBalancerIntegrationProps: "ContainerWorkloadNetworkLoadBalancerIntegration['properties']",
-  ContainerWorkloadInternalIntegrationProps: "ContainerWorkloadInternalIntegration['properties']",
-  ContainerWorkloadServiceConnectIntegrationProps: "ContainerWorkloadServiceConnectIntegration['properties']"
-};
-
-/**
- * Type aliases for Props types that map directly to different type names (no properties extraction)
- */
-const PROPS_TYPE_ALIASES: Record<string, string> = {
-  // Volume mount types - these don't have type/properties structure
-  ContainerEfsMountProps: 'ContainerEfsMount',
-  LambdaEfsMountProps: 'LambdaEfsMount',
-  LambdaS3FilesMountProps: 'LambdaS3FilesMount'
-};
-
-/**
  * Types that don't exist at all and need placeholder definitions
  * These are typically types that aren't referenced from StacktapeConfig root
  */
@@ -110,20 +74,15 @@ const MISSING_TYPES_PLACEHOLDERS: string[] = [];
  */
 function generatePropsTypeAliases(): string {
   // Aliases that extract 'properties' from discriminated unions
-  const propertiesAliases = Object.entries(PROPS_TYPE_PROPERTIES_ALIASES)
+  const propertiesAliases = Object.entries(TYPE_PROPERTY_PROPS_TO_PLAIN_PROPERTIES)
     .map(([aliasName, path]) => `export type ${aliasName} = import('./plain').${path};`)
-    .join('\n');
-
-  // Aliases that map directly to different type names
-  const directAliases = Object.entries(PROPS_TYPE_ALIASES)
-    .map(([aliasName, actualName]) => `export type ${aliasName} = import('./plain').${actualName};`)
     .join('\n');
 
   const placeholders = MISSING_TYPES_PLACEHOLDERS.map(
     (typeName) => `export type ${typeName} = Record<string, unknown>;`
   ).join('\n');
 
-  return `// Props type aliases extracting 'properties' from discriminated unions\n${propertiesAliases}\n\n// Direct type aliases\n${directAliases}\n\n// Placeholder types for missing types\n${placeholders}`;
+  return `// Props type aliases extracting 'properties' from discriminated unions\n${propertiesAliases}\n\n// Placeholder types for missing types\n${placeholders}`;
 }
 
 /**
@@ -352,20 +311,20 @@ export declare class ResourceParamReference {
 /**
  * Base class for type/properties structures (engines, packaging, events, etc.)
  */
-export declare class BaseTypeProperties {
-  readonly type: string;
-  readonly properties: any;
+export declare class BaseTypeProperties<Type extends string = string, Properties = unknown> {
+  readonly type: Type;
+  readonly properties: Properties;
   readonly [baseTypePropertiesSymbol]: true;
-  constructor(type: string, properties: any);
+  constructor(type: Type, properties: Properties);
 }
 
 /**
  * Base class for type-only structures (no properties field, just type discriminator)
  */
-export declare class BaseTypeOnly {
-  readonly type: string;
+export declare class BaseTypeOnly<Type extends string = string> {
+  readonly type: Type;
   readonly [baseTypePropertiesSymbol]: true;
-  constructor(type: string);
+  constructor(type: Type);
 }
 
 /**
@@ -845,8 +804,8 @@ export async function generateTypeDeclarations({
   const rawTypePropertiesImports = getTypePropertiesImports(propsWithAugmentation);
   // Filter out types that have aliases or placeholders (will be generated as type aliases instead)
   const typePropertiesImports = rawTypePropertiesImports.filter(
-    (t) =>
-      !(t in PROPS_TYPE_ALIASES) && !(t in PROPS_TYPE_PROPERTIES_ALIASES) && !MISSING_TYPES_PLACEHOLDERS.includes(t)
+    (typeName) =>
+      !(typeName in TYPE_PROPERTY_PROPS_TO_PLAIN_PROPERTIES) && !MISSING_TYPES_PLACEHOLDERS.includes(typeName)
   );
 
   // Generate Sdk* type imports for augmented props (import from ./plain with Sdk prefix)

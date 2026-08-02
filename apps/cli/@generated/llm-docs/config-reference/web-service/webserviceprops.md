@@ -1195,7 +1195,7 @@ export default defineConfig(() => {
     packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),
     resources: { cpu: 0.5, memory: 1024 },
     volumeMounts: [
-      new ContainerEfsMount({ type: 'efs', properties: { efsFilesystemName: 'sharedData', mountPath: '/data' } })
+      new ContainerEfsMount({ efsFilesystemName: 'sharedData', mountPath: '/data' })
     ]
   });
 

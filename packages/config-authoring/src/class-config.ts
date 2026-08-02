@@ -729,7 +729,7 @@ export type TypePropertiesDefinition = {
   jsdoc?: string;
 };
 
-export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
+export const MISC_TYPES_CONVERTIBLE_TO_CLASSES = [
   // Database Engines
   {
     className: 'RdsEnginePostgres',
@@ -1306,7 +1306,7 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES: TypePropertiesDefinition[] = [
     sourceFile: 'alarms.d.ts',
     jsdoc: 'Triggers an alarm when Lambda function execution duration exceeds the threshold (in milliseconds).'
   }
-];
+] as const satisfies readonly TypePropertiesDefinition[];
 
 // ==================== HELPER FUNCTIONS ====================
 

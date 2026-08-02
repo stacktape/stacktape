@@ -45205,7 +45205,7 @@
           },
           {
             "lang": "typescript",
-            "code": "import { WebService, EfsFilesystem, ContainerEfsMount, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const sharedData = new EfsFilesystem({});\n  const api = new WebService({\n    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.5, memory: 1024 },\n    // [!code focus-start]\n    volumeMounts: [\n      new ContainerEfsMount({ type: 'efs', properties: { efsFilesystemName: 'sharedData', mountPath: '/data' } })\n    ]\n    // [!code focus-end]\n  });\n\n  return { resources: { api, sharedData } };\n});"
+            "code": "import { WebService, EfsFilesystem, ContainerEfsMount, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const sharedData = new EfsFilesystem({});\n  const api = new WebService({\n    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.5, memory: 1024 },\n    // [!code focus-start]\n    volumeMounts: [\n      new ContainerEfsMount({ efsFilesystemName: 'sharedData', mountPath: '/data' })\n    ]\n    // [!code focus-end]\n  });\n\n  return { resources: { api, sharedData } };\n});"
           }
         ]
       }
@@ -63713,7 +63713,7 @@
           },
           {
             "lang": "typescript",
-            "code": "import { WebService, EfsFilesystem, ContainerEfsMount, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const sharedData = new EfsFilesystem({});\n  const api = new WebService({\n    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.5, memory: 1024 },\n    // [!code focus-start]\n    volumeMounts: [\n      new ContainerEfsMount({ type: 'efs', properties: { efsFilesystemName: 'sharedData', mountPath: '/data' } })\n    ]\n    // [!code focus-end]\n  });\n\n  return { resources: { api, sharedData } };\n});"
+            "code": "import { WebService, EfsFilesystem, ContainerEfsMount, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const sharedData = new EfsFilesystem({});\n  const api = new WebService({\n    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.5, memory: 1024 },\n    // [!code focus-start]\n    volumeMounts: [\n      new ContainerEfsMount({ efsFilesystemName: 'sharedData', mountPath: '/data' })\n    ]\n    // [!code focus-end]\n  });\n\n  return { resources: { api, sharedData } };\n});"
           }
         ]
       }
@@ -65445,7 +65445,7 @@
           },
           {
             "lang": "typescript",
-            "code": "import { WebService, EfsFilesystem, ContainerEfsMount, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const sharedData = new EfsFilesystem({});\n  const api = new WebService({\n    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.5, memory: 1024 },\n    // [!code focus-start]\n    volumeMounts: [\n      new ContainerEfsMount({ type: 'efs', properties: { efsFilesystemName: 'sharedData', mountPath: '/data' } })\n    ]\n    // [!code focus-end]\n  });\n\n  return { resources: { api, sharedData } };\n});"
+            "code": "import { WebService, EfsFilesystem, ContainerEfsMount, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const sharedData = new EfsFilesystem({});\n  const api = new WebService({\n    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: 'src/server.ts' }),\n    resources: { cpu: 0.5, memory: 1024 },\n    // [!code focus-start]\n    volumeMounts: [\n      new ContainerEfsMount({ efsFilesystemName: 'sharedData', mountPath: '/data' })\n    ]\n    // [!code focus-end]\n  });\n\n  return { resources: { api, sharedData } };\n});"
           }
         ]
       }

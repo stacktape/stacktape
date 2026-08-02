@@ -66,12 +66,12 @@ export class ResourceParamReference {
 /**
  * Base class for type/properties structures (engines, packaging, events, etc.)
  */
-export class BaseTypeProperties {
-  public readonly type: string;
-  public readonly properties: any;
+export class BaseTypeProperties<Type extends string = string, Properties = unknown> {
+  public readonly type: Type;
+  public readonly properties: Properties;
   readonly [baseTypePropertiesSymbol] = true;
 
-  constructor(type: string, properties: any) {
+  constructor(type: Type, properties: Properties) {
     this.type = type;
     this.properties = properties;
   }
@@ -80,11 +80,11 @@ export class BaseTypeProperties {
 /**
  * Base class for type-only structures (no properties field, just type discriminator)
  */
-export class BaseTypeOnly {
-  public readonly type: string;
+export class BaseTypeOnly<Type extends string = string> {
+  public readonly type: Type;
   readonly [baseTypePropertiesSymbol] = true;
 
-  constructor(type: string) {
+  constructor(type: Type) {
     this.type = type;
   }
 }
@@ -340,7 +340,7 @@ type IsDirectResourceReference<
     : true
   : false;
 
-type WithAuthoringNamedResourceReferences<
+export type WithAuthoringNamedResourceReferences<
   Value,
   ResourceType extends StacktapeResourceType | undefined = undefined
 > = Value extends (...args: any[]) => unknown
@@ -387,7 +387,10 @@ type WithAuthoringObjectEnvironment<Properties, Key extends PropertyKey> = Key e
     }
   : Properties;
 
-type WithAuthoringResourceReferences<Properties> = Omit<Properties, 'connectTo' | 'environment' | 'injectEnvironment'> &
+export type WithAuthoringResourceReferences<Properties> = Omit<
+  Properties,
+  'connectTo' | 'environment' | 'injectEnvironment'
+> &
   ('connectTo' extends keyof Properties ? { connectTo?: Array<string | BaseResource> } : Record<never, never>) &
   ('environment' extends keyof Properties ? { environment?: AuthoringEnvironment } : Record<never, never>) &
   ('injectEnvironment' extends keyof Properties ? { injectEnvironment?: AuthoringEnvironment } : Record<never, never>);

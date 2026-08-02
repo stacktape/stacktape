@@ -3903,7 +3903,7 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    *     resources: { cpu: 0.5, memory: 1024 },
    *     // stp-focus
    *     volumeMounts: [
-   *       new ContainerEfsMount({ type: 'efs', properties: { efsFilesystemName: 'sharedData', mountPath: '/data' } })
+   *       new ContainerEfsMount({ efsFilesystemName: 'sharedData', mountPath: '/data' })
    *     ]
    *     // stp-end-focus
    *   });
