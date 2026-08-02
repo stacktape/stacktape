@@ -54,6 +54,7 @@ export type PackagingErrorDetails = {
   message: string;
   hint?: string | undefined;
   stack?: string | undefined;
+  cause?: unknown;
 };
 
 export type CreatePackagingError = (details: PackagingErrorDetails) => Error;

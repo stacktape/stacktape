@@ -1,5 +1,4 @@
 import type {
-  CreatePackagingError,
   GetDockerImageDetails,
   PackagingProgressLogger as ProgressLogger,
   ProcessResult,
@@ -21,7 +20,6 @@ export const buildUsingNixpacks = async ({
   existingDigests,
   cwd,
   dockerBuildOutputArchitecture,
-  createPackagingError,
   getDockerImageDetails,
   runNixpacks,
   ...restProps
@@ -31,7 +29,6 @@ export const buildUsingNixpacks = async ({
   cwd: string;
   existingDigests: string[];
   dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture | undefined;
-  createPackagingError: CreatePackagingError;
   getDockerImageDetails: GetDockerImageDetails;
   runNixpacks: RunNixpacks;
 } & NixpacksBjImagePackagingProps): Promise<PackagingOutput> => {
@@ -97,10 +94,15 @@ export const buildUsingNixpacks = async ({
   });
   const configFilePath = join(absoluteSourceDirectoryPath, configFileName);
 
-  let imageDetails: Awaited<ReturnType<typeof getDockerImageDetails>>;
-  let buildOutput: ProcessResult;
+  let buildResult:
+    | {
+        succeeded: true;
+        imageDetails: Awaited<ReturnType<typeof getDockerImageDetails>>;
+        buildOutput: ProcessResult;
+      }
+    | { succeeded: false; error: unknown };
   try {
-    buildOutput = await runNixpacks({
+    const buildOutput = await runNixpacks({
       cwd: absoluteSourceDirectoryPath,
       args: [
         'build',
@@ -112,15 +114,24 @@ export const buildUsingNixpacks = async ({
         ...(dockerBuildOutputArchitecture ? ['--platform', dockerBuildOutputArchitecture] : [])
       ]
     });
-    imageDetails = await getDockerImageDetails(name);
-  } catch (err) {
-    throw createPackagingError({
-      type: 'PACKAGING',
-      message: `Error when building "${name}" using nixpacks .\n\nBuild process logs:\n\n${err}`
-    });
-  } finally {
-    await remove(configFilePath);
+    const imageDetails = await getDockerImageDetails(name);
+    buildResult = { succeeded: true, imageDetails, buildOutput };
+  } catch (error) {
+    buildResult = { succeeded: false, error };
   }
+
+  try {
+    await remove(configFilePath);
+  } catch (cleanupError) {
+    if (buildResult.succeeded) {
+      throw cleanupError;
+    }
+  }
+
+  if ('error' in buildResult) {
+    throw buildResult.error;
+  }
+  const { buildOutput, imageDetails } = buildResult;
 
   await progressLogger.finishEvent({
     eventType: 'BUILD_IMAGE',

@@ -444,7 +444,8 @@ export class PackagingManager {
           }
         });
       },
-      createPackagingError: ({ message, hint }) => createCliPackagingError({ type: 'PACKAGING', message, hint })
+      createPackagingError: ({ message, hint, cause }) =>
+        createCliPackagingError({ type: 'PACKAGING', message, hint, cause })
     });
 
     // Build native binaries (bcrypt, sharp, prisma, etc.) into a shared layer

@@ -203,12 +203,13 @@ const executeBunBuild = async ({
   const banner = await getSourceMapBanner(sourceMapBannerType);
 
   await ensureDir(sharedOutdir);
+  let result: Awaited<ReturnType<typeof Bun.build>>;
 
   try {
     // Use monorepo root for module resolution if available, otherwise cwd
     const buildRoot = monorepoRoot || cwd;
 
-    const result = await Bun.build({
+    result = await Bun.build({
       entrypoints: entrypoints.map((ep) => ep.entryfilePath),
       outdir: sharedOutdir,
       target: 'node',
@@ -230,30 +231,32 @@ const executeBunBuild = async ({
         chunk: 'chunks/chunk-[hash].js'
       },
       // Enable metafile for efficient chunk dependency analysis
-      metafile: true
+      metafile: true,
+      throw: false
     });
-
-    if (!result.success) {
-      const errors = result.logs
-        .filter((log) => log.level === 'error')
-        .map((log) => log.message)
-        .join('\n');
-      throw createPackagingError({
-        message: `Split bundle build failed: ${errors}`
-      });
-    }
-
-    return {
-      buildResult: result,
-      metafile: result.metafile as BuildMetafile
-    };
   } catch (error) {
     const errorDetails = formatBuildError(error);
     throw createPackagingError({
       message: `Split bundle failed: ${errorDetails}`,
-      hint: 'Check that all entrypoint files exist and are valid TypeScript/JavaScript.'
+      hint: 'Check that all entrypoint files exist and are valid TypeScript/JavaScript.',
+      cause: error
     });
   }
+
+  if (!result.success) {
+    const errors = result.logs
+      .filter((log) => log.level === 'error')
+      .map((log) => log.message)
+      .join('\n');
+    throw createPackagingError({
+      message: `Split bundle build failed: ${errors}`
+    });
+  }
+
+  return {
+    buildResult: result,
+    metafile: result.metafile as BuildMetafile
+  };
 };
 
 // Module resolver is created per-build in createAnalyzePlugin

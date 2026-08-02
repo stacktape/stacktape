@@ -150,6 +150,7 @@ export type LayerArtifact = {
 export type PackagingErrorDetails = {
   message: string;
   hint?: string | undefined;
+  cause?: unknown;
 };
 
 /** Options for buildSplitBundle */
