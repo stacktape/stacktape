@@ -1,9 +1,10 @@
 import { afterAll, beforeAll, describe, expect, test } from 'bun:test';
-import { cp, mkdtemp, readFile, rm } from 'node:fs/promises';
+import { cp, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { eventManager } from '@application-services/event-manager';
+import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
 import { ConfigManager, configManager } from '@domain-services/config-manager';
 import { stacktapeConfigSchema, validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
@@ -57,6 +58,22 @@ const fixtureResolverContext = {
   },
   workingDir: process.cwd()
 };
+
+const downloadedTypescriptTemplate = (projectName: string) => `
+import { defineConfig } from '@stacktape/config-authoring';
+
+export default defineConfig(() => ({
+  projectName: ${JSON.stringify(projectName)},
+  resources: {}
+}));
+`;
+
+const downloadedTemplateResponse = (templateId: string) => ({
+  id: templateId,
+  name: templateId,
+  organizationId: null,
+  content: downloadedTypescriptTemplate(templateId)
+});
 
 // The fixture config imports `pkg-a`, which re-exports a value from `pkg-b`, so that config loading is exercised
 // against real installed packages. The two packages are tracked next to this spec and staged into the fixture's
@@ -314,6 +331,118 @@ describe('configuration runtime contract', () => {
         value: 'explicit-stage'
       }
     ]);
+  });
+
+  test('loads a downloaded TypeScript config without touching a user file and removes its temporary workspace', async () => {
+    const workingDir = await mkdtemp(join(process.cwd(), '.stacktape-downloaded-config-test-'));
+    const localHelperPath = join(workingDir, 'local-helper.ts');
+    const legacyTempPath = join(process.cwd(), '__temp-config.stp.ts');
+    const apiClient = stacktapeTrpcApiManager.apiClient;
+    const originalTemplate = apiClient.template;
+    let originalLegacyContent: string | undefined;
+
+    try {
+      originalLegacyContent = await readFile(legacyTempPath, 'utf8').catch(() => undefined);
+      const sentinel = originalLegacyContent ?? 'user-owned sentinel';
+      if (originalLegacyContent === undefined) {
+        await writeFile(legacyTempPath, sentinel);
+      }
+      await writeFile(localHelperPath, `export const projectName = 'downloaded-template';`);
+      apiClient.template = async ({ templateId }) => ({
+        ...downloadedTemplateResponse(templateId),
+        content: `
+import { defineConfig } from '@stacktape/config-authoring';
+import { projectName } from './local-helper';
+
+export default defineConfig(() => ({ projectName, resources: {} }));
+`
+      });
+
+      const resolver = new ConfigResolver();
+      resolver.setContext({ ...fixtureResolverContext, templateId: 'downloaded-template', workingDir });
+
+      expect((await resolver.getRawConfig()).projectName).toBe('downloaded-template');
+      expect(await readFile(legacyTempPath, 'utf8')).toBe(sentinel);
+      expect(await readdir(workingDir)).toEqual(['local-helper.ts']);
+    } finally {
+      apiClient.template = originalTemplate;
+      if (originalLegacyContent === undefined) {
+        await rm(legacyTempPath, { force: true });
+      } else {
+        await writeFile(legacyTempPath, originalLegacyContent);
+      }
+      await rm(workingDir, { recursive: true, force: true });
+    }
+  });
+
+  test('loads downloaded TypeScript configs concurrently without sharing their source file', async () => {
+    const workingDir = await mkdtemp(join(process.cwd(), '.stacktape-downloaded-config-concurrent-'));
+    const apiClient = stacktapeTrpcApiManager.apiClient;
+    const originalTemplate = apiClient.template;
+    const legacyTempPath = join(process.cwd(), '__temp-config.stp.ts');
+    const originalLegacyContent = await readFile(legacyTempPath, 'utf8').catch(() => undefined);
+
+    let releaseBothLoads: () => void;
+    const bothLoadsReady = new Promise<void>((resolve) => {
+      releaseBothLoads = resolve;
+    });
+    let readyLoadCount = 0;
+
+    const synchronizeLoad = (resolver: ConfigResolver) => {
+      const loadTypescriptConfig = resolver.loadTypescriptConfig;
+      resolver.loadTypescriptConfig = async (args) => {
+        readyLoadCount += 1;
+        if (readyLoadCount === 2) {
+          releaseBothLoads();
+        }
+        await bothLoadsReady;
+        return loadTypescriptConfig(args);
+      };
+    };
+
+    try {
+      apiClient.template = async ({ templateId }) => downloadedTemplateResponse(templateId);
+      const firstResolver = new ConfigResolver();
+      const secondResolver = new ConfigResolver();
+      firstResolver.setContext({ ...fixtureResolverContext, templateId: 'first-template', workingDir });
+      secondResolver.setContext({ ...fixtureResolverContext, templateId: 'second-template', workingDir });
+      synchronizeLoad(firstResolver);
+      synchronizeLoad(secondResolver);
+
+      const configs = await Promise.all([firstResolver.getRawConfig(), secondResolver.getRawConfig()]);
+
+      expect(configs.map(({ projectName }) => projectName).sort()).toEqual(['first-template', 'second-template']);
+      expect(await readdir(workingDir)).toEqual([]);
+    } finally {
+      apiClient.template = originalTemplate;
+      if (originalLegacyContent === undefined) {
+        await rm(legacyTempPath, { force: true });
+      } else {
+        await writeFile(legacyTempPath, originalLegacyContent);
+      }
+      await rm(workingDir, { recursive: true, force: true });
+    }
+  });
+
+  test('removes a downloaded TypeScript source after compilation fails', async () => {
+    const workingDir = await mkdtemp(join(process.cwd(), '.stacktape-downloaded-config-invalid-'));
+    const apiClient = stacktapeTrpcApiManager.apiClient;
+    const originalTemplate = apiClient.template;
+
+    try {
+      apiClient.template = async ({ templateId }) => ({
+        ...downloadedTemplateResponse(templateId),
+        content: '{'
+      });
+      const resolver = new ConfigResolver();
+      resolver.setContext({ ...fixtureResolverContext, templateId: 'invalid-template', workingDir });
+
+      await expect(resolver.getRawConfig()).rejects.toMatchObject({ code: 'CONFIG_TYPESCRIPT_EXECUTION_FAILED' });
+      expect(await readdir(workingDir)).toEqual([]);
+    } finally {
+      apiClient.template = originalTemplate;
+      await rm(workingDir, { recursive: true, force: true });
+    }
   });
 
   test('transforms class-based config to a plain, valid Stacktape configuration', () => {

@@ -7,6 +7,8 @@ import {
   type ResourceTransform
 } from '@stacktape/config-authoring/tooling';
 import type { DirectiveParam } from '@utils/directives';
+import { randomUUID } from 'node:crypto';
+import { open, rm, type FileHandle } from 'node:fs/promises';
 import { join } from 'node:path';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { supportedCodeConfigLanguages } from '@config';
@@ -25,7 +27,6 @@ import { CliError, getUserCodeStackTrace } from '@utils/errors';
 import { loadFromAnySupportedFile, loadFromTypescript, parseUserCodeFilepath } from '@utils/file-loaders';
 import { getUserCodeAsFn } from '@utils/user-code-processing';
 import { validatePrimitiveFunctionParams } from '@utils/validation-utils';
-import { remove, writeFile } from 'fs-extra';
 import { createBuiltInDirectives, type BuiltInDirectiveContext } from './built-in-directives';
 import type { StacktapeConfig } from '@stacktape/config';
 import { configErrors } from './errors';
@@ -251,17 +252,26 @@ export class ConfigResolver {
         yamlParseError = err;
       }
 
-      const tempConfigPath = join(process.cwd(), '__temp-config.stp.ts');
-      await writeFile(tempConfigPath, downloadedTemplate.content);
+      const tempConfigPath = join(workingDir, `.stacktape-template-${randomUUID()}.stp.ts`);
 
       let typescriptParseError: Error | null = null;
+      let tempConfigFile: FileHandle | undefined;
+      let ownsTempConfig = false;
       try {
+        tempConfigFile = await open(tempConfigPath, 'wx');
+        ownsTempConfig = true;
+        await tempConfigFile.writeFile(downloadedTemplate.content);
+        await tempConfigFile.close();
+        tempConfigFile = undefined;
         const compiledConfig = await this.loadTypescriptConfig({ filePath: tempConfigPath, authoringParams });
         return this.useCompiledTypescriptConfig(compiledConfig);
       } catch (err) {
         typescriptParseError = err;
       } finally {
-        await remove(tempConfigPath);
+        await tempConfigFile?.close().catch(() => undefined);
+        if (ownsTempConfig) {
+          await rm(tempConfigPath, { force: true });
+        }
       }
 
       // Both failed - throw the more relevant error
