@@ -1391,16 +1391,12 @@ export class PackagingManager {
         case 'py': {
           const sharedStpBuildpackProps = {
             ...packaging.properties,
-            languageSpecificConfig: packaging.properties.languageSpecificConfig as PyLanguageSpecificConfig,
+            languageSpecificConfig: {
+              ...(packaging.properties.languageSpecificConfig as PyLanguageSpecificConfig)
+            },
             minify: true,
             entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
           };
-          if (sharedStpBuildpackProps.languageSpecificConfig?.packageManagerFile) {
-            sharedStpBuildpackProps.languageSpecificConfig.packageManagerFile = join(
-              globalStateManager.workingDir,
-              sharedStpBuildpackProps.languageSpecificConfig.packageManagerFile
-            );
-          }
           const additionalDigestInput = objectHash(sharedStpBuildpackProps);
           if (packagingType === 'stacktape-lambda-buildpack') {
             const result = await buildUsingStacktapePyLambdaBuildpack({
