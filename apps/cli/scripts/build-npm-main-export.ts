@@ -16,7 +16,8 @@ import * as ts from 'typescript';
 import {
   getResourcesWithAugmentedProps,
   MISC_TYPES_CONVERTIBLE_TO_CLASSES,
-  RESOURCES_CONVERTIBLE_TO_CLASSES
+  RESOURCES_CONVERTIBLE_TO_CLASSES,
+  type ResourceDefinition
 } from '@stacktape/config-authoring/resource-metadata';
 import {
   generateAugmentedPropsTypes,
@@ -487,6 +488,32 @@ function removeDuplicateDeclarations(content: string): string {
 }
 
 /**
+ * The source authoring types derive `connectTo` object compatibility from the runtime resource catalog. The npm
+ * declaration bundle is flattened into one file and deliberately strips imports, so retain only the small,
+ * declaration-only projection needed by those types instead of publishing the full build-time catalog.
+ */
+function generateResourceConnectionMetadataDeclaration(): string {
+  const entries = RESOURCES_CONVERTIBLE_TO_CLASSES.map((resource) => {
+    const definition: ResourceDefinition = resource;
+    const properties = [
+      `readonly className: ${JSON.stringify(resource.className)};`,
+      `readonly resourceType: ${JSON.stringify(resource.resourceType)};`
+    ];
+    if (definition.canConnectTo) {
+      properties.push(
+        `readonly canConnectTo: readonly [${definition.canConnectTo.map((className) => JSON.stringify(className)).join(', ')}];`
+      );
+    }
+    if (definition.hasAugmentedProps) {
+      properties.push('readonly hasAugmentedProps: true;');
+    }
+    return `{ ${properties.join(' ')} }`;
+  });
+
+  return `declare const RESOURCES_CONVERTIBLE_TO_CLASSES: readonly [\n  ${entries.join(',\n  ')}\n];`;
+}
+
+/**
  * The npm entry sources compiled with the CLI project's real compiler options.
  *
  * The npm sources are ordinary CLI files: they use `String.replaceAll`, which needs the CLI's `ES2023` lib, and
@@ -917,6 +944,8 @@ export type StacktapeArgs = Record<string, string | number | boolean>;
 // ==========================================
 // CONFIG TYPES
 // ==========================================
+
+${generateResourceConnectionMetadataDeclaration()}
 
 ${configCleaned}
 

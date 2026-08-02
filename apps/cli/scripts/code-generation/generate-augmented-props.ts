@@ -16,26 +16,8 @@ const SCRIPT_PROPS_TYPES = ['LocalScriptProps', 'BastionScriptProps', 'LocalScri
  * All connectable resource types (for scripts that can connect to anything)
  */
 const ALL_CONNECTABLE_RESOURCES = [
-  'RelationalDatabase',
-  'Bucket',
-  'HostingBucket',
-  'DynamoDbTable',
-  'EventBus',
-  'RedisCluster',
-  'MongoDbAtlasCluster',
-  'UpstashRedis',
-  'SqsQueue',
-  'SnsTopic',
-  'KinesisStream',
-  'OpenSearchDomain',
-  'EfsFilesystem',
-  'PrivateService',
-  'WebService',
-  'LambdaFunction',
-  'BatchJob',
-  'UserAuthPool',
-  'GlobalAwsServiceConstant'
-] as const;
+  ...new Set(getResourcesWithAugmentedProps().flatMap((resource) => resource.canConnectTo ?? []))
+];
 
 /**
  * Default JSDoc for connectTo property (used as fallback)
@@ -146,11 +128,7 @@ function getTransformsPropertyInfo(transformsTypeName: string): PropertyInfo {
  * Generates a ConnectTo type alias for a resource
  */
 function generateConnectToType(resourceType: string, canConnectTo: readonly string[]): string {
-  if (resourceType === 'Script') {
-    return `type ${resourceType}ConnectTo = ${[...ALL_CONNECTABLE_RESOURCES].join(' | ')};`;
-  }
-
-  const connectToList = [...canConnectTo, 'GlobalAwsServiceConstant'];
+  const connectToList = [...canConnectTo, 'GlobalAwsServiceConstant', 'string'];
   return `type ${resourceType}ConnectTo = ${connectToList.join(' | ')};`;
 }
 
@@ -307,11 +285,11 @@ export function generateAugmentedPropsTypes(): string {
   const resourcesWithAugmented = getResourcesWithAugmentedProps();
 
   // Collect all props that need ConnectTo types
-  const connectToTypeNeeded = new Set<string>();
+  const connectToTypeNeeded = new Set<ResourceClassName>();
 
   // Process main resources
   for (const resource of resourcesWithAugmented) {
-    connectToTypeNeeded.add(resource.className as string);
+    connectToTypeNeeded.add(resource.className);
   }
 
   // Add Script type for script props
@@ -323,7 +301,7 @@ export function generateAugmentedPropsTypes(): string {
     if (resourceType === 'Script') {
       result.push(generateConnectToType('Script', ALL_CONNECTABLE_RESOURCES));
     } else {
-      const resource = RESOURCES_CONVERTIBLE_TO_CLASSES.find((r) => r.className === (resourceType as any));
+      const resource = RESOURCES_CONVERTIBLE_TO_CLASSES.find((candidate) => candidate.className === resourceType);
       if (resource && resource.canConnectTo) {
         result.push(generateConnectToType(resourceType, resource.canConnectTo));
       }

@@ -241,11 +241,7 @@ function findInterfaceJSDoc(interfaceName: string, sourceFile: ts.SourceFile): J
 
 // Build RESOURCE_INTERFACE_MAP from class-config (single source of truth)
 const RESOURCE_INTERFACE_MAP: Record<string, { interfaceName: string; file: string }> = Object.fromEntries(
-  RESOURCES_CONVERTIBLE_TO_CLASSES.map((r) => [
-    // Use LambdaFunction for Function (exported name)
-    r.className === 'Function' ? 'LambdaFunction' : r.className,
-    { interfaceName: r.interfaceName, file: r.sourceFile }
-  ])
+  RESOURCES_CONVERTIBLE_TO_CLASSES.map((r) => [r.className, { interfaceName: r.interfaceName, file: r.sourceFile }])
 );
 
 /**

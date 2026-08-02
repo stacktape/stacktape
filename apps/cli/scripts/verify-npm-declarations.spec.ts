@@ -27,11 +27,13 @@ const installMinimalPackage = ({ plainDeclarations }: { plainDeclarations: strin
   writeFileSync(
     join(packageDir, 'index.d.ts'),
     [
-      'export declare class LambdaFunction { constructor(properties: Record<string, unknown>); }',
-      'export declare class WebService { constructor(properties: Record<string, unknown>); }',
       'export declare class BaseResource<Type extends string> { private readonly resourceType: Type; }',
+      "export declare class LambdaFunction extends BaseResource<'function'> { constructor(properties: { packaging: unknown; connectTo?: Array<string | BaseResource<'bucket' | 'function'>> }); }",
+      'export declare class WebService { constructor(properties: Record<string, unknown>); }',
       "export declare class Bucket extends BaseResource<'bucket'> { constructor(properties: { versioning?: boolean }); }",
       "export declare class HttpApiGateway extends BaseResource<'http-api-gateway'> { constructor(properties: Record<string, unknown>); }",
+      "export declare class StateMachine extends BaseResource<'state-machine'> { constructor(properties: { definition: unknown; connectTo?: Array<string | BaseResource<'function'>> }); }",
+      "export declare class LocalScript { constructor(properties: { executeCommand: string; connectTo?: Array<string | BaseResource<'bucket' | 'function'>> }); }",
       "export declare class HttpApiIntegration { constructor(properties: { httpApiGatewayName: string | BaseResource<'http-api-gateway'>; method: 'GET' | 'POST'; path: string }); readonly type: 'http-api-gateway'; }",
       'export declare class Convex { constructor(properties: Record<string, unknown>); }',
       "export declare class LambdaErrorRateTrigger { constructor(properties: { thresholdPercent: number }); readonly type: 'lambda-error-rate'; readonly properties: { thresholdPercent: number }; }",

@@ -13,13 +13,15 @@ import {
   LambdaErrorRateTrigger,
   LambdaS3FilesMount,
   LocalScript,
-  RelationalDatabase
+  RelationalDatabase,
+  StateMachine
 } from './index.js';
 import { compileAuthoringConfig } from './config.js';
 import {
   getResourceByType,
   MISC_TYPES_CONVERTIBLE_TO_CLASSES,
-  RESOURCES_CONVERTIBLE_TO_CLASSES
+  RESOURCES_CONVERTIBLE_TO_CLASSES,
+  type ResourceDefinition
 } from './class-config.js';
 import * as resourceClasses from './resources.js';
 import * as typePropertyClasses from './type-properties.js';
@@ -165,8 +167,12 @@ describe('TypeScript authoring compilation', () => {
         }
       ]
     });
+    const workflow = new StateMachine({
+      definition: { StartAt: 'Done', States: { Done: { Type: 'Succeed' } } },
+      connectTo: [handler]
+    });
 
-    const { config } = defineConfig(() => ({ resources: { api, database, handler } }))({
+    const { config } = defineConfig(() => ({ resources: { api, database, handler, workflow } }))({
       projectName: 'p',
       stage: 'test',
       region: 'eu-west-1',
@@ -175,12 +181,14 @@ describe('TypeScript authoring compilation', () => {
       awsProfile: ''
     });
     const handlerProperties = config.resources.handler!.properties as Record<string, any>;
+    const workflowProperties = config.resources.workflow!.properties as Record<string, unknown>;
 
     expect(handlerProperties.connectTo).toEqual(['database']);
     expect(handlerProperties.environment).toEqual([
       { name: 'DATABASE_URL', value: "$ResourceParam('database','connectionString')" }
     ]);
     expect(handlerProperties.events[0].properties.httpApiGatewayName).toBe('api');
+    expect(workflowProperties.connectTo).toEqual(['handler']);
   });
 
   test('compiles typed helper classes to the same plain configuration shape', () => {
@@ -311,6 +319,15 @@ describe('TypeScript authoring compilation', () => {
     expect(Object.keys(resourceClasses).toSorted()).toEqual(expectedClassNames);
     for (const className of expectedClassNames) {
       expect(exportedConstructors[className]).toBeFunction();
+    }
+  });
+
+  test('publishes augmented props for every resource with supported connections', () => {
+    for (const resource of RESOURCES_CONVERTIBLE_TO_CLASSES) {
+      const definition: ResourceDefinition = resource;
+      if (definition.canConnectTo?.length) {
+        expect(definition.hasAugmentedProps).toBe(true);
+      }
     }
   });
 

@@ -12,6 +12,7 @@ import {
   RdsEnginePostgres,
   RelationalDatabase,
   SqsQueueNotEmptyTrigger,
+  StateMachine,
   StacktapeLambdaBuildpackPackaging,
   defineConfig
 } from './index.js';
@@ -38,6 +39,25 @@ const highErrorRate = new Alarm({
 });
 const worker = new LambdaFunction({ packaging, events: [integration], volumeMounts: [mount], alarms: [highErrorRate] });
 const uploads = new Bucket({});
+const workerUsingNamedReference = new LambdaFunction({ packaging, connectTo: ['uploads'] });
+const workerWithInvalidConnection = new LambdaFunction({
+  packaging,
+  connectTo: [
+    // @ts-expect-error Lambda functions cannot connect to an HTTP API Gateway
+    api
+  ]
+});
+const workflow = new StateMachine({
+  definition: { StartAt: 'Done', States: { Done: { Type: 'Succeed' } } },
+  connectTo: [worker]
+});
+const workflowWithInvalidConnection = new StateMachine({
+  definition: { StartAt: 'Done', States: { Done: { Type: 'Succeed' } } },
+  connectTo: [
+    // @ts-expect-error state machines can connect only to Lambda functions and batch jobs
+    uploads
+  ]
+});
 const networkLoadBalancer = new NetworkLoadBalancer({ listeners: [{ port: 5432, protocol: 'TCP' }] });
 const networkIntegration = new MultiContainerWorkloadNetworkLoadBalancerIntegration({
   loadBalancerName: networkLoadBalancer,
@@ -99,6 +119,10 @@ void [
   invalidPackaging,
   networkIntegration,
   triggerType,
+  workerUsingNamedReference,
+  workerWithInvalidConnection,
+  workflow,
+  workflowWithInvalidConnection,
   wrongIntegrationTarget,
   wrongLoadBalancerTarget
 ];

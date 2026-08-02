@@ -11,8 +11,7 @@ type KebabToPascalCase<Value extends string> = Value extends `${infer First}-${i
  */
 
 export type ResourceClassName =
-  | KebabToPascalCase<StacktapeResourceType>
-  | 'Function'
+  | Exclude<KebabToPascalCase<StacktapeResourceType>, 'Function'>
   | 'Script'
   | 'LambdaFunction'
   | 'SvelteKitWeb'
@@ -28,7 +27,7 @@ export type ResourceDefinition = {
   /** Class name for the resource (e.g., 'LambdaFunction') */
   className: ResourceClassName;
   /** Resource type identifier used in config (e.g., 'function') */
-  resourceType: string;
+  resourceType: StacktapeResourceType;
   /** Props type name (e.g., 'LambdaFunctionProps') */
   propsType: string;
   /** Interface name in the source .d.ts file (e.g., 'LambdaFunction') */
@@ -36,7 +35,7 @@ export type ResourceDefinition = {
   /** Source .d.ts file name (e.g., 'functions.d.ts') */
   sourceFile: string;
   /** Resources and AWS services this resource can connect to. GlobalAwsServiceConstant is for global services, e.g. aws:ses  */
-  canConnectTo?: string[];
+  canConnectTo?: readonly ResourceClassName[];
   /** Whether this resource supports overrides (default: true) */
   supportsOverrides?: boolean;
   /** Whether this resource has augmented connectTo/environment props (default: false) */
@@ -47,7 +46,7 @@ export type ResourceDefinition = {
  * Complete list of all Stacktape resources.
  * This is the single source of truth - all code generation derives from this.
  */
-export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
+export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
   {
     className: 'RelationalDatabase',
     resourceType: 'relational-database',
@@ -294,7 +293,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     interfaceName: 'StateMachine',
     sourceFile: 'state-machines.d.ts',
     hasAugmentedProps: true,
-    canConnectTo: ['Function', 'BatchJob']
+    canConnectTo: ['LambdaFunction', 'BatchJob']
   },
   {
     className: 'UserAuthPool',
@@ -395,6 +394,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     propsType: 'AstroWebProps',
     interfaceName: 'AstroWeb',
     sourceFile: 'astro-web.d.ts',
+    hasAugmentedProps: true,
     canConnectTo: [
       'RelationalDatabase',
       'Bucket',
@@ -450,6 +450,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     propsType: 'SvelteKitWebProps',
     interfaceName: 'SvelteKitWeb',
     sourceFile: 'sveltekit-web.d.ts',
+    hasAugmentedProps: true,
     canConnectTo: [
       'RelationalDatabase',
       'Bucket',
@@ -477,6 +478,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     propsType: 'SolidStartWebProps',
     interfaceName: 'SolidStartWeb',
     sourceFile: 'solidstart-web.d.ts',
+    hasAugmentedProps: true,
     canConnectTo: [
       'RelationalDatabase',
       'Bucket',
@@ -504,6 +506,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     propsType: 'TanStackWebProps',
     interfaceName: 'TanStackWeb',
     sourceFile: 'tanstack-web.d.ts',
+    hasAugmentedProps: true,
     canConnectTo: [
       'RelationalDatabase',
       'Bucket',
@@ -531,6 +534,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
     propsType: 'RemixWebProps',
     interfaceName: 'RemixWeb',
     sourceFile: 'remix-web.d.ts',
+    hasAugmentedProps: true,
     canConnectTo: [
       'RelationalDatabase',
       'Bucket',
@@ -712,7 +716,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES: ResourceDefinition[] = [
       'PrivateService'
     ]
   }
-];
+] as const satisfies readonly ResourceDefinition[];
 
 /**
  * Defines all type + properties shaped definitions that can be converted to a Typescript class
@@ -1319,7 +1323,10 @@ export function getResourceByType(resourceType: string): ResourceDefinition | un
 }
 
 export function getResourcesWithAugmentedProps(): ResourceDefinition[] {
-  return RESOURCES_CONVERTIBLE_TO_CLASSES.filter((r) => r.hasAugmentedProps);
+  return RESOURCES_CONVERTIBLE_TO_CLASSES.filter((resource) => {
+    const definition: ResourceDefinition = resource;
+    return definition.hasAugmentedProps;
+  });
 }
 
 /**
@@ -1330,7 +1337,10 @@ export function getResourcesWithAugmentedProps(): ResourceDefinition[] {
  * says so here rather than being filtered out in one generator and not another.
  */
 export function getResourcesWithOverrides(): ResourceDefinition[] {
-  return RESOURCES_CONVERTIBLE_TO_CLASSES.filter((r) => r.supportsOverrides !== false);
+  return RESOURCES_CONVERTIBLE_TO_CLASSES.filter((resource) => {
+    const definition: ResourceDefinition = resource;
+    return definition.supportsOverrides !== false;
+  });
 }
 
 export function getTypePropertiesByClassName(className: string): TypePropertiesDefinition | undefined {

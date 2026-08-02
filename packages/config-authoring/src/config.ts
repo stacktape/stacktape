@@ -1,4 +1,5 @@
 import { CHILD_RESOURCES } from './child-resources.js';
+import { RESOURCES_CONVERTIBLE_TO_CLASSES } from './class-config.js';
 import type { AlarmDefinitionBase, AlarmTrigger } from '@stacktape/config/alarms';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { StacktapeResourceType } from '@stacktape/config/schema-inspection';
@@ -417,11 +418,42 @@ type WithAuthoringObjectEnvironment<Properties, Key extends PropertyKey> = Key e
     }
   : Properties;
 
-export type WithAuthoringResourceReferences<Properties> = Omit<
+type ResourceMetadata = (typeof RESOURCES_CONVERTIBLE_TO_CLASSES)[number];
+
+type ConnectableResourceClassName<Definition = ResourceMetadata> = Definition extends {
+  canConnectTo: readonly (infer ClassName)[];
+}
+  ? ClassName
+  : never;
+
+type ResourceTypeForClassName<ClassName> = Extract<ResourceMetadata, { className: ClassName }>['resourceType'];
+
+type ConnectableResourceType<Type extends StacktapeResourceType> = Extract<
+  ResourceTypeForClassName<ConnectableResourceClassName<Extract<ResourceMetadata, { resourceType: Type }>>>,
+  StacktapeResourceType
+>;
+
+type AuthoringResourceReference<Type extends StacktapeResourceType | 'script' = 'script'> = Type extends 'script'
+  ? BaseResource<Extract<ResourceTypeForClassName<ConnectableResourceClassName>, StacktapeResourceType>>
+  : BaseResource<ConnectableResourceType<Extract<Type, StacktapeResourceType>>>;
+
+type HasAuthoringConnectTo<Properties, Type extends StacktapeResourceType | 'script'> = Type extends 'script'
+  ? 'connectTo' extends keyof Properties
+    ? true
+    : false
+  : Extract<ResourceMetadata, { resourceType: Type }> extends { hasAugmentedProps: true }
+    ? true
+    : 'connectTo' extends keyof Properties
+      ? true
+      : false;
+
+export type WithAuthoringResourceReferences<
   Properties,
-  'connectTo' | 'environment' | 'injectEnvironment'
-> &
-  ('connectTo' extends keyof Properties ? { connectTo?: Array<string | BaseResource> } : Record<never, never>) &
+  ResourceType extends StacktapeResourceType | 'script' = 'script'
+> = Omit<Properties, 'connectTo' | 'environment' | 'injectEnvironment'> &
+  (HasAuthoringConnectTo<Properties, ResourceType> extends true
+    ? { connectTo?: Array<string | AuthoringResourceReference<ResourceType>> }
+    : Record<never, never>) &
   ('environment' extends keyof Properties ? { environment?: AuthoringEnvironment } : Record<never, never>) &
   ('injectEnvironment' extends keyof Properties ? { injectEnvironment?: AuthoringEnvironment } : Record<never, never>);
 
@@ -437,7 +469,7 @@ type ResourcesWithoutCloudFormationCustomization =
 export type AuthoringResourceProps<Type extends StacktapeResourceType> = WithAuthoringObjectEnvironment<
   WithAuthoringArrayEnvironment<
     WithAuthoringArrayEnvironment<
-      WithAuthoringResourceReferences<WithAuthoringNamedResourceReferences<ResourcePropertiesOf<Type>, Type>>,
+      WithAuthoringResourceReferences<WithAuthoringNamedResourceReferences<ResourcePropertiesOf<Type>, Type>, Type>,
       'containers',
       true
     >,
