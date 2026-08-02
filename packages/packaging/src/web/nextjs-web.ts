@@ -16,6 +16,7 @@ import kleur from 'kleur';
 import { buildUsingCustomArtifact } from '../artifact/custom-artifact';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 import type { OpenNextConfig as UpstreamOpenNextConfig } from 'open-next/types/open-next.js';
+import { createTemporaryBuildFile } from '../fs/temporary-file';
 
 type NextjsWebBundlingProps = {
   resource: PackagedNextjsWeb;
@@ -325,8 +326,12 @@ const createTemporaryOpenNextConfigFile = async ({
 
 export default config;
 `;
-  const fileName = 'stp-temp-open-next.config.ts';
-  await writeFile(join(cwd, resource.appDirectory || '.', fileName), fileContent);
+  const { fileName } = await createTemporaryBuildFile({
+    contents: fileContent,
+    directoryPath: join(cwd, resource.appDirectory || '.'),
+    prefix: 'stp-open-next-',
+    suffix: '.config.ts'
+  });
   return fileName;
 };
 

@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { buildJavaArtifactDockerfile } from '../../docker/dockerfiles';
 import { transformToUnixPath } from '../../fs/files';
 import { outputFile, remove } from 'fs-extra';
+import { createTemporaryBuildFile } from '../../fs/temporary-file';
 import objectHash from 'object-hash';
 import { getBundleDigest, getSourceFiles } from './utils';
 import type { JavaLanguageSpecificConfig, SupportedJavaVersion } from '@stacktape/config/deployment-artifacts';
@@ -72,34 +73,52 @@ export const buildJavaArtifact = async ({
   await progressLogger.finishEvent({ eventType: 'CALCULATE_CHECKSUM' });
 
   await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: 'Building code' });
+  const dockerfilePath = join(distFolderPath, 'Dockerfile');
+  const { fileName: initScriptFileName, filePath: stpInitGradlePath } = await createTemporaryBuildFile({
+    contents: gradleInitFileContent,
+    directoryPath: sourcePath,
+    prefix: 'stp-init-',
+    suffix: '.gradle'
+  });
   const dockerfileContents = buildJavaArtifactDockerfile({
     javaVersion,
     useMaven,
-    alpine: !requiresGlibcBinaries
+    alpine: !requiresGlibcBinaries,
+    initScriptFileName
   });
-  const dockerfilePath = join(distFolderPath, 'Dockerfile');
-  const stpInitGradlePath = join(sourcePath, 'stp-init.gradle');
 
-  await Promise.all([
-    outputFile(stpInitGradlePath, gradleInitFileContent),
-    outputFile(dockerfilePath, dockerfileContents)
-  ]);
-  await runDocker(
-    [
-      'image',
-      'build',
-      ...(dockerBuildOutputArchitecture ? ['--platform', dockerBuildOutputArchitecture] : []),
-      '--target',
-      'artifact',
-      '--file',
-      dockerfilePath,
-      '--output',
-      `type=local,dest=${transformToUnixPath(distFolderPath)}`,
-      sourcePath
-    ],
-    { cwd: process.cwd() }
-  );
-  await remove(stpInitGradlePath);
+  let buildResult: { succeeded: true } | { succeeded: false; error: unknown };
+  try {
+    await outputFile(dockerfilePath, dockerfileContents);
+    await runDocker(
+      [
+        'image',
+        'build',
+        ...(dockerBuildOutputArchitecture ? ['--platform', dockerBuildOutputArchitecture] : []),
+        '--target',
+        'artifact',
+        '--file',
+        dockerfilePath,
+        '--output',
+        `type=local,dest=${transformToUnixPath(distFolderPath)}`,
+        sourcePath
+      ],
+      { cwd: process.cwd() }
+    );
+    buildResult = { succeeded: true };
+  } catch (error) {
+    buildResult = { succeeded: false, error };
+  }
+  try {
+    await remove(stpInitGradlePath);
+  } catch (cleanupError) {
+    if (buildResult.succeeded) {
+      throw cleanupError;
+    }
+  }
+  if ('error' in buildResult) {
+    throw buildResult.error;
+  }
   await progressLogger.finishEvent({ eventType: 'BUILD_CODE' });
 
   return {

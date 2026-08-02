@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
-import { mkdtemp, mkdir, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import * as fsExtra from 'fs-extra';
@@ -18,6 +18,8 @@ describe('Nixpacks packaging failures', () => {
     temporaryDirectories.push(root);
     const sourceDirectory = join(root, 'service');
     await mkdir(sourceDirectory);
+    const customerConfigPath = join(sourceDirectory, 'stp-nixpacks-tmp.json');
+    await writeFile(customerConfigPath, 'customer-owned');
 
     const semanticError = Object.assign(new Error('Nixpacks command failed'), {
       category: 'NIXPACKS',
@@ -49,7 +51,9 @@ describe('Nixpacks packaging failures', () => {
 
     await expect(operation).rejects.toBe(semanticError);
     expect(configPath).toBeDefined();
-    expect(await readdir(sourceDirectory)).not.toContain('stp-nixpacks-tmp.json');
+    expect(configPath).not.toBe(customerConfigPath);
+    expect(await readdir(sourceDirectory)).not.toContain(configPath!.split(/[\\/]/).at(-1));
+    expect(await readFile(customerConfigPath, 'utf8')).toBe('customer-owned');
   });
 
   test('does not replace a build failure with a cleanup failure', async () => {

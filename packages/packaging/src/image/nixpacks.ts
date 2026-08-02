@@ -7,12 +7,13 @@ import type {
 import type { DockerBuildOutputArchitecture, PackagingOutput } from '../runtime-contracts';
 import { join } from 'node:path';
 import { parse as parseIni } from 'ini';
-import { readFile, readJson, readdir, remove, writeJson } from 'fs-extra';
+import { readFile, readJson, readdir, remove } from 'fs-extra';
 import objectHash from 'object-hash';
 
 import type { NixpacksBjImagePackagingProps } from '@stacktape/config/deployment-artifacts';
 import { EXCLUDE_FROM_CHECKSUM_GLOBS, getDirectoryChecksum, mergeHashes } from '../artifact/hashing';
 import { getAllFilesInDir } from '../fs/files';
+import { createTemporaryBuildFile } from '../fs/temporary-file';
 
 export const buildUsingNixpacks = async ({
   name,
@@ -161,8 +162,12 @@ const createTemporaryNixpacksConfigFile = async ({
 }) => {
   const nixpacksConfig = await getNixpacksConfig({ packagingProps, absoluteSourceDirectoryPath });
 
-  const fileName = 'stp-nixpacks-tmp.json';
-  await writeJson(join(absoluteSourceDirectoryPath, fileName), nixpacksConfig);
+  const { fileName } = await createTemporaryBuildFile({
+    contents: JSON.stringify(nixpacksConfig, null, 2),
+    directoryPath: absoluteSourceDirectoryPath,
+    prefix: 'stp-nixpacks-',
+    suffix: '.json'
+  });
   return fileName;
 };
 

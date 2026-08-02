@@ -259,18 +259,20 @@ COPY --from=build /dist .
 export const buildJavaArtifactDockerfile = ({
   javaVersion = 11,
   useMaven,
-  alpine
+  alpine,
+  initScriptFileName
 }: {
   javaVersion: number;
   useMaven?: boolean | undefined;
   alpine?: boolean | undefined;
+  initScriptFileName: string;
 }) => {
   let baseImage = `public.ecr.aws/docker/library/gradle:8.5-jdk${javaVersion}`;
   if (alpine) {
     baseImage += '-alpine';
   }
   const mavenToGradleCommand = 'RUN printf "1\\nno\\n" | gradle init --type pom';
-  const createDist = 'RUN gradle stacktapeDist --init-script stp-init.gradle';
+  const createDist = `RUN gradle stacktapeDist --init-script ${initScriptFileName}`;
 
   return `FROM ${baseImage} AS build
 
