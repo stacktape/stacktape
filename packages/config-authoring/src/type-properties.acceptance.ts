@@ -7,6 +7,8 @@ import {
   LambdaErrorRateTrigger,
   LambdaS3FilesMount,
   LocalScript,
+  MultiContainerWorkloadNetworkLoadBalancerIntegration,
+  NetworkLoadBalancer,
   RdsEnginePostgres,
   RelationalDatabase,
   SqsQueueNotEmptyTrigger,
@@ -36,6 +38,18 @@ const highErrorRate = new Alarm({
 });
 const worker = new LambdaFunction({ packaging, events: [integration], volumeMounts: [mount], alarms: [highErrorRate] });
 const uploads = new Bucket({});
+const networkLoadBalancer = new NetworkLoadBalancer({ listeners: [{ port: 5432, protocol: 'TCP' }] });
+const networkIntegration = new MultiContainerWorkloadNetworkLoadBalancerIntegration({
+  loadBalancerName: networkLoadBalancer,
+  listenerPort: 5432,
+  containerPort: 5432
+});
+const wrongLoadBalancerTarget = new MultiContainerWorkloadNetworkLoadBalancerIntegration({
+  // @ts-expect-error unrelated resource objects are rejected for either load-balancer integration
+  loadBalancerName: uploads,
+  listenerPort: 5432,
+  containerPort: 5432
+});
 const seed = new LocalScript({
   executeCommand: 'bun run seed.ts',
   connectTo: [database, uploads],
@@ -56,6 +70,13 @@ const invalidIntegration = new HttpApiIntegration({
   path: '/'
 });
 
+const wrongIntegrationTarget = new HttpApiIntegration({
+  // @ts-expect-error a bucket cannot be used where an HTTP API Gateway resource is required
+  httpApiGatewayName: uploads,
+  method: 'GET',
+  path: '/wrong-target'
+});
+
 const invalidPackaging = new StacktapeLambdaBuildpackPackaging({
   entryfilePath: './src/handler.ts',
   // @ts-expect-error packaging constructors reject unknown properties
@@ -69,4 +90,15 @@ const invalidMount = new LambdaS3FilesMount({
 });
 
 const config = defineConfig(() => ({ resources: { api, database, uploads, worker }, scripts: { seed } }));
-void [alarmThreshold, config, integrationType, invalidIntegration, invalidMount, invalidPackaging, triggerType];
+void [
+  alarmThreshold,
+  config,
+  integrationType,
+  invalidIntegration,
+  invalidMount,
+  invalidPackaging,
+  networkIntegration,
+  triggerType,
+  wrongIntegrationTarget,
+  wrongLoadBalancerTarget
+];

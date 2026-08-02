@@ -2,8 +2,7 @@ import type {
   AuthoringStacktapeConfig,
   CompiledStacktapeConfig,
   DefinedStacktapeConfig,
-  GetConfigParams,
-  ResourceReferencePropertyKey
+  GetConfigParams
 } from './config.js';
 import {
   ENGINE_TYPE_TO_CLASS,
@@ -12,7 +11,12 @@ import {
   RESOURCE_TYPE_TO_CLASS,
   SCRIPT_TYPE_TO_CLASS
 } from './class-config.js';
-import { compileAuthoringConfig, defineConfig, isCompiledStacktapeConfig } from './config.js';
+import {
+  compileAuthoringConfig,
+  defineConfig,
+  isCompiledStacktapeConfig,
+  isResourceReferencePropertyKey
+} from './config.js';
 import { $CfFormat, $CfResourceParam, $CfStackOutput, $GitInfo, $ResourceParam, $Secret } from './directives.js';
 import { AWS_SES } from './global-aws-services.js';
 import * as resourceClasses from './resources.js';
@@ -88,40 +92,6 @@ const DIRECTIVE_YAML_TO_SDK: Record<string, string> = {
   $Format: '$CfFormat',
   $StackOutput: '$CfStackOutput'
 };
-
-const RESOURCE_REFERENCE_PROPERTY_KEYS = new Set<ResourceReferencePropertyKey>([
-  'afterTrafficShiftFunction',
-  'assumeRoleOfResource',
-  'bastionResource',
-  'beforeAllowTrafficFunction',
-  'bucketName',
-  'definitionName',
-  'efsFilesystemName',
-  'eventBusName',
-  'function',
-  'functionName',
-  'httpApiGatewayName',
-  'kinesisStreamName',
-  'loadBalancerName',
-  'onOriginRequest',
-  'onOriginResponse',
-  'onRequest',
-  'onResponse',
-  'snsTopicName',
-  'sqsQueueName',
-  'targetSqsQueueName',
-  'useBrowser',
-  'useCodeInterpreter',
-  'useFirewall',
-  'useGateway',
-  'useMemory',
-  'userPool',
-  'userPoolName'
-]);
-
-const isResourceReferencePropertyKey = (key: string, resourceType?: string): key is ResourceReferencePropertyKey =>
-  RESOURCE_REFERENCE_PROPERTY_KEYS.has(key as ResourceReferencePropertyKey) &&
-  !(key === 'bucketName' && resourceType === 'agentcore-browser');
 
 /** Check if a string is a directive */
 const isDirective = (value: unknown): value is string => {

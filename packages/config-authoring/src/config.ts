@@ -135,11 +135,11 @@ export class Alarm<Trigger extends AlarmTrigger = AlarmTrigger> {
 /**
  * Base resource class that provides common functionality
  */
-export class BaseResource {
-  private readonly _type: StacktapeResourceType;
+export class BaseResource<Type extends StacktapeResourceType = StacktapeResourceType> {
+  private readonly _type: Type;
   private readonly _properties: any;
 
-  constructor(type: StacktapeResourceType, properties: any) {
+  constructor(type: Type, properties: any) {
     this._type = type;
 
     this._properties = properties;
@@ -150,7 +150,7 @@ export class BaseResource {
     return new ResourceParamReference(this, paramName);
   }
 
-  [getTypeSymbol](): string {
+  [getTypeSymbol](): Type {
     return this._type;
   }
 
@@ -312,34 +312,52 @@ type ResourcePropertiesOf<Type extends StacktapeResourceType> =
 
 type AuthoringEnvironment = Record<string, string | number | boolean>;
 
-export type ResourceReferencePropertyKey =
-  | 'afterTrafficShiftFunction'
-  | 'assumeRoleOfResource'
-  | 'bastionResource'
-  | 'beforeAllowTrafficFunction'
-  | 'bucketName'
-  | 'definitionName'
-  | 'efsFilesystemName'
-  | 'eventBusName'
-  | 'function'
-  | 'functionName'
-  | 'httpApiGatewayName'
-  | 'kinesisStreamName'
-  | 'loadBalancerName'
-  | 'onOriginRequest'
-  | 'onOriginResponse'
-  | 'onRequest'
-  | 'onResponse'
-  | 'snsTopicName'
-  | 'sqsQueueName'
-  | 'targetSqsQueueName'
-  | 'useBrowser'
-  | 'useCodeInterpreter'
-  | 'useFirewall'
-  | 'useGateway'
-  | 'useMemory'
-  | 'userPool'
-  | 'userPoolName';
+/**
+ * Property names whose string values identify another resource in the same Stacktape config.
+ * `'*'` means that any resource can be referenced; otherwise the tuple is the accepted resource type.
+ */
+export const RESOURCE_REFERENCE_TARGETS = {
+  afterTrafficShiftFunction: ['function'],
+  assumeRoleOfResource: '*',
+  bastionResource: ['bastion'],
+  beforeAllowTrafficFunction: ['function'],
+  bucketName: ['bucket'],
+  definitionName: ['custom-resource-definition'],
+  efsFilesystemName: ['efs-filesystem'],
+  eventBusName: ['event-bus'],
+  function: ['function'],
+  functionName: ['function'],
+  httpApiGatewayName: ['http-api-gateway'],
+  kinesisStreamName: ['kinesis-stream'],
+  loadBalancerName: ['application-load-balancer', 'network-load-balancer'],
+  onOriginRequest: ['edge-lambda-function'],
+  onOriginResponse: ['edge-lambda-function'],
+  onRequest: ['edge-lambda-function'],
+  onResponse: ['edge-lambda-function'],
+  snsTopicName: ['sns-topic'],
+  sqsQueueName: ['sqs-queue'],
+  targetSqsQueueName: ['sqs-queue'],
+  useBrowser: ['agentcore-browser'],
+  useCodeInterpreter: ['agentcore-code-interpreter'],
+  useFirewall: ['web-app-firewall'],
+  useGateway: ['agentcore-gateway'],
+  useMemory: ['agentcore-memory'],
+  userPool: ['user-auth-pool'],
+  userPoolName: ['user-auth-pool']
+} as const satisfies Record<string, readonly StacktapeResourceType[] | '*'>;
+
+export type ResourceReferencePropertyKey = keyof typeof RESOURCE_REFERENCE_TARGETS;
+
+type ReferencedResourceType<Key extends ResourceReferencePropertyKey> =
+  (typeof RESOURCE_REFERENCE_TARGETS)[Key] extends readonly StacktapeResourceType[]
+    ? (typeof RESOURCE_REFERENCE_TARGETS)[Key][number]
+    : StacktapeResourceType;
+
+export const isResourceReferencePropertyKey = (
+  key: string,
+  resourceType?: string
+): key is ResourceReferencePropertyKey =>
+  Object.hasOwn(RESOURCE_REFERENCE_TARGETS, key) && !(key === 'bucketName' && resourceType === 'agentcore-browser');
 
 type IsDirectResourceReference<
   Key,
@@ -363,7 +381,7 @@ export type WithAuthoringNamedResourceReferences<
       ? {
           [Key in keyof Value]: IsDirectResourceReference<Key, ResourceType> extends true
             ? Value[Key] extends string | undefined
-              ? Value[Key] | BaseResource
+              ? Value[Key] | BaseResource<ReferencedResourceType<Key & ResourceReferencePropertyKey>>
               : WithAuthoringNamedResourceReferences<Value[Key], ResourceType>
             : WithAuthoringNamedResourceReferences<Value[Key], ResourceType>;
         }

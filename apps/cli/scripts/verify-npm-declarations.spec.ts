@@ -29,7 +29,10 @@ const installMinimalPackage = ({ plainDeclarations }: { plainDeclarations: strin
     [
       'export declare class LambdaFunction { constructor(properties: Record<string, unknown>); }',
       'export declare class WebService { constructor(properties: Record<string, unknown>); }',
-      'export declare class Bucket { constructor(properties: { versioning?: boolean }); }',
+      'export declare class BaseResource<Type extends string> { private readonly resourceType: Type; }',
+      "export declare class Bucket extends BaseResource<'bucket'> { constructor(properties: { versioning?: boolean }); }",
+      "export declare class HttpApiGateway extends BaseResource<'http-api-gateway'> { constructor(properties: Record<string, unknown>); }",
+      "export declare class HttpApiIntegration { constructor(properties: { httpApiGatewayName: string | BaseResource<'http-api-gateway'>; method: 'GET' | 'POST'; path: string }); readonly type: 'http-api-gateway'; }",
       'export declare class Convex { constructor(properties: Record<string, unknown>); }',
       "export declare class LambdaErrorRateTrigger { constructor(properties: { thresholdPercent: number }); readonly type: 'lambda-error-rate'; readonly properties: { thresholdPercent: number }; }",
       'export declare class Alarm<Trigger extends LambdaErrorRateTrigger> { constructor(properties: { trigger: Trigger; includeInHistory?: boolean; description?: string }); readonly trigger: Trigger; readonly includeInHistory?: boolean; readonly description?: string; }',

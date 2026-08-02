@@ -91,7 +91,7 @@ function generateResourceClass(
 
   const parts = [
     '',
-    `export declare class ${className} extends BaseResource {`,
+    `export declare class ${className} extends BaseResource<'${resourceType}'> {`,
     constructorJsDoc,
     `  constructor(properties: WithAuthoringNamedResourceReferences<${finalPropsType}, '${resourceType}'>);`,
     getters,

@@ -22,7 +22,7 @@ const REQUIRED_DECLARATIONS = ['index.d.ts', 'types.d.ts', 'cloudformation.d.ts'
 const consumerFixtureFor = (packageDir: string) => {
   const entry = (name: string) => join(packageDir, name).split('\\').join('/');
   return `
-import { Alarm, LambdaErrorRateTrigger, LambdaFunction, LambdaS3FilesMount, WebService, Bucket, Convex, IotIntegration, defineConfig, $Secret } from '${entry('index')}';
+import { Alarm, HttpApiGateway, HttpApiIntegration, LambdaErrorRateTrigger, LambdaFunction, LambdaS3FilesMount, WebService, Bucket, Convex, IotIntegration, defineConfig, $Secret } from '${entry('index')}';
 import type { CloudFormationTemplate, FinalTransform } from '${entry('index')}';
 import type { StacktapeConfig, StacktapeBudgetControlPlain, IotIntegrationProps } from '${entry('types')}';
 // @ts-expect-error v4 TypeScript configs no longer expose the legacy named getConfig function type
@@ -37,10 +37,14 @@ const site = new WebService({
   resources: { cpu: 0.25, memory: 512 }
 });
 const uploads = new Bucket({ versioning: true });
+const gateway = new HttpApiGateway({});
+const route = new HttpApiIntegration({ httpApiGatewayName: gateway, method: 'GET', path: '/' });
 // @ts-expect-error resource names come from their key in the resources object
 new Bucket('legacy-explicit-name', { versioning: true });
 // @ts-expect-error resource constructors are source-typed rather than accepting arbitrary bags
 new Bucket({ propertyThatDoesNotExist: true });
+// @ts-expect-error a bucket object cannot stand in for an HTTP API Gateway resource reference
+new HttpApiIntegration({ httpApiGatewayName: uploads, method: 'GET', path: '/wrong-target' });
 // Convex has no modelled CloudFormation children, so its constructor takes the ordinary authored props.
 const backend = new Convex({ appDirectory: './convex' });
 
@@ -72,8 +76,8 @@ const finalTransform: FinalTransform = (value) => value;
 
 export const config = defineConfig(() => ({
   projectName: 'consumer-fixture',
-  resources: { api, site, uploads, backend },
-  variables: { alarmThreshold, secret: $Secret('db-password'), iot: iotTrigger.type, iotSql, minimalIot: minimalIotTrigger.type, mountPath },
+  resources: { api, site, uploads, backend, gateway },
+  variables: { alarmThreshold, secret: $Secret('db-password'), iot: iotTrigger.type, iotSql, minimalIot: minimalIotTrigger.type, mountPath, route: route.type },
   finalTransform
 }));
 export const compiledConfig = config({
