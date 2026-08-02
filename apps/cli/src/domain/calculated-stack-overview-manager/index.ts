@@ -84,6 +84,36 @@ import { resolveWorkerServices } from './resource-resolvers/worker-services';
 import type { CloudformationResource, IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { StackContext } from '@domain-services/stack-context';
 
+/** Starts resolvers in order, waits for every one that started, then propagates the first observed failure. */
+export const settleResourceResolvers = async (
+  resourceResolvers: ReadonlyArray<() => unknown | PromiseLike<unknown>>
+) => {
+  let firstFailure: { reason: unknown } | undefined;
+  const startedResolvers: Promise<void>[] = [];
+  for (const resolveResource of resourceResolvers) {
+    try {
+      const resolverPromise = Promise.resolve(resolveResource());
+      startedResolvers.push(
+        resolverPromise.then(
+          () => undefined,
+          (reason) => {
+            firstFailure ??= { reason };
+          }
+        )
+      );
+    } catch (reason) {
+      // The previous call shape also stopped invoking later resolvers after a synchronous failure. Work already started
+      // above is still observed and settled before the error escapes.
+      firstFailure ??= { reason };
+      break;
+    }
+  }
+  await Promise.all(startedResolvers);
+  if (firstFailure) {
+    throw firstFailure.reason;
+  }
+};
+
 export class CalculatedStackOverviewManager {
   stackInfoMap: StackInfoMap = { metadata: {}, resources: {}, customOutputs: {} };
   #context: StackContext | undefined;
@@ -111,64 +141,64 @@ export class CalculatedStackOverviewManager {
       description: 'Resolving configuration',
       phase: 'INITIALIZE'
     });
-    await Promise.all([
-      resolveStackOutputs(),
-      resolveCustomResources(),
-      resolveDeploymentBucket(),
-      resolveImageRepository(),
-      resolveApplicationLoadBalancers(),
-      resolveBatchJobs(),
-      resolveNetworkLoadBalancers(),
-      resolveBuckets(),
-      resolveContainerWorkloads(),
-      resolveAwsVpcDeployment(),
-      resolveDefaultEdgeLambdas(),
-      resolveDefaultEdgeLambdaBucket(),
-      resolveStacktapeServiceLambda(),
-      resolveFunctions(),
-      resolveAgentCoreResources(),
-      resolveS3EventsCustomResource(),
-      resolveSensitiveDataCustomResource(),
-      resolveAcceptVpcPeeringCustomResource(),
-      resolveDefaultDomainCertCustomResource(),
-      resolveDatabases(),
-      resolveDynamoTables(),
-      resolveOpenSearchDomains(),
-      resolveEventBuses(),
-      resolveBastions(),
-      resolveCloudformationResources(),
-      resolveStateMachines(),
-      resolveHttpApiGateways(),
-      resolveUserPools(),
-      resolveAtlasMongoClusters(),
-      resolveServiceDiscoveryPrivateNamespace(),
-      resolveRedisClusters(),
-      resolveUpstashRedisDatabases(),
-      resolveEdgeLambdaFunctions(),
-      resolveBudget(),
-      resolveCodeDeploySharedResources(),
-      resolveWebServices(),
-      resolveAwsCdkConstructs(),
-      resolvePrivateServices(),
-      resolveWorkerServices(),
-      resolveSqsQueues(),
-      resolveSnsTopics(),
-      resolveKinesisStreams(),
-      resolveHostingBuckets(),
-      resolveWebAppFirewalls(),
-      resolveDeploymentScripts(),
-      resolveNextjsWebs(),
-      resolveAstroWebs(),
-      resolveNuxtWebs(),
-      resolveSvelteKitWebs(),
-      resolveSolidStartWebs(),
-      resolveTanStackWebs(),
-      resolveRemixWebs(),
-      resolveEfsFilesystems(),
-      resolveConvexes({ context: this.context }),
-      resolveDevAgentRole(),
-      resolveDebugAgentRole(),
-      resolveDevContainerWorkloadRoles()
+    await settleResourceResolvers([
+      resolveStackOutputs,
+      resolveCustomResources,
+      resolveDeploymentBucket,
+      resolveImageRepository,
+      resolveApplicationLoadBalancers,
+      resolveBatchJobs,
+      resolveNetworkLoadBalancers,
+      resolveBuckets,
+      resolveContainerWorkloads,
+      resolveAwsVpcDeployment,
+      resolveDefaultEdgeLambdas,
+      resolveDefaultEdgeLambdaBucket,
+      resolveStacktapeServiceLambda,
+      resolveFunctions,
+      resolveAgentCoreResources,
+      resolveS3EventsCustomResource,
+      resolveSensitiveDataCustomResource,
+      resolveAcceptVpcPeeringCustomResource,
+      resolveDefaultDomainCertCustomResource,
+      resolveDatabases,
+      resolveDynamoTables,
+      resolveOpenSearchDomains,
+      resolveEventBuses,
+      resolveBastions,
+      resolveCloudformationResources,
+      resolveStateMachines,
+      resolveHttpApiGateways,
+      resolveUserPools,
+      resolveAtlasMongoClusters,
+      resolveServiceDiscoveryPrivateNamespace,
+      resolveRedisClusters,
+      resolveUpstashRedisDatabases,
+      resolveEdgeLambdaFunctions,
+      resolveBudget,
+      resolveCodeDeploySharedResources,
+      resolveWebServices,
+      resolveAwsCdkConstructs,
+      resolvePrivateServices,
+      resolveWorkerServices,
+      resolveSqsQueues,
+      resolveSnsTopics,
+      resolveKinesisStreams,
+      resolveHostingBuckets,
+      resolveWebAppFirewalls,
+      resolveDeploymentScripts,
+      resolveNextjsWebs,
+      resolveAstroWebs,
+      resolveNuxtWebs,
+      resolveSvelteKitWebs,
+      resolveSolidStartWebs,
+      resolveTanStackWebs,
+      resolveRemixWebs,
+      resolveEfsFilesystems,
+      () => resolveConvexes({ context: this.context }),
+      resolveDevAgentRole,
+      resolveDebugAgentRole,
+      resolveDevContainerWorkloadRoles
     ]);
     await eventManager.finishEvent({ eventType: 'RESOLVE_CONFIG', phase: 'INITIALIZE' });
   };

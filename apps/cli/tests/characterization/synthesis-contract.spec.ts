@@ -5,7 +5,10 @@ import { join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import {
+  calculatedStackOverviewManager,
+  settleResourceResolvers
+} from '@domain-services/calculated-stack-overview-manager';
 import type { StackContext } from '@domain-services/stack-context';
 import {
   hasEnabledCdn,
@@ -638,6 +641,69 @@ export const createNormalizedIamManifest = (template: CloudformationTemplate) =>
 };
 
 describe('full synthesis contract', () => {
+  test('waits for every started resource resolver before returning the first observed failure', async () => {
+    let rejectEarlierInList: (reason: unknown) => void;
+    const earlierInList = new Promise((_, reject) => {
+      rejectEarlierInList = reject;
+    });
+    let rejectFirstInTime: (reason: unknown) => void;
+    const firstInTime = new Promise((_, reject) => {
+      rejectFirstInTime = reject;
+    });
+    let finishLateResolver: () => void;
+    const lateResolver = new Promise<void>((resolve) => {
+      finishLateResolver = resolve;
+    });
+    const firstError = new Error('first resolver failure');
+    const laterError = new Error('later resolver failure');
+    const resolution = settleResourceResolvers([() => earlierInList, () => firstInTime, () => lateResolver]);
+    let returned = false;
+    void resolution.catch(() => {
+      returned = true;
+    });
+
+    rejectFirstInTime(firstError);
+    await Promise.resolve();
+    rejectEarlierInList(laterError);
+    await Promise.resolve();
+    expect(returned).toBe(false);
+
+    finishLateResolver();
+    await expect(resolution).rejects.toBe(firstError);
+    expect(returned).toBe(true);
+  });
+
+  test('settles earlier resolver work before propagating a later synchronous failure', async () => {
+    let rejectStartedResolver: (reason: unknown) => void;
+    const startedResolver = new Promise((_, reject) => {
+      rejectStartedResolver = reject;
+    });
+    const synchronousError = new Error('synchronous resolver failure');
+    const asynchronousError = new Error('asynchronous resolver failure');
+    let startedAfterFailure = false;
+    const resolution = settleResourceResolvers([
+      () => startedResolver,
+      () => {
+        throw synchronousError;
+      },
+      () => {
+        startedAfterFailure = true;
+      }
+    ]);
+    let returned = false;
+    void resolution.catch(() => {
+      returned = true;
+    });
+
+    await Promise.resolve();
+    expect(returned).toBe(false);
+    expect(startedAfterFailure).toBe(false);
+    rejectStartedResolver(asynchronousError);
+
+    await expect(resolution).rejects.toBe(synchronousError);
+    expect(returned).toBe(true);
+  });
+
   test('resource resolvers use the immutable synthesis context instead of mutable CLI state', async () => {
     const template = await synthesizeDenseFixture({
       synthesisContext: {
