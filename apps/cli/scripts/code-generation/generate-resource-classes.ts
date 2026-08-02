@@ -87,14 +87,15 @@ function generateResourceClass(
   description: JSDocComment | undefined
 ): string {
   const finalPropsType = determinePropsType(propsType, hasAugmentedProps, supportsOverrides);
+  const authoringPropsType = `WithAuthoringNamedResourceReferences<${finalPropsType}, '${resourceType}'>`;
   const getters = generateGetters(referenceableParams);
   const constructorJsDoc = formatConstructorJSDoc(description, className as string);
 
   const parts = [
     '',
-    `export declare class ${className} extends BaseResource<'${resourceType}'> {`,
+    `export declare class ${className} extends BaseResource<'${resourceType}', ${authoringPropsType}> {`,
     constructorJsDoc,
-    `  constructor(properties: WithAuthoringNamedResourceReferences<${finalPropsType}, '${resourceType}'>);`,
+    `  constructor(properties: ${authoringPropsType});`,
     getters,
     '}'
   ];

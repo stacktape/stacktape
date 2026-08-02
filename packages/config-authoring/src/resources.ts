@@ -9,7 +9,7 @@ type ReferenceableParamName<Type extends StacktapeResourceType> = Type extends k
   ? (typeof REFERENCEABLE_PARAMS)[Type][number]['name']
   : never;
 
-export type StacktapeResource<Type extends StacktapeResourceType> = BaseResource<Type> &
+export type StacktapeResource<Type extends StacktapeResourceType> = BaseResource<Type, AuthoringResourceProps<Type>> &
   Readonly<Record<ReferenceableParamName<Type>, string>>;
 
 export type ResourceConstructor<Type extends StacktapeResourceType> = new (
@@ -20,7 +20,7 @@ function createResourceClass<Type extends StacktapeResourceType>(
   className: string,
   resourceType: Type
 ): ResourceConstructor<Type> {
-  const ResourceClass = class extends BaseResource {
+  const ResourceClass = class extends BaseResource<Type, AuthoringResourceProps<Type>> {
     constructor(properties: AuthoringResourceProps<Type>) {
       super(resourceType, properties);
     }

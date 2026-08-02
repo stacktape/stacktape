@@ -136,11 +136,11 @@ export class Alarm<Trigger extends AlarmTrigger = AlarmTrigger> {
 /**
  * Base resource class that provides common functionality
  */
-export class BaseResource<Type extends StacktapeResourceType = StacktapeResourceType> {
+export class BaseResource<Type extends StacktapeResourceType = StacktapeResourceType, Properties = unknown> {
   private readonly _type: Type;
-  private readonly _properties: any;
+  private readonly _properties: Properties;
 
-  constructor(type: Type, properties: any) {
+  constructor(type: Type, properties: Properties) {
     this._type = type;
 
     this._properties = properties;
@@ -155,7 +155,7 @@ export class BaseResource<Type extends StacktapeResourceType = StacktapeResource
     return this._type;
   }
 
-  [getPropertiesSymbol](): any {
+  [getPropertiesSymbol](): Properties {
     return this._properties;
   }
 }
@@ -654,21 +654,22 @@ const transformResourceDefinitions = (
   for (const key in resources) {
     const resource = resources[key];
     if (isBaseResource(resource)) {
-      const type = (resource as any)[getTypeSymbol]();
-      const authoredProperties = (resource as any)[getPropertiesSymbol]();
+      const type = resource[getTypeSymbol]();
+      const authoredProperties = resource[getPropertiesSymbol]();
       let overrides: unknown;
       let transforms: unknown;
       let properties = authoredProperties;
       if (authoredProperties && typeof authoredProperties === 'object' && !Array.isArray(authoredProperties)) {
-        properties = { ...authoredProperties };
-        if ('overrides' in properties) {
-          overrides = properties.overrides;
-          delete properties.overrides;
+        const authoredPropertiesWithoutTransforms = { ...authoredProperties };
+        if ('overrides' in authoredPropertiesWithoutTransforms) {
+          overrides = authoredPropertiesWithoutTransforms.overrides;
+          delete authoredPropertiesWithoutTransforms.overrides;
         }
-        if ('transforms' in properties) {
-          transforms = properties.transforms;
-          delete properties.transforms;
+        if ('transforms' in authoredPropertiesWithoutTransforms) {
+          transforms = authoredPropertiesWithoutTransforms.transforms;
+          delete authoredPropertiesWithoutTransforms.transforms;
         }
+        properties = authoredPropertiesWithoutTransforms;
       }
       const compiledOverrides =
         overrides && typeof overrides === 'object' && !Array.isArray(overrides)
@@ -752,8 +753,8 @@ export const transformValue = (value: any, resourceNames: ResourceNames = new Ma
 
   // Transform ResourceParamReference
   if (isResourceParamReference(value)) {
-    const resource = (value as any)[getReferencedResourceSymbol]() as BaseResource;
-    const param = (value as any)[getReferencedParamSymbol]() as string;
+    const resource = value[getReferencedResourceSymbol]();
+    const param = value[getReferencedParamSymbol]();
     return `$ResourceParam('${getRegisteredResourceName(resource, resourceNames)}','${param}')`;
   }
 

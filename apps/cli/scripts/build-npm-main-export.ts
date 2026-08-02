@@ -357,13 +357,16 @@ export declare class Alarm<Trigger extends AuthoringAlarmTrigger = AuthoringAlar
 /**
  * Base resource class that provides common functionality
  */
-export declare class BaseResource<Type extends StacktapeResourceType = StacktapeResourceType> {
+export declare class BaseResource<
+  Type extends StacktapeResourceType = StacktapeResourceType,
+  Properties = unknown
+> {
   private readonly _type: Type;
-  private readonly _properties;
-  constructor(type: Type, properties: any);
+  private readonly _properties: Properties;
+  constructor(type: Type, properties: Properties);
   [getParamReferenceSymbol](paramName: string): ResourceParamReference;
   [getTypeSymbol](): Type;
-  [getPropertiesSymbol](): any;
+  [getPropertiesSymbol](): Properties;
 }
 
 `;

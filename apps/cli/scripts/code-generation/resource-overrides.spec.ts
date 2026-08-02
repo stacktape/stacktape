@@ -74,6 +74,12 @@ describe('resources with modelled children still get overrides', () => {
     expect(assembledDeclarations).toContain('RelationalDatabaseTransforms');
   });
 
+  test('resource base classes preserve their authored properties type', () => {
+    expect(classBlockFor('RelationalDatabase')).toContain(
+      "extends BaseResource<'relational-database', WithAuthoringNamedResourceReferences<RelationalDatabasePropsWithOverrides, 'relational-database'>>"
+    );
+  });
+
   test('every generated `*WithOverrides` reference has a matching override type', () => {
     // The invariant the Convex bug broke, checked for the whole surface rather than one resource.
     const referenced = [...assembledDeclarations.matchAll(/(\w+)PropsWithOverrides/g)].map((match) => match[1]);
