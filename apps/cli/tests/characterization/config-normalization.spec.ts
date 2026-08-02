@@ -16,6 +16,9 @@ import {
   transformLoadBalancerToListenerForm
 } from '@domain-services/config-manager/utils/application-load-balancers';
 import { mergeStacktapeDefaults } from '@domain-services/config-manager/utils/misc';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { fsPaths } from 'src/config/runtime-paths';
 import { validateMultiContainerWorkloadConfig } from '@domain-services/config-manager/utils/multi-container-workloads';
 import { validateAwsCdkConstructProps } from '@domain-services/config-manager/utils/validation';
 import type { StacktapeConfig } from '@stacktape/config';
@@ -992,5 +995,361 @@ describe('nested resource identity', () => {
 
     expect(warmerFunction.name).toBe('siteWarmerFunction');
     expect(warmerFunction.nameChain).toEqual(['site', 'warmerFunction']);
+  });
+});
+
+/**
+ * Astro, Nuxt, SvelteKit, SolidStart, TanStack Start and Remix are all rendered the same way: one server Lambda behind
+ * a CloudFront distribution, one bucket of static output, and one CDN route that serves the framework's content-hashed
+ * assets from that bucket instead of the Lambda. These tests state what "the same way" actually means, and pin the one
+ * value that legitimately differs per framework — so a maintainer can see at a glance which parts are a shared contract
+ * and which part is a framework fact.
+ */
+describe('single-server-Lambda SSR web materialization', () => {
+  const SSR_WEB_FRAMEWORKS = [
+    { resourceType: 'astro-web', getter: 'astroWebs', hashedAssetDirectory: '_astro' },
+    { resourceType: 'nuxt-web', getter: 'nuxtWebs', hashedAssetDirectory: '_nuxt' },
+    { resourceType: 'sveltekit-web', getter: 'sveltekitWebs', hashedAssetDirectory: '_app' },
+    { resourceType: 'solidstart-web', getter: 'solidstartWebs', hashedAssetDirectory: '_build' },
+    { resourceType: 'tanstack-web', getter: 'tanstackWebs', hashedAssetDirectory: '_build' },
+    { resourceType: 'remix-web', getter: 'remixWebs', hashedAssetDirectory: 'assets' }
+  ] as const;
+
+  type SsrWebFramework = (typeof SSR_WEB_FRAMEWORKS)[number];
+
+  const ssrWebFor = (
+    { resourceType, getter }: SsrWebFramework,
+    properties: Record<string, unknown> = { appDirectory: './' }
+  ) => {
+    const manager = managerFor({ site: { type: resourceType, properties } } as StacktapeConfig['resources']);
+    return manager[getter][0];
+  };
+
+  /** Intrinsic functions are class instances until CloudFormation emission, so compare them as the JSON they become. */
+  const asCloudformationValue = (value: unknown) => JSON.parse(JSON.stringify(value));
+
+  const serverFunctionOf = (framework: SsrWebFramework, properties?: Record<string, unknown>) =>
+    ssrWebFor(framework, properties)._nestedResources.serverFunction;
+
+  const serverCdnOf = (framework: SsrWebFramework, properties?: Record<string, unknown>) => {
+    const { cdn } = serverFunctionOf(framework, properties);
+    if (!cdn) {
+      throw new Error(`Expected ${framework.resourceType} to put a CDN in front of its server function.`);
+    }
+    return cdn;
+  };
+
+  const buildFolderPathFor = ({ resourceType }: SsrWebFramework) =>
+    fsPaths.absoluteSsrWebBuiltProjectFolderPath({
+      invocationId: normalizationStackContext.invocationId,
+      stpResourceName: 'site',
+      resourceType
+    });
+
+  test('every framework synthesizes exactly a bucket and a server function under the parent identity', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const { bucket, serverFunction } = ssrWebFor(framework)._nestedResources;
+
+      expect(Object.keys(ssrWebFor(framework)._nestedResources).sort()).toEqual(['bucket', 'serverFunction']);
+      expect(bucket.type).toBe('bucket');
+      expect(bucket.name).toBe('siteBucket');
+      expect(bucket.nameChain).toEqual(['site', 'bucket']);
+      expect(bucket.configParentResourceType).toBe(framework.resourceType);
+      expect(serverFunction.type).toBe('function');
+      expect(serverFunction.name).toBe('siteServerFunction');
+      expect(serverFunction.nameChain).toEqual(['site', 'serverFunction']);
+      expect(serverFunction.configParentResourceType).toBe(framework.resourceType);
+    });
+  });
+
+  test('names the server Lambda deterministically from the nested identity, not the framework', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const serverFunction = serverFunctionOf(framework);
+
+      expect(serverFunction.cfLogicalName).toBe(cfLogicalNames.lambda('siteServerFunction'));
+      expect(serverFunction.resourceName).toBe(
+        awsResourceNames.lambda('siteServerFunction', normalizationStackContext.stackName)
+      );
+      expect(serverFunction.artifactName).toBe('siteServerFunction');
+    });
+  });
+
+  test('takes the server bundle from the framework-specific build folder, as a prebuilt artifact', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const serverFunction = serverFunctionOf(framework);
+      const buildPath = buildFolderPathFor(framework);
+
+      // The build folder is keyed by the resource type, so two frameworks in one stack never collide.
+      expect(buildPath.endsWith(`/${framework.resourceType}/site`)).toBe(true);
+      expect(serverFunction.packaging).toEqual({
+        type: 'custom-artifact',
+        properties: { packagePath: `${buildPath}/server-function`, handler: 'index-wrap.mjs:handler' }
+      });
+      expect(serverFunction.handler).toBe('index-wrap.handler');
+    });
+  });
+
+  test('gives every framework the same server Lambda defaults', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const serverFunction = serverFunctionOf(framework);
+
+      expect(serverFunction.runtime).toBe('nodejs22.x');
+      expect(serverFunction.memory).toBe(1024);
+      expect(serverFunction.timeout).toBe(30);
+      expect(serverFunction.joinDefaultVpc).toBeUndefined();
+      expect(serverFunction.logging).toEqual({
+        disabled: undefined,
+        logForwarding: undefined,
+        retentionDays: 180
+      });
+    });
+  });
+
+  test('yields to an authored serverLambda block, keeping the retention default separate from the rest', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const serverFunction = serverFunctionOf(framework, {
+        appDirectory: './',
+        serverLambda: { memory: 2048, timeout: 60, joinDefaultVpc: true, logging: { disabled: true } }
+      });
+
+      expect(serverFunction.memory).toBe(2048);
+      expect(serverFunction.timeout).toBe(60);
+      expect(serverFunction.joinDefaultVpc).toBe(true);
+      expect(serverFunction.logging).toEqual({ disabled: true, logForwarding: undefined, retentionDays: 180 });
+      expect(
+        serverFunctionOf(framework, { appDirectory: './', serverLambda: { logging: { retentionDays: 7 } } }).logging
+          ?.retentionDays
+      ).toBe(7);
+    });
+  });
+
+  test('copies the parent access configuration onto the server Lambda', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const iamRoleStatements = [{ Effect: 'Allow', Action: ['ses:SendEmail'], Resource: ['*'] }];
+      const serverFunction = serverFunctionOf(framework, {
+        appDirectory: './',
+        connectTo: ['orders'],
+        environment: [{ name: 'STAGE', value: 'test' }],
+        iamRoleStatements
+      });
+
+      expect(serverFunction.connectTo).toEqual(['orders']);
+      expect(serverFunction.environment).toEqual([{ name: 'STAGE', value: 'test' }]);
+      expect(serverFunction.iamRoleStatements).toEqual(iamRoleStatements);
+    });
+  });
+
+  test('defaults the copied access configuration to empty arrays rather than leaving it absent', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const serverFunction = serverFunctionOf(framework);
+
+      expect(serverFunction.connectTo).toEqual([]);
+      expect(serverFunction.environment).toEqual([]);
+      expect(serverFunction.iamRoleStatements).toBeUndefined();
+    });
+  });
+
+  test('puts an enabled CDN in front of the server Lambda, rewriting the host header at the edge', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const cdn = serverCdnOf(framework);
+
+      expect(cdn.enabled).toBe(true);
+      // The rewrite function is named per framework, so two SSR webs in one stack get distinct CloudFront functions.
+      expect(asCloudformationValue(cdn.edgeFunctions?.onRequest)).toEqual({
+        'Fn::GetAtt': [cfLogicalNames.ssrWebHostHeaderRewriteFunction('site', framework.resourceType), 'FunctionARN']
+      });
+      expect(cdn.forwardingOptions).toEqual({
+        allowedMethods: ['GET', 'HEAD', 'POST', 'OPTIONS', 'PATCH', 'PUT', 'DELETE'],
+        originRequestPolicyId: 'b689b0a8-53d0-40ab-baf2-68738e2966ac'
+      });
+    });
+  });
+
+  test('caches nothing at the edge by default, while allowing a long revalidated TTL', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      expect(serverCdnOf(framework).cachingOptions).toEqual({
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        defaultTTL: 0,
+        minTTL: 0,
+        maxTTL: 31536000,
+        cacheKeyParameters: {
+          headers: { none: true },
+          cookies: { none: true },
+          queryString: { all: true }
+        }
+      });
+    });
+  });
+
+  test('routes only the framework hashed-asset directory straight to the bucket', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const [assetRoute, ...otherRoutes] = serverCdnOf(framework).routeRewrites || [];
+
+      expect(otherRoutes).toEqual([]);
+      expect(assetRoute.path).toBe(`${framework.hashedAssetDirectory}/*`);
+      expect(assetRoute.routeTo).toEqual({
+        type: 'bucket',
+        properties: { bucketName: 'site.bucket', disableUrlNormalization: true }
+      });
+      expect(assetRoute.cachingOptions).toEqual({
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        cachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6'
+      });
+      expect(assetRoute.forwardingOptions?.allowedMethods).toEqual(['GET', 'HEAD', 'OPTIONS']);
+      // Static objects carry no origin request policy at all, rather than the server's.
+      expect(asCloudformationValue(assetRoute.forwardingOptions?.originRequestPolicyId)).toEqual({
+        Ref: 'AWS::NoValue'
+      });
+    });
+  });
+
+  test('pins the hashed-asset directory each framework actually builds into', () => {
+    // This is the only value the six materializations disagree on. `solidstart-web` and `tanstack-web` share `_build`
+    // because both are Vite defaults; the rest are their own framework's convention.
+    expect(
+      SSR_WEB_FRAMEWORKS.map((framework) => [
+        framework.resourceType,
+        (serverCdnOf(framework).routeRewrites || [])[0].path
+      ])
+    ).toEqual([
+      ['astro-web', '_astro/*'],
+      ['nuxt-web', '_nuxt/*'],
+      ['sveltekit-web', '_app/*'],
+      ['solidstart-web', '_build/*'],
+      ['tanstack-web', '_build/*'],
+      ['remix-web', 'assets/*']
+    ]);
+  });
+
+  test('uploads the static output with immutable headers for hashed assets and revalidation for everything else', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const { directoryUpload } = ssrWebFor(framework)._nestedResources.bucket;
+
+      expect(directoryUpload?.directoryPath).toBe(`${buildFolderPathFor(framework)}/bucket-content`);
+      expect(directoryUpload?.fileOptions).toEqual([
+        {
+          includePattern: `${framework.hashedAssetDirectory}/**/*`,
+          headers: [{ key: 'cache-control', value: 'public,max-age=31536000,immutable' }]
+        },
+        {
+          excludePattern: `${framework.hashedAssetDirectory}/**/*`,
+          includePattern: '**/*',
+          headers: [{ key: 'cache-control', value: 'public,max-age=0,s-maxage=31536000,must-revalidate' }]
+        }
+      ]);
+    });
+  });
+
+  test('keeps authored file options ahead of the synthesized cache headers', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const authoredFileOption = {
+        includePattern: 'downloads/**/*',
+        headers: [{ key: 'content-disposition', value: 'attachment' }]
+      };
+      const { directoryUpload } = ssrWebFor(framework, { appDirectory: './', fileOptions: [authoredFileOption] })
+        ._nestedResources.bucket;
+
+      expect(directoryUpload?.fileOptions?.[0]).toEqual(authoredFileOption);
+      expect(directoryUpload?.fileOptions).toHaveLength(3);
+    });
+  });
+
+  test('passes the parent distribution settings through to the server CDN', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const customDomains = [{ domainName: 'example.com' }];
+      const cdn = serverCdnOf(framework, {
+        appDirectory: './',
+        useFirewall: 'firewall',
+        customDomains,
+        cdn: { disableInvalidationAfterDeploy: true }
+      });
+
+      expect(cdn.useFirewall).toBe('firewall');
+      expect(cdn.customDomains).toEqual(customDomains);
+      expect(cdn.disableInvalidationAfterDeploy).toBe(true);
+    });
+  });
+
+  test('merges authored default caching options over the synthesized ones', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const cdn = serverCdnOf(framework, {
+        appDirectory: './',
+        cdn: { defaultCachingOptions: { defaultTTL: 60, minTTL: 30 } }
+      });
+
+      expect(cdn.cachingOptions?.defaultTTL).toBe(60);
+      expect(cdn.cachingOptions?.minTTL).toBe(30);
+      // Everything the override did not mention survives.
+      expect(cdn.cachingOptions?.maxTTL).toBe(31536000);
+      expect(cdn.cachingOptions?.cacheMethods).toEqual(['GET', 'HEAD', 'OPTIONS']);
+    });
+  });
+
+  test('lets a path caching override retune the hashed-asset route without moving its origin', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const routeRewrites =
+        serverCdnOf(framework, {
+          appDirectory: './',
+          cdn: {
+            pathCachingOverrides: [
+              { path: `/${framework.hashedAssetDirectory}/*`, cachingOptions: { defaultTTL: 120 } }
+            ]
+          }
+        }).routeRewrites || [];
+
+      expect(routeRewrites).toHaveLength(1);
+      expect(routeRewrites[0].path).toBe(`${framework.hashedAssetDirectory}/*`);
+      // Matching ignores a leading slash, merges caching only, and leaves the bucket origin in place.
+      expect(routeRewrites[0].cachingOptions).toEqual({
+        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+        cachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6',
+        defaultTTL: 120
+      });
+      expect(routeRewrites[0].routeTo?.type).toBe('bucket');
+    });
+  });
+
+  test('turns an override for any other path into a new route served by the server defaults', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const routeRewrites =
+        serverCdnOf(framework, {
+          appDirectory: './',
+          cdn: { pathCachingOverrides: [{ path: '/api/*', cachingOptions: { defaultTTL: 5 } }] }
+        }).routeRewrites || [];
+
+      expect(routeRewrites.map(({ path }) => path)).toEqual([`${framework.hashedAssetDirectory}/*`, '/api/*']);
+      expect(routeRewrites[1].routeTo).toBeUndefined();
+      expect(routeRewrites[1].forwardingOptions?.originRequestPolicyId).toBe('b689b0a8-53d0-40ab-baf2-68738e2966ac');
+      expect(asCloudformationValue(routeRewrites[1].edgeFunctions?.onRequest)).toEqual({
+        'Fn::GetAtt': [cfLogicalNames.ssrWebHostHeaderRewriteFunction('site', framework.resourceType), 'FunctionARN']
+      });
+      expect(routeRewrites[1].cachingOptions?.defaultTTL).toBe(5);
+      expect(routeRewrites[1].cachingOptions?.maxTTL).toBe(31536000);
+    });
+  });
+
+  test('materializes every authored resource of a framework, not just the first', () => {
+    const manager = managerFor({
+      marketing: { type: 'astro-web', properties: { appDirectory: './marketing' } },
+      docs: { type: 'astro-web', properties: { appDirectory: './docs' } }
+    });
+
+    expect(manager.astroWebs.map(({ name }) => name)).toEqual(['marketing', 'docs']);
+    expect(manager.astroWebs.map(({ _nestedResources }) => _nestedResources.serverFunction.name)).toEqual([
+      'marketingServerFunction',
+      'docsServerFunction'
+    ]);
+  });
+
+  test('keeps the authored properties on the resource beside the children it synthesizes', () => {
+    SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const ssrWeb = ssrWebFor(framework, { appDirectory: './site', buildCommand: 'npm run build' });
+
+      expect(ssrWeb.name).toBe('site');
+      expect(ssrWeb.type).toBe(framework.resourceType);
+      expect(ssrWeb.nameChain).toEqual(['site']);
+      expect(ssrWeb.appDirectory).toBe('./site');
+      expect(ssrWeb.buildCommand).toBe('npm run build');
+    });
   });
 });
