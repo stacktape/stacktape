@@ -22,7 +22,7 @@ const REQUIRED_DECLARATIONS = ['index.d.ts', 'types.d.ts', 'cloudformation.d.ts'
 const consumerFixtureFor = (packageDir: string) => {
   const entry = (name: string) => join(packageDir, name).split('\\').join('/');
   return `
-import { LambdaFunction, LambdaS3FilesMount, WebService, Bucket, Convex, IotIntegration, defineConfig, $Secret } from '${entry('index')}';
+import { Alarm, LambdaErrorRateTrigger, LambdaFunction, LambdaS3FilesMount, WebService, Bucket, Convex, IotIntegration, defineConfig, $Secret } from '${entry('index')}';
 import type { CloudFormationTemplate, FinalTransform } from '${entry('index')}';
 import type { StacktapeConfig, StacktapeBudgetControlPlain, IotIntegrationProps } from '${entry('types')}';
 // @ts-expect-error v4 TypeScript configs no longer expose the legacy named getConfig function type
@@ -55,8 +55,16 @@ const mount = new LambdaS3FilesMount({
 });
 const mountPath: string = mount.properties.mountPath;
 const iotSql: string = iotTrigger.properties.sql;
+const highErrorRate = new Alarm({
+  trigger: new LambdaErrorRateTrigger({ thresholdPercent: 5 }),
+  includeInHistory: false,
+  description: 'Handler errors'
+});
+const alarmThreshold: number = highErrorRate.trigger.properties.thresholdPercent;
 // @ts-expect-error published helper properties retain their authored type instead of becoming any
 void iotTrigger.properties.propertyThatDoesNotExist;
+// @ts-expect-error alarm instances preserve the specific trigger properties
+void highErrorRate.trigger.properties.propertyThatDoesNotExist;
 // @ts-expect-error volume mounts accept their inner properties rather than a nested discriminated union
 new LambdaS3FilesMount({ type: 's3files', properties: { accessPointArn: 'arn', mountPath: '/mnt/data' } });
 const template: CloudFormationTemplate = { Resources: {} };
@@ -65,7 +73,7 @@ const finalTransform: FinalTransform = (value) => value;
 export const config = defineConfig(() => ({
   projectName: 'consumer-fixture',
   resources: { api, site, uploads, backend },
-  variables: { secret: $Secret('db-password'), iot: iotTrigger.type, iotSql, minimalIot: minimalIotTrigger.type, mountPath },
+  variables: { alarmThreshold, secret: $Secret('db-password'), iot: iotTrigger.type, iotSql, minimalIot: minimalIotTrigger.type, mountPath },
   finalTransform
 }));
 export const compiledConfig = config({

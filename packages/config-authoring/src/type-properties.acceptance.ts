@@ -1,8 +1,10 @@
 import {
+  Alarm,
   Bucket,
   HttpApiGateway,
   HttpApiIntegration,
   LambdaFunction,
+  LambdaErrorRateTrigger,
   LambdaS3FilesMount,
   LocalScript,
   RdsEnginePostgres,
@@ -26,7 +28,13 @@ const mount = new LambdaS3FilesMount({
   accessPointArn: 'arn:aws:s3files:us-east-1:111111111111:fs/fs-abc/ap-abc',
   mountPath: '/mnt/data'
 });
-const worker = new LambdaFunction({ packaging, events: [integration], volumeMounts: [mount] });
+const highErrorRate = new Alarm({
+  trigger: new LambdaErrorRateTrigger({ thresholdPercent: 5 }),
+  evaluation: { period: 60, evaluationPeriods: 3, breachedPeriods: 2 },
+  includeInHistory: false,
+  description: 'Handler error rate is too high'
+});
+const worker = new LambdaFunction({ packaging, events: [integration], volumeMounts: [mount], alarms: [highErrorRate] });
 const uploads = new Bucket({});
 const seed = new LocalScript({
   executeCommand: 'bun run seed.ts',
@@ -36,6 +44,10 @@ const seed = new LocalScript({
 
 const integrationType: 'http-api-gateway' = integration.type;
 const triggerType: 'sqs-queue-not-empty' = new SqsQueueNotEmptyTrigger().type;
+const alarmThreshold: number = highErrorRate.trigger.properties.thresholdPercent;
+
+// @ts-expect-error alarm triggers retain their specific properties instead of exposing `any`
+void highErrorRate.trigger.properties.propertyThatDoesNotExist;
 
 const invalidIntegration = new HttpApiIntegration({
   httpApiGatewayName: api,
@@ -57,4 +69,4 @@ const invalidMount = new LambdaS3FilesMount({
 });
 
 const config = defineConfig(() => ({ resources: { api, database, uploads, worker }, scripts: { seed } }));
-void [config, integrationType, invalidIntegration, invalidMount, invalidPackaging, triggerType];
+void [alarmThreshold, config, integrationType, invalidIntegration, invalidMount, invalidPackaging, triggerType];

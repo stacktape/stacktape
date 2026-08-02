@@ -1,6 +1,7 @@
 import { describe, expect, test } from 'bun:test';
 import * as authoringExports from './index.js';
 import {
+  Alarm,
   Bucket,
   CustomResourceDefinition,
   CustomResourceInstance,
@@ -9,6 +10,7 @@ import {
   HttpApiGateway,
   HttpApiIntegration,
   LambdaFunction,
+  LambdaErrorRateTrigger,
   LambdaS3FilesMount,
   LocalScript,
   RelationalDatabase
@@ -192,7 +194,14 @@ describe('TypeScript authoring compilation', () => {
     const handler = new LambdaFunction({
       packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: './src/handler.ts' } },
       events: [integration],
-      volumeMounts: [mount]
+      volumeMounts: [mount],
+      alarms: [
+        new Alarm({
+          trigger: new LambdaErrorRateTrigger({ thresholdPercent: 5 }),
+          includeInHistory: false,
+          description: 'Handler errors'
+        })
+      ]
     });
     const seed = new LocalScript({ executeCommand: 'bun run seed.ts', connectTo: [uploads] });
 
@@ -212,6 +221,13 @@ describe('TypeScript authoring compilation', () => {
           accessPointArn: 'arn:aws:s3files:us-east-1:111111111111:fs/fs-abc/ap-abc',
           mountPath: '/mnt/data'
         }
+      }
+    ]);
+    expect(handlerProperties.alarms).toEqual([
+      {
+        trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },
+        includeInHistory: false,
+        description: 'Handler errors'
       }
     ]);
     expect(config.scripts!.seed!.properties.connectTo).toEqual(['uploads']);

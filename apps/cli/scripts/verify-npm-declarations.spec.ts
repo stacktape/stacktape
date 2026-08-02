@@ -31,6 +31,8 @@ const installMinimalPackage = ({ plainDeclarations }: { plainDeclarations: strin
       'export declare class WebService { constructor(properties: Record<string, unknown>); }',
       'export declare class Bucket { constructor(properties: { versioning?: boolean }); }',
       'export declare class Convex { constructor(properties: Record<string, unknown>); }',
+      "export declare class LambdaErrorRateTrigger { constructor(properties: { thresholdPercent: number }); readonly type: 'lambda-error-rate'; readonly properties: { thresholdPercent: number }; }",
+      'export declare class Alarm<Trigger extends LambdaErrorRateTrigger> { constructor(properties: { trigger: Trigger; includeInHistory?: boolean; description?: string }); readonly trigger: Trigger; readonly includeInHistory?: boolean; readonly description?: string; }',
       "export declare class LambdaS3FilesMount { constructor(properties: { accessPointArn: string; mountPath: string }); readonly type: 's3files'; readonly properties: { accessPointArn: string; mountPath: string }; }",
       // Typed exactly as the real generator emits it, so the fixture exercises the class/type pair together.
       "export declare class IotIntegration { constructor(properties: import('./plain').IotIntegrationProps); readonly type: 'iot'; readonly properties: import('./plain').IotIntegrationProps; }",

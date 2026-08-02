@@ -1,4 +1,5 @@
 import { CHILD_RESOURCES } from './child-resources.js';
+import type { AlarmDefinitionBase, AlarmTrigger } from '@stacktape/config/alarms';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { StacktapeResourceType } from '@stacktape/config/schema-inspection';
 import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
@@ -100,23 +101,34 @@ export class BaseTypeOnly<Type extends string = string> {
  * new Alarm({
  *   trigger: new LambdaErrorRateTrigger({ thresholdPercent: 5 }),
  *   evaluation: { period: 60, evaluationPeriods: 3, breachedPeriods: 2 },
- *   notificationTargets: [{ slack: { url: $Secret('slack-webhook-url') } }],
+ *   notificationTargets: [
+ *     {
+ *       type: 'slack',
+ *       properties: { conversationId: 'C0123456789', accessToken: $Secret('slack-bot-token') }
+ *     }
+ *   ],
  *   description: 'Lambda error rate exceeded 5%'
  * })
  * ```
  */
-export class Alarm {
-  readonly [alarmSymbol] = true;
-  public readonly trigger: any;
-  public readonly evaluation?: any;
-  public readonly notificationTargets: any[] | undefined;
-  public readonly description: string | undefined;
+export type AuthoringAlarmProps<Trigger extends AlarmTrigger = AlarmTrigger> = AlarmDefinitionBase & {
+  trigger: WithAuthoringNamedResourceReferences<Trigger>;
+};
 
-  constructor(props: { trigger: any; evaluation?: any; notificationTargets?: any[]; description?: string }) {
+export class Alarm<Trigger extends AlarmTrigger = AlarmTrigger> {
+  readonly [alarmSymbol] = true;
+  public readonly trigger: AuthoringAlarmProps<Trigger>['trigger'];
+  public readonly evaluation?: NonNullable<AuthoringAlarmProps<Trigger>['evaluation']>;
+  public readonly notificationTargets?: NonNullable<AuthoringAlarmProps<Trigger>['notificationTargets']>;
+  public readonly includeInHistory?: NonNullable<AuthoringAlarmProps<Trigger>['includeInHistory']>;
+  public readonly description?: NonNullable<AuthoringAlarmProps<Trigger>['description']>;
+
+  constructor(props: AuthoringAlarmProps<Trigger>) {
     this.trigger = props.trigger;
-    this.evaluation = props.evaluation;
-    this.notificationTargets = props.notificationTargets;
-    this.description = props.description;
+    if (props.evaluation !== undefined) this.evaluation = props.evaluation;
+    if (props.notificationTargets !== undefined) this.notificationTargets = props.notificationTargets;
+    if (props.includeInHistory !== undefined) this.includeInHistory = props.includeInHistory;
+    if (props.description !== undefined) this.description = props.description;
   }
 }
 
@@ -723,6 +735,9 @@ export const transformValue = (value: any, resourceNames: ResourceNames = new Ma
     }
     if (value.notificationTargets !== undefined) {
       result.notificationTargets = transformValue(value.notificationTargets, resourceNames);
+    }
+    if (value.includeInHistory !== undefined) {
+      result.includeInHistory = value.includeInHistory;
     }
     if (value.description !== undefined) {
       result.description = value.description;

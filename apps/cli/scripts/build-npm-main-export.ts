@@ -330,13 +330,27 @@ export declare class BaseTypeOnly<Type extends string = string> {
 /**
  * Defines a CloudWatch alarm that monitors a metric and triggers notifications when thresholds are breached.
  */
-export declare class Alarm {
-  readonly trigger: any;
-  readonly evaluation?: any;
-  readonly notificationTargets?: import('./plain').AlarmUserIntegration[];
+type AuthoringAlarmTrigger =
+  | import('./plain').ApplicationLoadBalancerAlarmTrigger
+  | import('./plain').HttpApiGatewayAlarmTrigger
+  | import('./plain').LambdaAlarmTrigger
+  | import('./plain').RelationalDatabaseAlarmTrigger
+  | import('./plain').SqsQueueAlarmTrigger;
+type PublishedAlarmProps<Trigger extends AuthoringAlarmTrigger> = {
+  trigger: WithAuthoringNamedResourceReferences<Trigger>;
+  evaluation?: import('./plain').AlarmEvaluation;
+  notificationTargets?: import('./plain').AlarmUserIntegration[];
+  includeInHistory?: boolean;
+  description?: string;
+};
+export declare class Alarm<Trigger extends AuthoringAlarmTrigger = AuthoringAlarmTrigger> {
+  readonly trigger: PublishedAlarmProps<Trigger>['trigger'];
+  readonly evaluation?: NonNullable<PublishedAlarmProps<Trigger>['evaluation']>;
+  readonly notificationTargets?: NonNullable<PublishedAlarmProps<Trigger>['notificationTargets']>;
+  readonly includeInHistory?: NonNullable<PublishedAlarmProps<Trigger>['includeInHistory']>;
   readonly description?: string;
   readonly [alarmSymbol]: true;
-  constructor(props: { trigger: any; evaluation?: any; notificationTargets?: import('./plain').AlarmUserIntegration[]; description?: string });
+  constructor(props: PublishedAlarmProps<Trigger>);
 }
 
 /**
@@ -438,6 +452,7 @@ function removeDuplicateDeclarations(content: string): string {
     'export declare class BaseTypeProperties',
     'export declare class BaseTypeOnly',
     'export declare class Alarm',
+    'export type AuthoringAlarmProps',
     'export type GetConfigParams'
   ];
 
