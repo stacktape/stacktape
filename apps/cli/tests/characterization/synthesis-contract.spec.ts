@@ -21,6 +21,7 @@ import { templateManager } from '@domain-services/template-manager';
 import { finalizeTemplate } from '@domain-services/template-manager/finalize';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { getStackCfTemplateDescription } from '@stacktape/naming/stacks';
+import type { ResourceOverrides } from '@stacktape/config/shared';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { CliError } from '@utils/errors';
 import { getConfigManagerContext } from '../../src/commands/_utils/initialization';
@@ -219,10 +220,14 @@ const createDenseConfig = () =>
 
 export const synthesizeDenseFixture = async ({
   synthesisContext,
-  beforeFinalize
+  beforeFinalize,
+  command = 'synth',
+  remoteResources
 }: {
   synthesisContext?: Partial<StackContext>;
   beforeFinalize?: () => void;
+  command?: 'dev' | 'synth';
+  remoteResources?: string[];
 } = {}) => {
   return withCredentiallessSynthesisBoundary(async () => {
     calculatedStackOverviewManager.reset();
@@ -239,12 +244,13 @@ export const synthesizeDenseFixture = async ({
       size: 10
     };
     globalStateManager.operationStart = new Date();
-    globalStateManager.rawCommands = ['synth'];
+    globalStateManager.rawCommands = [command];
     globalStateManager.rawArgs = {
       stage: 'baseline',
       region: 'eu-west-1',
       projectName: 'characterization',
-      currentWorkingDirectory: join(import.meta.dir, 'fixtures', 'dense-application')
+      currentWorkingDirectory: join(import.meta.dir, 'fixtures', 'dense-application'),
+      ...(remoteResources ? { remoteResources } : {})
     };
     globalStateManager.additionalArgs = {};
     const compiledConfig = createDenseConfig();
@@ -325,6 +331,14 @@ export const synthesizeDenseFixture = async ({
     await finalizeTemplate();
     return templateManager.getTemplate();
   });
+};
+
+const setDatabaseOverrides = (overrides: ResourceOverrides) => {
+  (configManager.config.resources.database as { overrides?: ResourceOverrides }).overrides = overrides;
+};
+
+const setWebServiceOverrides = (overrides: ResourceOverrides) => {
+  (configManager.config.resources.web as { overrides?: ResourceOverrides }).overrides = overrides;
 };
 
 const protectedAwsEnvironment = [
@@ -882,6 +896,67 @@ describe('full synthesis contract', () => {
       code: 'CONFIG_RESOURCE_OVERRIDE_TARGET_INVALID',
       message: 'CloudFormation resource `NotAChildResource` is not a child of Stacktape resource `files`.',
       hints: [expect.stringContaining('`FilesBucket`')]
+    });
+  });
+
+  test('ignores overrides for a database intentionally kept local in dev mode', async () => {
+    const template = await synthesizeDenseFixture({
+      command: 'dev',
+      beforeFinalize: () => {
+        setDatabaseOverrides({ DatabaseDbInstance: { DeletionProtection: true } });
+      }
+    });
+
+    expect(template.Resources.DatabaseDbInstance).toBeUndefined();
+  });
+
+  test('applies the same database override during ordinary synthesis', async () => {
+    const template = await synthesizeDenseFixture({
+      beforeFinalize: () => {
+        setDatabaseOverrides({ DatabaseDbInstance: { DeletionProtection: true } });
+      }
+    });
+
+    expect(template.Resources.DatabaseDbInstance?.Properties.DeletionProtection).toBe(true);
+  });
+
+  test('applies overrides when the same dev database is selected as remote', async () => {
+    const template = await synthesizeDenseFixture({
+      command: 'dev',
+      remoteResources: ['database'],
+      beforeFinalize: () => {
+        setDatabaseOverrides({ DatabaseDbInstance: { DeletionProtection: true } });
+      }
+    });
+
+    expect(template.Resources.DatabaseDbInstance?.Properties.DeletionProtection).toBe(true);
+  });
+
+  test('ignores remote-service overrides when a web service runs locally in dev mode', async () => {
+    const template = await synthesizeDenseFixture({
+      command: 'dev',
+      beforeFinalize: () => {
+        setWebServiceOverrides({ WebService: { DesiredCount: 2 } });
+      }
+    });
+
+    expect(template.Resources.WebService).toBeUndefined();
+    expect(template.Resources.WebRole).toBeDefined();
+  });
+
+  test('still rejects an unrelated override target for a remote dev database', async () => {
+    await expect(
+      synthesizeDenseFixture({
+        command: 'dev',
+        remoteResources: ['database'],
+        beforeFinalize: () => {
+          setDatabaseOverrides({ NotADatabaseChild: { DeletionProtection: true } });
+        }
+      })
+    ).rejects.toMatchObject({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_RESOURCE_OVERRIDE_TARGET_INVALID',
+      message: 'CloudFormation resource `NotADatabaseChild` is not a child of Stacktape resource `database`.'
     });
   });
 

@@ -12,6 +12,7 @@ import merge from 'lodash/merge';
 import set from 'lodash/set';
 import type { ResourceOverrides } from '@stacktape/config/shared';
 import { CliError, getUserCodeStackTrace } from '@utils/errors';
+import { shouldExcludeResourceInDevMode } from '../../commands/dev/dev-resource-filter';
 import { templateManager } from '.';
 
 const throwTransformFailure = ({
@@ -56,6 +57,11 @@ const setTemplateDescriptions = () => {
 const applyResourceOverrides = () => {
   configManager.allConfigResources.forEach((resource: StpResource & { overrides?: ResourceOverrides }) => {
     if (!resource.overrides) {
+      return;
+    }
+    // An override still describes the normal remote resource when dev mode intentionally keeps that resource local.
+    // The same resource is validated normally as soon as it is selected for remote use.
+    if (shouldExcludeResourceInDevMode(resource.name, resource.type)) {
       return;
     }
 
