@@ -6527,15 +6527,15 @@
       "tags": [
         "config-reference",
         "KafkaTopicIntegrationProps",
-        "batchSize",
         "customKafkaConfiguration",
+        "batchSize",
         "maxBatchWindowSeconds"
       ],
       "chunks": [
         "config-reference:KafkaTopicIntegrationProps#kafkatopicintegrationprops-api-reference",
         "config-reference:KafkaTopicIntegrationProps#typescript-definition",
-        "config-reference:KafkaTopicIntegrationProps#property-batchsize",
         "config-reference:KafkaTopicIntegrationProps#property-customkafkaconfiguration",
+        "config-reference:KafkaTopicIntegrationProps#property-batchsize",
         "config-reference:KafkaTopicIntegrationProps#property-maxbatchwindowseconds"
       ]
     },

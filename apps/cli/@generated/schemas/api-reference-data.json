@@ -32574,6 +32574,16 @@
     "definitionName": "KafkaTopicIntegrationProps",
     "properties": [
       {
+        "name": "customKafkaConfiguration",
+        "required": true,
+        "shortDescription": "<p> The details of your Kafka cluster.</p>",
+        "longDescription": "<p>Specifies the bootstrap servers, topic name, and authentication used by the self-managed Kafka event source.\nThis is required because self-managed Kafka is the only Kafka source currently supported by Stacktape.</p>",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "CustomKafkaEventSource"
+        }
+      },
+      {
         "name": "batchSize",
         "required": false,
         "shortDescription": "<p> The maximum number of records to process in a single batch.</p>",
@@ -32584,16 +32594,6 @@
           "types": [
             "number"
           ]
-        }
-      },
-      {
-        "name": "customKafkaConfiguration",
-        "required": false,
-        "shortDescription": "<p> The details of your Kafka cluster.</p>",
-        "longDescription": "<p>Specifies the bootstrap servers and topic name.</p>",
-        "typeInfo": {
-          "kind": "reference",
-          "typeName": "CustomKafkaEventSource"
         }
       },
       {
@@ -32611,10 +32611,10 @@
       }
     ],
     "stats": {
-      "requiredCount": 0,
-      "optionalCount": 3
+      "requiredCount": 1,
+      "optionalCount": 2
     },
-    "typeDeclaration": "import type { CustomKafkaEventSource } from 'stacktape';\n\n// [!code focus-start]\ntype KafkaTopicIntegrationProps = {\n  /** The maximum number of records to process in a single batch. */\n  batchSize?: number;\n  /** The details of your Kafka cluster. */\n  customKafkaConfiguration?: CustomKafkaEventSource;\n  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */\n  maxBatchWindowSeconds?: number;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { CustomKafkaEventSource } from 'stacktape';\n\n// [!code focus-start]\ntype KafkaTopicIntegrationProps = {\n  /** The details of your Kafka cluster. */\n  customKafkaConfiguration: CustomKafkaEventSource;\n  /** The maximum number of records to process in a single batch. */\n  batchSize?: number;\n  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */\n  maxBatchWindowSeconds?: number;\n};\n// [!code focus-end]"
   },
   "KeyValuePair": {
     "definitionName": "KeyValuePair",
@@ -35745,9 +35745,9 @@
                 "properties": [
                   {
                     "name": "customKafkaConfiguration",
-                    "required": false,
+                    "required": true,
                     "shortDescription": "<p> The details of your Kafka cluster.</p>",
-                    "longDescription": "<p>Specifies the bootstrap servers and topic name.</p>",
+                    "longDescription": "<p>Specifies the bootstrap servers, topic name, and authentication used by the self-managed Kafka event source.\nThis is required because self-managed Kafka is the only Kafka source currently supported by Stacktape.</p>",
                     "typeInfo": {
                       "kind": "reference",
                       "typeName": "CustomKafkaEventSource"
@@ -52022,7 +52022,7 @@
       {
         "name": "sqsQueueArn",
         "required": false,
-        "shortDescription": "<p> The ARN of the SQS queue for failed messages.</p>",
+        "shortDescription": "<p> The ARN of the SQS queue for failed messages.</p>\n<p>Specify exactly one of <code>sqsQueueArn</code> or <code>sqsQueueName</code>.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
@@ -52034,7 +52034,7 @@
       {
         "name": "sqsQueueName",
         "required": false,
-        "shortDescription": "<p> The name of an SQS queue (defined in your Stacktape configuration) for failed messages.</p>",
+        "shortDescription": "<p> The name of an SQS queue (defined in your Stacktape configuration) for failed messages.</p>\n<p>Specify exactly one of <code>sqsQueueArn</code> or <code>sqsQueueName</code>.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
@@ -52048,7 +52048,7 @@
       "requiredCount": 0,
       "optionalCount": 2
     },
-    "typeDeclaration": "// [!code focus-start]\ntype SnsOnDeliveryFailure = {\n  /** The ARN of the SQS queue for failed messages. */\n  sqsQueueArn?: string;\n  /** The name of an SQS queue (defined in your Stacktape configuration) for failed messages. */\n  sqsQueueName?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype SnsOnDeliveryFailure = {\n  /** The ARN of the SQS queue for failed messages.\n\nSpecify exactly one of `sqsQueueArn` or `sqsQueueName`. */\n  sqsQueueArn?: string;\n  /** The name of an SQS queue (defined in your Stacktape configuration) for failed messages.\n\nSpecify exactly one of `sqsQueueArn` or `sqsQueueName`. */\n  sqsQueueName?: string;\n};\n// [!code focus-end]"
   },
   "SnsTopic": {
     "definitionName": "SnsTopic",

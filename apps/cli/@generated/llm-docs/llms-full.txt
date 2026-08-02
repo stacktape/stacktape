@@ -42684,8 +42684,8 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
+| `customKafkaConfiguration` | yes | `CustomKafkaEventSource` | - |
 | `batchSize` | no | `number` | `100` |
-| `customKafkaConfiguration` | no | `CustomKafkaEventSource` | - |
 | `maxBatchWindowSeconds` | no | `number` | `0.5` |
 
 
@@ -80222,14 +80222,24 @@ Route: `/config-reference/events`
 import type { CustomKafkaEventSource } from 'stacktape';
 
 type KafkaTopicIntegrationProps = {
+  /** The details of your Kafka cluster. */
+  customKafkaConfiguration: CustomKafkaEventSource;
   /** The maximum number of records to process in a single batch. */
   batchSize?: number;
-  /** The details of your Kafka cluster. */
-  customKafkaConfiguration?: CustomKafkaEventSource;
   /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */
   maxBatchWindowSeconds?: number;
 };
 ```
+
+## Property: `customKafkaConfiguration`
+
+- Required: yes
+- Type: `CustomKafkaEventSource`
+
+The details of your Kafka cluster.
+
+Specifies the bootstrap servers, topic name, and authentication used by the self-managed Kafka event source.
+This is required because self-managed Kafka is the only Kafka source currently supported by Stacktape.
 
 ## Property: `batchSize`
 
@@ -80240,15 +80250,6 @@ type KafkaTopicIntegrationProps = {
 The maximum number of records to process in a single batch.
 
 The function will be invoked with up to this many records. Maximum is 10,000.
-
-## Property: `customKafkaConfiguration`
-
-- Required: no
-- Type: `CustomKafkaEventSource`
-
-The details of your Kafka cluster.
-
-Specifies the bootstrap servers and topic name.
 
 ## Property: `maxBatchWindowSeconds`
 
@@ -81130,9 +81131,13 @@ Route: `/config-reference/events`
 
 ```typescript
 type SnsOnDeliveryFailure = {
-  /** The ARN of the SQS queue for failed messages. */
+  /** The ARN of the SQS queue for failed messages.
+
+Specify exactly one of `sqsQueueArn` or `sqsQueueName`. */
   sqsQueueArn?: string;
-  /** The name of an SQS queue (defined in your Stacktape configuration) for failed messages. */
+  /** The name of an SQS queue (defined in your Stacktape configuration) for failed messages.
+
+Specify exactly one of `sqsQueueArn` or `sqsQueueName`. */
   sqsQueueName?: string;
 };
 ```
@@ -81144,12 +81149,16 @@ type SnsOnDeliveryFailure = {
 
 The ARN of the SQS queue for failed messages.
 
+Specify exactly one of `sqsQueueArn` or `sqsQueueName`.
+
 ## Property: `sqsQueueName`
 
 - Required: no
 - Type: `string`
 
 The name of an SQS queue (defined in your Stacktape configuration) for failed messages.
+
+Specify exactly one of `sqsQueueArn` or `sqsQueueName`.
 
 ---
 
@@ -82582,7 +82591,7 @@ The event payload your function receives depends on the trigger type.
 
 Choices:
 - `application-load-balancer` (`ApplicationLoadBalancerIntegration`) — Triggers a function when an Application Load Balancer receives a matching HTTP request.. Properties: `loadBalancerName: string`, `listenerPort?: number`, `priority: number`, `paths?: Array<string>`, `methods?: Array<string>`, `hosts?: Array<string>`, `headers?: Array<LbHeaderCondition>`, `queryParams?: Array<LbQueryParamCondition>`, `sourceIps?: Array<string>`.
-- `kafka-topic` (`KafkaTopicIntegration`) — Triggers a function when new messages are available in a Kafka topic.. Properties: `customKafkaConfiguration?: CustomKafkaEventSource`, `batchSize?: number`, `maxBatchWindowSeconds?: number`.
+- `kafka-topic` (`KafkaTopicIntegration`) — Triggers a function when new messages are available in a Kafka topic.. Properties: `customKafkaConfiguration: CustomKafkaEventSource`, `batchSize?: number`, `maxBatchWindowSeconds?: number`.
 - `sns` (`SnsIntegration`) — Triggers a function when a new message is published to an SNS topic.. Properties: `snsTopicName?: string`, `snsTopicArn?: string`, `filterPolicy?: unknown`, `onDeliveryFailure?: SnsOnDeliveryFailure`.
 - `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`.
 - `kinesis-stream` (`KinesisIntegration`) — Triggers a function when new records are available in a Kinesis Data Stream.. Properties: `kinesisStreamName?: string`, `streamArn?: string`, `consumerArn?: string`, `autoCreateConsumer?: boolean`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string: "LATEST" | "TRIM_HORIZON"`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`.

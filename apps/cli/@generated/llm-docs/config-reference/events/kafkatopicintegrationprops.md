@@ -6,14 +6,24 @@
 import type { CustomKafkaEventSource } from 'stacktape';
 
 type KafkaTopicIntegrationProps = {
+  /** The details of your Kafka cluster. */
+  customKafkaConfiguration: CustomKafkaEventSource;
   /** The maximum number of records to process in a single batch. */
   batchSize?: number;
-  /** The details of your Kafka cluster. */
-  customKafkaConfiguration?: CustomKafkaEventSource;
   /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */
   maxBatchWindowSeconds?: number;
 };
 ```
+
+## Property: `customKafkaConfiguration`
+
+- Required: yes
+- Type: `CustomKafkaEventSource`
+
+The details of your Kafka cluster.
+
+Specifies the bootstrap servers, topic name, and authentication used by the self-managed Kafka event source.
+This is required because self-managed Kafka is the only Kafka source currently supported by Stacktape.
 
 ## Property: `batchSize`
 
@@ -24,15 +34,6 @@ type KafkaTopicIntegrationProps = {
 The maximum number of records to process in a single batch.
 
 The function will be invoked with up to this many records. Maximum is 10,000.
-
-## Property: `customKafkaConfiguration`
-
-- Required: no
-- Type: `CustomKafkaEventSource`
-
-The details of your Kafka cluster.
-
-Specifies the bootstrap servers and topic name.
 
 ## Property: `maxBatchWindowSeconds`
 

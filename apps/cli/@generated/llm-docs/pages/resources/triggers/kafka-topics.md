@@ -220,8 +220,8 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
+| `customKafkaConfiguration` | yes | `CustomKafkaEventSource` | - |
 | `batchSize` | no | `number` | `100` |
-| `customKafkaConfiguration` | no | `CustomKafkaEventSource` | - |
 | `maxBatchWindowSeconds` | no | `number` | `0.5` |
 
 

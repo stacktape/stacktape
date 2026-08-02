@@ -4,9 +4,13 @@
 
 ```typescript
 type SnsOnDeliveryFailure = {
-  /** The ARN of the SQS queue for failed messages. */
+  /** The ARN of the SQS queue for failed messages.
+
+Specify exactly one of `sqsQueueArn` or `sqsQueueName`. */
   sqsQueueArn?: string;
-  /** The name of an SQS queue (defined in your Stacktape configuration) for failed messages. */
+  /** The name of an SQS queue (defined in your Stacktape configuration) for failed messages.
+
+Specify exactly one of `sqsQueueArn` or `sqsQueueName`. */
   sqsQueueName?: string;
 };
 ```
@@ -18,9 +22,13 @@ type SnsOnDeliveryFailure = {
 
 The ARN of the SQS queue for failed messages.
 
+Specify exactly one of `sqsQueueArn` or `sqsQueueName`.
+
 ## Property: `sqsQueueName`
 
 - Required: no
 - Type: `string`
 
 The name of an SQS queue (defined in your Stacktape configuration) for failed messages.
+
+Specify exactly one of `sqsQueueArn` or `sqsQueueName`.
