@@ -63,16 +63,22 @@ export const getAllFilesInDir = async (dirPath: string, relativeOutput = true): 
 };
 
 /**
- * Running sha1 over the contents of every readable file, in the order given. Returned undigested so
- * callers can mix in further inputs (dependency sets, language config, entry file paths).
+ * Hashes stable caller-supplied file identities and their contents, in the supplied order. Length prefixes distinguish
+ * adjacent values and missing files from empty files. Returned undigested so callers can mix in further inputs.
  */
-export const getHashFromMultipleFiles = async (files: string[]) => {
-  const fileContents = await Promise.all(files.map((filePath) => readFileOrNull(filePath)));
+export const getHashFromMultipleFiles = async ({ files }: { files: Array<{ path: string; identity: string }> }) => {
+  const fileContents = await Promise.all(files.map(({ path }) => readFileOrNull(path)));
   const hash = createHash('sha1');
-  fileContents.forEach((c) => {
-    if (c) {
-      hash.update(c);
+  fileContents.forEach((contents, index) => {
+    const identity = files[index]!.identity.replace(/\\/g, '/');
+    hash.update(`${Buffer.byteLength(identity)}:`);
+    hash.update(identity);
+    if (contents === null) {
+      hash.update('-1:');
+      return;
     }
+    hash.update(`${Buffer.byteLength(contents)}:`);
+    hash.update(contents);
   });
   return hash;
 };

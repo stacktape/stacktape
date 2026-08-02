@@ -630,7 +630,9 @@ export class PackagingManager {
 
       // Hash the bundled output file (like normal bundler does)
       const bundledIndexPath = join(distFolderPath, 'index.js');
-      const bundleHashObj = await getHashFromMultipleFiles([bundledIndexPath]);
+      const bundleHashObj = await getHashFromMultipleFiles({
+        files: [{ path: bundledIndexPath, identity: 'stacktape-split-bundle-index.js' }]
+      });
 
       // Include layer assignment in digest - layer assignment affects import paths
       const layerNumbers = this.#lambdaLayerMap.get(name);

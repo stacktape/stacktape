@@ -1,4 +1,4 @@
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import objectHash from 'object-hash';
 import { getHashFromMultipleFiles, getMatchingFilesByGlob } from '../fs/files';
 
@@ -31,9 +31,15 @@ export const getBundleDigestFromGlobs = async ({
   const matchingFiles = await getMatchingFilesByGlob({ globPattern: fileGlobs, cwd: rootPath });
   const filesToInclude = [...matchingFiles, ...extraFiles]
     .filter(Boolean)
-    .map((filePath) => (isAbsolute(filePath) ? filePath : join(rootPath, filePath)));
+    .map((filePath) => {
+      const path = isAbsolute(filePath) ? filePath : join(rootPath, filePath);
+      return { path, identity: relative(rootPath, path).replace(/\\/g, '/') };
+    })
+    .toSorted(({ identity: firstIdentity }, { identity: secondIdentity }) =>
+      firstIdentity < secondIdentity ? -1 : firstIdentity > secondIdentity ? 1 : 0
+    );
 
-  const hash = await getHashFromMultipleFiles(filesToInclude);
+  const hash = await getHashFromMultipleFiles({ files: filesToInclude });
   if (externalDependencies.length) {
     hash.update(objectHash(externalDependencies));
   }

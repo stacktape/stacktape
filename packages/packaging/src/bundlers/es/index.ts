@@ -723,7 +723,9 @@ export const createEsBundle = async ({
 
   await progressLogger.finishEvent({ eventType: 'BUILD_CODE' });
 
-  const explicitlyIncludedFiles = includeFiles ? await getMatchingFilesByGlob({ globPattern: includeFiles, cwd }) : [];
+  const explicitlyIncludedFiles = includeFiles
+    ? (await getMatchingFilesByGlob({ globPattern: includeFiles, cwd })).toSorted()
+    : [];
 
   const absoluteWorkloadSourceFiles = explicitlyIncludedFiles
     .map((path) => ({ path }))
@@ -732,7 +734,12 @@ export const createEsBundle = async ({
 
   const absoluteExplicitlyIncludedFiles = explicitlyIncludedFiles.map((f) => join(cwd, f));
   const [explicitlyIncludedFilesDigest, dependenciesFromExplicitlyIncludedFiles] = await Promise.all([
-    getHashFromMultipleFiles(absoluteExplicitlyIncludedFiles),
+    getHashFromMultipleFiles({
+      files: absoluteExplicitlyIncludedFiles.map((path, index) => ({
+        path,
+        identity: explicitlyIncludedFiles[index]!
+      }))
+    }),
     getAllJsDependenciesFromMultipleFiles({
       absoluteFilePaths: absoluteExplicitlyIncludedFiles,
       workingDir: cwd,
@@ -869,9 +876,11 @@ const getBundleDigest = async ({
   externalDependencies: { name: string; version: string }[];
   additionalDigestInput: string;
 }) => {
-  const makeAbsolute = (filePath: string) => join(cwd, filePath);
-  const filesToIncludeInDigest = [FILES_TO_INCLUDE_IN_DIGEST.map(makeAbsolute), workloadPath].flat();
-  const hash = await getHashFromMultipleFiles(filesToIncludeInDigest);
+  const filesToIncludeInDigest = FILES_TO_INCLUDE_IN_DIGEST.map((filePath) => ({
+    path: join(cwd, filePath),
+    identity: filePath
+  })).concat({ path: workloadPath, identity: 'stacktape-generated-workload.js' });
+  const hash = await getHashFromMultipleFiles({ files: filesToIncludeInDigest });
   hash.update(objectHash(externalDependencies));
   hash.update(additionalDigestInput || '');
   return hash.digest('hex');
