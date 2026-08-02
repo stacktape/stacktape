@@ -44,7 +44,7 @@ export const buildUsingExternalBuildpack = async ({
   });
   const digest = mergeHashes(
     dirChecksum,
-    objectHash({ EXCLUDE_FROM_CHECKSUM_GLOBS, buildpacks, dockerBuildOutputArchitecture })
+    objectHash({ EXCLUDE_FROM_CHECKSUM_GLOBS, builder, buildpacks, dockerBuildOutputArchitecture })
   );
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({

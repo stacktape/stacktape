@@ -1,6 +1,7 @@
 import type { BuildDockerImage, PackagingProgressLogger as ProgressLogger } from '../runtime-contracts';
 import type { DockerBuildOutputArchitecture, PackagingOutput } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
+import { readFile } from 'node:fs/promises';
 
 import objectHash from 'object-hash';
 
@@ -49,9 +50,17 @@ export const buildUsingCustomDockerfile = async ({
     absoluteDirectoryPath: absoluteBuildContextPath,
     excludeGlobs: EXCLUDE_FROM_CHECKSUM_GLOBS
   });
+  const effectiveDockerfilePath = dockerfilePath || 'Dockerfile';
+  const dockerfileContents = await readFile(join(absoluteBuildContextPath, effectiveDockerfilePath));
   const digest = mergeHashes(
     dirChecksum,
-    objectHash({ EXCLUDE_FROM_CHECKSUM_GLOBS, buildArgs, dockerBuildOutputArchitecture })
+    objectHash({
+      EXCLUDE_FROM_CHECKSUM_GLOBS,
+      buildArgs,
+      dockerBuildOutputArchitecture,
+      dockerfilePath: effectiveDockerfilePath,
+      dockerfileContents
+    })
   );
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
