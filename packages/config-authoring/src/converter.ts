@@ -11,7 +11,7 @@ import {
   RESOURCE_TYPE_TO_CLASS,
   SCRIPT_TYPE_TO_CLASS
 } from './class-config.js';
-import { defineConfig, isCompiledStacktapeConfig, transformConfigWithResources } from './config.js';
+import { compileAuthoringConfig, defineConfig, isCompiledStacktapeConfig } from './config.js';
 import { $CfFormat, $CfResourceParam, $CfStackOutput, $GitInfo, $ResourceParam, $Secret } from './directives.js';
 import { AWS_SES } from './global-aws-services.js';
 import * as resourceClasses from './resources.js';
@@ -167,9 +167,6 @@ const containsNonSerializable = (value: unknown, path = ''): string | null => {
 };
 
 /**
- * Converts a transformed TypeScript config object to YAML string.
- * The input should already be transformed (using `transformConfigWithResources`).
- *
  * @throws Error if config contains functions or non-serializable values
  */
 const configObjectToYaml = (config: Record<string, unknown>): string => {
@@ -179,21 +176,7 @@ const configObjectToYaml = (config: Record<string, unknown>): string => {
     throw new Error(`Config contains dynamic/non-serializable content: ${nonSerializable}. Cannot convert to YAML.`);
   }
 
-  // Remove TypeScript-only properties that shouldn't be in YAML
-  const cleanConfig = structuredClone(config);
-  delete (cleanConfig as Record<string, unknown>).finalTransform;
-
-  // Strip transforms from resources
-  if (cleanConfig.resources && typeof cleanConfig.resources === 'object') {
-    for (const resourceName of Object.keys(cleanConfig.resources as Record<string, unknown>)) {
-      const resource = (cleanConfig.resources as Record<string, Record<string, unknown>>)[resourceName];
-      if (resource && typeof resource === 'object') {
-        delete resource.transforms;
-      }
-    }
-  }
-
-  return stringifyToYaml(cleanConfig);
+  return stringifyToYaml(config);
 };
 
 /** Collect resource names referenced in a properties tree (connectTo, *Name fields in events, etc.) */
@@ -575,15 +558,21 @@ const typescriptConfigToObject = (
   const configOrCompiled: Record<string, unknown> | CompiledStacktapeConfig =
     typeof configOrFn === 'function' ? configOrFn(mergedParams) : configOrFn;
 
-  if (isCompiledStacktapeConfig(configOrCompiled)) {
-    return configOrCompiled.config as unknown as Record<string, unknown>;
+  const compiledConfig = isCompiledStacktapeConfig(configOrCompiled)
+    ? configOrCompiled
+    : compileAuthoringConfig(configOrCompiled as unknown as AuthoringStacktapeConfig);
+  const transformedResources = Object.keys(compiledConfig.transforms);
+  if (transformedResources.length) {
+    throw new Error(
+      `Cannot convert resource transforms from TypeScript to YAML (CloudFormation resources: ${transformedResources
+        .map((name) => `\`${name}\``)
+        .join(', ')}).`
+    );
   }
-
-  // Transform classes to plain objects
-  return transformConfigWithResources(configOrCompiled as unknown as AuthoringStacktapeConfig) as unknown as Record<
-    string,
-    unknown
-  >;
+  if (compiledConfig.finalTransform) {
+    throw new Error('Cannot convert a final template transform from TypeScript to YAML.');
+  }
+  return compiledConfig.config as unknown as Record<string, unknown>;
 };
 
 /**

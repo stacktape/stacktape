@@ -1,5 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { convertTypescriptToYaml, convertYamlToTypescript } from './converter.js';
+import { Bucket, defineConfig } from './index.js';
 import { parseYaml } from './yaml.js';
 
 describe('configuration conversion', () => {
@@ -50,5 +51,51 @@ export default defineConfig(() => {
     });
     expect(yaml).toContain('answer: "yes"');
     expect(yaml).not.toContain('transforms:');
+  });
+
+  test('refuses to discard resource transforms that YAML cannot represent', () => {
+    const config = defineConfig(() => ({
+      resources: {
+        uploads: new Bucket({
+          transforms: {
+            bucket: (properties) => ({ ...properties, VersioningConfiguration: { Status: 'Enabled' } })
+          }
+        })
+      }
+    }));
+
+    expect(() => convertTypescriptToYaml(config)).toThrow(
+      'Cannot convert resource transforms from TypeScript to YAML (CloudFormation resources: `UploadsBucket`).'
+    );
+  });
+
+  test('refuses transforms on a directly supplied authoring object too', () => {
+    const config = {
+      resources: {
+        uploads: new Bucket({
+          transforms: {
+            bucket: (properties) => ({
+              ...properties,
+              VersioningConfiguration: { Status: 'Enabled' }
+            })
+          }
+        })
+      }
+    };
+
+    expect(() => convertTypescriptToYaml(config)).toThrow(
+      'Cannot convert resource transforms from TypeScript to YAML (CloudFormation resources: `UploadsBucket`).'
+    );
+  });
+
+  test('refuses to discard a final transform that YAML cannot represent', () => {
+    const config = defineConfig(() => ({
+      resources: {},
+      finalTransform: (template) => template
+    }));
+
+    expect(() => convertTypescriptToYaml(config)).toThrow(
+      'Cannot convert a final template transform from TypeScript to YAML.'
+    );
   });
 });
