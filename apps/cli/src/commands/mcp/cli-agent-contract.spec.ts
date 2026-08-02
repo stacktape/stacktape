@@ -133,25 +133,28 @@ describe('MCP CLI agent contract', () => {
   });
 
   test('MCP instructions explicitly forbid Bash and credential harvesting', () => {
-    const source = readFileSync(join(process.cwd(), 'src', 'commands', 'mcp', 'index.ts'), 'utf-8');
+    const mcpSourceDirectory = join(process.cwd(), 'src', 'commands', 'mcp');
+    const serverSource = readFileSync(join(mcpSourceDirectory, 'index.ts'), 'utf-8');
+    const planningSource = readFileSync(join(mcpSourceDirectory, 'cli-planning.ts'), 'utf-8');
+    const outputSource = readFileSync(join(mcpSourceDirectory, 'tool-output.ts'), 'utf-8');
 
-    expect(source).toContain('The stacktape CLI is forbidden as a Bash/shell command');
-    expect(source).toContain('Never read ~/.stacktape/, ~/.aws/, ~/.ssh/');
-    expect(source).toContain('Planning does not require Stacktape credentials');
-    expect(source).toContain('validate, synth, package');
-    expect(source).toContain('Non-mutating commands such as diff, synth, package');
-    expect(source).toContain('If generic AWS/AWS SDK MCP tools are also available');
-    expect(source).toContain('Do not bypass Stacktape');
-    expect(source).toContain('Stacktape authentication failed. Stop here');
-    expect(source).toContain(
+    expect(serverSource).toContain('The stacktape CLI is forbidden as a Bash/shell command');
+    expect(serverSource).toContain('Never read ~/.stacktape/, ~/.aws/, ~/.ssh/');
+    expect(planningSource).toContain('Planning does not require Stacktape credentials');
+    expect(serverSource).toContain('validate, synth, package');
+    expect(serverSource).toContain('Non-mutating commands such as diff, synth, package');
+    expect(serverSource).toContain('If generic AWS/AWS SDK MCP tools are also available');
+    expect(serverSource).toContain('Do not bypass Stacktape');
+    expect(outputSource).toContain('Stacktape authentication failed. Stop here');
+    expect(outputSource).toContain(
       'Do not call generic AWS/AWS SDK MCP tools to work around a Stacktape authentication failure'
     );
-    expect(source).toContain('Stacktape MCP reuses the local Stacktape CLI authentication state');
-    expect(source).toContain('Never pass apiKey/STACKTAPE_API_KEY/STP_API_KEY as MCP arguments');
-    expect(source).toContain('Do not repeat API-key-like strings');
-    expect(source).toContain('Tool discovery/selection alone is not enough');
-    expect(source).toContain('tools are discoverable immediately');
-    expect(source).toContain('Full info:stack output was compacted for MCP');
+    expect(serverSource).toContain('Stacktape MCP reuses the local Stacktape CLI authentication state');
+    expect(serverSource).toContain('Never pass apiKey/STACKTAPE_API_KEY/STP_API_KEY as MCP arguments');
+    expect(serverSource).toContain('Do not repeat API-key-like strings');
+    expect(serverSource).toContain('Tool discovery/selection alone is not enough');
+    expect(serverSource).toContain('tools are discoverable immediately');
+    expect(outputSource).toContain('Full info:stack output was compacted for MCP');
   });
 
   test('CLI auth metadata is agent-safe', () => {

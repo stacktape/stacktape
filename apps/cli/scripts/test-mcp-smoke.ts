@@ -96,12 +96,14 @@ const main = async () => {
   });
   assert(docsSearch.references?.length === 1, 'Docs search should return one reference.');
 
-  const firstReference = docsSearch.references?.[0] as { route?: string } | undefined;
+  const firstReference = docsSearch.references?.[0] as { route?: string; headingPath?: string[] } | undefined;
   assert(firstReference?.route, 'Docs search reference should include a route.');
+  assert(firstReference?.headingPath, 'Docs search reference should include a heading path.');
 
   const docsGet = await callJsonTool(client, 'stacktape_docs', {
     action: 'get',
     route: firstReference.route,
+    headingPath: firstReference.headingPath,
     maxChars: 4000
   });
   assert(docsGet.ok === true, 'Docs get should return OK.');
