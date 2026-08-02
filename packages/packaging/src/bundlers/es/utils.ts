@@ -1,6 +1,6 @@
 import type { BunPlugin } from 'bun';
 import { randomUUID } from 'node:crypto';
-import { basename, extname, join } from 'node:path';
+import { basename, extname, join, resolve } from 'node:path';
 import { dirExists, getBaseName, getFolder, getPathRelativeTo, isFileAccessible } from '../../fs/files';
 import { findProjectRoot } from '../../es/project-root';
 import { chmod, copy, readFile, readJson, remove, stat } from 'fs-extra';
@@ -68,42 +68,32 @@ export const getLockFileData = async (
 // };
 
 const findPrismaSchemaFiles = async ({ workingDir }: { workingDir: string }): Promise<string[]> => {
-  try {
-    return (
-      await getMatchingFilesByGlob({
-        globPattern: '**/schema.prisma',
-        cwd: workingDir
-      })
-    )
-      .map((f) => join(workingDir, f))
-      .filter((f) => !f.includes('node_modules') && !f.startsWith('.stacktape'));
-  } catch {
-    return [];
-  }
+  const relativeSchemaPaths = await getMatchingFilesByGlob({
+    globPattern: '**/schema.prisma',
+    cwd: workingDir
+  });
+  return relativeSchemaPaths
+    .filter((path) => {
+      const pathSegments = path.replace(/\\/g, '/').split('/');
+      return !pathSegments.includes('node_modules') && !pathSegments.includes('.stacktape');
+    })
+    .toSorted()
+    .map((path) => join(workingDir, path));
 };
 
 const parsePrismaSchemaFile = async ({
-  workingDir
+  prismaSchemaFilePath
 }: {
-  workingDir: string;
+  prismaSchemaFilePath: string;
 }): Promise<{
   previewFeatures: string[];
   output: string | null;
-  prismaSchemaFilePath: string | null;
+  prismaSchemaFilePath: string;
   moduleFormat: string | null;
   runtime: string | null;
   engineType: string | null;
   provider: string | null;
 } | null> => {
-  const projectRoot = (await findProjectRoot(workingDir)) || workingDir;
-  const schemaFiles = await findPrismaSchemaFiles({ workingDir: projectRoot });
-
-  const prismaSchemaFilePath = schemaFiles[0] || null;
-
-  if (!prismaSchemaFilePath) {
-    return null;
-  }
-
   // Find the generator client block
   const schemaFileContent = await readFile(prismaSchemaFilePath, 'utf-8');
   const blockMatch = schemaFileContent.match(/generator\s+client\s*\{([\s\S]*?)\}/);
@@ -148,6 +138,28 @@ const parsePrismaSchemaFile = async ({
   return { previewFeatures, output, prismaSchemaFilePath, moduleFormat, runtime, engineType, provider };
 };
 
+const canonicalizeFilePath = (path: string): string => {
+  const normalizedPath = resolve(path).replace(/\\/g, '/');
+  return process.platform === 'win32' ? normalizedPath.toLowerCase() : normalizedPath;
+};
+
+const getInstalledPrismaClientMajorVersion = async (workingDir: string): Promise<number | null> => {
+  try {
+    const packageJsonPath = Bun.resolveSync('@prisma/client/package.json', workingDir);
+    const packageJson: unknown = await readJson(packageJsonPath);
+    if (!isRecord(packageJson) || typeof packageJson.version !== 'string') {
+      return null;
+    }
+    const majorVersion = Number.parseInt(packageJson.version.split('.')[0] ?? '', 10);
+    return Number.isInteger(majorVersion) ? majorVersion : null;
+  } catch {
+    return null;
+  }
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === 'object' && value !== null && !Array.isArray(value);
+
 export const resolvePrisma = async ({
   distFolderPath,
   workingDir,
@@ -174,41 +186,120 @@ export const resolvePrisma = async ({
 
   logDebug(`Resolving Prisma with project root: ${projectRoot}`);
 
+  let prismaSchemaFiles: string[];
   try {
-    const parsedPrismaSchemaFile = await parsePrismaSchemaFile({ workingDir: projectRoot });
+    prismaSchemaFiles = await findPrismaSchemaFiles({ workingDir: projectRoot });
+  } catch (cause) {
+    throw createPackagingError({
+      type: 'PACKAGING',
+      message: `Failed to discover the Prisma schema for resource ${workloadName}.`,
+      cause
+    });
+  }
 
-    logDebug(`Parsed Prisma schema file: ${JSON.stringify(parsedPrismaSchemaFile)}`);
+  let parsedSchemaFiles: Array<Awaited<ReturnType<typeof parsePrismaSchemaFile>>>;
+  try {
+    parsedSchemaFiles = await Promise.all(
+      prismaSchemaFiles.map((prismaSchemaFilePath) => parsePrismaSchemaFile({ prismaSchemaFilePath }))
+    );
+  } catch (cause) {
+    throw createPackagingError({
+      type: 'PACKAGING',
+      message: `Failed to parse the Prisma schema for resource ${workloadName}.`,
+      cause
+    });
+  }
 
-    if (parsedPrismaSchemaFile) {
-      const { output, prismaSchemaFilePath, engineType, provider } = parsedPrismaSchemaFile;
-      if (engineType === 'client' && provider === 'prisma-client') {
-        // prisma-client is pure typescript code and doesn't need anything to copy
-        logDebug('Prisma schema file indicates queryCompiler, skipping copy of binaries.');
+  // prisma-client-js copies schema.prisma into its generated output. Do not treat that generated copy as a second
+  // authored schema when the source generator's output points directly to it.
+  const generatedSchemaPaths = new Map<string, Set<string>>();
+  for (const parsedSchemaFile of parsedSchemaFiles) {
+    if (!parsedSchemaFile?.output) {
+      continue;
+    }
+    const generatedSchemaPath = canonicalizeFilePath(
+      join(getFolder(parsedSchemaFile.prismaSchemaFilePath), parsedSchemaFile.output, 'schema.prisma')
+    );
+    const declaringSchemaPaths = generatedSchemaPaths.get(generatedSchemaPath) ?? new Set<string>();
+    declaringSchemaPaths.add(canonicalizeFilePath(parsedSchemaFile.prismaSchemaFilePath));
+    generatedSchemaPaths.set(generatedSchemaPath, declaringSchemaPaths);
+  }
+  const sourceSchemaFiles = prismaSchemaFiles.filter((prismaSchemaFilePath) => {
+    const candidatePath = canonicalizeFilePath(prismaSchemaFilePath);
+    const declaringSchemaPaths = generatedSchemaPaths.get(candidatePath);
+    return !declaringSchemaPaths || [...declaringSchemaPaths].every((declaringPath) => declaringPath === candidatePath);
+  });
+
+  if (sourceSchemaFiles.length > 1) {
+    throw createPackagingError({
+      type: 'PACKAGING',
+      message: `Multiple Prisma schema files were found while packaging resource ${workloadName}: ${sourceSchemaFiles
+        .map((path) => getPathRelativeTo(path, projectRoot).replace(/\\/g, '/'))
+        .join(', ')}.`,
+      hint: 'Package each Prisma workload from a project root containing exactly one schema so Stacktape cannot select the wrong generated client.'
+    });
+  }
+
+  let parsedPrismaSchemaFile: Awaited<ReturnType<typeof parsePrismaSchemaFile>> = null;
+  if (sourceSchemaFiles[0]) {
+    const sourceSchemaIndex = prismaSchemaFiles.indexOf(sourceSchemaFiles[0]);
+    parsedPrismaSchemaFile = parsedSchemaFiles[sourceSchemaIndex] ?? null;
+  } else {
+    console.warn('Could not find prisma schema file.');
+  }
+
+  logDebug(`Parsed Prisma schema file: ${JSON.stringify(parsedPrismaSchemaFile)}`);
+
+  if (parsedPrismaSchemaFile) {
+    const { output, prismaSchemaFilePath, engineType, provider } = parsedPrismaSchemaFile;
+    if (provider === 'prisma-client') {
+      if (engineType === 'client') {
+        logDebug('Prisma schema explicitly uses the TypeScript client engine; no runtime binary copy is required.');
         return;
       }
-      if (engineType === 'client' && provider === 'prisma-client-js') {
-        try {
-          if (!prismaSchemaFilePath || !output) {
-            throw new Error('Prisma client output is missing.');
-          }
-          const from = join(getFolder(prismaSchemaFilePath), output, 'query_compiler_bg.wasm');
-          const relative = getPathRelativeTo(from, projectRoot);
-          return copyToDeploymentPackage({
-            from,
-            to: join(distFolderPath, relative)
-          });
-        } catch {
-          throw createPackagingError({
-            type: 'PACKAGING',
-            message: `Failed to copy prisma files for resource ${workloadName} (detected usage of queryCompiler).`
-          });
+      if (engineType === null) {
+        const prismaClientMajorVersion = await getInstalledPrismaClientMajorVersion(
+          getFolder(parsedPrismaSchemaFile.prismaSchemaFilePath)
+        );
+        if (prismaClientMajorVersion !== null && prismaClientMajorVersion >= 7) {
+          logDebug('Prisma 7+ schema uses the default TypeScript client engine; no runtime binary copy is required.');
+          return;
         }
+        throw createPackagingError({
+          type: 'PACKAGING',
+          message:
+            prismaClientMajorVersion === null
+              ? `Could not determine the installed @prisma/client version for resource ${workloadName}.`
+              : `Prisma ${prismaClientMajorVersion} requires an explicit engineType when using the prisma-client generator for resource ${workloadName}.`,
+          hint: 'Set engineType = "client" and use a driver adapter, or upgrade @prisma/client to Prisma 7 or newer.'
+        });
       }
-    } else {
-      console.warn('Could not find prisma schema file.');
+      throw createPackagingError({
+        type: 'PACKAGING',
+        message: `Prisma engineType "${engineType}" is not supported with the prisma-client generator for resource ${workloadName}.`,
+        hint: 'Remove engineType and use Prisma’s default TypeScript query compiler with a driver adapter.'
+      });
     }
-  } catch {
-    console.warn('Could not parse prisma schema file.');
+    if (engineType === 'client' && provider === 'prisma-client-js') {
+      try {
+        if (!output) {
+          throw new Error('Prisma client output is missing.');
+        }
+        const from = join(getFolder(prismaSchemaFilePath), output, 'query_compiler_bg.wasm');
+        const relative = getPathRelativeTo(from, projectRoot);
+        return await copyToDeploymentPackage({
+          from,
+          to: join(distFolderPath, relative)
+        });
+      } catch (cause) {
+        throw createPackagingError({
+          type: 'PACKAGING',
+          message: `Failed to copy Prisma query compiler files for resource ${workloadName}.`,
+          hint: 'Run Prisma generate and verify that the configured client output contains query_compiler_bg.wasm.',
+          cause
+        });
+      }
+    }
   }
 
   // @todo validate if exists and tell user to install it if not
