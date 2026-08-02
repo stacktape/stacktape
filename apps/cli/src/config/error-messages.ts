@@ -704,13 +704,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       hint: `You can upgrade your subscription plan in the ${tuiManager.getLink('subscription', 'console')}.`
     };
   },
-  e503({ message }: { message: string }): ReturnedError {
-    return {
-      type: 'API_SERVER',
-      message,
-      hint: `You can get your API key in the ${tuiManager.getLink('apiKeys', 'console')}.`
-    };
-  },
   e506({ projectId }: { projectId: string }): ReturnedError {
     return {
       type: 'CLI',

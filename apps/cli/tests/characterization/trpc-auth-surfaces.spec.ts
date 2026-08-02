@@ -69,6 +69,16 @@ describe('Console tRPC authentication surfaces', () => {
     expect(requests[0].headers.has('aws_identity')).toBe(false);
   });
 
+  test('API-key client reinitialization replaces the credential used by subsequent requests', async () => {
+    const client = new ApiKeyProtectedClient();
+    await client.init({ apiKey: 'stp_old_characterization_secret' });
+    await client.init({ apiKey: 'stp_new_characterization_secret' });
+    await client.canDeploy();
+
+    expect(requests).toHaveLength(1);
+    expect(requests[0].headers.get('stp_api_key')).toBe('stp_new_characterization_secret');
+  });
+
   test('AWS-identity operations use a signed STS request instead of an API key', async () => {
     const client = new AwsIdentityProtectedClient();
     await client.init({

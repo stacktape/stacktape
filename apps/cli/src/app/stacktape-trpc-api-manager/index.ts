@@ -1,61 +1,94 @@
 import { tuiManager } from '@application-services/tui-manager';
-import { ApiKeyProtectedClient } from '@stacktape-api/api-key-protected';
 import { withStacktapeOperationInvocationContext } from '@application-services/operation-invocation-context';
-import { stpErrors } from '../../config/error-messages';
+import { ApiKeyProtectedClient, type ApiKeyRequestExecutor } from '@stacktape-api/api-key-protected';
+import { TRPCClientError } from '@trpc/client';
+import { CliError } from '@utils/errors';
 import { IS_DEV } from '../../config/random';
 import { gitInfoManager } from '../../utils/git-info-manager';
 import { getStacktapeVersion } from '../../utils/versioning';
 import { globalStateManager } from '../global-state-manager';
 
-class StacktapeTrpcApiManager {
-  apiClient = new ApiKeyProtectedClient();
+const LOGIN_HINT = 'Run `stacktape login` to authenticate with a new API key.';
+
+export const translateStacktapeApiError = ({ error, hasApiKey }: { error: unknown; hasApiKey: boolean }): CliError => {
+  if (error instanceof CliError) {
+    return error;
+  }
+
+  const errorCode = error instanceof TRPCClientError ? error.data?.code : undefined;
+  const errorMessage = error instanceof Error && error.message ? error.message : 'Unknown error';
+  const normalizedMessage = errorMessage.toLowerCase();
+
+  if (errorCode === 'UNAUTHORIZED' && normalizedMessage.includes('revoked')) {
+    return new CliError({
+      category: 'API_KEY',
+      code: 'STACKTAPE_API_KEY_REVOKED',
+      message: 'API key has been revoked.',
+      hints: LOGIN_HINT,
+      cause: error
+    });
+  }
+  if (errorCode === 'UNAUTHORIZED' && normalizedMessage.includes('expired')) {
+    return new CliError({
+      category: 'API_KEY',
+      code: 'STACKTAPE_API_KEY_EXPIRED',
+      message: 'API key has expired.',
+      hints: LOGIN_HINT,
+      cause: error
+    });
+  }
+  if (errorCode === 'UNAUTHORIZED') {
+    return new CliError({
+      category: 'API_KEY',
+      code: hasApiKey ? 'STACKTAPE_API_KEY_INVALID' : 'STACKTAPE_API_KEY_MISSING',
+      message: hasApiKey ? 'Invalid API key.' : 'No Stacktape API key was specified.',
+      hints: LOGIN_HINT,
+      cause: error
+    });
+  }
+  if (errorCode === 'FORBIDDEN') {
+    return new CliError({
+      category: 'API_SERVER',
+      code: 'STACKTAPE_API_PERMISSION_DENIED',
+      message: `Permission denied: ${errorMessage}`,
+      hints: 'Check your role with `stacktape info:whoami`.',
+      cause: error
+    });
+  }
+
+  return new CliError({
+    category: 'API_SERVER',
+    code: 'STACKTAPE_API_REQUEST_FAILED',
+    message: errorMessage,
+    cause: error
+  });
+};
+
+export class StacktapeTrpcApiManager {
+  readonly apiClient: ApiKeyProtectedClient;
+  #hasApiKey = false;
+
+  constructor() {
+    const executeRequest: ApiKeyRequestExecutor = async (procedure, request) => {
+      const start = Date.now();
+      tuiManager.debug(`TRPC ${procedure}: start.`);
+      try {
+        return await request();
+      } catch (error) {
+        if (IS_DEV) {
+          tuiManager.warn(`Stacktape API request failed:\n${error}`);
+        }
+        throw translateStacktapeApiError({ error, hasApiKey: this.#hasApiKey });
+      } finally {
+        tuiManager.debug(`TRPC ${procedure}: ${Date.now() - start}ms.`);
+      }
+    };
+    this.apiClient = new ApiKeyProtectedClient({ executeRequest });
+  }
 
   init = async ({ apiKey }: { apiKey: string }) => {
+    this.#hasApiKey = Boolean(apiKey);
     await this.apiClient.init({ apiKey });
-    for (const prop in this.apiClient) {
-      if (prop !== 'init' && prop !== '#client') {
-        const oldMethod = this.apiClient[prop];
-        this.apiClient[prop] = async (...args) => {
-          const start = Date.now();
-          try {
-            tuiManager.debug(`TRPC ${prop}: start.`);
-            const res = await oldMethod(...args);
-            tuiManager.debug(`TRPC ${prop}: ${Date.now() - start}ms.`);
-            return res;
-          } catch (err) {
-            if (IS_DEV) {
-              tuiManager.warn(`Stacktape API request failed:\n${err}`);
-            }
-            tuiManager.debug(`TRPC API ${prop}: ${Date.now() - start}ms.`);
-            const errCode = err?.shape?.data.code;
-            const errMessage = err?.shape?.message || '';
-            if (errCode === 'UNAUTHORIZED' && errMessage.includes('revoked')) {
-              throw stpErrors.e503({
-                message: "API key has been revoked. Run 'stacktape login' to authenticate with a different key."
-              });
-            }
-            if (errCode === 'UNAUTHORIZED' && errMessage.includes('expired')) {
-              throw stpErrors.e503({
-                message: "API key has expired. Run 'stacktape login' to authenticate with a new key."
-              });
-            }
-            if (errCode === 'UNAUTHORIZED' && apiKey) {
-              throw stpErrors.e503({ message: 'Invalid API key.' });
-            }
-            if (errCode === 'UNAUTHORIZED' && !apiKey) {
-              throw stpErrors.e503({ message: 'Invalid API key or no API key specified.' });
-            }
-            if (errCode === 'FORBIDDEN') {
-              const serverMessage = err?.shape?.message || 'Insufficient permissions';
-              throw stpErrors.e503({
-                message: `Permission denied: ${serverMessage}. Check your role with 'stacktape info:whoami'.`
-              });
-            }
-            throw stpErrors.e503({ message: err?.shape?.message || 'Unknown error' });
-          }
-        };
-      }
-    }
   };
 
   // Historical API name kept for console compatibility. These methods record

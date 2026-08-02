@@ -115,8 +115,19 @@ const createTrpcApiKeyProtectedClient = ({ apiKey }: { apiKey: string }) => {
   });
 };
 
+type ApiKeyProcedureName = keyof ApiKeyTrpcClient;
+
+export type ApiKeyRequestExecutor = <T>(procedure: ApiKeyProcedureName, request: () => Promise<T>) => Promise<T>;
+
+const executeRequestDirectly: ApiKeyRequestExecutor = (_procedure, request) => request();
+
 export class ApiKeyProtectedClient {
   #client: ApiKeyTrpcClient | null = null;
+  readonly #executeRequest: ApiKeyRequestExecutor;
+
+  constructor({ executeRequest = executeRequestDirectly }: { executeRequest?: ApiKeyRequestExecutor } = {}) {
+    this.#executeRequest = executeRequest;
+  }
 
   init = async ({ apiKey }: { apiKey: string }) => {
     this.#client = createTrpcApiKeyProtectedClient({ apiKey });
@@ -130,135 +141,159 @@ export class ApiKeyProtectedClient {
     return this.#client;
   };
 
+  #request = <T>(procedure: ApiKeyProcedureName, request: () => Promise<T>) => {
+    return this.#executeRequest(procedure, request);
+  };
+
   // Legacy API name: this records Stacktape CLI operations in the console,
   // including commands that are not direct stack deploy/delete operations.
   recordStackOperation = async (args: RecordStackOperationParams): Promise<void> => {
-    await this.#ensureInitialized().recordStackOperation.mutate(args);
+    await this.#request('recordStackOperation', () => this.#ensureInitialized().recordStackOperation.mutate(args));
   };
 
   globalConfig = async (): Promise<GlobalConfigResponse> => {
-    return this.#ensureInitialized().globalConfig.query();
+    return this.#request('globalConfig', () => this.#ensureInitialized().globalConfig.query());
   };
 
   currentUserAndOrgData = async (): Promise<CurrentUserAndOrgDataResponse> => {
-    return this.#ensureInitialized().currentUserAndOrgData.query();
+    return this.#request('currentUserAndOrgData', () => this.#ensureInitialized().currentUserAndOrgData.query());
   };
 
   ec2DeployFromCli = async (args: Ec2DeployFromCliParams): Promise<Ec2DeployFromCliResponse> => {
-    return this.#ensureInitialized().ec2DeployFromCli.mutate(args);
+    return this.#request('ec2DeployFromCli', () => this.#ensureInitialized().ec2DeployFromCli.mutate(args));
   };
 
   ec2DeployStatusFromCli = async (args: Ec2DeployStatusFromCliParams): Promise<Ec2DeployStatusFromCliResponse> => {
-    return this.#ensureInitialized().ec2DeployStatusFromCli.query(args);
+    return this.#request('ec2DeployStatusFromCli', () => this.#ensureInitialized().ec2DeployStatusFromCli.query(args));
   };
 
   configureEc2RunnerFromCli = async (
     args: ConfigureEc2RunnerFromCliParams
   ): Promise<ConfigureEc2RunnerFromCliResponse> => {
-    return this.#ensureInitialized().configureEc2RunnerFromCli.mutate(args);
+    return this.#request('configureEc2RunnerFromCli', () =>
+      this.#ensureInitialized().configureEc2RunnerFromCli.mutate(args)
+    );
   };
 
   createDeploymentTokenFromCli = async (
     args: CreateDeploymentTokenFromCliParams
   ): Promise<CreateDeploymentTokenFromCliResponse> => {
-    return this.#ensureInitialized().createDeploymentTokenFromCli.mutate(args);
+    return this.#request('createDeploymentTokenFromCli', () =>
+      this.#ensureInitialized().createDeploymentTokenFromCli.mutate(args)
+    );
   };
 
   awsAccountCredentials = async (args: AwsAccountCredentialsParams): Promise<AwsAccountCredentialsResponse> => {
-    return this.#ensureInitialized().awsAccountCredentials.query(args);
+    return this.#request('awsAccountCredentials', () => this.#ensureInitialized().awsAccountCredentials.query(args));
   };
 
   template = async (args: TemplateParams): Promise<TemplateResponse> => {
-    return this.#ensureInitialized().template.query(args);
+    return this.#request('template', () => this.#ensureInitialized().template.query(args));
   };
 
   canDeploy = async (): Promise<CanDeployResponse> => {
-    return this.#ensureInitialized().canDeploy.query();
+    return this.#request('canDeploy', () => this.#ensureInitialized().canDeploy.query());
   };
 
   defaultDomainsInfo = async (args: DefaultDomainsInfoParams): Promise<DefaultDomainsInfoResponse> => {
-    return this.#ensureInitialized().defaultDomainsInfo.query(args);
+    return this.#request('defaultDomainsInfo', () => this.#ensureInitialized().defaultDomainsInfo.query(args));
   };
 
   createProject = async (args: CreateProjectParams): Promise<CreateProjectResponse> => {
-    return this.#ensureInitialized().createProjectFromCli.mutate(args);
+    return this.#request('createProjectFromCli', () => this.#ensureInitialized().createProjectFromCli.mutate(args));
   };
 
   createOrganization = async (args: CreateOrganizationParams): Promise<CreateOrganizationResponse> => {
-    return this.#ensureInitialized().createOrganizationFromCli.mutate(args);
+    return this.#request('createOrganizationFromCli', () =>
+      this.#ensureInitialized().createOrganizationFromCli.mutate(args)
+    );
   };
 
   listOrganizations = async (): Promise<ListOrganizationsResponse> => {
-    return this.#ensureInitialized().listOrganizationsFromCli.query();
+    return this.#request('listOrganizationsFromCli', () => this.#ensureInitialized().listOrganizationsFromCli.query());
   };
 
   deleteOrganization = async (args: DeleteOrganizationParams): Promise<DeleteOrganizationResponse> => {
-    return this.#ensureInitialized().deleteOrganizationFromCli.mutate(args);
+    return this.#request('deleteOrganizationFromCli', () =>
+      this.#ensureInitialized().deleteOrganizationFromCli.mutate(args)
+    );
   };
 
   deleteUndeployedStage = async (args: DeleteUndeployedStageParams): Promise<DeleteUndeployedStageResponse> => {
-    return this.#ensureInitialized().deleteUndeployedStageFromCli.mutate(args);
+    return this.#request('deleteUndeployedStageFromCli', () =>
+      this.#ensureInitialized().deleteUndeployedStageFromCli.mutate(args)
+    );
   };
 
   initAwsConnectionForCli = async (args: InitAwsConnectionForCliInput): Promise<InitAwsConnectionForCliResponse> => {
-    return this.#ensureInitialized().initAwsConnectionForCli.mutate(args);
+    return this.#request('initAwsConnectionForCli', () =>
+      this.#ensureInitialized().initAwsConnectionForCli.mutate(args)
+    );
   };
 
   createAwsConnectionPending = async (
     args: CreateAwsConnectionPendingInput
   ): Promise<CreateAwsConnectionPendingResponse> => {
-    return this.#ensureInitialized().createAwsConnectionPending.mutate(args);
+    return this.#request('createAwsConnectionPending', () =>
+      this.#ensureInitialized().createAwsConnectionPending.mutate(args)
+    );
   };
 
   getAwsConnectionStatus = async (args: GetAwsConnectionStatusInput): Promise<GetAwsConnectionStatusResponse> => {
-    return this.#ensureInitialized().getAwsConnectionStatus.query(args);
+    return this.#request('getAwsConnectionStatus', () => this.#ensureInitialized().getAwsConnectionStatus.query(args));
   };
 
   getGitProviderConnectionStatus = async (
     args: GetGitProviderConnectionStatusInput
   ): Promise<GetGitProviderConnectionStatusResponse> => {
-    return this.#ensureInitialized().getGitProviderConnectionStatus.query(args);
+    return this.#request('getGitProviderConnectionStatus', () =>
+      this.#ensureInitialized().getGitProviderConnectionStatus.query(args)
+    );
   };
 
   createGitDeploymentConfigFromCli = async (
     args: CreateGitDeploymentConfigFromCliInput
   ): Promise<CreateGitDeploymentConfigFromCliResponse> => {
-    return this.#ensureInitialized().createGitDeploymentConfigFromCli.mutate(args);
+    return this.#request('createGitDeploymentConfigFromCli', () =>
+      this.#ensureInitialized().createGitDeploymentConfigFromCli.mutate(args)
+    );
   };
 
   projectsWithStages = async (): Promise<ProjectsWithStagesResponse> => {
-    return this.#ensureInitialized().projectsWithStages.query();
+    return this.#request('projectsWithStages', () => this.#ensureInitialized().projectsWithStages.query());
   };
 
   recentStackOperations = async (args: RecentStackOperationsParams): Promise<RecentStackOperationsResponse> => {
-    return this.#ensureInitialized().recentStackOperations.query(args);
+    return this.#request('recentStackOperations', () => this.#ensureInitialized().recentStackOperations.query(args));
   };
 
   organizationActivity = async (args: OrganizationActivityParams): Promise<OrganizationActivityResponse> => {
-    return this.#ensureInitialized().organizationActivityFromCli.query(args);
+    return this.#request('organizationActivityFromCli', () =>
+      this.#ensureInitialized().organizationActivityFromCli.query(args)
+    );
   };
 
   stackDetails = async (args: StackDetailsParams): Promise<StackDetailsResponse> => {
-    return this.#ensureInitialized().stackDetails.query(args);
+    return this.#request('stackDetails', () => this.#ensureInitialized().stackDetails.query(args));
   };
 
   reportEvent = async (args: ReportEventParams): Promise<string> => {
-    return this.#ensureInitialized().reportEvent.mutate(args);
+    return this.#request('reportEvent', () => this.#ensureInitialized().reportEvent.mutate(args));
   };
 
   listIssues = async (args: ListIssuesParams): Promise<ListIssuesResponse> => {
-    return this.#ensureInitialized().issuesFromCli.query(args);
+    return this.#request('issuesFromCli', () => this.#ensureInitialized().issuesFromCli.query(args));
   };
 
   resolveIssue = async (args: IssueActionParams): Promise<IssueActionResponse> => {
-    return this.#ensureInitialized().resolveIssueFromCli.mutate(args);
+    return this.#request('resolveIssueFromCli', () => this.#ensureInitialized().resolveIssueFromCli.mutate(args));
   };
 
   ignoreIssue = async (args: IssueActionParams): Promise<IssueActionResponse> => {
-    return this.#ensureInitialized().ignoreIssueFromCli.mutate(args);
+    return this.#request('ignoreIssueFromCli', () => this.#ensureInitialized().ignoreIssueFromCli.mutate(args));
   };
 
   reopenIssue = async (args: IssueActionParams): Promise<IssueActionResponse> => {
-    return this.#ensureInitialized().reopenIssueFromCli.mutate(args);
+    return this.#request('reopenIssueFromCli', () => this.#ensureInitialized().reopenIssueFromCli.mutate(args));
   };
 }
