@@ -1,7 +1,6 @@
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import { tuiManager } from '@application-services/tui-manager';
 import Integration from '@cloudform/apiGatewayV2/integration';
 import { GetAtt, Ref } from '@cloudform/functions';
 import ServiceDiscoveryService from '@cloudform/serviceDiscovery/service';
@@ -11,7 +10,7 @@ import { resolveReferenceToLambdaFunction } from '@domain-services/config-manage
 import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import {
   getHttpApiAuthorizerResource,
   getHttpApiLambdaPermission,
@@ -37,27 +36,25 @@ export const resolveHttpApiEvents = (definition: StpContainerWorkload) => {
       const targetContainerPort = event.properties.containerPort;
       // if the payloadFormat was already set explicitly in the event, other events must use the same value
       if (explicitIntegrationPayloadFormat && explicitIntegrationPayloadFormat !== payloadFormat) {
-        throw new ExpectedError(
-          'CONFIG_VALIDATION',
-          `Error in ${definition.type} "${definition.name}". All http-api-gateway event integrations must use the same "payloadFormat".`,
-          [
-            'You can set payload format globally for entire http-api-gateway by setting "payloadFormat" property in http-api-gateway config.'
-          ]
-        );
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_HTTP_API_PAYLOAD_FORMAT_CONFLICT',
+          message: `All HTTP API events on ${definition.type} \`${definition.name}\` must use the same \`payloadFormat\`.`,
+          hints: 'Set `payloadFormat` consistently on the events or once on the referenced `http-api-gateway`.'
+        });
       }
       explicitIntegrationPayloadFormat = payloadFormat;
       // currently only one service registry item is allowed for ecs service
       if (targetedPort && targetedPort !== targetContainerPort) {
-        throw new ExpectedError(
-          'CONFIG_VALIDATION',
-          `All http-api-gateway event integrations in ${tuiManager.prettyResourceType(
-            definition.type
-          )} ${tuiManager.prettyResourceName(definition.name)} must use the same container port.`,
-          `This is an AWS limitation (only one Cloud Map service registry item per ECS service) and can change in the future.
-    When using http-api-gateway event integration, you should use only a single container with a single port as an "entry point" to your ${definition.type}.
-    This container can then route requests to other containers within your ${definition.type}.
-    Alternatively, you can use Application Load Balancer for your event integration.`
-        );
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_HTTP_API_CONTAINER_PORT_CONFLICT',
+          message: `All HTTP API events on ${definition.type} \`${definition.name}\` must target the same container port.`,
+          hints: [
+            'Use one container and port as the HTTP entry point, then route internally to other containers.',
+            'Alternatively, use an Application Load Balancer integration.'
+          ]
+        });
       }
       targetedPort = targetContainerPort;
       // adding route
@@ -158,7 +155,7 @@ export const resolveHttpApiEvents = (definition: StpContainerWorkload) => {
   }
 };
 
-const getHttpApiContainerWorkloadIntegration = ({
+export const getHttpApiContainerWorkloadIntegration = ({
   workloadName,
   workloadType,
   payloadFormat,
@@ -172,14 +169,12 @@ const getHttpApiContainerWorkloadIntegration = ({
   payloadFormat: StpHttpApiGateway['payloadFormat'];
 }) => {
   if (payloadFormat !== '1.0') {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in ${workloadType} "${workloadName}". ${workloadType} http-api-gateway events only support payload format version "1.0".`,
-      [
-        'Set payload format version by setting "payloadFormat" property in http-api-gateway event.',
-        'Optionally, you can set payload format for entire http-api-gateway by setting "payloadFormat" property in http-api-gateway config.'
-      ]
-    );
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_HTTP_API_CONTAINER_PAYLOAD_FORMAT_UNSUPPORTED',
+      message: `${workloadType} \`${workloadName}\` supports only HTTP API payload format \`1.0\`.`,
+      hints: 'Set `payloadFormat: "1.0"` on the event or the referenced `http-api-gateway`.'
+    });
   }
   return new Integration({
     ApiId: Ref(cfLogicalNames.httpApi(stpHttpApiGatewayName)),

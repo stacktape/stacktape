@@ -4,7 +4,6 @@ import type {
 } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import { tuiManager } from '@application-services/tui-manager';
 import Integration from '@cloudform/apiGatewayV2/integration';
 import { GetAtt, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
@@ -13,7 +12,7 @@ import { resolveReferenceToLambdaFunction } from '@domain-services/config-manage
 import { templateManager } from '@domain-services/template-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import {
   getHttpApiAuthorizerResource,
   getHttpApiLambdaPermission,
@@ -43,13 +42,12 @@ export const resolveHttpApiEvents = ({
       const routePayloadFormat = payloadFormat || (httpApiGatewayInfo as StpHttpApiGateway).payloadFormat || '1.0';
       // if the payloadFormat was already set explicitly in the event, other events must use the same value
       if (integrationPayloadFormat && integrationPayloadFormat !== routePayloadFormat) {
-        throw new ExpectedError(
-          'CONFIG_VALIDATION',
-          `Error in function compute resource ${tuiManager.prettyResourceName(name)}. All http-api-gateway events for a function must use the same ${tuiManager.prettyConfigProperty('payloadFormat')}.`,
-          [
-            `You can set payload format globally for entire ${tuiManager.prettyResourceType('http-api-gateway')} by setting ${tuiManager.prettyConfigProperty('payloadFormat')} property in the ${tuiManager.prettyResourceType('http-api-gateway')}  config.`
-          ]
-        );
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_HTTP_API_PAYLOAD_FORMAT_CONFLICT',
+          message: `All HTTP API events on function \`${name}\` must use the same \`payloadFormat\`.`,
+          hints: 'Set `payloadFormat` consistently on the events or once on the referenced `http-api-gateway`.'
+        });
       }
       integrationPayloadFormat = routePayloadFormat;
       calculatedStackOverviewManager.addCfChildResource({
@@ -129,7 +127,6 @@ export const resolveHttpApiEvents = ({
       }),
       nameChain,
       resource: getHttpApiLambdaIntegration({
-        workloadName: name,
         lambdaEndpointArn,
         functionTimeout: timeout,
         httpApiGatewayInfo,
@@ -158,25 +155,11 @@ const getHttpApiLambdaIntegration = ({
   httpApiGatewayInfo,
   payloadFormat
 }: {
-  workloadName: string;
   functionTimeout: number;
   lambdaEndpointArn: string | IntrinsicFunction;
   payloadFormat: StpHttpApiGateway['payloadFormat'];
   httpApiGatewayInfo: StpHttpApiGateway & { name: string };
 }) => {
-  // if (functionTimeout > 29) {
-  //   tuiManager.warn(
-  //     `Function ${tuiManager.prettyResourceName(
-  //       workloadName
-  //     )} timeout is ${functionTimeout}s, above HTTP API max (29s).\n` + 'Requests may time out.'
-  //   );
-  // }
-  // if (functionTimeout === 29) {
-  //   tuiManager.warn(
-  //     `Function ${tuiManager.prettyResourceName(workloadName)} timeout is 29s (HTTP API max). ` +
-  //       'Requests may time out.'
-  //   );
-  // }
   return new Integration({
     ApiId: Ref(cfLogicalNames.httpApi(httpApiGatewayInfo.name)),
     IntegrationType: 'AWS_PROXY',

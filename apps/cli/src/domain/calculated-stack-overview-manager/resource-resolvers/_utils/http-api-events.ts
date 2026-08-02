@@ -7,7 +7,7 @@ import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToHttpApiGateway } from '@domain-services/config-manager/utils/http-api-gateways';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { resourceURIs } from 'src/utils/aws-resource-uris';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { ContainerWorkloadHttpApiIntegrationProps, HttpApiIntegrationProps } from '@stacktape/config/events';
 import type { StpAuthorizer } from '@stacktape/config/user-pools';
@@ -87,23 +87,12 @@ export const getHttpApiRoute = ({
   workloadName: string;
   eventDetails: HttpApiIntegrationProps | ContainerWorkloadHttpApiIntegrationProps;
 }) => {
-  let routeKey: string;
   const { path, method, authorizer } = eventDetails;
   const httpApiGatewayInfo = resolveReferenceToHttpApiGateway({
     stpResourceReference: eventDetails.httpApiGatewayName,
     referencedFrom: workloadName
   });
-  if (path === '*' || path === '$default') {
-    routeKey = '$default';
-    if (method && !(method === '*')) {
-      throw new ExpectedError(
-        'CONFIG_VALIDATION',
-        `Error in compute resource ${workloadName}. HttpApi event: If you specify path "*" ("$default") the only allowed method is "*" (ANY)`
-      );
-    }
-  } else {
-    routeKey = `${method === '*' ? 'ANY' : method} ${path}`;
-  }
+  const routeKey = getHttpApiRouteKey({ workloadName, path, method });
   return new Route({
     ApiId: Ref(cfLogicalNames.httpApi(httpApiGatewayInfo.name)),
     RouteKey: routeKey,
@@ -137,4 +126,27 @@ export const getHttpApiRoute = ({
       )
     ])
   });
+};
+
+export const getHttpApiRouteKey = ({
+  workloadName,
+  path,
+  method
+}: {
+  workloadName: string;
+  path: HttpApiIntegrationProps['path'];
+  method: HttpApiIntegrationProps['method'];
+}) => {
+  if (path === '*' || path === '$default') {
+    if (method && !(method === '*')) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_HTTP_API_DEFAULT_ROUTE_METHOD_INVALID',
+        message: `HTTP API event on \`${workloadName}\` uses the default route but method \`${method}\`.`,
+        hints: 'Use method `*` (ANY) when path is `*` or `$default`.'
+      });
+    }
+    return '$default';
+  }
+  return `${method === '*' ? 'ANY' : method} ${path}`;
 };

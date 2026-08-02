@@ -5,7 +5,6 @@ import type {
 } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpCdnAttachableResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import type { FunctionProperties } from '@cloudform/lambda/function';
-import { tuiManager } from '@application-services/tui-manager';
 import Application from '@cloudform/codeDeploy/application';
 import { GetAtt, Join, Ref } from '@cloudform/functions';
 import EventInvokeConfig from '@cloudform/lambda/eventInvokeConfig';
@@ -34,7 +33,7 @@ import { tagNames } from '@stacktape/naming/tag-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
 import { getAugmentedEnvironment, getLanguageFromExtension } from '@utils/environment';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { normalizeCloudformationFunction } from '@utils/cloudformation';
 import { getLambdaIssueFilterPattern, isIssueDetectionSupportedLanguage } from '../_utils/issue-detection';
 import { resolveAlarmsForResource } from '../_utils/alarms';
@@ -317,20 +316,17 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         accessibility?.accessibilityMode === 'scoping-workloads-in-vpc'
     );
     if (resourcesRequiringOnlyVpcAccess.length) {
-      throw new ExpectedError(
-        'CONFIG_VALIDATION',
-        `Function ${tuiManager.makeBold(
-          name
-        )} can not connect to the following resources, unless it is connected to a VPC:\n${resourcesRequiringOnlyVpcAccess.map(
-          ({ name: refName, type: refType }) =>
-            `${tuiManager.prettyResourceName(refName)} of type ${tuiManager.prettyResourceType(refType)}\n`
-        )}`,
-        [
-          `You can connect the function to a VPC by setting ${tuiManager.prettyConfigProperty(
-            'joinDefaultVpc'
-          )} property to true. (Note that the function won't be able to make outbound Internet requests after connecting to a VPC)`
-        ]
-      );
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_FUNCTION_VPC_REQUIRED',
+        message:
+          `Function \`${name}\` cannot connect to VPC-only resources unless it joins the default VPC:\n` +
+          resourcesRequiringOnlyVpcAccess
+            .map(({ name: refName, type: refType }) => `- \`${refName}\` (${refType})`)
+            .join('\n'),
+        hints:
+          'Set `joinDefaultVpc: true` on the function. A function in the VPC needs appropriate networking to make outbound Internet requests.'
+      });
     }
   }
   if (url?.enabled || configManager.simplifiedCdnAssociations.function[name]) {
@@ -362,11 +358,12 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   );
   const allLayers = [...(layers || []), ...sharedLayerRefs];
   if (allLayers.length > 5) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Function "${name}" exceeds AWS limit of 5 layers. User-defined: ${(layers || []).length}, shared: ${sharedLayerRefs.length}. ` +
-        `Reduce user-defined layers or shared layer usage.`
-    );
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_FUNCTION_LAYER_LIMIT_EXCEEDED',
+      message: `Function \`${name}\` exceeds the AWS limit of 5 layers (user-defined: ${(layers || []).length}, shared: ${sharedLayerRefs.length}).`,
+      hints: 'Reduce the number of user-defined layers or shared-layer dependencies.'
+    });
   }
   if (allLayers.length > 0) {
     lambdaFunctionResource.Properties.Layers = allLayers;
@@ -403,18 +400,18 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     thirdPartyProviderManager.getAtlasMongoDbProviderConfig().accessibility.accessibilityMode !== 'internet'
   ) {
     // if function is not in vpc and is trying to scope (connectTo) atlas mongo cluster and atlas mongo does not allow connections from internet
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in function "${name}". Function is referencing following "atlasMongoCluster" resources which only allow connections from "${
-        thirdPartyProviderManager.getAtlasMongoDbProviderConfig().accessibility.accessibilityMode
-      }":\n${accessToAtlasMongoClusterResources.map(
-        ({ name: refName }) => `"${refName}"\n`
-      )}. These cannot be scoped by connectTo unless function is connected to vpc.`,
-      [
-        'You can EITHER connect function to VPC by setting "joinVpc" property to true. (Note that a function is not able to reach internet once connected to a VPC.)',
-        'OR You can allow connections to your MongoDb Atlas clusters from the internet by setting `(config).providers.mongoDbAtlas.accessibility.accessibilityMode` to "internet".'
+    const accessibilityMode = thirdPartyProviderManager.getAtlasMongoDbProviderConfig().accessibility.accessibilityMode;
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_FUNCTION_ATLAS_NETWORK_INCOMPATIBLE',
+      message:
+        `Function \`${name}\` cannot connect to MongoDB Atlas resources limited to \`${accessibilityMode}\` access:\n` +
+        accessToAtlasMongoClusterResources.map(({ name: refName }) => `- \`${refName}\``).join('\n'),
+      hints: [
+        'Set `joinDefaultVpc: true` on the function and configure outbound networking if it needs Internet access.',
+        'Alternatively, set `providerConfig.mongoDbAtlas.accessibility.accessibilityMode` to `internet`.'
       ]
-    );
+    });
   }
 
   if (!logging?.disabled) {

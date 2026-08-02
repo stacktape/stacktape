@@ -11,7 +11,7 @@ import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { isValidJson } from '@utils/misc';
 import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import { getEventBusRuleLambdaPermission, validateScheduleSyntax } from '../utils';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { ScheduleIntegration, ScheduleIntegrationProps } from '@stacktape/config/events';
@@ -50,7 +50,7 @@ export const resolveScheduledEvents = ({
   return [];
 };
 
-const getScheduleEventRule = ({
+export const getScheduleEventRule = ({
   lambdaEndpointArn,
   eventIndex,
   workloadName,
@@ -63,33 +63,35 @@ const getScheduleEventRule = ({
 }) => {
   const errors = validateScheduleSyntax(eventDetails.scheduleRate);
   if (errors && errors.length) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Invalid 'scheduleRate' definition in compute resource "${workloadName}":\n${errors.join('\n')}`,
-      [
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_SCHEDULE_RATE_INVALID',
+      message: `Invalid \`scheduleRate\` on \`${workloadName}\`:\n${errors.join('\n')}`,
+      hints: [
         "To specify cron syntax, use 'cron(<<FormInput>>)'. To specify rate syntax, use 'rate(<<FormInput>>)'.",
         'AWS has its own restrictions for cron syntax. To learn more about schedule syntaxes, refer to https://docs.aws.amazon.com/AmazonCloudWatch/latest/events/ScheduledEvents.html'
       ]
-    );
+    });
   }
   const inputOptions = [eventDetails.input, eventDetails.inputPath, eventDetails.inputTransformer].filter((i) => i);
   if (inputOptions.length > 1) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in compute resource ${workloadName}. ` +
-        'You can only set one of input, inputPath, or inputTransformer properties at the same time for schedule events. ' +
-        'Please check the docs for more info.'
-    );
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_SCHEDULE_INPUT_CONFLICT',
+      message: `Schedule event on \`${workloadName}\` sets more than one of \`input\`, \`inputPath\`, and \`inputTransformer\`.`,
+      hints: 'Keep only one schedule input mechanism.'
+    });
   }
   if (
     (eventDetails.input && !isValidJson(eventDetails.input)) ||
     (eventDetails.inputTransformer && !isValidJson(eventDetails.inputTransformer.inputTemplate))
   ) {
-    throw new ExpectedError(
-      'CONFIG_VALIDATION',
-      `Error in compute resource ${workloadName}. ` +
-        'When specifying "input" or "inputTransformer.inputTemplate" properties in event, property can only be valid object or stringified JSON.'
-    );
+    throw new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_SCHEDULE_INPUT_INVALID',
+      message: `Schedule event on \`${workloadName}\` has an invalid \`input\` or \`inputTransformer.inputTemplate\`.`,
+      hints: 'Use an object or a string containing valid JSON.'
+    });
   }
 
   if (eventDetails.input || eventDetails.inputTransformer) {
