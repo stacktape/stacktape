@@ -34,14 +34,35 @@ export const memoizeGetters = (targetClass) => {
 export const skipInitIfInitialized = <T extends { init: (...args: any[]) => Promise<any> }>(instance: T): T => {
   const originalInit = instance.init;
   const className = instance.constructor.name as DomainServiceName;
+  let pendingInitialization: Promise<any> | undefined;
 
   instance.init = (...args: any[]) => {
-    // console.log(globalStateManager.initializedDomainServices);
-    if (!globalStateManager.initializedDomainServices.includes(className)) {
-      globalStateManager.markDomainServiceAsInitialized(className);
-      return originalInit(...args);
+    if (globalStateManager.initializedDomainServices.includes(className)) {
+      return Promise.resolve();
     }
-    return Promise.resolve();
+
+    if (pendingInitialization) {
+      return pendingInitialization;
+    }
+
+    let initialization: Promise<any>;
+    try {
+      initialization = originalInit(...args);
+    } catch (error) {
+      return Promise.reject(error);
+    }
+
+    pendingInitialization = initialization.then((result) => {
+      globalStateManager.markDomainServiceAsInitialized(className);
+      return result;
+    });
+
+    const clearPendingInitialization = () => {
+      pendingInitialization = undefined;
+    };
+    pendingInitialization.then(clearPendingInitialization, clearPendingInitialization);
+
+    return pendingInitialization;
   };
 
   return instance;
@@ -63,12 +84,16 @@ export const cancelablePublicMethods = <T>(instance: T): T => {
               rejectFn: reject,
               name: `${instance.constructor.name}.${propertyName}`
             };
-            returnedValue
-              .then((result) => {
+            returnedValue.then(
+              (result) => {
                 delete applicationManager.pendingCancellablePromises[promiseId];
                 resolve(result);
-              })
-              .catch(reject);
+              },
+              (error) => {
+                delete applicationManager.pendingCancellablePromises[promiseId];
+                reject(error);
+              }
+            );
           });
           applicationManager.pendingCancellablePromises[promiseId].promise = cancelablePromise;
           return cancelablePromise;
