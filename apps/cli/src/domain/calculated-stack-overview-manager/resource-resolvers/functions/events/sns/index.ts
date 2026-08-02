@@ -8,10 +8,10 @@ import SnsSubscription from '@cloudform/sns/subscription';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToSnsTopic } from '@domain-services/config-manager/utils/sns-topics';
 import { resolveReferenceToSqsQueue } from '@domain-services/config-manager/utils/sqs-queues';
-import { stpErrors } from '@errors';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import type { SnsIntegration } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
+import { CliError } from '@utils/errors';
 
 export const resolveSnsEvents = ({
   lambdaFunction
@@ -23,9 +23,10 @@ export const resolveSnsEvents = ({
     if (event.type === 'sns') {
       const { snsTopicArn, snsTopicName, onDeliveryFailure, filterPolicy } = event.properties;
       if ([snsTopicArn, snsTopicName].filter((element) => element).length !== 1) {
-        throw stpErrors.e85({
-          snsTopicReferencerStpName: name,
-          snsTopicReferencerStpType: configParentResourceType
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_SNS_TOPIC_REFERENCE_INVALID',
+          message: `Error in ${configParentResourceType} \`${name}\`. When referencing an SNS topic, specify exactly one of \`snsTopicName\` or \`snsTopicArn\`.`
         });
       }
       if (snsTopicName) {
@@ -35,10 +36,10 @@ export const resolveSnsEvents = ({
           referencedFromType: configParentResourceType
         });
         if (topic.fifoEnabled) {
-          throw stpErrors.e86({
-            snsTopicReferencerStpName: name,
-            snsTopicReferencerStpType: configParentResourceType,
-            snsTopicStpName: snsTopicName
+          throw new CliError({
+            category: 'CONFIG_VALIDATION',
+            code: 'CONFIG_SNS_FIFO_TOPIC_UNSUPPORTED',
+            message: `Error in ${configParentResourceType} \`${name}\`. SNS topic \`${snsTopicName}\` cannot be used as a Lambda event because it has FIFO enabled.`
           });
         }
       }

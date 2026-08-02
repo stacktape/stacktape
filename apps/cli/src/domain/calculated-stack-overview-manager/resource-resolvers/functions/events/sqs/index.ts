@@ -6,11 +6,11 @@ import { GetAtt, Ref } from '@cloudform/functions';
 import EventSourceMapping from '@cloudform/lambda/eventSourceMapping';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToSqsQueue } from '@domain-services/config-manager/utils/sqs-queues';
-import { stpErrors } from '@errors';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { SqsIntegration, SqsIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
+import { CliError } from '@utils/errors';
 
 export const resolveSqsEvents = ({
   lambdaFunction
@@ -35,9 +35,10 @@ export const resolveSqsEvents = ({
   (events || []).forEach((event: SqsIntegration, index) => {
     if (event.type === 'sqs') {
       if ([event.properties.sqsQueueArn, event.properties.sqsQueueName].filter((element) => element).length !== 1) {
-        throw stpErrors.e84({
-          sqsQueueReferencerStpName: name,
-          sqsQueueReferencerStpType: configParentResourceType
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_SQS_QUEUE_REFERENCE_INVALID',
+          message: `Error in ${configParentResourceType} \`${name}\`. When referencing an SQS queue, specify exactly one of \`sqsQueueName\` or \`sqsQueueArn\`.`
         });
       }
       if (event.properties.sqsQueueName) {

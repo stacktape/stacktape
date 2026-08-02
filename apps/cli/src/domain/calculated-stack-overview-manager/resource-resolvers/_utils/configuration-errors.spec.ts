@@ -1,7 +1,12 @@
 import { describe, expect, test } from 'bun:test';
+import { configManager } from '@domain-services/config-manager';
+import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import { CliError } from '@utils/errors';
 import { getHttpApiRouteKey } from './http-api-events';
+import { resolveKinesisEvents } from '../functions/events/kinesis';
 import { getScheduleEventRule } from '../functions/events/schedule';
+import { resolveSnsEvents } from '../functions/events/sns';
+import { resolveSqsEvents } from '../functions/events/sqs';
 import { getHttpApiContainerWorkloadIntegration } from '../multi-container-workloads/events/http-api-gateway';
 
 const expectCliError = (operation: () => unknown, code: string) => {
@@ -12,9 +17,21 @@ const expectCliError = (operation: () => unknown, code: string) => {
     expect(error).toBeInstanceOf(CliError);
     if (!(error instanceof CliError)) throw error;
     expect(error.code).toBe(code);
+    expect(error.category).toBe('CONFIG_VALIDATION');
     expect(error.message).not.toContain('\u001B');
+    return error;
   }
 };
+
+const functionWithEvent = (event: unknown) =>
+  ({
+    aliasLogicalName: undefined,
+    cfLogicalName: 'WorkerFunction',
+    configParentResourceType: 'function',
+    events: [event],
+    name: 'worker',
+    nameChain: ['worker']
+  }) as unknown as StpLambdaFunction;
 
 describe('configuration errors used during resource synthesis', () => {
   test('identifies an invalid method on the HTTP API default route', () => {
@@ -77,5 +94,79 @@ describe('configuration errors used during resource synthesis', () => {
         }),
       'CONFIG_SCHEDULE_INPUT_INVALID'
     );
+  });
+
+  test('identifies invalid SQS and SNS event references', () => {
+    for (const properties of [
+      {},
+      {
+        sqsQueueArn: 'arn:aws:sqs:eu-west-1:111111111111:queue',
+        sqsQueueName: 'queue'
+      }
+    ]) {
+      const error = expectCliError(
+        () => resolveSqsEvents({ lambdaFunction: functionWithEvent({ type: 'sqs', properties }) }),
+        'CONFIG_SQS_QUEUE_REFERENCE_INVALID'
+      );
+      expect(error.message).toContain('function `worker`');
+    }
+
+    for (const properties of [
+      {},
+      {
+        snsTopicArn: 'arn:aws:sns:eu-west-1:111111111111:topic',
+        snsTopicName: 'topic'
+      }
+    ]) {
+      const error = expectCliError(
+        () => resolveSnsEvents({ lambdaFunction: functionWithEvent({ type: 'sns', properties }) }),
+        'CONFIG_SNS_TOPIC_REFERENCE_INVALID'
+      );
+      expect(error.message).toContain('function `worker`');
+    }
+  });
+
+  test('rejects FIFO SNS topics as Lambda event sources', () => {
+    const previousConfig = configManager.config;
+    configManager.config = {
+      resources: {
+        topic: {
+          type: 'sns-topic',
+          properties: { fifoEnabled: true }
+        }
+      }
+    } as typeof configManager.config;
+
+    try {
+      const error = expectCliError(
+        () =>
+          resolveSnsEvents({
+            lambdaFunction: functionWithEvent({ type: 'sns', properties: { snsTopicName: 'topic' } })
+          }),
+        'CONFIG_SNS_FIFO_TOPIC_UNSUPPORTED'
+      );
+      expect(error.message).toContain('SNS topic `topic`');
+    } finally {
+      configManager.config = previousConfig;
+    }
+  });
+
+  test('identifies conflicting Kinesis consumer settings', () => {
+    const error = expectCliError(
+      () =>
+        resolveKinesisEvents({
+          lambdaFunction: functionWithEvent({
+            type: 'kinesis-stream',
+            properties: {
+              autoCreateConsumer: true,
+              consumerArn: 'arn:aws:kinesis:eu-west-1:111111111111:stream/events/consumer/worker:1',
+              streamArn: 'arn:aws:kinesis:eu-west-1:111111111111:stream/events'
+            }
+          })
+        }),
+      'CONFIG_KINESIS_CONSUMER_CONFLICT'
+    );
+    expect(error.message).toContain('function `worker`');
+    expect(error.hints).toEqual(['Specify only one of these properties, or omit both.']);
   });
 });

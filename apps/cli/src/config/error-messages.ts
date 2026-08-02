@@ -415,56 +415,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       hint: [`Available AWS accounts: ${connectedAwsAccounts.map(({ name }) => tuiManager.makeBold(name)).join(', ')}`]
     };
   },
-  e84({
-    sqsQueueReferencerStpName,
-    sqsQueueReferencerStpType
-  }: {
-    sqsQueueReferencerStpName: string;
-    sqsQueueReferencerStpType: StpResourceType;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType(sqsQueueReferencerStpType)} ${tuiManager.prettyResourceName(
-        sqsQueueReferencerStpName
-      )}. When referencing sqs queue you must specify exactly one of ${tuiManager.prettyConfigProperty(
-        'sqsQueueName'
-      )} or ${tuiManager.prettyConfigProperty('sqsQueueArn')} properties.`
-    };
-  },
-  e85({
-    snsTopicReferencerStpName,
-    snsTopicReferencerStpType
-  }: {
-    snsTopicReferencerStpName: string;
-    snsTopicReferencerStpType: StpResourceType;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType(snsTopicReferencerStpType)} ${tuiManager.prettyResourceName(
-        snsTopicReferencerStpName
-      )}. When referencing sns topic you must specify exactly one of ${tuiManager.prettyConfigProperty(
-        'snsTopicName'
-      )} or ${tuiManager.prettyConfigProperty('snsTopicArn')} properties.`
-    };
-  },
-  e86({
-    snsTopicReferencerStpName,
-    snsTopicReferencerStpType,
-    snsTopicStpName
-  }: {
-    snsTopicReferencerStpName: string;
-    snsTopicReferencerStpType: StpResourceType;
-    snsTopicStpName: string;
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.prettyResourceType(snsTopicReferencerStpType)} ${tuiManager.prettyResourceName(
-        snsTopicReferencerStpName
-      )}. You cannot reference ${tuiManager.prettyResourceType('sns-topic')} ${tuiManager.prettyResourceName(
-        snsTopicStpName
-      )} in the event, because it has fifo enabled.`
-    };
-  },
   e88({ domainName }: { domainName: string }): ReturnedError {
     return {
       type: 'DOMAIN_MANAGEMENT',

@@ -9,7 +9,7 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { resolveReferenceToKinesisStream } from '@domain-services/config-manager/utils/kinesis-streams';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { ExpectedError } from '@utils/errors';
+import { CliError } from '@utils/errors';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { KinesisIntegration, KinesisIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
@@ -60,11 +60,12 @@ export const resolveKinesisEvents = ({
   (events || []).forEach((event: KinesisIntegration, index) => {
     if (event.type === 'kinesis-stream') {
       if (event.properties.consumerArn && event.properties.autoCreateConsumer) {
-        throw new ExpectedError(
-          'CONFIG_VALIDATION',
-          `Error in ${configParentResourceType} compute resource ${name}. You cannot define both "consumerArn" and enable "autoCreateConsumer" in kinesis event properties.` +
-            ' You can only define one of these properties or omit both of them.'
-        );
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_KINESIS_CONSUMER_CONFLICT',
+          message: `Error in ${configParentResourceType} \`${name}\`. Kinesis event properties cannot specify both \`consumerArn\` and \`autoCreateConsumer\`.`,
+          hints: 'Specify only one of these properties, or omit both.'
+        });
       }
 
       // Resolve streamArn from kinesisStreamName if provided
