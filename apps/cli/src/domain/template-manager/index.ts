@@ -20,6 +20,8 @@ export class TemplateManager {
   #stackName: string | undefined;
   // template which is passed as a part of props is modified in-place
   templateOverrideFunctions: ((template: CloudformationTemplate) => Promise<void>)[] = [];
+  /** The template as it stood when this invocation first finalized it. See {@link beginFinalization}. */
+  #preFinalizationTemplate: CloudformationTemplate | undefined;
 
   init = async ({ stackDetails, stackName }: { stackDetails: StackDetails; stackName: string }) => {
     this.#stackName = stackName;
@@ -34,7 +36,29 @@ export class TemplateManager {
     this.initialTemplate = getInitialCfTemplate();
     this.oldTemplate = getInitialCfTemplate();
     this.templateOverrideFunctions = [];
+    this.#preFinalizationTemplate = undefined;
     this.#stackName = undefined;
+  };
+
+  /**
+   * Starts a finalization pass, putting the template back to the state it was in before this invocation finalized it
+   * for the first time.
+   *
+   * One invocation can finalize more than once: a deploy that asked for a hot-swap and cannot have one repackages the
+   * jobs it had skipped and finalizes again, so that what is deployed matches the artifacts that actually exist.
+   * Finalization is not idempotent — `DependsOn` is concatenated, override functions append to arrays such as an IAM
+   * role's `Policies`, and customer-authored transforms are under no obligation to be repeatable — so a second pass
+   * run over the first pass's output would deploy a template the user never saw in the diff.
+   *
+   * Only the template is rewound. Override functions, transforms and the artifact state they read are all consulted
+   * again by the caller, which is exactly what lets a later pass observe the newly packaged artifacts.
+   */
+  beginFinalization = () => {
+    if (!this.#preFinalizationTemplate) {
+      this.#preFinalizationTemplate = serialize(this.template);
+      return;
+    }
+    this.template = serialize(this.#preFinalizationTemplate);
   };
 
   getTemplate = (): CloudformationTemplate => {

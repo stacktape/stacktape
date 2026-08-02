@@ -132,6 +132,9 @@ const resolveDependenciesBetweenResources = () => {
 };
 
 export const finalizeTemplate = async () => {
+  // Everything below mutates the template in place, so each pass has to start from the same pre-finalization state.
+  templateManager.beginFinalization();
+
   templateManager.addStackOutput({
     cfOutputName: outputNames.deploymentVersion(),
     value: stackManager.nextVersion,
