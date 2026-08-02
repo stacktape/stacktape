@@ -24,24 +24,6 @@ import { merge } from 'lodash';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 import { getAllFilesInDir } from '@stacktape/packaging/fs/files';
 
-// export const getStackNameForCommandConditionallyRequiringConfig = async () => {
-//   if (globalStateManager.args.stage && globalStateManager.args.stackName) {
-//     throw new ExpectedError(
-//       'CLI',
-//       "Can't use both --stackName and --stage option at the same time.",
-//       'If you use --stage option, stack name will be derived from the supplied configuration. If you use --stackName, the stackName will be used.'
-//     );
-//   }
-//   if (globalStateManager.args.stackName) {
-//     return globalStateManager.args.stackName;
-//   }
-//   if (!globalStateManager.targetStack.stage) {
-//     throw stpErrors.e90(null);
-//   }
-//   await configManager.init();
-//   return globalStateManager.targetStack.stackName;
-// };
-
 export const potentiallyPromptBeforeOperation = async ({
   cfTemplateDiff
 }: {

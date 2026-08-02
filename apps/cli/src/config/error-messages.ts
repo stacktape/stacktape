@@ -14,7 +14,7 @@ import {
   STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS,
   STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS
 } from 'src/aws/cloudformation';
-import type { LoadedAwsCredentials, ValidatedAwsCredentials } from 'src/aws/credentials';
+import type { ValidatedAwsCredentials } from 'src/aws/credentials';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import { getApexDomain } from '@utils/domains';
 
@@ -46,12 +46,6 @@ const wrap = (
 };
 
 const errors = {
-  e1({ resourceName }: { resourceName: string }): ReturnedError {
-    return {
-      type: 'NON_EXISTING_RESOURCE',
-      message: `Resource ${tuiManager.prettyResourceName(resourceName)} is not defined in the configuration.`
-    };
-  },
   e2({ container, resourceName }: { container: string; resourceName: string }): ReturnedError {
     return {
       type: 'CONFIG',
@@ -70,19 +64,6 @@ const errors = {
       )}.`,
       hint: `To use local emulation (inject parameters, reuse IAM permissions), deploy your stack first.
 If you want to disable local emulation, use the ${tuiManager.prettyOption('disableEmulation')} flag.`
-    };
-  },
-  e4(_arg: null): ReturnedError {
-    return {
-      type: 'BUDGET',
-      message: 'Budget control is not enabled for your AWS account.',
-      hint: [
-        `To enable budget control for stacks in your account, please complete the tutorial at ${tuiManager.colorize(
-          'yellow',
-          'https://docs.stacktape.com/user-guides/enabling-budgeting'
-        )}.`,
-        'If you already completed the tutorial, it can take up to 24 hours to become available.'
-      ]
     };
   },
   e5({ resourceName, resourceType }: { resourceName: string; resourceType: StpResourceType }): ReturnedError {
@@ -107,23 +88,10 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       hint: hintMessages.mustFullDeployResourceBeforeCommand({ resourceType })
     };
   },
-  e8(): ReturnedError {
-    return {
-      type: 'NOT_YET_IMPLEMENTED',
-      message: 'This command is not yet implemented'
-    };
-  },
   e14({ configPath }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
       message: `File ${tuiManager.prettyFilePath(configPath)} doesn't exist or is not accessible.`
-    };
-  },
-  e15({ matchingConfigPaths }: { matchingConfigPaths: string[] }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Found multiple matching config files: ${matchingConfigPaths.join(', ')}. You need to supply only one.`,
-      hint: hintMessages.configPathHint()
     };
   },
   e17({ scriptName }): ReturnedError {
@@ -138,24 +106,10 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       message: `Script ${tuiManager.prettyFilePath(absoluteScriptPath)} doesn't exist or is not accessible.`
     };
   },
-  e19({ directoryPath }): ReturnedError {
-    return {
-      type: 'SYNC_BUCKET',
-      message: `Directory ${tuiManager.prettyFilePath(directoryPath)} doesn't exist or is not accessible.`
-    };
-  },
   e20({ scriptName }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
       message: `Script ${tuiManager.makeBold(scriptName)} is not defined in the 'scripts' section of the configuration.`
-    };
-  },
-  e21(_arg: null): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `You must set the ${tuiManager.makeBold('upstash')} provider in ${tuiManager.prettyConfigProperty(
-        'providerConfig'
-      )} when using ${tuiManager.colorize('cyan', 'upstash')} resources.`
     };
   },
   e22({
@@ -184,66 +138,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
           'yellow',
           moduleMajorVersionUsedByStacktape
         )}". Updating stack might result in replacement of resources and data-loss.`
-    };
-  },
-  e23({ stpResourceName, stackName }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Upstash Redis database ${tuiManager.prettyResourceName(
-        stpResourceName
-      )} is already deployed in stack ${tuiManager.prettyStackName(
-        stackName
-      )} with TLS enabled.\nYou cannot disable TLS once it was enabled.`
-    };
-  },
-  e24({ stpResourceName, stackName }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Upstash Redis database ${tuiManager.prettyResourceName(
-        stpResourceName
-      )} is already deployed in stack ${tuiManager.prettyStackName(
-        stackName
-      )} with multi-zone replication enabled.\nYou cannot disable multi-zone replication once it was enabled.`
-    };
-  },
-  e25({ stpResourceName }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Strong consistency for Upstash Redis database ${tuiManager.prettyResourceName(
-        stpResourceName
-      )} can only be set during initial database creation.\nStrong consistency cannot be enabled/disabled during updates.`
-    };
-  },
-  e26({ stpResourceName, stackName, currentNumberOfPartitions }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Upstash Kafka topic ${tuiManager.prettyResourceName(
-        stpResourceName
-      )} is already deployed in stack ${tuiManager.prettyStackName(
-        stackName
-      )} with ${tuiManager.makeBold(currentNumberOfPartitions)} partitions.\nYou cannot change partition count after creation.`
-    };
-  },
-  e27({ stpResourceName, stackName, currentClusterId }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Upstash Kafka topic ${tuiManager.prettyResourceName(
-        stpResourceName
-      )} is already deployed in stack ${tuiManager.prettyStackName(
-        stackName
-      )} in cluster ${tuiManager.makeBold(currentClusterId)}.\nYou cannot change the cluster after creation.`
-    };
-  },
-  e28({ stpResourceName, stackName, currentCleanupPolicy }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Upstash Kafka topic ${tuiManager.prettyResourceName(
-        stpResourceName
-      )} is already deployed in stack ${tuiManager.prettyStackName(
-        stackName
-      )} with cleanup policy ${tuiManager.makeBold(
-        currentCleanupPolicy
-      )}.\nYou cannot change cleanup policy after creation.`
     };
   },
   // e29({ stpResourceName, referencedFrom, referencedFromType }): ReturnedError {
@@ -287,24 +181,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
         stage ? ` (stage ${tuiManager.colorize('cyan', stage)})` : ''
       } is not deployed.`,
       hint: hintMessages.incorrectAwsAccount({ organizationName, awsAccountName })
-    };
-  },
-  e33({ region }: { region: string }): ReturnedError {
-    return {
-      type: 'BUDGET',
-      message: `Using budget control is not currently supported for this region (${tuiManager.makeBold(region)}).`
-    };
-  },
-  e34(_arg: null): ReturnedError {
-    return {
-      type: 'MISSING_PREREQUISITE',
-      message: 'To use this starter project, install Node.js and a JavaScript package manager (yarn, npm, or pnpm).'
-    };
-  },
-  e35({ err }): ReturnedError {
-    return {
-      type: 'CLI',
-      message: `Failed to install dependencies. Error:\n${err}`
     };
   },
   e37({
@@ -375,67 +251,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       ]
     };
   },
-  e41({
-    fullDomainName,
-    region,
-    attachingTo
-  }: {
-    fullDomainName: string;
-    region: string;
-    attachingTo: StpDomainAttachableResourceType;
-  }): ReturnedError {
-    const domainLevelSplit = fullDomainName.split('.');
-    return {
-      type: 'DOMAIN_MANAGEMENT',
-      message: `Cannot use domain ${tuiManager.makeBold(
-        fullDomainName
-      )} with Stacktape-managed certificate.\nCurrently, managed certificates for ${tuiManager.makeBold(
-        getApexDomain(fullDomainName)
-      )} do not support more than one subdomain level.`,
-      hint: [
-        `Create your own certificate here: ${tuiManager.colorize('blue', consoleLinks.createCertificateUrl(attachingTo, region))}`,
-        `Then reference it using ${tuiManager.prettyConfigProperty('customCertificateArn')} (or ${tuiManager.prettyConfigProperty(
-          'customCertificateArns'
-        )} on load balancer listeners).`,
-        `You can try using alternative domain name such as ${tuiManager.colorize(
-          'blue',
-          [domainLevelSplit.slice(0, -2).join('-'), domainLevelSplit.slice(-2).join('.')].join('.')
-        )}`,
-        `Domain setup and status are available in Stacktape Console: ${STACKTAPE_DOMAINS_CONSOLE_URL}`
-      ]
-    };
-  },
-  e42({ stpLoadBalancerName }: { stpLoadBalancerName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in application-load-balancer ${tuiManager.makeBold(
-        stpLoadBalancerName
-      )}.\nYou cannot use property ${tuiManager.makeBold('listeners')} in combination with property ${tuiManager.makeBold(
-        'useHttps'
-      )}`,
-      hint: [
-        `Property ${tuiManager.makeBold(
-          'useHttps'
-        )} only takes effect if you do NOT specify listeners and default listeners are used.`
-      ]
-    };
-  },
-  e43({ stpLoadBalancerName }: { stpLoadBalancerName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in application-load-balancer ${tuiManager.makeBold(
-        stpLoadBalancerName
-      )}.\nIf you specify property ${tuiManager.makeBold('useHttps')}, you also need to specify ${tuiManager.makeBold(
-        'customDomain'
-      )}. This is due to TLS certificates.`,
-      hint: [
-        ...hintMessages.buyDomainHint(),
-        `Optionally you can configure your own listeners with your custom certificates using ${tuiManager.makeBold(
-          'listeners'
-        )} property.`
-      ]
-    };
-  },
   e48({ domainName }: { domainName: string }): ReturnedError {
     return {
       type: 'DOMAIN_MANAGEMENT',
@@ -461,35 +276,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
           : 'At your registrar, update name servers to the values shown in the Stacktape Console.',
         `Docs: ${DOMAINS_DOCS_URL}#adding-domain`
       ]
-    };
-  },
-  e50(): ReturnedError {
-    return {
-      type: 'MISSING_PREREQUISITE',
-      message: 'Both ruby and bundler must be installed',
-      hint: [
-        'To install Ruby, refer to https://www.ruby-lang.org/en/documentation/installation/',
-        'To install bundler, refer to https://bundler.io/'
-      ]
-    };
-  },
-  e51(): ReturnedError {
-    return {
-      type: 'MISSING_PREREQUISITE',
-      message: 'Both Python (v3) and Poetry package manager must be installed',
-      hint: [
-        'To install Python, refer to https://www.python.org/',
-        'To install Poetry, refer to https://python-poetry.org/docs/'
-      ]
-    };
-  },
-  e52({ resourceName, resourceType }: { resourceName: string; resourceType: StpResourceType }): ReturnedError {
-    return {
-      type: 'CLI',
-      message: `Resource ${tuiManager.prettyResourceName(resourceName)} of type ${tuiManager.prettyResourceType(
-        resourceType
-      )} can't run in development mode.`,
-      hint: 'At the moment, you can locally run only lambda functions and container workloads.'
     };
   },
   e53({ availableContainers }: { availableContainers: string[] }): ReturnedError {
@@ -558,30 +344,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       )}: You need to specify ${tuiManager.makeBold('testListenerPort')} when using ${tuiManager.makeBold(
         'beforeAllowTrafficFunction'
       )} and load balancer with custom listeners`
-    };
-  },
-  e63({
-    phase,
-    phaseStatus,
-    message,
-    projectName,
-    invocationId,
-    stage
-  }: {
-    phase: string;
-    phaseStatus: string;
-    message: string;
-    projectName: string;
-    invocationId: string;
-    stage: string;
-  }): ReturnedError {
-    return {
-      type: 'CODEBUILD',
-      message: `Start of codebuild deployment failed in phase ${tuiManager.makeBold(phase)} with status ${tuiManager.colorize(
-        'red',
-        phaseStatus
-      )} before logs could be retrieved.${message ? `\nAdditional message: ${message}.` : ''}`,
-      hint: `Deployment logs: https://console.stacktape.com/projects/${projectName}/${stage}/deployment-detail/${invocationId}?tab=logs`
     };
   },
   e64({
@@ -653,64 +415,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       hint: [`Available AWS accounts: ${connectedAwsAccounts.map(({ name }) => tuiManager.makeBold(name)).join(', ')}`]
     };
   },
-  e68({
-    accountInfo,
-    organizationName
-  }: {
-    accountInfo: GlobalStateConnectedAwsAccount;
-    organizationName: string;
-  }): ReturnedError {
-    return {
-      type: 'AWS_ACCOUNT',
-      message: `AWS account ${tuiManager.makeBold(accountInfo.name)} (account id: ${
-        accountInfo.awsAccountId
-      }) connected to your organization ${tuiManager.makeBold(organizationName)} is currently in ${tuiManager.makeBold(
-        accountInfo.state
-      )} state and cannot be used.`,
-      hint:
-        accountInfo.state === 'PENDING'
-          ? [
-              `Please finalize account connecting in the ${tuiManager.getLink(
-                'connectedAwsAccounts',
-                'stacktape console'
-              )}`
-            ]
-          : ['Contact Stacktape support at info@stacktape.com or on Discord']
-    };
-  },
-  e69({
-    accountInfo,
-    credentials,
-    credentialsOriginArn,
-    credentialsOriginAwsAccount,
-    profile
-  }: {
-    accountInfo: GlobalStateConnectedAwsAccount;
-    credentials: LoadedAwsCredentials;
-    credentialsOriginArn: string;
-    credentialsOriginAwsAccount: string;
-    profile?: string;
-  }): ReturnedError {
-    return {
-      type: 'AWS_ACCOUNT',
-      message: `AWS credentials (retrieved via ${tuiManager.makeBold(credentials.source)}${
-        credentials.source === 'credentialsFile' ? ` - profile "${profile}"` : ''
-      }) do not belong to the target AWS account ${tuiManager.makeBold(accountInfo.name)}(id: ${
-        accountInfo.awsAccountId
-      }). Retrieved credentials originated from ${tuiManager.makeBold(
-        credentialsOriginArn
-      )}(AWS account id: ${credentialsOriginAwsAccount}).`
-    };
-  },
-  e76({ stackName, command }: { stackName: string; command: StacktapeCommand }): ReturnedError {
-    return {
-      type: 'STACK',
-      message: `Cannot execute command ${tuiManager.prettyCommand(command)} on stack ${tuiManager.makeBold(
-        stackName
-      )} at the moment because the stack is in "${tuiManager.makeBold('DELETE_FAILED')}" state.`,
-      hint: [`Delete the stack fully using ${tuiManager.prettyCommand('delete')} before retrying the command.`]
-    };
-  },
   e84({
     sqsQueueReferencerStpName,
     sqsQueueReferencerStpType
@@ -774,23 +478,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
         )} to ${tuiManager.makeBold('true')} and specify ${tuiManager.prettyConfigProperty('customCertificateArn')}.`,
         `Docs: ${DOMAINS_DOCS_URL}`
       ].join('\n')
-    };
-  },
-  e95({ stpResourceName }: { stpResourceName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Error in ${tuiManager.makeBold('bastion tunnel')}. Resource ${tuiManager.prettyResourceName(
-        stpResourceName
-      )} cannot be targeted by bastion tunnel.\nOnly the following resource types can be used as a target for bastion tunnel: ${(
-        [
-          'relational-database',
-          'redis-cluster',
-          'application-load-balancer',
-          'private-service (with loadBalancing type application-load-balancer)'
-        ] as StpResourceType[]
-      )
-        .map(tuiManager.prettyResourceType)
-        .join(', ')}`
     };
   },
   e96({ err }: { err: Error }): ReturnedError {
@@ -886,22 +573,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
         )
     };
   },
-  e101({
-    stpResourceName,
-    cfLogicalName,
-    childResources
-  }: {
-    stpResourceName: string;
-    cfLogicalName: string;
-    childResources: string[];
-  }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: `Cloudformation resource "${cfLogicalName}" is not a valid child resource of stacktape resource ${tuiManager.prettyResourceName(
-        stpResourceName
-      )}.\nValid child resources are: ${childResources.join(', ')}.`
-    };
-  },
   e103(_arg: null): ReturnedError {
     return {
       type: 'INPUT',
@@ -984,39 +655,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       ].join('\n')
     };
   },
-  e115({ stpResourceName }: { stpResourceName: string }): ReturnedError {
-    return {
-      type: 'CONFIG_VALIDATION',
-      message: [
-        `Error in ${tuiManager.prettyResourceType('open-search-domain')} resource ${tuiManager.prettyResourceName(stpResourceName)}:`,
-        `Data node instance count (property ${tuiManager.prettyConfigProperty('clusterConfig.instanceCount')}) must be higher than 1 to enable MultiAZ awareness (property ${tuiManager.prettyConfigProperty('multiAzEnabled')}).`
-      ].join('\n')
-    };
-  },
-  e119({ containerResourceName }: { containerResourceName: string }): ReturnedError {
-    return {
-      type: 'NON_EXISTING_RESOURCE',
-      message: `Error when running ${tuiManager.prettyCommand('container:session')}. Resource ${tuiManager.prettyResourceName(
-        containerResourceName
-      )} is not a valid container based resource.`
-    };
-  },
-  e120({
-    containerResourceName,
-    availableContainers
-  }: {
-    containerResourceName: string;
-    availableContainers: string[];
-  }): ReturnedError {
-    return {
-      type: 'NON_EXISTING_RESOURCE',
-      message: `Error when running ${tuiManager.prettyCommand('container:session')}. Resource ${tuiManager.prettyResourceName(
-        containerResourceName
-      )} contains the following containers: ${availableContainers
-        .map((name) => tuiManager.makeBold(name))
-        .join(', ')}. Specify which container to connect to using ${tuiManager.prettyOption('container')}.`
-    };
-  },
   e122({
     stpResourceName,
     stpResourceType
@@ -1073,32 +711,10 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       hint: `You can get your API key in the ${tuiManager.getLink('apiKeys', 'console')}.`
     };
   },
-  e504({ sourceCodePath }: { sourceCodePath: string }): ReturnedError {
-    return {
-      type: 'CONFIG_GENERATION',
-      message: `No suitable Stacktape configuration can be generated for project in ${tuiManager.prettyFilePath(
-        sourceCodePath
-      )}.`
-    };
-  },
-  e505({ sourceCodePath }: { sourceCodePath: string }): ReturnedError {
-    return {
-      type: 'CONFIG_GENERATION',
-      message: `The specified directory (${tuiManager.prettyFilePath(
-        sourceCodePath
-      )}) is not a Next.js project. Missing package.json file.`
-    };
-  },
   e506({ projectId }: { projectId: string }): ReturnedError {
     return {
       type: 'CLI',
       message: `Starter project ${projectId} does not exist.`
-    };
-  },
-  e508({ errorDetails }: { errorDetails: string }): ReturnedError {
-    return {
-      type: 'INPUT',
-      message: `Failed to generate configuration using AI. Details: ${errorDetails}`
     };
   },
   e509({ templateId }: { templateId: string }): ReturnedError {

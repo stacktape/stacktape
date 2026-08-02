@@ -219,28 +219,6 @@ export const resolveBatchJobs = async () => {
         }
       }
 
-      // creating deep copy of merged accessToResourcesPotentiallyRequiringSecurityGroupCreation from which we will delete ones defined in defaults
-      // const resourceDefinedAccessToResourcesRequiringSecurityGroupCreation =
-      //   accessToResourcesPotentiallyRequiringSecurityGroupCreation.slice();
-      // // after this loop is finished resourceDefinedAccessToResourcesRequiringSecurityGroupCreation should only contain references that were defined for specific batch job
-      // defaultsAccessToResourcesRequiringSecurityGroupCreation.forEach(({ name: defName }) => {
-      //   const occurrence = resourceDefinedAccessToResourcesRequiringSecurityGroupCreation.findIndex(
-      //     ({ name: resName }) => resName === defName
-      //   );
-      //   if (occurrence !== -1) {
-      //     resourceDefinedAccessToResourcesRequiringSecurityGroupCreation.splice(occurrence, 1);
-      //   }
-      // });
-      // if connectTo scopes resources that require securityGroup (on batch-job level) throw an error
-      // you can scope these resources only in defaults.batchJobs.connectTo
-      // if (resourceDefinedAccessToResourcesRequiringSecurityGroupCreation.length) {
-      //   throw new ExpectedError(
-      //     'CONFIG_VALIDATION',
-      //     `Error in batch-job "${name}". Batch-job is referencing resources:\n${resourceDefinedAccessToResourcesRequiringSecurityGroupCreation.map(
-      //       ({ name: refName, type: refType }) => `"${refName}" of type "${refType}"\n`
-      //     )}which cannot be scoped by connectTo on per batchJob basis.`
-      //   );
-      // }
       const roleCfLogicalName = cfLogicalNames.batchJobExecutionRole(name);
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: roleCfLogicalName,

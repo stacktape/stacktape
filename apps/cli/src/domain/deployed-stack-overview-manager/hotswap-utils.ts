@@ -102,17 +102,6 @@ export const compareEcsTaskDefinitions = ({
     return { needsUpdate: false };
   }
 
-  // check for non hot-swappable changes
-  containersInCalculatedDefinition.forEach((calculatedContainer) => {
-    if (!containersInCurrentDefinition.find(({ name }) => name === calculatedContainer.name)) {
-      // @todo why throw?
-      // throw stpErrors.e9({
-      //   resourceName,
-      //   configContainers: containersInCalculatedDefinition.map(({ name }) => name).sort(),
-      //   currentContainers: containersInCurrentDefinition.map(({ name }) => name).sort()
-      // });
-    }
-  });
   return { needsUpdate: containersHaveChanged };
 };
 

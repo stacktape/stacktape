@@ -135,13 +135,6 @@ export const getLoadBalancersListeners = (
         certificatesForListener = listenerConfig.customCertificateArns;
       } else if (!loadBalancerConfig.customDomains?.length) {
         certificatesForListener = [GetAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'certArn')];
-        // throw new ExpectedError(
-        //   'CONFIG_VALIDATION',
-        //   `Error in configuration of load balancer ${loadBalancerName}. No TLS certificate can be found for HTTPS listener with port ${listenerConfig.port}.`,
-        //   [
-        //     'To use HTTPS protocol, you have to specify "customDomains" property on load balancer or "customCertificateArns" property on listener.'
-        //   ]
-        // );
       } else {
         certificatesForListener = loadBalancerConfig.customDomains
           .map(({ domainName, customCertificateArn, disableDnsRecordCreation }) => {

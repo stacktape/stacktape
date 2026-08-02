@@ -305,17 +305,6 @@ export const validateFormatDirectiveParams = (
   }
 };
 
-// export const validateEnvironmentVars = (envVars: { [name: string]: any }, workloadName: string) => {
-//   Object.entries(envVars).forEach(([envName, envValue]) => {
-//     if (!getIsDirective(envValue) && !(envValue as any).match(/^[A-Za-z0-9_][a-zA-Z0-9_]*$/)) {
-//       throw new ExpectedError(
-//         'CONFIG',
-//         `Environment variable ${envName} for ${workloadName} includes incorrect characters. It must match regexp /^[A-Za-z_][a-zA-Z0-9_]*$/`
-//       );
-//     }
-//   });
-// };
-
 export const validateStackOutput = (propertyName: string, cfTemplate: CloudformationTemplate, value: any) => {
   validateStackOutputName(propertyName);
   const existingValue = cfTemplate.Outputs[propertyName];
@@ -365,17 +354,6 @@ export const validateS3BucketName = (bucketName: string) => {
     });
   }
 };
-
-// export const validateStackExistence = (existingStackDetails: StackDetails, stackName: string) => {
-//   if (!existingStackDetails) {
-//     throw stpErrors.e32({
-//       stackName,
-//       stage: globalStateManager.targetStack.stage,
-//       organizationName: globalStateManager.organizationData?.name,
-//       awsAccountName: globalStateManager.targetAwsAccount.name
-//     });
-//   }
-// };
 
 export const validateAwsProfile = ({
   availableAwsProfiles,
