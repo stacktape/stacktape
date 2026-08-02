@@ -9,6 +9,7 @@ import { serializeEnvironment } from '../runtime-helpers';
 import { copy, ensureDir, outputFile, pathExists, remove, writeFile } from 'fs-extra';
 import { buildUsingCustomArtifact } from '../artifact/custom-artifact';
 import type { EnvironmentVar } from '@stacktape/config/shared';
+import { runWebBuildExclusive } from './build-coordinator';
 
 /**
  * Framework-specific build configuration
@@ -350,12 +351,6 @@ export const createSsrWebArtifacts = async ({
   createPackagingError,
   executeProcess
 }: SsrWebPackagingProps) => {
-  // Build the framework project
-  await progressLogger.startEvent({
-    eventType: 'BUILD_SSR_WEB_PROJECT',
-    description: `Building ${resourceType} project`
-  });
-
   const copyEnv = serializeEnvironment(process.env);
 
   // Add environment variables
@@ -375,74 +370,84 @@ export const createSsrWebArtifacts = async ({
   const buildOutputPath = join(distFolderPath, 'build-output');
   await ensureDir(buildOutputPath);
 
-  try {
-    // Run the build command via npx to ensure local binaries are found
-    await executeProcess('npx', ['--yes', ...buildConfig.buildCommand.split(' ')], {
-      cwd: buildConfig.workingDir,
-      env: { ...copyEnv },
-      disableStderr: true,
-      disableStdout: true,
-      inheritEnvVarsExcept: []
-    });
+  await runWebBuildExclusive({
+    workingDirectory: buildConfig.workingDir,
+    build: async () => {
+      await progressLogger.startEvent({
+        eventType: 'BUILD_SSR_WEB_PROJECT',
+        description: `Building ${resourceType} project`
+      });
+      try {
+        // Run the build command via npx to ensure local binaries are found
+        await executeProcess('npx', ['--yes', ...buildConfig.buildCommand.split(' ')], {
+          cwd: buildConfig.workingDir,
+          env: { ...copyEnv },
+          disableStderr: true,
+          disableStdout: true,
+          inheritEnvVarsExcept: []
+        });
 
-    // Copy build output to our dist folder, dereferencing symlinks so they become real files.
-    // Nitro-based frameworks (Nuxt, SolidStart, TanStack Start) create symlinks in node_modules
-    // that point back to the build directory - these break when moved and don't work in Lambda zips.
-    // Handle the case where one output path is nested inside the other (e.g. SvelteKit:
-    // serverOutputPath='build', staticOutputPath='build/client') by copying the parent first,
-    // then resolving the child from within the already-copied parent.
-    const serverOutputFullPath = join(buildConfig.workingDir, buildConfig.serverOutputPath);
-    const staticOutputFullPath = join(buildConfig.workingDir, buildConfig.staticOutputPath);
-    const deref = { dereference: true };
+        // Copy build output to our dist folder, dereferencing symlinks so they become real files.
+        // Nitro-based frameworks (Nuxt, SolidStart, TanStack Start) create symlinks in node_modules
+        // that point back to the build directory - these break when moved and don't work in Lambda zips.
+        // Handle the case where one output path is nested inside the other (e.g. SvelteKit:
+        // serverOutputPath='build', staticOutputPath='build/client') by copying the parent first,
+        // then resolving the child from within the already-copied parent.
+        const serverOutputFullPath = join(buildConfig.workingDir, buildConfig.serverOutputPath);
+        const staticOutputFullPath = join(buildConfig.workingDir, buildConfig.staticOutputPath);
+        const deref = { dereference: true };
 
-    const normalizedServer = buildConfig.serverOutputPath.replace(/\\/g, '/');
-    const normalizedStatic = buildConfig.staticOutputPath.replace(/\\/g, '/');
-    const staticIsInsideServer = normalizedStatic.startsWith(`${normalizedServer}/`);
-    const serverIsInsideStatic = normalizedServer.startsWith(`${normalizedStatic}/`);
+        const normalizedServer = buildConfig.serverOutputPath.replace(/\\/g, '/');
+        const normalizedStatic = buildConfig.staticOutputPath.replace(/\\/g, '/');
+        const staticIsInsideServer = normalizedStatic.startsWith(`${normalizedServer}/`);
+        const serverIsInsideStatic = normalizedServer.startsWith(`${normalizedStatic}/`);
 
-    if (staticIsInsideServer) {
-      // Static is nested inside server (e.g. server='build', static='build/client')
-      // Copy the parent (server) first, then the child (static) is already inside
-      if (await pathExists(serverOutputFullPath)) {
-        await copy(serverOutputFullPath, join(buildOutputPath, buildConfig.serverOutputPath), deref);
-        await remove(serverOutputFullPath);
+        if (staticIsInsideServer) {
+          // Static is nested inside server (e.g. server='build', static='build/client')
+          // Copy the parent (server) first, then the child (static) is already inside
+          if (await pathExists(serverOutputFullPath)) {
+            await copy(serverOutputFullPath, join(buildOutputPath, buildConfig.serverOutputPath), deref);
+            await remove(serverOutputFullPath);
+          }
+          // Static output is now at its relative position inside the copied server output
+          const staticWithinCopied = join(buildOutputPath, buildConfig.staticOutputPath);
+          if (await pathExists(staticWithinCopied)) {
+            await ensureDir(join(buildOutputPath, normalizedStatic, '..'));
+            await copy(staticWithinCopied, join(buildOutputPath, '__static-assets'));
+          }
+        } else if (serverIsInsideStatic) {
+          // Server is nested inside static - copy parent (static) first
+          if (await pathExists(staticOutputFullPath)) {
+            await copy(staticOutputFullPath, join(buildOutputPath, buildConfig.staticOutputPath), deref);
+            await remove(staticOutputFullPath);
+          }
+          const serverWithinCopied = join(buildOutputPath, buildConfig.serverOutputPath);
+          if (await pathExists(serverWithinCopied)) {
+            await copy(serverWithinCopied, join(buildOutputPath, '__server-output'));
+          }
+        } else {
+          // Independent paths - copy both
+          if (await pathExists(serverOutputFullPath)) {
+            await copy(serverOutputFullPath, join(buildOutputPath, buildConfig.serverOutputPath), deref);
+            await remove(serverOutputFullPath);
+          }
+          if (await pathExists(staticOutputFullPath)) {
+            await copy(staticOutputFullPath, join(buildOutputPath, buildConfig.staticOutputPath), deref);
+            await remove(staticOutputFullPath);
+          }
+        }
+      } catch (error) {
+        throw createPackagingError({
+          type: 'PACKAGING',
+          message: `Error when packaging ${resourceType} "${resourceName}".`,
+          cause: error
+        });
       }
-      // Static output is now at its relative position inside the copied server output
-      const staticWithinCopied = join(buildOutputPath, buildConfig.staticOutputPath);
-      if (await pathExists(staticWithinCopied)) {
-        await ensureDir(join(buildOutputPath, normalizedStatic, '..'));
-        await copy(staticWithinCopied, join(buildOutputPath, '__static-assets'));
-      }
-    } else if (serverIsInsideStatic) {
-      // Server is nested inside static - copy parent (static) first
-      if (await pathExists(staticOutputFullPath)) {
-        await copy(staticOutputFullPath, join(buildOutputPath, buildConfig.staticOutputPath), deref);
-        await remove(staticOutputFullPath);
-      }
-      const serverWithinCopied = join(buildOutputPath, buildConfig.serverOutputPath);
-      if (await pathExists(serverWithinCopied)) {
-        await copy(serverWithinCopied, join(buildOutputPath, '__server-output'));
-      }
-    } else {
-      // Independent paths - copy both
-      if (await pathExists(serverOutputFullPath)) {
-        await copy(serverOutputFullPath, join(buildOutputPath, buildConfig.serverOutputPath), deref);
-        await remove(serverOutputFullPath);
-      }
-      if (await pathExists(staticOutputFullPath)) {
-        await copy(staticOutputFullPath, join(buildOutputPath, buildConfig.staticOutputPath), deref);
-        await remove(staticOutputFullPath);
-      }
+
+      await progressLogger.finishEvent({
+        eventType: 'BUILD_SSR_WEB_PROJECT'
+      });
     }
-  } catch (err) {
-    throw createPackagingError({
-      type: 'PACKAGING',
-      message: `Error when packaging ${resourceType} "${resourceName}".\n\nBuild process logs:\n\n${err}`
-    });
-  }
-
-  await progressLogger.finishEvent({
-    eventType: 'BUILD_SSR_WEB_PROJECT'
   });
 
   // Reorganize build output

@@ -17,6 +17,7 @@ import { buildUsingCustomArtifact } from '../artifact/custom-artifact';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 import type { OpenNextConfig as UpstreamOpenNextConfig } from 'open-next/types/open-next.js';
 import { createTemporaryBuildFile } from '../fs/temporary-file';
+import { runWebBuildExclusive } from './build-coordinator';
 
 type NextjsWebBundlingProps = {
   resource: PackagedNextjsWeb;
@@ -60,59 +61,51 @@ export const createNextjsWebArtifacts = async ({
   executeProcess,
   loadModuleExport
 }: NextjsWebBundlingProps) => {
-  await progressLogger.startEvent({ eventType: 'BUILD_NEXTJS_PROJECT', description: 'Building Nextjs project' });
   const copyEnv = serializeEnvironment(process.env);
-
-  const configFileName = await createTemporaryOpenNextConfigFile({
-    resource,
-    cwd,
-    createPackagingError,
-    loadModuleExport
-  });
   const absoluteAppDirectory = join(cwd, resource.appDirectory || '.');
-  const configFilePath = join(absoluteAppDirectory, configFileName);
   environmentVars.forEach((env) => {
     copyEnv[env.name] = String(env.value);
   });
-  try {
-    await executeProcess(
-      'npx',
-      [
-        '--yes',
-        '@opennextjs/aws@^3.6.2',
-        'build',
-        '--config-path',
-        configFileName
-        // ...(resource.buildCommand ? ['--build-command', resource.buildCommand] : []),
-        // '--app-path',
-        // resource.appDirectory || '.',
-        // ...(resource.streamingEnabled ? ['--streaming'] : [])
-      ],
-      {
-        cwd: absoluteAppDirectory,
-        env: { ...copyEnv }, // OPEN_NEXT_DEBUG: true
-        disableStderr: true,
-        disableStdout: true,
-        inheritEnvVarsExcept: []
+  await runWebBuildExclusive({
+    workingDirectory: absoluteAppDirectory,
+    build: async () => {
+      await progressLogger.startEvent({ eventType: 'BUILD_NEXTJS_PROJECT', description: 'Building Nextjs project' });
+      const configFileName = await createTemporaryOpenNextConfigFile({
+        resource,
+        cwd,
+        createPackagingError,
+        loadModuleExport
+      });
+      const configFilePath = join(absoluteAppDirectory, configFileName);
+      const openNextDir = join(absoluteAppDirectory, '.open-next');
+      await remove(openNextDir);
+      try {
+        await executeProcess('npx', ['--yes', '@opennextjs/aws@^3.6.2', 'build', '--config-path', configFileName], {
+          cwd: absoluteAppDirectory,
+          env: { ...copyEnv },
+          disableStderr: true,
+          disableStdout: true,
+          inheritEnvVarsExcept: []
+        });
+      } catch (error) {
+        throw createPackagingError({
+          type: 'PACKAGING',
+          message: `Error when packaging nextjs-web "${resource.name}".`,
+          cause: error
+        });
+      } finally {
+        await remove(configFilePath);
       }
-    );
-  } catch (err) {
-    throw createPackagingError({
-      type: 'PACKAGING',
-      message: `Error when packaging nextjs-web "${resource.name}".\n\nBuild process logs:\n\n${err}`
-    });
-  } finally {
-    await remove(configFilePath);
-  }
 
-  const openNextDir = join(absoluteAppDirectory, '.open-next');
-  try {
-    await move(openNextDir, distFolderPath);
-  } catch {
-    await copy(openNextDir, distFolderPath);
-    await remove(openNextDir);
-  }
-  await progressLogger.finishEvent({ eventType: 'BUILD_NEXTJS_PROJECT' });
+      try {
+        await move(openNextDir, distFolderPath);
+      } catch {
+        await copy(openNextDir, distFolderPath);
+        await remove(openNextDir);
+      }
+      await progressLogger.finishEvent({ eventType: 'BUILD_NEXTJS_PROJECT' });
+    }
+  });
 
   await progressLogger.startEvent({ eventType: 'BUNDLING_NEXTJS_FUNCTIONS', description: 'Bundling Nextjs functions' });
   // moving /assets and /cache for better bucket upload
