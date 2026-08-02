@@ -22,6 +22,9 @@ const createFixture = async () => {
   return { root, entryfilePath };
 };
 
+const createTestPackagingError = (details: PackagingErrorDetails) =>
+  new Error(details.message, details.cause === undefined ? undefined : { cause: details.cause });
+
 const runBuild = async ({
   cwd,
   entryfilePath,
@@ -44,7 +47,6 @@ const runBuild = async ({
     ],
     sharedOutdir,
     cwd,
-    nodeTarget: '22',
     installDependencies: async () => {},
     createPackagingError
   });
@@ -90,5 +92,34 @@ describe('split bundle failure translation', () => {
     expect(detailsSeen[0]?.message).toStartWith('Split bundle failed:');
     expect(detailsSeen[0]?.cause).toBe(buildFailure);
     expect((error as Error).cause).toBe(buildFailure);
+  });
+});
+
+describe('split bundle entrypoint mapping', () => {
+  test('maps same-named entry files by their exact canonical paths', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stacktape-split-bundle-entrypoints-'));
+    temporaryDirectories.push(root);
+    const apiDirectory = join(root, 'api');
+    await mkdir(apiDirectory);
+    const rootEntrypoint = join(root, 'handler.ts');
+    const apiEntrypoint = join(apiDirectory, 'handler.ts');
+    await writeFile(rootEntrypoint, `export default async () => ({ source: 'root-handler' });`);
+    await writeFile(apiEntrypoint, `export default async () => ({ source: 'api-handler' });`);
+
+    const rootDist = join(root, 'dist', 'root-handler');
+    const apiDist = join(root, 'dist', 'api-handler');
+    await buildSplitBundle({
+      entrypoints: [
+        { name: 'root-handler', jobName: 'root-handler', entryfilePath: rootEntrypoint, distFolderPath: rootDist },
+        { name: 'api-handler', jobName: 'api-handler', entryfilePath: apiEntrypoint, distFolderPath: apiDist }
+      ],
+      sharedOutdir: join(root, 'shared'),
+      cwd: root,
+      installDependencies: async () => {},
+      createPackagingError: createTestPackagingError
+    });
+
+    expect(await Bun.file(join(rootDist, 'index.js')).text()).toContain('root-handler');
+    expect(await Bun.file(join(apiDist, 'index.js')).text()).toContain('api-handler');
   });
 });

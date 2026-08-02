@@ -160,7 +160,6 @@ export type BuildSplitBundleOptions = {
   sharedOutdir: string;
   cwd: string;
   tsConfigPath?: string | undefined;
-  nodeTarget: string;
   minify?: boolean | undefined;
   sourceMaps?: 'inline' | 'external' | 'disabled' | undefined;
   sourceMapBannerType?: 'node_modules' | 'pre-compiled' | 'disabled' | undefined;

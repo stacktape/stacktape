@@ -102,6 +102,7 @@ import type { EnvironmentVar } from '@stacktape/config/shared';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
 import { getFileSize, getFolderSize, getHashFromMultipleFiles } from '@stacktape/packaging/fs/files';
 import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';
+import { canBuildSplitNativeDependencies, canUseSplitBundling } from './split-bundling-policy';
 
 const formatLambdaSize = ({ sizeMB, sizeKB }: { sizeMB: number; sizeKB: number }) => {
   if (Number.isNaN(sizeMB) || Number.isNaN(sizeKB)) {
@@ -126,8 +127,6 @@ const loadPackagingModuleExport = async <T>({
       : loadFromTypescript;
   return load({ filePath, exportName }) as Promise<T>;
 };
-
-const MINIMUM_LAMBDAS_FOR_SPLIT_BUNDLING = 2;
 
 const getCacheRef = (jobName: string) => {
   const repositoryUrl = deploymentArtifactManager.repositoryUrl;
@@ -246,15 +245,23 @@ export class PackagingManager {
   /**
    * Split bundling is more efficient when there are multiple lambdas that share code.
    */
-  #shouldUseSplitBundling(): boolean {
+  #shouldUseSplitBundling({
+    nodeLambdas,
+    dockerIsRunning
+  }: {
+    nodeLambdas: Array<{
+      packaging: LambdaPackaging;
+      architecture?: 'x86_64' | 'arm64' | undefined;
+      runtime?: LambdaRuntime | undefined;
+    }>;
+    dockerIsRunning: boolean;
+  }): boolean {
     if (globalStateManager.args.disableLayerOptimization) {
       return false;
     }
-    const nodeLambdas = configManager.allUserCodeLambdas.filter(({ packaging }) => {
-      const ext = getFileExtension((packaging?.properties as { entryfilePath?: string })?.entryfilePath || '');
-      return ['js', 'ts', 'jsx', 'mjs', 'tsx'].includes(ext);
-    });
-    return nodeLambdas.length >= MINIMUM_LAMBDAS_FOR_SPLIT_BUNDLING;
+    // The ordinary Lambda buildpack remains the safe fallback. Split bundling currently needs Docker available so a
+    // dependency discovered during its shared analysis can never be silently omitted from every artifact.
+    return dockerIsRunning && canUseSplitBundling(nodeLambdas);
   }
 
   /**
@@ -427,7 +434,6 @@ export class PackagingManager {
       tsConfigPath: languageSpecificConfig?.tsConfigPath
         ? join(globalStateManager.workingDir, languageSpecificConfig.tsConfigPath)
         : join(globalStateManager.workingDir, 'tsconfig.json'),
-      nodeTarget: String(nodeVersion),
       minify: false, // Match existing behavior
       sourceMaps: languageSpecificConfig?.disableSourceMaps ? 'disabled' : 'external',
       sourceMapBannerType: 'pre-compiled',
@@ -454,7 +460,21 @@ export class PackagingManager {
       ([, output]) => output.dependenciesToInstallInDocker.length > 0
     );
 
-    if (lambdasWithNativeDeps.length > 0 && (await isDockerRunning())) {
+    const dockerStillRunning = lambdasWithNativeDeps.length === 0 || (await isDockerRunning());
+    if (
+      !canBuildSplitNativeDependencies({
+        dependencyCount: lambdasWithNativeDeps.length,
+        dockerIsRunning: dockerStillRunning
+      })
+    ) {
+      throw createCliPackagingError({
+        type: 'PACKAGING',
+        message: 'Docker became unavailable while packaging native Lambda dependencies.',
+        hint: 'Start Docker and retry the deployment.'
+      });
+    }
+
+    if (lambdasWithNativeDeps.length > 0) {
       const { packageManager } = await getLockFileData(globalStateManager.workingDir);
       if (!packageManager) {
         throw new Error(
@@ -491,18 +511,24 @@ export class PackagingManager {
         runDocker: execDocker
       });
 
-      if (nativeLayer) {
-        // Store native layer with S3 key for upload
-        // Use layer number 0 for native binaries (chunk layers use 1-5)
-        this.#nativeBinaryLayer = {
-          ...nativeLayer,
-          s3Key: buildLayerS3Key(0, nativeLayer.contentHash, '')
-        };
+      if (!nativeLayer) {
+        throw createCliPackagingError({
+          type: 'PACKAGING',
+          message: 'Failed to create the native dependency layer for the split Lambda bundle.',
+          hint: 'Review the native dependency build output and retry the deployment.'
+        });
+      }
 
-        // Track which lambdas use the native binary layer
-        for (const [lambdaName] of lambdasWithNativeDeps) {
-          this.#lambdasUsingNativeBinaryLayer.add(lambdaName);
-        }
+      // Store native layer with S3 key for upload
+      // Use layer number 0 for native binaries (chunk layers use 1-5)
+      this.#nativeBinaryLayer = {
+        ...nativeLayer,
+        s3Key: buildLayerS3Key(0, nativeLayer.contentHash, '')
+      };
+
+      // Track which lambdas use the native binary layer
+      for (const [lambdaName] of lambdasWithNativeDeps) {
+        this.#lambdasUsingNativeBinaryLayer.add(lambdaName);
       }
     }
 
@@ -710,7 +736,8 @@ export class PackagingManager {
     };
 
     // Setup Docker if running
-    if (await isDockerRunning()) {
+    const dockerIsRunning = await isDockerRunning();
+    if (dockerIsRunning) {
       await this.#installMissingDockerBuildPlatforms();
       if (shouldUseRemoteDockerCache()) {
         await ensureBuildxBuilderForCache();
@@ -864,7 +891,7 @@ export class PackagingManager {
     const packagingPromises: Promise<void>[] = [];
 
     // Node.js lambdas with split bundling
-    if (this.#shouldUseSplitBundling() && nodeLambdas.length > 0) {
+    if (this.#shouldUseSplitBundling({ nodeLambdas, dockerIsRunning })) {
       packagingPromises.push(this.#packageNodeLambdasWithSplitBundling({ nodeLambdas, commandCanUseCache }));
     } else if (nodeLambdas.length > 0) {
       // Fallback: package Node.js lambdas individually (for single lambda or when split bundling disabled)

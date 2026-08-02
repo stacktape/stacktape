@@ -15,7 +15,7 @@ import type {
 } from './types';
 import type { PackageJsonDepsInfo } from '../es/bundler-helpers';
 import { existsSync } from 'node:fs';
-import { basename, join } from 'node:path';
+import { basename, isAbsolute, join, resolve } from 'node:path';
 import { rewriteChunkImports } from './chunk-rewriter';
 import { copy, ensureDir, outputJSON, readFile, writeFile } from 'fs-extra';
 import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_MODULES, NODE_BUILTIN_MODULES } from '../es/config';
@@ -49,7 +49,6 @@ export const buildSplitBundle = async ({
   sharedOutdir,
   cwd,
   tsConfigPath,
-  nodeTarget: _nodeTarget,
   minify = true,
   sourceMaps = 'external',
   sourceMapBannerType = 'pre-compiled',
@@ -524,28 +523,11 @@ const findAllChunksFromMetafile = (outputPath: string, metafile: BuildMetafile):
   return allChunks;
 };
 
-/** Removes path prefixes that differ between Bun metafiles and the caller's absolute entrypoint. */
-const getSignificantPath = (path: string): string => path.replace(/^(\.\.\/)+/, '').replace(/^[A-Za-z]:\//, '');
-
-/** Check if two paths refer to the same file (handles absolute vs relative, different separators) */
-const pathsMatch = (path1: string, path2: string): boolean => {
-  const norm1 = transformToUnixPath(path1);
-  const norm2 = transformToUnixPath(path2);
-
-  // Exact match
-  if (norm1 === norm2) return true;
-
-  // Check if one ends with the other (handles absolute vs relative)
-  // e.g., "C:/Projects/console-app/server/lambda.ts" vs "../console-app/server/lambda.ts"
-  if (norm1.endsWith(norm2) || norm2.endsWith(norm1)) return true;
-
-  const sig1 = getSignificantPath(norm1);
-  const sig2 = getSignificantPath(norm2);
-
-  if (sig1 === sig2) return true;
-  if (sig1.endsWith(sig2) || sig2.endsWith(sig1)) return true;
-
-  return false;
+/** Bun records metafile entrypoints relative to the process working directory, even when its build root differs. */
+const canonicalizeEntrypointPath = (path: string): string => {
+  const absolutePath = isAbsolute(path) ? resolve(path) : resolve(process.cwd(), path);
+  const normalizedPath = transformToUnixPath(absolutePath);
+  return process.platform === 'win32' ? normalizedPath.toLowerCase() : normalizedPath;
 };
 
 /** Process lambda outputs using metafile for chunk dependency analysis */
@@ -574,8 +556,7 @@ const processLambdaOutputsWithMetafile = async ({
   const entryPointToOutput = new Map<string, string>();
   for (const [outputPath, outputMeta] of Object.entries(metafile.outputs)) {
     if (outputMeta.entryPoint) {
-      // Normalize paths for matching
-      entryPointToOutput.set(transformToUnixPath(outputMeta.entryPoint), outputPath);
+      entryPointToOutput.set(canonicalizeEntrypointPath(outputMeta.entryPoint), outputPath);
     }
   }
 
@@ -591,16 +572,8 @@ const processLambdaOutputsWithMetafile = async ({
   await Promise.all(
     entrypoints.map(async (entrypoint) => {
       // Find output file for this entrypoint using metafile's entryPoint field
-      const normalizedEntryPath = transformToUnixPath(entrypoint.entryfilePath);
-      let outputPath: string | undefined;
-
-      // Try to find matching entry in metafile
-      for (const [entryPath, outPath] of entryPointToOutput) {
-        if (pathsMatch(normalizedEntryPath, entryPath)) {
-          outputPath = outPath;
-          break;
-        }
-      }
+      const normalizedEntryPath = canonicalizeEntrypointPath(entrypoint.entryfilePath);
+      const outputPath = entryPointToOutput.get(normalizedEntryPath);
 
       if (!outputPath) {
         throw createPackagingError({
