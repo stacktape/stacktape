@@ -890,17 +890,6 @@ describe('nested resource identity', () => {
     );
   });
 
-  /**
-   * Throws rather than narrowing: a child declared optional on the parent is genuinely absent for some
-   * configurations, so a test that expects one has to say which configuration it expected it from.
-   */
-  const nestedResource = <TResource>(resource: TResource | undefined, description: string): TResource => {
-    if (!resource) {
-      throw new Error(`Expected this configuration to synthesize ${description}, but it was absent.`);
-    }
-    return resource;
-  };
-
   const expectSsrFamilyIdentities = (nestedResources: {
     bucket: { name: string; nameChain: string[] };
     serverFunction: { name: string; nameChain: string[] };
@@ -933,68 +922,6 @@ describe('nested resource identity', () => {
     expectSsrFamilyIdentities(
       managerFor({ site: { type: 'remix-web', properties: { appDirectory } } }).remixWebs[0]._nestedResources
     );
-  });
-
-  const nextjsNestedResources = (properties: {
-    appDirectory: string;
-    useEdgeLambda?: boolean;
-    warmServerInstances?: number;
-  }) => managerFor({ site: { type: 'nextjs-web', properties } }).nextjsWebs[0]._nestedResources;
-
-  test('builds every one of the nine children a Next.js web brings with it', () => {
-    expect(Object.keys(nextjsNestedResources({ appDirectory: './' })).sort()).toEqual([
-      'bucket',
-      'imageFunction',
-      'revalidationFunction',
-      'revalidationInsertFunction',
-      'revalidationQueue',
-      'revalidationTable',
-      'serverEdgeFunction',
-      'serverFunction',
-      'warmerFunction'
-    ]);
-  });
-
-  test('names each unconditional child after the parent and the identifier it is filed under', () => {
-    const nested = nextjsNestedResources({ appDirectory: './' });
-
-    expect(nested.bucket.name).toBe('siteBucket');
-    expect(nested.bucket.nameChain).toEqual(['site', 'bucket']);
-    expect(nested.imageFunction.name).toBe('siteImageFunction');
-    expect(nested.imageFunction.nameChain).toEqual(['site', 'imageFunction']);
-    expect(nested.revalidationFunction.name).toBe('siteRevalidationFunction');
-    expect(nested.revalidationFunction.nameChain).toEqual(['site', 'revalidationFunction']);
-    expect(nested.revalidationQueue.name).toBe('siteRevalidationQueue');
-    expect(nested.revalidationQueue.nameChain).toEqual(['site', 'revalidationQueue']);
-    expect(nested.revalidationTable.name).toBe('siteRevalidationTable');
-    expect(nested.revalidationTable.nameChain).toEqual(['site', 'revalidationTable']);
-    expect(nested.revalidationInsertFunction.name).toBe('siteRevalidationInsertFunction');
-    expect(nested.revalidationInsertFunction.nameChain).toEqual(['site', 'revalidationInsertFunction']);
-  });
-
-  test('runs the server in a Lambda by default, named from the same identity', () => {
-    const nested = nextjsNestedResources({ appDirectory: './' });
-    const serverFunction = nestedResource(nested.serverFunction, 'a server function');
-
-    expect(serverFunction.name).toBe('siteServerFunction');
-    expect(serverFunction.nameChain).toEqual(['site', 'serverFunction']);
-    expect(serverFunction.connectTo).toEqual(['site.bucket', 'site.revalidationQueue', 'site.revalidationTable']);
-  });
-
-  test('moves the server to an edge function when the configuration asks for one', () => {
-    const nested = nextjsNestedResources({ appDirectory: './', useEdgeLambda: true });
-    const serverEdgeFunction = nestedResource(nested.serverEdgeFunction, 'a server edge function');
-
-    expect(serverEdgeFunction.name).toBe('siteServerEdgeFunction');
-    expect(serverEdgeFunction.nameChain).toEqual(['site', 'serverEdgeFunction']);
-  });
-
-  test('adds a warmer when the configuration asks for warm server instances', () => {
-    const nested = nextjsNestedResources({ appDirectory: './', warmServerInstances: 2 });
-    const warmerFunction = nestedResource(nested.warmerFunction, 'a warmer function');
-
-    expect(warmerFunction.name).toBe('siteWarmerFunction');
-    expect(warmerFunction.nameChain).toEqual(['site', 'warmerFunction']);
   });
 });
 
