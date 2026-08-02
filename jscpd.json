@@ -10,6 +10,8 @@
     "**/coverage/**",
     "**/dist/**",
     "**/generated/**",
+    "**/*.spec.ts",
+    "**/*.test.ts",
     "**/package.json",
     "**/pnpm-lock.yaml",
     "apps/*/src/pages/index.astro",
