@@ -114,6 +114,17 @@ import type { HelperLambdaDetails } from '@utils/helper-lambdas';
  */
 type ResourceWithEnabledCdn = StpCdnCompatibleResource & { cdn: NonNullable<StpCdnCompatibleResource['cdn']> };
 
+/**
+ * What project-name discovery already loaded. Full initialization reuses it instead of loading the configuration
+ * again, because a TypeScript configuration is user code that must execute exactly once per invocation.
+ */
+type DiscoveredConfig = {
+  finalTransform: FinalTransform | null;
+  rawConfig: StacktapeConfig;
+  source: Pick<ConfigResolverContext, 'configPath' | 'presetConfig' | 'templateId' | 'workingDir'>;
+  transforms: { [logicalName: string]: CfResourceTransform };
+};
+
 export class ConfigManager {
   config: StacktapeConfig;
   rawConfig: StacktapeConfig;
@@ -127,6 +138,7 @@ export class ConfigManager {
   #stackContext: StackContext | undefined;
   #helperLambdaDetails: HelperLambdaDetails | undefined;
   #issueDetection: IssueDetectionContext = {};
+  #discoveredConfig: DiscoveredConfig | undefined;
 
   private get stackContext(): StackContext {
     if (!this.#stackContext) {
@@ -151,18 +163,26 @@ export class ConfigManager {
    * Used to extract projectName before full initialization.
    */
   loadRawConfigOnly = async ({ context }: { context: ConfigResolverContext }) => {
-    // Preserve the existing two-phase contract: only a discovered local config participates in project-name
-    // discovery. Preset and remote-template configs are loaded by full initialization.
+    this.#discoveredConfig = undefined;
+    // A local path triggers discovery. The resolver still applies its existing input precedence, so a preset or
+    // template present in the same context may supply the discovered configuration.
     if (context.configPath) {
       await this.configResolver.loadRawConfig({ context });
+      this.#discoveredConfig = {
+        finalTransform: this.configResolver.finalTransform,
+        rawConfig: this.configResolver.rawConfig,
+        source: {
+          configPath: context.configPath,
+          presetConfig: context.presetConfig,
+          templateId: context.templateId,
+          workingDir: context.workingDir
+        },
+        transforms: this.configResolver.transforms
+      };
     }
   };
 
   init = async ({ configRequired = true, context }: { configRequired: boolean; context: ConfigManagerInitContext }) => {
-    this.setStackContext(context.stack);
-    this.#helperLambdaDetails = context.helperLambdaDetails;
-    this.#issueDetection = context.issueDetection;
-    this.configResolver.setContext(context.resolver);
     const { configPath, presetConfig, templateId } = context.resolver;
     await eventManager.startEvent({
       eventType: 'LOAD_CONFIG_FILE',
@@ -176,27 +196,74 @@ export class ConfigManager {
     // Preserve the legacy optional-config behavior: a preset config is only consumed when the command requires
     // configuration. For optional commands, a preset takes precedence over (and suppresses) local-path discovery.
     const shouldLoadConfig = configRequired || Boolean(templateId || (!presetConfig && configPath));
-    this.configResolver.registerBuiltInDirectives();
-    if (shouldLoadConfig) {
-      // Skip loadRawConfig if already loaded by loadRawConfigOnly
-      if (!this.configResolver.rawConfig) {
-        await this.configResolver.loadRawConfig({ context: context.resolver });
-      }
-      this.transforms = this.configResolver.transforms;
-      this.finalTransform = this.configResolver.finalTransform;
-      this.configResolver.registerUserDirectives(this.configResolver.rawConfig?.directives || []);
-      await this.configResolver.loadResolvedConfig();
-      this.config = this.configResolver.resolvedConfig;
-      this.rawConfig = this.configResolver.rawConfig;
-      await validateConfigStructure({ config: this.config, configPath, templateId });
-      runInitialValidations({ configManager: this, stackContext: this.stackContext });
+
+    // Initialization is staged on a plain candidate manager and published only once every validation passed. A
+    // configuration that fails validation therefore leaves this manager exactly as project-name discovery left it,
+    // and the next attempt starts from a resolver without the failed attempt's directive registrations and results.
+    const candidate = new ConfigManager();
+    candidate.setStackContext(context.stack);
+    candidate.#helperLambdaDetails = context.helperLambdaDetails;
+    candidate.#issueDetection = context.issueDetection;
+    // Reuse what discovery loaded rather than loading the configuration again, so a TypeScript config and its
+    // transform side channel are produced by exactly one execution of the user's module.
+    const discoveredConfig = this.#getDiscoveredConfigFor(context.resolver);
+    if (discoveredConfig) {
+      candidate.configResolver.rawConfig = discoveredConfig.rawConfig;
+      candidate.configResolver.transforms = discoveredConfig.transforms;
+      candidate.configResolver.finalTransform = discoveredConfig.finalTransform;
     }
+    candidate.configResolver.setContext(context.resolver);
+    candidate.configResolver.registerBuiltInDirectives();
+
+    if (shouldLoadConfig) {
+      if (!candidate.configResolver.rawConfig) {
+        await candidate.configResolver.loadRawConfig({ context: context.resolver });
+      }
+      candidate.transforms = candidate.configResolver.transforms;
+      candidate.finalTransform = candidate.configResolver.finalTransform;
+      candidate.configResolver.registerUserDirectives(candidate.configResolver.rawConfig?.directives || []);
+      await candidate.configResolver.loadResolvedConfig();
+      candidate.config = candidate.configResolver.resolvedConfig;
+      candidate.rawConfig = candidate.configResolver.rawConfig;
+      await validateConfigStructure({ config: candidate.config, configPath, templateId });
+      runInitialValidations({ configManager: candidate, stackContext: candidate.stackContext });
+    }
+
+    this.#publishInitializedConfig(candidate);
+    this.#discoveredConfig = undefined;
 
     await eventManager.finishEvent({
       eventType: 'LOAD_CONFIG_FILE',
       data: { stackName: this.stackContext.stackName, config: this.config },
       phase: 'INITIALIZE'
     });
+  };
+
+  #getDiscoveredConfigFor = (context: ConfigResolverContext): DiscoveredConfig | undefined => {
+    const discoveredConfig = this.#discoveredConfig;
+    const source = discoveredConfig?.source;
+    return source &&
+      source.configPath === context.configPath &&
+      source.presetConfig === context.presetConfig &&
+      source.templateId === context.templateId &&
+      source.workingDir === context.workingDir
+      ? discoveredConfig
+      : undefined;
+  };
+
+  /**
+   * Publishes a validated candidate as this manager's state in one synchronous step. The global configuration arrays
+   * are deliberately left alone: they are loaded separately and initialization does not own them.
+   */
+  #publishInitializedConfig = (candidate: ConfigManager) => {
+    this.configResolver = candidate.configResolver;
+    this.config = candidate.config;
+    this.rawConfig = candidate.rawConfig;
+    this.transforms = candidate.transforms;
+    this.finalTransform = candidate.finalTransform;
+    this.#stackContext = candidate.#stackContext;
+    this.#helperLambdaDetails = candidate.#helperLambdaDetails;
+    this.#issueDetection = candidate.#issueDetection;
   };
 
   reset = () => {
@@ -213,6 +280,7 @@ export class ConfigManager {
     this.#stackContext = undefined;
     this.#helperLambdaDetails = undefined;
     this.#issueDetection = {};
+    this.#discoveredConfig = undefined;
   };
 
   validateGuardrails = ({ hasConfig }: { hasConfig: boolean }) =>

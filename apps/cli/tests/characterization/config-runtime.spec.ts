@@ -7,6 +7,7 @@ import { eventManager } from '@application-services/event-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import { ConfigResolver } from '@domain-services/config-manager/config-resolver';
 import { ConfigManager, configManager } from '@domain-services/config-manager';
+import type { ConfigManagerInitContext } from '@domain-services/config-manager/context';
 import { stacktapeConfigSchema, validateConfigWithZod } from '@domain-services/config-manager/utils/zod-validator';
 import { resolveOpenSearchLoggingDefaults } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/open-search';
 import {
@@ -138,16 +139,138 @@ const newResolver = () => {
   return resolver;
 };
 
+const denseApplicationDir = join(import.meta.dir, 'fixtures', 'dense-application');
+const helperLambda = {
+  digest: 'config-isolation',
+  artifactPath: 'config-isolation.zip',
+  handler: 'index.default',
+  size: 1
+};
+
+/** The inputs the command composition layer hands to a full initialization, for one stack identity. */
+const getInitContext = ({
+  accountId,
+  stage,
+  stackName,
+  workingDir = denseApplicationDir,
+  ...resolverInputs
+}: {
+  accountId: string;
+  configPath?: string;
+  presetConfig?: StacktapeConfig;
+  stage: string;
+  stackName: string;
+  templateId?: string;
+  workingDir?: string;
+}): ConfigManagerInitContext => {
+  const stack = {
+    accountId,
+    command: 'synth' as const,
+    globallyUniqueStackHash: `${stage}-hash`,
+    invocationId: `${stage}-invocation`,
+    projectName: `${stage}-project`,
+    region: 'eu-west-1' as const,
+    stackName,
+    stage,
+    workingDir
+  };
+  const authoringParams: GetConfigParams = {
+    projectName: stack.projectName,
+    stage,
+    region: stack.region,
+    cliArgs: {} as any,
+    command: stack.command,
+    awsProfile: '',
+    user: undefined
+  };
+
+  return {
+    helperLambdaDetails: {
+      batchJobTriggerLambda: helperLambda,
+      stacktapeServiceLambda: helperLambda,
+      cdnOriginRequestLambda: helperLambda,
+      cdnOriginResponseLambda: helperLambda
+    },
+    issueDetection: {},
+    resolver: {
+      authoringParams,
+      builtInDirectives: {
+        accountId,
+        additionalArgs: {},
+        awsProfile: '',
+        cliArgs: authoringParams.cliArgs,
+        command: stack.command,
+        disableEmulation: false,
+        region: stack.region,
+        stage,
+        workingDir
+      },
+      workingDir,
+      ...resolverInputs
+    },
+    stack
+  };
+};
+
+const singleFunctionConfig = ({ projectName, resourceName }: { projectName: string; resourceName: string }) =>
+  ({
+    projectName,
+    resources: {
+      [resourceName]: {
+        type: 'function',
+        properties: {
+          packaging: {
+            type: 'stacktape-lambda-buildpack',
+            properties: { entryfilePath: './src/api.ts' }
+          },
+          environment: [{ name: 'INVOCATION_STAGE', value: '$Stage()' }]
+        }
+      }
+    }
+  }) as StacktapeConfig;
+
+/** Two functions claiming one HTTP route: rejected by the static validations that run after directive resolution. */
+const duplicateHttpRouteConfig: StacktapeConfig = {
+  projectName: 'conflict-project',
+  stackConfig: { tags: [{ name: 'candidate-stage', value: '$Stage()' }] },
+  resources: {
+    api: { type: 'http-api-gateway' },
+    firstFunction: {
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: { entryfilePath: './src/api.ts' }
+        },
+        events: [
+          {
+            type: 'http-api-gateway',
+            properties: { httpApiGatewayName: 'api', method: 'GET', path: '/duplicate' }
+          }
+        ]
+      }
+    },
+    secondFunction: {
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: { entryfilePath: './src/worker.ts' }
+        },
+        events: [
+          {
+            type: 'http-api-gateway',
+            properties: { httpApiGatewayName: 'api', method: 'GET', path: '/duplicate' }
+          }
+        ]
+      }
+    }
+  }
+};
+
 describe('configuration runtime contract', () => {
   test('reuses one manager for two different configs without leaking config, directives, or stack identity', async () => {
     const manager = new ConfigManager();
-    const workingDir = join(import.meta.dir, 'fixtures', 'dense-application');
-    const helperLambda = {
-      digest: 'config-isolation',
-      artifactPath: 'config-isolation.zip',
-      handler: 'index.default',
-      size: 1
-    };
 
     const initialize = async ({
       accountId,
@@ -164,71 +287,14 @@ describe('configuration runtime contract', () => {
       stackName: string;
       targetManager?: ConfigManager;
     }) => {
-      const stackContext = {
-        accountId,
-        command: 'synth' as const,
-        globallyUniqueStackHash: `${stage}-hash`,
-        invocationId: `${stage}-invocation`,
-        projectName: `${stage}-project`,
-        region: 'eu-west-1' as const,
-        stackName,
-        stage,
-        workingDir
-      };
-      const authoringParams: GetConfigParams = {
-        projectName: stackContext.projectName,
-        stage,
-        region: stackContext.region,
-        cliArgs: {} as any,
-        command: stackContext.command,
-        awsProfile: '',
-        user: undefined
-      };
-
       await targetManager.init({
         configRequired: true,
-        context: {
-          helperLambdaDetails: {
-            batchJobTriggerLambda: helperLambda,
-            stacktapeServiceLambda: helperLambda,
-            cdnOriginRequestLambda: helperLambda,
-            cdnOriginResponseLambda: helperLambda
-          },
-          issueDetection: {},
-          resolver: {
-            authoringParams,
-            builtInDirectives: {
-              accountId,
-              additionalArgs: {},
-              awsProfile: '',
-              cliArgs: authoringParams.cliArgs,
-              command: stackContext.command,
-              disableEmulation: false,
-              region: stackContext.region,
-              stage,
-              workingDir
-            },
-            presetConfig:
-              config ??
-              ({
-                projectName: stackContext.projectName,
-                resources: {
-                  [resourceName]: {
-                    type: 'function',
-                    properties: {
-                      packaging: {
-                        type: 'stacktape-lambda-buildpack',
-                        properties: { entryfilePath: './src/api.ts' }
-                      },
-                      environment: [{ name: 'INVOCATION_STAGE', value: '$Stage()' }]
-                    }
-                  }
-                }
-              } as StacktapeConfig),
-            workingDir
-          },
-          stack: stackContext
-        }
+        context: getInitContext({
+          accountId,
+          stage,
+          stackName,
+          presetConfig: config ?? singleFunctionConfig({ projectName: `${stage}-project`, resourceName })
+        })
       });
     };
 
@@ -273,46 +339,182 @@ describe('configuration runtime contract', () => {
         stage: 'conflict',
         stackName: 'conflict-project-conflict',
         targetManager: conflictManager,
-        config: {
-          projectName: 'conflict-project',
-          resources: {
-            api: { type: 'http-api-gateway' },
-            firstFunction: {
-              type: 'function',
-              properties: {
-                packaging: {
-                  type: 'stacktape-lambda-buildpack',
-                  properties: { entryfilePath: './src/api.ts' }
-                },
-                events: [
-                  {
-                    type: 'http-api-gateway',
-                    properties: { httpApiGatewayName: 'api', method: 'GET', path: '/duplicate' }
-                  }
-                ]
-              }
-            },
-            secondFunction: {
-              type: 'function',
-              properties: {
-                packaging: {
-                  type: 'stacktape-lambda-buildpack',
-                  properties: { entryfilePath: './src/worker.ts' }
-                },
-                events: [
-                  {
-                    type: 'http-api-gateway',
-                    properties: { httpApiGatewayName: 'api', method: 'GET', path: '/duplicate' }
-                  }
-                ]
-              }
-            }
-          }
-        }
+        config: duplicateHttpRouteConfig
       })
     ).rejects.toMatchObject({ code: 'CONFIG_HTTP_API_ROUTE_CONFLICT' });
 
     expect(manager.functions.map(({ name }) => name)).toEqual(['secondFunction']);
+  });
+
+  test('publishes nothing when initialization fails and initializes normally on a retry', async () => {
+    const manager = new ConfigManager();
+
+    await expect(
+      manager.init({
+        configRequired: true,
+        context: getInitContext({
+          accountId: '444444444444',
+          stage: 'conflict',
+          stackName: 'conflict-project-conflict',
+          presetConfig: duplicateHttpRouteConfig
+        })
+      })
+    ).rejects.toMatchObject({ code: 'CONFIG_HTTP_API_ROUTE_CONFLICT' });
+
+    // The attempt resolved directives and registered every built-in before failing, yet none of that reached the
+    // manager: no configuration, transforms, stack context, directive registrations or cached directive results.
+    expect(manager.config).toBeUndefined();
+    expect(manager.rawConfig).toBeUndefined();
+    expect(manager.transforms).toEqual({});
+    expect(manager.finalTransform).toBeNull();
+    expect(manager.configResolver.rawConfig).toBeNull();
+    expect(Object.keys(manager.configResolver.registeredDirectives)).toEqual([]);
+    expect(manager.configResolver.resolvedDirectiveDefinitions).toEqual([]);
+    expect(() => manager.validateGuardrails({ hasConfig: false })).toThrow('stack context');
+
+    await manager.init({
+      configRequired: true,
+      context: getInitContext({
+        accountId: '444444444444',
+        stage: 'retry',
+        stackName: 'retry-project-retry',
+        presetConfig: singleFunctionConfig({ projectName: 'retry-project', resourceName: 'retryFunction' })
+      })
+    });
+
+    expect(manager.functions[0]).toMatchObject({
+      name: 'retryFunction',
+      resourceName: 'retry-project-retry-retryFunction',
+      environment: [{ name: 'INVOCATION_STAGE', value: 'retry' }]
+    });
+  });
+
+  test('keeps the working configuration when a later initialization fails, and keeps resolving runtime directives', async () => {
+    const manager = new ConfigManager();
+    await manager.init({
+      configRequired: true,
+      context: getInitContext({
+        accountId: '555555555555',
+        stage: 'stable',
+        stackName: 'stable-project-stable',
+        presetConfig: singleFunctionConfig({ projectName: 'stable-project', resourceName: 'stableFunction' })
+      })
+    });
+
+    await expect(
+      manager.init({
+        configRequired: true,
+        context: getInitContext({
+          accountId: '666666666666',
+          stage: 'conflict',
+          stackName: 'conflict-project-conflict',
+          presetConfig: duplicateHttpRouteConfig
+        })
+      })
+    ).rejects.toMatchObject({ code: 'CONFIG_HTTP_API_ROUTE_CONFLICT' });
+
+    // Resource names carry the stack identity, so this also proves the failed attempt's stack context was not published.
+    expect(manager.functions.map(({ name, resourceName }) => ({ name, resourceName }))).toEqual([
+      { name: 'stableFunction', resourceName: 'stable-project-stable-stableFunction' }
+    ]);
+    expect(manager.rawConfig.resources).not.toHaveProperty('firstFunction');
+
+    // The committed resolver still owns the built-in directives, including the runtime ones resolved during synthesis.
+    const runtimeResolved = await manager.resolveDirectives<{ value: Record<string, unknown> }>({
+      itemToResolve: { value: "$CfFormat('stack-{}', 'value')" },
+      resolveRuntime: true
+    });
+    expect(Object.keys(runtimeResolved.value)).toEqual(['Fn::Sub']);
+  });
+
+  test('publishes a configuration only for the optional-command inputs that own one', async () => {
+    // Inside the workspace so a downloaded TypeScript template resolves `@stacktape/config-authoring` as a user
+    // project would.
+    const workingDir = await mkdtemp(join(process.cwd(), '.stacktape-optional-config-'));
+    const configPath = join(workingDir, 'stacktape.yml');
+    const presetConfig = { projectName: 'preset-config-project', resources: {} } as StacktapeConfig;
+    const apiClient = stacktapeTrpcApiManager.apiClient;
+    const originalTemplate = apiClient.template;
+
+    const initOptional = async (resolverInputs: {
+      configPath?: string;
+      presetConfig?: StacktapeConfig;
+      templateId?: string;
+    }) => {
+      const manager = new ConfigManager();
+      await manager.init({
+        configRequired: false,
+        context: getInitContext({
+          accountId: '777777777777',
+          stage: 'optional',
+          stackName: 'optional-project-optional',
+          workingDir,
+          ...resolverInputs
+        })
+      });
+      return manager;
+    };
+
+    try {
+      await writeFile(configPath, 'projectName: local-config-project\nresources: {}\n');
+      apiClient.template = async ({ templateId }) => downloadedTemplateResponse(templateId);
+
+      expect((await initOptional({ configPath })).config.projectName).toBe('local-config-project');
+      expect((await initOptional({ templateId: 'downloaded-template' })).config.projectName).toBe(
+        'downloaded-template'
+      );
+      // A preset suppresses local-path discovery for optional commands, and wins over a template when one is loaded.
+      expect((await initOptional({ presetConfig })).config).toBeUndefined();
+      expect((await initOptional({ presetConfig, configPath })).config).toBeUndefined();
+      expect((await initOptional({ presetConfig, templateId: 'downloaded-template' })).config.projectName).toBe(
+        'preset-config-project'
+      );
+
+      // Without any configuration input there is nothing to publish, but the resolver is still usable.
+      const withoutInputs = await initOptional({});
+      expect(withoutInputs.config).toBeUndefined();
+      await expect(withoutInputs.resolveDirectives({ itemToResolve: '$Stage()', resolveRuntime: false })).resolves.toBe(
+        'optional'
+      );
+    } finally {
+      apiClient.template = originalTemplate;
+      await rm(workingDir, { recursive: true, force: true });
+    }
+  });
+
+  test('does not reuse project discovery for an initialization with different configuration inputs', async () => {
+    const workingDir = await mkdtemp(join(process.cwd(), '.stacktape-discovery-source-'));
+    const configPath = join(workingDir, 'stacktape.yml');
+    const manager = new ConfigManager();
+    const discoveredContext = getInitContext({
+      accountId: '888888888888',
+      configPath,
+      stage: 'discovery',
+      stackName: 'discovered-project-discovery',
+      workingDir
+    });
+
+    try {
+      await writeFile(configPath, 'projectName: discovered-project\nresources: {}\n');
+      await manager.loadRawConfigOnly({ context: discoveredContext.resolver });
+      expect(manager.configResolver.rawConfig.projectName).toBe('discovered-project');
+
+      await manager.init({
+        configRequired: true,
+        context: getInitContext({
+          accountId: '888888888888',
+          presetConfig: { projectName: 'preset-project', resources: {} },
+          stage: 'preset',
+          stackName: 'preset-project-preset',
+          workingDir
+        })
+      });
+
+      expect(manager.config.projectName).toBe('preset-project');
+      expect(manager.functions).toEqual([]);
+    } finally {
+      await rm(workingDir, { recursive: true, force: true });
+    }
   });
 
   test('loads TypeScript config through tsconfig paths and transitive node_modules', async () => {
