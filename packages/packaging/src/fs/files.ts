@@ -21,11 +21,13 @@ const { readFile, stat } = fsExtra;
 /** Files matching `globPattern` under `cwd`, dotfiles included. Order comes from fast-glob. */
 export const getMatchingFilesByGlob = async ({
   globPattern,
-  cwd
+  cwd,
+  followSymbolicLinks = true
 }: {
   globPattern: string | string[];
   cwd: string;
-}): Promise<string[]> => fastGlob(globPattern, { dot: true, cwd });
+  followSymbolicLinks?: boolean | undefined;
+}): Promise<string[]> => fastGlob(globPattern, { dot: true, cwd, followSymbolicLinks });
 
 /** Streamed content hash of a single file. A missing file hashes to the empty string. */
 export const getFileHash = async (

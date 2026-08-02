@@ -2,11 +2,11 @@ import type { CreatePackagingError, EsBuildActions, StpBuildpackInput } from '..
 import type { BunPlugin } from 'bun';
 import type { PackageJsonDepsInfo } from '../../es/bundler-helpers';
 import { existsSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
 import { getRelativePath, isFileAccessible, transformToUnixPath } from '../../fs/files';
 import { NODE_RUNTIME_VERSIONS_WITH_SKIPPED_SDK_V3_PACKAGING } from '../constants';
 import { findProjectRoot } from '../../es/project-root';
-import { copy, outputJSON, readFile, readFileSync, realpathSync, writeJson } from 'fs-extra';
+import { copy, outputJSON, readFile, readFileSync, realpathSync, remove, writeJson } from 'fs-extra';
 import objectHash from 'object-hash';
 import {
   DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE,
@@ -640,6 +640,41 @@ const copyExplicitlyIncludedFiles = ({
   );
 };
 
+export const removeExplicitlyExcludedFiles = async ({
+  createPackagingError,
+  excludeFiles,
+  outputDirectory
+}: {
+  createPackagingError: CreatePackagingError;
+  excludeFiles: string[];
+  outputDirectory: string;
+}) => {
+  if (excludeFiles.length === 0) {
+    return;
+  }
+  const matchedPaths = await getMatchingFilesByGlob({
+    globPattern: excludeFiles,
+    cwd: outputDirectory,
+    followSymbolicLinks: false
+  });
+  const normalizedOutputRoot = resolve(outputDirectory);
+  const comparableOutputRoot = process.platform === 'win32' ? normalizedOutputRoot.toLowerCase() : normalizedOutputRoot;
+  const outputRootPrefix = comparableOutputRoot.endsWith(sep) ? comparableOutputRoot : `${comparableOutputRoot}${sep}`;
+  const absolutePaths = matchedPaths.map((matchedPath) => {
+    const absolutePath = resolve(outputDirectory, matchedPath);
+    const comparablePath = process.platform === 'win32' ? absolutePath.toLowerCase() : absolutePath;
+    if (comparablePath !== comparableOutputRoot && !comparablePath.startsWith(outputRootPrefix)) {
+      throw createPackagingError({
+        type: 'PACKAGING',
+        message: `The excludeFiles pattern matched a path outside the deployment package: ${matchedPath}.`,
+        hint: 'Use excludeFiles patterns that stay within the packaged artifact.'
+      });
+    }
+    return absolutePath;
+  });
+  await Promise.all(absolutePaths.map((path) => remove(path)));
+};
+
 export const createEsBundle = async ({
   name,
   cwd,
@@ -723,9 +758,14 @@ export const createEsBundle = async ({
 
   await progressLogger.finishEvent({ eventType: 'BUILD_CODE' });
 
-  const explicitlyIncludedFiles = includeFiles
-    ? (await getMatchingFilesByGlob({ globPattern: includeFiles, cwd })).toSorted()
-    : [];
+  const [includedSourceFiles, excludedSourceFiles] = await Promise.all([
+    includeFiles.length > 0 ? getMatchingFilesByGlob({ globPattern: includeFiles, cwd }) : [],
+    excludeFiles.length > 0 ? getMatchingFilesByGlob({ globPattern: excludeFiles, cwd }) : []
+  ]);
+  const excludedSourceFileSet = new Set(excludedSourceFiles.map((path) => path.replace(/\\/g, '/')));
+  const explicitlyIncludedFiles = includedSourceFiles
+    .filter((path) => !excludedSourceFileSet.has(path.replace(/\\/g, '/')))
+    .toSorted();
 
   const absoluteWorkloadSourceFiles = explicitlyIncludedFiles
     .map((path) => ({ path }))
@@ -811,8 +851,6 @@ export const createEsBundle = async ({
   });
 
   const copyProps = {
-    forceExclude: includeFiles,
-    forceInclude: excludeFiles,
     distFolderPath,
     workingDir: cwd,
     bundledItemName: name,
@@ -846,6 +884,7 @@ export const createEsBundle = async ({
     outputSourceMapsTo &&
       resolveDifferentSourceMapLocation({ outputSourceMapsTo, distFolderPath, workingDir: cwd, name })
   ]);
+  await removeExplicitlyExcludedFiles({ createPackagingError, excludeFiles, outputDirectory: distFolderPath });
   await progressLogger.finishEvent({ eventType: 'RESOLVE_DEPENDENCIES' });
 
   return {
