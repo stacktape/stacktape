@@ -11,8 +11,40 @@ import { stringifyToYaml } from '@utils/yaml';
 import merge from 'lodash/merge';
 import set from 'lodash/set';
 import type { ResourceOverrides } from '@stacktape/config/shared';
-import { CliError } from '@utils/errors';
+import { CliError, getUserCodeStackTrace } from '@utils/errors';
 import { templateManager } from '.';
+
+const throwTransformFailure = ({
+  code,
+  error,
+  subject
+}: {
+  code: 'CONFIG_RESOURCE_TRANSFORM_FAILED' | 'CONFIG_FINAL_TRANSFORM_FAILED';
+  error: unknown;
+  subject: string;
+}): never => {
+  if (error instanceof CliError) {
+    throw error;
+  }
+
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  throw new CliError({
+    category: 'SOURCE_CODE',
+    code,
+    message: `${subject} failed: ${errorMessage}`,
+    cause: error,
+    userStackTrace: error instanceof Error ? getUserCodeStackTrace(error) || undefined : undefined
+  });
+};
+
+const isNonArrayObject = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value) && !(value instanceof Promise);
+
+const describeTransformResult = (value: unknown) => {
+  if (value instanceof Promise) return 'a Promise';
+  if (Array.isArray(value)) return 'an array';
+  return value === null ? 'null' : typeof value;
+};
 
 const setTemplateDescriptions = () => {
   const { globallyUniqueStackHash, projectName, stage } = calculatedStackOverviewManager.context;
@@ -162,12 +194,44 @@ export const finalizeTemplate = async () => {
   }
   for (const [logicalName, transform] of Object.entries(configManager.transforms)) {
     const resource = templateManager.template.Resources[logicalName];
-    resource.Properties = transform(resource.Properties);
+    if (!resource) {
+      throw new CliError({
+        category: 'SOURCE_CODE',
+        code: 'CONFIG_RESOURCE_TRANSFORM_TARGET_MISSING',
+        message: `Resource transform target \`${logicalName}\` does not exist in the synthesized CloudFormation template.`,
+        hints: 'Check that the transform targets a resource synthesized by this command and configuration.'
+      });
+    }
+    try {
+      const transformedProperties = transform(resource.Properties);
+      if (!isNonArrayObject(transformedProperties)) {
+        throw new TypeError(
+          `Resource transforms must return a CloudFormation properties object, but this transform returned ${describeTransformResult(transformedProperties)}.`
+        );
+      }
+      resource.Properties = transformedProperties;
+    } catch (error) {
+      throwTransformFailure({
+        code: 'CONFIG_RESOURCE_TRANSFORM_FAILED',
+        error,
+        subject: `Resource transform for CloudFormation resource \`${logicalName}\``
+      });
+    }
   }
   if (configManager.finalTransform) {
     // This is the validation boundary for customer-authored whole-template transforms. The public authoring type
     // intentionally describes CloudFormation broadly; the CLI continues with its more precise synthesized shape.
-    templateManager.template = configManager.finalTransform(templateManager.template) as CloudformationTemplate;
+    try {
+      const transformedTemplate = configManager.finalTransform(templateManager.template);
+      if (!isNonArrayObject(transformedTemplate) || !isNonArrayObject(transformedTemplate.Resources)) {
+        throw new TypeError(
+          `Final template transforms must return a CloudFormation template with a Resources object, but this transform returned ${describeTransformResult(transformedTemplate)}.`
+        );
+      }
+      templateManager.template = transformedTemplate as CloudformationTemplate;
+    } catch (error) {
+      throwTransformFailure({ code: 'CONFIG_FINAL_TRANSFORM_FAILED', error, subject: 'Final template transform' });
+    }
   }
 
   // Overrides and transforms may introduce runtime directives.

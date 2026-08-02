@@ -22,6 +22,7 @@ import { finalizeTemplate } from '@domain-services/template-manager/finalize';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { getStackCfTemplateDescription } from '@stacktape/naming/stacks';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { CliError } from '@utils/errors';
 import { getConfigManagerContext } from '../../src/commands/_utils/initialization';
 import {
   ApplicationLoadBalancer,
@@ -405,6 +406,15 @@ export const withCredentiallessSynthesisBoundary = async <Result>(operation: () 
   }
 };
 
+const captureRejectedError = async (operation: () => Promise<unknown>) => {
+  try {
+    await operation();
+  } catch (error) {
+    return error;
+  }
+  throw new Error('Expected the operation to reject.');
+};
+
 const sortValue = (value: unknown): unknown => {
   if (Array.isArray(value)) {
     return value.map(sortValue);
@@ -695,6 +705,167 @@ describe('full synthesis contract', () => {
 
     expect(resources.FilesBucket.Properties.VersioningConfiguration).toEqual({ Status: 'Enabled' });
     expect(synthesizedTemplate.Metadata).toMatchObject({ ConfigAuthoringFinalTransform: true });
+  });
+
+  test('reports a resource transform failure with its logical resource and original cause', async () => {
+    const authoredError = new Error('Bucket encryption transform failed');
+    const error = await captureRejectedError(() =>
+      synthesizeDenseFixture({
+        beforeFinalize: () => {
+          configManager.transforms.FilesBucket = () => {
+            throw authoredError;
+          };
+        }
+      })
+    );
+
+    expect(error).toBeInstanceOf(CliError);
+    expect(error).toMatchObject({
+      category: 'SOURCE_CODE',
+      code: 'CONFIG_RESOURCE_TRANSFORM_FAILED',
+      message:
+        'Resource transform for CloudFormation resource `FilesBucket` failed: Bucket encryption transform failed',
+      userStackTrace: expect.stringContaining('synthesis-contract.spec.ts')
+    });
+    expect((error as Error).cause).toBe(authoredError);
+  });
+
+  test('reports a final transform failure with its original cause', async () => {
+    const authoredError = new Error('Final policy transform failed');
+    const error = await captureRejectedError(() =>
+      synthesizeDenseFixture({
+        beforeFinalize: () => {
+          configManager.finalTransform = () => {
+            throw authoredError;
+          };
+        }
+      })
+    );
+
+    expect(error).toBeInstanceOf(CliError);
+    expect(error).toMatchObject({
+      category: 'SOURCE_CODE',
+      code: 'CONFIG_FINAL_TRANSFORM_FAILED',
+      message: 'Final template transform failed: Final policy transform failed',
+      userStackTrace: expect.stringContaining('synthesis-contract.spec.ts')
+    });
+    expect((error as Error).cause).toBe(authoredError);
+  });
+
+  test('does not wrap a semantic error thrown by an authored transform', async () => {
+    const authoredError = new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'AUTHORED_TRANSFORM_REJECTED',
+      message: 'The authored transform rejected this configuration.'
+    });
+    const error = await captureRejectedError(() =>
+      synthesizeDenseFixture({
+        beforeFinalize: () => {
+          configManager.finalTransform = () => {
+            throw authoredError;
+          };
+        }
+      })
+    );
+
+    expect(error).toBe(authoredError);
+  });
+
+  test('rejects a resource transform that returns invalid CloudFormation properties', async () => {
+    const error = await captureRejectedError(() =>
+      synthesizeDenseFixture({
+        beforeFinalize: () => {
+          configManager.transforms.FilesBucket = (() =>
+            undefined) as unknown as (typeof configManager.transforms)[string];
+        }
+      })
+    );
+
+    expect(error).toMatchObject({
+      category: 'SOURCE_CODE',
+      code: 'CONFIG_RESOURCE_TRANSFORM_FAILED',
+      message:
+        'Resource transform for CloudFormation resource `FilesBucket` failed: Resource transforms must return a CloudFormation properties object, but this transform returned undefined.'
+    });
+    expect((error as Error).cause).toBeInstanceOf(TypeError);
+  });
+
+  test('rejects an accidental asynchronous resource transform', async () => {
+    const error = await captureRejectedError(() =>
+      synthesizeDenseFixture({
+        beforeFinalize: () => {
+          configManager.transforms.FilesBucket = (async (properties) => properties) as unknown as (
+            properties: Record<string, unknown>
+          ) => Record<string, unknown>;
+        }
+      })
+    );
+
+    expect(error).toMatchObject({
+      category: 'SOURCE_CODE',
+      code: 'CONFIG_RESOURCE_TRANSFORM_FAILED',
+      message:
+        'Resource transform for CloudFormation resource `FilesBucket` failed: Resource transforms must return a CloudFormation properties object, but this transform returned a Promise.'
+    });
+    expect((error as Error).cause).toBeInstanceOf(TypeError);
+  });
+
+  test('rejects an accidental asynchronous final transform', async () => {
+    const error = await captureRejectedError(() =>
+      synthesizeDenseFixture({
+        beforeFinalize: () => {
+          configManager.finalTransform = (async () => ({ Resources: {} })) as unknown as NonNullable<
+            typeof configManager.finalTransform
+          >;
+        }
+      })
+    );
+
+    expect(error).toMatchObject({
+      category: 'SOURCE_CODE',
+      code: 'CONFIG_FINAL_TRANSFORM_FAILED',
+      message:
+        'Final template transform failed: Final template transforms must return a CloudFormation template with a Resources object, but this transform returned a Promise.'
+    });
+    expect((error as Error).cause).toBeInstanceOf(TypeError);
+  });
+
+  test('preserves a primitive value thrown by an authored transform', async () => {
+    const authoredError = 'plain authored transform failure';
+    const error = await captureRejectedError(() =>
+      synthesizeDenseFixture({
+        beforeFinalize: () => {
+          configManager.finalTransform = () => {
+            throw authoredError;
+          };
+        }
+      })
+    );
+
+    expect(error).toMatchObject({
+      category: 'SOURCE_CODE',
+      code: 'CONFIG_FINAL_TRANSFORM_FAILED',
+      message: 'Final template transform failed: plain authored transform failure',
+      userStackTrace: undefined
+    });
+    expect((error as Error).cause).toBe(authoredError);
+  });
+
+  test('reports a transform whose CloudFormation target was not synthesized', async () => {
+    const error = await captureRejectedError(() =>
+      synthesizeDenseFixture({
+        beforeFinalize: () => {
+          configManager.transforms.MissingResource = (properties) => properties;
+        }
+      })
+    );
+
+    expect(error).toMatchObject({
+      category: 'SOURCE_CODE',
+      code: 'CONFIG_RESOURCE_TRANSFORM_TARGET_MISSING',
+      message: 'Resource transform target `MissingResource` does not exist in the synthesized CloudFormation template.',
+      hints: ['Check that the transform targets a resource synthesized by this command and configuration.']
+    });
   });
 
   test('rejects a resource override that targets an unrelated CloudFormation resource', async () => {
