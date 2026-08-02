@@ -175,6 +175,9 @@ export interface EsLanguageSpecificConfig {
   tsConfigPath?: string;
   /**
    * #### Emit TypeScript decorator metadata. Required by NestJS, TypeORM, and similar frameworks.
+   *
+   * Source maps are disabled for this artifact because the decorator transform and bundler cannot yet compose their
+   * mappings accurately. Emitting a map would give production stack traces incorrect line numbers.
   *
   * ---
   *

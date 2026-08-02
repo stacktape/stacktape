@@ -73,6 +73,7 @@ export const buildEsCode = async ({
   sourcePaths,
   splitting = false,
   outputModuleFormat = 'cjs',
+  emitTsDecoratorMetadata,
   plugins,
   excludeDependencies = [],
   dependenciesToExcludeFromBundle = [],
@@ -128,6 +129,15 @@ export const buildEsCode = async ({
     const cwdTsConfigPath = join(cwd, 'tsconfig.json');
     tsConfigPathForBuild = existsSync(cwdTsConfigPath) ? cwdTsConfigPath : undefined;
   }
+
+  // Bun.build takes decorator options from the tsconfig it discovers next to each source file and ignores the one
+  // passed here, so the option is honored by transpiling decorated sources before they reach the bundler.
+  const decoratorMetadataPlugin = emitTsDecoratorMetadata
+    ? (await import('./decorator-metadata')).createDecoratorMetadataPlugin({
+        createPackagingError,
+        tsConfigPath: tsConfigPathForBuild
+      })
+    : undefined;
 
   const skipAwsSdkV3Deps =
     isLambda &&
@@ -427,6 +437,7 @@ export const buildEsCode = async ({
       stpAnalyzeDepsPlugin,
       looseResolvePlugin,
       nativeNodeModulesPlugin,
+      ...(decoratorMetadataPlugin ? [decoratorMetadataPlugin] : []),
       ...(plugins || [])
     ];
 
@@ -740,7 +751,9 @@ export const createEsBundle = async ({
       minify,
       sourcePath: entryfilePath,
       distPath: distIndexFilePath,
-      sourceMaps: sourceMaps || 'external',
+      // TypeScript expands decorators before Bun sees the module. Bun does not compose the transform's source map,
+      // so emitting its map would produce incorrect stack-trace line numbers. Prefer no map over a misleading one.
+      sourceMaps: emitTsDecoratorMetadata ? 'disabled' : sourceMaps || 'external',
       sourceMapBannerType: sourceMapBannerType || 'pre-compiled',
       externals,
       dependenciesToExcludeFromBundle,
