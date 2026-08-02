@@ -154,7 +154,8 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 pnpm --filter @stacktape/cli run generate        # starter metadata plus deterministic config JSON/Zod schemas
 pnpm exec turbo run generate:llm-docs --filter @stacktape/cli # enhanced schema and complete shipped LLM corpus
 pnpm --filter @stacktape/cli run typecheck       # CLI, build/test projects, smoke fixtures and committed generated TypeScript
-pnpm --filter @stacktape/cli run test            # characterization, generators, command/Docker secret safety, release security, MCP docs, helper Lambdas, CLI smoke
+pnpm --filter @stacktape/cli run test            # complete source suite, characterization, generators, release/security checks, helper Lambdas, CLI smoke
+pnpm --filter @stacktape/cli run test:src        # all colocated source tests, isolated per file to contain Bun module mocks
 pnpm --filter @stacktape/cli run test:config-unit # authored-config npm API and directive-resolution unit tests
 pnpm --filter @stacktape/cli run test:generators      # generator unit tests: JSDoc escaping, cloudform naming/generics
 pnpm --filter @stacktape/cli run test:llm-docs        # corpus integrity and documented runtime safety invariants
@@ -166,15 +167,10 @@ pnpm --filter @stacktape/cli run test:release-artifact
 pnpm --filter @stacktape/cli run test:helper-lambdas # helper-Lambda runtime tests; no bundling, runs everywhere
 ```
 
-Two known constraints:
-
-- Bun applies `mock.module()` process-wide, and several `src/**/__tests__` files stub whole application singletons.
-  Those files pass individually but cannot share one `bun test` process, so `test` runs the product's lanes rather
-  than the whole tree. Making the unit tests process-safe is outstanding work.
-- On Windows, Bun 1.3.9's bundler aborts on modules reached through pnpm's symlinked `node_modules`
-  ("Expected pretty file path to have only forward slashes"). Every Bun-bundling lane — `build`, `build:dist`,
-  `pkg:hl`, `test:characterization:helper-lambdas`, `test:cli-smoke`, `test:release-artifact` — therefore has to run
-  on Linux or macOS. Typecheck and the non-bundling test lanes run everywhere.
+Bun applies `mock.module()` process-wide. The normal `test:src` lane therefore uses Bun's per-file isolation and
+covers every colocated source test without allowing one test file's application-singleton mocks to affect another.
+The workspace-pinned Bun version also runs the normal build, compiled-binary smoke test, and helper-Lambda packaging
+lanes on Windows; keep CI aligned with the root engine requirement when upgrading it.
 
 ## Deferred
 

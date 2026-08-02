@@ -5,7 +5,7 @@ and agents; `AGENTS.md` still owns the architecture and review rules.
 
 ## Setup
 
-- Node >= 24, pnpm 11.17 (`packageManager` pins it), Bun 1.3.9, Git.
+- Node >= 24, pnpm 11.17 (`packageManager` pins it), Bun 1.3.14, Git.
 - Docker only for the container/image buildpacks and the local database emulation of `dev` mode.
 - `apps/console` is a private submodule. Its absence is normal; everything below works without it.
 
@@ -129,11 +129,8 @@ Notes that save time:
 - Scratch output lands in `.stacktape/` next to the config file, and stack outputs in `.stacktape-stack-info/`. Both
   are git-ignored.
 
-**Platform constraint.** On Windows, Bun 1.3.9's bundler panics on modules reached through pnpm's symlinked
-`node_modules` ("Expected pretty file path to have only forward slashes"), which takes down the helper-Lambda
-packaging step and therefore the whole `dev` wrapper. Run the development CLI, complete `pnpm check`/`check:public`,
-and every Bun-bundling test lane on Linux, macOS, or WSL. Typecheck, lint, formatting, and the focused non-bundling
-tests run on Windows; see `apps/cli/AGENTS.md` for the exact list of bundling lanes.
+The normal build, compiled-binary smoke test, helper-Lambda packaging, typecheck, and non-bundling test lanes run on
+Windows as well as Linux/macOS. CI uses the same pinned Bun version as local development.
 
 **Using WSL from a Windows machine.** Do not point WSL at the Windows checkout under `/mnt/c`. `pnpm install` on
 Windows resolves Windows builds of the workspace's native dependencies, and reusing that `node_modules` from Linux

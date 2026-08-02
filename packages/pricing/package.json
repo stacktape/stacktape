@@ -29,7 +29,6 @@
     "typescript": "catalog:"
   },
   "engines": {
-    "bun": "1.3.9",
     "node": ">=24"
   }
 }

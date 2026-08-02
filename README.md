@@ -5,7 +5,7 @@ config, naming, Console API contract, design-token, and packaging capabilities n
 The docs and website are intentionally still small Astro shells. Release publishing and default-branch cutover remain
 disabled until their release-readiness gates are complete.
 
-Prerequisites: Node.js 24+, pnpm 11.17.0, and Bun 1.3.9 — the CLI builds, generates and tests with Bun, and
+Prerequisites: Node.js 24+, pnpm 11.17.0, and Bun 1.3.14 — the CLI builds, generates and tests with Bun, and
 `apps/cli/AGENTS.md` records where that matters.
 
 Public contributors clone and work normally:

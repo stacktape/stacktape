@@ -6,13 +6,29 @@ import {
   getRequiredDeletePermission,
   isProductionStage
 } from '../permission-guards';
+import { CliError } from '@utils/errors';
 
-const expectGuardThrowHint = ({ fn, hintPattern }: { fn: () => void; hintPattern: RegExp }) => {
+const expectGuardError = ({
+  fn,
+  code,
+  messageIncludes,
+  hintIncludes
+}: {
+  fn: () => void;
+  code: string;
+  messageIncludes?: string;
+  hintIncludes?: string;
+}) => {
   try {
     fn();
     expect.unreachable('Expected function to throw');
-  } catch (error: any) {
-    expect(String(error?.hint || '')).toMatch(hintPattern);
+  } catch (error: unknown) {
+    expect(error).toBeInstanceOf(CliError);
+    if (!(error instanceof CliError)) throw error;
+
+    expect(error.code).toBe(code);
+    if (messageIncludes) expect(error.message).toContain(messageIncludes);
+    if (hintIncludes) expect(error.hints.join('\n')).toContain(hintIncludes);
   }
 };
 
@@ -62,7 +78,7 @@ describe('assertPermission', () => {
   });
 
   test('throws with required permission in hint when missing', () => {
-    expectGuardThrowHint({
+    expectGuardError({
       fn: () =>
         assertPermission({
           permission: 'deployments:deploy',
@@ -70,19 +86,21 @@ describe('assertPermission', () => {
           permissions: ['projects:view'],
           role: 'VIEWER'
         }),
-      hintPattern: /Required permission: deployments:deploy/
+      code: 'CLI_PERMISSION_DENIED',
+      hintIncludes: 'deployments:deploy'
     });
   });
 
   test('falls back to UNKNOWN role when role is missing', () => {
-    expectGuardThrowHint({
+    expectGuardError({
       fn: () =>
         assertPermission({
           permission: 'deployments:deploy',
           reason: 'deploy operation is not allowed for your role.',
           permissions: []
         }),
-      hintPattern: /Current role: UNKNOWN/
+      code: 'CLI_PERMISSION_DENIED',
+      hintIncludes: 'UNKNOWN'
     });
   });
 });
@@ -127,13 +145,16 @@ describe('assertScopedProjectAccess', () => {
   });
 
   test('throws for scoped role without access', () => {
-    expect(() =>
-      assertScopedProjectAccess({
-        role: 'DEVELOPER',
-        projectName: 'ai-tests',
-        projects: [{ name: 'web-store' }]
-      })
-    ).toThrow(/You do not have access to project "ai-tests"/);
+    expectGuardError({
+      fn: () =>
+        assertScopedProjectAccess({
+          role: 'DEVELOPER',
+          projectName: 'ai-tests',
+          projects: [{ name: 'web-store' }]
+        }),
+      code: 'CLI_PROJECT_ACCESS_DENIED',
+      messageIncludes: 'ai-tests'
+    });
   });
 
   test('does not throw for scoped role with exact access', () => {
@@ -147,13 +168,16 @@ describe('assertScopedProjectAccess', () => {
   });
 
   test('uses exact case-sensitive project name matching', () => {
-    expect(() =>
-      assertScopedProjectAccess({
-        role: 'DEVELOPER',
-        projectName: 'Web-Store',
-        projects: [{ name: 'web-store' }]
-      })
-    ).toThrow(/You do not have access to project "Web-Store"/);
+    expectGuardError({
+      fn: () =>
+        assertScopedProjectAccess({
+          role: 'DEVELOPER',
+          projectName: 'Web-Store',
+          projects: [{ name: 'web-store' }]
+        }),
+      code: 'CLI_PROJECT_ACCESS_DENIED',
+      messageIncludes: 'Web-Store'
+    });
   });
 });
 
@@ -170,7 +194,7 @@ describe('assertCommandPermissions', () => {
   });
 
   test('deploy requires deployments:deploy permission', () => {
-    expectGuardThrowHint({
+    expectGuardError({
       fn: () =>
         assertCommandPermissions({
           command: 'deploy',
@@ -179,20 +203,24 @@ describe('assertCommandPermissions', () => {
           projectName: 'web-store',
           projects: [{ name: 'web-store' }]
         }),
-      hintPattern: /Required permission: deployments:deploy/
+      code: 'CLI_PERMISSION_DENIED',
+      hintIncludes: 'deployments:deploy'
     });
   });
 
   test('deploy enforces scoped project access after permission check', () => {
-    expect(() =>
-      assertCommandPermissions({
-        command: 'deploy',
-        role: 'DEVELOPER',
-        permissions: ['deployments:deploy'],
-        projectName: 'ai-tests',
-        projects: [{ name: 'web-store' }]
-      })
-    ).toThrow(/You do not have access to project "ai-tests"/);
+    expectGuardError({
+      fn: () =>
+        assertCommandPermissions({
+          command: 'deploy',
+          role: 'DEVELOPER',
+          permissions: ['deployments:deploy'],
+          projectName: 'ai-tests',
+          projects: [{ name: 'web-store' }]
+        }),
+      code: 'CLI_PROJECT_ACCESS_DENIED',
+      messageIncludes: 'ai-tests'
+    });
   });
 
   test('deploy passes for scoped project with access', () => {
@@ -208,7 +236,7 @@ describe('assertCommandPermissions', () => {
   });
 
   test('delete on prod requires deployments:delete-production', () => {
-    expectGuardThrowHint({
+    expectGuardError({
       fn: () =>
         assertCommandPermissions({
           command: 'delete',
@@ -218,12 +246,13 @@ describe('assertCommandPermissions', () => {
           projectName: 'web-store',
           projects: [{ name: 'web-store' }]
         }),
-      hintPattern: /Required permission: deployments:delete-production/
+      code: 'CLI_PERMISSION_DENIED',
+      hintIncludes: 'deployments:delete-production'
     });
   });
 
   test('delete on production (case/whitespace) requires production permission', () => {
-    expectGuardThrowHint({
+    expectGuardError({
       fn: () =>
         assertCommandPermissions({
           command: 'delete',
@@ -233,12 +262,13 @@ describe('assertCommandPermissions', () => {
           projectName: 'web-store',
           projects: [{ name: 'web-store' }]
         }),
-      hintPattern: /Required permission: deployments:delete-production/
+      code: 'CLI_PERMISSION_DENIED',
+      hintIncludes: 'deployments:delete-production'
     });
   });
 
   test('delete on non-production requires deployments:delete-non-production', () => {
-    expectGuardThrowHint({
+    expectGuardError({
       fn: () =>
         assertCommandPermissions({
           command: 'delete',
@@ -248,12 +278,13 @@ describe('assertCommandPermissions', () => {
           projectName: 'web-store',
           projects: [{ name: 'web-store' }]
         }),
-      hintPattern: /Required permission: deployments:delete-non-production/
+      code: 'CLI_PERMISSION_DENIED',
+      hintIncludes: 'deployments:delete-non-production'
     });
   });
 
   test('delete defaults to non-production permission when stage missing', () => {
-    expectGuardThrowHint({
+    expectGuardError({
       fn: () =>
         assertCommandPermissions({
           command: 'delete',
@@ -262,21 +293,25 @@ describe('assertCommandPermissions', () => {
           projectName: 'web-store',
           projects: [{ name: 'web-store' }]
         }),
-      hintPattern: /Required permission: deployments:delete-non-production/
+      code: 'CLI_PERMISSION_DENIED',
+      hintIncludes: 'deployments:delete-non-production'
     });
   });
 
   test('delete with right permission still enforces scoped project access', () => {
-    expect(() =>
-      assertCommandPermissions({
-        command: 'delete',
-        stage: 'dev',
-        role: 'DEVELOPER',
-        permissions: ['deployments:delete-non-production'],
-        projectName: 'ai-tests',
-        projects: [{ name: 'web-store' }]
-      })
-    ).toThrow(/You do not have access to project "ai-tests"/);
+    expectGuardError({
+      fn: () =>
+        assertCommandPermissions({
+          command: 'delete',
+          stage: 'dev',
+          role: 'DEVELOPER',
+          permissions: ['deployments:delete-non-production'],
+          projectName: 'ai-tests',
+          projects: [{ name: 'web-store' }]
+        }),
+      code: 'CLI_PROJECT_ACCESS_DENIED',
+      messageIncludes: 'ai-tests'
+    });
   });
 
   test('delete passes for developer with non-production permission and project access', () => {

@@ -10,6 +10,19 @@ import { parse as parseYaml } from 'yaml';
 const readReleaseWorkflow = () =>
   readFile(join(process.cwd(), '..', '..', '.github', 'workflows', 'release.yml'), 'utf8');
 
+const readCiWorkflow = () => readFile(join(process.cwd(), '..', '..', '.github', 'workflows', 'ci.yml'), 'utf8');
+
+const readWorkspaceBunVersion = async () => {
+  const manifest: unknown = JSON.parse(await readFile(join(process.cwd(), '..', '..', 'package.json'), 'utf8'));
+  if (!isRecord(manifest) || !isRecord(manifest.engines) || typeof manifest.engines.bun !== 'string') {
+    throw new Error('Root package.json must declare the workspace Bun version.');
+  }
+  return manifest.engines.bun;
+};
+
+const getWorkflowVersions = ({ workflow, key }: { workflow: string; key: string }) =>
+  [...workflow.matchAll(new RegExp(`^\\s+${key}:\\s*([^\\s#]+)`, 'gm'))].map((match) => match[1]);
+
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
@@ -187,6 +200,7 @@ describe('release candidate workflow', () => {
   test('pins every third-party action and toolchain version', async () => {
     const workflow = await readReleaseWorkflow();
     const actionUses = [...workflow.matchAll(/^\s+- uses: ([^\s#]+)/gm)].map((match) => match[1]);
+    const workspaceBunVersion = await readWorkspaceBunVersion();
 
     expect(actionUses.length).toBeGreaterThan(0);
     for (const action of actionUses) {
@@ -194,6 +208,12 @@ describe('release candidate workflow', () => {
     }
     expect(workflow).toContain('version: 11.17.0');
     expect(workflow).toContain('node-version: 24');
-    expect(workflow).toContain('bun-version: 1.3.9');
+    expect(workspaceBunVersion).toBe('1.3.14');
+    expect(getWorkflowVersions({ workflow, key: 'bun-version' })).toEqual(
+      Array.from({ length: 6 }, () => workspaceBunVersion)
+    );
+    expect(getWorkflowVersions({ workflow: await readCiWorkflow(), key: 'bun-version' })).toEqual([
+      workspaceBunVersion
+    ]);
   });
 });
