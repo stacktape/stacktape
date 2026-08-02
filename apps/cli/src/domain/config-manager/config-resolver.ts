@@ -7,6 +7,7 @@ import {
   type ResourceTransform
 } from '@stacktape/config-authoring/tooling';
 import type { DirectiveParam } from '@utils/directives';
+import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { open, rm, type FileHandle } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -130,6 +131,61 @@ type DirectiveToProcess = Directive & {
   definitionWithoutPath: string;
 };
 
+/**
+ * Directive results are reused on purpose: a configuration repeats the same definition many times and resolving it
+ * once keeps the resolved configuration consistent. Local resolution deliberately returns different values for the
+ * same definition (a deployed value instead of a CloudFormation reference), so it keeps its own results.
+ */
+type DirectiveResultCache = {
+  /** Directive result, keyed by the definition without its property path. */
+  results: Map<string, unknown>;
+  /**
+   * Value of the property path applied to a directive result, keyed by the full definition. Runtime resolution can
+   * replace returned runtime directives, so its derived values must not leak into authoring-time resolution.
+   */
+  resultsWithPath: {
+    withoutRuntime: Map<string, unknown>;
+    withRuntime: Map<string, unknown>;
+  };
+  /** Resolution already started by an overlapping invocation, keyed by the definition without its property path. */
+  pendingResults: Map<string, Promise<unknown>>;
+};
+
+/** Queue and options of one `resolveDirectives` invocation. Nested and overlapping invocations each own their queue. */
+type DirectiveResolution = {
+  cache: DirectiveResultCache;
+  queue: Stack<DirectiveToProcess>;
+  resultsWithPath: Map<string, unknown>;
+  resolveRuntime: boolean;
+  useLocalResolve: boolean;
+};
+
+type QueuedDirectiveOutcome = 'cached' | 'deferred' | 'resolved';
+
+const createDirectiveResultCache = (): DirectiveResultCache => ({
+  results: new Map<string, unknown>(),
+  resultsWithPath: {
+    withoutRuntime: new Map<string, unknown>(),
+    withRuntime: new Map<string, unknown>()
+  },
+  pendingResults: new Map<string, Promise<unknown>>()
+});
+
+const getDirectiveDependenciesUnresolvedError = (rawDefinitions: string[]) => {
+  const definitions = [...new Set(rawDefinitions)].sort();
+  return new CliError({
+    category: 'DIRECTIVE',
+    code: 'DIRECTIVE_DEPENDENCIES_UNRESOLVED',
+    message: `Directive resolution stopped making progress. These directives never resolved to a value: ${definitions
+      .map((definition) => `\`${definition}\``)
+      .join(', ')}.`,
+    hints: [
+      'A directive waits when one of its arguments is another directive that never produces a value.',
+      'Check the listed definitions for a directive that returns nothing, or for directives that depend on each other in a cycle.'
+    ]
+  });
+};
+
 export type ConfigResolverContext = Readonly<{
   authoringParams: GetConfigParams;
   builtInDirectives: BuiltInDirectiveContext;
@@ -140,10 +196,7 @@ export type ConfigResolverContext = Readonly<{
 }>;
 
 export class ConfigResolver {
-  directivesToProcess = new Stack<DirectiveToProcess>();
   registeredDirectives: { [name: string]: Directive } = {};
-  results: { [rawDefinition: string]: any } = {};
-  resultsWithPath: { [rawDefinitionWithPath: string]: any } = {};
   rawConfig: StacktapeConfig = null;
   resolvedConfig: StacktapeConfig = null;
   transforms: Record<string, ResourceTransform> = {};
@@ -151,6 +204,10 @@ export class ConfigResolver {
   #context: ConfigResolverContext | undefined;
   #builtInDirectiveNames = new Set<string>();
   #builtInRuntimeDirectiveNames = new Set<string>();
+  #normalResolveCache = createDirectiveResultCache();
+  #localResolveCache = createDirectiveResultCache();
+  #activeDirectiveDefinitions = new AsyncLocalStorage<ReadonlySet<string>>();
+  #allCaches = () => [this.#normalResolveCache, this.#localResolveCache];
 
   private get context(): ConfigResolverContext {
     if (!this.#context) {
@@ -168,15 +225,31 @@ export class ConfigResolver {
     this.#context = Object.freeze({ ...context });
   };
 
-  get builtInRuntimeDirectiveNames() {
-    return [...this.#builtInRuntimeDirectiveNames];
+  /** Definitions resolved so far, used to identify external inputs that make a rollback unsafe. */
+  get resolvedDirectiveDefinitions(): string[] {
+    return [...new Set(this.#allCaches().flatMap((cache) => [...cache.results.keys()]))];
   }
 
+  /**
+   * Runtime directives describe deployed infrastructure, so their results stop being valid once the stack changes.
+   * Path-qualified results are dropped completely because any of them may have been derived from a runtime directive.
+   */
+  invalidateRuntimeDirectiveResults = () => {
+    for (const cache of this.#allCaches()) {
+      for (const definition of cache.results.keys()) {
+        if (this.#builtInRuntimeDirectiveNames.has(getDirectiveName(definition))) {
+          cache.results.delete(definition);
+        }
+      }
+      cache.resultsWithPath.withoutRuntime.clear();
+      cache.resultsWithPath.withRuntime.clear();
+    }
+  };
+
   reset = () => {
-    this.directivesToProcess = new Stack<DirectiveToProcess>();
     this.registeredDirectives = {};
-    this.results = {};
-    this.resultsWithPath = {};
+    this.#normalResolveCache = createDirectiveResultCache();
+    this.#localResolveCache = createDirectiveResultCache();
     this.rawConfig = null;
     this.resolvedConfig = null;
     this.transforms = {};
@@ -394,27 +467,27 @@ export class ConfigResolver {
     this.registeredDirectives[directive.name] = directive as any;
   };
 
-  enqueueUnresolvedUsedDirectives = async ({ obj, resolveRuntime }: { obj: any; resolveRuntime?: boolean }) => {
+  #enqueueUnresolvedUsedDirectives = async (resolution: DirectiveResolution, obj: any) => {
     return processAllNodes(obj, async (node) => {
       if (getIsDirective(node)) {
-        this.addDirectiveToProcess(node, resolveRuntime, false);
+        this.#enqueueDirective(resolution, node);
       }
     });
   };
 
-  addDirectiveToProcess = (rawDefinition: string, includeRuntime?: boolean, append?: boolean) => {
+  /**
+   * Queues a directive ahead of the directives already waiting, then queues the directives used as its arguments ahead
+   * of it, so an argument is always processed before the directive that consumes it.
+   */
+  #enqueueDirective = (resolution: DirectiveResolution, rawDefinition: string) => {
     const directiveInfo = this.getDirectiveInfo(rawDefinition);
-    if (directiveInfo.isRuntime && !includeRuntime) {
+    if (directiveInfo.isRuntime && !resolution.resolveRuntime) {
       return;
     }
-    if (append) {
-      this.directivesToProcess.append(directiveInfo);
-    } else {
-      this.directivesToProcess.prepend(directiveInfo);
-    }
+    resolution.queue.prepend(directiveInfo);
     directiveInfo.params.forEach((param) => {
       if (param.isDirective) {
-        this.addDirectiveToProcess(param.definition, includeRuntime);
+        this.#enqueueDirective(resolution, param.definition);
       }
     });
   };
@@ -441,16 +514,8 @@ export class ConfigResolver {
     };
   };
 
-  getDirectiveValue = async ({
-    rawDefinition,
-    resolveRuntime,
-    useLocalResolve
-  }: {
-    rawDefinition: string;
-    resolveRuntime: boolean;
-    useLocalResolve: boolean;
-  }) => {
-    const directiveResult = this.results[getDirectiveWithoutPath(rawDefinition)];
+  #getDirectiveValue = async (resolution: DirectiveResolution, rawDefinition: string) => {
+    const directiveResult = resolution.cache.results.get(getDirectiveWithoutPath(rawDefinition));
     if (directiveResult === undefined || directiveResult === null) {
       return null;
     }
@@ -465,9 +530,6 @@ export class ConfigResolver {
           rawDefinition
         )}\`.`
       });
-    }
-    if (getIsDirective(value)) {
-      return this.resolveDirectives({ itemToResolve: value, resolveRuntime, useLocalResolve });
     }
     return value;
   };
@@ -504,104 +566,151 @@ export class ConfigResolver {
     return directiveResult;
   };
 
-  processDirectives = async ({
-    resolveRuntime,
-    useLocalResolve
-  }: {
-    resolveRuntime: boolean;
-    useLocalResolve: boolean;
-  }) => {
-    while (this.directivesToProcess.length) {
-      const directive = this.directivesToProcess.pop();
+  #processQueuedDirective = async (
+    resolution: DirectiveResolution,
+    directive: DirectiveToProcess
+  ): Promise<QueuedDirectiveOutcome> => {
+    const { cache } = resolution;
+    const { resultsWithPath } = resolution;
+
+    // Presence, not truthiness: a directive that legitimately resolved to `false`, `0` or `''` is resolved.
+    if (resultsWithPath.has(directive.rawDefinition)) {
+      return 'cached';
+    }
+    if (cache.results.has(directive.definitionWithoutPath) && !directive.lazyLoad) {
+      resultsWithPath.set(directive.rawDefinition, await this.#getDirectiveValue(resolution, directive.rawDefinition));
+      return 'cached';
+    }
+
+    directive.params.forEach((param) => {
+      if (param.isDirective) {
+        const { isRuntime } = this.getDirectiveInfo(param.definition);
+        if (isRuntime && !directive.isRuntime) {
+          throw new CliError({
+            category: 'DIRECTIVE',
+            code: 'DIRECTIVE_RUNTIME_DEPENDENCY_INVALID',
+            message: `Non-runtime directive \`${directive.name}\` cannot depend on runtime directive \`${param.name}\`.`
+          });
+        }
+      }
+    });
+
+    const params = await Promise.all(
+      directive.params.map(async (param) => {
+        if (param.value !== null) {
+          return param.value;
+        }
+        return this.#getDirectiveValue(resolution, param.definition);
+      })
+    );
+
+    if (params.some((param) => param === null || param === undefined)) {
+      resolution.queue.append(directive);
+      return 'deferred';
+    }
+
+    if (directive.requiredParams) {
+      validatePrimitiveFunctionParams(params, directive.requiredParams, `Directive ${directive.name}`);
+    }
+
+    const resultKey = directive.definitionWithoutPath;
+    let pendingResult = cache.pendingResults.get(resultKey);
+    const activeDefinitions = this.#activeDirectiveDefinitions.getStore();
+    if (pendingResult && activeDefinitions?.has(resultKey)) {
+      throw getDirectiveDependenciesUnresolvedError([...activeDefinitions, resultKey]);
+    }
+    if (!pendingResult) {
+      const fn =
+        directive.localResolveFunction && resolution.useLocalResolve
+          ? directive.localResolveFunction
+          : directive.resolveFunction;
+      const nestedActiveDefinitions = new Set(activeDefinitions);
+      nestedActiveDefinitions.add(resultKey);
+      pendingResult = this.#activeDirectiveDefinitions.run(nestedActiveDefinitions, () =>
+        Promise.resolve().then(() => fn(this)(...params))
+      );
+      cache.pendingResults.set(resultKey, pendingResult);
+    }
+
+    let result: unknown;
+    try {
+      result = await pendingResult;
+    } finally {
+      if (cache.pendingResults.get(resultKey) === pendingResult) {
+        cache.pendingResults.delete(resultKey);
+      }
+    }
+    cache.results.set(directive.definitionWithoutPath, result);
+    resultsWithPath.set(directive.rawDefinition, await this.#getDirectiveValue(resolution, directive.rawDefinition));
+    return 'resolved';
+  };
+
+  /**
+   * Drains the invocation's queue. A directive whose arguments are not resolved yet goes back to the end of the queue,
+   * so the queue is worked through in passes. A pass in which every directive was deferred can never make progress on
+   * a later pass either, so resolution fails there instead of looping.
+   */
+  #processDirectives = async (resolution: DirectiveResolution) => {
+    let directivesInPass = resolution.queue.length;
+    let processedInPass = 0;
+    let deferredInPass: DirectiveToProcess[] = [];
+
+    while (resolution.queue.length) {
+      const directive = resolution.queue.pop();
+      let outcome: QueuedDirectiveOutcome;
       try {
-        if (
-          this.results[directive.definitionWithoutPath] &&
-          !directive.lazyLoad &&
-          !this.resultsWithPath[directive.rawDefinition]
-        ) {
-          const value = await this.getDirectiveValue({
-            rawDefinition: directive.rawDefinition,
-            resolveRuntime,
-            useLocalResolve
-          });
-          this.resultsWithPath[directive.rawDefinition] = value;
-          continue;
-        }
-        if (this.resultsWithPath[directive.rawDefinition]) {
-          continue;
-        }
-
-        directive.params.forEach((param) => {
-          if (param.isDirective) {
-            const { isRuntime } = this.getDirectiveInfo(param.definition);
-            if (isRuntime && !directive.isRuntime) {
-              throw new CliError({
-                category: 'DIRECTIVE',
-                code: 'DIRECTIVE_RUNTIME_DEPENDENCY_INVALID',
-                message: `Non-runtime directive \`${directive.name}\` cannot depend on runtime directive \`${param.name}\`.`
-              });
-            }
-          }
-        });
-
-        const params = await Promise.all(
-          directive.params.map(async (param) => {
-            if (param.value !== null) {
-              return param.value;
-            }
-            return this.getDirectiveValue({
-              rawDefinition: param.definition,
-              resolveRuntime,
-              useLocalResolve
-            });
-          })
-        );
-
-        if (params.find((param) => param === null || param === undefined)) {
-          this.directivesToProcess.append(directive);
-        } else {
-          if (directive.requiredParams) {
-            validatePrimitiveFunctionParams(params, directive.requiredParams, `Directive ${directive.name}`);
-          }
-
-          const fn =
-            directive.localResolveFunction && useLocalResolve
-              ? directive.localResolveFunction
-              : directive.resolveFunction;
-          const result = await fn(this)(...params);
-          this.results[directive.definitionWithoutPath] = result;
-          this.resultsWithPath[directive.rawDefinition] = await this.getDirectiveValue({
-            rawDefinition: directive.rawDefinition,
-            resolveRuntime,
-            useLocalResolve
-          });
-        }
+        outcome = await this.#processQueuedDirective(resolution, directive);
       } catch (err) {
         if (err instanceof CliError) {
           throw err;
         }
         throw new Error(`Error processing directive ${directive.definitionWithoutPath}.`, { cause: err });
       }
-      for (const rawDefinition in this.resultsWithPath) {
-        const value = this.resultsWithPath[rawDefinition];
-        if (this.resultsWithPath[value]) {
-          this.resultsWithPath[rawDefinition] = this.resultsWithPath[value];
+      if (outcome !== 'cached') {
+        this.#adoptAliasedResults(resolution.resultsWithPath);
+      }
+
+      processedInPass += 1;
+      if (outcome === 'deferred') {
+        deferredInPass.push(directive);
+      }
+      if (processedInPass === directivesInPass) {
+        if (deferredInPass.length === directivesInPass) {
+          throw getDirectiveDependenciesUnresolvedError(deferredInPass.map(({ rawDefinition }) => rawDefinition));
         }
+        directivesInPass = resolution.queue.length;
+        processedInPass = 0;
+        deferredInPass = [];
       }
     }
   };
 
-  replaceDirectiveNodesWithResults = async (obj: any) => {
+  /**
+   * A directive may resolve to another directive's definition. Once that definition has a value, the results pointing
+   * at it adopt that value so the configuration reaches a fixed point instead of keeping the intermediate definition.
+   */
+  #adoptAliasedResults = (resultsWithPath: Map<string, unknown>) => {
+    for (const [rawDefinition, value] of resultsWithPath) {
+      if (typeof value === 'string' && resultsWithPath.has(value)) {
+        resultsWithPath.set(rawDefinition, resultsWithPath.get(value));
+      }
+    }
+  };
+
+  #replaceDirectiveNodesWithResults = async (resolution: DirectiveResolution, obj: any) => {
     return processAllNodes(obj, async (node) => {
       if (!getIsDirective(node)) {
         return node;
       }
-
-      if (!(node in this.resultsWithPath)) {
+      if (!resolution.resolveRuntime && this.getDirectiveInfo(node).isRuntime) {
         return node;
       }
 
-      const value = this.resultsWithPath[node];
+      if (!resolution.resultsWithPath.has(node)) {
+        return node;
+      }
+
+      const value = resolution.resultsWithPath.get(node);
       if (value === undefined || value === null) {
         throw new CliError({
           category: 'DIRECTIVE',
@@ -640,22 +749,31 @@ export class ConfigResolver {
     resolveRuntime: boolean;
     useLocalResolve?: boolean;
   }): Promise<T> => {
+    const cache = useLocalResolve ? this.#localResolveCache : this.#normalResolveCache;
+    const resolution: DirectiveResolution = {
+      cache,
+      queue: new Stack<DirectiveToProcess>(),
+      resultsWithPath: resolveRuntime ? cache.resultsWithPath.withRuntime : cache.resultsWithPath.withoutRuntime,
+      resolveRuntime,
+      useLocalResolve: useLocalResolve === true
+    };
     let result = serialize(itemToResolve);
 
     if (getIsDirective(itemToResolve)) {
-      this.addDirectiveToProcess(itemToResolve, resolveRuntime);
+      this.#enqueueDirective(resolution, itemToResolve);
     } else {
-      await this.enqueueUnresolvedUsedDirectives({ obj: result, resolveRuntime });
+      await this.#enqueueUnresolvedUsedDirectives(resolution, result);
     }
 
     let shouldScanResolvedResult = false;
-    while (this.directivesToProcess.length || shouldScanResolvedResult) {
+    let previouslyRemaining: string | null = null;
+    while (resolution.queue.length || shouldScanResolvedResult) {
       if (shouldScanResolvedResult) {
-        await this.enqueueUnresolvedUsedDirectives({ obj: result, resolveRuntime });
+        await this.#enqueueUnresolvedUsedDirectives(resolution, result);
       }
-      await this.processDirectives({ resolveRuntime, useLocalResolve });
+      await this.#processDirectives(resolution);
       try {
-        result = await this.replaceDirectiveNodesWithResults(result);
+        result = await this.#replaceDirectiveNodesWithResults(resolution, result);
       } catch (error) {
         throw new CliError({
           category: 'DIRECTIVE',
@@ -664,7 +782,15 @@ export class ConfigResolver {
           cause: error
         });
       }
-      shouldScanResolvedResult = (await this.collectRemainingDirectives({ obj: result, resolveRuntime })).length > 0;
+      const remainingDirectives = await this.collectRemainingDirectives({ obj: result, resolveRuntime });
+      const remaining = [...remainingDirectives].sort().join(', ');
+      // A directive result may itself use directives, which the next pass resolves. A pass that leaves exactly the
+      // directives it started with (a directive resolving to its own definition) can never resolve them either.
+      if (remainingDirectives.length && remaining === previouslyRemaining) {
+        throw getDirectiveDependenciesUnresolvedError(remainingDirectives);
+      }
+      previouslyRemaining = remaining;
+      shouldScanResolvedResult = remainingDirectives.length > 0;
     }
     return result;
   };

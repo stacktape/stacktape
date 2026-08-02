@@ -248,17 +248,7 @@ export class ConfigManager {
 
   invalidatePotentiallyChangedDirectiveResults = () => {
     // currently we consider runtime directives the ones that potentially changed
-    const directivesToInvalidate = this.configResolver.builtInRuntimeDirectiveNames.map((name) => `$${name}`);
-
-    // we delete results of runtime directives from configResolver.results
-    for (const directiveDef in this.configResolver.results) {
-      if (directivesToInvalidate.some((d) => directiveDef.startsWith(d))) {
-        delete this.configResolver.results[directiveDef];
-      }
-    }
-    // we invalidate entire configResolver.resultsWithPath to ensure that no runtime directive is cached
-    // non-runtime directives are still cached within configResolver.results
-    this.configResolver.resultsWithPath = {};
+    this.configResolver.invalidateRuntimeDirectiveResults();
   };
 
   findResourceInConfig = ({ nameChain }: { nameChain: string | string[] }) => {
@@ -1203,7 +1193,7 @@ export class ConfigManager {
     const UNSAFE_DIRECTIVES = ['File', 'FileRaw', 'CliArgs', 'GitInfo', 'StackOutput', 'Secret', 'SsmParam'];
     // Detect unsafe directives by scanning resolved directive results
     const unsafeDirectives: string[] = [];
-    for (const rawDefinition in this.configResolver.results) {
+    for (const rawDefinition of this.configResolver.resolvedDirectiveDefinitions) {
       for (const unsafeName of UNSAFE_DIRECTIVES) {
         if (rawDefinition.startsWith(`$${unsafeName}(`)) {
           if (!unsafeDirectives.includes(`$${unsafeName}`)) {

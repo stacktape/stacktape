@@ -129,6 +129,15 @@ afterAll(async () => {
   await rm(fixtureNodeModules, { force: true, recursive: true });
 });
 
+/** A resolver with the built-in directives available, ready for tests that register their own directives on top. */
+const newResolver = () => {
+  const resolver = new ConfigResolver();
+  resolver.rawConfig = { resources: {} } as StacktapeConfig;
+  resolver.setContext(fixtureResolverContext);
+  resolver.registerBuiltInDirectives();
+  return resolver;
+};
+
 describe('configuration runtime contract', () => {
   test('reuses one manager for two different configs without leaking config, directives, or stack identity', async () => {
     const manager = new ConfigManager();
@@ -620,6 +629,303 @@ export default defineConfig(() => ({ projectName, resources: {} }));
         resolveRuntime: true
       })
     ).resolves.toEqual({ value: 'prefix-explicit-directive-stage' });
+  });
+
+  test('resolves a chain of directives returned by other directives to a fixed point', async () => {
+    const resolver = newResolver();
+    resolver.registerDirective({
+      name: 'Level1',
+      isRuntime: false,
+      requiredParams: {},
+      resolveFunction: () => () => '$Level2()'
+    });
+    resolver.registerDirective({
+      name: 'Level2',
+      isRuntime: false,
+      requiredParams: {},
+      resolveFunction: () => () => "$Format('{}-{}', 'deep', $Stage())"
+    });
+
+    await expect(
+      resolver.resolveDirectives({ itemToResolve: { value: '$Level1()' }, resolveRuntime: true })
+    ).resolves.toEqual({ value: 'deep-explicit-directive-stage' });
+  });
+
+  test('reuses cached directive results whose value is falsy instead of resolving them again', async () => {
+    const resolver = newResolver();
+    const calls: Record<string, number> = { FalseValue: 0, ZeroValue: 0, EmptyValue: 0 };
+    const registerFalsy = (name: string, value: unknown) =>
+      resolver.registerDirective({
+        name,
+        isRuntime: false,
+        requiredParams: {},
+        resolveFunction: () => () => {
+          calls[name] += 1;
+          return value;
+        }
+      });
+    registerFalsy('FalseValue', false);
+    registerFalsy('ZeroValue', 0);
+    registerFalsy('EmptyValue', '');
+
+    const resolved = await resolver.resolveDirectives({
+      itemToResolve: {
+        first: { flag: '$FalseValue()', count: '$ZeroValue()', text: '$EmptyValue()' },
+        second: { flag: '$FalseValue()', count: '$ZeroValue()', text: '$EmptyValue()' }
+      },
+      resolveRuntime: true
+    });
+
+    expect(resolved).toEqual({
+      first: { flag: false, count: 0, text: '' },
+      second: { flag: false, count: 0, text: '' }
+    });
+    expect(calls).toEqual({ FalseValue: 1, ZeroValue: 1, EmptyValue: 1 });
+  });
+
+  test('fails with a plain-text semantic error when directive dependencies never resolve', async () => {
+    const resolver = newResolver();
+    resolver.registerDirective({
+      name: 'NeverResolves',
+      isRuntime: false,
+      requiredParams: {},
+      resolveFunction: () => () => undefined
+    });
+
+    const rejection = await resolver
+      .resolveDirectives({
+        itemToResolve: { value: "$Format('{}', $NeverResolves())" },
+        resolveRuntime: true
+      })
+      .then(
+        () => null,
+        (error) => error
+      );
+
+    expect(rejection).toMatchObject({
+      category: 'DIRECTIVE',
+      code: 'DIRECTIVE_DEPENDENCIES_UNRESOLVED'
+    });
+    expect(rejection.message).toContain("$Format('{}', $NeverResolves())");
+    // The message and hints are consumed by the TUI presentation boundary, so they carry no styling of their own.
+    expect(`${rejection.message}${rejection.hints.join('')}`).not.toContain('\u001b');
+  });
+
+  test('fails when a directive resolves directly to itself', async () => {
+    const resolver = newResolver();
+    resolver.registerDirective({
+      name: 'SelfReference',
+      isRuntime: false,
+      requiredParams: {},
+      resolveFunction: () => () => '$SelfReference()'
+    });
+
+    await expect(
+      resolver.resolveDirectives({ itemToResolve: { value: '$SelfReference()' }, resolveRuntime: true })
+    ).rejects.toMatchObject({
+      category: 'DIRECTIVE',
+      code: 'DIRECTIVE_DEPENDENCIES_UNRESOLVED',
+      message: expect.stringContaining('$SelfReference()')
+    });
+  });
+
+  test('fails when two directive results form a cycle', async () => {
+    const resolver = newResolver();
+    resolver.registerDirective({
+      name: 'CycleA',
+      isRuntime: false,
+      requiredParams: {},
+      resolveFunction: () => () => '$CycleB()'
+    });
+    resolver.registerDirective({
+      name: 'CycleB',
+      isRuntime: false,
+      requiredParams: {},
+      resolveFunction: () => () => '$CycleA()'
+    });
+
+    await expect(
+      resolver.resolveDirectives({ itemToResolve: { value: '$CycleA()' }, resolveRuntime: true })
+    ).rejects.toMatchObject({
+      category: 'DIRECTIVE',
+      code: 'DIRECTIVE_DEPENDENCIES_UNRESOLVED'
+    });
+  });
+
+  test('keeps local and normal resolution results of the same directive separate', async () => {
+    const resolver = newResolver();
+    resolver.registerDirective({
+      name: 'Mode',
+      isRuntime: true,
+      requiredParams: {},
+      resolveFunction: () => () => 'deployed-reference',
+      localResolveFunction: () => () => 'local-value'
+    });
+
+    const itemToResolve = { value: '$Mode()' };
+    await expect(resolver.resolveDirectives({ itemToResolve, resolveRuntime: true })).resolves.toEqual({
+      value: 'deployed-reference'
+    });
+    await expect(
+      resolver.resolveDirectives({ itemToResolve, resolveRuntime: true, useLocalResolve: true })
+    ).resolves.toEqual({ value: 'local-value' });
+    await expect(resolver.resolveDirectives({ itemToResolve, resolveRuntime: true })).resolves.toEqual({
+      value: 'deployed-reference'
+    });
+  });
+
+  test('never substitutes a cached runtime value when runtime resolution is disabled', async () => {
+    const resolver = newResolver();
+    resolver.registerDirective({
+      name: 'RuntimeValue',
+      isRuntime: true,
+      requiredParams: {},
+      resolveFunction: () => () => 'deployed-value'
+    });
+    resolver.registerDirective({
+      name: 'ReturnsRuntimeValue',
+      isRuntime: false,
+      requiredParams: {},
+      resolveFunction: () => () => '$RuntimeValue()'
+    });
+
+    const itemToResolve = { direct: '$RuntimeValue()', returned: '$ReturnsRuntimeValue()' };
+    await expect(resolver.resolveDirectives({ itemToResolve, resolveRuntime: true })).resolves.toEqual({
+      direct: 'deployed-value',
+      returned: 'deployed-value'
+    });
+    await expect(resolver.resolveDirectives({ itemToResolve, resolveRuntime: false })).resolves.toEqual({
+      direct: '$RuntimeValue()',
+      returned: '$RuntimeValue()'
+    });
+  });
+
+  test('resolves overlapping invocations of one resolver without them stealing each other work', async () => {
+    const resolver = newResolver();
+    // Both invocations park inside their resolve function until the other one has started, so their queues are
+    // guaranteed to overlap. Deployment commands resolve directives concurrently this way (`Promise.all` over the
+    // hosting buckets whose environment is injected).
+    let releaseBoth: () => void;
+    const bothStarted = new Promise<void>((resolve) => {
+      releaseBoth = resolve;
+    });
+    let startedCount = 0;
+    const waitForBoth = async () => {
+      startedCount += 1;
+      if (startedCount === 2) {
+        releaseBoth();
+      }
+      await bothStarted;
+    };
+
+    resolver.registerDirective({
+      name: 'Overlapping',
+      isRuntime: false,
+      requiredParams: {},
+      resolveFunction: () => async () => {
+        await waitForBoth();
+        return 'normal';
+      },
+      localResolveFunction: () => async () => {
+        await waitForBoth();
+        return 'local';
+      }
+    });
+
+    const itemToResolve = { value: "$Format('resolved-{}', $Overlapping())" };
+    await expect(
+      Promise.all([
+        resolver.resolveDirectives({ itemToResolve, resolveRuntime: true }),
+        resolver.resolveDirectives({ itemToResolve, resolveRuntime: true, useLocalResolve: true })
+      ])
+    ).resolves.toEqual([{ value: 'resolved-normal' }, { value: 'resolved-local' }]);
+  });
+
+  test('shares an in-flight result between overlapping invocations in the same resolution mode', async () => {
+    const resolver = newResolver();
+    let calls = 0;
+    let markStarted: () => void;
+    const started = new Promise<void>((resolve) => {
+      markStarted = resolve;
+    });
+    let release: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+
+    resolver.registerDirective({
+      name: 'SharedInFlight',
+      isRuntime: false,
+      requiredParams: {},
+      resolveFunction: () => async () => {
+        calls += 1;
+        markStarted();
+        await blocked;
+        return `value-${calls}`;
+      }
+    });
+
+    const itemToResolve = { value: '$SharedInFlight()' };
+    const first = resolver.resolveDirectives({ itemToResolve, resolveRuntime: true });
+    await started;
+    const second = resolver.resolveDirectives({ itemToResolve, resolveRuntime: true });
+    release();
+
+    await expect(Promise.all([first, second])).resolves.toEqual([{ value: 'value-1' }, { value: 'value-1' }]);
+    expect(calls).toBe(1);
+  });
+
+  test('reports a re-entrant directive dependency instead of awaiting its own in-flight result', async () => {
+    const resolver = newResolver();
+    resolver.registerDirective({
+      name: 'Reentrant',
+      isRuntime: false,
+      requiredParams: {},
+      resolveFunction: (activeResolver) => () =>
+        activeResolver.resolveDirectives({ itemToResolve: '$Reentrant()', resolveRuntime: true })
+    });
+
+    await expect(
+      resolver.resolveDirectives({ itemToResolve: '$Reentrant()', resolveRuntime: true })
+    ).rejects.toMatchObject({
+      category: 'DIRECTIVE',
+      code: 'DIRECTIVE_DEPENDENCIES_UNRESOLVED',
+      message: expect.stringContaining('$Reentrant()')
+    });
+  });
+
+  test('invalidation drops runtime directive results and keeps the reusable ones', async () => {
+    const resolver = newResolver();
+    let reusableCalls = 0;
+    resolver.registerDirective({
+      name: 'ReusableInput',
+      isRuntime: false,
+      requiredParams: {},
+      resolveFunction: () => () => {
+        reusableCalls += 1;
+        return `input-${reusableCalls}`;
+      }
+    });
+
+    const itemToResolve = { reusable: '$ReusableInput()', runtime: "$CfFormat('deployed-{}', 'value')" };
+    const resolve = () =>
+      resolver.resolveDirectives<{ reusable: string; runtime: unknown }>({
+        itemToResolve,
+        resolveRuntime: true
+      });
+
+    const firstResolution = await resolve();
+    expect(firstResolution).toMatchObject({ reusable: 'input-1' });
+    expect(resolver.resolvedDirectiveDefinitions.sort()).toEqual([
+      "$CfFormat('deployed-{}', 'value')",
+      '$ReusableInput()'
+    ]);
+
+    resolver.invalidateRuntimeDirectiveResults();
+    expect(resolver.resolvedDirectiveDefinitions).toEqual(['$ReusableInput()']);
+
+    expect(await resolve()).toEqual(firstResolution);
+    expect(reusableCalls).toBe(1);
   });
 
   test('reports unknown directives with a stable semantic error code', () => {
