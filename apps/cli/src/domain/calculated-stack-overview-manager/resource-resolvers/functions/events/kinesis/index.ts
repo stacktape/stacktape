@@ -67,6 +67,16 @@ export const resolveKinesisEvents = ({
           hints: 'Specify only one of these properties, or omit both.'
         });
       }
+      if (
+        [event.properties.kinesisStreamName, event.properties.streamArn].filter((streamReference) => streamReference)
+          .length !== 1
+      ) {
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_KINESIS_STREAM_REFERENCE_INVALID',
+          message: `Error in ${configParentResourceType} \`${name}\`. When referencing a Kinesis stream, specify exactly one of \`kinesisStreamName\` or \`streamArn\`.`
+        });
+      }
 
       // Resolve streamArn from kinesisStreamName if provided
       let streamArn: string | IntrinsicFunction = event.properties.streamArn;

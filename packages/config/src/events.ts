@@ -1349,9 +1349,10 @@ export interface KafkaTopicIntegrationProps {
    *
    * ---
    *
-   * Specifies the bootstrap servers and topic name.
+   * Specifies the bootstrap servers, topic name, and authentication used by the self-managed Kafka event source.
+   * This is required because self-managed Kafka is the only Kafka source currently supported by Stacktape.
    */
-  customKafkaConfiguration?: CustomKafkaEventSource;
+  customKafkaConfiguration: CustomKafkaEventSource;
   /**
    * #### The maximum number of records to process in a single batch.
    *
@@ -1518,10 +1519,14 @@ export interface SnsIntegrationProps {
 export interface SnsOnDeliveryFailure {
   /**
    * #### The ARN of the SQS queue for failed messages.
+   *
+   * Specify exactly one of `sqsQueueArn` or `sqsQueueName`.
    */
   sqsQueueArn?: string;
   /**
    * #### The name of an SQS queue (defined in your Stacktape configuration) for failed messages.
+   *
+   * Specify exactly one of `sqsQueueArn` or `sqsQueueName`.
    */
   sqsQueueName?: string;
 }

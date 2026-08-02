@@ -3,6 +3,7 @@ import { configManager } from '@domain-services/config-manager';
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import { CliError } from '@utils/errors';
 import { getHttpApiRouteKey } from './http-api-events';
+import { resolveKafkaTopicEvents } from '../functions/events/kafka-topic';
 import { resolveKinesisEvents } from '../functions/events/kinesis';
 import { getScheduleEventRule } from '../functions/events/schedule';
 import { resolveSnsEvents } from '../functions/events/sns';
@@ -168,5 +169,60 @@ describe('configuration errors used during resource synthesis', () => {
     );
     expect(error.message).toContain('function `worker`');
     expect(error.hints).toEqual(['Specify only one of these properties, or omit both.']);
+  });
+
+  test('requires exactly one Kinesis stream reference', () => {
+    for (const properties of [
+      {},
+      {
+        kinesisStreamName: 'events',
+        streamArn: 'arn:aws:kinesis:eu-west-1:111111111111:stream/events'
+      }
+    ]) {
+      const error = expectCliError(
+        () =>
+          resolveKinesisEvents({
+            lambdaFunction: functionWithEvent({ type: 'kinesis-stream', properties })
+          }),
+        'CONFIG_KINESIS_STREAM_REFERENCE_INVALID'
+      );
+      expect(error.message).toContain('function `worker`');
+    }
+  });
+
+  test('requires the self-managed Kafka source configuration', () => {
+    const error = expectCliError(
+      () =>
+        resolveKafkaTopicEvents({
+          lambdaFunction: functionWithEvent({ type: 'kafka-topic', properties: {} })
+        }),
+      'CONFIG_KAFKA_SOURCE_REQUIRED'
+    );
+    expect(error.message).toContain('function `worker`');
+  });
+
+  test('requires exactly one SNS delivery-failure queue reference', () => {
+    for (const onDeliveryFailure of [
+      {},
+      {
+        sqsQueueArn: 'arn:aws:sqs:eu-west-1:111111111111:failures',
+        sqsQueueName: 'failures'
+      }
+    ]) {
+      const error = expectCliError(
+        () =>
+          resolveSnsEvents({
+            lambdaFunction: functionWithEvent({
+              type: 'sns',
+              properties: {
+                onDeliveryFailure,
+                snsTopicArn: 'arn:aws:sns:eu-west-1:111111111111:events'
+              }
+            })
+          }),
+        'CONFIG_SNS_DELIVERY_FAILURE_QUEUE_REFERENCE_INVALID'
+      );
+      expect(error.message).toContain('function `worker`');
+    }
   });
 });

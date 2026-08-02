@@ -1164,6 +1164,80 @@ export default defineConfig(() => ({ projectName, resources: {} }));
     }
   });
 
+  test('requires the only supported Kafka event-source configuration at the schema boundary', () => {
+    const configWithKafkaEvent = (properties: Record<string, unknown>) => ({
+      resources: {
+        worker: {
+          type: 'function',
+          properties: {
+            events: [{ type: 'kafka-topic', properties }],
+            packaging: {
+              type: 'stacktape-lambda-buildpack',
+              properties: { entryfilePath: 'src/worker.ts' }
+            }
+          }
+        }
+      }
+    });
+
+    const missingSource = validateConfigWithZod({
+      config: configWithKafkaEvent({}),
+      configPath: 'stacktape.yml'
+    });
+    expect(missingSource.valid).toBe(false);
+    if (missingSource.valid === false) {
+      expect(missingSource.errorMessage).toContain('customKafkaConfiguration');
+    }
+
+    const missingAuthentication = validateConfigWithZod({
+      config: configWithKafkaEvent({
+        customKafkaConfiguration: {
+          bootstrapServers: ['broker.example.com:9092'],
+          topicName: 'events'
+        }
+      }),
+      configPath: 'stacktape.yml'
+    });
+    expect(missingAuthentication.valid).toBe(false);
+    if (missingAuthentication.valid === false) {
+      expect(missingAuthentication.errorMessage).toContain('authentication');
+      expect(missingAuthentication.errorMessage).toContain('Required property');
+    }
+
+    const missingMtlsCertificate = validateConfigWithZod({
+      config: configWithKafkaEvent({
+        customKafkaConfiguration: {
+          authentication: { type: 'MTLS', properties: {} },
+          bootstrapServers: ['broker.example.com:9092'],
+          topicName: 'events'
+        }
+      }),
+      configPath: 'stacktape.yml'
+    });
+    expect(missingMtlsCertificate.valid).toBe(false);
+    if (missingMtlsCertificate.valid === false) {
+      expect(missingMtlsCertificate.errorMessage).toContain('clientCertificate');
+    }
+
+    expect(
+      validateConfigWithZod({
+        config: configWithKafkaEvent({
+          customKafkaConfiguration: {
+            authentication: {
+              type: 'BASIC_AUTH',
+              properties: {
+                authenticationSecretArn: 'arn:aws:secretsmanager:eu-west-1:111111111111:secret:kafka'
+              }
+            },
+            bootstrapServers: ['broker.example.com:9092'],
+            topicName: 'events'
+          }
+        }),
+        configPath: 'stacktape.yml'
+      })
+    ).toEqual({ valid: true });
+  });
+
   test('the generated validator applies current buildpack and logging defaults', () => {
     const parsed = stacktapeConfigSchema.parse({
       resources: {

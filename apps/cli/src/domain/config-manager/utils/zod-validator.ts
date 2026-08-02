@@ -163,6 +163,114 @@ const formatActualValue = (value: unknown): string => {
   return String(value);
 };
 
+type UnionMemberIssue = {
+  code: string;
+  errors?: UnionMemberIssue[][];
+  expected?: string;
+  keys?: string[];
+  path: PropertyKey[];
+  received?: string;
+  values?: string[];
+};
+
+const findMatchingUnionMemberErrors = (unionErrors: UnionMemberIssue[][]) =>
+  unionErrors.find(
+    (memberErrors) =>
+      !memberErrors.some(
+        (error) => error.code === 'invalid_value' && error.path.length === 1 && error.path[0] === 'type'
+      )
+  );
+
+const formatUnionMemberIssue = ({
+  basePath,
+  config,
+  depth = 0,
+  issue
+}: {
+  basePath: PropertyKey[];
+  config: unknown;
+  depth?: number;
+  issue: UnionMemberIssue;
+}): Pick<FormattedError, 'hint' | 'message'> => {
+  const errorPath = [...basePath, ...issue.path];
+  const errorValue = get(config, errorPath.join('.'));
+
+  if (issue.code === 'invalid_union' && issue.errors) {
+    if (depth >= 8) {
+      return { message: `Invalid configuration at ${inlineCode(formatZodIssuePath(errorPath))}` };
+    }
+    if (errorValue === undefined) {
+      return { message: `Required property ${inlineCode(formatZodIssuePath(errorPath))} is missing` };
+    }
+
+    const matchingMemberErrors = findMatchingUnionMemberErrors(issue.errors);
+    if (matchingMemberErrors?.length) {
+      return formatUnionMemberIssue({
+        basePath: errorPath,
+        config,
+        depth: depth + 1,
+        issue: matchingMemberErrors[0]
+      });
+    }
+
+    const unionType = typeof errorValue === 'object' && errorValue !== null ? (errorValue as any).type : undefined;
+    if (typeof unionType === 'string') {
+      const validTypes = issue.errors.flatMap(
+        (memberErrors) =>
+          memberErrors.find(
+            (memberIssue) =>
+              memberIssue.code === 'invalid_value' && memberIssue.path.length === 1 && memberIssue.path[0] === 'type'
+          )?.values || []
+      );
+      const result: Pick<FormattedError, 'hint' | 'message'> = {
+        message: `Invalid type ${inlineCode(`"${unionType}"`)} at ${inlineCode(formatZodIssuePath(errorPath))}`
+      };
+      if (validTypes.length) {
+        const suggestion = findClosestMatch(unionType, validTypes);
+        result.hint = suggestion
+          ? `Did you mean ${inlineCode(`"${suggestion}"`)}? Valid types: ${validTypes.map(inlineCode).join(', ')}`
+          : `Valid types: ${validTypes.map(inlineCode).join(', ')}`;
+      }
+      return result;
+    }
+
+    return { message: `Invalid configuration at ${inlineCode(formatZodIssuePath(errorPath))}` };
+  }
+
+  if (issue.code === 'invalid_value' && issue.values) {
+    const result: Pick<FormattedError, 'hint' | 'message'> = {
+      message: `Invalid value ${inlineCode(formatActualValue(errorValue))} at ${inlineCode(formatZodIssuePath(errorPath))}`
+    };
+    if (typeof errorValue === 'string') {
+      const suggestion = findClosestMatch(errorValue, issue.values);
+      if (suggestion) {
+        result.hint = `Did you mean ${inlineCode(`"${suggestion}"`)}?`;
+      }
+    }
+    return result;
+  }
+
+  if (issue.code === 'invalid_type') {
+    return {
+      message:
+        errorValue === undefined
+          ? `Required property ${inlineCode(formatZodIssuePath(errorPath))} is missing (expected ${inlineCode(issue.expected)})`
+          : `Expected ${inlineCode(issue.expected)}, received ${inlineCode(issue.received || typeof errorValue)} at ${inlineCode(formatZodIssuePath(errorPath))}`
+    };
+  }
+
+  if (issue.code === 'unrecognized_keys') {
+    const unknownKeys = issue.keys || [];
+    return {
+      message: `Unknown ${unknownKeys.length === 1 ? 'property' : 'properties'} ${unknownKeys
+        .map(inlineCode)
+        .join(', ')} at ${inlineCode(formatZodIssuePath(errorPath))}`
+    };
+  }
+
+  return { message: `Invalid configuration at ${inlineCode(formatZodIssuePath(errorPath))}` };
+};
+
 // Known resource and script types for "did you mean?" suggestions
 const RESOURCE_TYPES = [
   'multi-container-workload',
@@ -268,87 +376,19 @@ const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap |
     } else if ('errors' in issue && Array.isArray((issue as any).errors)) {
       // Regular union error - try to find the best matching union member
       // The matching member is the one that does NOT have a top-level type mismatch error
-      const unionErrors = (issue as any).errors as Array<
-        Array<{ code: string; path: PropertyKey[]; values?: string[] }>
-      >;
+      const unionErrors = (issue as any).errors as UnionMemberIssue[][];
       const configType =
         typeof actualValue === 'object' && actualValue !== null ? (actualValue as any).type : undefined;
 
       // Find the union member that doesn't have a type mismatch at root level
-      const matchingMemberErrors = unionErrors.find((memberErrors) => {
-        const hasTopLevelTypeMismatch = memberErrors.some(
-          (err) => err.code === 'invalid_value' && err.path.length === 1 && err.path[0] === 'type'
-        );
-        return !hasTopLevelTypeMismatch;
-      });
+      const matchingMemberErrors = findMatchingUnionMemberErrors(unionErrors);
 
       if (matchingMemberErrors && matchingMemberErrors.length > 0) {
         // Found the matching member - show its specific errors
         const firstError = matchingMemberErrors[0] as any;
-        if (firstError.code === 'invalid_union' && firstError.path) {
-          // Nested union error (e.g., rules[0] has invalid type)
-          const nestedPath = [...issue.path, ...firstError.path];
-          const nestedValue = get(config, nestedPath.join('.'));
-          const nestedType = typeof nestedValue === 'object' && nestedValue !== null ? nestedValue.type : undefined;
-
-          if (nestedType) {
-            // Extract valid types from the nested union errors
-            const validTypes: string[] = [];
-            if (firstError.errors) {
-              for (const memberErrs of firstError.errors) {
-                const typeErr = memberErrs.find(
-                  (e: any) => e.code === 'invalid_value' && e.path.length === 1 && e.path[0] === 'type'
-                );
-                if (typeErr?.values?.[0]) {
-                  validTypes.push(typeErr.values[0]);
-                }
-              }
-            }
-
-            message = `Invalid type ${inlineCode(`"${nestedType}"`)} at ${inlineCode(formatZodIssuePath(nestedPath))}`;
-            if (validTypes.length > 0) {
-              const suggestion = findClosestMatch(nestedType, validTypes);
-              if (suggestion) {
-                hint = `Did you mean ${inlineCode(`"${suggestion}"`)}? Valid types: ${validTypes.map(inlineCode).join(', ')}`;
-              } else {
-                hint = `Valid types: ${validTypes.map(inlineCode).join(', ')}`;
-              }
-            }
-          } else {
-            message = `Invalid configuration at ${inlineCode(formatZodIssuePath(nestedPath))}`;
-          }
-        } else if (firstError.code === 'invalid_value' && firstError.values) {
-          // Invalid enum value error
-          const errorPath = [...issue.path, ...firstError.path];
-          const errorValue = get(config, errorPath.join('.'));
-          const values = firstError.values as string[];
-          message = `Invalid value ${inlineCode(formatActualValue(errorValue))} at ${inlineCode(formatZodIssuePath(errorPath))}`;
-          if (typeof errorValue === 'string') {
-            const suggestion = findClosestMatch(errorValue, values);
-            if (suggestion) {
-              hint = `Did you mean ${inlineCode(`"${suggestion}"`)}?`;
-            }
-          }
-        } else if (firstError.code === 'invalid_type') {
-          // Type mismatch or missing required property
-          const errorPath = [...issue.path, ...firstError.path];
-          const errorValue = get(config, errorPath.join('.'));
-          if (errorValue === undefined) {
-            message = `Required property ${inlineCode(formatZodIssuePath(errorPath))} is missing (expected ${inlineCode(firstError.expected)})`;
-          } else {
-            message = `Expected ${inlineCode(firstError.expected)}, received ${inlineCode(firstError.received || typeof errorValue)} at ${inlineCode(formatZodIssuePath(errorPath))}`;
-          }
-        } else if (firstError.code === 'unrecognized_keys') {
-          // Unknown property error
-          const unknownKeys = firstError.keys as string[];
-          const errorPath = [...issue.path, ...firstError.path];
-          const formattedKeys = unknownKeys.map(inlineCode).join(', ');
-          message = `Unknown ${unknownKeys.length === 1 ? 'property' : 'properties'} ${formattedKeys} at ${inlineCode(formatZodIssuePath(errorPath))}`;
-        } else {
-          // Other type of error
-          const errorPath = [...issue.path, ...(firstError.path || [])];
-          message = `Invalid configuration at ${inlineCode(formatZodIssuePath(errorPath))}`;
-        }
+        const formattedIssue = formatUnionMemberIssue({ basePath: issue.path, config, issue: firstError });
+        message = formattedIssue.message;
+        hint = formattedIssue.hint;
       } else if (configType && typeof configType === 'string') {
         // No matching member found - the type itself is invalid
         const isTopLevelResource = issue.path[0] === 'resources' && issue.path.length === 2;

@@ -43,6 +43,17 @@ export const resolveSnsEvents = ({
           });
         }
       }
+      if (
+        onDeliveryFailure &&
+        [onDeliveryFailure.sqsQueueArn, onDeliveryFailure.sqsQueueName].filter((queueReference) => queueReference)
+          .length !== 1
+      ) {
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_SNS_DELIVERY_FAILURE_QUEUE_REFERENCE_INVALID',
+          message: `Error in ${configParentResourceType} \`${name}\`. When configuring SNS delivery failures, specify exactly one of \`sqsQueueName\` or \`sqsQueueArn\`.`
+        });
+      }
       const topicArn = snsTopicArn || GetAtt(cfLogicalNames.snsTopic(snsTopicName), 'TopicArn');
 
       const endpoint = aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn');

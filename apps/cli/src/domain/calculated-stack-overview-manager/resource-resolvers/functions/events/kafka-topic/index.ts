@@ -10,6 +10,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { KafkaTopicIntegration, KafkaTopicIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
+import { CliError } from '@utils/errors';
 
 export const resolveKafkaTopicEvents = ({
   lambdaFunction
@@ -26,19 +27,27 @@ export const resolveKafkaTopicEvents = ({
 
   (events || []).forEach((event: KafkaTopicIntegration, index) => {
     if (event.type === 'kafka-topic') {
-      if (event.properties.customKafkaConfiguration?.authentication?.type === 'MTLS') {
+      const { customKafkaConfiguration } = event.properties;
+      if (!customKafkaConfiguration) {
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_KAFKA_SOURCE_REQUIRED',
+          message: `Error in ${lambdaFunction.configParentResourceType} \`${name}\`. Kafka events require \`customKafkaConfiguration\`.`
+        });
+      }
+      if (customKafkaConfiguration.authentication.type === 'MTLS') {
         eventInducedSecretsStatement.Resource.push(
-          event.properties.customKafkaConfiguration.authentication.properties.clientCertificate
+          customKafkaConfiguration.authentication.properties.clientCertificate
         );
 
-        if (event.properties.customKafkaConfiguration.authentication.properties.serverRootCaCertificate) {
+        if (customKafkaConfiguration.authentication.properties.serverRootCaCertificate) {
           eventInducedSecretsStatement.Resource.push(
-            event.properties.customKafkaConfiguration.authentication.properties.serverRootCaCertificate
+            customKafkaConfiguration.authentication.properties.serverRootCaCertificate
           );
         }
       } else {
         eventInducedSecretsStatement.Resource.push(
-          event.properties.customKafkaConfiguration.authentication.properties.authenticationSecretArn
+          customKafkaConfiguration.authentication.properties.authenticationSecretArn
         );
       }
       calculatedStackOverviewManager.addCfChildResource({
@@ -60,7 +69,7 @@ const getEventSourceMapping = ({
   lambdaEndpointArn: string | IntrinsicFunction;
 }) => {
   const accessConfigurations: SourceAccessConfiguration[] = [];
-  if (eventDetails.customKafkaConfiguration?.authentication?.type === 'MTLS') {
+  if (eventDetails.customKafkaConfiguration.authentication.type === 'MTLS') {
     accessConfigurations.push({
       Type: 'CLIENT_CERTIFICATE_TLS_AUTH',
       URI: eventDetails.customKafkaConfiguration.authentication.properties.clientCertificate
@@ -73,8 +82,8 @@ const getEventSourceMapping = ({
     }
   } else {
     accessConfigurations.push({
-      Type: eventDetails.customKafkaConfiguration?.authentication?.type,
-      URI: eventDetails.customKafkaConfiguration?.authentication.properties.authenticationSecretArn
+      Type: eventDetails.customKafkaConfiguration.authentication.type,
+      URI: eventDetails.customKafkaConfiguration.authentication.properties.authenticationSecretArn
     });
   }
 

@@ -1102,7 +1102,7 @@ export const stacktapeConfigSchema = z.object({
                       "serverRootCaCertificate": z.string().optional().describe("#### The ARN of a secret containing the server's root CA certificate.\n\n---\n\nYou can create secrets using the `stacktape secret:create` command.").optional() }).strict()
                     .describe("#### Properties of authentication method") }).strict()
                 ]).describe("#### The authentication method for connecting to the Kafka cluster.\n\n---\n\n- `SASL`: Authenticate using a username and password (PLAIN or SCRAM).\n- `MTLS`: Authenticate using a client-side TLS certificate.") }).strict()
-              .optional().describe("#### The details of your Kafka cluster.\n\n---\n\nSpecifies the bootstrap servers and topic name.").optional(),
+              .describe("#### The details of your Kafka cluster.\n\n---\n\nSpecifies the bootstrap servers, topic name, and authentication used by the self-managed Kafka event source.\nThis is required because self-managed Kafka is the only Kafka source currently supported by Stacktape."),
               "batchSize": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### The maximum number of records to process in a single batch.\n\n---\n\nThe function will be invoked with up to this many records. Maximum is 10,000.").default(100),
               "maxBatchWindowSeconds": z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number()).optional().describe("#### The maximum time (in seconds) to wait before invoking the function with a batch of records.\n\n---\n\nThe function will be triggered when either the `batchSize` is reached or this time window expires.\nMaximum is 300 seconds.").default(0.5) }).strict()
           }).strict()
@@ -1113,8 +1113,8 @@ export const stacktapeConfigSchema = z.object({
               "snsTopicArn": z.string().optional().describe("#### The ARN of an existing SNS topic.\n\n---\n\nUse this to subscribe to a topic that is not managed by your stack.\nYou must specify either `snsTopicName` or `snsTopicArn`.").optional(),
               "filterPolicy": z.any().optional().describe("#### Filter messages by attributes so only relevant ones trigger the function.\n\n---\n\nUses SNS subscription filter policy syntax. For content-based filtering, use EventBridge instead.").optional(),
               "onDeliveryFailure": z.object({
-                "sqsQueueArn": z.string().optional().describe("#### The ARN of the SQS queue for failed messages.").optional(),
-                "sqsQueueName": z.string().optional().describe("#### The name of an SQS queue (defined in your Stacktape configuration) for failed messages.").optional() }).strict()
+                "sqsQueueArn": z.string().optional().describe("#### The ARN of the SQS queue for failed messages.\n\nSpecify exactly one of `sqsQueueArn` or `sqsQueueName`.").optional(),
+                "sqsQueueName": z.string().optional().describe("#### The name of an SQS queue (defined in your Stacktape configuration) for failed messages.\n\nSpecify exactly one of `sqsQueueArn` or `sqsQueueName`.").optional() }).strict()
               .optional().describe("#### A destination for messages that fail to be delivered to the target.\n\n---\n\nIn rare cases (e.g., if the target function cannot scale fast enough), a message might fail to be delivered.\nThis property specifies an SQS queue where failed messages will be sent.").optional() }).strict()
           }).strict()
           .describe("#### Triggers a function when a new message is published to an SNS topic.\n\n---\n\nSNS is a pub/sub messaging service. Reference a topic from your stack's `snsTopics` or use an external ARN."), z.object({
@@ -1930,8 +1930,8 @@ export const stacktapeConfigSchema = z.object({
               "snsTopicArn": z.string().optional().describe("#### The ARN of an existing SNS topic.\n\n---\n\nUse this to subscribe to a topic that is not managed by your stack.\nYou must specify either `snsTopicName` or `snsTopicArn`.").optional(),
               "filterPolicy": z.any().optional().describe("#### Filter messages by attributes so only relevant ones trigger the function.\n\n---\n\nUses SNS subscription filter policy syntax. For content-based filtering, use EventBridge instead.").optional(),
               "onDeliveryFailure": z.object({
-                "sqsQueueArn": z.string().optional().describe("#### The ARN of the SQS queue for failed messages.").optional(),
-                "sqsQueueName": z.string().optional().describe("#### The name of an SQS queue (defined in your Stacktape configuration) for failed messages.").optional() }).strict()
+                "sqsQueueArn": z.string().optional().describe("#### The ARN of the SQS queue for failed messages.\n\nSpecify exactly one of `sqsQueueArn` or `sqsQueueName`.").optional(),
+                "sqsQueueName": z.string().optional().describe("#### The name of an SQS queue (defined in your Stacktape configuration) for failed messages.\n\nSpecify exactly one of `sqsQueueArn` or `sqsQueueName`.").optional() }).strict()
               .optional().describe("#### A destination for messages that fail to be delivered to the target.\n\n---\n\nIn rare cases (e.g., if the target function cannot scale fast enough), a message might fail to be delivered.\nThis property specifies an SQS queue where failed messages will be sent.").optional() }).strict()
           }).strict()
           .describe("#### Triggers a function when a new message is published to an SNS topic.\n\n---\n\nSNS is a pub/sub messaging service. Reference a topic from your stack's `snsTopics` or use an external ARN."), z.object({
