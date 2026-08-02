@@ -158,6 +158,9 @@ const shrinkToolPayload = (payload: ToolOutput | Record<string, unknown>): ToolO
     if (typeof data.content === 'string') {
       data.content = truncateText(data.content, 12000);
     }
+    if (Array.isArray(data.references)) {
+      data.references = data.references.slice(0, 10);
+    }
     compact.data = data;
   }
   compact.truncated = true;

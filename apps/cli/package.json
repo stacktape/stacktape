@@ -48,7 +48,7 @@
     "release:checksums": "bun scripts/release/checksums.ts",
     "rm:temp": "rimraf .stacktape",
     "stp": "stacktape",
-    "test": "bun run test:src && bun run test:characterization && bun run test:config-unit && bun run test:generators && bun run test:starter-projects && bun run test:command-safety && bun run test:docker-secrets && bun run test:release-security && bun run test:mcp-docs && bun run test:helper-lambdas && bun run test:characterization:helper-lambdas && bun run test:cli-smoke",
+    "test": "bun run test:src && bun run test:characterization && bun run test:config-unit && bun run test:generators && bun run test:starter-projects && bun run test:command-safety && bun run test:docker-secrets && bun run test:release-security && bun run test:mcp-docs && bun run test:mcp-production && bun run test:helper-lambdas && bun run test:characterization:helper-lambdas && bun run test:cli-smoke",
     "test:characterization": "bun test tests/characterization",
     "test:characterization:helper-lambdas": "bun run pkg:hl && bun scripts/verify-helper-lambda-artifacts.ts",
     "test:characterization:npm": "bun run test:release-artifact",

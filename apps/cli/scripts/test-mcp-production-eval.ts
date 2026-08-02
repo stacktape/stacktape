@@ -62,7 +62,7 @@ const createTempStacktapeProject = async (): Promise<string> => {
         name: 'prod-eval-app',
         packageManager: 'bun@1.3.9',
         scripts: {
-          deploy: 'stacktape deploy --region us-east-1 --stage prod --projectName prod-eval-app',
+          deploy: 'stacktape deploy --region us-east-1 --stage prod --projectName prod-eval-app --aa prod-account --hs',
           preview: 'stacktape diff --region us-east-1 --stage prod'
         },
         dependencies: {
@@ -130,7 +130,7 @@ const createTempDeployScriptChoiceProject = async (): Promise<string> => {
         scripts: {
           deploy: 'stacktape deploy --region us-east-1 --stage dev --projectName prod-eval-choice',
           'deploy:prod':
-            'stacktape deploy --region eu-central-1 --stage prod --projectName prod-eval-choice --aa prod-account',
+            'stacktape deploy --region eu-central-1 --stage prod --projectName prod-eval-choice --aa prod-account --hs',
           'deploy:staging': 'stacktape deploy --region us-west-2 --stage staging --projectName prod-eval-choice'
         },
         dependencies: {
@@ -351,7 +351,7 @@ const main = async () => {
       tool: 'stacktape_docs',
       args: {
         action: 'get',
-        sourcePath: 'src/domain/config-manager/resolved-types/functions.ts',
+        sourcePath: 'packages/config/src/functions.ts',
         propertyName: 'memory',
         maxChars: 3000
       },
@@ -572,22 +572,23 @@ const main = async () => {
       }
     },
     {
-      id: 'cli-plan-preview-docs-normalized',
+      id: 'cli-plan-diff-deploy-context-normalized',
       tool: 'stacktape_cli',
       args: {
         action: 'plan',
         command: 'diff',
-        stage: 'production',
-        region: 'eu-west-1',
-        projectName: 'docs'
+        cwd: tempDeployScriptChoiceCwd,
+        stage: 'prod',
+        projectName: 'prod-eval-choice'
       },
       assert: (result) => {
         assert(result.ok === true, 'Expected diff plan OK.');
         const args = result.data?.args as Record<string, unknown>;
-        assert(args.awsAccount === 'stacktape-dev', 'Expected deploy script account reused for preview context.');
-        assert(args.projectName === 'docs', 'Expected projectName preserved.');
+        assert(args.awsAccount === 'prod-account', 'Expected deploy script account reused for diff context.');
+        assert(args.region === 'eu-central-1', 'Expected deploy script region reused for diff context.');
+        assert(args.projectName === 'prod-eval-choice', 'Expected projectName preserved.');
         assert(args.configPath === 'stacktape.ts', 'Expected config path.');
-        assert(args.currentWorkingDirectory === 'docs', 'Expected current working directory.');
+        assert(args.currentWorkingDirectory === '.', 'Expected current working directory.');
         assert(!('hotSwap' in args), 'Expected unsupported hotSwap arg dropped for diff.');
         const matched = result.data?.matchedPackageScript as Record<string, unknown>;
         assert(matched.matchKind === 'deploy-context', 'Expected deploy-context package script match.');
@@ -806,7 +807,12 @@ const main = async () => {
       assert: (result) => {
         assert(result.ok === true, 'Expected project scan OK.');
         const defaults = result.data?.suggestedDefaults as Record<string, unknown>;
-        assert(defaults.currentWorkingDirectory === 'docs', 'Expected docs as suggested working directory.');
+        const candidates = result.data?.configCandidates as Array<Record<string, unknown>>;
+        assert(candidates.length === 5, 'Expected maxFiles to limit the ranked repository candidates.');
+        assert(
+          defaults.currentWorkingDirectory === candidates[0]?.directory,
+          'Expected defaults to use the highest-ranked config directory.'
+        );
         assert(defaults.configPath === 'stacktape.ts', 'Expected stacktape.ts suggested config.');
       }
     },
@@ -853,16 +859,23 @@ const main = async () => {
       }
     },
     {
-      id: 'deploy-plan-docs-normalized',
+      id: 'deploy-plan-script-aliases-normalized',
       tool: 'stacktape_cli',
-      args: { action: 'plan', command: 'deploy', stage: 'production', region: 'eu-west-1', projectName: 'docs' },
+      args: {
+        action: 'plan',
+        command: 'deploy',
+        cwd: tempDeployScriptChoiceCwd,
+        stage: 'prod',
+        projectName: 'prod-eval-choice'
+      },
       assert: (result) => {
         assert(result.ok === true, 'Expected deploy plan OK.');
         const args = result.data?.args as Record<string, unknown>;
-        assert(args.awsAccount === 'stacktape-dev', 'Expected --aa normalized to awsAccount.');
+        assert(args.awsAccount === 'prod-account', 'Expected --aa normalized to awsAccount.');
         assert(args.hotSwap === true, 'Expected --hs normalized to hotSwap.');
+        assert(args.region === 'eu-central-1', 'Expected region inferred from the selected package script.');
         assert(args.configPath === 'stacktape.ts', 'Expected config path.');
-        assert(args.currentWorkingDirectory === 'docs', 'Expected current working directory.');
+        assert(args.currentWorkingDirectory === '.', 'Expected current working directory.');
         assert(!('aa' in args), 'Did not expect aa alias in final args.');
         assert(!('hs' in args), 'Did not expect hs alias in final args.');
         const cliRun = result.data?.stacktapeCliRun as Record<string, unknown>;
@@ -1018,16 +1031,16 @@ const main = async () => {
       }
     },
     {
-      id: 'dev-plan-docs',
+      id: 'dev-plan-from-deploy-script',
       tool: 'stacktape_dev',
-      args: { action: 'plan', args: { projectName: 'docs' } },
+      args: { action: 'plan', args: { cwd: tempProjectCwd, projectName: 'prod-eval-app' } },
       assert: (result) => {
         assert(result.ok === true, 'Expected dev plan OK.');
         const args = result.data?.args as Record<string, unknown>;
-        assert(args.region === 'eu-west-1', 'Expected region inferred from docs deploy script.');
+        assert(args.region === 'us-east-1', 'Expected region inferred from the deploy script.');
         assert(args.stage === 'dev', 'Expected dev stage default.');
         assert(args.configPath === 'stacktape.ts', 'Expected config path.');
-        assert(args.currentWorkingDirectory === 'docs', 'Expected current working directory.');
+        assert(args.currentWorkingDirectory === '.', 'Expected current working directory.');
         assert(!('hotSwap' in args), 'Expected deploy-only hotSwap removed.');
       }
     },

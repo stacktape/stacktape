@@ -95,18 +95,33 @@ export const getExactDocs = ({
   let docs = filterDocs(definitionName);
 
   if (docs.length === 0 && definitionName && !propertyName) {
-    const propertyMatches = filterDocs().filter(
-      (doc) => extractPropertySections(doc.content, definitionName).length > 0
-    );
+    const possiblePropertyDocs = filterDocs();
+    const exactPropertyHeading = `Property: \`${definitionName}\``;
+    const exactPropertyMatches = possiblePropertyDocs.filter((doc) => doc.headingPath.includes(exactPropertyHeading));
+    const propertyMatches =
+      exactPropertyMatches.length > 0
+        ? exactPropertyMatches
+        : possiblePropertyDocs.filter((doc) => extractPropertySections(doc.content, definitionName).length > 0);
     if (propertyMatches.length > 0) {
-      docs = propertyMatches;
+      docs = exactPropertyMatches.length > 0 ? possiblePropertyDocs : propertyMatches;
       effectivePropertyName = definitionName;
       selectorFallback = 'definitionName-as-propertyName';
     }
   }
 
   if (effectivePropertyName) {
-    docs = docs.filter((doc) => extractPropertySections(doc.content, effectivePropertyName).length > 0);
+    const exactPropertyHeading = `Property: \`${effectivePropertyName}\``;
+    const exactPropertyDocs = docs.filter((doc) => doc.headingPath.includes(exactPropertyHeading));
+    if (exactPropertyDocs.length > 0) {
+      const typeDefinitionDocs = docs.filter(
+        (doc) =>
+          doc.headingPath.at(-1) === 'TypeScript definition' &&
+          extractPropertySections(doc.content, effectivePropertyName).length > 0
+      );
+      docs = [...typeDefinitionDocs, ...exactPropertyDocs];
+    } else {
+      docs = docs.filter((doc) => extractPropertySections(doc.content, effectivePropertyName).length > 0);
+    }
   }
 
   if (docs.length === 0) {
@@ -155,7 +170,11 @@ export const getExactDocs = ({
   for (const doc of docs) {
     const remaining = limit - totalChars;
     if (remaining <= 0) break;
-    const propertySections = effectivePropertyName ? extractPropertySections(doc.content, effectivePropertyName) : [];
+    const isExactPropertyDoc = effectivePropertyName
+      ? doc.headingPath.includes(`Property: \`${effectivePropertyName}\``)
+      : false;
+    const propertySections =
+      effectivePropertyName && !isExactPropertyDoc ? extractPropertySections(doc.content, effectivePropertyName) : [];
     const content = propertySections.length > 0 ? propertySections.join('\n\n') : doc.content;
     const section = `## ${doc.headingPath.join(' > ')}\n\nSource: ${doc.sourcePath}\nRoute: ${doc.route}\n\n${content}`;
     sections.push(section.slice(0, remaining));
