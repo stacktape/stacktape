@@ -113,28 +113,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
       message: 'This command is not yet implemented'
     };
   },
-  e12(): ReturnedError {
-    return {
-      type: 'CLI',
-      message: 'Invalid options provided.',
-      hint: [
-        `For sync via config, provide both ${tuiManager.prettyOption('stage')} and ${tuiManager.prettyOption(
-          'resourceName'
-        )}. Bucket ID is resolved from the deployed stack and directory from your config.`,
-        `For sync by bucket ID, provide ${tuiManager.prettyOption('bucketId')} (AWS physical ID or bucket name) and ${tuiManager.prettyOption(
-          'sourcePath'
-        )}. If the bucket is deployed by Stacktape, you can get the bucket ID using ${tuiManager.prettyCommand(
-          'info:stack'
-        )}.`
-      ]
-    };
-  },
-  e13({ directoryPath }): ReturnedError {
-    return {
-      type: 'CLI',
-      message: `Directory ${tuiManager.prettyFilePath(directoryPath)} is not accessible or is not a directory.`
-    };
-  },
   e14({ configPath }): ReturnedError {
     return {
       type: 'CONFIG_VALIDATION',
@@ -731,45 +709,6 @@ If you want to disable local emulation, use the ${tuiManager.prettyOption('disab
         stackName
       )} at the moment because the stack is in "${tuiManager.makeBold('DELETE_FAILED')}" state.`,
       hint: [`Delete the stack fully using ${tuiManager.prettyCommand('delete')} before retrying the command.`]
-    };
-  },
-  e77({
-    resourceName,
-    stackName,
-    resourceType
-  }: {
-    resourceName: string;
-    stackName: string;
-    resourceType?: StpResourceType;
-  }): ReturnedError {
-    return {
-      type: 'NON_EXISTING_RESOURCE',
-      message: sharedErrorMessages.resourceNotDeployed({ resourceName, stackName, resourceType })
-    };
-  },
-  e78({
-    resourceName,
-    resourceParamName,
-    resourceType,
-    referenceableParams
-  }: {
-    resourceName: string;
-    resourceParamName: string;
-    resourceType: StpResourceType;
-    referenceableParams: string[];
-  }): ReturnedError {
-    return {
-      type: 'PARAMETER',
-      message: `Parameter ${tuiManager.prettyConfigProperty(
-        resourceParamName
-      )} is not referenceable on the resource ${tuiManager.prettyResourceName(
-        resourceName
-      )} of type ${tuiManager.prettyResourceType(resourceType)}.`,
-      hint: [
-        `Referenceable params of the resource: ${referenceableParams
-          .map((param) => tuiManager.prettyConfigProperty(param))
-          .join(', ')}.`
-      ]
     };
   },
   e84({

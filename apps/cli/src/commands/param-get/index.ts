@@ -4,7 +4,9 @@ import type {
 } from '@domain-services/config-manager/resolved-types/resources';
 import { tuiManager } from '@application-services/tui-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
-import { stpErrors } from '@errors';
+import { deployedResourceNotFoundError } from '@domain-services/deployed-stack-overview-manager/errors';
+import type { StackInfoMapResource } from '@domain-services/stack-info/types';
+import { CliError } from '@utils/errors';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
 
 export const commandParamGet = async () => {
@@ -15,22 +17,12 @@ export const commandParamGet = async () => {
     commandRequiresConfig: false
   });
   const { paramName, resourceName } = args;
-  const resource = deployedStackOverviewManager.stackInfoMap.resources[resourceName];
-  if (!resource) {
-    throw stpErrors.e77({ stackName: stackContext.stackName, resourceName });
-  }
-  const param =
-    deployedStackOverviewManager.stackInfoMap.resources[resourceName].referencableParams[
-      paramName as StacktapeResourceReferenceableParam
-    ];
-  if (!param) {
-    throw stpErrors.e78({
-      resourceName,
-      resourceParamName: paramName,
-      resourceType: resource.resourceType as StpResourceType,
-      referenceableParams: Object.keys(resource.referencableParams)
-    });
-  }
+  const param = resolveReferenceableParam({
+    resource: deployedStackOverviewManager.stackInfoMap.resources[resourceName],
+    resourceName,
+    paramName,
+    stackName: stackContext.stackName
+  });
   const isSensitive = Boolean(param.ssmParameterName);
   const shouldShowSensitiveValue = Boolean(args.showSensitiveValues);
   const paramValue = isSensitive && !shouldShowSensitiveValue ? '<<OMITTED>>' : param.value;
@@ -42,4 +34,33 @@ export const commandParamGet = async () => {
   }
   tuiManager.printLines([`${tuiManager.makeBold(`${paramValue}`)}`, '']);
   return `${paramValue}`;
+};
+
+type ReferenceableParamResource = Pick<StackInfoMapResource, 'referencableParams' | 'resourceType'>;
+
+export const resolveReferenceableParam = ({
+  resource,
+  resourceName,
+  paramName,
+  stackName
+}: {
+  resource: ReferenceableParamResource | undefined;
+  resourceName: string;
+  paramName: string;
+  stackName: string;
+}) => {
+  if (!resource) {
+    throw deployedResourceNotFoundError({ stackName, resourceName });
+  }
+  const param = resource.referencableParams[paramName as StacktapeResourceReferenceableParam];
+  if (!param) {
+    const referenceableParams = Object.keys(resource.referencableParams);
+    throw new CliError({
+      category: 'PARAMETER',
+      code: 'RESOURCE_PARAMETER_NOT_REFERENCEABLE',
+      message: `Parameter \`${paramName}\` is not referenceable on resource \`${resourceName}\` of type \`${resource.resourceType as StpResourceType}\`.`,
+      hints: `Referenceable parameters: ${referenceableParams.map((name) => `\`${name}\``).join(', ') || 'none'}.`
+    });
+  }
+  return param;
 };

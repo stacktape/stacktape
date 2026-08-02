@@ -10,9 +10,10 @@ import { tuiManager } from '@application-services/tui-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { deployedResourceNotFoundError } from '@domain-services/deployed-stack-overview-manager/errors';
 import { notificationManager } from '@domain-services/notification-manager';
-import { stpErrors } from '@errors';
 import { isDirAccessible } from '@utils/fs-utils';
+import { CliError } from '@utils/errors';
 import { getCloudformationChildResources } from '@utils/stack-info-map';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
 import { isTransferAccelerationEnabledInRegion } from 'src/aws/buckets';
@@ -85,7 +86,7 @@ export const commandBucketSync = async (dependencies: Partial<BucketSyncCommandD
   const initializeDeployedStack =
     dependencies.initializeDeployedStack ?? initializeStackServicesForWorkingWithDeployedStack;
   const args = Object.freeze({ ...globalStateManager.args }) as Readonly<StacktapeCliArgs>;
-  validateInputs(args);
+  validateBucketSyncInput(args);
   const target = resolveBucketSyncTarget(args);
 
   let input: BucketSyncInput;
@@ -178,14 +179,24 @@ export const commandBucketSync = async (dependencies: Partial<BucketSyncCommandD
   return null;
 };
 
-const validateInputs = (args: Readonly<StacktapeCliArgs>) => {
+const bucketSyncInputHints = [
+  'To sync a configured bucket, provide both `--stage` and `--resourceName`. Stacktape resolves the bucket from the deployed stack and the source directory from your configuration.',
+  'To sync directly to a bucket, provide both `--bucketId` and `--sourcePath`. `--bucketId` accepts an AWS physical ID or bucket name. For a Stacktape-managed bucket, find its ID with `stacktape info:stack`.'
+];
+
+export const validateBucketSyncInput = (args: Readonly<StacktapeCliArgs>) => {
   const { stage, resourceName, bucketId, sourcePath } = args;
   const combinesWrongOptions = (stage || resourceName) && bucketId;
   const missesAllOptions = !stage && !resourceName && !bucketId;
   const missesOptionsForSyncFromConfig = (stage && !resourceName) || (resourceName && !stage);
   const missesOptionsForSyncUsingBucketId = (bucketId && !sourcePath) || (sourcePath && !bucketId);
   if (combinesWrongOptions || missesOptionsForSyncFromConfig || missesOptionsForSyncUsingBucketId || missesAllOptions) {
-    throw stpErrors.e12({});
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_BUCKET_SYNC_INPUT_INVALID',
+      message: 'Invalid bucket sync options.',
+      hints: bucketSyncInputHints
+    });
   }
 };
 
@@ -195,7 +206,7 @@ const getBucketName = (input: BucketSyncInput) => {
   }
   const resource = deployedStackOverviewManager.getStpResource({ nameChain: input.resourceName });
   if (!resource) {
-    throw stpErrors.e77({
+    throw deployedResourceNotFoundError({
       stackName: input.stackContext.stackName,
       resourceName: input.resourceName
     });
@@ -211,19 +222,42 @@ const getBucketName = (input: BucketSyncInput) => {
 
 const getDirectoryPath = (input: BucketSyncInput) => {
   const { sourcePath, resourceName } = input.args;
-  let res: string;
+  let directoryPath: string;
+  let workingDir: string;
   if (sourcePath) {
-    res = isAbsolute(sourcePath) ? sourcePath : join(process.cwd(), sourcePath);
+    directoryPath = sourcePath;
+    workingDir = process.cwd();
   } else if (input.kind === 'stack-resource') {
-    const { directoryPath } = configManager.allBuckets.find((bucket) => bucket.name === resourceName).directoryUpload;
-    res = join(input.stackContext.workingDir, directoryPath);
+    directoryPath = configManager.allBuckets.find((bucket) => bucket.name === resourceName).directoryUpload
+      .directoryPath;
+    workingDir = input.stackContext.workingDir;
   } else {
-    throw stpErrors.e12({});
+    throw new CliError({
+      category: 'CLI',
+      code: 'CLI_BUCKET_SYNC_INPUT_INVALID',
+      message: 'Invalid bucket sync options.',
+      hints: bucketSyncInputHints
+    });
   }
-  if (!isDirAccessible(res)) {
-    throw stpErrors.e13({ directoryPath: res });
+  return resolveBucketSyncDirectoryPath({ directoryPath, workingDir });
+};
+
+export const resolveBucketSyncDirectoryPath = ({
+  directoryPath,
+  workingDir
+}: {
+  directoryPath: string;
+  workingDir: string;
+}) => {
+  const absolutePath = isAbsolute(directoryPath) ? directoryPath : join(workingDir, directoryPath);
+  if (!isDirAccessible(absolutePath)) {
+    throw new CliError({
+      category: 'SYNC_BUCKET',
+      code: 'SYNC_BUCKET_DIRECTORY_INACCESSIBLE',
+      message: `Directory \`${absolutePath}\` is not accessible or is not a directory.`
+    });
   }
-  return res;
+  return absolutePath;
 };
 
 const getHeadersPreset = ({ args }: Extract<BucketSyncInput, { kind: 'stack-resource' }>) => {

@@ -9,11 +9,89 @@ import type { EnrichedStackResourceInfo } from '../../src/domain/cloudformation-
 import {
   commandBucketSync,
   getDirectBucketSyncUploadConfiguration,
-  resolveBucketSyncTarget
+  resolveBucketSyncDirectoryPath,
+  resolveBucketSyncTarget,
+  validateBucketSyncInput
 } from '../../src/commands/bucket-sync';
+import { resolveReferenceableParam } from '../../src/commands/param-get';
 import { getLogGroupInfoForStacktapeResource } from '../../src/commands/_utils/logs';
 
 describe('diagnostic command invocation inputs', () => {
+  test('reports invalid bucket sync modes with a stable, actionable contract', () => {
+    let invalidInputError: { category: string; code: string; hints: string[] } | undefined;
+    try {
+      validateBucketSyncInput({});
+    } catch (error) {
+      invalidInputError = error as typeof invalidInputError;
+    }
+
+    expect(invalidInputError).toMatchObject({
+      category: 'CLI',
+      code: 'CLI_BUCKET_SYNC_INPUT_INVALID'
+    });
+    const guidance = invalidInputError?.hints.join(' ') || '';
+    expect(guidance).toContain('resolves the bucket from the deployed stack');
+    expect(guidance).toContain('source directory from your configuration');
+    expect(guidance).toContain('accepts an AWS physical ID or bucket name');
+    expect(guidance).toContain('stacktape info:stack');
+    expect(() => validateBucketSyncInput({ stage: 'dev', resourceName: 'website' })).not.toThrow();
+    expect(() => validateBucketSyncInput({ bucketId: 'customer-assets', sourcePath: 'dist' })).not.toThrow();
+  });
+
+  test('rejects an inaccessible bucket sync source before starting a transfer', () => {
+    const workingDir = mkdtempSync(join(tmpdir(), 'stacktape-bucket-sync-path-'));
+    const missingDirectory = join(workingDir, 'missing');
+
+    try {
+      expect(() => resolveBucketSyncDirectoryPath({ directoryPath: 'missing', workingDir })).toThrow(
+        expect.objectContaining({
+          category: 'SYNC_BUCKET',
+          code: 'SYNC_BUCKET_DIRECTORY_INACCESSIBLE',
+          message: expect.stringContaining(missingDirectory)
+        })
+      );
+      expect(resolveBucketSyncDirectoryPath({ directoryPath: workingDir, workingDir: process.cwd() })).toBe(workingDir);
+    } finally {
+      rmSync(workingDir, { force: true, recursive: true });
+    }
+  });
+
+  test('distinguishes a missing deployed resource from an unsupported parameter', () => {
+    expect(() =>
+      resolveReferenceableParam({
+        resource: undefined,
+        resourceName: 'api',
+        paramName: 'url',
+        stackName: 'orders-dev'
+      })
+    ).toThrow(
+      expect.objectContaining({
+        category: 'NON_EXISTING_RESOURCE',
+        code: 'DEPLOYED_RESOURCE_NOT_FOUND',
+        message: expect.stringContaining('`orders-dev`')
+      })
+    );
+
+    const resource = {
+      resourceType: 'function' as const,
+      referencableParams: {
+        arn: { value: 'arn:aws:lambda:eu-west-1:123:function:orders', showDuringPrint: true }
+      }
+    };
+    expect(() =>
+      resolveReferenceableParam({ resource, resourceName: 'api', paramName: 'url', stackName: 'orders-dev' })
+    ).toThrow(
+      expect.objectContaining({
+        category: 'PARAMETER',
+        code: 'RESOURCE_PARAMETER_NOT_REFERENCEABLE',
+        hints: ['Referenceable parameters: `arn`.']
+      })
+    );
+    expect(
+      resolveReferenceableParam({ resource, resourceName: 'api', paramName: 'arn', stackName: 'orders-dev' }).value
+    ).toBe('arn:aws:lambda:eu-west-1:123:function:orders');
+  });
+
   test('keeps an explicit bucket ID on the credentials-only sync path', () => {
     expect(resolveBucketSyncTarget({ bucketId: 'customer-assets', resourceName: undefined })).toEqual({
       kind: 'bucket-id',

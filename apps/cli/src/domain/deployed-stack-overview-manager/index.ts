@@ -17,6 +17,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { HELPER_LAMBDA_NAMES } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { stpErrors } from '@errors';
+import { deployedResourceNotFoundError } from './errors';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
@@ -502,7 +503,7 @@ export class DeployedStackOverviewManager {
     const nameChainSplit = typeof nameChain === 'string' ? nameChain.split('.') : nameChain;
     const resource = this.getStpResource({ nameChain });
     if (!resource) {
-      throw stpErrors.e77({ resourceName: nameChainSplit.join('.'), stackName });
+      throw deployedResourceNotFoundError({ resourceName: nameChainSplit.join('.'), stackName });
     }
     const parentResource = this.getStpResource({
       nameChain: nameChainSplit[0]
