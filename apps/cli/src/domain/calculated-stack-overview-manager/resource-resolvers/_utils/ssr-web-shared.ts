@@ -7,6 +7,15 @@ import CloudfrontFunction from '@cloudform/cloudFront/function';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { readdir, stat, pathExists } from 'fs-extra';
 
+export const getStaticAssetCachePathPatterns = async (assetsDirectoryPath: string) => {
+  const assetsDirContents = (await readdir(assetsDirectoryPath)).sort();
+  return Promise.all(
+    assetsDirContents.map(async (item) =>
+      stat(join(assetsDirectoryPath, item)).then((info) => (info.isDirectory() ? `${item}/*` : item))
+    )
+  );
+};
+
 /**
  * Common type for SSR web resources that need host header rewrite
  */
@@ -74,15 +83,9 @@ export const getStaticAssetsCacheBehaviorTemplateOverride =
     if (!(await pathExists(assetsDirectoryPath))) {
       return;
     }
-    const assetsDirContents = await readdir(assetsDirectoryPath);
-
-    const newCacheBehaviours = await Promise.all(
-      assetsDirContents.map(async (item) => ({
-        PathPattern: await stat(join(assetsDirectoryPath, item)).then((info) =>
-          info.isDirectory() ? `${item}/*` : item
-        )
-      }))
-    );
+    const newCacheBehaviours = (await getStaticAssetCachePathPatterns(assetsDirectoryPath)).map((PathPattern) => ({
+      PathPattern
+    }));
 
     for (let distributionIndex = 0; ; distributionIndex += 1) {
       const cfLogicalNameOfResourceToModify = cfLogicalNames.cloudfrontDistribution(resourceName, distributionIndex);

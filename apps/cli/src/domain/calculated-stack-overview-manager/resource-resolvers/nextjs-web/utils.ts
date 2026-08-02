@@ -13,10 +13,10 @@ import { fsPaths } from 'src/config/runtime-paths';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { EDGE_LAMBDA_ENV_ASSET_REPLACER_PLACEHOLDER } from '@stacktape/packaging/web/constants';
 import { getCfEnvironment, transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
-import { readdir, stat } from 'fs-extra';
 import { getResolvedConnectToEnvironmentVariables } from '../_utils/connect-to-helper';
 import { getCustomResource, getStpServiceCustomResource } from '../_utils/custom-resource';
 import { resolveDirectivesForEnvironmentVariables } from '../_utils/env-vars';
+import { getStaticAssetCachePathPatterns } from '../_utils/ssr-web-shared';
 
 export const getHostHeaderRewriteCloudfrontFunction = (nextjsWeb: StpNextjsWeb) => {
   return new CloudfrontFunction({
@@ -78,12 +78,9 @@ export const getCacheBehaviourTemplateOverride =
       'bucket-content',
       '_assets'
     );
-    const assetsDirContents = await readdir(assetsDirPath);
-    const newCacheBehaviours = await Promise.all(
-      assetsDirContents.map(async (item) => ({
-        PathPattern: await stat(join(assetsDirPath, item)).then((info) => (info.isDirectory() ? `${item}/*` : item))
-      }))
-    );
+    const newCacheBehaviours = (await getStaticAssetCachePathPatterns(assetsDirPath)).map((PathPattern) => ({
+      PathPattern
+    }));
 
     for (let distributionIndex = 0; ; distributionIndex += 1) {
       const cfLogicalNameOfResourceToModify = cfLogicalNames.cloudfrontDistribution(nextjsWeb.name, distributionIndex);
