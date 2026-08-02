@@ -1465,64 +1465,43 @@ export class ConfigManager {
     const domainAssociations: {
       [fullDomainName: string]: string[];
     } = {};
+    const recordManagedDomain = ({ domain, resourceName }: { domain: DomainConfiguration; resourceName: string }) => {
+      if (domain.disableDnsRecordCreation && domain.customCertificateArn) {
+        return;
+      }
+
+      domainAssociations[domain.domainName] = (domainAssociations[domain.domainName] || []).concat(resourceName);
+      resultDomains.add(getApexDomain(domain.domainName));
+    };
+
     // check load balancers and their domains
     this.allApplicationLoadBalancers.forEach(({ name, customDomains }) => {
-      if (customDomains) {
-        customDomains
-          .filter(({ disableDnsRecordCreation }) => !disableDnsRecordCreation)
-          .forEach(({ domainName }) => {
-            domainAssociations[domainName] = (domainAssociations[domainName] || []).concat(name);
-            const rootDomain = getApexDomain(domainName);
-            resultDomains.add(rootDomain);
-          });
-      }
+      customDomains?.forEach((domain) => recordManagedDomain({ domain, resourceName: name }));
     });
     // check load balancers and their domains
     this.allNetworkLoadBalancers.forEach(({ name, customDomains }) => {
-      if (customDomains) {
-        customDomains
-          .filter(({ disableDnsRecordCreation }) => !disableDnsRecordCreation)
-          .forEach(({ domainName }) => {
-            domainAssociations[domainName] = (domainAssociations[domainName] || []).concat(name);
-            const rootDomain = getApexDomain(domainName);
-            resultDomains.add(rootDomain);
-          });
-      }
+      customDomains?.forEach((domain) => recordManagedDomain({ domain, resourceName: name }));
     });
     // check http api gateways
     this.allHttpApiGateways.forEach(({ name, customDomains }) => {
-      if (customDomains) {
-        customDomains.forEach((domainConfig) => {
-          const fullDomainName = domainConfig.domainName;
-
-          domainAssociations[fullDomainName] = (domainAssociations[fullDomainName] || []).concat(name);
-          const rootDomain = getApexDomain(fullDomainName);
-          resultDomains.add(rootDomain);
-        });
-      }
+      customDomains?.forEach((domain) => recordManagedDomain({ domain, resourceName: name }));
     });
 
     // check cdns
-    [...this.allBuckets, ...this.allApplicationLoadBalancers, ...this.allHttpApiGateways].forEach(
-      ({ name: stpResourceName, cdn }) => {
-        if (cdn?.customDomains) {
-          cdn.customDomains.forEach((domainConfig) => {
-            const fullDomainName = domainConfig.domainName;
-
-            domainAssociations[fullDomainName] = [...(domainAssociations[fullDomainName] || []), stpResourceName];
-            const rootDomain = getApexDomain(fullDomainName);
-            resultDomains.add(rootDomain);
-          });
-        }
-      }
-    );
+    [
+      ...this.allBuckets,
+      ...this.allApplicationLoadBalancers,
+      ...this.allHttpApiGateways,
+      ...this.functions,
+      ...this.allNextjsLambdaFunctions,
+      ...this.allSsrWebLambdaFunctions
+    ].forEach(({ name: stpResourceName, cdn }) => {
+      cdn?.customDomains?.forEach((domain) => recordManagedDomain({ domain, resourceName: stpResourceName }));
+    });
 
     this.userPools.forEach(({ name, customDomain }) => {
       if (customDomain) {
-        const fullDomainName = customDomain.domainName;
-        domainAssociations[fullDomainName] = (domainAssociations[fullDomainName] || []).concat(name);
-        const rootDomain = getApexDomain(fullDomainName);
-        resultDomains.add(rootDomain);
+        recordManagedDomain({ domain: customDomain, resourceName: name });
       }
     });
 
@@ -2266,7 +2245,8 @@ export class ConfigManager {
     const result: { version: string; instanceType: string }[] = [];
     this.openSearchDomains.forEach((resource) => {
       if (!resource.clusterConfig) {
-        return [{ version: resource.version || '2.17', instanceType: 'm4.large.search' }];
+        result.push({ version: resource.version || '2.17', instanceType: 'm4.large.search' });
+        return;
       }
       if (resource.clusterConfig?.instanceType) {
         result.push({
