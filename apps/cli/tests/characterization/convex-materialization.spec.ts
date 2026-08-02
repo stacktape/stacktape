@@ -512,6 +512,25 @@ describe('Convex materialization', () => {
     expect(children.loadBalancer.disabledGlobalAlarms).toEqual(disabledGlobalAlarms);
   });
 
+  test('exposes each nested resource and its alarms once in the flattened resource graph', () => {
+    const manager = managerFor({
+      backend: {
+        type: 'convex',
+        properties: {
+          appDirectory: './convex',
+          alarms: [{ trigger: { type: 'database-cpu-utilization', properties: { thresholdPercent: 80 } } }]
+        }
+      }
+    });
+
+    const flattenedNameChains = manager.allResourcesIncludingNested.map(({ nameChain }) => nameChain.join('.'));
+
+    expect(flattenedNameChains).toHaveLength(new Set(flattenedNameChains).size);
+    expect(
+      manager.allAlarms.filter(({ nameChain }) => nameChain.join('.') === 'backend.database.alarms.0')
+    ).toHaveLength(1);
+  });
+
   test('keeps the authored properties beside the children, for every authored resource', () => {
     const convex = convexFor({ appDirectory: './convex', deletionProtection: true });
 

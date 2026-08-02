@@ -1867,7 +1867,15 @@ export class ConfigManager {
       const nestedResources = Object.values(resource._nestedResources || {}).filter(Boolean);
       return nestedResources.length ? [resource, ...nestedResources.map(unwrapResource).flat()] : [resource];
     };
-    return this.allConfigResources.map(unwrapResource).flat();
+    const seenNameChains = new Set<string>();
+    return this.allConfigResources.flatMap(unwrapResource).filter(({ nameChain }) => {
+      const serializedNameChain = JSON.stringify(nameChain);
+      if (seenNameChains.has(serializedNameChain)) {
+        return false;
+      }
+      seenNameChains.add(serializedNameChain);
+      return true;
+    });
   }
 
   get allResourcesRequiringVpc() {
