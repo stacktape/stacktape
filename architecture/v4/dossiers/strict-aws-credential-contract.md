@@ -78,6 +78,11 @@ fewer, with no new diagnostic.
 - Pre-initialization misuse is not uniformly guarded. All traced real producers initialize correctly; adding a
   fail-fast runtime state changes public/error behavior and needs a separate decision.
 
+This section records the state at the dossier's prerequisite commit. Later v4 follow-ups preserve explicit role
+durations, omit AWS's optional duration when the caller omits it, refresh five minutes before expiration, and own
+scheduled refresh failures with pre-expiry retries and shutdown/concurrency guards. Consult the current source and
+`DEFERRED-ISSUES.md` for the live status rather than treating the historical bullets as open work.
+
 ## Gates
 
 - Focused AWS-manager characterization without network access.

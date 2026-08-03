@@ -115,7 +115,7 @@ describe('AWS request debug redaction', () => {
     expect(input.TemplateBody).toContain(sentinel);
   });
 
-  test('hides ECS Exec and Systems Manager shell text that generated filters leave intact', () => {
+  test('hides arbitrary ECS Exec and Systems Manager shell text', () => {
     const ecsInput = {
       cluster: 'cluster',
       command: `curl -H Authorization:${sentinel}`,
