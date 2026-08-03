@@ -93,6 +93,10 @@ export const footerScenes: Scene[] = [
         instanceId: 'api-lambda',
         finalMessage: 'api-lambda packaged (4.1 MB)'
       });
+      tuiState.appendEventOutput({
+        eventType: 'PACKAGE_ARTIFACTS',
+        lines: ['#6 [3/6] RUN bun install --frozen-lockfile', '#8 [5/6] RUN bun run build']
+      });
     }
   },
   {
@@ -255,6 +259,11 @@ export const scrollbackItems: Array<{ name: string; item: ScrollbackItem }> = [
             instanceId: 'api-lambda',
             children: []
           }
+        ],
+        outputLines: [
+          '$ docker build -t web-service .',
+          '#6 [3/6] RUN bun install --frozen-lockfile',
+          '#10 naming to docker.io/library/web-service:latest'
         ]
       })
     }

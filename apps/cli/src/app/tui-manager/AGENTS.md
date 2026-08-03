@@ -44,10 +44,14 @@ forces an explicit decision there.
 
 ## Invariants
 
-1. **Scrollback is written exactly once.** Top-level events stream to scrollback on FINISH; output lines
-   stream as they arrive; the footer live area shows only `running` events. There is no exit re-render —
-   whatever is in scrollback when the renderer tears down _is_ the output. The plain exit summary
-   (`progress/exit-summary.ts`) runs only in plain mode or when the renderer never mounted.
+1. **Scrollback is written exactly once.** Top-level events stream to scrollback on FINISH; the footer
+   live area shows only `running` events. There is no exit re-render — whatever is in scrollback when the
+   renderer tears down _is_ the output. Event output sits on the correct side of the append/re-render
+   seam: in phase mode it is incidental, so it buffers on the event (footer shows the last line as a live
+   tail) and renders inside the event's block; in simple mode (script:run) the output IS the content and
+   streams shell-style as it arrives. Never stream something that will also be re-rendered later. The
+   plain exit summary (`progress/exit-summary.ts`) runs only in plain mode or when the renderer never
+   mounted.
 2. **All mounts and teardowns go through `TtyRuntime`.** Never store renderer handles or destroy flags
    elsewhere. On teardown the facade rejects pending prompts (`PromptSink.rejectPending`) — otherwise
    awaiting commands hang.

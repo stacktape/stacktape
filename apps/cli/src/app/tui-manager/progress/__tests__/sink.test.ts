@@ -81,7 +81,25 @@ describe('TuiStateSink scrollback emission', () => {
     expect(received).toEqual([{ kind: 'message', type: 'warn', text: 'careful' }]);
   });
 
-  test('event output streams line-by-line, unprefixed when a single source is active', () => {
+  test('phase mode buffers output on the event instead of streaming it', () => {
+    sink.setPhase('BUILD_AND_PACKAGE');
+    sink.startEvent({
+      eventType: 'RUN_SCRIPT',
+      description: 'Running script db-migrate',
+      instanceId: 'manual-db-migrate'
+    });
+    sink.appendEventOutput({ eventType: 'RUN_SCRIPT', instanceId: 'manual-db-migrate', lines: ['line 1', 'line 2'] });
+
+    // Nothing streams: the lines wait inside the event and land with its block.
+    expect(received.filter((i) => i.kind === 'output-line')).toHaveLength(0);
+    sink.finishEvent({ eventType: 'RUN_SCRIPT', instanceId: 'manual-db-migrate' });
+    const events = received.filter((i) => i.kind === 'event') as Extract<ScrollbackItem, { kind: 'event' }>[];
+    expect(events).toHaveLength(1);
+    expect(events[0].event.outputLines).toEqual(['line 1', 'line 2']);
+  });
+
+  test('simple mode streams output line-by-line, unprefixed for a single source', () => {
+    tuiState.setShowPhaseHeaders(false);
     sink.setPhase('BUILD_AND_PACKAGE');
     sink.startEvent({
       eventType: 'RUN_SCRIPT',
@@ -96,11 +114,10 @@ describe('TuiStateSink scrollback emission', () => {
     >[];
     expect(outputs.map((o) => o.line)).toEqual(['line 1', 'line 2']);
     expect(outputs.every((o) => o.source === undefined)).toBe(true);
-    // phase header must precede the streamed output
-    expect(received[0].kind).toBe('phase-header');
   });
 
   test('concurrent sources get a [source] prefix', () => {
+    tuiState.setShowPhaseHeaders(false);
     sink.setPhase('BUILD_AND_PACKAGE');
     sink.startEvent({ eventType: 'RUN_SCRIPT', description: 'a', instanceId: 'manual-a' });
     sink.startEvent({ eventType: 'BUILD_IMAGE', description: 'b', instanceId: 'b' });
@@ -116,7 +133,8 @@ describe('TuiStateSink scrollback emission', () => {
     expect(outputs[1]).toMatchObject({ line: 'from b', source: 'BUILD_IMAGE-b' });
   });
 
-  test('finished event one-liner streams without repeating its output lines', () => {
+  test('simple mode: finished event one-liner does not repeat streamed output', () => {
+    tuiState.setShowPhaseHeaders(false);
     sink.setPhase('BUILD_AND_PACKAGE');
     sink.startEvent({
       eventType: 'RUN_SCRIPT',
@@ -128,6 +146,7 @@ describe('TuiStateSink scrollback emission', () => {
 
     const events = received.filter((i) => i.kind === 'event') as Extract<ScrollbackItem, { kind: 'event' }>[];
     expect(events).toHaveLength(1);
+    // Streamed lines are already in scrollback; the block must not carry them again.
     expect(events[0].event.outputLines).toBeUndefined();
   });
 });

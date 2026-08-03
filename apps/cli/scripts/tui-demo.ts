@@ -86,10 +86,24 @@ const runPackagePhase = async () => {
     });
   }
 
-  tuiManager.appendEventOutput({
-    eventType: 'PACKAGE_ARTIFACTS',
-    lines: ['$ docker build -t web-service .', '#1 [internal] load build definition', '#2 transferring context: 2.1MB']
-  });
+  // Output drips in over time: the footer shows it as a live tail on the
+  // running event; the full log lands inside the event's scrollback block.
+  const dockerLines = [
+    '$ docker build -t web-service .',
+    '#1 [internal] load build definition',
+    '#2 transferring context: 2.1MB',
+    '#5 [2/6] COPY package.json bun.lock ./',
+    '#6 [3/6] RUN bun install --frozen-lockfile',
+    '#8 [5/6] RUN bun run build',
+    '#10 exporting to image',
+    '#10 naming to docker.io/library/web-service:latest'
+  ];
+  const dripOutput = (async () => {
+    for (const line of dockerLines) {
+      tuiManager.appendEventOutput({ eventType: 'PACKAGE_ARTIFACTS', lines: [line] });
+      await sleep(420);
+    }
+  })();
 
   await Promise.all(
     workloads.map(async (workload, index) => {
@@ -110,6 +124,7 @@ const runPackagePhase = async () => {
     })
   );
 
+  await dripOutput;
   tuiManager.finishEvent({ eventType: 'PACKAGE_ARTIFACTS', finalMessage: '3 workloads packaged' });
   tuiManager.finishPhase();
 };

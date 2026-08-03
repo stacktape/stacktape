@@ -91,6 +91,19 @@ describe('scrollback document grammar', () => {
     expect(frame).toContain('└ ✓ api packaged (4.1 MB)');
   });
 
+  test('buffered output renders inside the event block with a gutter', async () => {
+    const frame = await renderItem({
+      kind: 'event',
+      event: finishedEvent({ outputLines: ['$ docker build .', '#10 exporting to image'] })
+    });
+    const lines = frame.split('\n');
+    const eventRow = lines.findIndex((l) => l.includes('✓ 3 workloads packaged'));
+    const firstOutput = lines.findIndex((l) => l.includes('│ $ docker build .'));
+    // The log is attached under its event, never orphaned above it.
+    expect(firstOutput).toBeGreaterThan(eventRow);
+    expect(frame).toContain('│ #10 exporting to image');
+  });
+
   test('finished CF event is a single line with change counts', async () => {
     const frame = await renderItem({
       kind: 'event',

@@ -108,6 +108,19 @@ describe('ProgressDashboard footer', () => {
     expect(frame).not.toContain('api-lambda  api-lambda');
   });
 
+  test('running event shows its last buffered output line as a live tail', async () => {
+    initDeployState();
+    tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging workloads' });
+    tuiState.appendEventOutput({
+      eventType: 'PACKAGE_ARTIFACTS',
+      lines: ['#2 transferring context', '#6 RUN bun install']
+    });
+
+    const frame = await renderDashboard();
+    expect(frame).toContain('Packaging workloads  #6 RUN bun install');
+    expect(frame).not.toContain('#2 transferring context');
+  });
+
   test('CF panel renders verb columns, honest progress and queue aggregate', async () => {
     initDeployState();
     tuiState.setCurrentPhase('DEPLOY');

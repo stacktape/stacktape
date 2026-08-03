@@ -15,6 +15,8 @@ type StateListener = (state: TuiState) => void;
 
 const HIDE_CHILDREN_WHEN_FINISHED_EVENTS: LoggableEventType[] = ['LOAD_METADATA_FROM_AWS'];
 
+const MAX_BUFFERED_OUTPUT_LINES = 200;
+
 class TuiStateManager {
   private state: TuiState;
   private listeners: Set<StateListener> = new Set();
@@ -439,12 +441,22 @@ class TuiStateManager {
     const { eventType, lines, instanceId } = params;
     const id = eventId(eventType, instanceId);
 
+    // Chatty builds can produce thousands of lines; the block renderer shows a
+    // bounded tail, so cap what is retained.
+    const appendCapped = (event: TuiEvent): TuiEvent => {
+      const merged = [...(event.outputLines || []), ...lines];
+      return { ...event, outputLines: merged.slice(-MAX_BUFFERED_OUTPUT_LINES) };
+    };
+
     const newPhases = this.state.phases.map((phase) => ({
       ...phase,
       events: phase.events.map((event) => {
-        if (event.id === id) {
-          const existingLines = event.outputLines || [];
-          return { ...event, outputLines: [...existingLines, ...lines] };
+        if (event.id === id) return appendCapped(event);
+        if (event.children.some((child) => child.id === id)) {
+          return {
+            ...event,
+            children: event.children.map((child) => (child.id === id ? appendCapped(child) : child))
+          };
         }
         return event;
       })

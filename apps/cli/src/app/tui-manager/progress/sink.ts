@@ -114,30 +114,28 @@ export class TuiStateSink {
   };
 
   /**
-   * Streams event output line-by-line into scrollback as it is produced (Option A).
-   * A `[source]` prefix is added only while more than one event is producing
-   * output at once, so a lone script/hook stays clean. Falls back to buffering
-   * on state (for non-TTY snapshots) when the scrollback feed is inactive.
+   * Routes event output to the correct side of the append/re-render seam:
+   *
+   * - Simple mode (script:run and friends): the output IS the content — stream
+   *   it into scrollback shell-style as it is produced. A source prefix is
+   *   added only while more than one event streams at once.
+   * - Phase mode (deploy/delete/...): the output is incidental (docker noise,
+   *   hook logs). Streaming it would detach it from its event block, which only
+   *   lands on FINISH. Instead it is buffered on the event and rendered inside
+   *   the block; the footer shows the last line as a live tail meanwhile.
    */
   appendEventOutput = (params: { eventType: LoggableEventType; lines: string[]; instanceId?: string }) => {
-    if (!scrollbackFeed.enabled) {
+    const phaseMode = tuiState.getState().showPhaseHeaders !== false;
+    if (!scrollbackFeed.enabled || phaseMode) {
       tuiState.appendEventOutput(params);
       return;
     }
     const sourceKey = eventId(params.eventType, params.instanceId);
     this.activeOutputSources.add(sourceKey);
-    this.ensureCurrentPhaseHeader();
     const source = this.activeOutputSources.size > 1 ? sourceKey.replace(/^manual-/, '') : undefined;
     for (const line of params.lines) {
       scrollbackFeed.push({ kind: 'output-line', source, line });
     }
-  };
-
-  private ensureCurrentPhaseHeader = () => {
-    const state = tuiState.getState();
-    if (state.showPhaseHeaders === false || !state.currentPhase) return;
-    const phase = state.phases.find((p) => p.id === state.currentPhase);
-    if (phase) scrollbackFeed.pushPhaseHeaderIfNeeded(phase.id, phase.name);
   };
 
   addMessage = (type: TuiMessageType, message: string) => {

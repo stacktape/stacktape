@@ -1,5 +1,5 @@
 import type { LoggableEventType } from '@application-services/event-manager/types';
-import { Show, For } from 'solid-js';
+import { Show, Index } from 'solid-js';
 import type { CfProgressData, CfResourceInProgress, TuiEvent } from '../types';
 import {
   parseEstimatePercent,
@@ -225,30 +225,30 @@ export const CfPanel = (props: { event: TuiEvent; rows: number }) => {
                 suffixSecondary={`${String(snapshot().completedCount).padStart(2)}/${snapshot().totalPlanned} complete`}
               />
             </Show>
-            <For each={visibleSlots()}>
+            <Index each={visibleSlots()}>
               {(resource) => (
                 <box height={1} flexShrink={0} flexDirection="row" overflow="hidden">
                   <Spinner />
                   <text flexShrink={0} wrapMode="none" fg={theme.muted}>
                     {' '}
-                    {resource.action.padEnd(7)}
+                    {resource().action.padEnd(7)}
                   </text>
                   <text flexShrink={1} wrapMode="none" fg={theme.text}>
                     {' '}
-                    {resource.name}
+                    {resource().name}
                   </text>
                   <box flexGrow={1} />
-                  <Show when={resource.resourceType}>
+                  <Show when={resource().resourceType}>
                     <text flexShrink={0} wrapMode="none" fg={theme.dim}>
-                      {resource.resourceType}
+                      {resource().resourceType}
                     </text>
                   </Show>
                 </box>
               )}
-            </For>
-            <For each={Array.from({ length: Math.max(0, slotCount() - visibleSlots().length) })}>
+            </Index>
+            <Index each={Array.from({ length: Math.max(0, slotCount() - visibleSlots().length) })}>
               {() => <box height={1} flexShrink={0} />}
-            </For>
+            </Index>
           </>
         }
       >
@@ -321,11 +321,14 @@ const aggregateChildren = (children: TuiEvent[]): AggregatedChild[] => {
         ? lastFinished.finalMessage.slice(instanceId.length + 1)
         : lastFinished.finalMessage
       : '';
+    // Running rows tail with the freshest signal available: an explicit status
+    // message, else the last buffered output line (live docker/build feedback).
+    const runningDetail = running ? running.additionalMessage || running.outputLines?.at(-1) || '' : '';
     result.push({
       instanceId,
       status,
       label: instanceId,
-      detail: running ? running.additionalMessage || '' : finishedDetail
+      detail: running ? runningDetail : finishedDetail
     });
   }
   return result;
@@ -375,52 +378,57 @@ const GenericRows = (props: { events: TuiEvent[]; rows: number }) => {
     return [...shown, { kind: 'overflow', count: rows.length - shown.length } as LiveRow];
   };
 
+  // Running events tail with an explicit status message, else the freshest
+  // buffered output line — live feedback without streaming into scrollback.
+  const eventTail = (event: TuiEvent) =>
+    event.additionalMessage || (event.status === 'running' ? event.outputLines?.at(-1) : undefined);
+
   return (
     <box flexDirection="column" paddingLeft={2} paddingRight={1} overflow="hidden">
-      <For each={visible()}>
+      <Index each={visible()}>
         {(row) => (
           <box height={1} flexShrink={0} flexDirection="row" overflow="hidden">
-            <Show when={row.kind === 'event'}>
-              <RowIcon status={(row as Extract<LiveRow, { kind: 'event' }>).event.status} />
+            <Show when={row().kind === 'event'}>
+              <RowIcon status={(row() as Extract<LiveRow, { kind: 'event' }>).event.status} />
               <text flexShrink={1} wrapMode="none" fg={theme.text}>
                 {' '}
-                {(row as Extract<LiveRow, { kind: 'event' }>).event.description}
+                {(row() as Extract<LiveRow, { kind: 'event' }>).event.description}
               </text>
-              <Show when={(row as Extract<LiveRow, { kind: 'event' }>).event.additionalMessage}>
+              <Show when={eventTail((row() as Extract<LiveRow, { kind: 'event' }>).event)}>
                 <text flexShrink={1} wrapMode="none" fg={theme.dim}>
                   {'  '}
-                  {(row as Extract<LiveRow, { kind: 'event' }>).event.additionalMessage}
+                  {eventTail((row() as Extract<LiveRow, { kind: 'event' }>).event)}
                 </text>
               </Show>
             </Show>
-            <Show when={row.kind === 'child'}>
+            <Show when={row().kind === 'child'}>
               <text flexShrink={0} wrapMode="none" fg={theme.border}>
                 {'  '}
-                {(row as Extract<LiveRow, { kind: 'child' }>).isLast ? glyphs.treeEnd : glyphs.treeBranch}
+                {(row() as Extract<LiveRow, { kind: 'child' }>).isLast ? glyphs.treeEnd : glyphs.treeBranch}
               </text>
               <text flexShrink={0} wrapMode="none">
                 {' '}
               </text>
-              <RowIcon status={(row as Extract<LiveRow, { kind: 'child' }>).child.status} />
+              <RowIcon status={(row() as Extract<LiveRow, { kind: 'child' }>).child.status} />
               <text flexShrink={0} wrapMode="none" fg={theme.text}>
                 {' '}
-                {(row as Extract<LiveRow, { kind: 'child' }>).child.label.padEnd(childLabelWidth())}
+                {(row() as Extract<LiveRow, { kind: 'child' }>).child.label.padEnd(childLabelWidth())}
               </text>
-              <Show when={(row as Extract<LiveRow, { kind: 'child' }>).child.detail}>
+              <Show when={(row() as Extract<LiveRow, { kind: 'child' }>).child.detail}>
                 <text flexShrink={1} wrapMode="none" fg={theme.dim}>
                   {'  '}
-                  {(row as Extract<LiveRow, { kind: 'child' }>).child.detail}
+                  {(row() as Extract<LiveRow, { kind: 'child' }>).child.detail}
                 </text>
               </Show>
             </Show>
-            <Show when={row.kind === 'overflow'}>
+            <Show when={row().kind === 'overflow'}>
               <text wrapMode="none" fg={theme.dim}>
-                {'  '}+{(row as Extract<LiveRow, { kind: 'overflow' }>).count} more
+                {'  '}+{(row() as Extract<LiveRow, { kind: 'overflow' }>).count} more
               </text>
             </Show>
           </box>
         )}
-      </For>
+      </Index>
     </box>
   );
 };
@@ -443,23 +451,23 @@ export const HotswapPanel = (props: { event: TuiEvent; rows: number }) => {
           </Show>
         </text>
       </box>
-      <For each={children().slice(0, props.rows - 1)}>
+      <Index each={children().slice(0, props.rows - 1)}>
         {(child) => (
           <box height={1} flexShrink={0} flexDirection="row" overflow="hidden">
-            <RowIcon status={child.status} />
+            <RowIcon status={child().status} />
             <text flexShrink={1} wrapMode="none" fg={theme.text}>
               {' '}
-              {child.label}
+              {child().label}
             </text>
-            <Show when={child.detail}>
+            <Show when={child().detail}>
               <text flexShrink={1} wrapMode="none" fg={theme.dim}>
                 {'  '}
-                {child.detail}
+                {child().detail}
               </text>
             </Show>
           </box>
         )}
-      </For>
+      </Index>
     </box>
   );
 };

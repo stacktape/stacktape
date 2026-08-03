@@ -120,6 +120,47 @@ type FinishedChild = {
   text: string;
   status: TuiEvent['status'];
   duration?: number;
+  outputLines?: string[];
+};
+
+/** Bounded tail of an event's buffered output, rendered inside its block. */
+const MAX_ATTACHED_OUTPUT_LINES = 30;
+
+const AttachedOutput = (props: { lines: string[] | undefined; indent: string }) => {
+  const { theme } = useTheme();
+  const lines = () => props.lines ?? [];
+  const visible = () => lines().slice(-MAX_ATTACHED_OUTPUT_LINES);
+  const hidden = () => lines().length - visible().length;
+  return (
+    <Show when={visible().length > 0}>
+      <Show when={hidden() > 0}>
+        <box flexDirection="row" width="100%">
+          <text flexShrink={0} wrapMode="none" fg={theme.border}>
+            {props.indent}
+            {glyphs.gutter}
+          </text>
+          <text flexShrink={1} wrapMode="none" fg={theme.dim}>
+            {' '}
+            … {hidden()} earlier lines
+          </text>
+        </box>
+      </Show>
+      <For each={visible()}>
+        {(line) => (
+          <box flexDirection="row" width="100%">
+            <text flexShrink={0} wrapMode="none" fg={theme.border}>
+              {props.indent}
+              {glyphs.gutter}
+            </text>
+            <text flexShrink={1} wrapMode="none" fg={theme.text}>
+              {' '}
+              {line}
+            </text>
+          </box>
+        )}
+      </For>
+    </Show>
+  );
 };
 
 const finishedChildren = (children: TuiEvent[]): FinishedChild[] => {
@@ -136,10 +177,12 @@ const finishedChildren = (children: TuiEvent[]): FinishedChild[] => {
     const lastFinished = [...events].reverse().find((e) => e.status === 'success' || e.status === 'error');
     const anyError = events.some((e) => e.status === 'error');
     const duration = events.reduce((sum, e) => sum + (e.duration || 0), 0) || undefined;
+    const outputLines = events.flatMap((event) => event.outputLines ?? []);
     result.push({
       text: lastFinished?.finalMessage || lastFinished?.description || instanceId,
       status: anyError ? 'error' : (lastFinished?.status ?? 'success'),
-      duration
+      duration,
+      outputLines: outputLines.length > 0 ? outputLines : undefined
     });
   }
   return result;
@@ -192,23 +235,27 @@ const EventView = (props: { event: TuiEvent }) => {
       </box>
       <For each={children()}>
         {(child, index) => (
-          <box flexDirection="row" width="100%">
-            <text flexShrink={0} wrapMode="none" fg={theme.border}>
-              {'  '}
-              {index() === children().length - 1 ? glyphs.treeEnd : glyphs.treeBranch}
-            </text>
-            <text flexShrink={0} wrapMode="none">
-              {' '}
-            </text>
-            <StatusGlyph status={child.status} />
-            <text flexShrink={1} wrapMode="none" fg={theme.text}>
-              {' '}
-              {child.text}
-            </text>
-            <DurationRail duration={child.duration} />
-          </box>
+          <>
+            <box flexDirection="row" width="100%">
+              <text flexShrink={0} wrapMode="none" fg={theme.border}>
+                {'  '}
+                {index() === children().length - 1 ? glyphs.treeEnd : glyphs.treeBranch}
+              </text>
+              <text flexShrink={0} wrapMode="none">
+                {' '}
+              </text>
+              <StatusGlyph status={child.status} />
+              <text flexShrink={1} wrapMode="none" fg={theme.text}>
+                {' '}
+                {child.text}
+              </text>
+              <DurationRail duration={child.duration} />
+            </box>
+            <AttachedOutput lines={child.outputLines} indent={'    '} />
+          </>
         )}
       </For>
+      <AttachedOutput lines={props.event.outputLines} indent={'  '} />
     </box>
   );
 };
