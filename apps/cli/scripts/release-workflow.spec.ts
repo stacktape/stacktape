@@ -171,8 +171,10 @@ describe('release candidate workflow', () => {
     expect(workflow).toContain('-F prerelease="$is_preview"');
     expect(workflow).toContain('-f make_latest="$make_latest"');
     expect(workflow).toContain('target_commitish="$GITHUB_SHA"');
-    expect(workflow).toContain('test "$latest_after" = "$LATEST_BEFORE"');
-    expect(workflow).toContain('test "$preview_after" = "$PREVIEW_BEFORE"');
+    expect(workflow).toContain('[ "$latest_after" = "$LATEST_BEFORE" ]');
+    expect(workflow).toContain('[ "$preview_after" = "$PREVIEW_BEFORE" ]');
+    expect(workflow).toContain('for attempt in $(seq 1 12)');
+    expect(workflow).toContain('npm view stacktape dist-tags --json --prefer-online');
     expect(workflow).toContain('bun scripts/publish-install-scripts.ts');
     expect(workflow).toContain('allowed-account-ids: ${{ vars.STACKTAPE_RELEASE_AWS_ACCOUNT_ID }}');
     expect(workflow).toContain('vars.STACKTAPE_STABLE_INSTALLS_BUCKET_NAME');

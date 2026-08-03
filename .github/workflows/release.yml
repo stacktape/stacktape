@@ -318,16 +318,23 @@ jobs:
           LATEST_BEFORE: ${{ steps.dist-tags-before.outputs.latest }}
           PREVIEW_BEFORE: ${{ steps.dist-tags-before.outputs.preview }}
         run: |
-          tags=$(npm view stacktape dist-tags --json)
-          latest_after=$(printf '%s' "$tags" | jq -r '.latest // ""')
-          preview_after=$(printf '%s' "$tags" | jq -r '.preview // ""')
-          if [ "$RELEASE_CHANNEL" = preview ]; then
-            test "$latest_after" = "$LATEST_BEFORE"
-            test "$preview_after" = "$RELEASE_VERSION"
-          else
-            test "$latest_after" = "$RELEASE_VERSION"
-            test "$preview_after" = "$PREVIEW_BEFORE"
-          fi
+          for attempt in $(seq 1 12); do
+            tags=$(npm view stacktape dist-tags --json --prefer-online)
+            latest_after=$(printf '%s' "$tags" | jq -r '.latest // ""')
+            preview_after=$(printf '%s' "$tags" | jq -r '.preview // ""')
+            if [ "$RELEASE_CHANNEL" = preview ]; then
+              if [ "$latest_after" = "$LATEST_BEFORE" ] && [ "$preview_after" = "$RELEASE_VERSION" ]; then
+                exit 0
+              fi
+            elif [ "$latest_after" = "$RELEASE_VERSION" ] && [ "$preview_after" = "$PREVIEW_BEFORE" ]; then
+              exit 0
+            fi
+            printf 'npm dist-tags have not converged yet (attempt %s/12): latest=%s preview=%s\n' \
+              "$attempt" "$latest_after" "$preview_after"
+            sleep 10
+          done
+          printf 'npm dist-tags did not converge: latest=%s preview=%s\n' "$latest_after" "$preview_after"
+          exit 1
       - name: Remove retryable GitHub release after pre-publish failure
         if: always() && steps.create-release.outputs.release-id != '' && steps.npm-publish.outcome != 'success'
         env:
