@@ -172,6 +172,9 @@ describe('release candidate workflow', () => {
     expect(workflow).toContain('target_commitish="$GITHUB_SHA"');
     expect(workflow).toContain('STP_AWS_CANARY_PROJECT_NAME: v4canary-${{ github.run_id }}-${{ github.run_attempt }}');
     expect(workflow).toContain('STP_AWS_CANARY_OWNER: github-${{ github.run_id }}-${{ github.run_attempt }}');
+    expect(workflow.match(/name: Validate disposable AWS target/g)).toHaveLength(2);
+    expect(workflow.match(/grep -Eq '\^\[0-9\]\{12\}\$'/g)).toHaveLength(2);
+    expect(workflow.match(/allowed-account-ids: \$\{\{ vars\.STACKTAPE_PREVIEW_AWS_ACCOUNT_ID \}\}/g)).toHaveLength(2);
     expect(workflow).toContain("if: always() && steps.configure-aws.outcome == 'success'");
     expect(workflow).not.toContain('publish:install');
     expect(workflow).not.toContain('publish:schemas');

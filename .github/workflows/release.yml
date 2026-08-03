@@ -253,6 +253,13 @@ jobs:
           mkdir -p "$RUNNER_TEMP/stacktape-preview"
           tar -xzf linux.tar.gz -C "$RUNNER_TEMP/stacktape-preview"
           chmod +x "$RUNNER_TEMP/stacktape-preview/stacktape"
+      - name: Validate disposable AWS target
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.STACKTAPE_PREVIEW_AWS_ACCOUNT_ID }}
+          AWS_ROLE_ARN: ${{ vars.STACKTAPE_PREVIEW_AWS_ROLE_ARN }}
+        run: |
+          printf '%s' "$AWS_ACCOUNT_ID" | grep -Eq '^[0-9]{12}$'
+          printf '%s' "$AWS_ROLE_ARN" | grep -Eq "^arn:aws:iam::${AWS_ACCOUNT_ID}:role/.+"
       - name: Acquire disposable AWS credentials
         id: configure-aws
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
@@ -260,6 +267,7 @@ jobs:
           role-to-assume: ${{ vars.STACKTAPE_PREVIEW_AWS_ROLE_ARN }}
           role-session-name: stacktape-preview-${{ github.run_id }}
           aws-region: ${{ vars.STACKTAPE_PREVIEW_AWS_REGION || 'eu-west-1' }}
+          allowed-account-ids: ${{ vars.STACKTAPE_PREVIEW_AWS_ACCOUNT_ID }}
           role-duration-seconds: 7200
       - name: Deploy, invoke, update, and delete canary
         working-directory: apps/cli
@@ -305,12 +313,20 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: pnpm install --frozen-lockfile
+      - name: Validate disposable AWS target
+        env:
+          AWS_ACCOUNT_ID: ${{ vars.STACKTAPE_PREVIEW_AWS_ACCOUNT_ID }}
+          AWS_ROLE_ARN: ${{ vars.STACKTAPE_PREVIEW_AWS_ROLE_ARN }}
+        run: |
+          printf '%s' "$AWS_ACCOUNT_ID" | grep -Eq '^[0-9]{12}$'
+          printf '%s' "$AWS_ROLE_ARN" | grep -Eq "^arn:aws:iam::${AWS_ACCOUNT_ID}:role/.+"
       - name: Acquire disposable AWS credentials
         uses: aws-actions/configure-aws-credentials@e6de054238d6b7531b4efff3b6587d9aade6a06c # v6.2.3
         with:
           role-to-assume: ${{ vars.STACKTAPE_PREVIEW_AWS_ROLE_ARN }}
           role-session-name: stacktape-preview-cleanup-${{ github.run_id }}
           aws-region: ${{ vars.STACKTAPE_PREVIEW_AWS_REGION || 'eu-west-1' }}
+          allowed-account-ids: ${{ vars.STACKTAPE_PREVIEW_AWS_ACCOUNT_ID }}
           role-duration-seconds: 3600
       - name: Delete only this run's owned canary
         working-directory: apps/cli
