@@ -46,14 +46,13 @@ export class AwsSts {
     retry?: { count: number; delaySeconds: number };
   }): Promise<Credentials> => {
     const errorHandler = this.#getErrorHandler('Failed to get credentials for assumed role.');
-    const duration = durationSeconds && durationSeconds <= 60 * 60 ? 60 * 60 : durationSeconds || 60 * 60 * 12;
 
     const executeAssumeRole = async (): Promise<Credentials> => {
       const result = await this.#createClient().send(
         new AssumeRoleCommand({
           RoleArn: roleArn,
-          DurationSeconds: duration,
-          RoleSessionName: roleSessionName
+          RoleSessionName: roleSessionName,
+          ...(durationSeconds !== undefined ? { DurationSeconds: durationSeconds } : {})
         })
       );
       const { AccessKeyId, SecretAccessKey, Expiration, SessionToken } = result.Credentials || {};

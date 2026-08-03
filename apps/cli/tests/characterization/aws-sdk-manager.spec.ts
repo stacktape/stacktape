@@ -305,16 +305,15 @@ describe.serial('AWS SDK manager', () => {
       expect(seen[0].error.message).toBe('AccessDenied');
     });
 
-    test.serial('raises a short explicit duration to one hour and defaults an omitted one to twelve', async () => {
+    test.serial('preserves an explicit duration and lets AWS apply its default when omitted', async () => {
       stubStsSend(async () => ({ Credentials: { ...validStsCredentials } }));
       const manager = initializedManager();
 
       await callAssumeRole(manager, { roleArn: 'arn:role', roleSessionName: 'session', durationSeconds: 900 });
       await callAssumeRole(manager, { roleArn: 'arn:role', roleSessionName: 'session' });
 
-      // Recorded as-is: raising a sub-hour duration is existing behavior this slice does not change.
-      expect(sendCalls[0].input.DurationSeconds).toBe(60 * 60);
-      expect(sendCalls[1].input.DurationSeconds).toBe(60 * 60 * 12);
+      expect(sendCalls[0].input.DurationSeconds).toBe(900);
+      expect(sendCalls[1].input).not.toHaveProperty('DurationSeconds');
     });
 
     test.serial('restores the real send implementation between tests', () => {
