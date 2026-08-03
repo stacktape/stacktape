@@ -10,6 +10,9 @@
  *   bun scripts/tui-demo.ts script    simple mode with two concurrent output streams
  *   bun scripts/tui-demo.ts dev       dev dashboard: workloads, logs, `r` rebuild, `q` quit
  *
+ * A second argument slows everything down for inspection, e.g.
+ * `bun scripts/tui-demo.ts deploy 3` runs the deploy at one third speed.
+ *
  * The OpenTUI Solid views are transformed at runtime via Bun's plugin API (same
  * loader the test preload uses), so this runs without a bundling step.
  */
@@ -22,7 +25,10 @@ import { CliError, getErrorDetails } from '@utils/errors';
 
 plugin(createStacktapeOpenTuiBuildPlugin());
 
-const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+/** Pacing multiplier from argv[3] — `tui-demo deploy 3` runs 3x slower. */
+const SPEED = Math.max(0.1, Number(process.argv[3]) || 1);
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms * SPEED));
 
 const HEADER = {
   projectName: 'demo-app',
@@ -456,7 +462,7 @@ const main = async () => {
   const scenario = process.argv[2];
   const run = scenarios[scenario];
   if (!run) {
-    console.info(`Usage: bun scripts/tui-demo.ts <${Object.keys(scenarios).join('|')}>`);
+    console.info(`Usage: bun scripts/tui-demo.ts <${Object.keys(scenarios).join('|')}> [speed-multiplier]`);
     process.exitCode = 1;
     return;
   }
