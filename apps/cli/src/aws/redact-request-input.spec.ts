@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { RegisterTaskDefinitionRequestFilterSensitiveLog } from '@aws-sdk/client-ecs';
 import { PutSecretValueRequestFilterSensitiveLog } from '@aws-sdk/client-secrets-manager';
 import { PutParameterRequestFilterSensitiveLog } from '@aws-sdk/client-ssm';
 import { redactAwsRequestInput } from './redact-request-input';
@@ -68,6 +69,47 @@ describe('AWS request debug redaction', () => {
     });
     expect(input.environment.environmentVariables[0].value).toBe(sentinel);
     expect(input.environmentVariablesOverride[0].value).toBe(sentinel);
+  });
+
+  test('redacts ECS task and run overrides that the generated service filter leaves intact', () => {
+    const input = {
+      containerDefinitions: [
+        { environment: [{ name: 'DATABASE_PASSWORD', value: sentinel }], image: 'example/image', name: 'web' }
+      ],
+      family: 'stacktape-service',
+      overrides: {
+        containerOverrides: [{ environment: [{ name: 'API_TOKEN', value: sentinel }], name: 'worker' }]
+      }
+    };
+    const redacted = redactAwsRequestInput({
+      commandName: 'RegisterTaskDefinitionCommand',
+      filterSensitiveLog: RegisterTaskDefinitionRequestFilterSensitiveLog,
+      input
+    });
+
+    expect(JSON.stringify(redacted)).not.toContain(sentinel);
+    expect(redacted).toMatchObject({
+      containerDefinitions: [{ environment: [{ name: 'DATABASE_PASSWORD' }], name: 'web' }],
+      overrides: { containerOverrides: [{ environment: [{ name: 'API_TOKEN' }], name: 'worker' }] }
+    });
+    expect(input.containerDefinitions[0].environment[0].value).toBe(sentinel);
+  });
+
+  test('hides CloudFormation templates and parameter values while preserving parameter names', () => {
+    const input = {
+      Parameters: [{ ParameterKey: 'DatabasePassword', ParameterValue: sentinel }],
+      StackName: 'customer-stack',
+      TemplateBody: `Resources: ${sentinel}`
+    };
+    const redacted = redactAwsRequestInput({ commandName: 'CreateChangeSetCommand', input });
+
+    expect(JSON.stringify(redacted)).not.toContain(sentinel);
+    expect(redacted).toMatchObject({
+      Parameters: [{ ParameterKey: 'DatabasePassword' }],
+      StackName: 'customer-stack'
+    });
+    expect(input.Parameters[0].ParameterValue).toBe(sentinel);
+    expect(input.TemplateBody).toContain(sentinel);
   });
 
   test('hides request bodies, binary values and log batches', () => {

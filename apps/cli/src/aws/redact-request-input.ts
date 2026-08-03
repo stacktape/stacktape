@@ -6,9 +6,12 @@ const AWS_REDACTED_CONTENT = '***SensitiveInformation***';
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
-const isCodeBuildEnvironmentValue = (path: string[], key: string) =>
+const isEnvironmentVariableValue = (path: string[], key: string) =>
   key === 'value' &&
-  path.some((segment) => segment === 'environmentVariables' || segment === 'environmentVariablesOverride');
+  path.some(
+    (segment) =>
+      segment === 'environment' || segment === 'environmentVariables' || segment === 'environmentVariablesOverride'
+  );
 
 const shouldRedactField = ({
   commandName,
@@ -24,8 +27,10 @@ const shouldRedactField = ({
   if (value === AWS_REDACTED_CONTENT) return false;
   const normalizedKey = key.toLowerCase();
   if (normalizedKey === 'secretstring' || normalizedKey === 'secretbinary') return true;
+  if (key === 'TemplateBody') return true;
+  if (key === 'ParameterValue' && path.includes('Parameters')) return true;
   if (commandName === 'PutParameterCommand' && path.length === 0 && key === 'Value') return true;
-  return isCodeBuildEnvironmentValue(path, key);
+  return isEnvironmentVariableValue(path, key);
 };
 
 const toLoggableValue = ({
