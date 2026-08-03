@@ -1,13 +1,12 @@
 import type { Credentials } from '@aws-sdk/types';
-import { Buffer } from 'node:buffer';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { GetCallerIdentityCommand, STSClient } from '@aws-sdk/client-sts';
 import { hintMessages } from '@errors';
 import { createFetchHandler } from 'src/aws/fetch-handler';
 import { retryPlugin } from 'src/aws/client-middleware';
+import { redactAwsRequestInput } from 'src/aws/redact-request-input';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
-import { serialize } from '@utils/misc';
 import { CliError } from '@utils/errors';
 
 export const getErrorHandler = (message: string) => (err: Error) => {
@@ -59,7 +58,11 @@ export const loggingPlugin = {
     stack.add(
       (next, context) => async (args) => {
         const operation = `${context.clientName.replace('Client', '')}.${context.commandName.replace('Command', '')}`;
-        const input = serialize(args.input || {});
+        const input = redactAwsRequestInput({
+          commandName: context.commandName,
+          filterSensitiveLog: context.inputFilterSensitiveLog,
+          input: args.input || {}
+        });
         const prefix = `[${tuiManager.colorize('gray', `DEBUG: ${operation}`)}]`;
         const shouldPrint =
           globalStateManager.logLevel === 'debug' &&
@@ -68,16 +71,6 @@ export const loggingPlugin = {
             context.commandName.includes('PutLogEvents') &&
             input.logGroupName === awsResourceNames.stackOperationsLogGroup()
           );
-
-        if (input.Body?._readableState?.buffer || Buffer.isBuffer(input.Body)) {
-          input.Body = '...hidden buffer content...';
-        }
-        if (input.logEvents) {
-          input.logEvents = '...hidden logs content...';
-        }
-        if (input.Body?.data) {
-          input.Body.data = '...hidden content...';
-        }
 
         if (shouldPrint) {
           tuiManager.debug(`${prefix} Request input:\n  └ ${JSON.stringify(input)}`);
