@@ -71,8 +71,11 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 - `scripts/` — build, code generation, release and publishing tooling, plus the committed platform binaries under
   `scripts/assets/` that release archives ship. The npm package manifest and JavaScript launcher are release inputs
   under `scripts/release/npm-package`; they are not application runtime source. `scripts/real-aws/packaging-canary.ts`
-  is the explicitly opted-in deploy/no-op/update/delete release canary. It must run only against an exact verified
-  disposable account and externally supplied unique stack name; it is never part of ordinary tests.
+  is an explicitly opted-in deploy/no-op/update/delete diagnostic. It must run only against an exact verified
+  disposable account and externally supplied unique stack name; it is never part of ordinary tests or releases.
+  `scripts/publish-install-scripts.ts` publishes the seven installer assets directly through the release-only AWS
+  identity, verifies S3 checksums, invalidates exact CloudFront paths, and verifies public bytes. It must not invoke
+  Stacktape or accept a `STACKTAPE_API_KEY`.
 - `starter-projects/` — canonical starter templates, not installed workspace projects. Their TypeScript configs are
   named `tsconfig*.template.json` so editors do not treat framework templates as live projects; starter
   materialization removes the `.template` segment (for example, `tsconfig.node.template.json` becomes
@@ -178,6 +181,5 @@ lanes on Windows; keep CI aligned with the root engine requirement when upgradin
   directory, installs with that starter's package manager, and runs its own typecheck with bounded concurrency,
   per-starter timeouts, and unconditional cleanup. It must not add every framework dependency to this workspace or
   run network installs as part of the normal CLI test command.
-- The removed v3 release scripts do not return. The v4 workflow owns artifact-only candidates and an explicitly
-  selected `preview` npm/GitHub prerelease channel. Production `latest`, mutable schema/docs endpoints, and default
-  installer publication remain separate deferred release-cutover work.
+- Mutable schema and generated AI-documentation publication remain separate from the v4 npm/binary release. If they
+  are reconnected, use direct resource-scoped OIDC rather than restoring Stacktape API-key authentication.

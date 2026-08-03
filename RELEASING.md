@@ -1,145 +1,88 @@
 # Releasing Stacktape v4
 
-The v4 release workflow has two deliberately separate channels:
+`.github/workflows/release.yml` is the only release path. It always builds and verifies the same six platform
+archives, checksum manifest, and npm tarball. The explicit channel changes only the public pointers:
 
-- `candidate` builds and verifies every distributable artifact, then stops. It needs no npm or AWS publishing
-  authority.
-- `preview` reuses that exact candidate, proves it in a disposable AWS account, creates a GitHub prerelease, and
-  publishes the npm tarball under the `preview` dist-tag. It never changes `latest` or the stable installer, schema,
-  documentation, or version endpoints.
+| Channel   | Version example   | npm tag   | GitHub release | Installer endpoint                       |
+| --------- | ----------------- | --------- | -------------- | ---------------------------------------- |
+| `preview` | `4.0.0-preview.1` | `preview` | Prerelease     | `https://installs-preview.stacktape.com` |
+| `stable`  | `4.0.0`           | `latest`  | Latest         | `https://installs.stacktape.com`         |
 
-The local command is only a workflow dispatcher. Builds and publishing always happen in GitHub Actions:
+Stable releases are accepted only from `main`. Preview releases may also be dispatched from `v4/integration` until
+the v4 cutover. Neither channel deploys a Stacktape project or uses `STACKTAPE_API_KEY`.
 
-```powershell
-pnpm release -- --channel candidate --version 4.0.0-preview.1
-pnpm release -- --channel preview --version 4.0.0-preview.1
-```
+## Normal use
 
-Pass `--ref <branch>` to dispatch a branch other than the current one. The branch and workflow must already be pushed.
-The equivalent command without the wrapper is:
+The local command validates its arguments and dispatches GitHub Actions; it never builds or publishes locally:
 
 ```powershell
-gh workflow run release.yml --repo stacktape/stacktape --ref v4/integration -f channel=preview -f version=4.0.0-preview.1
+pnpm release:preview 4.0.0-preview.1
+pnpm release 4.0.0
 ```
 
-## One-time preview setup
-
-### 1. Create the disposable AWS canary role
-
-Use an AWS account reserved for throwaway tests. The canary deploys, updates, invokes, and deletes a small real stack;
-do not put production or long-lived resources in this account.
-
-1. In IAM, add the GitHub Actions OIDC provider `https://token.actions.githubusercontent.com` with audience
-   `sts.amazonaws.com` if the account does not already have it.
-2. Create a role for the canary, set its maximum session duration to at least two hours, and attach permissions that
-   let Stacktape deploy and delete the canary. Because Stacktape can synthesize many AWS services, the uncomplicated
-   initial setup is `AdministratorAccess` **only in this otherwise empty disposable account**. Narrow it later from
-   observed canary calls if the account will contain anything else.
-3. Use this trust policy, replacing the account ID. It authorizes only the `preview-canary` GitHub environment in this
-   repository:
-
-```json
-{
-  "Version": "2012-10-17",
-  "Statement": [
-    {
-      "Effect": "Allow",
-      "Principal": {
-        "Federated": "arn:aws:iam::123456789012:oidc-provider/token.actions.githubusercontent.com"
-      },
-      "Action": "sts:AssumeRoleWithWebIdentity",
-      "Condition": {
-        "StringEquals": {
-          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com",
-          "token.actions.githubusercontent.com:sub": "repo:stacktape/stacktape:environment:preview-canary"
-        }
-      }
-    }
-  ]
-}
-```
-
-The repository currently uses GitHub's legacy default OIDC subject shown above. Before saving the policy, verify that
-this is still true:
+Use `--ref <branch>` only when the desired commit is already pushed. Follow a run with:
 
 ```powershell
-gh api repos/stacktape/stacktape/actions/oidc/customization/sub
+gh run list --repo stacktape/stacktape --workflow release.yml --limit 1
+gh run watch <run-id> --repo stacktape/stacktape
 ```
 
-If GitHub reports immutable subjects are enabled, use the exact owner/repository-ID subject format reported by GitHub
-instead. Repository renames or an explicit OIDC migration can change the expected subject.
-
-### 2. Configure GitHub
-
-In **Settings → Environments**, keep these environments restricted to the release branches (`main` and, until the v4
-cutover, `v4/integration`):
-
-- `preview-canary` owns AWS OIDC access;
-- `preview-publish` owns npm/GitHub publication.
-
-Set the canary target as repository variables:
+Every npm version and GitHub release is immutable. Increment the preview sequence instead of attempting to overwrite
+an existing version. Verify a preview with:
 
 ```powershell
-gh variable set STACKTAPE_PREVIEW_AWS_ACCOUNT_ID --repo stacktape/stacktape --body "123456789012"
-gh variable set STACKTAPE_PREVIEW_AWS_ROLE_ARN --repo stacktape/stacktape --body "arn:aws:iam::123456789012:role/<role-name>"
-gh variable set STACKTAPE_PREVIEW_AWS_REGION --repo stacktape/stacktape --body "eu-west-1"
+npm view stacktape@4.0.0-preview.1 version
+npm view stacktape dist-tags.preview
+pnpm dlx stacktape@preview version
 ```
 
-The workflow validates the account and role values before requesting OIDC credentials, and the AWS credential action
-independently refuses credentials from a different account.
+The installer upload is a separate dependent job. If only that job fails, use GitHub's **Re-run failed jobs** action;
+the already successful npm publication is not repeated.
 
-The real canary also needs a development Stacktape API key. Keep the existing repository secret, or set it if missing:
+## Authentication boundaries
 
-```powershell
-gh secret set STACKTAPE_API_KEY --repo stacktape/stacktape
-```
+The workflow uses no long-lived publishing secret:
 
-### 3. Authorize npm trusted publishing
+- `release-publish` grants the npm/GitHub publication job GitHub OIDC. npm trusts only `release.yml` in this
+  environment.
+- `release-installers` grants a separate job GitHub OIDC access to the AWS role
+  `arn:aws:iam::977946299200:role/stacktape-github-release-installers`.
+- The AWS role may upload only the seven known installer paths in the production and preview buckets, read them back
+  for checksum verification, and create/read invalidations for the two corresponding CloudFront distributions. It
+  cannot list buckets, write another object path, invalidate another distribution, or deploy infrastructure.
 
-The workflow intentionally has no long-lived npm token. As an npm owner of the `stacktape` package, authenticate with
-npm CLI 11.5.1 or newer and bind this one workflow/environment:
+`publish-install-scripts.ts` replaces the release version in the seven canonical sources, uploads exact bytes with
+SHA-256 checksums and preserved cache/content headers, checks S3's stored checksums, invalidates only those seven CDN
+paths, waits for completion, and verifies every public response byte-for-byte.
+
+## One-time configuration
+
+The AWS and GitHub portions were provisioned on 2026-08-03:
+
+- AWS account `977946299200` contains GitHub's OIDC provider and the narrow installer role above.
+- GitHub environments `release-publish` and `release-installers` allow `main` and `v4/integration`.
+- `release-installers` contains the account, role, region, bucket, distribution, and public-URL variables for both
+  channels. These are identifiers, not secrets.
+
+The remaining owner-only step is npm trusted publishing. npm supports one trusted publisher per package, so both
+channels intentionally use the same `release-publish` environment:
 
 ```powershell
 npm login
-npm trust github stacktape --repo stacktape/stacktape --file release.yml --env preview-publish --allow-publish
+npm --version # must be 11.15.0 or newer; the workflow pins 11.16.0
+npm trust list stacktape
+npm trust github stacktape --repo stacktape/stacktape --file release.yml --env release-publish --allow-publish
 npm trust list stacktape
 ```
 
-The matching npm website fields are organization/user `stacktape`, repository `stacktape`, workflow filename
-`release.yml`, environment `preview-publish`, and allowed action `npm publish`. Do not add an `NPM_TOKEN` secret.
+npm permits only one trusted publisher per package. If `npm trust list stacktape` shows the old release setup, first
+replace it with `npm trust revoke stacktape --id <existing-id>`, then run the `npm trust github` command above.
 
-## First activation and normal use
+Do not add `NPM_TOKEN`, AWS access keys, or `STACKTAPE_API_KEY` to the workflow. After v4 becomes the default branch,
+remove the temporary `v4/integration` branch policy from both release environments.
 
-Run a candidate first. It proves the public checkout, six platform archives, checksums, npm tarball, Alpine runtime,
-and candidate artifact without AWS or publication:
+## Other mutable publications
 
-```powershell
-pnpm release -- --channel candidate --version 4.0.0-preview.1
-gh run list --repo stacktape/stacktape --workflow release.yml --limit 1
-gh run watch <run-id> --repo stacktape/stacktape
-gh run download <run-id> --repo stacktape/stacktape
-```
-
-Then dispatch the preview with the same version. A version can be published only once, so increment the numeric suffix
-for every later attempt:
-
-```powershell
-pnpm release -- --channel preview --version 4.0.0-preview.1
-npm view stacktape@4.0.0-preview.1 version
-npm view stacktape dist-tags.preview
-pnpm dlx stacktape@4.0.0-preview.1 version
-```
-
-The canary and its cancellation-safe cleanup use a unique owner tag. If cleanup fails, inspect the failed run before
-manually deleting only the uniquely named `v4canary-<run-id>-<attempt>` stack in the configured disposable account.
-
-## Relationship to the v3 release script
-
-The old repository's `scripts/trigger-github-release.ts` was a working convenience dispatcher: it calculated a
-version, detected prereleases, and called `release.yml` through Octokit. It did not itself build or publish anything,
-and its workflow relied on the npm/GitHub configuration that already existed at the time.
-
-The v4 `pnpm release` command preserves the useful local-dispatch workflow but requires an explicit `candidate` or
-`preview` channel and version. The underlying release workflow deliberately differs: it canary-tests preview bits,
-publishes only the immutable `preview` channel, and does not update stable mutable endpoints. Stable v4 publication
-will be added only after the preview lane is proven.
+The old release also invoked the CLI to update schemas and generated AI documentation. Those endpoints remain
+separate from v4 npm/binary releases for now; do not reintroduce a Stacktape API key into `release.yml` to publish
+them. When they are reconnected, give their exact buckets/distributions the same direct-OIDC treatment.

@@ -3,9 +3,9 @@
 ## Goal and repository model
 
 This is the public Stacktape v4 monorepo. It must remain fully installable, testable, buildable, and capable of
-producing and validating release artifacts when the private `apps/console` Git submodule is absent. Production
-publishing remains disabled; manually selected preview releases use an isolated npm dist-tag only after the built
-binary passes the guarded disposable-account AWS canary.
+producing and validating release artifacts when the private `apps/console` Git submodule is absent. Manually selected
+preview and stable releases build identical artifacts; protected jobs publish npm/GitHub and the matching installer
+endpoint with separate short-lived OIDC identities.
 
 - Public apps: `apps/cli`, `apps/docs`, `apps/website`.
 - Private Git boundary: `apps/console`, containing `api` and `ui`.

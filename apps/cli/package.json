@@ -67,7 +67,7 @@
     "test:mcp-smoke": "bun scripts/test-mcp-smoke.ts",
     "test:npm-declarations": "bun scripts/verify-npm-declarations.ts",
     "test:release-artifact": "bun scripts/verify-release-artifact.ts",
-    "test:release-security": "bun test scripts/release/checksums.spec.ts scripts/release/pnpm-pack.spec.ts scripts/release/trigger-release.spec.ts scripts/release/validate-release-input.spec.ts scripts/release/verify-published-preview.spec.ts scripts/release-workflow.spec.ts scripts/platform-runtime.spec.ts scripts/release/npm-package/bin/stacktape.spec.ts scripts/install-scripts/checksums.spec.ts",
+    "test:release-security": "bun test scripts/release/checksums.spec.ts scripts/release/pnpm-pack.spec.ts scripts/release/trigger-release.spec.ts scripts/release/validate-release-input.spec.ts scripts/release/verify-published-release.spec.ts scripts/release-workflow.spec.ts scripts/platform-runtime.spec.ts scripts/release/npm-package/bin/stacktape.spec.ts scripts/install-scripts/checksums.spec.ts",
     "test:real-aws-canary": "bun scripts/real-aws/packaging-canary.ts",
     "test:source-cli:aws-readonly": "bun scripts/verify-source-cli-aws-readonly.ts",
     "test:starter-projects": "bun test scripts/starter-projects src/commands/init/using-starter-project/utils.spec.ts",

@@ -13,11 +13,6 @@ export const SENTRY_DSN = 'https://93ed0b30b9b743bcbef5745266e8a30b@sentry.io/21
 export const SCHEMAS_BUCKET_NAME =
   process.env.SCHEMAS_BUCKET_NAME || 'internal-services-production-schemasbucket-eb6fca19';
 export const LLM_DOCS_BUCKET_NAME = process.env.LLM_DOCS_BUCKET_NAME || 'console-app-dev-mcpdocsbucket-743a732';
-export const INSTALL_SCRIPTS_BUCKET_NAME =
-  process.env.INSTALL_SCRIPTS_BUCKET_NAME || 'internal-services-production-installscriptsbucket-eb6fca19';
-export const INSTALL_SCRIPTS_PREVIEW_BUCKET_NAME =
-  process.env.INSTALL_SCRIPTS_PREVIEW_BUCKET_NAME || 'internal-services-production-installscriptsbucketpreview-7b7a41';
-
 export const DEFAULT_STARTER_PROJECT_TARGET_DIRECTORY = 'stacktape-project';
 
 export const IS_TELEMETRY_DISABLED = process.env.STP_DISABLE_TELEMETRY === '1';

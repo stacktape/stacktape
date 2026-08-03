@@ -95,7 +95,7 @@ describe('release candidate workflow', () => {
     expect(workflow).toContain('timeout 3 /tmp/stacktape-candidate/stacktape');
   });
 
-  test('keeps candidate runs artifact-only and isolates preview authority by job', async () => {
+  test('isolates release and installer authority in protected jobs', async () => {
     const model = await readReleaseWorkflowModel();
     expect(model.permissions).toEqual({ contents: 'read' });
     expect(model.concurrency).toEqual({
@@ -110,7 +110,7 @@ describe('release candidate workflow', () => {
     expect(isRecord(inputs)).toBe(true);
     const channel = isRecord(inputs) && inputs.channel;
     expect(channel).toEqual(
-      expect.objectContaining({ type: 'choice', default: 'candidate', options: ['candidate', 'preview'] })
+      expect.objectContaining({ type: 'choice', default: 'preview', options: ['preview', 'stable'] })
     );
 
     expect(isRecord(model.jobs)).toBe(true);
@@ -129,75 +129,76 @@ describe('release candidate workflow', () => {
       const publishes = commands.includes('npm publish') || commands.includes('repos/$GITHUB_REPOSITORY/releases');
       if (isPrivileged || publishes) {
         privilegedJobNames.push(jobName);
-        expect(jobValue.if).toContain("inputs.channel == 'preview'");
         expect(typeof jobValue.environment).toBe('string');
       }
     }
 
-    expect(privilegedJobNames.sort()).toEqual([
-      'canary',
-      'cleanup-canary',
-      'cleanup-preview-publication',
-      'publish-preview'
-    ]);
-    expect(isRecord(jobs.canary) && jobs.canary.permissions).toEqual({ contents: 'read', 'id-token': 'write' });
-    expect(isRecord(jobs['cleanup-canary']) && jobs['cleanup-canary'].permissions).toEqual({
-      contents: 'read',
-      'id-token': 'write'
-    });
-    expect(isRecord(jobs['publish-preview']) && jobs['publish-preview'].permissions).toEqual({
+    expect(privilegedJobNames.sort()).toEqual(['cleanup-release-publication', 'publish', 'publish-installers']);
+    expect(isRecord(jobs.publish) && jobs.publish.permissions).toEqual({
       contents: 'write',
       'id-token': 'write'
     });
-    expect(isRecord(jobs['cleanup-preview-publication']) && jobs['cleanup-preview-publication'].permissions).toEqual({
+    expect(isRecord(jobs['publish-installers']) && jobs['publish-installers'].permissions).toEqual({
+      contents: 'read',
+      'id-token': 'write'
+    });
+    expect(isRecord(jobs['cleanup-release-publication']) && jobs['cleanup-release-publication'].permissions).toEqual({
       contents: 'write'
     });
+    expect(isRecord(jobs.publish) && jobs.publish.environment).toBe('release-publish');
+    expect(isRecord(jobs['cleanup-release-publication']) && jobs['cleanup-release-publication'].environment).toBe(
+      'release-publish'
+    );
+    expect(isRecord(jobs['publish-installers']) && jobs['publish-installers'].environment).toBe('release-installers');
     for (const jobName of ['verify', 'build-binaries', 'assemble']) {
       expect(isRecord(jobs[jobName]) && jobs[jobName].permissions).toBeUndefined();
     }
   });
 
-  test('publishes npm only after the public GitHub assets and launcher work', async () => {
+  test('publishes both channels without allowing either to move the other npm tag', async () => {
     const workflow = await readReleaseWorkflow();
-    const releaseIndex = workflow.indexOf('name: Create GitHub prerelease and upload exact candidate bytes');
+    const releaseIndex = workflow.indexOf('name: Create GitHub release and upload exact candidate bytes');
     const publicVerificationIndex = workflow.indexOf('name: Verify public assets and npm launcher end to end');
-    const npmPublishIndex = workflow.indexOf('name: Publish npm preview');
+    const npmPublishIndex = workflow.indexOf('name: Publish npm release');
 
     expect(releaseIndex).toBeGreaterThan(-1);
     expect(publicVerificationIndex).toBeGreaterThan(releaseIndex);
     expect(npmPublishIndex).toBeGreaterThan(publicVerificationIndex);
-    expect(workflow).toContain('npm publish __dist/stacktape-*.tgz --tag preview --provenance --access public');
-    expect(workflow).toContain('-F prerelease=true');
-    expect(workflow).toContain('-f make_latest=false');
+    expect(workflow).toContain('npm_tag=$([ "$RELEASE_CHANNEL" = preview ] && printf preview || printf latest)');
+    expect(workflow).toContain('npm publish __dist/stacktape-*.tgz --tag "$npm_tag" --provenance --access public');
+    expect(workflow).toContain('-F prerelease="$is_preview"');
+    expect(workflow).toContain('-f make_latest="$make_latest"');
     expect(workflow).toContain('target_commitish="$GITHUB_SHA"');
-    expect(workflow).toContain('STP_AWS_CANARY_PROJECT_NAME: v4canary-${{ github.run_id }}-${{ github.run_attempt }}');
-    expect(workflow).toContain('STP_AWS_CANARY_OWNER: github-${{ github.run_id }}-${{ github.run_attempt }}');
-    expect(workflow.match(/name: Validate disposable AWS target/g)).toHaveLength(2);
-    expect(workflow.match(/grep -Eq '\^\[0-9\]\{12\}\$'/g)).toHaveLength(2);
-    expect(workflow.match(/allowed-account-ids: \$\{\{ vars\.STACKTAPE_PREVIEW_AWS_ACCOUNT_ID \}\}/g)).toHaveLength(2);
-    expect(workflow).toContain("if: always() && steps.configure-aws.outcome == 'success'");
-    expect(workflow).not.toContain('publish:install');
+    expect(workflow).toContain('test "$latest_after" = "$LATEST_BEFORE"');
+    expect(workflow).toContain('test "$preview_after" = "$PREVIEW_BEFORE"');
+    expect(workflow).toContain('bun scripts/publish-install-scripts.ts');
+    expect(workflow).toContain('allowed-account-ids: ${{ vars.STACKTAPE_RELEASE_AWS_ACCOUNT_ID }}');
+    expect(workflow).toContain('vars.STACKTAPE_STABLE_INSTALLS_BUCKET_NAME');
+    expect(workflow).toContain('vars.STACKTAPE_PREVIEW_INSTALLS_BUCKET_NAME');
+    expect(workflow).toContain('Stable releases must be dispatched from main.');
+    expect(workflow).toContain('npm install --global npm@11.16.0');
+    expect(workflow).not.toContain('STACKTAPE_API_KEY');
+    expect(workflow).not.toContain('test:real-aws-canary');
     expect(workflow).not.toContain('publish:schemas');
     expect(workflow).not.toContain('publish:llm');
   });
 
-  test('keeps AWS and GitHub cleanup available after cancellation', async () => {
+  test('keeps publication recovery separate from retryable installer publication', async () => {
     const model = await readReleaseWorkflowModel();
     expect(isRecord(model.jobs)).toBe(true);
     const jobs = isRecord(model.jobs) ? model.jobs : {};
-    const canaryCleanup = isRecord(jobs['cleanup-canary']) ? jobs['cleanup-canary'] : {};
-    const publicationCleanup = isRecord(jobs['cleanup-preview-publication']) ? jobs['cleanup-preview-publication'] : {};
+    const installerPublication = isRecord(jobs['publish-installers']) ? jobs['publish-installers'] : {};
+    const publicationCleanup = isRecord(jobs['cleanup-release-publication']) ? jobs['cleanup-release-publication'] : {};
 
-    expect(canaryCleanup.if).toContain('always()');
-    expect(canaryCleanup.if).toContain("inputs.channel == 'preview'");
     expect(publicationCleanup.if).toContain('always()');
-    expect(publicationCleanup.if).toContain("needs.publish-preview.result != 'success'");
+    expect(publicationCleanup.if).toContain("needs.publish.result != 'success'");
+    expect(installerPublication.needs).toBe('publish');
 
     const workflow = await readReleaseWorkflow();
-    expect(workflow).toContain('Preview owner: $PREVIEW_OWNER.');
-    expect(workflow).toContain('grep -Fq "Preview owner: $PREVIEW_OWNER."');
+    expect(workflow).toContain('Release owner: $RELEASE_OWNER.');
+    expect(workflow).toContain('grep -Fq "Release owner: $RELEASE_OWNER."');
     expect(workflow).toContain('GitHub release state is ambiguous; cleanup cannot report success:');
-    expect(workflow).toContain('pnpm run test:real-aws-canary -- --cleanup-only');
+    expect(workflow).toContain('name: Upload and verify installer assets');
   });
 
   test('pins every third-party action and toolchain version', async () => {
@@ -213,7 +214,7 @@ describe('release candidate workflow', () => {
     expect(workflow).toContain('node-version: 24');
     expect(workspaceBunVersion).toBe('1.3.14');
     expect(getWorkflowVersions({ workflow, key: 'bun-version' })).toEqual(
-      Array.from({ length: 6 }, () => workspaceBunVersion)
+      getWorkflowVersions({ workflow, key: 'bun-version' }).map(() => workspaceBunVersion)
     );
     expect(getWorkflowVersions({ workflow: await readCiWorkflow(), key: 'bun-version' })).toEqual([
       workspaceBunVersion

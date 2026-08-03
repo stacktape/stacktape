@@ -1,29 +1,24 @@
 # Release implementation
 
-The root `pnpm release` command calls `trigger-release.ts`, a small local dispatcher for
-`.github/workflows/release.yml`. The workflow owns the build and is the only release path: `candidate` produces a
-verified artifact without authority, while `preview` additionally runs the real-AWS canary and publishes an immutable
-GitHub/npm prerelease. See the root [`RELEASING.md`](../../../../RELEASING.md) for setup and operator instructions.
+The root `pnpm release <version>` and `pnpm release:preview <version>` commands call `trigger-release.ts`, a local dispatcher for
+`.github/workflows/release.yml`. The workflow owns all builds and publication. `preview` and `stable` use identical
+candidate bytes; channel-specific jobs change the npm tag, GitHub release classification, and installer endpoint.
+See the root [`RELEASING.md`](../../../../RELEASING.md) for the operator contract.
 
-Reached by a current workspace script:
+Current release primitives:
 
-- `build-cli-sources.ts` — compiles the CLI binary and assembles the platform assets that ship next to it. Used by
-  `build:dist`, `pkg:hl` and `test:cli-smoke`.
-- `checksums.ts` — writes and verifies the `SHA256SUMS` manifest of a built distribution. Run directly by
-  `release:checksums`, imported by `build:npm` and `test:release-artifact`. Its `checksums.spec.ts` is part of
-  `test:release-security`.
-- `args.ts` — parses the version and platform flags those build scripts accept (`--version`, `--major`, `--minor`,
-  `--patch`, `--prerelease`, `--platforms`, …) and rewrites a `package.json` version. Used by `build:npm` and
-  `build:dist`.
-- `stacktape.ts` — `syncBucket`, retained for the stable-only `publish:install:scripts`, `publish:schemas` and
-  `publish:llm:docs` paths. Preview releases intentionally do not call them.
+- `build-cli-sources.ts` compiles the CLI binary and assembles shipped platform assets.
+- `checksums.ts` writes and verifies the exact `SHA256SUMS` archive manifest.
+- `args.ts` parses versions/platform flags for the build scripts.
+- `validate-release-input.ts` requires `x.y.z-preview.N` for preview and plain `x.y.z` for stable.
+- `verify-candidate-assets.ts` rejects missing or unexpected platform archives.
+- `verify-published-release.ts` downloads every GitHub asset, verifies its checksum, and exercises the npm launcher's
+  exact version before npm publication.
+- `trigger-release.ts` dispatches an explicit channel/version/ref and never publishes locally.
 
-The preview workflow directly uses the candidate archive and verification primitives. It also uses
-`validate-release-input.ts`, `verify-candidate-assets.ts`, `verify-npm-package.ts`, and
-`verify-published-preview.ts` to keep input validation, archive identity and public download checks executable and
-unit-tested.
+Installer publication lives in `../publish-install-scripts.ts` because it owns the canonical installer sources. Its
+separate workflow job uses a narrow AWS OIDC identity after npm/GitHub publication succeeds, so failed installer
+publication can be retried without attempting to overwrite an immutable npm version.
 
-`get-version.ts` and `github.ts` remain stable-release primitives; the current explicit preview dispatcher does not
-guess or modify a version. `scripts/github-actions/create-github-release.ts` is likewise retained for stable release
-orchestration. Do not connect these to preview without updating the workflow tests and the documented channel
-contract.
+`stacktape.ts` remains only for the currently separate schema and generated AI-documentation publishers. Do not use
+it from `release.yml` or reintroduce `STACKTAPE_API_KEY` for npm/binary releases.

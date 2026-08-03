@@ -65,38 +65,23 @@ pnpm --filter @stacktape/packaging run test
 `pnpm dev` at the root is `turbo run dev` — the Astro dev servers for `apps/docs` and `apps/website`. It is unrelated
 to the Stacktape `dev` command described below.
 
-## Candidate and preview releases
+## Preview and stable releases
 
-`.github/workflows/release.yml` is manually dispatched in one of two channels. Both build all six supported platform
-archives, generate checksums for that exact archive set, embed the manifest in a verified npm package, smoke-test the
-Alpine runtime, and upload one inspectable candidate artifact.
-
-- `candidate` stops there and has no publishing or AWS authority.
-- `preview` additionally runs the built Linux binary through the disposable real-AWS canary, creates a GitHub
-  prerelease, verifies the public assets through the npm launcher, then publishes the immutable tarball under npm's
-  `preview` dist-tag. It never changes `latest` or publishes mutable schemas, docs, or installer endpoints.
+`.github/workflows/release.yml` builds and verifies identical artifacts for both explicit channels. Preview versions
+use a numeric prerelease sequence and move only npm's `preview` tag plus the preview installer endpoint. Stable
+versions move `latest` plus the production installer endpoint and are accepted only from `main`.
 
 ```powershell
-pnpm release -- --channel candidate --version 4.0.0-preview.1
-gh run watch <run-id>
-gh run download <run-id>
-```
-
-Preview versions use an explicit numeric prerelease sequence and are never overwritten:
-
-```powershell
-pnpm release -- --channel preview --version 4.0.0-preview.1
+pnpm release:preview 4.0.0-preview.1
+pnpm release 4.0.0
 pnpm add -D stacktape@preview
 pnpm add -D stacktape@4.0.0-preview.1 # reproducible pin
 ```
 
-The preview jobs require two branch-restricted GitHub environments (`preview-canary` and `preview-publish`), repository
-variables `STACKTAPE_PREVIEW_AWS_ROLE_ARN`, `STACKTAPE_PREVIEW_AWS_ACCOUNT_ID`, and optionally
-`STACKTAPE_PREVIEW_AWS_REGION`, the existing `STACKTAPE_API_KEY` secret, and an npm trusted-publisher rule for
-`release.yml` plus the `preview-publish` environment. The AWS role trust policy must bind GitHub OIDC to the
-`preview-canary` environment, and the role/account must be disposable. Stable production publishing and default-branch
-cutover remain separate decisions. Follow [`RELEASING.md`](RELEASING.md) for the exact one-time AWS, GitHub and npm
-configuration and first activation sequence.
+The `release-publish` environment owns npm/GitHub publication. A separate `release-installers` job uses GitHub OIDC
+and a narrowly scoped AWS role to upload exactly seven installer files and invalidate their CloudFront paths. No
+Stacktape API key, stored npm token, AWS key, or real-AWS deployment is part of a release. Follow
+[`RELEASING.md`](RELEASING.md) for setup and operation.
 
 ## The development CLI
 

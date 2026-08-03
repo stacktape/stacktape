@@ -1,9 +1,10 @@
 import { describe, expect, test } from 'bun:test';
+import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { PUBLISHED_INSTALL_ASSET_FILES } from '../publish-install-scripts';
+import { prepareInstallAssets, PUBLISHED_INSTALL_ASSET_FILES } from '../publish-install-scripts';
 
 const shellInstallers = ['linux.sh', 'linux-arm.sh', 'alpine.sh', 'macos.sh', 'macos-arm.sh'];
 
@@ -143,5 +144,19 @@ describe('published install scripts', () => {
       'windows.ps1'
     ]);
     expect(PUBLISHED_INSTALL_ASSET_FILES.some((fileName) => fileName.endsWith('.spec.ts'))).toBe(false);
+  });
+
+  test('prepares exact versioned bytes and checksums for direct AWS publication', async () => {
+    const assets = await prepareInstallAssets({ version: '4.0.0-preview.17' });
+
+    expect(assets.map(({ key }) => key)).toEqual([...PUBLISHED_INSTALL_ASSET_FILES]);
+    for (const asset of assets) {
+      expect(asset.body.toString()).toContain('4.0.0-preview.17');
+      expect(asset.body.toString()).not.toContain('<<DEFAULT_VERSION>>');
+      expect(asset.checksumSha256).toBe(createHash('sha256').update(asset.body).digest('base64'));
+    }
+    expect(assets.find(({ key }) => key === '_data.json')?.contentType).toBe('application/json');
+    expect(assets.find(({ key }) => key === 'linux.sh')?.contentType).toBe('application/x-sh');
+    expect(assets.find(({ key }) => key === 'windows.ps1')?.contentType).toBe('application/octet-stream');
   });
 });

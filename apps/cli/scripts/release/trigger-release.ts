@@ -34,13 +34,27 @@ const getCurrentBranch = async () => {
   return branch;
 };
 
+export const parseReleaseArgs = (rawArgs: string[]) => {
+  const args = yargsParser(rawArgs);
+  const positionalVersions = args._.map(String);
+  const optionVersion = args.version ?? args.v;
+
+  if (positionalVersions.length > 1 || (optionVersion !== undefined && positionalVersions.length > 0)) {
+    throw new Error('Pass the release version once, either positionally or with --version.');
+  }
+
+  return {
+    ...validateReleaseInput({
+      channel: String(args.channel ?? ''),
+      version: String(optionVersion ?? positionalVersions[0] ?? '')
+    }),
+    ref: args.ref ? String(args.ref) : undefined
+  };
+};
+
 const main = async () => {
-  const args = yargsParser(process.argv.slice(2));
-  const { channel, version } = validateReleaseInput({
-    channel: String(args.channel ?? ''),
-    version: String(args.version ?? args.v ?? '')
-  });
-  const ref = args.ref ? String(args.ref) : await getCurrentBranch();
+  const { channel, version, ref: requestedRef } = parseReleaseArgs(process.argv.slice(2));
+  const ref = requestedRef ?? (await getCurrentBranch());
 
   console.info(`Dispatching ${channel} ${version} from ${ref}...`);
   await execFile('gh', getWorkflowDispatchArgs({ channel, ref, version }));

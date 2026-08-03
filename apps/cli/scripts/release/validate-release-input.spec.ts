@@ -2,14 +2,6 @@ import { describe, expect, test } from 'bun:test';
 import { validateReleaseInput } from './validate-release-input';
 
 describe('release channel input', () => {
-  test('accepts an inspectable candidate without granting it publishing meaning', () => {
-    expect(validateReleaseInput({ channel: 'candidate', version: '4.0.0-beta.1' })).toEqual({
-      channel: 'candidate',
-      version: '4.0.0-beta.1'
-    });
-    expect(validateReleaseInput({ channel: 'candidate', version: '4.0.0' }).channel).toBe('candidate');
-  });
-
   test('requires preview versions to carry the preview prerelease identifier and sequence', () => {
     expect(validateReleaseInput({ channel: 'preview', version: '4.0.0-preview.12' })).toEqual({
       channel: 'preview',
@@ -23,8 +15,24 @@ describe('release channel input', () => {
     );
   });
 
+  test('accepts only plain SemVer versions for stable releases', () => {
+    expect(validateReleaseInput({ channel: 'stable', version: '4.0.0' })).toEqual({
+      channel: 'stable',
+      version: '4.0.0'
+    });
+    expect(() => validateReleaseInput({ channel: 'stable', version: '4.0.0-preview.1' })).toThrow(
+      'Stable releases must use a version such as 4.0.0'
+    );
+    expect(() => validateReleaseInput({ channel: 'stable', version: '4.0.0+rebuilt' })).toThrow(
+      'Stable releases must use a version such as 4.0.0'
+    );
+  });
+
   test('rejects unknown channels and malformed versions', () => {
-    expect(() => validateReleaseInput({ channel: 'latest', version: '4.0.0' })).toThrow('candidate or preview');
-    expect(() => validateReleaseInput({ channel: 'candidate', version: 'v4' })).toThrow('valid SemVer');
+    expect(() => validateReleaseInput({ channel: 'latest', version: '4.0.0' })).toThrow('preview or stable');
+    expect(() => validateReleaseInput({ channel: 'preview', version: 'v4' })).toThrow('valid SemVer');
+    expect(() => validateReleaseInput({ channel: 'stable', version: 'v4.0.0' })).toThrow(
+      'Stable releases must use a version such as 4.0.0'
+    );
   });
 });

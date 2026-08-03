@@ -15,7 +15,7 @@ export const assertInstalledCliVersion = (output: string, expectedVersion: strin
   const actual = stripAnsi(output).trim();
   assert(
     actual === `Stacktape version: ${expectedVersion}.`,
-    `Installed preview launcher reported ${actual || '<empty>'}, expected Stacktape version: ${expectedVersion}.`
+    `Installed release launcher reported ${actual || '<empty>'}, expected Stacktape version: ${expectedVersion}.`
   );
 };
 
@@ -43,7 +43,7 @@ const downloadWithRetry = async (url: string, destination: string) => {
       if (attempt < 8) await Bun.sleep(Math.min(1_000 * 2 ** (attempt - 1), 10_000));
     }
   }
-  throw new Error(`Could not download published preview asset ${url}.`, { cause: lastError });
+  throw new Error(`Could not download published release asset ${url}.`, { cause: lastError });
 };
 
 const findNpmTarball = async (directory: string) => {
@@ -96,8 +96,16 @@ const exerciseNpmTarball = async ({
   assertInstalledCliVersion(stdout, version);
 };
 
-export const verifyPublishedPreview = async ({ version, directory }: { version: string; directory: string }) => {
-  validateReleaseInput({ channel: 'preview', version });
+export const verifyPublishedRelease = async ({
+  channel,
+  version,
+  directory
+}: {
+  channel: string;
+  version: string;
+  directory: string;
+}) => {
+  validateReleaseInput({ channel, version });
   const resolvedDirectory = resolve(directory);
   await verifyCandidateArchives(resolvedDirectory);
   const manifestPath = join(resolvedDirectory, RELEASE_CHECKSUMS_FILE_NAME);
@@ -127,9 +135,10 @@ export const verifyPublishedPreview = async ({ version, directory }: { version: 
 };
 
 if (import.meta.main) {
+  const channel = process.env.RELEASE_CHANNEL || '';
   const version = process.env.RELEASE_VERSION || '';
   const directory = process.env.RELEASE_DIST_DIRECTORY || join(process.cwd(), '__dist');
-  verifyPublishedPreview({ version, directory }).catch((error: unknown) => {
+  verifyPublishedRelease({ channel, version, directory }).catch((error: unknown) => {
     console.error(error);
     process.exitCode = 1;
   });
