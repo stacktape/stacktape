@@ -12,11 +12,12 @@ pnpm --filter @stacktape/cli run test:floci:feasibility
 
 Docker pulls the exact multi-platform image
 `floci/floci:1.5.34@sha256:b3b3a70a294b8ba8095385b8571ea1e4d44d494950d98de5e812cd9de02f506b`.
+Version 1.5.34 remains Floci's latest published release as of the verification date below.
 The test uses a unique container, volume and stack name and removes the container and volume even when startup or an
 assertion fails. Failed-stack deletion is best-effort and bounded to two seconds; nested cleanup then removes the
 container and its private volume even if the emulator request hangs.
 
-## Result, reverified on 2026-07-31
+## Result, reverified on 2026-08-03
 
 Floci is useful enough to investigate further, but this version is not ready to own Stacktape's CloudFormation
 lifecycle tests.
