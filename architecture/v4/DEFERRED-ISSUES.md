@@ -16,17 +16,13 @@ refactoring scope. Revisit them before the v4 release where marked.
   printed child output secret.
 - Docker CLI child-environment values remain visible to the same operating-system user and to root/Administrator.
   This is narrower than argv exposure, not a hardware-backed secret boundary.
-- `isDockerNotRunningError` can classify a registry-side `connection refused` as “Docker is not running.” Fix this
-  only with characterization against real daemon and registry failures.
 - The semi-local dev agent's `POST /aws/sdk` endpoint is intentionally mutation-capable and uses the dev-agent role.
   Review its authentication, confirmation, and least-privilege model as part of the later dev-agent/AWS-manager
   hardening, not during package extraction.
 - Review credential/key rotation and versioning for the Console security-hardening work before a production rollout.
-- AWS SDK debug middleware serializes most operation inputs and only redacts a small set of body/log fields. Secret
-  Manager values, SSM values, and CodeBuild environment variables need a centralized field-aware redaction policy.
-- Long-running Console operations retain one assumed-role credential set without refresh, while the CLI's timer-based
-  refresh has no owning await/catch path. CLI AWS clients now resolve refreshed credentials through their session
-  provider, but the timer's failure still needs explicit operational ownership.
+- The Console's connected-account credential provider now refreshes expiring credentials and deduplicates concurrent
+  refreshes. The CLI's timer-based refresh still has no owning await/catch path. CLI AWS clients resolve refreshed
+  credentials through their session provider, but the timer's failure needs explicit operational ownership.
 - Console browser credentials are now narrowed to a server-owned capability and AWS action list, but direct AWS
   credentials are still an organization/account boundary rather than a project boundary. A project-scoped member can
   reuse issued credentials against resources from another project in the same connected account when the AWS API
@@ -37,12 +33,6 @@ refactoring scope. Revisit them before the v4 release where marked.
 - Console reads and writes of customer-managed KMS-encrypted Secrets Manager secrets and secure SSM parameters may
   require additional key-specific KMS actions. The previous managed browser policies did not grant these actions
   either. Add them only alongside a server-verified key/resource boundary rather than widening every browser session.
-
-## Known v3 behavior debt
-
-- Automatic re-assume requests the AWS manager's default 12-hour session even when the CodeBuild role it refreshes
-  allows only ten hours. The same duration expression also raises every explicit duration at or below one hour to
-  exactly one hour, rather than preserving shorter valid requests.
 
 ## Operational note from the smoke test
 

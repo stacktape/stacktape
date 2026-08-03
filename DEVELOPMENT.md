@@ -77,7 +77,7 @@ Alpine runtime, and upload one inspectable candidate artifact.
   `preview` dist-tag. It never changes `latest` or publishes mutable schemas, docs, or installer endpoints.
 
 ```powershell
-gh workflow run release.yml --ref v4/integration -f channel=candidate -f version=4.0.0-beta.1
+pnpm release -- --channel candidate --version 4.0.0-preview.1
 gh run watch <run-id>
 gh run download <run-id>
 ```
@@ -85,7 +85,7 @@ gh run download <run-id>
 Preview versions use an explicit numeric prerelease sequence and are never overwritten:
 
 ```powershell
-gh workflow run release.yml --ref v4/integration -f channel=preview -f version=4.0.0-preview.1
+pnpm release -- --channel preview --version 4.0.0-preview.1
 pnpm add -D stacktape@preview
 pnpm add -D stacktape@4.0.0-preview.1 # reproducible pin
 ```
@@ -95,7 +95,8 @@ variables `STACKTAPE_PREVIEW_AWS_ROLE_ARN`, `STACKTAPE_PREVIEW_AWS_ACCOUNT_ID`, 
 `STACKTAPE_PREVIEW_AWS_REGION`, the existing `STACKTAPE_API_KEY` secret, and an npm trusted-publisher rule for
 `release.yml` plus the `preview-publish` environment. The AWS role trust policy must bind GitHub OIDC to the
 `preview-canary` environment, and the role/account must be disposable. Stable production publishing and default-branch
-cutover remain separate decisions.
+cutover remain separate decisions. Follow [`RELEASING.md`](RELEASING.md) for the exact one-time AWS, GitHub and npm
+configuration and first activation sequence.
 
 ## The development CLI
 
