@@ -307,7 +307,12 @@ jobs:
         working-directory: apps/cli
         run: |
           npm_tag=$([ "$RELEASE_CHANNEL" = preview ] && printf preview || printf latest)
-          npm publish __dist/stacktape-*.tgz --tag "$npm_tag" --provenance --access public
+          npm_tarballs=(./__dist/stacktape-*.tgz)
+          if [ "${#npm_tarballs[@]}" -ne 1 ] || [ ! -f "${npm_tarballs[0]}" ]; then
+            printf 'Expected exactly one local npm tarball; found: %s\n' "${npm_tarballs[*]}"
+            exit 1
+          fi
+          npm publish "${npm_tarballs[0]}" --tag "$npm_tag" --provenance --access public
       - name: Verify npm dist-tags
         env:
           LATEST_BEFORE: ${{ steps.dist-tags-before.outputs.latest }}

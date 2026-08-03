@@ -165,7 +165,9 @@ describe('release candidate workflow', () => {
     expect(publicVerificationIndex).toBeGreaterThan(releaseIndex);
     expect(npmPublishIndex).toBeGreaterThan(publicVerificationIndex);
     expect(workflow).toContain('npm_tag=$([ "$RELEASE_CHANNEL" = preview ] && printf preview || printf latest)');
-    expect(workflow).toContain('npm publish __dist/stacktape-*.tgz --tag "$npm_tag" --provenance --access public');
+    expect(workflow).toContain('npm_tarballs=(./__dist/stacktape-*.tgz)');
+    expect(workflow).toContain('Expected exactly one local npm tarball');
+    expect(workflow).toContain('npm publish "${npm_tarballs[0]}" --tag "$npm_tag" --provenance --access public');
     expect(workflow).toContain('-F prerelease="$is_preview"');
     expect(workflow).toContain('-f make_latest="$make_latest"');
     expect(workflow).toContain('target_commitish="$GITHUB_SHA"');
