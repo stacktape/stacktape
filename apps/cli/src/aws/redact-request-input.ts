@@ -29,6 +29,8 @@ const shouldRedactField = ({
   if (normalizedKey === 'secretstring' || normalizedKey === 'secretbinary') return true;
   if (key === 'TemplateBody') return true;
   if (key === 'ParameterValue' && path.includes('Parameters')) return true;
+  if (commandName === 'ExecuteCommandCommand' && path.length === 0 && key === 'command') return true;
+  if (commandName === 'SendCommandCommand' && path.includes('Parameters') && key === 'commands') return true;
   if (commandName === 'PutParameterCommand' && path.length === 0 && key === 'Value') return true;
   return isEnvironmentVariableValue(path, key);
 };

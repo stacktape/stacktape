@@ -1,7 +1,10 @@
 import { describe, expect, test } from 'bun:test';
-import { RegisterTaskDefinitionRequestFilterSensitiveLog } from '@aws-sdk/client-ecs';
+import {
+  ExecuteCommandRequestFilterSensitiveLog,
+  RegisterTaskDefinitionRequestFilterSensitiveLog
+} from '@aws-sdk/client-ecs';
 import { PutSecretValueRequestFilterSensitiveLog } from '@aws-sdk/client-secrets-manager';
-import { PutParameterRequestFilterSensitiveLog } from '@aws-sdk/client-ssm';
+import { PutParameterRequestFilterSensitiveLog, SendCommandRequestFilterSensitiveLog } from '@aws-sdk/client-ssm';
 import { redactAwsRequestInput } from './redact-request-input';
 
 const sentinel = 'SENTINEL-sensitive-aws-value';
@@ -110,6 +113,51 @@ describe('AWS request debug redaction', () => {
     });
     expect(input.Parameters[0].ParameterValue).toBe(sentinel);
     expect(input.TemplateBody).toContain(sentinel);
+  });
+
+  test('hides ECS Exec and Systems Manager shell text that generated filters leave intact', () => {
+    const ecsInput = {
+      cluster: 'cluster',
+      command: `curl -H Authorization:${sentinel}`,
+      interactive: true,
+      task: 'task'
+    };
+    const ssmInput = {
+      DocumentName: 'AWS-RunShellScript',
+      InstanceIds: ['i-123'],
+      Parameters: { commands: [`export TOKEN=${sentinel}`], workingDirectory: ['/'] }
+    };
+    const redacted = {
+      ecs: redactAwsRequestInput({
+        commandName: 'ExecuteCommandCommand',
+        filterSensitiveLog: ExecuteCommandRequestFilterSensitiveLog,
+        input: ecsInput
+      }),
+      ssm: redactAwsRequestInput({
+        commandName: 'SendCommandCommand',
+        filterSensitiveLog: SendCommandRequestFilterSensitiveLog,
+        input: ssmInput
+      }),
+      ssmFallback: redactAwsRequestInput({
+        commandName: 'SendCommandCommand',
+        input: ssmInput
+      })
+    };
+
+    expect(JSON.stringify(redacted)).not.toContain(sentinel);
+    expect(redacted.ecs).toMatchObject({ cluster: 'cluster', interactive: true, task: 'task' });
+    expect(redacted.ssm).toMatchObject({
+      DocumentName: 'AWS-RunShellScript',
+      InstanceIds: ['i-123'],
+      Parameters: '***SensitiveInformation***'
+    });
+    expect(redacted.ssmFallback).toMatchObject({
+      DocumentName: 'AWS-RunShellScript',
+      InstanceIds: ['i-123'],
+      Parameters: { workingDirectory: ['/'] }
+    });
+    expect(ecsInput.command).toContain(sentinel);
+    expect(ssmInput.Parameters.commands[0]).toContain(sentinel);
   });
 
   test('hides request bodies, binary values and log batches', () => {
