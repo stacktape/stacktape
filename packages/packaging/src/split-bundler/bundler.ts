@@ -15,7 +15,7 @@ import type {
 } from './types';
 import type { PackageJsonDepsInfo } from '../es/bundler-helpers';
 import { existsSync } from 'node:fs';
-import { basename, isAbsolute, join, resolve } from 'node:path';
+import { basename, isAbsolute, join, posix, resolve } from 'node:path';
 import { rewriteChunkImports } from './chunk-rewriter';
 import { copy, ensureDir, outputJSON, readFile, writeFile } from 'fs-extra';
 import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_MODULES, NODE_BUILTIN_MODULES } from '../es/config';
@@ -465,6 +465,10 @@ const buildMetafilePathMapping = (outputs: Array<{ path: string }>, sharedOutdir
   return mapping;
 };
 
+/** Bun may prefix otherwise equivalent metafile keys with one or more `./` segments. */
+const resolveMetafileOutputPath = (mapping: Map<string, string>, metafilePath: string): string | undefined =>
+  mapping.get(metafilePath) ?? mapping.get(posix.normalize(transformToUnixPath(metafilePath)));
+
 /** Categorize build outputs into entry files and chunk files */
 const categorizeOutputFiles = (outputs: Array<{ path: string }>): { entryFiles: string[]; chunkFiles: string[] } => {
   const entryFiles: string[] = [];
@@ -593,7 +597,7 @@ const processLambdaOutputsWithMetafile = async ({
       }
 
       // Convert metafile relative paths to absolute paths for file operations
-      const absoluteOutputPath = metafileToAbsolutePath.get(outputPath);
+      const absoluteOutputPath = resolveMetafileOutputPath(metafileToAbsolutePath, outputPath);
       if (!absoluteOutputPath) {
         throw createPackagingError({
           message: `Could not resolve absolute path for: ${outputPath}`
@@ -602,7 +606,7 @@ const processLambdaOutputsWithMetafile = async ({
 
       const absoluteChunkPaths = new Set<string>();
       for (const chunkPath of allRequiredChunks) {
-        const absPath = metafileToAbsolutePath.get(chunkPath);
+        const absPath = resolveMetafileOutputPath(metafileToAbsolutePath, chunkPath);
         if (absPath) {
           absoluteChunkPaths.add(absPath);
         }
@@ -696,7 +700,7 @@ const buildChunkAnalysisFromMetafile = (
     if (!chunkMeta) continue;
 
     // Convert to absolute path for file operations
-    const absoluteChunkPath = metafileToAbsolutePath.get(relativeChunkPath) || relativeChunkPath;
+    const absoluteChunkPath = resolveMetafileOutputPath(metafileToAbsolutePath, relativeChunkPath) ?? relativeChunkPath;
 
     const chunkName = basename(relativeChunkPath);
     const sizeBytes = chunkMeta.bytes; // Direct from metafile - no filesystem call!
