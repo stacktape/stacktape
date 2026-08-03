@@ -2,7 +2,6 @@ import { join } from 'node:path';
 import { copy, mkdir, pathExists, readJson, remove, writeJson } from 'fs-extra';
 import {
   DIST_PACKAGE_FOLDER_PATH,
-  LLM_DOCS_FOLDER_PATH,
   NPM_PACKAGE_JSON_SOURCE_PATH,
   NPM_RELEASE_FOLDER_PATH
 } from 'src/config/project-paths';
@@ -48,14 +47,6 @@ export const copyReleaseChecksums = async ({
   await copy(sourcePath, destinationPath);
 };
 
-// The LLM docs under @generated/llm-docs are committed and freshness-checked against apps/docs plus the current
-// CLI/config model. Release assembly copies that reviewed deterministic snapshot.
-export const copyLlmDocs = async () => {
-  logInfo('Copying LLM docs...');
-  await copy(LLM_DOCS_FOLDER_PATH, join(NPM_RELEASE_FOLDER_PATH, 'llm-docs'));
-  logSuccess('LLM docs copied successfully.');
-};
-
 export const buildNpm = async ({ version }: { version?: string } = {}) => {
   // A release run selects the version explicitly (--version) or by increment flag; getVersion() prompts for
   // anything else. An ordinary workspace build passes no flag at all, so it builds this package's own version
@@ -77,7 +68,6 @@ export const buildNpm = async ({ version }: { version?: string } = {}) => {
     buildNpmMainExport(),
     copyPackageJson(versionToUse),
     copyBinWrapper(),
-    copyLlmDocs(),
     copyReleaseChecksums({
       required: requireChecksums,
       ...(checksumsSourcePath && { sourcePath: checksumsSourcePath })

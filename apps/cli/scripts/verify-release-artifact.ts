@@ -92,8 +92,28 @@ const verifyNativeInstallation = async ({
   if (!existsSync(join(binDirectory, binaryName))) {
     throw new Error(`Native release archive is missing ${binaryName}.`);
   }
-  for (const relativePath of ['config-schema.json', 'llm-docs/index.json', 'starter-projects-metadata.json']) {
+  for (const relativePath of ['config-schema.json', 'starter-projects-metadata.json']) {
     await parseJsonArtifact(join(binDirectory, relativePath));
+  }
+
+  const docsChunkPath = join(binDirectory, 'llm-docs', 'chunks', 'chunks.jsonl');
+  const firstDocsChunk = (await readFile(docsChunkPath, 'utf8')).split('\n').find(Boolean);
+  if (!firstDocsChunk) {
+    throw new Error('Native release archive contains an empty MCP documentation corpus.');
+  }
+  const parsedDocsChunk = JSON.parse(firstDocsChunk) as { content?: unknown; route?: unknown };
+  if (typeof parsedDocsChunk.content !== 'string' || typeof parsedDocsChunk.route !== 'string') {
+    throw new Error('Native release archive contains an invalid MCP documentation corpus.');
+  }
+  for (const excludedPath of [
+    'compiled-cli.js.map',
+    'llm-docs/lexical-index.json',
+    'llm-docs/llms-full.txt',
+    'llm-docs/llms-api-reference.txt'
+  ]) {
+    if (existsSync(join(binDirectory, excludedPath))) {
+      throw new Error(`Native release archive contains non-runtime payload: ${excludedPath}.`);
+    }
   }
 
   const releaseData = (await parseJsonArtifact(join(binDirectory, 'release-data.json'))) as {

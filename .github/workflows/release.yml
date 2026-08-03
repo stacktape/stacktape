@@ -286,7 +286,7 @@ jobs:
           release_id=$(gh api --method POST "repos/$GITHUB_REPOSITORY/releases" \
             -f tag_name="$RELEASE_VERSION" \
             -f target_commitish="$GITHUB_SHA" \
-            -f name="Stacktape $RELEASE_VERSION" \
+            -f name="$RELEASE_VERSION" \
             -f body="Release from $GITHUB_SHA. Release owner: $RELEASE_OWNER. Install with: $install_command" \
             -F prerelease="$is_preview" \
             -f make_latest="$make_latest" \

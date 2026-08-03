@@ -255,7 +255,9 @@ export const buildBinaryFile = async ({
       autoloadTsconfig: true,
       autoloadPackageJson: true
     },
-    sourcemap: 'inline',
+    // Bun 1.3.14 emits a separate `compiled-cli.js.map` even when a compiled executable asks for an inline map.
+    // That file is useful while debugging, but shipping it added more than 70 MB to every installed release.
+    sourcemap: debug ? 'external' : 'none',
     minify: !debug,
     plugins: [openTuiBuildPlugin],
     tsconfig: localBuildTsConfigPath,
@@ -425,12 +427,14 @@ export const copyHelperLambdas = async ({ distFolderPath }: { distFolderPath?: s
   logSuccess('Helper lambdas copied successfully.');
 };
 
-export const copyLlmDocs = async ({ distFolderPath }: { distFolderPath?: string }) => {
-  logInfo('Copying LLM docs...');
-  const sourcePath = LLM_DOCS_FOLDER_PATH;
-  const destPath = join(distFolderPath, 'llm-docs');
+export const copyMcpDocs = async ({ distFolderPath }: { distFolderPath?: string }) => {
+  logInfo('Copying MCP documentation corpus...');
+  // MCP builds its in-memory search index from this corpus. The generated lexical index, rendered pages and
+  // single-file exports are publication artifacts for other consumers and only duplicate the same content here.
+  const sourcePath = join(LLM_DOCS_FOLDER_PATH, 'chunks', 'chunks.jsonl');
+  const destPath = join(distFolderPath, 'llm-docs', 'chunks', 'chunks.jsonl');
   await copy(sourcePath, destPath);
-  logSuccess('LLM docs copied successfully.');
+  logSuccess('MCP documentation corpus copied successfully.');
 };
 
 export const createReleaseDataFile = async ({

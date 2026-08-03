@@ -1,6 +1,6 @@
 import { strict as assert } from 'node:assert';
 import { existsSync } from 'node:fs';
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import { isAbsolute, join, normalize } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { NPM_RELEASE_FOLDER_PATH } from 'src/config/project-paths';
@@ -96,6 +96,13 @@ export const verifyNpmPackage = async ({
 
   const { files } = await pnpmPack({ packageDir, dryRun: true });
   const packedPaths = new Set(files.map(({ path }) => path.replaceAll('\\', '/')));
+  const packedPayloadBytes = (
+    await Promise.all([...packedPaths].map(async (path) => (await stat(resolvePackagePath(packageDir, path))).size))
+  ).reduce((total, size) => total + size, 0);
+  assert.ok(
+    packedPayloadBytes <= 10 * 1024 * 1024,
+    `The npm launcher payload is ${(packedPayloadBytes / 1024 / 1024).toFixed(1)} MiB; expected at most 10 MiB`
+  );
   const requiredPaths = [
     'package.json',
     'index.js',
@@ -115,8 +122,8 @@ export const verifyNpmPackage = async ({
   }
 
   assert.ok(
-    [...packedPaths].some((path) => path.startsWith('llm-docs/')),
-    'pnpm pack output must include the bundled LLM documentation'
+    ![...packedPaths].some((path) => path.startsWith('llm-docs/')),
+    'The npm launcher must not duplicate documentation already carried by the downloaded native archive'
   );
   assert.ok(
     ![...packedPaths].some((path) => path.includes('node_modules/')),

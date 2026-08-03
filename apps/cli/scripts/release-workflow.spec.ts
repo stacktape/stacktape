@@ -1,10 +1,14 @@
 import { describe, expect, test } from 'bun:test';
-import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { NIXPACKS_BINARY_FILE_NAMES } from 'src/config/constants';
 import { BUN_COMPILE_TARGETS, OPENTUI_PLATFORM_IDENTIFIERS } from './release/build-cli-sources';
-import { EXPECTED_RELEASE_ARCHIVES, verifyCandidateArchives } from './release/verify-candidate-assets';
+import {
+  EXPECTED_RELEASE_ARCHIVES,
+  MAX_RELEASE_ARCHIVE_BYTES,
+  verifyCandidateArchives
+} from './release/verify-candidate-assets';
 import { parse as parseYaml } from 'yaml';
 
 const readReleaseWorkflow = () =>
@@ -54,6 +58,18 @@ describe('release candidate workflow', () => {
       await writeFile(join(directory, 'linux-arm.tar.gz'), 'linux-arm');
       await writeFile(join(directory, 'unexpected.zip'), 'unexpected');
       await expect(verifyCandidateArchives(directory)).rejects.toThrow('archive set mismatch');
+    } finally {
+      await rm(directory, { recursive: true, force: true });
+    }
+  });
+
+  test('rejects an unexpectedly large release archive', async () => {
+    const directory = await mkdtemp(join(tmpdir(), 'stacktape-release-size-'));
+
+    try {
+      await Promise.all(EXPECTED_RELEASE_ARCHIVES.map((fileName) => writeFile(join(directory, fileName), fileName)));
+      await truncate(join(directory, 'windows.zip'), MAX_RELEASE_ARCHIVE_BYTES['windows.zip'] + 1);
+      await expect(verifyCandidateArchives(directory)).rejects.toThrow('reviewed ceiling');
     } finally {
       await rm(directory, { recursive: true, force: true });
     }
@@ -170,6 +186,8 @@ describe('release candidate workflow', () => {
     expect(workflow).toContain('npm publish "${npm_tarballs[0]}" --tag "$npm_tag" --provenance --access public');
     expect(workflow).toContain('-F prerelease="$is_preview"');
     expect(workflow).toContain('-f make_latest="$make_latest"');
+    expect(workflow).toContain('-f name="$RELEASE_VERSION"');
+    expect(workflow).not.toContain('-f name="Stacktape $RELEASE_VERSION"');
     expect(workflow).toContain('target_commitish="$GITHUB_SHA"');
     expect(workflow).toContain('[ "$latest_after" = "$LATEST_BEFORE" ]');
     expect(workflow).toContain('[ "$preview_after" = "$PREVIEW_BEFORE" ]');

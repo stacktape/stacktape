@@ -94,7 +94,10 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   separately generated schema variants in that directory. `generate:llm-docs` owns the enhanced documentation schema,
   `@generated/schemas/api-reference-data.json`, and the complete `@generated/llm-docs` tree; it reads canonical data
   from `apps/docs` plus the current config model, stages the corpus before replacement, and has a separate Turbo cache
-  from the uncached config-schema task. `api-reference-data.json` is the normalized API reference this generator
+  from the uncached config-schema task. Release archives carry only `llm-docs/chunks/chunks.jsonl`, the corpus the MCP
+  runtime actually reads; the npm launcher carries no duplicate docs because it downloads that archive. The rendered
+  pages, indexes and single-file exports remain generated publication inputs. `api-reference-data.json` is the
+  normalized API reference this generator
   already renders into the corpus, published so `apps/docs` can render the same data instead of keeping a second copy
   of the extractor — a copy that in practice diverged and stopped decoding HTML entities. Change the normalization
   here, never in a consumer. AWS
@@ -155,7 +158,7 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 
 ```sh
 pnpm --filter @stacktape/cli run generate        # starter metadata plus deterministic config JSON/Zod schemas
-pnpm exec turbo run generate:llm-docs --filter @stacktape/cli # enhanced schema and complete shipped LLM corpus
+pnpm exec turbo run generate:llm-docs --filter @stacktape/cli # enhanced schema and complete generated LLM corpus
 pnpm --filter @stacktape/cli run typecheck       # CLI, build/test projects, smoke fixtures and committed generated TypeScript
 pnpm --filter @stacktape/cli run test            # complete source suite, characterization, generators, release/security checks, helper Lambdas, CLI smoke
 pnpm --filter @stacktape/cli run test:src        # all colocated source tests, isolated per file to contain Bun module mocks
