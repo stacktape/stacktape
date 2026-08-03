@@ -168,6 +168,7 @@ export const createProxyServer = (options: ProxyServerOptions): ProxyServer => {
       if (remainingData.length > 0) upstream.write(remainingData);
       upstream.pipe(clientSocket);
       clientSocket.pipe(upstream);
+      clientSocket.resume();
     });
 
     upstream.on('error', (err) => {
@@ -214,6 +215,10 @@ export const createProxyServer = (options: ProxyServerOptions): ProxyServer => {
         return;
       }
 
+      // Keep request-body bytes buffered while the internal HTTP connection is established.
+      // Without this pause, the socket remains in flowing mode after removing onData and can drop
+      // bytes that arrive before pipe() attaches its listener.
+      clientSocket.pause();
       clientSocket.removeListener('data', onData);
 
       const headerEndByte = headerEnd + 4;
@@ -233,6 +238,7 @@ export const createProxyServer = (options: ProxyServerOptions): ProxyServer => {
           internal.write(headBuf);
           clientSocket.pipe(internal);
           internal.pipe(clientSocket);
+          clientSocket.resume();
         });
         internal.on('error', () => clientSocket.destroy());
         clientSocket.on('error', () => internal.destroy());
