@@ -146,8 +146,7 @@ const isDockerNotRunningError = (err: Error) => {
     // Generic patterns
     'docker daemon is not running',
     'docker is not running',
-    'unable to connect to docker',
-    'connection refused'
+    'unable to connect to docker'
   ];
   return patterns.some((pattern) => message.includes(pattern));
 };

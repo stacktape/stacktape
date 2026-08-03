@@ -305,6 +305,29 @@ describe('docker login credential handling', () => {
     expectNoSecretIn(error, SENTINEL_PASSWORD);
   });
 
+  test('does not misreport a refused registry connection as a stopped Docker daemon', async () => {
+    const registryFailure = `Get "https://${REGISTRY}/v2/": dial tcp 192.0.2.1:443: connect: connection refused`;
+    const { error } = await withFakeDocker({ readStdin: true, exitCode: 1, stderr: registryFailure }, () =>
+      dockerLogin({ user: 'AWS', password: SENTINEL_PASSWORD, proxyEndpoint: REGISTRY })
+    );
+
+    expect(error).toMatchObject({ code: 'DOCKER_COMMAND_FAILED' });
+    expect(error.message).toContain('Failed to login to AWS container registry');
+    expect(error.message).toContain('connection refused');
+    expect(error.message).not.toContain('Docker is not running');
+  });
+
+  test('still identifies a Docker daemon connection failure', async () => {
+    const daemonFailure =
+      'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?';
+    const { error } = await withFakeDocker({ readStdin: true, exitCode: 1, stderr: daemonFailure }, () =>
+      dockerLogin({ user: 'AWS', password: SENTINEL_PASSWORD, proxyEndpoint: REGISTRY })
+    );
+
+    expect(error).toMatchObject({ code: 'DOCKER_NOT_RUNNING' });
+    expect(error.message).toBe('Docker is not running.');
+  });
+
   test('redacts the password from a failed login whose Docker echoes standard input back', async () => {
     // A `docker` on PATH that repeats what it was given on stdin would otherwise have that echo folded into Execa's
     // message, and from there into the CLI's error and its JSONL result.
