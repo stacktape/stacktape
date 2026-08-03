@@ -7,6 +7,52 @@ import type { Subtype } from '@utils/type-helpers';
 const inlineCode = (value: unknown) => `\`${String(value)}\``;
 
 export const configErrors = {
+  directiveResourceNotFound({
+    directiveType,
+    resourceName
+  }: {
+    directiveType: '$ResourceParam' | '$CfResourceParam';
+    resourceName: string;
+  }): CliError {
+    const alternativeDirective = directiveType === '$ResourceParam' ? '$CfResourceParam' : '$ResourceParam';
+    return new CliError({
+      category: 'DIRECTIVE',
+      code: 'DIRECTIVE_RESOURCE_NOT_FOUND',
+      message: `Cannot resolve resource ${inlineCode(resourceName)} referenced by ${inlineCode(directiveType)}.`,
+      hints: [
+        `${inlineCode(directiveType)} only works for ${
+          directiveType === '$CfResourceParam'
+            ? 'user-defined CloudFormation resources and child CloudFormation resources of Stacktape resources.'
+            : 'Stacktape resources configured in the `resources` section.'
+        }`,
+        `If you want to reference parameters of ${
+          directiveType === '$ResourceParam'
+            ? 'CloudFormation resource'
+            : 'a Stacktape resource configured in the `resources` section'
+        }, use ${inlineCode(alternativeDirective)}.`
+      ]
+    });
+  },
+  directiveResourceParameterInvalid({
+    directiveType,
+    referencableParams,
+    referencedParam,
+    resourceName
+  }: {
+    directiveType: '$ResourceParam' | '$CfResourceParam';
+    referencableParams: string[];
+    referencedParam: string;
+    resourceName: string;
+  }): CliError {
+    return new CliError({
+      category: 'DIRECTIVE',
+      code: 'DIRECTIVE_RESOURCE_PARAMETER_INVALID',
+      message: `Parameter ${inlineCode(referencedParam)} referenced by ${inlineCode(directiveType)} is not available on resource ${inlineCode(resourceName)}.`,
+      hints: referencableParams.length
+        ? `Available parameters: ${referencableParams.map(inlineCode).join(', ')}.`
+        : `Resource ${inlineCode(resourceName)} does not expose any parameters for ${inlineCode(directiveType)}.`
+    });
+  },
   configFileMissing(): CliError {
     return new CliError({
       category: 'CONFIG_VALIDATION',

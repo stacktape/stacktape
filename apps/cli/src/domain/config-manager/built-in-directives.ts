@@ -16,8 +16,8 @@ import { loadFromAnySupportedFile, loadRawFileContent } from '@utils/file-loader
 import { gitInfoManager } from '@utils/git-info-manager';
 import { getAllReferencableParams, referenceableTypes } from '@utils/referenceable-types';
 import { validateFormatDirectiveParams, validateStackOutputName } from '@utils/validator';
-import { getNonExistingResourceError, getReferencableParamsError } from './utils/resource-references';
 import type { StacktapeArgs, StacktapeCommand } from 'src/config/cli/types';
+import { configErrors } from './errors';
 
 // @note !!! BE CAREFUL !!! with using services in directives... some of them might not be initialized yet
 
@@ -141,10 +141,13 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
     resolveFunction: () => (resourceReference: string, property: string) => {
       const resource = calculatedStackOverviewManager.getStpResource({ nameChain: resourceReference });
       if (!resource) {
-        throw getNonExistingResourceError({ resourceName: resourceReference, directiveType: '$ResourceParam' });
+        throw configErrors.directiveResourceNotFound({
+          resourceName: resourceReference,
+          directiveType: '$ResourceParam'
+        });
       }
       if (resource.referencableParams?.[property] === undefined) {
-        throw getReferencableParamsError({
+        throw configErrors.directiveResourceParameterInvalid({
           resourceName: resourceReference,
           referencedParam: property,
           referencableParams: Object.keys(resource.referencableParams || {}),
@@ -158,10 +161,13 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
       const value = resource?.referencableParams?.[property]?.value;
       const isLocalInvoke = context.command === 'dev';
       if (!resource) {
-        throw getNonExistingResourceError({ resourceName: resourceReference, directiveType: '$ResourceParam' });
+        throw configErrors.directiveResourceNotFound({
+          resourceName: resourceReference,
+          directiveType: '$ResourceParam'
+        });
       }
       if (resource.referencableParams?.[property] === undefined) {
-        throw getReferencableParamsError({
+        throw configErrors.directiveResourceParameterInvalid({
           resourceName: resourceReference,
           referencedParam: property,
           referencableParams: Object.keys(resource.referencableParams || {}),
@@ -190,7 +196,7 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
     resolveFunction: () => (resourceName: string, property: string) => {
       const cfResource = templateManager.template.Resources[resourceName];
       if (!cfResource) {
-        throw getNonExistingResourceError({ resourceName, directiveType: '$CfResourceParam' });
+        throw configErrors.directiveResourceNotFound({ resourceName, directiveType: '$CfResourceParam' });
       }
       const { Ref: RefAttributes, GetAtt: GetAttAttributes } = referenceableTypes[cfResource.Type] || {
         GetAtt: [],
@@ -206,7 +212,7 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
         // this assignment is same as in above "else if" branch, but we handle it in separate branch to understand the situation
         intrinsicFn = GetAtt(resourceName, property);
       } else {
-        throw getReferencableParamsError({
+        throw configErrors.directiveResourceParameterInvalid({
           resourceName,
           referencedParam: property,
           referencableParams: getAllReferencableParams(cfResource.Type),
@@ -225,7 +231,7 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
     localResolveFunction: () => (resourceName: string, property: string) => {
       const isResourceDeployed = stackManager.getExistingResourceDetails(resourceName);
       if (!isResourceDeployed) {
-        throw getNonExistingResourceError({ resourceName, directiveType: '$CfResourceParam' });
+        throw configErrors.directiveResourceNotFound({ resourceName, directiveType: '$CfResourceParam' });
       }
       const outputName = getStackOutputName(resourceName, property);
       const output = stackManager.existingStackDetails?.stackOutput[outputName];

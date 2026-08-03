@@ -22,60 +22,6 @@
   },
   {
     "type": "cycle",
-    "from": "apps/cli/src/domain/config-manager/built-in-directives.ts",
-    "to": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
-    "unresolvedTo": "./utils/resource-references",
-    "dependencyTypes": ["local", "require"],
-    "rule": {
-      "severity": "error",
-      "name": "no-cycles"
-    },
-    "cycle": [
-      {
-        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/index.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/built-in-directives.ts",
-        "dependencyTypes": ["local", "require"]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
-    "from": "apps/cli/src/domain/config-manager/config-resolver.ts",
-    "to": "apps/cli/src/domain/config-manager/built-in-directives.ts",
-    "unresolvedTo": "./built-in-directives",
-    "dependencyTypes": ["local", "require"],
-    "rule": {
-      "severity": "error",
-      "name": "no-cycles"
-    },
-    "cycle": [
-      {
-        "name": "apps/cli/src/domain/config-manager/built-in-directives.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/index.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/config-resolver.ts",
-        "dependencyTypes": ["local", "require"]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
     "from": "apps/cli/src/domain/config-manager/index.ts",
     "to": "apps/cli/src/domain/config-manager/utils/alarms.ts",
     "unresolvedTo": "./utils/alarms",
@@ -132,6 +78,10 @@
         "dependencyTypes": ["local", "require"]
       },
       {
+        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
         "name": "apps/cli/src/domain/config-manager/index.ts",
         "dependencyTypes": ["local", "require"]
       }
@@ -150,6 +100,10 @@
     "cycle": [
       {
         "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/application-load-balancers.ts",
         "dependencyTypes": ["local", "require"]
       },
       {
@@ -179,31 +133,6 @@
       },
       {
         "name": "apps/cli/src/domain/config-manager/utils/application-load-balancers.ts",
-        "dependencyTypes": ["local", "require"]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
-    "from": "apps/cli/src/domain/config-manager/utils/buckets.ts",
-    "to": "apps/cli/src/domain/config-manager/index.ts",
-    "unresolvedTo": "../index",
-    "dependencyTypes": ["local", "require"],
-    "rule": {
-      "severity": "error",
-      "name": "no-cycles"
-    },
-    "cycle": [
-      {
-        "name": "apps/cli/src/domain/config-manager/index.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/utils/buckets.ts",
         "dependencyTypes": ["local", "require"]
       }
     ]
@@ -287,56 +216,6 @@
       },
       {
         "name": "apps/cli/src/domain/config-manager/utils/http-api-gateways.ts",
-        "dependencyTypes": ["local", "require"]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
-    "from": "apps/cli/src/domain/config-manager/utils/lambdas.ts",
-    "to": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
-    "unresolvedTo": "./resource-references",
-    "dependencyTypes": ["local", "require"],
-    "rule": {
-      "severity": "error",
-      "name": "no-cycles"
-    },
-    "cycle": [
-      {
-        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/index.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/utils/lambdas.ts",
-        "dependencyTypes": ["local", "require"]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
-    "from": "apps/cli/src/domain/config-manager/utils/multi-container-workloads.ts",
-    "to": "apps/cli/src/domain/config-manager/index.ts",
-    "unresolvedTo": "../index",
-    "dependencyTypes": ["local", "require"],
-    "rule": {
-      "severity": "error",
-      "name": "no-cycles"
-    },
-    "cycle": [
-      {
-        "name": "apps/cli/src/domain/config-manager/index.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/utils/multi-container-workloads.ts",
         "dependencyTypes": ["local", "require"]
       }
     ]
@@ -478,31 +357,6 @@
       },
       {
         "name": "apps/cli/src/domain/config-manager/utils/sqs-queues.ts",
-        "dependencyTypes": ["local", "require"]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
-    "from": "apps/cli/src/domain/config-manager/utils/validation.ts",
-    "to": "apps/cli/src/domain/config-manager/utils/application-load-balancers.ts",
-    "unresolvedTo": "./application-load-balancers",
-    "dependencyTypes": ["local", "require"],
-    "rule": {
-      "severity": "error",
-      "name": "no-cycles"
-    },
-    "cycle": [
-      {
-        "name": "apps/cli/src/domain/config-manager/utils/application-load-balancers.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/index.ts",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
         "dependencyTypes": ["local", "require"]
       }
     ]

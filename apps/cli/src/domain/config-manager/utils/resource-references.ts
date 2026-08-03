@@ -18,54 +18,6 @@ import { configManager as runtimeConfigManager, type ConfigManager } from '../in
 import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
 import { configErrors } from '../errors';
 
-export const getReferencableParamsError = ({
-  resourceName,
-  referencedParam,
-  referencableParams,
-  directiveType
-}: {
-  resourceName: string;
-  referencedParam: string;
-  referencableParams: string[];
-  directiveType: '$ResourceParam' | '$CfResourceParam';
-}): CliError => {
-  return new CliError({
-    category: 'DIRECTIVE',
-    code: 'DIRECTIVE_RESOURCE_PARAMETER_INVALID',
-    message: `Parameter \`${referencedParam}\` referenced by \`${directiveType}\` is not available on resource \`${resourceName}\`.`,
-    hints: referencableParams.length
-      ? `Available parameters: ${referencableParams.map((parameter) => `\`${parameter}\``).join(', ')}.`
-      : `Resource \`${resourceName}\` does not expose any parameters for \`${directiveType}\`.`
-  });
-};
-
-export const getNonExistingResourceError = ({
-  resourceName,
-  directiveType
-}: {
-  resourceName: string;
-  directiveType: '$ResourceParam' | '$CfResourceParam';
-}): CliError => {
-  const alternativeDirective = directiveType === '$ResourceParam' ? '$CfResourceParam' : '$ResourceParam';
-  return new CliError({
-    category: 'DIRECTIVE',
-    code: 'DIRECTIVE_RESOURCE_NOT_FOUND',
-    message: `Cannot resolve resource \`${resourceName}\` referenced by \`${directiveType}\`.`,
-    hints: [
-      `\`${directiveType}\` only works for ${
-        directiveType === '$CfResourceParam'
-          ? 'user-defined CloudFormation resources and child CloudFormation resources of Stacktape resources.'
-          : 'Stacktape resources configured in the `resources` section.'
-      }`,
-      `If you want to reference parameters of ${
-        directiveType === '$ResourceParam'
-          ? 'CloudFormation resource'
-          : 'a Stacktape resource configured in the `resources` section'
-      }, use \`${alternativeDirective}\`.`
-    ]
-  });
-};
-
 export const getPropsOfResourceReferencedInConfig = <T extends StpResourceType>({
   activeConfig = runtimeConfigManager,
   stpResourceReference,
