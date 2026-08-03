@@ -51,6 +51,9 @@ import { runAuthFlow } from '../../commands/_utils/auth';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-key';
 
+const CREDENTIAL_REFRESH_LEAD_TIME_MS = 60 * 1000;
+const CREDENTIAL_REFRESH_RETRY_DELAY_MS = 60 * 1000;
+
 export type DomainServiceName =
   | 'ConfigManager'
   | 'DeploymentArtifactManager'
@@ -86,6 +89,7 @@ export class GlobalStateManager {
   } as ValidatedAwsCredentials;
 
   credentialsRefreshTimeout?: ReturnType<typeof setTimeout>;
+  private credentialRefreshStopped = false;
   userData?: GlobalStateUser;
   organizationData?: GlobalStateOrganization;
   connectedAwsAccounts?: GlobalStateConnectedAwsAccount[];
@@ -106,6 +110,7 @@ export class GlobalStateManager {
   apiKey: string;
 
   init = async (opts: RunCommandOptions) => {
+    this.credentialRefreshStopped = false;
     this.operationStart = new Date();
     const { commands, args, config, additionalArgs } = opts;
     this.rawCommands = commands;
@@ -376,12 +381,6 @@ export class GlobalStateManager {
   loadValidatedAwsCredentials = async (): Promise<ValidatedAwsCredentials> => {
     await eventManager.startEvent({ eventType: 'LOAD_AWS_CREDENTIALS', description: 'Loading AWS credentials' });
     validateAwsAccountUsability({ account: this.targetAwsAccount, organization: this.organizationData });
-    // refresh method
-    const getRefreshTimeout = async (credentialsExpiration: Date) => {
-      const msUntilExpiration = new Date(credentialsExpiration).getTime() - (await getAwsSynchronizedTime()).getTime();
-      // refresh credentials one minute before expiring
-      return setTimeout(this.loadValidatedAwsCredentials, msUntilExpiration - 60 * 1000);
-    };
 
     // loading method API
     const loadCredentialsUsingApi = async (): Promise<LoadedAwsCredentials> => {
@@ -468,8 +467,7 @@ export class GlobalStateManager {
 
     // if credentials have expiration set refresh timeout
     if (this.credentials.expiration) {
-      clearTimeout(this.credentialsRefreshTimeout);
-      this.credentialsRefreshTimeout = await getRefreshTimeout(this.credentials.expiration);
+      await this.scheduleCredentialRefresh(this.credentials.expiration);
     }
     const loadedFrom = {
       envVar: 'Environment variables',
@@ -485,7 +483,44 @@ export class GlobalStateManager {
     return this.credentials;
   };
 
+  protected scheduleCredentialRefresh = async (credentialsExpiration: Date) => {
+    clearTimeout(this.credentialsRefreshTimeout);
+    this.credentialsRefreshTimeout = undefined;
+    if (this.credentialRefreshStopped) return;
+
+    const msUntilExpiration = new Date(credentialsExpiration).getTime() - (await getAwsSynchronizedTime()).getTime();
+    const refreshDelay = Math.max(msUntilExpiration - CREDENTIAL_REFRESH_LEAD_TIME_MS, 0);
+    this.credentialsRefreshTimeout = setTimeout(() => {
+      void this.refreshCredentialsAfterTimeout();
+    }, refreshDelay);
+  };
+
+  protected refreshCredentialsAfterTimeout = async () => {
+    this.credentialsRefreshTimeout = undefined;
+    if (this.credentialRefreshStopped) return;
+
+    try {
+      await this.loadValidatedAwsCredentials();
+    } catch {
+      clearTimeout(this.credentialsRefreshTimeout);
+      this.credentialsRefreshTimeout = undefined;
+      await Promise.resolve(
+        eventManager.finishEvent({
+          eventType: 'LOAD_AWS_CREDENTIALS',
+          finalMessage: 'Automatic AWS credential refresh failed.'
+        })
+      ).catch(() => undefined);
+      if (this.credentialRefreshStopped) return;
+
+      tuiManager.warn('Automatic AWS credential refresh failed. Retrying in one minute.');
+      this.credentialsRefreshTimeout = setTimeout(() => {
+        void this.refreshCredentialsAfterTimeout();
+      }, CREDENTIAL_REFRESH_RETRY_DELAY_MS);
+    }
+  };
+
   stopCredentialRefresh = () => {
+    this.credentialRefreshStopped = true;
     clearTimeout(this.credentialsRefreshTimeout);
     this.credentialsRefreshTimeout = undefined;
   };

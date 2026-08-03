@@ -20,9 +20,6 @@ refactoring scope. Revisit them before the v4 release where marked.
   Review its authentication, confirmation, and least-privilege model as part of the later dev-agent/AWS-manager
   hardening, not during package extraction.
 - Review credential/key rotation and versioning for the Console security-hardening work before a production rollout.
-- The Console's connected-account credential provider now refreshes expiring credentials and deduplicates concurrent
-  refreshes. The CLI's timer-based refresh still has no owning await/catch path. CLI AWS clients resolve refreshed
-  credentials through their session provider, but the timer's failure needs explicit operational ownership.
 - Console browser credentials are now narrowed to a server-owned capability and AWS action list, but direct AWS
   credentials are still an organization/account boundary rather than a project boundary. A project-scoped member can
   reuse issued credentials against resources from another project in the same connected account when the AWS API
