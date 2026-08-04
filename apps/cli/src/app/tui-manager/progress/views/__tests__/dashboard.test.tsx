@@ -27,6 +27,9 @@ const renderDashboard = async (opts = { width: 100, height: 13 }) => {
 
 const frameLines = (frame: string) => frame.replace(/\n$/, '').split('\n');
 
+const normalizeIndependentAnimations = (line: string) =>
+  line.replace(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏]/g, '⠋').replace(/\b\d{2}:\d{2}:\d{2}\b/g, '00:00:00');
+
 const initDeployState = () => {
   tuiState.setHeader({ projectName: 'my-app', stageName: 'dev', region: 'eu-west-1', action: 'DEPLOYING' });
   tuiState.setCurrentPhase('BUILD_AND_PACKAGE');
@@ -197,14 +200,16 @@ describe('ProgressDashboard stability', () => {
     await flushAndRender();
     const after = testSetup.captureCharFrame();
 
-    const beforeLines = frameLines(before);
-    const afterLines = frameLines(after);
+    // A phase/resource spinner or the session clock can advance independently while the state update is flushed.
+    // Normalize those cells so this assertion measures only the CloudFormation progress update.
+    const beforeLines = frameLines(before).map(normalizeIndependentAnimations);
+    const afterLines = frameLines(after).map(normalizeIndependentAnimations);
     expect(afterLines).toHaveLength(beforeLines.length);
     const changedRows = beforeLines
       .map((line, index) => (line === afterLines[index] ? null : index))
       .filter((index) => index !== null);
-    // Only the progress row (5) and possibly spinner cells on resource rows
-    // (6-8) may change; identity, rail, title and hints must not move.
+    expect(changedRows).toContain(5);
+    // Only the progress row (5) and resource rows (6-8) may change; identity, rail, title and hints must not move.
     for (const row of changedRows) {
       expect(row).toBeGreaterThanOrEqual(5);
       expect(row).toBeLessThanOrEqual(8);
