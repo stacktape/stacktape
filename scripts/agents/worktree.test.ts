@@ -43,15 +43,15 @@ before(async () => {
   const privateSeed = path.join(fixtureRoot, 'private-seed');
 
   mustRun('git', ['init', '--bare', privateOrigin], fixtureRoot);
-  mustRun('git', ['init', '--initial-branch=v4/integration', privateSeed], fixtureRoot);
+  mustRun('git', ['init', '--initial-branch=main', privateSeed], fixtureRoot);
   await writeFile(path.join(privateSeed, 'README.md'), '# Private fixture\n');
   mustRun('git', ['add', 'README.md'], privateSeed);
   mustRun('git', ['commit', '-m', 'Initialize private fixture'], privateSeed);
   mustRun('git', ['remote', 'add', 'origin', privateOrigin], privateSeed);
-  mustRun('git', ['push', '--set-upstream', 'origin', 'v4/integration'], privateSeed);
-  mustRun('git', ['symbolic-ref', 'HEAD', 'refs/heads/v4/integration'], privateOrigin);
+  mustRun('git', ['push', '--set-upstream', 'origin', 'main'], privateSeed);
+  mustRun('git', ['symbolic-ref', 'HEAD', 'refs/heads/main'], privateOrigin);
 
-  mustRun('git', ['init', '--initial-branch=v4/integration', publicRepository], fixtureRoot);
+  mustRun('git', ['init', '--initial-branch=main', publicRepository], fixtureRoot);
   await writeFile(
     path.join(publicRepository, 'package.json'),
     `${JSON.stringify({ packageManager: 'pnpm@11.17.0', private: true }, null, 2)}\n`
@@ -79,8 +79,8 @@ before(async () => {
 
   mustRun('git', ['init', '--bare', publicOrigin], fixtureRoot);
   mustRun('git', ['remote', 'add', 'origin', publicOrigin], publicRepository);
-  mustRun('git', ['push', '--set-upstream', 'origin', 'v4/integration'], publicRepository);
-  mustRun('git', ['symbolic-ref', 'HEAD', 'refs/heads/v4/integration'], publicOrigin);
+  mustRun('git', ['push', '--set-upstream', 'origin', 'main'], publicRepository);
+  mustRun('git', ['symbolic-ref', 'HEAD', 'refs/heads/main'], publicOrigin);
 });
 
 after(async () => {
@@ -95,27 +95,27 @@ test('creates independent public/private worktrees and removes only recoverable 
     assert.equal(result.status, 0, `${result.stdout}\n${result.stderr}`);
   }
 
-  const first = path.join(publicRepository, '.worktrees', 'one');
-  const second = path.join(publicRepository, '.worktrees', 'two');
+  const first = path.join(fixtureRoot, '.worktrees', 'public-one');
+  const second = path.join(fixtureRoot, '.worktrees', 'public-two');
   const firstPrivateGitDir = mustRun('git', ['rev-parse', '--git-dir'], path.join(first, 'apps', 'console'));
   const secondPrivateGitDir = mustRun('git', ['rev-parse', '--git-dir'], path.join(second, 'apps', 'console'));
   assert.notEqual(
     path.resolve(path.join(first, 'apps', 'console'), firstPrivateGitDir),
     path.resolve(path.join(second, 'apps', 'console'), secondPrivateGitDir)
   );
-  assert.match(mustRun('git', ['branch', '--show-current'], path.join(first, 'apps', 'console')), /^v4\/slice\/one$/);
+  assert.equal(mustRun('git', ['branch', '--show-current'], path.join(first, 'apps', 'console')), 'work/one');
 
   for (const slice of ['one', 'two']) {
     const result = runAgentScript(removeScript, [slice]);
     assert.equal(result.status, 0, result.stderr);
-    mustRun('git', ['show-ref', '--verify', `refs/heads/v4/slice/${slice}`], publicRepository);
+    mustRun('git', ['show-ref', '--verify', `refs/heads/work/${slice}`], publicRepository);
   }
 });
 
 test('refuses cleanup when a private commit exists only in disposable worktree metadata', async () => {
   const create = runAgentScript(createScript, ['guard', '--private']);
   assert.equal(create.status, 0, `${create.stdout}\n${create.stderr}`);
-  const worktree = path.join(publicRepository, '.worktrees', 'guard');
+  const worktree = path.join(fixtureRoot, '.worktrees', 'public-guard');
   const privateRoot = path.join(worktree, 'apps', 'console');
   const metadata = JSON.parse(await readFile(path.join(worktree, '.stacktape-agent.json'), 'utf8'));
 
@@ -124,9 +124,9 @@ test('refuses cleanup when a private commit exists only in disposable worktree m
   assert.notEqual(refused.status, 0);
   assert.match(refused.stderr, /not reachable from a remote-tracking ref/);
 
-  mustRun('git', ['push', 'origin', 'HEAD:refs/heads/v4/slice/stale-recoverability'], privateRoot);
+  mustRun('git', ['push', 'origin', 'HEAD:refs/heads/work/stale-recoverability'], privateRoot);
   mustRun('git', ['fetch', 'origin'], privateRoot);
-  mustRun('git', ['update-ref', '-d', 'refs/heads/v4/slice/stale-recoverability'], privateOrigin);
+  mustRun('git', ['update-ref', '-d', 'refs/heads/work/stale-recoverability'], privateOrigin);
   const staleRemoteRef = runAgentScript(removeScript, ['guard']);
   assert.notEqual(staleRemoteRef.status, 0);
   assert.match(staleRemoteRef.stderr, /not reachable from a remote-tracking ref/);
@@ -136,16 +136,20 @@ test('refuses cleanup when a private commit exists only in disposable worktree m
   assert.equal(removed.status, 0, removed.stderr);
 });
 
-test('rejects the wrong base branch, remote branch collisions, and external dossiers', async () => {
-  mustRun('git', ['switch', '-c', 'legacy-main'], publicRepository);
-  const wrongBase = runAgentScript(createScript, ['wrong-base']);
-  assert.notEqual(wrongBase.status, 0);
-  assert.match(wrongBase.stderr, /only from v4\/integration/);
-  mustRun('git', ['switch', 'v4/integration'], publicRepository);
+test('creates from the selected base and rejects branch collisions and external dossiers', async () => {
+  mustRun('git', ['switch', '-c', 'local-work'], publicRepository);
+  await writeFile(path.join(publicRepository, 'uncommitted.txt'), 'primary checkout may remain dirty\n');
+  const independent = runAgentScript(createScript, ['independent']);
+  assert.equal(independent.status, 0, `${independent.stdout}\n${independent.stderr}`);
+  const independentRoot = path.join(fixtureRoot, '.worktrees', 'public-independent');
+  assert.equal(mustRun('git', ['branch', '--show-current'], independentRoot), 'work/independent');
+  assert.equal(runAgentScript(removeScript, ['independent']).status, 0);
+  await rm(path.join(publicRepository, 'uncommitted.txt'));
+  mustRun('git', ['switch', 'main'], publicRepository);
 
-  mustRun('git', ['branch', 'v4/slice/collision'], publicRepository);
-  mustRun('git', ['push', 'origin', 'v4/slice/collision'], publicRepository);
-  mustRun('git', ['branch', '--delete', 'v4/slice/collision'], publicRepository);
+  mustRun('git', ['branch', 'work/collision'], publicRepository);
+  mustRun('git', ['push', 'origin', 'work/collision'], publicRepository);
+  mustRun('git', ['branch', '--delete', 'work/collision'], publicRepository);
   const collision = runAgentScript(createScript, ['collision']);
   assert.notEqual(collision.status, 0);
   assert.match(collision.stderr, /Public branch already exists/);

@@ -10,12 +10,12 @@ canonical source ──owner's generate task──> derived artifact ──ordin
 
 ## Output classes
 
-| Class                              | Examples                                                                                                | Policy                                                                                                       |
-| ---------------------------------- | ------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Committed deterministic artifacts  | config schemas, the Zod validator, LLM corpus, starter metadata, CloudFormation types, design-token CSS | The owning workspace has `generate` and a non-mutating `generate:check`. Both are offline and deterministic. |
-| Ignored workspace materializations | Monaco declarations, Console's copied schema/declarations, Prisma client                                | The consumer's normal build/dev dependency creates them. They are never freshness-checked against Git.       |
-| Live-upstream snapshots            | AWS prices, RDS engine versions, CloudFormation resource catalogs                                       | Explicitly refreshed with the named `gen:*` command. Ordinary build/check tasks never contact the network.   |
-| Build/release output               | `dist`, release archives, helper-Lambda bundles                                                         | Owned by `build` or the relevant packaging task, not by `generate`.                                          |
+| Class                              | Examples                                                                                                | Policy                                                                                                                 |
+| ---------------------------------- | ------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Committed deterministic artifacts  | config schemas, the Zod validator, LLM corpus, starter metadata, CloudFormation types, design-token CSS | The owning workspace has `generate` and a non-mutating `generate:check`. Both are offline and deterministic.           |
+| Ignored workspace materializations | Monaco declarations, Console's copied schema/declarations, Prisma client                                | The consumer's normal build/dev dependency creates them. They are never freshness-checked against Git.                 |
+| Live-upstream snapshots            | AWS prices, RDS engine versions, CloudFormation resource catalogs                                       | Explicitly refreshed with the named `refresh:catalog:*` command. Ordinary build/check tasks never contact the network. |
+| Build/release output               | `dist`, release archives, helper-Lambda bundles                                                         | Owned by `build` or the relevant packaging task, not by `generate`.                                                    |
 
 The distinction is behavioral. A generated file is not “committed” merely because it exists under a directory named
 `generated`, and build output does not become source generation merely because another task consumes it.
@@ -29,6 +29,16 @@ The distinction is behavioral. A generated file is not “committed” merely be
 - Ordinary `build`, `typecheck`, `test`, and `dev` tasks depend on the generation tasks they need in `turbo.json`.
 - A package owns the algorithm and output its `package.json`/`turbo.json` declare. Consumers read an exported artifact
   or depend on that task; they do not copy the algorithm.
+
+The three networked snapshot refreshes are intentionally outside Turbo's ordinary task graph:
+
+```sh
+pnpm --filter @stacktape/cli run refresh:catalog:aws-prices
+pnpm --filter @stacktape/cli run refresh:catalog:cloudformation
+pnpm --filter @stacktape/cli run refresh:catalog:rds
+```
+
+Run them only when deliberately updating their upstream catalog, then review and test the resulting committed diff.
 
 There is deliberately no second central generator registry. Package scripts plus the Turbo graph are the executable
 source of truth; a separate manifest would duplicate paths and task names and could drift.

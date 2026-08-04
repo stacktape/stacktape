@@ -186,8 +186,8 @@ the instruction text.
 - Prisma uses a real baseline plus `migrate deploy`; fresh and previously `db push`-managed databases were tested with
   zero schema drift.
 - API key and deployment token secrets exist for dev and production; values are not recorded in repository documents.
-- The focused Console security suite passes. The legacy Console repository's full typecheck still has pre-existing
-  application/generated-type debt; it is migration work, not an accepted v4 warning baseline.
+- The focused Console security suite and integrated Console typecheck pass; generated declarations are materialized
+  through the workspace task graph rather than accepted as a warning baseline.
 - No security-hardening or production deployment was performed. At public commit `f091e541`, a separate disposable
   packaging fixture was deployed to the development account, exercised, redeployed unchanged, and deleted on
   2026-07-30.

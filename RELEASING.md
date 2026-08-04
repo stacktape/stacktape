@@ -8,8 +8,8 @@ archives, checksum manifest, and npm tarball. The explicit channel changes only 
 | `preview` | `4.0.0-preview.1` | `preview` | Prerelease     | `https://installs-preview.stacktape.com` |
 | `stable`  | `4.0.0`           | `latest`  | Latest         | `https://installs.stacktape.com`         |
 
-Stable releases are accepted only from `main`. Preview releases may also be dispatched from `v4/integration` until
-the v4 cutover. Neither channel deploys a Stacktape project or uses `STACKTAPE_API_KEY`.
+Both top-level release commands dispatch the workflow from `main`, and stable releases are accepted only from
+`main`. Neither channel deploys a Stacktape project or uses `STACKTAPE_API_KEY`.
 
 ## Normal use
 
@@ -20,7 +20,8 @@ pnpm release:preview 4.0.0-preview.1
 pnpm release 4.0.0
 ```
 
-Use `--ref <branch>` only when the desired commit is already pushed. Follow a run with:
+The low-level CLI release script accepts `--ref <branch>` for an intentionally configured preview source; ordinary
+releases should use the top-level commands above. Follow a run with:
 
 ```powershell
 gh run list --repo stacktape/stacktape --workflow release.yml --limit 1
@@ -60,7 +61,9 @@ paths, waits for completion, and verifies every public response byte-for-byte.
 The AWS and GitHub portions were provisioned on 2026-08-03:
 
 - AWS account `977946299200` contains GitHub's OIDC provider and the narrow installer role above.
-- GitHub environments `release-publish` and `release-installers` allow `main` and `v4/integration`.
+- GitHub environments `release-publish` and `release-installers` were originally configured for `main` and the former
+  `v4/integration` migration branch. Remove the obsolete migration-branch policies before treating the environment
+  configuration as final.
 - `release-installers` contains the account, role, region, bucket, distribution, and public-URL variables for both
   channels. These are identifiers, not secrets.
 
@@ -78,8 +81,7 @@ npm trust list stacktape
 npm permits only one trusted publisher per package. If `npm trust list stacktape` shows the old release setup, first
 replace it with `npm trust revoke stacktape --id <existing-id>`, then run the `npm trust github` command above.
 
-Do not add `NPM_TOKEN`, AWS access keys, or `STACKTAPE_API_KEY` to the workflow. After v4 becomes the default branch,
-remove the temporary `v4/integration` branch policy from both release environments.
+Do not add `NPM_TOKEN`, AWS access keys, or `STACKTAPE_API_KEY` to the workflow.
 
 ## Other mutable publications
 

@@ -59,6 +59,8 @@ it has a coherent capability and more than one real consumer.
 - Consume starter-project metadata and the AWS, CloudFormation and RDS editor catalogs through the public
   `@stacktape/cli` subpaths; do not restore private generated copies. MongoDB Atlas prices currently have no
   generator and are a Console-only editor input, so their single source is `ui/src/data/mongodb-atlas-prices.json`.
+- Inspect Stacktape resource definitions through `@stacktape/config/schema-inspection`; do not generate or commit a
+  Console-local resource-description snapshot.
 - Consume pricing catalog ingestion, DynamoDB refresh, and resource-estimator contracts from `@stacktape/pricing`;
   do not restore either private or CLI-local copies of the pricing implementation.
 - Browser AWS operations receive an explicit access context containing organization, AWS account, region, and signed-in

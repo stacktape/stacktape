@@ -110,7 +110,7 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   task and checked by `generate:check`.
   Config-schema source discovery sorts normalized relative paths before constructing the TypeScript program; changing
   that ordering requires proving byte-identical generation on both Windows and Linux.
-- The live AWS Pricing CSV parser and product catalog definitions used by `gen:price:info` live in
+- The live AWS Pricing CSV parser and product catalog definitions used by `refresh:catalog:aws-prices` live in
   `@stacktape/pricing/catalog`. The generated editor catalog remains CLI-owned output because this application
   defines and publishes its JSON shape.
   Package-owned `generate:check` tasks cover committed artifacts; do not replace them with a generate-then-Git-diff
@@ -123,6 +123,11 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 - `_test-stacks/` — small Stacktape projects used as test input. `config-loading-smoke/` is the imported one the
   characterization suite loads; `packaging-smoke/` is a disposable stack deployed to real AWS by hand to check split
   bundling and Lambda layers, described in its own `README.md` and in the root `DEVELOPMENT.md`.
+
+The `refresh:catalog:*` scripts contact live AWS-owned upstreams and rewrite reviewed snapshots; they never belong in
+ordinary build, test, or generation. `publish:starters` is an owner-only operation that force-replaces the generated
+contents of the public `stacktape/starter-*` repositories. Do not run either class of command as validation or during
+an unrelated refactor.
 
 ## Toolchain
 

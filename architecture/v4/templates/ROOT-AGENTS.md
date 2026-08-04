@@ -10,7 +10,7 @@ endpoint with separate short-lived OIDC identities.
 - Public apps: `apps/cli`, `apps/docs`, `apps/website`.
 - Private Git boundary: `apps/console`, containing `api` and `ui`.
 - Reusable capabilities with current consumers: `packages/*`.
-- Current migration decisions: `architecture/v4/SIMPLIFIED-MIGRATION.md`.
+- Active architecture decisions: `architecture/v4/DECISIONS.md`.
 
 Never make public code depend on private source. A missing private submodule is a normal public-contributor state, not
 an error to work around.
@@ -20,9 +20,9 @@ an error to work around.
 1. Read the nearest `AGENTS.md` and the relevant package manifest.
 2. Check Git status in the public repository and, when present, in `apps/console`.
 3. Preserve unrelated changes.
-4. For migration work, read `architecture/v4/SIMPLIFIED-MIGRATION.md`, the assigned dossier, and
-   `architecture/v4/AGENT-EXECUTION.md`. Older architecture documents describe an archived approach unless the
-   current dossier explicitly cites them.
+4. Read the focused architecture guide for the area you are changing. In particular, generated-file work starts at
+   `architecture/GENERATION.md`; the completed v4 migration records under `architecture/v4` are context, not a live
+   implementation plan.
 5. Identify generated outputs and behavioral baselines affected by the change.
 
 ## Workspace commands
@@ -75,10 +75,18 @@ Conceptual complexity is reviewed as strictly as correctness.
 - An interface with one implementation needs evidence that it represents a real external boundary.
 - Do not split code for architectural symmetry or hypothetical future reuse.
 - An abstraction must reduce the total number of concepts needed to understand the behavior.
+- Choose the simplest implementation that completely satisfies the current requirement. Do not add speculative
+  configuration, indirection, or extension points.
+- Before writing a helper or adding a dependency, inspect the existing code and the documentation and types of
+  dependencies already present. Prefer a maintained library only when it reduces total complexity and maintenance.
+- Make coherent end-to-end changes that leave the repository working. Do not land half-built scaffolding that a later
+  change must make usable.
+- Do not knowingly introduce a temporary architecture intended to be replaced later. If an explicitly approved
+  transitional mechanism is unavoidable, document why it exists and the concrete condition for removing it.
 - Harden genuinely untrusted inputs. Do not complicate internal trusted code to defend against exotic hostile
   JavaScript behavior without a demonstrated boundary.
-- During migration, move working code first. Refactor it only after the moved behavior is proven and the refactor has
-  a concrete present-day benefit.
+- During structural refactors, preserve working behavior first. Refactor it only when the changed design has a
+  concrete present-day benefit.
 
 ## tRPC and privacy
 
@@ -139,7 +147,8 @@ Do not force-push, update integration/default branches, push slice branches, or 
 explicitly requests it. Never treat a submodule pointer update as an unimportant generated diff.
 
 Implementation agents work only in their assigned isolated worktree. Review agents remain read-only unless assigned a
-fix.
+fix. `scripts/agents/README.md` documents the current `pnpm worktree:create` and `worktree:remove` helpers; migration
+dossiers and `v4/slice/*` branch names are historical.
 
 ## Security
 

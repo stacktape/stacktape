@@ -27,13 +27,6 @@ export const getWorkflowDispatchArgs = ({
   `version=${version}`
 ];
 
-const getCurrentBranch = async () => {
-  const { stdout } = await execFile('git', ['branch', '--show-current']);
-  const branch = stdout.trim();
-  if (!branch) throw new Error('Cannot dispatch a release from a detached Git HEAD. Pass --ref explicitly.');
-  return branch;
-};
-
 export const parseReleaseArgs = (rawArgs: string[]) => {
   const args = yargsParser(rawArgs);
   const positionalVersions = args._.map(String);
@@ -54,7 +47,7 @@ export const parseReleaseArgs = (rawArgs: string[]) => {
 
 const main = async () => {
   const { channel, version, ref: requestedRef } = parseReleaseArgs(process.argv.slice(2));
-  const ref = requestedRef ?? (await getCurrentBranch());
+  const ref = requestedRef ?? 'main';
 
   console.info(`Dispatching ${channel} ${version} from ${ref}...`);
   await execFile('gh', getWorkflowDispatchArgs({ channel, ref, version }));

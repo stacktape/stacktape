@@ -125,13 +125,12 @@ create the worktree) on the WSL filesystem and install there:
 
 ```sh
 # inside WSL, on the Linux filesystem — not /mnt/c
-git clone --branch v4/integration <repository-url> ~/src/stacktape
+git clone <repository-url> ~/src/stacktape
 cd ~/src/stacktape
 pnpm install --frozen-lockfile
 ```
 
-The branch flag is needed only until v4 becomes the repository default. The two checkouts are independent: install in
-each, and let Git — not the filesystem — move changes between them.
+The two checkouts are independent: install in each, and let Git — not the filesystem — move changes between them.
 
 ## Semi-local development mode
 

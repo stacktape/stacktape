@@ -6,9 +6,6 @@
     "url": "https://github.com/stacktape/stacktape/issues"
   },
   "author": "Stacktape team <info@stacktape.com> (https://stacktape.com)",
-  "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
-  },
   "dependencies": {
     "@socket.io/redis-adapter": "^7.2.0",
     "@types/express": "^5.0.6",

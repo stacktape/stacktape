@@ -1,9 +1,9 @@
-# Stacktape v4 migration
+# Stacktape v4 architecture record
 
-[SIMPLIFIED-MIGRATION.md](./SIMPLIFIED-MIGRATION.md) is the authority for every ongoing and new migration decision. It
-supersedes the earlier runtime-extraction plan: the existing CLI implementation is the v4 starting point, applications
-move first with the smallest practical set of path and tooling changes, and code is extracted into a package only when
-that package has a concrete present-day responsibility and consumer.
+The v4 repository migration is complete. This directory preserves its decisions, evidence, rejected alternatives and
+deferred work; it is not a live orchestration plan. For current work, start with the root `AGENTS.md`, the code, and
+focused guides such as [`architecture/GENERATION.md`](../GENERATION.md). [DECISIONS.md](./DECISIONS.md) remains useful
+architectural context, while [SIMPLIFIED-MIGRATION.md](./SIMPLIFIED-MIGRATION.md) records how the monorepo was created.
 
 The migration must still produce:
 
@@ -25,27 +25,26 @@ or customer data migrations.
 
 | Area                       | State                                                                                                                                                                                                                                                                                                                                                                                                                |
 | -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Workspace and Git boundary | Implemented on the public and private `v4/integration` branches. Public clones work without `apps/console`; maintainers pin one private Console submodule.                                                                                                                                                                                                                                                           |
+| Workspace and Git boundary | Implemented on `main`. Public clones work without `apps/console`; maintainers pin one private Console submodule.                                                                                                                                                                                                                                                                                                     |
 | Product applications       | The CLI, the public documentation site, and the private Console API/UI are migrated. `apps/website` is still a buildable Astro shell, not a migrated product site.                                                                                                                                                                                                                                                   |
 | Package boundaries         | `config`, `console-api`, `design-tokens`, `naming`, and `packaging` own concrete code. Helper Lambdas and the broader runtime intentionally remain in the CLI.                                                                                                                                                                                                                                                       |
 | Validation                 | Public and integrated frozen installs/checks pass in CI. At public commit `f091e541`, the packaging fixture also passed a disposable real-AWS deploy, invocation, shared-layer inspection, cached no-change redeploy, and deletion on 2026-07-30.                                                                                                                                                                    |
 | Not implemented            | Floci integration, the full website application, mutable schema/AI-documentation release cutover, and broader real-AWS canaries beyond the packaging fixture.                                                                                                                                                                                                                                                        |
 | Release state              | One manually dispatched workflow builds identical preview/stable artifacts. Protected OIDC jobs publish npm/GitHub and then the matching S3/CloudFront installer endpoint; releases never deploy a Stacktape project or use a Stacktape API key. AWS and GitHub configuration is provisioned, while npm trusted-publisher activation remains an npm-owner action documented in [`RELEASING.md`](../../RELEASING.md). |
 
-## Current documents
+## Migration records
 
-- [SIMPLIFIED-MIGRATION.md](./SIMPLIFIED-MIGRATION.md) defines the migration approach, the destination tree, the
-  conceptual-complexity budget, the sequence, and the review process. It wins over every other document here.
+- [SIMPLIFIED-MIGRATION.md](./SIMPLIFIED-MIGRATION.md) records the migration approach, destination tree,
+  conceptual-complexity budget, sequence, and review process.
 - [DECISIONS.md](./DECISIONS.md) records pinned decisions, superseded decisions, non-goals, deferred work, and
   remaining gates.
-- [AGENT-EXECUTION.md](./AGENT-EXECUTION.md) defines isolated worktrees, implementation/review roles, commit
-  integration, and how agents may improve provisional interfaces.
+- [AGENT-EXECUTION.md](./AGENT-EXECUTION.md) records the migration's isolated-worktree and review process. Use the
+  current root instructions for new work.
 - [TEST-STRATEGY.md](./TEST-STRATEGY.md) defines the deterministic, Floci-certified, and selective real-AWS testing
   strategy and its emulator safeguards.
 - [AGENT-INSTRUCTIONS-AUDIT.md](./AGENT-INSTRUCTIONS-AUDIT.md) records what is retained or discarded from the legacy
   `AGENTS.md`, `CLAUDE.md`, and development playbook.
-- [dossiers/](./dossiers) holds the per-slice contracts. A dossier is authoritative for its own slice and names its own
-  owned paths, gates, and out-of-scope work.
+- [dossiers/](./dossiers) holds the completed per-slice contracts and their historical gates.
 
 ## Historical documents
 

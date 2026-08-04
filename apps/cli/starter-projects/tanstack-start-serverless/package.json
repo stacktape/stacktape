@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vinxi dev",
-    "build": "node ./scripts/build.mjs",
+    "build": "vinxi build",
     "preview": "vinxi start"
   },
   "dependencies": {

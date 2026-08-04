@@ -7,7 +7,7 @@ import {
   assertGeneratedDirectoryCurrent,
   assertGeneratedFileCurrent,
   findGeneratedDirectoryProblems
-} from './generated-files.ts';
+} from './generated-files';
 
 const temporaryDirectories: string[] = [];
 
