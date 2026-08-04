@@ -1,4 +1,5 @@
-import { GetAtt, Join } from '@cloudform/functions';
+import { getAtt, join } from '@stacktape/cloudformation/intrinsics';
+
 import { SUPPORTED_CF_INFRASTRUCTURE_MODULES } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -78,57 +79,57 @@ export const resolveUpstashRedisDatabases = async () => {
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'host',
-        paramValue: GetAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Endpoint'),
+        paramValue: getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Endpoint'),
         nameChain: resource.nameChain,
         showDuringPrint: true
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'port',
-        paramValue: GetAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Port'),
+        paramValue: getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Port'),
         nameChain: resource.nameChain,
         showDuringPrint: true
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'password',
-        paramValue: GetAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Password'),
+        paramValue: getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Password'),
         nameChain: resource.nameChain,
         showDuringPrint: true,
         sensitive: true
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'restToken',
-        paramValue: GetAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'RestToken'),
+        paramValue: getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'RestToken'),
         nameChain: resource.nameChain,
         showDuringPrint: true,
         sensitive: true
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'readOnlyRestToken',
-        paramValue: GetAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'ReadOnlyRestToken'),
+        paramValue: getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'ReadOnlyRestToken'),
         nameChain: resource.nameChain,
         showDuringPrint: true,
         sensitive: true
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'restUrl',
-        paramValue: Join('', [
+        paramValue: join('', [
           'https://',
-          GetAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Endpoint'),
+          getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Endpoint'),
           ':',
-          GetAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Port')
+          getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Port')
         ]),
         nameChain: resource.nameChain,
         showDuringPrint: true
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'redisUrl',
-        paramValue: Join('', [
+        paramValue: join('', [
           'rediss://:',
-          GetAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Password'),
+          getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Password'),
           '@',
-          GetAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Endpoint'),
+          getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Endpoint'),
           ':',
-          GetAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Port')
+          getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Port')
         ]),
         nameChain: resource.nameChain,
         showDuringPrint: true,
@@ -137,9 +138,9 @@ export const resolveUpstashRedisDatabases = async () => {
       calculatedStackOverviewManager.addStacktapeResourceLink({
         nameChain: resource.nameChain,
         linkName: 'metrics',
-        linkValue: Join('', [
+        linkValue: join('', [
           'https://console.upstash.com/redis/',
-          GetAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'DatabaseID')
+          getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'DatabaseID')
         ])
       });
     });

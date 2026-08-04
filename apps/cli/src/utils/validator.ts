@@ -1,12 +1,13 @@
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
 import type {
   ConfigurableCliArgsDefaults,
   GlobalStateConnectedAwsAccount,
   GlobalStateOrganization
 } from '@application-services/global-state-manager/types';
-import type { CloudformationTemplate, DriftDetail } from '@domain-services/cloudformation-stack-manager/types';
+import type { DriftDetail } from '@domain-services/cloudformation-stack-manager/types';
 import type { StacktapeArgs } from 'src/config/cli/types';
 import type { Script } from '@domain-services/config-manager/resolved-types/resources';
-import type Resource from '@cloudform/resource';
 import { globalStateManager } from '@application-services/global-state-manager';
 import type { LoadedAwsCredentials, ValidatedAwsCredentials } from 'src/aws/credentials';
 import { SUPPORTED_AWS_REGIONS, type SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
@@ -31,7 +32,7 @@ export const validateDomain = (domain: string) => {
 export const validateUniqueness = (
   cfLogicalName: string,
   resourceType: string,
-  resourceList: { [name: string]: Resource }
+  resourceList: { [name: string]: AnyCloudFormationResource }
 ) => {
   const resourceWithSameLogicalName = resourceList[cfLogicalName];
 
@@ -305,7 +306,7 @@ export const validateFormatDirectiveParams = (
   }
 };
 
-export const validateStackOutput = (propertyName: string, cfTemplate: CloudformationTemplate, value: any) => {
+export const validateStackOutput = (propertyName: string, cfTemplate: CloudFormationTemplate, value: any) => {
   validateStackOutputName(propertyName);
   const existingValue = cfTemplate.Outputs[propertyName];
   if (existingValue && JSON.stringify(existingValue.Value) !== JSON.stringify(value)) {

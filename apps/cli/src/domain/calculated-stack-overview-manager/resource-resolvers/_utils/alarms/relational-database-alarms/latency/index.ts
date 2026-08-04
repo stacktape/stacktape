@@ -1,7 +1,7 @@
+import { cfnResource } from '@stacktape/cloudformation/resource';
 import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getAlarmDescription } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/alarms/descriptions';
 import { isAuroraCluster, isAuroraServerlessCluster } from '../../../../databases/utils';
@@ -44,7 +44,7 @@ const getDatabaseLatencyAlarmForAurora = ({
   const statFunction = getStatFunction({ alarm });
   const role =
     (resource.engine as AuroraEngine).properties.instances.length > 1 && latencyType === 'read' ? 'READER' : 'WRITER';
-  return new CloudwatchAlarm({
+  return cfnResource('AWS::CloudWatch::Alarm', {
     AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
     AlarmDescription:
       alarm.description ||
@@ -88,7 +88,7 @@ const getDatabaseLatencyAlarmForAuroraServerless = ({
   const comparisonOperator = getComparisonOperator({ alarm });
   const threshold = trigger.properties.thresholdSeconds;
   const statFunction = getStatFunction({ alarm });
-  return new CloudwatchAlarm({
+  return cfnResource('AWS::CloudWatch::Alarm', {
     AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
     AlarmDescription:
       alarm.description ||
@@ -132,7 +132,7 @@ const getDatabaseLatencyAlarmForRegularRds = ({
   const comparisonOperator = getComparisonOperator({ alarm });
   const threshold = trigger.properties.thresholdSeconds;
   const statFunction = getStatFunction({ alarm });
-  return new CloudwatchAlarm({
+  return cfnResource('AWS::CloudWatch::Alarm', {
     AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
     AlarmDescription:
       alarm.description ||

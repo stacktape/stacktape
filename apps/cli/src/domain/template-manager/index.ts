@@ -1,5 +1,7 @@
-import type { CloudformationTemplate, StackDetails } from '@domain-services/cloudformation-stack-manager/types';
-import type { IntrinsicFunction } from '@cloudform/dataTypes';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import type { StackDetails } from '@domain-services/cloudformation-stack-manager/types';
 import { tuiManager } from '@application-services/tui-manager';
 import { diffTemplate } from '@aws-cdk/cloudformation-diff';
 import { StackStatus } from '@aws-sdk/client-cloudformation';
@@ -11,17 +13,16 @@ import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorator
 import { CliError } from '@utils/errors';
 import { validateStackOutput, validateUniqueness } from '@utils/validator';
 import { getInitialCfTemplate } from './utils';
-import type { CloudformationResource } from '@stacktape/config/cloudformation';
 
 export class TemplateManager {
-  template: CloudformationTemplate = getInitialCfTemplate();
-  initialTemplate: CloudformationTemplate = getInitialCfTemplate();
-  oldTemplate: CloudformationTemplate = getInitialCfTemplate();
+  template: CloudFormationTemplate = getInitialCfTemplate();
+  initialTemplate: CloudFormationTemplate = getInitialCfTemplate();
+  oldTemplate: CloudFormationTemplate = getInitialCfTemplate();
   #stackName: string | undefined;
   // template which is passed as a part of props is modified in-place
-  templateOverrideFunctions: ((template: CloudformationTemplate) => Promise<void>)[] = [];
+  templateOverrideFunctions: ((template: CloudFormationTemplate) => Promise<void>)[] = [];
   /** The template as it stood when this invocation first finalized it. See {@link beginFinalization}. */
-  #preFinalizationTemplate: CloudformationTemplate | undefined;
+  #preFinalizationTemplate: CloudFormationTemplate | undefined;
 
   init = async ({ stackDetails, stackName }: { stackDetails: StackDetails; stackName: string }) => {
     this.#stackName = stackName;
@@ -61,7 +62,7 @@ export class TemplateManager {
     this.template = serialize(this.#preFinalizationTemplate);
   };
 
-  getTemplate = (): CloudformationTemplate => {
+  getTemplate = (): CloudFormationTemplate => {
     const amountOfResources = Object.keys(this.template.Resources).length;
     if (amountOfResources > 470) {
       // @later-dodo: print options to solve this issue
@@ -79,7 +80,7 @@ export class TemplateManager {
   };
 
   // @note functions that override final template ... useful when resolving runtime directives
-  addFinalTemplateOverrideFn = (fn: (template: CloudformationTemplate) => Promise<void>) => {
+  addFinalTemplateOverrideFn = (fn: (template: CloudFormationTemplate) => Promise<void>) => {
     this.templateOverrideFunctions.push(fn);
   };
 
@@ -88,7 +89,7 @@ export class TemplateManager {
    */
   addResource = (resourceInfo: {
     cfLogicalName: string;
-    resource: CloudformationResource;
+    resource: AnyCloudFormationResource;
     initial: boolean;
     // nameChain: string[]; // required just so we don't forget to add it to every place
   }) => {
@@ -106,7 +107,9 @@ export class TemplateManager {
       return;
     }
     if (!this.template.Transform.includes(macro)) {
-      this.template.Transform.push(macro);
+      this.template.Transform = Array.isArray(this.template.Transform)
+        ? [...this.template.Transform, macro]
+        : [this.template.Transform, macro];
     }
   };
 
@@ -130,7 +133,7 @@ export class TemplateManager {
     overwriteExisting = false
   }: {
     cfOutputName: string;
-    value: string | number | boolean | IntrinsicFunction;
+    value: string | number | boolean | Intrinsic;
     description?: string;
     exportOutput?: boolean;
     overwriteExisting?: boolean;

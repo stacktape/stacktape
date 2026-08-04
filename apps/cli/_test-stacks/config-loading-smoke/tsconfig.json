@@ -8,7 +8,6 @@
     "paths": {
       "@/*": ["./*"],
       "@utils/*": ["../../src/utils/*"],
-      "@cloudform/*": ["../../@generated/cloudform/*"],
       "@schemas/*": ["../../@generated/schemas/*"],
       "@domain-services/*": ["../../src/domain/*"],
       "@application-services/*": ["../../src/app/*"],

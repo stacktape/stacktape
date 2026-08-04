@@ -1,4 +1,5 @@
-import type { CloudformationTemplate, StackActionType } from '@domain-services/cloudformation-stack-manager/types';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import type { StackActionType } from '@domain-services/cloudformation-stack-manager/types';
 import type { DeploymentBucketObjectType } from '@domain-services/deployment-artifact-manager/types';
 import type { LoggableEventType } from '@application-services/event-manager/types';
 import type { HelperLambdaPackaging } from '@domain-services/packaging-manager/types';
@@ -557,7 +558,7 @@ export class DeploymentArtifactManager {
     return this.previousImages;
   };
 
-  getTemplate = async ({ version }: { version: string }): Promise<CloudformationTemplate> => {
+  getTemplate = async ({ version }: { version: string }): Promise<CloudFormationTemplate> => {
     const template = await awsSdkManager.s3.getObjectText({
       bucketName: this.deploymentBucketName,
       s3Key: getCfTemplateS3Key(version || stackManager.lastVersion)

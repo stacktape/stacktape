@@ -3,6 +3,8 @@ import * as authoringExports from './index.js';
 import {
   Alarm,
   Bucket,
+  cfnResource,
+  cfnResourceUnchecked,
   CustomResourceDefinition,
   CustomResourceInstance,
   defineConfig,
@@ -16,6 +18,7 @@ import {
   RelationalDatabase,
   StateMachine
 } from './index.js';
+import { getAtt, ref, sub } from './index.js';
 import { compileAuthoringConfig } from './config.js';
 import {
   getResourceByType,
@@ -26,6 +29,24 @@ import {
 import * as resourceClasses from './resources.js';
 import * as typePropertyClasses from './type-properties.js';
 import { AuroraServerlessV2EnginePostgresql } from './type-properties.js';
+
+describe('CloudFormation authoring helpers', () => {
+  test('return the plain objects emitted in a CloudFormation template', () => {
+    expect(ref('UploadsBucket')).toEqual({ Ref: 'UploadsBucket' });
+    expect(getAtt('UploadsBucket', 'Arn')).toEqual({ 'Fn::GetAtt': ['UploadsBucket', 'Arn'] });
+    expect(sub('arn:aws:s3:::${Bucket}', { Bucket: ref('UploadsBucket') })).toEqual({
+      'Fn::Sub': ['arn:aws:s3:::${Bucket}', { Bucket: { Ref: 'UploadsBucket' } }]
+    });
+
+    expect(cfnResource('AWS::S3::Bucket', { BucketName: 'uploads' })).toEqual({
+      Type: 'AWS::S3::Bucket',
+      Properties: { BucketName: 'uploads' }
+    });
+    expect(cfnResourceUnchecked('Example::Service::Resource')).toEqual({
+      Type: 'Example::Service::Resource'
+    });
+  });
+});
 
 const getTransformedResourceOverrides = (overrides: Record<string, any>) => {
   const resource = new RelationalDatabase({

@@ -1,6 +1,6 @@
+import { getAtt, join } from '@stacktape/cloudformation/intrinsics';
 import type { StacktapeResourceOutput } from '@domain-services/stack-info/types';
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
-import { GetAtt, Join } from '@cloudform/functions';
 import { defaultLogRetentionDays } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -173,9 +173,9 @@ export const resolveHttpApiGateway = (definition: StpHttpApiGateway) => {
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
       paramName: 'canonicalDomain',
-      paramValue: Join(
+      paramValue: join(
         ',',
-        allCustomDomains.map((domainName) => GetAtt(cfLogicalNames.httpApiDomain(domainName), 'RegionalDomainName'))
+        allCustomDomains.map((domainName) => getAtt(cfLogicalNames.httpApiDomain(domainName), 'RegionalDomainName'))
       ),
       showDuringPrint: definition.customDomains?.some(({ disableDnsRecordCreation }) => disableDnsRecordCreation)
     });
@@ -185,7 +185,7 @@ export const resolveHttpApiGateway = (definition: StpHttpApiGateway) => {
       cfLogicalName: cfLogicalNames.httpApiDefaultDomain(name),
       resource: getHttpApiDomainNameResource(
         defaultDomainName,
-        GetAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'certArn')
+        getAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'certArn')
       ),
       nameChain
     });
@@ -417,7 +417,7 @@ export const resolveHttpApiGateway = (definition: StpHttpApiGateway) => {
           cdnCompatibleResource: definition,
           defaultOriginType: definition.type,
           customDomains: [cdnDefaultDomainName],
-          certificateArn: GetAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'usEast1CertArn')
+          certificateArn: getAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'usEast1CertArn')
         })
       });
       calculatedStackOverviewManager.addCfChildResource({
@@ -440,13 +440,13 @@ export const resolveHttpApiGateway = (definition: StpHttpApiGateway) => {
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'cdnCanonicalDomain',
         nameChain,
-        paramValue: GetAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName'),
+        paramValue: getAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName'),
         showDuringPrint: false
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'cdnCanonicalUrl',
         nameChain,
-        paramValue: Join('', ['https://', GetAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName')]),
+        paramValue: join('', ['https://', getAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName')]),
         showDuringPrint: false
       });
     } else {
@@ -494,16 +494,16 @@ export const resolveHttpApiGateway = (definition: StpHttpApiGateway) => {
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'cdnDomain',
           nameChain,
-          paramValue: GetAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName'),
+          paramValue: getAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName'),
           showDuringPrint: false
         });
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'cdnCanonicalDomain',
           nameChain,
-          paramValue: Join(
+          paramValue: join(
             ',',
             cloudfrontDistributions.map((_, idx) =>
-              GetAtt(cfLogicalNames.cloudfrontDistribution(name, idx), 'DomainName')
+              getAtt(cfLogicalNames.cloudfrontDistribution(name, idx), 'DomainName')
             )
           ),
           showDuringPrint: cloudfrontDistributions.some(({ disableDns }) => disableDns)
@@ -511,10 +511,10 @@ export const resolveHttpApiGateway = (definition: StpHttpApiGateway) => {
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'cdnCanonicalUrl',
           nameChain,
-          paramValue: Join(
+          paramValue: join(
             ',',
             cloudfrontDistributions.map((_, idx) =>
-              Join('', ['https://', GetAtt(cfLogicalNames.cloudfrontDistribution(name, idx), 'DomainName')])
+              join('', ['https://', getAtt(cfLogicalNames.cloudfrontDistribution(name, idx), 'DomainName')])
             )
           ),
           showDuringPrint: false

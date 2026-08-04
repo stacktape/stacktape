@@ -1,5 +1,5 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
 import type { CdnReferenceableParam } from '@domain-services/config-manager/resolved-types/cdn';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { HttpApiGateway } from '@stacktape/config/http-api-gateways';
 import type { WebService } from '@stacktape/config/web-services';
 
@@ -19,7 +19,7 @@ export type HttpApiGatewayReferencableParam =
   | CdnReferenceableParam;
 export type HttpApiGatewayOutputs = {
   integrations: {
-    url: string | IntrinsicFunction;
+    url: string | Intrinsic;
     method: string;
     resourceName: string;
   }[];

@@ -55,6 +55,9 @@
     },
     "packages/config": {
       "entry": ["src/**/*.{ts,tsx}", "tests/*.acceptance.ts"]
+    },
+    "packages/cloudformation": {
+      "entry": ["src/**/*.ts", "scripts/**/*.ts", "tests/*.acceptance.ts"]
     }
   }
 }

@@ -1,3 +1,4 @@
+import type { KnownCloudFormationResourceType } from '@stacktape/cloudformation/resource';
 import type { StackInfoMapResource } from '@domain-services/stack-info/types';
 import type { HelperLambdaName } from '@config';
 import type { BudgetInfo } from '@domain-services/budget-manager/types';
@@ -11,7 +12,6 @@ import type {
   TunnelTargetInfo
 } from '@domain-services/config-manager/resolved-types/resources';
 import type { ResourceDifference, TemplateDiff } from '@aws-cdk/cloudformation-diff';
-import type { CloudformationResourceType } from '@cloudform/resource-types';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { HELPER_LAMBDA_NAMES } from '@config';
@@ -336,14 +336,14 @@ export class DeployedStackOverviewManager {
     if (change.resourceTypeChanged) {
       return { isHotswappable: false };
     }
-    if ((change.resourceType as CloudformationResourceType) === 'AWS::ECS::TaskDefinition') {
+    if ((change.resourceType as KnownCloudFormationResourceType) === 'AWS::ECS::TaskDefinition') {
       return analyzeTaskDefinitionChange({
         change,
         cfLogicalName,
         deployedWorkloads: this.deployedWorkloadsWithEcsTaskDefinition
       });
     }
-    if ((change.resourceType as CloudformationResourceType) === 'AWS::Lambda::Function') {
+    if ((change.resourceType as KnownCloudFormationResourceType) === 'AWS::Lambda::Function') {
       return analyzeLambdaFunctionChange({
         change,
         cfLogicalName,
@@ -352,7 +352,7 @@ export class DeployedStackOverviewManager {
     }
     // some of our CustomResources (namely deployment-scripts) use "forceUpdate" property.
     // This property is different on each deploy and therefore always block hotswap.
-    if ((change.resourceType as CloudformationResourceType) === 'AWS::CloudFormation::CustomResource') {
+    if ((change.resourceType as KnownCloudFormationResourceType) === 'AWS::CloudFormation::CustomResource') {
       return analyzeCustomResourceChange({
         change
       });

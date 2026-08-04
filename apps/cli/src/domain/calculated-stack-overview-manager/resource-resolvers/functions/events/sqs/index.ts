@@ -1,13 +1,13 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
-import { GetAtt, Ref } from '@cloudform/functions';
-import EventSourceMapping from '@cloudform/lambda/eventSourceMapping';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToSqsQueue } from '@domain-services/config-manager/utils/sqs-queues';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { SqsIntegration, SqsIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 import { CliError } from '@utils/errors';
@@ -31,7 +31,7 @@ export const resolveSqsEvents = ({
     Resource: []
   };
 
-  const lambdaEndpointArn = aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn');
+  const lambdaEndpointArn = aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn');
   (events || []).forEach((event: SqsIntegration, index) => {
     if (event.type === 'sqs') {
       if ([event.properties.sqsQueueArn, event.properties.sqsQueueName].filter((element) => element).length !== 1) {
@@ -49,7 +49,7 @@ export const resolveSqsEvents = ({
         });
       }
       const queueArn =
-        event.properties.sqsQueueArn || GetAtt(cfLogicalNames.sqsQueue(event.properties.sqsQueueName), 'Arn');
+        event.properties.sqsQueueArn || getAtt(cfLogicalNames.sqsQueue(event.properties.sqsQueueName), 'Arn');
 
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.eventSourceMapping(name, index),
@@ -69,10 +69,10 @@ const getEventSourceMapping = ({
   queueArn
 }: {
   eventDetails: SqsIntegrationProps;
-  lambdaEndpointArn: string | IntrinsicFunction;
-  queueArn: string | IntrinsicFunction;
+  lambdaEndpointArn: string | Intrinsic;
+  queueArn: string | Intrinsic;
 }) => {
-  const resource = new EventSourceMapping({
+  const resource = cfnResource('AWS::Lambda::EventSourceMapping', {
     BatchSize: eventDetails.batchSize,
     MaximumBatchingWindowInSeconds: eventDetails.maxBatchWindowSeconds,
     EventSourceArn: queueArn,

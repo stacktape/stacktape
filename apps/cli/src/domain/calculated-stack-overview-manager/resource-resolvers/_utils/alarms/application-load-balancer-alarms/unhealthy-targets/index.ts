@@ -1,9 +1,9 @@
+import type { Dimension } from '@stacktape/cloudformation/resources/aws-cloudwatch-alarm';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
 import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
-import type { Dimension } from '@cloudform/cloudWatch/alarm';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
-import { GetAtt } from '@cloudform/functions';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -68,7 +68,7 @@ export const getApplicationLoadBalancerUnhealthyTargetsAlarm = ({
       ...albDimensions,
       {
         Name: 'TargetGroup',
-        Value: GetAtt(
+        Value: getAtt(
           cfLogicalNames.targetGroup({
             stpResourceName: target.workloadName,
             loadBalancerName: target.loadBalancerName,
@@ -124,7 +124,7 @@ export const getApplicationLoadBalancerUnhealthyTargetsAlarm = ({
     ReturnData: true
   });
 
-  return new CloudwatchAlarm({
+  return cfnResource('AWS::CloudWatch::Alarm', {
     AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
     AlarmDescription:
       alarm.description ||

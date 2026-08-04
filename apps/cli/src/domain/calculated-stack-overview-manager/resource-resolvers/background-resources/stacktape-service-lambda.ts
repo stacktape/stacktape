@@ -1,6 +1,6 @@
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { CustomTaggingScheduledRuleInput } from '@domain-services/config-manager/resolved-types/resources';
-import EventBridgeRule from '@cloudform/events/rule';
-import { GetAtt, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -20,8 +20,8 @@ export const resolveStacktapeServiceLambda = () => {
     cfLogicalName: cfLogicalNames.customTaggingScheduleRulePermission(),
     nameChain: configManager.stacktapeServiceLambdaProps.nameChain,
     resource: getEventBusRuleLambdaPermission({
-      lambdaEndpointArn: GetAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
-      eventBusRuleArn: GetAtt(cfLogicalNames.customTaggingScheduleRule(), 'Arn')
+      lambdaEndpointArn: getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
+      eventBusRuleArn: getAtt(cfLogicalNames.customTaggingScheduleRule(), 'Arn')
     })
   });
 };
@@ -32,26 +32,26 @@ const getScheduledTaggingEventBridgeRule = () => {
       ? [
           {
             attributionCfResourceLogicalName: cfLogicalNames.serviceDiscoveryPrivateNamespace(),
-            namespaceId: GetAtt(cfLogicalNames.serviceDiscoveryPrivateNamespace(), 'Id')
+            namespaceId: getAtt(cfLogicalNames.serviceDiscoveryPrivateNamespace(), 'Id')
           }
         ]
       : [],
     tagNetworkInterfaceWithSecurityGroup: [
       ...filterResourcesForDevMode(configManager.databases).map(({ name }) => {
         return {
-          securityGroupId: Ref(cfLogicalNames.dbSecurityGroup(name)),
+          securityGroupId: ref(cfLogicalNames.dbSecurityGroup(name)),
           attributionCfResourceLogicalName: cfLogicalNames.dbSubnetGroup(name)
         };
       }),
       ...configManager.allApplicationLoadBalancers.map(({ name }) => {
         return {
-          securityGroupId: Ref(cfLogicalNames.loadBalancerSecurityGroup(name)),
+          securityGroupId: ref(cfLogicalNames.loadBalancerSecurityGroup(name)),
           attributionCfResourceLogicalName: cfLogicalNames.loadBalancer(name)
         };
       })
     ]
   };
-  return new EventBridgeRule({
+  return cfnResource('AWS::Events::Rule', {
     State: 'ENABLED',
     ScheduleExpression: 'rate(2 hours)',
     // Description: eventDetails.description,
@@ -59,7 +59,7 @@ const getScheduledTaggingEventBridgeRule = () => {
     Targets: [
       {
         Input: transformIntoCloudformationSubstitutedString(input),
-        Arn: GetAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
+        Arn: getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
         Id: 'scheduledService'
       }
     ]

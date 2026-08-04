@@ -1,5 +1,3 @@
-import type { CloudformationResource } from '@stacktape/config/cloudformation';
-
 export type AwsCallerIdentity = import('@aws-sdk/client-sts').GetCallerIdentityResponse;
 
 export type StackActionType =
@@ -9,10 +7,6 @@ export type StackActionType =
   | 'rollback'
   | 'dev' // `dev-${DevModeCapableResourceType}`
   | 'deployment-script:run';
-
-export type CloudformationTemplate = import('@generated/cloudform/template').default & {
-  Resources: { [resourceName: string]: CloudformationResource };
-};
 
 // this is a cloudformation specification.
 // I.e this is is how it MUST look like when we are inserting the statement into Cloudformation config.

@@ -1,18 +1,16 @@
 import type {
+  AgentRuntimeArtifact,
+  ContainerConfiguration,
+  RuntimeProperties
+} from '@stacktape/cloudformation/resources/aws-bedrockagentcore-runtime';
+import type { CloudFormationValue } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource, type KnownCloudFormationResource } from '@stacktape/cloudformation/resource';
+import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
+import type {
   StpAgentCoreGateway,
   StpAgentCoreRuntime
 } from '@domain-services/config-manager/resolved-types/agentcore';
 import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
-import BrowserCustom from '@cloudform/bedrockAgentCore/browserCustom';
-import CodeInterpreterCustom from '@cloudform/bedrockAgentCore/codeInterpreterCustom';
-import Gateway from '@cloudform/bedrockAgentCore/gateway';
-import GatewayTarget from '@cloudform/bedrockAgentCore/gatewayTarget';
-import Memory from '@cloudform/bedrockAgentCore/memory';
-import Runtime from '@cloudform/bedrockAgentCore/runtime';
-import RuntimeEndpoint from '@cloudform/bedrockAgentCore/runtimeEndpoint';
-import type SecurityGroup from '@cloudform/ec2/securityGroup';
-import { GetAtt, Join, Ref } from '@cloudform/functions';
-import Role, { Policy } from '@cloudform/iam/role';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToLambdaFunction } from '@domain-services/config-manager/utils/lambdas';
@@ -81,7 +79,10 @@ const resolveAgentCoreRuntimes = () => {
     if (useVpc) {
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.workloadSecurityGroup(name),
-        resource: getLambdaFunctionSecurityGroup({ stackName, stpFunctionName: name }) as SecurityGroup,
+        resource: getLambdaFunctionSecurityGroup({
+          stackName,
+          stpFunctionName: name
+        }) as KnownCloudFormationResource<'AWS::EC2::SecurityGroup'>,
         nameChain
       });
     }
@@ -106,7 +107,7 @@ const resolveAgentCoreRuntimes = () => {
 
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName,
-      resource: new Runtime({
+      resource: cfnResource('AWS::BedrockAgentCore::Runtime', {
         AgentRuntimeName: awsResourceNames.agentCoreRuntime(stackName, name),
         Description: runtime.description,
         ProtocolConfiguration: runtime.protocol || 'HTTP',
@@ -123,7 +124,7 @@ const resolveAgentCoreRuntimes = () => {
           ? {
               NetworkMode: 'VPC',
               NetworkModeConfig: {
-                SecurityGroups: [Ref(cfLogicalNames.workloadSecurityGroup(name))],
+                SecurityGroups: [ref(cfLogicalNames.workloadSecurityGroup(name))],
                 Subnets: vpcManager.getPrivateSubnetIds()
               }
             }
@@ -136,7 +137,7 @@ const resolveAgentCoreRuntimes = () => {
                 : PENDING_IMAGE_URI
           }
         },
-        RoleArn: GetAtt(roleLogicalName, 'Arn'),
+        RoleArn: getAtt(roleLogicalName, 'Arn'),
         Tags: getAgentCoreTags(runtime.tags)
       }) as any,
       nameChain
@@ -145,13 +146,13 @@ const resolveAgentCoreRuntimes = () => {
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
       paramName: 'id',
-      paramValue: GetAtt(cfLogicalName, 'AgentRuntimeId'),
+      paramValue: getAtt(cfLogicalName, 'AgentRuntimeId'),
       showDuringPrint: false
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
       paramName: 'arn',
-      paramValue: GetAtt(cfLogicalName, 'AgentRuntimeArn'),
+      paramValue: getAtt(cfLogicalName, 'AgentRuntimeArn'),
       showDuringPrint: true
     });
 
@@ -159,8 +160,8 @@ const resolveAgentCoreRuntimes = () => {
       const endpointLogicalName = cfLogicalNames.agentCoreRuntimeEndpoint(name, endpoint.name);
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: endpointLogicalName,
-        resource: new RuntimeEndpoint({
-          AgentRuntimeId: GetAtt(cfLogicalName, 'AgentRuntimeId'),
+        resource: cfnResource('AWS::BedrockAgentCore::RuntimeEndpoint', {
+          AgentRuntimeId: getAtt(cfLogicalName, 'AgentRuntimeId'),
           AgentRuntimeVersion: getRuntimeEndpointVersion(cfLogicalName, endpoint),
           Description: endpoint.description,
           Name: awsResourceNames.agentCoreRuntimeEndpoint(stackName, name, endpoint.name),
@@ -177,7 +178,7 @@ const resolveAgentCoreRuntimes = () => {
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         nameChain,
         paramName: 'endpointArn',
-        paramValue: Ref(endpointLogicalName),
+        paramValue: ref(endpointLogicalName),
         showDuringPrint: true
       });
     });
@@ -190,20 +191,22 @@ const resolveAgentCoreRuntimes = () => {
         jobName: getJobName({ workloadName: runtime.name, workloadType: runtime.type })
       })?.imageTagWithUrl;
       if (imageUrl) {
-        template.Resources[cfLogicalName].Properties.AgentRuntimeArtifact.ContainerConfiguration.ContainerUri =
-          imageUrl;
+        const runtimeProperties = template.Resources[cfLogicalName].Properties as RuntimeProperties;
+        const artifact = runtimeProperties.AgentRuntimeArtifact as AgentRuntimeArtifact;
+        (artifact.ContainerConfiguration as ContainerConfiguration).ContainerUri = imageUrl;
       }
     });
 
     templateManager.addFinalTemplateOverrideFn(async (template) => {
-      const props = template.Resources[cfLogicalName].Properties;
+      const props = template.Resources[cfLogicalName].Properties as RuntimeProperties;
       const variablesToInject = getResolvedConnectToEnvironmentVariables({
         connectTo: runtime.connectTo,
         localResolve: false
       });
-      props.EnvironmentVariables = props.EnvironmentVariables || {};
+      const environmentVariables = (props.EnvironmentVariables || {}) as Record<string, CloudFormationValue<string>>;
+      props.EnvironmentVariables = environmentVariables;
       variablesToInject.forEach(({ Name, Value }) => {
-        props.EnvironmentVariables[Name] = Value;
+        environmentVariables[Name] = Value;
       });
     });
   });
@@ -214,7 +217,7 @@ const resolveAgentCoreMemories = () => {
     const cfLogicalName = cfLogicalNames.agentCoreMemory(memory.name);
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName,
-      resource: new Memory({
+      resource: cfnResource('AWS::BedrockAgentCore::Memory', {
         Name: awsResourceNames.agentCoreMemory(calculatedStackOverviewManager.context.stackName, memory.name),
         Description: memory.description,
         EventExpiryDuration: memory.eventExpiryDuration || memory.expirationDays || 30,
@@ -227,13 +230,13 @@ const resolveAgentCoreMemories = () => {
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain: memory.nameChain,
       paramName: 'id',
-      paramValue: GetAtt(cfLogicalName, 'MemoryId'),
+      paramValue: getAtt(cfLogicalName, 'MemoryId'),
       showDuringPrint: false
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain: memory.nameChain,
       paramName: 'arn',
-      paramValue: Ref(cfLogicalName),
+      paramValue: ref(cfLogicalName),
       showDuringPrint: true
     });
   });
@@ -256,42 +259,31 @@ const resolveAgentCoreGateways = () => {
     const cfLogicalName = cfLogicalNames.agentCoreGateway(name);
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName,
-      resource: new Gateway({
-        Name: awsResourceNames.agentCoreGateway(calculatedStackOverviewManager.context.stackName, name),
-        Description: gateway.description,
-        AuthorizerType: gateway.authorizer ? 'CUSTOM_JWT' : 'NONE',
-        AuthorizerConfiguration: getAuthorizerConfiguration(gateway.authorizer),
-        ProtocolType: 'MCP',
-        ProtocolConfiguration: {
-          Mcp: {
-            Instructions: gateway.instructions,
-            SupportedVersions: gateway.supportedVersions,
-            SearchType: gateway.searchType
-          }
-        },
-        ExceptionLevel: gateway.exceptionLevel,
-        RoleArn: GetAtt(roleLogicalName, 'Arn'),
-        Tags: getAgentCoreTags(gateway.tags)
-      }) as any,
+      resource: getAgentCoreGatewayResource({
+        gateway,
+        roleLogicalName,
+        stackName: calculatedStackOverviewManager.context.stackName,
+        tags: getAgentCoreTags(gateway.tags)
+      }),
       nameChain
     });
 
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
       paramName: 'id',
-      paramValue: Ref(cfLogicalName),
+      paramValue: ref(cfLogicalName),
       showDuringPrint: false
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
       paramName: 'arn',
-      paramValue: GetAtt(cfLogicalName, 'GatewayArn'),
+      paramValue: getAtt(cfLogicalName, 'GatewayArn'),
       showDuringPrint: true
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
       paramName: 'url',
-      paramValue: GetAtt(cfLogicalName, 'GatewayUrl'),
+      paramValue: getAtt(cfLogicalName, 'GatewayUrl'),
       showDuringPrint: true
     });
 
@@ -299,8 +291,8 @@ const resolveAgentCoreGateways = () => {
       const targetLogicalName = cfLogicalNames.agentCoreGatewayTarget(name, tool.name);
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: targetLogicalName,
-        resource: new GatewayTarget({
-          GatewayIdentifier: Ref(cfLogicalName),
+        resource: cfnResource('AWS::BedrockAgentCore::GatewayTarget', {
+          GatewayIdentifier: ref(cfLogicalName),
           Name: awsResourceNames.agentCoreGatewayTarget(
             calculatedStackOverviewManager.context.stackName,
             name,
@@ -330,6 +322,35 @@ const resolveAgentCoreGateways = () => {
   });
 };
 
+export const getAgentCoreGatewayResource = ({
+  gateway,
+  roleLogicalName,
+  stackName,
+  tags
+}: {
+  gateway: StpAgentCoreGateway;
+  roleLogicalName: string;
+  stackName: string;
+  tags: ReturnType<typeof getAgentCoreTags>;
+}) =>
+  cfnResource('AWS::BedrockAgentCore::Gateway', {
+    Name: awsResourceNames.agentCoreGateway(stackName, gateway.name),
+    Description: gateway.description,
+    AuthorizerType: gateway.authorizer ? 'CUSTOM_JWT' : 'NONE',
+    AuthorizerConfiguration: getAuthorizerConfiguration(gateway.authorizer),
+    ProtocolType: 'MCP',
+    ProtocolConfiguration: {
+      Mcp: {
+        Instructions: gateway.instructions,
+        SupportedVersions: gateway.supportedVersions,
+        SearchType: gateway.searchType
+      }
+    },
+    ExceptionLevel: gateway.exceptionLevel,
+    RoleArn: getAtt(roleLogicalName, 'Arn'),
+    Tags: tags
+  });
+
 const resolveAgentCoreBrowsers = () => {
   configManager.agentCoreBrowsers.forEach((browser) => {
     const roleLogicalName = cfLogicalNames.agentCoreBrowserRole(browser.name);
@@ -357,10 +378,10 @@ const resolveAgentCoreBrowsers = () => {
     const cfLogicalName = cfLogicalNames.agentCoreBrowser(browser.name);
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName,
-      resource: new BrowserCustom({
+      resource: cfnResource('AWS::BedrockAgentCore::BrowserCustom', {
         Name: awsResourceNames.agentCoreBrowser(calculatedStackOverviewManager.context.stackName, browser.name),
         Description: browser.description,
-        ExecutionRoleArn: GetAtt(roleLogicalName, 'Arn'),
+        ExecutionRoleArn: getAtt(roleLogicalName, 'Arn'),
         NetworkConfiguration: { NetworkMode: 'PUBLIC' },
         RecordingConfig: browser.recording && {
           Enabled: browser.recording.enabled,
@@ -392,13 +413,13 @@ const resolveAgentCoreCodeInterpreters = () => {
     const cfLogicalName = cfLogicalNames.agentCoreCodeInterpreter(codeInterpreter.name);
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName,
-      resource: new CodeInterpreterCustom({
+      resource: cfnResource('AWS::BedrockAgentCore::CodeInterpreterCustom', {
         Name: awsResourceNames.agentCoreCodeInterpreter(
           calculatedStackOverviewManager.context.stackName,
           codeInterpreter.name
         ),
         Description: codeInterpreter.description,
-        ExecutionRoleArn: GetAtt(roleLogicalName, 'Arn'),
+        ExecutionRoleArn: getAtt(roleLogicalName, 'Arn'),
         NetworkConfiguration: { NetworkMode: 'PUBLIC' },
         Tags: getAgentCoreTags(codeInterpreter.tags)
       }) as any,
@@ -421,7 +442,7 @@ const getAgentCoreExecutionRole = ({
   accessToResourcesRequiringRoleChanges?: StpResourceScopableByConnectToAffectingRole[];
   accessToAwsServices?: ConnectToAwsServicesMacro[];
 }) =>
-  new Role({
+  cfnResource('AWS::IAM::Role', {
     RoleName: awsResourceNames.agentCoreRole(
       calculatedStackOverviewManager.context.stackName,
       calculatedStackOverviewManager.context.region,
@@ -439,7 +460,7 @@ const getAgentCoreExecutionRole = ({
       ]
     },
     Policies: [
-      new Policy({
+      {
         PolicyName: 'agentcore-service-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -466,7 +487,7 @@ const getAgentCoreExecutionRole = ({
             }
           ]
         }
-      }),
+      },
       ...getPoliciesForRoles({
         iamRoleStatements,
         accessToResourcesRequiringRoleChanges,
@@ -479,19 +500,19 @@ const getLinkedAgentCoreEnvironment = (runtime: StpAgentCoreRuntime): Environmen
   [
     runtime.useMemory && {
       name: 'STP_AGENTCORE_MEMORY_ID',
-      value: GetAtt(cfLogicalNames.agentCoreMemory(runtime.useMemory), 'MemoryId')
+      value: getAtt(cfLogicalNames.agentCoreMemory(runtime.useMemory), 'MemoryId')
     },
     runtime.useGateway && {
       name: 'STP_AGENTCORE_GATEWAY_URL',
-      value: GetAtt(cfLogicalNames.agentCoreGateway(runtime.useGateway), 'GatewayUrl')
+      value: getAtt(cfLogicalNames.agentCoreGateway(runtime.useGateway), 'GatewayUrl')
     },
     runtime.useBrowser && {
       name: 'STP_AGENTCORE_BROWSER_ID',
-      value: GetAtt(cfLogicalNames.agentCoreBrowser(runtime.useBrowser), 'BrowserId')
+      value: getAtt(cfLogicalNames.agentCoreBrowser(runtime.useBrowser), 'BrowserId')
     },
     runtime.useCodeInterpreter && {
       name: 'STP_AGENTCORE_CODE_INTERPRETER_ID',
-      value: GetAtt(cfLogicalNames.agentCoreCodeInterpreter(runtime.useCodeInterpreter), 'CodeInterpreterId')
+      value: getAtt(cfLogicalNames.agentCoreCodeInterpreter(runtime.useCodeInterpreter), 'CodeInterpreterId')
     }
   ].filter(Boolean) as unknown as EnvironmentVar[];
 
@@ -503,19 +524,19 @@ const getRuntimeEndpoints = (runtime: StpAgentCoreRuntime): AgentCoreRuntimeEndp
 export const getRuntimeEndpointVersion = (
   runtimeCfLogicalName: string,
   endpoint: AgentCoreRuntimeEndpointConfig
-): string | ReturnType<typeof GetAtt> => endpoint.runtimeVersion || GetAtt(runtimeCfLogicalName, 'AgentRuntimeVersion');
+): string | ReturnType<typeof getAtt> => endpoint.runtimeVersion || getAtt(runtimeCfLogicalName, 'AgentRuntimeVersion');
 
 export const getBrowserRecordingS3ObjectArn = (recording: NonNullable<AgentCoreBrowserProps['recording']>) => {
   const prefix = recording.prefix || '';
   return isLiteralBucketName(recording.bucketName)
     ? `arn:aws:s3:::${recording.bucketName}/${prefix}*`
-    : Join('', ['arn:aws:s3:::', recording.bucketName, '/', prefix, '*']);
+    : join('', ['arn:aws:s3:::', recording.bucketName, '/', prefix, '*']);
 };
 
 export const getBrowserRecordingS3BucketArn = (recording: NonNullable<AgentCoreBrowserProps['recording']>) => {
   return isLiteralBucketName(recording.bucketName)
     ? `arn:aws:s3:::${recording.bucketName}`
-    : Join('', ['arn:aws:s3:::', recording.bucketName]);
+    : join('', ['arn:aws:s3:::', recording.bucketName]);
 };
 
 const isLiteralBucketName = (bucketName: NonNullable<AgentCoreBrowserProps['recording']>['bucketName']) =>
@@ -525,7 +546,7 @@ const getGatewayToolLambdaArn = (tool: AgentCoreGatewayTool, gateway: StpAgentCo
   if (tool.lambdaArn) {
     return tool.lambdaArn;
   }
-  return GetAtt(
+  return getAtt(
     resolveReferenceToLambdaFunction({
       stpResourceReference: tool.function,
       referencedFrom: gateway.name,
@@ -563,13 +584,13 @@ const addAgentCoreIdArnParams = (
   calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
     nameChain,
     paramName: 'id',
-    paramValue: GetAtt(cfLogicalName, idAttribute),
+    paramValue: getAtt(cfLogicalName, idAttribute),
     showDuringPrint: false
   });
   calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
     nameChain,
     paramName: 'arn',
-    paramValue: GetAtt(cfLogicalName, arnAttribute),
+    paramValue: getAtt(cfLogicalName, arnAttribute),
     showDuringPrint: true
   });
 };

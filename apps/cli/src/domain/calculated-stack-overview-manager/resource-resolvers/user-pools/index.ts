@@ -1,4 +1,5 @@
-import { GetAtt, Ref } from '@cloudform/functions';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToFirewall } from '@domain-services/config-manager/utils/web-app-firewall';
@@ -49,20 +50,20 @@ export const resolveUserPools = async () => {
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       paramName: 'id',
       nameChain,
-      paramValue: Ref(cfLogicalNames.userPool(name)),
+      paramValue: ref(cfLogicalNames.userPool(name)),
       showDuringPrint: false
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       paramName: 'clientId',
       nameChain,
-      paramValue: Ref(cfLogicalNames.userPoolClient(name)),
+      paramValue: ref(cfLogicalNames.userPoolClient(name)),
       showDuringPrint: false
     });
     if (userPoolDefinition.generateClientSecret) {
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'clientSecret',
         nameChain,
-        paramValue: GetAtt(cfLogicalNames.cognitoUserPoolDetailsCustomResource(name), 'ClientSecret'),
+        paramValue: getAtt(cfLogicalNames.cognitoUserPoolDetailsCustomResource(name), 'ClientSecret'),
         showDuringPrint: false,
         sensitive: true
       });
@@ -70,13 +71,13 @@ export const resolveUserPools = async () => {
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       paramName: 'arn',
       nameChain,
-      paramValue: GetAtt(cfLogicalNames.userPool(name), 'Arn'),
+      paramValue: getAtt(cfLogicalNames.userPool(name), 'Arn'),
       showDuringPrint: false
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       paramName: 'providerUrl',
       nameChain,
-      paramValue: GetAtt(cfLogicalNames.userPool(name), 'ProviderURL'),
+      paramValue: getAtt(cfLogicalNames.userPool(name), 'ProviderURL'),
       showDuringPrint: false
     });
     if (userPoolDefinition.customDomain) {
@@ -139,8 +140,8 @@ export const resolveUserPools = async () => {
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.webAppFirewallAssociation(name),
         resource: getWebACLAssociation(
-          Ref(cfLogicalNames.userPool(name)),
-          GetAtt(cfLogicalNames.webAppFirewallCustomResource(userPoolDefinition.useFirewall), 'Arn')
+          ref(cfLogicalNames.userPool(name)),
+          getAtt(cfLogicalNames.webAppFirewallCustomResource(userPoolDefinition.useFirewall), 'Arn')
         ),
         nameChain
       });

@@ -1,17 +1,17 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
-import EventBridgeRule from '@cloudform/events/rule';
-import { GetAtt } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { prepareEventBusIntegration } from '../../../_utils/event-bus-integration';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 import type { SqsQueueEventBusIntegration, SqsQueueEventBusIntegrationProps } from '@stacktape/config/sqs-queues';
 
 export const resolveSqsQueueEventBusEvents = ({ sqsQueue }: { sqsQueue: StpSqsQueue }): StpIamRoleStatement[] => {
   const { name, events, configParentResourceType, nameChain } = sqsQueue;
-  const sqsQueueArn = GetAtt(cfLogicalNames.sqsQueue(name), 'Arn');
+  const sqsQueueArn = getAtt(cfLogicalNames.sqsQueue(name), 'Arn');
 
   (events || []).forEach((event: SqsQueueEventBusIntegration, index) => {
     if (event.type === 'event-bus') {
@@ -40,7 +40,7 @@ const getSqsQueueEventBusEventRule = ({
   configParentResourceType
 }: {
   queueName: string;
-  sqsQueueArn: string | IntrinsicFunction;
+  sqsQueueArn: string | Intrinsic;
   eventIndex: number;
   eventDetails: SqsQueueEventBusIntegrationProps;
   configParentResourceType: StpSqsQueue['configParentResourceType'];
@@ -53,7 +53,7 @@ const getSqsQueueEventBusEventRule = ({
     ruleLogicalName
   });
 
-  return new EventBridgeRule({
+  return cfnResource('AWS::Events::Rule', {
     State: 'ENABLED',
     EventPattern: eventDetails.eventPattern,
     EventBusName: eventBusName,

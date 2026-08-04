@@ -1,6 +1,6 @@
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
-import { GetAtt } from '@cloudform/functions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { configManager } from '../index';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
@@ -45,7 +45,7 @@ export const getAllQueuePolicyStatements = ({ resource }: { resource: StpSqsQueu
   const result: (SqsQueuePolicyStatement & { Resource: any })[] = [
     ...(resource.policyStatements || []).map((statement) => ({
       ...statement,
-      Resource: [GetAtt(cfLogicalNames.sqsQueue(resource.name), 'Arn') as unknown as string]
+      Resource: [getAtt(cfLogicalNames.sqsQueue(resource.name), 'Arn') as unknown as string]
     }))
   ];
   configManager.allLambdasTriggerableUsingEvents.forEach(({ events, name: lambdaStpName }) => {
@@ -61,10 +61,10 @@ export const getAllQueuePolicyStatements = ({ resource }: { resource: StpSqsQueu
               Service: 'events.amazonaws.com'
             },
             Action: ['sqs:SendMessage'],
-            Resource: [GetAtt(cfLogicalNames.sqsQueue(resource.name), 'Arn') as unknown as string],
+            Resource: [getAtt(cfLogicalNames.sqsQueue(resource.name), 'Arn') as unknown as string],
             Condition: {
               ArnEquals: {
-                'aws:SourceArn': GetAtt(cfLogicalNames.eventBusRule(lambdaStpName, index), 'Arn')
+                'aws:SourceArn': getAtt(cfLogicalNames.eventBusRule(lambdaStpName, index), 'Arn')
               }
             }
           });
@@ -77,10 +77,10 @@ export const getAllQueuePolicyStatements = ({ resource }: { resource: StpSqsQueu
               Service: 'sns.amazonaws.com'
             },
             Action: ['sqs:SendMessage'],
-            Resource: [GetAtt(cfLogicalNames.sqsQueue(resource.name), 'Arn') as unknown as string],
+            Resource: [getAtt(cfLogicalNames.sqsQueue(resource.name), 'Arn') as unknown as string],
             Condition: {
               ArnEquals: {
-                'aws:SourceArn': snsTopicArn || GetAtt(cfLogicalNames.snsTopic(snsTopicName), 'TopicArn')
+                'aws:SourceArn': snsTopicArn || getAtt(cfLogicalNames.snsTopic(snsTopicName), 'TopicArn')
               }
             }
           });
@@ -99,10 +99,10 @@ export const getAllQueuePolicyStatements = ({ resource }: { resource: StpSqsQueu
             Service: 'events.amazonaws.com'
           },
           Action: ['sqs:SendMessage'],
-          Resource: [GetAtt(cfLogicalNames.sqsQueue(resource.name), 'Arn') as unknown as string],
+          Resource: [getAtt(cfLogicalNames.sqsQueue(resource.name), 'Arn') as unknown as string],
           Condition: {
             ArnEquals: {
-              'aws:SourceArn': GetAtt(cfLogicalNames.eventBusRule(resource.name, index), 'Arn')
+              'aws:SourceArn': getAtt(cfLogicalNames.eventBusRule(resource.name, index), 'Arn')
             }
           }
         });

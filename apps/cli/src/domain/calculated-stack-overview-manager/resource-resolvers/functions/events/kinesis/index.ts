@@ -1,16 +1,15 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
-import { GetAtt, Ref } from '@cloudform/functions';
-import KinesisConsumer from '@cloudform/kinesis/streamConsumer';
-import EventSourceMapping from '@cloudform/lambda/eventSourceMapping';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToKinesisStream } from '@domain-services/config-manager/utils/kinesis-streams';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { CliError } from '@utils/errors';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { KinesisIntegration, KinesisIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
@@ -79,14 +78,14 @@ export const resolveKinesisEvents = ({
       }
 
       // Resolve streamArn from kinesisStreamName if provided
-      let streamArn: string | IntrinsicFunction = event.properties.streamArn;
+      let streamArn: string | Intrinsic = event.properties.streamArn;
       if (event.properties.kinesisStreamName) {
         resolveReferenceToKinesisStream({
           referencedFrom: name,
           referencedFromType: configParentResourceType,
           stpResourceReference: event.properties.kinesisStreamName
         });
-        streamArn = GetAtt(
+        streamArn = getAtt(
           cfLogicalNames.kinesisStream(event.properties.kinesisStreamName),
           'Arn'
         ) as unknown as string;
@@ -97,7 +96,7 @@ export const resolveKinesisEvents = ({
         calculatedStackOverviewManager.addCfChildResource({
           cfLogicalName: cfLogicalNames.kinesisEventConsumer(name, index),
           nameChain,
-          resource: new KinesisConsumer({
+          resource: cfnResource('AWS::Kinesis::StreamConsumer', {
             StreamARN: streamArn,
             ConsumerName: awsResourceNames.kinesisEventConsumer(
               calculatedStackOverviewManager.context.stackName,
@@ -106,7 +105,7 @@ export const resolveKinesisEvents = ({
             )
           })
         });
-        consumerArn = GetAtt(cfLogicalNames.kinesisEventConsumer(name, index), 'ConsumerARN') as unknown as string;
+        consumerArn = getAtt(cfLogicalNames.kinesisEventConsumer(name, index), 'ConsumerARN') as unknown as string;
       }
       if (consumerArn) {
         eventInducedKinesisConsumerStatement.Resource.push(consumerArn);
@@ -115,7 +114,7 @@ export const resolveKinesisEvents = ({
         eventInducedKinesisStreamStatement.Resource.push(streamArn);
       }
 
-      const lambdaEndpointArn = aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn');
+      const lambdaEndpointArn = aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn');
 
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.eventSourceMapping(name, index),
@@ -160,14 +159,14 @@ const getEventSourceMapping = ({
   streamArn
 }: {
   eventDetails: KinesisIntegrationProps;
-  lambdaEndpointArn: string | IntrinsicFunction;
+  lambdaEndpointArn: string | Intrinsic;
   consumerArn?: string;
-  streamArn: string | IntrinsicFunction;
+  streamArn: string | Intrinsic;
 }) => {
   // const consumerDependency =
   //   !eventDetails.consumerArn ||
   //   (getIsDirective(eventDetails.consumerArn) && startsLikeGetParamDirective(eventDetails.consumerArn));
-  const resource = new EventSourceMapping({
+  const resource = cfnResource('AWS::Lambda::EventSourceMapping', {
     BatchSize: eventDetails.batchSize,
     EventSourceArn: consumerArn || streamArn,
     Enabled: true,

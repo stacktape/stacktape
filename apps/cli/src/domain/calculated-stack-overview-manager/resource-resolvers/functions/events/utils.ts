@@ -1,15 +1,16 @@
-import LambdaPermission from '@cloudform/lambda/permission';
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+
 import cronValidate from 'aws-cron-validate';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 
 export const getEventBusRuleLambdaPermission = ({
   lambdaEndpointArn,
   eventBusRuleArn
 }: {
-  lambdaEndpointArn: string | IntrinsicFunction;
-  eventBusRuleArn: string | IntrinsicFunction;
+  lambdaEndpointArn: string | Intrinsic;
+  eventBusRuleArn: string | Intrinsic;
 }) => {
-  return new LambdaPermission({
+  return cfnResource('AWS::Lambda::Permission', {
     Action: 'lambda:InvokeFunction',
     Principal: 'events.amazonaws.com',
     FunctionName: lambdaEndpointArn,

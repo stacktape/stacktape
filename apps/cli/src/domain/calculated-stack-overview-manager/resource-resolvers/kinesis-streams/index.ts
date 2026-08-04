@@ -1,6 +1,6 @@
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
 import type { StpKinesisStream } from '@domain-services/config-manager/resolved-types/kinesis-streams';
-import { GetAtt } from '@cloudform/functions';
-import Stream, { StreamEncryption, StreamModeDetails } from '@cloudform/kinesis/stream';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -21,18 +21,18 @@ export const resolveKinesisStream = ({ resource }: { resource: StpKinesisStream 
   calculatedStackOverviewManager.addCfChildResource({
     nameChain: resource.nameChain,
     cfLogicalName: cfLogicalNames.kinesisStream(resource.name),
-    resource: new Stream({
+    resource: cfnResource('AWS::Kinesis::Stream', {
       Name: streamAwsName,
-      StreamModeDetails: new StreamModeDetails({
+      StreamModeDetails: {
         StreamMode: capacityMode
-      }),
+      },
       ShardCount: capacityMode === 'PROVISIONED' ? resource.shardCount || 1 : undefined,
       RetentionPeriodHours: resource.retentionPeriodHours,
       StreamEncryption: resource.encryption?.enabled
-        ? new StreamEncryption({
+        ? {
             EncryptionType: 'KMS',
             KeyId: resource.encryption.kmsKeyArn || 'alias/aws/kinesis'
-          })
+          }
         : undefined,
       Tags: stackManager.getTags()
     })
@@ -47,7 +47,7 @@ export const resolveKinesisStream = ({ resource }: { resource: StpKinesisStream 
   calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
     paramName: 'arn',
     nameChain: resource.nameChain,
-    paramValue: GetAtt(cfLogicalNames.kinesisStream(resource.name), 'Arn')
+    paramValue: getAtt(cfLogicalNames.kinesisStream(resource.name), 'Arn')
   });
 
   calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({

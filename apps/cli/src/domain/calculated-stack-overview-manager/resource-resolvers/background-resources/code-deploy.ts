@@ -1,5 +1,6 @@
-import { GetAtt } from '@cloudform/functions';
-import Role from '@cloudform/iam/role';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -10,7 +11,7 @@ export const resolveCodeDeploySharedResources = async () => {
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.codeDeployServiceRole(),
       nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
-      resource: new Role({
+      resource: cfnResource('AWS::IAM::Role', {
         AssumeRolePolicyDocument: {
           Version: '2012-10-17',
           Statement: [
@@ -35,7 +36,7 @@ export const resolveCodeDeploySharedResources = async () => {
                     {
                       Action: ['lambda:InvokeFunction'],
                       Resource: configManager.allLambdasUsedInDeploymentHooks.map(({ cfLogicalName }) =>
-                        GetAtt(cfLogicalName, 'Arn')
+                        getAtt(cfLogicalName, 'Arn')
                       ),
                       Effect: 'Allow'
                     }

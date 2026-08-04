@@ -1,4 +1,5 @@
-import { GetAtt, Ref } from '@cloudform/functions';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
@@ -26,18 +27,18 @@ export const resolveStateMachines = async () => {
         calculatedStackOverviewManager.addStacktapeResourceLink({
           linkName: 'state-machine-executions',
           nameChain: stateMachine.nameChain,
-          linkValue: cfEvaluatedLinks.stateMachineExecutions(Ref(cfLogicalNames.stateMachine(stateMachine.name)))
+          linkValue: cfEvaluatedLinks.stateMachineExecutions(ref(cfLogicalNames.stateMachine(stateMachine.name)))
         });
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'name',
           nameChain: stateMachine.nameChain,
-          paramValue: GetAtt(cfLogicalNames.stateMachine(stateMachine.name), 'Name'),
+          paramValue: getAtt(cfLogicalNames.stateMachine(stateMachine.name), 'Name'),
           showDuringPrint: true
         });
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'arn',
           nameChain: stateMachine.nameChain,
-          paramValue: Ref(cfLogicalNames.stateMachine(stateMachine.name)),
+          paramValue: ref(cfLogicalNames.stateMachine(stateMachine.name)),
           showDuringPrint: true
         });
       })

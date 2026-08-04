@@ -8,6 +8,7 @@ export const GENERATED_SCOPES = [
   'apps/cli/@generated/schemas/enhanced-config-schema.json',
   'apps/cli/@generated/schemas/api-reference-data.json',
   'apps/cli/@generated/llm-docs',
+  'packages/cloudformation/generated',
   'packages/config/generated/config-schema.json',
   'packages/design-tokens/generated/tokens.css'
 ];

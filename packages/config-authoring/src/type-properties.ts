@@ -282,7 +282,6 @@ export const {
   NonCurrentVersionExpirationLifecycleRule,
   ContainerEfsMount,
   LambdaEfsMount,
-  LambdaS3FilesMount,
   CognitoAuthorizer,
   LambdaAuthorizer,
   ApplicationLoadBalancerCustomTrigger,
@@ -301,3 +300,6 @@ export const {
   LambdaErrorRateTrigger,
   LambdaDurationTrigger
 } = TYPE_PROPERTIES_CLASSES;
+
+export const LambdaS3FilesMount: TypePropertyConstructors['LambdaS3FilesMount'] =
+  TYPE_PROPERTIES_CLASSES.LambdaS3FilesMount;

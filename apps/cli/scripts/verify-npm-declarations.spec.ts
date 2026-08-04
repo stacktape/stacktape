@@ -41,8 +41,9 @@ const installMinimalPackage = ({ plainDeclarations }: { plainDeclarations: strin
       "export declare class LambdaS3FilesMount { constructor(properties: { accessPointArn: string; mountPath: string }); readonly type: 's3files'; readonly properties: { accessPointArn: string; mountPath: string }; }",
       // Typed exactly as the real generator emits it, so the fixture exercises the class/type pair together.
       "export declare class IotIntegration { constructor(properties: import('./plain').IotIntegrationProps); readonly type: 'iot'; readonly properties: import('./plain').IotIntegrationProps; }",
-      'export type CloudFormationTemplate = { Resources: Record<string, { Type?: string }>; Metadata?: Record<string, unknown> };',
-      'export type FinalTransform = <Template extends CloudFormationTemplate>(template: Template) => Template;',
+      "export { cfnResource, cfnResourceUnchecked, getAtt, ref, sub } from './cloudformation';",
+      "export type { AnyCloudFormationResource, CloudFormationTemplate, Intrinsic } from './cloudformation';",
+      "export type FinalTransform = <Template extends import('./cloudformation').CloudFormationTemplate>(template: Template) => Template;",
       'export declare function defineConfig<T>(factory: () => T): (params: Record<string, unknown>) => { config: T };',
       'export declare function $Secret(name: string): string;'
     ].join('\n'),
@@ -63,7 +64,20 @@ const installMinimalPackage = ({ plainDeclarations }: { plainDeclarations: strin
   );
   writeFileSync(
     join(packageDir, 'cloudformation.d.ts'),
-    'export type CloudFormationResource = { Type: string };\n',
+    [
+      "export type Intrinsic = { Ref: string } | { 'Fn::GetAtt': [string, string] } | { 'Fn::Sub': string };",
+      'export type CloudFormationValue<T> = T | Intrinsic;',
+      "export type CloudFormationResourceProperties = { 'AWS::S3::Bucket': { BucketName?: CloudFormationValue<string> }; 'AWS::CloudFormation::WaitConditionHandle': Record<string, never> };",
+      'export type KnownCloudFormationResourceType = keyof CloudFormationResourceProperties;',
+      'export type CloudFormationResource<Type extends string = string, Properties extends object = object> = { Type: Type; Properties: Properties };',
+      'export type AnyCloudFormationResource = CloudFormationResource | { Type: string };',
+      'export type CloudFormationTemplate = { Resources: Record<string, AnyCloudFormationResource>; Metadata?: Record<string, unknown> };',
+      'export declare function cfnResource<Type extends KnownCloudFormationResourceType>(type: Type, properties: CloudFormationResourceProperties[Type]): CloudFormationResource<Type, CloudFormationResourceProperties[Type]>;',
+      'export declare function cfnResourceUnchecked<Type extends string, Properties extends object>(type: Type, properties: Properties): CloudFormationResource<Type, Properties>;',
+      'export declare function ref(logicalName: string): { Ref: string };',
+      "export declare function getAtt(logicalName: string, attributeName: string): { 'Fn::GetAtt': [string, string] };",
+      "export declare function sub(template: string): { 'Fn::Sub': string };"
+    ].join('\n'),
     'utf-8'
   );
   writeFileSync(join(packageDir, 'plain.d.ts'), plainDeclarations, 'utf-8');

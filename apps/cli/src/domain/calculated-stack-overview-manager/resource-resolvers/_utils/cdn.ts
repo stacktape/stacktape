@@ -1,3 +1,28 @@
+import type {
+  CacheBehavior,
+  DistributionConfig,
+  OriginCustomHeader
+} from '@stacktape/cloudformation/resources/aws-cloudfront-distribution';
+import type { CachePolicyConfig } from '@stacktape/cloudformation/resources/aws-cloudfront-cachepolicy';
+import type {
+  CookiesConfig as CacheCookiesConfig,
+  HeadersConfig as CacheHeadersConfig,
+  QueryStringsConfig as CacheQueryStringsConfig
+} from '@stacktape/cloudformation/resources/aws-cloudfront-cachepolicy';
+import type {
+  CookiesConfig as OriginRequestCookiesConfig,
+  HeadersConfig as OriginRequestHeadersConfig,
+  OriginRequestPolicyConfig,
+  QueryStringsConfig as OriginRequestQueryStringsConfig
+} from '@stacktape/cloudformation/resources/aws-cloudfront-originrequestpolicy';
+import type {
+  FunctionAssociation,
+  LambdaFunctionAssociation,
+  Origin
+} from '@stacktape/cloudformation/resources/aws-cloudfront-distribution';
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, join, ref, select, split } from '@stacktape/cloudformation/intrinsics';
 import type { Entries } from '@utils/type-helpers';
 import type {
   StpApplicationLoadBalancer,
@@ -10,31 +35,7 @@ import type {
   StpCdnOriginTargetableByRouteRewrite,
   StpResourceType
 } from '@domain-services/config-manager/resolved-types/resources';
-import type { CachePolicyConfig } from '@cloudform/cloudFront/cachePolicy';
-import type { CacheBehavior, DistributionConfig, OriginCustomHeader } from '@cloudform/cloudFront/distribution';
-import type {
-  CookiesConfig as OriginRequestCookiesConfig,
-  HeadersConfig as OriginRequestHeadersConfig,
-  OriginRequestPolicyConfig,
-  QueryStringsConfig as OriginRequestQueryStringsConfig
-} from '@cloudform/cloudFront/originRequestPolicy';
-import type { IntrinsicFunction } from '@cloudform/dataTypes';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import CloudfrontCachePolicy, {
-  CookiesConfig as CacheCookiesConfig,
-  HeadersConfig as CacheHeadersConfig,
-  QueryStringsConfig as CacheQueryStringsConfig
-} from '@cloudform/cloudFront/cachePolicy';
-import CloudfrontOriginAccessIdentity from '@cloudform/cloudFront/cloudFrontOriginAccessIdentity';
-import CloudfrontDistribution, {
-  DefaultCacheBehavior,
-  FunctionAssociation,
-  LambdaFunctionAssociation,
-  Origin
-} from '@cloudform/cloudFront/distribution';
-import CloudfrontOriginRequestPolicy from '@cloudform/cloudFront/originRequestPolicy';
-import { GetAtt, Join, Ref, Select, Split } from '@cloudform/functions';
-import Route53Record from '@cloudform/route53/recordSet';
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToApplicationLoadBalancer } from '@domain-services/config-manager/utils/application-load-balancers';
 import { resolveReferenceToBucket } from '@domain-services/config-manager/utils/buckets';
@@ -65,11 +66,11 @@ import type {
 import type { ApplicationLoadBalancerIntegrationProps } from '@stacktape/config/events';
 
 type EdgeLambdaReferencedUsingArn = {
-  edgeLambdaVersionArn: string | IntrinsicFunction;
+  edgeLambdaVersionArn: string | Intrinsic;
 };
 
 type CloudfrontFunctionReferencedUsingArn = {
-  cloudfrontFunctionArn: string | IntrinsicFunction;
+  cloudfrontFunctionArn: string | Intrinsic;
 };
 
 /**
@@ -96,10 +97,14 @@ export const hasEnabledCdn = <TResource extends StpCdnCompatibleResource>(
 ): resource is ResourceWithPresentCdn<TResource> => Boolean(resource.cdn?.enabled);
 
 export const getCloudfrontDefaultStaticCachePolicyResource = (stackName: string) =>
-  new CloudfrontCachePolicy({ CachePolicyConfig: getCloudfrontDefaultStaticCachePolicyConfig(stackName) });
+  cfnResource('AWS::CloudFront::CachePolicy', {
+    CachePolicyConfig: getCloudfrontDefaultStaticCachePolicyConfig(stackName)
+  });
 
 export const getCloudfrontDefaultDynamicCachePolicyResource = (stackName: string) =>
-  new CloudfrontCachePolicy({ CachePolicyConfig: getCloudfrontDefaultDynamicCachePolicyConfig(stackName) });
+  cfnResource('AWS::CloudFront::CachePolicy', {
+    CachePolicyConfig: getCloudfrontDefaultDynamicCachePolicyConfig(stackName)
+  });
 
 export const getCloudfrontCustomizedCachePolicyResource = ({
   cachingOptions,
@@ -144,7 +149,7 @@ export const getCloudfrontCustomizedCachePolicyResource = ({
             (value) => value !== undefined
           )
         );
-  return new CloudfrontCachePolicy({
+  return cfnResource('AWS::CloudFront::CachePolicy', {
     CachePolicyConfig: {
       DefaultTTL: defaultTTL,
       MaxTTL: maxTTL,
@@ -207,41 +212,43 @@ export const getCachePolicyHash = ({ cachingOptions }: { cachingOptions: CdnCach
   return shortHash(objectHash(cachingOptions));
 };
 
-const getCloudfrontDefaultStaticCachePolicyConfig = (stackName: string): CachePolicyConfig => ({
-  DefaultTTL: 15768000,
-  MaxTTL: 31536000,
-  MinTTL: 0,
-  Name: awsResourceNames.cloudfrontDefaultCachePolicy('DefStatic', stackName),
-  ParametersInCacheKeyAndForwardedToOrigin: {
-    CookiesConfig: { CookieBehavior: 'none' },
-    EnableAcceptEncodingGzip: true,
-    EnableAcceptEncodingBrotli: true,
-    HeadersConfig: { HeaderBehavior: 'none' },
-    QueryStringsConfig: { QueryStringBehavior: 'none' }
-  }
-});
+const getCloudfrontDefaultStaticCachePolicyConfig = (stackName: string) =>
+  ({
+    DefaultTTL: 15768000,
+    MaxTTL: 31536000,
+    MinTTL: 0,
+    Name: awsResourceNames.cloudfrontDefaultCachePolicy('DefStatic', stackName),
+    ParametersInCacheKeyAndForwardedToOrigin: {
+      CookiesConfig: { CookieBehavior: 'none' },
+      EnableAcceptEncodingGzip: true,
+      EnableAcceptEncodingBrotli: true,
+      HeadersConfig: { HeaderBehavior: 'none' },
+      QueryStringsConfig: { QueryStringBehavior: 'none' }
+    }
+  }) satisfies CachePolicyConfig;
 
-const getCloudfrontDefaultDynamicCachePolicyConfig = (stackName: string): CachePolicyConfig => ({
-  DefaultTTL: 0,
-  MaxTTL: 31536000,
-  MinTTL: 0,
-  Name: awsResourceNames.cloudfrontDefaultCachePolicy('DefDynamic', stackName),
-  ParametersInCacheKeyAndForwardedToOrigin: {
-    CookiesConfig: { CookieBehavior: 'none' },
-    EnableAcceptEncodingGzip: true,
-    EnableAcceptEncodingBrotli: true,
-    HeadersConfig: { HeaderBehavior: 'whitelist', Headers: ['Authorization'] },
-    QueryStringsConfig: { QueryStringBehavior: 'all' }
-  }
-});
+const getCloudfrontDefaultDynamicCachePolicyConfig = (stackName: string) =>
+  ({
+    DefaultTTL: 0,
+    MaxTTL: 31536000,
+    MinTTL: 0,
+    Name: awsResourceNames.cloudfrontDefaultCachePolicy('DefDynamic', stackName),
+    ParametersInCacheKeyAndForwardedToOrigin: {
+      CookiesConfig: { CookieBehavior: 'none' },
+      EnableAcceptEncodingGzip: true,
+      EnableAcceptEncodingBrotli: true,
+      HeadersConfig: { HeaderBehavior: 'whitelist', Headers: ['Authorization'] },
+      QueryStringsConfig: { QueryStringBehavior: 'all' }
+    }
+  }) satisfies CachePolicyConfig;
 
 export const getCloudfrontDefaultStaticOriginRequestPolicyResource = (stackName: string) =>
-  new CloudfrontOriginRequestPolicy({
+  cfnResource('AWS::CloudFront::OriginRequestPolicy', {
     OriginRequestPolicyConfig: getCloudfrontDefaultStaticOriginRequestPolicyConfig(stackName)
   });
 
 export const getCloudfrontDefaultDynamicOriginRequestPolicyResource = (stackName: string) =>
-  new CloudfrontOriginRequestPolicy({
+  cfnResource('AWS::CloudFront::OriginRequestPolicy', {
     OriginRequestPolicyConfig: getCloudfrontDefaultDynamicOriginRequestPolicyConfig(stackName)
   });
 
@@ -262,7 +269,7 @@ export const getCloudfrontCustomizedOriginRequestPolicyResource = ({
       : // http-api-gateway application-load-balancer and custom-origin all use dynamic origin request policy
         // when using dynamic origin request policy everything is forwarded to the origin by default
         getCloudfrontDefaultDynamicOriginRequestPolicyConfig(stackName);
-  return new CloudfrontOriginRequestPolicy({
+  return cfnResource('AWS::CloudFront::OriginRequestPolicy', {
     OriginRequestPolicyConfig: {
       CookiesConfig: forwardingOptions.cookies
         ? formatOriginRequestCookiesConfig(forwardingOptions.cookies, stpResourceNameName)
@@ -316,19 +323,21 @@ export const getOriginRequestPolicyHash = ({ forwardingOptions }: { forwardingOp
   );
 };
 
-const getCloudfrontDefaultDynamicOriginRequestPolicyConfig = (stackName: string): OriginRequestPolicyConfig => ({
-  Name: awsResourceNames.cloudfrontDefaultOriginRequestPolicy('DefDynamic', stackName),
-  CookiesConfig: { CookieBehavior: 'all' },
-  HeadersConfig: { HeaderBehavior: 'allExcept', Headers: ['host'] },
-  QueryStringsConfig: { QueryStringBehavior: 'all' }
-});
+const getCloudfrontDefaultDynamicOriginRequestPolicyConfig = (stackName: string) =>
+  ({
+    Name: awsResourceNames.cloudfrontDefaultOriginRequestPolicy('DefDynamic', stackName),
+    CookiesConfig: { CookieBehavior: 'all' },
+    HeadersConfig: { HeaderBehavior: 'allExcept', Headers: ['host'] },
+    QueryStringsConfig: { QueryStringBehavior: 'all' }
+  }) satisfies OriginRequestPolicyConfig;
 
-const getCloudfrontDefaultStaticOriginRequestPolicyConfig = (stackName: string): OriginRequestPolicyConfig => ({
-  Name: awsResourceNames.cloudfrontDefaultOriginRequestPolicy('DefStatic', stackName),
-  CookiesConfig: { CookieBehavior: 'none' },
-  HeadersConfig: { HeaderBehavior: 'whitelist', Headers: ['if-match', 'if-none-match', 'if-modified-since'] },
-  QueryStringsConfig: { QueryStringBehavior: 'none' }
-});
+const getCloudfrontDefaultStaticOriginRequestPolicyConfig = (stackName: string) =>
+  ({
+    Name: awsResourceNames.cloudfrontDefaultOriginRequestPolicy('DefStatic', stackName),
+    CookiesConfig: { CookieBehavior: 'none' },
+    HeadersConfig: { HeaderBehavior: 'whitelist', Headers: ['if-match', 'if-none-match', 'if-modified-since'] },
+    QueryStringsConfig: { QueryStringBehavior: 'none' }
+  }) satisfies OriginRequestPolicyConfig;
 
 const getConfigBehaviour = (
   config:
@@ -541,13 +550,13 @@ const buildBucketOrigin = ({
     stpResourceReference: stpBucketReference,
     referencedFrom: stpResourceNameOfReferencer
   });
-  return new Origin({
-    DomainName: GetAtt(cfLogicalNames.bucket(bucketStpName), 'RegionalDomainName'),
+  return {
+    DomainName: getAtt(cfLogicalNames.bucket(bucketStpName), 'RegionalDomainName'),
     Id: awsResourceNames.cloudfrontOriginId(bucketStpName, cacheBehaviourIndex),
     S3OriginConfig: {
-      OriginAccessIdentity: Join('', [
+      OriginAccessIdentity: join('', [
         'origin-access-identity/cloudfront/',
-        Ref(cfLogicalNames.cloudfrontOriginAccessIdentity(stpResourceNameOfReferencer))
+        ref(cfLogicalNames.cloudfrontOriginAccessIdentity(stpResourceNameOfReferencer))
       ])
     },
     OriginPath: routePrefix,
@@ -562,7 +571,7 @@ const buildBucketOrigin = ({
         HeaderName: stacktapeCloudfrontHeaders.urlOptimization(),
         HeaderValue: disableUrlOptimization ? 'false' : 'true'
       })
-  });
+  };
 };
 
 const buildHttpApiOrigin = ({
@@ -586,8 +595,8 @@ const buildHttpApiOrigin = ({
     stpResourceReference: stpHttpApiGatewayReference,
     referencedFrom: stpResourceNameOfReferencer
   });
-  return new Origin({
-    DomainName: Select(1, Split('//', GetAtt(cfLogicalNames.httpApi(httpApiGatewayStpName), 'ApiEndpoint'))),
+  return {
+    DomainName: select(1, split('//', getAtt(cfLogicalNames.httpApi(httpApiGatewayStpName), 'ApiEndpoint'))),
     Id: awsResourceNames.cloudfrontOriginId(httpApiGatewayStpName, cacheBehaviourIndex),
     CustomOriginConfig: {
       OriginProtocolPolicy: 'https-only',
@@ -598,7 +607,7 @@ const buildHttpApiOrigin = ({
     OriginCustomHeaders: (forwardingOptions?.customRequestHeaders || [])
       .map(({ headerName: HeaderName, value: HeaderValue }) => ({ HeaderName, HeaderValue }) as OriginCustomHeader)
       .concat([{ HeaderName: stacktapeCloudfrontHeaders.originType(), HeaderValue: 'http-api-gateway' }])
-  });
+  };
 };
 
 const buildLambdaFunctionOrigin = ({
@@ -622,8 +631,8 @@ const buildLambdaFunctionOrigin = ({
     stpResourceReference: stpFunctionReference,
     referencedFrom: stpResourceNameOfReferencer
   });
-  return new Origin({
-    DomainName: Select(2, Split('/', GetAtt(cfLogicalNames.lambdaUrl(stpFunctionName), 'FunctionUrl'))),
+  return {
+    DomainName: select(2, split('/', getAtt(cfLogicalNames.lambdaUrl(stpFunctionName), 'FunctionUrl'))),
     Id: awsResourceNames.cloudfrontOriginId(stpFunctionName, cacheBehaviourIndex),
     CustomOriginConfig: {
       OriginProtocolPolicy: 'https-only',
@@ -634,7 +643,7 @@ const buildLambdaFunctionOrigin = ({
     OriginCustomHeaders: (forwardingOptions?.customRequestHeaders || [])
       .map(({ headerName: HeaderName, value: HeaderValue }) => ({ HeaderName, HeaderValue }) as OriginCustomHeader)
       .concat([{ HeaderName: stacktapeCloudfrontHeaders.originType(), HeaderValue: 'function' }])
-  });
+  };
 };
 
 const buildCustomDomainOrigin = ({
@@ -652,7 +661,7 @@ const buildCustomDomainOrigin = ({
 }): Origin => {
   const protocol = targetCustomOriginProperties.protocol || 'HTTPS';
 
-  return new Origin({
+  return {
     DomainName: targetCustomOriginProperties.domainName,
     Id: awsResourceNames.cloudfrontOriginId(targetCustomOriginProperties.domainName, cacheBehaviourIndex),
     CustomOriginConfig: {
@@ -665,7 +674,7 @@ const buildCustomDomainOrigin = ({
     OriginCustomHeaders: (forwardingOptions?.customRequestHeaders || [])
       .map(({ headerName: HeaderName, value: HeaderValue }) => ({ HeaderName, HeaderValue }) as OriginCustomHeader)
       .concat([{ HeaderName: stacktapeCloudfrontHeaders.originType(), HeaderValue: 'custom-origin' }])
-  });
+  };
 };
 
 const buildLoadBalancerOrigin = ({
@@ -691,7 +700,7 @@ const buildLoadBalancerOrigin = ({
   );
   const lbOriginProps = determineLoadBalancerOriginProperties(resolvedReference, explicitOriginDomainName);
 
-  return new Origin({
+  return {
     DomainName: lbOriginProps.originDomainName,
     Id: awsResourceNames.cloudfrontOriginId(resolvedReference.loadBalancer.name, cacheBehaviourIndex),
     CustomOriginConfig: {
@@ -704,13 +713,13 @@ const buildLoadBalancerOrigin = ({
     OriginCustomHeaders: (forwardingOptions?.customRequestHeaders || [])
       .map(({ headerName: HeaderName, value: HeaderValue }) => ({ HeaderName, HeaderValue }) as OriginCustomHeader)
       .concat([{ HeaderName: stacktapeCloudfrontHeaders.originType(), HeaderValue: 'application-load-balancer' }])
-  });
+  };
 };
 
 const determineLoadBalancerOriginProperties = (
   listenerReference: StpResolvedLoadBalancerReference,
   originDomainName: string | undefined
-): { originDomainName: string | IntrinsicFunction; originProtocol: 'HTTP' | 'HTTPS'; originPort: number } => {
+): { originDomainName: string | Intrinsic; originProtocol: 'HTTP' | 'HTTPS'; originPort: number } => {
   return {
     originDomainName:
       originDomainName ||
@@ -746,11 +755,11 @@ const formatCacheCookiesConfig = (
     );
   }
   const cookieBehaviour = Object.keys(cookiesConfig)[0];
-  return new CacheCookiesConfig({
+  return {
     CookieBehavior: cookieBehaviour,
     Cookies:
       cookieBehaviour === 'allExcept' || cookieBehaviour === 'whitelist' ? cookiesConfig[cookieBehaviour] : undefined
-  });
+  };
 };
 
 const formatCacheHeadersConfig = (
@@ -776,10 +785,10 @@ const formatCacheHeadersConfig = (
     );
   }
   const headerBehaviour = Object.keys(headersConfig)[0];
-  return new CacheHeadersConfig({
+  return {
     HeaderBehavior: headerBehaviour,
     Headers: headerBehaviour === 'whitelist' ? headersConfig[headerBehaviour] : undefined
-  });
+  };
 };
 
 const formatCacheQueryStringConfig = (
@@ -806,10 +815,10 @@ const formatCacheQueryStringConfig = (
     );
   }
   const queryStringBehaviour = Object.keys(queryStringsConfig)[0];
-  return new CacheQueryStringsConfig({
+  return {
     QueryStringBehavior: queryStringBehaviour,
     QueryStrings: queryStringBehaviour === 'whitelist' ? queryStringsConfig[queryStringBehaviour] : undefined
-  });
+  };
 };
 
 const formatOriginRequestCookiesConfig = (
@@ -830,10 +839,10 @@ const formatOriginRequestCookiesConfig = (
     );
   }
   const cookieBehaviour = Object.keys(cookiesConfig)[0];
-  return new CacheCookiesConfig({
+  return {
     CookieBehavior: cookieBehaviour,
     Cookies: cookieBehaviour === 'whitelist' ? cookiesConfig[cookieBehaviour] : undefined
-  });
+  };
 };
 
 const formatOriginRequestHeadersConfig = (
@@ -859,13 +868,13 @@ const formatOriginRequestHeadersConfig = (
     );
   }
   const headerBehaviour = Object.keys(headersConfig)[0];
-  return new CacheHeadersConfig({
+  return {
     HeaderBehavior: headerBehaviour,
     Headers:
       headerBehaviour === 'allViewerAndWhitelistCloudFront' || headerBehaviour === 'whitelist'
         ? headersConfig[headerBehaviour]
         : undefined
-  });
+  };
 };
 
 const formatOriginRequestQueryStringConfig = (
@@ -888,14 +897,14 @@ const formatOriginRequestQueryStringConfig = (
     );
   }
   const queryStringBehaviour = Object.keys(queryStringsConfig)[0];
-  return new CacheQueryStringsConfig({
+  return {
     QueryStringBehavior: queryStringBehaviour,
     QueryStrings: queryStringBehaviour === 'whitelist' ? queryStringsConfig[queryStringBehaviour] : undefined
-  });
+  };
 };
 
 export const getCloudfrontOriginAccessIdentityResource = (stpResourceNameName: string) =>
-  new CloudfrontOriginAccessIdentity({
+  cfnResource('AWS::CloudFront::CloudFrontOriginAccessIdentity', {
     CloudFrontOriginAccessIdentityConfig: { Comment: `${stpResourceNameName} attached distros - Access Identity` }
   });
 
@@ -931,7 +940,7 @@ export const getCloudfrontDistributionResource = ({
   cdnCompatibleResource: ResourceWithPresentCdn;
   defaultOriginType: StpCdnAttachableResourceType;
   customDomains: string[] | undefined;
-  certificateArn: string | IntrinsicFunction | undefined;
+  certificateArn: string | Intrinsic | undefined;
 }) => {
   let defaultCacheBehaviour;
   switch (defaultOriginType) {
@@ -1023,13 +1032,13 @@ export const getCloudfrontDistributionResource = ({
       stpResourceReference: cdnCompatibleResource.cdn.useFirewall
     });
     // although it's called WebACLId, it actually needs the ARN of the firewall
-    distributionConfig.WebACLId = GetAtt(
+    distributionConfig.WebACLId = getAtt(
       cfLogicalNames.webAppFirewallCustomResource(cdnCompatibleResource.cdn.useFirewall),
       'Arn'
     );
   }
 
-  const resource = new CloudfrontDistribution({
+  const resource = cfnResource('AWS::CloudFront::Distribution', {
     DistributionConfig: distributionConfig
   });
 
@@ -1089,7 +1098,7 @@ const resolveCdnAttachableFunction = ({
     }
     return { cloudfrontFunctionArn: stpResourceReferenceOrArn } as CloudfrontFunctionReferencedUsingArn;
   }
-  // if it is not string, we assume IntrinsicFunction
+  // If it is not a string, we assume it is a structural CloudFormation intrinsic.
   // further we assume we are trying to reference Arn of Cloudfront Function
   // this can change in future, but should not be a breaking change
   if (typeof stpResourceReferenceOrArn !== 'string') {
@@ -1143,22 +1152,18 @@ const getCustomEdgeFunctionsAssociations = ({
         }
       }
       if ((resolvedReference as CloudfrontFunctionReferencedUsingArn).cloudfrontFunctionArn) {
-        cloudfrontFunctions.push(
-          new FunctionAssociation({
-            EventType: eventType,
-            FunctionARN: (resolvedReference as CloudfrontFunctionReferencedUsingArn).cloudfrontFunctionArn
-          })
-        );
+        cloudfrontFunctions.push({
+          EventType: eventType,
+          FunctionARN: (resolvedReference as CloudfrontFunctionReferencedUsingArn).cloudfrontFunctionArn
+        });
       } else {
-        edgeLambdaFunctions.push(
-          new LambdaFunctionAssociation({
-            EventType: eventType,
-            IncludeBody: eventType === 'viewer-request' || eventType === 'origin-request',
-            LambdaFunctionARN:
-              (resolvedReference as EdgeLambdaReferencedUsingArn).edgeLambdaVersionArn ||
-              GetAtt(cfLogicalNames.customResourceEdgeLambda(stpFunctionNameOrArn), 'versionArn')
-          })
-        );
+        edgeLambdaFunctions.push({
+          EventType: eventType,
+          IncludeBody: eventType === 'viewer-request' || eventType === 'origin-request',
+          LambdaFunctionARN:
+            (resolvedReference as EdgeLambdaReferencedUsingArn).edgeLambdaVersionArn ||
+            getAtt(cfLogicalNames.customResourceEdgeLambda(stpFunctionNameOrArn), 'versionArn')
+        });
       }
     });
   return { edgeLambdaFunctions, cloudfrontFunctions };
@@ -1190,7 +1195,7 @@ const determineEdgeFunctionAssociationsForBucketCacheBehaviour = ({
         ? {
             EventType: 'origin-request',
             IncludeBody: false,
-            LambdaFunctionARN: GetAtt(
+            LambdaFunctionARN: getAtt(
               cfLogicalNames.customResourceEdgeLambda(configManager.stacktapeOriginRequestLambdaProps.name),
               'versionArn'
             )
@@ -1203,7 +1208,7 @@ const determineEdgeFunctionAssociationsForBucketCacheBehaviour = ({
             {
               EventType: 'origin-response',
               IncludeBody: false,
-              LambdaFunctionARN: GetAtt(
+              LambdaFunctionARN: getAtt(
                 cfLogicalNames.customResourceEdgeLambda(configManager.stacktapeOriginResponseLambdaProps.name),
                 'versionArn'
               )
@@ -1472,7 +1477,7 @@ const getCacheBehaviour = ({
   cacheBehaviourIndex: number;
   stackName: string;
 }) => {
-  return new DefaultCacheBehavior({
+  return {
     AllowedMethods:
       forwardingOptions?.allowedMethods ||
       (targetOriginType === 'bucket'
@@ -1486,7 +1491,7 @@ const getCacheBehaviour = ({
       ],
     CachePolicyId:
       cachingOptions?.cachePolicyId ||
-      Ref(
+      ref(
         isCustomCachePolicyNeeded({ cachingOptions, originType: targetOriginType, stackName })
           ? cfLogicalNames.cloudfrontCustomCachePolicy(stpResourceName, getCachePolicyHash({ cachingOptions }))
           : cfLogicalNames.cloudfrontDefaultCachePolicy(targetOriginType === 'bucket' ? 'DefStatic' : 'DefDynamic')
@@ -1494,7 +1499,7 @@ const getCacheBehaviour = ({
     Compress: !cachingOptions?.disableCompression,
     OriginRequestPolicyId:
       forwardingOptions?.originRequestPolicyId ||
-      Ref(
+      ref(
         isCustomOriginRequestPolicyNeeded({
           forwardingOptions,
           originType: targetOriginType,
@@ -1512,7 +1517,7 @@ const getCacheBehaviour = ({
     ViewerProtocolPolicy: viewerProtocolPolicy,
     LambdaFunctionAssociations: lambdaAssociations,
     FunctionAssociations: functionAssociations
-  });
+  };
 };
 
 const getCacheBehavioursForRouteRewrites = ({
@@ -1643,11 +1648,11 @@ export const getCloudfrontDnsRecord = (
   resource: StpCdnCompatibleResource,
   cloudfrontDistributionIndex: number
 ) =>
-  new Route53Record({
+  cfnResource('AWS::Route53::RecordSet', {
     Name: domainName,
     Type: 'A',
     AliasTarget: {
-      DNSName: GetAtt(
+      DNSName: getAtt(
         cfLogicalNames.cloudfrontDistribution(
           (isCompositeWebResourceType(resource.configParentResourceType)
             ? configManager.findImmediateParent({ nameChain: resource.nameChain })
@@ -1687,7 +1692,7 @@ export const getCdnDefaultDomainCustomResource = ({
           cdn: true
         }),
       targetInfo: {
-        domainName: GetAtt(
+        domainName: getAtt(
           cfLogicalNames.cloudfrontDistribution(
             (isCompositeWebResourceType(resource.configParentResourceType)
               ? configManager.findImmediateParent({ nameChain: resource.nameChain })

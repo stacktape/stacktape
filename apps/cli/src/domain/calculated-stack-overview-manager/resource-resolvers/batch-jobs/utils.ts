@@ -1,24 +1,16 @@
+import type { ContainerProperties } from '@stacktape/cloudformation/resources/aws-batch-jobdefinition';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpBatchJob } from '@domain-services/config-manager/resolved-types/batch-jobs';
 import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
-import type { ContainerProperties } from '@cloudform/batch/jobDefinition';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import ComputeEnvironment, { ComputeResources } from '@cloudform/batch/computeEnvironment';
-import JobDefinition from '@cloudform/batch/jobDefinition';
-import JobQueue from '@cloudform/batch/jobQueue';
-import LaunchTemplate from '@cloudform/ec2/launchTemplate';
-import SecurityGroup from '@cloudform/ec2/securityGroup';
-import { GetAtt, Ref } from '@cloudform/functions';
-import IAMInstanceProfile from '@cloudform/iam/instanceProfile';
-import IAMRole from '@cloudform/iam/role';
-import LogGroup from '@cloudform/logs/logGroup';
-import CfStateMachine from '@cloudform/stepFunctions/stateMachine';
 
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { getCfEnvironment } from '@utils/cloudformation';
+import { getCfEnvironment, getCloudFormationLogRetentionDays } from '@utils/cloudformation';
 import { getAugmentedEnvironment } from '@utils/environment';
 import { getImageUrlForSingleTask } from '../_utils/image-urls';
 import { getPoliciesForRoles } from '../_utils/role-helpers';
@@ -38,7 +30,7 @@ type BatchJobInstanceKind = 'spot' | 'onDemand';
  * Generates the IAM Service Role Object to be used by the Batch Compute Environment
  */
 export const getBatchServiceRole = () =>
-  new IAMRole({
+  cfnResource('AWS::IAM::Role', {
     Path: '/',
     AssumeRolePolicyDocument: {
       Version: '2008-10-17',
@@ -51,7 +43,7 @@ export const getBatchServiceRole = () =>
  * Generates Iam role used by step function to execute services batchJobs
  */
 export const getBatchStateMachineExecutionRole = () =>
-  new IAMRole({
+  cfnResource('AWS::IAM::Role', {
     Path: '/',
     AssumeRolePolicyDocument: {
       Version: '2012-10-17',
@@ -91,7 +83,7 @@ export const getBatchJobExecutionRole = ({
   accessToResourcesRequiringRoleChanges: StpResourceScopableByConnectToAffectingRole[];
   accessToAwsServices: ConnectToAwsServicesMacro[];
 }) =>
-  new IAMRole({
+  cfnResource('AWS::IAM::Role', {
     Path: '/',
     RoleName: awsResourceNames.batchJobRole(
       calculatedStackOverviewManager.context.stackName,
@@ -113,7 +105,7 @@ export const getBatchJobExecutionRole = ({
  * Generates the IAM Service Role Object that will be used to manage spot instances in the compute environment
  */
 export const getBatchSpotFleetRole = () =>
-  new IAMRole({
+  cfnResource('AWS::IAM::Role', {
     Path: '/',
     AssumeRolePolicyDocument: {
       Version: '2008-10-17',
@@ -126,7 +118,7 @@ export const getBatchSpotFleetRole = () =>
  * Generates the IAM Service Role Object that will be used on instances within our compute environment to launch containers
  */
 export const getBatchInstanceRole = () =>
-  new IAMRole({
+  cfnResource('AWS::IAM::Role', {
     Path: '/',
     AssumeRolePolicyDocument: {
       Version: '2008-10-17',
@@ -136,13 +128,13 @@ export const getBatchInstanceRole = () =>
   });
 
 export const getBatchInstanceProfile = () =>
-  new IAMInstanceProfile({
+  cfnResource('AWS::IAM::InstanceProfile', {
     Path: '/',
-    Roles: [Ref(cfLogicalNames.batchInstanceRole())]
+    Roles: [ref(cfLogicalNames.batchInstanceRole())]
   });
 
 export const getBatchInstanceDefaultSecurityGroup = () =>
-  new SecurityGroup({
+  cfnResource('AWS::EC2::SecurityGroup', {
     VpcId: vpcManager.getVpcId(),
     GroupName: awsResourceNames.batchInstanceDefaultSecurityGroup(calculatedStackOverviewManager.context.stackName),
     GroupDescription: `Stacktape generated security group for batch ec2 instances in stack ${calculatedStackOverviewManager.context.stackName}`
@@ -151,7 +143,7 @@ export const getBatchInstanceDefaultSecurityGroup = () =>
  * Generates Launch Template used by compute environments. This launch template increases disk size for every instance spawned into compute environment
  */
 export const getIncreasedDiskSizeLaunchTemplate = () =>
-  new LaunchTemplate({
+  cfnResource('AWS::EC2::LaunchTemplate', {
     LaunchTemplateName: awsResourceNames.batchInstanceLaunchTemplate(calculatedStackOverviewManager.context.stackName),
     LaunchTemplateData: {
       BlockDeviceMappings: [
@@ -173,22 +165,22 @@ export const getBatchComputeResourcesConfig = (spot: boolean, gpu: boolean) => {
   stackManager.getTags().forEach(({ Key, Value }) => {
     tagObject[Key] = Value;
   });
-  return new ComputeResources({
+  return {
     Type: spot ? 'SPOT' : 'EC2',
-    InstanceRole: GetAtt(cfLogicalNames.batchInstanceProfile(), 'Arn'),
-    SpotIamFleetRole: GetAtt(cfLogicalNames.batchSpotFleetRole(), 'Arn'),
+    InstanceRole: getAtt(cfLogicalNames.batchInstanceProfile(), 'Arn'),
+    SpotIamFleetRole: getAtt(cfLogicalNames.batchSpotFleetRole(), 'Arn'),
     MinvCpus: 0,
     MaxvCpus: 1000,
     Ec2Configuration: [{ ImageType: gpu ? 'ECS_AL2_NVIDIA' : 'ECS_AL2' }],
     InstanceTypes: gpu ? ['p4d', 'g5'] : ['optimal'],
     Subnets: vpcManager.getPublicSubnetIds().slice(0, 2),
     AllocationStrategy: 'BEST_FIT',
-    SecurityGroupIds: [Ref(cfLogicalNames.batchInstanceDefaultSecurityGroup())],
+    SecurityGroupIds: [ref(cfLogicalNames.batchInstanceDefaultSecurityGroup())],
     LaunchTemplate: {
-      LaunchTemplateId: Ref(cfLogicalNames.batchInstanceLaunchTemplate())
+      LaunchTemplateId: ref(cfLogicalNames.batchInstanceLaunchTemplate())
     },
     Tags: tagObject
-  });
+  };
 };
 
 export const getBatchComputeEnvironment = ({ spot, gpu }: { spot: boolean; gpu: boolean }) => {
@@ -196,9 +188,9 @@ export const getBatchComputeEnvironment = ({ spot, gpu }: { spot: boolean; gpu: 
   stackManager.getTags().forEach(({ Key, Value }) => {
     tagObject[Key] = Value;
   });
-  return new ComputeEnvironment({
+  return cfnResource('AWS::Batch::ComputeEnvironment', {
     // ComputeEnvironmentName: awsResourceNames.batchComputeEnvironment(calculatedStackOverviewManager.context.stackName, spot, gpu),
-    ServiceRole: GetAtt(cfLogicalNames.batchServiceRole(), 'Arn'),
+    ServiceRole: getAtt(cfLogicalNames.batchServiceRole(), 'Arn'),
     State: 'ENABLED',
     Type: 'MANAGED',
     ComputeResources: getBatchComputeResourcesConfig(spot, gpu),
@@ -207,13 +199,13 @@ export const getBatchComputeEnvironment = ({ spot, gpu }: { spot: boolean; gpu: 
 };
 
 export const getBatchJobQueue = ({ spot, gpu }: { spot: boolean; gpu: boolean }) =>
-  new JobQueue({
+  cfnResource('AWS::Batch::JobQueue', {
     JobQueueName: awsResourceNames.batchJobQueue(calculatedStackOverviewManager.context.stackName, spot, gpu),
     Priority: 10,
     State: 'ENABLED',
     ComputeEnvironmentOrder: [
       {
-        ComputeEnvironment: Ref(cfLogicalNames.batchComputeEnvironment(spot, gpu)),
+        ComputeEnvironment: ref(cfLogicalNames.batchComputeEnvironment(spot, gpu)),
         Order: 0
       }
     ]
@@ -260,7 +252,7 @@ export const getBatchJobDefinitionContainerProperties = ({
           LogDriver: 'awslogs',
           Options: {
             'awslogs-region': calculatedStackOverviewManager.context.region as string,
-            'awslogs-group': Ref(cfLogicalNames.batchJobLogGroup(name)),
+            'awslogs-group': ref(cfLogicalNames.batchJobLogGroup(name)),
             'awslogs-stream-prefix': 'batch'
           }
         }
@@ -273,12 +265,12 @@ export const getBatchJobDefinitionContainerProperties = ({
       }
     ],
     ResourceRequirements: workload.resources.gpu ? [{ Type: 'GPU', Value: `${workload.resources.gpu}` }] : [],
-    JobRoleArn: GetAtt(cfLogicalNames.batchJobExecutionRole(name), 'Arn')
+    JobRoleArn: getAtt(cfLogicalNames.batchJobExecutionRole(name), 'Arn')
   };
 };
 
 export const getBatchJobDefinition = ({ name, workload }: { name: string; workload: StpBatchJob }) => {
-  return new JobDefinition({
+  return cfnResource('AWS::Batch::JobDefinition', {
     JobDefinitionName: awsResourceNames.batchJobDefinition(name, calculatedStackOverviewManager.context.stackName),
     Type: 'container',
     PropagateTags: true,
@@ -395,9 +387,9 @@ export const getBatchStateMachine = (
   region: AWSRegion,
   accountId: string
 ) => {
-  return new CfStateMachine({
+  return cfnResource('AWS::StepFunctions::StateMachine', {
     StateMachineName: awsResourceNames.batchStateMachine(name, stackName),
-    RoleArn: GetAtt(cfLogicalNames.batchStateMachineExecutionRole(), 'Arn'),
+    RoleArn: getAtt(cfLogicalNames.batchStateMachineExecutionRole(), 'Arn'),
     StateMachineType: 'STANDARD',
     DefinitionString: getBatchStateMachineDefinitionString(name, workload, stackName, region, accountId)
   });
@@ -412,8 +404,8 @@ export const getBachJobLogGroup = ({
   stackName: string;
   retentionDays: number;
 }) => {
-  return new LogGroup({
+  return cfnResource('AWS::Logs::LogGroup', {
     LogGroupName: awsResourceNames.batchJobLogGroup({ stpResourceName: workloadName, stackName }),
-    RetentionInDays: retentionDays
+    RetentionInDays: getCloudFormationLogRetentionDays(retentionDays)
   });
 };

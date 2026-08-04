@@ -1,15 +1,12 @@
+import type {
+  NumberAttributeConstraints,
+  SchemaAttribute,
+  StringAttributeConstraints
+} from '@stacktape/cloudformation/resources/aws-cognito-userpool';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpUserAuthPool } from '@domain-services/config-manager/resolved-types/user-pools';
-import type { SchemaAttribute } from '@cloudform/cognito/userPool';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import UserPool from '@cloudform/cognito/userPool';
-import UserPoolClient from '@cloudform/cognito/userPoolClient';
-import UserPoolDomain from '@cloudform/cognito/userPoolDomain';
-import UserPoolIdentityProvider from '@cloudform/cognito/userPoolIdentityProvider';
-import UserPoolUiCustomizationAttachment from '@cloudform/cognito/userPoolUiCustomizationAttachment';
-import { GetAtt, Ref } from '@cloudform/functions';
-import Role from '@cloudform/iam/role';
-import Permission from '@cloudform/lambda/permission';
-import Route53Record from '@cloudform/route53/recordSet';
 import { domainManager } from '@domain-services/domain-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -56,7 +53,7 @@ export const getUserPoolResource = ({
     tagObject[Key] = Value;
   });
 
-  return new UserPool({
+  return cfnResource('AWS::Cognito::UserPool', {
     UserPoolName: awsResourceNames.userPool(name, calculatedStackOverviewManager.context.stackName),
     AccountRecoverySetting: {
       RecoveryMechanisms: [
@@ -123,7 +120,7 @@ export const getUserPoolResource = ({
       ...(allowEmailAsUserName === false ? [] : ['email'])
     ],
     SmsConfiguration: {
-      SnsCallerArn: GetAtt(cfLogicalNames.snsRoleSendSmsFromCognito(name), 'Arn')
+      SnsCallerArn: getAtt(cfLogicalNames.snsRoleSendSmsFromCognito(name), 'Arn')
       // @todo add external id so that MFA can be sent via SMS "You can set it to anything (a unique string is best, e.g., your project name or UUID)"
       // ExternalId:
     },
@@ -150,7 +147,7 @@ export const getUserPoolResource = ({
 };
 
 export const getSnsRoleSendSmsFromCognito = (userPoolName: string) =>
-  new Role({
+  cfnResource('AWS::IAM::Role', {
     Policies: [
       {
         PolicyName: `send-sms-for-${userPoolName}`,
@@ -215,8 +212,8 @@ export const getUserPoolClientResource = (
   }
   // const usesIdentityProviders = !!identityProviders?.length || enableHostedUi;
   const allowedCallbackUrls = callbackURLs || ['http://localhost:3000/api/auth/callback/cognito'];
-  return new UserPoolClient({
-    UserPoolId: Ref(cfLogicalNames.userPool(userPoolName)),
+  return cfnResource('AWS::Cognito::UserPoolClient', {
+    UserPoolId: ref(cfLogicalNames.userPool(userPoolName)),
     AccessTokenValidity: accessTokenValiditySeconds || 1,
     IdTokenValidity: idTokenValiditySeconds || 1,
     RefreshTokenValidity: refreshTokenValidityDays || 30,
@@ -247,10 +244,10 @@ export const getIdentityProviderResource = (
 ) => {
   const { type, attributeMapping, providerDetails, authorizeScopes } = providerProps;
   const { authorize_scopes, client_id, client_secret } = getIdentityProviderDetails(providerProps);
-  return new UserPoolIdentityProvider({
+  return cfnResource('AWS::Cognito::UserPoolIdentityProvider', {
     ProviderName: type,
     ProviderType: type,
-    UserPoolId: Ref(cfLogicalNames.userPool(userPoolName)),
+    UserPoolId: ref(cfLogicalNames.userPool(userPoolName)),
     AttributeMapping: attributeMapping || { email: 'email' },
     ProviderDetails: {
       authorize_scopes: authorizeScopes ? authorizeScopes.join(' ') : authorize_scopes,
@@ -312,34 +309,34 @@ const getSchema = (attrSchema: AttributeSchema): SchemaAttribute => {
     res.Required = attrSchema.required;
   }
   if (attrSchema.numberMaxValue) {
-    res.NumberAttributeConstraints.MaxValue = String(attrSchema.numberMaxValue);
+    (res.NumberAttributeConstraints as NumberAttributeConstraints).MaxValue = String(attrSchema.numberMaxValue);
   }
   if (attrSchema.numberMinValue) {
-    res.NumberAttributeConstraints.MinValue = String(attrSchema.numberMinValue);
+    (res.NumberAttributeConstraints as NumberAttributeConstraints).MinValue = String(attrSchema.numberMinValue);
   }
   if (attrSchema.stringMaxLength) {
-    res.StringAttributeConstraints.MaxLength = String(attrSchema.stringMaxLength);
+    (res.StringAttributeConstraints as StringAttributeConstraints).MaxLength = String(attrSchema.stringMaxLength);
   }
   if (attrSchema.stringMinLength) {
-    res.StringAttributeConstraints.MinLength = String(attrSchema.stringMinLength);
+    (res.StringAttributeConstraints as StringAttributeConstraints).MinLength = String(attrSchema.stringMinLength);
   }
   return res;
 };
 
 export const getUserPoolDomainResource = (userPool: StpUserAuthPool, userPoolName: string) => {
   if (userPool.customDomain) {
-    return new UserPoolDomain({
-      UserPoolId: Ref(cfLogicalNames.userPool(userPoolName)),
+    return cfnResource('AWS::Cognito::UserPoolDomain', {
+      UserPoolId: ref(cfLogicalNames.userPool(userPoolName)),
       Domain: userPool.customDomain.domainName,
-      CustomDomainConfig: new UserPoolDomain.CustomDomainConfigType({
+      CustomDomainConfig: {
         CertificateArn:
           userPool.customDomain.customCertificateArn ||
           domainManager.getCertificateForDomain(userPool.customDomain.domainName, 'cdn')
-      })
+      }
     });
   }
-  return new UserPoolDomain({
-    UserPoolId: Ref(cfLogicalNames.userPool(userPoolName)),
+  return cfnResource('AWS::Cognito::UserPoolDomain', {
+    UserPoolId: ref(cfLogicalNames.userPool(userPoolName)),
     Domain:
       userPool.hostedUiDomainPrefix ||
       getUserPoolDomainPrefix(calculatedStackOverviewManager.context.stackName, userPoolName)
@@ -347,19 +344,19 @@ export const getUserPoolDomainResource = (userPool: StpUserAuthPool, userPoolNam
 };
 
 export const getLambdaPermissionForHookResource = (lambdaArn: string, userPoolName: string) => {
-  return new Permission({
+  return cfnResource('AWS::Lambda::Permission', {
     FunctionName: lambdaArn,
     Action: 'lambda:InvokeFunction',
     Principal: 'cognito-idp.amazonaws.com',
-    SourceArn: GetAtt(cfLogicalNames.userPool(userPoolName), 'Arn')
+    SourceArn: getAtt(cfLogicalNames.userPool(userPoolName), 'Arn')
   });
 };
 
 export const getUserPoolDetailsCustomResource = (userPool: StpUserAuthPool) => {
   return getStpServiceCustomResource<'userPoolDetails'>({
     userPoolDetails: {
-      userPoolId: Ref(cfLogicalNames.userPool(userPool.name)),
-      userPoolClientId: Ref(cfLogicalNames.userPoolClient(userPool.name))
+      userPoolId: ref(cfLogicalNames.userPool(userPool.name)),
+      userPoolClientId: ref(cfLogicalNames.userPoolClient(userPool.name))
     }
   });
 };
@@ -368,10 +365,10 @@ export const getUserPoolUiCustomizationAttachmentResource = (
   { hostedUiCSS }: StpUserAuthPool,
   userPoolName: string
 ) => {
-  return new UserPoolUiCustomizationAttachment({
+  return cfnResource('AWS::Cognito::UserPoolUICustomizationAttachment', {
     CSS: hostedUiCSS,
-    ClientId: Ref(cfLogicalNames.userPoolClient(userPoolName)),
-    UserPoolId: Ref(cfLogicalNames.userPool(userPoolName))
+    ClientId: ref(cfLogicalNames.userPoolClient(userPoolName)),
+    UserPoolId: ref(cfLogicalNames.userPool(userPoolName))
   });
 };
 
@@ -379,12 +376,12 @@ export const getUserPoolCustomDomainDnsRecord = (
   userPoolName: string,
   domainConfiguration: { fullyQualifiedDomainName: string; hostedZoneId: string }
 ) =>
-  new Route53Record({
+  cfnResource('AWS::Route53::RecordSet', {
     HostedZoneId: domainConfiguration.hostedZoneId,
     Name: domainConfiguration.fullyQualifiedDomainName,
     Type: 'A',
     AliasTarget: {
-      DNSName: GetAtt(cfLogicalNames.userPoolDomain(userPoolName), 'CloudFrontDistribution'),
+      DNSName: getAtt(cfLogicalNames.userPoolDomain(userPoolName), 'CloudFrontDistribution'),
       HostedZoneId: 'Z2FDTNDATAQYW2'
     }
   });

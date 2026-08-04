@@ -1,6 +1,6 @@
 import type { ChildResourceMetadata, ChildResourcesMap } from './types';
 import { getResourcesWithOverrides } from '@stacktape/config-authoring/resource-metadata';
-import { cfTypeToInterface, getPropertyNameFromLogicalName } from './cloudform-utils';
+import { getCloudFormationTypeInfo, getPropertyNameFromLogicalName } from './cloudformation-type-metadata';
 
 /**
  * Generates override property declarations for a resource's child resources
@@ -14,9 +14,11 @@ function generateOverrideProperties(childResources: ChildResourceMetadata[]): st
       continue;
     }
 
-    const mapping = cfTypeToInterface(childResource.resourceType);
+    const mapping = getCloudFormationTypeInfo(childResource.resourceType);
     if (!mapping) {
-      console.warn(`[generate-overrides] Could not map CloudFormation type: ${childResource.resourceType}`);
+      if (childResource.resourceType.startsWith('AWS::')) {
+        throw new Error(`Missing generated properties for AWS resource type ${childResource.resourceType}.`);
+      }
       continue;
     }
 
@@ -45,8 +47,11 @@ function generateTransformProperties(childResources: ChildResourceMetadata[]): s
       continue;
     }
 
-    const mapping = cfTypeToInterface(childResource.resourceType);
+    const mapping = getCloudFormationTypeInfo(childResource.resourceType);
     if (!mapping) {
+      if (childResource.resourceType.startsWith('AWS::')) {
+        throw new Error(`Missing generated properties for AWS resource type ${childResource.resourceType}.`);
+      }
       continue;
     }
 

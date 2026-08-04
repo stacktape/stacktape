@@ -1,5 +1,5 @@
+import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpBucket } from '@domain-services/config-manager/resolved-types/buckets';
-import { GetAtt, Join, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { domainManager } from '@domain-services/domain-manager';
@@ -57,25 +57,25 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
   calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
     nameChain,
     paramName: 'name',
-    paramValue: Ref(cfLogicalNames.bucket(name)),
+    paramValue: ref(cfLogicalNames.bucket(name)),
     showDuringPrint: true
   });
   calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
     paramName: 'arn',
     nameChain,
-    paramValue: GetAtt(cfLogicalNames.bucket(name), 'Arn'),
+    paramValue: getAtt(cfLogicalNames.bucket(name), 'Arn'),
     showDuringPrint: true
   });
   // adding output links
   calculatedStackOverviewManager.addStacktapeResourceLink({
     linkName: 'contents',
     nameChain,
-    linkValue: cfEvaluatedLinks.s3Bucket(Ref(cfLogicalNames.bucket(name)), 'objects')
+    linkValue: cfEvaluatedLinks.s3Bucket(ref(cfLogicalNames.bucket(name)), 'objects')
   });
   calculatedStackOverviewManager.addStacktapeResourceLink({
     linkName: 'metrics',
     nameChain,
-    linkValue: cfEvaluatedLinks.s3Bucket(Ref(cfLogicalNames.bucket(name)), 'metrics')
+    linkValue: cfEvaluatedLinks.s3Bucket(ref(cfLogicalNames.bucket(name)), 'metrics')
   });
 
   if (hasEnabledCdn(definition)) {
@@ -286,7 +286,7 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
           cdnCompatibleResource: definition,
           defaultOriginType: 'bucket',
           customDomains: [cdnDefaultDomainName],
-          certificateArn: GetAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'usEast1CertArn')
+          certificateArn: getAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'usEast1CertArn')
         })
       });
       calculatedStackOverviewManager.addCfChildResource({
@@ -314,7 +314,7 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'cdnCanonicalDomain',
         nameChain,
-        paramValue: GetAtt(
+        paramValue: getAtt(
           cfLogicalNames.cloudfrontDistribution(
             (isCompositeWebResourceType(definition.configParentResourceType)
               ? configManager.findImmediateParent({ nameChain })
@@ -329,9 +329,9 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'cdnCanonicalUrl',
         nameChain,
-        paramValue: Join('', [
+        paramValue: join('', [
           'https://',
-          GetAtt(
+          getAtt(
             cfLogicalNames.cloudfrontDistribution(
               (isCompositeWebResourceType(definition.configParentResourceType)
                 ? configManager.findImmediateParent({ nameChain })
@@ -395,7 +395,7 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'cdnDomain',
           nameChain,
-          paramValue: GetAtt(
+          paramValue: getAtt(
             cfLogicalNames.cloudfrontDistribution(
               (isCompositeWebResourceType(definition.configParentResourceType)
                 ? configManager.findImmediateParent({ nameChain })
@@ -410,10 +410,10 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'cdnCanonicalDomain',
           nameChain,
-          paramValue: Join(
+          paramValue: join(
             ',',
             cloudfrontDistributions.map((_, idx) =>
-              GetAtt(
+              getAtt(
                 cfLogicalNames.cloudfrontDistribution(
                   (isCompositeWebResourceType(definition.configParentResourceType)
                     ? configManager.findImmediateParent({ nameChain })
@@ -430,12 +430,12 @@ export const resolveBucket = ({ definition }: { definition: StpBucket }) => {
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'cdnCanonicalUrl',
           nameChain,
-          paramValue: Join(
+          paramValue: join(
             ',',
             cloudfrontDistributions.map((_, idx) =>
-              Join('', [
+              join('', [
                 'https://',
-                GetAtt(
+                getAtt(
                   cfLogicalNames.cloudfrontDistribution(
                     (isCompositeWebResourceType(definition.configParentResourceType)
                       ? configManager.findImmediateParent({ nameChain })

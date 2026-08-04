@@ -1,15 +1,9 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StacktapeResourceOutput } from '@domain-services/stack-info/types';
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import Api, { Cors } from '@cloudform/apiGatewayV2/api';
-import HttpApiMapping from '@cloudform/apiGatewayV2/apiMapping';
-import HttpApiDomain from '@cloudform/apiGatewayV2/domainName';
-import Stage, { AccessLogSettings } from '@cloudform/apiGatewayV2/stage';
-import VpcLink from '@cloudform/apiGatewayV2/vpcLink';
-import SecurityGroup from '@cloudform/ec2/securityGroup';
-import { GetAtt, Join, Ref } from '@cloudform/functions';
-import LogGroup from '@cloudform/logs/logGroup';
-import Route53Record from '@cloudform/route53/recordSet';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { getDefaultHttpApiCorsAllowedMethods } from '@domain-services/config-manager/utils/http-api-gateways';
@@ -17,9 +11,9 @@ import { domainManager } from '@domain-services/domain-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { getCloudFormationLogRetentionDays } from '@utils/cloudformation';
 import { normalizePathForLink } from '@utils/formatting';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { HttpApiIntegration } from '@stacktape/config/events';
 import type { DomainConfiguration } from '@stacktape/config/shared';
 
@@ -28,7 +22,7 @@ export const getHttpApi = (httpApiConfig: StpHttpApiGateway) => {
   stackManager.getTags().forEach(({ Key, Value }) => {
     tagObject[Key] = Value;
   });
-  return new Api({
+  return cfnResource('AWS::ApiGatewayV2::Api', {
     Name: awsResourceNames.httpApi(calculatedStackOverviewManager.context.stackName),
     CorsConfiguration: httpApiConfig?.cors?.enabled ? getCorsConfiguration({ resource: httpApiConfig }) : undefined,
     ProtocolType: 'HTTP',
@@ -47,8 +41,8 @@ export const getHttpApiStage = ({
   stackManager.getTags().forEach(({ Key, Value }) => {
     tagObject[Key] = Value;
   });
-  return new Stage({
-    ApiId: Ref(cfLogicalNames.httpApi(stpHttpApiName)),
+  return cfnResource('AWS::ApiGatewayV2::Stage', {
+    ApiId: ref(cfLogicalNames.httpApi(stpHttpApiName)),
     StageName: '$default',
     AutoDeploy: true,
     ...(!httpApiConfig.logging?.disabled
@@ -65,17 +59,17 @@ export const getHttpApiLogGroup = ({
   httpApiUserResourceName: string;
   retentionDays: number;
 }) => {
-  return new LogGroup({
+  return cfnResource('AWS::Logs::LogGroup', {
     LogGroupName: awsResourceNames.httpApiLogGroup({
       stackName: calculatedStackOverviewManager.context.stackName,
       stpResourceName: httpApiUserResourceName
     }),
-    RetentionInDays: retentionDays
+    RetentionInDays: getCloudFormationLogRetentionDays(retentionDays)
   });
 };
 
-export const getHttpApiDomainNameResource = (domainName: string, certificateArn: string | IntrinsicFunction) => {
-  return new HttpApiDomain({
+export const getHttpApiDomainNameResource = (domainName: string, certificateArn: string | Intrinsic) => {
+  return cfnResource('AWS::ApiGatewayV2::DomainName', {
     DomainName: domainName,
     DomainNameConfigurations: [{ CertificateArn: certificateArn, EndpointType: 'REGIONAL' }]
   });
@@ -88,21 +82,21 @@ export const getHttpApiDomainMapping = ({
   apiDomainResourceLogicalName: string;
   stpHttpApiName: string;
 }) => {
-  return new HttpApiMapping({
-    DomainName: Ref(apiDomainResourceLogicalName),
-    ApiId: Ref(cfLogicalNames.httpApi(stpHttpApiName)),
-    Stage: Ref(cfLogicalNames.httpApiStage(stpHttpApiName))
+  return cfnResource('AWS::ApiGatewayV2::ApiMapping', {
+    DomainName: ref(apiDomainResourceLogicalName),
+    ApiId: ref(cfLogicalNames.httpApi(stpHttpApiName)),
+    Stage: ref(cfLogicalNames.httpApiStage(stpHttpApiName))
   });
 };
 
 export const getHttpApiDnsRecord = (domainConfiguration: { fullyQualifiedDomainName: string; hostedZoneId: string }) =>
-  new Route53Record({
+  cfnResource('AWS::Route53::RecordSet', {
     HostedZoneId: domainConfiguration.hostedZoneId,
     Name: domainConfiguration.fullyQualifiedDomainName,
     Type: 'A',
     AliasTarget: {
-      DNSName: GetAtt(cfLogicalNames.httpApiDomain(domainConfiguration.fullyQualifiedDomainName), 'RegionalDomainName'),
-      HostedZoneId: GetAtt(
+      DNSName: getAtt(cfLogicalNames.httpApiDomain(domainConfiguration.fullyQualifiedDomainName), 'RegionalDomainName'),
+      HostedZoneId: getAtt(
         cfLogicalNames.httpApiDomain(domainConfiguration.fullyQualifiedDomainName),
         'RegionalHostedZoneId'
       )
@@ -132,10 +126,10 @@ const getHttpApiLogSettings = ({
   httpApiConfig: StpHttpApiGateway;
   stpResourceName: string;
 }) => {
-  return new AccessLogSettings({
-    DestinationArn: GetAtt(cfLogicalNames.httpApiLogGroup(stpResourceName), 'Arn'),
+  return {
+    DestinationArn: getAtt(cfLogicalNames.httpApiLogGroup(stpResourceName), 'Arn'),
     Format: getLogFormat(httpApiConfig.logging?.format)
-  });
+  };
 };
 
 const getLogFormat = (accessLogsFormat: 'CLF' | 'JSON' | 'XML' | 'CSV' = 'JSON'): string => {
@@ -164,18 +158,18 @@ const getLogFormat = (accessLogsFormat: 'CLF' | 'JSON' | 'XML' | 'CSV' = 'JSON')
 
 const getCorsConfiguration = ({ resource }: { resource: StpHttpApiGateway }) => {
   const defaultCors = getDefaultCorsConfiguration({ resource });
-  return new Cors({
+  return {
     AllowOrigins: resource.cors.allowedOrigins || defaultCors.AllowOrigins,
     AllowHeaders: resource.cors.allowedMethods || defaultCors.AllowHeaders,
     AllowCredentials: resource.cors.allowCredentials,
     AllowMethods: resource.cors.allowedMethods || defaultCors.AllowMethods,
     MaxAge: resource.cors.maxAge,
     ExposeHeaders: resource.cors.exposedResponseHeaders
-  });
+  };
 };
 
 const getDefaultCorsConfiguration = ({ resource }: { resource: StpHttpApiGateway }) => {
-  return new Cors({
+  return {
     AllowOrigins: ['*'],
     AllowHeaders: [
       'Content-Type',
@@ -186,7 +180,7 @@ const getDefaultCorsConfiguration = ({ resource }: { resource: StpHttpApiGateway
       'X-Amz-User-Agent'
     ],
     AllowMethods: getDefaultHttpApiCorsAllowedMethods({ resource })
-  });
+  };
 };
 
 export const getHttpApiGatewayVpcLinkSecurityGroupResource = ({
@@ -198,7 +192,7 @@ export const getHttpApiGatewayVpcLinkSecurityGroupResource = ({
   configManager.httpApiGatewayContainerWorkloadsAssociations[stpHttpApiGatewayName].forEach(({ containerPort }) =>
     ports.add(containerPort)
   );
-  return new SecurityGroup({
+  return cfnResource('AWS::EC2::SecurityGroup', {
     VpcId: vpcManager.getVpcId(),
     GroupName: awsResourceNames.httpApiVpcLinkSecurityGroup({
       stackName: calculatedStackOverviewManager.context.stackName,
@@ -219,13 +213,13 @@ export const getHttpApiGatewayVpcLinkResource = ({ stpHttpApiGatewayName }: { st
   stackManager.getTags().forEach(({ Key, Value }) => {
     tagObject[Key] = Value;
   });
-  return new VpcLink({
+  return cfnResource('AWS::ApiGatewayV2::VpcLink', {
     Name: awsResourceNames.httpApiVpcLink({
       stackName: calculatedStackOverviewManager.context.stackName,
       stpResourceName: stpHttpApiGatewayName
     }),
     SubnetIds: vpcManager.getPublicSubnetIds(),
-    SecurityGroupIds: [Ref(cfLogicalNames.httpApiVpcLinkSecurityGroup(stpHttpApiGatewayName))],
+    SecurityGroupIds: [ref(cfLogicalNames.httpApiVpcLinkSecurityGroup(stpHttpApiGatewayName))],
     Tags: tagObject
   });
 };
@@ -241,7 +235,7 @@ export const transformIntegrationsForResourceOutput = ({
 }): StacktapeResourceOutput<'http-api-gateway'>['integrations'] => {
   return gatewayIntegrations.map(({ workloadName, properties: { method, path } }) => ({
     method,
-    url: Join('', [
+    url: join('', [
       resource?.customDomains?.length
         ? `https://${resource.customDomains[0].domainName}`
         : `https://${domainManager.getDefaultDomainForResource({ stpResourceName: resource.name })}`,
@@ -256,8 +250,8 @@ export const getHttpApiGatewayDefaultDomainCustomResource = ({ resource }: { res
     defaultDomain: {
       domainName: domainManager.getDefaultDomainForResource({ stpResourceName: resource.name }),
       targetInfo: {
-        domainName: GetAtt(cfLogicalNames.httpApiDefaultDomain(resource.name), 'RegionalDomainName'),
-        hostedZoneId: GetAtt(cfLogicalNames.httpApiDefaultDomain(resource.name), 'RegionalHostedZoneId')
+        domainName: getAtt(cfLogicalNames.httpApiDefaultDomain(resource.name), 'RegionalDomainName'),
+        hostedZoneId: getAtt(cfLogicalNames.httpApiDefaultDomain(resource.name), 'RegionalHostedZoneId')
       },
       version: domainManager.defaultDomainsInfo.version
     }

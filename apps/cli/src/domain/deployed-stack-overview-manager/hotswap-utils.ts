@@ -1,7 +1,7 @@
+import type { KnownCloudFormationResource } from '@stacktape/cloudformation/resource';
 import type { StackInfoMapResource } from '@domain-services/stack-info/types';
 import type { ResourceDifference } from '@aws-cdk/cloudformation-diff';
 import type { ContainerDefinition, TaskDefinition as SdkTaskDefinition } from '@aws-sdk/client-ecs';
-import type CloudformationTaskDefinition from '@cloudform/ecs/taskDefinition';
 import { lowerCaseFirstCharacterOfObjectKeys, serialize } from '@utils/misc';
 import isEqual from 'lodash/isEqual';
 import orderBy from 'lodash/orderBy';
@@ -61,7 +61,7 @@ export const compareEcsTaskDefinitions = ({
   currentTaskDefinition
 }: {
   // resourceName: string;
-  calculatedTaskDefinition: CloudformationTaskDefinition;
+  calculatedTaskDefinition: KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>;
   currentTaskDefinition: SdkTaskDefinition;
 }) => {
   const pickProperties = (container: ContainerDefinition): ContainerDefinition => {

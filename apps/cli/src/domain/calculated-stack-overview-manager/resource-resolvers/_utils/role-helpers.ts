@@ -1,12 +1,13 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
+import type { Policy } from '@stacktape/cloudformation/resources/aws-iam-role';
+import { getAtt, join, ref, select, split } from '@stacktape/cloudformation/intrinsics';
 import type { CloudformationIamRoleStatement } from '@domain-services/cloudformation-stack-manager/types';
 import type { SupportedMongoAtlasV1CfResourceType } from '@domain-services/cloudformation-registry-manager/types';
 import type { StpEfsFilesystem } from '@domain-services/config-manager/resolved-types/efs-filesystem';
 import type { StpMongoDbAtlasCluster } from '@domain-services/config-manager/resolved-types/mongo-db-atlas-clusters';
 import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
-import type CfResource from '@cloudform/resource';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { GetAtt, Join, Ref, Select, Split } from '@cloudform/functions';
-import { Policy } from '@cloudform/iam/role';
 import { configManager } from '@domain-services/config-manager';
 import { thirdPartyProviderManager } from '@domain-services/third-party-provider-credentials-manager';
 import { arns } from '@stacktape/naming/arns';
@@ -15,7 +16,6 @@ import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regi
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
 import type { BucketPolicyIamRoleStatement } from '@stacktape/config/buckets';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 export const getAtlasMongoRoleAssociatedUserResource = ({
@@ -32,20 +32,20 @@ export const getAtlasMongoRoleAssociatedUserResource = ({
     DependsOn: accessToAtlasMongoClusterResources.map(({ name }) => cfLogicalNames.atlasMongoCluster(name)),
     Properties: {
       DatabaseName: '$external',
-      ProjectId: Ref(cfLogicalNames.atlasMongoProject()),
+      ProjectId: ref(cfLogicalNames.atlasMongoProject()),
       AwsIAMType: 'ROLE',
       Roles: [{ RoleName: 'readWriteAnyDatabase', DatabaseName: 'admin' }],
       Scopes: accessToAtlasMongoClusterResources.map(({ name }) => ({
         Type: 'CLUSTER',
         Name: awsResourceNames.atlasMongoCluster(name)
       })),
-      Username: GetAtt(roleCfLogicalName, 'Arn'),
+      Username: getAtt(roleCfLogicalName, 'Arn'),
       ApiKeys: {
         PublicKey: atlasMongoProviderConfig.publicKey,
         PrivateKey: atlasMongoProviderConfig.privateKey
       }
     }
-  } as CfResource;
+  } as AnyCloudFormationResource;
 };
 
 export const getFormattedRuleStatements = (
@@ -126,20 +126,20 @@ const getStatementsForAccessingBatchJobs = (statementProps: StatementProps, hasG
   {
     Effect: 'Allow',
     Action: ['states:StartExecution', 'states:StopExecution', 'states:ListExecutions'],
-    Resource: [Ref(cfLogicalNames.batchStateMachine(statementProps.stacktapeResourceName)) as unknown as string]
+    Resource: [ref(cfLogicalNames.batchStateMachine(statementProps.stacktapeResourceName)) as unknown as string]
   },
   {
     Effect: 'Allow',
     Action: ['states:DescribeExecution'],
     Resource: [
-      Join(':', [
-        Select(0, Split(':', Ref(cfLogicalNames.batchStateMachine(statementProps.stacktapeResourceName)))),
-        Select(1, Split(':', Ref(cfLogicalNames.batchStateMachine(statementProps.stacktapeResourceName)))),
-        Select(2, Split(':', Ref(cfLogicalNames.batchStateMachine(statementProps.stacktapeResourceName)))),
-        Select(3, Split(':', Ref(cfLogicalNames.batchStateMachine(statementProps.stacktapeResourceName)))),
-        Select(4, Split(':', Ref(cfLogicalNames.batchStateMachine(statementProps.stacktapeResourceName)))),
+      join(':', [
+        select(0, split(':', ref(cfLogicalNames.batchStateMachine(statementProps.stacktapeResourceName)))),
+        select(1, split(':', ref(cfLogicalNames.batchStateMachine(statementProps.stacktapeResourceName)))),
+        select(2, split(':', ref(cfLogicalNames.batchStateMachine(statementProps.stacktapeResourceName)))),
+        select(3, split(':', ref(cfLogicalNames.batchStateMachine(statementProps.stacktapeResourceName)))),
+        select(4, split(':', ref(cfLogicalNames.batchStateMachine(statementProps.stacktapeResourceName)))),
         'execution',
-        Select(6, Split(':', Ref(cfLogicalNames.batchStateMachine(statementProps.stacktapeResourceName)))),
+        select(6, split(':', ref(cfLogicalNames.batchStateMachine(statementProps.stacktapeResourceName)))),
         '*'
       ]) as unknown as string
     ]
@@ -150,20 +150,20 @@ const getStatementsForAccessingStateMachine = (statementProps: StatementProps): 
   {
     Effect: 'Allow',
     Action: ['states:StartExecution', 'states:StopExecution', 'states:ListExecutions', 'states:DescribeExecution'],
-    Resource: [Ref(cfLogicalNames.stateMachine(statementProps.stacktapeResourceName)) as unknown as string]
+    Resource: [ref(cfLogicalNames.stateMachine(statementProps.stacktapeResourceName)) as unknown as string]
   },
   {
     Effect: 'Allow',
     Action: ['states:DescribeExecution'],
     Resource: [
-      Join(':', [
-        Select(0, Split(':', Ref(cfLogicalNames.stateMachine(statementProps.stacktapeResourceName)))),
-        Select(1, Split(':', Ref(cfLogicalNames.stateMachine(statementProps.stacktapeResourceName)))),
-        Select(2, Split(':', Ref(cfLogicalNames.stateMachine(statementProps.stacktapeResourceName)))),
-        Select(3, Split(':', Ref(cfLogicalNames.stateMachine(statementProps.stacktapeResourceName)))),
-        Select(4, Split(':', Ref(cfLogicalNames.stateMachine(statementProps.stacktapeResourceName)))),
+      join(':', [
+        select(0, split(':', ref(cfLogicalNames.stateMachine(statementProps.stacktapeResourceName)))),
+        select(1, split(':', ref(cfLogicalNames.stateMachine(statementProps.stacktapeResourceName)))),
+        select(2, split(':', ref(cfLogicalNames.stateMachine(statementProps.stacktapeResourceName)))),
+        select(3, split(':', ref(cfLogicalNames.stateMachine(statementProps.stacktapeResourceName)))),
+        select(4, split(':', ref(cfLogicalNames.stateMachine(statementProps.stacktapeResourceName)))),
         'execution',
-        Select(6, Split(':', Ref(cfLogicalNames.stateMachine(statementProps.stacktapeResourceName)))),
+        select(6, split(':', ref(cfLogicalNames.stateMachine(statementProps.stacktapeResourceName)))),
         '*'
       ]) as unknown as string
     ]
@@ -172,7 +172,7 @@ const getStatementsForAccessingStateMachine = (statementProps: StatementProps): 
 
 const getStatementsForAccessingEventBus = (statementProps: StatementProps): StpIamRoleStatement[] => [
   {
-    Resource: [GetAtt(cfLogicalNames.eventBus(statementProps.stacktapeResourceName), 'Arn') as unknown as string],
+    Resource: [getAtt(cfLogicalNames.eventBus(statementProps.stacktapeResourceName), 'Arn') as unknown as string],
     Action: ['events:PutEvents'],
     Effect: 'Allow'
   }
@@ -180,13 +180,13 @@ const getStatementsForAccessingEventBus = (statementProps: StatementProps): StpI
 
 const getStatementsForAccessingBucket = (statementProps: StatementProps): StpIamRoleStatement[] => [
   {
-    Resource: [GetAtt(cfLogicalNames.bucket(statementProps.stacktapeResourceName), 'Arn') as unknown as string],
+    Resource: [getAtt(cfLogicalNames.bucket(statementProps.stacktapeResourceName), 'Arn') as unknown as string],
     Action: ['s3:ListBucket', 's3:GetBucket*'],
     Effect: 'Allow'
   },
   {
     Resource: [
-      Join('', [GetAtt(cfLogicalNames.bucket(statementProps.stacktapeResourceName), 'Arn'), '/*']) as unknown as string
+      join('', [getAtt(cfLogicalNames.bucket(statementProps.stacktapeResourceName), 'Arn'), '/*']) as unknown as string
     ],
     Action: ['s3:*Object*', 's3:Abort*', 's3:*MultipartUpload*'],
     Effect: 'Allow'
@@ -210,9 +210,9 @@ const getStatementsForAccessingDynamoTable = (statementProps: StatementProps): S
       'dynamodb:PutItem'
     ],
     Resource: [
-      GetAtt(cfLogicalNames.dynamoGlobalTable(statementProps.stacktapeResourceName), 'Arn') as unknown as string,
-      Join('', [
-        GetAtt(cfLogicalNames.dynamoGlobalTable(statementProps.stacktapeResourceName), 'Arn'),
+      getAtt(cfLogicalNames.dynamoGlobalTable(statementProps.stacktapeResourceName), 'Arn') as unknown as string,
+      join('', [
+        getAtt(cfLogicalNames.dynamoGlobalTable(statementProps.stacktapeResourceName), 'Arn'),
         '/index/*'
       ]) as unknown as string
     ]
@@ -224,8 +224,8 @@ const getStatementsForAccessingOpenSearchDomain = (statementProps: StatementProp
     Effect: 'Allow',
     Action: ['es:ESHttp*'],
     Resource: [
-      Join('', [
-        GetAtt(cfLogicalNames.openSearchDomain(statementProps.stacktapeResourceName), 'Arn'),
+      join('', [
+        getAtt(cfLogicalNames.openSearchDomain(statementProps.stacktapeResourceName), 'Arn'),
         '/*'
       ]) as unknown as string
     ]
@@ -236,7 +236,7 @@ const getStatementsForAccessingUserAuthPool = (statementProps: StatementProps): 
   {
     Effect: 'Allow',
     Action: ['cognito-idp:*'],
-    Resource: [GetAtt(cfLogicalNames.userPool(statementProps.stacktapeResourceName), 'Arn') as unknown as string]
+    Resource: [getAtt(cfLogicalNames.userPool(statementProps.stacktapeResourceName), 'Arn') as unknown as string]
   }
 ];
 
@@ -253,7 +253,7 @@ const getStatementsForAccessingSqsQueue = (statementProps: StatementProps): StpI
       'sqs:ReceiveMessage',
       'sqs:SendMessage'
     ],
-    Resource: [GetAtt(cfLogicalNames.sqsQueue(statementProps.stacktapeResourceName), 'Arn') as unknown as string]
+    Resource: [getAtt(cfLogicalNames.sqsQueue(statementProps.stacktapeResourceName), 'Arn') as unknown as string]
   }
 ];
 
@@ -268,7 +268,7 @@ const getStatementsForAccessingSnsTopic = (statementProps: StatementProps): StpI
       'sns:Subscribe',
       'sns:Unsubscribe'
     ],
-    Resource: [GetAtt(cfLogicalNames.snsTopic(statementProps.stacktapeResourceName), 'TopicArn') as unknown as string]
+    Resource: [getAtt(cfLogicalNames.snsTopic(statementProps.stacktapeResourceName), 'TopicArn') as unknown as string]
   }
 ];
 
@@ -285,7 +285,7 @@ const getStatementsForAccessingKinesisStream = (statementProps: StatementProps):
       'kinesis:PutRecord',
       'kinesis:PutRecords'
     ],
-    Resource: [GetAtt(cfLogicalNames.kinesisStream(statementProps.stacktapeResourceName), 'Arn') as unknown as string]
+    Resource: [getAtt(cfLogicalNames.kinesisStream(statementProps.stacktapeResourceName), 'Arn') as unknown as string]
   }
 ];
 
@@ -303,13 +303,13 @@ const getStatementsForAwsServiceMacro = (macro: ConnectToAwsServicesMacro): StpI
 };
 
 export const getPolicyForCustomIamRoleStatements = (statements: StpIamRoleStatement[]) => {
-  return new Policy({
+  return {
     PolicyName: 'custom-iam-role-statements',
     PolicyDocument: {
       Version: '2012-10-17',
       Statement: getFormattedRuleStatements(statements)
     }
-  });
+  };
 };
 
 export const getPoliciesForRoles = ({
@@ -323,7 +323,7 @@ export const getPoliciesForRoles = ({
   accessToResourcesRequiringRoleChanges: StpResourceScopableByConnectToAffectingRole[];
   accessToAwsServices: ConnectToAwsServicesMacro[];
   mountedEfsFilesystems?: StpEfsFilesystem[];
-  mountedS3FilesAccessPointArns?: (string | IntrinsicFunction)[];
+  mountedS3FilesAccessPointArns?: (string | Intrinsic)[];
 }) => {
   const policies: Policy[] = [];
   if (iamRoleStatements?.length) {
@@ -418,15 +418,13 @@ export const getPoliciesForRoles = ({
         }
       }
     });
-    policies.push(
-      new Policy({
-        PolicyName: 'custom-allow-access-to-policy-statements',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: connectToStatements
-        }
-      })
-    );
+    policies.push({
+      PolicyName: 'custom-allow-access-to-policy-statements',
+      PolicyDocument: {
+        Version: '2012-10-17',
+        Statement: connectToStatements
+      }
+    });
   }
   return policies;
 };
@@ -473,7 +471,7 @@ export const getLambdaLogResourceArnsForPermissions = ({
 // Function to create IAM policy statements for accessing mounted EFS filesystems
 const getPolicyForMountedEfsFilesystems = (mountedEfsFilesystems: StpEfsFilesystem[]): Policy => {
   const efsArns = mountedEfsFilesystems.map(
-    (fs) => GetAtt(cfLogicalNames.efsFilesystem(fs.name), 'Arn') as unknown as string
+    (fs) => getAtt(cfLogicalNames.efsFilesystem(fs.name), 'Arn') as unknown as string
   );
 
   // Define statements separately
@@ -498,19 +496,17 @@ const getPolicyForMountedEfsFilesystems = (mountedEfsFilesystems: StpEfsFilesyst
     // If issues arise, consider adding DescribeAccessPoints for the specific access point ARNs
   ];
 
-  return new Policy({
+  return {
     PolicyName: 'efs-mount-access',
     PolicyDocument: {
       Version: '2012-10-17',
       Statement: statements // Use the combined statements array
     }
-  });
+  };
 };
 
-const getPolicyForMountedS3FilesAccessPoints = (
-  mountedS3FilesAccessPointArns: (string | IntrinsicFunction)[]
-): Policy => {
-  return new Policy({
+const getPolicyForMountedS3FilesAccessPoints = (mountedS3FilesAccessPointArns: (string | Intrinsic)[]): Policy => {
+  return {
     PolicyName: 's3-files-mount-access',
     PolicyDocument: {
       Version: '2012-10-17',
@@ -527,5 +523,5 @@ const getPolicyForMountedS3FilesAccessPoints = (
         }
       ]
     }
-  });
+  };
 };

@@ -1,3 +1,18 @@
+import type {
+  ContainerDefinition,
+  HealthCheck,
+  PortMapping
+} from '@stacktape/cloudformation/resources/aws-ecs-taskdefinition';
+import type { Ingress } from '@stacktape/cloudformation/resources/aws-ec2-securitygroup';
+import type { KeyValuePair, MountPoint, Volume } from '@stacktape/cloudformation/resources/aws-ecs-taskdefinition';
+import type { LoadBalancer } from '@stacktape/cloudformation/resources/aws-ecs-service';
+import type {
+  ServiceConnectService,
+  ServiceProperties,
+  ServiceRegistry
+} from '@stacktape/cloudformation/resources/aws-ecs-service';
+import { base64, getAtt, join, ref, sub } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource, type KnownCloudFormationResource } from '@stacktape/cloudformation/resource';
 import type { SupportedEcsBlueGreenV1ResourceType } from '@domain-services/cloudformation-registry-manager/types';
 import type {
   ContainerWorkloadTargetDetails,
@@ -9,32 +24,7 @@ import type {
   StpContainerWorkload
 } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
-import type { ServiceConnectService, ServiceProperties, ServiceRegistry } from '@cloudform/ecs/service';
-import type { KeyValuePair, MountPoint, Volume } from '@cloudform/ecs/taskDefinition';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import ScalableTarget from '@cloudform/applicationAutoScaling/scalableTarget';
-import ScalingPolicy from '@cloudform/applicationAutoScaling/scalingPolicy';
-import AutoScalingGroup from '@cloudform/autoScaling/autoScalingGroup';
-import AutoScalingGroupWarmPool from '@cloudform/autoScaling/warmPool';
-import DeploymentGroup from '@cloudform/codeDeploy/deploymentGroup';
-import LaunchTemplate from '@cloudform/ec2/launchTemplate';
-import SecurityGroup, { Ingress } from '@cloudform/ec2/securityGroup';
-import CapacityProvider from '@cloudform/ecs/capacityProvider';
-import EcsCluster from '@cloudform/ecs/cluster';
-import CapacityProviderAssociation from '@cloudform/ecs/clusterCapacityProviderAssociations';
-import EcsService, { LoadBalancer } from '@cloudform/ecs/service';
-import TaskDefinition, {
-  ContainerDefinition,
-  ContainerDependency,
-  HealthCheck,
-  PortMapping
-} from '@cloudform/ecs/taskDefinition';
-import TargetGroup, { TargetGroupAttribute } from '@cloudform/elasticLoadBalancingV2/targetGroup';
-import { Base64, GetAtt, Join, Ref, Sub } from '@cloudform/functions';
-import InstanceProfile from '@cloudform/iam/instanceProfile';
-import Role, { Policy } from '@cloudform/iam/role';
-import LogGroup from '@cloudform/logs/logGroup';
-import SchedulerRule from '@cloudform/scheduler/schedule';
 
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -54,7 +44,11 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { portMappingsPortName } from '@stacktape/naming/workload-names';
 import { definedValueOr } from '@utils/misc';
-import { getCfEnvironment, transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
+import {
+  getCfEnvironment,
+  getCloudFormationLogRetentionDays,
+  transformIntoCloudformationSubstitutedString
+} from '@utils/cloudformation';
 import { getAugmentedEnvironment } from '@utils/environment';
 import uniqWith from 'lodash/uniqWith';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
@@ -80,7 +74,7 @@ import { DEFAULT_CONTAINER_NODE_VERSION } from '@stacktape/packaging/bundlers/co
 const BLUE_GREEN_SERVICE_RESOURCE_TYPE: SupportedEcsBlueGreenV1ResourceType = 'Stacktape::ECSBlueGreenV1::Service';
 
 export const getEcsCluster = ({ workload }: { workload: StpContainerWorkload }) => {
-  const cluster = new EcsCluster({
+  const cluster = cfnResource('AWS::ECS::Cluster', {
     ClusterName: awsResourceNames.ecsCluster(workload.name, calculatedStackOverviewManager.context.stackName)
   });
   // if (workload.resources.instanceTypes) {
@@ -91,7 +85,7 @@ export const getEcsCluster = ({ workload }: { workload: StpContainerWorkload }) 
 };
 
 export const getEcsExecutionRole = (credentialSecretArns: string[]) =>
-  new Role({
+  cfnResource('AWS::IAM::Role', {
     AssumeRolePolicyDocument: {
       Statement: [
         {
@@ -125,7 +119,7 @@ export const getEcsExecutionRole = (credentialSecretArns: string[]) =>
   });
 
 export const getEcsAutoScalingRole = () =>
-  new Role({
+  cfnResource('AWS::IAM::Role', {
     AssumeRolePolicyDocument: {
       Statement: [
         {
@@ -141,7 +135,7 @@ export const getEcsAutoScalingRole = () =>
   });
 
 export const getEcsEc2InstanceRole = () =>
-  new Role({
+  cfnResource('AWS::IAM::Role', {
     Path: '/',
     AssumeRolePolicyDocument: {
       Version: '2008-10-17',
@@ -151,9 +145,9 @@ export const getEcsEc2InstanceRole = () =>
   });
 
 export const getEcsEc2InstanceProfile = () =>
-  new InstanceProfile({
+  cfnResource('AWS::IAM::InstanceProfile', {
     Path: '/',
-    Roles: [Ref(cfLogicalNames.ecsEc2InstanceRole())]
+    Roles: [ref(cfLogicalNames.ecsEc2InstanceRole())]
   });
 
 export const getEcsTaskRole = ({
@@ -172,7 +166,7 @@ export const getEcsTaskRole = ({
   enableRemoteSessions: boolean;
 }) => {
   const isDevStack = calculatedStackOverviewManager.context.command === 'dev';
-  return new Role({
+  return cfnResource('AWS::IAM::Role', {
     RoleName: awsResourceNames.containerWorkloadRole(
       calculatedStackOverviewManager.context.stackName,
       calculatedStackOverviewManager.context.region,
@@ -201,7 +195,7 @@ export const getEcsTaskRole = ({
       }),
       ...(enableRemoteSessions
         ? [
-            new Policy({
+            {
               PolicyName: 'ssm-messages',
               PolicyDocument: {
                 Version: '2012-10-17',
@@ -218,7 +212,7 @@ export const getEcsTaskRole = ({
                   }
                 ]
               }
-            })
+            }
           ]
         : [])
     ]
@@ -234,8 +228,8 @@ const formatPorts = ({
 }): PortMapping[] => {
   const resultMappings: PortMapping[] = [];
   const openPorts: {
-    tcp: { [portNum: number]: { appProtocol?: string } };
-    udp: { [portNum: number]: { appProtocol?: string } };
+    tcp: { [portNum: number]: { appProtocol?: 'grpc' | 'http' | 'http2' } };
+    udp: { [portNum: number]: { appProtocol?: 'grpc' | 'http' | 'http2' } };
   } = { tcp: {}, udp: {} };
   (events || []).forEach((event) => {
     const protocol =
@@ -247,19 +241,17 @@ const formatPorts = ({
         ? 'tcp'
         : 'udp';
     openPorts[protocol][event.properties.containerPort] =
-      event.type === 'service-connect' ? { appProtocol: event.properties.protocol } : {};
+      event.type === 'service-connect' ? { appProtocol: event.properties.protocol as 'grpc' | 'http' | 'http2' } : {};
   });
   Object.entries(openPorts).forEach(([protocol, portConfigs]) =>
     Object.entries(portConfigs).forEach(([num, { appProtocol }]) =>
-      resultMappings.push(
-        new PortMapping({
-          ContainerPort: Number(num),
-          Protocol: protocol,
-          HostPort: usesEc2Instances ? 0 : Number(num),
-          Name: portMappingsPortName(Number(num)),
-          AppProtocol: appProtocol || undefined
-        })
-      )
+      resultMappings.push({
+        ContainerPort: Number(num),
+        Protocol: protocol,
+        HostPort: usesEc2Instances ? 0 : Number(num),
+        Name: portMappingsPortName(Number(num)),
+        AppProtocol: appProtocol || undefined
+      })
     )
   );
   return resultMappings;
@@ -267,14 +259,13 @@ const formatPorts = ({
 
 const formatInternalHealthCheck = (
   internalHealthCheck: ContainerWorkloadContainer['internalHealthCheck']
-): HealthCheck =>
-  new HealthCheck({
-    Command: internalHealthCheck.healthCheckCommand,
-    Interval: internalHealthCheck.intervalSeconds,
-    Retries: internalHealthCheck.retries,
-    StartPeriod: internalHealthCheck.startPeriodSeconds,
-    Timeout: internalHealthCheck.timeoutSeconds
-  });
+): HealthCheck => ({
+  Command: internalHealthCheck.healthCheckCommand,
+  Interval: internalHealthCheck.intervalSeconds,
+  Retries: internalHealthCheck.retries,
+  StartPeriod: internalHealthCheck.startPeriodSeconds,
+  Timeout: internalHealthCheck.timeoutSeconds
+});
 
 // Helper function to generate consistent volume names
 const getEfsVolumeName = (efsFilesystemName: string, rootDirectory?: string): string => {
@@ -324,7 +315,7 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
       };
     });
 
-    return new ContainerDefinition({
+    return {
       Name: container.name,
       Image: getImageUrlForMultiTask(workload, container.name),
       PortMappings: formatPorts({
@@ -345,18 +336,18 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
             LogDriver: 'awslogs',
             Options: {
               'awslogs-region': region,
-              'awslogs-group': Ref(cfLogicalNames.ecsLogGroup(workload.name, container.name)),
+              'awslogs-group': ref(cfLogicalNames.ecsLogGroup(workload.name, container.name)),
               'awslogs-stream-prefix': 'ecs'
             }
           }
         : undefined,
-      DependsOn: (container.dependsOn || []).map(
-        ({ condition, containerName }) =>
-          new ContainerDependency({ Condition: condition, ContainerName: containerName })
-      ),
+      DependsOn: (container.dependsOn || []).map(({ condition, containerName }) => ({
+        Condition: condition,
+        ContainerName: containerName
+      })),
       // Add MountPoints to the container definition
       MountPoints: mountPoints.length > 0 ? mountPoints : undefined
-    });
+    };
   });
 };
 
@@ -366,17 +357,17 @@ export const getEcsEc2InstanceLaunchTemplate = ({ workload }: { workload: StpCon
     ?.ProcessorInfo.SupportedArchitectures.includes('arm64')
     ? 'ARM64'
     : 'X86_64';
-  return new LaunchTemplate({
+  return cfnResource('AWS::EC2::LaunchTemplate', {
     LaunchTemplateData: {
       ImageId:
         cpuArchitecture === 'ARM64'
           ? '{{resolve:ssm:/aws/service/ecs/optimized-ami/amazon-linux-2023/arm64/recommended/image_id}}'
           : '{{resolve:ssm:/aws/service/ecs/optimized-ami/amazon-linux-2023/recommended/image_id}}',
       IamInstanceProfile: {
-        Arn: GetAtt(cfLogicalNames.ecsEc2InstanceProfile(), 'Arn')
+        Arn: getAtt(cfLogicalNames.ecsEc2InstanceProfile(), 'Arn')
       },
-      UserData: Base64(
-        Sub(
+      UserData: base64(
+        sub(
           [
             '#!/bin/bash',
             'echo ECS_CLUSTER=${clusterName} >> /etc/ecs/ecs.config;',
@@ -384,7 +375,7 @@ export const getEcsEc2InstanceLaunchTemplate = ({ workload }: { workload: StpCon
             'echo ECS_ENABLE_CONTAINER_METADATA=true >> /etc/ecs/ecs.config;'
           ].join('\n'),
           {
-            clusterName: Ref(cfLogicalNames.ecsCluster(workload.name))
+            clusterName: ref(cfLogicalNames.ecsCluster(workload.name))
           }
         )
       ),
@@ -403,7 +394,7 @@ export const getEcsEc2InstanceLaunchTemplate = ({ workload }: { workload: StpCon
             }
           : undefined,
       InstanceType: workload.resources.instanceTypes.length === 1 ? workload.resources.instanceTypes[0] : undefined,
-      SecurityGroupIds: [Ref(cfLogicalNames.workloadSecurityGroup(workload.name))],
+      SecurityGroupIds: [ref(cfLogicalNames.workloadSecurityGroup(workload.name))],
       TagSpecifications: [
         {
           ResourceType: 'instance',
@@ -448,7 +439,7 @@ export const getEcsEc2InstanceLaunchTemplate = ({ workload }: { workload: StpCon
 };
 
 export const getEc2AutoscalingGroup = ({ workload }: { workload: StpContainerWorkload }) => {
-  const resource = new AutoScalingGroup({
+  const resource = cfnResource('AWS::AutoScaling::AutoScalingGroup', {
     MinSize: '0',
     // the maximum size of scaling group is maximum number of task instances * 4
     // this allows to have more instances during multiple sequential deployments
@@ -459,8 +450,8 @@ export const getEc2AutoscalingGroup = ({ workload }: { workload: StpContainerWor
         ? {
             LaunchTemplate: {
               LaunchTemplateSpecification: {
-                LaunchTemplateId: Ref(cfLogicalNames.ecsEc2InstanceLaunchTemplate(workload.name)),
-                Version: GetAtt(cfLogicalNames.ecsEc2InstanceLaunchTemplate(workload.name), 'LatestVersionNumber')
+                LaunchTemplateId: ref(cfLogicalNames.ecsEc2InstanceLaunchTemplate(workload.name)),
+                Version: getAtt(cfLogicalNames.ecsEc2InstanceLaunchTemplate(workload.name), 'LatestVersionNumber')
               },
               Overrides: workload.resources.instanceTypes.map((instanceType) => ({
                 InstanceType: instanceType
@@ -474,8 +465,8 @@ export const getEc2AutoscalingGroup = ({ workload }: { workload: StpContainerWor
     LaunchTemplate:
       workload.resources.instanceTypes.length === 1
         ? {
-            LaunchTemplateId: Ref(cfLogicalNames.ecsEc2InstanceLaunchTemplate(workload.name)),
-            Version: GetAtt(cfLogicalNames.ecsEc2InstanceLaunchTemplate(workload.name), 'LatestVersionNumber')
+            LaunchTemplateId: ref(cfLogicalNames.ecsEc2InstanceLaunchTemplate(workload.name)),
+            Version: getAtt(cfLogicalNames.ecsEc2InstanceLaunchTemplate(workload.name), 'LatestVersionNumber')
           }
         : undefined,
     AutoScalingGroupName: awsResourceNames.ecsEc2AutoscalingGroup(
@@ -500,8 +491,8 @@ export const getEc2AutoscalingGroup = ({ workload }: { workload: StpContainerWor
 };
 
 export const getEc2AutoscalingGroupWarmPool = ({ workload }: { workload: StpContainerWorkload }) => {
-  const resource = new AutoScalingGroupWarmPool({
-    AutoScalingGroupName: Ref(cfLogicalNames.ecsEc2AutoscalingGroup(workload.name)),
+  const resource = cfnResource('AWS::AutoScaling::WarmPool', {
+    AutoScalingGroupName: ref(cfLogicalNames.ecsEc2AutoscalingGroup(workload.name)),
     MinSize: 0,
     MaxGroupPreparedCapacity: workload.scaling.maxInstances,
     PoolState: 'Stopped'
@@ -513,7 +504,7 @@ export const getEc2AutoscalingGroupWarmPool = ({ workload }: { workload: StpCont
 export const getEcsEc2ForceDeleteAsgCustomResource = ({ workload }: { workload: StpContainerWorkload }) => {
   const resource = getStpServiceCustomResource<'forceDeleteAsg'>({
     forceDeleteAsg: {
-      asgName: Ref(cfLogicalNames.ecsEc2AutoscalingGroup(workload.name))
+      asgName: ref(cfLogicalNames.ecsEc2AutoscalingGroup(workload.name))
     }
   });
   // Ensure this custom resource is deleted BEFORE the capacity provider (so its Delete handler
@@ -529,7 +520,7 @@ export const getEcsDisableManagedTerminationProtectionCustomResource = ({
 }) => {
   const resource = getStpServiceCustomResource<'disableEcsManagedTerminationProtection'>({
     disableEcsManagedTerminationProtection: {
-      capacityProviderName: Ref(cfLogicalNames.ecsEc2CapacityProvider(workload.name))
+      capacityProviderName: ref(cfLogicalNames.ecsEc2CapacityProvider(workload.name))
     }
   });
   // Ensure this custom resource is deleted BEFORE the capacity provider, so its Delete handler
@@ -544,7 +535,7 @@ export const getEcsDeregisterTargetsCustomResource = ({ workload }: { workload: 
     containers: workload.containers
   })
     .map(({ loadBalancerName, targetContainerPort }) => {
-      return Ref(
+      return ref(
         cfLogicalNames.targetGroup({
           stpResourceName: workload.name,
           loadBalancerName,
@@ -571,9 +562,9 @@ export const getEcsDeregisterTargetsCustomResource = ({ workload }: { workload: 
 };
 
 export const getEcsEc2CapacityProvider = ({ workload }: { workload: StpContainerWorkload }) => {
-  const resource = new CapacityProvider({
+  const resource = cfnResource('AWS::ECS::CapacityProvider', {
     AutoScalingGroupProvider: {
-      AutoScalingGroupArn: Ref(cfLogicalNames.ecsEc2AutoscalingGroup(workload.name)),
+      AutoScalingGroupArn: ref(cfLogicalNames.ecsEc2AutoscalingGroup(workload.name)),
       ManagedScaling: {
         Status: 'ENABLED',
         TargetCapacity: 100,
@@ -593,10 +584,10 @@ export const getEcsEc2CapacityProvider = ({ workload }: { workload: StpContainer
 };
 
 export const getEcsEc2CapacityProviderAssociation = ({ workload }: { workload: StpContainerWorkload }) => {
-  const resource = new CapacityProviderAssociation({
-    Cluster: Ref(cfLogicalNames.ecsCluster(workload.name)),
+  const resource = cfnResource('AWS::ECS::ClusterCapacityProviderAssociations', {
+    Cluster: ref(cfLogicalNames.ecsCluster(workload.name)),
     DefaultCapacityProviderStrategy: [],
-    CapacityProviders: [Ref(cfLogicalNames.ecsEc2CapacityProvider(workload.name))]
+    CapacityProviders: [ref(cfLogicalNames.ecsEc2CapacityProvider(workload.name))]
   });
   resource.DependsOn = [cfLogicalNames.ecsCluster(workload.name)];
   return resource;
@@ -612,28 +603,24 @@ const getEcsServiceSecurityGroupIngress = ({
   const rules: Ingress[] = [];
   getTargetsForContainerWorkload({ workloadName, containers: workload.containers }).forEach(
     ({ targetContainerPort, targetProtocol, loadBalancerName, loadBalancerHealthCheck }) => {
-      rules.push(
-        new Ingress({
-          Description: `from load balancer ${loadBalancerName} to ${targetContainerPort}`,
-          FromPort: workload.resources.instanceTypes ? 32768 : targetContainerPort,
-          ToPort: workload.resources.instanceTypes ? 65535 : targetContainerPort,
-          IpProtocol: targetProtocol === 'HTTP' || targetProtocol === 'TCP' ? 'tcp' : 'udp',
-          SourceSecurityGroupId: Ref(cfLogicalNames.loadBalancerSecurityGroup(loadBalancerName))
-        })
-      );
+      rules.push({
+        Description: `from load balancer ${loadBalancerName} to ${targetContainerPort}`,
+        FromPort: workload.resources.instanceTypes ? 32768 : targetContainerPort,
+        ToPort: workload.resources.instanceTypes ? 65535 : targetContainerPort,
+        IpProtocol: targetProtocol === 'HTTP' || targetProtocol === 'TCP' ? 'tcp' : 'udp',
+        SourceSecurityGroupId: ref(cfLogicalNames.loadBalancerSecurityGroup(loadBalancerName))
+      });
       if (
         loadBalancerHealthCheck?.healthCheckPort &&
         loadBalancerHealthCheck?.healthCheckPort !== targetContainerPort
       ) {
-        rules.push(
-          new Ingress({
-            Description: `health check port ${loadBalancerHealthCheck.healthCheckPort}`,
-            FromPort: workload.resources.instanceTypes ? 32768 : loadBalancerHealthCheck.healthCheckPort,
-            ToPort: workload.resources.instanceTypes ? 65535 : loadBalancerHealthCheck.healthCheckPort,
-            IpProtocol: 'tcp',
-            SourceSecurityGroupId: Ref(cfLogicalNames.loadBalancerSecurityGroup(loadBalancerName))
-          })
-        );
+        rules.push({
+          Description: `health check port ${loadBalancerHealthCheck.healthCheckPort}`,
+          FromPort: workload.resources.instanceTypes ? 32768 : loadBalancerHealthCheck.healthCheckPort,
+          ToPort: workload.resources.instanceTypes ? 65535 : loadBalancerHealthCheck.healthCheckPort,
+          IpProtocol: 'tcp',
+          SourceSecurityGroupId: ref(cfLogicalNames.loadBalancerSecurityGroup(loadBalancerName))
+        });
       }
     }
   );
@@ -651,15 +638,13 @@ const getEcsServiceSecurityGroupIngress = ({
       referencedFrom: workload.name,
       stpResourceReference: httpApiGatewayName
     });
-    rules.push(
-      new Ingress({
-        Description: `from http api gateway ${httpApiGatewayName} to ${containerPort}`,
-        FromPort: workload.resources.instanceTypes ? 32768 : containerPort,
-        ToPort: workload.resources.instanceTypes ? 65535 : containerPort,
-        IpProtocol: 'tcp',
-        SourceSecurityGroupId: Ref(cfLogicalNames.httpApiVpcLinkSecurityGroup(httpApiGatewayInfo.name))
-      })
-    );
+    rules.push({
+      Description: `from http api gateway ${httpApiGatewayName} to ${containerPort}`,
+      FromPort: workload.resources.instanceTypes ? 32768 : containerPort,
+      ToPort: workload.resources.instanceTypes ? 65535 : containerPort,
+      IpProtocol: 'tcp',
+      SourceSecurityGroupId: ref(cfLogicalNames.httpApiVpcLinkSecurityGroup(httpApiGatewayInfo.name))
+    });
   });
   uniqWith(
     workload.containers.map(({ events }) => (events || []).filter(({ type }) => type === 'service-connect')).flat(),
@@ -668,31 +653,27 @@ const getEcsServiceSecurityGroupIngress = ({
       { properties: serviceConnect2 }: ContainerWorkloadServiceConnectIntegration
     ) => serviceConnect1.containerPort === serviceConnect2.containerPort
   ).forEach(({ properties: { containerPort } }: ContainerWorkloadServiceConnectIntegration) => {
-    rules.push(
-      new Ingress({
-        Description: `service connect port ${containerPort}`,
-        FromPort: workload.resources.instanceTypes ? 32768 : containerPort,
-        ToPort: workload.resources.instanceTypes ? 65535 : containerPort,
-        IpProtocol: 'tcp',
-        // this is probably not the best way, but should be good for now
-        // alternative is to create separate ingress resource for each container workload https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group-ingress.html#cfn-ec2-security-group-ingress-groupname
-        // we are not doing that to avoid creating many resources (another alternative would be using custom resource to adjust ingress rules)
-        CidrIp: vpcManager.getVpcCidr()
-      })
-    );
+    rules.push({
+      Description: `service connect port ${containerPort}`,
+      FromPort: workload.resources.instanceTypes ? 32768 : containerPort,
+      ToPort: workload.resources.instanceTypes ? 65535 : containerPort,
+      IpProtocol: 'tcp',
+      // this is probably not the best way, but should be good for now
+      // alternative is to create separate ingress resource for each container workload https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-properties-ec2-security-group-ingress.html#cfn-ec2-security-group-ingress-groupname
+      // we are not doing that to avoid creating many resources (another alternative would be using custom resource to adjust ingress rules)
+      CidrIp: vpcManager.getVpcCidr()
+    });
     // below can create circular dependency (i.e if there are two private services) - doing it this way (using security group IDs would require some more analysis)
     // configManager.allContainerWorkloads
     //   .filter(({ name }) => name !== workload.name)
     //   .forEach(({ name }) => {
-    //     rules.push(
-    //       new Ingress({
-    //         Description: `service connect port ${containerPort} (from ${name})`,
-    //         FromPort: containerPort,
-    //         ToPort: containerPort,
-    //         IpProtocol: 'tcp',
-    //         SourceSecurityGroupId: Ref(cfLogicalNames.workloadSecurityGroup(name))
-    //       })
-    //     );
+    //     rules.push({
+    //       Description: `service connect port ${containerPort} (from ${name})`,
+    //       FromPort: containerPort,
+    //       ToPort: containerPort,
+    //       IpProtocol: 'tcp',
+    //       SourceSecurityGroupId: ref(cfLogicalNames.workloadSecurityGroup(name))
+    //     });
     //   });
   });
   return rules;
@@ -700,7 +681,7 @@ const getEcsServiceSecurityGroupIngress = ({
 
 // @todo, consider reworking so that relevantTargets are not passed into function. instead they should be pulled from dataStore during compute
 export const getEcsServiceSecurityGroup = ({ workload }: { workload: StpContainerWorkload }) =>
-  new SecurityGroup({
+  cfnResource('AWS::EC2::SecurityGroup', {
     GroupDescription: awsResourceNames.workloadSecurityGroupGroupDescription(
       workload.name,
       calculatedStackOverviewManager.context.stackName
@@ -714,19 +695,17 @@ export const getFormattedLoadBalancers = ({ workload }: { workload: StpContainer
   const formattedLbs: LoadBalancer[] = [];
   getTargetsForContainerWorkload({ workloadName: workload.name, containers: workload.containers }).forEach(
     ({ loadBalancerName, targetContainerName, targetContainerPort }) => {
-      formattedLbs.push(
-        new LoadBalancer({
-          ContainerPort: targetContainerPort,
-          ContainerName: targetContainerName,
-          TargetGroupArn: Ref(
-            cfLogicalNames.targetGroup({
-              stpResourceName: workload.name,
-              loadBalancerName,
-              targetContainerPort
-            })
-          )
-        })
-      );
+      formattedLbs.push({
+        ContainerPort: targetContainerPort,
+        ContainerName: targetContainerName,
+        TargetGroupArn: ref(
+          cfLogicalNames.targetGroup({
+            stpResourceName: workload.name,
+            loadBalancerName,
+            targetContainerPort
+          })
+        )
+      });
       // if (workload.deployment) {
       //   formattedLbs.push(
       //     new LoadBalancer({
@@ -791,7 +770,7 @@ export const getContainerWorkloadTargetGroup = ({
   targetDetails: ContainerWorkloadTargetDetails;
   definition: StpContainerWorkload;
 }) =>
-  new TargetGroup({
+  cfnResource('AWS::ElasticLoadBalancingV2::TargetGroup', {
     HealthCheckPath: targetDetails.loadBalancerHealthCheck?.healthcheckPath,
     HealthCheckIntervalSeconds: targetDetails.loadBalancerHealthCheck?.healthcheckInterval || 5,
     HealthCheckTimeoutSeconds: targetDetails.loadBalancerHealthCheck?.healthcheckTimeout || 4,
@@ -806,19 +785,19 @@ export const getContainerWorkloadTargetGroup = ({
     Protocol: targetDetails.targetProtocol,
     TargetType: definition.resources.instanceTypes ? 'instance' : 'ip',
     VpcId: vpcManager.getVpcId(),
-    TargetGroupAttributes: [new TargetGroupAttribute({ Key: 'deregistration_delay.timeout_seconds', Value: '5' })]
+    TargetGroupAttributes: [{ Key: 'deregistration_delay.timeout_seconds', Value: '5' }]
   });
 
 export const getAutoScalingTarget = (workloadName: string, workload: StpContainerWorkload) => {
-  return new ScalableTarget({
+  return cfnResource('AWS::ApplicationAutoScaling::ScalableTarget', {
     MaxCapacity: workload.scaling.maxInstances,
     MinCapacity: workload.scaling.minInstances,
-    ResourceId: Join('/', [
+    ResourceId: join('/', [
       'service',
-      Ref(cfLogicalNames.ecsCluster(workloadName)),
-      GetAtt(cfLogicalNames.ecsService(workloadName, !!workload.deployment), 'Name')
+      ref(cfLogicalNames.ecsCluster(workloadName)),
+      getAtt(cfLogicalNames.ecsService(workloadName, !!workload.deployment), 'Name')
     ]),
-    RoleARN: GetAtt(cfLogicalNames.ecsAutoScalingRole(), 'Arn'),
+    RoleARN: getAtt(cfLogicalNames.ecsAutoScalingRole(), 'Arn'),
     ScalableDimension: 'ecs:service:DesiredCount',
     ServiceNamespace: 'ecs'
   });
@@ -829,14 +808,14 @@ export const getAutoScalingPolicy = (
   metric: 'ECSServiceAverageCPUUtilization' | 'ECSServiceAverageMemoryUtilization',
   targetValue: number
 ) =>
-  new ScalingPolicy({
+  cfnResource('AWS::ApplicationAutoScaling::ScalingPolicy', {
     PolicyName: awsResourceNames.autoScalingPolicy(
       workloadName,
       calculatedStackOverviewManager.context.stackName,
       metric
     ),
     PolicyType: 'TargetTrackingScaling',
-    ScalingTargetId: Ref(cfLogicalNames.autoScalingTarget(workloadName)),
+    ScalingTargetId: ref(cfLogicalNames.autoScalingTarget(workloadName)),
     TargetTrackingScalingPolicyConfiguration: {
       PredefinedMetricSpecification: {
         PredefinedMetricType: metric
@@ -861,7 +840,7 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
       properties: { containerPort },
       containerName
     }: ContainerWorkloadHttpApiIntegration & { containerName: string }) => ({
-      RegistryArn: GetAtt(cfLogicalNames.serviceDiscoveryEcsService(workload.name, containerPort), 'Arn'),
+      RegistryArn: getAtt(cfLogicalNames.serviceDiscoveryEcsService(workload.name, containerPort), 'Arn'),
       ContainerPort: containerPort,
       ContainerName: containerName
     })
@@ -898,7 +877,7 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
   );
 
   const serviceProps: ServiceProperties = {
-    Cluster: Ref(cfLogicalNames.ecsCluster(workload.name)),
+    Cluster: ref(cfLogicalNames.ecsCluster(workload.name)),
     DeploymentConfiguration: {
       // only works with ECS controller NOT blue-green
       DeploymentCircuitBreaker: !blueGreen
@@ -915,7 +894,7 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
     // HealthCheckGracePeriodSeconds: workload.loadBalancerCheckGracePeriodSeconds,
     LaunchType: workload.resources.instanceTypes ? undefined : 'FARGATE',
     CapacityProviderStrategy: workload.resources.instanceTypes
-      ? [{ Weight: 1, CapacityProvider: Ref(cfLogicalNames.ecsEc2CapacityProvider(workload.name)) }]
+      ? [{ Weight: 1, CapacityProvider: ref(cfLogicalNames.ecsEc2CapacityProvider(workload.name)) }]
       : undefined,
     LoadBalancers: getFormattedLoadBalancers({ workload }),
     // if we use instances, bridge networking is used and security group is associated directly with instance
@@ -927,10 +906,10 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
             Subnets: workload.usePrivateSubnetsWithNAT
               ? vpcManager.getPrivateSubnetIds()
               : vpcManager.getPublicSubnetIds(),
-            SecurityGroups: [Ref(cfLogicalNames.workloadSecurityGroup(workload.name))]
+            SecurityGroups: [ref(cfLogicalNames.workloadSecurityGroup(workload.name))]
           }
         },
-    TaskDefinition: Ref(cfLogicalNames.ecsTaskDefinition(workload.name)),
+    TaskDefinition: ref(cfLogicalNames.ecsTaskDefinition(workload.name)),
     PlatformVersion: workload.resources.instanceTypes ? undefined : 'LATEST',
     ServiceRegistries: serviceRegistries.length ? serviceRegistries : undefined,
     PlacementStrategies: workload.resources.instanceTypes ? [{ Type: 'binpack', Field: 'memory' }] : undefined,
@@ -939,7 +918,7 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
       !blueGreen && serviceConnectIntegrationsInTheStack.length
         ? {
             Enabled: true,
-            Namespace: GetAtt(cfLogicalNames.serviceDiscoveryPrivateNamespace(), 'Arn'),
+            Namespace: getAtt(cfLogicalNames.serviceDiscoveryPrivateNamespace(), 'Arn'),
             Services: serviceConnectServices.length ? serviceConnectServices : undefined
           }
         : undefined,
@@ -957,13 +936,13 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
       ResourceType === BLUE_GREEN_SERVICE_RESOURCE_TYPE
   );
 
-  const service: EcsService | ECSBlueGreenService = blueGreen
+  const service: KnownCloudFormationResource<'AWS::ECS::Service'> | ECSBlueGreenService = blueGreen
     ? {
         Type: BLUE_GREEN_SERVICE_RESOURCE_TYPE,
         Properties: {
           ECSService: serviceProps,
           StackName: calculatedStackOverviewManager.context.stackName,
-          CodeDeployApplicationName: Ref(cfLogicalNames.ecsCodeDeployApp()),
+          CodeDeployApplicationName: ref(cfLogicalNames.ecsCodeDeployApp()),
           CodeDeployDeploymentGroupName: awsResourceNames.codeDeployDeploymentGroup({
             stackName: calculatedStackOverviewManager.context.stackName,
             stpResourceName: workload.name
@@ -973,7 +952,7 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
               ? {
                   AfterAllowTraffic:
                     workload.deployment.afterTrafficShiftFunction &&
-                    Ref(
+                    ref(
                       resolveReferenceToLambdaFunction({
                         stpResourceReference: workload.deployment.afterTrafficShiftFunction,
                         referencedFrom: workload.name,
@@ -982,7 +961,7 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
                     ),
                   BeforeAllowTraffic:
                     workload.deployment.beforeAllowTrafficFunction &&
-                    Ref(
+                    ref(
                       resolveReferenceToLambdaFunction({
                         stpResourceReference: workload.deployment.beforeAllowTrafficFunction,
                         referencedFrom: workload.name,
@@ -994,7 +973,7 @@ export const getEcsService = ({ workload, blueGreen }: { workload: StpContainerW
         },
         DependsOn: isBlueGreenServiceDeployed ? [cfLogicalNames.codeDeployDeploymentGroup(workload.name)] : []
       }
-    : new EcsService(serviceProps);
+    : cfnResource('AWS::ECS::Service', serviceProps);
 
   // this is necessary due to deployment order
   // https://docs.aws.amazon.com/AmazonECS/latest/developerguide/service-connect.html#service-connect-concepts-deploy
@@ -1040,8 +1019,8 @@ export const getCodeDeployDeploymentGroup = ({ workload }: { workload: StpContai
     }
     return lbReference;
   });
-  const resource = new DeploymentGroup({
-    ApplicationName: Ref(cfLogicalNames.ecsCodeDeployApp()),
+  const resource = cfnResource('AWS::CodeDeploy::DeploymentGroup', {
+    ApplicationName: ref(cfLogicalNames.ecsCodeDeployApp()),
     AutoRollbackConfiguration: {
       Enabled: false,
       Events: ['DEPLOYMENT_FAILURE', 'DEPLOYMENT_STOP_ON_ALARM', 'DEPLOYMENT_STOP_ON_REQUEST']
@@ -1061,7 +1040,7 @@ export const getCodeDeployDeploymentGroup = ({ workload }: { workload: StpContai
         {
           TargetGroups: [
             {
-              Name: GetAtt(
+              Name: getAtt(
                 cfLogicalNames.targetGroup({
                   stpResourceName: workload.name,
                   loadBalancerName: lbReference.loadBalancer.name,
@@ -1071,7 +1050,7 @@ export const getCodeDeployDeploymentGroup = ({ workload }: { workload: StpContai
               )
             },
             {
-              Name: GetAtt(
+              Name: getAtt(
                 cfLogicalNames.targetGroup({
                   stpResourceName: workload.name,
                   loadBalancerName: lbReference.loadBalancer.name,
@@ -1083,12 +1062,12 @@ export const getCodeDeployDeploymentGroup = ({ workload }: { workload: StpContai
             }
           ],
           ProdTrafficRoute: {
-            ListenerArns: [Ref(cfLogicalNames.listener(lbReference.listenerPort, lbReference.loadBalancer.name))]
+            ListenerArns: [ref(cfLogicalNames.listener(lbReference.listenerPort, lbReference.loadBalancer.name))]
           },
           TestTrafficRoute: workload.deployment.beforeAllowTrafficFunction
             ? {
                 ListenerArns: [
-                  Ref(
+                  ref(
                     cfLogicalNames.listener(
                       workload.deployment.testListenerPort || DEFAULT_TEST_LISTENER_PORT,
                       lbReference.loadBalancer.name
@@ -1115,7 +1094,7 @@ export const getCodeDeployDeploymentGroup = ({ workload }: { workload: StpContai
         ServiceName: awsResourceNames.ecsService(workload.name, calculatedStackOverviewManager.context.stackName, true)
       }
     ],
-    ServiceRoleArn: GetAtt(cfLogicalNames.codeDeployServiceRole(), 'Arn')
+    ServiceRoleArn: getAtt(cfLogicalNames.codeDeployServiceRole(), 'Arn')
   });
 
   const isBlueGreenServiceDeployed = stackManager.existingStackResources.find(
@@ -1164,7 +1143,9 @@ const getTaskMemory = (workload: StpContainerWorkload): number => {
   return Math.floor(smallestInstanceMemory - backgroundProcessMemory);
 };
 
-export const getEcsTaskDefinition = (workload: StpContainerWorkload): TaskDefinition => {
+export const getEcsTaskDefinition = (
+  workload: StpContainerWorkload
+): KnownCloudFormationResource<'AWS::ECS::TaskDefinition'> => {
   const cpu = workload.resources.cpu && (workload.resources.cpu * 1024).toFixed();
   const memory = getTaskMemory(workload);
 
@@ -1193,10 +1174,10 @@ export const getEcsTaskDefinition = (workload: StpContainerWorkload): TaskDefini
     volumes.push({
       Name: volumeName, // Use the identifier derived from the helper
       EFSVolumeConfiguration: {
-        FilesystemId: Ref(cfLogicalNames.efsFilesystem(mount.properties.efsFilesystemName)),
+        FilesystemId: ref(cfLogicalNames.efsFilesystem(mount.properties.efsFilesystemName)),
         TransitEncryption: 'ENABLED',
         AuthorizationConfig: {
-          AccessPointId: Ref(accessPointLogicalName),
+          AccessPointId: ref(accessPointLogicalName),
           IAM: 'ENABLED'
         }
         // RootDirectory should NOT be specified here when using AccessPointId
@@ -1205,14 +1186,14 @@ export const getEcsTaskDefinition = (workload: StpContainerWorkload): TaskDefini
   });
   const cpuArchitecture =
     packagingManager.getTargetCpuArchitectureForContainer(workload.resources) === 'linux/arm64' ? 'ARM64' : 'X86_64';
-  return new TaskDefinition({
+  return cfnResource('AWS::ECS::TaskDefinition', {
     Family: awsResourceNames.ecsTaskDefinitionFamily(workload.name, calculatedStackOverviewManager.context.stackName),
     NetworkMode: workload.resources.instanceTypes ? 'bridge' : 'awsvpc',
     RequiresCompatibilities: workload.resources.instanceTypes ? ['EC2'] : ['FARGATE'],
     Cpu: cpu,
     Memory: memory.toString(),
-    ExecutionRoleArn: GetAtt(cfLogicalNames.ecsExecutionRole(), 'Arn'),
-    TaskRoleArn: GetAtt(cfLogicalNames.ecsTaskRole(workload.name), 'Arn'),
+    ExecutionRoleArn: getAtt(cfLogicalNames.ecsExecutionRole(), 'Arn'),
+    TaskRoleArn: getAtt(cfLogicalNames.ecsTaskRole(workload.name), 'Arn'),
     ContainerDefinitions: getContainerWorkloadContainerDefinitions(workload),
     Volumes: volumes.length > 0 ? volumes : undefined,
     RuntimePlatform: {
@@ -1233,13 +1214,13 @@ export const getEcsLogGroup = ({
   containerName?: string;
   retentionDays: number;
 }) => {
-  return new LogGroup({
+  return cfnResource('AWS::Logs::LogGroup', {
     LogGroupName: awsResourceNames.containerLogGroup({
       stpResourceName: workloadName,
       stackName,
       containerName
     }),
-    RetentionInDays: retentionDays
+    RetentionInDays: getCloudFormationLogRetentionDays(retentionDays)
   });
 };
 
@@ -1309,7 +1290,7 @@ export const getTargetsForContainerWorkload = ({
 
 export const getSchedulerRuleForScheduledInstanceRefresh = ({ workload }: { workload: StpContainerWorkload }) => {
   const inputTemplate = {
-    AutoScalingGroupName: Ref(cfLogicalNames.ecsEc2AutoscalingGroup(workload.name)),
+    AutoScalingGroupName: ref(cfLogicalNames.ecsEc2AutoscalingGroup(workload.name)),
     Preferences: {
       MinHealthyPercentage: 100,
       MaxHealthyPercentage: 200,
@@ -1317,7 +1298,7 @@ export const getSchedulerRuleForScheduledInstanceRefresh = ({ workload }: { work
       SkipMatching: false
     }
   };
-  return new SchedulerRule({
+  return cfnResource('AWS::Scheduler::Schedule', {
     State: 'ENABLED',
     ScheduleExpression: 'cron(0 0 ? * SUN *)',
     FlexibleTimeWindow: {
@@ -1325,14 +1306,14 @@ export const getSchedulerRuleForScheduledInstanceRefresh = ({ workload }: { work
     },
     Target: {
       Arn: 'arn:aws:scheduler:::aws-sdk:autoscaling:startInstanceRefresh',
-      RoleArn: GetAtt(cfLogicalNames.eventBusRoleForScheduledInstanceRefresh(), 'Arn'),
+      RoleArn: getAtt(cfLogicalNames.eventBusRoleForScheduledInstanceRefresh(), 'Arn'),
       Input: transformIntoCloudformationSubstitutedString(inputTemplate)
     }
   });
 };
 
 export const getSchedulerRoleForScheduledInstanceRefresh = () => {
-  return new Role({
+  return cfnResource('AWS::IAM::Role', {
     AssumeRolePolicyDocument: {
       Version: '2012-10-17',
       Statement: [

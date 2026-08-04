@@ -1,6 +1,6 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { getAtt, importValue, ref, sub } from '@stacktape/cloudformation/intrinsics';
 import type { Directive } from '@domain-services/config-manager/directive-types';
-import type { IntrinsicFunction } from '@cloudform/dataTypes';
-import { GetAtt, ImportValue, Ref, Sub } from '@cloudform/functions';
 import { IDENTIFIER_FOR_MISSING_OUTPUT, linksMap } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -10,7 +10,7 @@ import { getStackOutputName } from '@stacktape/naming/stack-output-names';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { serialize } from '@utils/misc';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
-import { SubWithoutMapping } from '@utils/cloudformation';
+
 import { CliError } from '@utils/errors';
 import { loadFromAnySupportedFile, loadRawFileContent } from '@utils/file-loaders';
 import { gitInfoManager } from '@utils/git-info-manager';
@@ -202,15 +202,15 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
         GetAtt: [],
         Ref: []
       };
-      let intrinsicFn: IntrinsicFunction;
+      let intrinsicFn: Intrinsic;
       if (GetAttAttributes.includes(property)) {
-        intrinsicFn = GetAtt(resourceName, property);
+        intrinsicFn = getAtt(resourceName, property);
       } else if (RefAttributes.includes(property)) {
-        intrinsicFn = Ref(resourceName);
+        intrinsicFn = ref(resourceName);
       } else if (cfResource.Type === 'AWS::CloudFormation::CustomResource') {
         // for custom resources we do not know what output is, therefore we allow everything
         // this assignment is same as in above "else if" branch, but we handle it in separate branch to understand the situation
-        intrinsicFn = GetAtt(resourceName, property);
+        intrinsicFn = getAtt(resourceName, property);
       } else {
         throw configErrors.directiveResourceParameterInvalid({
           resourceName,
@@ -226,7 +226,7 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
           description: `Added by $CfResourceParam('${resourceName}', '${property}') directive`
         });
       });
-      return intrinsicFn.toJSON();
+      return intrinsicFn;
     },
     localResolveFunction: () => (resourceName: string, property: string) => {
       const isResourceDeployed = stackManager.getExistingResourceDetails(resourceName);
@@ -390,7 +390,7 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
           const value = values[idx];
           substitutions[`sub${idx}`] = value;
         }
-        return serialize(values.length ? Sub(finalString, substitutions) : SubWithoutMapping(finalString));
+        return serialize(values.length ? sub(finalString, substitutions) : sub(finalString));
       },
     localResolveFunction:
       () =>
@@ -519,5 +519,5 @@ const resolveStackOutput = async ({
       hints: `Export the output before referencing it with \`$${directive}\`.`
     });
   }
-  return directive === 'StackOutput' ? result.OutputValue : ImportValue(result.ExportName);
+  return directive === 'StackOutput' ? result.OutputValue : importValue(result.ExportName);
 };

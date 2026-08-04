@@ -1,3 +1,5 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+
 import type { SupportedPrivateCfResourceType } from '@domain-services/cloudformation-registry-manager/types';
 import type {
   ApplicationLoadBalancerOutputs,
@@ -47,19 +49,18 @@ import type { StpUserAuthPool } from '@domain-services/config-manager/resolved-t
 import type { StpWebAppFirewall } from '@domain-services/config-manager/resolved-types/web-app-firewall';
 import type { StpWebService } from '@domain-services/config-manager/resolved-types/web-services';
 import type { StpWorkerService } from '@domain-services/config-manager/resolved-types/worker-services';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { StpStateMachine } from '@stacktape/config/state-machines';
 
 export type ResourceWithPhysicalId = {
   nameChain: string[];
   parentType: StackInfoMapResource['resourceType'];
   resourcePhysicalId: string;
-  cfType: import('@cloudform/resource-types').CloudformationResourceType | SupportedPrivateCfResourceType;
+  cfType: import('@stacktape/cloudformation/resource').KnownCloudFormationResourceType | SupportedPrivateCfResourceType;
 };
 
 export type CfChildResourceOverview = import('@stacktape/stack-info/contracts').CloudformationChildResourceOverview<
   import('@aws-cdk/cloudformation-diff').ResourceImpact,
-  import('@cloudform/resource-types').CloudformationResourceType | SupportedPrivateCfResourceType
+  import('@stacktape/cloudformation/resource').KnownCloudFormationResourceType | SupportedPrivateCfResourceType
 >;
 
 export type StackInfoMap = import('@stacktape/stack-info/contracts').StackInfoMap<
@@ -67,11 +68,11 @@ export type StackInfoMap = import('@stacktape/stack-info/contracts').StackInfoMa
   OutputValue,
   StacktapeResourceReferenceableParam,
   import('@aws-cdk/cloudformation-diff').ResourceImpact,
-  import('@cloudform/resource-types').CloudformationResourceType | SupportedPrivateCfResourceType,
+  import('@stacktape/cloudformation/resource').KnownCloudFormationResourceType | SupportedPrivateCfResourceType,
   OutputValue | Date
 >;
 
-export type OutputValue = string | number | boolean | IntrinsicFunction;
+export type OutputValue = string | number | boolean | Intrinsic;
 
 // number | boolean |
 
@@ -82,7 +83,7 @@ export type StacktapeResourceOutput<T extends StpResourceType> = T extends 'http
   : T extends 'application-load-balancer'
     ? ApplicationLoadBalancerOutputs
     : T extends 'web-app-firewall'
-      ? IntrinsicFunction
+      ? Intrinsic
       : never;
 
 export type StackMetadata = {
@@ -97,7 +98,7 @@ export type DetailedStackResourceInfo = import('@stacktape/stack-info/contracts'
   OutputValue,
   StacktapeResourceReferenceableParam,
   import('@aws-cdk/cloudformation-diff').ResourceImpact,
-  import('@cloudform/resource-types').CloudformationResourceType | SupportedPrivateCfResourceType
+  import('@stacktape/cloudformation/resource').KnownCloudFormationResourceType | SupportedPrivateCfResourceType
 >;
 
 export type DetailedStackInfoMap = Omit<
@@ -106,7 +107,7 @@ export type DetailedStackInfoMap = Omit<
     OutputValue,
     StacktapeResourceReferenceableParam,
     import('@aws-cdk/cloudformation-diff').ResourceImpact,
-    import('@cloudform/resource-types').CloudformationResourceType | SupportedPrivateCfResourceType
+    import('@stacktape/cloudformation/resource').KnownCloudFormationResourceType | SupportedPrivateCfResourceType
   >,
   'metadata'
 > & {

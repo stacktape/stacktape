@@ -1,10 +1,10 @@
-import { Join, Ref } from '@cloudform/functions';
-import Bucket from '@cloudform/s3/bucket';
-import BucketPolicy from '@cloudform/s3/bucketPolicy';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { join, ref } from '@stacktape/cloudformation/intrinsics';
+
 import { configManager } from '@domain-services/config-manager';
 
 export const getDeploymentBucketResource = (bucketName: string) => {
-  return new Bucket({
+  return cfnResource('AWS::S3::Bucket', {
     BucketName: bucketName,
     AccelerateConfiguration: configManager.isS3TransferAccelerationAvailableInDeploymentRegion
       ? {
@@ -27,8 +27,8 @@ export const getDeploymentBucketResource = (bucketName: string) => {
 };
 
 export const deploymentBucketPolicyResource = (deploymentBucketLogicalName: string) => {
-  return new BucketPolicy({
-    Bucket: Ref(deploymentBucketLogicalName),
+  return cfnResource('AWS::S3::BucketPolicy', {
+    Bucket: ref(deploymentBucketLogicalName),
     PolicyDocument: {
       Statement: [
         {
@@ -36,7 +36,7 @@ export const deploymentBucketPolicyResource = (deploymentBucketLogicalName: stri
           Effect: 'Deny',
           Principal: '*',
           Resource: [
-            Join('', ['arn:', { Ref: 'AWS::Partition' }, ':s3:::', { Ref: deploymentBucketLogicalName }, '/*'])
+            join('', ['arn:', { Ref: 'AWS::Partition' }, ':s3:::', { Ref: deploymentBucketLogicalName }, '/*'])
           ],
           Condition: { Bool: { 'aws:SecureTransport': false } }
         }

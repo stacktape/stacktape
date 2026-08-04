@@ -1,4 +1,5 @@
-import { GetAtt, Join } from '@cloudform/functions';
+import { getAtt, join } from '@stacktape/cloudformation/intrinsics';
+
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 export const getStacktapeOriginRequestLambdaIamStatement = (buckets: {
@@ -7,7 +8,7 @@ export const getStacktapeOriginRequestLambdaIamStatement = (buckets: {
   return {
     Resource: Object.keys(buckets)
       .map((bucketStpName) => [
-        Join('', [GetAtt(cfLogicalNames.bucket(bucketStpName), 'Arn'), '/*']) as unknown as string
+        join('', [getAtt(cfLogicalNames.bucket(bucketStpName), 'Arn'), '/*']) as unknown as string
       ])
       .flat(),
     Action: ['s3:GetObject']

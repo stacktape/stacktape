@@ -1,9 +1,12 @@
-import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
-import type { CacheBehavior } from '@cloudform/cloudFront/distribution';
-import type Distribution from '@cloudform/cloudFront/distribution';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import type {
+  CacheBehavior,
+  DistributionConfig
+} from '@stacktape/cloudformation/resources/aws-cloudfront-distribution';
+import { cfnResource, type KnownCloudFormationResource } from '@stacktape/cloudformation/resource';
+
 import { join } from 'node:path';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import CloudfrontFunction from '@cloudform/cloudFront/function';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { readdir, stat, pathExists } from 'fs-extra';
 
@@ -32,7 +35,7 @@ export const getHostHeaderRewriteCloudfrontFunction = (
   resourceName: string,
   awsResourceNameFn: (name: string, stackName: string, region: string) => string
 ) => {
-  return new CloudfrontFunction({
+  return cfnResource('AWS::CloudFront::Function', {
     Name: awsResourceNameFn(
       resourceName,
       calculatedStackOverviewManager.context.stackName,
@@ -53,14 +56,16 @@ export const getHostHeaderRewriteCloudfrontFunction = (
  * This allows the SSR framework to handle all routes including the root.
  */
 export const getDistributionRootObjectTemplateOverride =
-  (resourceName: string) => async (template: CloudformationTemplate) => {
+  (resourceName: string) => async (template: CloudFormationTemplate) => {
     for (let distributionIndex = 0; ; distributionIndex += 1) {
       const cfLogicalNameOfResourceToModify = cfLogicalNames.cloudfrontDistribution(resourceName, distributionIndex);
-      const distribution = template.Resources[cfLogicalNameOfResourceToModify] as Distribution | undefined;
+      const distribution = template.Resources[cfLogicalNameOfResourceToModify] as
+        | KnownCloudFormationResource<'AWS::CloudFront::Distribution'>
+        | undefined;
       if (!distribution) {
         break;
       }
-      distribution.Properties.DistributionConfig.DefaultRootObject = '';
+      (distribution.Properties.DistributionConfig as DistributionConfig).DefaultRootObject = '';
     }
   };
 
@@ -78,7 +83,7 @@ export const getStaticAssetsCacheBehaviorTemplateOverride =
     assetsDirectoryPath: string;
     staticPathPrefix?: string;
   }) =>
-  async (template: CloudformationTemplate) => {
+  async (template: CloudFormationTemplate) => {
     // Check if assets directory exists
     if (!(await pathExists(assetsDirectoryPath))) {
       return;
@@ -89,12 +94,15 @@ export const getStaticAssetsCacheBehaviorTemplateOverride =
 
     for (let distributionIndex = 0; ; distributionIndex += 1) {
       const cfLogicalNameOfResourceToModify = cfLogicalNames.cloudfrontDistribution(resourceName, distributionIndex);
-      const distribution = template.Resources[cfLogicalNameOfResourceToModify] as Distribution | undefined;
+      const distribution = template.Resources[cfLogicalNameOfResourceToModify] as
+        | KnownCloudFormationResource<'AWS::CloudFront::Distribution'>
+        | undefined;
       if (!distribution) {
         break;
       }
 
-      const cacheBehaviors = distribution.Properties.DistributionConfig.CacheBehaviors as CacheBehavior[];
+      const cacheBehaviors = (distribution.Properties.DistributionConfig as DistributionConfig)
+        .CacheBehaviors as CacheBehavior[];
 
       const staticBehaviourIndex = cacheBehaviors.findIndex(
         (b) => b.PathPattern === '<<TBD_STATIC>>' || (staticPathPrefix && b.PathPattern === `${staticPathPrefix}/*`)

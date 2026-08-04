@@ -1,11 +1,12 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import Integration from '@cloudform/apiGatewayV2/integration';
-import { GetAtt, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToHttpApiGateway } from '@domain-services/config-manager/utils/http-api-gateways';
 import { resolveReferenceToLambdaFunction } from '@domain-services/config-manager/utils/lambdas';
@@ -18,7 +19,6 @@ import {
   getHttpApiLambdaPermission,
   getHttpApiRoute
 } from '../../../_utils/http-api-events';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
 export const resolveHttpApiEvents = ({
@@ -84,8 +84,8 @@ export const resolveHttpApiEvents = ({
           });
 
           const authorizerLambdaEndpointArn = authorizerLambdaProps.aliasLogicalName
-            ? Ref(authorizerLambdaProps.aliasLogicalName)
-            : GetAtt(authorizerLambdaProps.cfLogicalName, 'Arn');
+            ? ref(authorizerLambdaProps.aliasLogicalName)
+            : getAtt(authorizerLambdaProps.cfLogicalName, 'Arn');
 
           // `${arns.lambdaFromFullName({
           //   accountId: calculatedStackOverviewManager.context.accountId,
@@ -112,7 +112,7 @@ export const resolveHttpApiEvents = ({
       }
     }
   });
-  const lambdaEndpointArn = aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn');
+  const lambdaEndpointArn = aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn');
   Array.from(referencedHttpApiGateways).forEach((stpHttpApiGatewayReference) => {
     const httpApiGatewayInfo = resolveReferenceToHttpApiGateway({
       stpResourceReference: stpHttpApiGatewayReference,
@@ -156,12 +156,12 @@ const getHttpApiLambdaIntegration = ({
   payloadFormat
 }: {
   functionTimeout: number;
-  lambdaEndpointArn: string | IntrinsicFunction;
+  lambdaEndpointArn: string | Intrinsic;
   payloadFormat: StpHttpApiGateway['payloadFormat'];
   httpApiGatewayInfo: StpHttpApiGateway & { name: string };
 }) => {
-  return new Integration({
-    ApiId: Ref(cfLogicalNames.httpApi(httpApiGatewayInfo.name)),
+  return cfnResource('AWS::ApiGatewayV2::Integration', {
+    ApiId: ref(cfLogicalNames.httpApi(httpApiGatewayInfo.name)),
     IntegrationType: 'AWS_PROXY',
     IntegrationUri: lambdaEndpointArn,
     TimeoutInMillis: Math.round(Math.min(functionTimeout + 0.5, 29) * 1000),

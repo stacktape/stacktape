@@ -47,18 +47,14 @@ describe('TypeScript project ownership', () => {
     expect(packageJson.scripts['test:generated-types']).toContain('-p @generated/tsconfig.json');
   });
 
-  test('owns characterization tests and every committed generated TypeScript surface', async () => {
+  test('owns characterization tests and the committed generated schema validator', async () => {
     const [testsConfig, generatedConfig] = await Promise.all([
       readJson(join(cliPath, 'tests', 'tsconfig.json')),
       readJson(join(cliPath, '@generated', 'tsconfig.json'))
     ]);
 
     expect(testsConfig.include).toEqual(['../src/environment.d.ts', './characterization/**/*.ts']);
-    expect(generatedConfig.include).toEqual([
-      './cloudform/**/*.ts',
-      './cloudformation-ts-types/**/*.ts',
-      './schemas/validate-config-zod.ts'
-    ]);
+    expect(generatedConfig.include).toEqual(['./schemas/validate-config-zod.ts']);
     expect(await pathExists(join(cliPath, 'tsconfig.generated.json'))).toBe(false);
   });
 });

@@ -1,10 +1,9 @@
+import { cfnResource } from '@stacktape/cloudformation/resource';
 import type { LambdaTargetDetails } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
-import TargetGroup from '@cloudform/elasticLoadBalancingV2/targetGroup';
-import LambdaPermission from '@cloudform/lambda/permission';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToApplicationLoadBalancer } from '@domain-services/config-manager/utils/application-load-balancers';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -66,7 +65,7 @@ const buildLambdaTargetGroupArnArtificially = (targetDetails: LambdaTargetDetail
   )}/*`;
 
 const getLambdaTargetGroup = (targetDetails: LambdaTargetDetails) => {
-  const target = new TargetGroup({
+  const target = cfnResource('AWS::ElasticLoadBalancingV2::TargetGroup', {
     TargetType: 'lambda',
     Targets: [
       {
@@ -86,7 +85,7 @@ const getLambdaTargetGroup = (targetDetails: LambdaTargetDetails) => {
 };
 
 const getLambdaTargetGroupPermission = (targetDetails: LambdaTargetDetails) =>
-  new LambdaPermission({
+  cfnResource('AWS::Lambda::Permission', {
     FunctionName: targetDetails.lambdaEndpointArn,
     Action: 'lambda:InvokeFunction',
     Principal: 'elasticloadbalancing.amazonaws.com',

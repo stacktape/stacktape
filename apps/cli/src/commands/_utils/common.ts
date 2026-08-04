@@ -1,10 +1,10 @@
+import type { KnownCloudFormationResourceType } from '@stacktape/cloudformation/resource';
 import type { StackActionType } from '@domain-services/cloudformation-stack-manager/types';
 import type { DetailedStackInfoMap } from '@domain-services/stack-info/types';
 import type { SupportedPrivateCfResourceType } from '@domain-services/cloudformation-registry-manager/types';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import type { StpHostingBucket } from '@domain-services/config-manager/resolved-types/hosting-buckets';
 import type { ResourceImpact, TemplateDiff } from '@aws-cdk/cloudformation-diff';
-import type { CloudformationResourceType } from '@cloudform/resource-types';
 import { join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -86,7 +86,7 @@ export const isPromptBeforeOperationNeeded = ({
     resourceType: string;
     impactedCfResources: {
       [cfLogicalName: string]: {
-        cfResourceType: CloudformationResourceType | SupportedPrivateCfResourceType;
+        cfResourceType: KnownCloudFormationResourceType | SupportedPrivateCfResourceType;
         impact: ResourceImpact;
       };
     };

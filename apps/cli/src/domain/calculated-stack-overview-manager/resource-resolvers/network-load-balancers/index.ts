@@ -1,5 +1,5 @@
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpNetworkLoadBalancer } from '@domain-services/config-manager/resolved-types/network-load-balancer';
-import { GetAtt, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { domainManager } from '@domain-services/domain-manager';
@@ -40,7 +40,7 @@ export const resolveNetworkLoadBalancer = ({ definition }: { definition: StpNetw
   calculatedStackOverviewManager.addStacktapeResourceLink({
     linkName: definition.configParentResourceType !== 'network-load-balancer' ? 'metrics-load-balancer' : 'metrics',
     nameChain,
-    linkValue: cfEvaluatedLinks.loadBalancers({ lbArn: Ref(cfLogicalNames.loadBalancer(name)), tab: 'monitoring' })
+    linkValue: cfEvaluatedLinks.loadBalancers({ lbArn: ref(cfLogicalNames.loadBalancer(name)), tab: 'monitoring' })
   });
 
   getNetworkLoadBalancerListeners(name, definition).forEach(({ cfLogicalName, resource }) => {
@@ -55,7 +55,7 @@ export const resolveNetworkLoadBalancer = ({ definition }: { definition: StpNetw
   calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
     nameChain,
     paramName: 'canonicalDomain',
-    paramValue: GetAtt(cfLogicalNames.loadBalancer(name), 'DNSName'),
+    paramValue: getAtt(cfLogicalNames.loadBalancer(name), 'DNSName'),
     showDuringPrint:
       (!definition.customDomains?.length ||
         definition.customDomains.some(({ disableDnsRecordCreation }) => disableDnsRecordCreation)) &&
@@ -86,13 +86,13 @@ export const resolveNetworkLoadBalancer = ({ definition }: { definition: StpNetw
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
       paramName: 'domain',
-      paramValue: GetAtt(cfLogicalNames.loadBalancer(name), 'DNSName')
+      paramValue: getAtt(cfLogicalNames.loadBalancer(name), 'DNSName')
     });
   } else if (usesCustomCerts) {
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
       paramName: 'domain',
-      paramValue: GetAtt(cfLogicalNames.loadBalancer(name), 'DNSName')
+      paramValue: getAtt(cfLogicalNames.loadBalancer(name), 'DNSName')
     });
   } else {
     calculatedStackOverviewManager.addCfChildResource({

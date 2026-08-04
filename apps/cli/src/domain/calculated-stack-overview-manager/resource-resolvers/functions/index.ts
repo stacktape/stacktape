@@ -1,17 +1,12 @@
+import type { Environment, FunctionProperties } from '@stacktape/cloudformation/resources/aws-lambda-function';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
 import type { HelperLambdaName } from '@config';
 import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpCdnAttachableResourceType } from '@domain-services/config-manager/resolved-types/resources';
-import type { FunctionProperties } from '@cloudform/lambda/function';
-import Application from '@cloudform/codeDeploy/application';
-import { GetAtt, Join, Ref } from '@cloudform/functions';
-import EventInvokeConfig from '@cloudform/lambda/eventInvokeConfig';
-import CfLambdaFunction from '@cloudform/lambda/function';
-import LayerVersion from '@cloudform/lambda/layerVersion';
-import LambdaPermission from '@cloudform/lambda/permission';
-import SubscriptionFilter from '@cloudform/logs/subscriptionFilter';
 
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -34,7 +29,6 @@ import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { isCompositeWebResourceType } from '@utils/composite-web-resources';
 import { getAugmentedEnvironment, getLanguageFromExtension } from '@utils/environment';
 import { CliError } from '@utils/errors';
-import { normalizeCloudformationFunction } from '@utils/cloudformation';
 import { getLambdaIssueFilterPattern, isIssueDetectionSupportedLanguage } from '../_utils/issue-detection';
 import { resolveAlarmsForResource } from '../_utils/alarms';
 import {
@@ -93,7 +87,7 @@ export const resolveFunctions = async () => {
     const layerLogicalName = cfLogicalNames.sharedChunkLayer(layer.layerNumber);
 
     // Create the LayerVersion resource with the S3 key computed during packaging
-    const layerResource = new LayerVersion({
+    const layerResource = cfnResource('AWS::Lambda::LayerVersion', {
       LayerName: `${calculatedStackOverviewManager.context.stackName}-shared-chunk-layer-${layer.layerNumber}`,
       Description: `Shared chunk layer ${layer.layerNumber} for code splitting`,
       CompatibleRuntimes: [`nodejs${DEFAULT_LAMBDA_NODE_VERSION}.x`],
@@ -187,9 +181,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   const mountedEfsFilesystems = efsVolumeMounts.length
     ? resolveReferencesToMountedEfsFilesystems({ resource: lambdaProps as StpLambdaFunction })
     : [];
-  const mountedS3FilesAccessPointArns = s3FilesVolumeMounts.map((mount) =>
-    normalizeCloudformationFunction(mount.properties.accessPointArn)
-  );
+  const mountedS3FilesAccessPointArns = s3FilesVolumeMounts.map((mount) => mount.properties.accessPointArn);
   mountedEfsFilesystems.forEach(({ name: efsFilesystemName }) => {
     lambdaDependsOn.push(cfLogicalNames.efsMountTarget(efsFilesystemName, 0));
     lambdaDependsOn.push(cfLogicalNames.efsMountTarget(efsFilesystemName, 1));
@@ -214,7 +206,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     nameChain
   });
   lambdaDependsOn.push(lambdaRoleLogicalName);
-  const iamRoleArnToUse = GetAtt(lambdaRoleLogicalName, 'Arn');
+  const iamRoleArnToUse = getAtt(lambdaRoleLogicalName, 'Arn');
   // here we are addressing creation of atlas mongo user which is associated to this role
   if (accessToAtlasMongoClusterResources?.length) {
     calculatedStackOverviewManager.addCfChildResource({
@@ -251,7 +243,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   const fileSystemConfigs = (volumeMounts || []).map((mount) => {
     if (mount.type === 's3files') {
       return {
-        Arn: normalizeCloudformationFunction(mount.properties.accessPointArn),
+        Arn: mount.properties.accessPointArn,
         LocalMountPath: mount.properties.mountPath
       };
     }
@@ -274,11 +266,11 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     }
 
     return {
-      Arn: GetAtt(accessPointLogicalName, 'Arn'),
+      Arn: getAtt(accessPointLogicalName, 'Arn'),
       LocalMountPath: mount.properties.mountPath
     };
   });
-  const lambdaFunctionResource = new CfLambdaFunction({
+  const lambdaFunctionResource = cfnResource('AWS::Lambda::Function', {
     FunctionName: resourceName,
     Architectures: architecture === 'arm64' ? ['arm64'] : ['x86_64'],
     Code: {},
@@ -302,10 +294,12 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       }),
       nameChain
     });
-    lambdaFunctionResource.Properties.VpcConfig = {
-      SecurityGroupIds: [Ref(securityGroupLogicalName)],
-      SubnetIds: vpcManager.getPublicSubnetIds()
-    };
+    Object.assign(lambdaFunctionResource.Properties, {
+      VpcConfig: {
+        SecurityGroupIds: [ref(securityGroupLogicalName)],
+        SubnetIds: vpcManager.getPublicSubnetIds()
+      }
+    });
   } else if (accessToResourcesPotentiallyRequiringSecurityGroupCreation.length) {
     // if function is not in vpc but is trying to scope (connectTo) resources requiring security group throw error
     // this is only relevant if database or redis cluster is in vpc or scoping-workloads-in-vpc mode
@@ -339,7 +333,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       paramName: 'url',
-      paramValue: GetAtt(cfLogicalNames.lambdaUrl(name), 'FunctionUrl'),
+      paramValue: getAtt(cfLogicalNames.lambdaUrl(name), 'FunctionUrl'),
       nameChain,
       showDuringPrint: true
     });
@@ -354,7 +348,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   // Add layers: user-defined layers + shared chunk layers from split bundling
   const sharedLayerNumbers = packagingManager.getLayerNumbersForLambda(name);
   const sharedLayerRefs = sharedLayerNumbers.map((layerNumber) =>
-    GetAtt(cfLogicalNames.sharedChunkLayer(layerNumber), 'LayerVersionArn')
+    getAtt(cfLogicalNames.sharedChunkLayer(layerNumber), 'LayerVersionArn')
   );
   const allLayers = [...(layers || []), ...sharedLayerRefs];
   if (allLayers.length > 5) {
@@ -366,10 +360,10 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     });
   }
   if (allLayers.length > 0) {
-    lambdaFunctionResource.Properties.Layers = allLayers;
+    Object.assign(lambdaFunctionResource.Properties, { Layers: allLayers });
   }
   if (reservedConcurrency) {
-    lambdaFunctionResource.Properties.ReservedConcurrentExecutions = reservedConcurrency;
+    Object.assign(lambdaFunctionResource.Properties, { ReservedConcurrentExecutions: reservedConcurrency });
   }
   // Provisioned concurrency requires an alias pointing to a specific version.
   // If deployment is configured, alias is already created (with code deploy), so we just add provisioned concurrency to it.
@@ -390,7 +384,10 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     // This replaces the old forceUpdate: Date.now() which caused false positives in diff.
     templateManager.addFinalTemplateOverrideFn(async (template) => {
       const { digest } = deploymentArtifactManager.getLambdaS3UploadInfo({ artifactName, packaging });
-      template.Resources[versionPublisherLogicalName].Properties.codeDigest = digest;
+      const versionPublisherProperties = template.Resources[versionPublisherLogicalName].Properties as {
+        codeDigest?: string;
+      };
+      versionPublisherProperties.codeDigest = digest;
     });
   }
   if (
@@ -446,7 +443,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         nameChain,
         paramName: 'logGroupArn',
-        paramValue: GetAtt(logGroupLogicalName, 'Arn'),
+        paramValue: getAtt(logGroupLogicalName, 'Arn'),
         showDuringPrint: true
       });
     }
@@ -488,7 +485,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       !isUserManagedPackaging &&
       !hasLogForwarding
     ) {
-      const serviceLambdaArn = GetAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn');
+      const serviceLambdaArn = getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn');
       const subscriptionFilterLogicalName = cfLogicalNames.issueDetectionSubscriptionFilter(name);
       const permissionLogicalName = cfLogicalNames.issueDetectionLogsPermission();
 
@@ -496,16 +493,16 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         calculatedStackOverviewManager.addCfChildResource({
           cfLogicalName: permissionLogicalName,
           nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL, 'stacktapeServiceLambda'],
-          resource: new LambdaPermission({
+          resource: cfnResource('AWS::Lambda::Permission', {
             Action: 'lambda:InvokeFunction',
             Principal: `logs.${calculatedStackOverviewManager.context.region}.amazonaws.com`,
             FunctionName: serviceLambdaArn,
-            SourceAccount: Ref('AWS::AccountId')
+            SourceAccount: ref('AWS::AccountId')
           })
         });
       }
 
-      const subscriptionFilterResource = new SubscriptionFilter({
+      const subscriptionFilterResource = cfnResource('AWS::Logs::SubscriptionFilter', {
         LogGroupName: awsResourceNames.lambdaLogGroup({ lambdaAwsResourceName: resourceName }),
         FilterPattern: getLambdaIssueFilterPattern(detectedLanguage),
         DestinationArn: serviceLambdaArn
@@ -532,12 +529,13 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   templateManager.addFinalTemplateOverrideFn(async (template) => {
     const { digest, s3Key } = deploymentArtifactManager.getLambdaS3UploadInfo({ artifactName, packaging });
 
-    template.Resources[cfLogicalName].Properties.Code = {
+    const functionProperties = template.Resources[cfLogicalName].Properties as FunctionProperties;
+    functionProperties.Code = {
       S3Key: s3Key,
       S3Bucket: deploymentArtifactManager.deploymentBucketName
     };
 
-    template.Resources[cfLogicalName].Properties.Tags = stackManager.getTags([
+    functionProperties.Tags = stackManager.getTags([
       ...(tags || []),
       { name: tagNames.codeDigest(), value: digest },
       { name: tagNames.cfAttributionLogicalName(), value: cfLogicalName }
@@ -552,48 +550,52 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     });
     if (variablesToInject.length) {
       const templateResourceProps = template.Resources[cfLogicalName].Properties as FunctionProperties;
-      templateResourceProps.Environment = {
+      const environment = {
         Variables: {
-          ...(templateResourceProps.Environment?.Variables || {})
+          ...((templateResourceProps.Environment as Environment)?.Variables || {})
         }
       };
+      templateResourceProps.Environment = environment;
       variablesToInject.forEach(({ Name, Value }) => {
-        templateResourceProps.Environment.Variables[Name] = Value;
+        environment.Variables[Name] = Value;
       });
     }
 
     // resolving s3 package
     const { digest, s3Key } = deploymentArtifactManager.getLambdaS3UploadInfo({ artifactName, packaging });
 
-    template.Resources[cfLogicalName].Properties.Code = {
+    const functionProperties = template.Resources[cfLogicalName].Properties as FunctionProperties;
+    functionProperties.Code = {
       S3Key: s3Key,
       S3Bucket: deploymentArtifactManager.deploymentBucketName
     };
 
-    template.Resources[cfLogicalName].Properties.Tags = stackManager.getTags([
-      { name: tagNames.codeDigest(), value: digest }
-    ]);
+    functionProperties.Tags = stackManager.getTags([{ name: tagNames.codeDigest(), value: digest }]);
   });
   if (configParentResourceType !== 'batch-job') {
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
       paramName: 'arn',
-      paramValue: GetAtt(cfLogicalName, 'Arn'),
+      paramValue: getAtt(cfLogicalName, 'Arn'),
       showDuringPrint: true
     });
   }
   if (destinations) {
     // Use alias qualifier when alias exists (either for deployment or provisioned concurrency)
-    const lambdaEventInvokeConfig = new EventInvokeConfig({
-      FunctionName: Ref(cfLogicalName),
+    const lambdaEventInvokeConfig = cfnResource('AWS::Lambda::EventInvokeConfig', {
+      FunctionName: ref(cfLogicalName),
       DestinationConfig: {},
       Qualifier: lambdaProps.aliasLogicalName ? awsResourceNames.lambdaStpAlias() : '$LATEST'
     });
     if (destinations.onFailure) {
-      lambdaEventInvokeConfig.Properties.DestinationConfig.OnFailure = { Destination: destinations.onFailure };
+      Object.assign(lambdaEventInvokeConfig.Properties.DestinationConfig, {
+        OnFailure: { Destination: destinations.onFailure }
+      });
     }
     if (destinations.onSuccess) {
-      lambdaEventInvokeConfig.Properties.DestinationConfig.OnSuccess = { Destination: destinations.onSuccess };
+      Object.assign(lambdaEventInvokeConfig.Properties.DestinationConfig, {
+        OnSuccess: { Destination: destinations.onSuccess }
+      });
     }
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.lambdaInvokeConfig(name),
@@ -606,7 +608,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       calculatedStackOverviewManager.addCfChildResource({
         nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
         cfLogicalName: cfLogicalNames.lambdaCodeDeployApp(),
-        resource: new Application({
+        resource: cfnResource('AWS::CodeDeploy::Application', {
           ApplicationName: awsResourceNames.lambdaCodeDeployApp(calculatedStackOverviewManager.context.stackName),
           ComputePlatform: 'Lambda'
         })
@@ -631,7 +633,10 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     // Add codeDigest to version publisher custom resource so it's re-invoked when (and only when) code changes.
     templateManager.addFinalTemplateOverrideFn(async (template) => {
       const { digest } = deploymentArtifactManager.getLambdaS3UploadInfo({ artifactName, packaging });
-      template.Resources[deployVersionPublisherLogicalName].Properties.codeDigest = digest;
+      const versionPublisherProperties = template.Resources[deployVersionPublisherLogicalName].Properties as {
+        codeDigest?: string;
+      };
+      versionPublisherProperties.codeDigest = digest;
     });
   }
   // add monitoring link (use alias when available for deployment or provisioned concurrency)
@@ -639,7 +644,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     linkName: configParentResourceType === 'batch-job' ? 'metrics-trigger-lambda' : 'metrics',
     nameChain,
     linkValue: cfEvaluatedLinks.lambda({
-      awsLambdaName: Ref(cfLogicalName),
+      awsLambdaName: ref(cfLogicalName),
       tab: 'monitoring',
       alias: lambdaProps.aliasLogicalName && awsResourceNames.lambdaStpAlias()
     })
@@ -648,7 +653,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     linkName: configParentResourceType === 'batch-job' ? 'trigger-lambda-console' : 'console',
     nameChain,
     linkValue: cfEvaluatedLinks.lambda({
-      awsLambdaName: Ref(cfLogicalName),
+      awsLambdaName: ref(cfLogicalName),
       tab: 'testing',
       alias: lambdaProps.aliasLogicalName && awsResourceNames.lambdaStpAlias()
     })
@@ -872,7 +877,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
           cdnCompatibleResource,
           defaultOriginType: type as StpCdnAttachableResourceType,
           customDomains: [cdnDefaultDomainName],
-          certificateArn: GetAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'usEast1CertArn')
+          certificateArn: getAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'usEast1CertArn')
         })
       });
       calculatedStackOverviewManager.addCfChildResource({
@@ -903,7 +908,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'cdnCanonicalDomain',
         nameChain,
-        paramValue: GetAtt(
+        paramValue: getAtt(
           cfLogicalNames.cloudfrontDistribution(
             (isCompositeWebResourceType(configParentResourceType)
               ? configManager.findImmediateParent({ nameChain })
@@ -918,9 +923,9 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'cdnCanonicalUrl',
         nameChain,
-        paramValue: Join('', [
+        paramValue: join('', [
           'https://',
-          GetAtt(
+          getAtt(
             cfLogicalNames.cloudfrontDistribution(
               (isCompositeWebResourceType(configParentResourceType)
                 ? configManager.findImmediateParent({ nameChain })
@@ -983,7 +988,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'cdnDomain',
           nameChain,
-          paramValue: GetAtt(
+          paramValue: getAtt(
             cfLogicalNames.cloudfrontDistribution(
               (isCompositeWebResourceType(configParentResourceType)
                 ? configManager.findImmediateParent({ nameChain })
@@ -998,10 +1003,10 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'cdnCanonicalDomain',
           nameChain,
-          paramValue: Join(
+          paramValue: join(
             ',',
             cloudfrontDistributions.map((_, idx) =>
-              GetAtt(
+              getAtt(
                 cfLogicalNames.cloudfrontDistribution(
                   (isCompositeWebResourceType(configParentResourceType)
                     ? configManager.findImmediateParent({ nameChain })
@@ -1018,12 +1023,12 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'cdnCanonicalUrl',
           nameChain,
-          paramValue: Join(
+          paramValue: join(
             ',',
             cloudfrontDistributions.map((_, idx) =>
-              Join('', [
+              join('', [
                 'https://',
-                GetAtt(
+                getAtt(
                   cfLogicalNames.cloudfrontDistribution(
                     (isCompositeWebResourceType(configParentResourceType)
                       ? configManager.findImmediateParent({ nameChain })

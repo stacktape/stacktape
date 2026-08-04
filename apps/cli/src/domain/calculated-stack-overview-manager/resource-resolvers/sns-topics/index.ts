@@ -1,5 +1,6 @@
-import { GetAtt } from '@cloudform/functions';
-import SnsTopic from '@cloudform/sns/topic';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -12,7 +13,7 @@ export const resolveSnsTopics = async () => {
     calculatedStackOverviewManager.addCfChildResource({
       nameChain: resource.nameChain,
       cfLogicalName: cfLogicalNames.snsTopic(resource.name),
-      resource: new SnsTopic({
+      resource: cfnResource('AWS::SNS::Topic', {
         ContentBasedDeduplication: resource.contentBasedDeduplication,
         FifoTopic: resource.fifoEnabled,
         DisplayName: resource.smsDisplayName,
@@ -36,12 +37,12 @@ export const resolveSnsTopics = async () => {
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       paramName: 'arn',
       nameChain: resource.nameChain,
-      paramValue: GetAtt(cfLogicalNames.snsTopic(resource.name), 'TopicArn')
+      paramValue: getAtt(cfLogicalNames.snsTopic(resource.name), 'TopicArn')
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       paramName: 'name',
       nameChain: resource.nameChain,
-      paramValue: GetAtt(cfLogicalNames.snsTopic(resource.name), 'TopicName')
+      paramValue: getAtt(cfLogicalNames.snsTopic(resource.name), 'TopicName')
     });
   });
 };

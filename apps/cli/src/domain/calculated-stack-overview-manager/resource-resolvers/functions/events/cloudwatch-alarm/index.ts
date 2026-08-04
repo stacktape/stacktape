@@ -1,16 +1,16 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import EventBridgeRule from '@cloudform/events/rule';
-import { GetAtt, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToAlarm } from '@domain-services/config-manager/utils/alarms';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getEventBusRuleLambdaPermission } from '../utils';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { AlarmIntegration, AlarmIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
@@ -20,7 +20,7 @@ export const resolveCloudwatchAlarmEvents = ({
   lambdaFunction: StpLambdaFunction | StpHelperLambdaFunction;
 }): StpIamRoleStatement[] => {
   const { name, cfLogicalName, aliasLogicalName, events, configParentResourceType, nameChain } = lambdaFunction;
-  const lambdaEndpointArn = aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn');
+  const lambdaEndpointArn = aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn');
   (events || []).forEach((event: AlarmIntegration, index) => {
     if (event.type === 'cloudwatch-alarm') {
       calculatedStackOverviewManager.addCfChildResource({
@@ -39,7 +39,7 @@ export const resolveCloudwatchAlarmEvents = ({
         nameChain,
         resource: getEventBusRuleLambdaPermission({
           lambdaEndpointArn,
-          eventBusRuleArn: GetAtt(cfLogicalNames.eventBusRule(name, index), 'Arn')
+          eventBusRuleArn: getAtt(cfLogicalNames.eventBusRule(name, index), 'Arn')
         })
       });
     }
@@ -56,7 +56,7 @@ const getEventBusEventRule = ({
   configParentResourceType
 }: {
   workloadName: string;
-  lambdaEndpointArn: string | IntrinsicFunction;
+  lambdaEndpointArn: string | Intrinsic;
   eventIndex: number;
   eventDetails: AlarmIntegrationProps;
   configParentResourceType: StpLambdaFunction['configParentResourceType'];
@@ -67,12 +67,12 @@ const getEventBusEventRule = ({
     referencedFrom: workloadName,
     referencedFromType: configParentResourceType as StpWorkloadType
   });
-  return new EventBridgeRule({
+  return cfnResource('AWS::Events::Rule', {
     State: 'ENABLED',
     EventPattern: {
       source: ['aws.cloudwatch'],
       'detail-type': ['CloudWatch Alarm State Change'],
-      resources: [GetAtt(cfLogicalNames.cloudwatchAlarm(eventDetails.alarmName), 'Arn')],
+      resources: [getAtt(cfLogicalNames.cloudwatchAlarm(eventDetails.alarmName), 'Arn')],
       detail: {
         state: {
           value: ['ALARM']

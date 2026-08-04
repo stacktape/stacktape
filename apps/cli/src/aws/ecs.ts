@@ -1,3 +1,4 @@
+import type { KnownCloudFormationResource } from '@stacktape/cloudformation/resource';
 import type { CreateDeploymentCommandInput, CodeDeployClient } from '@aws-sdk/client-codedeploy';
 import { CreateDeploymentCommand, waitUntilDeploymentSuccessful } from '@aws-sdk/client-codedeploy';
 import type {
@@ -19,7 +20,6 @@ import {
   UpdateServiceCommand
 } from '@aws-sdk/client-ecs';
 import type { StartSessionResponse } from '@aws-sdk/client-ssm';
-import type TaskDefinition from '@cloudform/ecs/taskDefinition';
 import { createWaiter, WaiterState } from '@aws-sdk/util-waiter';
 import { chunkArray, lowerCaseFirstCharacterOfObjectKeys, serialize, wait } from '@utils/misc';
 
@@ -72,7 +72,7 @@ export class AwsEcs {
   registerTaskDefinition = async ({
     cloudformationEcsTaskDefinition
   }: {
-    cloudformationEcsTaskDefinition: TaskDefinition;
+    cloudformationEcsTaskDefinition: KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>;
   }) => {
     const errorHandler = this.#getErrorHandler('Failed to register new ECS task definition.');
     const lowerCasedProps = serialize(lowerCaseFirstCharacterOfObjectKeys(cloudformationEcsTaskDefinition.Properties));

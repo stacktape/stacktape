@@ -1,22 +1,18 @@
+import type { CloudFormationList } from '@stacktape/cloudformation/intrinsics';
+import type { Ingress } from '@stacktape/cloudformation/resources/aws-ec2-securitygroup';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpRedisCluster } from '@domain-services/config-manager/resolved-types/redis-cluster';
-import type { List } from '@cloudform/dataTypes';
-import type { Ingress } from '@cloudform/ec2/securityGroup';
-import type { UpdatePolicy } from '@cloudform/resource';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import SecurityGroup from '@cloudform/ec2/securityGroup';
-import ParameterGroup from '@cloudform/elastiCache/parameterGroup';
-import ReplicationGroup from '@cloudform/elastiCache/replicationGroup';
-import SubnetGroup from '@cloudform/elastiCache/subnetGroup';
-import { Ref } from '@cloudform/functions';
-import LogGroup from '@cloudform/logs/logGroup';
 import { getConnectToReferencesForResource } from '@domain-services/config-manager/utils/resource-references';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { getCloudFormationLogRetentionDays } from '@utils/cloudformation';
 import { ExpectedError } from '@utils/errors';
 
 export const getRedisParameterGroupResource = ({ resource }: { resource: StpRedisCluster }) => {
-  return new ParameterGroup({
+  return cfnResource('AWS::ElastiCache::ParameterGroup', {
     CacheParameterGroupFamily: getCacheParameterGroupFamily({ resource }),
     Description: `Parameter group for ${resource.name} replica group in ${calculatedStackOverviewManager.context.stackName} stack.`,
     Properties: {
@@ -26,7 +22,7 @@ export const getRedisParameterGroupResource = ({ resource }: { resource: StpRedi
 };
 
 export const getRedisSubnetGroupResource = ({ resource }: { resource: StpRedisCluster }) => {
-  return new SubnetGroup({
+  return cfnResource('AWS::ElastiCache::SubnetGroup', {
     Description: `${awsResourceNames.redisReplicationGroupDescription(
       resource.name,
       calculatedStackOverviewManager.context.stackName
@@ -51,10 +47,10 @@ export const getRedisReplicationGroupResource = ({ resource }: { resource: StpRe
       `Error in ${resource.type} "${resource.name}". When automatic failover is enabled, "numReplicaNodes" (number of replica nodes) must be set to at least 1.`
     );
   }
-  const replicationGroup = new ReplicationGroup({
+  const replicationGroup = cfnResource('AWS::ElastiCache::ReplicationGroup', {
     Engine: 'redis',
     EngineVersion: getEngineVersion({ resource }),
-    CacheParameterGroupName: Ref(cfLogicalNames.redisParameterGroup(resource.name)),
+    CacheParameterGroupName: ref(cfLogicalNames.redisParameterGroup(resource.name)),
     CacheNodeType: resource.instanceSize,
     TransitEncryptionEnabled: true,
     AtRestEncryptionEnabled: true,
@@ -64,15 +60,15 @@ export const getRedisReplicationGroupResource = ({ resource }: { resource: StpRe
       resource.name,
       calculatedStackOverviewManager.context.stackName
     ),
-    CacheSubnetGroupName: Ref(cfLogicalNames.redisSubnetGroup(resource.name)),
+    CacheSubnetGroupName: ref(cfLogicalNames.redisSubnetGroup(resource.name)),
     Port: getRedisPort({ resource }),
-    SecurityGroupIds: [Ref(cfLogicalNames.redisSecurityGroup(resource.name))],
+    SecurityGroupIds: [ref(cfLogicalNames.redisSecurityGroup(resource.name))],
     LogDeliveryConfigurations: !resource.logging?.disabled
       ? [
           {
             DestinationType: 'cloudwatch-logs',
             DestinationDetails: {
-              CloudWatchLogsDetails: { LogGroup: Ref(cfLogicalNames.redisLogGroup(resource.name)) }
+              CloudWatchLogsDetails: { LogGroup: ref(cfLogicalNames.redisLogGroup(resource.name)) }
             },
             LogFormat: resource.logging?.format || 'json',
             LogType: 'slow-log'
@@ -96,7 +92,7 @@ export const getRedisReplicationGroupResource = ({ resource }: { resource: StpRe
   });
   replicationGroup.UpdatePolicy = {
     UseOnlineResharding: true
-  } as UpdatePolicy;
+  };
 
   return replicationGroup;
 };
@@ -115,20 +111,20 @@ const getEngineVersion = ({ resource }: { resource: StpRedisCluster }): StpRedis
 
 export const getRedisSecurityGroupResource = ({ resource }: { resource: StpRedisCluster }) => {
   const redisPort = getRedisPort({ resource });
-  const basicIngressRules: List<Ingress> =
+  const basicIngressRules: CloudFormationList<Ingress> =
     !resource.accessibility || resource.accessibility.accessibilityMode === 'vpc'
       ? [{ CidrIp: vpcManager.getVpcCidr(), FromPort: redisPort, ToPort: redisPort, IpProtocol: 'tcp' }]
       : resource.accessibility.accessibilityMode === 'scoping-workloads-in-vpc'
         ? getConnectToReferencesForResource({ nameChain: resource.nameChain }).map(
             ({ scopingCfLogicalNameOfSecurityGroup }) => ({
-              SourceSecurityGroupId: Ref(scopingCfLogicalNameOfSecurityGroup),
+              SourceSecurityGroupId: ref(scopingCfLogicalNameOfSecurityGroup),
               FromPort: redisPort,
               ToPort: redisPort,
               IpProtocol: 'tcp'
             })
           ) || []
         : [];
-  return new SecurityGroup({
+  return cfnResource('AWS::EC2::SecurityGroup', {
     VpcId: vpcManager.getVpcId(),
     GroupName: awsResourceNames.redisClusterSecurityGroup(
       resource.name,
@@ -146,9 +142,9 @@ export const getLogGroupResource = ({
   resource: StpRedisCluster;
   retentionDays: number;
 }) => {
-  return new LogGroup({
+  return cfnResource('AWS::Logs::LogGroup', {
     LogGroupName: awsResourceNames.redisLogGroup(resource.name, calculatedStackOverviewManager.context.stackName),
-    RetentionInDays: retentionDays
+    RetentionInDays: getCloudFormationLogRetentionDays(retentionDays)
   });
 };
 

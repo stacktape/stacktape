@@ -1,6 +1,6 @@
+import type { Policy } from '@stacktape/cloudformation/resources/aws-iam-role';
 import { describe, expect, test } from 'bun:test';
 import type { IAMClient } from '@aws-sdk/client-iam';
-import type { Policy } from '@cloudform/iam/role';
 import {
   DeleteRolePolicyCommand,
   GetRoleCommand,

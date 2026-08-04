@@ -1,10 +1,11 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+
 import type { StpDeploymentScript } from '@domain-services/config-manager/resolved-types/deployment-script';
 import type {
   StpEdgeLambdaFunction,
   StpHelperEdgeLambdaFunction
 } from '@domain-services/config-manager/resolved-types/edge-lambda-functions';
 import type { OutputValue } from '@domain-services/stack-info/types';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { S3IntegrationProps } from '@stacktape/config/events';
 import type { OpenSearchDomainProps } from '@stacktape/config/open-search';
 import type { WebAppFirewallProps } from '@stacktape/config/web-app-firewall';
@@ -50,7 +51,7 @@ export type StpServiceCustomResourceEdgeFunctionProps = {
   artifactS3Key: string;
   lambdaRoleResourceName: string;
   lambdaLogGroupName: string;
-  preprocessedRolePolicies: import('@cloudform/iam/role').Policy[];
+  preprocessedRolePolicies: import('@stacktape/cloudformation/resources/aws-iam-role').Policy[];
 } & (StpEdgeLambdaFunction | StpHelperEdgeLambdaFunction);
 
 export type StpServiceCustomResourceAcceptVpcPeeringProps = {
@@ -63,7 +64,7 @@ export type StpServiceCustomResourceDatabaseDeletionProtectionProps = {
 };
 
 export type StpServiceCustomResourceScriptFunctionProps = {
-  functionName: string | IntrinsicFunction;
+  functionName: string | Intrinsic;
   triggerType: StpDeploymentScript['trigger'];
   parameters?: Record<string, any>;
 };
@@ -74,7 +75,7 @@ export type StpServiceCustomResourceSensitiveDataProps = {
 };
 
 export type StpServiceCustomResourcePublishLambdaVersionProps = {
-  functionName: string | IntrinsicFunction;
+  functionName: string | Intrinsic;
 };
 
 export type StpServiceCustomResourceFirewallProps = WebAppFirewallProps & {
@@ -84,15 +85,15 @@ export type StpServiceCustomResourceFirewallProps = WebAppFirewallProps & {
 export type StpServiceCustomResourceOpenSearchProps = OpenSearchDomainProps & { name: string };
 
 export type StpServiceCustomResourceForceDeleteAsgProps = {
-  asgName: string | IntrinsicFunction;
+  asgName: string | Intrinsic;
 };
 
 export type StpServiceCustomResourceDisableEcsManagedTerminationProtectionProps = {
-  capacityProviderName: string | IntrinsicFunction;
+  capacityProviderName: string | Intrinsic;
 };
 
 export type StpServiceCustomResourceDeregisterTargetsProps = {
-  targetGroupArns: (string | IntrinsicFunction)[];
+  targetGroupArns: (string | Intrinsic)[];
 };
 
 export type StpServiceCustomResourceDefaultDomainCertProps = { certDomainSuffix: string; version: number };
@@ -102,21 +103,21 @@ export type StpServiceCustomResourceEdgeLambdaBucketProps = { globallyUniqueStac
 export type StpServiceCustomResourceDefaultDomainProps = {
   domainName: string;
   targetInfo: {
-    hostedZoneId: string | IntrinsicFunction;
-    domainName: string | IntrinsicFunction;
+    hostedZoneId: string | Intrinsic;
+    domainName: string | Intrinsic;
   };
   version: number;
 };
 
 export type StpServiceCustomResourceAssetReplacerProps = {
-  bucketName: string | IntrinsicFunction;
+  bucketName: string | Intrinsic;
   zipFileS3Key: string;
   replacements: { includeFilesPattern: string; searchString: string; replaceString: string }[];
 };
 
 export type StpServiceCustomResourceUserPoolDetailsProps = {
-  userPoolId: string | IntrinsicFunction;
-  userPoolClientId: string | IntrinsicFunction;
+  userPoolId: string | Intrinsic;
+  userPoolClientId: string | Intrinsic;
 };
 
 export type StpServiceCustomResourceSsmParameterRetrieveProps = {

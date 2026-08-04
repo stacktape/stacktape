@@ -1,12 +1,15 @@
-import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import type {
+  CacheBehavior,
+  DistributionConfig
+} from '@stacktape/cloudformation/resources/aws-cloudfront-distribution';
+import { cfnResource, type KnownCloudFormationResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
+
 import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-types/nextjs-web';
-import type { CacheBehavior } from '@cloudform/cloudFront/distribution';
-import type Distribution from '@cloudform/cloudFront/distribution';
 import { join } from 'node:path';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import CloudfrontFunction from '@cloudform/cloudFront/function';
-import { GetAtt, Ref } from '@cloudform/functions';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { fsPaths } from 'src/config/runtime-paths';
@@ -19,7 +22,7 @@ import { resolveDirectivesForEnvironmentVariables } from '../_utils/env-vars';
 import { getStaticAssetCachePathPatterns } from '../_utils/ssr-web-shared';
 
 export const getHostHeaderRewriteCloudfrontFunction = (nextjsWeb: StpNextjsWeb) => {
-  return new CloudfrontFunction({
+  return cfnResource('AWS::CloudFront::Function', {
     Name: awsResourceNames.openNextHostHeaderRewriteFunction(
       nextjsWeb.name,
       calculatedStackOverviewManager.context.stackName,
@@ -38,13 +41,13 @@ export const getHostHeaderRewriteCloudfrontFunction = (nextjsWeb: StpNextjsWeb) 
 export const getAssetReplacerResource = (nextjsWeb: StpNextjsWeb) => {
   return getStpServiceCustomResource<'assetReplacer'>({
     assetReplacer: {
-      bucketName: Ref(cfLogicalNames.deploymentBucket()),
+      bucketName: ref(cfLogicalNames.deploymentBucket()),
       zipFileS3Key: '<<TBD>>',
       replacements: [
         {
           includeFilesPattern: '**/*.@(*js|json|html)',
           searchString: '{{ CACHE_BUCKET_NAME }}',
-          replaceString: Ref(cfLogicalNames.bucket(nextjsWeb._nestedResources.bucket.name)) as unknown as string
+          replaceString: ref(cfLogicalNames.bucket(nextjsWeb._nestedResources.bucket.name)) as unknown as string
         },
         {
           includeFilesPattern: '**/*.@(*js|json|html)',
@@ -63,13 +66,13 @@ export const getAssetReplacerResource = (nextjsWeb: StpNextjsWeb) => {
 
 export const getDynamoInsertCustomResource = (nextjsWeb: StpNextjsWeb) => {
   return getCustomResource<{ version: number }>({
-    serviceToken: GetAtt(nextjsWeb._nestedResources.revalidationInsertFunction.cfLogicalName, 'Arn'),
+    serviceToken: getAtt(nextjsWeb._nestedResources.revalidationInsertFunction.cfLogicalName, 'Arn'),
     properties: { version: Date.now() }
   });
 };
 
 export const getCacheBehaviourTemplateOverride =
-  (nextjsWeb: StpNextjsWeb) => async (template: CloudformationTemplate) => {
+  (nextjsWeb: StpNextjsWeb) => async (template: CloudFormationTemplate) => {
     const assetsDirPath = join(
       fsPaths.absoluteNextjsBuiltProjectFolderPath({
         stpResourceName: nextjsWeb.name,
@@ -84,12 +87,15 @@ export const getCacheBehaviourTemplateOverride =
 
     for (let distributionIndex = 0; ; distributionIndex += 1) {
       const cfLogicalNameOfResourceToModify = cfLogicalNames.cloudfrontDistribution(nextjsWeb.name, distributionIndex);
-      const distribution = template.Resources[cfLogicalNameOfResourceToModify] as Distribution | undefined;
+      const distribution = template.Resources[cfLogicalNameOfResourceToModify] as
+        | KnownCloudFormationResource<'AWS::CloudFront::Distribution'>
+        | undefined;
       if (!distribution) {
         break;
       }
 
-      const cacheBehaviors = distribution.Properties.DistributionConfig.CacheBehaviors as CacheBehavior[];
+      const cacheBehaviors = (distribution.Properties.DistributionConfig as DistributionConfig)
+        .CacheBehaviors as CacheBehavior[];
       const staticBehaviourIndex = cacheBehaviors.findIndex(({ PathPattern }) => PathPattern === '<<TBD_STATIC>>');
       if (staticBehaviourIndex === -1) {
         continue;
@@ -112,19 +118,21 @@ export const getCacheBehaviourTemplateOverride =
   };
 
 export const getDistributionRootObjectTemplateOverride =
-  (nextjsWeb: StpNextjsWeb) => async (template: CloudformationTemplate) => {
+  (nextjsWeb: StpNextjsWeb) => async (template: CloudFormationTemplate) => {
     for (let distributionIndex = 0; ; distributionIndex += 1) {
       const cfLogicalNameOfResourceToModify = cfLogicalNames.cloudfrontDistribution(nextjsWeb.name, distributionIndex);
-      const distribution = template.Resources[cfLogicalNameOfResourceToModify] as Distribution | undefined;
+      const distribution = template.Resources[cfLogicalNameOfResourceToModify] as
+        | KnownCloudFormationResource<'AWS::CloudFront::Distribution'>
+        | undefined;
       if (!distribution) {
         break;
       }
-      distribution.Properties.DistributionConfig.DefaultRootObject = '';
+      (distribution.Properties.DistributionConfig as DistributionConfig).DefaultRootObject = '';
     }
   };
 
 export const getAssetReplacerTemplateOverride =
-  (nextjsWeb: StpNextjsWeb) => async (template: CloudformationTemplate) => {
+  (nextjsWeb: StpNextjsWeb) => async (template: CloudFormationTemplate) => {
     const targetLambda = nextjsWeb._nestedResources.serverFunction || nextjsWeb._nestedResources.serverEdgeFunction;
     const { s3Key } = deploymentArtifactManager.getLambdaS3UploadInfo({
       artifactName: targetLambda.name,
@@ -160,12 +168,12 @@ export const getAssetReplacerTemplateOverride =
         searchString: EDGE_LAMBDA_ENV_ASSET_REPLACER_PLACEHOLDER,
         replaceString: transformIntoCloudformationSubstitutedString({
           ...varsObj,
-          CACHE_BUCKET_NAME: Ref(cfLogicalNames.bucket(nextjsWeb._nestedResources.bucket.name)),
+          CACHE_BUCKET_NAME: ref(cfLogicalNames.bucket(nextjsWeb._nestedResources.bucket.name)),
           CACHE_BUCKET_KEY_PREFIX: '_cache',
           CACHE_BUCKET_REGION: calculatedStackOverviewManager.context.region,
-          REVALIDATION_QUEUE_URL: Ref(cfLogicalNames.sqsQueue(nextjsWeb._nestedResources.revalidationQueue.name)),
+          REVALIDATION_QUEUE_URL: ref(cfLogicalNames.sqsQueue(nextjsWeb._nestedResources.revalidationQueue.name)),
           REVALIDATION_QUEUE_REGION: calculatedStackOverviewManager.context.region,
-          CACHE_DYNAMO_TABLE: Ref(cfLogicalNames.dynamoGlobalTable(nextjsWeb._nestedResources.revalidationTable.name))
+          CACHE_DYNAMO_TABLE: ref(cfLogicalNames.dynamoGlobalTable(nextjsWeb._nestedResources.revalidationTable.name))
         }) as unknown as string
       });
     }

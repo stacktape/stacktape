@@ -1,8 +1,8 @@
+import type { Dimension } from '@stacktape/cloudformation/resources/aws-cloudwatch-alarm';
+import { cfnResource } from '@stacktape/cloudformation/resource';
 import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
-import type { Dimension } from '@cloudform/cloudWatch/alarm';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getAlarmDescription } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/alarms/descriptions';
 import { getComparisonOperator } from '../../utils';
@@ -22,7 +22,7 @@ export const getApplicationLoadBalancerErrorRateAlarm = ({
   const dimensions: Dimension[] = getDimensionsForAlb({ resource });
   const comparisonOperator = getComparisonOperator({ alarm });
   const threshold = trigger.properties.thresholdPercent;
-  return new CloudwatchAlarm({
+  return cfnResource('AWS::CloudWatch::Alarm', {
     AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
     AlarmDescription:
       alarm.description ||

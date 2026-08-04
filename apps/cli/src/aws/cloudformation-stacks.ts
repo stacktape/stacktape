@@ -1,4 +1,5 @@
-import type { CloudformationTemplate, StackDetails } from '@domain-services/cloudformation-stack-manager/types';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import type { StackDetails } from '@domain-services/cloudformation-stack-manager/types';
 import type {
   CreateChangeSetInput,
   CreateStackInput,
@@ -96,7 +97,7 @@ export class AwsCloudFormationStacks {
       });
   };
 
-  create = (template: CloudformationTemplate, stackParams: CreateStackInput) => {
+  create = (template: CloudFormationTemplate, stackParams: CreateStackInput) => {
     const handleError = this.#getErrorHandler('Failed to initiate stack creation.');
     return this.#createClient()
       .send(new CreateStackCommand({ ...stackParams, TemplateBody: JSON.stringify(template) }))

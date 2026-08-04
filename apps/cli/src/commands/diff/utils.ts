@@ -1,5 +1,6 @@
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import type { StackInfoMapResource } from '@domain-services/stack-info/types';
-import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
+
 import type {
   CfChildResourceOverview,
   DetailedStackResourceInfo,
@@ -23,7 +24,7 @@ export type PreviewResourceChange = {
   changedChildCount: number;
 };
 
-const normalizePreviewTemplate = (template: CloudformationTemplate): CloudformationTemplate => {
+const normalizePreviewTemplate = (template: CloudFormationTemplate): CloudFormationTemplate => {
   const normalizedTemplate = serialize(template);
 
   delete normalizedTemplate.Outputs?.[outputNames.deploymentVersion()];
@@ -59,8 +60,8 @@ export const getNormalizedPreviewTemplateDiff = ({
   oldTemplate,
   newTemplate
 }: {
-  oldTemplate: CloudformationTemplate;
-  newTemplate: CloudformationTemplate;
+  oldTemplate: CloudFormationTemplate;
+  newTemplate: CloudFormationTemplate;
 }) => {
   return diffTemplate(normalizePreviewTemplate(oldTemplate), normalizePreviewTemplate(newTemplate));
 };

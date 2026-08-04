@@ -1,3 +1,9 @@
+import type {
+  CloudFormationTemplate,
+  KnownCloudFormationResource,
+  KnownCloudFormationResourceType
+} from '@stacktape/cloudformation/resource';
+import { isIntrinsic, type CloudFormationValue } from '@stacktape/cloudformation/intrinsics';
 import { beforeAll, describe, expect, test } from 'bun:test';
 import http from 'node:http';
 import https from 'node:https';
@@ -17,7 +23,7 @@ import {
 import { configManager } from '@domain-services/config-manager';
 import type { StpBucket } from '@domain-services/config-manager/resolved-types/buckets';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
+
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
 import { templateManager } from '@domain-services/template-manager';
@@ -505,7 +511,7 @@ const physicalNameKeys = new Set([
   'UserPoolName'
 ]);
 
-const getPhysicalNames = ({ properties }: { properties: Record<string, unknown> | undefined }) =>
+const getPhysicalNames = ({ properties }: { properties: object | undefined }) =>
   Object.fromEntries(
     Object.entries(properties ?? {})
       .filter(([key]) => physicalNameKeys.has(key))
@@ -518,7 +524,7 @@ const getPhysicalNames = ({ properties }: { properties: Record<string, unknown> 
       ])
   );
 
-export const createSynthesisIdentityManifest = (template: CloudformationTemplate) => {
+export const createSynthesisIdentityManifest = (template: CloudFormationTemplate) => {
   const logicalIds = new Set(Object.keys(template.Resources));
   const ignoredOutputNames = new Set([outputNames.deploymentVersion(), outputNames.stackInfoMap()]);
 
@@ -566,7 +572,7 @@ export const createSynthesisIdentityManifest = (template: CloudformationTemplate
   };
 };
 
-let synthesizedTemplate: CloudformationTemplate;
+let synthesizedTemplate: CloudFormationTemplate;
 
 beforeAll(async () => {
   synthesizedTemplate = await synthesizeDenseFixture();
@@ -618,7 +624,7 @@ const normalizeRolePolicies = (role: any) =>
 
 const selectedIamRoleNames = ['ApiRole', 'WorkerRole', 'WebRole', 'StpEcsExecutionRole'] as const;
 
-export const createNormalizedIamManifest = (template: CloudformationTemplate) => {
+export const createNormalizedIamManifest = (template: CloudFormationTemplate) => {
   const resources = template.Resources as Record<string, any>;
 
   return Object.fromEntries(
@@ -983,7 +989,7 @@ describe('full synthesis contract', () => {
       }
     });
 
-    expect(template.Resources.DatabaseDbInstance?.Properties.DeletionProtection).toBe(true);
+    expect(template.Resources.DatabaseDbInstance?.Properties).toMatchObject({ DeletionProtection: true });
   });
 
   test('applies overrides when the same dev database is selected as remote', async () => {
@@ -995,7 +1001,7 @@ describe('full synthesis contract', () => {
       }
     });
 
-    expect(template.Resources.DatabaseDbInstance?.Properties.DeletionProtection).toBe(true);
+    expect(template.Resources.DatabaseDbInstance?.Properties).toMatchObject({ DeletionProtection: true });
   });
 
   test('ignores remote-service overrides when a web service runs locally in dev mode', async () => {
@@ -1250,12 +1256,21 @@ describe('full synthesis contract', () => {
 });
 
 describe('load balancer and CDN synthesis contract', () => {
-  const resourcesOfType = (type: string) =>
-    Object.values(synthesizedTemplate.Resources).filter((resource) => resource.Type === type);
+  const literalValue = <Value>(value: CloudFormationValue<Value>, description: string): Value => {
+    if (isIntrinsic(value)) {
+      throw new Error(`Expected a literal ${description}, received a CloudFormation intrinsic.`);
+    }
+    return value as Value;
+  };
+
+  const resourcesOfType = <Type extends KnownCloudFormationResourceType>(type: Type) =>
+    Object.values(synthesizedTemplate.Resources).filter(
+      (resource): resource is KnownCloudFormationResource<Type> => resource.Type === type
+    );
 
   test('supplies the defaulted listener pair for a load balancer that authored none', () => {
     const listenerPorts = resourcesOfType('AWS::ElasticLoadBalancingV2::Listener')
-      .map((listener) => listener.Properties.Port)
+      .map((listener) => literalValue(listener.Properties.Port, 'listener port'))
       .sort((left, right) => left - right);
 
     expect(listenerPorts).toEqual([80, 443]);
@@ -1264,7 +1279,7 @@ describe('load balancer and CDN synthesis contract', () => {
   test('redirects the plain HTTP listener and terminates TLS on the HTTPS one', () => {
     const byPort = new Map(
       resourcesOfType('AWS::ElasticLoadBalancingV2::Listener').map((listener) => [
-        listener.Properties.Port,
+        literalValue(listener.Properties.Port, 'listener port'),
         listener.Properties
       ])
     );
@@ -1292,12 +1307,16 @@ describe('load balancer and CDN synthesis contract', () => {
   test('attaches a CloudFront distribution whose default origin is the load balancer', () => {
     const distributions = resourcesOfType('AWS::CloudFront::Distribution');
     const [distribution] = distributions;
-    const origins = distribution.Properties.DistributionConfig.Origins;
+    const distributionConfig = literalValue(
+      distribution.Properties.DistributionConfig,
+      'CloudFront distribution configuration'
+    );
+    const origins = distributionConfig.Origins;
 
     // One enabled CDN on one load balancer synthesizes exactly one distribution: the guard the resolvers branch on
     // decides both whether any distribution is built and how many, so the count is part of what it contracts for.
     expect(distributions).toHaveLength(1);
-    expect(distribution.Properties.DistributionConfig.Enabled).toBe(true);
+    expect(distributionConfig.Enabled).toBe(true);
     expect(origins).toHaveLength(2);
     expect(origins[0].Id).toBe('edge0');
     expect(origins[0].DomainName).toBe('edge.internal.example.com');
@@ -1311,7 +1330,10 @@ describe('load balancer and CDN synthesis contract', () => {
 
   test('routes an omitted-target CDN rewrite back to the load balancer origin', () => {
     const [distribution] = resourcesOfType('AWS::CloudFront::Distribution');
-    const { CacheBehaviors: cacheBehaviors, Origins: origins } = distribution.Properties.DistributionConfig;
+    const { CacheBehaviors: cacheBehaviors, Origins: origins } = literalValue(
+      distribution.Properties.DistributionConfig,
+      'CloudFront distribution configuration'
+    );
 
     expect(origins[1]).toMatchObject({
       Id: 'edge1',

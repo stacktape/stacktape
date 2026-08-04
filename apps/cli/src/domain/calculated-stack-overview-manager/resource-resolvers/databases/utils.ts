@@ -1,21 +1,14 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import type { CloudFormationList } from '@stacktape/cloudformation/intrinsics';
+import type { Ingress } from '@stacktape/cloudformation/resources/aws-ec2-securitygroup';
+import type { OptionConfiguration } from '@stacktape/cloudformation/resources/aws-rds-optiongroup';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { ref, sub } from '@stacktape/cloudformation/intrinsics';
 import type {
   NormalizedSQLEngine,
   StpRelationalDatabase
 } from '@domain-services/config-manager/resolved-types/relational-databases';
-import type { List } from '@cloudform/dataTypes';
-import type { Ingress } from '@cloudform/ec2/securityGroup';
-import type { OptionConfiguration } from '@cloudform/rds/optionGroup';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import SecurityGroup from '@cloudform/ec2/securityGroup';
-import { Ref, Sub } from '@cloudform/functions';
-import LogGroup from '@cloudform/logs/logGroup';
-import DBCluster from '@cloudform/rds/dbCluster';
-import DBClusterParameterGroup from '@cloudform/rds/dbClusterParameterGroup';
-import DBInstance from '@cloudform/rds/dbInstance';
-import DBInstanceParameterGroup from '@cloudform/rds/dbParameterGroup';
-import DBSubnetGroup from '@cloudform/rds/dbSubnetGroup';
-import DBOptionGroup from '@cloudform/rds/optionGroup';
-import { DeletionPolicy } from '@cloudform/resource';
 import { defaultLogRetentionDays } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { getConnectToReferencesForResource } from '@domain-services/config-manager/utils/resource-references';
@@ -27,10 +20,10 @@ import { normalizeEngineType } from '@stacktape/config/relational-database-engin
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { transformToCidr } from '@utils/misc';
+import { getCloudFormationLogRetentionDays } from '@utils/cloudformation';
 import { isAuroraEngine } from 'src/aws/rds-engines';
 import { ExpectedError } from '@utils/errors';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type {
   AuroraEngine,
   MysqlLoggingOptions,
@@ -67,7 +60,7 @@ export const resolveDatabasePort = ({ definition }: { definition: StpRelationalD
 };
 
 export const getDbSubnetGroup = ({ stpResourceName }: { stpResourceName: string }) =>
-  new DBSubnetGroup({
+  cfnResource('AWS::RDS::DBSubnetGroup', {
     DBSubnetGroupName: awsResourceNames.dbSubnetGroup(
       calculatedStackOverviewManager.context.stackName,
       stpResourceName
@@ -81,7 +74,7 @@ export const getDbSubnetGroup = ({ stpResourceName }: { stpResourceName: string 
 
 export const getDbSecurityGroup = ({ resource }: { resource: StpRelationalDatabase }) => {
   const databasePort = resolveDatabasePort({ definition: resource });
-  const basicIngressRules: List<Ingress> =
+  const basicIngressRules: CloudFormationList<Ingress> =
     !resource.accessibility || resource.accessibility.accessibilityMode === 'internet'
       ? [{ CidrIp: '0.0.0.0/0', FromPort: databasePort, ToPort: databasePort, IpProtocol: 'tcp' }]
       : resource.accessibility.accessibilityMode === 'vpc'
@@ -89,14 +82,14 @@ export const getDbSecurityGroup = ({ resource }: { resource: StpRelationalDataba
         : resource.accessibility.accessibilityMode === 'scoping-workloads-in-vpc'
           ? getConnectToReferencesForResource({ nameChain: resource.nameChain }).map(
               ({ scopingCfLogicalNameOfSecurityGroup }) => ({
-                SourceSecurityGroupId: Ref(scopingCfLogicalNameOfSecurityGroup),
+                SourceSecurityGroupId: ref(scopingCfLogicalNameOfSecurityGroup),
                 FromPort: databasePort,
                 ToPort: databasePort,
                 IpProtocol: 'tcp'
               })
             ) || []
           : [];
-  return new SecurityGroup({
+  return cfnResource('AWS::EC2::SecurityGroup', {
     VpcId: vpcManager.getVpcId(),
     GroupName: awsResourceNames.dbSecurityGroup(resource.name, calculatedStackOverviewManager.context.stackName),
     GroupDescription: `Stacktape generated security group for database ${resource.name} in stack ${calculatedStackOverviewManager.context.stackName}`,
@@ -122,11 +115,11 @@ export const getAuroraDbInstance = ({
   instanceNum: number;
   instanceSize: string;
 }) => {
-  const instance = new DBInstance({
-    DBClusterIdentifier: Ref(cfLogicalNames.auroraDbCluster(stpResourceName)),
+  const instance = cfnResource('AWS::RDS::DBInstance', {
+    DBClusterIdentifier: ref(cfLogicalNames.auroraDbCluster(stpResourceName)),
     DBInstanceClass: instanceSize,
     PubliclyAccessible: !resource.accessibility?.forceDisablePublicIp,
-    DBParameterGroupName: Ref(cfLogicalNames.auroraDbInstanceParameterGroup(stpResourceName)),
+    DBParameterGroupName: ref(cfLogicalNames.auroraDbInstanceParameterGroup(stpResourceName)),
     DBInstanceIdentifier: awsResourceNames.auroraDbInstance(
       stpResourceName,
       calculatedStackOverviewManager.context.stackName,
@@ -151,10 +144,10 @@ export const getAuroraDbClusterParameterGroup = ({
   stpResourceName: string;
   resource: StpRelationalDatabase;
 }) => {
-  const parameters: DBClusterParameterGroup['Properties']['Parameters'] = {
+  const parameters = {
     ...getLoggingParameters({ resource, addAuroraClusterParams: true })
   };
-  return new DBClusterParameterGroup({
+  return cfnResource('AWS::RDS::DBClusterParameterGroup', {
     Family: getEngineVersionConfigurationData({
       engineType: resource.engine.type,
       engineVersion: resource.engine.properties?.version,
@@ -178,14 +171,14 @@ export const getAuroraDbCluster = ({
   // in case of cluster an engine name can be ending with serverless (denoting serverless instance) we need to clean resource.engine.type
   const logExports = resolveCloudwatchLogExports({ resource });
   const engineType = normalizeEngineType(resource.engine.type);
-  const cluster = new DBCluster({
+  const cluster = cfnResource('AWS::RDS::DBCluster', {
     MasterUsername: getDbMasterUserName({ resource }),
     MasterUserPassword: resource.credentials.masterUserPassword,
     BackupRetentionPeriod: resource.automatedBackupRetentionDays,
     AutoMinorVersionUpgrade: !resource.engine.properties?.disableAutoMinorVersionUpgrade,
-    DBSubnetGroupName: Ref(cfLogicalNames.dbSubnetGroup(stpResourceName)),
+    DBSubnetGroupName: ref(cfLogicalNames.dbSubnetGroup(stpResourceName)),
     DBClusterIdentifier: awsResourceNames.dbCluster(calculatedStackOverviewManager.context.stackName, stpResourceName),
-    DBClusterParameterGroupName: Ref(cfLogicalNames.auroraDbClusterParameterGroup(stpResourceName)),
+    DBClusterParameterGroupName: ref(cfLogicalNames.auroraDbClusterParameterGroup(stpResourceName)),
     Engine: engineType,
     DatabaseName: getDatabaseName({ resource }),
     Port:
@@ -226,14 +219,14 @@ export const getAuroraDbCluster = ({
             MaxCapacity: resource.engine.properties?.maxCapacity || 10
           }
         : undefined,
-    VpcSecurityGroupIds: [Ref(cfLogicalNames.dbSecurityGroup(stpResourceName))],
+    VpcSecurityGroupIds: [ref(cfLogicalNames.dbSecurityGroup(stpResourceName))],
     StorageEncrypted: true
     // DeletionProtection: resource.deletionProtection
   });
   cluster.DependsOn = logExports.map((logGroupType) =>
     cfLogicalNames.auroraDbClusterLogGroup(stpResourceName, logGroupType)
   );
-  cluster.DeletionPolicy = DeletionPolicy.Delete;
+  cluster.DeletionPolicy = 'Delete';
   return cluster;
 };
 
@@ -323,9 +316,11 @@ export const getDbLogGroup = ({
           calculatedStackOverviewManager.context.stackName,
           readReplicaNum
         );
-  return new LogGroup({
+  return cfnResource('AWS::Logs::LogGroup', {
     LogGroupName: awsResourceNames.dbLogGroup(awsDatabaseIdentifier, isAuroraCluster({ resource }), logGroupType),
-    RetentionInDays: resource.logging?.retentionDays || defaultLogRetentionDays.relationalDatabase
+    RetentionInDays: getCloudFormationLogRetentionDays(
+      resource.logging?.retentionDays || defaultLogRetentionDays.relationalDatabase
+    )
   });
 };
 
@@ -340,11 +335,11 @@ export const getDbInstanceParameterGroup = ({
   replicaNum?: number;
   instanceSize?: string;
 }) => {
-  const parameters: DBInstanceParameterGroup['Properties']['Parameters'] = {
+  const parameters = {
     // for aurora instances logging parameters are set on cluster level
     ...getLoggingParameters({ resource, addAuroraClusterParams: false })
   };
-  return new DBInstanceParameterGroup({
+  return cfnResource('AWS::RDS::DBParameterGroup', {
     Description: `${calculatedStackOverviewManager.context.stackName} ${stpResourceName} param group${
       replicaNum !== undefined ? ` rep ${replicaNum}` : ''
     }`,
@@ -381,7 +376,7 @@ const getLoggingParameters = ({
 }: {
   resource: StpRelationalDatabase;
   addAuroraClusterParams: boolean;
-}): DBInstanceParameterGroup['Properties']['Parameters'] => {
+}): Record<string, string | boolean> => {
   // let parameters: DBInstanceParameterGroup['Properties']['Parameters'] = {};
   const logExports = resolveCloudwatchLogExports({ resource });
   // normalizing engine type means that serverless is removed from aurora serverless engines
@@ -548,7 +543,7 @@ export const getBasicRdsInstance = ({
   multiAz: boolean;
 }) => {
   const logExports = resolveCloudwatchLogExports({ resource });
-  const instance = new DBInstance({
+  const instance = cfnResource('AWS::RDS::DBInstance', {
     DBInstanceClass: instanceSize,
     DBInstanceIdentifier:
       replicaNum === undefined
@@ -571,7 +566,7 @@ export const getBasicRdsInstance = ({
           })
         : undefined,
     EnableCloudwatchLogsExports: logExports.length ? logExports : undefined,
-    DBParameterGroupName: Ref(cfLogicalNames.dbInstanceParameterGroup(stpResourceName)),
+    DBParameterGroupName: ref(cfLogicalNames.dbInstanceParameterGroup(stpResourceName)),
     LicenseModel:
       resource.engine.type === 'oracle-ee' || resource.engine.type === 'oracle-se2' ? 'license-included' : undefined,
     Port: `${resolveDatabasePort({ definition: resource })}`,
@@ -581,12 +576,12 @@ export const getBasicRdsInstance = ({
     AllocatedStorage: `${(resource.engine.properties as RdsEngine['properties']).storage?.initialSize || 20}`,
     MaxAllocatedStorage: (resource.engine.properties as RdsEngine['properties']).storage?.maxSize || 200,
     PubliclyAccessible: !resource.accessibility?.forceDisablePublicIp,
-    DBSubnetGroupName: replicaNum === undefined ? Ref(cfLogicalNames.dbSubnetGroup(stpResourceName)) : undefined,
-    VPCSecurityGroups: [Ref(cfLogicalNames.dbSecurityGroup(stpResourceName))],
-    SourceDBInstanceIdentifier: replicaNum !== undefined ? Ref(cfLogicalNames.dbInstance(stpResourceName)) : undefined,
+    DBSubnetGroupName: replicaNum === undefined ? ref(cfLogicalNames.dbSubnetGroup(stpResourceName)) : undefined,
+    VPCSecurityGroups: [ref(cfLogicalNames.dbSecurityGroup(stpResourceName))],
+    SourceDBInstanceIdentifier: replicaNum !== undefined ? ref(cfLogicalNames.dbInstance(stpResourceName)) : undefined,
     AllowMajorVersionUpgrade: true,
     OptionGroupName: ENGINE_TYPES_REQUIRING_OPTION_GROUP.includes(resource.engine.type)
-      ? Ref(cfLogicalNames.dbOptionGroup(stpResourceName))
+      ? ref(cfLogicalNames.dbOptionGroup(stpResourceName))
       : undefined,
     // DeletionProtection: resource.deletionProtection,
     StorageType: 'gp3',
@@ -607,7 +602,7 @@ export const getBasicRdsInstance = ({
       ? cfLogicalNames.dbInstanceLogGroup(stpResourceName, logGroupType)
       : cfLogicalNames.dbReplicaLogGroup(stpResourceName, logGroupType, replicaNum)
   );
-  instance.DeletionPolicy = DeletionPolicy.Delete;
+  instance.DeletionPolicy = 'Delete';
   return instance;
 };
 
@@ -636,7 +631,7 @@ export const getDbOptionGroup = ({
       ]
     });
   }
-  return new DBOptionGroup({
+  return cfnResource('AWS::RDS::OptionGroup', {
     EngineName: resource.engine.type,
     MajorEngineVersion: getEngineVersionConfigurationData({
       engineType: resource.engine.type,
@@ -671,9 +666,9 @@ export const getDatabaseConnectionString = ({
   host,
   definition
 }: {
-  host: IntrinsicFunction | string;
+  host: Intrinsic | string;
   definition: StpRelationalDatabase;
-}): IntrinsicFunction => {
+}): Intrinsic => {
   const databaseName = getDatabaseName({ resource: definition });
   const port = String(resolveDatabasePort({ definition }));
 
@@ -683,7 +678,7 @@ export const getDatabaseConnectionString = ({
     definition.engine.type === 'sqlserver-web' ||
     definition.engine.type === 'sqlserver-se'
   ) {
-    return Sub(
+    return sub(
       `${
         connectionStringProtocol[definition.engine.type].basic
       }\${host}:\${port};user=\${username};password=\${password}`,
@@ -698,7 +693,7 @@ export const getDatabaseConnectionString = ({
   }
 
   if (databaseName) {
-    return Sub(
+    return sub(
       `${connectionStringProtocol[definition.engine.type].basic}\${username}:\${password}@\${host}:\${port}/${
         databaseName ? `\${databaseName}` : ''
       }`,
@@ -711,7 +706,7 @@ export const getDatabaseConnectionString = ({
       }
     );
   }
-  return Sub(`${connectionStringProtocol[definition.engine.type].basic}\${username}:\${password}@\${host}:\${port}`, {
+  return sub(`${connectionStringProtocol[definition.engine.type].basic}\${username}:\${password}@\${host}:\${port}`, {
     host,
     username: getDbMasterUserName({ resource: definition }),
     password: definition.credentials.masterUserPassword,
@@ -723,9 +718,9 @@ export const getJdbcDatabaseConnectionString = ({
   host,
   definition
 }: {
-  host: IntrinsicFunction | string;
+  host: Intrinsic | string;
   definition: StpRelationalDatabase;
-}): IntrinsicFunction => {
+}): Intrinsic => {
   const databaseName = getDatabaseName({ resource: definition });
   const port = String(resolveDatabasePort({ definition }));
 
@@ -735,7 +730,7 @@ export const getJdbcDatabaseConnectionString = ({
     definition.engine.type === 'sqlserver-web' ||
     definition.engine.type === 'sqlserver-se'
   ) {
-    return Sub(
+    return sub(
       `${
         connectionStringProtocol[definition.engine.type].jdbc
       }\${host}:\${port};user=\${username};password=\${password}`,
@@ -749,7 +744,7 @@ export const getJdbcDatabaseConnectionString = ({
   }
 
   if (definition.engine.type === 'oracle-ee' || definition.engine.type === 'oracle-se2') {
-    return Sub(
+    return sub(
       `${
         connectionStringProtocol[definition.engine.type].jdbc
       }\${username}/\${password}@\${host}:\${port}:\${databaseName}`,
@@ -762,7 +757,7 @@ export const getJdbcDatabaseConnectionString = ({
       }
     );
   }
-  return Sub(
+  return sub(
     `${
       connectionStringProtocol[definition.engine.type].jdbc
     }\${host}:\${port}/\${databaseName}?user=\${username}&password=\${password}`,
@@ -833,8 +828,8 @@ export const getDatabaseDeletionProtectionCustomResource = ({
   return getStpServiceCustomResource<'setDatabaseDeletionProtection'>({
     setDatabaseDeletionProtection: {
       ...(isAuroraEngine(engine.type)
-        ? { clusterId: Ref(cfLogicalNames.auroraDbCluster(name)) as unknown as string }
-        : { instanceId: Ref(cfLogicalNames.dbInstance(name)) as unknown as string })
+        ? { clusterId: ref(cfLogicalNames.auroraDbCluster(name)) as unknown as string }
+        : { instanceId: ref(cfLogicalNames.dbInstance(name)) as unknown as string })
     }
   });
 };
@@ -867,9 +862,14 @@ export const validateEngineVersion = ({ resource }: { resource: StpRelationalDat
     });
   }
 
+  const existingEngineVersion = (
+    templateManager.oldTemplate?.Resources?.[logicalNameOfExistingResource]?.Properties as
+      | { EngineVersion?: string }
+      | undefined
+  )?.EngineVersion;
+
   if (
-    resource.engine?.properties?.version !==
-      templateManager.oldTemplate?.Resources?.[logicalNameOfExistingResource]?.Properties?.EngineVersion &&
+    resource.engine?.properties?.version !== existingEngineVersion &&
     !availableVersions.includes(resource.engine?.properties?.version)
   ) {
     throw stpErrors.e111({

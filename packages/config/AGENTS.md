@@ -15,8 +15,9 @@ imports the package subpath; do not create application-local copies.
 
 This package exists because that model used to be ~59,000 lines of ambient `.d.ts` under `apps/cli/types`. Ambient
 declarations have no owner, so consumers re-declared pieces and the copies drifted. The runtime classes and directives
-that author this model live separately in `@stacktape/config-authoring`; keeping the plain model dependency-free lets
-schema generators and type-only consumers avoid loading that runtime.
+that author this model live separately in `@stacktape/config-authoring`. Its only dependency is the dependency-free
+CloudFormation vocabulary in `@stacktape/cloudformation`, used by the raw-resource escape hatch and the few authored
+properties that accept intrinsic functions.
 
 ## What belongs here
 
@@ -46,16 +47,17 @@ service-manager aliases. They stay with their real owners.
 - No barrel. The module layout _is_ the export map: `.` is `StacktapeConfig`, `./shared` is the shared authored
   primitives that resource props inherit from, and every other module is its own subpath via `./*`. The legacy
   `_root`/`__helpers` spellings no longer exist; `resolveConfigSourceFile` keeps their documentation identity.
-- No dependencies. The configuration format does not need a runtime, and the only value this package owns is the
-  `IntrinsicFunction` class the escape hatch is written against.
+- Do not add runtime dependencies. `@stacktape/cloudformation` is a small, dependency-free vocabulary of structural
+  types and plain-object helper functions; this package consumes its types and does not own a second CloudFormation
+  model.
 - Never import `apps/cli`. `CONNECT_TO_AWS_SERVICE_MACROS` lives here precisely because the ambient model used to
   read it back out of a CLI resolver through `typeof import('../../src/domain/...')`.
 - The acceptance check is two files, both outside `src` so neither is exported.
   `tests/config-import.acceptance.ts` builds a real `StacktapeConfig` from explicit imports and belongs to the
   package's own `tsconfig.json`, which compiles it with `types: []` and `skipLibCheck: false` — the environment a
   consumer actually has, so a stray dependency on a Bun or Node global cannot pass unnoticed.
-  `tests/config-import.test.ts` imports it and pins the runtime the package owns: `IntrinsicFunction.toJSON()`
-  and the `connectTo` AWS-service macros. It needs `bun-types` for `bun:test`, so it compiles under
+  `tests/config-import.test.ts` pins structural CloudFormation helper output and the `connectTo` AWS-service macros.
+  It needs `bun-types` for `bun:test`, so it compiles under
   `tests/tsconfig.json` instead; measured, that laxer project hides nothing repository-owned.
 
 ## Declaration content is product content

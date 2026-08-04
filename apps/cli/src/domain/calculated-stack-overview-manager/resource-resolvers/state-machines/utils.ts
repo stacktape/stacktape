@@ -1,24 +1,23 @@
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { GetAtt } from '@cloudform/functions';
-import IAMRole from '@cloudform/iam/role';
-import StateMachine from '@cloudform/stepFunctions/stateMachine';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import type { StpStateMachine } from '@stacktape/config/state-machines';
 
 export const getStateMachineResource = async (stateMachine: StpStateMachine) => {
-  return new StateMachine({
+  return cfnResource('AWS::StepFunctions::StateMachine', {
     StateMachineName: awsResourceNames.stateMachine(
       stateMachine.name,
       calculatedStackOverviewManager.context.stackName
     ),
     Definition: stateMachine.definition,
-    RoleArn: GetAtt(cfLogicalNames.globalStateMachinesRole(), 'Arn')
+    RoleArn: getAtt(cfLogicalNames.globalStateMachinesRole(), 'Arn')
   });
 };
 
 export const getStateMachineExecutionRole = () =>
-  new IAMRole({
+  cfnResource('AWS::IAM::Role', {
     Path: '/',
     AssumeRolePolicyDocument: {
       Version: '2012-10-17',

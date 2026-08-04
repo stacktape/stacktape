@@ -1,3 +1,6 @@
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import type { InputTransformer, RuleProperties, Target } from '@stacktape/cloudformation/resources/aws-events-rule';
+import { getAtt, ref, sub } from '@stacktape/cloudformation/intrinsics';
 import type {
   AlarmNotificationEventRuleInput,
   StpAlarmEnabledResource
@@ -9,9 +12,6 @@ import type { StpRelationalDatabase } from '@domain-services/config-manager/reso
 import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
-import EventBridgeRule from '@cloudform/events/rule';
-import { GetAtt, Ref } from '@cloudform/functions';
-import LambdaPermission from '@cloudform/lambda/permission';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { getAlarmsToBeAppliedToResource } from '@domain-services/config-manager/utils/alarms';
@@ -20,7 +20,7 @@ import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { processAllNodes } from '@utils/misc';
-import { SubWithoutMapping, transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
+import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
 import { escapeCloudformationSecretDynamicReference } from '@utils/stack-info-map-sensitive-values';
 import {
   getApplicationLoadBalancerCustomAlarm,
@@ -53,9 +53,9 @@ export const resolveAlarmsForResource = ({ resource }: { resource: StpAlarmEnabl
       resource: getEventRuleForAlarmNotification({ alarm, resource })
     });
     templateManager.addFinalTemplateOverrideFn(async (template) => {
-      const targetInputTransformer =
-        template.Resources[cfLogicalNames.cloudwatchAlarmEventBusNotificationRule(alarm.name)].Properties.Targets[0]
-          .InputTransformer;
+      const ruleProperties = template.Resources[cfLogicalNames.cloudwatchAlarmEventBusNotificationRule(alarm.name)]
+        .Properties as RuleProperties;
+      const targetInputTransformer = (ruleProperties.Targets as Target[])[0].InputTransformer as InputTransformer;
       targetInputTransformer.InputTemplate = transformIntoCloudformationSubstitutedString(
         await processAllNodes(
           await configManager.resolveDirectives({
@@ -83,12 +83,12 @@ const addSharedAlarmNotificationPermission = () => {
   calculatedStackOverviewManager.addCfChildResource({
     cfLogicalName,
     nameChain: configManager.stacktapeServiceLambdaProps.nameChain,
-    resource: new LambdaPermission({
+    resource: cfnResource('AWS::Lambda::Permission', {
       Action: 'lambda:InvokeFunction',
       Principal: 'events.amazonaws.com',
-      FunctionName: GetAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
-      SourceAccount: Ref('AWS::AccountId'),
-      SourceArn: SubWithoutMapping(`arn:aws:events:\${AWS::Region}:\${AWS::AccountId}:rule/${ruleNamePrefix}-*`)
+      FunctionName: getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
+      SourceAccount: ref('AWS::AccountId'),
+      SourceArn: sub(`arn:aws:events:\${AWS::Region}:\${AWS::AccountId}:rule/${ruleNamePrefix}-*`)
     })
   });
 };
@@ -170,7 +170,7 @@ const getEventRuleForAlarmNotification = ({ alarm, resource }: { alarm: AlarmDef
   //   alarmLink: cfEvaluatedLinks.cloudwatchAlarm(encodeURIComponent(alarmAwsResourceName)) as unknown as string,
   //   statFunction: getStatFunction({ alarm })
   // };
-  return new EventBridgeRule({
+  return cfnResource('AWS::Events::Rule', {
     State: 'ENABLED',
     Name: awsResourceNames.cloudwatchAlarmNotificationRule(
       calculatedStackOverviewManager.context.stackName,
@@ -179,7 +179,7 @@ const getEventRuleForAlarmNotification = ({ alarm, resource }: { alarm: AlarmDef
     EventPattern: {
       source: ['aws.cloudwatch'],
       'detail-type': ['CloudWatch Alarm State Change'],
-      resources: [GetAtt(cfLogicalNames.cloudwatchAlarm(alarm.name), 'Arn')],
+      resources: [getAtt(cfLogicalNames.cloudwatchAlarm(alarm.name), 'Arn')],
       detail: {
         state: {
           value: ['ALARM', 'OK']
@@ -198,7 +198,7 @@ const getEventRuleForAlarmNotification = ({ alarm, resource }: { alarm: AlarmDef
           },
           InputTemplate: JSON.stringify(getInputTemplate({ resource, alarm }))
         },
-        Arn: GetAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
+        Arn: getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
         Id: 'notification-lambda'
       }
     ]

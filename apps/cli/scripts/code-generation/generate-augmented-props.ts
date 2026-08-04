@@ -391,7 +391,7 @@ export function generateStacktapeConfigType(): string {
   return `// Re-export StacktapeConfig with properly typed resources
 // Accepts both class instances and plain objects
 import type { StacktapeResourceDefinition } from './plain';
-import type { CloudFormationResource } from './cloudformation';
+import type { AnyCloudFormationResource } from './cloudformation';
 
 export type StacktapeConfig = Omit<import('./plain').StacktapeConfig, 'resources' | 'cloudformationResources' | 'scripts'> & {
   resources: { [resourceName: string]: ${resourceClassNames.join(' | ')} | StacktapeResourceDefinition };
@@ -416,7 +416,7 @@ export type StacktapeConfig = Omit<import('./plain').StacktapeConfig, 'resources
    *
    * For a list of all supported AWS CloudFormation resources, see the [AWS documentation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html).
    */
-  cloudformationResources?: { [resourceName: string]: CloudFormationResource };
+  cloudformationResources?: { [resourceName: string]: AnyCloudFormationResource };
   /**
    * #### Final transform function for the entire CloudFormation template.
    *

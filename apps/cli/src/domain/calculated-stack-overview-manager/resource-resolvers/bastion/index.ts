@@ -1,5 +1,5 @@
+import { ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpBastion } from '@domain-services/config-manager/resolved-types/bastion';
-import { Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
@@ -170,7 +170,7 @@ const resolveBastion = ({ bastion }: { bastion: StpBastion }) => {
   }
   calculatedStackOverviewManager.addStacktapeResourceLink({
     linkName: 'console',
-    linkValue: cfEvaluatedLinks.ec2InstancesOfAsg(Ref(cfLogicalNames.bastionEc2AutoscalingGroup(bastion.name))),
+    linkValue: cfEvaluatedLinks.ec2InstancesOfAsg(ref(cfLogicalNames.bastionEc2AutoscalingGroup(bastion.name))),
     nameChain
   });
 };

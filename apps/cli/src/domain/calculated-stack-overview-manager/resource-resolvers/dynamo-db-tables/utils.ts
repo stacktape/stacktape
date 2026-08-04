@@ -1,15 +1,11 @@
+import type { AttributeDefinition, KeySchema } from '@stacktape/cloudformation/resources/aws-dynamodb-table';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { join, ref, sub } from '@stacktape/cloudformation/intrinsics';
 import type { Subtype } from '@utils/type-helpers';
 import type { StpDynamoTable } from '@domain-services/config-manager/resolved-types/dynamo-db-tables';
-import type { AttributeDefinition, KeySchema } from '@cloudform/dynamoDb/table';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import ScalableTarget from '@cloudform/applicationAutoScaling/scalableTarget';
-import ScalingPolicy from '@cloudform/applicationAutoScaling/scalingPolicy';
-import GlobalTable from '@cloudform/dynamoDb/globalTable';
-import Table from '@cloudform/dynamoDb/table';
-import { Join, Ref } from '@cloudform/functions';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { SubWithoutMapping } from '@utils/cloudformation';
 
 const getAttributeDefinitions = ({ resource }: { resource: StpDynamoTable }) => {
   const attributes: AttributeDefinition[] = [];
@@ -54,7 +50,7 @@ const transformAttributeType = (attributeType: StpDynamoTable['primaryKey']['par
 };
 
 export const getDynamoGlobalTableResource = ({ resource }: { resource: StpDynamoTable }) =>
-  new GlobalTable({
+  cfnResource('AWS::DynamoDB::GlobalTable', {
     AttributeDefinitions: getAttributeDefinitions({ resource }),
     KeySchema: getKeySchema({ resource }),
     BillingMode: resource.provisionedThroughput ? 'PROVISIONED' : 'PAY_PER_REQUEST',
@@ -114,7 +110,7 @@ export const getDynamoGlobalTableResource = ({ resource }: { resource: StpDynamo
   });
 
 export const getDynamoTableResource = ({ resource }: { resource: StpDynamoTable }) =>
-  new Table({
+  cfnResource('AWS::DynamoDB::Table', {
     AttributeDefinitions: getAttributeDefinitions({ resource }),
     KeySchema: getKeySchema({ resource }),
     BillingMode: resource.provisionedThroughput ? 'PROVISIONED' : 'PAY_PER_REQUEST',
@@ -133,14 +129,14 @@ export const getScalingPolicyForDynamoTableProvisionedCapacity = ({
   resource: StpDynamoTable;
   metric: Subtype<keyof StpDynamoTable['provisionedThroughput'], 'readScaling' | 'writeScaling'>;
 }) => {
-  return new ScalingPolicy({
+  return cfnResource('AWS::ApplicationAutoScaling::ScalingPolicy', {
     PolicyName: awsResourceNames.autoScalingPolicy(
       resource.name,
       calculatedStackOverviewManager.context.stackName,
       metric
     ),
     PolicyType: 'TargetTrackingScaling',
-    ScalingTargetId: Ref(cfLogicalNames.dynamoAutoScalingTarget(resource.name, metric)),
+    ScalingTargetId: ref(cfLogicalNames.dynamoAutoScalingTarget(resource.name, metric)),
     TargetTrackingScalingPolicyConfiguration: {
       TargetValue: resource.provisionedThroughput[metric].keepUtilizationUnder || 90,
       ScaleInCooldown: 60,
@@ -160,9 +156,9 @@ export const getScalableTargetForDynamoTableProvisionedCapacity = ({
   resource: StpDynamoTable;
   metric: Subtype<keyof StpDynamoTable['provisionedThroughput'], 'readScaling' | 'writeScaling'>;
 }) => {
-  return new ScalableTarget({
-    ResourceId: Join('/', ['table', Ref(cfLogicalNames.dynamoGlobalTable(resource.name))]),
-    RoleARN: SubWithoutMapping(
+  return cfnResource('AWS::ApplicationAutoScaling::ScalableTarget', {
+    ResourceId: join('/', ['table', ref(cfLogicalNames.dynamoGlobalTable(resource.name))]),
+    RoleARN: sub(
       'arn:aws:iam::${AWS::AccountId}:role/aws-service-role/dynamodb.application-autoscaling.amazonaws.com/AWSServiceRoleForApplicationAutoScaling_DynamoDBTable'
     ),
     MaxCapacity: resource.provisionedThroughput[metric].maxUnits,

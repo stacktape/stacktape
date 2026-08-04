@@ -1,15 +1,15 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
-import EventBridgeRule from '@cloudform/events/rule';
-import { GetAtt, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { prepareEventBusIntegration } from '../../../_utils/event-bus-integration';
 import { getEventBusRuleLambdaPermission } from '../utils';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { EventBusIntegration, EventBusIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
@@ -19,7 +19,7 @@ export const resolveEventBusEvents = ({
   lambdaFunction: StpLambdaFunction | StpHelperLambdaFunction;
 }): StpIamRoleStatement[] => {
   const { name, cfLogicalName, aliasLogicalName, events, configParentResourceType, nameChain } = lambdaFunction;
-  const lambdaEndpointArn = aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn');
+  const lambdaEndpointArn = aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn');
   (events || []).forEach((event: EventBusIntegration, index) => {
     if (event.type === 'event-bus') {
       calculatedStackOverviewManager.addCfChildResource({
@@ -38,7 +38,7 @@ export const resolveEventBusEvents = ({
         nameChain,
         resource: getEventBusRuleLambdaPermission({
           lambdaEndpointArn,
-          eventBusRuleArn: GetAtt(cfLogicalNames.eventBusRule(name, index), 'Arn')
+          eventBusRuleArn: getAtt(cfLogicalNames.eventBusRule(name, index), 'Arn')
         })
       });
     }
@@ -55,7 +55,7 @@ const getEventBusEventRule = ({
   configParentResourceType
 }: {
   workloadName: string;
-  lambdaEndpointArn: string | IntrinsicFunction;
+  lambdaEndpointArn: string | Intrinsic;
   eventIndex: number;
   eventDetails: EventBusIntegrationProps;
   configParentResourceType: StpLambdaFunction['configParentResourceType'];
@@ -68,7 +68,7 @@ const getEventBusEventRule = ({
     ruleLogicalName
   });
 
-  return new EventBridgeRule({
+  return cfnResource('AWS::Events::Rule', {
     State: 'ENABLED',
     EventPattern: eventDetails.eventPattern,
     // Description: eventDetails.description,

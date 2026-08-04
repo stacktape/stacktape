@@ -1,7 +1,7 @@
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { injectedParameterEnvVarName } from '@stacktape/naming/workload-names';
-import { isCloudformationFunction } from '@utils/cloudformation';
+import { isIntrinsic } from '@stacktape/cloudformation/intrinsics';
 
 export const getResolvedConnectToEnvironmentVariables = ({
   connectTo,
@@ -20,7 +20,7 @@ export const getResolvedConnectToEnvironmentVariables = ({
           const varName = injectedParameterEnvVarName(stpResourceReference, paramName);
           return {
             Name: varName,
-            Value: (isCloudformationFunction(param.value) ? param.value : `${param.value}`) as string
+            Value: (isIntrinsic(param.value) ? param.value : `${param.value}`) as string
           };
         });
       }

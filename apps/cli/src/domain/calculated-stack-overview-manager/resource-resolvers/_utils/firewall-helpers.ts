@@ -1,7 +1,7 @@
-import WebACLAssociation from '@cloudform/waFv2/webAclAssociation';
+import { cfnResource } from '@stacktape/cloudformation/resource';
 
 export const getWebACLAssociation = (resourceArn, firewallArn) =>
-  new WebACLAssociation({
+  cfnResource('AWS::WAFv2::WebACLAssociation', {
     ResourceArn: resourceArn,
     WebACLArn: firewallArn
   });

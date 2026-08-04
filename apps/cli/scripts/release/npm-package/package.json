@@ -40,7 +40,8 @@
       "types": "./plain.d.ts"
     },
     "./cloudformation": {
-      "types": "./cloudformation.d.ts"
+      "types": "./cloudformation.d.ts",
+      "default": "./index.js"
     }
   },
   "dependencies": {

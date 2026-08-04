@@ -1,14 +1,6 @@
-import EIP from '@cloudform/ec2/eip';
-import InternetGateway from '@cloudform/ec2/internetGateway';
-import NatGateway from '@cloudform/ec2/natGateway';
-import Route from '@cloudform/ec2/route';
-import RouteTable from '@cloudform/ec2/routeTable';
-import Subnet from '@cloudform/ec2/subnet';
-import SubnetRouteTableAssociation from '@cloudform/ec2/subnetRouteTableAssociation';
-import VPC from '@cloudform/ec2/vpc';
-import VPCEndpoint from '@cloudform/ec2/vpcEndpoint';
-import VPCGatewayAttachment from '@cloudform/ec2/vpcGatewayAttachment';
-import { GetAtt, GetAZs, Join, Ref, Select } from '@cloudform/functions';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, getAzs, join, ref, select } from '@stacktape/cloudformation/intrinsics';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
@@ -17,65 +9,65 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 
-const getInternetGateway = () => new InternetGateway({});
+const getInternetGateway = () => cfnResource('AWS::EC2::InternetGateway', {});
 const getGatewayAttachment = () =>
-  new VPCGatewayAttachment({
+  cfnResource('AWS::EC2::VPCGatewayAttachment', {
     VpcId: vpcManager.getVpcId(),
-    InternetGatewayId: Ref(cfLogicalNames.internetGateway())
+    InternetGatewayId: ref(cfLogicalNames.internetGateway())
   });
 
-const getRouteTable = (_subnetIndex: number) => new RouteTable({ VpcId: vpcManager.getVpcId() });
+const getRouteTable = (_subnetIndex: number) => cfnResource('AWS::EC2::RouteTable', { VpcId: vpcManager.getVpcId() });
 
 const getInternetGatewayRoute = (subnetIndex: number) => {
-  const resource = new Route({
-    RouteTableId: Ref(cfLogicalNames.routeTable(true, subnetIndex)),
+  const resource = cfnResource('AWS::EC2::Route', {
+    RouteTableId: ref(cfLogicalNames.routeTable(true, subnetIndex)),
     DestinationCidrBlock: '0.0.0.0/0',
-    GatewayId: Ref(cfLogicalNames.internetGateway())
+    GatewayId: ref(cfLogicalNames.internetGateway())
   });
   resource.DependsOn = [cfLogicalNames.vpcGatewayAttachment()];
   return resource;
 };
 
 const getRouteTableToSubnetAssociation = (publicSubnet: boolean, subnetIndex: number) =>
-  new SubnetRouteTableAssociation({
-    RouteTableId: Ref(cfLogicalNames.routeTable(publicSubnet, subnetIndex)),
-    SubnetId: Ref(cfLogicalNames.subnet(publicSubnet, subnetIndex))
+  cfnResource('AWS::EC2::SubnetRouteTableAssociation', {
+    RouteTableId: ref(cfLogicalNames.routeTable(publicSubnet, subnetIndex)),
+    SubnetId: ref(cfLogicalNames.subnet(publicSubnet, subnetIndex))
   });
 
 const getVpc = (vpcCidrBlock: string) =>
-  new VPC({
+  cfnResource('AWS::EC2::VPC', {
     CidrBlock: vpcCidrBlock,
     EnableDnsHostnames: true,
     EnableDnsSupport: true
   });
 
 const getSubnet = (subnetCidrBlock: string, publicSubnet: boolean, subnetIndex: number, region: AWSRegion) => {
-  const subnet = new Subnet({
+  const subnet = cfnResource('AWS::EC2::Subnet', {
     CidrBlock: subnetCidrBlock,
     VpcId: vpcManager.getVpcId(),
     MapPublicIpOnLaunch: publicSubnet,
-    AvailabilityZone: Select(subnetIndex, GetAZs(region))
+    AvailabilityZone: select(subnetIndex, getAzs(region))
   });
   return subnet;
 };
 
 const getVpcGatewayEndpoint = ({ type }: { type: 's3' | 'dynamo-db' }) => {
   const routeTableIds = [
-    Ref(cfLogicalNames.routeTable(true, 0)),
-    Ref(cfLogicalNames.routeTable(true, 1)),
-    Ref(cfLogicalNames.routeTable(true, 2))
+    ref(cfLogicalNames.routeTable(true, 0)),
+    ref(cfLogicalNames.routeTable(true, 1)),
+    ref(cfLogicalNames.routeTable(true, 2))
   ];
 
   // Add private subnet route tables if private subnets exist
   if (configManager.allResourcesRequiringPrivateSubnets.length > 0) {
     routeTableIds.push(
-      Ref(cfLogicalNames.routeTable(false, 0)),
-      Ref(cfLogicalNames.routeTable(false, 1)),
-      Ref(cfLogicalNames.routeTable(false, 2))
+      ref(cfLogicalNames.routeTable(false, 0)),
+      ref(cfLogicalNames.routeTable(false, 1)),
+      ref(cfLogicalNames.routeTable(false, 2))
     );
   }
 
-  const resource = new VPCEndpoint({
+  const resource = cfnResource('AWS::EC2::VPCEndpoint', {
     VpcId: vpcManager.getVpcId(),
     ServiceName:
       type === 's3'
@@ -87,21 +79,21 @@ const getVpcGatewayEndpoint = ({ type }: { type: 's3' | 'dynamo-db' }) => {
   return resource;
 };
 
-const getNatElasticIp = () => new EIP({ Domain: 'vpc' });
+const getNatElasticIp = () => cfnResource('AWS::EC2::EIP', { Domain: 'vpc' });
 
 const getNatGateway = (azIndex: number) => {
-  const natGateway = new NatGateway({
-    SubnetId: Ref(cfLogicalNames.subnet(true, azIndex)),
-    AllocationId: GetAtt(cfLogicalNames.natElasticIp(azIndex), 'AllocationId')
+  const natGateway = cfnResource('AWS::EC2::NatGateway', {
+    SubnetId: ref(cfLogicalNames.subnet(true, azIndex)),
+    AllocationId: getAtt(cfLogicalNames.natElasticIp(azIndex), 'AllocationId')
   });
   return natGateway;
 };
 
 const getNatRoute = (subnetIndex: number, natAzIndex: number) => {
-  const route = new Route({
-    RouteTableId: Ref(cfLogicalNames.routeTable(false, subnetIndex)),
+  const route = cfnResource('AWS::EC2::Route', {
+    RouteTableId: ref(cfLogicalNames.routeTable(false, subnetIndex)),
     DestinationCidrBlock: '0.0.0.0/0',
-    NatGatewayId: Ref(cfLogicalNames.natGateway(natAzIndex))
+    NatGatewayId: ref(cfLogicalNames.natGateway(natAzIndex))
   });
   return route;
 };
@@ -192,13 +184,13 @@ export const resolveAwsVpcDeployment = async () => {
       });
 
       // Collect EIP reference for metadata
-      natEipRefs.push(Ref(cfLogicalNames.natElasticIp(i)));
+      natEipRefs.push(ref(cfLogicalNames.natElasticIp(i)));
     }
 
     // Add NAT Gateway EIPs to stack metadata as comma-separated list
     calculatedStackOverviewManager.addStackMetadata({
       metaName: stackMetadataNames.natPublicIps(),
-      metaValue: Join(',', natEipRefs),
+      metaValue: join(',', natEipRefs),
       showDuringPrint: true
     });
 

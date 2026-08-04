@@ -78,7 +78,7 @@ export interface AgentCoreGatewayProps {
   tools?: AgentCoreGatewayTool[];
   instructions?: string;
   supportedVersions?: string[];
-  searchType?: string;
+  searchType?: 'SEMANTIC';
   exceptionLevel?: 'DEBUG';
   tags?: CloudformationTag[];
 }

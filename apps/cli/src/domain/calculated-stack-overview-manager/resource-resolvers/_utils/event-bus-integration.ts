@@ -1,4 +1,6 @@
-import { GetAtt } from '@cloudform/functions';
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
+import type { InputTransformer, RuleProperties, Target } from '@stacktape/cloudformation/resources/aws-events-rule';
+
 import { configManager } from '@domain-services/config-manager';
 import type { StpEventBus } from '@domain-services/config-manager/resolved-types/event-buses';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
@@ -84,10 +86,12 @@ const registerResolvedInput = ({
   if (!eventDetails.input && !eventDetails.inputTransformer) return;
 
   templateManager.addFinalTemplateOverrideFn(async (template) => {
-    const target = template.Resources[ruleLogicalName].Properties.Targets[0];
+    const ruleProperties = template.Resources[ruleLogicalName].Properties as RuleProperties;
+    const target = (ruleProperties.Targets as Target[])[0];
 
     if (target.InputTransformer) {
-      target.InputTransformer.InputTemplate = transformIntoCloudformationSubstitutedString(
+      const inputTransformer = target.InputTransformer as InputTransformer;
+      inputTransformer.InputTemplate = transformIntoCloudformationSubstitutedString(
         await configManager.resolveDirectives({
           itemToResolve: eventDetails.inputTransformer.inputTemplate,
           resolveRuntime: true
@@ -136,7 +140,7 @@ export const prepareEventBusIntegration = ({
     eventBusName: eventDetails.eventBusArn
       ? eventDetails.eventBusArn
       : eventBus
-        ? GetAtt(cfLogicalNames.eventBus(eventBus.name), 'Arn')
+        ? getAtt(cfLogicalNames.eventBus(eventBus.name), 'Arn')
         : undefined,
     input: eventDetails.input
       ? typeof eventDetails.input === 'object'
@@ -153,7 +157,7 @@ export const prepareEventBusIntegration = ({
     },
     deadLetterConfig: eventDetails.onDeliveryFailure
       ? {
-          Arn: eventDetails.onDeliveryFailure.sqsQueueArn || GetAtt(cfLogicalNames.sqsQueue(failureQueue.name), 'Arn')
+          Arn: eventDetails.onDeliveryFailure.sqsQueueArn || getAtt(cfLogicalNames.sqsQueue(failureQueue.name), 'Arn')
         }
       : undefined
   };

@@ -22,12 +22,13 @@ const REQUIRED_DECLARATIONS = ['index.d.ts', 'types.d.ts', 'cloudformation.d.ts'
 const consumerFixtureFor = (packageDir: string) => {
   const entry = (name: string) => join(packageDir, name).split('\\').join('/');
   return `
-import { Alarm, HttpApiGateway, HttpApiIntegration, LambdaErrorRateTrigger, LambdaFunction, LambdaS3FilesMount, LocalScript, StateMachine, WebService, Bucket, Convex, IotIntegration, defineConfig, $Secret } from '${entry('index')}';
+import { Alarm, HttpApiGateway, HttpApiIntegration, LambdaErrorRateTrigger, LambdaFunction, LambdaS3FilesMount, LocalScript, StateMachine, WebService, Bucket, Convex, IotIntegration, cfnResource, cfnResourceUnchecked, defineConfig, getAtt, ref, sub, $Secret } from '${entry('index')}';
 import type { CloudFormationTemplate, FinalTransform } from '${entry('index')}';
 import type { StacktapeConfig, StacktapeBudgetControlPlain, IotIntegrationProps } from '${entry('types')}';
 // @ts-expect-error v4 TypeScript configs no longer expose the legacy named getConfig function type
 import type { GetConfigFunction } from '${entry('types')}';
-import type { CloudFormationResource } from '${entry('cloudformation')}';
+import { cfnResource as cfnResourceFromSubpath } from '${entry('cloudformation')}';
+import type { AnyCloudFormationResource, Intrinsic } from '${entry('cloudformation')}';
 
 const api = new LambdaFunction({
   packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/index.ts' } }
@@ -97,6 +98,14 @@ void highErrorRate.trigger.properties.propertyThatDoesNotExist;
 new LambdaS3FilesMount({ type: 's3files', properties: { accessPointArn: 'arn', mountPath: '/mnt/data' } });
 const template: CloudFormationTemplate = { Resources: {} };
 const finalTransform: FinalTransform = (value) => value;
+const bucketReference: Intrinsic = ref('UploadsBucket');
+const bucketArn = getAtt('UploadsBucket', 'Arn');
+const rawBucket = cfnResource('AWS::S3::Bucket', { BucketName: sub('uploads-\${AWS::AccountId}') });
+const rawBucketFromSubpath = cfnResourceFromSubpath('AWS::S3::Bucket', { BucketName: 'uploads' });
+// This is a standard AWS resource Stacktape does not synthesize as a child resource. The checked helper must still
+// cover the complete generated registry rather than only the types used by Stacktape's override system.
+const waitConditionHandle = cfnResource('AWS::CloudFormation::WaitConditionHandle', {});
+const thirdPartyResource = cfnResourceUnchecked('Example::Service::Resource', { TargetArn: bucketArn });
 
 export const config = defineConfig(() => ({
   projectName: 'consumer-fixture',
@@ -121,7 +130,12 @@ export type EveryPublishedNameResolves = [
   StacktapeConfig,
   StacktapeBudgetControlPlain,
   IotIntegrationProps,
-  CloudFormationResource,
+  AnyCloudFormationResource,
+  typeof bucketReference,
+  typeof rawBucket,
+  typeof rawBucketFromSubpath,
+  typeof waitConditionHandle,
+  typeof thirdPartyResource,
   typeof template
 ];
 `;

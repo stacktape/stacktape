@@ -1,9 +1,9 @@
+import { getAtt, ref, sub } from '@stacktape/cloudformation/intrinsics';
 import type { HelperLambdaName } from '@config';
 import type { HelperLambdaPackaging } from '@domain-services/packaging-manager/types';
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import type { StackContext } from '@domain-services/stack-context';
-import { GetAtt, Ref, Sub } from '@cloudform/functions';
 import { IS_DEV } from '../../../config/random';
 import { STACKTAPE_TRPC_API_ENDPOINT } from '../../../config/params';
 import { sesManager } from '@domain-services/ses-manager';
@@ -19,7 +19,7 @@ import {
 import { tagNames } from '@stacktape/naming/tag-names';
 import { getContainingFolderName, getFileExtension, getFileNameWithoutExtension } from '@utils/fs-utils';
 import { getDefaultRuntimeForExtension } from '@domain-services/config-manager/runtime-selection';
-import { SubWithoutMapping } from '@utils/cloudformation';
+
 import { kebabCase } from 'change-case';
 import type { ConfigManager } from '../index';
 import { getPropsOfResourceReferencedInConfig } from './resource-references';
@@ -42,7 +42,7 @@ export const getBatchJobTriggerLambdaEnvironment = ({
     },
     {
       name: 'STATE_MACHINE_ARN',
-      value: Ref(cfLogicalNames.batchStateMachine(batchJobName)).toJSON() as unknown as string
+      value: ref(cfLogicalNames.batchStateMachine(batchJobName)) as unknown as string
     },
     {
       name: 'BATCH_JOB_NAME_BASE',
@@ -56,7 +56,7 @@ export const getBatchJobTriggerLambdaAccessControl = ({ batchJobName }: { batchJ
     {
       Effect: 'Allow',
       Action: ['states:StartExecution'],
-      Resource: [Ref(cfLogicalNames.batchStateMachine(batchJobName)) as unknown as string]
+      Resource: [ref(cfLogicalNames.batchStateMachine(batchJobName)) as unknown as string]
     }
   ];
 };
@@ -77,11 +77,11 @@ export const getStacktapeServiceLambdaEnvironment = ({
   return [
     {
       name: 'AWS_PARTITION',
-      value: Ref('AWS::Partition') as unknown as string
+      value: ref('AWS::Partition') as unknown as string
     },
     {
       name: 'AWS_ACCOUNT_ID',
-      value: Ref('AWS::AccountId') as unknown as string
+      value: ref('AWS::AccountId') as unknown as string
     },
     {
       name: 'STACK_NAME',
@@ -163,12 +163,12 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
       Resource: [
         ...(allResourcesRequiringVpc.length
           ? [
-              Sub('arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${vpcId}', {
+              sub('arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${vpcId}', {
                 vpcId: vpcManager.getVpcId()
               }) as unknown as string
             ]
           : []),
-        SubWithoutMapping(
+        sub(
           `arn:\${AWS::Partition}:ec2:\${AWS::Region}:\${AWS::AccountId}:vpc-peering-connection/*`
         ) as unknown as string
       ]
@@ -234,7 +234,7 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
     {
       // deny creating its own log group - otherwise stack might not clean up properly
 
-      Resource: [GetAtt(cfLogicalNames.lambdaLogGroup(serviceLambdaName), 'Arn') as unknown as string],
+      Resource: [getAtt(cfLogicalNames.lambdaLogGroup(serviceLambdaName), 'Arn') as unknown as string],
       Action: ['logs:CreateLogGroup'],
       Effect: 'Deny'
     },
@@ -277,7 +277,7 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
           {
             Resource: allAuroraDatabases.map(
               ({ name }) =>
-                SubWithoutMapping(
+                sub(
                   `arn:\${AWS::Partition}:rds:\${AWS::Region}:\${AWS::AccountId}:cluster:${awsResourceNames.dbCluster(
                     stackName,
                     name
@@ -294,7 +294,7 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
           {
             Resource: allDatabasesWithInstancies.map(
               ({ name, engine }) =>
-                SubWithoutMapping(
+                sub(
                   `arn:\${AWS::Partition}:rds:\${AWS::Region}:\${AWS::AccountId}:db:${
                     engine.type === 'aurora-mysql' ||
                     engine.type === 'aurora-postgresql' ||
@@ -315,14 +315,14 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
   const sensitiveData = [
     {
       Resource: [
-        SubWithoutMapping(
+        sub(
           `arn:\${AWS::Partition}:ssm:\${AWS::Region}:\${AWS::AccountId}:parameter${getLegacySsmParameterStoreStackPrefix(
             {
               stackName
             }
           )}/*`
         ) as unknown as string,
-        SubWithoutMapping(
+        sub(
           `arn:\${AWS::Partition}:ssm:\${AWS::Region}:\${AWS::AccountId}:parameter${getSsmParameterStoreStackPrefix({
             stackName,
             region
@@ -385,7 +385,7 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
       // Older stacks may have ECS CapacityProviders without tags, and then the custom resource would fail during stack deletion.
       // We restrict access by name prefix instead (all Stacktape resources are prefixed with stackName).
       Resource: [
-        SubWithoutMapping(
+        sub(
           `arn:\${AWS::Partition}:ecs:\${AWS::Region}:\${AWS::AccountId}:capacity-provider/${stackName}*`
         ) as unknown as string
       ],
@@ -397,7 +397,7 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
   const deregisterTargets = [
     {
       Resource: [
-        SubWithoutMapping(
+        sub(
           `arn:\${AWS::Partition}:elasticloadbalancing:\${AWS::Region}:\${AWS::AccountId}:targetgroup/${stackName}*/*`
         ) as unknown as string
       ],
@@ -441,9 +441,7 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
 
   const ssmGetAnyStpParameter = [
     {
-      Resource: [
-        SubWithoutMapping('arn:${AWS::Partition}:ssm:*:${AWS::AccountId}:parameter/stp/*') as unknown as string
-      ],
+      Resource: [sub('arn:${AWS::Partition}:ssm:*:${AWS::AccountId}:parameter/stp/*') as unknown as string],
 
       Action: ['ssm:GetParameter']
     }
@@ -484,7 +482,7 @@ export const getStacktapeServiceLambdaAlarmNotificationInducedStatements = ({
         .map((paramName) => (paramName.startsWith('/') ? paramName : `/${paramName}`))
         .map(
           (paramName) =>
-            SubWithoutMapping(
+            sub(
               `arn:\${AWS::Partition}:ssm:\${AWS::Region}:\${AWS::AccountId}:parameter${paramName}`
             ) as unknown as string
         ),
@@ -493,7 +491,7 @@ export const getStacktapeServiceLambdaAlarmNotificationInducedStatements = ({
     allSecretNamesUsedInAlarmNotifications.length && {
       Resource: allSecretNamesUsedInAlarmNotifications.map(
         (secretName) =>
-          SubWithoutMapping(
+          sub(
             `arn:\${AWS::Partition}:secretsmanager:\${AWS::Region}:\${AWS::AccountId}:secret:${secretName}-*`
           ) as unknown as string
       ),
@@ -502,7 +500,7 @@ export const getStacktapeServiceLambdaAlarmNotificationInducedStatements = ({
     allEmailSenders.length && {
       Resource: allEmailSenders.map(
         (senderName) =>
-          SubWithoutMapping(
+          sub(
             `arn:\${AWS::Partition}:ses:\${AWS::Region}:\${AWS::AccountId}:identity/${sesManager.getVerifiedIdentityForEmail(
               { email: senderName }
             )}`
@@ -554,7 +552,7 @@ export const getStacktapeServiceLambdaEcsRedeployInducedStatements = ({
                   .filter(({ deployment }) => deployment)
                   .map(
                     ({ name }) =>
-                      SubWithoutMapping(
+                      sub(
                         `arn:\${AWS::Partition}:codedeploy:\${AWS::Region}:\${AWS::AccountId}:deploymentgroup:${awsResourceNames.ecsCodeDeployApp(
                           stackName
                         )}/${awsResourceNames.codeDeployDeploymentGroup({ stackName, stpResourceName: name })}`
@@ -564,7 +562,7 @@ export const getStacktapeServiceLambdaEcsRedeployInducedStatements = ({
               },
               {
                 Resource: [
-                  SubWithoutMapping(
+                  sub(
                     `arn:\${AWS::Partition}:codedeploy:\${AWS::Region}:\${AWS::AccountId}:application:${awsResourceNames.ecsCodeDeployApp(
                       stackName
                     )}`

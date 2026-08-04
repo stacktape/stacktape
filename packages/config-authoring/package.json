@@ -17,6 +17,7 @@
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {
+    "@stacktape/cloudformation": "workspace:*",
     "@stacktape/config": "workspace:*",
     "@stacktape/naming": "workspace:*",
     "yaml": "1.10.2"

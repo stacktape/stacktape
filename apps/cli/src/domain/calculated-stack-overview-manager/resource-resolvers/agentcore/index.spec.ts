@@ -2,6 +2,7 @@ import { describe, expect, test } from 'bun:test';
 import {
   getBrowserRecordingS3BucketArn,
   getBrowserRecordingS3ObjectArn,
+  getAgentCoreGatewayResource,
   getRuntimeEndpointVersion,
   transformJsonSchema
 } from './index';
@@ -32,14 +33,38 @@ describe('AgentCore resource resolver', () => {
   });
 
   test('defaults runtime endpoints to the current runtime version', () => {
-    expect(getRuntimeEndpointVersion('SupportAgentRuntime', { name: 'production' })).toMatchObject({
-      name: 'Fn::GetAtt',
-      payload: ['SupportAgentRuntime', 'AgentRuntimeVersion']
+    expect(getRuntimeEndpointVersion('SupportAgentRuntime', { name: 'production' })).toEqual({
+      'Fn::GetAtt': ['SupportAgentRuntime', 'AgentRuntimeVersion']
     });
   });
 
   test('preserves an explicitly pinned runtime endpoint version', () => {
     expect(getRuntimeEndpointVersion('SupportAgentRuntime', { name: 'production', runtimeVersion: '1' })).toBe('1');
+  });
+
+  test('synthesizes the supported gateway search mode without a narrowing assertion', () => {
+    const gateway = getAgentCoreGatewayResource({
+      gateway: {
+        name: 'support',
+        nameChain: ['support'],
+        type: 'agentcore-gateway',
+        configParentResourceType: 'agentcore-gateway',
+        searchType: 'SEMANTIC'
+      },
+      roleLogicalName: 'SupportGatewayRole',
+      stackName: 'support-production',
+      tags: {}
+    });
+
+    expect(gateway).toMatchObject({
+      Type: 'AWS::BedrockAgentCore::Gateway',
+      Properties: {
+        AuthorizerType: 'NONE',
+        ProtocolConfiguration: { Mcp: { SearchType: 'SEMANTIC' } },
+        ProtocolType: 'MCP',
+        RoleArn: { 'Fn::GetAtt': ['SupportGatewayRole', 'Arn'] }
+      }
+    });
   });
 
   test('builds browser recording object ARN from a literal bucket name', () => {
@@ -54,9 +79,8 @@ describe('AgentCore resource resolver', () => {
         bucketName: { Ref: 'RecordingBucket' } as any,
         prefix: 'sessions/'
       })
-    ).toMatchObject({
-      name: 'Fn::Join',
-      payload: ['', ['arn:aws:s3:::', { Ref: 'RecordingBucket' }, '/', 'sessions/', '*']]
+    ).toEqual({
+      'Fn::Join': ['', ['arn:aws:s3:::', { Ref: 'RecordingBucket' }, '/', 'sessions/', '*']]
     });
   });
 
@@ -66,13 +90,11 @@ describe('AgentCore resource resolver', () => {
       prefix: 'sessions/'
     };
 
-    expect(getBrowserRecordingS3BucketArn(recording)).toMatchObject({
-      name: 'Fn::Join',
-      payload: ['', ['arn:aws:s3:::', "$ResourceParam('browserRecordingBucket', 'name')"]]
+    expect(getBrowserRecordingS3BucketArn(recording)).toEqual({
+      'Fn::Join': ['', ['arn:aws:s3:::', "$ResourceParam('browserRecordingBucket', 'name')"]]
     });
-    expect(getBrowserRecordingS3ObjectArn(recording)).toMatchObject({
-      name: 'Fn::Join',
-      payload: ['', ['arn:aws:s3:::', "$ResourceParam('browserRecordingBucket', 'name')", '/', 'sessions/', '*']]
+    expect(getBrowserRecordingS3ObjectArn(recording)).toEqual({
+      'Fn::Join': ['', ['arn:aws:s3:::', "$ResourceParam('browserRecordingBucket', 'name')", '/', 'sessions/', '*']]
     });
   });
 });

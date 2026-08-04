@@ -1,13 +1,13 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import type { SourceAccessConfiguration } from '@stacktape/cloudformation/resources/aws-lambda-eventsourcemapping';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
-import type { SourceAccessConfiguration } from '@cloudform/lambda/eventSourceMapping';
-import { GetAtt, Ref } from '@cloudform/functions';
-import EventSourceMapping from '@cloudform/lambda/eventSourceMapping';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { KafkaTopicIntegration, KafkaTopicIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 import { CliError } from '@utils/errors';
@@ -23,7 +23,7 @@ export const resolveKafkaTopicEvents = ({
     Action: ['secretsmanager:GetSecretValue'],
     Resource: []
   };
-  const lambdaEndpointArn = aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn');
+  const lambdaEndpointArn = aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn');
 
   (events || []).forEach((event: KafkaTopicIntegration, index) => {
     if (event.type === 'kafka-topic') {
@@ -66,7 +66,7 @@ const getEventSourceMapping = ({
   eventDetails
 }: {
   eventDetails: KafkaTopicIntegrationProps;
-  lambdaEndpointArn: string | IntrinsicFunction;
+  lambdaEndpointArn: string | Intrinsic;
 }) => {
   const accessConfigurations: SourceAccessConfiguration[] = [];
   if (eventDetails.customKafkaConfiguration.authentication.type === 'MTLS') {
@@ -87,7 +87,7 @@ const getEventSourceMapping = ({
     });
   }
 
-  const resource = new EventSourceMapping({
+  const resource = cfnResource('AWS::Lambda::EventSourceMapping', {
     BatchSize: eventDetails.batchSize,
     MaximumBatchingWindowInSeconds: eventDetails.maxBatchWindowSeconds,
     Enabled: true,

@@ -1,4 +1,5 @@
-import { GetAtt } from '@cloudform/functions';
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -89,14 +90,14 @@ export const resolveOpenSearchDomains = () => {
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain: openSearchDomain.nameChain,
       paramName: 'domainEndpoint',
-      paramValue: GetAtt(cfLogicalName, 'DomainEndpoint'),
+      paramValue: getAtt(cfLogicalName, 'DomainEndpoint'),
       showDuringPrint: true
     });
 
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain: openSearchDomain.nameChain,
       paramName: 'arn',
-      paramValue: GetAtt(cfLogicalName, 'Arn'),
+      paramValue: getAtt(cfLogicalName, 'Arn'),
       showDuringPrint: true
     });
   });

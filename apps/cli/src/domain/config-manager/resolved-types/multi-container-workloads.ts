@@ -40,13 +40,13 @@ export interface LoadBalancerAvailabilityCheck {
 export interface ECSBlueGreenService {
   Type: 'Stacktape::ECSBlueGreenV1::Service';
   Properties: {
-    ECSService: import('@cloudform/ecs/service').ServiceProperties;
-    StackName: import('@cloudform/dataTypes').Value<string>;
-    CodeDeployApplicationName: import('@cloudform/dataTypes').Value<string>;
-    CodeDeployDeploymentGroupName: import('@cloudform/dataTypes').Value<string>;
+    ECSService: import('@stacktape/cloudformation/resources/aws-ecs-service').ServiceProperties;
+    StackName: import('@stacktape/cloudformation/intrinsics').CloudFormationValue<string>;
+    CodeDeployApplicationName: import('@stacktape/cloudformation/intrinsics').CloudFormationValue<string>;
+    CodeDeployDeploymentGroupName: import('@stacktape/cloudformation/intrinsics').CloudFormationValue<string>;
     LifecycleEventHooks: {
-      AfterAllowTraffic: import('@cloudform/dataTypes').Value<string>;
-      BeforeAllowTraffic: import('@cloudform/dataTypes').Value<string>;
+      AfterAllowTraffic: import('@stacktape/cloudformation/intrinsics').CloudFormationValue<string>;
+      BeforeAllowTraffic: import('@stacktape/cloudformation/intrinsics').CloudFormationValue<string>;
     };
   };
   DependsOn: string[];

@@ -9,6 +9,48 @@ import type {
 } from './config.js';
 import type { StacktapeConfig } from '@stacktape/config';
 import {
+  and,
+  base64,
+  condition,
+  equals,
+  findInMap,
+  getAtt,
+  getAzs,
+  ifCondition,
+  importValue,
+  isIntrinsic,
+  join,
+  not,
+  or,
+  ref,
+  select,
+  split,
+  sub
+} from '@stacktape/cloudformation/intrinsics';
+import type {
+  CloudFormationJson,
+  CloudFormationList,
+  CloudFormationTag,
+  CloudFormationValue,
+  ConditionExpression,
+  Intrinsic
+} from '@stacktape/cloudformation/intrinsics';
+import { cfnResource, cfnResourceUnchecked } from '@stacktape/cloudformation/resource';
+import type {
+  AnyCloudFormationResource,
+  CloudFormationCreationPolicy,
+  CloudFormationDeletionPolicy,
+  CloudFormationOutput,
+  CloudFormationParameter,
+  CloudFormationResource,
+  CloudFormationResourceAttributes,
+  CloudFormationUpdatePolicy,
+  CloudFormationUpdateReplacePolicy,
+  KnownCloudFormationResource,
+  KnownCloudFormationResourceType,
+  PropertylessCloudFormationResource
+} from '@stacktape/cloudformation/resource';
+import {
   $CfFormat,
   $CfResourceParam,
   $CfStackOutput,
@@ -290,4 +332,49 @@ export type {
   GetConfigParams,
   ResourceTransform,
   StacktapeConfig
+};
+
+export {
+  and,
+  base64,
+  condition,
+  equals,
+  findInMap,
+  getAtt,
+  getAzs,
+  ifCondition,
+  importValue,
+  isIntrinsic,
+  join,
+  not,
+  or,
+  ref,
+  select,
+  split,
+  sub,
+  cfnResource,
+  cfnResourceUnchecked
+};
+
+export type {
+  CloudFormationJson,
+  CloudFormationList,
+  CloudFormationTag,
+  CloudFormationValue,
+  ConditionExpression,
+  Intrinsic
+};
+export type {
+  AnyCloudFormationResource,
+  CloudFormationCreationPolicy,
+  CloudFormationDeletionPolicy,
+  CloudFormationOutput,
+  CloudFormationParameter,
+  CloudFormationResource,
+  CloudFormationResourceAttributes,
+  CloudFormationUpdatePolicy,
+  CloudFormationUpdateReplacePolicy,
+  KnownCloudFormationResource,
+  KnownCloudFormationResourceType,
+  PropertylessCloudFormationResource
 };

@@ -1,6 +1,10 @@
+import type {
+  ContainerProperties,
+  Environment,
+  JobDefinitionProperties
+} from '@stacktape/cloudformation/resources/aws-batch-jobdefinition';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpBatchJob } from '@domain-services/config-manager/resolved-types/batch-jobs';
-import type { Environment, JobDefinitionProperties } from '@cloudform/batch/jobDefinition';
-import { GetAtt, Ref } from '@cloudform/functions';
 import { defaultLogRetentionDays } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -157,7 +161,7 @@ export const resolveBatchJobs = async () => {
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         nameChain,
         paramName: 'jobDefinitionArn',
-        paramValue: Ref(batchJobDefinitionLogicalName),
+        paramValue: ref(batchJobDefinitionLogicalName),
         showDuringPrint: true
       });
       calculatedStackOverviewManager.addCfChildResource({
@@ -168,12 +172,12 @@ export const resolveBatchJobs = async () => {
       calculatedStackOverviewManager.addStacktapeResourceLink({
         linkName: 'job-state-machine-executions',
         nameChain,
-        linkValue: cfEvaluatedLinks.stateMachineExecutions(Ref(cfLogicalNames.batchStateMachine(name)))
+        linkValue: cfEvaluatedLinks.stateMachineExecutions(ref(cfLogicalNames.batchStateMachine(name)))
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         nameChain,
         paramName: 'stateMachineArn',
-        paramValue: Ref(cfLogicalNames.batchStateMachine(name)),
+        paramValue: ref(cfLogicalNames.batchStateMachine(name)),
         showDuringPrint: true
       });
       if (!definition.logging?.disabled) {
@@ -199,7 +203,7 @@ export const resolveBatchJobs = async () => {
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           nameChain,
           paramName: 'logGroupArn',
-          paramValue: GetAtt(cfLogicalNames.batchJobLogGroup(name), 'Arn'),
+          paramValue: getAtt(cfLogicalNames.batchJobLogGroup(name), 'Arn'),
           showDuringPrint: true
         });
         if (definition.logging?.logForwarding) {
@@ -275,8 +279,9 @@ export const getJobDefinitionTemplateOverrideFns = ({
       })?.imageTagWithUrl;
 
       if (imageUrl) {
-        template.Resources[cfLogicalNames.batchJobDefinition(resource.name)].Properties.ContainerProperties.Image =
-          imageUrl;
+        const jobDefinitionProperties = template.Resources[cfLogicalNames.batchJobDefinition(resource.name)]
+          .Properties as JobDefinitionProperties;
+        (jobDefinitionProperties.ContainerProperties as ContainerProperties).Image = imageUrl;
       }
     },
 
@@ -284,7 +289,8 @@ export const getJobDefinitionTemplateOverrideFns = ({
     async (template) => {
       const templateResourceProps = template.Resources[cfLogicalNames.batchJobDefinition(resource.name)]
         .Properties as JobDefinitionProperties;
-      const currentVars = (templateResourceProps.ContainerProperties.Environment || []) as Environment[];
+      const currentVars = ((templateResourceProps.ContainerProperties as ContainerProperties).Environment ||
+        []) as Environment[];
 
       const variablesToInject = getResolvedConnectToEnvironmentVariables({
         connectTo: resource.connectTo,

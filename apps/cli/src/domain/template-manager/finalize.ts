@@ -1,4 +1,5 @@
-import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+
 import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -186,7 +187,7 @@ export const finalizeTemplate = async () => {
     overwriteExisting: true
   });
 
-  templateManager.template = await configManager.resolveDirectives<CloudformationTemplate>({
+  templateManager.template = await configManager.resolveDirectives<CloudFormationTemplate>({
     itemToResolve: templateManager.getTemplate(),
     resolveRuntime: true
   });
@@ -209,6 +210,11 @@ export const finalizeTemplate = async () => {
       });
     }
     try {
+      if (!isNonArrayObject(resource.Properties)) {
+        throw new TypeError(
+          `Resource transforms require a CloudFormation properties object, but resource \`${logicalName}\` has none.`
+        );
+      }
       const transformedProperties = transform(resource.Properties);
       if (!isNonArrayObject(transformedProperties)) {
         throw new TypeError(
@@ -234,14 +240,14 @@ export const finalizeTemplate = async () => {
           `Final template transforms must return a CloudFormation template with a Resources object, but this transform returned ${describeTransformResult(transformedTemplate)}.`
         );
       }
-      templateManager.template = transformedTemplate as CloudformationTemplate;
+      templateManager.template = transformedTemplate as CloudFormationTemplate;
     } catch (error) {
       throwTransformFailure({ code: 'CONFIG_FINAL_TRANSFORM_FAILED', error, subject: 'Final template transform' });
     }
   }
 
   // Overrides and transforms may introduce runtime directives.
-  templateManager.template = await configManager.resolveDirectives<CloudformationTemplate>({
+  templateManager.template = await configManager.resolveDirectives<CloudFormationTemplate>({
     itemToResolve: templateManager.getTemplate(),
     resolveRuntime: true
   });

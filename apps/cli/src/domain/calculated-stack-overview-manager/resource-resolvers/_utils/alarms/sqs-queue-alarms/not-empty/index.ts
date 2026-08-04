@@ -1,7 +1,7 @@
+import { cfnResource } from '@stacktape/cloudformation/resource';
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getAlarmDescription } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/alarms/descriptions';
 import { getComparisonOperator, getStatFunction } from '../../utils';
@@ -15,7 +15,7 @@ export const getSqsQueueNotEmptyAlarm = ({ alarm, resource }: { alarm: AlarmDefi
   const threshold = 0;
   const statFunction = getStatFunction({ alarm });
   const dimensions = getDimensionsForSqsQueue({ queueResource: resource });
-  return new CloudwatchAlarm({
+  return cfnResource('AWS::CloudWatch::Alarm', {
     AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
     AlarmDescription:
       alarm.description ||

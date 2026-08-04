@@ -1,7 +1,6 @@
-import EventBusArchive from '@cloudform/events/archive';
-import EventBus from '@cloudform/events/eventBus';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
 
-import { GetAtt } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -13,7 +12,7 @@ export const resolveEventBuses = async () => {
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.eventBus(name),
       nameChain,
-      resource: new EventBus({
+      resource: cfnResource('AWS::Events::EventBus', {
         EventSourceName: eventBusConfig.eventSourceName,
         Name:
           eventBusConfig.eventSourceName ||
@@ -30,7 +29,7 @@ export const resolveEventBuses = async () => {
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       paramName: 'arn',
-      paramValue: GetAtt(cfLogicalNames.eventBus(name), 'Arn'),
+      paramValue: getAtt(cfLogicalNames.eventBus(name), 'Arn'),
       nameChain,
       showDuringPrint: true
     });
@@ -38,14 +37,14 @@ export const resolveEventBuses = async () => {
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.eventBusArchive(name),
         nameChain,
-        resource: new EventBusArchive({
-          SourceArn: GetAtt(cfLogicalNames.eventBus(name), 'Arn'),
+        resource: cfnResource('AWS::Events::Archive', {
+          SourceArn: getAtt(cfLogicalNames.eventBus(name), 'Arn'),
           RetentionDays: eventBusConfig.archivation.retentionDays
         })
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'archiveArn',
-        paramValue: GetAtt(cfLogicalNames.eventBusArchive(name), 'Arn'),
+        paramValue: getAtt(cfLogicalNames.eventBusArchive(name), 'Arn'),
         nameChain,
         showDuringPrint: true
       });

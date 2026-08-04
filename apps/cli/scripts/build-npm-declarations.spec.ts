@@ -8,6 +8,7 @@ import {
   NPM_DECLARATION_FILE_NAMES,
   NPM_SOURCE_FILES
 } from './build-npm-main-export';
+import { getCloudFormationTypeInfo } from './code-generation/cloudformation-type-metadata';
 
 /**
  * The declaration half of `build:npm:main`, which needs no bundler and therefore runs on every platform.
@@ -29,9 +30,22 @@ describe('the npm declaration program is the CLI project', () => {
   test('exports every advertised declaration subpath from the npm package', () => {
     const packageJson = JSON.parse(
       readFileSync(join(import.meta.dir, 'release', 'npm-package', 'package.json'), 'utf8')
-    ) as { exports: Record<string, { types?: string }> };
+    ) as { exports: Record<string, { default?: string; types?: string }> };
 
     expect(packageJson.exports['./plain']?.types).toBe('./plain.d.ts');
+    expect(packageJson.exports['./cloudformation']).toEqual({
+      types: './cloudformation.d.ts',
+      default: './index.js'
+    });
+  });
+
+  test('reads exact registry and property names from the generated CloudFormation map', () => {
+    expect(getCloudFormationTypeInfo('AWS::ElasticLoadBalancingV2::TargetGroup')).toMatchObject({
+      resourceType: 'AWS::ElasticLoadBalancingV2::TargetGroup',
+      sourcePropertiesTypeName: 'TargetGroupProperties',
+      typeName: 'AwsElasticLoadBalancingV2TargetGroup'
+    });
+    expect(getCloudFormationTypeInfo('MongoDB::StpAtlasV1::Cluster')).toBeNull();
   });
 
   test('inherits the real target/lib and path mappings rather than a second copy', () => {
@@ -40,7 +54,6 @@ describe('the npm declaration program is the CLI project', () => {
     // The CLI compiles against ES2023; a lower lib silently loses String.replaceAll and friends.
     expect(options.lib).toContain('lib.es2023.d.ts');
     expect(options.paths?.['@scripts/*']).toBeDefined();
-    expect(options.paths?.['@cloudform/*']).toBeDefined();
     // Only emit is overridden.
     expect(options.declaration).toBe(true);
     expect(options.emitDeclarationOnly).toBe(true);

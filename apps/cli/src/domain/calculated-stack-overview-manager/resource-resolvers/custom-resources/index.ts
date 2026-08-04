@@ -1,6 +1,7 @@
-import type { IntrinsicFunction } from '@cloudform/dataTypes';
-import CustomResource from '@cloudform/cloudFormation/customResource';
-import { GetAtt } from '@cloudform/functions';
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToCustomResourceDefinition } from '@domain-services/config-manager/utils/custom-resource-definitions';
@@ -16,11 +17,11 @@ export const resolveCustomResources = () => {
 
   // resolving user custom resources (this includes deployment-script custom resources)
   configManager.customResourceInstances.forEach(({ name, definitionName, resourceProperties, nameChain }) => {
-    let serviceToken: IntrinsicFunction;
+    let serviceToken: Intrinsic;
     if (definitionName === STACKTAPE_SERVICE_CUSTOM_RESOURCE_LAMBDA_IDENTIFIER) {
-      serviceToken = GetAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn');
+      serviceToken = getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn');
     } else {
-      serviceToken = GetAtt(
+      serviceToken = getAtt(
         resolveReferenceToCustomResourceDefinition({
           stpResourceReference: definitionName,
           referencedFrom: name,
@@ -29,7 +30,7 @@ export const resolveCustomResources = () => {
         'Arn'
       );
     }
-    const resource = new CustomResource({ ServiceToken: serviceToken });
+    const resource = cfnResource('AWS::CloudFormation::CustomResource', { ServiceToken: serviceToken });
     resource.Properties = { ...resource.Properties, ...resourceProperties };
     calculatedStackOverviewManager.addCfChildResource({
       resource,

@@ -1,6 +1,7 @@
-import type { AccessPointProperties, RootDirectory } from '@cloudform/efs/accessPoint';
-import AccessPoint from '@cloudform/efs/accessPoint';
-import { Ref } from '@cloudform/functions';
+import type { AccessPointProperties, RootDirectory } from '@stacktape/cloudformation/resources/aws-efs-accesspoint';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { ref } from '@stacktape/cloudformation/intrinsics';
+
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
@@ -24,7 +25,7 @@ export const getEfsAccessPoint = ({
   }
 
   const props: AccessPointProperties = {
-    FileSystemId: Ref(cfLogicalNames.efsFilesystem(efsFilesystemName)),
+    FileSystemId: ref(cfLogicalNames.efsFilesystem(efsFilesystemName)),
     PosixUser: {
       Uid: rootDirConfig.Path === '/' ? '0' : '1000',
       Gid: rootDirConfig.Path === '/' ? '0' : '1000'
@@ -33,5 +34,5 @@ export const getEfsAccessPoint = ({
     AccessPointTags: stackManager.getTags()
   };
 
-  return new AccessPoint(props);
+  return cfnResource('AWS::EFS::AccessPoint', props);
 };

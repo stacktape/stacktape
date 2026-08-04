@@ -1,13 +1,13 @@
+import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { SupportedMongoAtlasV1CfResourceType } from '@domain-services/cloudformation-registry-manager/types';
 import type {
   StpAtlasMongoGeneralTierClusterInstanceSize,
   StpMongoDbAtlasCluster
 } from '@domain-services/config-manager/resolved-types/mongo-db-atlas-clusters';
-import type { IntrinsicFunction } from '@cloudform/dataTypes';
-import type Resource from '@cloudform/resource';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import Route from '@cloudform/ec2/route';
-import { GetAtt, Ref } from '@cloudform/functions';
 import { configManager } from '@domain-services/config-manager';
 import { getConnectToReferencesForResource } from '@domain-services/config-manager/utils/resource-references';
 import { thirdPartyProviderManager } from '@domain-services/third-party-provider-credentials-manager';
@@ -38,7 +38,7 @@ export const getAtlasMongoProjectResource = () => {
         PrivateKey: atlasMongoProviderConfig.privateKey
       }
     }
-  } as Resource;
+  } as AnyCloudFormationResource;
 };
 
 export const getAtlasMongoNetworkContainerResource = () => {
@@ -48,7 +48,7 @@ export const getAtlasMongoNetworkContainerResource = () => {
     Type: resourceType,
     DependsOn: [cfLogicalNames.atlasMongoProject()],
     Properties: {
-      ProjectId: Ref(cfLogicalNames.atlasMongoProject()),
+      ProjectId: ref(cfLogicalNames.atlasMongoProject()),
       RegionName: snakeCase(calculatedStackOverviewManager.context.region).toUpperCase(),
       ProviderName: 'AWS',
       AtlasCidrBlock: getAtlasVpcNetworkContainerCidrBlock(),
@@ -57,7 +57,7 @@ export const getAtlasMongoNetworkContainerResource = () => {
         PrivateKey: atlasMongoProviderConfig.privateKey
       }
     }
-  } as Resource;
+  } as AnyCloudFormationResource;
 };
 
 export const getAtlasMongoNetworkPeeringResource = () => {
@@ -67,8 +67,8 @@ export const getAtlasMongoNetworkPeeringResource = () => {
     Type: resourceType,
     DependsOn: [cfLogicalNames.atlasMongoProjectVpcNetworkContainer()],
     Properties: {
-      ProjectId: Ref(cfLogicalNames.atlasMongoProject()),
-      ContainerId: Ref(cfLogicalNames.atlasMongoProjectVpcNetworkContainer()),
+      ProjectId: ref(cfLogicalNames.atlasMongoProject()),
+      ContainerId: ref(cfLogicalNames.atlasMongoProjectVpcNetworkContainer()),
       AccepterRegionName: calculatedStackOverviewManager.context.region, // snakeCase(configManager.region).toUpperCase(),
       AwsAccountId: calculatedStackOverviewManager.context.accountId,
       RouteTableCidrBlock: vpcManager.getVpcCidr(),
@@ -79,14 +79,14 @@ export const getAtlasMongoNetworkPeeringResource = () => {
         PrivateKey: atlasMongoProviderConfig.privateKey
       }
     }
-  } as Resource;
+  } as AnyCloudFormationResource;
 };
 
 export const getAtlasMongoVpcRouteResource = (publicSubnetTable: boolean, subnetIndex: number) => {
-  const route = new Route({
-    RouteTableId: Ref(cfLogicalNames.routeTable(publicSubnetTable, subnetIndex)),
+  const route = cfnResource('AWS::EC2::Route', {
+    RouteTableId: ref(cfLogicalNames.routeTable(publicSubnetTable, subnetIndex)),
     DestinationCidrBlock: getAtlasVpcNetworkContainerCidrBlock(),
-    VpcPeeringConnectionId: GetAtt(cfLogicalNames.atlasMongoProjectVpcNetworkPeering(), 'ConnectionId')
+    VpcPeeringConnectionId: getAtt(cfLogicalNames.atlasMongoProjectVpcNetworkPeering(), 'ConnectionId')
   });
   route.DependsOn = [cfLogicalNames.customResourceAcceptVpcPeerings()];
   return route;
@@ -104,8 +104,8 @@ export const getAtlasMongoProjectIpAccessList = () => {
     )
   );
   const basicProjectIpAccessList: {
-    AwsSecurityGroup?: string | IntrinsicFunction;
-    CidrBlock?: string | IntrinsicFunction;
+    AwsSecurityGroup?: string | Intrinsic;
+    CidrBlock?: string | Intrinsic;
   }[] =
     atlasMongoProviderConfig.accessibility?.accessibilityMode === 'internet' || !atlasMongoProviderConfig.accessibility
       ? [{ CidrBlock: '0.0.0.0/0' }]
@@ -113,14 +113,14 @@ export const getAtlasMongoProjectIpAccessList = () => {
         ? [{ CidrBlock: vpcManager.getVpcCidr() }]
         : atlasMongoProviderConfig.accessibility?.accessibilityMode === 'scoping-workloads-in-vpc'
           ? securityGroupsToAllowAccess.map((cfLogicalNameOfSecurityGroup) => ({
-              AwsSecurityGroup: Ref(cfLogicalNameOfSecurityGroup)
+              AwsSecurityGroup: ref(cfLogicalNameOfSecurityGroup)
             })) || []
           : [];
   return {
     Type: resourceType,
     DependsOn: [cfLogicalNames.atlasMongoProject()],
     Properties: {
-      ProjectId: Ref(cfLogicalNames.atlasMongoProject()),
+      ProjectId: ref(cfLogicalNames.atlasMongoProject()),
       AccessList: basicProjectIpAccessList.concat(
         atlasMongoProviderConfig.accessibility?.whitelistedIps?.map((cidrOrIp) => ({
           CidrBlock: transformToCidr({ cidrOrIp })
@@ -131,7 +131,7 @@ export const getAtlasMongoProjectIpAccessList = () => {
         PrivateKey: atlasMongoProviderConfig.privateKey
       }
     }
-  } as Resource;
+  } as AnyCloudFormationResource;
 };
 
 const errorOnExistenceOfProperty = ({
@@ -189,7 +189,7 @@ export const getAtlasMongoMasterUserResource = ({
     DependsOn: [cfLogicalNames.atlasMongoCluster(stpResourceName)],
     Properties: {
       DatabaseName: 'admin',
-      ProjectId: Ref(cfLogicalNames.atlasMongoProject()),
+      ProjectId: ref(cfLogicalNames.atlasMongoProject()),
       Roles: [
         { RoleName: 'atlasAdmin', DatabaseName: 'admin' },
         { RoleName: 'readWriteAnyDatabase', DatabaseName: 'admin' }
@@ -207,7 +207,7 @@ export const getAtlasMongoMasterUserResource = ({
         PrivateKey: atlasMongoProviderConfig.privateKey
       }
     }
-  } as Resource;
+  } as AnyCloudFormationResource;
 };
 
 const getIsSharded = (resource: StpMongoDbAtlasCluster) => {
@@ -292,7 +292,7 @@ export const getAtlasMongoClusterResource = ({
       ? [cfLogicalNames.atlasMongoProjectVpcNetworkContainer()]
       : [],
     Properties: {
-      ProjectId: Ref(cfLogicalNames.atlasMongoProject()),
+      ProjectId: ref(cfLogicalNames.atlasMongoProject()),
       AutoScaling: !(resource.clusterTier === 'M2' || resource.clusterTier === 'M5')
         ? {
             Compute: resource.autoScaling && {
@@ -354,5 +354,5 @@ export const getAtlasMongoClusterResource = ({
         PrivateKey: atlasMongoProviderConfig.privateKey
       }
     }
-  } as Resource;
+  } as AnyCloudFormationResource;
 };

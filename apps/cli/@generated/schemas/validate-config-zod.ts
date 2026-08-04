@@ -1530,10 +1530,7 @@ export const stacktapeConfigSchema = z.object({
           , z.object({
             "type": z.literal("s3files").describe("#### The type of the volume mount.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  datasetReader:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/read.ts\n      joinDefaultVpc: true\n      volumeMounts:\n        - type: s3files\n          properties:\n            accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap\n            mountPath: /mnt/s3data\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const datasetReader = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },\n    joinDefaultVpc: true,\n    volumeMounts: [\n      {\n        type: 's3files',\n        properties: { accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap', mountPath: '/mnt/s3data' }\n      }\n    ]\n  });\n  return { resources: { datasetReader } };\n});\n```"),
             "properties": z.object({
-              "accessPointArn": z.union([z.object({
-                  "name": z.string(),
-                  "payload": z.any() }).strict()
-                , z.string()]).describe("#### ARN of an existing S3 Files access point.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  datasetReader:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/read.ts\n      joinDefaultVpc: true\n      volumeMounts:\n        - type: s3files\n          properties:\n            accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap\n            mountPath: /mnt/s3data\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const datasetReader = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },\n    joinDefaultVpc: true,\n    volumeMounts: [\n      {\n        type: 's3files',\n        properties: {\n          accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap',\n          mountPath: '/mnt/s3data'\n        }\n      }\n    ]\n  });\n  return { resources: { datasetReader } };\n});\n```"),
+              "accessPointArn": z.any().describe("#### ARN of an existing S3 Files access point.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  datasetReader:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/read.ts\n      joinDefaultVpc: true\n      volumeMounts:\n        - type: s3files\n          properties:\n            accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap\n            mountPath: /mnt/s3data\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const datasetReader = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },\n    joinDefaultVpc: true,\n    volumeMounts: [\n      {\n        type: 's3files',\n        properties: {\n          accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap',\n          mountPath: '/mnt/s3data'\n        }\n      }\n    ]\n  });\n  return { resources: { datasetReader } };\n});\n```"),
               "mountPath": z.string().describe("#### Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/s3data`).\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  datasetReader:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/read.ts\n      joinDefaultVpc: true\n      volumeMounts:\n        - type: s3files\n          properties:\n            accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap\n            mountPath: /mnt/s3data\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const datasetReader = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },\n    joinDefaultVpc: true,\n    volumeMounts: [\n      {\n        type: 's3files',\n        properties: {\n          accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap',\n          mountPath: '/mnt/s3data'\n        }\n      }\n    ]\n  });\n  return { resources: { datasetReader } };\n});\n```") }).strict()
             .describe("#### Properties for the S3 Files volume mount.\n\n---\n\n**Example (YAML):**\n\n```yaml\nresources:\n  datasetReader:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/read.ts\n      joinDefaultVpc: true\n      volumeMounts:\n        - type: s3files\n          properties:\n            accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap\n            mountPath: /mnt/s3data\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const datasetReader = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },\n    joinDefaultVpc: true,\n    volumeMounts: [\n      {\n        type: 's3files',\n        properties: { accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap', mountPath: '/mnt/s3data' }\n      }\n    ]\n  });\n  return { resources: { datasetReader } };\n});\n```") }).strict()
         ])).optional().describe("#### Persistent file-system mounts shared across invocations and functions.\n\n---\n\nUnlike `/tmp`, mounted file systems persist independently from the function runtime and can be\nshared across multiple functions.\nRequires `joinDefaultVpc: true` (Stacktape will remind you if you forget).\n\n**Example (YAML):**\n\n```yaml\nresources:\n  sharedDataFunction:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/handler.ts\n      joinDefaultVpc: true\n      volumeMounts:\n        - type: efs\n          properties:\n            efsFilesystemName: sharedStorage\n            mountPath: /mnt/data\n  sharedStorage:\n    type: efs-filesystem\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, EfsFilesystem, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const sharedDataFunction = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/handler.ts' } },\n    joinDefaultVpc: true,\n    volumeMounts: [\n      { type: 'efs', properties: { efsFilesystemName: 'sharedStorage', mountPath: '/mnt/data' } }\n    ]\n  });\n  const sharedStorage = new EfsFilesystem({});\n  return { resources: { sharedDataFunction, sharedStorage } };\n});\n```").optional(),
@@ -5996,7 +5993,7 @@ export const stacktapeConfigSchema = z.object({
         ).optional().describe("").optional(),
         "instructions": z.string().optional().describe("").optional(),
         "supportedVersions": z.array(z.string()).optional().describe("").optional(),
-        "searchType": z.string().optional().describe("").optional(),
+        "searchType": z.literal("SEMANTIC").optional().describe("").optional(),
         "exceptionLevel": z.literal("DEBUG").optional().describe("").optional(),
         "tags": z.array(z.object({
           "name": z.string().describe("#### Tag name (1-128 characters)."),
@@ -6030,95 +6027,6 @@ export const stacktapeConfigSchema = z.object({
       ,
       "overrides": z.record(z.string(), z.record(z.string(), z.any())).optional().describe("#### Escape hatch to modify the underlying CloudFormation resources Stacktape creates.\n\n---\n\nUse dot-notation paths to override specific properties on any child resource.\nFind resource logical IDs with `stacktape info:stack`.\n\n**Example (YAML):**\n\n```yaml\nresources:\n  mainDb:\n    type: relational-database\n    properties:\n      credentials:\n        masterUserPassword: $Secret('db-password')\n      engine:\n        type: postgres\n        properties:\n          version: '16.2'\n          primaryInstance:\n            instanceSize: db.t3.micro\n    overrides:\n      MainDbDatabaseInstance:\n        Properties.StorageEncrypted: true\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('db-password') },\n    engine: new RdsEnginePostgres({\n      version: '16.2',\n      primaryInstance: { instanceSize: 'db.t3.micro' }\n    }),\n    overrides: {\n      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }\n    }\n  });\n\n  return { resources: { mainDb } };\n});\n```").optional() }).strict()
   ])).describe("#### Your app's infrastructure: APIs, databases, containers, functions, buckets, and more.\n\n---\n\nEach entry is a named resource (e.g., `myApi`, `myDatabase`). Stacktape creates and manages\nthe underlying AWS resources for you. Use `stacktape info:stack` to inspect them.\n\n**Example (YAML):**\n\n```yaml\nresources:\n  notificationSender:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/send-notification.ts\n      events:\n        - type: http-api-gateway\n          properties:\n            httpApiGatewayName: mainGateway\n            method: POST\n            path: /notify\n  mainGateway:\n    type: http-api-gateway\n    properties: {}\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, HttpApiGateway, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainGateway = new HttpApiGateway({});\n  const notificationSender = new LambdaFunction({\n    packaging: {\n      type: 'stacktape-lambda-buildpack',\n      properties: { entryfilePath: 'src/send-notification.ts' }\n    },\n    events: [\n      {\n        type: 'http-api-gateway',\n        properties: { httpApiGatewayName: 'mainGateway', method: 'POST', path: '/notify' }\n      }\n    ]\n  });\n\n  return {\n    resources: { notificationSender, mainGateway }\n  };\n});\n```"),
-  "cloudformationResources": z.record(z.string(), z.object({
-    "Type": z.string(),
-    "DependsOn": z.union([z.array(z.string()), z.object({
-        "name": z.string(),
-        "payload": z.any() }).strict()
-      , z.string()]).optional().describe("").optional(),
-    "Properties": z.record(z.string(), z.any()).optional().describe("").optional(),
-    "Metadata": z.record(z.string(), z.any()).optional().describe("").optional(),
-    "CreationPolicy": z.object({
-      "AutoScalingCreationPolicy": z.object({
-        "MinSuccessfulInstancesPercent": z.union([z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-          , z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number())]).optional().describe("").optional() }).strict()
-      .optional().describe("").optional(),
-      "ResourceSignal": z.object({
-        "Count": z.union([z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-          , z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number())]).optional().describe("").optional(),
-        "Timeout": z.union([z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-          , z.string()]).optional().describe("").optional() }).strict()
-      .optional().describe("").optional() }).strict()
-    .optional().describe("").optional(),
-    "DeletionPolicy": z.enum(["Delete","Retain","Snapshot"]).optional().describe("").optional(),
-    "UpdatePolicy": z.object({
-      "AutoScalingReplacingUpdate": z.object({
-        "WillReplace": z.union([z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-          , z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean())]).optional().describe("").optional() }).strict()
-      .optional().describe("").optional(),
-      "AutoScalingRollingUpdate": z.object({
-        "MaxBatchSize": z.union([z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-          , z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number())]).optional().describe("").optional(),
-        "MinInstancesInService": z.union([z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-          , z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number())]).optional().describe("").optional(),
-        "MinSuccessfulInstancesPercent": z.union([z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-          , z.preprocess((val) => typeof val === "number" ? val : typeof val === "string" ? Number(val) : val, z.number())]).optional().describe("").optional(),
-        "PauseTime": z.union([z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-          , z.string()]).optional().describe("").optional(),
-        "SuspendProcesses": z.union([z.array(z.string()), z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-        ]).optional().describe("").optional(),
-        "WaitOnResourceSignals": z.union([z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-          , z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean())]).optional().describe("").optional() }).strict()
-      .optional().describe("").optional(),
-      "AutoScalingScheduledAction": z.object({
-        "IgnoreUnmodifiedGroupSizeProperties": z.union([z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-          , z.preprocess((val) => typeof val === "boolean" ? val : val === "true" ? true : val === "false" ? false : val, z.boolean())]).optional().describe("").optional() }).strict()
-      .optional().describe("").optional(),
-      "CodeDeployLambdaAliasUpdate": z.object({
-        "AfterAllowTrafficHook": z.union([z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-          , z.string()]),
-        "ApplicationName": z.union([z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-          , z.string()]),
-        "BeforeAllowTrafficHook": z.union([z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-          , z.string()]),
-        "DeploymentGroupName": z.union([z.object({
-            "name": z.string(),
-            "payload": z.any() }).strict()
-          , z.string()]) }).strict()
-      .optional().describe("").optional() }).strict()
-    .optional().describe("").optional(),
-    "Condition": z.union([z.object({
-        "name": z.string(),
-        "payload": z.any() }).strict()
-      , z.string()]).optional().describe("").optional() }).strict()
-  ).optional().describe("#### Escape hatch: add raw AWS CloudFormation resources alongside Stacktape-managed ones.\n\n---\n\nFor advanced use cases where Stacktape doesn't have a built-in resource type.\nThese are merged into the CloudFormation template as-is. Use `stacktape info:stack`\nto check existing logical names and avoid conflicts.\n\nDoes not count towards your resource limit.\n\n**Example (YAML):**\n\n```yaml\nresources:\n  worker:\n    type: worker-service\n    properties:\n      packaging:\n        type: stacktape-image-buildpack\n        properties:\n          entryfilePath: src/worker.ts\n      resources:\n        cpu: 0.25\n        memory: 512\ncloudformationResources:\n  MyRawSnsTopic:\n    Type: AWS::SNS::Topic\n    Properties:\n      TopicName: legacy-events\n      DisplayName: Legacy Events Topic\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const worker = new WorkerService({\n    packaging: {\n      type: 'stacktape-image-buildpack',\n      properties: { entryfilePath: 'src/worker.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 }\n  });\n\n  return {\n    resources: { worker },\n    cloudformationResources: {\n      MyRawSnsTopic: {\n        Type: 'AWS::SNS::Topic',\n        Properties: {\n          TopicName: 'legacy-events',\n          DisplayName: 'Legacy Events Topic'\n        }\n      }\n    }\n  };\n});\n```").optional() }).strict()
+  "cloudformationResources": z.record(z.string(), z.any()).optional().describe("#### Escape hatch: add raw AWS CloudFormation resources alongside Stacktape-managed ones.\n\n---\n\nFor advanced use cases where Stacktape doesn't have a built-in resource type.\nThese are merged into the CloudFormation template as-is. Use `stacktape info:stack`\nto check existing logical names and avoid conflicts.\n\nDoes not count towards your resource limit.\n\n**Example (YAML):**\n\n```yaml\nresources:\n  worker:\n    type: worker-service\n    properties:\n      packaging:\n        type: stacktape-image-buildpack\n        properties:\n          entryfilePath: src/worker.ts\n      resources:\n        cpu: 0.25\n        memory: 512\ncloudformationResources:\n  MyRawSnsTopic:\n    Type: AWS::SNS::Topic\n    Properties:\n      TopicName: legacy-events\n      DisplayName: Legacy Events Topic\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const worker = new WorkerService({\n    packaging: {\n      type: 'stacktape-image-buildpack',\n      properties: { entryfilePath: 'src/worker.ts' }\n    },\n    resources: { cpu: 0.25, memory: 512 }\n  });\n\n  return {\n    resources: { worker },\n    cloudformationResources: {\n      MyRawSnsTopic: {\n        Type: 'AWS::SNS::Topic',\n        Properties: {\n          TopicName: 'legacy-events',\n          DisplayName: 'Legacy Events Topic'\n        }\n      }\n    }\n  };\n});\n```").optional() }).strict()
 
 export type StacktapeConfigSchema = z.infer<typeof stacktapeConfigSchema>

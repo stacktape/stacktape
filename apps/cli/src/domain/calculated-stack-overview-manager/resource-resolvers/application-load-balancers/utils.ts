@@ -1,12 +1,10 @@
+import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
+import type { Action } from '@stacktape/cloudformation/resources/aws-elasticloadbalancingv2-listener';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StacktapeResourceOutput } from '@domain-services/stack-info/types';
 import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import SecurityGroup, { Ingress } from '@cloudform/ec2/securityGroup';
-import Listener, { Action, Certificate } from '@cloudform/elasticLoadBalancingV2/listener';
-import ListenerCertificate from '@cloudform/elasticLoadBalancingV2/listenerCertificate';
-import ElasticLoadBalancer from '@cloudform/elasticLoadBalancingV2/loadBalancer';
-import { GetAtt, Join, Ref } from '@cloudform/functions';
-import Route53Record from '@cloudform/route53/recordSet';
 import { domainManager } from '@domain-services/domain-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -16,15 +14,14 @@ import { normalizePathForLink } from '@utils/formatting';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 import type { ApplicationLoadBalancerWithListeners } from '@domain-services/config-manager/utils/application-load-balancers';
 import type { ApplicationLoadBalancerListener } from '@stacktape/config/application-load-balancers';
-import type { CloudformationResource } from '@stacktape/config/cloudformation';
 import type { ApplicationLoadBalancerIntegrationProps } from '@stacktape/config/events';
 
 export const getLoadBalancer = (loadBalancerName: string, loadBalancerConfig: StpApplicationLoadBalancer) =>
-  new ElasticLoadBalancer({
+  cfnResource('AWS::ElasticLoadBalancingV2::LoadBalancer', {
     IpAddressType: 'ipv4',
     // Name: getLoadBalancerResourceName(workloadName, loadBalancerName, calculatedStackOverviewManager.context.stackName),
     Scheme: loadBalancerConfig.interface === 'internal' ? 'internal' : 'internet-facing',
-    SecurityGroups: [Ref(cfLogicalNames.loadBalancerSecurityGroup(loadBalancerName))],
+    SecurityGroups: [ref(cfLogicalNames.loadBalancerSecurityGroup(loadBalancerName))],
     Subnets: vpcManager.getPublicSubnetIds(),
     Type: 'application'
   });
@@ -33,7 +30,7 @@ export const getLoadBalancerSecurityGroup = (
   loadBalancerName: string,
   loadBalancerConfig: ApplicationLoadBalancerWithListeners
 ) =>
-  new SecurityGroup({
+  cfnResource('AWS::EC2::SecurityGroup', {
     GroupDescription: `Stacktape generated security group for redis cluster ${loadBalancerName} in stack ${calculatedStackOverviewManager.context.stackName}`,
     GroupName: awsResourceNames.loadBalancerSecurityGroup(
       loadBalancerName,
@@ -43,21 +40,18 @@ export const getLoadBalancerSecurityGroup = (
     SecurityGroupIngress: loadBalancerConfig.listeners
       .map((listenerConfig) =>
         listenerConfig.whitelistIps
-          ? listenerConfig.whitelistIps.map(
-              (whitelistedIp) =>
-                new Ingress({
-                  FromPort: listenerConfig.port,
-                  ToPort: listenerConfig.port,
-                  CidrIp: transformToCidr({ cidrOrIp: whitelistedIp }),
-                  IpProtocol: 'tcp'
-                })
-            )
-          : new Ingress({
+          ? listenerConfig.whitelistIps.map((whitelistedIp) => ({
+              FromPort: listenerConfig.port,
+              ToPort: listenerConfig.port,
+              CidrIp: transformToCidr({ cidrOrIp: whitelistedIp }),
+              IpProtocol: 'tcp'
+            }))
+          : {
               FromPort: listenerConfig.port,
               ToPort: listenerConfig.port,
               CidrIp: loadBalancerConfig.interface === 'internal' ? vpcManager.getVpcCidr() : '0.0.0.0/0',
               IpProtocol: 'tcp'
-            })
+            }
       )
       .flat()
   });
@@ -65,7 +59,7 @@ export const getLoadBalancerSecurityGroup = (
 export const getDefaultActionForListener = (listenerConfig: ApplicationLoadBalancerListener): Action[] => {
   if (!listenerConfig.defaultAction) {
     return [
-      new Action({
+      {
         FixedResponseConfig: {
           StatusCode: '500',
           ContentType: 'text/plain',
@@ -73,7 +67,7 @@ export const getDefaultActionForListener = (listenerConfig: ApplicationLoadBalan
         },
         Type: 'fixed-response',
         Order: 1
-      })
+      }
     ];
   }
   let order = 1;
@@ -104,20 +98,18 @@ export const getDefaultActionForListener = (listenerConfig: ApplicationLoadBalan
   //   );
   // } else
   if (listenerConfig.defaultAction.type === 'redirect') {
-    actions.push(
-      new Action({
-        Type: 'redirect',
-        Order: order++,
-        RedirectConfig: {
-          Path: listenerConfig.defaultAction.properties.path,
-          Host: listenerConfig.defaultAction.properties.host,
-          Port: listenerConfig.defaultAction.properties.port && String(listenerConfig.defaultAction.properties.port),
-          Protocol: listenerConfig.defaultAction.properties.protocol,
-          Query: listenerConfig.defaultAction.properties.query,
-          StatusCode: listenerConfig.defaultAction.properties.statusCode
-        }
-      })
-    );
+    actions.push({
+      Type: 'redirect',
+      Order: order++,
+      RedirectConfig: {
+        Path: listenerConfig.defaultAction.properties.path,
+        Host: listenerConfig.defaultAction.properties.host,
+        Port: listenerConfig.defaultAction.properties.port && String(listenerConfig.defaultAction.properties.port),
+        Protocol: listenerConfig.defaultAction.properties.protocol,
+        Query: listenerConfig.defaultAction.properties.query,
+        StatusCode: listenerConfig.defaultAction.properties.statusCode
+      }
+    });
   }
   return actions;
 };
@@ -126,7 +118,7 @@ export const getLoadBalancersListeners = (
   loadBalancerName: string,
   loadBalancerConfig: ApplicationLoadBalancerWithListeners
 ) => {
-  const resources: { cfLogicalName: string; resource: CloudformationResource }[] = [];
+  const resources: { cfLogicalName: string; resource: AnyCloudFormationResource }[] = [];
   loadBalancerConfig.listeners.forEach((listenerConfig) => {
     let certificatesForListener = [];
     // if https listener check certificates
@@ -134,7 +126,7 @@ export const getLoadBalancersListeners = (
       if (listenerConfig.customCertificateArns) {
         certificatesForListener = listenerConfig.customCertificateArns;
       } else if (!loadBalancerConfig.customDomains?.length) {
-        certificatesForListener = [GetAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'certArn')];
+        certificatesForListener = [getAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'certArn')];
       } else {
         certificatesForListener = loadBalancerConfig.customDomains
           .map(({ domainName, customCertificateArn, disableDnsRecordCreation }) => {
@@ -155,21 +147,18 @@ export const getLoadBalancersListeners = (
     if (certificatesForListener.length > 1) {
       resources.push({
         cfLogicalName: cfLogicalNames.listenerCertificateList(listenerConfig.port, loadBalancerName),
-        resource: new ListenerCertificate({
-          ListenerArn: Ref(cfLogicalNames.listener(listenerConfig.port, loadBalancerName)),
-          Certificates: certificatesForListener.slice(1).map((certArn) => new Certificate({ CertificateArn: certArn }))
+        resource: cfnResource('AWS::ElasticLoadBalancingV2::ListenerCertificate', {
+          ListenerArn: ref(cfLogicalNames.listener(listenerConfig.port, loadBalancerName)),
+          Certificates: certificatesForListener.slice(1).map((certArn) => ({ CertificateArn: certArn }))
         })
       });
     }
-    const listener = new Listener({
-      Certificates:
-        listenerConfig.protocol === 'HTTPS'
-          ? [new Certificate({ CertificateArn: certificatesForListener[0] })]
-          : undefined,
+    const listener = cfnResource('AWS::ElasticLoadBalancingV2::Listener', {
+      Certificates: listenerConfig.protocol === 'HTTPS' ? [{ CertificateArn: certificatesForListener[0] }] : undefined,
       DefaultActions: getDefaultActionForListener(listenerConfig),
       Port: listenerConfig.port,
       Protocol: listenerConfig.protocol,
-      LoadBalancerArn: Ref(cfLogicalNames.loadBalancer(loadBalancerName)),
+      LoadBalancerArn: ref(cfLogicalNames.loadBalancer(loadBalancerName)),
       SslPolicy: listenerConfig.protocol === 'HTTPS' ? 'ELBSecurityPolicy-TLS13-1-2-2021-06' : undefined
     });
     resources.push({
@@ -184,13 +173,13 @@ export const getLoadBalancerDnsRecord = (
   loadBalancerName: string,
   domainConfiguration: { fullyQualifiedDomainName: string; hostedZoneId: string }
 ) =>
-  new Route53Record({
+  cfnResource('AWS::Route53::RecordSet', {
     HostedZoneId: domainConfiguration.hostedZoneId,
     Name: domainConfiguration.fullyQualifiedDomainName,
     Type: 'A',
     AliasTarget: {
-      DNSName: GetAtt(cfLogicalNames.loadBalancer(loadBalancerName), 'DNSName'),
-      HostedZoneId: GetAtt(cfLogicalNames.loadBalancer(loadBalancerName), 'CanonicalHostedZoneID')
+      DNSName: getAtt(cfLogicalNames.loadBalancer(loadBalancerName), 'DNSName'),
+      HostedZoneId: getAtt(cfLogicalNames.loadBalancer(loadBalancerName), 'CanonicalHostedZoneID')
     }
   });
 
@@ -206,7 +195,7 @@ export const transformIntegrationsForResourceOutput = ({
   return albIntegrations.map(
     ({ workloadName, methods, paths, priority, hosts, listenerPort, queryParams, headers, sourceIps }) => {
       const listener = resource.listeners.find(({ port }) => port === listenerPort);
-      const urlWithPort = Join('', [
+      const urlWithPort = join('', [
         listener.protocol === 'HTTP' ? 'http' : 'https',
         '://',
         hosts?.[0] ||
@@ -218,8 +207,8 @@ export const transformIntegrationsForResourceOutput = ({
       return {
         priority,
         urls: paths?.length
-          ? paths.map((path) => Join('', [urlWithPort, normalizePathForLink(path)]))
-          : [Join('', [urlWithPort, '/*'])],
+          ? paths.map((path) => join('', [urlWithPort, normalizePathForLink(path)]))
+          : [join('', [urlWithPort, '/*'])],
         methods,
         headers,
         hosts,
@@ -237,8 +226,8 @@ export const getLoadBalancerDefaultDomainCustomResource = ({ resource }: { resou
     defaultDomain: {
       domainName: domainManager.getDefaultDomainForResource({ stpResourceName: resource.name }),
       targetInfo: {
-        domainName: GetAtt(cfLogicalNames.loadBalancer(resource.name), 'DNSName'),
-        hostedZoneId: GetAtt(cfLogicalNames.loadBalancer(resource.name), 'CanonicalHostedZoneID')
+        domainName: getAtt(cfLogicalNames.loadBalancer(resource.name), 'DNSName'),
+        hostedZoneId: getAtt(cfLogicalNames.loadBalancer(resource.name), 'CanonicalHostedZoneID')
       },
       version: domainManager.defaultDomainsInfo.version
     }

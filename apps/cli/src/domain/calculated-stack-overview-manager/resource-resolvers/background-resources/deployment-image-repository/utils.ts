@@ -1,8 +1,9 @@
-import Repository from '@cloudform/ecr/repository';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 
 export const getEcrRepositoryResource = (globallyUniqueStackHash: string) => {
-  return new Repository({
+  return cfnResource('AWS::ECR::Repository', {
     RepositoryName: awsResourceNames.deploymentEcrRepo(globallyUniqueStackHash),
     LifecyclePolicy: {
       LifecyclePolicyText: JSON.stringify({

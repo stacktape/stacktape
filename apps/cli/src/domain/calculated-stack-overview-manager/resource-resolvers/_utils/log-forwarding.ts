@@ -1,15 +1,12 @@
+import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref, sub } from '@stacktape/cloudformation/intrinsics';
 import type { ResourcePropsFromConfig } from '@domain-services/stack-info/types';
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { GetAtt, Ref, Sub } from '@cloudform/functions';
-import Role from '@cloudform/iam/role';
-import DeliveryStream from '@cloudform/kinesisFirehose/deliveryStream';
-import SubscriptionFilter from '@cloudform/logs/subscriptionFilter';
-import Bucket from '@cloudform/s3/bucket';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import { SubWithoutMapping } from '@utils/cloudformation';
-import type { CloudformationResource } from '@stacktape/config/cloudformation';
+
 import type {
   DatadogLogForwarding,
   HighlightLogForwarding,
@@ -26,7 +23,7 @@ export const getResourcesNeededForLogForwarding = ({
   logGroupCfLogicalName: string;
   logForwardingConfig: LogForwardingBase['logForwarding'];
 }) => {
-  const resources: { cfLogicalName: string; cfResource: CloudformationResource }[] = [];
+  const resources: { cfLogicalName: string; cfResource: AnyCloudFormationResource }[] = [];
   if (logForwardingConfig.type === 'http-endpoint') {
     resources.push(...getResourcesCommonForHttpEndpoints({ resource, logGroupCfLogicalName }), {
       cfLogicalName: cfLogicalNames.logForwardingFirehoseDeliveryStream({ logGroupCfLogicalName }),
@@ -74,7 +71,7 @@ const getResourcesCommonForHttpEndpoints = ({
 };
 
 const getFirehoseToS3Role = ({ resource }: { resource: ResourcePropsFromConfig<StpResourceType> }) => {
-  return new Role({
+  return cfnResource('AWS::IAM::Role', {
     AssumeRolePolicyDocument: {
       Version: '2012-10-17',
       Statement: {
@@ -85,7 +82,7 @@ const getFirehoseToS3Role = ({ resource }: { resource: ResourcePropsFromConfig<S
         },
         Condition: {
           StringEquals: {
-            'sts:ExternalId': SubWithoutMapping('${AWS::AccountId}')
+            'sts:ExternalId': sub('${AWS::AccountId}')
           }
         }
       }
@@ -105,9 +102,9 @@ const getFirehoseToS3Role = ({ resource }: { resource: ResourcePropsFromConfig<S
               's3:PutObject'
             ],
             Resource: [
-              GetAtt(cfLogicalNames.logForwardingFailedEventsBucket(resource.name), 'Arn'),
-              Sub('${bucketName}/*', {
-                bucketName: GetAtt(cfLogicalNames.logForwardingFailedEventsBucket(resource.name), 'Arn')
+              getAtt(cfLogicalNames.logForwardingFailedEventsBucket(resource.name), 'Arn'),
+              sub('${bucketName}/*', {
+                bucketName: getAtt(cfLogicalNames.logForwardingFailedEventsBucket(resource.name), 'Arn')
               })
             ]
           }
@@ -118,7 +115,7 @@ const getFirehoseToS3Role = ({ resource }: { resource: ResourcePropsFromConfig<S
 };
 
 const getCloudwatchToFirehoseRole = ({ logGroupCfLogicalName }: { logGroupCfLogicalName: string }) => {
-  return new Role({
+  return cfnResource('AWS::IAM::Role', {
     AssumeRolePolicyDocument: {
       Version: '2012-10-17',
       Statement: {
@@ -129,7 +126,7 @@ const getCloudwatchToFirehoseRole = ({ logGroupCfLogicalName }: { logGroupCfLogi
         },
         Condition: {
           StringLike: {
-            'aws:SourceArn': SubWithoutMapping('arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*')
+            'aws:SourceArn': sub('arn:aws:logs:${AWS::Region}:${AWS::AccountId}:*')
           }
         }
       }
@@ -141,7 +138,7 @@ const getCloudwatchToFirehoseRole = ({ logGroupCfLogicalName }: { logGroupCfLogi
           Statement: {
             Effect: 'Allow',
             Action: ['firehose:PutRecord'],
-            Resource: [GetAtt(cfLogicalNames.logForwardingFirehoseDeliveryStream({ logGroupCfLogicalName }), 'Arn')]
+            Resource: [getAtt(cfLogicalNames.logForwardingFirehoseDeliveryStream({ logGroupCfLogicalName }), 'Arn')]
           }
         }
       }
@@ -150,7 +147,7 @@ const getCloudwatchToFirehoseRole = ({ logGroupCfLogicalName }: { logGroupCfLogi
 };
 
 const getFailedEventsBucket = ({ resource }: { resource: ResourcePropsFromConfig<StpResourceType> }) => {
-  return new Bucket({
+  return cfnResource('AWS::S3::Bucket', {
     BucketName: awsResourceNames.logForwardingFailedEventsBucket(
       resource.name,
       calculatedStackOverviewManager.context.stackName,
@@ -169,11 +166,11 @@ const getFailedEventsBucket = ({ resource }: { resource: ResourcePropsFromConfig
 };
 
 const getLogSubscriptionFilter = ({ logGroupCfLogicalName }: { logGroupCfLogicalName: string }) => {
-  return new SubscriptionFilter({
-    LogGroupName: Ref(logGroupCfLogicalName),
-    DestinationArn: GetAtt(cfLogicalNames.logForwardingFirehoseDeliveryStream({ logGroupCfLogicalName }), 'Arn'),
+  return cfnResource('AWS::Logs::SubscriptionFilter', {
+    LogGroupName: ref(logGroupCfLogicalName),
+    DestinationArn: getAtt(cfLogicalNames.logForwardingFirehoseDeliveryStream({ logGroupCfLogicalName }), 'Arn'),
     FilterPattern: '',
-    RoleArn: GetAtt(cfLogicalNames.logForwardingCwToFirehoseRole({ logGroupCfLogicalName }), 'Arn')
+    RoleArn: getAtt(cfLogicalNames.logForwardingCwToFirehoseRole({ logGroupCfLogicalName }), 'Arn')
   });
 };
 
@@ -184,7 +181,7 @@ const getFirehoseGenericHttpEndpointDeliveryStream = ({
   resource: ResourcePropsFromConfig<StpResourceType>;
   logForwardingConfig: HttpEndpointLogForwarding;
 }) => {
-  return new DeliveryStream({
+  return cfnResource('AWS::KinesisFirehose::DeliveryStream', {
     DeliveryStreamType: 'DirectPut',
     HttpEndpointDestinationConfiguration: {
       BufferingHints: {
@@ -197,8 +194,8 @@ const getFirehoseGenericHttpEndpointDeliveryStream = ({
         Name: logForwardingConfig.properties.endpointUrl.replace('https://', '')
       },
       S3Configuration: {
-        BucketARN: GetAtt(cfLogicalNames.logForwardingFailedEventsBucket(resource.name), 'Arn'),
-        RoleARN: GetAtt(cfLogicalNames.logForwardingFirehoseToS3Role(resource.name), 'Arn'),
+        BucketARN: getAtt(cfLogicalNames.logForwardingFailedEventsBucket(resource.name), 'Arn'),
+        RoleARN: getAtt(cfLogicalNames.logForwardingFirehoseToS3Role(resource.name), 'Arn'),
         BufferingHints: {
           SizeInMBs: 5,
           IntervalInSeconds: 300
@@ -226,7 +223,7 @@ const getFirehoseHighlightDeliveryStream = ({
   logForwardingConfig: HighlightLogForwarding;
 }) => {
   const endpoint = logForwardingConfig.properties.endpointUrl || 'https://pub.highlight.io/v1/logs/firehose';
-  return new DeliveryStream({
+  return cfnResource('AWS::KinesisFirehose::DeliveryStream', {
     DeliveryStreamType: 'DirectPut',
     HttpEndpointDestinationConfiguration: {
       BufferingHints: {
@@ -238,8 +235,8 @@ const getFirehoseHighlightDeliveryStream = ({
         Name: endpoint.replace('https://', '')
       },
       S3Configuration: {
-        BucketARN: GetAtt(cfLogicalNames.logForwardingFailedEventsBucket(resource.name), 'Arn'),
-        RoleARN: GetAtt(cfLogicalNames.logForwardingFirehoseToS3Role(resource.name), 'Arn'),
+        BucketARN: getAtt(cfLogicalNames.logForwardingFailedEventsBucket(resource.name), 'Arn'),
+        RoleARN: getAtt(cfLogicalNames.logForwardingFirehoseToS3Role(resource.name), 'Arn'),
         BufferingHints: {
           SizeInMBs: 5,
           IntervalInSeconds: 300
@@ -268,7 +265,7 @@ const getFirehoseDatadogDeliveryStream = ({
 }) => {
   const endpoint =
     logForwardingConfig.properties.endpointUrl || 'https://aws-kinesis-http-intake.logs.datadoghq.com/v1/input';
-  return new DeliveryStream({
+  return cfnResource('AWS::KinesisFirehose::DeliveryStream', {
     DeliveryStreamType: 'DirectPut',
     HttpEndpointDestinationConfiguration: {
       BufferingHints: {
@@ -281,8 +278,8 @@ const getFirehoseDatadogDeliveryStream = ({
         AccessKey: logForwardingConfig.properties.apiKey
       },
       S3Configuration: {
-        BucketARN: GetAtt(cfLogicalNames.logForwardingFailedEventsBucket(resource.name), 'Arn'),
-        RoleARN: GetAtt(cfLogicalNames.logForwardingFirehoseToS3Role(resource.name), 'Arn'),
+        BucketARN: getAtt(cfLogicalNames.logForwardingFailedEventsBucket(resource.name), 'Arn'),
+        RoleARN: getAtt(cfLogicalNames.logForwardingFirehoseToS3Role(resource.name), 'Arn'),
         BufferingHints: {
           SizeInMBs: 5,
           IntervalInSeconds: 300

@@ -1,4 +1,5 @@
-import { Ref } from '@cloudform/functions';
+import { ref } from '@stacktape/cloudformation/intrinsics';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
@@ -23,7 +24,7 @@ export const resolveDeploymentBucket = () => {
   calculatedStackOverviewManager.addStacktapeResourceLink({
     linkName: 'deployment-bucket-contents',
     nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
-    linkValue: cfEvaluatedLinks.s3Bucket(Ref(deploymentBucketLogicalName), 'objects')
+    linkValue: cfEvaluatedLinks.s3Bucket(ref(deploymentBucketLogicalName), 'objects')
   });
 
   calculatedStackOverviewManager.addCfChildResource({

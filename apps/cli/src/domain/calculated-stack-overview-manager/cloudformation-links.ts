@@ -1,37 +1,34 @@
-import type { IntrinsicFunction } from '@cloudform/dataTypes';
-import { Ref, Sub } from '@cloudform/functions';
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { ref, sub } from '@stacktape/cloudformation/intrinsics';
+
 import { tagNames } from '@stacktape/naming/tag-names';
 
-const getBaseCfSubstitutedAwsConsoleLink = (
-  serviceName: string,
-  serviceQuery: string | IntrinsicFunction,
-  region?: string
-) => {
-  return Sub(`https://\${region}.console.aws.amazon.com/${serviceName}/home?region=\${region}#\${service_query}`, {
-    region: region || Ref('AWS::Region'),
+const getBaseCfSubstitutedAwsConsoleLink = (serviceName: string, serviceQuery: string | Intrinsic, region?: string) => {
+  return sub(`https://\${region}.console.aws.amazon.com/${serviceName}/home?region=\${region}#\${service_query}`, {
+    region: region || ref('AWS::Region'),
     service_query: serviceQuery
   });
 };
 
 export const cfEvaluatedLinks = {
-  ecsMonitoring(ecsClusterName: string | IntrinsicFunction, ecsServiceName: string | IntrinsicFunction) {
+  ecsMonitoring(ecsClusterName: string | Intrinsic, ecsServiceName: string | Intrinsic) {
     return getBaseCfSubstitutedAwsConsoleLink(
       'ecs',
-      Sub('clusters/${ecsClusterName}/services/${ecsServiceName}/metrics', { ecsServiceName, ecsClusterName })
+      sub('clusters/${ecsClusterName}/services/${ecsServiceName}/metrics', { ecsServiceName, ecsClusterName })
     );
   },
 
-  stateMachineExecutions(stateMachineArn: string | IntrinsicFunction) {
+  stateMachineExecutions(stateMachineArn: string | Intrinsic) {
     return getBaseCfSubstitutedAwsConsoleLink(
       'states',
-      Sub('statemachines/view/${stateMachineArn}', { stateMachineArn })
+      sub('statemachines/view/${stateMachineArn}', { stateMachineArn })
     );
   },
 
-  ec2InstancesOfAsg(asgName: string | IntrinsicFunction) {
+  ec2InstancesOfAsg(asgName: string | Intrinsic) {
     return getBaseCfSubstitutedAwsConsoleLink(
       'ec2',
-      Sub(`Instances:tag:${tagNames.autoscalingGroupName()}=\${asgName}`, { asgName })
+      sub(`Instances:tag:${tagNames.autoscalingGroupName()}=\${asgName}`, { asgName })
     );
   },
 
@@ -49,53 +46,49 @@ export const cfEvaluatedLinks = {
     region,
     alias
   }: {
-    awsLambdaName: string | IntrinsicFunction;
+    awsLambdaName: string | Intrinsic;
     tab: string;
     region?: string;
     alias?: string;
   }) {
     return getBaseCfSubstitutedAwsConsoleLink(
       'lambda',
-      Sub(`functions/\${awsLambdaName}${alias ? `/aliases/${alias}` : ''}?tab=${tab}`, {
+      sub(`functions/\${awsLambdaName}${alias ? `/aliases/${alias}` : ''}?tab=${tab}`, {
         awsLambdaName
       }),
       region
     );
   },
 
-  loadBalancers({ lbArn, tab }: { lbArn: string | IntrinsicFunction; tab: string }) {
+  loadBalancers({ lbArn, tab }: { lbArn: string | Intrinsic; tab: string }) {
     return getBaseCfSubstitutedAwsConsoleLink(
       'ec2',
 
-      Sub(`LoadBalancer:loadBalancerArn=\${lbArn};tab=${tab}`, { lbArn })
+      sub(`LoadBalancer:loadBalancerArn=\${lbArn};tab=${tab}`, { lbArn })
     );
   },
 
-  httpApiGateway({ apiId }: { apiId: string | IntrinsicFunction }) {
-    return Sub(
+  httpApiGateway({ apiId }: { apiId: string | Intrinsic }) {
+    return sub(
       `https://\${AWS::Region}.console.aws.amazon.com/apigateway/main/api-detail?api=\${apiId}&region=\${AWS::Region}`,
       { apiId }
     );
   },
 
-  efsFilesystem({ filesystemId }: { filesystemId: string | IntrinsicFunction }) {
+  efsFilesystem({ filesystemId }: { filesystemId: string | Intrinsic }) {
     return getBaseCfSubstitutedAwsConsoleLink(
       'efs',
-      Sub('/file-systems/?${filesystemId}?tabId=size', { filesystemId })
+      sub('/file-systems/?${filesystemId}?tabId=size', { filesystemId })
     );
   },
 
-  redisClusterMonitoring(
-    replicationGroupIdentifier: string | IntrinsicFunction,
-    numReplicas: number,
-    shardNumber?: number
-  ) {
+  redisClusterMonitoring(replicationGroupIdentifier: string | Intrinsic, numReplicas: number, shardNumber?: number) {
     const numberOfNodesInCluster = numReplicas + 1;
     if (shardNumber) {
       const paddedShardNumber = `${shardNumber}`.padStart(4, '0');
       return getBaseCfSubstitutedAwsConsoleLink(
         'elasticache',
-        Sub(
+        sub(
           `redis-cluster-nodes:id=\${replicationGroupIdentifier}-${paddedShardNumber};clusters=${Array.from(
             Array.from({ length: numberOfNodesInCluster }).keys(),
             (clusterNodeNumMinusOne) =>
@@ -109,7 +102,7 @@ export const cfEvaluatedLinks = {
     }
     return getBaseCfSubstitutedAwsConsoleLink(
       'elasticache',
-      Sub(
+      sub(
         `redis-group-nodes:id=\${replicationGroupIdentifier};clusters=${Array.from(
           Array.from({ length: numberOfNodesInCluster }).keys(),
           (clusterNodeNumMinusOne) =>
@@ -122,53 +115,45 @@ export const cfEvaluatedLinks = {
     );
   },
 
-  relationalDatabase(instanceOrClusterIdentifier: string | IntrinsicFunction, isCluster: boolean, tab: string) {
+  relationalDatabase(instanceOrClusterIdentifier: string | Intrinsic, isCluster: boolean, tab: string) {
     return getBaseCfSubstitutedAwsConsoleLink(
       'rds',
-      Sub(`database:id=\${instanceOrClusterIdentifier};is-cluster=${isCluster};tab=${tab}`, {
+      sub(`database:id=\${instanceOrClusterIdentifier};is-cluster=${isCluster};tab=${tab}`, {
         instanceOrClusterIdentifier
       })
     );
   },
 
-  dynamoTable(tableName: string | IntrinsicFunction, tab: string) {
+  dynamoTable(tableName: string | Intrinsic, tab: string) {
     return getBaseCfSubstitutedAwsConsoleLink(
       'dynamodbv2',
-      Sub(`table?name=\${tableName}&tab=${tab}`, {
+      sub(`table?name=\${tableName}&tab=${tab}`, {
         tableName
       })
     );
   },
 
-  dynamoItems(tableName: string | IntrinsicFunction) {
+  dynamoItems(tableName: string | Intrinsic) {
     return getBaseCfSubstitutedAwsConsoleLink(
       'dynamodbv2',
-      Sub('item-explorer?table=${tableName}', {
+      sub('item-explorer?table=${tableName}', {
         tableName
       })
     );
   },
 
-  s3Bucket(bucketName: string | IntrinsicFunction, tab: string) {
-    return Sub(`https://console.aws.amazon.com/s3/buckets/\${bucketName}?region=\${region}&tab=${tab}`, {
-      region: Ref('AWS::Region'),
+  s3Bucket(bucketName: string | Intrinsic, tab: string) {
+    return sub(`https://console.aws.amazon.com/s3/buckets/\${bucketName}?region=\${region}&tab=${tab}`, {
+      region: ref('AWS::Region'),
       bucketName
     });
   },
 
-  cloudwatchAlarm(alarmName: string | IntrinsicFunction) {
-    return getBaseCfSubstitutedAwsConsoleLink('cloudwatch', Sub(`alarmsV2:alarm/\${alarmName}`, { alarmName }));
+  cloudwatchAlarm(alarmName: string | Intrinsic) {
+    return getBaseCfSubstitutedAwsConsoleLink('cloudwatch', sub(`alarmsV2:alarm/\${alarmName}`, { alarmName }));
   },
-  firewall({
-    region,
-    awsWebACLName,
-    awsWebACLId
-  }: {
-    region: string;
-    awsWebACLName: string;
-    awsWebACLId: IntrinsicFunction;
-  }) {
-    return Sub(
+  firewall({ region, awsWebACLName, awsWebACLId }: { region: string; awsWebACLName: string; awsWebACLId: Intrinsic }) {
+    return sub(
       `https://us-east-1.console.aws.amazon.com/wafv2/homev2/web-acl/${awsWebACLName}/\${awsWebACLId}/overview?region=${region}`,
       { awsWebACLId }
     );

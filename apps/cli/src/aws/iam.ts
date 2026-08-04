@@ -1,6 +1,6 @@
+import type { Policy } from '@stacktape/cloudformation/resources/aws-iam-role';
 import type { TuiManager as Printer } from '@application-services/tui-manager';
 import type { GetRoleCommandOutput, IAMClient } from '@aws-sdk/client-iam';
-import type { Policy } from '@cloudform/iam/role';
 import {
   AttachRolePolicyCommand,
   CreateRoleCommand,

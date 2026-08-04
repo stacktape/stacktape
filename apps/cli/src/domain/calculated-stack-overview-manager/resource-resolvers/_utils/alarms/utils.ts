@@ -1,12 +1,12 @@
+import type { Dimension, MetricDataQuery } from '@stacktape/cloudformation/resources/aws-cloudwatch-alarm';
+import { ref } from '@stacktape/cloudformation/intrinsics';
 import type { AlarmAffectedResourceInfo } from '@domain-services/config-manager/resolved-types/alarms';
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
 import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
-import type { Dimension, MetricDataQuery } from '@cloudform/cloudWatch/alarm';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { Ref } from '@cloudform/functions';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
 import { consoleLinks } from '@stacktape/naming/console-links';
@@ -125,8 +125,8 @@ export const getAffectedResourceInfo = ({
     case 'database-free-memory': {
       const isCluster = isAuroraCluster({ resource: resource as StpRelationalDatabase });
       const dbIdentifier = isCluster
-        ? Ref(cfLogicalNames.auroraDbCluster(resource.name))
-        : Ref(cfLogicalNames.dbInstance(resource.name));
+        ? ref(cfLogicalNames.auroraDbCluster(resource.name))
+        : ref(cfLogicalNames.dbInstance(resource.name));
       return {
         displayName: resource.nameChain.join('.'),
         link: cfEvaluatedLinks.relationalDatabase(dbIdentifier, isCluster, 'monitoring') as unknown as string
@@ -137,7 +137,7 @@ export const getAffectedResourceInfo = ({
       return {
         displayName: resource.nameChain.join('.'),
         link: cfEvaluatedLinks.httpApiGateway({
-          apiId: Ref(cfLogicalNames.httpApi(resource.name))
+          apiId: ref(cfLogicalNames.httpApi(resource.name))
         }) as unknown as string
       };
     }

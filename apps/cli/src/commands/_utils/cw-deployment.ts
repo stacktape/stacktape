@@ -1,13 +1,18 @@
-import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import type {
+  KeyValuePair as CfKeyValuePair,
+  ContainerDefinition,
+  LogConfiguration
+} from '@stacktape/cloudformation/resources/aws-ecs-taskdefinition';
+import type { KnownCloudFormationResource } from '@stacktape/cloudformation/resource';
+import type { LoadBalancer } from '@stacktape/cloudformation/resources/aws-ecs-service';
+
 import type {
   ECSBlueGreenService,
   StpContainerWorkload
 } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
 import type { UpdateServiceCommandInput } from '@aws-sdk/client-ecs';
-import type { LoadBalancer } from '@cloudform/ecs/service';
-import type { KeyValuePair as CfKeyValuePair, ContainerDefinition } from '@cloudform/ecs/taskDefinition';
-import type CloudformationTaskDefinition from '@cloudform/ecs/taskDefinition';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { getTaskDefinitionTemplateOverrideFns } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/multi-container-workloads';
@@ -139,14 +144,14 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
     }
     // we also substitute log group name with actual name
 
-    containerDef.LogConfiguration.Options['awslogs-group'] = awsResourceNames.containerLogGroup({
+    (containerDef.LogConfiguration as LogConfiguration).Options['awslogs-group'] = awsResourceNames.containerLogGroup({
       stackName: globalStateManager.targetStack.stackName,
       stpResourceName: workload.name,
       containerName: containerDef.Name as string
     });
   });
 
-  const temporaryTemplate: CloudformationTemplate = {
+  const temporaryTemplate: CloudFormationTemplate = {
     Resources: { [cfLogicalNames.ecsTaskDefinition(workload.name)]: calculatedTaskDefinition }
   };
 
@@ -157,7 +162,7 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
 
   calculatedTaskDefinition = temporaryTemplate.Resources[
     cfLogicalNames.ecsTaskDefinition(workload.name)
-  ] as CloudformationTaskDefinition;
+  ] as KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>;
 
   // applying task definition overrides
   // we have to take overrides from the upmost parent
@@ -174,7 +179,9 @@ export const getECSHotswapInformation = async ({ workload }: { workload: StpCont
   }
 
   // resolving directives locally
-  calculatedTaskDefinition = await configManager.resolveDirectives<CloudformationTaskDefinition>({
+  calculatedTaskDefinition = await configManager.resolveDirectives<
+    KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>
+  >({
     itemToResolve: calculatedTaskDefinition,
     resolveRuntime: true,
     useLocalResolve: true

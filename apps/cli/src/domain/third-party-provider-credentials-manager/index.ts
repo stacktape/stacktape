@@ -1,6 +1,6 @@
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
 import { eventManager } from '@application-services/event-manager';
 import { ParameterNotFound } from '@aws-sdk/client-ssm';
-import { GetAtt } from '@cloudform/functions';
 import { configManager } from '@domain-services/config-manager';
 import { stpErrors } from '@errors';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -73,13 +73,13 @@ export class ThirdPartyProviderManager {
     return {
       privateKey:
         configManager.mongoDbAtlasProvider?.privateKey ||
-        (GetAtt(cfLogicalNames.atlasMongoCredentialsProvider(), 'privateKey') as unknown as string),
+        (getAtt(cfLogicalNames.atlasMongoCredentialsProvider(), 'privateKey') as unknown as string),
       publicKey:
         configManager.mongoDbAtlasProvider?.publicKey ||
-        (GetAtt(cfLogicalNames.atlasMongoCredentialsProvider(), 'publicKey') as unknown as string),
+        (getAtt(cfLogicalNames.atlasMongoCredentialsProvider(), 'publicKey') as unknown as string),
       organizationId:
         configManager.mongoDbAtlasProvider?.organizationId ||
-        (GetAtt(cfLogicalNames.atlasMongoCredentialsProvider(), 'organizationId') as unknown as string),
+        (getAtt(cfLogicalNames.atlasMongoCredentialsProvider(), 'organizationId') as unknown as string),
       accessibility: configManager.mongoDbAtlasProvider?.accessibility
     };
   };
@@ -88,10 +88,10 @@ export class ThirdPartyProviderManager {
     return {
       accountEmail:
         configManager.upstashProvider?.accountEmail ||
-        (GetAtt(cfLogicalNames.upstashCredentialsProvider(), 'accountEmail') as unknown as string),
+        (getAtt(cfLogicalNames.upstashCredentialsProvider(), 'accountEmail') as unknown as string),
       apiKey:
         configManager.upstashProvider?.apiKey ||
-        (GetAtt(cfLogicalNames.upstashCredentialsProvider(), 'apiKey') as unknown as string)
+        (getAtt(cfLogicalNames.upstashCredentialsProvider(), 'apiKey') as unknown as string)
     };
   };
 }

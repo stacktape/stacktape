@@ -1,4 +1,5 @@
-import { GetAtt } from '@cloudform/functions';
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
@@ -48,7 +49,7 @@ export const resolveWebAppFirewalls = () => {
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain: definition.nameChain,
       paramName: 'arn',
-      paramValue: GetAtt(cfLogicalNames.webAppFirewallCustomResource(definition.name), 'Arn')
+      paramValue: getAtt(cfLogicalNames.webAppFirewallCustomResource(definition.name), 'Arn')
     });
 
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
@@ -63,7 +64,7 @@ export const resolveWebAppFirewalls = () => {
       linkValue: cfEvaluatedLinks.firewall({
         region: scope === 'cdn' ? 'global' : calculatedStackOverviewManager.context.region,
         awsWebACLName: wafAwsResourceName,
-        awsWebACLId: GetAtt(cfLogicalNames.webAppFirewallCustomResource(definition.name), 'Id')
+        awsWebACLId: getAtt(cfLogicalNames.webAppFirewallCustomResource(definition.name), 'Id')
       })
     });
 

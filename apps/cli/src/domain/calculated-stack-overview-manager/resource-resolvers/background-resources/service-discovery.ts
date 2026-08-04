@@ -1,4 +1,5 @@
-import PrivateDnsNamespace from '@cloudform/serviceDiscovery/privateDnsNamespace';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -12,7 +13,7 @@ export const resolveServiceDiscoveryPrivateNamespace = async () => {
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.serviceDiscoveryPrivateNamespace(),
       nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
-      resource: new PrivateDnsNamespace({
+      resource: cfnResource('AWS::ServiceDiscovery::PrivateDnsNamespace', {
         Name: awsResourceNames.serviceDiscoveryPrivateNamespace(calculatedStackOverviewManager.context.stackName),
         Vpc: vpcManager.getVpcId(),
         Tags: stackManager.getTags()

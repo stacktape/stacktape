@@ -1,10 +1,10 @@
-import { GetAtt } from '@cloudform/functions';
-import Role, { Policy } from '@cloudform/iam/role';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, sub } from '@stacktape/cloudformation/intrinsics';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
-import { SubWithoutMapping } from '@utils/cloudformation';
 
 const DEV_AGENT_ROLE_LOGICAL_NAME = 'StpDevAgentRole';
 
@@ -22,7 +22,7 @@ export const resolveDevAgentRole = () => {
     }
   };
 
-  const role = new Role({
+  const role = cfnResource('AWS::IAM::Role', {
     RoleName: `${stackName}-dev-agent`,
     Description: `Dev agent role for stack ${stackName}`,
     MaxSessionDuration: 43200,
@@ -31,7 +31,7 @@ export const resolveDevAgentRole = () => {
       Statement: [
         {
           Effect: 'Allow',
-          Principal: { AWS: SubWithoutMapping('arn:aws:iam::${AWS::AccountId}:root') },
+          Principal: { AWS: sub('arn:aws:iam::${AWS::AccountId}:root') },
           Action: 'sts:AssumeRole',
           Condition: { StringEquals: { 'sts:ExternalId': globallyUniqueStackHash } }
         }
@@ -39,7 +39,7 @@ export const resolveDevAgentRole = () => {
     },
     Policies: [
       // Lambda: Read + Invoke
-      new Policy({
+      {
         PolicyName: 'lambda-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -58,14 +58,14 @@ export const resolveDevAgentRole = () => {
                 'lambda:InvokeFunction',
                 'lambda:InvokeAsync'
               ],
-              Resource: SubWithoutMapping(`arn:aws:lambda:*:\${AWS::AccountId}:function:${stackName}-*`)
+              Resource: sub(`arn:aws:lambda:*:\${AWS::AccountId}:function:${stackName}-*`)
             }
           ]
         }
-      }),
+      },
 
       // DynamoDB: Full data access
-      new Policy({
+      {
         PolicyName: 'dynamodb-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -86,16 +86,16 @@ export const resolveDevAgentRole = () => {
                 'dynamodb:ListTagsOfResource'
               ],
               Resource: [
-                SubWithoutMapping(`arn:aws:dynamodb:*:\${AWS::AccountId}:table/${stackName}-*`),
-                SubWithoutMapping(`arn:aws:dynamodb:*:\${AWS::AccountId}:table/${stackName}-*/index/*`)
+                sub(`arn:aws:dynamodb:*:\${AWS::AccountId}:table/${stackName}-*`),
+                sub(`arn:aws:dynamodb:*:\${AWS::AccountId}:table/${stackName}-*/index/*`)
               ]
             }
           ]
         }
-      }),
+      },
 
       // S3: Full data access (objects)
-      new Policy({
+      {
         PolicyName: 's3-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -116,16 +116,16 @@ export const resolveDevAgentRole = () => {
                 's3:GetBucketTagging'
               ],
               Resource: [
-                SubWithoutMapping(`arn:aws:s3:::*${globallyUniqueStackHash}*`),
-                SubWithoutMapping(`arn:aws:s3:::*${globallyUniqueStackHash}*/*`)
+                sub(`arn:aws:s3:::*${globallyUniqueStackHash}*`),
+                sub(`arn:aws:s3:::*${globallyUniqueStackHash}*/*`)
               ]
             }
           ]
         }
-      }),
+      },
 
       // SQS: Full access
-      new Policy({
+      {
         PolicyName: 'sqs-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -141,14 +141,14 @@ export const resolveDevAgentRole = () => {
                 'sqs:ListQueueTags',
                 'sqs:PurgeQueue'
               ],
-              Resource: SubWithoutMapping(`arn:aws:sqs:*:\${AWS::AccountId}:${stackName}-*`)
+              Resource: sub(`arn:aws:sqs:*:\${AWS::AccountId}:${stackName}-*`)
             }
           ]
         }
-      }),
+      },
 
       // SNS: Publish + Read
-      new Policy({
+      {
         PolicyName: 'sns-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -161,14 +161,14 @@ export const resolveDevAgentRole = () => {
                 'sns:ListTagsForResource',
                 'sns:ListSubscriptionsByTopic'
               ],
-              Resource: SubWithoutMapping(`arn:aws:sns:*:\${AWS::AccountId}:${stackName}-*`)
+              Resource: sub(`arn:aws:sns:*:\${AWS::AccountId}:${stackName}-*`)
             }
           ]
         }
-      }),
+      },
 
       // EventBridge: Put events + Read
-      new Policy({
+      {
         PolicyName: 'eventbridge-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -183,14 +183,14 @@ export const resolveDevAgentRole = () => {
                 'events:ListTargetsByRule',
                 'events:ListTagsForResource'
               ],
-              Resource: SubWithoutMapping(`arn:aws:events:*:\${AWS::AccountId}:event-bus/${stackName}-*`)
+              Resource: sub(`arn:aws:events:*:\${AWS::AccountId}:event-bus/${stackName}-*`)
             }
           ]
         }
-      }),
+      },
 
       // Step Functions: Execute + Read
-      new Policy({
+      {
         PolicyName: 'stepfunctions-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -208,16 +208,16 @@ export const resolveDevAgentRole = () => {
                 'states:ListTagsForResource'
               ],
               Resource: [
-                SubWithoutMapping(`arn:aws:states:*:\${AWS::AccountId}:stateMachine:${stackName}-*`),
-                SubWithoutMapping(`arn:aws:states:*:\${AWS::AccountId}:execution:${stackName}-*:*`)
+                sub(`arn:aws:states:*:\${AWS::AccountId}:stateMachine:${stackName}-*`),
+                sub(`arn:aws:states:*:\${AWS::AccountId}:execution:${stackName}-*:*`)
               ]
             }
           ]
         }
-      }),
+      },
 
       // CloudWatch Logs: Read
-      new Policy({
+      {
         PolicyName: 'logs-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -235,20 +235,20 @@ export const resolveDevAgentRole = () => {
                 'logs:GetQueryResults'
               ],
               Resource: [
-                SubWithoutMapping(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/aws/lambda/${stackName}-*`),
-                SubWithoutMapping(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/aws/lambda/${stackName}-*:*`),
-                SubWithoutMapping(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/ecs/${stackName}-*`),
-                SubWithoutMapping(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/ecs/${stackName}-*:*`),
-                SubWithoutMapping(`arn:aws:logs:*:\${AWS::AccountId}:log-group:${stackName}-*`),
-                SubWithoutMapping(`arn:aws:logs:*:\${AWS::AccountId}:log-group:${stackName}-*:*`)
+                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/aws/lambda/${stackName}-*`),
+                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/aws/lambda/${stackName}-*:*`),
+                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/ecs/${stackName}-*`),
+                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:/ecs/${stackName}-*:*`),
+                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:${stackName}-*`),
+                sub(`arn:aws:logs:*:\${AWS::AccountId}:log-group:${stackName}-*:*`)
               ]
             }
           ]
         }
-      }),
+      },
 
       // ECS: Read + Execute command
-      new Policy({
+      {
         PolicyName: 'ecs-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -272,10 +272,10 @@ export const resolveDevAgentRole = () => {
             }
           ]
         }
-      }),
+      },
 
       // RDS: Read only
-      new Policy({
+      {
         PolicyName: 'rds-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -291,16 +291,16 @@ export const resolveDevAgentRole = () => {
                 'rds:ListTagsForResource'
               ],
               Resource: [
-                SubWithoutMapping(`arn:aws:rds:*:\${AWS::AccountId}:db:${stackName}-*`),
-                SubWithoutMapping(`arn:aws:rds:*:\${AWS::AccountId}:cluster:${stackName}-*`)
+                sub(`arn:aws:rds:*:\${AWS::AccountId}:db:${stackName}-*`),
+                sub(`arn:aws:rds:*:\${AWS::AccountId}:cluster:${stackName}-*`)
               ]
             }
           ]
         }
-      }),
+      },
 
       // ElastiCache: Read only
-      new Policy({
+      {
         PolicyName: 'elasticache-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -312,14 +312,14 @@ export const resolveDevAgentRole = () => {
                 'elasticache:DescribeCacheClusters',
                 'elasticache:ListTagsForResource'
               ],
-              Resource: SubWithoutMapping(`arn:aws:elasticache:*:\${AWS::AccountId}:replicationgroup:${stackName}-*`)
+              Resource: sub(`arn:aws:elasticache:*:\${AWS::AccountId}:replicationgroup:${stackName}-*`)
             }
           ]
         }
-      }),
+      },
 
       // OpenSearch: Read + data access
-      new Policy({
+      {
         PolicyName: 'opensearch-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -336,14 +336,14 @@ export const resolveDevAgentRole = () => {
                 'es:ESHttpPut',
                 'es:ESHttpDelete'
               ],
-              Resource: SubWithoutMapping(`arn:aws:es:*:\${AWS::AccountId}:domain/${stackName}-*`)
+              Resource: sub(`arn:aws:es:*:\${AWS::AccountId}:domain/${stackName}-*`)
             }
           ]
         }
-      }),
+      },
 
       // Cognito: Read + user management
-      new Policy({
+      {
         PolicyName: 'cognito-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -367,15 +367,15 @@ export const resolveDevAgentRole = () => {
                 'cognito-idp:AdminEnableUser',
                 'cognito-idp:AdminDisableUser'
               ],
-              Resource: SubWithoutMapping(`arn:aws:cognito-idp:*:\${AWS::AccountId}:userpool/*`),
+              Resource: sub(`arn:aws:cognito-idp:*:\${AWS::AccountId}:userpool/*`),
               Condition: stackTagCondition
             }
           ]
         }
-      }),
+      },
 
       // API Gateway: Read
-      new Policy({
+      {
         PolicyName: 'apigateway-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -383,17 +383,14 @@ export const resolveDevAgentRole = () => {
             {
               Effect: 'Allow',
               Action: ['apigateway:GET'],
-              Resource: [
-                SubWithoutMapping('arn:aws:apigateway:*::/apis/*'),
-                SubWithoutMapping('arn:aws:apigateway:*::/apis/*/stages/*')
-              ]
+              Resource: [sub('arn:aws:apigateway:*::/apis/*'), sub('arn:aws:apigateway:*::/apis/*/stages/*')]
             }
           ]
         }
-      }),
+      },
 
       // CloudFormation: Read stack info
-      new Policy({
+      {
         PolicyName: 'cloudformation-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -408,14 +405,14 @@ export const resolveDevAgentRole = () => {
                 'cloudformation:GetTemplate',
                 'cloudformation:ListStackResources'
               ],
-              Resource: SubWithoutMapping(`arn:aws:cloudformation:*:\${AWS::AccountId}:stack/${stackName}/*`)
+              Resource: sub(`arn:aws:cloudformation:*:\${AWS::AccountId}:stack/${stackName}/*`)
             }
           ]
         }
-      }),
+      },
 
       // CloudWatch: Read metrics
-      new Policy({
+      {
         PolicyName: 'cloudwatch-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -434,10 +431,10 @@ export const resolveDevAgentRole = () => {
             }
           ]
         }
-      }),
+      },
 
       // Batch: Read + submit jobs
-      new Policy({
+      {
         PolicyName: 'batch-access',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -459,10 +456,10 @@ export const resolveDevAgentRole = () => {
             }
           ]
         }
-      }),
+      },
 
       // Explicit deny for dangerous operations
-      new Policy({
+      {
         PolicyName: 'deny-dangerous-operations',
         PolicyDocument: {
           Version: '2012-10-17',
@@ -487,7 +484,7 @@ export const resolveDevAgentRole = () => {
             }
           ]
         }
-      })
+      }
     ]
   });
 
@@ -501,7 +498,7 @@ export const resolveDevAgentRole = () => {
   // Export role ARN and external ID for the dev agent
   calculatedStackOverviewManager.addUserCustomStackOutput({
     cloudformationOutputName: 'DevAgentRoleArn',
-    value: GetAtt(DEV_AGENT_ROLE_LOGICAL_NAME, 'Arn'),
+    value: getAtt(DEV_AGENT_ROLE_LOGICAL_NAME, 'Arn'),
     description: 'ARN of the dev agent IAM role'
   });
 

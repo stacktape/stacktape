@@ -1,6 +1,6 @@
+import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StacktapeResourceOutput } from '@domain-services/stack-info/types';
 import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
-import { GetAtt, Join, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import {
@@ -79,8 +79,8 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
       cfLogicalName: cfLogicalNames.webAppFirewallAssociation(definition.name),
       nameChain,
       resource: getWebACLAssociation(
-        Ref(cfLogicalNames.loadBalancer(name)),
-        GetAtt(cfLogicalNames.webAppFirewallCustomResource(finalDefinition.useFirewall), 'Arn')
+        ref(cfLogicalNames.loadBalancer(name)),
+        getAtt(cfLogicalNames.webAppFirewallCustomResource(finalDefinition.useFirewall), 'Arn')
       )
     });
   }
@@ -91,7 +91,7 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
     linkName: definition.configParentResourceType !== 'application-load-balancer' ? 'metrics-load-balancer' : 'metrics',
     nameChain,
 
-    linkValue: cfEvaluatedLinks.loadBalancers({ lbArn: Ref(cfLogicalNames.loadBalancer(name)), tab: 'monitoring' })
+    linkValue: cfEvaluatedLinks.loadBalancers({ lbArn: ref(cfLogicalNames.loadBalancer(name)), tab: 'monitoring' })
   });
   const integrationsOutput: StacktapeResourceOutput<'application-load-balancer'> = {
     integrations: finalDefinition.listeners
@@ -120,7 +120,7 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
   calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
     nameChain,
     paramName: 'canonicalDomain',
-    paramValue: GetAtt(cfLogicalNames.loadBalancer(name), 'DNSName'),
+    paramValue: getAtt(cfLogicalNames.loadBalancer(name), 'DNSName'),
     showDuringPrint:
       (!finalDefinition.customDomains?.length ||
         finalDefinition.customDomains.some(({ disableDnsRecordCreation }) => disableDnsRecordCreation)) &&
@@ -152,7 +152,7 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
       paramName: 'domain',
-      paramValue: GetAtt(cfLogicalNames.loadBalancer(name), 'DNSName')
+      paramValue: getAtt(cfLogicalNames.loadBalancer(name), 'DNSName')
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
@@ -163,7 +163,7 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       nameChain,
       paramName: 'domain',
-      paramValue: GetAtt(cfLogicalNames.loadBalancer(name), 'DNSName')
+      paramValue: getAtt(cfLogicalNames.loadBalancer(name), 'DNSName')
     });
   } else {
     calculatedStackOverviewManager.addCfChildResource({
@@ -400,7 +400,7 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
           cdnCompatibleResource: finalDefinition,
           defaultOriginType: 'application-load-balancer',
           customDomains: [cdnDefaultDomainName],
-          certificateArn: GetAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'usEast1CertArn')
+          certificateArn: getAtt(cfLogicalNames.customResourceDefaultDomainCert(), 'usEast1CertArn')
         })
       });
       calculatedStackOverviewManager.addCfChildResource({
@@ -423,13 +423,13 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'cdnCanonicalDomain',
         nameChain,
-        paramValue: GetAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName'),
+        paramValue: getAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName'),
         showDuringPrint: false
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'cdnCanonicalUrl',
         nameChain,
-        paramValue: Join('', ['https://', GetAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName')]),
+        paramValue: join('', ['https://', getAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName')]),
         showDuringPrint: false
       });
     } else {
@@ -477,16 +477,16 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'cdnDomain',
           nameChain,
-          paramValue: GetAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName'),
+          paramValue: getAtt(cfLogicalNames.cloudfrontDistribution(name, 0), 'DomainName'),
           showDuringPrint: false
         });
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'cdnCanonicalDomain',
           nameChain,
-          paramValue: Join(
+          paramValue: join(
             ',',
             cloudfrontDistributions.map((_, idx) =>
-              GetAtt(cfLogicalNames.cloudfrontDistribution(name, idx), 'DomainName')
+              getAtt(cfLogicalNames.cloudfrontDistribution(name, idx), 'DomainName')
             )
           ),
           showDuringPrint: cloudfrontDistributions.some(({ disableDns }) => disableDns)
@@ -494,10 +494,10 @@ export const resolveApplicationLoadBalancer = ({ definition }: { definition: Stp
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'cdnCanonicalUrl',
           nameChain,
-          paramValue: Join(
+          paramValue: join(
             ',',
             cloudfrontDistributions.map((_, idx) =>
-              Join('', ['https://', GetAtt(cfLogicalNames.cloudfrontDistribution(name, idx), 'DomainName')])
+              join('', ['https://', getAtt(cfLogicalNames.cloudfrontDistribution(name, idx), 'DomainName')])
             )
           ),
           showDuringPrint: false

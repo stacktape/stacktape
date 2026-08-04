@@ -1,3 +1,4 @@
+import type { KnownCloudFormationResource } from '@stacktape/cloudformation/resource';
 import { describe, expect, test } from 'bun:test';
 import type { CodeDeployClient } from '@aws-sdk/client-codedeploy';
 import { CreateDeploymentCommand } from '@aws-sdk/client-codedeploy';
@@ -12,7 +13,6 @@ import {
   RegisterTaskDefinitionCommand,
   UpdateServiceCommand
 } from '@aws-sdk/client-ecs';
-import type TaskDefinition from '@cloudform/ecs/taskDefinition';
 import { AwsEcs } from '../../src/aws/ecs';
 
 type EcsSend = ECSClient['send'];
@@ -81,7 +81,7 @@ describe('AWS ECS operations', () => {
         ContainerDefinitions: [{ Essential: true, Image: 'example:latest', Name: 'api' }],
         Family: 'example'
       }
-    } as unknown as TaskDefinition;
+    } as unknown as KnownCloudFormationResource<'AWS::ECS::TaskDefinition'>;
 
     await ecs.getService({ serviceArn: 'arn:aws:ecs:eu-west-1:123456789012:service/application/api' });
     await ecs.getTaskDefinition({ ecsTaskDefinitionFamily: 'example' });

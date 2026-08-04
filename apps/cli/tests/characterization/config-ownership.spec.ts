@@ -131,7 +131,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
   test('the schema still describes the same configuration language', async () => {
     const schema = await configSchema();
 
-    expect(Object.keys(schema.definitions)).toHaveLength(449);
+    expect(Object.keys(schema.definitions)).toHaveLength(443);
     expect(Object.keys(schema.properties).sort()).toEqual(
       [
         'cloudformationResources',
@@ -147,13 +147,9 @@ describe('the configuration model is owned by @stacktape/config', () => {
       ].sort()
     );
     expect(schema.definitions.StacktapeResourceDefinition.anyOf).toHaveLength(44);
-    // The escape hatch and its value vocabulary are still reachable from the root.
-    expect(schema.definitions.IntrinsicFunction).toEqual({
-      type: 'object',
-      properties: { name: { type: 'string' }, payload: {} },
-      additionalProperties: false,
-      required: ['name', 'payload']
-    });
+    // The raw escape hatch remains open while the legacy runtime-class shape is no longer published.
+    expect(schema.properties.cloudformationResources.additionalProperties).toEqual({});
+    expect(schema.definitions).not.toHaveProperty('IntrinsicFunction');
   });
 
   test('product documentation survives the move into the package', async () => {

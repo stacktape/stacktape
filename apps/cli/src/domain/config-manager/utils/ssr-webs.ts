@@ -1,3 +1,4 @@
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpAstroWeb } from '@domain-services/config-manager/resolved-types/astro-web';
 import type { StpBucket } from '@domain-services/config-manager/resolved-types/buckets';
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
@@ -16,7 +17,6 @@ import type {
 } from '@stacktape/config/cdn';
 import type { SsrWebPathCachingOverride } from '@stacktape/config/ssr-web-shared';
 import { join } from 'node:path';
-import { GetAtt, Ref } from '@cloudform/functions';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { fsPaths } from 'src/config/runtime-paths';
@@ -171,7 +171,7 @@ export const buildSsrWebNestedResources = ({
 
   const staticBucketDataForwardingOptions: CdnForwardingOptions = {
     allowedMethods: ['GET', 'HEAD', 'OPTIONS'],
-    originRequestPolicyId: Ref('AWS::NoValue') as unknown as string
+    originRequestPolicyId: ref('AWS::NoValue') as unknown as string
   };
 
   const staticBucketDataCachingOptions: CdnCachingOptions = {
@@ -185,7 +185,7 @@ export const buildSsrWebNestedResources = ({
   };
 
   const createEdgeFunctions = (): EdgeFunctionsConfig => ({
-    onRequest: GetAtt(
+    onRequest: getAtt(
       cfLogicalNames.ssrWebHostHeaderRewriteFunction(name, resourceType),
       'FunctionARN'
     ) as unknown as string

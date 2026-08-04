@@ -1,6 +1,6 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
 import type { CdnReferenceableParam } from '@domain-services/config-manager/resolved-types/cdn';
 import type { ApplicationLoadBalancer } from '@stacktape/config/application-load-balancers';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { Convex } from '@stacktape/config/convex';
 import type {
   ContainerWorkloadLoadBalancerIntegrationProps,
@@ -47,7 +47,7 @@ export type LambdaTargetDetails = {
   // workloadType: Subtype<StpWorkloadType, 'batch-job' | 'function'>;
   // lambdaCfLogicalName: string;
   stpResourceName: string;
-  lambdaEndpointArn: IntrinsicFunction | string;
+  lambdaEndpointArn: Intrinsic | string;
   loadBalancerName: string;
 };
 export type AggregatedTargetsDetails = {
@@ -60,7 +60,7 @@ export type ApplicationLoadBalancerReferenceableParam =
   | CdnReferenceableParam;
 export type ApplicationLoadBalancerOutputs = {
   integrations: {
-    urls: (string | IntrinsicFunction)[];
+    urls: (string | Intrinsic)[];
     priority: number;
     methods?: string[];
     hosts?: string[];

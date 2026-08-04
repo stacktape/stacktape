@@ -1,12 +1,12 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
-import { GetAtt, Ref } from '@cloudform/functions';
-import EventSourceMapping from '@cloudform/lambda/eventSourceMapping';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { DynamoDbIntegration, DynamoDbIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
@@ -42,7 +42,7 @@ export const resolveDynamoEvents = ({
   //   // if the role is not defined, we can be sure we will be creating the role due to this event
   //   roleDependency = getLambdaRoleLogicalName(name);
   // }
-  const lambdaEndpointArn = aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn');
+  const lambdaEndpointArn = aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn');
   (events || []).forEach((event: DynamoDbIntegration, index) => {
     if (event.type === 'dynamo-db-stream') {
       calculatedStackOverviewManager.addCfChildResource({
@@ -77,9 +77,9 @@ const getEventSourceMapping = ({
   lambdaEndpointArn
 }: {
   eventDetails: DynamoDbIntegrationProps;
-  lambdaEndpointArn: string | IntrinsicFunction;
+  lambdaEndpointArn: string | Intrinsic;
 }) => {
-  const resource = new EventSourceMapping({
+  const resource = cfnResource('AWS::Lambda::EventSourceMapping', {
     BatchSize: eventDetails.batchSize,
     EventSourceArn: eventDetails.streamArn,
     Enabled: true,

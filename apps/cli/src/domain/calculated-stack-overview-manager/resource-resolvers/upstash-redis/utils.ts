@@ -1,6 +1,6 @@
+import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
 import type { SupportedUpstashRedisV1ResourceType } from '@domain-services/cloudformation-registry-manager/types';
 import type { StpUpstashRedis } from '@domain-services/config-manager/resolved-types/upstash-redis';
-import type Resource from '@cloudform/resource';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { thirdPartyProviderManager } from '@domain-services/third-party-provider-credentials-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
@@ -27,7 +27,7 @@ export const getUpstashDatabaseResource = (resource: StpUpstashRedis) => {
         Key: upstashProvider.apiKey
       }
     }
-  } as Resource;
+  } as AnyCloudFormationResource;
 };
 
 const UPSTASH_REDIS_AVAILABLE_REGIONS = [

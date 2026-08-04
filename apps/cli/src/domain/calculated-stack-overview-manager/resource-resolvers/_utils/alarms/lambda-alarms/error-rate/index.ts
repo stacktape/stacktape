@@ -1,9 +1,9 @@
+import type { Dimension } from '@stacktape/cloudformation/resources/aws-cloudwatch-alarm';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { join, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
-import type { Dimension } from '@cloudform/cloudWatch/alarm';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
-import { Join, Ref } from '@cloudform/functions';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { getAlarmDescription } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/alarms/descriptions';
 import { getComparisonOperator } from '../../utils';
@@ -19,12 +19,12 @@ export const getLambdaErrorRateAlarm = ({
   const trigger = alarm.trigger as LambdaErrorRateTrigger;
 
   const lambdaDimensions: Dimension[] = [
-    { Name: 'FunctionName', Value: Ref(resource.cfLogicalName) },
+    { Name: 'FunctionName', Value: ref(resource.cfLogicalName) },
     {
       Name: 'Resource',
       Value: resource.aliasLogicalName
-        ? Join(':', [Ref(resource.cfLogicalName), awsResourceNames.lambdaStpAlias()])
-        : Ref(resource.cfLogicalName)
+        ? join(':', [ref(resource.cfLogicalName), awsResourceNames.lambdaStpAlias()])
+        : ref(resource.cfLogicalName)
     }
     // @todo Ideally during blue/green deployment you only want to monitor new version of alias (while traffic is being gradually shifted to it).
     // That gives opportunity to i.e rollback if new version error rate is too high.
@@ -41,7 +41,7 @@ export const getLambdaErrorRateAlarm = ({
   ];
   const comparisonOperator = getComparisonOperator({ alarm });
   const threshold = trigger.properties.thresholdPercent;
-  return new CloudwatchAlarm({
+  return cfnResource('AWS::CloudWatch::Alarm', {
     AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
     AlarmDescription:
       alarm.description ||

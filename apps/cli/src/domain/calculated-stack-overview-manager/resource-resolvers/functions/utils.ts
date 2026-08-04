@@ -1,3 +1,7 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import type { Policy } from '@stacktape/cloudformation/resources/aws-iam-role';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
 import type { LambdaTargetDetails } from '@domain-services/config-manager/resolved-types/application-load-balancers';
 import type { StpEfsFilesystem } from '@domain-services/config-manager/resolved-types/efs-filesystem';
@@ -7,15 +11,6 @@ import type {
 } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import CustomResource from '@cloudform/cloudFormation/customResource';
-import DeploymentGroup from '@cloudform/codeDeploy/deploymentGroup';
-import SecurityGroup from '@cloudform/ec2/securityGroup';
-import { GetAtt, Ref } from '@cloudform/functions';
-import Role, { Policy } from '@cloudform/iam/role';
-import Alias from '@cloudform/lambda/alias';
-import Permission from '@cloudform/lambda/permission';
-import LambdaUrl, { Cors } from '@cloudform/lambda/url';
-import LogGroup from '@cloudform/logs/logGroup';
 import { defaultLogRetentionDays } from '@config';
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferenceToApplicationLoadBalancer } from '@domain-services/config-manager/utils/application-load-balancers';
@@ -23,6 +18,7 @@ import { resolveReferenceToLambdaFunction } from '@domain-services/config-manage
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { getCloudFormationLogRetentionDays } from '@utils/cloudformation';
 import { getAssumeRolePolicyDocumentForFunctionRole } from 'src/aws/iam';
 import {
   getLambdaLogResourceArnsForPermissions,
@@ -30,7 +26,6 @@ import {
   getPoliciesForRoles
 } from '../_utils/role-helpers';
 import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { ApplicationLoadBalancerIntegration } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
@@ -41,17 +36,19 @@ export const getLambdaFunctionSecurityGroup = ({
   stackName: string;
   stpFunctionName: string;
 }) =>
-  new SecurityGroup({
+  cfnResource('AWS::EC2::SecurityGroup', {
     VpcId: vpcManager.getVpcId(),
     GroupName: awsResourceNames.workloadSecurityGroup(stpFunctionName, stackName),
     GroupDescription: awsResourceNames.workloadSecurityGroupGroupDescription(stpFunctionName, stackName)
   });
 
 export const getLambdaLogGroup = (logGroupName: string, logRetentionInDays?: number) => {
-  const logGroup = new LogGroup({
+  const logGroup = cfnResource('AWS::Logs::LogGroup', {
     LogGroupName: logGroupName
   });
-  logGroup.Properties.RetentionInDays = logRetentionInDays || defaultLogRetentionDays.lambdaFunction;
+  Object.assign(logGroup.Properties, {
+    RetentionInDays: getCloudFormationLogRetentionDays(logRetentionInDays || defaultLogRetentionDays.lambdaFunction)
+  });
   return logGroup;
 };
 
@@ -78,10 +75,10 @@ export const getLambdaFunctionRole = ({
   isUsedInDeploymentHook?: boolean;
   configParentResourceType: StpLambdaFunction['configParentResourceType'];
   mountedEfsFilesystems?: StpEfsFilesystem[];
-  mountedS3FilesAccessPointArns?: (string | IntrinsicFunction)[];
+  mountedS3FilesAccessPointArns?: (string | Intrinsic)[];
 }) => {
   const isDevStack = calculatedStackOverviewManager.context.command === 'dev';
-  const role = new Role({
+  const role = cfnResource('AWS::IAM::Role', {
     RoleName: awsResourceNames.lambdaRole(
       calculatedStackOverviewManager.context.stackName,
       calculatedStackOverviewManager.context.region,
@@ -112,56 +109,50 @@ export const getLambdaFunctionRole = ({
     mountedS3FilesAccessPointArns
   });
   if (joinVpc) {
-    policies.push(
-      new Policy({
-        PolicyName: 'allow-vpc-network-interfaces-policy',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Action: ['ec2:DeleteNetworkInterface', 'ec2:DescribeNetworkInterfaces', 'ec2:CreateNetworkInterface'],
-              Resource: '*',
-              Effect: 'Allow'
-            }
-          ]
-        }
-      })
-    );
+    policies.push({
+      PolicyName: 'allow-vpc-network-interfaces-policy',
+      PolicyDocument: {
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Action: ['ec2:DeleteNetworkInterface', 'ec2:DescribeNetworkInterfaces', 'ec2:CreateNetworkInterface'],
+            Resource: '*',
+            Effect: 'Allow'
+          }
+        ]
+      }
+    });
   }
   if (destinations && (destinations.onFailure || destinations.onSuccess)) {
-    policies.push(
-      new Policy({
-        PolicyName: 'allow-destinations',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          // @note We don't know type of the destination, so we add all possible
-          Statement: ['lambda:InvokeFunction', 'sqs:SendMessage', 'sns:Publish', 'events:PutEvents'].map((action) => ({
-            Effect: 'Allow',
-            Action: [action],
-            Resource: []
-              .concat(destinations.onFailure ? [destinations.onFailure] : [])
-              .concat(destinations.onSuccess ? [destinations.onSuccess] : [])
-          }))
-        }
-      })
-    );
+    policies.push({
+      PolicyName: 'allow-destinations',
+      PolicyDocument: {
+        Version: '2012-10-17',
+        // @note We don't know type of the destination, so we add all possible
+        Statement: ['lambda:InvokeFunction', 'sqs:SendMessage', 'sns:Publish', 'events:PutEvents'].map((action) => ({
+          Effect: 'Allow',
+          Action: [action],
+          Resource: []
+            .concat(destinations.onFailure ? [destinations.onFailure] : [])
+            .concat(destinations.onSuccess ? [destinations.onSuccess] : [])
+        }))
+      }
+    });
   }
   if (isUsedInDeploymentHook) {
-    policies.push(
-      new Policy({
-        PolicyName: 'allow-hook-response',
-        PolicyDocument: {
-          Version: '2012-10-17',
-          Statement: [
-            {
-              Action: ['codedeploy:PutLifecycleEventHookExecutionStatus'],
-              Resource: '*',
-              Effect: 'Allow'
-            }
-          ]
-        }
-      })
-    );
+    policies.push({
+      PolicyName: 'allow-hook-response',
+      PolicyDocument: {
+        Version: '2012-10-17',
+        Statement: [
+          {
+            Action: ['codedeploy:PutLifecycleEventHookExecutionStatus'],
+            Resource: '*',
+            Effect: 'Allow'
+          }
+        ]
+      }
+    });
   }
   (role.Properties.Policies as Policy[]).push(...policies);
   return role;
@@ -174,9 +165,9 @@ export const getLambdaAliasResource = ({
   lambdaProps: StpLambdaFunction | StpHelperLambdaFunction;
   provisionedConcurrency?: number;
 }) => {
-  const resource = new Alias({
-    FunctionName: Ref(lambdaProps.cfLogicalName),
-    FunctionVersion: GetAtt(cfLogicalNames.lambdaVersionPublisherCustomResource(lambdaProps.name), 'version'),
+  const resource = cfnResource('AWS::Lambda::Alias', {
+    FunctionName: ref(lambdaProps.cfLogicalName),
+    FunctionVersion: getAtt(cfLogicalNames.lambdaVersionPublisherCustomResource(lambdaProps.name), 'version'),
     Name: awsResourceNames.lambdaStpAlias()
   });
   // Explicit DependsOn ensures version publisher custom resource has completed before alias is created.
@@ -184,18 +175,20 @@ export const getLambdaAliasResource = ({
   resource.DependsOn = [cfLogicalNames.lambdaVersionPublisherCustomResource(lambdaProps.name)];
   const effectiveProvisionedConcurrency = provisionedConcurrency ?? lambdaProps.provisionedConcurrency;
   if (effectiveProvisionedConcurrency) {
-    resource.Properties.ProvisionedConcurrencyConfig = {
-      ProvisionedConcurrentExecutions: effectiveProvisionedConcurrency
-    };
+    Object.assign(resource.Properties, {
+      ProvisionedConcurrencyConfig: {
+        ProvisionedConcurrentExecutions: effectiveProvisionedConcurrency
+      }
+    });
   }
   if (lambdaProps.deployment) {
     resource.UpdatePolicy = {
       CodeDeployLambdaAliasUpdate: {
-        ApplicationName: Ref(cfLogicalNames.lambdaCodeDeployApp()),
-        DeploymentGroupName: Ref(cfLogicalNames.codeDeployDeploymentGroup(lambdaProps.name)),
+        ApplicationName: ref(cfLogicalNames.lambdaCodeDeployApp()),
+        DeploymentGroupName: ref(cfLogicalNames.codeDeployDeploymentGroup(lambdaProps.name)),
         AfterAllowTrafficHook:
           lambdaProps.deployment.afterTrafficShiftFunction &&
-          Ref(
+          ref(
             resolveReferenceToLambdaFunction({
               stpResourceReference: lambdaProps.deployment.afterTrafficShiftFunction,
               referencedFrom: lambdaProps.name,
@@ -204,7 +197,7 @@ export const getLambdaAliasResource = ({
           ),
         BeforeAllowTrafficHook:
           lambdaProps.deployment.beforeAllowTrafficFunction &&
-          Ref(
+          ref(
             resolveReferenceToLambdaFunction({
               stpResourceReference: lambdaProps.deployment.beforeAllowTrafficFunction,
               referencedFrom: lambdaProps.name,
@@ -222,14 +215,14 @@ export const getLambdaVersionPublisherCustomResource = ({
 }: {
   lambdaProps: StpLambdaFunction | StpHelperLambdaFunction;
 }) => {
-  const resource = new CustomResource({
-    ServiceToken: GetAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn')
+  const resource = cfnResource('AWS::CloudFormation::CustomResource', {
+    ServiceToken: getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn')
   });
   // Note: codeDigest property is added via templateManager.addFinalTemplateOverrideFn in index.ts
   // This ensures the custom resource is re-invoked when (and only when) lambda code changes.
   const additionalProperties: Pick<StpServiceCustomResourceProperties, 'publishLambdaVersion'> = {
     publishLambdaVersion: {
-      functionName: Ref(lambdaProps.cfLogicalName)
+      functionName: ref(lambdaProps.cfLogicalName)
     }
   };
   resource.Properties = { ...resource.Properties, ...additionalProperties };
@@ -244,8 +237,8 @@ export const getCodeDeployDeploymentGroup = ({
 }: {
   lambdaProps: StpLambdaFunction | StpHelperLambdaFunction;
 }) => {
-  return new DeploymentGroup({
-    ApplicationName: Ref(cfLogicalNames.lambdaCodeDeployApp()),
+  return cfnResource('AWS::CodeDeploy::DeploymentGroup', {
+    ApplicationName: ref(cfLogicalNames.lambdaCodeDeployApp()),
     AutoRollbackConfiguration: {
       Enabled: true,
       Events: ['DEPLOYMENT_FAILURE', 'DEPLOYMENT_STOP_ON_ALARM', 'DEPLOYMENT_STOP_ON_REQUEST']
@@ -259,7 +252,7 @@ export const getCodeDeployDeploymentGroup = ({
       DeploymentOption: 'WITH_TRAFFIC_CONTROL'
     },
     DeploymentConfigName: `CodeDeployDefault.Lambda${lambdaProps.deployment.strategy}`,
-    ServiceRoleArn: GetAtt(cfLogicalNames.codeDeployServiceRole(), 'Arn')
+    ServiceRoleArn: getAtt(cfLogicalNames.codeDeployServiceRole(), 'Arn')
   });
 };
 
@@ -283,7 +276,7 @@ export const getTargetsForLambdaWorkloadEvents = ({
         return;
       }
       targets[targetGroupIdentifier] = {
-        lambdaEndpointArn: aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn'),
+        lambdaEndpointArn: aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn'),
         loadBalancerName: resolvedLbReference.loadBalancer.name,
         stpResourceName: name
       };
@@ -297,7 +290,7 @@ const getTargetGroupIdentifier = (loadBalancerName: string, workloadName: string
 export const getLambdaUrl = ({ lambdaProps }: { lambdaProps: StpLambdaFunction | StpHelperLambdaFunction }) => {
   const defaultCors = getDefaultCorsConfiguration();
   const { url, aliasLogicalName, cfLogicalName } = lambdaProps;
-  return new LambdaUrl({
+  return cfnResource('AWS::Lambda::Url', {
     AuthType: url?.authMode || 'NONE',
     Cors: url?.cors?.enabled
       ? {
@@ -310,12 +303,12 @@ export const getLambdaUrl = ({ lambdaProps }: { lambdaProps: StpLambdaFunction |
         }
       : undefined,
     InvokeMode: url?.responseStreamEnabled ? 'RESPONSE_STREAM' : 'BUFFERED',
-    TargetFunctionArn: aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn')
+    TargetFunctionArn: aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn')
   });
 };
 
 const getDefaultCorsConfiguration = () => {
-  return new Cors({
+  return {
     AllowOrigins: ['*'],
     AllowHeaders: [
       'Content-Type',
@@ -326,7 +319,7 @@ const getDefaultCorsConfiguration = () => {
       'X-Amz-User-Agent'
     ],
     AllowMethods: ['*']
-  });
+  };
 };
 
 export const getLambdaPublicUrlPermission = ({
@@ -334,10 +327,10 @@ export const getLambdaPublicUrlPermission = ({
 }: {
   lambdaProps: StpLambdaFunction | StpHelperLambdaFunction;
 }) => {
-  return new Permission({
+  return cfnResource('AWS::Lambda::Permission', {
     Principal: '*',
     Action: 'lambda:InvokeFunctionUrl',
-    FunctionName: aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn'),
+    FunctionName: aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn'),
     FunctionUrlAuthType: 'NONE'
   });
 };

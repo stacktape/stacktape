@@ -1,4 +1,5 @@
-import { GetAtt, Join, Ref } from '@cloudform/functions';
+import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
+
 import { defaultLogRetentionDays } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -100,7 +101,7 @@ export const resolveRedisClusters = async () => {
           linkName: `metrics-shard-${`${shardNumber}`.padStart(4, '0')}`,
           nameChain: resource.nameChain,
           linkValue: cfEvaluatedLinks.redisClusterMonitoring(
-            Ref(cfLogicalNames.redisReplicationGroup(resource.name)),
+            ref(cfLogicalNames.redisReplicationGroup(resource.name)),
             resource.numReplicaNodes || 0,
             shardNumber
           )
@@ -109,27 +110,27 @@ export const resolveRedisClusters = async () => {
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'host',
         nameChain: resource.nameChain,
-        paramValue: GetAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'ConfigurationEndPoint.Address'),
+        paramValue: getAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'ConfigurationEndPoint.Address'),
         showDuringPrint: true
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'port',
         nameChain: resource.nameChain,
-        paramValue: GetAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'ConfigurationEndPoint.Port'),
+        paramValue: getAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'ConfigurationEndPoint.Port'),
         showDuringPrint: true
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'connectionString',
         nameChain: resource.nameChain,
-        paramValue: Join('', [
+        paramValue: join('', [
           'rediss://',
           'default',
           ':',
           resource.defaultUserPassword,
           '@',
-          GetAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'ConfigurationEndPoint.Address'),
+          getAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'ConfigurationEndPoint.Address'),
           ':',
-          GetAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'ConfigurationEndPoint.Port')
+          getAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'ConfigurationEndPoint.Port')
         ]),
         showDuringPrint: true,
         sensitive: true
@@ -138,21 +139,21 @@ export const resolveRedisClusters = async () => {
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'host',
         nameChain: resource.nameChain,
-        paramValue: GetAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'PrimaryEndPoint.Address'),
+        paramValue: getAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'PrimaryEndPoint.Address'),
         showDuringPrint: true
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'connectionString',
         nameChain: resource.nameChain,
-        paramValue: Join('', [
+        paramValue: join('', [
           'rediss://',
           'default',
           ':',
           resource.defaultUserPassword,
           '@',
-          GetAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'PrimaryEndPoint.Address'),
+          getAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'PrimaryEndPoint.Address'),
           ':',
-          GetAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'PrimaryEndPoint.Port')
+          getAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'PrimaryEndPoint.Port')
         ]),
         showDuringPrint: true,
         sensitive: true
@@ -160,21 +161,21 @@ export const resolveRedisClusters = async () => {
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'readerHost',
         nameChain: resource.nameChain,
-        paramValue: GetAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'ReaderEndPoint.Address'),
+        paramValue: getAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'ReaderEndPoint.Address'),
         showDuringPrint: true
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'readerConnectionString',
         nameChain: resource.nameChain,
-        paramValue: Join('', [
+        paramValue: join('', [
           'rediss://',
           'default',
           ':',
           resource.defaultUserPassword,
           '@',
-          GetAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'ReaderEndPoint.Address'),
+          getAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'ReaderEndPoint.Address'),
           ':',
-          GetAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'PrimaryEndPoint.Port')
+          getAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'PrimaryEndPoint.Port')
         ]),
         showDuringPrint: true,
         sensitive: true
@@ -182,14 +183,14 @@ export const resolveRedisClusters = async () => {
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'port',
         nameChain: resource.nameChain,
-        paramValue: GetAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'PrimaryEndPoint.Port'),
+        paramValue: getAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'PrimaryEndPoint.Port'),
         showDuringPrint: true
       });
 
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'readerPort',
         nameChain: resource.nameChain,
-        paramValue: GetAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'ReaderEndPoint.Port'),
+        paramValue: getAtt(cfLogicalNames.redisReplicationGroup(resource.name), 'ReaderEndPoint.Port'),
         showDuringPrint: true
       });
       // adding link for monitoring
@@ -197,7 +198,7 @@ export const resolveRedisClusters = async () => {
         linkName: 'metrics',
         nameChain: resource.nameChain,
         linkValue: cfEvaluatedLinks.redisClusterMonitoring(
-          Ref(cfLogicalNames.redisReplicationGroup(resource.name)),
+          ref(cfLogicalNames.redisReplicationGroup(resource.name)),
           resource.numReplicaNodes || 0
         )
       });

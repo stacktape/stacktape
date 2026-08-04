@@ -1,17 +1,17 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
 import type { StpServiceCustomResourceProperties } from '@helper-lambdas/stacktapeServiceLambda/custom-resource-types';
-import CustomResource from '@cloudform/cloudFormation/customResource';
-import { GetAtt } from '@cloudform/functions';
 import { configManager } from '@domain-services/config-manager';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 
 export const getCustomResource = <T>({
   serviceToken,
   properties
 }: {
-  serviceToken: string | IntrinsicFunction;
+  serviceToken: string | Intrinsic;
   properties: T;
 }) => {
-  const customResource = new CustomResource({
+  const customResource = cfnResource('AWS::CloudFormation::CustomResource', {
     ServiceToken: serviceToken
   });
 
@@ -23,7 +23,7 @@ export const getStpServiceCustomResource = <T extends keyof StpServiceCustomReso
   properties: Pick<StpServiceCustomResourceProperties, T>
 ) => {
   return getCustomResource<Pick<StpServiceCustomResourceProperties, T>>({
-    serviceToken: GetAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
+    serviceToken: getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
     properties
   });
 };

@@ -1,6 +1,6 @@
-import { GetAtt, Ref, Sub } from '@cloudform/functions';
-import { DeletionPolicy } from '@cloudform/resource';
-import Secret from '@cloudform/secretsManager/secret';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref, sub } from '@stacktape/cloudformation/intrinsics';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { getConvexSecretName } from '@domain-services/config-manager/utils/convex';
@@ -92,9 +92,9 @@ export const resolveConvexes = async ({ context }: { context: StackContext }) =>
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: runtimeSecretLogicalName,
       nameChain,
-      resource: new Secret({
+      resource: cfnResource('AWS::SecretsManager::Secret', {
         Description: `Runtime secrets for Convex resource ${convex.name}`,
-        SecretString: Sub(
+        SecretString: sub(
           [
             '{"instanceSecret":"{{resolve:secretsmanager:',
             convexSecretName,
@@ -107,8 +107,8 @@ export const resolveConvexes = async ({ context }: { context: StackContext }) =>
             '{dbPort}?sslmode=disable"}'
           ].join(''),
           {
-            dbHost: GetAtt(dbInstanceLogicalName, 'Endpoint.Address'),
-            dbPort: GetAtt(dbInstanceLogicalName, 'Endpoint.Port')
+            dbHost: getAtt(dbInstanceLogicalName, 'Endpoint.Address'),
+            dbPort: getAtt(dbInstanceLogicalName, 'Endpoint.Port')
           }
         )
       })
@@ -181,14 +181,14 @@ export const resolveConvexes = async ({ context }: { context: StackContext }) =>
         ),
         {
           Name: 'INSTANCE_SECRET',
-          ValueFrom: Sub(`${'$'}{runtimeSecretArn}:instanceSecret::`, {
-            runtimeSecretArn: Ref(runtimeSecretLogicalName)
+          ValueFrom: sub(`${'$'}{runtimeSecretArn}:instanceSecret::`, {
+            runtimeSecretArn: ref(runtimeSecretLogicalName)
           })
         },
         {
           Name: 'POSTGRES_URL',
-          ValueFrom: Sub(`${'$'}{runtimeSecretArn}:postgresUrl::`, {
-            runtimeSecretArn: Ref(runtimeSecretLogicalName)
+          ValueFrom: sub(`${'$'}{runtimeSecretArn}:postgresUrl::`, {
+            runtimeSecretArn: ref(runtimeSecretLogicalName)
           })
         }
       ];
@@ -213,7 +213,7 @@ export const resolveConvexes = async ({ context }: { context: StackContext }) =>
                 {
                   Effect: 'Allow',
                   Action: ['secretsmanager:GetSecretValue'],
-                  Resource: [Ref(runtimeSecretLogicalName)]
+                  Resource: [ref(runtimeSecretLogicalName)]
                 }
               ]
             }
@@ -245,8 +245,8 @@ export const resolveConvexes = async ({ context }: { context: StackContext }) =>
         ].forEach((bucket) => {
           const bucketResource: any = template.Resources[cfLogicalNames.bucket(bucket.name)];
           if (bucketResource) {
-            bucketResource.DeletionPolicy = DeletionPolicy.Retain;
-            bucketResource.UpdateReplacePolicy = DeletionPolicy.Retain;
+            bucketResource.DeletionPolicy = 'Retain';
+            bucketResource.UpdateReplacePolicy = 'Retain';
           }
         });
       }

@@ -17,6 +17,9 @@ before(async () => {
   const generatedDirectory = path.join(repository, 'apps', 'cli', '@generated', 'llm-docs');
   await mkdir(generatedDirectory, { recursive: true });
   await writeFile(path.join(generatedDirectory, 'index.json'), '{}\n');
+  const cloudFormationGeneratedDirectory = path.join(repository, 'packages', 'cloudformation', 'generated');
+  await mkdir(cloudFormationGeneratedDirectory, { recursive: true });
+  await writeFile(path.join(cloudFormationGeneratedDirectory, 'resource-types.ts'), 'export {};\n');
   await writeFile(
     path.join(repository, '.gitignore'),
     'apps/cli/@generated/.llm-docs-*/\napps/cli/@generated/llm-docs.previous/\n'
@@ -61,4 +64,13 @@ test('ignores unrelated untracked source but rejects untracked and tracked gener
   const tracked = run(process.execPath, [checker, repository]);
   assert.equal(tracked.status, 1);
   assert.match(tracked.stderr, /Tracked changes:[\s\S]*index\.json/);
+
+  await writeFile(path.join(repository, 'apps', 'cli', '@generated', 'llm-docs', 'index.json'), '{}\n');
+  await writeFile(
+    path.join(repository, 'packages', 'cloudformation', 'generated', 'resource-types.ts'),
+    'export type Changed = true;\n'
+  );
+  const cloudFormationGenerated = run(process.execPath, [checker, repository]);
+  assert.equal(cloudFormationGenerated.status, 1);
+  assert.match(cloudFormationGenerated.stderr, /Tracked changes:[\s\S]*packages\/cloudformation\/generated/);
 });

@@ -1,16 +1,11 @@
-import { Sub } from '@cloudform/functions';
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { sub } from '@stacktape/cloudformation/intrinsics';
+
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 
 export const resourceURIs = {
-  lambdaAuthorizer({
-    lambdaEndpointArn,
-    region
-  }: {
-    region: AWSRegion;
-    lambdaEndpointArn: string | IntrinsicFunction;
-  }) {
-    return Sub(`arn:aws:apigateway:${region}:lambda:path/2015-03-31/functions/\${lambdaEndpointArn}/invocations`, {
+  lambdaAuthorizer({ lambdaEndpointArn, region }: { region: AWSRegion; lambdaEndpointArn: string | Intrinsic }) {
+    return sub(`arn:aws:apigateway:${region}:lambda:path/2015-03-31/functions/\${lambdaEndpointArn}/invocations`, {
       lambdaEndpointArn
     });
   },

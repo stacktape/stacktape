@@ -1,4 +1,5 @@
-import { GetAtt } from '@cloudform/functions';
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
@@ -37,20 +38,20 @@ export const resolveEfsFilesystems = async () => {
       nameChain,
       linkName: 'console',
       linkValue: cfEvaluatedLinks.efsFilesystem({
-        filesystemId: GetAtt(cfLogicalNames.efsFilesystem(name), 'FileSystemId')
+        filesystemId: getAtt(cfLogicalNames.efsFilesystem(name), 'FileSystemId')
       })
     });
 
     // Add referenceable parameters
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       paramName: 'arn',
-      paramValue: GetAtt(cfLogicalNames.efsFilesystem(name), 'Arn'),
+      paramValue: getAtt(cfLogicalNames.efsFilesystem(name), 'Arn'),
       nameChain,
       showDuringPrint: false
     });
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       paramName: 'id',
-      paramValue: GetAtt(cfLogicalNames.efsFilesystem(name), 'FileSystemId'),
+      paramValue: getAtt(cfLogicalNames.efsFilesystem(name), 'FileSystemId'),
       nameChain,
       showDuringPrint: false
     });

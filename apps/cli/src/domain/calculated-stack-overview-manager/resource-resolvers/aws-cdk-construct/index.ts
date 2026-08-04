@@ -1,4 +1,5 @@
-import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+
 import type { StpAwsCdkConstruct } from '@domain-services/config-manager/resolved-types/aws-cdk-construct';
 import type { Stack as ImportedCdkStack } from 'aws-cdk-lib';
 import type { Construct as ImportedCdkConstruct } from 'constructs';
@@ -101,7 +102,7 @@ export const resolveAwsCdkConstructs = async () => {
       }
 
       // after we successfully synthesized the construct we will parse the resulting template and add resources and outputs to our template
-      const synthesizedTemplate: CloudformationTemplate = readJsonSync(join(synthOutDir, 'stack.template.json'));
+      const synthesizedTemplate: CloudFormationTemplate = readJsonSync(join(synthOutDir, 'stack.template.json'));
       Object.entries(synthesizedTemplate.Resources).forEach(([cfLogicalName, cfResource]) => {
         // Some resources AWS CDK creates during synthesis are meant to be shared between constructs.
         // For example if you in CDK use [Bucket].enableEventBridgeNotification() then a "custom resource's" lambda/role/policy is created (BucketNotificationsHandlerXXX)

@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import configSchema from '@stacktape/config/config-schema.json';
-import { IntrinsicFunction } from '../src/cloudformation';
+import { equals, getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import { CONNECT_TO_AWS_SERVICE_MACROS } from '../src/aws-service-macros';
 import canonicalConfigSchema from '../generated/config-schema.json';
 import { acceptedConfiguration, alarmDefinition, api, rawSubscription } from './config-import.acceptance';
@@ -25,7 +25,7 @@ describe('a Stacktape configuration can be built from explicit package imports',
 describe('the generated configuration schema package export', () => {
   test('resolves the canonical committed schema', () => {
     expect(configSchema).toBe(canonicalConfigSchema);
-    expect(Object.keys(configSchema.definitions)).toHaveLength(449);
+    expect(Object.keys(configSchema.definitions)).toHaveLength(443);
     expect(configSchema.definitions.StacktapeResourceDefinition.anyOf).toHaveLength(44);
   });
 
@@ -92,19 +92,17 @@ describe('the generated configuration schema package export', () => {
 });
 
 describe('the CloudFormation value vocabulary the escape hatch is written against', () => {
-  test('an intrinsic function serialises to the single-key form CloudFormation expects', () => {
-    // This shape is what ends up in the emitted template, and the published schema describes it structurally.
-    expect(JSON.parse(JSON.stringify(new IntrinsicFunction('Ref', 'MyBucket')))).toEqual({ Ref: 'MyBucket' });
-    expect(JSON.parse(JSON.stringify(new IntrinsicFunction('Fn::GetAtt', ['MyBucket', 'Arn'])))).toEqual({
-      'Fn::GetAtt': ['MyBucket', 'Arn']
-    });
+  test('intrinsic helpers return the plain single-key objects CloudFormation expects', () => {
+    expect(ref('MyBucket')).toEqual({ Ref: 'MyBucket' });
+    expect(getAtt('MyBucket', 'Arn')).toEqual({ 'Fn::GetAtt': ['MyBucket', 'Arn'] });
+    expect(equals('a', 'b')).toEqual({ 'Fn::Equals': ['a', 'b'] });
   });
 
   test('intrinsics survive serialisation from inside a raw resource', () => {
     expect(JSON.parse(JSON.stringify(rawSubscription))).toEqual({
       Type: 'AWS::SNS::Subscription',
       Properties: { TopicArn: { Ref: 'Topic' } },
-      Condition: { 'Fn::Equals': ['a', 'b'] }
+      Condition: 'CreateRawResources'
     });
   });
 });

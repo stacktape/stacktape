@@ -1,4 +1,5 @@
-import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+
 import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
 
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
@@ -469,8 +470,8 @@ const getImplicitEcsServiceUpdates = ({
   oldTemplate,
   updatedResourceLogicalNames
 }: {
-  template?: CloudformationTemplate;
-  oldTemplate?: CloudformationTemplate;
+  template?: CloudFormationTemplate;
+  oldTemplate?: CloudFormationTemplate;
   updatedResourceLogicalNames: string[];
 }) => {
   const allResources = template?.Resources || oldTemplate?.Resources || {};
@@ -501,8 +502,8 @@ export const getStackDeploymentEstimate = ({
   resourceLogicalNames
 }: {
   cfStackAction: 'create' | 'update' | 'delete' | 'rollback';
-  template?: CloudformationTemplate;
-  oldTemplate?: CloudformationTemplate;
+  template?: CloudFormationTemplate;
+  oldTemplate?: CloudFormationTemplate;
   existingStackResources?: StackResourceSummary[];
   resourceLogicalNames?: string[];
 }) => {

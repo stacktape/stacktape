@@ -11,6 +11,12 @@ application. The authored plain-object model remains separately owned by depende
 The root export is the customer-facing authoring runtime. Tooling and metadata use explicit subpath exports. Do not add
 a wildcard export or a re-export-only compatibility layer under `apps/cli`.
 
+The root also exposes `@stacktape/cloudformation`'s lower-case, plain-object intrinsic helpers and
+`cfnResource`/`cfnResourceUnchecked`. Re-export that canonical implementation; do not recreate CloudFormation classes,
+uppercase aliases, template envelopes or intrinsic value types in this package. `cfnResource` is the checked path for
+standard generated AWS resources, while `cfnResourceUnchecked` is the explicit escape hatch for third-party registry
+types that are absent from the AWS service specification.
+
 `defineConfig` is the only supported executable TypeScript-config entry point. It returns a branded compiled result
 containing the serializable config and an explicit side channel for resource/final transforms. The CLI must execute a
 config module and its factory once; never recover transforms by loading or invoking customer code a second time. Do

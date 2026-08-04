@@ -1,7 +1,7 @@
 import type { StacktapeConfig } from '@stacktape/config';
 import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
-import type { CloudformationResource } from '@stacktape/config/cloudformation';
-import { IntrinsicFunction } from '@stacktape/config/cloudformation';
+import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
+import { ref } from '@stacktape/cloudformation/intrinsics';
 import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
 import type { HttpApiIntegration } from '@stacktape/config/events';
 import type { LambdaFunction } from '@stacktape/config/functions';
@@ -48,16 +48,16 @@ export const site: WebService = {
 
 export const uploads: Bucket = { type: 'bucket', properties: { versioning: true } };
 
-export const rawTopic: CloudformationResource = {
+export const rawTopic: AnyCloudFormationResource = {
   Type: 'AWS::SNS::Topic',
   Properties: { TopicName: 'legacy-events' }
 };
 
 /** An intrinsic function is accepted wherever a raw resource takes a value. */
-export const rawSubscription: CloudformationResource = {
+export const rawSubscription: AnyCloudFormationResource = {
   Type: 'AWS::SNS::Subscription',
-  Properties: { TopicArn: new IntrinsicFunction('Ref', 'Topic') },
-  Condition: new IntrinsicFunction('Fn::Equals', ['a', 'b'])
+  Properties: { TopicArn: ref('Topic') },
+  Condition: 'CreateRawResources'
 };
 
 // Every resource a user can write must be assignable to the union the schema is generated from.

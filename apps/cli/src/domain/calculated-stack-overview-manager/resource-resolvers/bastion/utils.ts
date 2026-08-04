@@ -1,33 +1,26 @@
+import { base64, getAtt, ref, sub } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
 import type { StpBastion } from '@domain-services/config-manager/resolved-types/bastion';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import AutoScalingGroup from '@cloudform/autoScaling/autoScalingGroup';
-import LaunchTemplate from '@cloudform/ec2/launchTemplate';
-import SecurityGroup from '@cloudform/ec2/securityGroup';
-import { Base64, GetAtt, Ref } from '@cloudform/functions';
-import InstanceProfile from '@cloudform/iam/instanceProfile';
-import Role from '@cloudform/iam/role';
-import LogGroup from '@cloudform/logs/logGroup';
-import SsmAssociation from '@cloudform/ssm/association';
-import SsmDocument from '@cloudform/ssm/document';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { vpcManager } from '@domain-services/vpc-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
-import { SubWithoutMapping } from '@utils/cloudformation';
+
 import type { BastionLoggingConfig } from '@stacktape/config/bastion';
 
 export const getEc2AutoscalingGroup = ({ definition }: { definition: StpBastion }) => {
-  const resource = new AutoScalingGroup({
+  const resource = cfnResource('AWS::AutoScaling::AutoScalingGroup', {
     MinSize: '1',
     DesiredCapacity: '1',
     MaxSize: '2',
     MixedInstancesPolicy: {
       LaunchTemplate: {
         LaunchTemplateSpecification: {
-          LaunchTemplateId: Ref(cfLogicalNames.bastionEc2LaunchTemplate(definition.name)),
-          Version: GetAtt(cfLogicalNames.bastionEc2LaunchTemplate(definition.name), 'LatestVersionNumber')
+          LaunchTemplateId: ref(cfLogicalNames.bastionEc2LaunchTemplate(definition.name)),
+          Version: getAtt(cfLogicalNames.bastionEc2LaunchTemplate(definition.name), 'LatestVersionNumber')
         },
         Overrides: [{ InstanceType: definition.instanceSize }]
       },
@@ -51,7 +44,7 @@ export const getEc2AutoscalingGroup = ({ definition }: { definition: StpBastion 
 };
 
 export const getSecurityGroup = ({ definition }: { definition: StpBastion }) => {
-  return new SecurityGroup({
+  return cfnResource('AWS::EC2::SecurityGroup', {
     GroupDescription: `Security group for bastion host ${definition.name} in stack ${calculatedStackOverviewManager.context.stackName}.`,
     GroupName: awsResourceNames.bastionSecurityGroup(definition.name, calculatedStackOverviewManager.context.stackName),
     VpcId: vpcManager.getVpcId()
@@ -59,16 +52,16 @@ export const getSecurityGroup = ({ definition }: { definition: StpBastion }) => 
 };
 
 export const getEc2LaunchTemplate = ({ definition }: { definition: StpBastion }) => {
-  return new LaunchTemplate({
+  return cfnResource('AWS::EC2::LaunchTemplate', {
     LaunchTemplateData: {
       ImageId: '{{resolve:ssm:/aws/service/ami-amazon-linux-latest/al2023-ami-kernel-default-x86_64}}',
-      SecurityGroupIds: [Ref(cfLogicalNames.bastionSecurityGroup(definition.name))],
+      SecurityGroupIds: [ref(cfLogicalNames.bastionSecurityGroup(definition.name))],
       IamInstanceProfile: {
-        Arn: GetAtt(cfLogicalNames.bastionEc2InstanceProfile(definition.name), 'Arn')
+        Arn: getAtt(cfLogicalNames.bastionEc2InstanceProfile(definition.name), 'Arn')
       },
       // SecurityGroupIds: [cfLogicalNames.bastionSecurityGroup(definition.name)],
-      UserData: Base64(
-        SubWithoutMapping(`#!/bin/bash -xe
+      UserData: base64(
+        sub(`#!/bin/bash -xe
 mkdir -p /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.d
 
 cat > /opt/aws/amazon-cloudwatch-agent/etc/amazon-cloudwatch-agent.d/default <<- EOF
@@ -187,7 +180,7 @@ const cloudwatchAgentConfig = ({ definition }: { definition: StpBastion }) => {
 };
 
 export const getEc2InstanceRole = () =>
-  new Role({
+  cfnResource('AWS::IAM::Role', {
     Path: '/',
     AssumeRolePolicyDocument: {
       Version: '2008-10-17',
@@ -225,26 +218,26 @@ export const getEc2InstanceRole = () =>
   });
 
 export const getEc2InstanceProfile = ({ definition }: { definition: StpBastion }) =>
-  new InstanceProfile({
+  cfnResource('AWS::IAM::InstanceProfile', {
     Path: '/',
-    Roles: [Ref(cfLogicalNames.bastionRole(definition.name))]
+    Roles: [ref(cfLogicalNames.bastionRole(definition.name))]
   });
 
 export const getSsmAgentAutoUpdateSsmAssociation = ({ definition }: { definition: StpBastion }) => {
-  return new SsmAssociation({
+  return cfnResource('AWS::SSM::Association', {
     Name: 'AWS-UpdateSSMAgent',
     ScheduleExpression: 'rate(1 day)',
     Targets: [
       {
         Key: `tag:${tagNames.autoscalingGroupName()}`,
-        Values: [Ref(cfLogicalNames.bastionEc2AutoscalingGroup(definition.name))]
+        Values: [ref(cfLogicalNames.bastionEc2AutoscalingGroup(definition.name))]
       }
     ]
   });
 };
 
 export const getCloudwatchAgentAutoUpdateDocument = () => {
-  return new SsmDocument({
+  return cfnResource('AWS::SSM::Document', {
     DocumentType: 'Command',
     Content: {
       schemaVersion: '2.2',
@@ -276,13 +269,13 @@ export const getCloudwatchAgentAutoUpdateDocument = () => {
 };
 
 export const getCloudwatchAgentAutoUpdateSsmAssociation = ({ definition }: { definition: StpBastion }) => {
-  return new SsmAssociation({
-    Name: Ref(cfLogicalNames.bastionCloudwatchSsmDocument()),
+  return cfnResource('AWS::SSM::Association', {
+    Name: ref(cfLogicalNames.bastionCloudwatchSsmDocument()),
     ScheduleExpression: 'rate(1 day)',
     Targets: [
       {
         Key: `tag:${tagNames.autoscalingGroupName()}`,
-        Values: [Ref(cfLogicalNames.bastionEc2AutoscalingGroup(definition.name))]
+        Values: [ref(cfLogicalNames.bastionEc2AutoscalingGroup(definition.name))]
       }
     ]
   });
@@ -295,7 +288,7 @@ export const getLogGroup = ({
   definition: StpBastion;
   logType: keyof BastionLoggingConfig;
 }) => {
-  return new LogGroup({
+  return cfnResource('AWS::Logs::LogGroup', {
     LogGroupName: awsResourceNames.bastionLogGroup({
       stackName: calculatedStackOverviewManager.context.stackName,
       stpResourceName: definition.name,

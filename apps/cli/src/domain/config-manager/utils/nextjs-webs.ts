@@ -1,10 +1,10 @@
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpNextjsWeb } from '@domain-services/config-manager/resolved-types/nextjs-web';
 import type { StackContext } from '@domain-services/stack-context';
 import type { CdnCachingOptions, CdnConfiguration, CdnForwardingOptions } from '@stacktape/config/cdn';
 import type { CustomArtifactLambdaPackaging } from '@stacktape/config/deployment-artifacts';
 import { join } from 'node:path';
-import { GetAtt, Ref } from '@cloudform/functions';
 import {
   getLambdaLogResourceArnsForPermissions,
   getLogGroupPolicyDocumentStatements
@@ -138,12 +138,12 @@ export const buildNextjsWebNestedResources = ({
   };
   const imageLambdaForwardingOptions: CdnForwardingOptions = {
     allowedMethods: ['GET', 'HEAD', 'POST', 'OPTIONS', 'PATCH', 'PUT', 'DELETE'],
-    originRequestPolicyId: Ref('AWS::NoValue') as unknown as string
+    originRequestPolicyId: ref('AWS::NoValue') as unknown as string
   };
 
   const staticBucketDataForwardingOptions: CdnForwardingOptions = {
     allowedMethods: ['GET', 'HEAD', 'OPTIONS'],
-    originRequestPolicyId: Ref('AWS::NoValue') as unknown as string
+    originRequestPolicyId: ref('AWS::NoValue') as unknown as string
   };
 
   const staticBucketDataCachingOptions: CdnCachingOptions = {
@@ -159,7 +159,7 @@ export const buildNextjsWebNestedResources = ({
   const cdnConfiguration: CdnConfiguration = {
     enabled: true,
     edgeFunctions: {
-      onRequest: GetAtt(cfLogicalNames.openNextHostHeaderRewriteFunction(name), 'FunctionARN') as unknown as string,
+      onRequest: getAtt(cfLogicalNames.openNextHostHeaderRewriteFunction(name), 'FunctionARN') as unknown as string,
       onOriginRequest: useEdgeLambda && nestedResourceInfo.serverEdgeFunction.stpReferenceableName
     },
     forwardingOptions: serverForwardingOptions,
@@ -178,14 +178,14 @@ export const buildNextjsWebNestedResources = ({
       },
       defaultForwardingOptions: serverForwardingOptions,
       defaultEdgeFunctions: {
-        onRequest: GetAtt(cfLogicalNames.openNextHostHeaderRewriteFunction(name), 'FunctionARN') as unknown as string,
+        onRequest: getAtt(cfLogicalNames.openNextHostHeaderRewriteFunction(name), 'FunctionARN') as unknown as string,
         onOriginRequest: useEdgeLambda && nestedResourceInfo.serverEdgeFunction.stpReferenceableName
       },
       routeRewrites: [
         {
           path: 'api/*',
           edgeFunctions: {
-            onRequest: GetAtt(
+            onRequest: getAtt(
               cfLogicalNames.openNextHostHeaderRewriteFunction(name),
               'FunctionARN'
             ) as unknown as string,
@@ -197,7 +197,7 @@ export const buildNextjsWebNestedResources = ({
         {
           path: '_next/data/*',
           edgeFunctions: {
-            onRequest: GetAtt(
+            onRequest: getAtt(
               cfLogicalNames.openNextHostHeaderRewriteFunction(name),
               'FunctionARN'
             ) as unknown as string,
@@ -283,7 +283,7 @@ export const buildNextjsWebNestedResources = ({
           ...(environment || []),
           {
             name: 'CACHE_BUCKET_NAME',
-            value: Ref(cfLogicalNames.bucket(nestedResourceInfo.bucket.stpResourceName)) as unknown as string
+            value: ref(cfLogicalNames.bucket(nestedResourceInfo.bucket.stpResourceName)) as unknown as string
           },
           {
             name: 'CACHE_BUCKET_PREFIX',
@@ -295,7 +295,7 @@ export const buildNextjsWebNestedResources = ({
           },
           {
             name: 'REVALIDATION_QUEUE_URL',
-            value: Ref(
+            value: ref(
               cfLogicalNames.sqsQueue(nestedResourceInfo.revalidationQueue.stpResourceName)
             ) as unknown as string
           },
@@ -305,7 +305,7 @@ export const buildNextjsWebNestedResources = ({
           },
           {
             name: 'CACHE_DYNAMO_TABLE',
-            value: Ref(
+            value: ref(
               cfLogicalNames.dynamoGlobalTable(nestedResourceInfo.revalidationTable.stpResourceName)
             ) as unknown as string
           }
@@ -439,7 +439,7 @@ export const buildNextjsWebNestedResources = ({
       environment: [
         {
           name: 'BUCKET_NAME',
-          value: Ref(cfLogicalNames.bucket(nestedResourceInfo.bucket.stpResourceName)) as unknown as string
+          value: ref(cfLogicalNames.bucket(nestedResourceInfo.bucket.stpResourceName)) as unknown as string
         },
         {
           name: 'BUCKET_KEY_PREFIX',
@@ -549,7 +549,7 @@ export const buildNextjsWebNestedResources = ({
       environment: [
         {
           name: 'CACHE_DYNAMO_TABLE',
-          value: Ref(
+          value: ref(
             cfLogicalNames.dynamoGlobalTable(nestedResourceInfo.revalidationTable.stpResourceName)
           ) as unknown as string
         }
@@ -580,7 +580,7 @@ export const buildNextjsWebNestedResources = ({
             environment: [
               {
                 name: 'FUNCTION_NAME',
-                value: Ref(
+                value: ref(
                   cfLogicalNames.lambda(nestedResourceInfo.serverFunction.stpResourceName)
                 ) as unknown as string
               },

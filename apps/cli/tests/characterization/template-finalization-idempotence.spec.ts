@@ -1,3 +1,4 @@
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 import { describe, expect, test } from 'bun:test';
 import { join } from 'node:path';
 import { applicationManager } from '@application-services/application-manager';
@@ -5,7 +6,7 @@ import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
-import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
+
 import { configManager } from '@domain-services/config-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { ec2Manager } from '@domain-services/ec2-manager';
@@ -241,7 +242,7 @@ const finalizeInOneInvocation = async ({
       };
     });
 
-    const templates: CloudformationTemplate[] = [];
+    const templates: CloudFormationTemplate[] = [];
     for (let pass = 0; pass < passes; pass++) {
       if (pass === 1) {
         beforeSecondFinalization?.(artifactState);
@@ -252,7 +253,7 @@ const finalizeInOneInvocation = async ({
     return templates;
   });
 
-const bucketOf = (template: CloudformationTemplate) => template.Resources[cfLogicalNames.bucket('files')] as any;
+const bucketOf = (template: CloudFormationTemplate) => template.Resources[cfLogicalNames.bucket('files')] as any;
 
 describe('finalizing a template more than once in one invocation', () => {
   test('reproduces the first template exactly when nothing changed in between', async () => {

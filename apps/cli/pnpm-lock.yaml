@@ -197,6 +197,9 @@ importers:
       '@smithy/protocol-http':
         specifier: 5.3.8
         version: 5.3.8
+      '@stacktape/cloudformation':
+        specifier: workspace:*
+        version: link:../../packages/cloudformation
       '@stacktape/config':
         specifier: workspace:*
         version: link:../../packages/config

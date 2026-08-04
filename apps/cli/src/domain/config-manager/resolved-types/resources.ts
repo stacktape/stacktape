@@ -1,3 +1,4 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
 import type { Subtype } from '@utils/type-helpers';
 import type {
   AgentCoreBrowserReferencableParam,
@@ -109,7 +110,6 @@ import type {
 } from '@domain-services/config-manager/resolved-types/worker-services';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { AgentCoreRuntime } from '@stacktape/config/agentcore';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { Convex } from '@stacktape/config/convex';
 import type { StacktapeWorkloadDefinition } from '@stacktape/config/shared';
 import type { StpStateMachine } from '@stacktape/config/state-machines';
@@ -164,19 +164,19 @@ export type StpWorkloadType = StacktapeWorkloadDefinition['type'] | Convex['type
 export type StpResourceType = StpResource['type'];
 export type Tracing = 'Active' | 'PassThrough';
 export type EcsServiceScheduledMaintenanceRuleInput = {
-  ecsServiceArn: string | IntrinsicFunction;
-  asgName: string | IntrinsicFunction;
+  ecsServiceArn: string | Intrinsic;
+  asgName: string | Intrinsic;
   codeDeployApplicationName?: string;
   codeDeployDeploymentGroupName?: string;
 };
 export type CustomTaggingScheduledRuleInput = {
   tagNetworkInterfaceWithSecurityGroup: {
-    securityGroupId: string | IntrinsicFunction;
+    securityGroupId: string | Intrinsic;
     attributionCfResourceLogicalName: string;
     extraTags?: { Key: string; Value: string }[];
   }[];
   tagHostedZoneAttributedToCloudMapNamespace: {
-    namespaceId: string | IntrinsicFunction;
+    namespaceId: string | Intrinsic;
     attributionCfResourceLogicalName: string;
     extraTags?: { Key: string; Value: string }[];
   }[];

@@ -1,10 +1,9 @@
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
-import { GetAtt, Ref } from '@cloudform/functions';
-import Permission from '@cloudform/lambda/permission';
-import SnsSubscription from '@cloudform/sns/subscription';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToSnsTopic } from '@domain-services/config-manager/utils/sns-topics';
 import { resolveReferenceToSqsQueue } from '@domain-services/config-manager/utils/sqs-queues';
@@ -54,9 +53,9 @@ export const resolveSnsEvents = ({
           message: `Error in ${configParentResourceType} \`${name}\`. When configuring SNS delivery failures, specify exactly one of \`sqsQueueName\` or \`sqsQueueArn\`.`
         });
       }
-      const topicArn = snsTopicArn || GetAtt(cfLogicalNames.snsTopic(snsTopicName), 'TopicArn');
+      const topicArn = snsTopicArn || getAtt(cfLogicalNames.snsTopic(snsTopicName), 'TopicArn');
 
-      const endpoint = aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn');
+      const endpoint = aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn');
 
       if (onDeliveryFailure?.sqsQueueName) {
         resolveReferenceToSqsQueue({
@@ -68,7 +67,7 @@ export const resolveSnsEvents = ({
 
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.snsEventSubscription(name, index),
-        resource: new SnsSubscription({
+        resource: cfnResource('AWS::SNS::Subscription', {
           TopicArn: topicArn,
           Protocol: 'lambda',
           Endpoint: endpoint,
@@ -76,7 +75,7 @@ export const resolveSnsEvents = ({
           ...(onDeliveryFailure && {
             RedrivePolicy: {
               deadLetterTargetArn:
-                onDeliveryFailure.sqsQueueArn || GetAtt(cfLogicalNames.sqsQueue(onDeliveryFailure.sqsQueueName), 'Arn')
+                onDeliveryFailure.sqsQueueArn || getAtt(cfLogicalNames.sqsQueue(onDeliveryFailure.sqsQueueName), 'Arn')
             }
           })
         }),
@@ -85,7 +84,7 @@ export const resolveSnsEvents = ({
 
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: cfLogicalNames.snsEventPermission(name, index),
-        resource: new Permission({
+        resource: cfnResource('AWS::Lambda::Permission', {
           FunctionName: endpoint,
           Action: 'lambda:InvokeFunction',
           Principal: 'sns.amazonaws.com',

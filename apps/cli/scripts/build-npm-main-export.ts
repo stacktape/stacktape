@@ -1,6 +1,8 @@
 import type { JsonSchemaGenerator } from 'typescript-json-schema';
 import type { ChildResourcesMap, ReferenceableParamsMap } from './code-generation/types';
-import { join } from 'node:path';
+import { readFileSync } from 'node:fs';
+import { dirname, join, resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   CONFIG_AUTHORING_PACKAGE_SRC_PATH,
   NPM_RELEASE_FOLDER_PATH,
@@ -24,8 +26,8 @@ import {
   generatePlainPropsImports,
   generateStacktapeConfigType
 } from './code-generation/generate-augmented-props';
-import { generatePropertiesInterfaces } from './code-generation/generate-cf-properties';
-import { generateCloudFormationResourceType } from './code-generation/generate-cloudformation-resource-type';
+import { generatePropertiesInterfaces } from './code-generation/generate-cloudformation-properties';
+import { generateCloudFormationResourceMap } from './code-generation/generate-cloudformation-resource-map';
 import { generateOverrideTypes, generateTransformsTypes } from './code-generation/generate-overrides';
 import { generateResourceClassDeclarations } from './code-generation/generate-resource-classes';
 import {
@@ -749,7 +751,7 @@ export type StacktapeCloudformationResources = { [resourceName: string]: Stackta
 /**
  * Single cloudformation resource type.
  */
-export type StacktapeCloudformationResource = import('./cloudformation').CloudFormationResource;
+export type StacktapeCloudformationResource = import('./cloudformation').AnyCloudFormationResource;
 
 /**
  * Stack outputs type (stackConfig.outputs).
@@ -795,6 +797,55 @@ export type StacktapeDirectivesPlain = import('./plain').StacktapeConfig['direct
 `;
 }
 
+function declarationFromSource(filePath: string, { inlineDependencies = false } = {}): string {
+  const result = ts.transpileDeclaration(readFileSync(filePath, 'utf8'), {
+    fileName: filePath,
+    compilerOptions: {
+      module: ts.ModuleKind.ESNext,
+      target: ts.ScriptTarget.ES2022
+    },
+    reportDiagnostics: true
+  });
+  if (result.diagnostics?.length) {
+    throw new Error(
+      ts.formatDiagnostics(result.diagnostics, {
+        getCanonicalFileName: (name) => name,
+        getCurrentDirectory: () => process.cwd(),
+        getNewLine: () => '\n'
+      })
+    );
+  }
+  if (!inlineDependencies) {
+    return result.outputText;
+  }
+
+  const declarationFile = ts.createSourceFile(`${filePath}.d.ts`, result.outputText, ts.ScriptTarget.Latest, true);
+  return declarationFile.statements
+    .filter(
+      (statement) =>
+        !ts.isImportDeclaration(statement) && !(ts.isExportDeclaration(statement) && statement.moduleSpecifier)
+    )
+    .map((statement) => statement.getFullText(declarationFile))
+    .join('')
+    .trim();
+}
+
+function generateCloudFormationCoreDeclarations(): string {
+  const packageSourcePath = resolve(
+    dirname(fileURLToPath(import.meta.url)),
+    '..',
+    '..',
+    '..',
+    'packages',
+    'cloudformation',
+    'src'
+  );
+  const intrinsics = declarationFromSource(join(packageSourcePath, 'intrinsics.ts'));
+  const resource = declarationFromSource(join(packageSourcePath, 'resource.ts'), { inlineDependencies: true });
+
+  return `${intrinsics}\n${resource}`;
+}
+
 export async function generateTypeDeclarations({
   outputDirectory = NPM_RELEASE_FOLDER_PATH
 }: {
@@ -813,11 +864,11 @@ export async function generateTypeDeclarations({
 
   // Generate CloudFormation-related types
   logInfo('Extracting Properties interfaces from CloudFormation files...');
-  const { content: propertiesInterfaces, generatedTypes: cfGeneratedTypes } =
-    generatePropertiesInterfaces(CHILD_RESOURCES);
+  const { content: propertiesInterfaces, generatedTypes: cfGeneratedTypes } = generatePropertiesInterfaces();
   const overridesTypes = generateOverrideTypes(CHILD_RESOURCES);
   const transformsTypes = generateTransformsTypes(CHILD_RESOURCES);
-  const cloudFormationResourceType = generateCloudFormationResourceType(cfGeneratedTypes);
+  const cloudFormationResourceMap = generateCloudFormationResourceMap(cfGeneratedTypes);
+  const cloudFormationCoreDeclarations = generateCloudFormationCoreDeclarations();
 
   // Compile source files
   logInfo('Compiling TypeScript source files...');
@@ -825,7 +876,10 @@ export async function generateTypeDeclarations({
 
   // Extract and process declarations
   const configDts = cleanDeclarations(declarations.get('config') || '');
-  const configCleaned = removeDuplicateDeclarations(configDts);
+  const configCleaned = removeDuplicateDeclarations(configDts).replace(
+    /^export type \{ CloudFormationTemplate \} from '@stacktape\/cloudformation\/resource';\r?\n/gm,
+    ''
+  );
 
   // Essential declarations are defined inline to avoid duplication issues from compiled TS
   const essentialDeclarations = generateEssentialDeclarations();
@@ -882,6 +936,12 @@ export async function generateTypeDeclarations({
 // Import: import type { CloudFormationResource } from 'stacktape/cloudformation'
 
 // ==========================================
+// STRUCTURAL INTRINSICS AND RESOURCE ENVELOPE
+// ==========================================
+
+${cloudFormationCoreDeclarations}
+
+// ==========================================
 // CLOUDFORMATION PROPERTIES INTERFACES
 // ==========================================
 
@@ -891,7 +951,7 @@ ${propertiesInterfaces}
 // CLOUDFORMATION RESOURCE TYPE
 // ==========================================
 
-${cloudFormationResourceType}
+${cloudFormationResourceMap}
 `;
 
   // Generate types.d.ts - authoring types and class declarations
@@ -905,8 +965,11 @@ ${cloudFormationResourceType}
 // ==========================================
 
 import type {
+  CloudFormationTemplate,
   ${cfTypeImports}
 } from './cloudformation';
+
+export type { CloudFormationTemplate } from './cloudformation';
 
 // ==========================================
 // SDK TYPE IMPORTS (for augmented props base types)
@@ -1018,7 +1081,6 @@ export {
 
 // Re-export authoring types for convenience
 export type {
-  CloudFormationTemplate,
   CompiledStacktapeConfig,
   DefinedStacktapeConfig,
   FinalTransform,
@@ -1026,6 +1088,45 @@ export type {
   ResourceTransform,
   StacktapeConfig
 } from './types';
+
+export {
+  and,
+  base64,
+  cfnResource,
+  cfnResourceUnchecked,
+  condition,
+  equals,
+  findInMap,
+  getAtt,
+  getAzs,
+  ifCondition,
+  importValue,
+  isIntrinsic,
+  join,
+  not,
+  or,
+  ref,
+  select,
+  split,
+  sub
+} from './cloudformation';
+
+export type {
+  AnyCloudFormationResource,
+  CloudFormationJson,
+  CloudFormationList,
+  CloudFormationResource,
+  CloudFormationResourceAttributes,
+  CloudFormationTag,
+  CloudFormationTemplate,
+  CloudFormationValue,
+  ConditionExpression,
+  Intrinsic,
+  KnownCloudFormationResource,
+  KnownCloudFormationResourceType,
+  PropertylessCloudFormationResource,
+  StructuralIntrinsic
+} from './cloudformation';
 
 // ==========================================
 // DIRECTIVES

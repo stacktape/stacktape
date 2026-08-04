@@ -1,6 +1,6 @@
 {
   "//": [
-    "Type-checks the committed TypeScript owned by the CloudFormation and config-schema generators.",
+    "Type-checks the committed TypeScript owned by the config-schema generator.",
     "The main CLI project excludes `@generated`, so this standard nested project keeps generated sources",
     "editor-discoverable and prevents invalid generated TypeScript from remaining hidden.",
     "`types: []` keeps unrelated ambient packages out of the program; `skipLibCheck` is off because",
@@ -17,5 +17,5 @@
     "types": [],
     "forceConsistentCasingInFileNames": true
   },
-  "include": ["./cloudform/**/*.ts", "./cloudformation-ts-types/**/*.ts", "./schemas/validate-config-zod.ts"]
+  "include": ["./schemas/validate-config-zod.ts"]
 }

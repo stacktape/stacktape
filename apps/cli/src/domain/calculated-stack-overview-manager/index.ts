@@ -1,3 +1,6 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
+import type { KnownCloudFormationResourceType } from '@stacktape/cloudformation/resource';
 import type { StackInfoMapResource } from '@domain-services/stack-info/types';
 import type { OutputValue, StackInfoMap, StacktapeResourceOutput } from '@domain-services/stack-info/types';
 import type {
@@ -5,7 +8,6 @@ import type {
   StpResource,
   StpResourceType
 } from '@domain-services/config-manager/resolved-types/resources';
-import type { CloudformationResourceType } from '@cloudform/resource-types';
 import { eventManager } from '@application-services/event-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
@@ -81,7 +83,6 @@ import { resolveUserPools } from './resource-resolvers/user-pools';
 import { resolveWebAppFirewalls } from './resource-resolvers/web-app-firewalls';
 import { resolveWebServices } from './resource-resolvers/web-services';
 import { resolveWorkerServices } from './resource-resolvers/worker-services';
-import type { CloudformationResource, IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { StackContext } from '@domain-services/stack-context';
 
 /** Starts resolvers in order, waits for every one that started, then propagates the first observed failure. */
@@ -276,7 +277,7 @@ export class CalculatedStackOverviewManager {
     initial
   }: {
     cfLogicalName: string;
-    resource: CloudformationResource;
+    resource: AnyCloudFormationResource;
     nameChain: string[] | string;
     initial?: boolean;
   }) => {
@@ -287,7 +288,7 @@ export class CalculatedStackOverviewManager {
       );
     }
     parentResource.cloudformationChildResources[cfLogicalName] = {
-      cloudformationResourceType: resource.Type as CloudformationResourceType
+      cloudformationResourceType: resource.Type as KnownCloudFormationResourceType
     };
     templateManager.addResource({ cfLogicalName, resource, initial });
   };
@@ -363,7 +364,7 @@ export class CalculatedStackOverviewManager {
     };
   };
 
-  getSubstitutedStackInfoMap = async (): Promise<IntrinsicFunction> => {
+  getSubstitutedStackInfoMap = async (): Promise<Intrinsic> => {
     const substituteSensitiveValues = (resources: StackInfoMap['resources']): StackInfoMap['resources'] => {
       const resultResourceMap: StackInfoMap['resources'] = {};
       Object.entries(serialize(resources) as StackInfoMap['resources']).forEach(

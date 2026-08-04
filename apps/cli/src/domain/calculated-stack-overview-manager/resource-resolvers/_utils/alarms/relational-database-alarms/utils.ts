@@ -1,6 +1,6 @@
+import type { Dimension } from '@stacktape/cloudformation/resources/aws-cloudwatch-alarm';
+import { ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
-import type { Dimension } from '@cloudform/cloudWatch/alarm';
-import { Ref } from '@cloudform/functions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 export const getDimensionsForAuroraCluster = ({
@@ -11,7 +11,7 @@ export const getDimensionsForAuroraCluster = ({
   return [
     {
       Name: 'DBClusterIdentifier',
-      Value: Ref(cfLogicalNames.auroraDbCluster(databaseResource.name))
+      Value: ref(cfLogicalNames.auroraDbCluster(databaseResource.name))
     }
   ];
 };
@@ -26,7 +26,7 @@ export const getDimensionsForAuroraInstance = ({
   return [
     {
       Name: 'DBInstanceIdentifier',
-      Value: Ref(cfLogicalNames.auroraDbInstance(databaseResource.name, instanceNumber))
+      Value: ref(cfLogicalNames.auroraDbInstance(databaseResource.name, instanceNumber))
     }
   ];
 };
@@ -41,7 +41,7 @@ export const getDimensionsForAuroraRole = ({
   return [
     {
       Name: 'DBClusterIdentifier',
-      Value: Ref(cfLogicalNames.auroraDbCluster(databaseResource.name))
+      Value: ref(cfLogicalNames.auroraDbCluster(databaseResource.name))
     },
     {
       Name: 'Role',
@@ -58,7 +58,7 @@ export const getDimensionsForInstance = ({
   return [
     {
       Name: 'DBInstanceIdentifier',
-      Value: Ref(cfLogicalNames.dbInstance(databaseResource.name))
+      Value: ref(cfLogicalNames.dbInstance(databaseResource.name))
     }
   ];
 };

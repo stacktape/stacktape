@@ -1,10 +1,10 @@
+import type { CorsConfiguration, CorsRule } from '@stacktape/cloudformation/resources/aws-s3-bucket';
+import type { Rule } from '@stacktape/cloudformation/resources/aws-s3-bucket';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, join } from '@stacktape/cloudformation/intrinsics';
 import type { CloudformationIamRoleStatement } from '@domain-services/cloudformation-stack-manager/types';
 import type { StpBucket } from '@domain-services/config-manager/resolved-types/buckets';
-import type { CorsConfiguration, CorsRule } from '@cloudform/s3/bucket';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import { GetAtt, Join } from '@cloudform/functions';
-import S3Bucket, { Rule } from '@cloudform/s3/bucket';
-import S3BucketPolicy from '@cloudform/s3/bucketPolicy';
 import { configManager } from '@domain-services/config-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
@@ -17,7 +17,7 @@ export const getBucketPolicy = (stpBucketName: string, bucketConfig: StpBucket) 
     calculatedStackOverviewManager.context.stackName,
     calculatedStackOverviewManager.context.globallyUniqueStackHash
   );
-  const bucketPolicy = new S3BucketPolicy({
+  const bucketPolicy = cfnResource('AWS::S3::BucketPolicy', {
     Bucket: bucketName,
     PolicyDocument: {
       Statement: getPolicyDocumentStatements({ bucketConfig })
@@ -38,7 +38,7 @@ const getPolicyDocumentStatements = ({ bucketConfig }: { bucketConfig: StpBucket
             Effect: 'Allow',
             Principal: { AWS: '*' },
             Action: ['s3:ListBucket'],
-            Resource: GetAtt(cfLogicalNames.bucket(stpBucketName), 'Arn') as unknown as string
+            Resource: getAtt(cfLogicalNames.bucket(stpBucketName), 'Arn') as unknown as string
           },
           {
             Sid: 'AllObjectActions',
@@ -51,7 +51,7 @@ const getPolicyDocumentStatements = ({ bucketConfig }: { bucketConfig: StpBucket
               's3:*ObjectVersionTagging',
               's3:*MultipartUpload*'
             ],
-            Resource: Join('', [GetAtt(cfLogicalNames.bucket(stpBucketName), 'Arn'), '/*']) as unknown as string
+            Resource: join('', [getAtt(cfLogicalNames.bucket(stpBucketName), 'Arn'), '/*']) as unknown as string
           }
         ]
       : accessibility?.accessibilityMode === 'public-read'
@@ -61,14 +61,14 @@ const getPolicyDocumentStatements = ({ bucketConfig }: { bucketConfig: StpBucket
               Effect: 'Allow',
               Principal: { AWS: '*' },
               Action: ['s3:ListBucket'],
-              Resource: GetAtt(cfLogicalNames.bucket(stpBucketName), 'Arn') as unknown as string
+              Resource: getAtt(cfLogicalNames.bucket(stpBucketName), 'Arn') as unknown as string
             },
             {
               Sid: 'public-read',
               Effect: 'Allow',
               Principal: { AWS: '*' },
               Action: ['s3:GetObject', 's3:GetObjectVersion'],
-              Resource: Join('', [GetAtt(cfLogicalNames.bucket(stpBucketName), 'Arn'), '/*']) as unknown as string
+              Resource: join('', [getAtt(cfLogicalNames.bucket(stpBucketName), 'Arn'), '/*']) as unknown as string
             }
           ]
         : [];
@@ -92,25 +92,25 @@ const getPolicyDocumentStatements = ({ bucketConfig }: { bucketConfig: StpBucket
               ],
               Effect: 'Allow',
               Principal: {
-                CanonicalUser: GetAtt(
+                CanonicalUser: getAtt(
                   cfLogicalNames.cloudfrontOriginAccessIdentity(cdnAttachedResourceName),
                   'S3CanonicalUserId'
                 )
               },
               Sid: 'CloudfrontAccess',
-              Resource: Join('', [GetAtt(cfLogicalNames.bucket(stpBucketName), 'Arn'), '/*']) as unknown as string
+              Resource: join('', [getAtt(cfLogicalNames.bucket(stpBucketName), 'Arn'), '/*']) as unknown as string
             },
             {
               Sid: 'CloudfrontAccessList',
               Effect: 'Allow',
               Principal: {
-                CanonicalUser: GetAtt(
+                CanonicalUser: getAtt(
                   cfLogicalNames.cloudfrontOriginAccessIdentity(cdnAttachedResourceName),
                   'S3CanonicalUserId'
                 )
               },
               Action: ['s3:ListBucket'],
-              Resource: GetAtt(cfLogicalNames.bucket(stpBucketName), 'Arn') as unknown as string
+              Resource: getAtt(cfLogicalNames.bucket(stpBucketName), 'Arn') as unknown as string
             }
           ];
         })
@@ -136,7 +136,7 @@ export const getBucketResource = (stpBucketName: string, bucketConfig: StpBucket
     } as StpBucket['lifecycleRules'][number]);
   }
 
-  return new S3Bucket({
+  return cfnResource('AWS::S3::Bucket', {
     BucketName: awsResourceNames.bucket(
       stpBucketName,
       calculatedStackOverviewManager.context.stackName,
@@ -208,7 +208,7 @@ const getLifecycleRule = (lifecycleRule: StpBucket['lifecycleRules'][number]) =>
     ruleProps.ExpirationInDays = lifecycleRule.properties.daysAfterUpload;
   }
 
-  return new Rule(ruleProps);
+  return ruleProps;
 };
 
 const getCorsConfiguration = (corsConfig: BucketCorsConfig): CorsConfiguration => {

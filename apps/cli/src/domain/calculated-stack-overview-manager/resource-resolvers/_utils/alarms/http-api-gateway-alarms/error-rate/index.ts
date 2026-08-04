@@ -1,9 +1,9 @@
+import type { Dimension } from '@stacktape/cloudformation/resources/aws-cloudwatch-alarm';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
-import type { Dimension } from '@cloudform/cloudWatch/alarm';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import CloudwatchAlarm from '@cloudform/cloudWatch/alarm';
-import { Ref } from '@cloudform/functions';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getAlarmDescription } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/alarms/descriptions';
@@ -18,10 +18,10 @@ export const getHttpApiGatewayErrorRateAlarm = ({
   resource: StpHttpApiGateway;
 }) => {
   const trigger = alarm.trigger as HttpApiGatewayErrorRateTrigger;
-  const dimensions: Dimension[] = [{ Name: 'ApiId', Value: Ref(cfLogicalNames.httpApi(resource.name)) }];
+  const dimensions: Dimension[] = [{ Name: 'ApiId', Value: ref(cfLogicalNames.httpApi(resource.name)) }];
   const comparisonOperator = getComparisonOperator({ alarm });
   const threshold = trigger.properties.thresholdPercent;
-  return new CloudwatchAlarm({
+  return cfnResource('AWS::CloudWatch::Alarm', {
     AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
     AlarmDescription:
       alarm.description ||

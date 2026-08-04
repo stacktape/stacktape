@@ -1,10 +1,10 @@
+import type { Policy, RoleProperties } from '@stacktape/cloudformation/resources/aws-iam-role';
 import type {
   CloudformationPrivateTypeFile,
   StpCfInfrastructureModuleType,
   SupportedPrivateCfResourceType
 } from '@domain-services/cloudformation-registry-manager/types';
 import type { RegisteredPrivateTypeVersion } from 'src/aws/cloudformation-registry';
-import type { Policy, RoleProperties } from '@cloudform/iam/role';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { S3Client } from '@aws-sdk/client-s3';

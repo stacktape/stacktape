@@ -1,3 +1,4 @@
+import type { KnownCloudFormationResourceType } from '@stacktape/cloudformation/resource';
 import type { StackInfoMapResource } from '@domain-services/stack-info/types';
 import type {
   CfChildResourceOverview,
@@ -8,7 +9,6 @@ import type {
 } from '@domain-services/stack-info/types';
 import type { SupportedPrivateCfResourceType } from '@domain-services/cloudformation-registry-manager/types';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
-import type { CloudformationResourceType } from '@cloudform/resource-types';
 import { ResourceImpact } from '@aws-cdk/cloudformation-diff';
 import { PARENT_IDENTIFIER_CUSTOM_CF, PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { serialize } from '@utils/misc';
@@ -106,10 +106,10 @@ const calculateCfChildResourcesOverviews = ({
         status: diffedResource?.changeImpact || ResourceImpact.NO_CHANGE,
         cloudformationResourceType: (diffedResource?.oldResourceType ||
           diffedResource?.newResourceType ||
-          cloudformationResourceType) as CloudformationResourceType,
+          cloudformationResourceType) as KnownCloudFormationResourceType,
         referenceableParams: getAllReferencableParams(diffedResource?.oldResourceType || cloudformationResourceType),
         afterUpdateResourceType: diffedResource?.resourceTypeChanged
-          ? (diffedResource?.newResourceType as CloudformationResourceType)
+          ? (diffedResource?.newResourceType as KnownCloudFormationResourceType)
           : undefined
       };
     } else {
@@ -215,7 +215,7 @@ export const getCriticalResourcesPotentiallyEndangeredByOperation = ({
     resourceType: string;
     impactedCfResources: {
       [cfLogicalName: string]: {
-        cfResourceType: CloudformationResourceType | SupportedPrivateCfResourceType;
+        cfResourceType: KnownCloudFormationResourceType | SupportedPrivateCfResourceType;
         impact: ResourceImpact;
       };
     };
@@ -226,7 +226,7 @@ export const getCriticalResourcesPotentiallyEndangeredByOperation = ({
     cfTemplateDiff,
     showSensitiveValues: false
   });
-  const cfResourceTypesToWatch: (CloudformationResourceType | SupportedPrivateCfResourceType)[] = [
+  const cfResourceTypesToWatch: (KnownCloudFormationResourceType | SupportedPrivateCfResourceType)[] = [
     'AWS::RDS::DBCluster',
     'AWS::RDS::DBInstance',
     'AWS::DynamoDB::GlobalTable',

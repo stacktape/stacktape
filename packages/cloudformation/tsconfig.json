@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.package.json",
+  "compilerOptions": {
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "types": ["bun-types", "node"]
+  },
+  "include": ["src", "generated", "scripts"]
+}

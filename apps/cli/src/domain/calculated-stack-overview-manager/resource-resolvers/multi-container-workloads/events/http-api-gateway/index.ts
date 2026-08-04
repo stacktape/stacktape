@@ -1,9 +1,8 @@
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
-import Integration from '@cloudform/apiGatewayV2/integration';
-import { GetAtt, Ref } from '@cloudform/functions';
-import ServiceDiscoveryService from '@cloudform/serviceDiscovery/service';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { resolveReferenceToHttpApiGateway } from '@domain-services/config-manager/utils/http-api-gateways';
 import { resolveReferenceToLambdaFunction } from '@domain-services/config-manager/utils/lambdas';
@@ -91,8 +90,8 @@ export const resolveHttpApiEvents = (definition: StpContainerWorkload) => {
           });
 
           const authorizerLambdaEndpointArn = authorizerLambdaProps.aliasLogicalName
-            ? Ref(authorizerLambdaProps.aliasLogicalName)
-            : GetAtt(authorizerLambdaProps.cfLogicalName, 'Arn');
+            ? ref(authorizerLambdaProps.aliasLogicalName)
+            : getAtt(authorizerLambdaProps.cfLogicalName, 'Arn');
           // `${arns.lambdaFromFullName({
           //   accountId: calculatedStackOverviewManager.context.accountId,
           //   lambdaAwsName: authorizerLambdaProps.resourceName,
@@ -176,11 +175,11 @@ export const getHttpApiContainerWorkloadIntegration = ({
       hints: 'Set `payloadFormat: "1.0"` on the event or the referenced `http-api-gateway`.'
     });
   }
-  return new Integration({
-    ApiId: Ref(cfLogicalNames.httpApi(stpHttpApiGatewayName)),
+  return cfnResource('AWS::ApiGatewayV2::Integration', {
+    ApiId: ref(cfLogicalNames.httpApi(stpHttpApiGatewayName)),
     IntegrationType: 'HTTP_PROXY',
-    IntegrationUri: GetAtt(cfLogicalNames.serviceDiscoveryEcsService(workloadName, Number(targetedPort)), 'Arn'),
-    ConnectionId: Ref(cfLogicalNames.httpApiVpcLink(stpHttpApiGatewayName)),
+    IntegrationUri: getAtt(cfLogicalNames.serviceDiscoveryEcsService(workloadName, Number(targetedPort)), 'Arn'),
+    ConnectionId: ref(cfLogicalNames.httpApiVpcLink(stpHttpApiGatewayName)),
     ConnectionType: 'VPC_LINK',
     IntegrationMethod: 'ANY',
     PayloadFormatVersion: payloadFormat
@@ -188,7 +187,7 @@ export const getHttpApiContainerWorkloadIntegration = ({
 };
 
 const getServiceDiscoveryEcsService = () => {
-  return new ServiceDiscoveryService({
+  return cfnResource('AWS::ServiceDiscovery::Service', {
     // Name: awsResourceNames.serviceDiscoveryEcsService(calculatedStackOverviewManager.context.stackName, workloadName, targetContainerPort),
     DnsConfig: {
       RoutingPolicy: 'MULTIVALUE',
@@ -197,6 +196,6 @@ const getServiceDiscoveryEcsService = () => {
     HealthCheckCustomConfig: {
       FailureThreshold: 1
     },
-    NamespaceId: Ref(cfLogicalNames.serviceDiscoveryPrivateNamespace())
+    NamespaceId: ref(cfLogicalNames.serviceDiscoveryPrivateNamespace())
   });
 };

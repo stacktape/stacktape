@@ -1,13 +1,12 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref, select, split } from '@stacktape/cloudformation/intrinsics';
 import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
-import { GetAtt, Ref, Select, Split } from '@cloudform/functions';
-import LambdaPermission from '@cloudform/lambda/permission';
-import SubscriptionFilter from '@cloudform/logs/subscriptionFilter';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { CloudwatchLogIntegration, CloudwatchLogIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
@@ -18,7 +17,7 @@ export const resolveCloudWatchLogEvents = ({
   lambdaFunction: StpLambdaFunction | StpHelperLambdaFunction;
 }): StpIamRoleStatement[] => {
   const { name, cfLogicalName, aliasLogicalName, events, nameChain } = lambdaFunction;
-  const lambdaEndpointArn = aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn');
+  const lambdaEndpointArn = aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn');
   (events || []).forEach((event: CloudwatchLogIntegration, index) => {
     if (event.type === 'cloudwatch-log') {
       calculatedStackOverviewManager.addCfChildResource({
@@ -49,13 +48,13 @@ const getSubscriptionFilter = ({
   eventDetail,
   eventIndex
 }: {
-  lambdaEndpointArn: string | IntrinsicFunction;
+  lambdaEndpointArn: string | Intrinsic;
   workloadName: string;
   eventDetail: CloudwatchLogIntegrationProps;
   eventIndex: number;
 }) => {
-  const resource = new SubscriptionFilter({
-    LogGroupName: Select(6, Split(':', eventDetail.logGroupArn)), // eventDetail.logGroupName,
+  const resource = cfnResource('AWS::Logs::SubscriptionFilter', {
+    LogGroupName: select(6, split(':', eventDetail.logGroupArn)), // eventDetail.logGroupName,
     FilterPattern: eventDetail.filter || '',
     DestinationArn: lambdaEndpointArn
   });
@@ -67,10 +66,10 @@ const getLogServiceLambdaPermission = ({
   lambdaEndpointArn,
   logGroupArn
 }: {
-  lambdaEndpointArn: string | IntrinsicFunction;
+  lambdaEndpointArn: string | Intrinsic;
   logGroupArn: string;
 }) => {
-  return new LambdaPermission({
+  return cfnResource('AWS::Lambda::Permission', {
     Action: 'lambda:InvokeFunction',
     Principal: `logs.${calculatedStackOverviewManager.context.region}.amazonaws.com`,
     FunctionName: lambdaEndpointArn,

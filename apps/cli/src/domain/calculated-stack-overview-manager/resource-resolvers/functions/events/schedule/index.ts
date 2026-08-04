@@ -1,9 +1,11 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import type { InputTransformer, RuleProperties, Target } from '@stacktape/cloudformation/resources/aws-events-rule';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type {
   StpHelperLambdaFunction,
   StpLambdaFunction
 } from '@domain-services/config-manager/resolved-types/functions';
-import EventBridgeRule from '@cloudform/events/rule';
-import { GetAtt, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
@@ -13,7 +15,6 @@ import { isValidJson } from '@utils/misc';
 import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
 import { CliError } from '@utils/errors';
 import { getEventBusRuleLambdaPermission, validateScheduleSyntax } from '../utils';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { ScheduleIntegration, ScheduleIntegrationProps } from '@stacktape/config/events';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 
@@ -23,7 +24,7 @@ export const resolveScheduledEvents = ({
   lambdaFunction: StpLambdaFunction | StpHelperLambdaFunction;
 }): StpIamRoleStatement[] => {
   const { name, cfLogicalName, aliasLogicalName, events, nameChain } = lambdaFunction;
-  const lambdaEndpointArn = aliasLogicalName ? Ref(aliasLogicalName) : GetAtt(cfLogicalName, 'Arn');
+  const lambdaEndpointArn = aliasLogicalName ? ref(aliasLogicalName) : getAtt(cfLogicalName, 'Arn');
 
   (events || []).forEach((event: ScheduleIntegration, index) => {
     if (event.type === 'schedule') {
@@ -42,7 +43,7 @@ export const resolveScheduledEvents = ({
         nameChain,
         resource: getEventBusRuleLambdaPermission({
           lambdaEndpointArn,
-          eventBusRuleArn: GetAtt(cfLogicalNames.eventBusRule(name, index), 'Arn')
+          eventBusRuleArn: getAtt(cfLogicalNames.eventBusRule(name, index), 'Arn')
         })
       });
     }
@@ -57,7 +58,7 @@ export const getScheduleEventRule = ({
   eventDetails
 }: {
   workloadName: string;
-  lambdaEndpointArn: string | IntrinsicFunction;
+  lambdaEndpointArn: string | Intrinsic;
   eventIndex: number;
   eventDetails: ScheduleIntegrationProps;
 }) => {
@@ -96,13 +97,15 @@ export const getScheduleEventRule = ({
 
   if (eventDetails.input || eventDetails.inputTransformer) {
     templateManager.addFinalTemplateOverrideFn(async (template) => {
-      const ruleTarget =
-        template.Resources[cfLogicalNames.eventBusRule(workloadName, eventIndex)].Properties.Targets[0];
+      const ruleProperties = template.Resources[cfLogicalNames.eventBusRule(workloadName, eventIndex)]
+        .Properties as RuleProperties;
+      const ruleTarget = (ruleProperties.Targets as Target[])[0];
 
       if (ruleTarget.InputTransformer) {
-        ruleTarget.InputTransformer.InputTemplate = transformIntoCloudformationSubstitutedString(
+        const inputTransformer = ruleTarget.InputTransformer as InputTransformer;
+        inputTransformer.InputTemplate = transformIntoCloudformationSubstitutedString(
           await configManager.resolveDirectives({
-            itemToResolve: JSON.parse(ruleTarget.InputTransformer.InputTemplate),
+            itemToResolve: JSON.parse(inputTransformer.InputTemplate as string),
             resolveRuntime: true
           })
         );
@@ -110,7 +113,7 @@ export const getScheduleEventRule = ({
       if (ruleTarget.Input) {
         ruleTarget.Input = transformIntoCloudformationSubstitutedString(
           await configManager.resolveDirectives({
-            itemToResolve: JSON.parse(ruleTarget.Input),
+            itemToResolve: JSON.parse(ruleTarget.Input as string),
             resolveRuntime: true
           })
         );
@@ -118,7 +121,7 @@ export const getScheduleEventRule = ({
     });
   }
 
-  return new EventBridgeRule({
+  return cfnResource('AWS::Events::Rule', {
     State: 'ENABLED',
     ScheduleExpression: eventDetails.scheduleRate,
     // Description: eventDetails.description,

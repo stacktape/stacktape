@@ -1,7 +1,7 @@
+import { ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
 import type { Subnet, Vpc } from '@aws-sdk/client-ec2';
 import { eventManager } from '@application-services/event-manager';
-import { Ref } from '@cloudform/functions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getStackName } from '@stacktape/naming/stacks';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
@@ -178,7 +178,7 @@ export class VpcManager {
     if (this.#vpc?.VpcId) {
       return this.#vpc.VpcId;
     }
-    return Ref(cfLogicalNames.vpc());
+    return ref(cfLogicalNames.vpc());
   };
 
   getVpcCidr = () => {
@@ -193,9 +193,9 @@ export class VpcManager {
       return this.#publicSubnets.map((subnetDetails) => subnetDetails.subnet.SubnetId!);
     }
     return [
-      Ref(cfLogicalNames.subnet(true, 0)),
-      Ref(cfLogicalNames.subnet(true, 1)),
-      Ref(cfLogicalNames.subnet(true, 2))
+      ref(cfLogicalNames.subnet(true, 0)),
+      ref(cfLogicalNames.subnet(true, 1)),
+      ref(cfLogicalNames.subnet(true, 2))
     ];
   };
 
@@ -204,9 +204,9 @@ export class VpcManager {
       return this.#privateSubnets.map((subnetDetails) => subnetDetails.subnet.SubnetId!);
     }
     return [
-      Ref(cfLogicalNames.subnet(false, 0)),
-      Ref(cfLogicalNames.subnet(false, 1)),
-      Ref(cfLogicalNames.subnet(false, 2))
+      ref(cfLogicalNames.subnet(false, 0)),
+      ref(cfLogicalNames.subnet(false, 1)),
+      ref(cfLogicalNames.subnet(false, 2))
     ];
   };
 }

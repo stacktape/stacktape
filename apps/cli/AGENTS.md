@@ -86,11 +86,11 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   modules with explicit exports and imports; application types must not be added to the global namespace.
 - `src/environment.d.ts` — asset-module declarations required by the bundler. Ambient declarations are limited to
   environment and third-party module shims such as `src/aws/s3-sync/streamsink.d.ts`.
-- `@generated/` — committed generated data (CloudFormation types, config validators, LLM docs, price tables). The
+- `@generated/` — committed generated data (config validators, LLM docs, price tables and AWS catalogs). The
   canonical config JSON schema lives with its model at `packages/config/generated/config-schema.json`. Never
   hand-edit; regenerate with the matching task. The main CLI project excludes this directory, so
-  `@generated/tsconfig.json` owns both CloudFormation trees and the generated Zod validator
-  (`test:generated-types`). `generate-schemas.ts` owns only `@generated/schemas/validate-config-zod.ts` and preserves
+  `@generated/tsconfig.json` owns the generated Zod validator (`test:generated-types`).
+  `generate-schemas.ts` owns only `@generated/schemas/validate-config-zod.ts` and preserves
   separately generated schema variants in that directory. `generate:llm-docs` owns the enhanced documentation schema,
   `@generated/schemas/api-reference-data.json`, and the complete `@generated/llm-docs` tree; it reads canonical data
   from `apps/docs` plus the current config model, stages the corpus before replacement, and has a separate Turbo cache
@@ -101,10 +101,12 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   already renders into the corpus, published so `apps/docs` can render the same data instead of keeping a second copy
   of the extractor — a copy that in practice diverged and stopped decoding HTML entities. Change the normalization
   here, never in a consumer. AWS
-  prices, CloudFormation resource types and RDS versions are exported through explicit
+  prices, CloudFormation resource-type catalogs and RDS versions are exported through explicit
   `@stacktape/cli/catalogs/*.json` subpaths so Console does not keep application-local copies. Those generators read
-  live upstream data, as do `gen:cloudform` and `gen:cf:types`, and have no pinned input; regenerate deliberately
-  rather than as a side effect of an unrelated change.
+  live upstream data and have no pinned input; regenerate deliberately rather than as a side effect of an unrelated
+  change. Typed CloudFormation resources and intrinsics live in `@stacktape/cloudformation`; its committed output is
+  generated deterministically from an exactly pinned AWS CDK service specification by its ordinary Turbo `generate`
+  task and checked by `generate:check`.
   Config-schema source discovery sorts normalized relative paths before constructing the TypeScript program; changing
   that ordering requires proving byte-identical generation on both Windows and Linux.
 - The live AWS Pricing CSV parser and product catalog definitions used by `gen:price:info` live in
@@ -163,10 +165,10 @@ pnpm --filter @stacktape/cli run typecheck       # CLI, build/test projects, smo
 pnpm --filter @stacktape/cli run test            # complete source suite, characterization, generators, release/security checks, helper Lambdas, CLI smoke
 pnpm --filter @stacktape/cli run test:src        # all colocated source tests, isolated per file to contain Bun module mocks
 pnpm --filter @stacktape/cli run test:config-unit # authored-config npm API and directive-resolution unit tests
-pnpm --filter @stacktape/cli run test:generators      # generator unit tests: JSDoc escaping, cloudform naming/generics
+pnpm --filter @stacktape/cli run test:generators      # generator unit tests: declarations, JSDoc, schema and metadata
 pnpm --filter @stacktape/cli run test:llm-docs        # corpus integrity and documented runtime safety invariants
 pnpm --filter @stacktape/cli run test:starter-projects # config-name restoration and source-template invariants
-pnpm --filter @stacktape/cli run test:generated-types # type-checks committed CloudFormation and schema TypeScript
+pnpm --filter @stacktape/cli run test:generated-types # type-checks the committed generated schema validator
 pnpm --filter @stacktape/cli run test:docker-secrets # proves registry password, build-arg and container-env values never reach Docker's argv
 pnpm --filter @stacktape/cli run test:cli-smoke # compiles the binary and runs `--version` and `--help`
 pnpm --filter @stacktape/cli run test:release-artifact

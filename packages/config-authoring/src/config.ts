@@ -4,6 +4,7 @@ import type { AlarmDefinitionBase, AlarmTrigger } from '@stacktape/config/alarms
 import type { StacktapeConfig } from '@stacktape/config';
 import type { StacktapeResourceType } from '@stacktape/config/schema-inspection';
 import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 
 // Private symbols for internal methods - not accessible from outside
 // Use Symbol.for() so it can be accessed across modules (crucial for npm package interop)
@@ -276,24 +277,7 @@ export type ResourceTransform = (
   properties: Record<string, unknown>
 ) => Partial<Record<string, unknown>> | Record<string, unknown>;
 
-export type CloudFormationTemplateResource = {
-  Type?: string;
-  Properties?: Record<string, unknown>;
-  [attribute: string]: unknown;
-};
-
-export type CloudFormationTemplate = {
-  AWSTemplateFormatVersion?: string;
-  Description?: string;
-  Metadata?: Record<string, unknown>;
-  Transform?: string | string[];
-  Parameters?: Record<string, unknown>;
-  Mappings?: Record<string, unknown>;
-  Conditions?: Record<string, unknown>;
-  Resources: Record<string, CloudFormationTemplateResource>;
-  Outputs?: Record<string, { Value: unknown; Description?: unknown; Export?: unknown }>;
-  Hooks?: Record<string, unknown>;
-};
+export type { CloudFormationTemplate };
 
 export type FinalTransform = <Template extends CloudFormationTemplate>(template: Template) => Template;
 

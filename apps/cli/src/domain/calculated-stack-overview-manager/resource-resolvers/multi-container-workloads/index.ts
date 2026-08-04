@@ -1,9 +1,12 @@
+import type {
+  ContainerDefinition,
+  KeyValuePair,
+  LogConfiguration,
+  TaskDefinitionProperties
+} from '@stacktape/cloudformation/resources/aws-ecs-taskdefinition';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
-import type { ContainerDefinition, KeyValuePair, TaskDefinitionProperties } from '@cloudform/ecs/taskDefinition';
-import Application from '@cloudform/codeDeploy/application';
-import { GetAtt, Ref } from '@cloudform/functions';
-import LambdaPermission from '@cloudform/lambda/permission';
-import SubscriptionFilter from '@cloudform/logs/subscriptionFilter';
 import { defaultLogRetentionDays } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -186,7 +189,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
       calculatedStackOverviewManager.addCfChildResource({
         nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
         cfLogicalName: cfLogicalNames.ecsCodeDeployApp(),
-        resource: new Application({
+        resource: cfnResource('AWS::CodeDeploy::Application', {
           ApplicationName: awsResourceNames.ecsCodeDeployApp(calculatedStackOverviewManager.context.stackName),
           ComputePlatform: 'ECS'
         })
@@ -232,8 +235,8 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
     linkName: 'metrics',
     nameChain,
     linkValue: cfEvaluatedLinks.ecsMonitoring(
-      Ref(cfLogicalNames.ecsCluster(definition.name)),
-      GetAtt(cfLogicalNames.ecsService(definition.name, isBlueGreen), 'Name')
+      ref(cfLogicalNames.ecsCluster(definition.name)),
+      getAtt(cfLogicalNames.ecsService(definition.name, isBlueGreen), 'Name')
     )
   });
   definition.containers.forEach(({ name: containerName, logging, volumeMounts, packaging: containerPackaging }) => {
@@ -287,7 +290,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
         isStpManagedPackaging &&
         !hasContainerLogForwarding
       ) {
-        const serviceLambdaArn = GetAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn');
+        const serviceLambdaArn = getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn');
         const filterLogicalName = cfLogicalNames.issueDetectionSubscriptionFilter(
           `${definition.name}-${containerName}`
         );
@@ -297,17 +300,17 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
           calculatedStackOverviewManager.addCfChildResource({
             cfLogicalName: permissionLogicalName,
             nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL, 'stacktapeServiceLambda'],
-            resource: new LambdaPermission({
+            resource: cfnResource('AWS::Lambda::Permission', {
               Action: 'lambda:InvokeFunction',
               Principal: `logs.${calculatedStackOverviewManager.context.region}.amazonaws.com`,
               FunctionName: serviceLambdaArn,
-              SourceAccount: Ref('AWS::AccountId')
+              SourceAccount: ref('AWS::AccountId')
             })
           });
         }
 
         const containerLogGroupLogicalName = cfLogicalNames.ecsLogGroup(definition.name, containerName);
-        const subscriptionFilterResource = new SubscriptionFilter({
+        const subscriptionFilterResource = cfnResource('AWS::Logs::SubscriptionFilter', {
           LogGroupName: awsResourceNames.containerLogGroup({
             stackName: calculatedStackOverviewManager.context.stackName,
             stpResourceName: definition.name,
@@ -416,11 +419,12 @@ export const getTaskDefinitionTemplateOverrideFns = ({
         }
         if (hotSwapDeploy) {
           // we also substitute log group name with actual name
-          containerDef.LogConfiguration.Options['awslogs-group'] = awsResourceNames.containerLogGroup({
-            stackName: calculatedStackOverviewManager.context.stackName,
-            stpResourceName: resource.name,
-            containerName: containerDef.Name as string
-          });
+          (containerDef.LogConfiguration as LogConfiguration).Options['awslogs-group'] =
+            awsResourceNames.containerLogGroup({
+              stackName: calculatedStackOverviewManager.context.stackName,
+              stpResourceName: resource.name,
+              containerName: containerDef.Name as string
+            });
         }
       });
     },

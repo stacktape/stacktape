@@ -1,7 +1,7 @@
 import type { CloudformationTag, EnvironmentVar, ResourceAccessProps, ResourceOverrides } from './shared';
 import type { LambdaAlarm } from './alarms';
 import type { CdnConfiguration } from './cdn';
-import type { IntrinsicFunction } from './cloudformation';
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
 import type { LambdaPackaging } from './deployment-artifacts';
 import type { AlarmIntegration, ApplicationLoadBalancerIntegration, CloudwatchLogIntegration, DynamoDbIntegration, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration } from './events';
 import type { HttpMethod } from './http-api-gateways';
@@ -2444,7 +2444,7 @@ export interface LambdaS3FilesMountProps {
    * });
    * ```
    */
-  accessPointArn: string | IntrinsicFunction;
+  accessPointArn: string | Intrinsic;
 
   /**
    * #### Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/s3data`).

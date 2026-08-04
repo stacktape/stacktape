@@ -1,5 +1,6 @@
+import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
+import { getAtt, join, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
-import { GetAtt, Join, Ref } from '@cloudform/functions';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { templateManager } from '@domain-services/template-manager';
@@ -31,7 +32,6 @@ import {
   resolveDatabasePort,
   validateEngineVersion
 } from './utils';
-import type { IntrinsicFunction } from '@stacktape/config/cloudformation';
 import type { RdsEngine } from '@stacktape/config/relational-databases';
 
 export const resolveDatabases = async () => {
@@ -66,7 +66,7 @@ export const resolveDatabases = async () => {
       linkName: 'metrics',
       nameChain,
       linkValue: cfEvaluatedLinks.relationalDatabase(
-        auroraCluster ? Ref(cfLogicalNames.auroraDbCluster(name)) : Ref(cfLogicalNames.dbInstance(name)),
+        auroraCluster ? ref(cfLogicalNames.auroraDbCluster(name)) : ref(cfLogicalNames.dbInstance(name)),
         auroraCluster,
         'monitoring'
       )
@@ -117,14 +117,14 @@ export const resolveDatabases = async () => {
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'host',
-        paramValue: GetAtt(cfLogicalNames.auroraDbCluster(name), 'Endpoint.Address'),
+        paramValue: getAtt(cfLogicalNames.auroraDbCluster(name), 'Endpoint.Address'),
         nameChain,
         showDuringPrint: false
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'connectionString',
         paramValue: getDatabaseConnectionString({
-          host: GetAtt(cfLogicalNames.auroraDbCluster(name), 'Endpoint.Address'),
+          host: getAtt(cfLogicalNames.auroraDbCluster(name), 'Endpoint.Address'),
           definition
         }),
         nameChain,
@@ -134,7 +134,7 @@ export const resolveDatabases = async () => {
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'jdbcConnectionString',
         paramValue: getJdbcDatabaseConnectionString({
-          host: GetAtt(cfLogicalNames.auroraDbCluster(name), 'Endpoint.Address'),
+          host: getAtt(cfLogicalNames.auroraDbCluster(name), 'Endpoint.Address'),
           definition
         }),
         nameChain,
@@ -164,10 +164,10 @@ export const resolveDatabases = async () => {
           calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
             nameChain,
             paramName: 'hosts',
-            paramValue: Join(
+            paramValue: join(
               ',',
               definition.engine.properties.instances.map((_, index) =>
-                GetAtt(cfLogicalNames.auroraDbInstance(name, index), 'Endpoint.Address')
+                getAtt(cfLogicalNames.auroraDbInstance(name, index), 'Endpoint.Address')
               )
             ),
 
@@ -196,10 +196,10 @@ export const resolveDatabases = async () => {
           calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
             nameChain,
             paramName: 'hosts',
-            paramValue: Join(
+            paramValue: join(
               ',',
               instanceIndexes.map((instanceNum) =>
-                GetAtt(cfLogicalNames.auroraDbInstance(name, instanceNum), 'Endpoint.Address')
+                getAtt(cfLogicalNames.auroraDbInstance(name, instanceNum), 'Endpoint.Address')
               )
             ),
             showDuringPrint: false
@@ -212,14 +212,14 @@ export const resolveDatabases = async () => {
         });
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'readerHost',
-          paramValue: GetAtt(cfLogicalNames.auroraDbCluster(name), 'ReadEndpoint.Address'),
+          paramValue: getAtt(cfLogicalNames.auroraDbCluster(name), 'ReadEndpoint.Address'),
           nameChain,
           showDuringPrint: false
         });
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'readerConnectionString',
           paramValue: getDatabaseConnectionString({
-            host: GetAtt(cfLogicalNames.auroraDbCluster(name), 'ReadEndpoint.Address'),
+            host: getAtt(cfLogicalNames.auroraDbCluster(name), 'ReadEndpoint.Address'),
             definition
           }),
           nameChain,
@@ -235,7 +235,7 @@ export const resolveDatabases = async () => {
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           paramName: 'readerJdbcConnectionString',
           paramValue: getJdbcDatabaseConnectionString({
-            host: GetAtt(cfLogicalNames.auroraDbCluster(name), 'ReadEndpoint.Address'),
+            host: getAtt(cfLogicalNames.auroraDbCluster(name), 'ReadEndpoint.Address'),
             definition
           }),
           nameChain,
@@ -315,14 +315,14 @@ export const resolveDatabases = async () => {
       }
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'host',
-        paramValue: GetAtt(cfLogicalNames.dbInstance(name), 'Endpoint.Address'),
+        paramValue: getAtt(cfLogicalNames.dbInstance(name), 'Endpoint.Address'),
         nameChain,
         showDuringPrint: false
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'connectionString',
         paramValue: getDatabaseConnectionString({
-          host: GetAtt(cfLogicalNames.dbInstance(name), 'Endpoint.Address'),
+          host: getAtt(cfLogicalNames.dbInstance(name), 'Endpoint.Address'),
           definition
         }),
         nameChain,
@@ -332,7 +332,7 @@ export const resolveDatabases = async () => {
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'jdbcConnectionString',
         paramValue: getJdbcDatabaseConnectionString({
-          host: GetAtt(cfLogicalNames.dbInstance(name), 'Endpoint.Address'),
+          host: getAtt(cfLogicalNames.dbInstance(name), 'Endpoint.Address'),
           definition
         }),
         nameChain,
@@ -345,7 +345,7 @@ export const resolveDatabases = async () => {
         resource: getDbInstanceParameterGroup({ stpResourceName: name, resource: definition, instanceSize })
       });
       if ((definition.engine as RdsEngine).properties?.readReplicas?.length) {
-        const readReplicaHosts: IntrinsicFunction[] = [];
+        const readReplicaHosts: Intrinsic[] = [];
         if (!replicaEnabledEngineTypes.includes(definition.engine.type)) {
           throw new ExpectedError(
             'CONFIG_VALIDATION',
@@ -388,13 +388,13 @@ export const resolveDatabases = async () => {
                 nameChain
               });
             });
-            readReplicaHosts.push(GetAtt(cfLogicalNames.dbReplica(name, index), 'Endpoint.Address'));
+            readReplicaHosts.push(getAtt(cfLogicalNames.dbReplica(name, index), 'Endpoint.Address'));
             // adding monitoring and log links for replica
             calculatedStackOverviewManager.addStacktapeResourceLink({
               linkName: `metrics-replica-${index}`,
               nameChain,
               linkValue: cfEvaluatedLinks.relationalDatabase(
-                Ref(cfLogicalNames.dbReplica(name, index)),
+                ref(cfLogicalNames.dbReplica(name, index)),
                 false,
                 'monitoring'
               )
@@ -410,13 +410,13 @@ export const resolveDatabases = async () => {
         if (readReplicaHosts.length) {
           calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
             paramName: 'readReplicaHosts',
-            paramValue: Join(',', readReplicaHosts),
+            paramValue: join(',', readReplicaHosts),
             nameChain,
             showDuringPrint: false
           });
           calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
             paramName: 'readReplicaConnectionStrings',
-            paramValue: Join(
+            paramValue: join(
               ',',
               readReplicaHosts.map((replicaHost) =>
                 getDatabaseConnectionString({
@@ -431,7 +431,7 @@ export const resolveDatabases = async () => {
           });
           calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
             paramName: 'readReplicaJdbcConnectionStrings',
-            paramValue: Join(
+            paramValue: join(
               ',',
               readReplicaHosts.map((replicaHost) =>
                 getJdbcDatabaseConnectionString({

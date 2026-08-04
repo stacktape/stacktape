@@ -1,4 +1,5 @@
-import { GetAtt, Join } from '@cloudform/functions';
+import { getAtt, join } from '@stacktape/cloudformation/intrinsics';
+
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { filterResourcesForDevMode } from '../../../../commands/dev/dev-resource-filter';
@@ -30,8 +31,8 @@ export const resolvePrivateServices = async () => {
         calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
           nameChain: loadBalancer.nameChain,
           paramName: 'address',
-          paramValue: Join(':', [
-            GetAtt(cfLogicalNames.loadBalancer(loadBalancer.name), 'DNSName'),
+          paramValue: join(':', [
+            getAtt(cfLogicalNames.loadBalancer(loadBalancer.name), 'DNSName'),
             `${loadBalancer.listeners[0].port}`
           ]),
           showDuringPrint: true

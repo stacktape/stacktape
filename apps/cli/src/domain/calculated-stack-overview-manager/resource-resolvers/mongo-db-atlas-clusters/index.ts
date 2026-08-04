@@ -1,4 +1,5 @@
-import { GetAtt, Ref, Sub } from '@cloudform/functions';
+import { getAtt, ref, sub } from '@stacktape/cloudformation/intrinsics';
+
 import { SUPPORTED_CF_INFRASTRUCTURE_MODULES } from '@config';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -128,15 +129,15 @@ export const resolveAtlasMongoClusters = async () => {
       calculatedStackOverviewManager.addStacktapeResourceLink({
         linkName: 'metrics',
         nameChain,
-        linkValue: Sub(
+        linkValue: sub(
           `https://cloud.mongodb.com/v2/\${project_id}#clusters/detail/${awsResourceNames.atlasMongoCluster(name)}`,
-          { project_id: Ref(cfLogicalNames.atlasMongoProject()) }
+          { project_id: ref(cfLogicalNames.atlasMongoProject()) }
         )
       });
       calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
         paramName: 'connectionString',
         nameChain,
-        paramValue: GetAtt(cfLogicalNames.atlasMongoCluster(name), 'SrvConnectionString'),
+        paramValue: getAtt(cfLogicalNames.atlasMongoCluster(name), 'SrvConnectionString'),
         showDuringPrint: true
       });
       if (definition.adminUserCredentials) {

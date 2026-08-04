@@ -19,7 +19,7 @@ describe('TemplateManager stack outputs', () => {
       });
     }).not.toThrow();
 
-    expect(manager.template.Outputs.StpStackInfoMap.Value).toEqual({
+    expect(manager.template.Outputs.StpStackInfoMap.Value as unknown).toEqual({
       metadata: { second: true },
       resources: {},
       customOutputs: {}

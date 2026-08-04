@@ -1,11 +1,9 @@
+import type { ClusterConfig, DomainProperties } from '@stacktape/cloudformation/resources/aws-opensearchservice-domain';
+import type { Ingress } from '@stacktape/cloudformation/resources/aws-ec2-securitygroup';
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpOpenSearchDomain } from '@domain-services/config-manager/resolved-types/open-search';
-import type { Ingress } from '@cloudform/ec2/securityGroup';
-import type { DomainProperties } from '@cloudform/openSearchService/domain';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
-import SecurityGroup from '@cloudform/ec2/securityGroup';
-import { GetAtt, Ref } from '@cloudform/functions';
-import LogGroup from '@cloudform/logs/logGroup';
-import Domain from '@cloudform/openSearchService/domain';
 import { getConnectToReferencesForResource } from '@domain-services/config-manager/utils/resource-references';
 import { resolveReferenceToUserPool } from '@domain-services/config-manager/utils/user-pools';
 import { ec2Manager } from '@domain-services/ec2-manager';
@@ -13,33 +11,35 @@ import { vpcManager } from '@domain-services/vpc-manager';
 import { stpErrors } from '@errors';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { getCloudFormationLogRetentionDays } from '@utils/cloudformation';
 
 export const getOpenSearchDomainResource = ({ resource }: { resource: StpOpenSearchDomain }) => {
+  const clusterConfig: ClusterConfig = {
+    InstanceType: resource.clusterConfig?.instanceType,
+    InstanceCount: resource.clusterConfig?.instanceCount
+  };
   const input: DomainProperties = {
     DomainName: awsResourceNames.openSearchDomainName(resource.name, calculatedStackOverviewManager.context.stackName),
-    ClusterConfig: {
-      InstanceType: resource.clusterConfig?.instanceType,
-      InstanceCount: resource.clusterConfig?.instanceCount
-    }
+    ClusterConfig: clusterConfig
   };
   if (resource.clusterConfig?.dedicatedMasterCount > 0) {
-    input.ClusterConfig.DedicatedMasterEnabled = true;
-    input.ClusterConfig.DedicatedMasterCount = resource.clusterConfig.dedicatedMasterCount;
-    input.ClusterConfig.DedicatedMasterType = resource.clusterConfig.dedicatedMasterType;
+    clusterConfig.DedicatedMasterEnabled = true;
+    clusterConfig.DedicatedMasterCount = resource.clusterConfig.dedicatedMasterCount;
+    clusterConfig.DedicatedMasterType = resource.clusterConfig.dedicatedMasterType;
   }
   if (resource.clusterConfig?.warmCount > 0) {
-    input.ClusterConfig.WarmEnabled = true;
-    input.ClusterConfig.WarmCount = resource.clusterConfig.warmCount;
-    input.ClusterConfig.WarmType = resource.clusterConfig.warmType;
+    clusterConfig.WarmEnabled = true;
+    clusterConfig.WarmCount = resource.clusterConfig.warmCount;
+    clusterConfig.WarmType = resource.clusterConfig.warmType;
   }
   if (!resource.clusterConfig?.multiAzDisabled && resource.clusterConfig?.instanceCount > 1) {
-    input.ClusterConfig.ZoneAwarenessEnabled = true;
-    input.ClusterConfig.ZoneAwarenessConfig = {
+    clusterConfig.ZoneAwarenessEnabled = true;
+    clusterConfig.ZoneAwarenessConfig = {
       AvailabilityZoneCount: resource.clusterConfig?.instanceCount === 2 ? 2 : 3
     };
   }
   if (resource.clusterConfig?.standbyEnabled) {
-    input.ClusterConfig.MultiAZWithStandbyEnabled = true;
+    clusterConfig.MultiAZWithStandbyEnabled = true;
   }
   // if (resource.storage) {
   const instanceTypesUsed = [
@@ -53,7 +53,7 @@ export const getOpenSearchDomainResource = ({ resource }: { resource: StpOpenSea
     resource.accessibility?.accessibilityMode === 'scoping-workloads-in-vpc'
   ) {
     input.VPCOptions = {
-      SecurityGroupIds: [Ref(cfLogicalNames.openSearchSecurityGroup(resource.name))],
+      SecurityGroupIds: [ref(cfLogicalNames.openSearchSecurityGroup(resource.name))],
       SubnetIds: vpcManager.getPublicSubnetIds().slice(0, resource.clusterConfig?.instanceCount || 1)
     };
   }
@@ -88,7 +88,7 @@ export const getOpenSearchDomainResource = ({ resource }: { resource: StpOpenSea
     input.LogPublishingOptions = {
       INDEX_SLOW_LOGS: {
         Enabled: true,
-        CloudWatchLogsLogGroupArn: GetAtt(
+        CloudWatchLogsLogGroupArn: getAtt(
           cfLogicalNames.openSearchDomainLogGroup(resource.name, 'indexSlowLogs'),
           'Arn'
         )
@@ -99,7 +99,7 @@ export const getOpenSearchDomainResource = ({ resource }: { resource: StpOpenSea
     input.LogPublishingOptions = {
       SEARCH_SLOW_LOGS: {
         Enabled: true,
-        CloudWatchLogsLogGroupArn: GetAtt(
+        CloudWatchLogsLogGroupArn: getAtt(
           cfLogicalNames.openSearchDomainLogGroup(resource.name, 'searchSlowLogs'),
           'Arn'
         )
@@ -110,7 +110,7 @@ export const getOpenSearchDomainResource = ({ resource }: { resource: StpOpenSea
     input.LogPublishingOptions = {
       ES_APPLICATION_LOGS: {
         Enabled: true,
-        CloudWatchLogsLogGroupArn: GetAtt(cfLogicalNames.openSearchDomainLogGroup(resource.name, 'errorLogs'), 'Arn')
+        CloudWatchLogsLogGroupArn: getAtt(cfLogicalNames.openSearchDomainLogGroup(resource.name, 'errorLogs'), 'Arn')
       }
     };
   }
@@ -124,11 +124,11 @@ export const getOpenSearchDomainResource = ({ resource }: { resource: StpOpenSea
     });
     input.CognitoOptions = {
       Enabled: true,
-      UserPoolId: Ref(cfLogicalNames.userPool(resource.userPool)),
+      UserPoolId: ref(cfLogicalNames.userPool(resource.userPool)),
       RoleArn: 'arn:aws:iam::aws:policy/AmazonOpenSearchServiceCognitoAccess'
     };
   }
-  return new Domain(input);
+  return cfnResource('AWS::OpenSearchService::Domain', input);
 };
 
 export const getOpenSearchDomainLogGroup = ({
@@ -144,9 +144,9 @@ export const getOpenSearchDomainLogGroup = ({
   region: string;
   stackName: string;
 }) => {
-  return new LogGroup({
+  return cfnResource('AWS::Logs::LogGroup', {
     LogGroupName: awsResourceNames.openSearchLogGroup(domainName, logGroupType, region, stackName),
-    RetentionInDays: retentionDays
+    RetentionInDays: getCloudFormationLogRetentionDays(retentionDays)
   });
 };
 
@@ -157,14 +157,14 @@ export const getOpenSearchDomainSecurityGroup = ({ resource }: { resource: StpOp
       : resource.accessibility.accessibilityMode === 'scoping-workloads-in-vpc'
         ? getConnectToReferencesForResource({ nameChain: resource.nameChain }).map(
             ({ scopingCfLogicalNameOfSecurityGroup }) => ({
-              SourceSecurityGroupId: Ref(scopingCfLogicalNameOfSecurityGroup),
+              SourceSecurityGroupId: ref(scopingCfLogicalNameOfSecurityGroup),
               FromPort: 443,
               ToPort: 443,
               IpProtocol: 'tcp'
             })
           ) || []
         : [];
-  return new SecurityGroup({
+  return cfnResource('AWS::EC2::SecurityGroup', {
     VpcId: vpcManager.getVpcId(),
     GroupName: awsResourceNames.dbSecurityGroup(resource.name, calculatedStackOverviewManager.context.stackName),
     GroupDescription: `Stacktape generated security group for database ${resource.name} in stack ${calculatedStackOverviewManager.context.stackName}`,

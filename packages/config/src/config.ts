@@ -1,5 +1,5 @@
 import type { BastionScript, DeploymentConfig, DirectiveDefinition, Hooks, LocalScript, LocalScriptWithBastionTunneling, StackConfig, StacktapeResourceDefinition } from './shared';
-import type { CloudformationResource } from './cloudformation';
+import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
 import type { MongoDbAtlasProvider, UpstashProvider } from './providers';
 export interface StacktapeConfig {
   /**
@@ -695,5 +695,5 @@ export interface StacktapeConfig {
    * });
    * ```
    */
-  cloudformationResources?: { [resourceName: string]: CloudformationResource };
+  cloudformationResources?: { [resourceName: string]: AnyCloudFormationResource };
 }

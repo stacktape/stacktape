@@ -1,26 +1,34 @@
-import type { CloudformationTemplate } from '@domain-services/cloudformation-stack-manager/types';
+import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
+import { isIntrinsic, sub, type CloudFormationValue, type Intrinsic } from '@stacktape/cloudformation/intrinsics';
+
 import type { StackResourceSummary } from '@aws-sdk/client-cloudformation';
-import type { Value } from '@cloudform/dataTypes';
-import { IntrinsicFunction } from '@cloudform/dataTypes';
-import { Sub } from '@cloudform/functions';
 import { serialize } from '@utils/misc';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 
-export const getCfEnvironment = (envVars: EnvironmentVar[]): { Name: string; Value: Value<string> }[] => {
+const ALLOWED_LOG_RETENTION_DAYS = [
+  1, 3, 5, 7, 14, 30, 60, 90, 120, 150, 180, 365, 400, 545, 731, 1096, 1827, 2192, 2557, 2922, 3288, 3653
+] as const;
+
+export const getCloudFormationLogRetentionDays = (retentionDays: number) => {
+  if (!(ALLOWED_LOG_RETENTION_DAYS as readonly number[]).includes(retentionDays)) {
+    throw new Error(
+      `Invalid CloudWatch Logs retention period ${retentionDays}. Allowed values: ${ALLOWED_LOG_RETENTION_DAYS.join(', ')}`
+    );
+  }
+  return retentionDays as (typeof ALLOWED_LOG_RETENTION_DAYS)[number];
+};
+
+export const getCfEnvironment = (envVars: EnvironmentVar[]): { Name: string; Value: CloudFormationValue<string> }[] => {
   return (envVars || []).map(({ name: envName, value: envValue }) => {
     // validateEnvVariableValue(envName, envValue);
     return {
       Name: envName,
-      Value: (isCloudformationFunction(envValue) ? envValue : `${envValue}`) as Value<string>
+      Value: (isIntrinsic(envValue) ? envValue : `${envValue}`) as CloudFormationValue<string>
     };
   });
 };
 
-export const SubWithoutMapping = (stringToSub: Value<string>) => {
-  return new IntrinsicFunction('Fn::Sub', stringToSub);
-};
-
-export const transformIntoCloudformationSubstitutedString = (value: any): IntrinsicFunction => {
+export const transformIntoCloudformationSubstitutedString = (value: any): Intrinsic => {
   let subNum = 0;
   const subs = {};
   const detectAndSubstituteCloudformationFunctions = (node: any) => {
@@ -28,7 +36,7 @@ export const transformIntoCloudformationSubstitutedString = (value: any): Intrin
       return node.map((nodeValue) => detectAndSubstituteCloudformationFunctions(nodeValue));
     }
     if (typeof node === 'object') {
-      if (isCloudformationFunction(node)) {
+      if (isIntrinsic(node)) {
         const currSubNum = subNum++;
         subs[`sub${currSubNum}`] = node;
         return `\${sub${currSubNum}}`;
@@ -42,9 +50,7 @@ export const transformIntoCloudformationSubstitutedString = (value: any): Intrin
     return node;
   };
   const substitutedStringifiedValue = JSON.stringify(detectAndSubstituteCloudformationFunctions(serialize(value))); // .replaceAll('"', '\\"');
-  return Object.keys(subs).length
-    ? Sub(substitutedStringifiedValue, subs)
-    : SubWithoutMapping(substitutedStringifiedValue);
+  return Object.keys(subs).length ? sub(substitutedStringifiedValue, subs) : sub(substitutedStringifiedValue);
 };
 
 export const replaceCloudformationRefFunctionsWithCfPhysicalIds = (
@@ -57,7 +63,7 @@ export const replaceCloudformationRefFunctionsWithCfPhysicalIds = (
     );
   }
   if (typeof node === 'object') {
-    if (isCloudformationRefFunction(node)) {
+    if (isIntrinsic(node) && 'Ref' in node) {
       const { PhysicalResourceId } = availableStackResources.find(
         ({ LogicalResourceId }) => LogicalResourceId === node.Ref
       );
@@ -72,45 +78,12 @@ export const replaceCloudformationRefFunctionsWithCfPhysicalIds = (
   return node;
 };
 
-export const isCloudformationFunction = (node: any) => {
-  const transformed = serialize(node);
-  const singleKey =
-    typeof transformed === 'object' && Object.keys(transformed).length === 1 && Object.keys(transformed)[0];
-  return singleKey && (singleKey.startsWith('Fn::') || singleKey === 'Ref');
-};
-
-export const normalizeCloudformationFunction = (node: any): any => {
-  if (Array.isArray(node)) {
-    return node.map((nodeValue) => normalizeCloudformationFunction(nodeValue));
-  }
-
-  if (node && typeof node === 'object') {
-    if (typeof node.name === 'string' && 'payload' in node && (node.name.startsWith('Fn::') || node.name === 'Ref')) {
-      return { [node.name]: normalizeCloudformationFunction(node.payload) };
-    }
-
-    if (isCloudformationFunction(node)) {
-      return serialize(node);
-    }
-
-    return Object.fromEntries(
-      Object.entries(node).map(([key, value]) => [key, normalizeCloudformationFunction(value)])
-    );
-  }
-
-  return node;
-};
-
-export const isCloudformationRefFunction = (node: any) => isCloudformationFunction(node) && node.Ref;
-
 export const getCloudformationReferencedParamOrResource = (
   referencedParamOrResource: string,
-  cloudformationTemplate: CloudformationTemplate
+  cloudformationTemplate: CloudFormationTemplate
 ) => {
   return (
     cloudformationTemplate.Resources?.[referencedParamOrResource] ||
     cloudformationTemplate.Parameters?.[referencedParamOrResource]
   );
 };
-
-export const isCloudformationGetAttFunction = (node: any) => isCloudformationFunction(node) && node['Fn::GetAtt'];

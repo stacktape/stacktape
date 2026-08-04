@@ -1,7 +1,6 @@
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
-import { GetAtt, Ref } from '@cloudform/functions';
-import SqsQueue from '@cloudform/sqs/queue';
-import QueuePolicy from '@cloudform/sqs/queuePolicy';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -37,7 +36,7 @@ export const resolveSqsQueue = ({ resource }: { resource: StpSqsQueue }) => {
   calculatedStackOverviewManager.addCfChildResource({
     nameChain: resource.nameChain,
     cfLogicalName: cfLogicalNames.sqsQueue(resource.name),
-    resource: new SqsQueue({
+    resource: cfnResource('AWS::SQS::Queue', {
       ContentBasedDeduplication: resource.contentBasedDeduplication,
       DelaySeconds: resource.delayMessagesSecond,
       MessageRetentionPeriod: resource.messageRetentionPeriodSeconds,
@@ -54,7 +53,7 @@ export const resolveSqsQueue = ({ resource }: { resource: StpSqsQueue }) => {
         ? {
             deadLetterTargetArn:
               resource.redrivePolicy.targetSqsQueueArn ||
-              GetAtt(cfLogicalNames.sqsQueue(resource.redrivePolicy.targetSqsQueueName), 'Arn'),
+              getAtt(cfLogicalNames.sqsQueue(resource.redrivePolicy.targetSqsQueueName), 'Arn'),
             maxReceiveCount: resource.redrivePolicy.maxReceiveCount
           }
         : undefined,
@@ -80,30 +79,30 @@ export const resolveSqsQueue = ({ resource }: { resource: StpSqsQueue }) => {
   calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
     paramName: 'arn',
     nameChain: resource.nameChain,
-    paramValue: GetAtt(cfLogicalNames.sqsQueue(resource.name), 'Arn')
+    paramValue: getAtt(cfLogicalNames.sqsQueue(resource.name), 'Arn')
   });
   calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
     paramName: 'url',
     nameChain: resource.nameChain,
-    paramValue: Ref(cfLogicalNames.sqsQueue(resource.name))
+    paramValue: ref(cfLogicalNames.sqsQueue(resource.name))
   });
   calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
     paramName: 'name',
     nameChain: resource.nameChain,
-    paramValue: GetAtt(cfLogicalNames.sqsQueue(resource.name), 'QueueName')
+    paramValue: getAtt(cfLogicalNames.sqsQueue(resource.name), 'QueueName')
   });
 
   const queuePolicyStatements = getAllQueuePolicyStatements({ resource });
   if (queuePolicyStatements.length) {
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.sqsQueuePolicy(resource.name),
-      resource: new QueuePolicy({
+      resource: cfnResource('AWS::SQS::QueuePolicy', {
         PolicyDocument: {
           Version: '2012-10-17',
           Id: 'queue-policy',
           Statement: queuePolicyStatements
         },
-        Queues: [Ref(cfLogicalNames.sqsQueue(resource.name))]
+        Queues: [ref(cfLogicalNames.sqsQueue(resource.name))]
       }),
       nameChain: resource.nameChain
     });

@@ -1,3 +1,5 @@
+import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpCfInfrastructureModuleType } from '@domain-services/cloudformation-registry-manager/types';
 import type { EnrichedBjContainerProps, EnrichedCwContainerProps } from '@domain-services/packaging-manager/types';
 import type { StpAlarmEnabledResource } from '@domain-services/config-manager/resolved-types/alarms';
@@ -39,7 +41,6 @@ import type { DefaultedResource, ResourceDefinitionOf, StacktapeResourceType } f
 import { isAbsolute, join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
-import { GetAtt, Ref } from '@cloudform/functions';
 import {
   getLambdaLogResourceArnsForPermissions,
   getLogGroupPolicyDocumentStatements
@@ -92,7 +93,6 @@ import type {
   CdnLambdaFunctionRoute,
   CdnLoadBalancerRoute
 } from '@stacktape/config/cdn';
-import type { CloudformationResource } from '@stacktape/config/cloudformation';
 import type {
   ContainerWorkloadHttpApiIntegration,
   ContainerWorkloadHttpApiIntegrationProps,
@@ -1247,7 +1247,7 @@ export class ConfigManager {
     });
   }
 
-  get cloudformationResources(): (CloudformationResource & { name: string })[] {
+  get cloudformationResources(): (AnyCloudFormationResource & { name: string })[] {
     return Object.entries(this.config?.cloudformationResources || {}).map(([name, definition]) => {
       return { name, ...definition };
     });
@@ -2134,7 +2134,7 @@ export class ConfigManager {
     return [].concat(
       this.atlasMongoClusters.length
         ? {
-            vpcPeeringConnectionId: GetAtt(
+            vpcPeeringConnectionId: getAtt(
               cfLogicalNames.atlasMongoProjectVpcNetworkPeering(),
               'ConnectionId'
             ) as unknown as string
@@ -2151,8 +2151,8 @@ export class ConfigManager {
           .map((event: S3Integration) => {
             return {
               lambdaArn: lambdaResource.aliasLogicalName
-                ? Ref(lambdaResource.aliasLogicalName)
-                : GetAtt(lambdaResource.cfLogicalName, 'Arn'),
+                ? ref(lambdaResource.aliasLogicalName)
+                : getAtt(lambdaResource.cfLogicalName, 'Arn'),
               workloadName: lambdaResource.name,
               eventConf: event.properties
             };

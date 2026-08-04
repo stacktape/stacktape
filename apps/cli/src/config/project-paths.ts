@@ -35,9 +35,6 @@ export const AWS_PRICE_INFO_GENERATED_FOLDER_PATH = join(process.cwd(), '@genera
 export const DB_ENGINE_VERSIONS_FOLDER = join(process.cwd(), '@generated', 'db-engine-versions');
 export const LLM_DOCS_FOLDER_PATH = join(process.cwd(), '@generated', 'llm-docs');
 
-export const CLOUDFORM_FOLDER_PATH = join(process.cwd(), '@generated', 'cloudform');
-export const CLOUDFORM_ROOT_HELPER_FOLDER_PATH = join(process.cwd(), 'scripts', 'cloudform-root-helpers');
-
 /**
  * `@stacktape/config` owns the authored configuration model. The CLI reads its source directly — for schema
  * generation and documentation extraction, so the location is named once here rather than spelled out in each
