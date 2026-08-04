@@ -7,7 +7,7 @@ export type ErrorDisplayData = {
   stackTrace?: string;
   userStackTrace?: string;
   errorDetails?: { title: string; codeFrame?: string };
-  sentryEventId?: string;
+  errorTrackingId?: string;
   isExpected?: boolean;
 };
 
@@ -140,9 +140,9 @@ export const renderErrorToString = (
     lines.push(colorize('gray', error.stackTrace));
   }
 
-  if (error.sentryEventId) {
+  if (error.errorTrackingId) {
     lines.push('');
-    lines.push(colorize('gray', `Error ID: ${error.sentryEventId}`));
+    lines.push(colorize('gray', `Error ID: ${error.errorTrackingId}`));
   }
 
   return lines.join('\n');

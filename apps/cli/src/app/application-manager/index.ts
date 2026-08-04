@@ -1,7 +1,7 @@
 import type { CleanupHookFunction } from '@application-services/event-manager/types';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager, UserCancelledError } from '@application-services/tui-manager';
-import { IS_DEV, IS_TELEMETRY_DISABLED } from '@config';
+import { IS_TELEMETRY_DISABLED } from '@config';
 import { propertyFromObjectOrNull } from '@utils/misc';
 import {
   attemptToGetUsefulExpectedError,
@@ -12,8 +12,7 @@ import {
   UnexpectedError
 } from '@utils/errors';
 import { killPythonBridge } from '@utils/file-loaders';
-import { reportErrorToSentry } from '@utils/sentry';
-import { reportTelemetryEvent } from '@utils/telemetry';
+import { reportErrorToPostHog, reportTelemetryEvent } from '@utils/telemetry';
 import { deleteTempFolder } from '@utils/temp-files';
 import { tuiDebug } from '@application-services/tui-manager/debug';
 import { shouldWriteTerminalControlSequences } from '@application-services/tui-manager/output/mode';
@@ -93,11 +92,16 @@ export class ApplicationManager {
     const stacktapeError = normalizeCliError(err);
     this.cancelPendingPromises(stacktapeError);
     await this.reportTelemetryEvent({ outcome: stacktapeError.details.code });
-    if (!IS_DEV && !(stacktapeError instanceof CliError) && !IS_TELEMETRY_DISABLED) {
-      const sentryEventId = await reportErrorToSentry(stacktapeError);
-      stacktapeError.details.sentryEventId = sentryEventId;
+    if (!(stacktapeError instanceof CliError) && !IS_TELEMETRY_DISABLED) {
+      const errorTrackingId = await reportErrorToPostHog({
+        error: stacktapeError,
+        command: globalStateManager.command,
+        invocationId: globalStateManager.invocationId,
+        mechanism: 'command_handler'
+      });
+      stacktapeError.details.errorTrackingId = errorTrackingId;
     }
-    // Capture only after Sentry reporting so the TTY snapshot includes its error ID.
+    // Capture only after error reporting so the TTY snapshot includes its searchable error ID.
     tuiManager.setFatalError(stacktapeError);
     await tuiManager.stop();
     tuiManager.error(stacktapeError);
@@ -214,7 +218,7 @@ export class ApplicationManager {
     });
   };
 
-  private handleUnhandledError = ({
+  private handleUnhandledError = async ({
     err,
     type
   }: {
@@ -236,6 +240,13 @@ export class ApplicationManager {
     }
     this.isErrored = true;
     this.cancelPendingPromises(err);
+
+    await reportErrorToPostHog({
+      error: err,
+      command: globalStateManager.command,
+      invocationId: globalStateManager.invocationId,
+      mechanism: type === 'UNCAUGHT EXCEPTION' ? 'uncaught_exception' : 'unhandled_rejection'
+    });
 
     // Stop the TUI and stream the final outcome into scrollback. stopSync's
     // renderer destroy is fire-and-forget (this is a sync context), so restore
@@ -269,10 +280,10 @@ export class ApplicationManager {
     process.removeAllListeners('unhandledRejection');
 
     const onUncaughtException = (err: Error) => {
-      this.handleUnhandledError({ err, type: 'UNCAUGHT EXCEPTION' });
+      void this.handleUnhandledError({ err, type: 'UNCAUGHT EXCEPTION' });
     };
     const onUnhandledRejection = (err: unknown) => {
-      this.handleUnhandledError({
+      void this.handleUnhandledError({
         err: err instanceof Error ? err : new Error(`Unknown error: ${JSON.stringify(err)}`),
         type: 'UNHANDLED PROMISE REJECTION'
       });

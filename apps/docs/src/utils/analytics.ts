@@ -1,10 +1,7 @@
-declare global {
-  interface Window {
-    plausible?: (eventName: string, options?: { action?: string }) => void;
-  }
-}
+import type { MarketingAnalyticsEventMap } from '@stacktape/analytics/events';
+import posthog from 'posthog-js';
 
-/** Fire a Plausible custom event. The layout installs the queueing stub before the script loads. */
-export const trackAnalyticsEvent = (eventName: string) => {
-  window.plausible?.(eventName, { action: eventName });
-};
+export const trackMarketingAnalyticsEvent = <TEvent extends keyof MarketingAnalyticsEventMap>(
+  eventName: TEvent,
+  properties: MarketingAnalyticsEventMap[TEvent]
+) => posthog.capture(eventName, properties);

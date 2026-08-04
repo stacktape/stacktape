@@ -820,7 +820,7 @@ class TuiManager {
   }
 
   private toErrorDisplayData(error: HandledError): ErrorDisplayData {
-    const { prettyStackTrace, errorType, sentryEventId } = error.details;
+    const { prettyStackTrace, errorType, errorTrackingId } = error.details;
     const isExpected = error instanceof CliError;
 
     const errorMessage =
@@ -829,8 +829,10 @@ class TuiManager {
         : error.message;
 
     const hints: string[] = isExpected ? [...error.hints] : [];
-    if (sentryEventId) {
-      hints.push(`This error has been anonymously reported to our error monitoring service with id ${sentryEventId}.`);
+    if (errorTrackingId) {
+      hints.push(
+        `This error has been anonymously reported to our error monitoring service with id ${errorTrackingId}.`
+      );
     }
     hints.push(`To get help, reach out to our team at support@stacktape.com`);
 
@@ -841,7 +843,7 @@ class TuiManager {
       stackTrace: prettyStackTrace || undefined,
       userStackTrace: isExpected ? error.userStackTrace : undefined,
       errorDetails: isExpected ? error.errorDetails : undefined,
-      sentryEventId: sentryEventId || undefined,
+      errorTrackingId: errorTrackingId || undefined,
       isExpected
     };
   }

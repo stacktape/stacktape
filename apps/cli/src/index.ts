@@ -8,7 +8,6 @@ import { tuiManager } from '@application-services/tui-manager';
 import { tuiDebug } from '@application-services/tui-manager/debug';
 import { commandsWithDisabledAnnouncements } from './config/cli/commands';
 import { notificationManager } from '@domain-services/notification-manager';
-import { initializeSentry, setSentryTags } from '@utils/sentry';
 import { deleteTempFolder } from '@utils/temp-files';
 import { commandAwsProfileCreate } from './commands/aws-profile-create';
 import { commandAwsProfileDelete } from './commands/aws-profile-delete';
@@ -152,7 +151,6 @@ const commandUi: Record<StacktapeCommand, CommandUi> = {
 export const runCommand = async (opts: RunCommandOptions) => {
   let commandResult: any = null;
   try {
-    initializeSentry();
     await applicationManager.init();
     const isAgentInvocation = opts.args.agent || opts.args.agentPort !== undefined;
     const requestedOutputMode = opts.args.outputFormat || (isAgentInvocation ? 'jsonl' : undefined);
@@ -165,8 +163,6 @@ export const runCommand = async (opts: RunCommandOptions) => {
     await globalStateManager.init(opts);
     await eventManager.init();
     await announcementsManager.init();
-    setSentryTags({ invocationId: globalStateManager.invocationId, command: globalStateManager.command });
-
     initAgentMode();
     const command = globalStateManager.command;
     const ui = commandUi[command];

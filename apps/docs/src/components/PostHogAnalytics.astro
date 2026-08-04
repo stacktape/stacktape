@@ -1,0 +1,30 @@
+<script>
+import { POSTHOG_API_HOST, POSTHOG_PRODUCTION_PROJECT_TOKEN } from '@stacktape/analytics/posthog';
+  import { getCookielessPostHogConfig } from '@stacktape/analytics/web';
+  import posthog from 'posthog-js';
+
+  declare global {
+    interface Window {
+      stacktapePostHogInitialized?: boolean;
+    }
+  }
+
+  const explicitToken = import.meta.env.PUBLIC_POSTHOG_PROJECT_TOKEN;
+  const isProductionHost = window.location.hostname === 'docs.stacktape.com';
+  const enabled = Boolean(explicitToken) || (import.meta.env.PROD && isProductionHost);
+
+  if (enabled && !window.stacktapePostHogInitialized) {
+    window.stacktapePostHogInitialized = true;
+    const environment = import.meta.env.PUBLIC_POSTHOG_ENVIRONMENT || (isProductionHost ? 'production' : 'preview');
+
+    posthog.init(
+      explicitToken || POSTHOG_PRODUCTION_PROJECT_TOKEN,
+      getCookielessPostHogConfig({
+        apiHost: import.meta.env.PUBLIC_POSTHOG_HOST || POSTHOG_API_HOST,
+        app: 'docs',
+        capturePageview: 'history_change',
+        environment
+      })
+    );
+  }
+</script>

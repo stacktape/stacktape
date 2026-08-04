@@ -2,6 +2,7 @@ import { unified } from '@astrojs/markdown-remark';
 import mdx from '@astrojs/mdx';
 import react from '@astrojs/react';
 import sitemap from '@astrojs/sitemap';
+import posthog from '@posthog/rollup-plugin';
 import tailwindcss from '@tailwindcss/vite';
 import { defineConfig } from 'astro/config';
 
@@ -15,6 +16,19 @@ import { remarkDocsTransforms } from './src/utils/remark-docs-transforms.ts';
 import { remarkFixJsxTemplateIndent } from './src/utils/remark-fix-jsx-template-indent.ts';
 
 const SITE_URL = 'https://docs.stacktape.com';
+const posthogSourceMapsEnabled = Boolean(process.env.POSTHOG_API_KEY && process.env.POSTHOG_PROJECT_ID);
+const posthogSourceMapPlugin = posthogSourceMapsEnabled
+  ? posthog({
+      personalApiKey: process.env.POSTHOG_API_KEY,
+      projectId: process.env.POSTHOG_PROJECT_ID,
+      host: process.env.POSTHOG_HOST || 'https://eu.posthog.com',
+      sourcemaps: {
+        releaseName: 'stacktape-docs',
+        releaseVersion: process.env.POSTHOG_RELEASE_VERSION || 'local',
+        deleteAfterUpload: true
+      }
+    })
+  : null;
 
 export default defineConfig({
   site: SITE_URL,
@@ -55,7 +69,7 @@ export default defineConfig({
     })
   ],
   vite: {
-    plugins: [apiReferenceDataPlugin(), tailwindcss()],
+    plugins: [apiReferenceDataPlugin(), tailwindcss(), ...(posthogSourceMapPlugin ? [posthogSourceMapPlugin] : [])],
     resolve: {
       // Force a single React copy. Without this, a mid-session dep re-optimization can momentarily
       // resolve a second React instance for some islands → "Invalid hook call / more than one copy
