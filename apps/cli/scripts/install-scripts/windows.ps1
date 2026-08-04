@@ -89,6 +89,18 @@ if ($ChecksumRequired) {
     Remove-Item $ChecksumsFilePath
 }
 
+# A release archive is a complete installation snapshot. Remove payloads omitted by the new version so an upgrade
+# cannot keep stale MCP documentation or an obsolete production source map.
+foreach ($StalePath in @(
+    "$BinDirPath\llm-docs",
+    "$BinDirPath\ai-docs",
+    "$BinDirPath\compiled-cli.js.map"
+)) {
+    if (Test-Path $StalePath) {
+        Remove-Item $StalePath -Recurse -Force
+    }
+}
+
 # Extract archive
 if (Get-Command Expand-Archive -ErrorAction SilentlyContinue) {
     Expand-Archive $ZipFilePath -Destination $BinDirPath -Force

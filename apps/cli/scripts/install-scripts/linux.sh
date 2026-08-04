@@ -157,6 +157,10 @@ download_and_install() {
         fi
     fi
 
+    # A release archive is a complete installation snapshot. Remove payloads omitted by the new version so an
+    # upgrade cannot keep stale MCP documentation or an obsolete production source map.
+    rm -rf "$INSTALL_DIR/llm-docs" "$INSTALL_DIR/ai-docs"
+    rm -f "$INSTALL_DIR/compiled-cli.js.map"
     tar -xzf "$archive_path" -C "$INSTALL_DIR"
 
     # Set executable permissions

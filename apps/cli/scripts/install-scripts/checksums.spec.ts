@@ -100,6 +100,9 @@ describe('published install scripts', () => {
     expect(content).toContain('actual_checksum=');
     expect(content).toContain('Checksum verification failed');
     expect(content.indexOf('Checksum verification failed')).toBeLessThan(content.indexOf('tar -xzf'));
+    expect(content).toContain('rm -rf "$INSTALL_DIR/llm-docs" "$INSTALL_DIR/ai-docs"');
+    expect(content).toContain('rm -f "$INSTALL_DIR/compiled-cli.js.map"');
+    expect(content.indexOf('rm -rf "$INSTALL_DIR/llm-docs"')).toBeLessThan(content.indexOf('tar -xzf'));
     expect(await evaluateShellChecksumGate(content, '3.7.0')).toBe('false');
     expect(await evaluateShellChecksumGate(content, 'v3.7.0')).toBe('false');
     expect(await evaluateShellChecksumGate(content, '3.7.1-rc.1')).toBe('true');
@@ -116,6 +119,10 @@ describe('published install scripts', () => {
     expect(content).toContain('Get-FileHash -Path $ZipFilePath -Algorithm SHA256');
     expect(content).toContain('Checksum verification failed');
     expect(content.indexOf('Checksum verification failed')).toBeLessThan(content.indexOf('Expand-Archive'));
+    expect(content).toContain('"$BinDirPath\\llm-docs"');
+    expect(content).toContain('"$BinDirPath\\ai-docs"');
+    expect(content).toContain('"$BinDirPath\\compiled-cli.js.map"');
+    expect(content.indexOf('foreach ($StalePath')).toBeLessThan(content.indexOf('Expand-Archive'));
     expect(content).toContain("$ChecksumRequired = $ParsedVersion -ge [version]'3.7.1'");
     expect(content).toContain('if ($ChecksumRequired)');
     expect(
