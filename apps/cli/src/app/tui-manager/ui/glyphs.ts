@@ -9,7 +9,6 @@
 export const glyphs = {
   success: '✓', // check mark
   error: '✗', // ballot x
-  current: '●', // black circle - active phase in the rail
   pending: '·', // middle dot - pending phase / separator
   separator: '·', // middle dot
   info: 'i',

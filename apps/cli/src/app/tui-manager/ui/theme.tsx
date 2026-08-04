@@ -38,7 +38,6 @@ export const darkTheme = {
 
   // Surfaces
   bg: brand.bg,
-  panel: brand.panelBg,
   border: '#3a4444',
   separator: '#3a4444',
 
@@ -47,8 +46,7 @@ export const darkTheme = {
   amber: brand.warning,
   purple: '#a78bfa',
   hint: '#8b5cf6',
-  announce: brand.accent,
-  accentContrast: brand.accentContrastText
+  announce: brand.accent
 } as const;
 
 export type Theme = { -readonly [K in keyof typeof darkTheme]: string };
@@ -68,7 +66,6 @@ export const lightTheme: Theme = {
   dim: '#9ca3af',
 
   bg: '#ffffff',
-  panel: '#f4f4f5',
   border: '#d1d5db',
   separator: '#d1d5db',
 
@@ -76,8 +73,7 @@ export const lightTheme: Theme = {
   amber: '#c17000',
   purple: '#7c3aed',
   hint: '#7c3aed',
-  announce: '#1a9c9c',
-  accentContrast: '#ffffff'
+  announce: '#1a9c9c'
 };
 
 export type ThemeMode = 'light' | 'dark';

@@ -150,3 +150,25 @@ describe('TuiStateSink scrollback emission', () => {
     expect(events[0].event.outputLines).toBeUndefined();
   });
 });
+
+describe('session clock input pause', () => {
+  test('prompt wait time is excluded from sessionElapsedMs', async () => {
+    const { sessionElapsedMs } = await import('../types');
+    tuiState.setActivePrompt({ type: 'confirm', message: 'Deploy?', resolve: () => {}, reject: () => {} });
+    const openedAt = tuiState.getSnapshot().inputPausedSince!;
+    expect(openedAt).toBeGreaterThan(0);
+
+    // While the prompt is open the clock is frozen at its pre-prompt value.
+    const during = tuiState.getSnapshot();
+    const frozen = sessionElapsedMs(during, openedAt + 5000);
+    expect(frozen).toBe(openedAt - during.startTime);
+
+    tuiState.clearActivePrompt();
+    const after = tuiState.getSnapshot();
+    expect(after.inputPausedSince).toBeUndefined();
+    expect(after.inputPausedMs).toBeGreaterThanOrEqual(0);
+    // Elapsed continues from the frozen value, not from wall time.
+    const later = sessionElapsedMs(after, openedAt + 10000);
+    expect(later).toBe(openedAt + 10000 - after.startTime - after.inputPausedMs!);
+  });
+});

@@ -67,6 +67,10 @@ export const createOpenTuiApp = async (
     screenMode: options?.screenMode ?? 'alternate-screen',
     ...(options?.footerHeight !== undefined && { footerHeight: options.footerHeight }),
     consoleMode: 'disabled',
+    // The renderer registers its own uncaughtException/unhandledRejection
+    // handlers; without this it would pop its debug console overlay into the
+    // footer on any unhandled error. Stacktape owns error display.
+    openConsoleOnError: false,
     useMouse: options?.useMouse ?? false,
     targetFps: 60
   });

@@ -1,5 +1,5 @@
 import { bold, colorize, formatDuration, plainFallbackLink } from '../format/text';
-import type { TuiPhase, TuiState } from './types';
+import { sessionElapsedMs, type TuiPhase, type TuiState } from './types';
 
 const phaseLines = (phases: TuiPhase[]): string[] => {
   const finishedPhases = phases.filter((p) => p.status === 'success' || p.status === 'error');
@@ -27,8 +27,8 @@ const phaseLines = (phases: TuiPhase[]): string[] => {
  *   nothing meaningful            -> no output
  */
 export const renderExitSummaryLines = (state: TuiState): string[] => {
-  const { summary, header, phases, startTime } = state;
-  const elapsed = formatDuration(Date.now() - startTime);
+  const { summary, header, phases } = state;
+  const elapsed = formatDuration(sessionElapsedMs(state, Date.now()));
   const headerText = header ? `${header.projectName} → ${header.stageName} (${header.region})` : '';
   const action =
     header?.action === 'DELETING'

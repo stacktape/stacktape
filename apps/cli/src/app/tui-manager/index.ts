@@ -23,7 +23,7 @@ import { renderExitSummaryLines } from './progress/exit-summary';
 import { TuiStateSink } from './progress/sink';
 import { tuiState } from './progress/state';
 import type { PhasePreset, TuiCancelDeployment, TuiState } from './progress/types';
-import { getFooterHeights } from './progress/types';
+import { PHASE_FOOTER_HEIGHT, SIMPLE_FOOTER_HEIGHT, sessionElapsedMs } from './progress/types';
 import { PromptSink } from './prompt/sink';
 import { UserCancelledError } from './prompt/inline';
 import { forceRestoreTerminal, TtyRuntime } from './runtime/lifecycle';
@@ -156,8 +156,7 @@ class TuiManager {
     if (profile.useTtyUi) {
       scrollbackFeed.enable();
       setSpinnerTuiMessageSink((type, text) => this.stateSink.addMessage(type, text));
-      const footerHeights = getFooterHeights();
-      this.startProgressApp(options.phases ? footerHeights.phase : footerHeights.simple);
+      this.startProgressApp(options.phases ? PHASE_FOOTER_HEIGHT : SIMPLE_FOOTER_HEIGHT);
     }
   }
 
@@ -312,7 +311,7 @@ class TuiManager {
   private maybeNotifyCompletion(state: TuiState) {
     const renderer = this.runtime.renderer;
     if (ARE_NOTIFICATIONS_DISABLED || this.runtime.windowFocused || !renderer) return;
-    const elapsedMs = Date.now() - state.startTime;
+    const elapsedMs = sessionElapsedMs(state, Date.now());
     if (elapsedMs < NOTIFICATION_MIN_DURATION_MS) return;
 
     const success = state.summary ? state.summary.success : !state.phases.some((p) => p.status === 'error');
@@ -335,11 +334,17 @@ class TuiManager {
     if (!scrollbackFeed.enabled || this.finalScrollbackEmitted) return;
     this.finalScrollbackEmitted = true;
 
-    const { summary, phases, startTime, cancelDeployment, header } = state;
-    const elapsed = fmt.formatDuration(Date.now() - startTime);
+    const { summary, phases, cancelDeployment, header } = state;
+    const elapsed = fmt.formatDuration(sessionElapsedMs(state, Date.now()));
 
     if (summary) {
-      scrollbackFeed.push({ kind: 'summary', summary, phases, totalDurationMs: Date.now() - startTime, header });
+      scrollbackFeed.push({
+        kind: 'summary',
+        summary,
+        phases,
+        totalDurationMs: sessionElapsedMs(state, Date.now()),
+        header
+      });
       return;
     }
 

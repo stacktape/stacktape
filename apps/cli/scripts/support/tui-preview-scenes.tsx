@@ -133,77 +133,8 @@ export const footerScenes: Scene[] = [
     ]
   },
   {
-    name: 'footer/rail-chip',
+    name: 'footer/rail-active-spinner',
     setup: () => {
-      process.env.STP_TUI_RAIL = 'chip';
-      baseHeader();
-      tuiState.setCurrentPhase('BUILD_AND_PACKAGE');
-      tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging workloads' });
-    }
-  },
-  {
-    name: 'footer/rail-chevrons',
-    setup: () => {
-      process.env.STP_TUI_RAIL = 'chevrons';
-      baseHeader();
-      tuiState.setCurrentPhase('BUILD_AND_PACKAGE');
-      tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging workloads' });
-    }
-  },
-  {
-    name: 'footer/rail-timer',
-    setup: () => {
-      process.env.STP_TUI_RAIL = 'timer';
-      baseHeader();
-      tuiState.setCurrentPhase('BUILD_AND_PACKAGE');
-      tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging workloads' });
-    }
-  },
-  {
-    name: 'footer/chrome-frame',
-    height: 13,
-    setup: () => {
-      process.env.STP_TUI_FOOTER = 'frame';
-      baseHeader();
-      tuiState.setCurrentPhase('DEPLOY');
-      tuiState.startEvent({ eventType: 'UPDATE_STACK', description: 'Updating CloudFormation stack' });
-      tuiState.updateEvent({ eventType: 'UPDATE_STACK', data: cfDetail(5) });
-    }
-  },
-  {
-    name: 'footer/chrome-edge',
-    setup: () => {
-      process.env.STP_TUI_FOOTER = 'edge';
-      baseHeader();
-      tuiState.setCurrentPhase('DEPLOY');
-      tuiState.startEvent({ eventType: 'UPDATE_STACK', description: 'Updating CloudFormation stack' });
-      tuiState.updateEvent({ eventType: 'UPDATE_STACK', data: cfDetail(5) });
-    }
-  },
-  {
-    name: 'footer/chrome-bar',
-    height: 11,
-    setup: () => {
-      process.env.STP_TUI_FOOTER = 'bar';
-      baseHeader();
-      tuiState.setCurrentPhase('DEPLOY');
-      tuiState.startEvent({ eventType: 'UPDATE_STACK', description: 'Updating CloudFormation stack' });
-      tuiState.updateEvent({ eventType: 'UPDATE_STACK', data: cfDetail(5) });
-    }
-  },
-  {
-    name: 'footer/chrome-reset',
-    setup: () => {
-      delete process.env.STP_TUI_FOOTER;
-      baseHeader();
-      tuiState.setCurrentPhase('DEPLOY');
-      tuiState.startEvent({ eventType: 'UPDATE_STACK', description: 'Updating CloudFormation stack' });
-    }
-  },
-  {
-    name: 'footer/rail-reset-to-dot',
-    setup: () => {
-      delete process.env.STP_TUI_RAIL;
       baseHeader();
       tuiState.setCurrentPhase('BUILD_AND_PACKAGE');
       tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging workloads' });
@@ -280,7 +211,7 @@ export const footerScenes: Scene[] = [
   },
   {
     name: 'footer/simple-mode-script',
-    height: 8,
+    height: 9,
     setup: () => {
       tuiState.setShowPhaseHeaders(false);
       tuiState.setHeader({
@@ -439,7 +370,7 @@ export const renderAllScenes = async (): Promise<string> => {
     await scene.setup();
     tuiState.flushPendingNotifications();
     const width = scene.width ?? 100;
-    const height = scene.height ?? 12;
+    const height = scene.height ?? 13;
     const setup = await testRender(() => <ProgressDashboard onQuit={() => {}} onCancel={() => {}} />, {
       width,
       height

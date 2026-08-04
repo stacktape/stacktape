@@ -1,10 +1,10 @@
-import { createSignal, onCleanup, Show, For, Switch, Match, ErrorBoundary } from 'solid-js';
+import { createSignal, onCleanup, Show, For, ErrorBoundary } from 'solid-js';
 import { useKeyboard, useTerminalDimensions } from '@opentui/solid';
 import type { TuiDeploymentHeader } from '../../types';
 import { ThemeProvider, useTheme } from '../../ui/theme';
 import { glyphs } from '../../ui/glyphs';
-import { formatClock, formatDuration, formatPhaseTimer } from '../../format/text';
-import { footerVariant, type TuiPhase } from '../types';
+import { formatClock } from '../../format/text';
+import { sessionElapsedMs, type TuiPhase } from '../types';
 import { Spinner } from '../../ui/spinner';
 import { createTuiSignal } from './signals';
 import { LivePanel } from './live-panel';
@@ -21,14 +21,15 @@ type DashboardProps = {
  * mounted — every state (running, prompt, cancel confirm, rollback, complete)
  * renders into the same reserved rows, so nothing on screen ever jumps.
  *
- * Phase mode (12 rows):        Simple mode (8 rows):
- *   0  divider                   0  divider
- *   1  identity + clock          1  identity + clock
- *   2  phase rail                2  blank
- *   3  blank                     3-5  body (3 rows)
- *   4-9  body (6 rows)           6  status strip
- *   10 status strip              7  hints
- *   11 hints
+ * Phase mode (13 rows):            Simple mode (9 rows):
+ *   0  frame border + title          0  frame border + title
+ *   1  identity + clock              1  identity + clock
+ *   2  phase rail                    2  blank
+ *   3  blank                         3-5  body (3 rows)
+ *   4-9  body (6 rows)               6  status strip
+ *   10 status strip                  7  hints
+ *   11 hints                         8  frame border
+ *   12 frame border
  */
 
 /** Rail labels are deliberately short; scrollback keeps the full phase names. */
@@ -53,48 +54,18 @@ const commandVerb = (action?: TuiDeploymentHeader['action']): string => {
   return 'deploy';
 };
 
-const Divider = () => {
-  const { theme } = useTheme();
-  const dimensions = useTerminalDimensions();
-  const header = createTuiSignal((s) => s.header);
-  const verb = () => commandVerb(header()?.action);
-  const label = () => ` stacktape ${verb() ? `/ ${verb()} ` : ''}`;
-  const fill = () => glyphs.rule.repeat(Math.max(0, dimensions().width - label().length - 2));
-
-  return (
-    <box height={1} flexShrink={0} flexDirection="row" overflow="hidden">
-      <text flexShrink={0} wrapMode="none" fg={theme.border}>
-        {glyphs.rule.repeat(2)}
-      </text>
-      <text flexShrink={0} wrapMode="none" fg={theme.muted}>
-        {' '}
-        stacktape{' '}
-      </text>
-      <Show when={verb()}>
-        <text flexShrink={0} wrapMode="none" fg={theme.dim}>
-          /{' '}
-        </text>
-        <text flexShrink={0} wrapMode="none" fg={theme.muted}>
-          {verb()}{' '}
-        </text>
-      </Show>
-      <text flexShrink={1} wrapMode="none" fg={theme.border}>
-        {fill()}
-      </text>
-    </box>
-  );
-};
-
-/** Live hh:mm:ss session clock; freezes when the run completes. */
+/**
+ * Live hh:mm:ss session clock. Pauses while a prompt waits for the user
+ * (input time is not deployment time) and freezes when the run completes.
+ */
 const createSessionClock = () => {
-  const isComplete = createTuiSignal((s) => s.isComplete);
-  const startTime = createTuiSignal((s) => s.startTime);
+  const state = createTuiSignal((s) => s);
   const [now, setNow] = createSignal(Date.now());
   const interval = setInterval(() => {
-    if (!isComplete()) setNow(Date.now());
+    if (!state().isComplete) setNow(Date.now());
   }, 1000);
   onCleanup(() => clearInterval(interval));
-  return () => formatClock(now() - startTime());
+  return () => formatClock(sessionElapsedMs(state(), now()));
 };
 
 const Identity = () => {
@@ -132,75 +103,19 @@ const Identity = () => {
   );
 };
 
-/** Inverse accent title bar (`bar` chrome) — tmux/vim statusline style. */
-const BarHeader = () => {
-  const { theme } = useTheme();
-  const header = createTuiSignal((s) => s.header);
-  const clock = createSessionClock();
-  const verb = () => commandVerb(header()?.action);
-
-  return (
-    <box
-      height={1}
-      flexShrink={0}
-      flexDirection="row"
-      backgroundColor={theme.running}
-      paddingLeft={1}
-      paddingRight={1}
-      overflow="hidden"
-    >
-      <text flexShrink={0} wrapMode="none" fg={theme.accentContrast}>
-        <b>stacktape</b>
-      </text>
-      <Show when={verb()}>
-        <text flexShrink={0} wrapMode="none" fg={theme.accentContrast}>
-          {' '}
-          / {verb()}
-        </text>
-      </Show>
-      <box flexGrow={1} />
-      <Show when={header()}>
-        {(h) => (
-          <text flexShrink={1} wrapMode="none" fg={theme.accentContrast}>
-            <b>{h().projectName}</b> / <b>{h().stageName}</b> {glyphs.separator} {h().region}
-          </text>
-        )}
-      </Show>
-      <text flexShrink={0} wrapMode="none" fg={theme.accentContrast}>
-        {'   '}
-        {clock()}
-      </text>
-    </box>
-  );
-};
-
 /**
- * The phase rail — a single-row state map of the phases. The ACTIVE phase
- * style is selectable while the final look is being chosen (`STP_TUI_RAIL`,
- * also settable as a trailing demo argument):
+ * The phase rail — a single-row state map of the phases:
  *
- *   dot       ✓ Initialize   ● Deploy   · Finalize          (default)
- *   chip      ✓ Initialize   inverted accent pill  Deploy
- *   chevrons  Initialize › Package › DEPLOY › Finalize      (typographic route)
- *   timer     ✓ Initialize · 1.2s   spinner Deploy · 00:42  (data-rich, live timing)
+ *   ✓ Initialize   ⠧ Package   · Upload   · Deploy   · Finalize
+ *
+ * The active phase gets the live spinner; finished phases a green ✓, failed a
+ * red ✗, pending a dim dot.
  */
-type RailVariant = 'dot' | 'chip' | 'chevrons' | 'timer';
-
-const railVariant = (): RailVariant => {
-  const value = process.env.STP_TUI_RAIL;
-  return value === 'chip' || value === 'chevrons' || value === 'timer' ? value : 'dot';
-};
-
 const PhaseRail = () => {
   const { theme } = useTheme();
   const dimensions = useTerminalDimensions();
   const phases = createTuiSignal((s) => s.phases);
   const currentPhase = createTuiSignal((s) => s.currentPhase);
-  const [now, setNow] = createSignal(Date.now());
-  const timerInterval = setInterval(() => {
-    if (railVariant() === 'timer') setNow(Date.now());
-  }, 1000);
-  onCleanup(() => clearInterval(timerInterval));
 
   const railLabel = (name: string) => {
     const label = SHORT_RAIL_LABELS[name] ?? name;
@@ -214,143 +129,35 @@ const PhaseRail = () => {
   const stateIconColor = (phase: TuiPhase) =>
     phase.status === 'error' ? theme.error : phase.status === 'success' ? theme.success : theme.dim;
 
-  const DotEntry = (entry: { phase: TuiPhase }) => {
-    const active = () => isCurrent(entry.phase);
-    return (
-      <>
-        <text flexShrink={0} wrapMode="none" fg={active() ? theme.running : stateIconColor(entry.phase)}>
-          {active() ? glyphs.current : stateIcon(entry.phase)}
-        </text>
-        <text
-          flexShrink={0}
-          wrapMode="none"
-          fg={active() ? theme.textBright : entry.phase.status === 'success' ? theme.text : theme.dim}
-        >
-          {' '}
-          {railLabel(entry.phase.name)}
-          {'   '}
-        </text>
-      </>
-    );
-  };
-
-  const ChipEntry = (entry: { phase: TuiPhase }) => {
-    const active = () => isCurrent(entry.phase);
-    return (
-      <Show
-        when={active()}
-        fallback={
-          <>
-            <text flexShrink={0} wrapMode="none" fg={stateIconColor(entry.phase)}>
-              {stateIcon(entry.phase)}
-            </text>
-            <text flexShrink={0} wrapMode="none" fg={entry.phase.status === 'success' ? theme.text : theme.dim}>
-              {' '}
-              {railLabel(entry.phase.name)}
-              {'   '}
-            </text>
-          </>
-        }
-      >
-        <text flexShrink={0} wrapMode="none" bg={theme.running} fg={theme.accentContrast}>
-          <b> {railLabel(entry.phase.name)} </b>
-        </text>
-        <text flexShrink={0} wrapMode="none">
-          {'   '}
-        </text>
-      </Show>
-    );
-  };
-
-  const ChevronEntry = (entry: { phase: TuiPhase; index: number }) => {
-    const active = () => isCurrent(entry.phase);
-    const labelColor = () =>
-      entry.phase.status === 'error'
-        ? theme.error
-        : active()
-          ? theme.running
-          : entry.phase.status === 'success'
-            ? theme.success
-            : theme.dim;
-    return (
-      <>
-        <Show when={entry.index > 0}>
-          <text
-            flexShrink={0}
-            wrapMode="none"
-            fg={phases()[entry.index - 1]?.status === 'success' ? theme.success : theme.border}
-          >
-            {' '}
-            {glyphs.selected}{' '}
-          </text>
-        </Show>
-        <text flexShrink={0} wrapMode="none" fg={labelColor()}>
-          <Show when={active()} fallback={railLabel(entry.phase.name)}>
-            <b>{railLabel(entry.phase.name).toUpperCase()}</b>
-          </Show>
-        </text>
-      </>
-    );
-  };
-
-  const TimerEntry = (entry: { phase: TuiPhase }) => {
-    const active = () => isCurrent(entry.phase);
-    const timing = () => {
-      if (active() && entry.phase.startTime) return formatPhaseTimer(now() - entry.phase.startTime);
-      if ((entry.phase.status === 'success' || entry.phase.status === 'error') && entry.phase.duration) {
-        return formatDuration(entry.phase.duration);
-      }
-      return null;
-    };
-    return (
-      <>
-        <Show
-          when={active()}
-          fallback={
-            <text flexShrink={0} wrapMode="none" fg={stateIconColor(entry.phase)}>
-              {stateIcon(entry.phase)}
-            </text>
-          }
-        >
-          <Spinner />
-        </Show>
-        <text
-          flexShrink={0}
-          wrapMode="none"
-          fg={active() ? theme.textBright : entry.phase.status === 'success' ? theme.text : theme.dim}
-        >
-          {' '}
-          {railLabel(entry.phase.name)}
-        </text>
-        <Show when={timing()}>
-          <text flexShrink={0} wrapMode="none" fg={theme.dim}>
-            {' '}
-            {glyphs.separator} {timing()}
-          </text>
-        </Show>
-        <text flexShrink={0} wrapMode="none">
-          {'   '}
-        </text>
-      </>
-    );
-  };
-
   return (
     <box height={1} flexShrink={0} flexDirection="row" paddingLeft={2} overflow="hidden">
       <For each={phases()}>
-        {(phase, index) => (
-          <Switch fallback={<DotEntry phase={phase} />}>
-            <Match when={railVariant() === 'chip'}>
-              <ChipEntry phase={phase} />
-            </Match>
-            <Match when={railVariant() === 'chevrons'}>
-              <ChevronEntry phase={phase} index={index()} />
-            </Match>
-            <Match when={railVariant() === 'timer'}>
-              <TimerEntry phase={phase} />
-            </Match>
-          </Switch>
-        )}
+        {(phase) => {
+          const active = () => isCurrent(phase);
+          return (
+            <>
+              <Show
+                when={active()}
+                fallback={
+                  <text flexShrink={0} wrapMode="none" fg={stateIconColor(phase)}>
+                    {stateIcon(phase)}
+                  </text>
+                }
+              >
+                <Spinner />
+              </Show>
+              <text
+                flexShrink={0}
+                wrapMode="none"
+                fg={active() ? theme.textBright : phase.status === 'success' ? theme.text : theme.dim}
+              >
+                {' '}
+                {railLabel(phase.name)}
+                {'   '}
+              </text>
+            </>
+          );
+        }}
       </For>
     </box>
   );
@@ -572,11 +379,25 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
 
   const bodyRows = () => (showPhases() ? 6 : 3);
   const header = createTuiSignal((s) => s.header);
-  // The chrome cannot change while mounted (env-driven), so branch eagerly.
-  const chrome = footerVariant();
+  const frameTitle = () => {
+    const verb = commandVerb(header()?.action);
+    return verb ? ` stacktape / ${verb} ` : ' stacktape ';
+  };
 
-  const Rows = () => (
-    <>
+  return (
+    <box
+      flexDirection="column"
+      width="100%"
+      height="100%"
+      overflow="hidden"
+      border={true}
+      borderStyle="rounded"
+      borderColor={theme.border}
+      title={frameTitle()}
+      titleColor={theme.muted}
+      titleAlignment="left"
+    >
+      <Identity />
       <Show when={showPhases()} fallback={<box height={1} flexShrink={0} />}>
         <PhaseRail />
       </Show>
@@ -597,61 +418,6 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
       </box>
       <StatusStrip showCancelConfirm={showCancelConfirm()} />
       <HintsRow hints={hints()} />
-    </>
-  );
-
-  if (chrome === 'frame') {
-    const frameTitle = () => {
-      const verb = commandVerb(header()?.action);
-      return verb ? ` stacktape / ${verb} ` : ' stacktape ';
-    };
-    return (
-      <box
-        flexDirection="column"
-        width="100%"
-        height="100%"
-        overflow="hidden"
-        border={true}
-        borderStyle="rounded"
-        borderColor={theme.border}
-        title={frameTitle()}
-        titleColor={theme.muted}
-        titleAlignment="left"
-        backgroundColor={theme.panel}
-      >
-        <Identity />
-        <Rows />
-      </box>
-    );
-  }
-
-  if (chrome === 'edge') {
-    return (
-      <box flexDirection="row" width="100%" height="100%" overflow="hidden">
-        <box width={1} height="100%" flexShrink={0} backgroundColor={theme.running} />
-        <box flexDirection="column" flexGrow={1} overflow="hidden" backgroundColor={theme.panel}>
-          <Divider />
-          <Identity />
-          <Rows />
-        </box>
-      </box>
-    );
-  }
-
-  if (chrome === 'bar') {
-    return (
-      <box flexDirection="column" width="100%" height="100%" overflow="hidden" backgroundColor={theme.panel}>
-        <BarHeader />
-        <Rows />
-      </box>
-    );
-  }
-
-  return (
-    <box flexDirection="column" width="100%" height="100%" overflow="hidden" backgroundColor={theme.panel}>
-      <Divider />
-      <Identity />
-      <Rows />
     </box>
   );
 };

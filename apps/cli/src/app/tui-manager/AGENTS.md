@@ -56,11 +56,14 @@ forces an explicit decision there.
 2. **All mounts and teardowns go through `TtyRuntime`.** Never store renderer handles or destroy flags
    elsewhere. On teardown the facade rejects pending prompts (`PromptSink.rejectPending`) — otherwise
    awaiting commands hang.
-3. **The footer has fixed geometry.** Phase mode is always exactly 12 rows, simple mode 8, with reserved
-   row ownership (divider / identity+clock / rail / body / status strip / hints) in every state — running,
+3. **The footer has fixed geometry.** The footer is a rounded frame (`stacktape / <verb>` in the top
+   border) — phase mode is always exactly 13 rows, simple mode 9, with reserved row ownership
+   (border / identity+clock / rail / body / status strip / hints / border) in every state — running,
    prompt, cancel confirm, rollback, complete. Never insert or remove rows, never use a scrollbox in the
    footer, never let the layout engine wrap a footer row (wrapMode="none" + truncation), and keep all
-   timers fixed-width (`formatClock`, hh:mm:ss). Only the clock, spinners, counters, bar fill and resource
+   timers fixed-width (`formatClock`, hh:mm:ss). The session clock pauses while a prompt is open
+   (`inputPausedMs`/`inputPausedSince` + `sessionElapsedMs` — user input is not deployment time; the
+   receipt total uses the same helper). Only the clock, spinners, counters, bar fill and resource
    slot contents may change between ticks — `dashboard.test.tsx` has frame-diff tests enforcing this.
 4. **One glyph vocabulary.** Every glyph comes from `ui/glyphs.ts` (verified single-cell across Windows
    Terminal / macOS / Linux; ASCII `i`/`!` for info/warn to avoid emoji-style rendering). The scrollback is

@@ -126,6 +126,10 @@ export type TuiState = {
   isComplete: boolean;
   startTime: number;
   activePrompt?: TuiPrompt;
+  /** Total ms spent in closed input prompts (the session clock excludes it). */
+  inputPausedMs?: number;
+  /** Epoch ms when the currently open prompt appeared. */
+  inputPausedSince?: number;
   showPhaseHeaders?: boolean;
   isFinalizing?: boolean;
   pendingCompletion?: { success: boolean; message: string; links: TuiLink[]; consoleUrl?: string };
@@ -140,36 +144,21 @@ export type TuiState = {
 export type PhasePreset = 'deploy' | 'delete' | 'codebuild-deploy';
 
 /**
- * Footer chrome — how the live panel is visually separated from scrollback.
- * Selectable while the final look is being chosen (`STP_TUI_FOOTER`, also
- * settable as a trailing demo argument):
- *
- *   divider  top rule + panel background                        (default)
- *   frame    full rounded border with the title in the frame
- *   edge     solid brand-accent bar down the left edge
- *   bar      inverse accent title bar (tmux/vim statusline style)
+ * Fixed footer heights — the footer is a framed panel and never changes height
+ * while mounted (2 border rows + identity + rail row/blank + blank + body +
+ * status strip + hints).
  */
-export type FooterVariant = 'divider' | 'frame' | 'edge' | 'bar';
-
-export const footerVariant = (): FooterVariant => {
-  const value = process.env.STP_TUI_FOOTER;
-  return value === 'frame' || value === 'edge' || value === 'bar' ? value : 'divider';
-};
+export const PHASE_FOOTER_HEIGHT = 13;
+export const SIMPLE_FOOTER_HEIGHT = 9;
 
 /**
- * Fixed footer heights per chrome — the footer never changes height while
- * mounted. The body area is 6 rows (phase) / 3 rows (simple) in every chrome;
- * only the surrounding chrome rows differ.
+ * Session time excluding time spent waiting for user input — prompts pause
+ * the clock (and the receipt's total).
  */
-export const getFooterHeights = (): { phase: number; simple: number } => {
-  switch (footerVariant()) {
-    case 'frame':
-      return { phase: 13, simple: 9 };
-    case 'bar':
-      return { phase: 11, simple: 7 };
-    default:
-      return { phase: 12, simple: 8 };
-  }
+export const sessionElapsedMs = (state: TuiState, now: number): number => {
+  const closedPauses = state.inputPausedMs ?? 0;
+  const openPause = state.activePrompt && state.inputPausedSince ? now - state.inputPausedSince : 0;
+  return Math.max(0, now - state.startTime - closedPauses - openPause);
 };
 
 export const PHASE_NAMES: Record<DeploymentPhase, string> = {

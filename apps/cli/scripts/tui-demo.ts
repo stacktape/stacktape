@@ -12,9 +12,6 @@
  *
  * A second argument slows everything down for inspection, e.g.
  * `bun scripts/tui-demo.ts deploy 3` runs the deploy at one third speed.
- * A trailing `dot` | `chip` | `chevrons` | `timer` argument picks the
- * phase-rail style, and `divider` | `frame` | `edge` | `bar` picks the footer
- * chrome, e.g. `bun scripts/tui-demo.ts deploy 2 chip frame`.
  *
  * The OpenTUI Solid views are transformed at runtime via Bun's plugin API (same
  * loader the test preload uses), so this runs without a bundling step.
@@ -22,7 +19,7 @@
 import { plugin } from 'bun';
 import { createStacktapeOpenTuiBuildPlugin } from '@scripts/support/opentui-loader';
 import { globalStateManager } from '@application-services/global-state-manager';
-import { tuiManager } from '@application-services/tui-manager';
+import { tuiManager, UserCancelledError } from '@application-services/tui-manager';
 import { devTuiManager } from '@application-services/tui-manager/dev/manager';
 import { CliError, getErrorDetails } from '@utils/errors';
 
@@ -30,15 +27,6 @@ plugin(createStacktapeOpenTuiBuildPlugin());
 
 /** Pacing multiplier from argv[3] — `tui-demo deploy 3` runs 3x slower. */
 const SPEED = Math.max(0.1, Number(process.argv[3]) || 1);
-
-const railArg = process.argv.find((arg) => ['dot', 'chip', 'chevrons', 'timer'].includes(arg));
-if (railArg) {
-  process.env.STP_TUI_RAIL = railArg;
-}
-const footerArg = process.argv.find((arg) => ['divider', 'frame', 'edge', 'bar'].includes(arg));
-if (footerArg) {
-  process.env.STP_TUI_FOOTER = footerArg;
-}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms * SPEED));
 
@@ -226,9 +214,22 @@ const runDeploy = async () => {
 
   tuiManager.setPhase('POST_DEPLOY');
   tuiManager.startEvent({ eventType: 'DELETE_OBSOLETE_ARTIFACTS', description: 'Deleting obsolete artifacts' });
+  // An after:deploy hook that succeeds but slowly — finishes with `warning`
+  // status so the slowness is stated permanently in the record.
+  tuiManager.startEvent({
+    eventType: 'RUN_SCRIPT',
+    description: 'Running hook notify-slack',
+    instanceId: 'manual-notify-slack'
+  });
   await sleep(600);
   tuiManager.finishEvent({ eventType: 'DELETE_OBSOLETE_ARTIFACTS', finalMessage: 'Obsolete artifacts deleted' });
-  tuiManager.warn('Hook "notify-slack" took longer than expected (4.2s).');
+  await sleep(1800);
+  tuiManager.finishEvent({
+    eventType: 'RUN_SCRIPT',
+    instanceId: 'manual-notify-slack',
+    status: 'warning',
+    finalMessage: 'Hook notify-slack finished slowly (4.2s) — check the webhook endpoint'
+  });
   tuiManager.finishPhase();
 
   tuiManager.setPendingCompletion({
@@ -517,7 +518,19 @@ const main = async () => {
   });
 
   tuiManager.init();
-  await run();
+  try {
+    await run();
+  } catch (err) {
+    // Esc during a prompt — mirror applicationManager: tear the TUI down
+    // cleanly instead of letting the rejection hit OpenTUI's global handler.
+    if (err instanceof UserCancelledError) {
+      await tuiManager.stop();
+      tuiManager.info('Cancelled.');
+      process.exitCode = 130;
+      return;
+    }
+    throw err;
+  }
 };
 
 void main();

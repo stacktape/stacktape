@@ -19,7 +19,7 @@ const flushAndRender = async () => {
   await testSetup.renderOnce();
 };
 
-const renderDashboard = async (opts = { width: 100, height: 12 }) => {
+const renderDashboard = async (opts = { width: 100, height: 13 }) => {
   testSetup = await testRender(() => <ProgressDashboard onQuit={() => {}} onCancel={() => {}} />, opts);
   await flushAndRender();
   return testSetup.captureCharFrame();
@@ -58,21 +58,21 @@ describe('ProgressDashboard footer', () => {
     expect(frame).toMatch(/\d{2}:\d{2}:\d{2}/);
   });
 
-  test('renders the phase rail with short labels', async () => {
+  test('renders the phase rail with a spinner on the active phase', async () => {
     initDeployState();
     const frame = await renderDashboard();
     expect(frame).toContain('✓ Initialize');
-    expect(frame).toContain('● Package');
+    expect(frame).toMatch(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Package/);
     expect(frame).toContain('· Deploy');
     expect(frame).toContain('· Finalize');
   });
 
-  test('hides the rail in simple mode and keeps 8-row layout', async () => {
+  test('hides the rail in simple mode and keeps 9-row layout', async () => {
     initDeployState();
     tuiState.setShowPhaseHeaders(false);
-    const frame = await renderDashboard({ width: 100, height: 8 });
+    const frame = await renderDashboard({ width: 100, height: 9 });
     expect(frame).not.toContain('Finalize');
-    expect(frameLines(frame)).toHaveLength(8);
+    expect(frameLines(frame)).toHaveLength(9);
   });
 
   test('live area shows running events but not finished ones', async () => {
@@ -163,7 +163,7 @@ describe('ProgressDashboard footer', () => {
     const frame = await renderDashboard();
     expect(frame).toContain('Proceed with deployment?');
     expect(frame).not.toContain('Packaging artifacts');
-    expect(frameLines(frame)).toHaveLength(12);
+    expect(frameLines(frame)).toHaveLength(13);
   });
 
   test('complete state shows the summary banner', async () => {
@@ -181,7 +181,7 @@ describe('ProgressDashboard footer', () => {
 
     const frame = await renderDashboard();
     expect(frame).toContain('stacktape / delete');
-    expect(frame).toContain('● Delete');
+    expect(frame).toMatch(/[⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏] Delete/);
   });
 });
 
@@ -219,7 +219,7 @@ describe('ProgressDashboard stability', () => {
 
     const frame = await renderDashboard();
     const lines = frameLines(frame);
-    expect(lines).toHaveLength(12);
+    expect(lines).toHaveLength(13);
     expect(frame).toContain('CloudFormation rollback');
     expect(frame).toContain('Rolling back to the previous working state');
     expect(frame).toContain('detach (rollback continues in AWS)');
@@ -229,11 +229,11 @@ describe('ProgressDashboard stability', () => {
     expect(hintsRow).toBe(11);
   });
 
-  test('every footer state keeps exactly 12 rows', async () => {
+  test('every footer state keeps exactly 13 rows', async () => {
     initDeployState();
     tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging artifacts' });
     const runningFrame = await renderDashboard();
-    expect(frameLines(runningFrame)).toHaveLength(12);
+    expect(frameLines(runningFrame)).toHaveLength(13);
 
     tuiState.setActivePrompt({
       type: 'select',
@@ -246,11 +246,11 @@ describe('ProgressDashboard stability', () => {
       reject: () => {}
     });
     await flushAndRender();
-    expect(frameLines(testSetup.captureCharFrame())).toHaveLength(12);
+    expect(frameLines(testSetup.captureCharFrame())).toHaveLength(13);
 
     tuiState.clearActivePrompt();
     tuiState.setComplete(true, 'DEPLOYED', []);
     await flushAndRender();
-    expect(frameLines(testSetup.captureCharFrame())).toHaveLength(12);
+    expect(frameLines(testSetup.captureCharFrame())).toHaveLength(13);
   });
 });

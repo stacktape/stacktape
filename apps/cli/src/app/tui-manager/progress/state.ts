@@ -467,12 +467,19 @@ class TuiStateManager {
   }
 
   setActivePrompt(prompt: TuiPrompt) {
-    this.state = { ...this.state, activePrompt: prompt };
+    // Waiting for the user is not deployment time — pause the session clock.
+    this.state = { ...this.state, activePrompt: prompt, inputPausedSince: Date.now() };
     this.notifyListeners();
   }
 
   clearActivePrompt() {
-    this.state = { ...this.state, activePrompt: undefined };
+    const pausedFor = this.state.inputPausedSince ? Date.now() - this.state.inputPausedSince : 0;
+    this.state = {
+      ...this.state,
+      activePrompt: undefined,
+      inputPausedMs: (this.state.inputPausedMs ?? 0) + pausedFor,
+      inputPausedSince: undefined
+    };
     this.notifyListeners();
   }
 
