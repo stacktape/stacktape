@@ -66,27 +66,11 @@ mode, and the guarded real-AWS validation lane including the reusable packaging 
   contracts, and the declarative config-authoring child-resource matrix. Treat those as explicit data/legacy
   baselines; do not broaden the exclusions, and do not introduce abstractions solely to satisfy the metric.
 
-## Conceptual complexity
+## Engineering judgment
 
-Conceptual complexity is reviewed as strictly as correctness.
-
-- Prefer direct calls and existing application objects over new ports, registries, factories, service containers, or
-  frameworks.
-- An interface with one implementation needs evidence that it represents a real external boundary.
-- Do not split code for architectural symmetry or hypothetical future reuse.
-- An abstraction must reduce the total number of concepts needed to understand the behavior.
-- Choose the simplest implementation that completely satisfies the current requirement. Do not add speculative
-  configuration, indirection, or extension points.
-- Before writing a helper or adding a dependency, inspect the existing code and the documentation and types of
-  dependencies already present. Prefer a maintained library only when it reduces total complexity and maintenance.
-- Make coherent end-to-end changes that leave the repository working. Do not land half-built scaffolding that a later
-  change must make usable.
-- Do not knowingly introduce a temporary architecture intended to be replaced later. If an explicitly approved
-  transitional mechanism is unavoidable, document why it exists and the concrete condition for removing it.
-- Harden genuinely untrusted inputs. Do not complicate internal trusted code to defend against exotic hostile
-  JavaScript behavior without a demonstrated boundary.
-- During structural refactors, preserve working behavior first. Refactor it only when the changed design has a
-  concrete present-day benefit.
+- Choose the simplest complete implementation for the actual requirement.
+- Add an abstraction, dependency, or package only when its present benefit outweighs the extra concept. Check the
+  project's existing capabilities first.
 
 ## tRPC and privacy
 
