@@ -91,17 +91,27 @@ describe('scrollback document grammar', () => {
     expect(frame).toContain('└ ✓ api packaged (4.1 MB)');
   });
 
-  test('buffered output renders inside the event block with a gutter', async () => {
-    const frame = await renderItem({
+  test('buffered output is a failure diagnostic: hidden on success, attached on error', async () => {
+    const success = await renderItem({
       kind: 'event',
       event: finishedEvent({ outputLines: ['$ docker build .', '#10 exporting to image'] })
     });
-    const lines = frame.split('\n');
-    const eventRow = lines.findIndex((l) => l.includes('✓ 3 workloads packaged'));
+    expect(success).not.toContain('$ docker build .');
+
+    const failed = await renderItem({
+      kind: 'event',
+      event: finishedEvent({
+        status: 'error',
+        finalMessage: 'Packaging failed',
+        outputLines: ['$ docker build .', '#10 ERROR: process exited with code 1']
+      })
+    });
+    const lines = failed.split('\n');
+    const eventRow = lines.findIndex((l) => l.includes('✗ Packaging failed'));
     const firstOutput = lines.findIndex((l) => l.includes('│ $ docker build .'));
-    // The log is attached under its event, never orphaned above it.
+    // The log is attached under its failed event, never orphaned above it.
     expect(firstOutput).toBeGreaterThan(eventRow);
-    expect(frame).toContain('│ #10 exporting to image');
+    expect(failed).toContain('│ #10 ERROR: process exited with code 1');
   });
 
   test('finished CF event is a single line with change counts', async () => {

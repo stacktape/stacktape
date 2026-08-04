@@ -251,11 +251,15 @@ const EventView = (props: { event: TuiEvent }) => {
               </text>
               <DurationRail duration={child.duration} />
             </box>
-            <AttachedOutput lines={child.outputLines} indent={'    '} />
+            <Show when={child.status === 'error'}>
+              <AttachedOutput lines={child.outputLines} indent={'    '} />
+            </Show>
           </>
         )}
       </For>
-      <AttachedOutput lines={props.event.outputLines} indent={'  '} />
+      <Show when={props.event.status === 'error'}>
+        <AttachedOutput lines={props.event.outputLines} indent={'  '} />
+      </Show>
     </box>
   );
 };

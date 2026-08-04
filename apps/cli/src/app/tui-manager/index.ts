@@ -134,11 +134,17 @@ class TuiManager {
     this._isEnabled = true;
     this._wasEverStarted = true;
     this.teardownDone = false;
+    // Commands may set their header before start() (demo, dev-stack deploy) —
+    // the session reset must not wipe it.
+    const preservedHeader = tuiState.getState().header;
     this.stateSink.reset();
     if (options.phases) {
       tuiState.setPhasePreset(options.phases);
     } else {
       tuiState.setShowPhaseHeaders(false);
+    }
+    if (preservedHeader) {
+      tuiState.setHeader(preservedHeader);
     }
     scrollbackFeed.reset();
     this.finalScrollbackEmitted = false;

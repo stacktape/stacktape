@@ -297,7 +297,14 @@ const DevDashboardInner = (props: Pick<DevDashboardProps, 'onRebuild' | 'onQuit'
   };
 
   return (
-    <box flexDirection="column" width="100%" height="100%" border={['top']} borderColor={theme.border}>
+    <box
+      flexDirection="column"
+      width="100%"
+      height="100%"
+      border={['top']}
+      borderColor={theme.border}
+      backgroundColor={theme.panel}
+    >
       <DevHeader />
       <Show when={!rebuildPickerActive()} fallback={<RebuildPicker />}>
         <scrollbox flexGrow={1} paddingX={1} stickyScroll={true}>

@@ -97,16 +97,22 @@ const Identity = () => {
 
   return (
     <box height={1} flexShrink={0} flexDirection="row" paddingLeft={2} paddingRight={1} overflow="hidden">
-      <text flexShrink={1} wrapMode="none" fg={theme.textBright}>
-        <b>{header()?.projectName ?? ''}</b>
-      </text>
-      <text flexShrink={0} wrapMode="none" fg={theme.dim}>
-        {' '}
-        /{' '}
-      </text>
-      <text flexShrink={1} wrapMode="none" fg={theme.textBright}>
-        <b>{header()?.stageName ?? ''}</b>
-      </text>
+      <Show when={header()}>
+        {(h) => (
+          <>
+            <text flexShrink={1} wrapMode="none" fg={theme.textBright}>
+              <b>{h().projectName}</b>
+            </text>
+            <text flexShrink={0} wrapMode="none" fg={theme.dim}>
+              {' '}
+              /{' '}
+            </text>
+            <text flexShrink={1} wrapMode="none" fg={theme.textBright}>
+              <b>{h().stageName}</b>
+            </text>
+          </>
+        )}
+      </Show>
       <box flexGrow={1} />
       <text flexShrink={0} wrapMode="none" fg={theme.muted}>
         {header()?.region ?? ''}
@@ -152,7 +158,7 @@ const PhaseRail = () => {
             phase.status === 'error'
               ? theme.error
               : phase.status === 'success'
-                ? theme.text
+                ? theme.success
                 : isCurrent()
                   ? theme.running
                   : theme.dim;
@@ -329,6 +335,7 @@ const HintsRow = (props: { hints: PromptHint[] }) => {
 };
 
 const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
+  const { theme } = useTheme();
   const dimensions = useTerminalDimensions();
   const [showCancelConfirm, setShowCancelConfirm] = createSignal(false);
   const isComplete = createTuiSignal((s) => s.isComplete);
@@ -392,7 +399,7 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
   const bodyRows = () => (showPhases() ? 6 : 3);
 
   return (
-    <box flexDirection="column" width="100%" height="100%" overflow="hidden">
+    <box flexDirection="column" width="100%" height="100%" overflow="hidden" backgroundColor={theme.panel}>
       <Divider />
       <Identity />
       <Show when={showPhases()} fallback={<box height={1} flexShrink={0} />}>

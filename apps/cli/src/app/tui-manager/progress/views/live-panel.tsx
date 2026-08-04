@@ -321,14 +321,11 @@ const aggregateChildren = (children: TuiEvent[]): AggregatedChild[] => {
         ? lastFinished.finalMessage.slice(instanceId.length + 1)
         : lastFinished.finalMessage
       : '';
-    // Running rows tail with the freshest signal available: an explicit status
-    // message, else the last buffered output line (live docker/build feedback).
-    const runningDetail = running ? running.additionalMessage || running.outputLines?.at(-1) || '' : '';
     result.push({
       instanceId,
       status,
       label: instanceId,
-      detail: running ? runningDetail : finishedDetail
+      detail: running ? running.additionalMessage || '' : finishedDetail
     });
   }
   return result;
@@ -378,11 +375,6 @@ const GenericRows = (props: { events: TuiEvent[]; rows: number }) => {
     return [...shown, { kind: 'overflow', count: rows.length - shown.length } as LiveRow];
   };
 
-  // Running events tail with an explicit status message, else the freshest
-  // buffered output line — live feedback without streaming into scrollback.
-  const eventTail = (event: TuiEvent) =>
-    event.additionalMessage || (event.status === 'running' ? event.outputLines?.at(-1) : undefined);
-
   return (
     <box flexDirection="column" paddingLeft={2} paddingRight={1} overflow="hidden">
       <Index each={visible()}>
@@ -394,10 +386,10 @@ const GenericRows = (props: { events: TuiEvent[]; rows: number }) => {
                 {' '}
                 {(row() as Extract<LiveRow, { kind: 'event' }>).event.description}
               </text>
-              <Show when={eventTail((row() as Extract<LiveRow, { kind: 'event' }>).event)}>
+              <Show when={(row() as Extract<LiveRow, { kind: 'event' }>).event.additionalMessage}>
                 <text flexShrink={1} wrapMode="none" fg={theme.dim}>
                   {'  '}
-                  {eventTail((row() as Extract<LiveRow, { kind: 'event' }>).event)}
+                  {(row() as Extract<LiveRow, { kind: 'event' }>).event.additionalMessage}
                 </text>
               </Show>
             </Show>

@@ -108,7 +108,7 @@ describe('ProgressDashboard footer', () => {
     expect(frame).not.toContain('api-lambda  api-lambda');
   });
 
-  test('running event shows its last buffered output line as a live tail', async () => {
+  test('buffered output never surfaces while an event is running', async () => {
     initDeployState();
     tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging workloads' });
     tuiState.appendEventOutput({
@@ -117,7 +117,8 @@ describe('ProgressDashboard footer', () => {
     });
 
     const frame = await renderDashboard();
-    expect(frame).toContain('Packaging workloads  #6 RUN bun install');
+    expect(frame).toContain('Packaging workloads');
+    expect(frame).not.toContain('#6 RUN bun install');
     expect(frame).not.toContain('#2 transferring context');
   });
 

@@ -38,6 +38,7 @@ export const darkTheme = {
 
   // Surfaces
   bg: brand.bg,
+  panel: brand.panelBg,
   border: '#3a4444',
   separator: '#3a4444',
 
@@ -66,6 +67,7 @@ export const lightTheme: Theme = {
   dim: '#9ca3af',
 
   bg: '#ffffff',
+  panel: '#f4f4f5',
   border: '#d1d5db',
   separator: '#d1d5db',
 
