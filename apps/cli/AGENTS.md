@@ -90,11 +90,12 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   canonical config JSON schema lives with its model at `packages/config/generated/config-schema.json`. Never
   hand-edit; regenerate with the matching task. The main CLI project excludes this directory, so
   `@generated/tsconfig.json` owns the generated Zod validator (`test:generated-types`).
-  `generate-schemas.ts` owns only `@generated/schemas/validate-config-zod.ts` and preserves
-  separately generated schema variants in that directory. `generate:llm-docs` owns the enhanced documentation schema,
-  `@generated/schemas/api-reference-data.json`, and the complete `@generated/llm-docs` tree; it reads canonical data
-  from `apps/docs` plus the current config model, stages the corpus before replacement, and has a separate Turbo cache
-  from the uncached config-schema task. Release archives carry only `llm-docs/chunks/chunks.jsonl`, the corpus the MCP
+  The ordinary `generate` task owns starter metadata, the canonical JSON schema and Zod validator, the enhanced
+  documentation schema, `@generated/schemas/api-reference-data.json`, and the complete `@generated/llm-docs` tree.
+  `generate:check` produces that complete set in a temporary directory and compares bytes without modifying the
+  checkout; it also rejects unexpected files in the owned schema and LLM-docs directories. The LLM corpus reads
+  canonical data from `apps/docs` plus the current config model and stages the complete tree before replacement.
+  Release archives carry only `llm-docs/chunks/chunks.jsonl`, the corpus the MCP
   runtime actually reads; the npm launcher carries no duplicate docs because it downloads that archive. The rendered
   pages, indexes and single-file exports remain generated publication inputs. `api-reference-data.json` is the
   normalized API reference this generator
@@ -112,9 +113,9 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 - The live AWS Pricing CSV parser and product catalog definitions used by `gen:price:info` live in
   `@stacktape/pricing/catalog`. The generated editor catalog remains CLI-owned output because this application
   defines and publishes its JSON shape.
-  The root `check:generated-diff` gate checks both tracked changes and untracked files in every committed generated
-  scope; a newly generated page must be committed and cannot pass CI merely because `git diff` ignores it.
-- `generated/monaco-declarations/` — ignored deterministic workspace output containing the four v4 declaration files
+  Package-owned `generate:check` tasks cover committed artifacts; do not replace them with a generate-then-Git-diff
+  workflow, which mutates the checkout before it proves freshness.
+- `.generated/monaco-declarations/` — ignored deterministic workspace output containing the four v4 declaration files
   served by Console's Monaco editor. `generate:monaco` reuses the npm declaration assembler without building or
   mutating `__release-npm`; Console build/dev materializes it automatically and then copies it into its served assets.
 - `tests/characterization/` — behavioral baselines for the CLI contract, config runtime, packaging and synthesis.
@@ -159,8 +160,8 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 ## Checks
 
 ```sh
-pnpm --filter @stacktape/cli run generate        # starter metadata plus deterministic config JSON/Zod schemas
-pnpm exec turbo run generate:llm-docs --filter @stacktape/cli # enhanced schema and complete generated LLM corpus
+pnpm --filter @stacktape/cli run generate        # all committed CLI schemas, docs data/corpus and starter metadata
+pnpm --filter @stacktape/cli run generate:check  # non-mutating freshness check for that complete output set
 pnpm --filter @stacktape/cli run typecheck       # CLI, build/test projects, smoke fixtures and committed generated TypeScript
 pnpm --filter @stacktape/cli run test            # complete source suite, characterization, generators, release/security checks, helper Lambdas, CLI smoke
 pnpm --filter @stacktape/cli run test:src        # all colocated source tests, isolated per file to contain Bun module mocks

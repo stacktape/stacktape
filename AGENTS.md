@@ -99,13 +99,14 @@ Conceptual complexity is reviewed as strictly as correctness.
 
 ## Generated files
 
+The executable ownership model and output classes are documented in `architecture/GENERATION.md`.
 Turbo tasks own dependencies for deterministic generators used by ordinary build/typecheck/test work. Humans and
 agents should not need to remember a separate generation step for those outputs. The CLI config-schema generator is
 part of its ordinary `generate` task; only live-upstream generators remain deliberate manual operations documented in
 `apps/cli/AGENTS.md`.
 
 - Never hand-edit generated output.
-- Run the owning package's freshness check after changing canonical inputs.
+- Run the owning package's non-mutating `generate:check` after changing canonical inputs.
 - Do not commit `*.tsbuildinfo`, caches, release folders, or generated Prisma clients unless the documented policy
   explicitly changes.
 - Review generated diffs; do not accept opaque regeneration merely to make CI green.

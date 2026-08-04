@@ -7235,9 +7235,11 @@
         "config-reference:LambdaS3FilesMountProps#lambdas3filesmountprops-api-reference",
         "config-reference:LambdaS3FilesMountProps#typescript-definition",
         "config-reference:LambdaS3FilesMountProps#property-accesspointarn",
-        "config-reference:LambdaS3FilesMountProps#property-mountpath",
         "config-reference:LambdaS3FilesMountProps#example-1-yaml",
-        "config-reference:LambdaS3FilesMountProps#example-2-typescript"
+        "config-reference:LambdaS3FilesMountProps#example-2-typescript",
+        "config-reference:LambdaS3FilesMountProps#property-mountpath",
+        "config-reference:LambdaS3FilesMountProps#example-1-yaml-2",
+        "config-reference:LambdaS3FilesMountProps#example-2-typescript-2"
       ]
     },
     {

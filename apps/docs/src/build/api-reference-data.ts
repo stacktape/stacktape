@@ -20,7 +20,7 @@ const RESOLVED_ID = `\0${API_REFERENCE_DATA_MODULE}`;
  * Expose the CLI's generated API reference to the client bundle as
  * `virtual:stacktape/api-reference-data`.
  *
- * This is a reader, not a generator: `apps/cli`'s `generate:llm-docs` owns the schema normalization
+ * This is a reader, not a generator: `apps/cli`'s generation pipeline owns the schema normalization
  * and emits the finished data, so the site cannot drift from the corpus the CLI ships. The file is
  * read with `readFileSync` rather than `createRequire` because Node's module cache would keep
  * serving the first parse, and `astro dev` would then ignore a regenerated artifact despite the
@@ -37,7 +37,7 @@ export const apiReferenceDataPlugin = (): VirtualModulePlugin => ({
 
     if (!existsSync(CLI_API_REFERENCE_DATA)) {
       throw new Error(
-        `The API reference needs ${CLI_API_REFERENCE_DATA}, which does not exist. ${generatorHint('generate:llm-docs')}`
+        `The API reference needs ${CLI_API_REFERENCE_DATA}, which does not exist. ${generatorHint('generate')}`
       );
     }
 

@@ -1,7 +1,7 @@
 /**
  * The shape of `apps/cli/@generated/schemas/api-reference-data.json`, as the renderer reads it.
  *
- * These are DTOs, not a second model. The CLI's `generate:llm-docs` owns the schema walk that
+ * These are DTOs, not a second model. The CLI generation pipeline owns the schema walk that
  * produces this data and renders the identical structure into the LLM corpus; this application only
  * paints it. Keeping the types here rather than importing CLI source preserves the app boundary —
  * and if the generator's shape changes, `astro check` fails against the emitted JSON.

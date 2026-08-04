@@ -393,7 +393,7 @@ const resolveLlmDocsFolderPath = async (): Promise<string> => {
   }
 
   throw new Error(
-    `LLM docs not found. Run 'bun run gen:llm-docs' before starting MCP. Checked: ${candidates.join(', ')}`
+    `LLM docs not found. Run 'pnpm --filter @stacktape/cli run generate' before starting MCP. Checked: ${candidates.join(', ')}`
   );
 };
 

@@ -37023,11 +37023,177 @@
                   {
                     "name": "accessPointArn",
                     "required": true,
-                    "shortDescription": "ARN of an existing S3 Files access point.",
-                    "longDescription": "**Example (YAML):**\n\n```yaml\nresources:\n  datasetReader:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/read.ts\n      joinDefaultVpc: true\n      volumeMounts:\n        - type: s3files\n          properties:\n            accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap\n            mountPath: /mnt/s3data\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const datasetReader = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },\n    joinDefaultVpc: true,\n    volumeMounts: [\n      {\n        type: 's3files',\n        properties: {\n          accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap',\n          mountPath: '/mnt/s3data'\n        }\n      }\n    ]\n  });\n  return { resources: { datasetReader } };\n});\n```",
+                    "shortDescription": "<p> ARN of an existing S3 Files access point.</p>",
+                    "longDescription": "",
                     "typeInfo": {
-                      "kind": "unknown"
-                    }
+                      "kind": "union",
+                      "discriminator": null,
+                      "branches": [
+                        {
+                          "label": "option-1",
+                          "properties": []
+                        },
+                        {
+                          "label": "option-2",
+                          "properties": [
+                            {
+                              "name": "Ref",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Condition",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Fn::And",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Fn::Base64",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Fn::Equals",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Fn::FindInMap",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Fn::GetAtt",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Fn::GetAZs",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Fn::If",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Fn::ImportValue",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Fn::Join",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Fn::Not",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Fn::Or",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Fn::Select",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Fn::Split",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            },
+                            {
+                              "name": "Fn::Sub",
+                              "required": false,
+                              "shortDescription": "",
+                              "longDescription": "",
+                              "typeInfo": {
+                                "kind": "unknown"
+                              }
+                            }
+                          ]
+                        }
+                      ]
+                    },
+                    "examples": [
+                      {
+                        "lang": "yaml",
+                        "code": "resources:\n  datasetReader:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/read.ts\n      joinDefaultVpc: true\n      volumeMounts:\n        - type: s3files\n          properties:\n            # [!code focus-start]\n            accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap\n            # [!code focus-end]\n            mountPath: /mnt/s3data"
+                      },
+                      {
+                        "lang": "typescript",
+                        "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const datasetReader = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },\n    joinDefaultVpc: true,\n    volumeMounts: [\n      {\n        type: 's3files',\n        properties: {\n          // [!code focus-start]\n          accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap',\n          // [!code focus-end]\n          mountPath: '/mnt/s3data'\n        }\n      }\n    ]\n  });\n  return { resources: { datasetReader } };\n});"
+                      }
+                    ]
                   },
                   {
                     "name": "mountPath",
@@ -37110,11 +37276,177 @@
       {
         "name": "accessPointArn",
         "required": true,
-        "shortDescription": "ARN of an existing S3 Files access point.",
-        "longDescription": "**Example (YAML):**\n\n```yaml\nresources:\n  datasetReader:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/read.ts\n      joinDefaultVpc: true\n      volumeMounts:\n        - type: s3files\n          properties:\n            accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap\n            mountPath: /mnt/s3data\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const datasetReader = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },\n    joinDefaultVpc: true,\n    volumeMounts: [\n      {\n        type: 's3files',\n        properties: {\n          accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap',\n          mountPath: '/mnt/s3data'\n        }\n      }\n    ]\n  });\n  return { resources: { datasetReader } };\n});\n```",
+        "shortDescription": "<p> ARN of an existing S3 Files access point.</p>",
+        "longDescription": "",
         "typeInfo": {
-          "kind": "unknown"
-        }
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "option-1",
+              "properties": []
+            },
+            {
+              "label": "option-2",
+              "properties": [
+                {
+                  "name": "Ref",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Condition",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Fn::And",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Fn::Base64",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Fn::Equals",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Fn::FindInMap",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Fn::GetAtt",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Fn::GetAZs",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Fn::If",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Fn::ImportValue",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Fn::Join",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Fn::Not",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Fn::Or",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Fn::Select",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Fn::Split",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                },
+                {
+                  "name": "Fn::Sub",
+                  "required": false,
+                  "shortDescription": "",
+                  "longDescription": "",
+                  "typeInfo": {
+                    "kind": "unknown"
+                  }
+                }
+              ]
+            }
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "resources:\n  datasetReader:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/read.ts\n      joinDefaultVpc: true\n      volumeMounts:\n        - type: s3files\n          properties:\n            # [!code focus-start]\n            accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap\n            # [!code focus-end]\n            mountPath: /mnt/s3data"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const datasetReader = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },\n    joinDefaultVpc: true,\n    volumeMounts: [\n      {\n        type: 's3files',\n        properties: {\n          // [!code focus-start]\n          accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap',\n          // [!code focus-end]\n          mountPath: '/mnt/s3data'\n        }\n      }\n    ]\n  });\n  return { resources: { datasetReader } };\n});"
+          }
+        ]
       },
       {
         "name": "mountPath",
@@ -37143,7 +37475,7 @@
       "requiredCount": 2,
       "optionalCount": 0
     },
-    "typeDeclaration": "// [!code focus-start]\ntype LambdaS3FilesMountProps = {\n  /** ARN of an existing S3 Files access point. */\n  accessPointArn: unknown;\n  /** Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/s3data`). */\n  mountPath: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype LambdaS3FilesMountProps = {\n  /** ARN of an existing S3 Files access point. */\n  accessPointArn: LambdaS3FilesMountAccessPointArn;\n  /** Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/s3data`). */\n  mountPath: string;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaS3FilesMountAccessPointArn =\n  | \"option-1\"\n  | \"option-2\";\n// [!code focus-end]"
   },
   "LambdaUrlConfig": {
     "definitionName": "LambdaUrlConfig",

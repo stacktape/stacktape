@@ -7,19 +7,15 @@
   "tasks": {
     "generate": {
       "description": "Generate derived source and metadata from canonical inputs",
-      "outputs": ["generated/**", "@generated/prisma/**", "dist/**", "starter-projects-metadata.json"]
+      "outputs": ["generated/**", "@generated/prisma/**", "starter-projects-metadata.json"]
     },
     "generate:check": {
       "description": "Verify committed generated artifacts are current",
       "cache": false
     },
-    "generate:llm-docs": {
-      "description": "Generate the deterministic LLM documentation corpus from canonical docs and configuration inputs. Only apps/cli owns this task; its apps/cli/turbo.json entry replaces this one wholesale, so declare inputs and outputs there, not here",
-      "dependsOn": ["generate"]
-    },
     "generate:monaco": {
       "description": "Generate the Stacktape declarations consumed by Console Monaco",
-      "outputs": ["generated/monaco-declarations/**"]
+      "outputs": [".generated/monaco-declarations/**"]
     },
     "generate:monaco:check": {
       "description": "Verify the generated Monaco declarations are deterministic and current",
@@ -27,17 +23,17 @@
     },
     "build": {
       "description": "Build a workspace after its dependencies and generators",
-      "dependsOn": ["^build", "^generate", "generate", "generate:llm-docs"],
+      "dependsOn": ["^build", "^generate", "generate"],
       "outputs": ["dist/**", "__release-npm/**", ".astro/**", "!.astro/cache/**"]
     },
     "typecheck": {
       "description": "Type-check source against generated artifacts",
-      "dependsOn": ["^generate", "generate", "generate:llm-docs"],
+      "dependsOn": ["^generate", "generate"],
       "outputs": []
     },
     "test": {
       "description": "Run deterministic behavioral tests",
-      "dependsOn": ["generate", "generate:llm-docs", "^generate", "^build"],
+      "dependsOn": ["generate", "^generate", "^build"],
       "outputs": []
     },
     "dev": {
@@ -47,22 +43,22 @@
     },
     "@stacktape/docs#build": {
       "description": "Build the documentation site against the CLI's reviewed generated artifacts",
-      "dependsOn": ["^build", "^generate", "@stacktape/cli#generate:llm-docs", "@stacktape/cli#generate:monaco"],
+      "dependsOn": ["^build", "^generate", "@stacktape/cli#generate", "@stacktape/cli#generate:monaco"],
       "outputs": ["dist/**", ".astro/**", "!.astro/cache/**"]
     },
     "@stacktape/docs#typecheck": {
       "description": "Type-check the documentation site against the CLI's reviewed generated artifacts",
-      "dependsOn": ["^generate", "@stacktape/cli#generate:llm-docs", "@stacktape/cli#generate:monaco"],
+      "dependsOn": ["^generate", "@stacktape/cli#generate", "@stacktape/cli#generate:monaco"],
       "outputs": []
     },
     "@stacktape/docs#test": {
-      "description": "Test the documentation site. Needs the same CLI artifacts as its build: the api-reference data the DTO test reads, and the Stacktape declarations the Twoslash test type-checks against. The generic test task cannot supply them — its generate:llm-docs entry resolves to the docs package's own (absent) task",
-      "dependsOn": ["@stacktape/cli#generate:llm-docs", "@stacktape/cli#generate:monaco"],
+      "description": "Test the documentation site against the CLI-owned API-reference data and Stacktape declarations used by the build",
+      "dependsOn": ["@stacktape/cli#generate", "@stacktape/cli#generate:monaco"],
       "outputs": []
     },
     "@stacktape/docs#dev": {
       "description": "Serve the documentation site against the CLI's reviewed generated artifacts",
-      "dependsOn": ["@stacktape/cli#generate:llm-docs", "@stacktape/cli#generate:monaco"],
+      "dependsOn": ["@stacktape/cli#generate", "@stacktape/cli#generate:monaco"],
       "cache": false,
       "persistent": true
     }

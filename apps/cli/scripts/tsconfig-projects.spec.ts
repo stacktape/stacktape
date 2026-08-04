@@ -13,10 +13,13 @@ describe('TypeScript project ownership', () => {
     ]);
 
     expect(cliTurboConfig.tasks.generate.outputs).toEqual([
+      'starter-projects-metadata.json',
       '@generated/schemas/validate-config-zod.ts',
-      'starter-projects-metadata.json'
+      '@generated/schemas/enhanced-config-schema.json',
+      '@generated/schemas/api-reference-data.json',
+      '@generated/llm-docs/**'
     ]);
-    expect(workspaceTurboConfig.tasks['generate:monaco'].outputs).toEqual(['generated/monaco-declarations/**']);
+    expect(workspaceTurboConfig.tasks['generate:monaco'].outputs).toEqual(['.generated/monaco-declarations/**']);
   });
 
   test('keeps workspace tools in the standard root project', async () => {

@@ -1,6 +1,7 @@
 /**
  * Core validation of a single Stacktape config (as a YAML string or parsed object) against the REAL
- * generated Zod schema (`stacktapeConfigSchema`, produced by `gen:schema` from the authored and resolved config models).
+ * generated Zod schema (`stacktapeConfigSchema`, produced by the CLI `generate` task from the authored and resolved
+ * config models).
  *
  * Pure + offline: no AWS, no CLI init, no global state. Shared by the docs-example tooling:
  *   - scripts/validate-example-config.ts        (validate standalone .yml files)
