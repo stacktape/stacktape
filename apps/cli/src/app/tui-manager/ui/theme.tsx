@@ -47,7 +47,8 @@ export const darkTheme = {
   amber: brand.warning,
   purple: '#a78bfa',
   hint: '#8b5cf6',
-  announce: brand.accent
+  announce: brand.accent,
+  accentContrast: brand.accentContrastText
 } as const;
 
 export type Theme = { -readonly [K in keyof typeof darkTheme]: string };
@@ -75,7 +76,8 @@ export const lightTheme: Theme = {
   amber: '#c17000',
   purple: '#7c3aed',
   hint: '#7c3aed',
-  announce: '#1a9c9c'
+  announce: '#1a9c9c',
+  accentContrast: '#ffffff'
 };
 
 export type ThemeMode = 'light' | 'dark';

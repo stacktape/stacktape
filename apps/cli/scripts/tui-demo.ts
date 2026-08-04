@@ -12,6 +12,8 @@
  *
  * A second argument slows everything down for inspection, e.g.
  * `bun scripts/tui-demo.ts deploy 3` runs the deploy at one third speed.
+ * A trailing `dot` | `chip` | `chevrons` | `timer` argument picks the
+ * phase-rail style, e.g. `bun scripts/tui-demo.ts deploy 2 chip`.
  *
  * The OpenTUI Solid views are transformed at runtime via Bun's plugin API (same
  * loader the test preload uses), so this runs without a bundling step.
@@ -27,6 +29,11 @@ plugin(createStacktapeOpenTuiBuildPlugin());
 
 /** Pacing multiplier from argv[3] — `tui-demo deploy 3` runs 3x slower. */
 const SPEED = Math.max(0.1, Number(process.argv[3]) || 1);
+
+const railArg = process.argv.find((arg) => ['dot', 'chip', 'chevrons', 'timer'].includes(arg));
+if (railArg) {
+  process.env.STP_TUI_RAIL = railArg;
+}
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms * SPEED));
 
@@ -65,6 +72,24 @@ const runInitializePhase = async () => {
   tuiManager.finishEvent({ eventType: 'FETCH_STACK_DATA', finalMessage: 'Stack data fetched' });
   await sleep(250);
   tuiManager.finishEvent({ eventType: 'FETCH_PREVIOUS_ARTIFACTS', finalMessage: 'Previous artifacts fetched' });
+
+  // A before:deploy hook script — output buffers silently and would surface
+  // only if the hook failed.
+  tuiManager.startEvent({
+    eventType: 'RUN_SCRIPT',
+    description: 'Running hook db-migrate',
+    instanceId: 'manual-db-migrate'
+  });
+  const migrateLines = ['$ prisma migrate deploy', '2 migrations found', 'applying 20260801_add_orders_table'];
+  for (const line of migrateLines) {
+    tuiManager.appendEventOutput({ eventType: 'RUN_SCRIPT', instanceId: 'manual-db-migrate', lines: [line] });
+    await sleep(450);
+  }
+  tuiManager.finishEvent({
+    eventType: 'RUN_SCRIPT',
+    instanceId: 'manual-db-migrate',
+    finalMessage: 'Hook db-migrate finished (2 migrations applied)'
+  });
   tuiManager.finishPhase();
 };
 

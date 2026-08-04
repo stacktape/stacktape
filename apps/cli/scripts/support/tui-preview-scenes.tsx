@@ -133,6 +133,42 @@ export const footerScenes: Scene[] = [
     ]
   },
   {
+    name: 'footer/rail-chip',
+    setup: () => {
+      process.env.STP_TUI_RAIL = 'chip';
+      baseHeader();
+      tuiState.setCurrentPhase('BUILD_AND_PACKAGE');
+      tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging workloads' });
+    }
+  },
+  {
+    name: 'footer/rail-chevrons',
+    setup: () => {
+      process.env.STP_TUI_RAIL = 'chevrons';
+      baseHeader();
+      tuiState.setCurrentPhase('BUILD_AND_PACKAGE');
+      tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging workloads' });
+    }
+  },
+  {
+    name: 'footer/rail-timer',
+    setup: () => {
+      process.env.STP_TUI_RAIL = 'timer';
+      baseHeader();
+      tuiState.setCurrentPhase('BUILD_AND_PACKAGE');
+      tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging workloads' });
+    }
+  },
+  {
+    name: 'footer/rail-reset-to-dot',
+    setup: () => {
+      delete process.env.STP_TUI_RAIL;
+      baseHeader();
+      tuiState.setCurrentPhase('BUILD_AND_PACKAGE');
+      tuiState.startEvent({ eventType: 'PACKAGE_ARTIFACTS', description: 'Packaging workloads' });
+    }
+  },
+  {
     name: 'footer/cf-mid-deploy-narrow',
     width: 60,
     setup: () => {

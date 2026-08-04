@@ -1,9 +1,11 @@
-import { createSignal, onCleanup, Show, For, ErrorBoundary } from 'solid-js';
+import { createSignal, onCleanup, Show, For, Switch, Match, ErrorBoundary } from 'solid-js';
 import { useKeyboard, useTerminalDimensions } from '@opentui/solid';
 import type { TuiDeploymentHeader } from '../../types';
 import { ThemeProvider, useTheme } from '../../ui/theme';
 import { glyphs } from '../../ui/glyphs';
-import { formatClock } from '../../format/text';
+import { formatClock, formatDuration, formatPhaseTimer } from '../../format/text';
+import type { TuiPhase } from '../types';
+import { Spinner } from '../../ui/spinner';
 import { createTuiSignal } from './signals';
 import { LivePanel } from './live-panel';
 import { PromptBlock, promptHints, type PromptHint } from './prompt-overlay';
@@ -126,57 +128,182 @@ const Identity = () => {
 };
 
 /**
- * Compact, non-animated state map of the phases. Single-cell icons only:
- * check = done, filled dot = current, middle dot = pending, cross = failed.
- * The spinner belongs to the live work rows, never to the rail.
+ * The phase rail — a single-row state map of the phases. The ACTIVE phase
+ * style is selectable while the final look is being chosen (`STP_TUI_RAIL`,
+ * also settable as a trailing demo argument):
+ *
+ *   dot       ✓ Initialize   ● Deploy   · Finalize          (default)
+ *   chip      ✓ Initialize   inverted accent pill  Deploy
+ *   chevrons  Initialize › Package › DEPLOY › Finalize      (typographic route)
+ *   timer     ✓ Initialize · 1.2s   spinner Deploy · 00:42  (data-rich, live timing)
  */
+type RailVariant = 'dot' | 'chip' | 'chevrons' | 'timer';
+
+const railVariant = (): RailVariant => {
+  const value = process.env.STP_TUI_RAIL;
+  return value === 'chip' || value === 'chevrons' || value === 'timer' ? value : 'dot';
+};
+
 const PhaseRail = () => {
   const { theme } = useTheme();
   const dimensions = useTerminalDimensions();
   const phases = createTuiSignal((s) => s.phases);
   const currentPhase = createTuiSignal((s) => s.currentPhase);
+  const [now, setNow] = createSignal(Date.now());
+  const timerInterval = setInterval(() => {
+    if (railVariant() === 'timer') setNow(Date.now());
+  }, 1000);
+  onCleanup(() => clearInterval(timerInterval));
 
   const railLabel = (name: string) => {
     const label = SHORT_RAIL_LABELS[name] ?? name;
     return dimensions().width < 80 ? (NARROW_RAIL_LABELS[label] ?? label) : label;
   };
 
+  const isCurrent = (phase: TuiPhase) => phase.id === currentPhase() && phase.status === 'running';
+
+  const stateIcon = (phase: TuiPhase) =>
+    phase.status === 'error' ? glyphs.error : phase.status === 'success' ? glyphs.success : glyphs.pending;
+  const stateIconColor = (phase: TuiPhase) =>
+    phase.status === 'error' ? theme.error : phase.status === 'success' ? theme.success : theme.dim;
+
+  const DotEntry = (entry: { phase: TuiPhase }) => {
+    const active = () => isCurrent(entry.phase);
+    return (
+      <>
+        <text flexShrink={0} wrapMode="none" fg={active() ? theme.running : stateIconColor(entry.phase)}>
+          {active() ? glyphs.current : stateIcon(entry.phase)}
+        </text>
+        <text
+          flexShrink={0}
+          wrapMode="none"
+          fg={active() ? theme.textBright : entry.phase.status === 'success' ? theme.text : theme.dim}
+        >
+          {' '}
+          {railLabel(entry.phase.name)}
+          {'   '}
+        </text>
+      </>
+    );
+  };
+
+  const ChipEntry = (entry: { phase: TuiPhase }) => {
+    const active = () => isCurrent(entry.phase);
+    return (
+      <Show
+        when={active()}
+        fallback={
+          <>
+            <text flexShrink={0} wrapMode="none" fg={stateIconColor(entry.phase)}>
+              {stateIcon(entry.phase)}
+            </text>
+            <text flexShrink={0} wrapMode="none" fg={entry.phase.status === 'success' ? theme.text : theme.dim}>
+              {' '}
+              {railLabel(entry.phase.name)}
+              {'   '}
+            </text>
+          </>
+        }
+      >
+        <text flexShrink={0} wrapMode="none" bg={theme.running} fg={theme.accentContrast}>
+          <b> {railLabel(entry.phase.name)} </b>
+        </text>
+        <text flexShrink={0} wrapMode="none">
+          {'   '}
+        </text>
+      </Show>
+    );
+  };
+
+  const ChevronEntry = (entry: { phase: TuiPhase; index: number }) => {
+    const active = () => isCurrent(entry.phase);
+    const labelColor = () =>
+      entry.phase.status === 'error'
+        ? theme.error
+        : active()
+          ? theme.running
+          : entry.phase.status === 'success'
+            ? theme.success
+            : theme.dim;
+    return (
+      <>
+        <Show when={entry.index > 0}>
+          <text
+            flexShrink={0}
+            wrapMode="none"
+            fg={phases()[entry.index - 1]?.status === 'success' ? theme.success : theme.border}
+          >
+            {' '}
+            {glyphs.selected}{' '}
+          </text>
+        </Show>
+        <text flexShrink={0} wrapMode="none" fg={labelColor()}>
+          <Show when={active()} fallback={railLabel(entry.phase.name)}>
+            <b>{railLabel(entry.phase.name).toUpperCase()}</b>
+          </Show>
+        </text>
+      </>
+    );
+  };
+
+  const TimerEntry = (entry: { phase: TuiPhase }) => {
+    const active = () => isCurrent(entry.phase);
+    const timing = () => {
+      if (active() && entry.phase.startTime) return formatPhaseTimer(now() - entry.phase.startTime);
+      if ((entry.phase.status === 'success' || entry.phase.status === 'error') && entry.phase.duration) {
+        return formatDuration(entry.phase.duration);
+      }
+      return null;
+    };
+    return (
+      <>
+        <Show
+          when={active()}
+          fallback={
+            <text flexShrink={0} wrapMode="none" fg={stateIconColor(entry.phase)}>
+              {stateIcon(entry.phase)}
+            </text>
+          }
+        >
+          <Spinner />
+        </Show>
+        <text
+          flexShrink={0}
+          wrapMode="none"
+          fg={active() ? theme.textBright : entry.phase.status === 'success' ? theme.text : theme.dim}
+        >
+          {' '}
+          {railLabel(entry.phase.name)}
+        </text>
+        <Show when={timing()}>
+          <text flexShrink={0} wrapMode="none" fg={theme.dim}>
+            {' '}
+            {glyphs.separator} {timing()}
+          </text>
+        </Show>
+        <text flexShrink={0} wrapMode="none">
+          {'   '}
+        </text>
+      </>
+    );
+  };
+
   return (
     <box height={1} flexShrink={0} flexDirection="row" paddingLeft={2} overflow="hidden">
       <For each={phases()}>
-        {(phase) => {
-          const isCurrent = () => phase.id === currentPhase() && phase.status === 'running';
-          const icon = () =>
-            phase.status === 'error'
-              ? glyphs.error
-              : phase.status === 'success'
-                ? glyphs.success
-                : isCurrent()
-                  ? glyphs.current
-                  : glyphs.pending;
-          const iconColor = () =>
-            phase.status === 'error'
-              ? theme.error
-              : phase.status === 'success'
-                ? theme.success
-                : isCurrent()
-                  ? theme.running
-                  : theme.dim;
-          const labelColor = () =>
-            isCurrent() ? theme.textBright : phase.status === 'success' ? theme.text : theme.dim;
-          return (
-            <>
-              <text flexShrink={0} wrapMode="none" fg={iconColor()}>
-                {icon()}
-              </text>
-              <text flexShrink={0} wrapMode="none" fg={labelColor()}>
-                {' '}
-                {railLabel(phase.name)}
-                {'   '}
-              </text>
-            </>
-          );
-        }}
+        {(phase, index) => (
+          <Switch fallback={<DotEntry phase={phase} />}>
+            <Match when={railVariant() === 'chip'}>
+              <ChipEntry phase={phase} />
+            </Match>
+            <Match when={railVariant() === 'chevrons'}>
+              <ChevronEntry phase={phase} index={index()} />
+            </Match>
+            <Match when={railVariant() === 'timer'}>
+              <TimerEntry phase={phase} />
+            </Match>
+          </Switch>
+        )}
       </For>
     </box>
   );
