@@ -1,0 +1,4 @@
+[submodule "apps/console"]
+	path = apps/console
+	url = git@github.com:stacktape/console-app.git
+	branch = v4/integration

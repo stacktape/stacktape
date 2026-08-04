@@ -1,62 +1,40 @@
-.idea
-*.log
-**/.DS_Store
-node_modules
+.DS_Store
+.astro/
+.dprint-cache/
+.turbo/
+.worktrees/
+coverage/
+dist/
+node_modules/
+*.tsbuildinfo
+.stacktape-agent.json
+.stacktape-dossier.md
+
+# Local credentials and deployed-stack output (see DEVELOPMENT.md)
 .env
-.sentryclirc
-bin/run
-__starter-projects
-.serverless
-yarn-error.log
-.stacktape
-.outputs
-__stacktape-dist
-__publish-folder
-__source-maps
-__binary-source-maps
-__publish-examples-dir
-__RELEASE-NOTES-TEMPLATE__.md
-stack-info.yml
-.stack-info/
-.stacktape-stack-info/
-__binary-dist
-__dev-bin
-__sdk-dist
-__cli-dist/**/*
-__release
-__release-npm
-__publish-gh-repo-dir
-__publish-starters-repo-dir
-__platform-packages
-stacktape-project
-compiled-template.yaml
-scripts/simon
-scripts/e2e-mcp/results/
-docs/node_modules
-docs/.astro
-docs/.docs-gen/artifacts/
-docs/.docs-gen/logs/
-docs/.docs-gen/state.sqlite*
-docs/.docs-gen/.migration-lock/
-docs/.next
-docs/public/_timestamps.json
-docs/public/llms.txt
-docs/public/llms-full.txt
-docs/public/stacktape
-docs/public/static
-docs/out
-docs/dist
-__dist
-.next
 .env.local
-.nuxt
+.stacktape-stack-info/
 
-# Ignore Gradle project-specific cache directory
-.gradle
+# CLI build, release and scratch output (see apps/cli/AGENTS.md)
+.stacktape/
+compiled-template.yaml
+__binary-dist/
+__cli-dist/
+__dist/
+__platform-packages/
+__publish-folder/
+__publish-gh-repo-dir/
+__publish-starters-repo-dir/
+__release/
+__release-npm/
+__source-maps/
+__stacktape-dist/
+__starter-projects/
+.release-version
 
-# Ignore Gradle build output directory
-build
+# Deterministic workspace output materialized for the private Console Monaco editor.
+apps/cli/generated/monaco-declarations/
 
-# Claude Code runtime artifacts
-/.claude/scheduled_tasks.lock
-/.claude/worktrees/
+# Interrupted atomic LLM-doc corpus generation can leave its same-volume staging/backup directory behind.
+apps/cli/@generated/.llm-docs-*/
+apps/cli/@generated/llm-docs.previous/

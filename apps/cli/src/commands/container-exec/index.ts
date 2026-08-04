@@ -1,0 +1,128 @@
+import type { StacktapeCliArgs } from 'src/config/cli/types';
+import { tuiManager } from '@application-services/tui-manager';
+import { DesiredStatus } from '@aws-sdk/client-ecs';
+import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { CliError } from '@utils/errors';
+import { runEcsExecCommand } from '@utils/ssm-session';
+import { containerErrors } from '../_utils/container-errors';
+import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
+
+type ContainerExecArgs = StacktapeCliArgs & { taskArn?: string };
+
+export const commandContainerExec = async () => {
+  const { args: capturedArgs } = await initializeStackServicesForWorkingWithDeployedStack({
+    commandModifiesStack: false,
+    commandRequiresConfig: false
+  });
+  const args = capturedArgs as ContainerExecArgs;
+
+  const { command, resourceName } = args;
+
+  const { task, containerName, clusterArn } = await resolveTargetContainer({ args });
+
+  const result = await runEcsExecCommand({
+    clusterArn,
+    taskArn: task.taskArn,
+    containerName,
+    command
+  });
+
+  tuiManager.info(
+    JSON.stringify(
+      {
+        resourceName,
+        containerName,
+        taskArn: task.taskArn,
+        command,
+        output: result.output,
+        exitCode: result.exitCode
+      },
+      null,
+      2
+    )
+  );
+};
+
+const resolveTargetContainer = async ({ args }: { args: ContainerExecArgs }) => {
+  const { resourceName, container, taskArn: specifiedTaskArn } = args;
+
+  const workloadInfo = deployedStackOverviewManager.deployedWorkloadsWithEcsTaskDefinition.find(
+    ({ nameChain }) => nameChain[0] === resourceName
+  );
+  if (!workloadInfo) {
+    throw containerErrors.invalidResource(resourceName);
+  }
+
+  const ecsServiceEntry = Object.entries(workloadInfo.resource.cloudformationChildResources).find(
+    ([, { cloudformationResourceType }]) => {
+      return (
+        cloudformationResourceType === 'AWS::ECS::Service' ||
+        cloudformationResourceType === 'Stacktape::ECSBlueGreenV1::Service'
+      );
+    }
+  );
+
+  if (!ecsServiceEntry) {
+    throw new CliError({
+      category: 'NON_EXISTING_RESOURCE',
+      code: 'CONTAINER_SERVICE_NOT_DEPLOYED',
+      message: `Resource \`${resourceName}\` does not have a deployed ECS service.`,
+      hints: 'The resource may be a dev stack without running containers. Deploy a full stack to use this command.'
+    });
+  }
+
+  const ecsServiceCfLogicalName = ecsServiceEntry[0];
+
+  const {
+    ecsServiceTaskDefinition,
+    ecsService: { clusterArn }
+  } = stackManager.existingStackResources.find(
+    ({ LogicalResourceId }) => LogicalResourceId === ecsServiceCfLogicalName
+  );
+
+  const containersInTaskDefinition = ecsServiceTaskDefinition.containerDefinitions.map(({ name }) => name);
+
+  if (
+    (containersInTaskDefinition.length > 1 && !container) ||
+    (container && !containersInTaskDefinition.includes(container))
+  ) {
+    throw containerErrors.selectionRequired({ resourceName, availableContainers: containersInTaskDefinition });
+  }
+
+  const tasks = await awsSdkManager.ecs.listTasks({
+    ecsClusterName: clusterArn,
+    desiredStatus: DesiredStatus.RUNNING
+  });
+
+  if (tasks.length === 0) {
+    throw new CliError({
+      category: 'NON_EXISTING_RESOURCE',
+      code: 'CONTAINER_TASK_NOT_RUNNING',
+      message: `No running task was found for resource \`${resourceName}\`.`,
+      hints: 'Wait for a task to start or check the ECS service status.'
+    });
+  }
+
+  let taskArn = tasks[0]?.taskArn;
+
+  // Use specified taskArn if provided
+  if (specifiedTaskArn) {
+    const matchingTask = tasks.find(
+      (t) => t.taskArn === specifiedTaskArn || t.taskArn.endsWith(`/${specifiedTaskArn}`)
+    );
+    if (!matchingTask) {
+      throw new CliError({
+        category: 'NON_EXISTING_RESOURCE',
+        code: 'CONTAINER_TASK_NOT_FOUND',
+        message: `Task \`${specifiedTaskArn}\` was not found.`,
+        hints: `Available tasks: ${tasks.map((task) => `\`${task.taskArn.split('/').pop()}\``).join(', ')}.`
+      });
+    }
+    taskArn = matchingTask.taskArn;
+  }
+
+  const task = tasks.find(({ taskArn: tArn }) => tArn === taskArn);
+  return { task, containerName: container || containersInTaskDefinition[0], clusterArn };
+};

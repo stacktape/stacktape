@@ -1,0 +1,76 @@
+---
+import { getCollection, render } from 'astro:content';
+
+import ApiReference from '@/components/mdx-islands/ApiReference.astro';
+import CodeBlock from '@/components/mdx-islands/CodeBlock.astro';
+import StarterProjectGallery from '@/components/mdx-islands/StarterProjectGallery.astro';
+import Tabs from '@/components/mdx-islands/Tabs.astro';
+import reactMdxComponents from '@/components/mdx-react-components';
+import DocsLayout from '@/layouts/DocsLayout.astro';
+
+import config from '@/site-config';
+import { getAllDocPages, getTitleFromSlug, type TableOfContentsItem } from '@/utils/docs-data';
+import { entryToUrlSlug } from '@/utils/route-slugs';
+import { getGitDates } from '@/utils/git-dates';
+import {
+  buildBreadcrumb,
+  buildCanonical,
+  buildFullTitle,
+  extractFaqItems,
+  mdToPlainText,
+  type DocsSeo
+} from '@/utils/seo';
+
+export async function getStaticPaths() {
+  const entries = await getCollection('docs');
+  return entries.map((entry) => {
+    const slug = entryToUrlSlug(entry.id);
+    return { params: { slug: slug.length ? slug.join('/') : undefined }, props: { entry } };
+  });
+}
+
+const { entry } = Astro.props;
+const slug = entryToUrlSlug(entry.id);
+
+const { Content, headings } = await render(entry);
+const allDocPages = await getAllDocPages();
+
+const frontmatter = entry.data as { title?: string; seoTitle?: string; seoDescription?: string };
+const pageTitle = frontmatter.title || getTitleFromSlug(slug);
+
+const tableOfContents: TableOfContentsItem[] = headings.map((heading) => ({
+  level: heading.depth,
+  text: heading.text,
+  href: `#${heading.slug}`
+}));
+
+const gitDates = getGitDates(entry.filePath);
+const seo: DocsSeo = {
+  title: buildFullTitle(frontmatter.seoTitle, pageTitle),
+  description: mdToPlainText(frontmatter.seoDescription || config.metadata.description),
+  canonical: buildCanonical(slug),
+  faqItems: extractFaqItems(entry.body ?? ''),
+  breadcrumb: buildBreadcrumb(slug, allDocPages),
+  datePublished: gitDates?.datePublished,
+  dateModified: gitDates?.dateModified
+};
+
+// Static React components plus the `.astro` island wrappers for the interactive ones.
+const components = {
+  ...reactMdxComponents,
+  ApiReference,
+  CodeBlock,
+  StarterProjectGallery,
+  Tabs
+};
+---
+
+<DocsLayout
+  title={pageTitle}
+  seo={seo}
+  allDocPages={allDocPages}
+  tableOfContents={tableOfContents}
+  currentPath={Astro.url.pathname}
+>
+  <Content components={components} />
+</DocsLayout>

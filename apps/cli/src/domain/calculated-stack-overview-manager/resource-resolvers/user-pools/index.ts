@@ -1,0 +1,150 @@
+import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
+
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { configManager } from '@domain-services/config-manager';
+import { resolveReferenceToFirewall } from '@domain-services/config-manager/utils/web-app-firewall';
+import { domainManager } from '@domain-services/domain-manager';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { getUserPoolDomainPrefix } from '@stacktape/naming/domain-names';
+import { getWebACLAssociation } from '../_utils/firewall-helpers';
+import {
+  getIdentityProviderResource,
+  getLambdaPermissionForHookResource,
+  getSnsRoleSendSmsFromCognito,
+  getUserPoolClientResource,
+  getUserPoolCustomDomainDnsRecord,
+  getUserPoolDetailsCustomResource,
+  getUserPoolDomainResource,
+  getUserPoolResource,
+  getUserPoolUiCustomizationAttachmentResource
+} from './utils';
+
+export const resolveUserPools = async () => {
+  configManager.userPools.forEach((userPoolDefinition) => {
+    const { name, nameChain } = userPoolDefinition;
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: cfLogicalNames.userPool(name),
+      resource: getUserPoolResource(userPoolDefinition),
+      nameChain
+    });
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: cfLogicalNames.snsRoleSendSmsFromCognito(name),
+      resource: getSnsRoleSendSmsFromCognito(name),
+      nameChain
+    });
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: cfLogicalNames.userPoolClient(name),
+      resource: getUserPoolClientResource(userPoolDefinition, name),
+      nameChain
+    });
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: cfLogicalNames.userPoolDomain(name),
+      resource: getUserPoolDomainResource(userPoolDefinition, name),
+      nameChain
+    });
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: cfLogicalNames.cognitoUserPoolDetailsCustomResource(name),
+      resource: getUserPoolDetailsCustomResource(userPoolDefinition),
+      nameChain
+    });
+    calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+      paramName: 'id',
+      nameChain,
+      paramValue: ref(cfLogicalNames.userPool(name)),
+      showDuringPrint: false
+    });
+    calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+      paramName: 'clientId',
+      nameChain,
+      paramValue: ref(cfLogicalNames.userPoolClient(name)),
+      showDuringPrint: false
+    });
+    if (userPoolDefinition.generateClientSecret) {
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'clientSecret',
+        nameChain,
+        paramValue: getAtt(cfLogicalNames.cognitoUserPoolDetailsCustomResource(name), 'ClientSecret'),
+        showDuringPrint: false,
+        sensitive: true
+      });
+    }
+    calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+      paramName: 'arn',
+      nameChain,
+      paramValue: getAtt(cfLogicalNames.userPool(name), 'Arn'),
+      showDuringPrint: false
+    });
+    calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+      paramName: 'providerUrl',
+      nameChain,
+      paramValue: getAtt(cfLogicalNames.userPool(name), 'ProviderURL'),
+      showDuringPrint: false
+    });
+    if (userPoolDefinition.customDomain) {
+      const customDomainName = userPoolDefinition.customDomain.domainName;
+      if (!userPoolDefinition.customDomain.disableDnsRecordCreation) {
+        domainManager.validateDomainUsability(customDomainName);
+        calculatedStackOverviewManager.addCfChildResource({
+          cfLogicalName: cfLogicalNames.dnsRecord(customDomainName),
+          resource: getUserPoolCustomDomainDnsRecord(name, {
+            fullyQualifiedDomainName: customDomainName,
+            hostedZoneId: domainManager.getDomainStatus(customDomainName).hostedZoneInfo.HostedZone.Id
+          }),
+          nameChain
+        });
+      }
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'domain',
+        nameChain,
+        paramValue: customDomainName,
+        showDuringPrint: false
+      });
+    } else {
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'domain',
+        nameChain,
+        paramValue: `${getUserPoolDomainPrefix(calculatedStackOverviewManager.context.stackName, name)}.auth.${
+          calculatedStackOverviewManager.context.region
+        }.amazoncognito.com`,
+        showDuringPrint: false
+      });
+    }
+    (userPoolDefinition.identityProviders || []).forEach((identityProvider) => {
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: cfLogicalNames.identityProvider(name, identityProvider.type),
+        resource: getIdentityProviderResource(identityProvider, name),
+        // @todo is this correct?
+        nameChain
+      });
+    });
+    Object.entries(userPoolDefinition.hooks || {}).forEach(([hookName, lambdaArn]) => {
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: cfLogicalNames.cognitoLambdaHookPermission(name, hookName),
+        resource: getLambdaPermissionForHookResource(lambdaArn, name),
+        nameChain
+      });
+    });
+    if (userPoolDefinition.hostedUiCSS) {
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: cfLogicalNames.userPoolUiCustomizationAttachment(name),
+        resource: getUserPoolUiCustomizationAttachmentResource(userPoolDefinition, name),
+        nameChain
+      });
+    }
+    if (userPoolDefinition.useFirewall) {
+      resolveReferenceToFirewall({
+        referencedFrom: userPoolDefinition.name,
+        referencedFromType: userPoolDefinition.configParentResourceType,
+        stpResourceReference: userPoolDefinition.useFirewall
+      });
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: cfLogicalNames.webAppFirewallAssociation(name),
+        resource: getWebACLAssociation(
+          ref(cfLogicalNames.userPool(name)),
+          getAtt(cfLogicalNames.webAppFirewallCustomResource(userPoolDefinition.useFirewall), 'Arn')
+        ),
+        nameChain
+      });
+    }
+  });
+};

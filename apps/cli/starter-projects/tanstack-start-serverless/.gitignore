@@ -1,0 +1,11 @@
+node_modules/
+.vinxi/
+.output/
+app.config.timestamp_*.js
+dist/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+.stacktape/

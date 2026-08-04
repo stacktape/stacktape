@@ -1,0 +1,178 @@
+import type { StacktapeCliArgs } from 'src/config/cli/types';
+import { applicationManager } from '@application-services/application-manager';
+import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
+import { PRINT_LOGS_INTERVAL } from '@config';
+import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import { configManager } from '@domain-services/config-manager';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
+import { isAgentMode } from '../_utils/agent-mode';
+import { printFormattedLogs } from '../_utils/debug-formatters';
+import {
+  getConfigManagerContext,
+  getStackContext,
+  loadTargetStackContext,
+  loadUserCredentials
+} from '../_utils/initialization';
+import { getLogGroupInfoForStacktapeResource } from '../_utils/logs';
+
+export const commandLogs = async () => {
+  const args = Object.freeze({ ...globalStateManager.args }) as Readonly<
+    StacktapeCliArgs & {
+      query?: string;
+      limit?: number;
+      endTime?: string;
+    }
+  >;
+
+  await loadUserCredentials();
+  await loadTargetStackContext();
+  const stackContext = getStackContext();
+  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+
+  await stackManager.init({
+    stackName: stackContext.stackName,
+    commandModifiesStack: false,
+    commandRequiresDeployedStack: true
+  });
+
+  const { resourceName, raw, filter, container, query, limit = 100 } = args;
+
+  // Parse time range
+  const endTime = args.endTime ? new Date(args.endTime) : new Date();
+  let startTime: Date;
+  if (args.startTime) {
+    // Support relative time like "1h", "30m", "1d"
+    const match = String(args.startTime).match(/^(\d+)([hmds])$/);
+    if (match) {
+      const [, value, unit] = match;
+      const ms = { h: 3600000, m: 60000, d: 86400000, s: 1000 }[unit] || 3600000;
+      startTime = new Date(endTime.getTime() - parseInt(value) * ms);
+    } else {
+      startTime = new Date(args.startTime);
+    }
+  } else {
+    startTime = new Date(endTime.getTime() - 3600000); // Default: 1 hour ago
+  }
+
+  const logGroupName = getLogGroupInfoForStacktapeResource({
+    stackName: stackContext.stackName,
+    stackResources: stackManager.existingStackResources,
+    resourceName,
+    containerName: container
+  }).PhysicalResourceId;
+
+  // Use CloudWatch Logs Insights query if provided
+  if (query) {
+    const result = await awsSdkManager.observability.runLogsInsightsQuery({
+      logGroupName,
+      query,
+      startTime,
+      endTime
+    });
+
+    if (isAgentMode()) {
+      tuiManager.info(
+        JSON.stringify(
+          {
+            logGroup: logGroupName,
+            query,
+            results: result.results
+          },
+          null,
+          2
+        )
+      );
+    } else {
+      if (result.results.length === 0) {
+        tuiManager.info('No results found.');
+        return null;
+      }
+      tuiManager.info(`Found ${result.results.length} result(s):\n`);
+      for (const row of result.results) {
+        const timestamp = row['@timestamp'] || '';
+        const message = row['@message'] || JSON.stringify(row);
+        tuiManager.info(`${tuiManager.colorize('yellow', timestamp)} ${message}`);
+      }
+    }
+    return null;
+  }
+
+  // Live tail in an interactive terminal (the default). Falls back to a one-shot
+  // window fetch when piped, redirected, --raw, --outputFormat plain|jsonl, or in
+  // CI/agent mode — so `stacktape logs ... | grep` stays append-only and exits.
+  const shouldFollow = tuiManager.mode === 'tty' && !raw;
+  if (shouldFollow) {
+    const printer = new LambdaCloudwatchLogPrinter({
+      fetchSince: startTime.getTime(),
+      logGroupAwsResourceName: logGroupName
+    });
+    tuiManager.info(
+      `Following logs for ${tuiManager.makeBold(resourceName)}${container ? ` (container ${container})` : ''}. Press Ctrl+C to stop.`
+    );
+
+    let consecutiveFailures = 0;
+    const interval = setInterval(async () => {
+      try {
+        await printer.printLogs();
+        consecutiveFailures = 0;
+      } catch (err) {
+        if (++consecutiveFailures > 3) {
+          clearInterval(interval);
+          await applicationManager.handleError(err);
+        }
+      }
+    }, PRINT_LOGS_INTERVAL);
+    applicationManager.registerCleanUpHook(() => clearInterval(interval));
+
+    await printer.printLogs().catch(() => {});
+    // Follow until the user interrupts (Ctrl+C → applicationManager exit handler).
+    await new Promise<never>(() => {});
+    return null;
+  }
+
+  // Standard one-shot log fetching
+  const logStreams = await awsSdkManager.observability.listLogStreams({ logGroupName });
+
+  if (!logStreams.length) {
+    if (isAgentMode()) {
+      tuiManager.info(JSON.stringify({ logGroup: logGroupName, events: [] }, null, 2));
+    } else {
+      tuiManager.info(`No log streams found for ${logGroupName}.`);
+    }
+    return null;
+  }
+
+  const events = await awsSdkManager.observability.getLogEvents({
+    logGroupName,
+    logStreamNames: logStreams.map((logStream) => logStream.logStreamName),
+    filterPattern: filter,
+    startTime: startTime.getTime()
+  });
+
+  // Limit events
+  const limitedEvents = events.slice(0, limit);
+
+  if (isAgentMode() || raw) {
+    const formattedEvents = limitedEvents.map((e) => ({
+      timestamp: new Date(e.timestamp).toISOString(),
+      message: e.message,
+      logStream: e.logStreamName
+    }));
+    tuiManager.info(
+      JSON.stringify(
+        {
+          logGroup: logGroupName,
+          events: formattedEvents
+        },
+        null,
+        2
+      )
+    );
+  } else {
+    printFormattedLogs(limitedEvents, logGroupName);
+  }
+
+  return null;
+};

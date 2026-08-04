@@ -1,0 +1,48 @@
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import { getAtt } from '@stacktape/cloudformation/intrinsics';
+
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import { configManager } from '@domain-services/config-manager';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { consoleLinks } from '@stacktape/naming/console-links';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+
+export const resolveSnsTopics = async () => {
+  configManager.snsTopics.forEach((resource) => {
+    calculatedStackOverviewManager.addCfChildResource({
+      nameChain: resource.nameChain,
+      cfLogicalName: cfLogicalNames.snsTopic(resource.name),
+      resource: cfnResource('AWS::SNS::Topic', {
+        ContentBasedDeduplication: resource.contentBasedDeduplication,
+        FifoTopic: resource.fifoEnabled,
+        DisplayName: resource.smsDisplayName,
+        TopicName: awsResourceNames.snsTopic(
+          resource.name,
+          calculatedStackOverviewManager.context.stackName,
+          resource.fifoEnabled
+        ),
+        Tags: stackManager.getTags()
+      })
+    });
+    calculatedStackOverviewManager.addStacktapeResourceLink({
+      nameChain: resource.nameChain,
+      linkName: 'console',
+      linkValue: consoleLinks.snsTopic(
+        calculatedStackOverviewManager.context.region,
+        calculatedStackOverviewManager.context.accountId,
+        awsResourceNames.snsTopic(resource.name, calculatedStackOverviewManager.context.stackName, resource.fifoEnabled)
+      )
+    });
+    calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+      paramName: 'arn',
+      nameChain: resource.nameChain,
+      paramValue: getAtt(cfLogicalNames.snsTopic(resource.name), 'TopicArn')
+    });
+    calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+      paramName: 'name',
+      nameChain: resource.nameChain,
+      paramValue: getAtt(cfLogicalNames.snsTopic(resource.name), 'TopicName')
+    });
+  });
+};

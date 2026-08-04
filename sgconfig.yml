@@ -1,0 +1,4 @@
+ruleDirs:
+  - scripts/quality/ast-grep/rules
+testConfigs:
+  - testDir: scripts/quality/ast-grep/tests

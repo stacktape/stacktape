@@ -1,0 +1,16 @@
+import type { ContainerWorkloadResourcesConfig } from './multi-container-workloads';
+
+export type FargateCpu = Exclude<ContainerWorkloadResourcesConfig['cpu'], undefined>;
+
+export const ALLOWED_MEMORY_VALUES_FOR_CPU: Record<FargateCpu, number[]> = {
+  '0.25': [512, 1024, 2048],
+  '0.5': [1024, 2048, 3072, 4096],
+  '1': [2048, 3072, 4096, 5120, 6144, 7168, 8192],
+  '2': [4096, 5120, 6144, 7168, 8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384],
+  '4': [
+    8192, 9216, 10240, 11264, 12288, 13312, 14336, 15360, 16384, 17408, 18432, 19456, 20480, 21504, 22528, 23552, 24576,
+    25600, 26624, 27648, 28672, 29696, 30720
+  ],
+  '8': [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map((number) => number * 4096),
+  '16': [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15].map((number) => number * 8192)
+};

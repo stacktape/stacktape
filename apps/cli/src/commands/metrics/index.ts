@@ -1,0 +1,164 @@
+import type { StacktapeCliArgs } from 'src/config/cli/types';
+import { tuiManager } from '@application-services/tui-manager';
+import type { MetricDataQuery } from '@aws-sdk/client-cloudwatch';
+import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { CliError } from '@utils/errors';
+import { isAgentMode } from '../_utils/agent-mode';
+import { printMetricsChart } from '../_utils/debug-formatters';
+import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
+
+// Metric configurations by resource type
+const METRIC_CONFIGS: Record<string, { namespace: string; dimensionName: string; metrics: string[] }> = {
+  function: {
+    namespace: 'AWS/Lambda',
+    dimensionName: 'FunctionName',
+    metrics: ['Invocations', 'Errors', 'Duration', 'Throttles', 'ConcurrentExecutions']
+  },
+  'multi-container-workload': {
+    namespace: 'AWS/ECS',
+    dimensionName: 'ServiceName',
+    metrics: ['CPUUtilization', 'MemoryUtilization']
+  },
+  'relational-database': {
+    namespace: 'AWS/RDS',
+    dimensionName: 'DBInstanceIdentifier',
+    metrics: ['CPUUtilization', 'DatabaseConnections', 'FreeStorageSpace', 'ReadLatency', 'WriteLatency']
+  },
+  'http-api-gateway': {
+    namespace: 'AWS/ApiGateway',
+    dimensionName: 'ApiId',
+    metrics: ['Count', '4XXError', '5XXError', 'Latency', 'IntegrationLatency']
+  }
+};
+
+export const commandMetrics = async () => {
+  const { args: capturedArgs, stackContext } = await initializeStackServicesForWorkingWithDeployedStack({
+    commandModifiesStack: false,
+    commandRequiresConfig: false
+  });
+
+  const args = capturedArgs as StacktapeCliArgs & {
+    metric?: string;
+    period?: number;
+    stat?: string;
+    startTime?: string;
+    endTime?: string;
+  };
+  const { resourceName, metric, period = 300, stat = 'Average' } = args;
+  const stackName = stackContext.stackName;
+
+  // Get resource info
+  const resource = deployedStackOverviewManager.getStpResource({ nameChain: resourceName });
+  if (!resource) {
+    throw new CliError({
+      category: 'NON_EXISTING_RESOURCE',
+      code: 'METRICS_RESOURCE_NOT_FOUND',
+      message: `No resource named \`${resourceName}\` was found in the stack.`
+    });
+  }
+
+  const resourceType = resource.resourceType as string;
+  const metricConfig = METRIC_CONFIGS[resourceType];
+  if (!metricConfig) {
+    throw new CliError({
+      category: 'UNSUPPORTED_RESOURCE',
+      code: 'METRICS_RESOURCE_TYPE_UNSUPPORTED',
+      message: `Metrics are not supported for resource type \`${resourceType}\`.`,
+      hints: `Supported resource types: ${Object.keys(METRIC_CONFIGS)
+        .map((type) => `\`${type}\``)
+        .join(', ')}.`
+    });
+  }
+
+  if (!metricConfig.metrics.includes(metric)) {
+    throw new CliError({
+      category: 'CLI',
+      code: 'METRICS_METRIC_UNSUPPORTED',
+      message: `Metric \`${metric}\` is not supported for resource type \`${resourceType}\`.`,
+      hints: `Available metrics: ${metricConfig.metrics.map((name) => `\`${name}\``).join(', ')}.`
+    });
+  }
+
+  // Determine dimension value (AWS resource name)
+  const params = resource.referencableParams as Record<string, { value?: string }> | undefined;
+  let dimensionValue: string;
+  if (resourceType === 'function') {
+    dimensionValue = `${stackName}-${resourceName}`;
+  } else if (resourceType === 'multi-container-workload') {
+    dimensionValue = `${stackName}-${resourceName}`;
+  } else if (resourceType === 'relational-database') {
+    dimensionValue = params?.instanceId?.value || `${stackName}-${resourceName}`;
+  } else if (resourceType === 'http-api-gateway') {
+    dimensionValue = params?.apiId?.value || '';
+  } else {
+    dimensionValue = `${stackName}-${resourceName}`;
+  }
+
+  // Parse time range
+  const endTime = args.endTime ? new Date(args.endTime) : new Date();
+  let startTime: Date;
+  if (args.startTime) {
+    // Support relative time like "1h", "30m", "1d"
+    const match = args.startTime.match(/^(\d+)([hmds])$/);
+    if (match) {
+      const [, value, unit] = match;
+      const ms = { h: 3600000, m: 60000, d: 86400000, s: 1000 }[unit] || 3600000;
+      startTime = new Date(endTime.getTime() - parseInt(value) * ms);
+    } else {
+      startTime = new Date(args.startTime);
+    }
+  } else {
+    startTime = new Date(endTime.getTime() - 3600000); // Default: 1 hour ago
+  }
+
+  // Build metric query
+  const metricQuery: MetricDataQuery = {
+    Id: 'm1',
+    MetricStat: {
+      Metric: {
+        Namespace: metricConfig.namespace,
+        MetricName: metric,
+        Dimensions: [{ Name: metricConfig.dimensionName, Value: dimensionValue }]
+      },
+      Period: period,
+      Stat: stat
+    }
+  };
+
+  const results = await awsSdkManager.observability.getMetricData({
+    metricQueries: [metricQuery],
+    startTime,
+    endTime
+  });
+
+  const datapoints =
+    results[0]?.Timestamps?.map((ts, i) => ({
+      timestamp: ts.toISOString(),
+      value: results[0].Values?.[i] || 0
+    })) || [];
+
+  // Sort by timestamp
+  datapoints.sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+
+  if (isAgentMode()) {
+    tuiManager.info(
+      JSON.stringify(
+        {
+          resource: resourceName,
+          metric,
+          period,
+          stat,
+          unit: results[0]?.Label || '',
+          datapoints
+        },
+        null,
+        2
+      )
+    );
+  } else {
+    printMetricsChart({ metric, resourceName, stat, period, datapoints });
+  }
+
+  return null;
+};

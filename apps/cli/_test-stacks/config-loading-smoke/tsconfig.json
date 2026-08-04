@@ -1,0 +1,26 @@
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    // TODO: Remove baseUrl and ignoreDeprecations when Bun resolves paths relative to tsconfig.json without baseUrl.
+    // Bun resolves the runtime config-loader aliases through baseUrl; TypeScript 6 itself does not need it.
+    "baseUrl": ".",
+    "ignoreDeprecations": "6.0",
+    "paths": {
+      "@/*": ["./*"],
+      "@utils/*": ["../../src/utils/*"],
+      "@schemas/*": ["../../@generated/schemas/*"],
+      "@domain-services/*": ["../../src/domain/*"],
+      "@application-services/*": ["../../src/app/*"],
+      "@config": ["../../src/config/random.ts"],
+      "@cli-config": ["../../src/config/cli.ts"],
+      "@errors": ["../../src/config/error-messages.ts"],
+      "@stacktape-api/*": ["../../src/stacktape-api/*"],
+      "@helper-lambdas/*": ["../../helper-lambdas/*"],
+      "@scripts/*": ["../../scripts/*"],
+      "@generated/*": ["../../@generated/*"],
+      "src/*": ["../../src/*"]
+    },
+    "noEmit": true
+  },
+  "include": ["./**/*.ts", "../../src/environment.d.ts"]
+}

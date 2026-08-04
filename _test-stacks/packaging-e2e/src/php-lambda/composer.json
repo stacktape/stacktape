@@ -1,6 +1,0 @@
-{
-  "name": "stacktape/php-lambda",
-  "require": {
-    "monolog/monolog": "^3.0"
-  }
-}

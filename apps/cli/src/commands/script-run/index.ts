@@ -1,0 +1,34 @@
+import { tuiManager } from '@application-services/tui-manager';
+import { configManager } from '@domain-services/config-manager';
+import { stpErrors } from '@errors';
+import { initializeStackServicesForLocalResolve } from '../_utils/initialization';
+import { getExecutableScriptFunction } from './utils';
+
+export const commandScriptRun = async () => {
+  const { args } = await initializeStackServicesForLocalResolve();
+  const { assumeRoleOfResource: requestedRole, scriptName } = args;
+
+  const scriptDefinition = configManager?.scripts?.[scriptName];
+
+  const assumeRoleOfResource = requestedRole || scriptDefinition?.properties?.assumeRoleOfResource;
+
+  if (!scriptDefinition) {
+    throw stpErrors.e20({ scriptName });
+  }
+
+  const functionToExecute = getExecutableScriptFunction({
+    scriptDefinition: {
+      ...scriptDefinition,
+      scriptName,
+      properties: { ...scriptDefinition.properties, assumeRoleOfResource }
+    }
+  });
+
+  await functionToExecute({});
+
+  tuiManager.setPendingCompletion({
+    success: true,
+    message: `SCRIPT "${scriptName}" COMPLETED`,
+    links: []
+  });
+};

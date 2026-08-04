@@ -1,0 +1,13 @@
+{
+  "extends": "../../tsconfig.package.json",
+  "include": ["src"],
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "noImplicitReturns": true,
+    "noUncheckedIndexedAccess": false,
+    "strict": true,
+    "types": ["bun-types", "node"]
+  }
+}

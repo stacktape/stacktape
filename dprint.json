@@ -1,0 +1,8 @@
+{
+  "includes": ["apps/**/*.astro"],
+  "excludes": ["apps/cli/starter-projects/**"],
+  "plugins": ["https://plugins.dprint.dev/g-plane/markup_fmt-v0.27.3.wasm"],
+  "markup": {
+    "printWidth": 120
+  }
+}

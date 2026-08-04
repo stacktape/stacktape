@@ -1,0 +1,71 @@
+# help
+
+The `stacktape help` command displays help information for all available Stacktape CLI commands and their options. Run it without arguments to see every command, or pass `--command` to get detailed option documentation for a specific command. No API key or AWS credentials are required.
+
+## Usage
+
+List all available commands with their descriptions:
+
+```bash
+stacktape help
+```
+
+Show detailed options for a specific command:
+
+```bash
+stacktape help --command deploy
+```
+
+The short alias `stp` works in place of `stacktape`:
+
+```bash
+stp help --command dev
+```
+
+## The `--command` flag
+
+When you pass `--command`, Stacktape prints the command usage and available options, including each argument's name, whether it is required, and its description. This is the fastest way to check which flags a command accepts without leaving the terminal.
+
+```bash
+stacktape help --command delete
+```
+
+Without `--command`, the output lists every CLI command with its configured description, followed by hints linking to the CLI documentation and the Stacktape docs site.
+
+## Options reference
+
+The `help` command accepts a single optional flag. The reference below lists its name, alias, type, and whether it is required.
+
+
+## CLI Options: `stacktape help`
+
+| Option | Required | Type | Description | Values |
+| --- | --- | --- | --- | --- |
+| `--command (-cmd)` | no | `string` | Command — This argument has different meanings depending on the command: • With `stacktape help`, it specifies a command to show detailed help for. • With `stacktape container:session`, it specifies a command to run inside the container to start the interactive session. | - |
+
+
+## Examples
+
+Get help for the [dev](/cli/dev) command to see all development mode flags:
+
+```bash
+stacktape help --command dev
+```
+
+Check required and optional flags for [logs](/cli/logs):
+
+```bash
+stacktape help --command logs
+```
+
+View all commands at a glance:
+
+```bash
+stacktape help
+```
+
+## Related commands
+
+- [version](/cli/version) — print the installed Stacktape version.
+- [init](/cli/init) — scaffold a new Stacktape project with an interactive wizard.
+- [defaults:configure](/cli/defaults-configure) — set system-wide default values for common flags like `region` and `stage`.

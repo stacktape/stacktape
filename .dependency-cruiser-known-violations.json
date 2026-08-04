@@ -1,0 +1,523 @@
+[
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/commands/dev/agent-server.ts",
+    "to": "apps/cli/src/commands/dev/parallel-runner/index.ts",
+    "unresolvedTo": "./parallel-runner",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/commands/dev/parallel-runner/index.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/commands/dev/agent-server.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/domain/config-manager/index.ts",
+    "to": "apps/cli/src/domain/config-manager/utils/alarms.ts",
+    "unresolvedTo": "./utils/alarms",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/alarms.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/index.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/domain/config-manager/index.ts",
+    "to": "apps/cli/src/domain/config-manager/utils/application-load-balancers.ts",
+    "unresolvedTo": "./utils/application-load-balancers",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/application-load-balancers.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/index.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/domain/config-manager/index.ts",
+    "to": "apps/cli/src/domain/config-manager/utils/lambdas.ts",
+    "unresolvedTo": "./utils/lambdas",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/lambdas.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/index.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/domain/config-manager/index.ts",
+    "to": "apps/cli/src/domain/config-manager/utils/validation.ts",
+    "unresolvedTo": "./utils/validation",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/application-load-balancers.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/index.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/domain/config-manager/utils/application-load-balancers.ts",
+    "to": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+    "unresolvedTo": "./resource-references",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/index.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/application-load-balancers.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/domain/config-manager/utils/buckets.ts",
+    "to": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+    "unresolvedTo": "./resource-references",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/index.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/buckets.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/domain/config-manager/utils/http-api-gateways.ts",
+    "to": "apps/cli/src/domain/config-manager/index.ts",
+    "unresolvedTo": "../index.js",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/domain/config-manager/index.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/http-api-gateways.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/domain/config-manager/utils/http-api-gateways.ts",
+    "to": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+    "unresolvedTo": "./resource-references",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/index.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/http-api-gateways.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/domain/config-manager/utils/network-load-balancers.ts",
+    "to": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+    "unresolvedTo": "./resource-references",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/index.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/network-load-balancers.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/domain/config-manager/utils/relational-databases.ts",
+    "to": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+    "unresolvedTo": "./resource-references",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/index.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/relational-databases.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/domain/config-manager/utils/sns-topics.ts",
+    "to": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+    "unresolvedTo": "./resource-references",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/index.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/sns-topics.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/domain/config-manager/utils/sqs-queues.ts",
+    "to": "apps/cli/src/domain/config-manager/index.ts",
+    "unresolvedTo": "../index",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/domain/config-manager/index.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/sqs-queues.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/domain/config-manager/utils/sqs-queues.ts",
+    "to": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+    "unresolvedTo": "./resource-references",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/index.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/sqs-queues.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/cli/src/domain/config-manager/utils/validation.ts",
+    "to": "apps/cli/src/domain/config-manager/utils/lambdas.ts",
+    "unresolvedTo": "./lambdas",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/lambdas.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/resource-references.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/index.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/cli/src/domain/config-manager/utils/validation.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/console/ui/src/components/ConfigEditor/AiConfigStreamingModal.tsx",
+    "to": "apps/console/ui/src/components/ConfigEditor/ConfigEditor.tsx",
+    "unresolvedTo": "./ConfigEditor",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/console/ui/src/components/ConfigEditor/ConfigEditor.tsx",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/console/ui/src/components/ConfigEditor/AiConfigStreamingModal.tsx",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/console/ui/src/components/ConfigEditor/hooks.ts",
+    "to": "apps/console/ui/src/components/ConfigEditor/Misc.tsx",
+    "unresolvedTo": "./Misc",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/console/ui/src/components/ConfigEditor/Misc.tsx",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/console/ui/src/components/ConfigEditor/hooks.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/console/ui/src/components/ConfigEditor/property-adjustments.tsx",
+    "to": "apps/console/ui/src/components/ConfigEditor/property-adjustments/Environment.tsx",
+    "unresolvedTo": "./property-adjustments/Environment",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/console/ui/src/components/ConfigEditor/property-adjustments/Environment.tsx",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/console/ui/src/components/ConfigEditor/utils.tsx",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/console/ui/src/components/ConfigEditor/property-adjustments.tsx",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/console/ui/src/components/Misc/Collection.tsx",
+    "to": "apps/console/ui/src/components/Tooltip/Tooltip.tsx",
+    "unresolvedTo": "../Tooltip/Tooltip",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/console/ui/src/components/Tooltip/Tooltip.tsx",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/console/ui/src/components/Misc/Collection.tsx",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/console/ui/src/components/MonacoEditor/language-server-webworker/languageservice/parser/jsonParser07.ts",
+    "to": "apps/console/ui/src/components/MonacoEditor/language-server-webworker/languageservice/utils/schemaUtils.ts",
+    "unresolvedTo": "../utils/schemaUtils",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/console/ui/src/components/MonacoEditor/language-server-webworker/languageservice/utils/schemaUtils.ts",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/console/ui/src/components/MonacoEditor/language-server-webworker/languageservice/parser/jsonParser07.ts",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  },
+  {
+    "type": "cycle",
+    "from": "apps/console/ui/src/pages/AlertChannels/AlertChannelsPage.tsx",
+    "to": "apps/console/ui/src/pages/AlertChannels/CreateAlertChannelModal.tsx",
+    "unresolvedTo": "./CreateAlertChannelModal",
+    "dependencyTypes": ["local", "require"],
+    "rule": {
+      "severity": "error",
+      "name": "no-cycles"
+    },
+    "cycle": [
+      {
+        "name": "apps/console/ui/src/pages/AlertChannels/CreateAlertChannelModal.tsx",
+        "dependencyTypes": ["local", "require"]
+      },
+      {
+        "name": "apps/console/ui/src/pages/AlertChannels/AlertChannelsPage.tsx",
+        "dependencyTypes": ["local", "require"]
+      }
+    ]
+  }
+]

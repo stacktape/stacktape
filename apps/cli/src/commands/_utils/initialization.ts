@@ -1,0 +1,839 @@
+import type { StacktapeRecordedCommand } from '@config';
+import { applicationManager } from '@application-services/application-manager';
+import { eventManager } from '@application-services/event-manager';
+import { globalStateManager } from '@application-services/global-state-manager';
+import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
+import { tuiManager } from '@application-services/tui-manager';
+import { RECORDED_STACKTAPE_COMMANDS } from '@config';
+import { budgetManager } from '@domain-services/budget-manager';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { cloudformationRegistryManager } from '@domain-services/cloudformation-registry-manager';
+import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import { cloudfrontManager } from '@domain-services/cloudfront-manager';
+import { configManager } from '@domain-services/config-manager';
+import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
+import { domainManager } from '@domain-services/domain-manager';
+import { ec2Manager } from '@domain-services/ec2-manager';
+import { notificationManager } from '@domain-services/notification-manager';
+import { packagingManager } from '@domain-services/packaging-manager';
+import { sesManager } from '@domain-services/ses-manager';
+import { templateManager } from '@domain-services/template-manager';
+import { thirdPartyProviderManager } from '@domain-services/third-party-provider-credentials-manager';
+import { vpcManager } from '@domain-services/vpc-manager';
+import { stpErrors } from '@errors';
+import { redirectPlugin, retryPlugin } from 'src/aws/client-middleware';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { dependencyInstaller } from '@domain-services/packaging-manager/dependency-installer';
+import { settleAllBeforeThrowing } from '@utils/misc';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { getErrorHandler, loggingPlugin } from '@utils/aws-sdk-manager/utils';
+import { logCollectorStream } from '@utils/log-collector';
+import { ensureAwsAccountConnected } from './aws-connection-preflight';
+import { assertCommandPermissions, assertScopedProjectAccess } from './permission-guards';
+import type { StackContext } from '@domain-services/stack-context';
+import type { ConfigResolverContext } from '@domain-services/config-manager/config-resolver';
+import type { ConfigManagerInitContext } from '@domain-services/config-manager/context';
+import type { GetConfigParams } from '@stacktape/config-authoring/tooling';
+import type { StacktapeCliArgs } from '../../config/cli/types';
+import { getConfigPath } from '@utils/file-loaders';
+import { finalizeTemplate, prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
+
+export const getStackContext = (): StackContext =>
+  Object.freeze({
+    accountId: globalStateManager.targetAwsAccount.awsAccountId,
+    command: globalStateManager.command,
+    globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+    invocationId: globalStateManager.invocationId,
+    projectName: globalStateManager.targetStack.projectName,
+    region: globalStateManager.region,
+    stackName: globalStateManager.targetStack.stackName,
+    stage: globalStateManager.targetStack.stage,
+    workingDir: globalStateManager.workingDir
+  });
+
+export const getConfigResolverContext = (stackContext?: StackContext): ConfigResolverContext => {
+  const args = globalStateManager.args;
+  const user = globalStateManager.userData;
+  const authoringParams: GetConfigParams = {
+    projectName: stackContext?.projectName || globalStateManager.targetStack?.projectName || args.projectName,
+    stage: stackContext?.stage || globalStateManager.targetStack?.stage || args.stage,
+    region: stackContext?.region || globalStateManager.region,
+    command: stackContext?.command || globalStateManager.command,
+    awsProfile: globalStateManager.awsProfileName,
+    user: user ? { id: user.id, name: user.name, email: user.email } : undefined,
+    cliArgs: { ...args }
+  };
+
+  return {
+    authoringParams,
+    builtInDirectives: {
+      accountId: stackContext?.accountId || globalStateManager.targetAwsAccount.awsAccountId,
+      additionalArgs: { ...(globalStateManager.additionalArgs || {}) },
+      awsProfile: globalStateManager.awsProfileName,
+      cliArgs: { ...args },
+      command: stackContext?.command || globalStateManager.command,
+      disableEmulation: Boolean(args.disableEmulation),
+      region: stackContext?.region || globalStateManager.region,
+      stage: stackContext?.stage || globalStateManager.targetStack?.stage || args.stage,
+      workingDir: stackContext?.workingDir || globalStateManager.workingDir
+    },
+    configPath: globalStateManager.configPath,
+    presetConfig: globalStateManager.presetConfig,
+    templateId: args.templateId,
+    workingDir: stackContext?.workingDir || globalStateManager.workingDir
+  };
+};
+
+export const getConfigManagerContext = (stackContext: StackContext): ConfigManagerInitContext => {
+  const organization = globalStateManager.organizationData as
+    | (typeof globalStateManager.organizationData & {
+        issuesAllProjectsEnabled?: boolean;
+        issuesEnabledStages?: string[];
+        issuesEventSamplingRate?: number;
+      })
+    | undefined;
+  const projects = globalStateManager.projects as
+    | ((typeof globalStateManager.projects)[number] & { issuesEnabled?: boolean })[]
+    | undefined;
+
+  return {
+    helperLambdaDetails: globalStateManager.helperLambdaDetails,
+    issueDetection: {
+      organization: organization
+        ? {
+            issuesAllProjectsEnabled: organization.issuesAllProjectsEnabled,
+            issuesEnabledStages: organization.issuesEnabledStages,
+            issuesEventSamplingRate: organization.issuesEventSamplingRate
+          }
+        : undefined,
+      projects: projects?.map(({ issuesEnabled, name }) => ({ issuesEnabled, name }))
+    },
+    resolver: getConfigResolverContext(stackContext),
+    stack: stackContext
+  };
+};
+
+const detectConfigPath = () => {
+  globalStateManager.setConfigPath(getConfigPath());
+};
+
+export const loadTargetStackContext = async () => {
+  detectConfigPath();
+  await configManager.loadRawConfigOnly({ context: getConfigResolverContext() });
+  await globalStateManager.loadTargetStackInfo({
+    configProjectName: configManager.configResolver.rawConfig?.projectName
+  });
+};
+
+export const loadLocalTargetStackContext = async () => {
+  detectConfigPath();
+  await configManager.loadRawConfigOnly({ context: getConfigResolverContext() });
+  await globalStateManager.loadLocalTargetStackInfo({
+    configProjectName: configManager.configResolver.rawConfig?.projectName
+  });
+};
+
+export const loadLocalAwsContext = async () => {
+  const credentialsProvider = await globalStateManager.loadLocalAwsCredentials();
+  awsSdkManager.init({
+    credentials: credentialsProvider,
+    region: globalStateManager.region,
+    getErrorHandlerFn: getErrorHandler,
+    plugins: [loggingPlugin, retryPlugin, redirectPlugin],
+    printer: tuiManager
+  });
+  await loadLocalTargetStackContext();
+};
+
+export const captureCommandArgs = (): Readonly<StacktapeCliArgs> => Object.freeze({ ...globalStateManager.args });
+
+export const initializeControlPlaneOperation = async ({
+  args = captureCommandArgs()
+}: {
+  args?: Readonly<StacktapeCliArgs>;
+} = {}) => {
+  const capturedArgs = Object.freeze({ ...args });
+  const workingDir = globalStateManager.workingDir;
+  await stacktapeTrpcApiManager.init({ apiKey: globalStateManager.apiKey });
+  return Object.freeze({ args: capturedArgs, apiClient: stacktapeTrpcApiManager.apiClient, workingDir });
+};
+
+export const initializePackageOperation = async () => {
+  await loadLocalAwsContext();
+  const stackContext = getStackContext();
+  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+  await packagingManager.init();
+
+  return {
+    args: captureCommandArgs(),
+    stackContext,
+    services: {
+      packaging: packagingManager,
+      tui: tuiManager
+    }
+  } as const;
+};
+
+export const initializeStackOperationLifecycle = async ({
+  commandModifiesStack,
+  commandRequiresDeployedStack,
+  loadGlobalConfig,
+  requiresControlPlane = true,
+  requiresSubscription
+}: {
+  commandModifiesStack?: boolean;
+  commandRequiresDeployedStack?: boolean;
+  loadGlobalConfig?: boolean;
+  requiresControlPlane?: boolean;
+  requiresSubscription?: boolean;
+}) => {
+  const getHeaderAction = () => {
+    const command = globalStateManager.command;
+    if (command === 'delete') return 'DELETING';
+    if (command === 'synth') return 'COMPILING TEMPLATE';
+    if (command === 'diff') return 'PREVIEWING CHANGES';
+    if (command === 'validate') return 'VALIDATING';
+    return 'DEPLOYING';
+  };
+  tuiManager.showCommandHeader({
+    action: getHeaderAction(),
+    projectName: globalStateManager.args.projectName || globalStateManager.targetStack?.projectName || 'project',
+    stageName: globalStateManager.stage || 'stage',
+    region: globalStateManager.region || 'region'
+  });
+  eventManager.setPhase('INITIALIZE');
+
+  if (requiresControlPlane) {
+    await loadUserCredentials();
+    await recordStackOperationStart();
+
+    const userProvidedProjectName = globalStateManager.args.projectName;
+    if (userProvidedProjectName) {
+      assertScopedProjectAccess({
+        role: globalStateManager.organizationData?.role,
+        projects: globalStateManager.projects,
+        projectName: userProvidedProjectName
+      });
+    }
+
+    if (requiresSubscription) {
+      const { message, canDeploy } = await stacktapeTrpcApiManager.apiClient.canDeploy();
+      if (!canDeploy) {
+        throw stpErrors.e502({ message });
+      }
+    }
+    await loadTargetStackContext();
+    assertCommandPermissions({
+      command: globalStateManager.command,
+      stage: globalStateManager.stage,
+      projectName: globalStateManager.targetStack?.projectName,
+      role: globalStateManager.organizationData?.role,
+      permissions: globalStateManager.permissions,
+      projects: globalStateManager.projects
+    });
+  } else {
+    await loadLocalAwsContext();
+  }
+  const stackContext = getStackContext();
+  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+
+  if (loadGlobalConfig && requiresControlPlane) {
+    await configManager.loadGlobalConfig();
+  }
+
+  // Start the parent event for loading AWS metadata
+  await eventManager.startEvent({
+    eventType: 'LOAD_METADATA_FROM_AWS',
+    description: 'Loading metadata from AWS',
+    phase: 'INITIALIZE'
+  });
+
+  // we are using allSettled instead of all because we want all operations to finish before throwing (especially startStackOperationRecording)
+  // at the same time we want to make execution as fast and parallel as possible
+  await settleAllBeforeThrowing([
+    stackManager.init({
+      stackName: globalStateManager.targetStack.stackName,
+      commandModifiesStack,
+      commandRequiresDeployedStack,
+      parentEventType: 'LOAD_METADATA_FROM_AWS'
+    }),
+    ec2Manager.init({
+      instanceTypes: configManager.allUsedEc2InstanceTypes,
+      openSearchInstanceTypes: configManager.allUsedOpenSearchVersionsAndInstanceTypes
+    }),
+    vpcManager.init({
+      reuseVpc: configManager.reuseVpcConfig,
+      resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
+    }),
+    budgetManager.init({ parentEventType: 'LOAD_METADATA_FROM_AWS' }),
+    domainManager.init({
+      stackName: globalStateManager.targetStack.stackName,
+      domains: configManager.allUsedDomainsInConfig,
+      fromParameterStore: true,
+      loadDefaultDomainsFromControlPlane: requiresControlPlane,
+      parentEventType: 'LOAD_METADATA_FROM_AWS'
+    }),
+    ...(requiresControlPlane
+      ? [
+          startStackOperationRecording({
+            stackName: globalStateManager.targetStack.stackName,
+            projectName: globalStateManager.targetStack.projectName
+          })
+        ]
+      : []),
+    sesManager.init({ identities: configManager.allEmailsUsedInAlertNotifications }),
+    thirdPartyProviderManager.init({
+      requireAtlasCredentialsParameter: configManager.requireAtlasCredentialsParameter,
+      requireUpstashCredentialsParameter: configManager.requireUpstashCredentialsParameter
+    }),
+    notificationManager.init({ consoleApiAccess: requiresControlPlane })
+  ]);
+  await Promise.all([
+    templateManager.init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName }),
+    deployedStackOverviewManager.init({
+      stackDetails: stackManager.existingStackDetails,
+      stackResources: stackManager.existingStackResources,
+      budgetInfo: budgetManager.getBudgetInfoForSpecifiedStack({ stackName: globalStateManager.targetStack.stackName })
+    }),
+    calculatedStackOverviewManager.init({ context: stackContext }),
+    cloudfrontManager.init(),
+    deploymentArtifactManager.init({
+      accountId: globalStateManager.targetAwsAccount.awsAccountId,
+      globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+      stackActionType: stackManager.stackActionType,
+      parentEventType: 'LOAD_METADATA_FROM_AWS'
+    }),
+    packagingManager.init(),
+    cloudformationRegistryManager.init()
+  ]);
+
+  // Finish the parent event for loading AWS metadata
+  await eventManager.finishEvent({ eventType: 'LOAD_METADATA_FROM_AWS' });
+
+  await eventManager.registerHooks(configManager.hooks);
+  if (!isRemoteRunnerDeployInvocation()) {
+    await dependencyInstaller.install({
+      rootProjectDirPath: globalStateManager.workingDir,
+      progressLogger: eventManager,
+      phase: 'INITIALIZE'
+    });
+  }
+  await eventManager.processHooks({ captureType: 'START' });
+
+  return { args: captureCommandArgs(), stackContext } as const;
+};
+
+export const initializeSynthOperation = async () => ({
+  ...(await initializeStackOperationLifecycle({
+    commandModifiesStack: false,
+    commandRequiresDeployedStack: false,
+    loadGlobalConfig: false,
+    requiresControlPlane: false,
+    requiresSubscription: false
+  })),
+  calculatedStackOverview: calculatedStackOverviewManager,
+  finalizeTemplate,
+  template: templateManager,
+  tui: tuiManager
+});
+
+export const initializeValidateOperation = async () => ({
+  ...(await initializeStackOperationLifecycle({
+    commandModifiesStack: false,
+    commandRequiresDeployedStack: false,
+    loadGlobalConfig: false,
+    requiresControlPlane: false,
+    requiresSubscription: false
+  })),
+  calculatedStackOverview: calculatedStackOverviewManager,
+  config: configManager,
+  finalizeTemplate,
+  packaging: packagingManager,
+  stack: stackManager,
+  template: templateManager,
+  tui: tuiManager
+});
+
+export const initializeDiffOperation = async () => ({
+  ...(await initializeStackOperationLifecycle({
+    commandModifiesStack: false,
+    commandRequiresDeployedStack: true,
+    loadGlobalConfig: true
+  })),
+  calculatedStackOverview: calculatedStackOverviewManager,
+  config: configManager,
+  deployedStackOverview: deployedStackOverviewManager,
+  deploymentArtifacts: deploymentArtifactManager,
+  packaging: packagingManager,
+  prepareTemplateForDeploy,
+  stack: stackManager,
+  template: templateManager,
+  tui: tuiManager
+});
+
+export const initializeDeployOperation = async () => ({
+  ...(await initializeStackOperationLifecycle({
+    commandRequiresDeployedStack: false,
+    commandModifiesStack: true,
+    loadGlobalConfig: true,
+    requiresSubscription: true
+  })),
+  application: applicationManager,
+  budget: budgetManager,
+  calculatedStackOverview: calculatedStackOverviewManager,
+  cloudformationRegistry: cloudformationRegistryManager,
+  cloudfront: cloudfrontManager,
+  config: configManager,
+  deployedStackOverview: deployedStackOverviewManager,
+  deploymentArtifacts: deploymentArtifactManager,
+  event: eventManager,
+  notification: notificationManager,
+  packaging: packagingManager,
+  prepareTemplateForDeploy,
+  stack: stackManager,
+  stacktapeApi: stacktapeTrpcApiManager,
+  template: templateManager,
+  tui: tuiManager
+});
+
+export const initializeRemoteDeployOperation = async () => {
+  const operation = await initializeStackOperationLifecycle({
+    commandRequiresDeployedStack: false,
+    commandModifiesStack: true,
+    loadGlobalConfig: true,
+    requiresSubscription: true
+  });
+
+  const currentProject = globalStateManager.projects.find(
+    ({ id, name }) => id === globalStateManager.targetStack.projectId || name === operation.stackContext.projectName
+  ) as
+    | ((typeof globalStateManager.projects)[number] & {
+        deploymentRunnerType?: string | null;
+        ec2RunnerInstanceType?: string | null;
+      })
+    | undefined;
+
+  return {
+    ...operation,
+    runner: Object.freeze({
+      accountConnectionId: globalStateManager.targetAwsAccount.id,
+      configPath: globalStateManager.configPath,
+      currentProject: currentProject
+        ? Object.freeze({
+            deploymentRunnerType: currentProject.deploymentRunnerType,
+            ec2RunnerInstanceType: currentProject.ec2RunnerInstanceType
+          })
+        : undefined,
+      systemId: globalStateManager.systemId,
+      userId: globalStateManager.userData.id
+    })
+  } as const;
+};
+
+export const initializeStackServicesForLocalResolve = async () => {
+  const args = captureCommandArgs();
+  const scriptName = args.scriptName;
+  tuiManager.showCommandHeader({
+    action: scriptName ? `RUNNING SCRIPT: ${scriptName}` : 'RUNNING SCRIPT',
+    projectName: args.projectName || 'project',
+    stageName: globalStateManager.stage || 'stage',
+    region: globalStateManager.region || 'region'
+  });
+  eventManager.setPhase('INITIALIZE');
+
+  await loadUserCredentials();
+  await recordStackOperationStart();
+
+  await loadTargetStackContext();
+  const stackContext = getStackContext();
+  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+
+  await settleAllBeforeThrowing([
+    startStackOperationRecording({
+      stackName: stackContext.stackName,
+      projectName: stackContext.projectName
+    }),
+    stackManager.init({
+      stackName: stackContext.stackName,
+      commandModifiesStack: false,
+      commandRequiresDeployedStack: false
+    }),
+    vpcManager.init({
+      reuseVpc: configManager.reuseVpcConfig,
+      resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
+    })
+  ]);
+  await notificationManager.init();
+  await Promise.all([
+    templateManager.init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName }),
+    deployedStackOverviewManager.init({
+      stackDetails: stackManager.existingStackDetails,
+      stackResources: stackManager.existingStackResources
+    }),
+    calculatedStackOverviewManager.init({ context: stackContext }),
+    packagingManager.init()
+  ]);
+  await eventManager.registerHooks(configManager.hooks);
+  await eventManager.processHooks({ captureType: 'START' });
+
+  return { args, stackContext } as const;
+};
+
+export const initializeStackServicesForHotSwapDeploy = async () => {
+  const args = captureCommandArgs();
+  await loadUserCredentials();
+  await recordStackOperationStart();
+
+  await loadTargetStackContext();
+  const stackContext = getStackContext();
+  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+
+  await settleAllBeforeThrowing([
+    startStackOperationRecording({
+      stackName: stackContext.stackName,
+      projectName: stackContext.projectName
+    }),
+    stackManager.init({
+      stackName: stackContext.stackName,
+      commandModifiesStack: false,
+      commandRequiresDeployedStack: false
+    }),
+    ec2Manager.init({
+      instanceTypes: configManager.allUsedEc2InstanceTypes,
+      openSearchInstanceTypes: configManager.allUsedOpenSearchVersionsAndInstanceTypes
+    }),
+    vpcManager.init({
+      reuseVpc: configManager.reuseVpcConfig,
+      resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
+    })
+  ]);
+  await notificationManager.init();
+  await Promise.all([
+    deployedStackOverviewManager.init({
+      stackDetails: stackManager.existingStackDetails,
+      stackResources: stackManager.existingStackResources
+    }),
+    calculatedStackOverviewManager.init({ context: stackContext }),
+    packagingManager.init(),
+    deploymentArtifactManager.init({
+      globallyUniqueStackHash: stackContext.globallyUniqueStackHash,
+      accountId: stackContext.accountId,
+      stackActionType: 'deployment-script:run'
+    })
+  ]);
+  await eventManager.registerHooks(configManager.hooks);
+  await eventManager.processHooks({ captureType: 'START' });
+
+  return { args, stackContext } as const;
+};
+
+const DEFAULT_LOCAL_STAGE = 'dev';
+const DEFAULT_LOCAL_REGION = 'us-east-1';
+
+/**
+ * Phase 1: Initialize credentials, config, and packagingManager.
+ * This is enough to start building. Call phase 2 after (or in parallel) to fetch AWS stack data.
+ */
+export const initializeStackServicesForDevPhase1 = async () => {
+  // Suppress eventManager logs - dev mode uses spinners instead
+  eventManager.setSilentMode(true);
+
+  const isLocalOnlyMode = globalStateManager.args.disableEmulation;
+
+  if (isLocalOnlyMode) {
+    // Local-only mode: set defaults for stage/region to avoid prompts and API calls
+    if (!globalStateManager.args.stage) {
+      globalStateManager.args.stage = DEFAULT_LOCAL_STAGE;
+    }
+    if (!globalStateManager.args.region && !process.env.AWS_DEFAULT_REGION) {
+      globalStateManager.args.region = DEFAULT_LOCAL_REGION;
+    }
+  }
+
+  await globalStateManager.loadUserCredentials();
+  awsSdkManager.init({
+    credentials: () => globalStateManager.credentials,
+    region: globalStateManager.region,
+    getErrorHandlerFn: getErrorHandler,
+    plugins: [loggingPlugin, retryPlugin, redirectPlugin],
+    printer: tuiManager
+  });
+
+  await loadTargetStackContext();
+  const stackContext = getStackContext();
+  await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+  await Promise.all([
+    templateManager.init({ stackDetails: undefined, stackName: stackContext.stackName }),
+    calculatedStackOverviewManager.init({ context: stackContext })
+  ]);
+  await packagingManager.init();
+
+  // Register hooks (but don't process yet - local resources need to start first)
+  await eventManager.registerHooks(configManager.hooks);
+
+  return Object.freeze({ args: captureCommandArgs(), stackContext });
+};
+
+/**
+ * Phase 2: Fetch AWS stack data (stackManager, deployedStackOverviewManager, deploymentArtifactManager).
+ * Can run in parallel with build since it only needs credentials from phase 1.
+ */
+export const initializeStackServicesForDevPhase2 = async (stackContext: StackContext = getStackContext()) => {
+  await settleAllBeforeThrowing([
+    stackManager.init({
+      stackName: stackContext.stackName,
+      commandModifiesStack: true,
+      commandRequiresDeployedStack: false
+    }),
+    vpcManager.init({
+      reuseVpc: configManager.reuseVpcConfig,
+      resourcesRequiringPrivateSubnet: configManager.allResourcesRequiringPrivateSubnets
+    }),
+    domainManager.init({
+      stackName: stackContext.stackName,
+      domains: configManager.allUsedDomainsInConfig,
+      fromParameterStore: true
+    })
+  ]);
+
+  await Promise.all([
+    deployedStackOverviewManager.init({
+      stackDetails: stackManager.existingStackDetails,
+      stackResources: stackManager.existingStackResources
+    }),
+    deploymentArtifactManager.init({
+      accountId: stackContext.accountId,
+      globallyUniqueStackHash: stackContext.globallyUniqueStackHash,
+      stackActionType: stackManager.stackActionType
+    })
+  ]);
+};
+
+export const initializeStackServicesForDev = async () => {
+  const operation = await initializeStackServicesForDevPhase1();
+  await initializeStackServicesForDevPhase2(operation.stackContext);
+  return operation;
+};
+
+export const initializeStackServicesForWorkingWithDeployedStack = async ({
+  commandModifiesStack,
+  commandRequiresConfig
+}: {
+  commandModifiesStack: boolean;
+  commandRequiresConfig: boolean;
+}) => {
+  await loadUserCredentials();
+  await recordStackOperationStart();
+
+  await loadTargetStackContext();
+  assertCommandPermissions({
+    command: globalStateManager.command,
+    stage: globalStateManager.stage,
+    projectName: globalStateManager.targetStack?.projectName,
+    role: globalStateManager.organizationData?.role,
+    permissions: globalStateManager.permissions,
+    projects: globalStateManager.projects
+  });
+  await startStackOperationRecording({ stackName: globalStateManager.targetStack.stackName });
+
+  const stackContext = getStackContext();
+  await configManager.init({ configRequired: commandRequiresConfig, context: getConfigManagerContext(stackContext) });
+
+  const stackName = globalStateManager.targetStack.stackName;
+
+  await stackManager.init({
+    stackName,
+    commandModifiesStack,
+    commandRequiresDeployedStack: true
+  });
+
+  await Promise.all([
+    templateManager.init({ stackDetails: stackManager.existingStackDetails, stackName: stackContext.stackName }),
+    deployedStackOverviewManager.init({
+      stackDetails: stackManager.existingStackDetails,
+      stackResources: stackManager.existingStackResources
+    })
+  ]);
+
+  const { existingStackDetails } = stackManager;
+  const { stackInfoMap } = deployedStackOverviewManager;
+
+  if (!existingStackDetails) {
+    throw stpErrors.e30({
+      stackName,
+      organizationName: globalStateManager.organizationData?.name,
+      awsAccountName: globalStateManager.targetAwsAccount.name,
+      command: globalStateManager.command
+    });
+  }
+  if (!stackInfoMap && stackManager.stackActionType !== 'delete') {
+    throw stpErrors.e31({ stackName });
+  }
+
+  await deploymentArtifactManager.init({
+    accountId: globalStateManager.targetAwsAccount.awsAccountId,
+    globallyUniqueStackHash: globalStateManager.targetStack.globallyUniqueStackHash,
+    stackActionType: stackManager.stackActionType
+  });
+
+  return { args: captureCommandArgs(), stackContext } as const;
+};
+
+export const initializeDeleteOperation = async () => {
+  tuiManager.setPhasePreset('delete');
+  tuiManager.showCommandHeader({
+    action: 'DELETING',
+    projectName: globalStateManager.args.projectName || 'project',
+    stageName: globalStateManager.stage || 'stage',
+    region: globalStateManager.region || 'region'
+  });
+  eventManager.setPhase('INITIALIZE');
+
+  const operation = await initializeStackServicesForWorkingWithDeployedStack({
+    commandModifiesStack: true,
+    commandRequiresConfig: false
+  });
+
+  tuiManager.showCommandHeader({
+    action: 'DELETING',
+    projectName: operation.stackContext.projectName,
+    stageName: operation.stackContext.stage,
+    region: operation.stackContext.region
+  });
+
+  return {
+    ...operation,
+    application: applicationManager,
+    config: configManager,
+    deploymentArtifacts: deploymentArtifactManager,
+    event: eventManager,
+    notification: notificationManager,
+    stack: stackManager,
+    template: templateManager,
+    tui: tuiManager
+  } as const;
+};
+
+export const initializeRollbackOperation = async () => ({
+  ...(await initializeStackServicesForWorkingWithDeployedStack({
+    commandModifiesStack: true,
+    commandRequiresConfig: false
+  })),
+  deployedStackOverview: deployedStackOverviewManager,
+  deploymentArtifacts: deploymentArtifactManager,
+  event: eventManager,
+  stack: stackManager,
+  tui: tuiManager
+});
+
+export const initializeCloudFormationRollbackOperation = async () => ({
+  ...(await initializeStackServicesForWorkingWithDeployedStack({
+    commandModifiesStack: true,
+    commandRequiresConfig: false
+  })),
+  deploymentArtifacts: deploymentArtifactManager,
+  stack: stackManager,
+  tui: tuiManager
+});
+
+export const loadUserCredentials = async () => {
+  await eventManager.startEvent({ eventType: 'LOAD_USER_DATA', description: 'Loading user data' });
+
+  // First, ensure AWS account is connected (may prompt user to connect if no accounts)
+  // This must happen before loadUserCredentials because that accesses targetAwsAccount
+  await ensureAwsAccountConnected();
+
+  // Now load credentials (this will access targetAwsAccount which is now guaranteed to exist)
+  await globalStateManager.loadUserCredentials();
+  awsSdkManager.init({
+    credentials: () => globalStateManager.credentials,
+    region: globalStateManager.region,
+    getErrorHandlerFn: getErrorHandler,
+    plugins: [loggingPlugin, retryPlugin, redirectPlugin],
+    printer: tuiManager
+  });
+  await eventManager.finishEvent({
+    eventType: 'LOAD_USER_DATA',
+    finalMessage: `User: ${tuiManager.makeBold(globalStateManager.userData.name)}. Organization: ${tuiManager.makeBold(
+      globalStateManager.organizationData.name
+    )}.`
+  });
+
+  return Object.freeze({
+    args: captureCommandArgs(),
+    region: globalStateManager.region,
+    workingDir: globalStateManager.workingDir
+  });
+};
+
+export const recordStackOperationStart = async () => {
+  const command = globalStateManager.command;
+  const isCommandToBeRecorded = RECORDED_STACKTAPE_COMMANDS.includes(command as StacktapeRecordedCommand);
+  if (isCommandToBeRecorded) {
+    // stack operation start
+    if (!globalStateManager.isExecutingInsideCodebuild) {
+      await stacktapeTrpcApiManager.recordStackOperationStart({
+        startingCodebuildOperation: isCodebuildDeployInvocation()
+      });
+    }
+    if (!isRemoteRunnerDeployInvocation()) {
+      // stack operation end
+      applicationManager.registerCleanUpHook(async ({ success, interrupted, err }) => {
+        await stacktapeTrpcApiManager.recordStackOperationEnd({
+          stackName: globalStateManager.targetStack?.stackName,
+          success,
+          interrupted,
+          error: err
+        });
+      });
+    }
+  }
+};
+
+export const startStackOperationRecording = async ({
+  stackName,
+  projectName
+}: {
+  stackName: string;
+  projectName?: string;
+}) => {
+  // for recorded stacktape commands we are sending logs into cloudwatch
+  // we are also recording the start and end of operation through Stacktape API
+  const command = globalStateManager.command;
+  const isCommandToBeRecorded = RECORDED_STACKTAPE_COMMANDS.includes(command as StacktapeRecordedCommand);
+
+  // const shouldRecordStackOperationProgress =
+  //   isCommandToBeRecorded && !globalStateManager.command.startsWith('codebuild');
+
+  // Remote runner launchers collect logs inside the remote execution.
+  const shouldCollectLogs =
+    isCommandToBeRecorded && !globalStateManager.isExecutingInsideCodebuild && !isRemoteRunnerDeployInvocation();
+
+  // we are NOT recording stack operation end on cleanup in case this is local monitoring of a remote deploy runner.
+  // stack operation end will be recorded inside the codebuild operation itself
+  // for cases when operation fails before stacktape operation inside the remote runner starts,
+  // we should record stack operation end manually.
+  const logStreamName = globalStateManager.getStackOperationLogStreamName({ stackName });
+
+  if (isCommandToBeRecorded) {
+    await stacktapeTrpcApiManager.recordStackOperationProgress({ stackName, projectName, logStreamName });
+  }
+
+  if (shouldCollectLogs) {
+    logCollectorStream.init({
+      awsSdkManager,
+      logGroupName: awsResourceNames.stackOperationsLogGroup(),
+      logStreamName
+    });
+    applicationManager.registerCleanUpHook(logCollectorStream.makeFinalSend);
+  }
+};
+
+const isCodebuildDeployInvocation = () =>
+  globalStateManager.command === 'deploy' && globalStateManager.args.runner === 'codebuild';
+
+const isEc2RunnerDeployInvocation = () =>
+  globalStateManager.command === 'deploy' && globalStateManager.args.runner === 'ec2';
+
+const isRemoteRunnerDeployInvocation = () => isCodebuildDeployInvocation() || isEc2RunnerDeployInvocation();

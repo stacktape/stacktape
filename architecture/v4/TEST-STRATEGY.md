@@ -8,26 +8,22 @@ development loop.
 
 Use three complementary layers:
 
-1. deterministic whole-core, synthesis, packaging, CLI-process, and static infrastructure tests;
-2. Floci integration tests for a deliberately certified subset;
-3. selective real-AWS canaries and scheduled full workflows.
+1. deterministic CLI/application, synthesis, packaging, CLI-process, and static infrastructure tests;
+2. a future Floci integration lane for a deliberately certified subset;
+3. the disposable packaging smoke test now, with broader real-AWS canaries and scheduled workflows added when
+   justified.
 
 Every production defect receives a regression at the cheapest layer capable of reproducing it.
 
-## Compatibility classification
+## v4 behavior policy
 
-Every v3 baseline and v4 difference is classified:
+V4 may intentionally change configuration, commands and machine output. Tests should protect behavior we deliberately
+want, not preserve v3 compatibility by default.
 
-- `must-preserve`;
-- `intentional-v4-break`;
-- `known-v3-bug`;
-- `implementation-detail`.
-
-Do not freeze the exact v3 JSONL/TUI representation. Define the v4 machine protocol intentionally and test semantic
-invariants.
-
-CloudFormation logical IDs, deterministic resource names, replacement-sensitive properties, artifact hashes, and
-security scoping default to `must-preserve`.
+When a refactor exposes a better product surface, record the proposed behavior in the relevant architecture decision
+or migration plan and discuss it before implementing a broad user-facing redesign. Within an approved redesign, test
+the new contract directly. Continue to protect infrastructure properties whose accidental changes can replace or
+orphan resources, including logical IDs, deterministic resource names and replacement-sensitive properties.
 
 ## Layer 1 — deterministic and static tests
 
@@ -47,7 +43,8 @@ Run on every relevant change:
 - npm package, binary input, and helper-Lambda artifact verification;
 - typed AWS adapter fakes for throttling, malformed responses, pagination, and error classification.
 
-The `packages/core` design must expose:
+Prefer existing seams, subprocess boundaries, and focused fakes. Introduce injection only when the changed behavior
+owns an external interaction and the resulting API is simpler than module-level mocking. Important seams include:
 
 - AWS client factory/endpoints;
 - Console/control-plane adapter;
@@ -58,15 +55,15 @@ The `packages/core` design must expose:
 - prompts and cancellation;
 - network access.
 
-Test mode must fail closed if any unapproved request can reach real AWS.
+Tests capable of reaching AWS must fail closed unless they are in an explicitly authorized real-AWS lane.
 
 Expected cadence: every change. Expected runtime: approximately one to five minutes after optimization. Cloud cost:
 zero.
 
-## Layer 2 — Floci certified integration
+## Layer 2 — proposed Floci-certified integration
 
-[Floci](https://github.com/floci-io/floci) is MIT licensed and is the preferred open emulator candidate, but it is not
-an AWS oracle.
+[Floci](https://github.com/floci-io/floci) is MIT licensed and is the preferred open emulator candidate. The repository
+contains a direct provider-feasibility baseline, but no Stacktape end-to-end Floci lane. Floci is not an AWS oracle.
 
 Its [CloudFormation documentation](https://floci.io/floci/services/cloudformation/) states that unsupported resources
 can receive synthetic IDs while stacks still reach `CREATE_COMPLETE`. Template validation is success-only, change sets
@@ -94,7 +91,14 @@ Important Stacktape resource groups requiring real AWS or new Floci contribution
 ElastiCache, OpenSearch, WAF, Scheduler, Service Discovery, Lambda alias/permission/URL/event-invoke resources, several
 API Gateway v2 resources, ECS capacity providers, and Application Auto Scaling.
 
-Before Floci becomes a public-PR gate, a feasibility spike must demonstrate:
+The first provider-baseline spike is implemented at
+[`apps/cli/scripts/floci/`](../../apps/cli/scripts/floci/). Against pinned Floci 1.5.34, CloudFormation create, real
+S3/SQS data-plane operations, persistent restart and stack-record deletion work. The emulator currently accepts an
+identical update, reports a changed SQS property as updated without changing the data plane, and deletes the stack
+record without deleting its S3/SQS resources. The command therefore exits `2`, is not part of normal checks, and is
+not a Stacktape end-to-end test.
+
+Before Floci becomes a public-PR gate, a later Stacktape-integrated feasibility spike must demonstrate:
 
 1. serverless initial create;
 2. live event/data flow;
@@ -114,8 +118,8 @@ Expected cadence after certification: public pull requests. Expected cloud cost:
 Only AWS can validate full CloudFormation change-set behavior, replacements, IAM enforcement, update rollback, drift,
 service-specific semantics, and deletion fidelity.
 
-Use permanent dedicated disposable test accounts with ephemeral uniquely named stacks. CI access uses GitHub OIDC and
-short-lived roles, never fork-exposed secrets.
+Use dedicated disposable development accounts with ephemeral uniquely named stacks. Automated CI access should use
+GitHub OIDC and short-lived roles, never fork-exposed secrets.
 
 Required controls:
 
@@ -128,19 +132,19 @@ Required controls:
 - recorded runtime and tagged cost per suite;
 - no NAT Gateway in routine tests where a cheaper safe topology is possible.
 
-Cadence:
+Target cadence after these lanes are implemented:
 
-| Lane | Cadence | Target |
-|---|---|---|
-| Cheap serverless canary | trusted main/merge queue | 7–15 minutes, usually pennies to below roughly $0.10 |
-| Containers/data | nightly | 20–60 minutes, controlled stateful-resource cost |
-| Edge/identity/multi-account | weekly and release | 30–90 minutes |
-| Remote runner/Console deployment | nightly or release | full private integration |
+| Lane                             | Cadence                  | Target                                               |
+| -------------------------------- | ------------------------ | ---------------------------------------------------- |
+| Cheap serverless canary          | trusted main/merge queue | 7–15 minutes, usually pennies to below roughly $0.10 |
+| Containers/data                  | nightly                  | 20–60 minutes, controlled stateful-resource cost     |
+| Edge/identity/multi-account      | weekly and release       | 30–90 minutes                                        |
+| Remote runner/Console deployment | nightly or release       | full private integration                             |
 
 These are initial budget envelopes, not price guarantees. Measure the pilot using tagged resources. RDS billable
 transitions and OpenSearch partial-hour billing make those services poor per-PR candidates.
 
-## Representative projects
+## Proposed representative projects
 
 Use multiple high-density projects rather than one enormous slow stack.
 
@@ -204,23 +208,23 @@ Seed these projects from useful current fixtures rather than discarding known sc
 
 Projects do not merely deploy once:
 
-| Operation | Required assertions |
-|---|---|
-| Initial deploy | Resource identities, outputs, tags, and live data plane |
-| Exact redeploy | No unintended update; stable physical IDs and hashes |
-| Code-only hotswap | New code runs; infrastructure identity remains stable |
-| Mutable update | Intended properties change; unrelated resources remain stable |
-| Replacement update | Replacement is predicted, reported, and executed |
-| Failed create | Rollback and no chargeable/orphaned resources |
-| Failed update | Previous app remains usable; correct rollback/reporting |
-| Explicit rollback | Previous version and data plane restored |
-| Manual drift | Chosen v4 block/warn/reconcile policy |
-| Concurrent deploy | Defined locking/conflict behavior; no state corruption |
-| Cancellation | Processes and packaging stop; temporary artifacts cleaned |
-| Delete | Stack and deployment artifacts removed |
-| Failed delete | Useful error; retained resource discoverable; retry works |
-| Repeated delete | Intentional idempotent or documented behavior |
-| Emulator restart | Stored state recovers without phantom changes |
+| Operation          | Required assertions                                           |
+| ------------------ | ------------------------------------------------------------- |
+| Initial deploy     | Resource identities, outputs, tags, and live data plane       |
+| Exact redeploy     | No unintended update; stable physical IDs and hashes          |
+| Code-only hotswap  | New code runs; infrastructure identity remains stable         |
+| Mutable update     | Intended properties change; unrelated resources remain stable |
+| Replacement update | Replacement is predicted, reported, and executed              |
+| Failed create      | Rollback and no chargeable/orphaned resources                 |
+| Failed update      | Previous app remains usable; correct rollback/reporting       |
+| Explicit rollback  | Previous version and data plane restored                      |
+| Manual drift       | Chosen v4 block/warn/reconcile policy                         |
+| Concurrent deploy  | Defined locking/conflict behavior; no state corruption        |
+| Cancellation       | Processes and packaging stop; temporary artifacts cleaned     |
+| Delete             | Stack and deployment artifacts removed                        |
+| Failed delete      | Useful error; retained resource discoverable; retry works     |
+| Repeated delete    | Intentional idempotent or documented behavior                 |
+| Emulator restart   | Stored state recovers without phantom changes                 |
 
 Floci may own create/no-op/update/delete and selected create failures for its certified subset. Real AWS owns rollback,
 drift, replacements, concurrency, and deletion fidelity.
@@ -235,15 +239,23 @@ drift, replacements, concurrency, and deletion fidelity.
 - Moto is useful for narrow Python-backed service tests, not as a general Stacktape CloudFormation lifecycle oracle.
 - LocalEmu is an Apache-licensed fork of archived LocalStack code but is too new to become a v4 release gate.
 - AWS SAM local can invoke Lambda/API handlers but does not reproduce Stacktape infrastructure lifecycle.
-- AWS SDK mocks are useful behind explicit ports for error paths; they do not define AWS semantics.
+- AWS SDK mocks are useful at existing client/module seams for error paths; they do not define AWS semantics.
 
-## Initial implementation order
+## Remaining implementation order
 
-1. Review and merge current characterization/artifact baselines.
-2. Add normalized synthesis fixtures and compatibility classifications.
-3. Make explicit test ports and no-real-AWS safety an acceptance criterion of the core foundation slice.
-4. Add static CloudFormation validation.
-5. Add packaged CLI process tests.
-6. Run the Floci feasibility spike.
-7. Build the cheap real-AWS `serverless-mesh` canary after explicit authorization.
-8. Expand nightly/weekly coverage by observed risk and production defects.
+Characterization/artifact baselines, normalized synthesis fixtures, packaged CLI process tests, and a disposable
+real-AWS packaging smoke are implemented. CLI Bun tests now also preload an application-level guard that replaces
+inherited AWS credentials, disables metadata/profile endpoint resolution, and blocks non-loopback fetch/HTTP(S)
+dispatch. It covers normal AWS SDK paths but is not an OS sandbox for child processes, raw sockets, or loopback
+redirects. Public CI writes the credential-free dense synthesis fixture to a temporary file and validates deployment
+errors against the CloudFormation resource specification with pinned `cfn-lint`; warnings remain visible without
+turning existing style diagnostics into a baseline.
+
+Next:
+
+1. Re-evaluate Floci after no-op, update and delete fidelity are fixed; then run a Stacktape-synthesized certified
+   subset through it.
+2. Certify the implemented packaging deploy/no-op/update/delete canary in a dedicated disposable AWS account through
+   the protected preview workflow. It is intentionally narrower than the proposed `serverless-mesh` project.
+3. Build `serverless-mesh` only after the packaging canary has demonstrated stable cleanup and useful failure signals.
+4. Expand nightly/weekly coverage by observed risk and production defects.

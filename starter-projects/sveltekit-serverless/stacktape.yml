@@ -1,5 +1,0 @@
-resources:
-  web:
-    type: sveltekit-web
-    properties:
-      appDirectory: ./

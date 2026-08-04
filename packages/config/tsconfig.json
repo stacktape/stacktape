@@ -1,0 +1,21 @@
+{
+  "//": [
+    "exactOptionalPropertyTypes is off here on purpose. Every optional property in this package models a key",
+    "a user may omit from YAML/JSON, not a key whose value may be `undefined`, and the CLI merges defaults over",
+    "loaded configuration objects. Turning it on would force `| undefined` unions that misdescribe the authored",
+    "format and change the generated schema. The rest of the repository policy applies unchanged.",
+    "",
+    "`types: []` and `skipLibCheck: false` describe the environment a consumer of this package actually has, so",
+    "tests/config-import.acceptance.ts is compiled here rather than with the Bun test: it proves the model is",
+    "usable with no ambient globals at all."
+  ],
+  "extends": "../../tsconfig.package.json",
+  "include": ["src", "tests/config-import.acceptance.ts"],
+  "compilerOptions": {
+    "exactOptionalPropertyTypes": false,
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "skipLibCheck": false,
+    "types": []
+  }
+}

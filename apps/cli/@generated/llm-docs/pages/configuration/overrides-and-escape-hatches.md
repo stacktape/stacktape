@@ -1,0 +1,442 @@
+# Overrides and Escape Hatches
+
+Stacktape generates AWS CloudFormation templates from your configuration. When you need to customize the underlying AWS resources beyond what Stacktape exposes — set a parameter Stacktape doesn't surface, tune a database engine setting, or add an AWS resource type Stacktape doesn't natively support — overrides and escape hatches give you direct access to the CloudFormation layer without leaving your Stacktape project.
+
+## Why this exists
+
+Stacktape covers the high-signal 80% of AWS resource configuration through its typed properties. But AWS services expose hundreds of settings, and Stacktape intentionally doesn't surface every one. Overrides and escape hatches close the gap: you keep Stacktape's deployment, observability, and lifecycle management while reaching through to any CloudFormation property or resource type.
+
+## When to use escape hatches
+
+Use overrides and escape hatches when:
+
+- You need a CloudFormation property Stacktape doesn't expose (e.g., reserved concurrency on a Lambda function, enhanced monitoring on RDS)
+- You need to add an AWS resource Stacktape doesn't have a built-in type for (e.g., a custom CloudWatch dashboard, an SES configuration set)
+- You need to compute or dynamically modify CloudFormation properties based on existing values (transforms)
+- You need full CDK-level control for complex infrastructure (CDK constructs)
+
+## When NOT to use escape hatches
+
+Check Stacktape's built-in properties first. Overrides bypass Stacktape's validation and auto-configuration, so they're harder to maintain and can conflict with future Stacktape updates. If a property is available directly on the resource (like `memory` on a [Lambda function](/resources/compute/lambda-function) or `scaling` on a [web service](/resources/compute/web-service)), use the native property instead.
+
+## Understanding child resources
+
+Each Stacktape resource creates one or more CloudFormation resources internally — called "child resources." For example, a Lambda function creates an `AWS::Lambda::Function`, an `AWS::IAM::Role`, and an `AWS::Logs::LogGroup`. A [web service](/resources/compute/web-service) creates an ECS task definition, an ECS service, IAM roles, security groups, and potentially load balancer resources.
+
+Overrides and transforms target these child resources using Stacktape-defined property names (such as `StpLambdaFunction` or `StpEcsTaskDefinition`). These names are distinct from the final CloudFormation logical IDs that appear in the generated template.
+
+### Finding child resource names
+
+To override a property, you need the Stacktape child resource property name. The table below lists the most common ones. For less common resources, two discovery methods help you find the right name.
+
+Use [`stacktape info:stack`](/cli/info-stack) to inspect child resources for a deployed stack:
+
+```bash
+stacktape info:stack --stage dev --region eu-west-1
+```
+
+Alternatively, run [`stacktape synth`](/cli/synth) to generate the full CloudFormation template locally and verify that your overrides produce the expected output:
+
+```bash
+stacktape synth --stage dev --region eu-west-1
+```
+
+This writes a `compiled-template.yaml` file you can inspect. Use it to verify that your override keys resolved correctly and that the final CloudFormation properties match your expectations.
+
+### Common child resource names
+
+The table below lists commonly overridden child resources. Use the property name from the second column as the override key. Use [`stacktape synth`](/cli/synth) to verify the final CloudFormation output.
+
+| Stacktape resource type | Child resource property name | AWS resource type |
+|---|---|---|
+| Lambda function | `StpLambdaFunction` | `AWS::Lambda::Function` |
+| Lambda function | `StpLambdaFunctionRole` | `AWS::IAM::Role` |
+| Lambda function | `StpLambdaFunctionLogGroup` | `AWS::Logs::LogGroup` |
+| Web service | `StpEcsTaskDefinition` | `AWS::ECS::TaskDefinition` |
+| Web service | `StpEcsTaskRole` | `AWS::IAM::Role` |
+| Relational database | `StpRdsInstance` | `AWS::RDS::DBInstance` |
+| Relational database | `StpRdsParameterGroup` | `AWS::RDS::DBParameterGroup` |
+| Bucket | `StpS3Bucket` | `AWS::S3::Bucket` |
+| HTTP API Gateway | `StpHttpApi` | `AWS::ApiGatewayV2::Api` |
+
+
+> **Warning:** The table above is not exhaustive, and child resource names can vary by resource shape. If an override does not take effect, use [`stacktape synth`](/cli/synth) to inspect the generated template and verify the exact child resource key.
+
+
+## Overrides
+
+Stacktape resource overrides let you set specific CloudFormation properties on child resources. The `overrides` property accepts an object where each key is a child resource property name (such as `StpLambdaFunction`) and the value is an object of CloudFormation properties to set.
+
+Overrides apply your specified keys on top of what Stacktape generates for each child resource.
+
+### Basic override example
+
+This example sets reserved concurrent executions on a Lambda function's underlying `AWS::Lambda::Function` resource:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    overrides: {
+      StpLambdaFunction: {
+        ReservedConcurrentExecutions: 100
+      }
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+The key `StpLambdaFunction` targets the underlying `AWS::Lambda::Function` child resource. This example uses an override to set the CloudFormation `ReservedConcurrentExecutions` property directly on that child resource.
+
+### Override with nested properties
+
+For nested CloudFormation properties, use a nested object structure. This example configures an RDS parameter group:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, RelationalDatabase, RdsEnginePostgres, $Secret } from 'stacktape';
+export default defineConfig(() => {
+  const db = new RelationalDatabase({
+    credentials: { masterUserPassword: $Secret('db-password') },
+    engine: new RdsEnginePostgres({
+      version: '16',
+      primaryInstance: {
+        instanceSize: 'db.t4g.micro'
+      }
+    }),
+    overrides: {
+      StpRdsParameterGroup: {
+        Parameters: {
+          max_connections: '200',
+          shared_buffers: '256MB'
+        }
+      }
+    }
+  });
+
+  return { resources: { db } };
+});
+```
+
+
+The `StpRdsParameterGroup` targets the `AWS::RDS::DBParameterGroup` child resource. The `Parameters` key is the CloudFormation property that accepts database engine parameters. The valid keys are RDS engine parameters for the selected PostgreSQL version and instance family — check the [AWS RDS parameter group documentation](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_WorkingWithDBInstanceParamGroups.html) for available parameters.
+
+### S3 bucket override example
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, Bucket } from 'stacktape';
+export default defineConfig(() => {
+  const uploads = new Bucket({
+    overrides: {
+      StpS3Bucket: {
+        PublicAccessBlockConfiguration: {
+          BlockPublicAcls: true,
+          BlockPublicPolicy: true,
+          IgnorePublicAcls: true,
+          RestrictPublicBuckets: true
+        }
+      }
+    }
+  });
+
+  return { resources: { uploads } };
+});
+```
+
+
+## Transforms
+
+Transforms are functions that receive the current CloudFormation properties of a child resource and return modified properties. They're more flexible than overrides because you can compute values, conditionally modify properties, or append to arrays without knowing the full existing configuration.
+
+In TypeScript configs using `defineConfig`, transforms are native JavaScript functions — the recommended approach because you get IDE autocomplete and type safety. The legacy curated examples show YAML transforms as inline JavaScript function body strings; prefer TypeScript configs for transforms because the function is native code.
+
+### How transforms work
+
+Each transform function receives the `Properties` object of a CloudFormation resource and must return the modified properties:
+
+```typescript
+type CfResourceTransform = (props: Record<string, any>) => Partial<Record<string, any>>;
+```
+
+### Basic transform example
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    transforms: {
+      StpLambdaFunction: (props: any) => ({
+        ...props,
+        Layers: [
+          ...(props.Layers || []),
+          'arn:aws:lambda:eu-west-1:123456789012:layer:my-shared-utils:3'
+        ]
+      })
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+This appends a Lambda layer ARN to whatever layers Stacktape already configured. With a plain override, you'd need to specify the complete final list of layers — with a transform, you append to the existing value safely.
+
+### Transform for container workloads
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: './src/server.ts'
+    }),
+    resources: { cpu: 0.5, memory: 1024 },
+    transforms: {
+      StpEcsTaskDefinition: (props: any) => ({
+        ...props,
+        ContainerDefinitions: props.ContainerDefinitions.map((container: any) => ({
+          ...container,
+          Ulimits: [{ Name: 'nofile', SoftLimit: 65536, HardLimit: 65536 }]
+        }))
+      })
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+The `StpEcsTaskDefinition` transform modifies the ECS task definition to add file descriptor limits to all containers. This is useful for high-connection workloads (WebSocket servers, connection pools) where the default Linux `nofile` limit is too low.
+
+### When to use transforms over overrides
+
+Use transforms when you need to:
+- **Append to arrays** — add layers, environment variables, or mount points without clobbering existing entries
+- **Conditionally modify** — change a property only if it meets a condition
+- **Compute derived values** — set a property based on another property's current value
+
+Use overrides when you know the exact final value and it doesn't depend on existing configuration.
+
+## Overrides vs transforms
+
+| Aspect | Overrides | Transforms |
+|---|---|---|
+| Syntax | Static key-value pairs | JavaScript function |
+| Config format | TypeScript and YAML | TypeScript (native functions) and YAML (function strings) |
+| Use case | Set known property values | Compute, append, or conditionally modify |
+| Merge behavior | Shallow merge | Full control — you return the final object |
+| Stacktape validation | CloudFormation property values are not Stacktape-validated; verify with `synth` | No Stacktape validation on returned properties; verify with `synth` |
+
+## Raw CloudFormation resources
+
+The `cloudformationResources` top-level config property lets you add any AWS CloudFormation resource directly to your stack. This is the escape hatch for AWS services Stacktape doesn't have a built-in resource type for — SES configuration sets, custom CloudWatch dashboards, Secrets Manager secrets, or any of the 750+ CloudFormation resource types.
+
+Raw CloudFormation resources are merged into the final template as-is. They don't benefit from Stacktape's automatic IAM permissions, [`connectTo`](/configuration/connecting-resources) integration, or simplified configuration.
+
+### Adding a raw CloudFormation resource
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  $CfResourceParam
+} from 'stacktape';
+export default defineConfig(() => {
+  const processor = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/processor.ts'
+    }),
+    environment: { TOPIC_ARN: $CfResourceParam('AlertTopic', 'TopicArn') }
+  });
+
+  return {
+    resources: { processor },
+    cloudformationResources: {
+      AlertTopic: {
+        Type: 'AWS::SNS::Topic',
+        Properties: {
+          TopicName: 'alert-notifications',
+          DisplayName: 'Alert Notifications'
+        }
+      }
+    }
+  };
+});
+```
+
+
+Each key in `cloudformationResources` (such as `AlertTopic` above) becomes the CloudFormation logical name. The value uses standard CloudFormation syntax with `Type` and `Properties` keys, as shown in the [AWS CloudFormation Resource Reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html). You can add multiple resources in the same block.
+
+### Referencing CloudFormation resources from Stacktape
+
+Use the [`$CfResourceParam`](/configuration/directives) directive to reference attributes of raw CloudFormation resources. Import `$CfResourceParam` from `stacktape` and call it with the logical resource name and the CloudFormation attribute to retrieve — for example, `$CfResourceParam('AlertTopic', 'TopicArn')` to get the ARN of an SNS topic, or `$CfResourceParam('AlertTopic', 'Ref')` to get the physical resource ID. The available attributes depend on the CloudFormation resource type — check the [AWS CloudFormation Resource Reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) for each resource type's return values. The CodeBlock example above shows this pattern in a complete `defineConfig` config.
+
+### Referencing Stacktape resources from CloudFormation
+
+Use the [`$ResourceParam`](/configuration/referenceable-parameters) directive inside `cloudformationResources` to reference attributes of Stacktape-managed resources. For example, to create a Lambda invocation permission that references both a Stacktape-managed Lambda function and a raw CloudFormation SNS topic, use `$ResourceParam('processor', 'arn')` to get the function ARN and `$CfResourceParam('AlertTopic', 'TopicArn')` to get the topic ARN. Both directives are importable from the `stacktape` package and can be used as values in `cloudformationResources` property definitions.
+
+### DependsOn for ordering
+
+Use the standard CloudFormation `DependsOn` property to control creation order between raw resources. Add `DependsOn: ['AlertTopic']` to a resource definition within `cloudformationResources` to ensure it is created after the specified dependency. This follows standard CloudFormation ordering semantics.
+
+### Limitations of raw CloudFormation resources
+
+- **No automatic IAM permissions** — you must manage roles and policies yourself
+- **No `connectTo` support** — environment variables and security group rules aren't injected automatically
+- **No Stacktape-level validation** — CloudFormation errors surface only at deploy time
+- **Property updates may require resource replacement** — some CloudFormation properties can't be updated in-place
+
+For more complex raw CloudFormation usage patterns, see [Raw CloudFormation resources](/resources/advanced/raw-cloudformation-resources).
+
+## AWS CDK constructs
+
+For complex escape-hatch scenarios where raw CloudFormation is too verbose, Stacktape supports embedding [AWS CDK](https://aws.amazon.com/cdk/) constructs directly in your stack using the `AwsCdkConstruct` resource type. Write a CDK construct class in TypeScript or JavaScript, and Stacktape synthesizes and deploys it alongside your other resources.
+
+CDK constructs are the right choice when you need multiple interrelated AWS resources with complex logic — for example, a custom CloudWatch monitoring dashboard with dynamic widgets, a VPC peering setup, or a multi-step Step Functions workflow that Stacktape's built-in [state machine](/resources/orchestration/state-machine) doesn't cover. For a single additional resource (like an SNS topic or a Secrets Manager secret), raw CloudFormation in `cloudformationResources` is simpler.
+
+### CDK construct example
+
+First, write a construct class that extends `Construct` from the `constructs` package and uses AWS CDK modules from `aws-cdk-lib` as needed:
+
+```typescript
+// cdk/monitoring.ts
+import { Construct } from 'constructs';
+import * as cloudwatch from 'aws-cdk-lib/aws-cloudwatch';
+
+export class MonitoringDashboard extends Construct {
+  constructor(scope: Construct, id: string, props: { functionName: string }) {
+    super(scope, id);
+
+    new cloudwatch.Dashboard(this, 'Dashboard', {
+      dashboardName: `${props.functionName}-metrics`,
+      widgets: [
+        [
+          new cloudwatch.GraphWidget({
+            title: 'Invocations',
+            left: [
+              new cloudwatch.Metric({
+                namespace: 'AWS/Lambda',
+                metricName: 'Invocations',
+                dimensionsMap: { FunctionName: props.functionName }
+              })
+            ]
+          })
+        ]
+      ]
+    });
+  }
+}
+```
+
+Then reference it in your Stacktape config:
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  AwsCdkConstruct,
+  $ResourceParam
+} from 'stacktape';
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/api.ts'
+    })
+  });
+
+  const monitoring = new AwsCdkConstruct({
+    entryfilePath: './cdk/monitoring.ts',
+    exportName: 'MonitoringDashboard',
+    constructProperties: {
+      functionName: $ResourceParam('api', 'name')
+    }
+  });
+
+  return { resources: { api, monitoring } };
+});
+```
+
+
+The `AwsCdkConstruct` class accepts three properties: `entryfilePath` (required, path to the file containing the construct class), `exportName` (optional, defaults to `"default"`, names the exported class), and `constructProperties` (optional, object passed as the third argument to the construct's constructor). Use `$ResourceParam` and `$CfResourceParam` inside `constructProperties` to pass dynamic values from other resources. For the full property reference and advanced patterns, see [AWS CDK constructs](/resources/advanced/aws-cdk-constructs).
+
+## Inspecting the generated template
+
+To verify that your overrides, transforms, and raw resources produce the expected CloudFormation output, use [`stacktape synth`](/cli/synth):
+
+```bash
+stacktape synth --stage dev --region eu-west-1
+```
+
+This writes the final CloudFormation template to `compiled-template.yaml`. Inspect it before deploying to catch errors early — CloudFormation deployment failures are slower to debug than template inspection.
+
+## Best practices
+
+- **Try native properties first.** Overrides are a last resort. Check the resource's API reference for the property you need before reaching for an override.
+- **Use transforms for array modifications.** If you need to append to an existing array (layers, environment variables, mount points), a transform is safer than an override because it preserves whatever Stacktape already configured.
+- **Keep overrides minimal.** Each override is a maintenance obligation — Stacktape may change its internal resource structure in future versions.
+- **Validate with `synth`.** Always inspect the compiled output after adding overrides or transforms. Overrides bypass Stacktape's validation, so errors only surface at deploy time if you skip this step.
+- **Prefer CDK constructs for multi-resource setups.** If you need more than 2-3 related raw CloudFormation resources with cross-references, a CDK construct is cleaner and benefits from CDK's type-safe APIs.
+- **Document why, not what.** When using overrides, add a code comment explaining why the override is needed — the code already shows what it does.
+
+## FAQ
+
+### Should I use overrides or transforms?
+
+Use overrides when you know the exact final value and it doesn't depend on existing configuration — they're static key-value pairs merged shallowly on top of what Stacktape generates. Use transforms when you need to append to an array (layers, environment variables, mount points) without clobbering existing entries, conditionally modify a property, or compute a value from the resource's current configuration. Transforms are JavaScript functions that receive the current `Properties` and return the final object, so you get full control over the merge.
+
+### Can I use overrides and transforms in YAML configs?
+
+Both work in YAML, but transforms are awkward there: YAML transforms are written as inline JavaScript function body strings, while overrides are plain objects keyed by child resource name. Prefer TypeScript configs — transforms become native functions with IDE autocomplete and type safety, and overrides get intellisense for child resource keys.
+
+### Will overrides break when Stacktape updates?
+
+Possibly. If Stacktape changes how it structures a child resource internally, your override could target a property that no longer exists or behaves differently. This is rare in patch updates but can happen in major versions. Pin your Stacktape version in production and test overrides after upgrading. Running `synth` after an upgrade shows whether your overrides still produce the expected output.
+
+### What attributes can I reference with $CfResourceParam?
+
+The second argument to [`$CfResourceParam`](/configuration/directives) is a CloudFormation return value of the target resource type. Check the [AWS CloudFormation Resource Reference](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/aws-template-resource-type-ref.html) for each type's available return values. Common ones include `Ref` (the physical resource ID) and resource-specific attributes like `TopicArn` for SNS or `Arn`/`BucketName` for S3.
+
+### Do raw CloudFormation resources get automatic IAM permissions?
+
+No. Unlike Stacktape-managed resources — which get baseline IAM permissions automatically and support [`connectTo`](/configuration/connecting-resources) integration — raw CloudFormation resources require you to manage IAM roles and policies manually. You'll need to add your own `AWS::IAM::Role` or `AWS::IAM::Policy` resources in `cloudformationResources`, or use overrides on existing Stacktape-managed roles to add additional policy statements.
+
+### When should I use a CDK construct instead of raw CloudFormation?
+
+Use CDK constructs when you need multiple interrelated resources with complex configuration logic — for example, a CloudWatch dashboard with dynamic widgets, a custom VPC peering setup, or a Step Functions state machine with many states. CDK provides type-safe APIs, intelligent defaults, and handles cross-resource references cleanly. For a single additional resource (like an SNS topic or a Secrets Manager secret), raw CloudFormation is simpler and has less tooling overhead.
+
+### Can I override resources conditionally based on the stage?
+
+Yes. Since TypeScript configs are executable code, you can use standard conditionals. Access the stage name via [deploy-time parameters](/deployment-and-lifecycle/deploy-time-parameters) or environment variables, then conditionally include overrides. For example, you might enable enhanced RDS monitoring only in production by checking the stage name before adding the `MonitoringInterval` override.

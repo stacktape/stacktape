@@ -1,0 +1,49 @@
+{
+  "scope": "Direct Floci provider baseline; not a Stacktape CLI or synthesis test",
+  "resourceTypes": {
+    "AWS::S3::Bucket": "floci-real",
+    "AWS::SQS::Queue": "floci-real"
+  },
+  "capabilities": [
+    {
+      "id": "cloudformation-create",
+      "operations": ["CreateStack", "DescribeStacks", "ListStackResources"],
+      "expectedResult": "pass"
+    },
+    {
+      "id": "s3-data-plane",
+      "operations": ["PutObject", "GetObject"],
+      "expectedResult": "pass"
+    },
+    {
+      "id": "sqs-data-plane",
+      "operations": ["SendMessage", "ReceiveMessage", "DeleteMessage"],
+      "expectedResult": "pass"
+    },
+    {
+      "id": "cloudformation-identical-update",
+      "operations": ["UpdateStack", "DescribeStacks"],
+      "expectedResult": "known-failure"
+    },
+    {
+      "id": "cloudformation-property-update",
+      "operations": ["UpdateStack", "DescribeStacks", "GetQueueAttributes"],
+      "expectedResult": "known-failure"
+    },
+    {
+      "id": "persistent-restart",
+      "operations": ["DescribeStacks", "GetObject", "PutObject", "SendMessage", "ReceiveMessage", "DeleteMessage"],
+      "expectedResult": "pass"
+    },
+    {
+      "id": "cloudformation-delete-stack-record",
+      "operations": ["DeleteObject", "DeleteStack", "DescribeStacks"],
+      "expectedResult": "pass"
+    },
+    {
+      "id": "cloudformation-delete-resources",
+      "operations": ["HeadBucket", "GetQueueAttributes"],
+      "expectedResult": "known-failure"
+    }
+  ]
+}

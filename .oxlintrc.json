@@ -1,0 +1,204 @@
+{
+  "plugins": ["eslint", "typescript", "unicorn", "oxc", "import", "promise", "node", "react", "jsx-a11y"],
+  "categories": {
+    "correctness": "error",
+    "suspicious": "error",
+    "perf": "warn"
+  },
+  "rules": {
+    "import/no-cycle": "error",
+    "import/no-unassigned-import": [
+      "error",
+      {
+        "allow": ["**/*.css"]
+      }
+    ],
+    "no-empty": [
+      "error",
+      {
+        "allowEmptyCatch": false
+      }
+    ],
+    "no-useless-catch": "error",
+    "oxc/no-barrel-file": "off",
+    "react/react-in-jsx-scope": "off",
+    "typescript/no-explicit-any": "error",
+    "typescript/prefer-ts-expect-error": "error",
+    "unicorn/prefer-node-protocol": "error"
+  },
+  "overrides": [
+    {
+      "files": ["apps/cli/**"],
+      "rules": {
+        "eslint/no-await-in-loop": "off",
+        "eslint/no-empty": "off",
+        "eslint/no-shadow": "off",
+        "eslint/no-underscore-dangle": "off",
+        "eslint/no-unsafe-optional-chaining": "off",
+        "eslint/no-useless-concat": "off",
+        "eslint/no-useless-constructor": "off",
+        "eslint/no-useless-escape": "off",
+        "eslint/preserve-caught-error": "off",
+        "import/no-cycle": "off",
+        "import/no-named-as-default-member": "off",
+        "oxc/const-comparisons": "off",
+        "oxc/no-accumulating-spread": "off",
+        "oxc/no-map-spread": "off",
+        "oxc/only-used-in-recursion": "off",
+        "promise/always-return": "off",
+        "promise/no-callback-in-promise": "off",
+        "promise/no-multiple-resolved": "off",
+        "react/no-unstable-nested-components": "off",
+        "typescript/no-explicit-any": "off",
+        "unicorn/consistent-function-scoping": "off",
+        "unicorn/no-array-reverse": "off",
+        "unicorn/no-array-sort": "off",
+        "unicorn/no-empty-file": "off",
+        "unicorn/no-single-promise-in-promise-methods": "off",
+        "unicorn/no-useless-fallback-in-spread": "off",
+        "unicorn/no-useless-spread": "off",
+        "unicorn/prefer-array-find": "off",
+        "unicorn/prefer-array-flat-map": "off",
+        "unicorn/prefer-set-has": "off",
+        "unicorn/prefer-set-size": "off",
+        "unicorn/prefer-string-starts-ends-with": "off",
+        "unicorn/require-post-message-target-origin": "off"
+      }
+    },
+    {
+      "files": ["apps/console/**"],
+      "rules": {
+        "eslint/no-await-in-loop": "off"
+      }
+    },
+    {
+      "files": [
+        "apps/console/api/scripts/print-customer-stack-operations.ts",
+        "apps/console/api/scripts/print-spend.ts",
+        "apps/console/api/scripts/verify-slack-alarm-architecture.ts",
+        "apps/console/api/server/api/api-key-protected.ts",
+        "apps/console/api/server/api/cognito-protected.ts",
+        "apps/console/api/server/api/public.ts",
+        "apps/console/api/server/aws-services/**",
+        "apps/console/api/server/config.ts",
+        "apps/console/api/server/controllers/**",
+        "apps/console/api/server/lambdas/**",
+        "apps/console/api/server/middlewares.test.ts",
+        "apps/console/api/server/middlewares.ts",
+        "apps/console/api/server/model-helpers/**",
+        "apps/console/api/server/permissions.ts",
+        "apps/console/api/server/services/**",
+        "apps/console/api/server/utils/**",
+        "apps/console/api/shared-utils.ts",
+        "apps/console/api/shared/**",
+        "apps/console/api/types/**"
+      ],
+      "rules": {
+        "eslint/block-scoped-var": "off",
+        "eslint/no-control-regex": "off",
+        "eslint/no-empty": "off",
+        "eslint/no-shadow": "off",
+        "eslint/no-underscore-dangle": "off",
+        "eslint/no-unused-private-class-members": "off",
+        "eslint/no-useless-concat": "off",
+        "eslint/no-useless-escape": "off",
+        "eslint/preserve-caught-error": "off",
+        "import/no-cycle": "off",
+        "oxc/no-accumulating-spread": "off",
+        "oxc/no-map-spread": "off",
+        "oxc/no-this-in-exported-function": "off",
+        "promise/always-return": "off",
+        "promise/no-multiple-resolved": "off",
+        "typescript/no-explicit-any": "off",
+        "unicorn/consistent-function-scoping": "off",
+        "unicorn/no-array-reverse": "off",
+        "unicorn/no-array-sort": "off",
+        "unicorn/no-single-promise-in-promise-methods": "off",
+        "unicorn/no-useless-fallback-in-spread": "off",
+        "unicorn/no-useless-spread": "off",
+        "unicorn/prefer-array-find": "off",
+        "unicorn/prefer-array-flat-map": "off",
+        "unicorn/prefer-set-has": "off",
+        "unicorn/require-module-specifiers": "off",
+        "unicorn/require-post-message-target-origin": "off"
+      }
+    },
+    {
+      "files": ["apps/console/ui/diagram-test/**", "apps/console/ui/src/**"],
+      "rules": {
+        "eslint/no-control-regex": "off",
+        "eslint/no-shadow": "off",
+        "eslint/no-underscore-dangle": "off",
+        "eslint/no-useless-constructor": "off",
+        "eslint/no-useless-escape": "off",
+        "eslint/preserve-caught-error": "off",
+        "import/no-cycle": "off",
+        "import/no-named-as-default": "off",
+        "jsx-a11y/click-events-have-key-events": "off",
+        "jsx-a11y/control-has-associated-label": "off",
+        "jsx-a11y/interactive-supports-focus": "off",
+        "jsx-a11y/label-has-associated-control": "off",
+        "jsx-a11y/media-has-caption": "off",
+        "jsx-a11y/no-autofocus": "off",
+        "jsx-a11y/no-noninteractive-element-interactions": "off",
+        "jsx-a11y/no-static-element-interactions": "off",
+        "jsx-a11y/prefer-tag-over-role": "off",
+        "oxc/no-accumulating-spread": "off",
+        "oxc/no-map-spread": "off",
+        "promise/always-return": "off",
+        "react/no-array-index-key": "off",
+        "react/no-object-type-as-default-prop": "off",
+        "react/no-unstable-nested-components": "off",
+        "typescript/no-duplicate-enum-values": "off",
+        "typescript/no-explicit-any": "off",
+        "typescript/prefer-as-const": "off",
+        "typescript/prefer-ts-expect-error": "off",
+        "unicorn/consistent-function-scoping": "off",
+        "unicorn/no-array-reverse": "off",
+        "unicorn/no-array-sort": "off",
+        "unicorn/no-useless-fallback-in-spread": "off",
+        "unicorn/no-useless-spread": "off",
+        "unicorn/prefer-array-find": "off",
+        "unicorn/prefer-array-flat-map": "off",
+        "unicorn/prefer-set-has": "off",
+        "unicorn/prefer-string-starts-ends-with": "off"
+      }
+    },
+    {
+      "files": ["apps/docs/src/utils/yaml-to-typescript.ts"],
+      "rules": {
+        "eslint/no-underscore-dangle": [
+          "error",
+          {
+            "allow": ["__identifier"]
+          }
+        ]
+      }
+    },
+    {
+      "files": ["packages/config/src/**"],
+      "rules": {
+        "typescript/no-explicit-any": "off"
+      }
+    },
+    {
+      "files": ["packages/config-authoring/src/**"],
+      "rules": {
+        "eslint/no-underscore-dangle": "off",
+        "typescript/no-explicit-any": "off",
+        "unicorn/consistent-function-scoping": "off"
+      }
+    }
+  ],
+  "ignorePatterns": [
+    "**/.astro/**",
+    "**/.turbo/**",
+    "**/@generated/**",
+    "**/coverage/**",
+    "**/dist/**",
+    "**/generated/**",
+    "**/node_modules/**",
+    "apps/cli/starter-projects/**",
+    "apps/console/api/dist/**"
+  ]
+}

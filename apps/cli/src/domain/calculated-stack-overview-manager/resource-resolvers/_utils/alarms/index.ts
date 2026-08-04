@@ -1,0 +1,206 @@
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import type { InputTransformer, RuleProperties, Target } from '@stacktape/cloudformation/resources/aws-events-rule';
+import { getAtt, ref, sub } from '@stacktape/cloudformation/intrinsics';
+import type {
+  AlarmNotificationEventRuleInput,
+  StpAlarmEnabledResource
+} from '@domain-services/config-manager/resolved-types/alarms';
+import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
+import type { StpHttpApiGateway } from '@domain-services/config-manager/resolved-types/http-api-gateways';
+import type { StpRelationalDatabase } from '@domain-services/config-manager/resolved-types/relational-databases';
+import type { StpResource } from '@domain-services/config-manager/resolved-types/resources';
+import type { StpSqsQueue } from '@domain-services/config-manager/resolved-types/sqs-queues';
+import type { AlarmDefinition } from '@stacktape/config/alarms';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { configManager } from '@domain-services/config-manager';
+import { getAlarmsToBeAppliedToResource } from '@domain-services/config-manager/utils/alarms';
+import { templateManager } from '@domain-services/template-manager';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-manager/cloudformation-links';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { processAllNodes } from '@utils/misc';
+import { transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
+import { escapeCloudformationSecretDynamicReference } from '@utils/stack-info-map-sensitive-values';
+import {
+  getApplicationLoadBalancerCustomAlarm,
+  getApplicationLoadBalancerErrorRateAlarm,
+  getApplicationLoadBalancerUnhealthyTargetsAlarm
+} from './application-load-balancer-alarms';
+import { getHttpApiGatewayErrorRateAlarm, getHttpApiGatewayLatencyAlarm } from './http-api-gateway-alarms';
+import { getLambdaDurationAlarm, getLambdaErrorRateAlarm } from './lambda-alarms';
+import {
+  getDatabaseConnectionCountAlarm,
+  getDatabaseCPUUtilizationAlarm,
+  getDatabaseFreeMemoryAlarm,
+  getDatabaseFreeStorageAlarm,
+  getDatabaseLatencyAlarm
+} from './relational-database-alarms';
+import { getSqsQueueNotEmptyAlarm, getSqsQueueReceivedMessagesCountAlarm } from './sqs-queue-alarms';
+import { getAffectedResourceInfo, getComparisonOperator, getStatFunction, measuringUnits } from './utils';
+
+export const resolveAlarmsForResource = ({ resource }: { resource: StpAlarmEnabledResource }) => {
+  addSharedAlarmNotificationPermission();
+  getAlarmsToBeAppliedToResource({ resource, globalAlarms: configManager.globalConfigAlarms }).forEach((alarm) => {
+    calculatedStackOverviewManager.addCfChildResource({
+      nameChain: resource.nameChain,
+      cfLogicalName: cfLogicalNames.cloudwatchAlarm(alarm.name),
+      resource: getCloudwatchAlarmResource({ alarm, resource })
+    });
+    calculatedStackOverviewManager.addCfChildResource({
+      nameChain: resource.nameChain,
+      cfLogicalName: cfLogicalNames.cloudwatchAlarmEventBusNotificationRule(alarm.name),
+      resource: getEventRuleForAlarmNotification({ alarm, resource })
+    });
+    templateManager.addFinalTemplateOverrideFn(async (template) => {
+      const ruleProperties = template.Resources[cfLogicalNames.cloudwatchAlarmEventBusNotificationRule(alarm.name)]
+        .Properties as RuleProperties;
+      const targetInputTransformer = (ruleProperties.Targets as Target[])[0].InputTransformer as InputTransformer;
+      targetInputTransformer.InputTemplate = transformIntoCloudformationSubstitutedString(
+        await processAllNodes(
+          await configManager.resolveDirectives({
+            itemToResolve: getInputTemplate({ alarm, resource }),
+            resolveRuntime: true
+          }),
+          escapeCloudformationSecretDynamicReference
+        )
+      );
+    });
+  });
+};
+
+const addSharedAlarmNotificationPermission = () => {
+  const cfLogicalName = cfLogicalNames.cloudwatchAlarmSharedEventBusNotificationRuleLambdaPermission();
+
+  if (templateManager.template.Resources[cfLogicalName]) {
+    return;
+  }
+
+  const ruleNamePrefix = awsResourceNames.cloudwatchAlarmNotificationRulePrefix(
+    calculatedStackOverviewManager.context.stackName
+  );
+
+  calculatedStackOverviewManager.addCfChildResource({
+    cfLogicalName,
+    nameChain: configManager.stacktapeServiceLambdaProps.nameChain,
+    resource: cfnResource('AWS::Lambda::Permission', {
+      Action: 'lambda:InvokeFunction',
+      Principal: 'events.amazonaws.com',
+      FunctionName: getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
+      SourceAccount: ref('AWS::AccountId'),
+      SourceArn: sub(`arn:aws:events:\${AWS::Region}:\${AWS::AccountId}:rule/${ruleNamePrefix}-*`)
+    })
+  });
+};
+
+const getCloudwatchAlarmResource = ({ alarm, resource }: { alarm: AlarmDefinition; resource: StpResource }) => {
+  switch (alarm.trigger.type) {
+    case 'lambda-error-rate':
+      return getLambdaErrorRateAlarm({ resource: resource as StpLambdaFunction, alarm });
+    case 'lambda-duration':
+      return getLambdaDurationAlarm({ resource: resource as StpLambdaFunction, alarm });
+    case 'database-connection-count':
+      return getDatabaseConnectionCountAlarm({ resource: resource as StpRelationalDatabase, alarm });
+    case 'database-cpu-utilization':
+      return getDatabaseCPUUtilizationAlarm({ resource: resource as StpRelationalDatabase, alarm });
+    case 'database-free-storage':
+      return getDatabaseFreeStorageAlarm({ resource: resource as StpRelationalDatabase, alarm });
+    case 'database-read-latency':
+      return getDatabaseLatencyAlarm({ resource: resource as StpRelationalDatabase, alarm, latencyType: 'read' });
+    case 'database-write-latency':
+      return getDatabaseLatencyAlarm({ resource: resource as StpRelationalDatabase, alarm, latencyType: 'write' });
+    case 'database-free-memory':
+      return getDatabaseFreeMemoryAlarm({ resource: resource as StpRelationalDatabase, alarm });
+    case 'http-api-gateway-error-rate':
+      return getHttpApiGatewayErrorRateAlarm({ resource: resource as StpHttpApiGateway, alarm });
+    case 'http-api-gateway-latency':
+      return getHttpApiGatewayLatencyAlarm({ resource: resource as StpHttpApiGateway, alarm });
+    case 'application-load-balancer-error-rate':
+      return getApplicationLoadBalancerErrorRateAlarm({ resource: resource as StpApplicationLoadBalancer, alarm });
+    case 'application-load-balancer-unhealthy-targets':
+      return getApplicationLoadBalancerUnhealthyTargetsAlarm({
+        resource: resource as StpApplicationLoadBalancer,
+        alarm
+      });
+    case 'application-load-balancer-custom':
+      return getApplicationLoadBalancerCustomAlarm({ resource: resource as StpApplicationLoadBalancer, alarm });
+    case 'sqs-queue-received-messages-count':
+      return getSqsQueueReceivedMessagesCountAlarm({ resource: resource as StpSqsQueue, alarm });
+    case 'sqs-queue-not-empty':
+      return getSqsQueueNotEmptyAlarm({ resource: resource as StpSqsQueue, alarm });
+    default:
+      // @note this is to ensure that we handle all possible types, even when new types are added
+      const _alarmTriggerCheck: never = alarm.trigger;
+  }
+};
+
+const getInputTemplate = ({ alarm, resource }: { alarm: AlarmDefinition; resource: StpResource }) => {
+  const alarmAwsResourceName = awsResourceNames.cloudwatchAlarm(
+    calculatedStackOverviewManager.context.stackName,
+    alarm.name
+  );
+  const inputTemplate: AlarmNotificationEventRuleInput = {
+    sourceEventId: '<sourceEventId>',
+    description: '<description>',
+    time: '<time>',
+    stateValue: '<stateValue>',
+    alarmAwsResourceName,
+    stackName: calculatedStackOverviewManager.context.stackName,
+    alarmConfig: alarm,
+    affectedResource: getAffectedResourceInfo({ alarm, resource }),
+    comparisonOperator: getComparisonOperator({ alarm }),
+    measuringUnit: measuringUnits[alarm.trigger.type],
+    alarmLink: cfEvaluatedLinks.cloudwatchAlarm(encodeURIComponent(alarmAwsResourceName)) as unknown as string,
+    statFunction: getStatFunction({ alarm })
+  };
+  return inputTemplate;
+};
+
+const getEventRuleForAlarmNotification = ({ alarm, resource }: { alarm: AlarmDefinition; resource: StpResource }) => {
+  // const alarmAwsResourceName = awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name);
+  // const inputTemplate: AlarmNotificationEventRuleInput = {
+  //   description: '<description>',
+  //   time: '<time>',
+  //   alarmAwsResourceName,
+  //   stackName: calculatedStackOverviewManager.context.stackName,
+  //   alarmConfig: alarm,
+  //   affectedResource: getAffectedResourceInfo({ alarm, resource }),
+  //   comparisonOperator: getComparisonOperator({ alarm }),
+  //   measuringUnit: measuringUnits[alarm.trigger.type],
+  //   alarmLink: cfEvaluatedLinks.cloudwatchAlarm(encodeURIComponent(alarmAwsResourceName)) as unknown as string,
+  //   statFunction: getStatFunction({ alarm })
+  // };
+  return cfnResource('AWS::Events::Rule', {
+    State: 'ENABLED',
+    Name: awsResourceNames.cloudwatchAlarmNotificationRule(
+      calculatedStackOverviewManager.context.stackName,
+      alarm.name
+    ),
+    EventPattern: {
+      source: ['aws.cloudwatch'],
+      'detail-type': ['CloudWatch Alarm State Change'],
+      resources: [getAtt(cfLogicalNames.cloudwatchAlarm(alarm.name), 'Arn')],
+      detail: {
+        state: {
+          value: ['ALARM', 'OK']
+        }
+      }
+    },
+    Targets: [
+      {
+        InputTransformer: {
+          InputPathsMap: {
+            sourceEventId: '$.id',
+            alarmName: '$.detail.alarmName',
+            description: '$.detail.configuration.description',
+            time: '$.time',
+            stateValue: '$.detail.state.value'
+          },
+          InputTemplate: JSON.stringify(getInputTemplate({ resource, alarm }))
+        },
+        Arn: getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn'),
+        Id: 'notification-lambda'
+      }
+    ]
+  });
+};

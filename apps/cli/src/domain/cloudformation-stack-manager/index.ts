@@ -1,0 +1,1476 @@
+import type { IamRoleStatement } from '@domain-services/cloudformation-stack-manager/types';
+import type {
+  AwsCallerIdentity,
+  EnrichedStackResourceInfo,
+  StackActionType,
+  StackDetails
+} from '@domain-services/cloudformation-stack-manager/types';
+import type { LoggableEventType, ProgressLogger } from '@application-services/event-manager/types';
+import type { Capability, StackEvent, StackResourceSummary } from '@aws-sdk/client-cloudformation';
+import type { MonitoredStackEvent } from 'src/aws/cloudformation-stacks';
+import type { Tag } from '@aws-sdk/client-ecs';
+import { eventManager } from '@application-services/event-manager';
+import { globalStateManager } from '@application-services/global-state-manager';
+import { tuiManager } from '@application-services/tui-manager';
+import { OnFailure, ResourceStatus, StackStatus } from '@aws-sdk/client-cloudformation';
+import { isAgentMode } from 'src/commands/_utils/agent-mode';
+import { DeploymentRolloutState } from '@aws-sdk/client-ecs';
+import { MONITORING_FREQUENCY_SECONDS } from '@config';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { configManager } from '@domain-services/config-manager';
+import { resolveReferenceToAlarm } from '@domain-services/config-manager/utils/alarms';
+import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { templateManager } from '@domain-services/template-manager';
+import { stpErrors } from '@errors';
+import {
+  STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS,
+  STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS,
+  STACK_OPERATION_IN_PROGRESS_STATUS
+} from 'src/aws/cloudformation';
+import {
+  EcsServiceDeploymentStatusPoller,
+  isEcsServiceCreateOrUpdateCloudformationEvent
+} from 'src/aws/ecs-deployment-monitoring';
+import {
+  isLambdaAliasProvisionedConcurrencyEvent,
+  LambdaProvisionedConcurrencyPoller
+} from 'src/aws/lambda-provisioned-concurrency-monitoring';
+import { arns } from '@stacktape/naming/arns';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { consoleLinks } from '@stacktape/naming/console-links';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
+import { outputNames } from '@stacktape/naming/stack-output-names';
+import { tagNames } from '@stacktape/naming/tag-names';
+import { wait } from '@utils/misc';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
+import compose from '@utils/basic-compose-shim';
+import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
+import { ExpectedError } from '@utils/errors';
+import { getAwsSynchronizedTime } from '@utils/time';
+import { getNextVersionString } from '@utils/versioning';
+import uniqBy from 'lodash/uniqBy';
+import { getEstimatedRemainingPercent, getStackDeploymentEstimate } from './duration-estimation';
+import { cfFailedEventHandlers, getHintsAfterStackFailureOperation } from './utils';
+import type { CloudformationTag } from '@stacktape/config/shared';
+
+/** Convert CloudFormation stack status to human-readable form */
+const getHumanReadableStackStatus = (status?: string): string => {
+  if (!status) return 'unknown';
+  const statusMap: Record<string, string> = {
+    CREATE_IN_PROGRESS: 'creating',
+    DELETE_IN_PROGRESS: 'deleting',
+    UPDATE_IN_PROGRESS: 'updating',
+    ROLLBACK_IN_PROGRESS: 'rolling back',
+    UPDATE_ROLLBACK_IN_PROGRESS: 'rolling back',
+    UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS: 'rollback cleanup',
+    UPDATE_COMPLETE_CLEANUP_IN_PROGRESS: 'cleanup',
+    REVIEW_IN_PROGRESS: 'review',
+    IMPORT_IN_PROGRESS: 'importing',
+    IMPORT_ROLLBACK_IN_PROGRESS: 'import rollback'
+  };
+  return statusMap[status] || status.toLowerCase().replace(/_/g, ' ');
+};
+
+const formatChangeSummary = ({
+  cfStackAction,
+  templateDiff,
+  createResourcesCount,
+  deleteResourcesCount
+}: {
+  cfStackAction: 'create' | 'update' | 'delete' | 'rollback';
+  templateDiff?: ReturnType<typeof templateManager.getOldTemplateDiff>;
+  createResourcesCount?: number;
+  deleteResourcesCount?: number;
+}) => {
+  const emptyLists = { created: [], updated: [], deleted: [] as string[] };
+  if (cfStackAction === 'create') {
+    return {
+      text: `Creating ${createResourcesCount || 0} resources`,
+      counts: { created: createResourcesCount || 0, updated: 0, deleted: 0 },
+      lists: emptyLists
+    };
+  }
+  if (cfStackAction === 'delete' || cfStackAction === 'rollback') {
+    return {
+      text: `Deleting ${deleteResourcesCount || 0} resources`,
+      counts: { created: 0, updated: 0, deleted: deleteResourcesCount || 0 },
+      lists: emptyLists
+    };
+  }
+  if (!templateDiff) {
+    return {
+      text: 'Updating resources',
+      counts: { created: 0, updated: 0, deleted: 0 },
+      lists: emptyLists
+    };
+  }
+
+  const added: string[] = [];
+  const removed: string[] = [];
+  const updated: string[] = [];
+  templateDiff.resources?.forEachDifference((logicalId, diff) => {
+    if (diff.isAddition) added.push(logicalId);
+    else if (diff.isRemoval) removed.push(logicalId);
+    else if (diff.isUpdate) updated.push(logicalId);
+  });
+  return {
+    text: 'Updating resources',
+    counts: { created: added.length, updated: updated.length, deleted: removed.length },
+    lists: { created: added, updated, deleted: removed }
+  };
+};
+
+const formatResourceList = (resources: string[], maxItems: number) => {
+  if (!resources.length) return 'none';
+  const visible = resources.slice(0, maxItems);
+  const overflow = resources.length - visible.length;
+  return `${visible.join(', ')}${overflow > 0 ? ` +${overflow}` : ''}`;
+};
+
+type StackProgressUpdate = {
+  message: string;
+  detail?: import('@application-services/tui-manager/output/jsonl-types').JsonlEventDetail;
+};
+
+export class StackManager {
+  callerIdentity: AwsCallerIdentity;
+  existingStackDetails: StackDetails;
+  existingStackResources: EnrichedStackResourceInfo[] = [];
+  stackMonitoringInterval: NodeJS.Timeout;
+  #stackName: string;
+
+  // for polling ECS Service statuses during deploy
+  #ecsDeploymentStatusPoller: { [serviceCfLogicalName: string]: EcsServiceDeploymentStatusPoller } = {};
+
+  // for polling Lambda provisioned concurrency statuses during deploy
+  #lambdaProvisionedConcurrencyPoller: { [aliasCfLogicalName: string]: LambdaProvisionedConcurrencyPoller } = {};
+
+  init = async ({
+    stackName,
+    commandModifiesStack,
+    commandRequiresDeployedStack,
+    parentEventType
+  }: {
+    stackName: string;
+    commandModifiesStack: boolean;
+    commandRequiresDeployedStack: boolean;
+    /** Optional parent event for grouping (e.g., LOAD_METADATA_FROM_AWS) */
+    parentEventType?: LoggableEventType;
+  }) => {
+    await eventManager.startEvent({
+      eventType: 'FETCH_STACK_DATA',
+      description: 'Fetching stack data',
+      parentEventType,
+      instanceId: parentEventType ? 'Stack data' : undefined
+    });
+    this.#stackName = stackName;
+
+    let stackDetails = await awsSdkManager.cloudFormation.getDetails(stackName);
+    const instanceId = parentEventType ? 'Stack data' : undefined;
+    ({ stackDetails } = await this.waitForStackToBeReadyForOperation({
+      stackDetails,
+      commandModifiesStack,
+      commandRequiresDeployedStack,
+      progressLogger: eventManager,
+      eventContext: { parentEventType, instanceId }
+    }));
+
+    // globalStateManager.args.disableDriftDetection ? [] : awsSdkManager.getStackDriftInformation(stackName),
+
+    const stackResources = await awsSdkManager.cloudFormation
+      .getResources(stackName)
+      .then(this.#filterNonExistentResources)
+      .then(this.#getDetailOfSelectedResources);
+
+    this.existingStackDetails = stackDetails;
+    // this.stackDriftInformation = stackDriftInformation;
+    this.existingStackResources = stackResources;
+
+    await eventManager.finishEvent({
+      eventType: 'FETCH_STACK_DATA',
+      data: { stackDetails, stackResources },
+      parentEventType,
+      instanceId: parentEventType ? 'Stack data' : undefined
+    });
+  };
+
+  get nextVersion() {
+    return getNextVersionString(this.lastVersion);
+  }
+
+  get lastDeploymentStackOutput(): { [name: string]: string } {
+    return this.existingStackDetails?.stackOutput || {};
+  }
+
+  get lastVersion() {
+    return this.lastDeploymentStackOutput[outputNames.deploymentVersion()] || null;
+  }
+
+  get stackActionType(): StackActionType {
+    const command = globalStateManager.command;
+    if (command === 'delete') {
+      return 'delete';
+    }
+    if (command === 'cf:rollback') {
+      return 'rollback';
+    }
+    if (command === 'rollback') {
+      return 'update';
+    }
+    if (command === 'dev') {
+      return 'dev';
+    }
+    if (command === 'deploy') {
+      return this.existingStackDetails && this.existingStackResources.length ? 'update' : 'create';
+    }
+    if (command === 'diff') {
+      return 'update';
+    }
+  }
+
+  get isAutoRollbackEnabled() {
+    const isDisabled =
+      globalStateManager.args.disableAutoRollback === true ||
+      configManager.deploymentConfig?.disableAutoRollback === true;
+    return !isDisabled;
+  }
+
+  refetchStackDetails = async (stackName: string) => {
+    await eventManager.startEvent({ eventType: 'REFETCH_STACK_DATA', description: 'Fetching stack data' });
+    const [existingStackDetails, existingStackResources] = await Promise.all([
+      awsSdkManager.cloudFormation.getDetails(stackName),
+      awsSdkManager.cloudFormation
+        .getResources(stackName)
+        .then(this.#filterNonExistentResources)
+        .then(this.#getDetailOfSelectedResources)
+    ]);
+    this.existingStackDetails = existingStackDetails;
+    this.existingStackResources = existingStackResources;
+    await eventManager.finishEvent({
+      eventType: 'REFETCH_STACK_DATA',
+      data: { stackDetails: existingStackDetails, stackResources: existingStackResources }
+    });
+  };
+
+  getExistingResourceDetails = (cfLogicalName: string) => {
+    return this.existingStackResources.find((resource) => resource.LogicalResourceId === cfLogicalName);
+  };
+
+  getExistingResourceDetailsByPhysicalResourceId = (physicalResourceName: string) => {
+    return this.existingStackResources.find((resource) => resource.PhysicalResourceId === physicalResourceName);
+  };
+
+  getExistingStackOutput = (outputName: string) => {
+    return this.existingStackDetails?.Outputs?.find(({ OutputKey }) => OutputKey === outputName);
+  };
+
+  getStatementsForDatabaseDeleteProtection = () => {
+    return (
+      configManager.cfLogicalNamesToBeProtected?.map(
+        (cfLogicalName) =>
+          ({
+            Effect: 'Deny',
+            Action: ['Update:Replace', 'Update:Delete'],
+            Principal: '*',
+            Resource: [`LogicalResourceId/${cfLogicalName}`]
+          }) as IamRoleStatement
+      ) || []
+    );
+  };
+
+  getStatementToAllowBasicUpdate = () => {
+    return {
+      Effect: 'Allow',
+      Action: 'Update:*',
+      Principal: '*',
+      Resource: ['*']
+    } as IamRoleStatement;
+  };
+
+  getStackParams = () => {
+    const {
+      cloudformationRoleArn,
+      publishEventsToArn,
+      monitoringTimeAfterDeploymentInMinutes,
+      triggerRollbackOnAlarms,
+      terminationProtection
+    } = configManager.deploymentConfig;
+    const stackPolicy = []; // configManager.guardrails?.cloudformationStackPolicies
+    const operationRequiresTags = this.stackActionType === 'create' || this.stackActionType === 'update';
+    const rollbackAlarmArns = (triggerRollbackOnAlarms || [])
+      .map((alarmNameOrArn) => {
+        // if alarm is arn we use the arn
+        if (alarmNameOrArn.startsWith('arn:')) {
+          return alarmNameOrArn;
+        }
+        // if we got here, it means we are referencing alarm name defined in alarms section
+        const alarmFromConfig = resolveReferenceToAlarm({
+          stpAlarmReference: alarmNameOrArn,
+          referencedFrom: 'deployment configuration'
+        });
+        // only if alarm is already created it can be used as rollback trigger alarm
+        // newly created alarms cannot be used as rollback alarms (https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/using-cfn-rollback-triggers.html)
+        if (
+          this.existingStackResources.find(
+            ({ LogicalResourceId }) => LogicalResourceId === cfLogicalNames.cloudwatchAlarm(alarmFromConfig.name)
+          )
+        ) {
+          return arns.cloudwatchAlarm({
+            accountId: globalStateManager.targetAwsAccount.awsAccountId,
+            region: globalStateManager.region,
+            alarmAwsName: awsResourceNames.cloudwatchAlarm(this.#stackName, alarmFromConfig.name)
+          });
+        }
+        return undefined;
+      })
+      .filter(Boolean);
+    return {
+      StackName: this.#stackName,
+      Tags: operationRequiresTags ? this.getTags() : [],
+      Parameters: [],
+      Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'] as Capability[],
+      ...(!this.isAutoRollbackEnabled && { DisableRollback: true }),
+      ...(terminationProtection && { EnableTerminationProtection: true }),
+      ...(cloudformationRoleArn && { RoleARN: cloudformationRoleArn as string }),
+      ...(publishEventsToArn && { NotificationARNs: publishEventsToArn as string[] }),
+      ...{
+        StackPolicyBody: JSON.stringify({
+          Statement: [
+            this.getStatementToAllowBasicUpdate(),
+            ...this.getStatementsForDatabaseDeleteProtection(),
+            ...stackPolicy
+          ]
+        })
+      },
+
+      RollbackConfiguration: {
+        MonitoringTimeInMinutes: monitoringTimeAfterDeploymentInMinutes || 0,
+        RollbackTriggers: rollbackAlarmArns.map((arn) => ({
+          Type: 'AWS::CloudWatch::Alarm',
+          Arn: arn as string
+        }))
+      }
+    };
+  };
+
+  createResourcesForArtifacts = async () => {
+    await eventManager.startEvent({
+      eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
+      description: 'Creating AWS resources for deployment artifacts (S3, ECR...)'
+    });
+    const stackParams = this.getStackParams();
+    // stack policy body includes information about protected resources
+    // these are not created during "creation" of the stack, rather at the first update.
+    // therefore this policy is not valid during stack creation.
+    // eslint-disable-next-line
+    const { StackPolicyBody, ...onCreateParams } = stackParams;
+    const { StackId } = await awsSdkManager.cloudFormation.create(templateManager.initialTemplate, {
+      ...onCreateParams,
+      ...(this.isAutoRollbackEnabled && { OnFailure: OnFailure.DELETE })
+    });
+    // Monitor stack creation without progress updates (shown as simple event)
+    await this.monitorStack('create', StackId, () => {});
+    await eventManager.finishEvent({
+      eventType: 'CREATE_RESOURCES_FOR_ARTIFACTS',
+      data: { stackParams, template: templateManager.initialTemplate }
+    });
+  };
+
+  waitForStackToBeReadyForOperation = async ({
+    progressLogger,
+    commandModifiesStack,
+    commandRequiresDeployedStack,
+    stackDetails: currentStackDetails,
+    eventContext
+  }: {
+    progressLogger: ProgressLogger;
+    commandModifiesStack: boolean;
+    commandRequiresDeployedStack: boolean;
+    stackDetails: StackDetails;
+    eventContext?: { parentEventType?: LoggableEventType; instanceId?: string };
+  }) => {
+    const stackName = this.#stackName;
+    const command = globalStateManager.command;
+
+    let stackDetails: StackDetails = currentStackDetails;
+    if (!stackDetails) {
+      if (commandRequiresDeployedStack) {
+        throw stpErrors.e32({
+          stackName,
+          stage: globalStateManager.targetStack.stage,
+          organizationName: globalStateManager.organizationData?.name,
+          awsAccountName: globalStateManager.targetAwsAccount.name
+        });
+      }
+      return { stackDetails };
+    }
+    if (commandModifiesStack) {
+      // wait for stack to be stable
+      while (STACK_OPERATION_IN_PROGRESS_STATUS.includes(stackDetails?.StackStatus as any)) {
+        const humanStatus = getHumanReadableStackStatus(stackDetails?.StackStatus);
+        progressLogger.updateEvent({
+          eventType: 'FETCH_STACK_DATA',
+          description: `Waiting for stack to be ready for ${globalStateManager.command} (current state: ${humanStatus})`,
+          parentEventType: eventContext?.parentEventType,
+          instanceId: eventContext?.instanceId
+        });
+        await wait(4000);
+        stackDetails = await awsSdkManager.cloudFormation.getDetails(stackName);
+      }
+      // check state after stack was stabilized
+      const stackIsNotReadyForOperation =
+        ((command === 'deploy' || command === 'dev' || command === 'deployment-script:run' || command === 'rollback') &&
+          !STACK_IS_READY_FOR_MODIFYING_OPERATION_STATUS.includes(stackDetails.StackStatus as any)) ||
+        (command === 'cf:rollback' &&
+          !STACK_IS_READY_FOR_ROLLBACK_OPERATION_STATUS.includes(stackDetails.StackStatus as any));
+      if (stackIsNotReadyForOperation) {
+        throw stpErrors.e100({
+          command: command as 'deploy' | 'delete' | 'dev' | 'rollback' | 'cf:rollback' | 'deployment-script:run',
+          stackName,
+          stackStatus: stackDetails.StackStatus as StackStatus
+        });
+      }
+    }
+    return { stackDetails };
+  };
+
+  validateTemplate = async ({ templateBody, templateUrl }: { templateUrl?: string; templateBody?: string }) => {
+    await eventManager.startEvent({
+      eventType: 'VALIDATE_TEMPLATE',
+      description: 'Validating template'
+    });
+    await awsSdkManager.cloudFormation.validateTemplate({ templateBody, templateUrl });
+    await eventManager.finishEvent({ eventType: 'VALIDATE_TEMPLATE' });
+  };
+
+  getChangeSet = async ({
+    templateBody,
+    templateUrl,
+    includePropertyValues
+  }: {
+    templateUrl?: string;
+    templateBody?: string;
+    includePropertyValues?: boolean;
+  }) => {
+    await eventManager.startEvent({
+      eventType: 'CALCULATE_CHANGES',
+      description: 'Calculating changes'
+    });
+    const res = await awsSdkManager.cloudFormation.createChangeSet({
+      ...this.getStackParams(),
+      ChangeSetName: `${this.#stackName}-${Date.now()}-${this.nextVersion}`,
+      includePropertyValues,
+      ...(templateUrl && { TemplateURL: templateUrl }),
+      ...(templateBody && { TemplateBody: templateBody })
+    });
+    await eventManager.finishEvent({ eventType: 'CALCULATE_CHANGES', data: { changesToBeMade: res.changes } });
+    return res;
+  };
+
+  getTags = (
+    customTags?: CloudformationTag[]
+  ): {
+    Key: string;
+    Value: string;
+  }[] => {
+    const configTags = configManager.config ? configManager.stackConfig.tags || [] : [];
+    return uniqBy(
+      configTags
+        .concat(customTags || [])
+        .map(({ name, value }) => ({ Key: name, Value: value }))
+        .concat([
+          { Key: tagNames.stackName(), Value: this.#stackName },
+          { Key: tagNames.projectName(), Value: globalStateManager.targetStack.projectName },
+          { Key: tagNames.stage(), Value: globalStateManager.targetStack.stage },
+          { Key: tagNames.globallyUniqueStackHash(), Value: globalStateManager.targetStack.globallyUniqueStackHash }
+        ]),
+      (el) => el.Key
+    );
+  };
+
+  deployStack = async (templateUrl: string) => {
+    await this.validateTemplate({ templateUrl });
+    const stackParams = this.getStackParams();
+    await eventManager.startEvent({
+      eventType: 'UPDATE_STACK',
+      description: 'Deploying infrastructure resources'
+    });
+    const { skipped } = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
+    if (!skipped) {
+      const result = await this.monitorStack('update', stackParams.StackName, (progress) => {
+        eventManager.updateEvent({
+          eventType: 'UPDATE_STACK',
+          additionalMessage: progress.message,
+          detail: progress.detail
+        });
+      });
+      if (stackParams.StackPolicyBody) {
+        await awsSdkManager.cloudFormation.setPolicy(stackParams);
+      }
+      await awsSdkManager.cloudFormation.setTerminationProtection(
+        !!stackParams.EnableTerminationProtection,
+        this.#stackName
+      );
+      await eventManager.finishEvent({
+        eventType: 'UPDATE_STACK',
+        finalMessage: 'Deployment successful.'
+      });
+      return result;
+    }
+    await eventManager.finishEvent({
+      eventType: 'UPDATE_STACK',
+      finalMessage: 'No updates needed.'
+    });
+    return {};
+  };
+
+  deployStackForRollback = async (templateUrl: string) => {
+    await this.validateTemplate({ templateUrl });
+    const stackName = this.#stackName;
+    const roleArn =
+      configManager.deploymentConfig?.cloudformationRoleArn ||
+      (deployedStackOverviewManager.getStackMetadata(stackMetadataNames.cloudformationRoleArn()) as string);
+    const stackParams = {
+      StackName: stackName,
+      Tags: this.getTags(),
+      Parameters: [] as { ParameterKey: string; ParameterValue: string }[],
+      Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'] as Capability[],
+      ...(roleArn && { RoleARN: roleArn })
+    };
+    await eventManager.startEvent({
+      eventType: 'UPDATE_STACK',
+      description: 'Deploying infrastructure resources'
+    });
+    const { skipped } = await awsSdkManager.cloudFormation.update(templateUrl, stackParams);
+    if (!skipped) {
+      const result = await this.monitorStack('update', stackName, (progress) => {
+        eventManager.updateEvent({
+          eventType: 'UPDATE_STACK',
+          additionalMessage: progress.message,
+          detail: progress.detail
+        });
+      });
+      await eventManager.finishEvent({
+        eventType: 'UPDATE_STACK',
+        finalMessage: 'Deployment successful.'
+      });
+      return result;
+    }
+    await eventManager.finishEvent({
+      eventType: 'UPDATE_STACK',
+      finalMessage: 'No updates needed.'
+    });
+    return {};
+  };
+
+  deleteStack = async () => {
+    await eventManager.startEvent({ eventType: 'DELETE_STACK', description: 'Deleting infrastructure resources' });
+    const roleArn =
+      configManager.deploymentConfig?.cloudformationRoleArn ||
+      (deployedStackOverviewManager.getStackMetadata(stackMetadataNames.cloudformationRoleArn()) as string);
+
+    // Best-effort: scale down ECS services before CloudFormation delete.
+    // This helps avoid CloudFormation timeouts like:
+    // "Resource <EcsServiceLogicalId>: Resource timed out waiting for completion"
+    // which commonly happens when ECS tasks take a long time to drain/stop.
+    await this.#scaleDownEcsServicesBeforeDelete().catch(() => {});
+
+    await awsSdkManager.cloudFormation.delete(this.#stackName, {
+      roleArn
+    });
+    const result = await this.monitorStack('delete', this.existingStackDetails.StackId, (progress) =>
+      eventManager.updateEvent({
+        eventType: 'DELETE_STACK',
+        additionalMessage: progress.message,
+        detail: progress.detail
+      })
+    );
+    await eventManager.finishEvent({ eventType: 'DELETE_STACK', data: {} });
+    return result;
+  };
+
+  #scaleDownEcsServicesBeforeDelete = async () => {
+    const ecsServiceArns = (this.existingStackResources || [])
+      .filter(
+        ({ ResourceType, PhysicalResourceId }) =>
+          (ResourceType === 'AWS::ECS::Service' || ResourceType === 'Stacktape::ECSBlueGreenV1::Service') &&
+          PhysicalResourceId
+      )
+      .map(({ PhysicalResourceId }) => PhysicalResourceId);
+
+    if (!ecsServiceArns.length) {
+      return;
+    }
+
+    eventManager.updateEvent({
+      eventType: 'DELETE_STACK',
+      additionalMessage: `Scaling down ${ecsServiceArns.length} ECS service${ecsServiceArns.length > 1 ? 's' : ''} before delete...`
+    });
+
+    // Ask ECS to scale all services to 0
+    await Promise.all(
+      ecsServiceArns.map(async (ecsServiceArn) => {
+        const cluster = ecsServiceArn.split('/')[1];
+        if (!cluster) return;
+        await awsSdkManager.ecs.startRollingUpdate({
+          service: ecsServiceArn,
+          cluster,
+          desiredCount: 0
+        });
+      })
+    );
+
+    // Wait briefly for tasks to drain (best-effort; don't block forever)
+    const maxWaitMs = 10 * 60 * 1000;
+    const pollMs = 5000;
+    const start = Date.now();
+    while (Date.now() - start < maxWaitMs) {
+      const services = await Promise.all(
+        ecsServiceArns.map(async (ecsServiceArn) => {
+          try {
+            return await awsSdkManager.ecs.getService({ serviceArn: ecsServiceArn });
+          } catch {
+            // If the service is already gone, treat it as drained.
+            return null;
+          }
+        })
+      );
+      const totalRunning = services.reduce((sum, svc) => sum + (svc?.runningCount || 0), 0);
+      const allDrained = totalRunning === 0;
+      if (allDrained) {
+        return;
+      }
+      eventManager.updateEvent({
+        eventType: 'DELETE_STACK',
+        additionalMessage: `Waiting for ${totalRunning} ECS task${totalRunning > 1 ? 's' : ''} to drain...`
+      });
+      await wait(pollMs);
+    }
+  };
+
+  rollbackStack = async () => {
+    await eventManager.startEvent({ eventType: 'ROLLBACK_STACK', description: 'Rolling back stack resources' });
+    const roleArn =
+      configManager.deploymentConfig?.cloudformationRoleArn ||
+      (deployedStackOverviewManager.getStackMetadata(stackMetadataNames.cloudformationRoleArn()) as string);
+    const resourcesToSkip = globalStateManager.args.resourcesToSkip
+      ? [...new Set(globalStateManager.args.resourcesToSkip)]
+      : undefined;
+    if (
+      this.existingStackDetails.StackStatus === StackStatus.UPDATE_FAILED ||
+      this.existingStackDetails.StackStatus === StackStatus.CREATE_FAILED
+    ) {
+      await awsSdkManager.cloudFormation.rollback(this.#stackName, {
+        roleArn
+      });
+    } else if (this.existingStackDetails.StackStatus === StackStatus.UPDATE_ROLLBACK_FAILED) {
+      await awsSdkManager.cloudFormation.continueRollback(this.#stackName, {
+        roleArn,
+        resourcesToSkip
+      });
+    }
+    const result = await this.monitorStack('rollback', this.existingStackDetails.StackId, (progress) =>
+      eventManager.updateEvent({
+        eventType: 'ROLLBACK_STACK',
+        additionalMessage: progress.message,
+        detail: progress.detail
+      })
+    );
+    await eventManager.finishEvent({ eventType: 'ROLLBACK_STACK', data: {} });
+    return result;
+  };
+
+  monitorStack = async (
+    cfStackAction: 'create' | 'update' | 'delete' | 'rollback',
+    stackId: string,
+    onProgress: (progress: StackProgressUpdate) => any
+  ): Promise<{ warningMessages?: string[] }> => {
+    const handledEvents: string[] = [];
+    const potentialErrorCausingEvents: { [logicalResourceId: string]: StackEvent } = {};
+    const inProgressResources = new Set<string>();
+    const inProgressMeta = new Map<string, { resourceType?: string; since: number }>();
+    const completeResources = new Set<string>();
+    const seenResources = new Set<string>();
+    let resourcesToHandleCount: number;
+    let _isResourceToHandleCountPossiblyInaccurate = false;
+    if (cfStackAction === 'create') {
+      // when we are creating, we know exactly what amount of resources we need to create
+      resourcesToHandleCount = Object.keys(templateManager.initialTemplate.Resources).length;
+    } else if (cfStackAction === 'delete' || cfStackAction === 'rollback') {
+      // when we are removing, we know what amount of resources we need to remove
+      resourcesToHandleCount = this.existingStackResources.length;
+    } else {
+      // when running update command we do not know accurately how many resources need to be updated
+      _isResourceToHandleCountPossiblyInaccurate = true;
+      resourcesToHandleCount = Object.keys(templateManager.template.Resources).length;
+    }
+    const templateDiff = cfStackAction === 'update' ? templateManager.getOldTemplateDiff() : undefined;
+    const updatedResourceLogicalNames =
+      cfStackAction === 'update' ? templateDiff?.resources?.logicalIds.filter(Boolean) : undefined;
+    const { totalSeconds } = getStackDeploymentEstimate({
+      cfStackAction,
+      template: cfStackAction === 'create' ? templateManager.initialTemplate : templateManager.template,
+      oldTemplate: templateManager.oldTemplate,
+      existingStackResources: this.existingStackResources,
+      resourceLogicalNames: updatedResourceLogicalNames
+    });
+
+    let fetchSince = await getAwsSynchronizedTime();
+    fetchSince.setSeconds(fetchSince.getSeconds() - 20);
+    let lastStackActionTimestamp: Date;
+    let eventBatchEvaluationInProgress = false;
+    let cleanupAfterSuccessfulUpdateInProgress = false;
+
+    let fetchNumber = 0;
+    let cancelRequested = false;
+    let cancelBannerShown = false;
+
+    const cleanupMonitoring = () => {
+      clearInterval(this.stackMonitoringInterval);
+      Object.values(this.#ecsDeploymentStatusPoller).forEach((statusPoller) => statusPoller.stopPolling());
+      Object.values(this.#lambdaProvisionedConcurrencyPoller).forEach((poller) => poller.stopPolling());
+      tuiManager.clearCancelDeployment();
+    };
+
+    const getEarlyStartupFailureMessage = () => {
+      const failedEcsPoller = Object.values(this.#ecsDeploymentStatusPoller).find((poller) => poller.hasFailedTask);
+      if (failedEcsPoller) {
+        const details = failedEcsPoller.getFailureMessage();
+        return details
+          ? `Service failed to start\n\n${details}`
+          : 'Service failed to start. Check ECS task logs for details.';
+      }
+
+      const failedLambdaPoller = Object.values(this.#lambdaProvisionedConcurrencyPoller).find(
+        (poller) => poller.hasFailure
+      );
+      if (failedLambdaPoller) {
+        const details = failedLambdaPoller.getFailureMessage();
+        return details
+          ? `Lambda provisioned concurrency failed\n\n${details}`
+          : 'Lambda provisioned concurrency failed. Check CloudWatch logs for details.';
+      }
+
+      return undefined;
+    };
+
+    // Function to show cancel banner when ECS task failure is detected
+    const showCancelBannerIfNeeded = (resolveFn: (result: { warningMessages?: string[] }) => void) => {
+      if (cancelBannerShown || cancelRequested) return;
+      if (cfStackAction !== 'create' && cfStackAction !== 'update') return;
+
+      // Check if any ECS poller has a failed task or Lambda poller has a failure
+      const hasFailedEcsTask = Object.values(this.#ecsDeploymentStatusPoller).some((poller) => poller.hasFailedTask);
+      const hasFailedLambdaProvisionedConcurrency = Object.values(this.#lambdaProvisionedConcurrencyPoller).some(
+        (poller) => poller.hasFailure
+      );
+      if (hasFailedEcsTask || hasFailedLambdaProvisionedConcurrency) {
+        cancelBannerShown = true;
+        const message = hasFailedEcsTask
+          ? 'Container startup failed. CloudFormation will eventually time out and rollback.'
+          : 'Lambda provisioned concurrency failed. CloudFormation will eventually time out and rollback.';
+        tuiManager.setCancelDeployment({
+          message,
+          onCancel: async () => {
+            if (cancelRequested) return;
+            cancelRequested = true;
+            tuiManager.updateCancelDeployment({ isCancelling: true });
+            try {
+              await awsSdkManager.cloudFormation.cancelUpdate(this.#stackName);
+              // Don't continue monitoring - just resolve and let the user know rollback is happening
+              // The rollback will continue in AWS even after we exit
+              cleanupMonitoring();
+              resolveFn({
+                warningMessages: [
+                  'Deployment was cancelled. The stack is being rolled back in AWS. You can monitor the rollback progress in the AWS CloudFormation console.'
+                ]
+              });
+            } catch (err) {
+              tuiManager.warn(`Failed to cancel deployment: ${err.message}`);
+              cancelRequested = false;
+              tuiManager.updateCancelDeployment({ isCancelling: false });
+            }
+          }
+        });
+      }
+    };
+
+    const handleProgress = () => {
+      const completedAmount = completeResources.size;
+
+      // Get change summary (needed for both normal and cleanup progress)
+      const changeSummary = formatChangeSummary({
+        cfStackAction,
+        templateDiff,
+        createResourcesCount: resourcesToHandleCount,
+        deleteResourcesCount: resourcesToHandleCount
+      });
+
+      // Agent mode: simplified progress output
+      if (isAgentMode()) {
+        const plannedSet =
+          updatedResourceLogicalNames && updatedResourceLogicalNames.length > 0
+            ? new Set(updatedResourceLogicalNames)
+            : changeSummary.counts.created + changeSummary.counts.updated + changeSummary.counts.deleted > 0
+              ? new Set([
+                  ...changeSummary.lists.created,
+                  ...changeSummary.lists.updated,
+                  ...changeSummary.lists.deleted
+                ])
+              : undefined;
+        const completedCount = plannedSet
+          ? Array.from(completeResources).filter((name) => plannedSet.has(name)).length
+          : completeResources.size;
+        const totalPlanned = plannedSet?.size || resourcesToHandleCount;
+        const percent = totalPlanned > 0 ? Math.round((completedCount / totalPlanned) * 100) : 0;
+        const activeResources = plannedSet
+          ? Array.from(inProgressResources).filter((name) => plannedSet.has(name))
+          : Array.from(inProgressResources);
+        const activePart = activeResources.length > 0 ? ` | updating: ${formatResourceList(activeResources, 3)}` : '';
+        const changeSummaryPart = ` | changes: +${changeSummary.counts.created} ~${changeSummary.counts.updated} -${changeSummary.counts.deleted}`;
+        onProgress({
+          message: `${completedCount}/${totalPlanned} resources (${percent}%)${activePart}${changeSummaryPart}`,
+          detail: {
+            kind: 'cloudformation-progress',
+            stackAction: cfStackAction,
+            completedCount,
+            totalPlanned,
+            percent,
+            inProgressResources: activeResources,
+            changeCounts: {
+              created: changeSummary.counts.created,
+              updated: changeSummary.counts.updated,
+              deleted: changeSummary.counts.deleted
+            }
+          }
+        });
+        return;
+      }
+
+      // Human mode: detailed progress output
+      const inProgressAmount = inProgressResources.size;
+
+      // During cleanup phase, show a different message indicating main deployment is done
+      if (cleanupAfterSuccessfulUpdateInProgress) {
+        const cleanupInProgress =
+          inProgressAmount > 0
+            ? `Removing ${inProgressAmount} old resource${inProgressAmount === 1 ? '' : 's'}`
+            : 'Finishing cleanup';
+        const cleanupFinished = completedAmount > 0 ? `Removed: ${completedAmount}` : '';
+        const progressMessage = `Status: Cleaning up. ${cleanupInProgress}.${cleanupFinished ? ` ${cleanupFinished}.` : ''} Estimate: ~100%`;
+        // Include summary/details even during cleanup so TUI can show accurate counts
+        const summaryPart = `Summary: created=${changeSummary.counts.created} updated=${changeSummary.counts.updated} deleted=${changeSummary.counts.deleted}`;
+        const detailsPart = `Details: created=${changeSummary.lists.created.join(', ') || 'none'}; updated=${changeSummary.lists.updated.join(', ') || 'none'}; deleted=${changeSummary.lists.deleted.join(', ') || 'none'}.`;
+        onProgress({
+          message: `${progressMessage} ${summaryPart} ${detailsPart}`,
+          detail: {
+            kind: 'cloudformation-progress',
+            stackAction: cfStackAction,
+            status: 'cleanup',
+            completedCount: completedAmount,
+            inProgressCount: inProgressAmount,
+            changeCounts: {
+              created: changeSummary.counts.created,
+              updated: changeSummary.counts.updated,
+              deleted: changeSummary.counts.deleted
+            }
+          }
+        });
+        return;
+      }
+
+      const remainingPercent = getEstimatedRemainingPercent({
+        totalSeconds,
+        startTime: lastStackActionTimestamp,
+        now: new Date()
+      });
+      const plannedResources =
+        updatedResourceLogicalNames && updatedResourceLogicalNames.length > 0
+          ? new Set(updatedResourceLogicalNames)
+          : undefined;
+      const plannedFromDiff =
+        changeSummary.counts.created + changeSummary.counts.updated + changeSummary.counts.deleted > 0
+          ? new Set([...changeSummary.lists.created, ...changeSummary.lists.updated, ...changeSummary.lists.deleted])
+          : undefined;
+      const plannedSet = plannedResources || plannedFromDiff;
+      const completedCount = plannedSet
+        ? Array.from(completeResources).filter((name) => plannedSet.has(name)).length
+        : completeResources.size;
+      const inProgressCount = plannedSet
+        ? Array.from(inProgressResources).filter((name) => plannedSet.has(name)).length
+        : inProgressResources.size;
+      const totalSeen = seenResources.size;
+      const totalPlannedBase =
+        cfStackAction === 'update' ? Math.max(totalSeen, plannedSet?.size || 0) : resourcesToHandleCount;
+      const totalPlanned = Math.max(totalPlannedBase, completedCount + inProgressCount);
+      const activeResources = plannedSet
+        ? Array.from(inProgressResources).filter((name) => plannedSet.has(name))
+        : Array.from(inProgressResources);
+      const resourceAction = (name: string): 'CREATE' | 'UPDATE' | 'DELETE' =>
+        changeSummary.lists.created.includes(name)
+          ? 'CREATE'
+          : changeSummary.lists.deleted.includes(name)
+            ? 'DELETE'
+            : cfStackAction === 'create'
+              ? 'CREATE'
+              : cfStackAction === 'delete'
+                ? 'DELETE'
+                : 'UPDATE';
+      const inProgressDetails = activeResources.map((name) => ({
+        name,
+        action: resourceAction(name),
+        resourceType: inProgressMeta.get(name)?.resourceType,
+        since: inProgressMeta.get(name)?.since
+      }));
+      const waitingCandidates = plannedSet
+        ? Array.from(plannedSet).filter((name) => !inProgressResources.has(name) && !completeResources.has(name))
+        : [];
+      // Build changes part - only show non-zero counts with resource names if available
+      const changesParts: string[] = [];
+      if (changeSummary.counts.created > 0) {
+        const resources =
+          changeSummary.lists.created.length > 0 ? ` (${formatResourceList(changeSummary.lists.created, 3)})` : '';
+        changesParts.push(`Creating: ${changeSummary.counts.created}${resources}`);
+      }
+      if (changeSummary.counts.updated > 0) {
+        const resources =
+          changeSummary.lists.updated.length > 0 ? ` (${formatResourceList(changeSummary.lists.updated, 3)})` : '';
+        changesParts.push(`Updating: ${changeSummary.counts.updated}${resources}`);
+      }
+      if (changeSummary.counts.deleted > 0) {
+        const resources =
+          changeSummary.lists.deleted.length > 0 ? ` (${formatResourceList(changeSummary.lists.deleted, 3)})` : '';
+        changesParts.push(`Deleting: ${changeSummary.counts.deleted}${resources}`);
+      }
+      const changesPart = cfStackAction === 'update' && changesParts.length > 0 ? `${changesParts.join('. ')}.` : '';
+      // Add machine-readable summary and details for TUI parsing
+      const summaryPart = `Summary: created=${changeSummary.counts.created} updated=${changeSummary.counts.updated} deleted=${changeSummary.counts.deleted}`;
+      const detailsPart = `Details: created=${changeSummary.lists.created.join(', ') || 'none'}; updated=${changeSummary.lists.updated.join(', ') || 'none'}; deleted=${changeSummary.lists.deleted.join(', ') || 'none'}.`;
+      const statusText =
+        inProgressAmount > 0
+          ? cfStackAction === 'delete'
+            ? 'Deleting resources'
+            : cfStackAction === 'create'
+              ? 'Creating resources'
+              : 'Updating resources'
+          : completedAmount > 0
+            ? 'Finalizing stack operation'
+            : `Starting ${cfStackAction}`;
+      const progressParts: string[] = [`Status: ${statusText}`];
+      if (totalPlanned > 0) {
+        progressParts.push(`Progress: ${completedCount}/${totalPlanned}`);
+      }
+      if (activeResources.length > 0) {
+        progressParts.push(`Currently updating: ${formatResourceList(activeResources, 3)}`);
+      }
+      if (waitingCandidates.length > 0) {
+        const waitingList = formatResourceList(waitingCandidates, 3);
+        progressParts.push(`Waiting: ${waitingList}`);
+      }
+      if (remainingPercent !== null) {
+        progressParts.push(`Estimate: ~${remainingPercent === 100 ? '<1' : 100 - remainingPercent}%`);
+      }
+      const progressMessage = progressParts.join('. ');
+      onProgress({
+        message: `${progressMessage}.${changesPart ? ` ${changesPart}` : ''} ${summaryPart} ${detailsPart}`.trim(),
+        detail: {
+          kind: 'cloudformation-progress',
+          stackAction: cfStackAction,
+          status: 'active',
+          completedCount,
+          totalPlanned,
+          inProgressCount,
+          inProgressResources: activeResources,
+          inProgressDetails,
+          waitingResources: waitingCandidates,
+          changeCounts: {
+            created: changeSummary.counts.created,
+            updated: changeSummary.counts.updated,
+            deleted: changeSummary.counts.deleted
+          }
+        }
+      });
+    };
+
+    const { warningMessages }: { warningMessages?: string[] } = await new Promise((resolve, reject) => {
+      // operations to be executed after we detect stack operation success
+      const afterStackOperationSuccess = async () => {
+        cleanupMonitoring();
+        // add warning message if there were failed deletions during CLEANUP after UPDATE_COMPLETE
+        if (cleanupAfterSuccessfulUpdateInProgress && Object.keys(potentialErrorCausingEvents).length) {
+          const handledStackErrors = await this.#handleFailedEvents({
+            potentialErrorCausingEvents
+          });
+          const formattedStackErrorText = tuiManager.formatComplexStackErrors(handledStackErrors, 2);
+          return resolve({
+            warningMessages: [
+              `Stack was successfully updated, but errors occurred during old resources CLEANUP:\n${formattedStackErrorText}`
+            ]
+          });
+        }
+        return resolve({});
+      };
+
+      const afterStackOperationFailure = async () => {
+        cleanupMonitoring();
+
+        const handledFailedEvents = await this.#handleFailedEvents({ potentialErrorCausingEvents });
+        tuiManager.debug(`Processed ${handledFailedEvents.length} failed stack event(s)`);
+        const formattedStackErrorText = tuiManager.formatComplexStackErrors(handledFailedEvents, 2);
+        // Collect hints from individual error handlers
+        const errorSpecificHints = handledFailedEvents.flatMap((event) => event.hints || []);
+        const generalHints = getHintsAfterStackFailureOperation({
+          cfStackAction,
+          stackId,
+          isAutoRollbackEnabled: this.isAutoRollbackEnabled
+        });
+        // Merge all hints - error-specific hints first, then general hints
+        const allHints = [...errorSpecificHints, ...generalHints];
+        return reject(
+          new ExpectedError(
+            'STACK',
+            `Stack action ${this.stackActionType} failed.\n\n${formattedStackErrorText}\n`,
+            allHints
+          )
+        );
+      };
+
+      this.stackMonitoringInterval = setInterval(async () => {
+        // if the operation in previous iteration of interval did not finish yet, we will not even try to fetch events (instant return).
+        if (eventBatchEvaluationInProgress) {
+          return;
+        }
+        // as we are about to fetch and evaluate event batch
+        eventBatchEvaluationInProgress = true;
+        try {
+          // we are only fetching for new events "fetchSince"
+          const [stackEvents, stackDetailsFromBatch] = await Promise.all([
+            awsSdkManager.cloudFormation.getEvents(stackId, fetchSince),
+            // Every fourth poll also asks for stack details; the other three contribute no details to this batch.
+            // `null` rather than `false` says that in a way the result type can carry — both are falsy, so the
+            // fallback below behaves exactly as before.
+            fetchNumber % 4 === 0 ? awsSdkManager.cloudFormation.getDetails(stackId) : null
+          ]).catch((err) => {
+            // if there was an error when fetching stack events we cancel entire interval
+            cleanupMonitoring();
+            reject(err);
+            throw err;
+          });
+          ++fetchNumber;
+          // we are reversing to go from oldest to newest
+          stackEvents.reverse();
+          // if there are no new events, check stack details as fallback to detect if operation completed
+          // this is critical - without this check, the monitoring could hang indefinitely if completion events are missed
+          if (!stackEvents.length) {
+            if (lastStackActionTimestamp) handleProgress();
+            const stackDetails = stackDetailsFromBatch || (await awsSdkManager.cloudFormation.getDetails(stackId));
+            if (
+              this.#stackStatusSignalsStackOperationSuccess({
+                stackStatus: stackDetails?.StackStatus as StackStatus,
+                cfStackAction
+              })
+            ) {
+              return afterStackOperationSuccess();
+            }
+            if (
+              this.#stackStatusSignalsStackOperationFailure({
+                stackStatus: stackDetails?.StackStatus as StackStatus,
+                cfStackAction
+              })
+            ) {
+              return afterStackOperationFailure();
+            }
+            eventBatchEvaluationInProgress = false;
+            return;
+          }
+          // use stackDetails from batch for later fallback check
+          const stackDetails = stackDetailsFromBatch;
+          if (!lastStackActionTimestamp) {
+            // we are searching for event which denotes beginning of action that should take place (i.e CREATE_IN_PROGRESS UPDATE_IN_PROGRESS...)
+            const lastStackEvent = stackEvents.find((stackEvent) => {
+              return (
+                this.#isCloudformationStackEvent({ stackEvent }) &&
+                this.#stackStatusSignalsStackOperationStart({
+                  stackStatus: stackEvent.ResourceStatus as StackStatus,
+                  cfStackAction
+                })
+              );
+            });
+            // if we were not able to find last stack action, the action have not started yet.
+            if (!lastStackEvent) {
+              eventBatchEvaluationInProgress = false;
+              return;
+            }
+            lastStackActionTimestamp = lastStackEvent.Timestamp;
+          }
+          // setting new fetch since to the time of the newest fetched event
+          fetchSince = new Date(stackEvents[stackEvents.length - 1].Timestamp);
+          // we are extending the fetch since window to avoid potentially missing events (this is based on some hanging deployments, but was never confirmed)
+          fetchSince.setSeconds(fetchSince.getSeconds() - 2);
+          // filter handled events and events which are older than event that denotes beginning of action
+          const filteredEvents = stackEvents.filter(
+            (e) => !handledEvents.includes(e.EventId) && e.Timestamp > lastStackActionTimestamp
+          );
+          // handle new events
+          for (const event of filteredEvents) {
+            // arbitrary reaction to event (used for i.e detecting where to start polling for ecs service status)
+            this.#reactToEvent({ stackEvent: event });
+            const { ResourceStatus: status, LogicalResourceId } = event;
+            // cloudformation stack resource gets special treatment
+            if (this.#isCloudformationStackEvent({ stackEvent: event })) {
+              // if event signals that desired operation is complete
+              if (
+                this.#stackStatusSignalsStackOperationSuccess({
+                  stackStatus: event.ResourceStatus as StackStatus,
+                  cfStackAction
+                })
+              ) {
+                handleProgress();
+                return afterStackOperationSuccess();
+              }
+              // if event signals that desired stack operation failed
+              if (
+                this.#stackStatusSignalsStackOperationFailure({
+                  stackStatus: event.ResourceStatus as StackStatus,
+                  cfStackAction
+                })
+              ) {
+                // if there are no potential errors associated with specific resources, then the error is probably for stack as a whole (i.e when stack update is canceled)
+                // in this case the error message included in stack error event is relevant
+                if (!Object.keys(potentialErrorCausingEvents).length) {
+                  potentialErrorCausingEvents[LogicalResourceId] = event;
+                }
+                handleProgress();
+                return afterStackOperationFailure();
+              }
+              // if we are performing update and cleanup is happening after successful update
+              if (
+                cfStackAction === 'update' &&
+                event.ResourceStatus === (StackStatus.UPDATE_COMPLETE_CLEANUP_IN_PROGRESS as any)
+              ) {
+                cleanupAfterSuccessfulUpdateInProgress = true;
+                _isResourceToHandleCountPossiblyInaccurate = true;
+                inProgressResources.clear();
+                inProgressMeta.clear();
+                completeResources.clear();
+              }
+            }
+            // if the new event says that some resource is in progress, we add event into inProgressResources
+            else if (status.endsWith('IN_PROGRESS')) {
+              inProgressResources.add(LogicalResourceId);
+              if (!inProgressMeta.has(LogicalResourceId)) {
+                inProgressMeta.set(LogicalResourceId, {
+                  resourceType: event.ResourceType,
+                  since: event.Timestamp?.getTime() ?? Date.now()
+                });
+              }
+              seenResources.add(LogicalResourceId);
+            }
+            // if the new event says that some resource is complete, we add event into completedResources
+            // however if some resource
+            else if (
+              status.endsWith('COMPLETE') &&
+              // if we get UPDATE_ROLLBACK_COMPLETE during update operation we ignore it
+              // it is only information that the resource whose update failed was rolled back - however it was still the cause for update failure and error remains
+              (status !== ResourceStatus.UPDATE_ROLLBACK_COMPLETE || cfStackAction !== 'update')
+            ) {
+              completeResources.add(LogicalResourceId);
+              inProgressResources.delete(LogicalResourceId);
+              inProgressMeta.delete(LogicalResourceId);
+              seenResources.add(LogicalResourceId);
+              delete potentialErrorCausingEvents[LogicalResourceId];
+            }
+            // if status of resource is failed, we should not fail entire operation
+            // cloudformation can and does successfully retry a lot of operations which fail on first try
+            else if (status && status.endsWith('FAILED')) {
+              // we collect all potential error events
+              // we only deal with them if the entire operation fails ^^^
+              potentialErrorCausingEvents[LogicalResourceId] = event;
+            }
+            handledEvents.push(event.EventId);
+          }
+          handleProgress();
+          // additional checking for stack status from stack details
+          // if we somehow missed a cloudformation event signaling stack operation end, then operation might be hanging
+          if (
+            this.#stackStatusSignalsStackOperationSuccess({
+              stackStatus: stackDetails?.StackStatus as StackStatus,
+              cfStackAction
+            })
+          ) {
+            return afterStackOperationSuccess();
+          }
+          if (
+            this.#stackStatusSignalsStackOperationFailure({
+              stackStatus: stackDetails?.StackStatus as StackStatus,
+              cfStackAction
+            })
+          ) {
+            return afterStackOperationFailure();
+          }
+          const earlyFailureMessage = getEarlyStartupFailureMessage();
+          if (earlyFailureMessage) {
+            cleanupMonitoring();
+            return reject(
+              new ExpectedError(
+                'STACK',
+                `Stack action ${this.stackActionType} failed.\n\n  1.\n     ${earlyFailureMessage}`
+              )
+            );
+          }
+
+          // Check if we should show the cancel banner (ECS task failed)
+          showCancelBannerIfNeeded(resolve);
+        } catch (err) {
+          cleanupMonitoring();
+          reject(
+            new ExpectedError('STACK_MONITORING', `Error occurred while monitoring stack: ${err}`, [
+              `You can monitor the process in console ${consoleLinks.stackUrl(
+                globalStateManager.region,
+                stackId,
+                'events'
+              )}.`
+            ])
+          );
+        }
+        eventBatchEvaluationInProgress = false;
+      }, MONITORING_FREQUENCY_SECONDS * 1000);
+    });
+    cleanupMonitoring();
+    return { warningMessages };
+  };
+
+  #reactToEvent = ({ stackEvent }: { stackEvent: MonitoredStackEvent }) => {
+    if (isEcsServiceCreateOrUpdateCloudformationEvent(stackEvent)) {
+      const stpParentResourceName = calculatedStackOverviewManager.findStpParentNameOfCfResource({
+        cfLogicalName: stackEvent.LogicalResourceId
+      });
+      this.#ecsDeploymentStatusPoller[stackEvent.LogicalResourceId] = new EcsServiceDeploymentStatusPoller({
+        ecsServiceArn: stackEvent.PhysicalResourceId,
+        pollerPrintName: stpParentResourceName,
+        // time of event minus 10 seconds
+        inspectDeploymentsCreatedAfterDate: new Date(new Date(stackEvent.Timestamp).getTime() - 10000),
+        ecs: awsSdkManager.ecs,
+        observability: awsSdkManager.observability,
+        printer: awsSdkManager.printer,
+        region: awsSdkManager.region
+      });
+    }
+    // Monitor Lambda alias provisioned concurrency configuration
+    if (isLambdaAliasProvisionedConcurrencyEvent(stackEvent) && stackEvent.PhysicalResourceId) {
+      // Physical resource ID is the alias ARN: arn:aws:lambda:region:account:function:function-name:alias-name
+      const arnParts = stackEvent.PhysicalResourceId.split(':');
+      if (arnParts.length >= 8) {
+        const functionName = arnParts[6];
+        const aliasName = arnParts[7];
+        const stpParentResourceName = calculatedStackOverviewManager.findStpParentNameOfCfResource({
+          cfLogicalName: stackEvent.LogicalResourceId
+        });
+        // Derive log group name from function name
+        const logGroupName = `/aws/lambda/${functionName}`;
+        this.#lambdaProvisionedConcurrencyPoller[stackEvent.LogicalResourceId] = new LambdaProvisionedConcurrencyPoller(
+          {
+            functionName,
+            aliasName,
+            pollerPrintName: stpParentResourceName,
+            lambda: awsSdkManager.lambda,
+            observability: awsSdkManager.observability,
+            printer: awsSdkManager.printer,
+            region: awsSdkManager.region,
+            logGroupName
+          }
+        );
+      }
+    }
+  };
+
+  #isCloudformationStackEvent = ({ stackEvent }: { stackEvent: StackEvent }) => {
+    return (
+      stackEvent.ResourceType === 'AWS::CloudFormation::Stack' && stackEvent.StackName === stackEvent.LogicalResourceId
+    );
+  };
+
+  #stackStatusSignalsStackOperationStart = ({
+    stackStatus,
+    cfStackAction
+  }: {
+    stackStatus: StackStatus;
+    cfStackAction: 'create' | 'update' | 'delete' | 'rollback';
+  }) => {
+    return (
+      (cfStackAction === 'create' && stackStatus === StackStatus.CREATE_IN_PROGRESS) ||
+      (cfStackAction === 'update' && stackStatus === StackStatus.UPDATE_IN_PROGRESS) ||
+      // @todo - this is just workaround because sometimes we don't get UPDATE_IN_PROGRESS event for some reason
+      // (cfStackAction === 'update' && stackStatus === StackStatus.UPDATE_COMPLETE_CLEANUP_IN_PROGRESS) ||
+      // I believe this problem was solved (it was related to Matus' retarded computer which had un-synced clock multiple minutes) - fixed by syncing clocks with AWS
+      (cfStackAction === 'delete' && stackStatus === StackStatus.DELETE_IN_PROGRESS) ||
+      (cfStackAction === 'rollback' &&
+        (stackStatus === StackStatus.UPDATE_ROLLBACK_IN_PROGRESS ||
+          stackStatus === StackStatus.ROLLBACK_IN_PROGRESS ||
+          stackStatus === StackStatus.DELETE_IN_PROGRESS))
+    );
+  };
+
+  #stackStatusSignalsStackOperationSuccess = ({
+    stackStatus,
+    cfStackAction
+  }: {
+    stackStatus: StackStatus;
+    cfStackAction: 'create' | 'update' | 'delete' | 'rollback';
+  }) => {
+    return (
+      (cfStackAction === 'create' && stackStatus === StackStatus.CREATE_COMPLETE) ||
+      (cfStackAction === 'update' && stackStatus === StackStatus.UPDATE_COMPLETE) ||
+      (cfStackAction === 'delete' && stackStatus === StackStatus.DELETE_COMPLETE) ||
+      (cfStackAction === 'rollback' &&
+        (stackStatus === StackStatus.UPDATE_ROLLBACK_COMPLETE ||
+          stackStatus === StackStatus.DELETE_COMPLETE ||
+          stackStatus === StackStatus.ROLLBACK_COMPLETE ||
+          stackStatus === StackStatus.UPDATE_ROLLBACK_COMPLETE_CLEANUP_IN_PROGRESS))
+    );
+  };
+
+  #stackStatusSignalsStackOperationFailure = ({
+    stackStatus,
+    cfStackAction
+  }: {
+    stackStatus: StackStatus;
+    cfStackAction: 'create' | 'update' | 'delete' | 'rollback';
+  }) => {
+    return (
+      (cfStackAction === 'create' &&
+        (stackStatus === StackStatus.CREATE_FAILED || stackStatus === StackStatus.DELETE_IN_PROGRESS)) ||
+      (cfStackAction === 'update' &&
+        (stackStatus === StackStatus.UPDATE_FAILED || stackStatus === StackStatus.UPDATE_ROLLBACK_IN_PROGRESS)) ||
+      (cfStackAction === 'delete' && stackStatus === StackStatus.DELETE_FAILED) ||
+      (cfStackAction === 'rollback' &&
+        (stackStatus === StackStatus.UPDATE_ROLLBACK_FAILED ||
+          stackStatus === StackStatus.ROLLBACK_FAILED ||
+          stackStatus === StackStatus.DELETE_FAILED))
+    );
+  };
+
+  #handleFailedEvents = ({
+    // cfStackOperation,
+    potentialErrorCausingEvents
+  }: {
+    // cfStackOperation: 'create' | 'update' | 'remove';
+    potentialErrorCausingEvents: { [logicalResourceId: string]: StackEvent };
+  }): Promise<{ errorMessage: string; hints?: string[] }[]> => {
+    // not all off the error events are relevant
+    // we filter out those which are relevant for the user
+    const relevantErrorEvents = Object.values(potentialErrorCausingEvents).filter(({ ResourceStatusReason }) => {
+      // Cancellation is only a collateral from something else failing during create/update - we can ignore
+      if (ResourceStatusReason.includes('cancelled')) {
+        return false;
+      }
+      return true;
+    });
+    return Promise.all(
+      relevantErrorEvents.map(async (event) => {
+        const { handlerFunction } = cfFailedEventHandlers.find(({ eventMatchFunction }) => eventMatchFunction(event));
+        return handlerFunction(event, {
+          ecsDeploymentStatusPollers: this.#ecsDeploymentStatusPoller,
+          lambdaProvisionedConcurrencyPollers: this.#lambdaProvisionedConcurrencyPoller
+        });
+      })
+    );
+  };
+
+  #getDetailOfSelectedResources = (resources: StackResourceSummary[]): Promise<EnrichedStackResourceInfo[]> => {
+    return Promise.all(
+      resources.map(async (resource) => {
+        try {
+          if (
+            resource.ResourceType === 'AWS::ECS::Service' ||
+            resource.ResourceType === 'Stacktape::ECSBlueGreenV1::Service'
+          ) {
+            const ecsService = await awsSdkManager.ecs.getService({
+              serviceArn: resource.PhysicalResourceId
+            });
+            if (!ecsService) {
+              return {
+                ...resource,
+                ecsService: undefined,
+                ecsServiceTaskDefinition: {},
+                ecsServiceTaskDefinitionTags: []
+              };
+            }
+            const taskDefinitionInUse =
+              ecsService.deployments?.find(
+                ({ status, rolloutState }) => status === 'PRIMARY' && rolloutState !== DeploymentRolloutState.FAILED
+              )?.taskDefinition ||
+              ecsService.deployments
+                ?.filter(
+                  ({ status, rolloutState }) => status === 'ACTIVE' && rolloutState !== DeploymentRolloutState.FAILED
+                )
+                ?.sort(({ createdAt: ca1 }, { createdAt: ca2 }) => new Date(ca2).getTime() - new Date(ca1).getTime())
+                ?.at(0)?.taskDefinition ||
+              ecsService.taskSets?.find(({ status }) => status === 'PRIMARY')?.taskDefinition;
+
+            const { tags = [], taskDefinition = {} } = taskDefinitionInUse
+              ? await awsSdkManager.ecs.getTaskDefinition({
+                  ecsTaskDefinitionFamily: taskDefinitionInUse
+                })
+              : {};
+            return {
+              ...resource,
+              ecsService,
+              ecsServiceTaskDefinition: taskDefinition,
+              ecsServiceTaskDefinitionTags: tags
+            };
+          }
+          if (resource.ResourceType === 'AWS::Lambda::Function') {
+            const lambdaArn = arns.lambdaFromFullName({
+              accountId: globalStateManager.targetAwsAccount.awsAccountId,
+              region: globalStateManager.region,
+              lambdaAwsName: resource.PhysicalResourceId
+            });
+            const resourceTags: Tag[] = Object.entries(
+              await awsSdkManager.lambda.listTags({
+                lambdaArn
+              })
+            ).map(([key, value]) => ({ key, value }));
+            return { ...resource, tags: resourceTags };
+          }
+          if (resource.ResourceType === 'AWS::AutoScaling::AutoScalingGroup') {
+            const asgDetail = await awsSdkManager.autoScaling.getGroup({
+              name: resource.PhysicalResourceId
+            });
+            return { ...resource, asgDetail };
+          }
+          if (resource.ResourceType === 'AWS::RDS::DBInstance') {
+            const rdsInstanceDetail = await awsSdkManager.rds.getInstance({
+              identifier: resource.PhysicalResourceId
+            });
+            return { ...resource, rdsInstanceDetail };
+          }
+          if (resource.ResourceType === 'AWS::RDS::DBCluster') {
+            const auroraClusterDetail = await awsSdkManager.rds.getCluster({
+              identifier: resource.PhysicalResourceId
+            });
+            return { ...resource, auroraClusterDetail };
+          }
+          return resource;
+        } catch (error) {
+          tuiManager.debug(
+            `[STP_DEBUG] Unable to enrich resource details for ${resource.LogicalResourceId} (${resource.ResourceType}): ${error}`
+          );
+          return resource;
+        }
+      })
+    );
+  };
+
+  #filterNonExistentResources = (resources: StackResourceSummary[]) => {
+    return resources.filter((resource) => {
+      const resourceExists =
+        resource.ResourceStatus !== ResourceStatus.DELETE_COMPLETE &&
+        resource.ResourceStatus !== ResourceStatus.CREATE_FAILED;
+      return resourceExists;
+    });
+  };
+}
+
+export const stackManager = compose(skipInitIfInitialized, cancelablePublicMethods)(new StackManager());

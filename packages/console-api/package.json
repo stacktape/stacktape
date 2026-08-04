@@ -1,0 +1,24 @@
+{
+  "name": "@stacktape/console-api",
+  "version": "4.0.0-dev.0",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./anonymous": "./src/anonymous.ts",
+    "./api-key": "./src/api-key.ts",
+    "./aws-identity": "./src/aws-identity.ts",
+    "./permissions": "./src/permissions.ts"
+  },
+  "scripts": {
+    "test": "node --import=tsx --test src/*.test.ts",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
+}

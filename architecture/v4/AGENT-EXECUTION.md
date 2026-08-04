@@ -1,5 +1,9 @@
 # Agent execution model
 
+> Current migration policy: `SIMPLIFIED-MIGRATION.md` supersedes the earlier runtime-extraction strategy. Work is
+> sequential and coarse-grained: migrate a working application first, then extract only demonstrated reusable
+> capabilities. The role, isolation, review, and Git-safety rules below still apply.
+
 ## Principles
 
 The migration uses multiple capable agents, but it does not decompose the system into artificial horizontal layers just
@@ -13,6 +17,9 @@ to create parallel work.
 - Package boundaries are targets and ownership guides, not excuses for agents to ignore behavior outside one folder.
 - Shared interfaces are provisional until exercised. Agents may propose improvements with evidence; they may not
   silently redefine a seam used by another active slice.
+- Conceptual complexity is a blocking review criterion. A new abstraction must reduce the total set of concepts needed
+  to understand present behavior.
+- Do not create parallel implementations, migration frameworks, or package boundaries solely to enable future work.
 - Only one agent writes in a given worktree.
 - Public and private changes are reviewed and integrated as one logical slice even though they produce separate Git
   commits.
@@ -23,7 +30,7 @@ to create parallel work.
 
 The orchestrator:
 
-1. Reads and enforces every document in `architecture/v4`.
+1. Reads and enforces the current documents listed in `architecture/v4/README.md`.
 2. Maintains the integration branches and private submodule pointer.
 3. Creates a slice dossier before dispatch.
 4. Ensures prerequisites are integrated before dependent work begins.
@@ -32,9 +39,9 @@ The orchestrator:
 7. Integrates reviewed commits and resolves the resulting private pointer.
 8. Runs affected checks after every integration checkpoint.
 9. Runs complete public-only and integrated validation at phase gates.
-10. Records intentional v4 differences and newly discovered constraints.
+10. Records approved v4 product contracts and newly discovered constraints.
 
-The orchestrator must not treat a passing typecheck as proof of behavioral compatibility.
+The orchestrator must not treat a passing typecheck as proof of correct behavior.
 
 ### Implementer
 
@@ -67,8 +74,8 @@ The reviewer is read-only until the orchestrator explicitly assigns a follow-up 
 
 ### Verification agent
 
-At major phase gates, a verification agent may run the full matrix, inspect artifacts, compare v3/v4 outputs, and test
-clean clones. It must be distinct from the agents that implemented the majority of the phase.
+At major phase gates, a verification agent may run the full matrix, inspect artifacts, exercise chosen v4 contracts,
+and test clean clones. It must be distinct from the agents that implemented the majority of the phase.
 
 ## Slice dossier
 
@@ -82,8 +89,8 @@ Prerequisite integration commit(s):
 Current implementation and known constraints:
 Target package/app ownership:
 Provisional interfaces:
-Must-preserve behaviors:
-Intentional v4 changes allowed:
+Infrastructure/data invariants:
+Approved v4 product behavior:
 Owned paths:
 Shared/frozen paths:
 Required deterministic tests:
@@ -116,7 +123,7 @@ For a shared seam, the implementer writes a short proposal containing:
 - the problem demonstrated by current code or tests;
 - the old and proposed signatures;
 - affected active/completed slices;
-- compatibility and migration cost;
+- blast radius and migration cost;
 - why an adapter cannot reasonably localize the change.
 
 The orchestrator either accepts it, requests a smaller seam, or schedules a dedicated interface slice. Dependent agents
@@ -135,19 +142,24 @@ This was validated against the existing POC using Git 2.39 on Windows: two simul
 an independent `apps/console` Git directory under the parent worktree metadata. They did not share a private working
 tree.
 
-The future `scripts/agents/create-worktree.ts` must:
+The checked-in `scripts/agents/create-worktree.ts` must:
 
 1. Validate the slice ID and target path.
-2. Refuse to reuse a dirty or registered worktree.
-3. Create `v4/slice/<slice-id>` from the current public integration commit.
-4. Initialize `apps/console` only when the dossier needs private code.
-5. Create a private `v4/slice/<slice-id>` branch from the recorded submodule commit.
-6. Install from frozen lockfiles without running deployment commands.
-7. Write a local dossier pointer and base-SHA metadata.
-8. Print exact cleanup commands but never auto-delete a dirty worktree.
+2. Require a clean checkout whose current branch and HEAD are exactly the local `v4/integration` ref.
+3. Refuse local or `origin` branch-name collisions and any reused/registered target.
+4. Accept only an existing dossier file inside the public repository and record its worktree-relative path.
+5. Create `v4/slice/<slice-id>` from the verified public integration commit.
+6. Initialize `apps/console` only when the dossier needs private code.
+7. Create a collision-free private `v4/slice/<slice-id>` branch from the recorded submodule commit.
+8. Install from frozen lockfiles without running deployment commands.
+9. Write a local dossier pointer and base-SHA metadata.
+10. Print exact cleanup commands but never auto-delete a dirty worktree.
 
 The cleanup script resolves and verifies the absolute target is inside the dedicated `.worktrees` root before removing
-anything.
+anything. Because Git stores each private submodule clone underneath its public worktree metadata, cleanup also refuses
+to proceed unless the private HEAD is reachable from a remote-tracking ref. Committing privately is not sufficient:
+push or integrate the private commit first, or removal could discard the only copy. Public slice branches remain in the
+parent repository after their worktree is removed.
 
 ## Commit and integration protocol
 
@@ -168,7 +180,7 @@ the only role allowed to update integration branches or submodule pointers.
 Commit messages identify behavior, not file movement:
 
 ```text
-core(config): make synthesis context-explicit
+cli(config): make synthesis name the failing config path
 packaging(lambda): preserve deterministic layer assignment
 console(api): enforce public contract schemas
 repo: record integrated console slice
@@ -187,7 +199,6 @@ Parallel work is allowed when:
 High-risk shared changes are serialized:
 
 - root workspace/tooling;
-- `OperationContext` and foundational ports;
 - config public model;
 - naming algorithms;
 - tRPC public contracts;
@@ -207,9 +218,9 @@ A slice is not complete until:
 - generated outputs are fresh;
 - public-only checks pass when public files changed;
 - integrated checks pass when private files changed;
-- behavioral differences are classified;
+- behavioral changes are deliberate and tested;
 - the orchestrator integrates it without carrying a dirty worktree;
-- the migration matrix records its new coverage and remaining risk.
+- the decision register records broad product choices and remaining risk.
 
 No deployment is implied by code integration. Real AWS gates require separate explicit authorization and trusted
 credentials.

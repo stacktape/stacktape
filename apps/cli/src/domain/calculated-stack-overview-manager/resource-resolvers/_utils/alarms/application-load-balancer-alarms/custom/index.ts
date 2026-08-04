@@ -1,0 +1,51 @@
+import { cfnResource } from '@stacktape/cloudformation/resource';
+import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type { AlarmDefinition } from '@stacktape/config/alarms';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { getCustomAlarmDescription } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/_utils/alarms/descriptions';
+import { getComparisonOperator, getMetricStatDataQuery, getStatFunction } from '../../utils';
+import { getDimensionsForAlb } from '../utils';
+import type { ApplicationLoadBalancerCustomTrigger } from '@stacktape/config/alarm-metrics';
+
+export const getApplicationLoadBalancerCustomAlarm = ({
+  alarm,
+  resource
+}: {
+  alarm: AlarmDefinition;
+  resource: StpApplicationLoadBalancer;
+}) => {
+  const trigger = alarm.trigger as ApplicationLoadBalancerCustomTrigger;
+
+  const comparisonOperator = getComparisonOperator({ alarm });
+  const threshold = trigger.properties.threshold;
+  const statFunction = getStatFunction({ alarm });
+  return cfnResource('AWS::CloudWatch::Alarm', {
+    AlarmName: awsResourceNames.cloudwatchAlarm(calculatedStackOverviewManager.context.stackName, alarm.name),
+    AlarmDescription:
+      alarm.description ||
+      getCustomAlarmDescription({
+        stackName: calculatedStackOverviewManager.context.stackName,
+        stpResourceName: resource.name,
+        metricName: trigger.properties.metric,
+        comparisonOperator,
+        threshold,
+        statFunction
+      }),
+    EvaluationPeriods: alarm.evaluation?.evaluationPeriods || 1,
+    DatapointsToAlarm: alarm.evaluation?.breachedPeriods,
+    ComparisonOperator: comparisonOperator,
+    Threshold: threshold,
+    // TreatMissingData: 'breaching',
+    Metrics: [
+      getMetricStatDataQuery({
+        alarm,
+        dimensions: getDimensionsForAlb({ resource }),
+        metricName: trigger.properties.metric,
+        metricNamespace: 'AWS/ApplicationELB',
+        statFunction,
+        returnData: true
+      })
+    ]
+  });
+};

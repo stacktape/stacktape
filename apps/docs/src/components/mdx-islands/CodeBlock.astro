@@ -1,0 +1,10 @@
+---
+import DocsCodeBlock, { type DocsCodeBlockProps } from '@/components/Mdx/DocsCodeBlock';
+
+// Bridges MDX → the hydrated CodeBlock island. Fenced blocks arrive as base64 (decoded here so the
+// React island gets a verbatim string prop); explicit <CodeBlock tabs={[...]}> passes through.
+const { codeBase64, code: codeProp, ...rest } = Astro.props as DocsCodeBlockProps & { codeBase64?: string };
+const code = codeProp ?? (codeBase64 ? Buffer.from(codeBase64, 'base64').toString('utf-8') : undefined);
+---
+
+<DocsCodeBlock client:visible code={code} {...rest} />

@@ -1,0 +1,53 @@
+{
+  "name": "@stacktape/docs",
+  "version": "4.0.0-dev.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "astro build && node scripts/validate-built-site.ts",
+    "dev": "astro dev --port 9001",
+    "preview": "astro preview --port 9001",
+    "test": "node --import=tsx --test tests/*.test.ts",
+    "typecheck": "astro check",
+    "validate:site": "node scripts/validate-built-site.ts"
+  },
+  "dependencies": {
+    "@astrojs/markdown-remark": "7.2.1",
+    "@astrojs/mdx": "7.0.5",
+    "@astrojs/react": "6.0.2",
+    "@astrojs/sitemap": "3.7.3",
+    "@docsearch/css": "3.9.0",
+    "@docsearch/react": "3.9.0",
+    "@nanostores/react": "1.0.0",
+    "@shikijs/twoslash": "4.3.1",
+    "@stacktape/config": "workspace:*",
+    "@stacktape/config-authoring": "workspace:*",
+    "@stacktape/design-tokens": "workspace:*",
+    "@typescript/vfs": "1.6.4",
+    "astro": "catalog:",
+    "change-case": "^5.4.4",
+    "clsx": "^2.0.0",
+    "html-entities": "2.6.0",
+    "marked": "16.4.2",
+    "nanostores": "1.2.0",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-feather": "2.0.10",
+    "react-icons": "^5.5.0",
+    "search-insights": "2.17.3",
+    "shiki": "4.3.1",
+    "twoslash": "0.3.9",
+    "typescript": "catalog:",
+    "unist-util-visit": "5.1.0",
+    "yaml": "2.9.0"
+  },
+  "devDependencies": {
+    "@astrojs/check": "catalog:",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "tailwindcss": "4.3.3",
+    "tsx": "catalog:"
+  }
+}

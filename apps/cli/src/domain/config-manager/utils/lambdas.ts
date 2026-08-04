@@ -1,0 +1,711 @@
+import { getAtt, ref, sub } from '@stacktape/cloudformation/intrinsics';
+import type { HelperLambdaName } from '@config';
+import type { HelperLambdaPackaging } from '@domain-services/packaging-manager/types';
+import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
+import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
+import type { StackContext } from '@domain-services/stack-context';
+import { IS_DEV } from '../../../config/random';
+import { STACKTAPE_TRPC_API_ENDPOINT } from '../../../config/params';
+import { sesManager } from '@domain-services/ses-manager';
+import { vpcManager } from '@domain-services/vpc-manager';
+import { arns } from '@stacktape/naming/arns';
+import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
+import { helperLambdaAwsResourceNames } from '@stacktape/naming/helper-lambda-resource-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import {
+  getLegacySsmParameterStoreStackPrefix,
+  getSsmParameterStoreStackPrefix
+} from '@stacktape/naming/ssm-parameter-paths';
+import { tagNames } from '@stacktape/naming/tag-names';
+import { getContainingFolderName, getFileExtension, getFileNameWithoutExtension } from '@utils/fs-utils';
+import { getDefaultRuntimeForExtension } from '@domain-services/config-manager/runtime-selection';
+
+import { kebabCase } from 'change-case';
+import type { ConfigManager } from '../index';
+import { getPropsOfResourceReferencedInConfig } from './resource-references';
+import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
+import type { LambdaRuntime } from '@stacktape/config/primitives';
+import type { StpIamRoleStatement } from '@stacktape/config/shared';
+import { configErrors } from '../errors';
+
+export const getBatchJobTriggerLambdaEnvironment = ({
+  batchJobName,
+  stackName
+}: {
+  batchJobName: string;
+  stackName: string;
+}) => {
+  return [
+    {
+      name: 'STATE_MACHINE_NAME',
+      value: awsResourceNames.batchStateMachine(batchJobName, stackName)
+    },
+    {
+      name: 'STATE_MACHINE_ARN',
+      value: ref(cfLogicalNames.batchStateMachine(batchJobName)) as unknown as string
+    },
+    {
+      name: 'BATCH_JOB_NAME_BASE',
+      value: kebabCase(`${batchJobName}-${stackName}`)
+    }
+  ];
+};
+
+export const getBatchJobTriggerLambdaAccessControl = ({ batchJobName }: { batchJobName: string }) => {
+  return [
+    {
+      Effect: 'Allow',
+      Action: ['states:StartExecution'],
+      Resource: [ref(cfLogicalNames.batchStateMachine(batchJobName)) as unknown as string]
+    }
+  ];
+};
+
+export const getStacktapeServiceLambdaEnvironment = ({
+  projectName,
+  stackName,
+  globallyUniqueStackHash,
+  issueEventSamplingRate,
+  stage
+}: {
+  stackName: string;
+  projectName: string;
+  globallyUniqueStackHash: string;
+  issueEventSamplingRate: number;
+  stage: string;
+}) => {
+  return [
+    {
+      name: 'AWS_PARTITION',
+      value: ref('AWS::Partition') as unknown as string
+    },
+    {
+      name: 'AWS_ACCOUNT_ID',
+      value: ref('AWS::AccountId') as unknown as string
+    },
+    {
+      name: 'STACK_NAME',
+      value: stackName
+    },
+    {
+      name: 'PROJECT_NAME',
+      value: projectName
+    },
+    {
+      name: 'STAGE',
+      value: stage
+    },
+    {
+      name: 'GLOBALLY_UNIQUE_STACK_HASH',
+      value: globallyUniqueStackHash
+    },
+    {
+      name: 'STACKTAPE_TRPC_API_ENDPOINT',
+      value: STACKTAPE_TRPC_API_ENDPOINT
+    },
+    {
+      name: 'NODE_OPTIONS',
+      value: '--enable-source-maps'
+    },
+    {
+      name: 'ISSUE_EVENT_SAMPLE_RATE_PERCENT',
+      value: String(issueEventSamplingRate)
+    },
+    {
+      name: 'ISSUE_MAX_ERRORS_PER_INVOCATION',
+      value: '20'
+    },
+    {
+      name: 'ISSUE_MAX_CONTEXT_FETCHES_PER_INVOCATION',
+      value: '5'
+    },
+    {
+      name: 'ISSUE_MAX_LOG_AGE_MS',
+      value: String(10 * 60 * 1000)
+    },
+    ...(IS_DEV ? [{ name: 'DEV_MODE', value: IS_DEV }] : [])
+  ];
+};
+
+export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
+  activeConfig,
+  stackContext
+}: {
+  activeConfig: ConfigManager;
+  stackContext: StackContext;
+}): StpIamRoleStatement[] => {
+  const serviceLambdaName: HelperLambdaName = 'stacktapeServiceLambda';
+  const { allAuroraDatabases, allDatabasesWithInstancies, allResourcesRequiringVpc, deploymentScripts } = activeConfig;
+  const { accountId, globallyUniqueStackHash, region, stackName } = stackContext;
+  const waf = [
+    {
+      Resource: ['*'],
+      Action: ['wafv2:CreateWebACL', 'wafv2:UpdateWebACL', 'wafv2:DeleteWebACL', 'wafv2:ListWebACLs'],
+      Effect: 'Allow'
+    }
+  ];
+  const s3Events = [
+    {
+      Resource: ['*'],
+      Action: ['s3:PutBucketNotification', 's3:GetBucketNotification'],
+      Effect: 'Allow'
+    },
+    {
+      Resource: ['*'],
+      Action: ['lambda:AddPermission', 'lambda:RemovePermission'],
+      Effect: 'Allow'
+    }
+  ];
+  const acceptVpcPeeringConnections = [
+    {
+      Effect: 'Allow',
+      Action: ['ec2:AcceptVpcPeeringConnection'],
+      Resource: [
+        ...(allResourcesRequiringVpc.length
+          ? [
+              sub('arn:${AWS::Partition}:ec2:${AWS::Region}:${AWS::AccountId}:vpc/${vpcId}', {
+                vpcId: vpcManager.getVpcId()
+              }) as unknown as string
+            ]
+          : []),
+        sub(
+          `arn:\${AWS::Partition}:ec2:\${AWS::Region}:\${AWS::AccountId}:vpc-peering-connection/*`
+        ) as unknown as string
+      ]
+    },
+    {
+      Effect: 'Allow',
+      Action: ['ec2:DescribeVpcPeeringConnections'],
+      Resource: ['*']
+    }
+  ];
+
+  const edgeFunctions: StpIamRoleStatement[] = [
+    // todo
+    // role related statements
+    {
+      Resource: [
+        arns.iamRole({
+          accountId,
+          roleAwsName: `${stackName}-*`
+        })
+      ],
+      Action: [
+        'iam:CreateRole',
+        'iam:DeleteRolePolicy',
+        'iam:ListRolePolicies',
+        'iam:PutRolePolicy',
+        'iam:GetRole',
+        'iam:PassRole',
+        'iam:DeleteRole'
+      ],
+      Effect: 'Allow'
+    },
+    // lambda related statements
+    {
+      Resource: [
+        arns.lambdaFromFullName({
+          accountId,
+          lambdaAwsName: `${stackName}-*`,
+          region: 'us-east-1'
+        })
+      ],
+      Action: [
+        'lambda:UpdateFunctionCode',
+        'lambda:UpdateFunctionConfiguration',
+        'lambda:CreateFunction',
+        'lambda:PublishVersion',
+        'lambda:GetFunction',
+        'lambda:GetFunctionConfiguration',
+        'lambda:ListVersionsByFunction',
+        'lambda:DeleteFunction',
+        'lambda:TagResource',
+        'lambda:UntagResource',
+        'lambda:ListTags'
+      ],
+      Effect: 'Allow'
+    },
+    // log group related statements
+    {
+      Resource: [{ 'Fn::Sub': 'arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:*' } as unknown as string],
+      Action: ['*'],
+      Effect: 'Allow'
+    },
+    {
+      // deny creating its own log group - otherwise stack might not clean up properly
+
+      Resource: [getAtt(cfLogicalNames.lambdaLogGroup(serviceLambdaName), 'Arn') as unknown as string],
+      Action: ['logs:CreateLogGroup'],
+      Effect: 'Deny'
+    },
+    // bucket related statements
+    {
+      Resource: [
+        `arn:aws:s3:::${awsResourceNames.deploymentBucket(globallyUniqueStackHash)}/*`,
+        `arn:aws:s3:::${awsResourceNames.deploymentBucket(globallyUniqueStackHash)}`
+      ],
+      Action: ['s3:ListBucket', 's3:GetObject', 's3:PutObject', 's3:PutObjectAcl'],
+      Effect: 'Allow'
+    },
+    {
+      Resource: [
+        `arn:aws:s3:::${helperLambdaAwsResourceNames.edgeDeploymentBucket(globallyUniqueStackHash)}/*`,
+        `arn:aws:s3:::${helperLambdaAwsResourceNames.edgeDeploymentBucket(globallyUniqueStackHash)}`
+      ],
+      Action: ['*'],
+      Effect: 'Allow'
+    }
+  ];
+
+  const publishLambdaVersion: StpIamRoleStatement[] = [
+    {
+      Resource: ['*'],
+      Action: ['lambda:PublishVersion', 'lambda:GetFunction', 'lambda:DeleteFunction'],
+      Effect: 'Allow'
+    },
+    // log group related statements
+    {
+      Resource: [{ 'Fn::Sub': 'arn:${AWS::Partition}:logs:*:${AWS::AccountId}:log-group:*' } as unknown as string],
+      Action: ['*'],
+      Effect: 'Allow'
+    }
+  ];
+
+  const setDatabaseDeletionProtection = [
+    ...(allAuroraDatabases.length
+      ? [
+          {
+            Resource: allAuroraDatabases.map(
+              ({ name }) =>
+                sub(
+                  `arn:\${AWS::Partition}:rds:\${AWS::Region}:\${AWS::AccountId}:cluster:${awsResourceNames.dbCluster(
+                    stackName,
+                    name
+                  )}`
+                ) as unknown as string
+            ),
+            Action: ['rds:ModifyDBCluster'],
+            Effect: 'Allow'
+          }
+        ]
+      : []),
+    ...(allDatabasesWithInstancies.length
+      ? [
+          {
+            Resource: allDatabasesWithInstancies.map(
+              ({ name, engine }) =>
+                sub(
+                  `arn:\${AWS::Partition}:rds:\${AWS::Region}:\${AWS::AccountId}:db:${
+                    engine.type === 'aurora-mysql' ||
+                    engine.type === 'aurora-postgresql' ||
+                    engine.type === 'aurora-mysql-serverless-v2' ||
+                    engine.type === 'aurora-postgresql-serverless-v2'
+                      ? awsResourceNames.auroraDbInstance(name, stackName, 0)
+                      : awsResourceNames.dbInstance(name, stackName)
+                  }`
+                ) as unknown as string
+            ),
+            Action: ['rds:ModifyDBInstance'],
+            Effect: 'Allow'
+          }
+        ]
+      : [])
+  ];
+
+  const sensitiveData = [
+    {
+      Resource: [
+        sub(
+          `arn:\${AWS::Partition}:ssm:\${AWS::Region}:\${AWS::AccountId}:parameter${getLegacySsmParameterStoreStackPrefix(
+            {
+              stackName
+            }
+          )}/*`
+        ) as unknown as string,
+        sub(
+          `arn:\${AWS::Partition}:ssm:\${AWS::Region}:\${AWS::AccountId}:parameter${getSsmParameterStoreStackPrefix({
+            stackName,
+            region
+          })}/*`
+        ) as unknown as string
+      ],
+      Action: [
+        'ssm:DeleteParameter',
+        'ssm:DeleteParameters',
+        'ssm:PutParameter',
+        'ssm:AddTagsToResource',
+        'ssm:GetParameters'
+      ]
+    }
+  ];
+
+  const scriptFunction = (
+    deploymentScripts.length
+      ? [
+          // invoke user script functions
+          {
+            Resource: deploymentScripts.map(
+              ({
+                _nestedResources: {
+                  scriptFunction: { resourceName }
+                }
+              }) =>
+                arns.lambdaFromFullName({
+                  accountId,
+                  lambdaAwsName: resourceName,
+                  region
+                }) as unknown as string
+            ),
+            Action: ['lambda:InvokeFunction'],
+            Effect: 'Allow'
+          }
+        ]
+      : []
+  ).concat({
+    Resource: ['*'],
+    Action: ['cloudformation:DescribeStacks'],
+    Effect: 'Allow'
+  });
+
+  const forceDeleteAsg = [
+    {
+      Resource: ['*'],
+      Action: ['autoscaling:DescribeAutoScalingGroups', 'autoscaling:SetInstanceProtection'],
+      Condition: {
+        StringEquals: {
+          [`autoscaling:ResourceTag/${tagNames.stackName()}`]: stackName
+        }
+      }
+    }
+  ];
+
+  const disableEcsManagedTerminationProtection = [
+    {
+      // NOTE: We intentionally don't restrict this by resource tags.
+      // Older stacks may have ECS CapacityProviders without tags, and then the custom resource would fail during stack deletion.
+      // We restrict access by name prefix instead (all Stacktape resources are prefixed with stackName).
+      Resource: [
+        sub(
+          `arn:\${AWS::Partition}:ecs:\${AWS::Region}:\${AWS::AccountId}:capacity-provider/${stackName}*`
+        ) as unknown as string
+      ],
+      Action: ['ecs:UpdateCapacityProvider'],
+      Effect: 'Allow'
+    }
+  ];
+
+  const deregisterTargets = [
+    {
+      Resource: [
+        sub(
+          `arn:\${AWS::Partition}:elasticloadbalancing:\${AWS::Region}:\${AWS::AccountId}:targetgroup/${stackName}*/*`
+        ) as unknown as string
+      ],
+      Action: [
+        'elasticloadbalancing:DescribeTargetHealth',
+        'elasticloadbalancing:DeregisterTargets',
+        'elasticloadbalancing:ModifyTargetGroupAttributes'
+      ],
+      Effect: 'Allow'
+    }
+  ];
+
+  const defaultDomainCert = [
+    {
+      Resource: ['*'],
+      Action: ['acm:AddTagsToCertificate', 'acm:DescribeCertificate', 'acm:ListCertificates', 'acm:RequestCertificate']
+    },
+    {
+      Resource: [
+        arns.lambdaFromFullName({
+          accountId,
+          lambdaAwsName: awsResourceNames.stpServiceLambda(stackName),
+          region
+        })
+      ],
+      Action: ['lambda:InvokeFunction']
+    }
+  ];
+
+  const userPoolDetails = [
+    {
+      Resource: ['*'],
+      Action: ['cognito-idp:DescribeUserPoolClient'],
+      Condition: {
+        StringEquals: {
+          [`aws:ResourceTag/${tagNames.stackName()}`]: stackName
+        }
+      }
+    }
+  ];
+
+  const ssmGetAnyStpParameter = [
+    {
+      Resource: [sub('arn:${AWS::Partition}:ssm:*:${AWS::AccountId}:parameter/stp/*') as unknown as string],
+
+      Action: ['ssm:GetParameter']
+    }
+  ];
+
+  return [
+    ...s3Events,
+    ...acceptVpcPeeringConnections,
+    ...edgeFunctions,
+    ...setDatabaseDeletionProtection,
+    ...sensitiveData,
+    ...scriptFunction,
+    ...publishLambdaVersion,
+    ...waf,
+    ...forceDeleteAsg,
+    ...deregisterTargets,
+    ...disableEcsManagedTerminationProtection,
+    ...defaultDomainCert,
+    ...userPoolDetails,
+    ...ssmGetAnyStpParameter
+  ];
+};
+
+export const getStacktapeServiceLambdaAlarmNotificationInducedStatements = ({
+  activeConfig
+}: {
+  activeConfig: ConfigManager;
+}): StpIamRoleStatement[] => {
+  const {
+    allSecretNamesUsedInAlarmNotifications,
+    allParameterNamesUsedInAlarmNotifications,
+    categorizedEmailsUsedInAlertNotifications: { senders }
+  } = activeConfig;
+  const allEmailSenders = Array.from(senders);
+  return [
+    allParameterNamesUsedInAlarmNotifications.length && {
+      Resource: allParameterNamesUsedInAlarmNotifications
+        .map((paramName) => (paramName.startsWith('/') ? paramName : `/${paramName}`))
+        .map(
+          (paramName) =>
+            sub(
+              `arn:\${AWS::Partition}:ssm:\${AWS::Region}:\${AWS::AccountId}:parameter${paramName}`
+            ) as unknown as string
+        ),
+      Action: ['ssm:GetParameters', 'ssm:GetParameter']
+    },
+    allSecretNamesUsedInAlarmNotifications.length && {
+      Resource: allSecretNamesUsedInAlarmNotifications.map(
+        (secretName) =>
+          sub(
+            `arn:\${AWS::Partition}:secretsmanager:\${AWS::Region}:\${AWS::AccountId}:secret:${secretName}-*`
+          ) as unknown as string
+      ),
+      Action: ['secretsmanager:GetSecretValue']
+    },
+    allEmailSenders.length && {
+      Resource: allEmailSenders.map(
+        (senderName) =>
+          sub(
+            `arn:\${AWS::Partition}:ses:\${AWS::Region}:\${AWS::AccountId}:identity/${sesManager.getVerifiedIdentityForEmail(
+              { email: senderName }
+            )}`
+          ) as unknown as string
+      ),
+      Action: ['ses:SendEmail']
+    }
+  ].filter(Boolean);
+};
+
+export const getStacktapeServiceLambdaEcsRedeployInducedStatements = ({
+  activeConfig,
+  stackName
+}: {
+  activeConfig: ConfigManager;
+  stackName: string;
+}): StpIamRoleStatement[] => {
+  const { allContainerWorkloads } = activeConfig;
+  const allBlueGreenWorkloads = allContainerWorkloads.filter(({ deployment }) => deployment);
+  return allContainerWorkloads.length
+    ? [
+        {
+          Resource: ['*'],
+          Action: ['ecs:UpdateService', 'ecs:DescribeServices'],
+          Condition: {
+            StringEquals: {
+              [`aws:ResourceTag/${tagNames.stackName()}`]: stackName
+            }
+          }
+        },
+        {
+          Resource: ['*'],
+          Action: ['autoscaling:SetDesiredCapacity'],
+          Condition: {
+            StringEquals: {
+              [`autoscaling:ResourceTag/${tagNames.stackName()}`]: stackName
+            }
+          }
+        },
+        {
+          Resource: ['*'],
+          Action: ['autoscaling:DescribeAutoScalingGroups']
+        }
+      ].concat(
+        allBlueGreenWorkloads.length
+          ? [
+              {
+                Resource: allContainerWorkloads
+                  .filter(({ deployment }) => deployment)
+                  .map(
+                    ({ name }) =>
+                      sub(
+                        `arn:\${AWS::Partition}:codedeploy:\${AWS::Region}:\${AWS::AccountId}:deploymentgroup:${awsResourceNames.ecsCodeDeployApp(
+                          stackName
+                        )}/${awsResourceNames.codeDeployDeploymentGroup({ stackName, stpResourceName: name })}`
+                      ) as unknown as string
+                  ),
+                Action: ['codedeploy:CreateDeployment', 'codedeploy:ListDeployments']
+              },
+              {
+                Resource: [
+                  sub(
+                    `arn:\${AWS::Partition}:codedeploy:\${AWS::Region}:\${AWS::AccountId}:application:${awsResourceNames.ecsCodeDeployApp(
+                      stackName
+                    )}`
+                  ) as unknown as string
+                ],
+                Action: ['codedeploy:RegisterApplicationRevision', 'codedeploy:GetApplicationRevision']
+              },
+              {
+                Resource: ['*'],
+                Action: ['codedeploy:GetDeploymentConfig']
+              }
+            ]
+          : []
+      )
+    : [];
+};
+
+export const getStacktapeServiceLambdaCustomTaggingInducedStatement = (): StpIamRoleStatement[] => {
+  return [
+    {
+      Resource: ['*'],
+      Action: [
+        'servicediscovery:GetNamespace',
+        'route53:ChangeTagsForResource',
+        'ec2:CreateTags',
+        'ec2:DescribeNetworkInterfaces'
+      ]
+    }
+  ];
+};
+
+export const getStacktapeServiceLambdaIssueDetectionStatements = ({
+  issueDetectionEnabled
+}: {
+  issueDetectionEnabled: boolean;
+}): StpIamRoleStatement[] => {
+  if (!issueDetectionEnabled) return [];
+  return [{ Resource: ['*'], Action: ['logs:GetLogEvents', 'logs:FilterLogEvents'] }];
+};
+
+export const getLambdaHandler = ({ name, packaging }: { packaging: LambdaPackaging; name: string }) => {
+  if (packaging.type === 'stacktape-lambda-buildpack') {
+    const extension = getFileExtension(packaging.properties.entryfilePath);
+    const handlerToUse =
+      packaging.properties.handlerFunction ??
+      (extension === 'java'
+        ? ''
+        : extension === 'go'
+          ? ''
+          : extension === 'py'
+            ? 'handler'
+            : extension === 'rb'
+              ? 'handler'
+              : extension === 'php'
+                ? 'handler'
+                : extension === 'cs'
+                  ? ''
+                  : 'default');
+    let entry = '';
+    switch (extension) {
+      case 'py':
+      case 'go':
+      case 'rb':
+      case 'php':
+        entry = getFileNameWithoutExtension(packaging.properties.entryfilePath);
+        break;
+      case 'java':
+        entry = getContainingFolderName(packaging.properties.entryfilePath);
+        break;
+      case 'cs':
+        entry = '';
+        break;
+      default:
+        entry = 'index';
+    }
+    return [entry, handlerToUse].filter(Boolean).join('.');
+  }
+  if (packaging.type === 'custom-artifact') {
+    if (!packaging.properties.handler) {
+      throw configErrors.customArtifactHandlerRequired({ functionName: name });
+    }
+    const [filePath, handlerFunction] = packaging.properties.handler.split(':');
+    if (!handlerFunction) {
+      throw configErrors.lambdaHandlerFormatInvalid({ functionName: name });
+    }
+    const filePathWithoutExtension = getFileNameWithoutExtension(filePath);
+
+    return `${filePathWithoutExtension}.${handlerFunction}`;
+  }
+};
+
+// Max runtime version for edge functions - Node.js 24 has ESM-related issues with CommonJS exports
+const EDGE_FUNCTION_MAX_NODEJS_RUNTIME = 'nodejs22.x';
+
+const capEdgeFunctionRuntime = (runtime: LambdaRuntime): LambdaRuntime => {
+  if (!runtime?.startsWith('nodejs')) return runtime;
+  const version = Number.parseInt(runtime.replace('nodejs', '').replace('.x', ''), 10);
+  if (version > 22) return EDGE_FUNCTION_MAX_NODEJS_RUNTIME;
+  return runtime;
+};
+
+export const getLambdaRuntime = ({
+  name,
+  packaging,
+  runtime,
+  isEdgeFunction
+}: {
+  packaging: LambdaPackaging | HelperLambdaPackaging;
+  name: string;
+  runtime: LambdaRuntime;
+  isEdgeFunction?: boolean;
+}): LambdaRuntime => {
+  if (runtime) {
+    return isEdgeFunction ? capEdgeFunctionRuntime(runtime) : runtime;
+  }
+  if (packaging.type === 'custom-artifact' && !runtime) {
+    throw configErrors.customArtifactRuntimeRequired({ functionName: name });
+  }
+  if (packaging.type === 'stacktape-lambda-buildpack') {
+    const defaultRuntime = getDefaultRuntimeForExtension(getFileExtension(packaging.properties.entryfilePath));
+    return isEdgeFunction ? capEdgeFunctionRuntime(defaultRuntime) : defaultRuntime;
+  }
+};
+
+export const resolveReferenceToLambdaFunction = ({
+  referencedFrom,
+  referencedFromType,
+  stpResourceReference
+}: {
+  referencedFrom: string;
+  referencedFromType?: StpWorkloadType | 'alarm';
+  stpResourceReference: string;
+}) => {
+  return getPropsOfResourceReferencedInConfig({
+    stpResourceReference,
+    stpResourceType: 'function',
+    referencedFrom,
+    referencedFromType
+  });
+};
+
+export const validateLambdaConfig = ({ definition }: { definition: StpLambdaFunction }) => {
+  if (definition.volumeMounts && !definition.joinDefaultVpc) {
+    throw configErrors.lambdaEfsRequiresVpc({ lambdaStpResourceName: definition.name });
+  }
+};

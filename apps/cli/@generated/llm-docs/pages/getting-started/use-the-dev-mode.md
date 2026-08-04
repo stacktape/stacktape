@@ -1,0 +1,206 @@
+# Use the Dev Mode
+
+Stacktape dev mode runs your workloads locally while connecting them to real or locally emulated AWS resources. Container workloads run in Docker, databases start as local emulators, SSR frontends use their native dev servers, and Lambda function code is built and pushed to AWS. Edit code, save, and see results without redeploying.
+
+
+> **Info:** Already familiar with dev mode? Skip ahead to [Deploy your first stage](/getting-started/deploy-your-first-stage).
+
+
+## What you need
+
+You should have a `stacktape.ts` from [step 1](/getting-started/configure-your-stack). You also need:
+
+- **Docker** running on your machine — needed for container workloads and local database emulation. Not required if your config only has Lambda functions without locally emulated databases
+- **Stacktape CLI** installed (`npm install -g stacktape`)
+- An AWS account connected — dev mode initializes AWS credentials and deploys a dev stack when one does not already exist
+
+## Start dev mode
+
+Start Stacktape dev mode from the directory containing your `stacktape.ts`:
+
+```bash
+stacktape dev --stage dev --region eu-west-1
+```
+
+On first run, Stacktape deploys a lightweight dev stack to AWS (IAM roles, secrets, and routing needed for local development). Subsequent runs detect the existing dev stack and start without redeploying.
+
+An interactive picker lets you choose which resources to run. To skip the picker and run everything:
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --resources all
+```
+
+To run only specific resources:
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --resources myApi,myDatabase
+```
+
+Dev mode reads your `stacktape.ts` once at startup. If you add resources, change environment variables, or modify connections, restart dev mode for changes to take effect.
+
+
+> **Tip:** When multiple developers work on the same project, use a unique stage name per developer (e.g., `--stage dev-alice`, `--stage dev-bob`). Each stage gets its own dev stack and local data directory.
+
+
+## What runs where
+
+Stacktape dev mode splits your stack between local execution and AWS, depending on resource type:
+
+| Resource type | Where it runs | How changes work |
+|---|---|---|
+| Container workloads (web-service, private-service, worker-service, multi-container-workload) | Docker on your machine | Rebuilt on file change (with `--watch`) or manually (`rs` command) |
+| Lambda functions | Packaged locally and code updated on AWS | Repackaged and updated on file change or manual trigger; logs stream to your terminal |
+| SSR frontends (Next.js, Astro, Nuxt, SvelteKit, SolidStart, TanStack Start, Remix) | Local dev server | Automatic hot reload via the framework's built-in HMR |
+| Hosting buckets (with `dev` config) | Local dev server | Automatic hot reload |
+| Databases (PostgreSQL, MySQL, Redis, DynamoDB, OpenSearch) | Docker-backed local emulators | Persistent data in `.stacktape/dev-data/{stage}/` |
+
+Lambda functions have their code built and pushed to AWS, where they run. Stacktape creates tunnels so those Lambda functions can reach your locally emulated databases. Logs from Lambda invocations stream directly to your terminal.
+
+## The edit-save-see loop
+
+The edit-save-see loop is the core Stacktape dev mode workflow. Here is an example config that shows a typical setup:
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  RelationalDatabase,
+  RdsEnginePostgres
+} from 'stacktape';
+export default defineConfig(() => {
+  const myDatabase = new RelationalDatabase({
+    credentials: {
+      masterUserPassword: "$Secret('database.password')"
+    },
+    engine: new RdsEnginePostgres({
+      version: '16.6',
+      primaryInstance: { instanceSize: 'db.t4g.micro' }
+    })
+  });
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    connectTo: [myDatabase],
+    environment: { STAGE: '$Stage()' }
+  });
+
+  return {
+    resources: { myDatabase, api }
+  };
+});
+```
+
+
+The `version` property sets the PostgreSQL engine version (`'16.6'` here, but any supported RDS version works). The `instanceSize` property controls the RDS compute tier for production deployments. In dev mode, neither value matters — the database runs as a local Docker container regardless. See the [relational database page](/resources/databases/relational-database) for supported versions, instance sizing, and pricing.
+
+With this config, running `stacktape dev --stage dev --region eu-west-1 --resources all`:
+
+1. Starts a local PostgreSQL emulator (Docker container on your machine)
+2. Builds and updates the Lambda function code on AWS, with tunnels so it can reach your local database
+3. Injects environment variables so your code can connect — for a database resource named `myDatabase`, the connection string is available as `STP_MY_DATABASE_CONNECTION_STRING`
+
+Now edit `./src/handler.ts`, save, and either:
+
+- **With `--watch` flag**: Stacktape detects the change and automatically repackages and updates the Lambda code
+- **Without `--watch`**: Type `rs` and press Enter in the terminal to trigger a rebuild
+
+For SSR frontends (Next.js, Astro, etc.), changes are picked up instantly through the framework's built-in hot module replacement — no rebuild step needed.
+
+## Enable file watching
+
+Stacktape dev mode can automatically rebuild workloads when source files change. Add `--watch` to enable this:
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --resources all --watch
+```
+
+Container workloads are rebuilt and restarted. Lambda functions are repackaged and updated on AWS. Frontends handle their own watching natively regardless of this flag.
+
+## Local database emulation
+
+Stacktape dev mode starts Docker-backed local emulators for supported database resources:
+
+| Config resource type | Local emulator type |
+|---|---|
+| PostgreSQL / Aurora PostgreSQL | `postgres` |
+| MySQL / Aurora MySQL | `mysql` / `mariadb` |
+| Redis | `redis` |
+| DynamoDB | `dynamodb` |
+| OpenSearch | `opensearch` |
+
+Database data persists between sessions in `.stacktape/dev-data/{stage}/`. This means you can stop and restart dev mode without losing your test data.
+
+To start with a clean database:
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --freshDb
+```
+
+To skip local emulation and connect to an already-deployed database on AWS:
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --remoteResources myDatabase
+```
+
+## Environment variables
+
+Stacktape dev mode injects `STP_*` environment variables into local workloads, pointing to local endpoints. For a resource named `myDatabase`, the connection string is available as `STP_MY_DATABASE_CONNECTION_STRING`. The exact host and port values are assigned by dev mode at startup and visible in the dev-mode TUI output.
+
+For connected resources, dev mode keeps the same `STP_*` environment variable names while pointing them at local or AWS endpoints depending on how the resource is run. Other database parameters (host, port, database name) are available via the [`$ResourceParam()` directive](/configuration/directives) when needed.
+
+## Terminal commands
+
+Stacktape dev mode accepts interactive commands while running. Type a command and press Enter:
+
+| Command | Action |
+|---|---|
+| `rs` | Rebuild all workloads |
+| `rs myApi` | Rebuild a specific workload |
+| `c` or `clear` | Clear the log output |
+| `q` or `quit` | Stop dev mode |
+
+## Useful flags
+
+The [`stacktape dev`](/cli/dev) command accepts flags to control which resources run, how rebuilds work, and whether databases are emulated locally or connected remotely.
+
+| Flag | Description |
+|---|---|
+| `--resources` | Which resources to run (`all` or comma-separated names) |
+| `--skipResources` | Exclude specific resources |
+| `--watch` | Auto-rebuild on file changes |
+| `--freshDb` | Delete local database data before starting |
+| `--remoteResources` | Connect to deployed AWS resources instead of local emulation |
+| `--noTunnel` | Disable Lambda-to-local-database tunneling |
+
+
+> **Tip:** Run `stacktape help dev` to see all available flags and their short aliases.
+
+
+## Agent mode
+
+Stacktape dev mode includes an HTTP API for programmatic control — useful when working with AI coding assistants like Claude Code or Cursor. Pass `--agent` to start it as a background daemon:
+
+```bash
+stacktape dev --stage dev --region eu-west-1 --resources all --agent
+```
+
+The agent server starts on port 7331 by default (or the next available port). See [Agent mode in dev](/using-with-ai/agent-mode-in-dev) for the full endpoint reference and usage guide.
+
+## Debugging
+
+Stacktape provides CLI commands for inspecting logs and metrics from your running resources, both during dev mode and against deployed stacks:
+
+- [`stacktape logs`](/cli/logs) — Stream or search logs from your Lambda functions and container workloads
+- [`stacktape metrics`](/cli/metrics) — View CloudWatch metrics for any resource
+
+For deeper coverage of debugging workflows, see [Dev mode overview](/local-development/dev-mode-overview).
+
+## Next step
+
+Your code works locally. Time to ship it.

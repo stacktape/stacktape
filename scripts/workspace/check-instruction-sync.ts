@@ -1,0 +1,35 @@
+import { access, readFile } from 'node:fs/promises';
+
+const read = (relativePath: string): Promise<string> =>
+  readFile(new URL(`../../${relativePath}`, import.meta.url), 'utf8');
+
+const assertSame = async (actualPath: string, templatePath: string): Promise<void> => {
+  const [actual, template] = await Promise.all([read(actualPath), read(templatePath)]);
+  if (actual !== template) {
+    throw new Error(`${actualPath} drifted from its approved template at ${templatePath}.`);
+  }
+};
+
+await assertSame('AGENTS.md', 'architecture/v4/templates/ROOT-AGENTS.md');
+
+if ((await read('CLAUDE.md')) !== '@AGENTS.md\n') {
+  throw new Error('Root CLAUDE.md must contain only @AGENTS.md.');
+}
+
+let consolePresent = true;
+try {
+  await access(new URL('../../apps/console/api/package.json', import.meta.url));
+} catch (error) {
+  if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+    consolePresent = false;
+  } else {
+    throw error;
+  }
+}
+
+if (consolePresent) {
+  await assertSame('apps/console/AGENTS.md', 'architecture/v4/templates/PRIVATE-CONSOLE-AGENTS.md');
+  if ((await read('apps/console/CLAUDE.md')) !== '@AGENTS.md\n') {
+    throw new Error('Private Console CLAUDE.md must contain only @AGENTS.md.');
+  }
+}

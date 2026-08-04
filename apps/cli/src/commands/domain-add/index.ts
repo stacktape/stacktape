@@ -1,0 +1,222 @@
+import type { CertificateDetail } from '@domain-services/domain-manager/types';
+import { tuiManager } from '@application-services/tui-manager';
+import { CertificateStatus } from '@aws-sdk/client-acm';
+import { domainManager } from '@domain-services/domain-manager';
+import { sesManager } from '@domain-services/ses-manager';
+import { stpErrors } from '@errors';
+import { consoleLinks } from '@stacktape/naming/console-links';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { getApexDomain, normalizeDomainName } from '@utils/domains';
+import { loadUserCredentials } from '../_utils/initialization';
+
+const mergeCertificate = (certs: CertificateDetail[] | undefined, cert: CertificateDetail | undefined) => {
+  if (!cert) {
+    return certs;
+  }
+  return (certs || []).filter(({ CertificateArn }) => CertificateArn !== cert.CertificateArn).concat(cert);
+};
+
+export const commandDomainAdd = async () => {
+  const domainName = normalizeDomainName(
+    await tuiManager.promptText({
+      message: 'Domain name (example: mydomain.com or api.internal.mydomain.com):'
+    })
+  );
+  const apexDomain = getApexDomain(domainName);
+  if (!apexDomain) {
+    throw stpErrors.e38({ domainName });
+  }
+  const { region } = await loadUserCredentials();
+
+  await domainManager.init({
+    domains: [apexDomain]
+  });
+  const domainStatus = domainManager.getDomainStatus(apexDomain);
+  if (!domainStatus.registered) {
+    tuiManager.warn(`Domain ${tuiManager.makeBold(apexDomain)} is not registered. Register it first.`);
+    tuiManager.hint(
+      'Register via Route 53: https://us-east-1.console.aws.amazon.com/route53/home#DomainRegistration\n'
+        .concat(`Prices start at $3/year for ${tuiManager.colorize('gray', '.click')}.\n`)
+        .concat(
+          'After purchase, manage and verify the domain in Stacktape Console: https://console.stacktape.com/domains'
+        )
+    );
+    return;
+  }
+  let zoneInfo = domainStatus.hostedZoneInfo;
+  if (!domainStatus.ownershipVerified) {
+    // if there is NO hosted zone for our domain we will ask user if he wants to create it
+    // he can than use this hosted zone to migrate his domain.
+
+    tuiManager.info(
+      [
+        `DNS for ${tuiManager.makeBold(apexDomain)} is managed outside AWS.`,
+        'To let Stacktape manage DNS/certs, move DNS to Route 53.',
+        `To learn more about options, visit: ${tuiManager.terminalLink(
+          'https://docs.stacktape.com/other-resources/domains-and-certificates/',
+          'docs'
+        )}\n`
+      ].join('\n')
+    );
+    const controlDomainDnsWithAws = await tuiManager.promptConfirm({
+      message: "Do you wish to manage your domain's DNS records in your AWS account?"
+    });
+    if (!controlDomainDnsWithAws) {
+      tuiManager.warn('Domain add canceled.');
+      return;
+    }
+
+    tuiManager.info('Route 53 hosted zones store DNS records.');
+
+    if (!zoneInfo) {
+      tuiManager.warn(
+        [
+          `No Route 53 hosted zone for ${tuiManager.makeBold(apexDomain)}.`,
+          "Create one to manage the domain's DNS in AWS.",
+          `${tuiManager.colorize('gray', 'Your registrar still controls the domain after creation.\n')}`
+        ].join('\n')
+      );
+
+      const createHostedZone = await tuiManager.promptConfirm({
+        message: `Proceed with creating hosted zone for the domain ${tuiManager.makeBold(apexDomain)} in your AWS account?`
+      });
+      if (!createHostedZone) {
+        tuiManager.warn('Domain add canceled.');
+        return;
+      }
+      zoneInfo = await awsSdkManager.domains.createHostedZone(apexDomain);
+    }
+    tuiManager.success(
+      `Hosted zone created. Update your registrar to use these name servers:\n${tuiManager.colorize(
+        'cyan',
+        zoneInfo.DelegationSet.NameServers.map((ns) => `- ${ns}`).join('\n')
+      )}`
+    );
+
+    tuiManager.info(
+      [
+        'Next: set your registrar name servers to the values above.',
+        "This tells your registrar to use Route 53 for your domain's DNS.\n"
+      ].join('\n')
+    );
+    tuiManager.warn(
+      `If the domain is already in use, copy existing DNS records into the hosted zone first: ${consoleLinks.route53HostedZone(
+        zoneInfo.HostedZone.Id.split('/')[2]
+      )}\n`
+    );
+    tuiManager.info(
+      [
+        'Update name servers at your registrar. Guides:',
+        '- GoDaddy: https://www.godaddy.com/en-ph/help/edit-my-domain-nameservers-664',
+        '- NameCheap: https://www.namecheap.com/support/knowledgebase/article.aspx/767/10/how-to-change-dns-for-a-domain/',
+        '- Hostinger: https://support.hostinger.com/en/articles/1696789-how-to-change-nameservers-at-hostinger',
+        `${tuiManager.colorize('yellow', 'NOTE:')} Propagation can take hours to days.\n`
+      ].join('\n')
+    );
+    tuiManager.hint(
+      [
+        'Open Stacktape Console to verify DNS ownership and continue setup: https://console.stacktape.com/domains',
+        'If DNS is valid, you can continue with TLS certificate setup.\n'
+      ].join('\n')
+    );
+
+    domainStatus.hostedZoneInfo = zoneInfo;
+    await domainManager.storeDomainStatusIntoParameterStore({ domainName: apexDomain, status: domainStatus });
+    return;
+  }
+  tuiManager.success('Domain ownership verified.');
+  let regionalCert = domainManager.getCorrectCertForDomainAndResource(domainName, 'application-load-balancer');
+  let usEast1Cert = domainManager.getCorrectCertForDomainAndResource(domainName, 'cdn');
+  if (!regionalCert || !usEast1Cert) {
+    tuiManager.warn(`Stacktape can create free TLS certs for ${tuiManager.makeBold(domainName)} in your AWS account.`);
+    const generateCerts = await tuiManager.promptConfirm({
+      message: `Do you wish to generate certificates for ${tuiManager.makeBold(domainName)} in your AWS account?`
+    });
+    if (!generateCerts) {
+      tuiManager.warn('Domain add canceled.');
+      await domainManager.storeDomainStatusIntoParameterStore({ domainName: apexDomain, status: domainStatus });
+      return;
+    }
+    const certRequests: Promise<CertificateDetail>[] = [];
+    if (!regionalCert) {
+      certRequests.push(awsSdkManager.domains.requestCertificate(domainName, false));
+    }
+    if (!usEast1Cert && region !== 'us-east-1') {
+      certRequests.push(awsSdkManager.domains.requestCertificate(domainName, true));
+    }
+    const requestedCerts = await Promise.all(certRequests);
+    regionalCert ||= requestedCerts.find(({ CertificateArn }) => !CertificateArn.includes(':us-east-1:'));
+    usEast1Cert ||= requestedCerts.find(({ CertificateArn }) => CertificateArn.includes(':us-east-1:'));
+    if (region === 'us-east-1') {
+      usEast1Cert ||= regionalCert;
+    }
+  }
+  tuiManager.success(`TLS certificate requests created for ${domainName}.`);
+  const certsNeedingValidationRecord = [regionalCert, usEast1Cert].filter(
+    (cert, index, certs): cert is CertificateDetail =>
+      !!cert &&
+      cert.Status !== CertificateStatus.ISSUED &&
+      certs.findIndex((comparedCert) => comparedCert?.CertificateArn === cert.CertificateArn) === index
+  );
+  if (certsNeedingValidationRecord.length) {
+    await Promise.all(
+      certsNeedingValidationRecord.map((cert) =>
+        awsSdkManager.domains.upsertCertificateValidationRecord(
+          zoneInfo.HostedZone.Id,
+          cert.DomainValidationOptions.find((domainValOpt) => domainValOpt.ResourceRecord).ResourceRecord
+        )
+      )
+    );
+    tuiManager.success('Added DNS validation record(s) to the hosted zone.');
+    tuiManager.info('Certificate validation can take a few minutes.');
+    tuiManager.hint('Check certificate status in Stacktape Console: https://console.stacktape.com/domains');
+    if (domainName === apexDomain) {
+      domainStatus.regionalCert = regionalCert;
+      domainStatus.usEast1Cert = usEast1Cert;
+    }
+    domainStatus.regionalCerts = mergeCertificate(
+      mergeCertificate(domainStatus.regionalCerts, domainStatus.regionalCert),
+      regionalCert
+    );
+    domainStatus.usEast1Certs = mergeCertificate(
+      mergeCertificate(domainStatus.usEast1Certs, domainStatus.usEast1Cert),
+      usEast1Cert
+    );
+    await domainManager.storeDomainStatusIntoParameterStore({ domainName: apexDomain, status: domainStatus });
+    return;
+  }
+  tuiManager.success('TLS certificates validated.');
+  await sesManager.init({ identities: [apexDomain] });
+  if (domainName === apexDomain && !sesManager.isIdentityVerified({ identity: apexDomain })) {
+    tuiManager.info('Optional: verify domain for AWS SES to send email. Free.');
+    const prepareForSES = await tuiManager.promptConfirm({
+      message: 'Do you wish to verify your domain for using with AWS SES?'
+    });
+    if (prepareForSES) {
+      const dkimTokens = await awsSdkManager.domains.verifyDomainForSesUsingDkim(apexDomain);
+      await awsSdkManager.domains.upsertDkimRecords({
+        hostedZoneId: zoneInfo.HostedZone.Id,
+        domainName: apexDomain,
+        dkimTokens
+      });
+      tuiManager.success('SES verification records added.');
+      tuiManager.info('SES verification can take a few minutes.');
+    }
+  } else if (domainName === apexDomain) {
+    tuiManager.success('Domain verified for AWS SES.');
+  }
+  if (domainName === apexDomain) {
+    domainStatus.regionalCert = regionalCert;
+    domainStatus.usEast1Cert = usEast1Cert;
+  }
+  domainStatus.regionalCerts = mergeCertificate(
+    mergeCertificate(domainStatus.regionalCerts, domainStatus.regionalCert),
+    regionalCert
+  );
+  domainStatus.usEast1Certs = mergeCertificate(
+    mergeCertificate(domainStatus.usEast1Certs, domainStatus.usEast1Cert),
+    usEast1Cert
+  );
+  await domainManager.storeDomainStatusIntoParameterStore({ domainName: apexDomain, status: domainStatus });
+  tuiManager.success(`Domain ready to use in ${region}.`);
+};

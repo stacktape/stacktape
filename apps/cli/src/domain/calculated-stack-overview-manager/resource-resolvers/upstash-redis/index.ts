@@ -1,0 +1,148 @@
+import { getAtt, join } from '@stacktape/cloudformation/intrinsics';
+
+import { SUPPORTED_CF_INFRASTRUCTURE_MODULES } from '@config';
+import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
+import { stackManager } from '@domain-services/cloudformation-stack-manager';
+import { configManager } from '@domain-services/config-manager';
+import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
+import { templateManager } from '@domain-services/template-manager';
+import { stpErrors } from '@errors';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
+import { getSsmParameterNameForThirdPartyCredentials } from '@stacktape/naming/ssm-parameter-paths';
+import {
+  PARENT_IDENTIFIER_SHARED_GLOBAL,
+  THIRD_PARTY_PROVIDER_CREDENTIALS_REGION,
+  UPSTASH_PROVIDER_DEFAULT_CREDENTIALS_ID
+} from 'src/config/constants';
+import { getStpServiceCustomResource } from '../_utils/custom-resource';
+import { getUpstashDatabaseResource } from './utils';
+
+export const resolveUpstashRedisDatabases = async () => {
+  const { upstashRedisDatabases } = configManager;
+
+  if (upstashRedisDatabases.length) {
+    if (
+      configManager.requireUpstashCredentialsParameter &&
+      !templateManager.getCfResourceFromTemplate(cfLogicalNames.upstashCredentialsProvider())
+    ) {
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: cfLogicalNames.upstashCredentialsProvider(),
+        nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL],
+        resource: getStpServiceCustomResource<'ssmParameterRetrieve'>({
+          ssmParameterRetrieve: {
+            parameterName: getSsmParameterNameForThirdPartyCredentials({
+              credentialsIdentifier: UPSTASH_PROVIDER_DEFAULT_CREDENTIALS_ID,
+              region: THIRD_PARTY_PROVIDER_CREDENTIALS_REGION
+            }),
+            region: THIRD_PARTY_PROVIDER_CREDENTIALS_REGION,
+            parseAsJson: true
+          }
+        })
+      });
+    }
+
+    const existingUpstashDeploymentMajorVersionMetadata = deployedStackOverviewManager.getStackMetadata(
+      stackMetadataNames.upstashRedisPrivateTypesMajorVersionUsed()
+    );
+    // this is to detect if the previous deployment of the stack was made with modules with different majorVersion
+    // if so, the update should be halted, because updating stack might replace some resources, that you do not wish to replace
+    // AFAIK this situation does not need to happen next few years if upstash provider does not decide to do something crazy
+    if (
+      stackManager.stackActionType === 'update' &&
+      existingUpstashDeploymentMajorVersionMetadata !== undefined &&
+      existingUpstashDeploymentMajorVersionMetadata !==
+        SUPPORTED_CF_INFRASTRUCTURE_MODULES.upstashRedis.privateTypesMajorVersionUsed
+    ) {
+      throw stpErrors.e22({
+        moduleMajorVersionDeployed: existingUpstashDeploymentMajorVersionMetadata as string,
+        moduleType: 'upstashRedis',
+        moduleMajorVersionUsedByStacktape:
+          SUPPORTED_CF_INFRASTRUCTURE_MODULES.upstashRedis.privateTypesMajorVersionUsed,
+        region: calculatedStackOverviewManager.context.region,
+        stackName: calculatedStackOverviewManager.context.stackName
+      });
+    }
+
+    // adding metadata which will inform us about the major version of modules used in this stack
+    calculatedStackOverviewManager.addStackMetadata({
+      metaName: stackMetadataNames.upstashRedisPrivateTypesMajorVersionUsed(),
+      metaValue: SUPPORTED_CF_INFRASTRUCTURE_MODULES.upstashRedis.privateTypesMajorVersionUsed,
+      showDuringPrint: false
+    });
+
+    upstashRedisDatabases.forEach((resource) => {
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: cfLogicalNames.upstashRedisDatabase(resource.name),
+        nameChain: resource.nameChain,
+        resource: getUpstashDatabaseResource(resource)
+      });
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'host',
+        paramValue: getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Endpoint'),
+        nameChain: resource.nameChain,
+        showDuringPrint: true
+      });
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'port',
+        paramValue: getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Port'),
+        nameChain: resource.nameChain,
+        showDuringPrint: true
+      });
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'password',
+        paramValue: getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Password'),
+        nameChain: resource.nameChain,
+        showDuringPrint: true,
+        sensitive: true
+      });
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'restToken',
+        paramValue: getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'RestToken'),
+        nameChain: resource.nameChain,
+        showDuringPrint: true,
+        sensitive: true
+      });
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'readOnlyRestToken',
+        paramValue: getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'ReadOnlyRestToken'),
+        nameChain: resource.nameChain,
+        showDuringPrint: true,
+        sensitive: true
+      });
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'restUrl',
+        paramValue: join('', [
+          'https://',
+          getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Endpoint'),
+          ':',
+          getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Port')
+        ]),
+        nameChain: resource.nameChain,
+        showDuringPrint: true
+      });
+      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+        paramName: 'redisUrl',
+        paramValue: join('', [
+          'rediss://:',
+          getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Password'),
+          '@',
+          getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Endpoint'),
+          ':',
+          getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'Port')
+        ]),
+        nameChain: resource.nameChain,
+        showDuringPrint: true,
+        sensitive: true
+      });
+      calculatedStackOverviewManager.addStacktapeResourceLink({
+        nameChain: resource.nameChain,
+        linkName: 'metrics',
+        linkValue: join('', [
+          'https://console.upstash.com/redis/',
+          getAtt(cfLogicalNames.upstashRedisDatabase(resource.name), 'DatabaseID')
+        ])
+      });
+    });
+  }
+};

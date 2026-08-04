@@ -1,0 +1,63 @@
+{
+  "entry": ["scripts/agents/*.ts", "scripts/workspace/*.ts"],
+  "ignoreFiles": ["scripts/agents/*.ts", "scripts/workspace/*.ts"],
+  "workspaces": {
+    "apps/cli": {
+      "entry": [
+        "src/entrypoints/compiled-cli.ts",
+        "src/entrypoints/cli.ts",
+        "scripts/release/npm-package/bin/stacktape.js",
+        "helper-lambdas/*/index.ts",
+        "scripts/**/*.ts",
+        "scripts/**/*.mjs",
+        "tests/**/*.spec.ts",
+        "**/*.spec.ts",
+        "**/*.test.ts"
+      ],
+      "project": ["**/*.{ts,tsx,js}"],
+      "ignore": ["@generated/**", "starter-projects/**", "_test-stacks/**", "__release-npm/**"]
+    },
+    "apps/docs": {
+      "entry": ["astro.config.mjs", "src/pages/**/*.astro", "src/content.config.ts", "scripts/*.ts", "tests/*.test.ts"],
+      "project": ["src/**/*.{ts,tsx,astro}", "scripts/*.ts", "tests/*.ts"],
+      "ignore": ["content/**", "dist/**", "public/**"]
+    },
+    "apps/website": {
+      "entry": ["src/**/*.astro"]
+    },
+    "apps/console/api": {
+      "entry": [
+        "server/index.ts",
+        "server/lambdas/**/index.ts",
+        "server/lambdas/*.ts",
+        "server/api/external-contract.ts",
+        "scripts/**/*.ts",
+        "stacktape.ts",
+        "**/*.test.ts"
+      ],
+      "project": ["**/*.ts"],
+      "ignore": ["@generated/**", "dist/**"]
+    },
+    "apps/console/ui": {
+      "entry": [
+        "src/main.tsx",
+        "src/**/*.tsx",
+        "vite.config.ts",
+        "diagram-test/**/*.ts",
+        "diagram-test/**/*.tsx",
+        "scripts/**/*.ts"
+      ],
+      "project": ["**/*.{ts,tsx}"],
+      "ignore": ["dist/**", "public/**"]
+    },
+    "packages/*": {
+      "entry": ["src/**/*.{ts,tsx}", "scripts/**/*.ts"]
+    },
+    "packages/config": {
+      "entry": ["src/**/*.{ts,tsx}", "tests/*.acceptance.ts"]
+    },
+    "packages/cloudformation": {
+      "entry": ["src/**/*.ts", "scripts/**/*.ts", "tests/*.acceptance.ts"]
+    }
+  }
+}

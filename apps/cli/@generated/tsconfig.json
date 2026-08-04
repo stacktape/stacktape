@@ -1,0 +1,21 @@
+{
+  "//": [
+    "Type-checks the committed TypeScript owned by the config-schema generator.",
+    "The main CLI project excludes `@generated`, so this standard nested project keeps generated sources",
+    "editor-discoverable and prevents invalid generated TypeScript from remaining hidden.",
+    "`types: []` keeps unrelated ambient packages out of the program; `skipLibCheck` is off because",
+    "the generated declarations themselves are the files under test."
+  ],
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "lib": ["ES2023"],
+    "strict": false,
+    "noEmit": true,
+    "skipLibCheck": false,
+    "types": [],
+    "forceConsistentCasingInFileNames": true
+  },
+  "include": ["./schemas/validate-config-zod.ts"]
+}

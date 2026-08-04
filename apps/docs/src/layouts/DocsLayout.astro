@@ -1,0 +1,192 @@
+---
+import { ClientRouter } from 'astro:transitions';
+import '@/styles/global.css';
+import config from '@/site-config';
+import { SITE_NAME, type DocsSeo } from '@/utils/seo';
+import type { DocPage, TableOfContentsItem } from '@/utils/docs-data';
+import { Header } from '@/components/Header/Header';
+import { Footer } from '@/components/Footer/Footer';
+import { Divider } from '@/components/Mdx/Divider';
+import { SidebarNavigation } from '@/components/Navigation/SidebarNavigation/Sidebar';
+import { MobileHamburgerNavigation } from '@/components/Navigation/MobileHamburgerNavigation/MobileHamburgerNavigation';
+import { TableOfContents } from '@/components/TableOfContents/TableOfContents';
+
+type Props = {
+  title: string;
+  seo: DocsSeo;
+  allDocPages: DocPage[];
+  tableOfContents: TableOfContentsItem[];
+  currentPath: string;
+};
+
+const { title, seo, allDocPages, tableOfContents, currentPath } = Astro.props;
+const isHome = currentPath === '/';
+
+// The navigation islands below carry explicit `transition:persist` names. Without them Astro
+// auto-generates names from element order, which can mismatch across pages (different island
+// counts) → the island re-mounts instead of persisting → the sidebar loses its scroll position and
+// expansion state. Stable names make persistence deterministic on every navigation.
+
+// Per-page structured data (mirrors the old <DocsHead>): TechArticle + BreadcrumbList (+ FAQPage).
+const pageJsonLd: Record<string, unknown>[] = seo.noindex ? [] : [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'TechArticle',
+    headline: title,
+    description: seo.description,
+    url: seo.canonical,
+    mainEntityOfPage: { '@type': 'WebPage', '@id': seo.canonical },
+    image: config.metadata.siteimage,
+    inLanguage: 'en',
+    ...(seo.datePublished && { datePublished: seo.datePublished }),
+    ...(seo.dateModified && { dateModified: seo.dateModified }),
+    isPartOf: { '@type': 'WebSite', name: SITE_NAME, url: `${config.metadata.url}/` },
+    author: { '@type': 'Organization', name: 'Stacktape', url: 'https://stacktape.com' },
+    publisher: {
+      '@type': 'Organization',
+      name: 'Stacktape',
+      url: 'https://stacktape.com',
+      logo: { '@type': 'ImageObject', url: `${config.metadata.url}/favicon.svg` }
+    }
+  },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: seo.breadcrumb.map((crumb, idx) => ({
+      '@type': 'ListItem',
+      position: idx + 1,
+      name: crumb.name,
+      item: crumb.url
+    }))
+  }
+];
+if (!seo.noindex && seo.faqItems.length > 0) {
+  pageJsonLd.push({
+    '@context': 'https://schema.org',
+    '@type': 'FAQPage',
+    mainEntity: seo.faqItems.map((faq) => ({
+      '@type': 'Question',
+      name: faq.question,
+      acceptedAnswer: { '@type': 'Answer', text: faq.answer }
+    }))
+  });
+}
+
+// Site-level structured data (entity grounding) — mirrors the old _document.
+const siteJsonLd = isHome ? [
+  {
+    '@context': 'https://schema.org',
+    '@type': 'Organization',
+    name: 'Stacktape',
+    url: 'https://stacktape.com',
+    logo: `${config.metadata.url}/favicon.svg`,
+    sameAs: Object.values(config.social)
+  },
+  { '@context': 'https://schema.org', '@type': 'WebSite', name: config.metadata.name, url: config.metadata.url },
+  {
+    '@context': 'https://schema.org',
+    '@type': 'SoftwareApplication',
+    name: 'Stacktape',
+    applicationCategory: 'DeveloperApplication',
+    operatingSystem: 'Cross-platform',
+    url: 'https://stacktape.com',
+    description: config.metadata.description
+  }
+] : [];
+---
+
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+    <title>{seo.title}</title>
+    <meta name="description" content={seo.description} />
+    {seo.noindex && <meta name="robots" content="noindex, follow" />}
+    {!seo.noindex && <link rel="canonical" href={seo.canonical} />}
+
+    <meta property="og:title" content={seo.title} />
+    <meta property="og:description" content={seo.description} />
+    <meta property="og:url" content={seo.canonical} />
+    <meta property="og:site_name" content={config.metadata.name} />
+    <meta property="og:type" content={isHome ? 'website' : 'article'} />
+    <meta property="og:image" content={config.metadata.siteimage} />
+    <meta property="og:image:alt" content="Stacktape — deploy applications to your own AWS account" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:domain" content="docs.stacktape.com" />
+    <meta name="twitter:url" content={seo.canonical} />
+    <meta name="twitter:image" content={config.metadata.siteimage} />
+    <meta name="twitter:image:alt" content="Stacktape — deploy applications to your own AWS account" />
+    <meta name="twitter:title" content={seo.title} />
+    <meta name="twitter:description" content={seo.description} />
+
+    <link rel="icon" type="image/png" href="/favicon-96x96.png" sizes="96x96" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" href="/favicon.ico" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500;600;700&display=swap"
+    />
+
+    {siteJsonLd.map((node) => <script type="application/ld+json" set:html={JSON.stringify(node)} />)}
+    {pageJsonLd.map((node) => <script type="application/ld+json" set:html={JSON.stringify(node)} />)}
+
+    <ClientRouter />
+  </head>
+
+  <body>
+    <Header client:load transition:persist="docs-header" />
+
+    <div class="page-wrapper">
+      <MobileHamburgerNavigation
+        client:load
+        transition:persist="docs-mobile-nav"
+        allDocPages={allDocPages}
+        pathname={currentPath}
+      />
+      <SidebarNavigation
+        client:load
+        transition:persist="docs-sidebar"
+        allDocPages={allDocPages}
+        pathname={currentPath}
+        showOnSm={false}
+      />
+      <main id="main-content">
+        <h1 class="page-title">{title}</h1>
+        <article class="mdx-content"><slot /></article>
+        <Divider style={{ marginTop: '55px' }} />
+        <Footer />
+      </main>
+      <TableOfContents client:idle tableOfContents={tableOfContents} />
+    </div>
+
+    <!-- Analytics, deferred off the critical path. The queueing stub lets `trackAnalyticsEvent`
+         fire before plausible.js finishes loading. -->
+    <script is:inline>
+    window.plausible =
+        window.plausible ||
+        function () {
+          (window.plausible.q = window.plausible.q || []).push(arguments);
+        };
+    </script>
+    <script is:inline defer data-domain="docs.stacktape.com" src="https://plausible.io/js/script.js"></script>
+    <script is:inline>
+    (function loadApolloTracker() {
+        var script = document.createElement('script');
+        script.src =
+          'https://assets.apollo.io/micro/website-tracker/tracker.iife.js?nocache=' +
+          Math.random().toString(36).substring(7);
+        script.async = true;
+        script.defer = true;
+        script.addEventListener('load', function () {
+          window.trackingFunctions.onLoad({ appId: '6632714d8e944701af733bac' });
+        });
+        document.head.appendChild(script);
+      })();
+    </script>
+  </body>
+</html>

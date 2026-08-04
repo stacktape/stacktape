@@ -1,0 +1,31 @@
+id: no-reexport-statements
+valid:
+  - |
+    export const value = 1;
+  - |
+    export type Value = string;
+  - |
+    const value = 1;
+    export { value };
+  - |
+    type Value = string;
+    export type { Value };
+invalid:
+  - |
+    export * from './other.js';
+  - |
+    export { value } from './other.js';
+  - |
+    export type { Value } from './other.js';
+  - |
+    export type * from './other.js';
+  - |
+    export * as other from './other.js';
+  - |
+    export type * as Other from './other.js';
+  - |
+    export { type Value } from './other.js';
+  - |
+    export /* ownership is still hidden */ { value } from './other.js';
+  - |
+    export { value } /* ownership is still hidden */ from './other.js';
