@@ -23,7 +23,7 @@ import { renderExitSummaryLines } from './progress/exit-summary';
 import { TuiStateSink } from './progress/sink';
 import { tuiState } from './progress/state';
 import type { PhasePreset, TuiCancelDeployment, TuiState } from './progress/types';
-import { PHASE_FOOTER_HEIGHT, SIMPLE_FOOTER_HEIGHT } from './progress/types';
+import { getFooterHeights } from './progress/types';
 import { PromptSink } from './prompt/sink';
 import { UserCancelledError } from './prompt/inline';
 import { forceRestoreTerminal, TtyRuntime } from './runtime/lifecycle';
@@ -156,7 +156,8 @@ class TuiManager {
     if (profile.useTtyUi) {
       scrollbackFeed.enable();
       setSpinnerTuiMessageSink((type, text) => this.stateSink.addMessage(type, text));
-      this.startProgressApp(options.phases ? PHASE_FOOTER_HEIGHT : SIMPLE_FOOTER_HEIGHT);
+      const footerHeights = getFooterHeights();
+      this.startProgressApp(options.phases ? footerHeights.phase : footerHeights.simple);
     }
   }
 

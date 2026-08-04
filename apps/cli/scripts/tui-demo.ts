@@ -13,7 +13,8 @@
  * A second argument slows everything down for inspection, e.g.
  * `bun scripts/tui-demo.ts deploy 3` runs the deploy at one third speed.
  * A trailing `dot` | `chip` | `chevrons` | `timer` argument picks the
- * phase-rail style, e.g. `bun scripts/tui-demo.ts deploy 2 chip`.
+ * phase-rail style, and `divider` | `frame` | `edge` | `bar` picks the footer
+ * chrome, e.g. `bun scripts/tui-demo.ts deploy 2 chip frame`.
  *
  * The OpenTUI Solid views are transformed at runtime via Bun's plugin API (same
  * loader the test preload uses), so this runs without a bundling step.
@@ -33,6 +34,10 @@ const SPEED = Math.max(0.1, Number(process.argv[3]) || 1);
 const railArg = process.argv.find((arg) => ['dot', 'chip', 'chevrons', 'timer'].includes(arg));
 if (railArg) {
   process.env.STP_TUI_RAIL = railArg;
+}
+const footerArg = process.argv.find((arg) => ['divider', 'frame', 'edge', 'bar'].includes(arg));
+if (footerArg) {
+  process.env.STP_TUI_FOOTER = footerArg;
 }
 
 const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms * SPEED));

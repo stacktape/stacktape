@@ -4,7 +4,7 @@ import type { TuiDeploymentHeader } from '../../types';
 import { ThemeProvider, useTheme } from '../../ui/theme';
 import { glyphs } from '../../ui/glyphs';
 import { formatClock, formatDuration, formatPhaseTimer } from '../../format/text';
-import type { TuiPhase } from '../types';
+import { footerVariant, type TuiPhase } from '../types';
 import { Spinner } from '../../ui/spinner';
 import { createTuiSignal } from './signals';
 import { LivePanel } from './live-panel';
@@ -85,17 +85,22 @@ const Divider = () => {
   );
 };
 
-const Identity = () => {
-  const { theme } = useTheme();
-  const header = createTuiSignal((s) => s.header);
+/** Live hh:mm:ss session clock; freezes when the run completes. */
+const createSessionClock = () => {
   const isComplete = createTuiSignal((s) => s.isComplete);
   const startTime = createTuiSignal((s) => s.startTime);
   const [now, setNow] = createSignal(Date.now());
-
   const interval = setInterval(() => {
     if (!isComplete()) setNow(Date.now());
   }, 1000);
   onCleanup(() => clearInterval(interval));
+  return () => formatClock(now() - startTime());
+};
+
+const Identity = () => {
+  const { theme } = useTheme();
+  const header = createTuiSignal((s) => s.header);
+  const clock = createSessionClock();
 
   return (
     <box height={1} flexShrink={0} flexDirection="row" paddingLeft={2} paddingRight={1} overflow="hidden">
@@ -121,7 +126,49 @@ const Identity = () => {
       </text>
       <text flexShrink={0} wrapMode="none" fg={theme.dim}>
         {'   '}
-        {formatClock(now() - startTime())}
+        {clock()}
+      </text>
+    </box>
+  );
+};
+
+/** Inverse accent title bar (`bar` chrome) — tmux/vim statusline style. */
+const BarHeader = () => {
+  const { theme } = useTheme();
+  const header = createTuiSignal((s) => s.header);
+  const clock = createSessionClock();
+  const verb = () => commandVerb(header()?.action);
+
+  return (
+    <box
+      height={1}
+      flexShrink={0}
+      flexDirection="row"
+      backgroundColor={theme.running}
+      paddingLeft={1}
+      paddingRight={1}
+      overflow="hidden"
+    >
+      <text flexShrink={0} wrapMode="none" fg={theme.accentContrast}>
+        <b>stacktape</b>
+      </text>
+      <Show when={verb()}>
+        <text flexShrink={0} wrapMode="none" fg={theme.accentContrast}>
+          {' '}
+          / {verb()}
+        </text>
+      </Show>
+      <box flexGrow={1} />
+      <Show when={header()}>
+        {(h) => (
+          <text flexShrink={1} wrapMode="none" fg={theme.accentContrast}>
+            <b>{h().projectName}</b> / <b>{h().stageName}</b> {glyphs.separator} {h().region}
+          </text>
+        )}
+      </Show>
+      <text flexShrink={0} wrapMode="none" fg={theme.accentContrast}>
+        {'   '}
+        {clock()}
       </text>
     </box>
   );
@@ -524,11 +571,12 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
   };
 
   const bodyRows = () => (showPhases() ? 6 : 3);
+  const header = createTuiSignal((s) => s.header);
+  // The chrome cannot change while mounted (env-driven), so branch eagerly.
+  const chrome = footerVariant();
 
-  return (
-    <box flexDirection="column" width="100%" height="100%" overflow="hidden" backgroundColor={theme.panel}>
-      <Divider />
-      <Identity />
+  const Rows = () => (
+    <>
       <Show when={showPhases()} fallback={<box height={1} flexShrink={0} />}>
         <PhaseRail />
       </Show>
@@ -549,6 +597,61 @@ const DashboardInner = (props: Pick<DashboardProps, 'onQuit' | 'onCancel'>) => {
       </box>
       <StatusStrip showCancelConfirm={showCancelConfirm()} />
       <HintsRow hints={hints()} />
+    </>
+  );
+
+  if (chrome === 'frame') {
+    const frameTitle = () => {
+      const verb = commandVerb(header()?.action);
+      return verb ? ` stacktape / ${verb} ` : ' stacktape ';
+    };
+    return (
+      <box
+        flexDirection="column"
+        width="100%"
+        height="100%"
+        overflow="hidden"
+        border={true}
+        borderStyle="rounded"
+        borderColor={theme.border}
+        title={frameTitle()}
+        titleColor={theme.muted}
+        titleAlignment="left"
+        backgroundColor={theme.panel}
+      >
+        <Identity />
+        <Rows />
+      </box>
+    );
+  }
+
+  if (chrome === 'edge') {
+    return (
+      <box flexDirection="row" width="100%" height="100%" overflow="hidden">
+        <box width={1} height="100%" flexShrink={0} backgroundColor={theme.running} />
+        <box flexDirection="column" flexGrow={1} overflow="hidden" backgroundColor={theme.panel}>
+          <Divider />
+          <Identity />
+          <Rows />
+        </box>
+      </box>
+    );
+  }
+
+  if (chrome === 'bar') {
+    return (
+      <box flexDirection="column" width="100%" height="100%" overflow="hidden" backgroundColor={theme.panel}>
+        <BarHeader />
+        <Rows />
+      </box>
+    );
+  }
+
+  return (
+    <box flexDirection="column" width="100%" height="100%" overflow="hidden" backgroundColor={theme.panel}>
+      <Divider />
+      <Identity />
+      <Rows />
     </box>
   );
 };
