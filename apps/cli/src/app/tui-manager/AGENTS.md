@@ -42,6 +42,91 @@ forces an explicit decision there.
 - `spinner.ts` — inline spinners for commands without a mounted TUI; agent-style line output in non-tty
   modes is derived from the output mode by the facade.
 
+## How the tty progress app works
+
+Mental model: the terminal is split in two. The bottom N rows are a **pinned footer** (an OpenTUI
+split-footer app, re-rendered at 60fps) showing only what is _currently happening_. Everything that is
+_finished_ is written **once** into real terminal scrollback above it and never touched again — after the
+run, the scrollback reads as a complete, well-typeset document of what happened. All flicker/jump bugs in
+past iterations came from violating that split, which is why invariant 1 exists.
+
+Data flow for a deploy-style command:
+
+```
+command code                    tuiManager facade (index.ts)
+  showCommandHeader(...)   ──►  header → TuiState + scrollback 'header' item
+  start({phases:'deploy'}) ──►  TtyRuntime.mount(ProgressDashboard, footerHeight 13|9)
+  setPhase/startEvent/
+  updateEvent/finishEvent/ ──►  TuiStateSink (progress/sink.ts)
+  appendEventOutput                 │
+                                    ├─► TuiState (progress/state.ts, pub/sub store)
+                                    │     └─► Solid views subscribe via createTuiSignal
+                                    │         (progress/views/*, footer only)
+                                    └─► scrollbackFeed (progress/feed.ts)
+                                          └─► scrollback-consumer renders each item with
+                                              ScrollbackItemView (scrollback-items.tsx) and
+                                              writes the text above the footer, once
+  promptConfirm/Select/... ──►  PromptSink → state.activePrompt → PromptBlock replaces the
+                                footer body rows; resolve/clear on answer (Esc rejects with
+                                UserCancelledError; a 'prompt-answer' item records the answer)
+  setPendingCompletion +
+  commitPendingCompletion  ──►  summary in state (footer shows ✓ DEPLOYED banner)
+  stop()                   ──►  emitFinalScrollback (receipt / error block) → brief hold →
+                                TtyRuntime.unmount → footer disappears, document remains
+```
+
+Key pieces:
+
+- **`TuiState`** (`progress/state.ts` + `types.ts`) is a plain pub/sub store — phases, an event tree
+  (top-level events with children keyed by `eventId` = eventType + instanceId), header, activePrompt,
+  cancelDeployment, summary, prompt-pause bookkeeping. Solid views bridge to it with
+  `createTuiSignal(selector)` (`views/signals.ts`). Notifications are batched; tests call
+  `tuiState.flushPendingNotifications()`.
+- **`TuiStateSink`** (`progress/sink.ts`) is the write path. It decides what is footer state vs a
+  scrollback item: events emit their scrollback block when they FINISH (children render inside the
+  parent's block); phase headers are emitted lazily on first content. Output routing follows
+  `showPhaseHeaders`: phase mode buffers event output (cap 200 lines) and renders it only on failure;
+  simple mode (script:run) streams it shell-style with `[source]` prefixes when concurrent.
+- **The footer** (`progress/views/dashboard.tsx`) is a rounded frame with `stacktape / <verb>` in the top
+  border. Fixed rows: border / identity+clock / phase rail (spinner on active phase) / blank / 6-row body
+  / status strip / hints / border (13 total; simple mode drops the rail block → 9). The body swaps between
+  `LivePanel` (running events; CF panel with progress bar + 3 stable resource rows), `PromptBlock`,
+  `CancelConfirm` and `CompleteBanner` — always inside the same reserved rows.
+- **CF progress** arrives via `updateEvent({detail: {kind:'cloudformation-progress', ...}})` emitted by
+  `cloudformation-stack-manager`; `live-panel.tsx` extracts it (`CfProgressData`, incl. per-resource
+  `inProgressDetails`). This shape is part of the JSONL contract (invariant 8).
+- **Cancel**: commands register `setCancelDeployment({onCancel})`; the footer offers `c` → inline
+  confirm → `onCancel()`; `updateCancelDeployment({isCancelling})` drives the rollback status strip.
+- **The session clock** pauses while a prompt is open (`inputPausedSince`/`inputPausedMs`,
+  `sessionElapsedMs()` in `progress/types.ts`); the receipt total and plain exit summary use the same
+  helper.
+- **`stacktape dev`** (`dev/`) is a separate always-mounted dashboard app (`devTuiManager`) with its own
+  state/feed/views, sharing `TtyRuntime`, the theme and glyphs. The **launcher** (`launcher/`) is the
+  no-command interactive builder.
+
+## Working on it — harnesses
+
+- `bun scripts/tui-demo.ts <deploy|fail|cancel|prompts|script|dev> [speed]` — drives the real
+  presentation layer with synthetic data in a real terminal (speed 2 = 2× slower). This is the primary
+  way to _feel_ the UI; no AWS involved.
+- `bun scripts/tui-preview.ts` — headless frame renderer (`scripts/support/tui-preview-scenes.tsx` +
+  `testRender`/`captureCharFrame`): prints every footer state and scrollback item as text frames. Use it
+  to "see" the TUI from a non-TTY context and to eyeball diffs after view changes.
+- `bun test src/app/tui-manager` — includes frame-diff stability tests (dashboard.test.tsx) that fail if
+  a CF tick repaints rows it shouldn't or the footer changes height.
+
+Gotchas that will bite you:
+
+- OpenTUI's renderer registers global `uncaughtException`/`unhandledRejection` handlers; its
+  `openConsoleOnError` option defaults to **true** and pops a debug console overlay into the footer —
+  `runtime/opentui.ts` disables it. Similarly `OTUI_USE_CONSOLE=false` must be set before any `@opentui`
+  import (done there; never import `@opentui/*` elsewhere except type-only).
+- Rows that re-create on every state tick freeze per-instance spinner intervals — spinners share one
+  refcounted module clock (`ui/spinner.tsx`) and lists of live rows use positional `<Index>`, not `<For>`.
+- `<span fg>` does not exist in OpenTUI 0.4.5 — use sibling `<text fg>` elements (+ `<b>`).
+- On Windows, Bun's bundling lanes are broken with pnpm symlinks; the demo/preview/tests all run
+  unbundled (runtime Solid transform via `scripts/support/opentui-loader`).
+
 ## Invariants
 
 1. **Scrollback is written exactly once.** Top-level events stream to scrollback on FINISH; the footer
