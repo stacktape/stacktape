@@ -351,7 +351,8 @@
           "kind": "primitive",
           "types": [
             "string"
-          ]
+          ],
+          "constValue": "SEMANTIC"
         }
       },
       {
@@ -400,7 +401,7 @@
       "requiredCount": 0,
       "optionalCount": 8
     },
-    "typeDeclaration": "import type { AgentCoreGatewayTool, AgentCoreJwtAuthorizerConfig, CloudformationTag } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreGatewayProps = {\n  authorizer?: AgentCoreJwtAuthorizerConfig;\n  description?: string;\n  exceptionLevel?: \"DEBUG\";\n  instructions?: string;\n  searchType?: string;\n  supportedVersions?: Array<string>;\n  tags?: Array<CloudformationTag>;\n  tools?: Array<AgentCoreGatewayTool>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { AgentCoreGatewayTool, AgentCoreJwtAuthorizerConfig, CloudformationTag } from 'stacktape';\n\n// [!code focus-start]\ntype AgentCoreGatewayProps = {\n  authorizer?: AgentCoreJwtAuthorizerConfig;\n  description?: string;\n  exceptionLevel?: \"DEBUG\";\n  instructions?: string;\n  searchType?: \"SEMANTIC\";\n  supportedVersions?: Array<string>;\n  tags?: Array<CloudformationTag>;\n  tools?: Array<AgentCoreGatewayTool>;\n};\n// [!code focus-end]"
   },
   "AgentCoreGatewayTool": {
     "definitionName": "AgentCoreGatewayTool",
@@ -32246,37 +32247,6 @@
     },
     "typeDeclaration": "import type { Record<string,any> } from 'stacktape';\n\n// [!code focus-start]\ntype IdentityProvider = {\n  /** OAuth / OIDC client ID */\n  clientId: string;\n  /** OAuth / OIDC client secret */\n  clientSecret: string;\n  /** Provider type */\n  type: \"Facebook\" | \"Google\" | \"LoginWithAmazon\" | \"OIDC\" | \"SAML\" | \"SignInWithApple\";\n  /** Attribute mapping */\n  attributeMapping?: unknown;\n  /** Requested scopes */\n  authorizeScopes?: Array<string>;\n  /** Advanced provider options */\n  providerDetails?: Record<string,any>;\n};\n// [!code focus-end]"
   },
-  "IntrinsicFunction": {
-    "definitionName": "IntrinsicFunction",
-    "properties": [
-      {
-        "name": "name",
-        "required": true,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "primitive",
-          "types": [
-            "string"
-          ]
-        }
-      },
-      {
-        "name": "payload",
-        "required": true,
-        "shortDescription": "",
-        "longDescription": "",
-        "typeInfo": {
-          "kind": "unknown"
-        }
-      }
-    ],
-    "stats": {
-      "requiredCount": 2,
-      "optionalCount": 0
-    },
-    "typeDeclaration": "// [!code focus-start]\ntype IntrinsicFunction = {\n  name: string;\n  payload: unknown;\n};\n// [!code focus-end]"
-  },
   "InviteMessageConfig": {
     "definitionName": "InviteMessageConfig",
     "properties": [
@@ -37053,55 +37023,11 @@
                   {
                     "name": "accessPointArn",
                     "required": true,
-                    "shortDescription": "<p> ARN of an existing S3 Files access point.</p>",
-                    "longDescription": "",
+                    "shortDescription": "ARN of an existing S3 Files access point.",
+                    "longDescription": "**Example (YAML):**\n\n```yaml\nresources:\n  datasetReader:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/read.ts\n      joinDefaultVpc: true\n      volumeMounts:\n        - type: s3files\n          properties:\n            accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap\n            mountPath: /mnt/s3data\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const datasetReader = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },\n    joinDefaultVpc: true,\n    volumeMounts: [\n      {\n        type: 's3files',\n        properties: {\n          accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap',\n          mountPath: '/mnt/s3data'\n        }\n      }\n    ]\n  });\n  return { resources: { datasetReader } };\n});\n```",
                     "typeInfo": {
-                      "kind": "union",
-                      "discriminator": null,
-                      "branches": [
-                        {
-                          "label": "IntrinsicFunction",
-                          "typeName": "IntrinsicFunction",
-                          "properties": [
-                            {
-                              "name": "name",
-                              "required": true,
-                              "shortDescription": "",
-                              "longDescription": "",
-                              "typeInfo": {
-                                "kind": "primitive",
-                                "types": [
-                                  "string"
-                                ]
-                              }
-                            },
-                            {
-                              "name": "payload",
-                              "required": true,
-                              "shortDescription": "",
-                              "longDescription": "",
-                              "typeInfo": {
-                                "kind": "unknown"
-                              }
-                            }
-                          ]
-                        },
-                        {
-                          "label": "option-2",
-                          "properties": []
-                        }
-                      ]
-                    },
-                    "examples": [
-                      {
-                        "lang": "yaml",
-                        "code": "resources:\n  datasetReader:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/read.ts\n      joinDefaultVpc: true\n      volumeMounts:\n        - type: s3files\n          properties:\n            # [!code focus-start]\n            accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap\n            # [!code focus-end]\n            mountPath: /mnt/s3data"
-                      },
-                      {
-                        "lang": "typescript",
-                        "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const datasetReader = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },\n    joinDefaultVpc: true,\n    volumeMounts: [\n      {\n        type: 's3files',\n        properties: {\n          // [!code focus-start]\n          accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap',\n          // [!code focus-end]\n          mountPath: '/mnt/s3data'\n        }\n      }\n    ]\n  });\n  return { resources: { datasetReader } };\n});"
-                      }
-                    ]
+                      "kind": "unknown"
+                    }
                   },
                   {
                     "name": "mountPath",
@@ -37184,55 +37110,11 @@
       {
         "name": "accessPointArn",
         "required": true,
-        "shortDescription": "<p> ARN of an existing S3 Files access point.</p>",
-        "longDescription": "",
+        "shortDescription": "ARN of an existing S3 Files access point.",
+        "longDescription": "**Example (YAML):**\n\n```yaml\nresources:\n  datasetReader:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/read.ts\n      joinDefaultVpc: true\n      volumeMounts:\n        - type: s3files\n          properties:\n            accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap\n            mountPath: /mnt/s3data\n```\n\n**Example (TypeScript):**\n\n```ts\nimport { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const datasetReader = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },\n    joinDefaultVpc: true,\n    volumeMounts: [\n      {\n        type: 's3files',\n        properties: {\n          accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap',\n          mountPath: '/mnt/s3data'\n        }\n      }\n    ]\n  });\n  return { resources: { datasetReader } };\n});\n```",
         "typeInfo": {
-          "kind": "union",
-          "discriminator": null,
-          "branches": [
-            {
-              "label": "IntrinsicFunction",
-              "typeName": "IntrinsicFunction",
-              "properties": [
-                {
-                  "name": "name",
-                  "required": true,
-                  "shortDescription": "",
-                  "longDescription": "",
-                  "typeInfo": {
-                    "kind": "primitive",
-                    "types": [
-                      "string"
-                    ]
-                  }
-                },
-                {
-                  "name": "payload",
-                  "required": true,
-                  "shortDescription": "",
-                  "longDescription": "",
-                  "typeInfo": {
-                    "kind": "unknown"
-                  }
-                }
-              ]
-            },
-            {
-              "label": "option-2",
-              "properties": []
-            }
-          ]
-        },
-        "examples": [
-          {
-            "lang": "yaml",
-            "code": "resources:\n  datasetReader:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/read.ts\n      joinDefaultVpc: true\n      volumeMounts:\n        - type: s3files\n          properties:\n            # [!code focus-start]\n            accessPointArn: arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap\n            # [!code focus-end]\n            mountPath: /mnt/s3data"
-          },
-          {
-            "lang": "typescript",
-            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const datasetReader = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/read.ts' } },\n    joinDefaultVpc: true,\n    volumeMounts: [\n      {\n        type: 's3files',\n        properties: {\n          // [!code focus-start]\n          accessPointArn: 'arn:aws:s3:eu-west-1:123456789012:accesspoint/my-ap',\n          // [!code focus-end]\n          mountPath: '/mnt/s3data'\n        }\n      }\n    ]\n  });\n  return { resources: { datasetReader } };\n});"
-          }
-        ]
+          "kind": "unknown"
+        }
       },
       {
         "name": "mountPath",
@@ -37261,7 +37143,7 @@
       "requiredCount": 2,
       "optionalCount": 0
     },
-    "typeDeclaration": "import type { IntrinsicFunction } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaS3FilesMountProps = {\n  /** ARN of an existing S3 Files access point. */\n  accessPointArn: LambdaS3FilesMountAccessPointArn;\n  /** Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/s3data`). */\n  mountPath: string;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaS3FilesMountAccessPointArn =\n  | IntrinsicFunction\n  | \"option-2\";\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype LambdaS3FilesMountProps = {\n  /** ARN of an existing S3 Files access point. */\n  accessPointArn: unknown;\n  /** Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/s3data`). */\n  mountPath: string;\n};\n// [!code focus-end]"
   },
   "LambdaUrlConfig": {
     "definitionName": "LambdaUrlConfig",

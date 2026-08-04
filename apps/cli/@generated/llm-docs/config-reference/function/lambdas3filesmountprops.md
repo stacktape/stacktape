@@ -5,33 +5,22 @@ Resource type: `function`
 ## TypeScript definition
 
 ```typescript
-import type { IntrinsicFunction } from 'stacktape';
-
 type LambdaS3FilesMountProps = {
   /** ARN of an existing S3 Files access point. */
-  accessPointArn: LambdaS3FilesMountAccessPointArn;
+  accessPointArn: unknown;
   /** Path inside the function where the volume appears. Must start with `/mnt/` (e.g., `/mnt/s3data`). */
   mountPath: string;
 };
-
-/** Union choices used by the properties above. */
-type LambdaS3FilesMountAccessPointArn =
-  | IntrinsicFunction
-  | "option-2";
 ```
 
 ## Property: `accessPointArn`
 
 - Required: yes
-- Type: `IntrinsicFunction | option-2`
+- Type: `unknown`
 
 ARN of an existing S3 Files access point.
 
-Choices:
-- `IntrinsicFunction` (`IntrinsicFunction`). Properties: `name: string`, `payload: unknown`.
-- `option-2`
-
-### Example 1 (yaml)
+**Example (YAML):**
 
 ```yaml
 resources:
@@ -50,9 +39,9 @@ resources:
             mountPath: /mnt/s3data
 ```
 
-### Example 2 (typescript)
+**Example (TypeScript):**
 
-```typescript
+```ts
 import { LambdaFunction, defineConfig } from 'stacktape';
 
 export default defineConfig(() => {

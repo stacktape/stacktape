@@ -424,7 +424,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `description` | no | `string` | - |
 | `exceptionLevel` | no | `string = "DEBUG"` | - |
 | `instructions` | no | `string` | - |
-| `searchType` | no | `string` | - |
+| `searchType` | no | `string = "SEMANTIC"` | - |
 | `supportedVersions` | no | `Array<string>` | - |
 | `tags` | no | `Array<CloudformationTag>` | - |
 | `tools` | no | `Array<AgentCoreGatewayTool>` | - |

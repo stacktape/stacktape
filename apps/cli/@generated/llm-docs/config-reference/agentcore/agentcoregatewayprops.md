@@ -10,7 +10,7 @@ type AgentCoreGatewayProps = {
   description?: string;
   exceptionLevel?: "DEBUG";
   instructions?: string;
-  searchType?: string;
+  searchType?: "SEMANTIC";
   supportedVersions?: Array<string>;
   tags?: Array<CloudformationTag>;
   tools?: Array<AgentCoreGatewayTool>;
@@ -40,7 +40,7 @@ type AgentCoreGatewayProps = {
 ## Property: `searchType`
 
 - Required: no
-- Type: `string`
+- Type: `string = "SEMANTIC"`
 
 ## Property: `supportedVersions`
 

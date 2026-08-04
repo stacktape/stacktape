@@ -7235,11 +7235,9 @@
         "config-reference:LambdaS3FilesMountProps#lambdas3filesmountprops-api-reference",
         "config-reference:LambdaS3FilesMountProps#typescript-definition",
         "config-reference:LambdaS3FilesMountProps#property-accesspointarn",
-        "config-reference:LambdaS3FilesMountProps#example-1-yaml",
-        "config-reference:LambdaS3FilesMountProps#example-2-typescript",
         "config-reference:LambdaS3FilesMountProps#property-mountpath",
-        "config-reference:LambdaS3FilesMountProps#example-1-yaml-2",
-        "config-reference:LambdaS3FilesMountProps#example-2-typescript-2"
+        "config-reference:LambdaS3FilesMountProps#example-1-yaml",
+        "config-reference:LambdaS3FilesMountProps#example-2-typescript"
       ]
     },
     {
@@ -11063,29 +11061,6 @@
         "config-reference:BucketPolicyIamRoleStatement#property-sid",
         "config-reference:BucketPolicyIamRoleStatement#example-1-yaml-2",
         "config-reference:BucketPolicyIamRoleStatement#example-2-typescript-2"
-      ]
-    },
-    {
-      "id": "config-reference:IntrinsicFunction",
-      "title": "IntrinsicFunction API Reference",
-      "route": "/config-reference/shared",
-      "sourcePath": "apps/cli/@generated/schemas/enhanced-config-schema.json",
-      "outputPath": "config-reference/shared/intrinsicfunction.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "IntrinsicFunction"
-      ],
-      "tags": [
-        "config-reference",
-        "IntrinsicFunction",
-        "name",
-        "payload"
-      ],
-      "chunks": [
-        "config-reference:IntrinsicFunction#intrinsicfunction-api-reference",
-        "config-reference:IntrinsicFunction#typescript-definition",
-        "config-reference:IntrinsicFunction#property-name",
-        "config-reference:IntrinsicFunction#property-payload"
       ]
     },
     {
