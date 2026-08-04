@@ -5,8 +5,10 @@ import {
   compileDeclarations,
   createDeclarationProgram,
   extractReferenceableParamsDeclaration,
+  generateCloudFormationCoreDeclarations,
   NPM_DECLARATION_FILE_NAMES,
-  NPM_SOURCE_FILES
+  NPM_SOURCE_FILES,
+  removeCloudFormationTemplateReexports
 } from './build-npm-main-export';
 import { getCloudFormationTypeInfo } from './code-generation/cloudformation-type-metadata';
 
@@ -92,5 +94,21 @@ describe('the npm declaration program is the CLI project', () => {
     expect(declarations.size).toBe(NPM_SOURCE_FILES.length);
     expect([...declarations.keys()]).not.toContain('random');
     expect([...declarations.keys()]).not.toContain('logical-names');
+  });
+
+  test('inlines CloudFormation declarations without re-exporting already inlined type names', () => {
+    const cloudFormationCore = generateCloudFormationCoreDeclarations();
+
+    expect(cloudFormationCore).not.toMatch(/^export type \{.*\};$/m);
+    expect(cloudFormationCore.match(/^export type Intrinsic =/gm)).toHaveLength(1);
+    expect(cloudFormationCore).toContain('export type CloudFormationTemplate =');
+  });
+
+  test('keeps the assembled CloudFormationTemplate re-export as the single public export', () => {
+    expect(
+      removeCloudFormationTemplateReexports(
+        "export type { CloudFormationTemplate };\nexport type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';\nexport type FinalTransform = CloudFormationTemplate;\n"
+      )
+    ).toBe('export type FinalTransform = CloudFormationTemplate;\n');
   });
 });

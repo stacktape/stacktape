@@ -821,16 +821,13 @@ function declarationFromSource(filePath: string, { inlineDependencies = false } 
 
   const declarationFile = ts.createSourceFile(`${filePath}.d.ts`, result.outputText, ts.ScriptTarget.Latest, true);
   return declarationFile.statements
-    .filter(
-      (statement) =>
-        !ts.isImportDeclaration(statement) && !(ts.isExportDeclaration(statement) && statement.moduleSpecifier)
-    )
+    .filter((statement) => !ts.isImportDeclaration(statement) && !ts.isExportDeclaration(statement))
     .map((statement) => statement.getFullText(declarationFile))
     .join('')
     .trim();
 }
 
-function generateCloudFormationCoreDeclarations(): string {
+export function generateCloudFormationCoreDeclarations(): string {
   const packageSourcePath = resolve(
     dirname(fileURLToPath(import.meta.url)),
     '..',
@@ -845,6 +842,12 @@ function generateCloudFormationCoreDeclarations(): string {
 
   return `${intrinsics}\n${resource}`;
 }
+
+export const removeCloudFormationTemplateReexports = (declarations: string): string =>
+  declarations.replace(
+    /^export type \{ CloudFormationTemplate \}(?: from '@stacktape\/cloudformation\/resource')?;\r?\n/gm,
+    ''
+  );
 
 export async function generateTypeDeclarations({
   outputDirectory = NPM_RELEASE_FOLDER_PATH
@@ -876,10 +879,7 @@ export async function generateTypeDeclarations({
 
   // Extract and process declarations
   const configDts = cleanDeclarations(declarations.get('config') || '');
-  const configCleaned = removeDuplicateDeclarations(configDts).replace(
-    /^export type \{ CloudFormationTemplate \} from '@stacktape\/cloudformation\/resource';\r?\n/gm,
-    ''
-  );
+  const configCleaned = removeCloudFormationTemplateReexports(removeDuplicateDeclarations(configDts));
 
   // Essential declarations are defined inline to avoid duplication issues from compiled TS
   const essentialDeclarations = generateEssentialDeclarations();
