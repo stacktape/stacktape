@@ -4,7 +4,7 @@ import type { ProductAnalyticsEventMap } from '@stacktape/analytics/events';
 import { ANALYTICS_EVENTS, getCommonEventProperties } from '@stacktape/analytics/events';
 import {
   getPostHogEnvironment,
-  POSTHOG_API_HOST,
+  getPostHogIngestionHost,
   POSTHOG_PRODUCTION_PROJECT_TOKEN
 } from '@stacktape/analytics/posthog';
 import {
@@ -38,7 +38,7 @@ const fallbackDistinctId = `cli:${randomUUID()}`;
 
 const posthogClient = telemetryEnabled
   ? new PostHog(projectToken!, {
-      host: process.env.POSTHOG_HOST || process.env.STP_POSTHOG_HOST || POSTHOG_API_HOST,
+      host: process.env.POSTHOG_HOST || process.env.STP_POSTHOG_HOST || getPostHogIngestionHost(environment),
       flushAt: 1,
       flushInterval: 0,
       requestTimeout: 1500,

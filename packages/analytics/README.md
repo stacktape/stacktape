@@ -22,5 +22,8 @@ Production uses the existing Stacktape PostHog project. Preview, development, an
 non-production project token or remain disabled. Runtime overrides use `POSTHOG_PROJECT_TOKEN`, `POSTHOG_HOST`, and
 `POSTHOG_ENVIRONMENT` on servers/CLI and the corresponding public/Vite variables in browser builds.
 
+Production traffic uses Stacktape's managed first-party PostHog proxy. That proxy is bound to the production project,
+so non-production projects use PostHog's direct EU ingestion host to preserve project isolation.
+
 Source-map uploads are enabled only when a scoped personal API key and project ID are supplied to the build. The
 personal key is a CI secret; project ingestion tokens are public identifiers.

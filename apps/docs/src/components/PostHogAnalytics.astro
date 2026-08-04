@@ -1,5 +1,5 @@
 <script>
-import { POSTHOG_API_HOST, POSTHOG_PRODUCTION_PROJECT_TOKEN } from '@stacktape/analytics/posthog';
+import { getPostHogIngestionHost, POSTHOG_PRODUCTION_PROJECT_TOKEN } from '@stacktape/analytics/posthog';
   import { getCookielessPostHogConfig } from '@stacktape/analytics/web';
   import posthog from 'posthog-js';
 
@@ -20,7 +20,7 @@ import { POSTHOG_API_HOST, POSTHOG_PRODUCTION_PROJECT_TOKEN } from '@stacktape/a
     posthog.init(
       explicitToken || POSTHOG_PRODUCTION_PROJECT_TOKEN,
       getCookielessPostHogConfig({
-        apiHost: import.meta.env.PUBLIC_POSTHOG_HOST || POSTHOG_API_HOST,
+        apiHost: import.meta.env.PUBLIC_POSTHOG_HOST || getPostHogIngestionHost(environment),
         app: 'docs',
         capturePageview: 'history_change',
         environment
