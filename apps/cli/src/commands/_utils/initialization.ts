@@ -681,7 +681,7 @@ export const initializeStackServicesForWorkingWithDeployedStack = async ({
 };
 
 export const initializeDeleteOperation = async () => {
-  tuiManager.configureForDelete();
+  tuiManager.setPhasePreset('delete');
   tuiManager.showCommandHeader({
     action: 'DELETING',
     projectName: globalStateManager.args.projectName || 'project',

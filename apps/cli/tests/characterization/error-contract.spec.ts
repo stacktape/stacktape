@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { normalizeCliError } from '@application-services/application-manager';
-import { renderErrorToString } from '@application-services/tui-manager/error-rendering';
+import { renderErrorToString } from '@application-services/tui-manager/format/errors';
 import { awsCdkConstructErrors } from '@domain-services/calculated-stack-overview-manager/resource-resolvers/aws-cdk-construct/errors';
 import { configErrors } from '@domain-services/config-manager/errors';
 import { vpcErrors } from '@domain-services/vpc-manager/errors';

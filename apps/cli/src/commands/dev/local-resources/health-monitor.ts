@@ -7,7 +7,7 @@
 import type { LocalResourceInstance, LocalResourceType } from './index';
 import { tuiManager } from '@application-services/tui-manager';
 import { execDocker, inspectDockerContainer } from '@utils/docker';
-import { devTuiManager } from 'src/app/tui-manager/dev-tui';
+import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { createCleanupHook } from '../cleanup-utils';
 import { DEV_CONFIG } from '../dev-config';
 

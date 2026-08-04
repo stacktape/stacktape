@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, mock, test } from 'bun:test';
 import { applicationManager } from '../index';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { shouldWriteTerminalControlSequences } from '@application-services/tui-manager/output-mode';
+import { shouldWriteTerminalControlSequences } from '@application-services/tui-manager/output/mode';
 
 describe('applicationManager.handleExitSignal()', () => {
   const originalExit = process.exit;

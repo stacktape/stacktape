@@ -2,7 +2,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { eventManager } from '@application-services/event-manager';
 import { applicationManager } from '@application-services/application-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { createSpinner, setSpinnerAgentMode } from '@application-services/tui-manager/spinners';
+import { createSpinner, setSpinnerAgentMode } from '@application-services/tui-manager/spinner';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
@@ -11,9 +11,9 @@ import { outputNames } from '@stacktape/naming/stack-output-names';
 import { CliError } from '@utils/errors';
 import { join } from 'node:path';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
-import { devTuiManager } from 'src/app/tui-manager/dev-tui';
-import { devTuiState } from 'src/app/tui-manager/dev-tui/state';
-import type { DevTuiState } from 'src/app/tui-manager/dev-tui/types';
+import { devTuiManager } from 'src/app/tui-manager/dev/manager';
+import { devTuiState } from 'src/app/tui-manager/dev/state';
+import type { DevTuiState } from 'src/app/tui-manager/dev/types';
 import {
   captureCommandArgs,
   initializeStackServicesForDevPhase1,
@@ -558,14 +558,10 @@ export const commandDev = async () => {
         region: stackContext.region
       });
       tuiManager.start();
-      tuiManager.setSimpleMode(true);
-      tuiManager.setShowPhaseHeaders(false);
       try {
         await deployDevStack();
       } finally {
         await tuiManager.stop();
-        tuiManager.setSimpleMode(false);
-        tuiManager.setShowPhaseHeaders(true);
         eventManager.setSilentMode(true);
       }
     }

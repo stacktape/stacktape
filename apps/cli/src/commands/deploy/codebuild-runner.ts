@@ -35,8 +35,8 @@ import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 
 export const deployWithCodebuildRunner = async () => {
-  // Configure TUI for codebuild deploy (Initialize, Prepare Pipeline, Deploy - no Build & Package)
-  tuiManager.configureForCodebuildDeploy();
+  // Codebuild runner skips local Build & Package: Initialize, Prepare Pipeline, Deploy
+  tuiManager.setPhasePreset('codebuild-deploy');
 
   let operation: Awaited<ReturnType<typeof initializeRemoteDeployOperation>>;
   let build: Build;

@@ -39,7 +39,7 @@ const ec2RunnerInstanceOptions = [
 ];
 
 export const deployWithEc2Runner = async () => {
-  tuiManager.configureForCodebuildDeploy();
+  tuiManager.setPhasePreset('codebuild-deploy');
   const operation = await initializeRemoteDeployOperation();
   const { args, runner, stackContext } = operation;
 

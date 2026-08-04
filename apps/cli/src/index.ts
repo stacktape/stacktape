@@ -5,7 +5,7 @@ import { applicationManager } from '@application-services/application-manager';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
-import { tuiDebug } from '@application-services/tui-manager/tui-debug-log';
+import { tuiDebug } from '@application-services/tui-manager/debug';
 import { commandsWithDisabledAnnouncements } from './config/cli/commands';
 import { notificationManager } from '@domain-services/notification-manager';
 import { initializeSentry, setSentryTags } from '@utils/sentry';
@@ -71,63 +71,91 @@ import { commandValidate } from './commands/validate';
 import { commandVersion } from './commands/version';
 import { initAgentMode } from './commands/_utils/agent-mode';
 
-/** Commands where the phase-based TUI should NOT be started (purely interactive/informational, or with own TUI). */
-const commandsWithoutTui: StacktapeCommand[] = [
-  'dev',
-  'dev:stop',
-  'help',
-  'version',
-  'login',
-  'logout',
-  'upgrade',
-  'init',
-  'synth',
-  'defaults:configure',
-  'defaults:list',
-  'aws-profile:create',
-  'aws-profile:delete',
-  'aws-profile:update',
-  'aws-profile:list',
-  'org:create',
-  'org:list',
-  'org:delete',
-  'project:create',
-  'project:list',
-  'info:whoami',
-  'info:operations',
-  'info:stacks',
-  'mcp',
-  'mcp:add',
-  'param:get',
-  'secret:set',
-  'secret:delete',
-  'secret:get',
-  'issues:list',
-  'issues:resolve',
-  'issues:ignore',
-  'issues:reopen',
-  'logs',
-  'alarms',
-  'metrics',
-  'container:exec',
-  'query:sql',
-  'aws:call',
-  'query:dynamodb',
-  'query:redis',
-  'query:opensearch',
-  'bastion:session',
-  'bastion:tunnel',
-  'container:session',
-  'domain:add',
-  'cf-module:update'
-];
+/**
+ * How each command presents itself in an interactive terminal.
+ *
+ *   progress — mounts the phase/event progress TUI before the executor runs.
+ *              `phases` picks the phase-bar preset; omitted = simple mode
+ *              (events stream without phase structure). The codebuild deploy
+ *              runner switches preset at runtime via setPhasePreset().
+ *   none     — no TUI is mounted by the dispatcher: plain messages, tables and
+ *              prompts only. Commands with their own UI (dev dashboard,
+ *              interactive launcher) or that take over the terminal
+ *              (bastion/container sessions, mcp) also belong here; some of
+ *              them (dev, mcp:add) mount a TUI themselves mid-flow.
+ *
+ * Exhaustive on purpose: adding a command forces an explicit decision here.
+ */
+type CommandUi = { ui: 'progress'; phases?: 'deploy' | 'delete' } | { ui: 'none' };
+
+const commandUi: Record<StacktapeCommand, CommandUi> = {
+  deploy: { ui: 'progress', phases: 'deploy' },
+  delete: { ui: 'progress', phases: 'delete' },
+  rollback: { ui: 'progress', phases: 'deploy' },
+  'cf:rollback': { ui: 'progress' },
+  package: { ui: 'progress' },
+  diff: { ui: 'progress' },
+  validate: { ui: 'progress' },
+  synth: { ui: 'none' },
+  'script:run': { ui: 'progress' },
+  'deployment-script:run': { ui: 'progress' },
+  'bucket:sync': { ui: 'progress' },
+  'info:stack': { ui: 'progress' },
+  dev: { ui: 'none' },
+  'dev:stop': { ui: 'none' },
+  help: { ui: 'none' },
+  version: { ui: 'none' },
+  login: { ui: 'none' },
+  logout: { ui: 'none' },
+  upgrade: { ui: 'none' },
+  init: { ui: 'none' },
+  'defaults:configure': { ui: 'none' },
+  'defaults:list': { ui: 'none' },
+  'aws-profile:create': { ui: 'none' },
+  'aws-profile:delete': { ui: 'none' },
+  'aws-profile:update': { ui: 'none' },
+  'aws-profile:list': { ui: 'none' },
+  'org:create': { ui: 'none' },
+  'org:list': { ui: 'none' },
+  'org:delete': { ui: 'none' },
+  'project:create': { ui: 'none' },
+  'project:list': { ui: 'none' },
+  'info:whoami': { ui: 'none' },
+  'info:operations': { ui: 'none' },
+  'info:stacks': { ui: 'none' },
+  mcp: { ui: 'none' },
+  'mcp:add': { ui: 'none' },
+  'param:get': { ui: 'none' },
+  'secret:set': { ui: 'none' },
+  'secret:delete': { ui: 'none' },
+  'secret:get': { ui: 'none' },
+  'issues:list': { ui: 'none' },
+  'issues:resolve': { ui: 'none' },
+  'issues:ignore': { ui: 'none' },
+  'issues:reopen': { ui: 'none' },
+  logs: { ui: 'none' },
+  alarms: { ui: 'none' },
+  metrics: { ui: 'none' },
+  'container:exec': { ui: 'none' },
+  'query:sql': { ui: 'none' },
+  'aws:call': { ui: 'none' },
+  'query:dynamodb': { ui: 'none' },
+  'query:redis': { ui: 'none' },
+  'query:opensearch': { ui: 'none' },
+  'bastion:session': { ui: 'none' },
+  'bastion:tunnel': { ui: 'none' },
+  'container:session': { ui: 'none' },
+  'domain:add': { ui: 'none' },
+  'cf-module:update': { ui: 'none' }
+};
 
 export const runCommand = async (opts: RunCommandOptions) => {
   let commandResult: any = null;
   try {
     initializeSentry();
     await applicationManager.init();
-    const requestedOutputMode = opts.args.outputFormat || (opts.args.agent ? 'jsonl' : undefined);
+    const isAgentInvocation = opts.args.agent || opts.args.agentPort !== undefined;
+    const requestedOutputMode = opts.args.outputFormat || (isAgentInvocation ? 'jsonl' : undefined);
     if (requestedOutputMode && ['jsonl', 'plain', 'tty'].includes(requestedOutputMode)) {
       tuiManager.setOutputFormat(requestedOutputMode);
     }
@@ -139,18 +167,12 @@ export const runCommand = async (opts: RunCommandOptions) => {
     await announcementsManager.init();
     setSentryTags({ invocationId: globalStateManager.invocationId, command: globalStateManager.command });
 
-    // Initialize agent mode (sets non-TTY output for spinners)
     initAgentMode();
-    // Start TUI for all commands except purely interactive/informational ones
     const command = globalStateManager.command;
-    if (!commandsWithoutTui.includes(command)) {
-      tuiDebug('MAIN', 'starting TUI', { command: globalStateManager.command });
-      tuiManager.start();
-      // Commands with multi-phase flows get phase headers; everything else uses simple mode
-      const commandsWithPhaseFlow: StacktapeCommand[] = ['deploy', 'delete', 'rollback'];
-      if (!commandsWithPhaseFlow.includes(command)) {
-        tuiManager.setSimpleMode(true);
-      }
+    const ui = commandUi[command];
+    if (ui.ui === 'progress') {
+      tuiDebug('MAIN', 'starting TUI', { command: globalStateManager.command, phases: ui.phases });
+      tuiManager.start({ phases: ui.phases });
     }
     const executor = getCommandExecutor(globalStateManager.command);
     commandResult = await executor();

@@ -4,7 +4,7 @@ import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
 import { writeFile } from 'fs-extra';
-import { devTuiManager } from 'src/app/tui-manager/dev-tui';
+import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { formatDevServerStatus, startDevServer } from '../dev-server';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 
