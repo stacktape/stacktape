@@ -1,10 +1,10 @@
-# Simplified Stacktape v4 migration
+# Simplified Stacktape v4 migration (completed)
 
-This document supersedes the earlier runtime-extraction plan for all ongoing and new work on `v4/integration`. The
-previous implementation remains recoverable at `v4/complex-archive`; do not copy its architecture into the simplified
-line. `TARGET-ARCHITECTURE.md`, `ORCHESTRATION-PLAN.md`, and `MIGRATION-RUNBOOK.md` describe that rejected plan and are
-retained only as history. Where this document disagrees with any other document in `architecture/v4`, this one wins.
-Issues intentionally deferred from the active refactor are tracked in `DEFERRED-ISSUES.md`.
+This document records the migration that produced the current monorepo. It is no longer an implementation plan.
+Current work follows the root `AGENTS.md`, the code, and focused architecture guides such as
+`architecture/GENERATION.md`. `TARGET-ARCHITECTURE.md`, `ORCHESTRATION-PLAN.md`, and `MIGRATION-RUNBOOK.md` describe an
+earlier rejected plan and are retained only as history. Remaining intentional follow-up work is tracked in
+`DEFERRED-ISSUES.md`.
 
 ## Goal
 

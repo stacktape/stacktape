@@ -1211,7 +1211,7 @@ Requires `joinDefaultVpc: true` (Stacktape will remind you if you forget).
 
 Choices:
 - `efs` (`LambdaEfsMount`). Properties: `efsFilesystemName: string`, `rootDirectory?: string`, `mountPath: string`.
-- `s3files` (`LambdaS3FilesMount`). Properties: `accessPointArn: unknown`, `mountPath: string`.
+- `s3files` (`LambdaS3FilesMount`). Properties: `accessPointArn: option-1 | option-2`, `mountPath: string`.
 
 ### Example 1 (yaml)
 

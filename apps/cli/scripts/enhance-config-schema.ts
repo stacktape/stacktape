@@ -1,5 +1,5 @@
-import { readFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, readFile } from 'node:fs/promises';
+import { dirname, join } from 'node:path';
 import type { JsonSchemaGenerator } from 'typescript-json-schema';
 import { CONFIG_SCHEMA_PATH, JSON_SCHEMAS_FOLDER_PATH } from 'src/config/project-paths';
 import { logInfo, logSuccess } from '@scripts/support/logging';
@@ -16,7 +16,7 @@ type JsonSchema = {
 type FenceFocus = { lang: string; focusStart: number | null; focusEnd: number | null };
 type Example = { lang: string; code: string };
 
-const ENHANCED_CONFIG_SCHEMA_PATH = join(JSON_SCHEMAS_FOLDER_PATH, 'enhanced-config-schema.json');
+export const ENHANCED_CONFIG_SCHEMA_PATH = join(JSON_SCHEMAS_FOLDER_PATH, 'enhanced-config-schema.json');
 
 // These public configuration shapes are documented directly but are not reachable from StacktapeConfig.
 const DOCUMENTATION_ONLY_DEFINITIONS = [
@@ -138,10 +138,12 @@ const enhanceDescriptions = (node: unknown): void => {
 
 export const enhanceConfigSchema = async ({
   schema,
-  generator
+  generator,
+  outputPath = ENHANCED_CONFIG_SCHEMA_PATH
 }: {
   schema?: JsonSchema;
   generator?: JsonSchemaGenerator;
+  outputPath?: string;
 } = {}): Promise<JsonSchema> => {
   logInfo('Enhancing config schema for documentation...');
   const baseSchema = schema ?? (JSON.parse(await readFile(CONFIG_SCHEMA_PATH, 'utf-8')) as JsonSchema);
@@ -151,8 +153,9 @@ export const enhanceConfigSchema = async ({
     generator: generator ?? (await getJsonSchemaGenerator())
   });
   enhanceDescriptions(enhancedSchema);
-  await writeJSON(ENHANCED_CONFIG_SCHEMA_PATH, enhancedSchema);
-  logSuccess(`Enhanced config schema saved to ${ENHANCED_CONFIG_SCHEMA_PATH}.`);
+  await mkdir(dirname(outputPath), { recursive: true });
+  await writeJSON(outputPath, enhancedSchema);
+  logSuccess(`Enhanced config schema saved to ${outputPath}.`);
   return enhancedSchema;
 };
 

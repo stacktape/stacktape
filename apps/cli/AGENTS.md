@@ -90,11 +90,12 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   canonical config JSON schema lives with its model at `packages/config/generated/config-schema.json`. Never
   hand-edit; regenerate with the matching task. The main CLI project excludes this directory, so
   `@generated/tsconfig.json` owns the generated Zod validator (`test:generated-types`).
-  `generate-schemas.ts` owns only `@generated/schemas/validate-config-zod.ts` and preserves
-  separately generated schema variants in that directory. `generate:llm-docs` owns the enhanced documentation schema,
-  `@generated/schemas/api-reference-data.json`, and the complete `@generated/llm-docs` tree; it reads canonical data
-  from `apps/docs` plus the current config model, stages the corpus before replacement, and has a separate Turbo cache
-  from the uncached config-schema task. Release archives carry only `llm-docs/chunks/chunks.jsonl`, the corpus the MCP
+  The ordinary `generate` task owns starter metadata, the canonical JSON schema and Zod validator, the enhanced
+  documentation schema, `@generated/schemas/api-reference-data.json`, and the complete `@generated/llm-docs` tree.
+  `generate:check` produces that complete set in a temporary directory and compares bytes without modifying the
+  checkout; it also rejects unexpected files in the owned schema and LLM-docs directories. The LLM corpus reads
+  canonical data from `apps/docs` plus the current config model and stages the complete tree before replacement.
+  Release archives carry only `llm-docs/chunks/chunks.jsonl`, the corpus the MCP
   runtime actually reads; the npm launcher carries no duplicate docs because it downloads that archive. The rendered
   pages, indexes and single-file exports remain generated publication inputs. `api-reference-data.json` is the
   normalized API reference this generator
@@ -109,12 +110,12 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   task and checked by `generate:check`.
   Config-schema source discovery sorts normalized relative paths before constructing the TypeScript program; changing
   that ordering requires proving byte-identical generation on both Windows and Linux.
-- The live AWS Pricing CSV parser and product catalog definitions used by `gen:price:info` live in
+- The live AWS Pricing CSV parser and product catalog definitions used by `refresh:catalog:aws-prices` live in
   `@stacktape/pricing/catalog`. The generated editor catalog remains CLI-owned output because this application
   defines and publishes its JSON shape.
-  The root `check:generated-diff` gate checks both tracked changes and untracked files in every committed generated
-  scope; a newly generated page must be committed and cannot pass CI merely because `git diff` ignores it.
-- `generated/monaco-declarations/` — ignored deterministic workspace output containing the four v4 declaration files
+  Package-owned `generate:check` tasks cover committed artifacts; do not replace them with a generate-then-Git-diff
+  workflow, which mutates the checkout before it proves freshness.
+- `.generated/monaco-declarations/` — ignored deterministic workspace output containing the four v4 declaration files
   served by Console's Monaco editor. `generate:monaco` reuses the npm declaration assembler without building or
   mutating `__release-npm`; Console build/dev materializes it automatically and then copies it into its served assets.
 - `tests/characterization/` — behavioral baselines for the CLI contract, config runtime, packaging and synthesis.
@@ -122,6 +123,11 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 - `_test-stacks/` — small Stacktape projects used as test input. `config-loading-smoke/` is the imported one the
   characterization suite loads; `packaging-smoke/` is a disposable stack deployed to real AWS by hand to check split
   bundling and Lambda layers, described in its own `README.md` and in the root `DEVELOPMENT.md`.
+
+The `refresh:catalog:*` scripts contact live AWS-owned upstreams and rewrite reviewed snapshots; they never belong in
+ordinary build, test, or generation. `publish:starters` is an owner-only operation that force-replaces the generated
+contents of the public `stacktape/starter-*` repositories. Do not run either class of command as validation or during
+an unrelated refactor.
 
 ## Toolchain
 
@@ -146,6 +152,16 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
   fail-closed guard for normal AWS SDK paths, not an operating-system network sandbox; tests that spawn processes or
   use raw sockets still own their isolation.
 
+## Local state
+
+- `src/config/local-state-paths.ts` is the authoritative registry for hidden state written by the CLI. It documents
+  whether each path is user-persistent, project-persistent, runtime coordination, invocation-temporary, or
+  operation-temporary. Route new hidden writes through it and make their cleanup policy explicit.
+- Do not put user-selected outputs, initialized project files, AWS configuration, third-party configuration, or
+  package-manager caches in that registry. Those files are owned by the user or by another tool.
+- The registry is an ownership map, not a cache framework. Do not add SQLite or a new cache merely because a path is
+  centralized; add persistent caching only after measurements show a stable, reusable computation is material.
+
 ## Errors
 
 - Intentional user-actionable failures use `CliError` with a stable semantic code such as
@@ -159,8 +175,8 @@ extracted behind explicit package entry points. Refactors remain behavior-focuse
 ## Checks
 
 ```sh
-pnpm --filter @stacktape/cli run generate        # starter metadata plus deterministic config JSON/Zod schemas
-pnpm exec turbo run generate:llm-docs --filter @stacktape/cli # enhanced schema and complete generated LLM corpus
+pnpm --filter @stacktape/cli run generate        # all committed CLI schemas, docs data/corpus and starter metadata
+pnpm --filter @stacktape/cli run generate:check  # non-mutating freshness check for that complete output set
 pnpm --filter @stacktape/cli run typecheck       # CLI, build/test projects, smoke fixtures and committed generated TypeScript
 pnpm --filter @stacktape/cli run test            # complete source suite, characterization, generators, release/security checks, helper Lambdas, CLI smoke
 pnpm --filter @stacktape/cli run test:src        # all colocated source tests, isolated per file to contain Bun module mocks

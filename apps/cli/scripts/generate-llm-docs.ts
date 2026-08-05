@@ -1,6 +1,6 @@
 import { basename, dirname, join, relative } from 'node:path';
 import { existsSync, readFileSync } from 'node:fs';
-import { mkdtemp, rename, rm } from 'node:fs/promises';
+import { copyFile, mkdtemp, readdir as readDirectory, rename, rm } from 'node:fs/promises';
 import { ensureDir, readFile, readdir, writeFile } from 'fs-extra';
 import ts from 'typescript';
 import { LLM_DOCS_FOLDER_PATH } from 'src/config/project-paths';
@@ -51,7 +51,7 @@ const DOCS_SOURCE_DIR = join(WORKSPACE_ROOT, 'apps', 'docs', 'content');
 const CONFIG_TYPES_DIR = join(WORKSPACE_ROOT, 'packages', 'config', 'src');
 const RESOLVED_CONFIG_TYPES_DIR = join(process.cwd(), 'src', 'domain', 'config-manager', 'resolved-types');
 const TYPE_SOURCE_DIRS = [CONFIG_TYPES_DIR, RESOLVED_CONFIG_TYPES_DIR];
-const DIST_DIR = LLM_DOCS_FOLDER_PATH;
+export const LLM_DOCS_OUTPUT_DIRECTORY = LLM_DOCS_FOLDER_PATH;
 const ENHANCED_CONFIG_SCHEMA_PATH = join(process.cwd(), '@generated', 'schemas', 'enhanced-config-schema.json');
 const RESOURCES_JSON_PATH = join(WORKSPACE_ROOT, 'apps', 'docs', '.resources.json');
 
@@ -1136,6 +1136,47 @@ export const recoverInterruptedCorpus = async (
   }
 };
 
+const isBlockedDirectoryRename = (error: unknown): boolean =>
+  error instanceof Error &&
+  'code' in error &&
+  (error.code === 'EPERM' || error.code === 'EACCES' || error.code === 'EBUSY');
+
+const synchronizeGeneratedDirectory = async (sourceDirectory: string, destinationDirectory: string): Promise<void> => {
+  await ensureDir(destinationDirectory);
+  const [sourceEntries, destinationEntries] = await Promise.all([
+    readDirectory(sourceDirectory, { withFileTypes: true }),
+    readDirectory(destinationDirectory, { withFileTypes: true })
+  ]);
+  const destinationEntriesByName = new Map(destinationEntries.map((entry) => [entry.name, entry]));
+
+  for (const sourceEntry of sourceEntries) {
+    const sourcePath = join(sourceDirectory, sourceEntry.name);
+    const destinationPath = join(destinationDirectory, sourceEntry.name);
+    const destinationEntry = destinationEntriesByName.get(sourceEntry.name);
+
+    if (sourceEntry.isDirectory()) {
+      if (destinationEntry && !destinationEntry.isDirectory()) {
+        await rm(destinationPath, { force: true, recursive: true });
+      }
+      await synchronizeGeneratedDirectory(sourcePath, destinationPath);
+    } else if (sourceEntry.isFile()) {
+      if (destinationEntry?.isDirectory()) {
+        await rm(destinationPath, { force: true, recursive: true });
+      }
+      await copyFile(sourcePath, destinationPath);
+    } else {
+      throw new Error(`Unsupported generated corpus entry: ${sourcePath}`);
+    }
+  }
+
+  const sourceNames = new Set(sourceEntries.map((entry) => entry.name));
+  await Promise.all(
+    destinationEntries
+      .filter((entry) => !sourceNames.has(entry.name))
+      .map((entry) => rm(join(destinationDirectory, entry.name), { force: true, recursive: true }))
+  );
+};
+
 export const installGeneratedCorpus = async ({
   distDirectory,
   stagingDirectory,
@@ -1150,7 +1191,14 @@ export const installGeneratedCorpus = async ({
 
   if (existsSync(distDirectory)) {
     await rm(backupDirectory, { recursive: true, force: true });
-    await renameDirectory(distDirectory, backupDirectory);
+    try {
+      await renameDirectory(distDirectory, backupDirectory);
+    } catch (error) {
+      if (!isBlockedDirectoryRename(error)) throw error;
+      console.warn('[llm-docs] Directory swap is blocked; updating the generated corpus in place.');
+      await synchronizeGeneratedDirectory(stagingDirectory, distDirectory);
+      return;
+    }
     movedCurrentCorpus = true;
   }
 
@@ -1168,14 +1216,23 @@ export const installGeneratedCorpus = async ({
   });
 };
 
-export const generateLlmDocs = async () => {
+export const generateLlmDocs = async ({
+  apiReferenceDataPath = API_REFERENCE_DATA_PATH,
+  enhancedConfigSchemaPath = ENHANCED_CONFIG_SCHEMA_PATH,
+  outputDirectory = LLM_DOCS_OUTPUT_DIRECTORY
+}: {
+  apiReferenceDataPath?: string;
+  enhancedConfigSchemaPath?: string;
+  outputDirectory?: string;
+} = {}) => {
   log('Generating LLM docs from apps/docs and the current configuration model...');
-  await recoverInterruptedCorpus(DIST_DIR);
-  const enhancedConfigSchema = JSON.parse(await readFile(ENHANCED_CONFIG_SCHEMA_PATH, 'utf-8')) as EnhancedConfigSchema;
+  await recoverInterruptedCorpus(outputDirectory);
+  const enhancedConfigSchema = JSON.parse(await readFile(enhancedConfigSchemaPath, 'utf-8')) as EnhancedConfigSchema;
   apiReferenceData = buildApiReferenceData(enhancedConfigSchema);
   // `buildApiReferenceData` walks definitions in a fixed ordinal order, so serializing it is
   // deterministic for a given schema.
-  await writeFile(API_REFERENCE_DATA_PATH, `${JSON.stringify(apiReferenceData, null, 2)}\n`, 'utf-8');
+  await ensureDir(dirname(apiReferenceDataPath));
+  await writeFile(apiReferenceDataPath, `${JSON.stringify(apiReferenceData, null, 2)}\n`, 'utf-8');
   resources = JSON.parse(await readFile(RESOURCES_JSON_PATH, 'utf-8')) as any[];
 
   const docsPages = await buildDocsPages();
@@ -1184,16 +1241,16 @@ export const generateLlmDocs = async () => {
     compareLlmDocPaths(left.outputPath, right.outputPath)
   );
 
-  const parentDirectory = dirname(DIST_DIR);
+  const parentDirectory = dirname(outputDirectory);
   await ensureDir(parentDirectory);
   const stagingDirectory = await mkdtemp(join(parentDirectory, '.llm-docs-'));
   try {
     const { chunks } = await writePagesAndChunks(pages, stagingDirectory);
     await writeLlmsFiles(pages, stagingDirectory);
 
-    await installGeneratedCorpus({ distDirectory: DIST_DIR, stagingDirectory });
+    await installGeneratedCorpus({ distDirectory: outputDirectory, stagingDirectory });
 
-    log(`Generated ${pages.length} pages and ${chunks.length} chunks in ${relative(process.cwd(), DIST_DIR)}`);
+    log(`Generated ${pages.length} pages and ${chunks.length} chunks in ${relative(process.cwd(), outputDirectory)}`);
   } finally {
     await rm(stagingDirectory, { recursive: true, force: true });
   }

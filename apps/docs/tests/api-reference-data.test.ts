@@ -13,7 +13,7 @@ import type { ApiReferenceData } from '../src/utils/api-reference-dto.ts';
 const readArtifact = (): ApiReferenceData => {
   assert.ok(
     existsSync(CLI_API_REFERENCE_DATA),
-    `${CLI_API_REFERENCE_DATA} is missing; run \`pnpm exec turbo run generate:llm-docs --filter @stacktape/cli\``
+    `${CLI_API_REFERENCE_DATA} is missing; run \`pnpm --filter @stacktape/cli generate\``
   );
   return JSON.parse(readFileSync(CLI_API_REFERENCE_DATA, 'utf8')) as ApiReferenceData;
 };

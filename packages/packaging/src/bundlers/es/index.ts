@@ -366,7 +366,7 @@ export const buildEsCode = async ({
         // package otherwise fall back to Bun's Windows resolver. Bun 1.3.14 then panics while formatting the
         // backslash path for source maps. Keep the complete workspace module graph normalized.
         if (process.platform === 'win32') {
-          build.onResolve({ filter: /^\.\.?[\\/]/ }, (args) => {
+          build.onResolve({ filter: /^(?!\.\/__virtual-entry\.ts$)\.\.?[\\/]/ }, (args) => {
             if (!args.importer) return undefined;
             try {
               const importerDirectory = args.resolveDir || dirname(args.importer);

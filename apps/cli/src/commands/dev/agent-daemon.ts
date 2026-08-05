@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, readFileSync, unlinkSync, writeFileSync } from 'fs-extra';
 import { dirname, isAbsolute, join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
+import { localStatePaths } from 'src/config/local-state-paths';
 
 export type AgentLockFile = {
   pid: number;
@@ -25,7 +26,7 @@ const getLockDir = (): string => {
     const configPath = globalStateManager.args.configPath;
     baseDir = dirname(isAbsolute(configPath) ? configPath : join(process.cwd(), configPath));
   }
-  return join(baseDir, '.stacktape', 'dev-agents');
+  return localStatePaths.devAgentRegistryDirectory({ workingDirectory: baseDir });
 };
 
 /**

@@ -142,7 +142,7 @@ export const OPENTUI_PLATFORM_IDENTIFIERS: { [_platform in SupportedPlatform]: s
   'linux-arm': ['linux-arm64', 'linux-arm64-musl']
 };
 
-export const BUN_COMPILE_TARGETS: { [_platform in SupportedPlatform]: Bun.Build.Target } = {
+export const BUN_COMPILE_TARGETS: { [_platform in SupportedPlatform]: Bun.Build.CompileTarget } = {
   win: 'bun-windows-x64',
   macos: 'bun-darwin-x64',
   'macos-arm': 'bun-darwin-arm64',

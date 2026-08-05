@@ -10,7 +10,7 @@ endpoint with separate short-lived OIDC identities.
 - Public apps: `apps/cli`, `apps/docs`, `apps/website`.
 - Private Git boundary: `apps/console`, containing `api` and `ui`.
 - Reusable capabilities with current consumers: `packages/*`.
-- Current migration decisions: `architecture/v4/SIMPLIFIED-MIGRATION.md`.
+- Active architecture decisions: `architecture/v4/DECISIONS.md`.
 
 Never make public code depend on private source. A missing private submodule is a normal public-contributor state, not
 an error to work around.
@@ -20,9 +20,9 @@ an error to work around.
 1. Read the nearest `AGENTS.md` and the relevant package manifest.
 2. Check Git status in the public repository and, when present, in `apps/console`.
 3. Preserve unrelated changes.
-4. For migration work, read `architecture/v4/SIMPLIFIED-MIGRATION.md`, the assigned dossier, and
-   `architecture/v4/AGENT-EXECUTION.md`. Older architecture documents describe an archived approach unless the
-   current dossier explicitly cites them.
+4. Read the focused architecture guide for the area you are changing. In particular, generated-file work starts at
+   `architecture/GENERATION.md`; the completed v4 migration records under `architecture/v4` are context, not a live
+   implementation plan.
 5. Identify generated outputs and behavioral baselines affected by the change.
 
 ## Workspace commands
@@ -66,19 +66,11 @@ mode, and the guarded real-AWS validation lane including the reusable packaging 
   contracts, and the declarative config-authoring child-resource matrix. Treat those as explicit data/legacy
   baselines; do not broaden the exclusions, and do not introduce abstractions solely to satisfy the metric.
 
-## Conceptual complexity
+## Engineering judgment
 
-Conceptual complexity is reviewed as strictly as correctness.
-
-- Prefer direct calls and existing application objects over new ports, registries, factories, service containers, or
-  frameworks.
-- An interface with one implementation needs evidence that it represents a real external boundary.
-- Do not split code for architectural symmetry or hypothetical future reuse.
-- An abstraction must reduce the total number of concepts needed to understand the behavior.
-- Harden genuinely untrusted inputs. Do not complicate internal trusted code to defend against exotic hostile
-  JavaScript behavior without a demonstrated boundary.
-- During migration, move working code first. Refactor it only after the moved behavior is proven and the refactor has
-  a concrete present-day benefit.
+- Choose the simplest complete implementation for the actual requirement.
+- Add an abstraction, dependency, or package only when its present benefit outweighs the extra concept. Check the
+  project's existing capabilities first.
 
 ## tRPC and privacy
 
@@ -99,13 +91,14 @@ Conceptual complexity is reviewed as strictly as correctness.
 
 ## Generated files
 
+The executable ownership model and output classes are documented in `architecture/GENERATION.md`.
 Turbo tasks own dependencies for deterministic generators used by ordinary build/typecheck/test work. Humans and
 agents should not need to remember a separate generation step for those outputs. The CLI config-schema generator is
 part of its ordinary `generate` task; only live-upstream generators remain deliberate manual operations documented in
 `apps/cli/AGENTS.md`.
 
 - Never hand-edit generated output.
-- Run the owning package's freshness check after changing canonical inputs.
+- Run the owning package's non-mutating `generate:check` after changing canonical inputs.
 - Do not commit `*.tsbuildinfo`, caches, release folders, or generated Prisma clients unless the documented policy
   explicitly changes.
 - Review generated diffs; do not accept opaque regeneration merely to make CI green.
@@ -138,7 +131,8 @@ Do not force-push, update integration/default branches, push slice branches, or 
 explicitly requests it. Never treat a submodule pointer update as an unimportant generated diff.
 
 Implementation agents work only in their assigned isolated worktree. Review agents remain read-only unless assigned a
-fix.
+fix. `scripts/agents/README.md` documents the current `pnpm worktree:create` and `worktree:remove` helpers; migration
+dossiers and `v4/slice/*` branch names are historical.
 
 ## Security
 

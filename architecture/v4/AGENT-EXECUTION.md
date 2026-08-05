@@ -1,8 +1,9 @@
 # Agent execution model
 
-> Current migration policy: `SIMPLIFIED-MIGRATION.md` supersedes the earlier runtime-extraction strategy. Work is
-> sequential and coarse-grained: migrate a working application first, then extract only demonstrated reusable
-> capabilities. The role, isolation, review, and Git-safety rules below still apply.
+> Historical record: this describes the completed v4 migration orchestration. Do not use its `v4/integration`,
+> `v4/slice/*`, or mandatory-dossier instructions for current work. The reusable worktree helper is documented in
+> [`scripts/agents/README.md`](../../scripts/agents/README.md); current behavior and review rules live in the root
+> `AGENTS.md`.
 
 ## Principles
 

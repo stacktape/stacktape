@@ -81,6 +81,34 @@ describe('generated LLM docs corpus', () => {
     }
   });
 
+  test('synchronizes the exact staged corpus when a watcher blocks the directory swap', async () => {
+    const fixture = await mkdtemp(join(tmpdir(), 'stacktape-llm-doc-watched-install-'));
+    const distDirectory = join(fixture, 'llm-docs');
+    const stagingDirectory = join(fixture, 'staging');
+    try {
+      await mkdir(join(distDirectory, 'obsolete'), { recursive: true });
+      await mkdir(join(stagingDirectory, 'nested'), { recursive: true });
+      await writeFile(join(distDirectory, 'index.json'), '{"version":"current"}\n');
+      await writeFile(join(distDirectory, 'obsolete', 'page.md'), 'obsolete\n');
+      await writeFile(join(stagingDirectory, 'index.json'), '{"version":"next"}\n');
+      await writeFile(join(stagingDirectory, 'nested', 'page.md'), 'next\n');
+
+      await installGeneratedCorpus({
+        distDirectory,
+        stagingDirectory,
+        renameDirectory: async () => {
+          throw Object.assign(new Error('directory is watched'), { code: 'EPERM' });
+        }
+      });
+
+      await expect(readFile(join(distDirectory, 'index.json'), 'utf-8')).resolves.toContain('next');
+      await expect(readFile(join(distDirectory, 'nested', 'page.md'), 'utf-8')).resolves.toBe('next\n');
+      await expect(stat(join(distDirectory, 'obsolete'))).rejects.toThrow();
+    } finally {
+      await rm(fixture, { recursive: true, force: true });
+    }
+  });
+
   test('contains the expected manifest and chunk files', async () => {
     const manifest = JSON.parse(await readFile(join(LLM_DOCS_FOLDER_PATH, 'index.json'), 'utf-8')) as {
       generatedAt?: string;

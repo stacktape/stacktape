@@ -9,40 +9,36 @@ const sliceId = validateSliceId(args[0]);
 const needsPrivate = args.includes('--private');
 const dossierFlag = args.indexOf('--dossier');
 const dossier = dossierFlag === -1 ? undefined : args[dossierFlag + 1];
+const baseFlag = args.indexOf('--base');
+const baseRef = baseFlag === -1 ? 'main' : args[baseFlag + 1];
 
 if (dossierFlag !== -1 && !dossier) {
   throw new Error('--dossier requires a path.');
 }
+if (baseFlag !== -1 && !baseRef) {
+  throw new Error('--base requires a Git ref.');
+}
 
 const root = repositoryRoot();
-const worktreesRoot = path.resolve(root, '.worktrees');
-const target = path.resolve(worktreesRoot, sliceId);
-const publicBranch = `v4/slice/${sliceId}`;
-const privateBranch = `v4/slice/${sliceId}`;
+const commonGitDirectory = run('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
+  cwd: root,
+  capture: true
+});
+const primaryRoot = path.dirname(commonGitDirectory);
+const worktreesRoot = path.resolve(primaryRoot, '..', '.worktrees');
+const target = path.resolve(worktreesRoot, `${path.basename(primaryRoot)}-${sliceId}`);
+const publicBranch = `work/${sliceId}`;
+const privateBranch = `work/${sliceId}`;
 assertInside(worktreesRoot, target);
 
 if (existsSync(target)) {
   throw new Error(`Refusing to reuse existing path: ${target}`);
 }
 
-const status = run('git', ['status', '--porcelain'], { cwd: root, capture: true });
-if (status) {
-  throw new Error('Create worktrees only from a clean integration checkout.');
-}
-
-const currentBranch = run('git', ['branch', '--show-current'], { cwd: root, capture: true });
-if (currentBranch !== 'v4/integration') {
-  throw new Error(`Create migration slices only from v4/integration, not ${currentBranch || 'detached HEAD'}.`);
-}
-
-const publicBase = run('git', ['rev-parse', 'HEAD'], { cwd: root, capture: true });
-const integrationHead = run('git', ['rev-parse', 'refs/heads/v4/integration'], {
+const publicBase = run('git', ['rev-parse', '--verify', `${baseRef}^{commit}`], {
   cwd: root,
   capture: true
 });
-if (publicBase !== integrationHead) {
-  throw new Error('HEAD does not match the local v4/integration ref.');
-}
 
 const publicLocalCollision = run('git', ['branch', '--list', publicBranch], {
   cwd: root,
@@ -67,14 +63,11 @@ if (dossier) {
 }
 
 if (needsPrivate) {
-  const modules = path.join(root, '.gitmodules');
-  if (!existsSync(modules)) {
-    throw new Error('This integration commit does not declare apps/console as a submodule.');
-  }
-  const privateUrl = run('git', ['config', '--file', '.gitmodules', '--get', 'submodule.apps/console.url'], {
-    cwd: root,
-    capture: true
-  });
+  const privateUrl = run(
+    'git',
+    ['config', '--blob', `${publicBase}:.gitmodules`, '--get', 'submodule.apps/console.url'],
+    { cwd: root, capture: true }
+  );
   if (
     run('git', ['ls-remote', '--heads', privateUrl, `refs/heads/${privateBranch}`], {
       cwd: root,
@@ -119,17 +112,14 @@ const metadata = {
 };
 
 await writeFile(path.join(target, '.stacktape-agent.json'), `${JSON.stringify(metadata, null, 2)}\n`);
-await writeFile(
-  path.join(target, '.stacktape-dossier.md'),
-  dossierRelative
-    ? `Read the assigned dossier before editing: ${dossierRelative}\n`
-    : 'No dossier was passed. Obtain one from the orchestrator before editing.\n'
-);
+if (dossierRelative) {
+  await writeFile(path.join(target, '.stacktape-dossier.md'), `Read the assigned dossier: ${dossierRelative}\n`);
+}
 
 process.stdout.write(`Created ${target}\n`);
-process.stdout.write(`Public: ${publicBranch} from ${publicBase}\n`);
+process.stdout.write(`Public: ${publicBranch} from ${baseRef} (${publicBase})\n`);
 if (privateBase) {
-  process.stdout.write(`Private: v4/slice/${sliceId} from ${privateBase}\n`);
+  process.stdout.write(`Private: ${privateBranch} from ${privateBase}\n`);
 }
 process.stdout.write(
   `Cleanup after integrating/pushing private commits and committing or discarding public changes: pnpm worktree:remove ${sliceId}\n`

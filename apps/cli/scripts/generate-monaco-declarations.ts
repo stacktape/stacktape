@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { generateTypeDeclarations, NPM_DECLARATION_FILE_NAMES } from './build-npm-main-export';
 
-export const MONACO_DECLARATIONS_OUTPUT_DIRECTORY = join(process.cwd(), 'generated', 'monaco-declarations');
+export const MONACO_DECLARATIONS_OUTPUT_DIRECTORY = join(process.cwd(), '.generated', 'monaco-declarations');
 
 export async function generateMonacoDeclarations({
   outputDirectory = MONACO_DECLARATIONS_OUTPUT_DIRECTORY

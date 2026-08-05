@@ -8,6 +8,6 @@
     "noImplicitReturns": true,
     "noUncheckedIndexedAccess": false,
     "strict": true,
-    "types": ["bun-types", "node"]
+    "types": ["bun", "node"]
   }
 }

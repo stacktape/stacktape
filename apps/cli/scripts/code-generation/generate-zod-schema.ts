@@ -1,10 +1,10 @@
 import { jsonSchemaToZod } from 'json-schema-to-zod';
 import $RefParser from '@apidevtools/json-schema-ref-parser';
-import { writeFile } from 'fs-extra';
-import { join } from 'node:path';
+import { ensureDir, writeFile } from 'fs-extra';
+import { dirname, join } from 'node:path';
 import { logInfo, logSuccess } from '@scripts/support/logging';
 
-const OUTPUT_PATH = join(process.cwd(), '@generated/schemas/validate-config-zod.ts');
+export const ZOD_SCHEMA_OUTPUT_PATH = join(process.cwd(), '@generated/schemas/validate-config-zod.ts');
 
 // NOTE: We intentionally do NOT convert unions to discriminatedUnion.
 // While discriminatedUnion gives better error messages, it is STRICTER than regular union.
@@ -239,7 +239,7 @@ const addBooleanCoercion = (code: string): string => {
   return modified;
 };
 
-export const generateZodSchema = async (jsonSchema: object): Promise<void> => {
+export const generateZodSchema = async (jsonSchema: object, outputPath = ZOD_SCHEMA_OUTPUT_PATH): Promise<void> => {
   // Step 1: Mark optional properties BEFORE dereferencing
   // This adds a marker to the description of properties not in the required array
   logInfo('Marking optional properties in JSON schema...');
@@ -308,7 +308,8 @@ export const generateZodSchema = async (jsonSchema: object): Promise<void> => {
     .join('\n');
 
   logInfo('Writing Zod schema...');
-  await writeFile(OUTPUT_PATH, formattedCode);
+  await ensureDir(dirname(outputPath));
+  await writeFile(outputPath, formattedCode);
 
-  logSuccess(`Zod schema written to ${OUTPUT_PATH} (${(formattedCode.length / 1024).toFixed(2)} KB)`);
+  logSuccess(`Zod schema written to ${outputPath} (${(formattedCode.length / 1024).toFixed(2)} KB)`);
 };

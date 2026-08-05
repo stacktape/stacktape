@@ -1,9 +1,9 @@
 import type { JsonSchemaGenerator } from 'typescript-json-schema';
 import { dirname, join, resolve } from 'node:path';
-import { CONFIG_PACKAGE_SRC_PATH, CONFIG_SCHEMA_PATH, RESOLVED_CONFIG_TYPES_PATH } from 'src/config/project-paths';
+import { CONFIG_PACKAGE_SRC_PATH, RESOLVED_CONFIG_TYPES_PATH } from 'src/config/project-paths';
 import { logInfo } from '@scripts/support/logging';
 import fastGlob from 'fast-glob';
-import { readJson, writeJSON } from 'fs-extra';
+import { readJson } from 'fs-extra';
 import { compile as compileJsonSchemaToTypescript } from 'json-schema-to-typescript';
 import * as ts from 'typescript';
 import { buildGenerator, getProgramFromFiles } from 'typescript-json-schema';
@@ -117,10 +117,7 @@ const assertConfigPackageCompiles = () => {
 
 export const generateConfigSchema = async ({ jsonSchemaGenerator }: { jsonSchemaGenerator?: JsonSchemaGenerator }) => {
   const typescriptGenerator = jsonSchemaGenerator || (await getJsonSchemaGenerator());
-  const jsonSchema = typescriptGenerator.getSchemaForSymbol('StacktapeConfig');
-  await writeJSON(CONFIG_SCHEMA_PATH, jsonSchema);
-
-  return jsonSchema;
+  return typescriptGenerator.getSchemaForSymbol('StacktapeConfig');
 };
 
 export const getTsTypeDef = async ({

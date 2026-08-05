@@ -2,6 +2,7 @@ import type { StarterProjectMetadata } from '@scripts/types';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
+import { localStatePaths } from 'src/config/local-state-paths';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { stpErrors } from '@errors';
@@ -118,7 +119,7 @@ export const downloadStarterFromGithub = async ({
     throw new Error(`Unsupported starter repository link: ${githubLink}`);
   }
   const archiveUrl = `https://codeload.github.com/${owner}/${repo}/zip/HEAD`;
-  const archivePath = join(targetDirectory, `.stacktape-starter-${Date.now()}.zip`);
+  const archivePath = localStatePaths.starterArchiveFile({ targetDirectory, id: Date.now() });
   await ensureDir(targetDirectory);
   await downloadArchive({ archiveUrl, archivePath });
   const { outputDirPath } = await unzip({ zipFilePath: archivePath, outputDir: targetDirectory });

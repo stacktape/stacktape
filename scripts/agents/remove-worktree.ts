@@ -6,8 +6,13 @@ import { assertInside, repositoryRoot, run, validateSliceId } from './shared.ts'
 
 const sliceId = validateSliceId(process.argv[2]);
 const root = repositoryRoot();
-const worktreesRoot = path.resolve(root, '.worktrees');
-const target = path.resolve(worktreesRoot, sliceId);
+const commonGitDirectory = run('git', ['rev-parse', '--path-format=absolute', '--git-common-dir'], {
+  cwd: root,
+  capture: true
+});
+const primaryRoot = path.dirname(commonGitDirectory);
+const worktreesRoot = path.resolve(primaryRoot, '..', '.worktrees');
+const target = path.resolve(worktreesRoot, `${path.basename(primaryRoot)}-${sliceId}`);
 assertInside(worktreesRoot, target);
 
 if (!existsSync(target)) {
@@ -71,7 +76,7 @@ if (existsSync(path.join(privateRoot, '.git'))) {
 
 run('git', ['worktree', 'remove', '--force', target], { cwd: root });
 process.stdout.write(`Removed ${target}.\n`);
-process.stdout.write(`Public branch v4/slice/${sliceId} was preserved.\n`);
+process.stdout.write(`Public branch work/${sliceId} was preserved.\n`);
 if (privateRemoteRefs) {
   process.stdout.write(
     `The private checkout was removed after confirming HEAD is recoverable from: ${privateRemoteRefs.replaceAll('\n', ', ')}.\n`

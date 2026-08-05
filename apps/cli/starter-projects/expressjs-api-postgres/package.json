@@ -6,10 +6,6 @@
     "url": "https://github.com/stacktape/stacktape/issues"
   },
   "author": "Stacktape team <info@stacktape.com> (https://stacktape.com)",
-  "scripts": {
-    "lint": "npx eslint .",
-    "format": "npx prettier . --write"
-  },
   "dependencies": {
     "@prisma/client": "^6.0.0",
     "body-parser": "^2.2.2",

@@ -6,7 +6,7 @@ import type {
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configurableGlobalDefaultCliArgs, configurableGlobalDefaultOtherProps } from '@config';
-import { fsPaths } from 'src/config/runtime-paths';
+import { localStatePaths } from 'src/config/local-state-paths';
 
 const getDefaults = async (
   persistedData: PersistedState['cliArgsDefaults'] | PersistedState['otherDefaults'],
@@ -48,7 +48,7 @@ export const commandDefaultsConfigure = async () => {
   await globalStateManager.saveDefaults({ cliArgsDefaults, otherDefaults });
   await globalStateManager.reloadPersistedState();
 
-  tuiManager.success(`Defaults saved to ${tuiManager.prettyFilePath(fsPaths.persistedStateFilePath())}.`);
+  tuiManager.success(`Defaults saved to ${tuiManager.prettyFilePath(localStatePaths.persistedStateFile())}.`);
 };
 
 const maskString = (input: string): string => {

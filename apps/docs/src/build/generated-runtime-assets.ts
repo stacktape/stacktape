@@ -74,7 +74,7 @@ const collectAssets = async (): Promise<Asset[]> => {
 
   await Promise.all([
     ...declarations.map((asset) => requireNonEmpty(asset.sourcePath, 'generate:monaco')),
-    ...discovery.map((asset) => requireNonEmpty(asset.sourcePath, 'generate:llm-docs'))
+    ...discovery.map((asset) => requireNonEmpty(asset.sourcePath, 'generate'))
   ]);
 
   return [...declarations, ...discovery, ...typescriptLibAssets()];

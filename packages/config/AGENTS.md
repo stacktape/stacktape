@@ -57,7 +57,7 @@ service-manager aliases. They stay with their real owners.
   package's own `tsconfig.json`, which compiles it with `types: []` and `skipLibCheck: false` — the environment a
   consumer actually has, so a stray dependency on a Bun or Node global cannot pass unnoticed.
   `tests/config-import.test.ts` pins structural CloudFormation helper output and the `connectTo` AWS-service macros.
-  It needs `bun-types` for `bun:test`, so it compiles under
+  It needs `@types/bun` for `bun:test`, so it compiles under
   `tests/tsconfig.json` instead; measured, that laxer project hides nothing repository-owned.
 
 ## Declaration content is product content
@@ -84,8 +84,8 @@ published through the global namespace. Explicit imports are the complete bounda
 ## Checks
 
 ```sh
-pnpm --filter @stacktape/cli run gen:schema          # regenerate the committed JSON Schema and Zod validator
-pnpm check:generated-diff                            # prove both committed outputs are current after generation
+pnpm --filter @stacktape/cli run generate            # regenerate the complete committed schema/docs artifact set
+pnpm --filter @stacktape/cli run generate:check      # prove all committed derived config artifacts are current
 pnpm --filter @stacktape/config run typecheck          # strict, skipLibCheck false, includes the acceptance fixture
 pnpm --filter @stacktape/cli run test:characterization # schema probes: 449 definitions, 44-resource union, examples
 pnpm --filter @stacktape/cli run typecheck             # direct package and resolved-model imports

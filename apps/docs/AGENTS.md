@@ -42,18 +42,17 @@ corpus stopped using does not linger. Add a component only together with the con
 
 `src/build/cli-generated-inputs.ts` names every artifact this application consumes from `apps/cli`.
 Turbo supplies them: see the `@stacktape/docs#build`, `#typecheck`, `#test`, and `#dev` entries in
-the root `turbo.json`. Every docs task that reads a CLI artifact needs its own entry — the generic
-tasks cannot help, because their `generate:llm-docs` dependency resolves to this package's own
-(absent) task rather than the CLI's. A missing artifact fails with the exact command to run; it never
+the root `turbo.json`. Every docs task that reads a CLI artifact explicitly depends on the CLI's
+`generate` and `generate:monaco` tasks. A missing artifact fails with the exact command to run; it never
 falls back to a published package or a CDN.
 
-| Input                                                 | Produced by         | Used for                                          |
-| ----------------------------------------------------- | ------------------- | ------------------------------------------------- |
-| `apps/cli/@generated/schemas/api-reference-data.json` | `generate:llm-docs` | The `<ApiReference />` dataset                    |
-| `apps/cli/@generated/llm-docs/llms*.txt`              | `generate:llm-docs` | Served verbatim at the site root                  |
-| `apps/cli/generated/monaco-declarations/*.d.ts`       | `generate:monaco`   | In-browser Twoslash types, served at `/stacktape` |
-| `apps/cli/starter-projects-metadata.json`             | `generate`          | The starter-project gallery                       |
-| `@stacktape/config/config-schema.json`                | CLI `generate`      | YAML hover descriptions in code blocks            |
+| Input                                                 | Produced by       | Used for                                          |
+| ----------------------------------------------------- | ----------------- | ------------------------------------------------- |
+| `apps/cli/@generated/schemas/api-reference-data.json` | CLI `generate`    | The `<ApiReference />` dataset                    |
+| `apps/cli/@generated/llm-docs/llms*.txt`              | CLI `generate`    | Served verbatim at the site root                  |
+| `apps/cli/.generated/monaco-declarations/*.d.ts`      | `generate:monaco` | In-browser Twoslash types, served at `/stacktape` |
+| `apps/cli/starter-projects-metadata.json`             | `generate`        | The starter-project gallery                       |
+| `@stacktape/config/config-schema.json`                | CLI `generate`    | YAML hover descriptions in code blocks            |
 
 Three invariants follow, and all three are enforced:
 
@@ -67,7 +66,7 @@ Three invariants follow, and all three are enforced:
 - **The served LLM corpus equals the shipped one.** `llms.txt`, `llms-full.txt`, and
   `llms-api-reference.txt` are copied byte-for-byte, and the validator compares them against their
   source. Do not transform them on the way out.
-- **The API reference is data, not an algorithm this app owns.** `apps/cli`'s `generate:llm-docs`
+- **The API reference is data, not an algorithm this app owns.** `apps/cli`'s `generate`
   performs the schema normalization and emits the finished result; the same data is what it renders
   into the corpus. This app has DTOs (`src/utils/api-reference-dto.ts`) and a reader
   (`src/build/api-reference-data.ts`), and nothing else. It previously carried its own copy of the
@@ -113,7 +112,7 @@ pnpm --filter @stacktape/docs run build
 ```
 
 After changing canonical content, regenerate the CLI's corpus with
-`pnpm exec turbo run generate:llm-docs --filter @stacktape/cli` and re-run
+`pnpm --filter @stacktape/cli run generate` and re-run
 `pnpm --filter @stacktape/cli run test:llm-docs`.
 
 ## Deliberate differences from the v3 site

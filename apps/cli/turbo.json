@@ -7,23 +7,14 @@
       "inputs": [
         "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/packages/config/src/**",
-        "$TURBO_ROOT$/apps/cli/src/domain/config-manager/resolved-types/**",
-        "$TURBO_ROOT$/apps/cli/tsconfig.json"
-      ],
-      "outputs": ["@generated/schemas/validate-config-zod.ts", "starter-projects-metadata.json"]
-    },
-    "generate:llm-docs": {
-      "dependsOn": ["generate"],
-      "inputs": [
-        "$TURBO_DEFAULT$",
         "$TURBO_ROOT$/apps/docs/content/**",
         "$TURBO_ROOT$/apps/docs/.resources.json",
-        "$TURBO_ROOT$/packages/config/src/**",
-        "$TURBO_ROOT$/packages/config/generated/config-schema.json",
         "$TURBO_ROOT$/apps/cli/src/domain/config-manager/resolved-types/**",
         "$TURBO_ROOT$/apps/cli/tsconfig.json"
       ],
       "outputs": [
+        "starter-projects-metadata.json",
+        "@generated/schemas/validate-config-zod.ts",
         "@generated/schemas/enhanced-config-schema.json",
         "@generated/schemas/api-reference-data.json",
         "@generated/llm-docs/**"

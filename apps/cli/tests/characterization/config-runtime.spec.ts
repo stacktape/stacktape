@@ -1318,4 +1318,35 @@ export default defineConfig(() => ({ projectName, resources: {} }));
       indexSlowLogs: { disabled: false, retentionDays: 5 }
     });
   });
+
+  test('the generated validator preserves CloudFormation intrinsics imported by the config model', () => {
+    const configWithAccessPoint = (accessPointArn: unknown) => ({
+      resources: {
+        reader: {
+          type: 'function',
+          properties: {
+            packaging: {
+              type: 'stacktape-lambda-buildpack',
+              properties: { entryfilePath: 'src/index.ts' }
+            },
+            volumeMounts: [
+              {
+                type: 's3files',
+                properties: { accessPointArn, mountPath: '/mnt/files' }
+              }
+            ]
+          }
+        }
+      }
+    });
+
+    expect(
+      stacktapeConfigSchema.safeParse(configWithAccessPoint('arn:aws:s3:eu-west-1:123:accesspoint/files')).success
+    ).toBe(true);
+    expect(stacktapeConfigSchema.safeParse(configWithAccessPoint({ Ref: 'FilesAccessPoint' })).success).toBe(true);
+    expect(
+      stacktapeConfigSchema.safeParse(configWithAccessPoint({ 'Fn::Sub': '${FilesAccessPointArn}' })).success
+    ).toBe(true);
+    expect(stacktapeConfigSchema.safeParse(configWithAccessPoint({ arbitrary: 'object' })).success).toBe(false);
+  });
 });
