@@ -50,6 +50,7 @@ import { loadPersistedState, savePersistedState } from './utils';
 import { runAuthFlow } from '../../commands/_utils/auth';
 import type { StacktapeConfig } from '@stacktape/config';
 import type { CurrentUserAndOrgDataResponse } from '@stacktape/console-api/api-key';
+import { selectAwsCredentialProfile } from './credential-source';
 
 const CREDENTIAL_REFRESH_LEAD_TIME_MS = 5 * 60 * 1000;
 const CREDENTIAL_REFRESH_RETRY_DELAY_MS = 30 * 1000;
@@ -331,8 +332,12 @@ export class GlobalStateManager {
   loadLocalAwsCredentials = async (): Promise<AwsCredentialsProvider> => {
     await eventManager.startEvent({ eventType: 'LOAD_AWS_CREDENTIALS', description: 'Loading AWS credentials' });
 
-    const selectedProfile =
-      this.rawArgs.profile || process.env.AWS_PROFILE || this.persistedState?.cliArgsDefaults.profile;
+    const selectedProfile = selectAwsCredentialProfile({
+      requestedProfile: this.rawArgs.profile,
+      environmentProfile: process.env.AWS_PROFILE,
+      persistedProfile: this.persistedState?.cliArgsDefaults.profile,
+      environment: process.env
+    });
     const credentialsProvider = defaultProvider(selectedProfile ? { profile: selectedProfile } : {});
     const credentials = await credentialsProvider();
     const identity = await getAwsCredentialsIdentity({ credentials });

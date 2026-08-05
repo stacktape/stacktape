@@ -2,7 +2,8 @@ import type { CSSProperties } from 'react';
 import clsx from 'clsx';
 import { Menu } from 'react-feather';
 import { BiLogoGithub, BiRightArrowAlt } from 'react-icons/bi';
-import { trackAnalyticsEvent } from '@/utils/analytics';
+import { ANALYTICS_EVENTS } from '@stacktape/analytics/events';
+import { trackMarketingAnalyticsEvent } from '@/utils/analytics';
 import { toggleMobileNav } from '@/stores/mobile-nav';
 import { Img as Image } from '@/components/Img';
 import { Anchor as Link } from '@/components/Anchor';
@@ -19,7 +20,12 @@ function SignUpButton() {
       linkTo="https://console.stacktape.com/sign-up"
       width={150}
       height="35px"
-      onClick={() => trackAnalyticsEvent('sign-up')}
+      onClick={() =>
+        trackMarketingAnalyticsEvent(ANALYTICS_EVENTS.marketingCtaClicked, {
+          cta: 'sign_up',
+          placement: 'docs_header'
+        })
+      }
       text={
         <div className="mx-auto">
           <span className="flex items-center justify-center gap-[10px]">
@@ -43,7 +49,12 @@ function StarOnGithubButton({ buttonWidth, style }: { buttonWidth?: number; styl
         height="38px"
         width="100%"
         linkTo="https://github.com/stacktape/stacktape"
-        onClick={() => trackAnalyticsEvent('star-github')}
+        onClick={() =>
+          trackMarketingAnalyticsEvent(ANALYTICS_EVENTS.marketingCtaClicked, {
+            cta: 'github',
+            placement: 'docs_header'
+          })
+        }
         icon={<BiLogoGithub size={20} />}
         text={<span style={{ paddingRight: '11px' }}>Github</span>}
       />

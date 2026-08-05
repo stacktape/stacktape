@@ -206,6 +206,18 @@ export const buildEsCode = async ({
             // Check if it's a tsconfig alias
             const isAlias = await determineIfAlias({ moduleName, aliases });
             if (isAlias) {
+              if (process.platform === 'win32') {
+                try {
+                  const importerDirectory =
+                    args.resolveDir || (args.importer && isAbsolute(args.importer) ? dirname(args.importer) : cwd);
+                  const resolvedAliasPath = Bun.resolveSync(args.path, importerDirectory);
+                  if (isAbsolute(resolvedAliasPath)) {
+                    return { path: transformToUnixPath(realpathSync(resolvedAliasPath)) };
+                  }
+                } catch {
+                  // Preserve Bun's normal alias resolution and error reporting.
+                }
+              }
               return undefined;
             }
 
@@ -218,6 +230,18 @@ export const buildEsCode = async ({
             if (modulePath && isWorkspacePackage(modulePath)) {
               // Let Bun bundle workspace packages - resolve to the real path to avoid Windows symlink issues
               const realPath = transformToUnixPath(realpathSync(modulePath));
+              // Resolve the complete import first so package exports and subpaths such as
+              // `@stacktape/analytics/events` do not fall back to Bun's symlinked node_modules path.
+              try {
+                const importerDirectory =
+                  args.resolveDir || (args.importer && isAbsolute(args.importer) ? dirname(args.importer) : cwd);
+                const resolvedImportPath = Bun.resolveSync(args.path, importerDirectory);
+                if (isAbsolute(resolvedImportPath)) {
+                  return { path: transformToUnixPath(realpathSync(resolvedImportPath)) };
+                }
+              } catch {
+                // Fall back to the package entrypoint probes below.
+              }
               // Find the entry file in the workspace package
               const packageJsonPath = join(realPath, 'package.json');
               try {
@@ -296,7 +320,24 @@ export const buildEsCode = async ({
               external = true;
             }
 
-            return external ? { path: args.path, external: true } : undefined;
+            if (external) {
+              return { path: args.path, external: true };
+            }
+
+            if (process.platform === 'win32') {
+              try {
+                const importerDirectory =
+                  args.resolveDir || (args.importer && isAbsolute(args.importer) ? dirname(args.importer) : cwd);
+                const resolvedModulePath = Bun.resolveSync(args.path, importerDirectory);
+                if (isAbsolute(resolvedModulePath)) {
+                  return { path: transformToUnixPath(realpathSync(resolvedModulePath)) };
+                }
+              } catch {
+                // Let Bun surface the unresolved import through its normal build diagnostics.
+              }
+            }
+
+            return undefined;
           }
         );
       }
@@ -321,6 +362,25 @@ export const buildEsCode = async ({
     const looseResolvePlugin: BunPlugin = {
       name: 'loose-resolve-plugin',
       setup(build) {
+        // A bare workspace import is resolved to a forward-slash real path above, but relative imports inside that
+        // package otherwise fall back to Bun's Windows resolver. Bun 1.3.14 then panics while formatting the
+        // backslash path for source maps. Keep the complete workspace module graph normalized.
+        if (process.platform === 'win32') {
+          build.onResolve({ filter: /^\.\.?[\\/]/ }, (args) => {
+            if (!args.importer) return undefined;
+            try {
+              const importerDirectory = args.resolveDir || dirname(args.importer);
+              const resolvedModulePath = Bun.resolveSync(args.path, importerDirectory);
+              if (isAbsolute(resolvedModulePath)) {
+                return { path: transformToUnixPath(realpathSync(resolvedModulePath)) };
+              }
+            } catch {
+              // Let Bun report a normal resolution error when the relative import genuinely does not exist.
+            }
+            return undefined;
+          });
+        }
+
         build.onResolve({ filter: /^[^./]/ }, (args) => {
           if (args.path.startsWith('.') || args.path.startsWith('/')) return undefined;
 
@@ -339,7 +399,7 @@ export const buildEsCode = async ({
               const resolvedModulePath = Bun.resolveSync(args.path, importerDirectory);
               if (isAbsolute(resolvedModulePath)) {
                 return {
-                  path: transformToUnixPath(resolvedModulePath)
+                  path: transformToUnixPath(realpathSync(resolvedModulePath))
                 };
               }
             } catch {

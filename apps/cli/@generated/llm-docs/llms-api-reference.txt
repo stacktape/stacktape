@@ -10456,13 +10456,17 @@ Resource type: `batch-job`
 ## TypeScript definition
 
 ```typescript
-import type { CustomDockerfileBjImagePackaging, EnvironmentVar, ExternalBuildpackBjImagePackaging, NixpacksBjImagePackaging, PrebuiltBjImagePackaging, StpBuildpackBjImagePackaging } from 'stacktape';
+import type { CustomDockerfileBjImagePackaging, EnvironmentVar, ExternalBuildpackBjImagePackaging, NixpacksBjImagePackaging, PrebuiltBjImagePackaging, SecretEnvironmentVar, StpBuildpackBjImagePackaging } from 'stacktape';
 
 type BatchJobContainer = {
   /** How to build or specify the container image for this job. */
   packaging: BatchJobContainerPackaging;
   /** Environment variables injected into the container at runtime. */
   environment?: Array<EnvironmentVar>;
+  /** Sensitive environment variables fetched by AWS Batch instead of stored in the job definition.
+
+Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive. */
+  secrets?: Array<SecretEnvironmentVar>;
 };
 
 /** Union choices used by the properties above. */
@@ -10599,6 +10603,15 @@ export default defineConfig(() => {
   return { resources: { mainDb, worker } };
 });
 ```
+
+## Property: `secrets`
+
+- Required: no
+- Type: `Array<SecretEnvironmentVar>`
+
+Sensitive environment variables fetched by AWS Batch instead of stored in the job definition.
+
+Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive.
 
 ---
 
@@ -40175,6 +40188,46 @@ export default defineConfig(() => {
 
 ---
 
+# SecretEnvironmentVar API Reference
+
+Source: `packages/config/src/shared.ts`
+Route: `/config-reference/helpers`
+
+## TypeScript definition
+
+```typescript
+type SecretEnvironmentVar = {
+  /** Environment variable name exposed to the container (e.g., `DATABASE_PASSWORD`, `API_KEY`). */
+  name: string;
+  /** Secret source injected by the container runtime.
+
+Use an exact `$SsmParam(...)` or `$Secret(...)` directive. Unlike `environment`, Stacktape passes only the
+parameter or secret ARN to the container orchestrator; the sensitive value is never stored in the task
+definition. */
+  valueFrom: string;
+};
+```
+
+## Property: `name`
+
+- Required: yes
+- Type: `string`
+
+Environment variable name exposed to the container (e.g., `DATABASE_PASSWORD`, `API_KEY`).
+
+## Property: `valueFrom`
+
+- Required: yes
+- Type: `string`
+
+Secret source injected by the container runtime.
+
+Use an exact `$SsmParam(...)` or `$Secret(...)` directive. Unlike `environment`, Stacktape passes only the
+parameter or secret ARN to the container orchestrator; the sensitive value is never stored in the task
+definition.
+
+---
+
 # ServiceHelperContainer API Reference
 
 Source: `packages/config/src/shared.ts`
@@ -40183,7 +40236,7 @@ Route: `/config-reference/helpers`
 ## TypeScript definition
 
 ```typescript
-import type { ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, StpBuildpackCwImagePackaging } from 'stacktape';
+import type { ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, StpBuildpackCwImagePackaging } from 'stacktape';
 
 type ServiceHelperContainer = {
   /** When and how this sidecar container runs. */
@@ -40202,6 +40255,10 @@ type ServiceHelperContainer = {
   internalHealthCheck?: ContainerHealthCheck;
   /** Container logging (stdout/stderr). Sent to CloudWatch, viewable with `stacktape logs`. */
   logging?: ContainerWorkloadContainerLogging;
+  /** Sensitive environment variables fetched by ECS instead of stored in the task definition.
+
+Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive. */
+  secrets?: Array<SecretEnvironmentVar>;
   /** Seconds to wait after SIGTERM before SIGKILL (2-120). */
   stopTimeout?: number;
   /** Mount EFS volumes for persistent, shared storage across containers. */
@@ -40653,6 +40710,15 @@ export default defineConfig(() => {
   return { resources: { app } };
 });
 ```
+
+## Property: `secrets`
+
+- Required: no
+- Type: `Array<SecretEnvironmentVar>`
+
+Sensitive environment variables fetched by ECS instead of stored in the task definition.
+
+Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive.
 
 ## Property: `stopTimeout`
 
@@ -47021,7 +47087,7 @@ Resource type: `multi-container-workload`
 ## TypeScript definition
 
 ```typescript
-import type { ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadHttpApiIntegration, ContainerWorkloadInternalIntegration, ContainerWorkloadLoadBalancerIntegration, ContainerWorkloadNetworkLoadBalancerIntegration, ContainerWorkloadServiceConnectIntegration, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, LoadBalancerHealthCheck, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, StpBuildpackCwImagePackaging } from 'stacktape';
+import type { ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadHttpApiIntegration, ContainerWorkloadInternalIntegration, ContainerWorkloadLoadBalancerIntegration, ContainerWorkloadNetworkLoadBalancerIntegration, ContainerWorkloadServiceConnectIntegration, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, LoadBalancerHealthCheck, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, StpBuildpackCwImagePackaging } from 'stacktape';
 
 type ContainerWorkloadContainer = {
   /** Unique container name within this workload. */
@@ -47042,6 +47108,10 @@ type ContainerWorkloadContainer = {
   loadBalancerHealthCheck?: LoadBalancerHealthCheck;
   /** Container logging (stdout/stderr). Sent to CloudWatch, viewable with `stacktape logs`. */
   logging?: ContainerWorkloadContainerLogging;
+  /** Sensitive environment variables fetched by ECS instead of stored in the task definition.
+
+Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive. */
+  secrets?: Array<SecretEnvironmentVar>;
   /** Seconds to wait after SIGTERM before SIGKILL (2-120). */
   stopTimeout?: number;
   /** Mount EFS volumes for persistent, shared storage across containers. */
@@ -47573,6 +47643,15 @@ export default defineConfig(() => {
   return { resources: { app } };
 });
 ```
+
+## Property: `secrets`
+
+- Required: no
+- Type: `Array<SecretEnvironmentVar>`
+
+Sensitive environment variables fetched by ECS instead of stored in the task definition.
+
+Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive.
 
 ## Property: `stopTimeout`
 
@@ -53440,7 +53519,7 @@ Resource type: `private-service`
 ## TypeScript definition
 
 ```typescript
-import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';
+import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';
 
 type PrivateServiceProps = {
   /** Configures the container image for the service. */
@@ -53467,6 +53546,18 @@ type PrivateServiceProps = {
   protocol?: "grpc" | "http" | "http2";
   /** Auto-scaling: add/remove container instances based on demand. */
   scaling?: ContainerWorkloadScaling;
+  /** Sensitive environment variables fetched by the container runtime.
+
+Values must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for
+secrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features
+are useful.
+
+**Example (TypeScript):**
+secrets: {
+  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
+  ROTATING_API_KEY: $Secret('rotating-api-key')
+} */
+  secrets?: Array<SecretEnvironmentVar>;
   /** Helper containers that run alongside the main container. */
   sideContainers?: Array<ServiceHelperContainer>;
   /** Seconds to wait for graceful shutdown before force-killing the container. */
@@ -54150,6 +54241,23 @@ export default defineConfig(() => {
   return { resources: { api } };
 });
 ```
+
+## Property: `secrets`
+
+- Required: no
+- Type: `Array<SecretEnvironmentVar>`
+
+Sensitive environment variables fetched by the container runtime.
+
+Values must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for
+secrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features
+are useful.
+
+**Example (TypeScript):**
+secrets: {
+  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
+  ROTATING_API_KEY: $Secret('rotating-api-key')
+}
 
 ## Property: `sideContainers`
 
@@ -74905,7 +75013,7 @@ Resource type: `web-service`
 ## TypeScript definition
 
 ```typescript
-import type { ApplicationLoadBalancerAlarm, CdnConfiguration, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, DomainConfiguration, EnvironmentVar, ExternalBuildpackCwImagePackaging, HttpApiCorsConfig, HttpApiGatewayAlarm, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement, WebServiceAlbLoadBalancing, WebServiceHttpApiGatewayLoadBalancing, WebServiceNlbLoadBalancing } from 'stacktape';
+import type { ApplicationLoadBalancerAlarm, CdnConfiguration, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, DomainConfiguration, EnvironmentVar, ExternalBuildpackCwImagePackaging, HttpApiCorsConfig, HttpApiGatewayAlarm, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement, WebServiceAlbLoadBalancing, WebServiceHttpApiGatewayLoadBalancing, WebServiceNlbLoadBalancing } from 'stacktape';
 
 type WebServiceProps = {
   /** Configures the container image for the service. */
@@ -74940,6 +75048,18 @@ type WebServiceProps = {
   logging?: ContainerWorkloadContainerLogging;
   /** Auto-scaling: add/remove container instances based on demand. */
   scaling?: ContainerWorkloadScaling;
+  /** Sensitive environment variables fetched by the container runtime.
+
+Values must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for
+secrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features
+are useful.
+
+**Example (TypeScript):**
+secrets: {
+  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
+  ROTATING_API_KEY: $Secret('rotating-api-key')
+} */
+  secrets?: Array<SecretEnvironmentVar>;
   /** Helper containers that run alongside the main container. */
   sideContainers?: Array<ServiceHelperContainer>;
   /** Seconds to wait for graceful shutdown before force-killing the container. */
@@ -75882,6 +76002,23 @@ export default defineConfig(() => {
 });
 ```
 
+## Property: `secrets`
+
+- Required: no
+- Type: `Array<SecretEnvironmentVar>`
+
+Sensitive environment variables fetched by the container runtime.
+
+Values must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for
+secrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features
+are useful.
+
+**Example (TypeScript):**
+secrets: {
+  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
+  ROTATING_API_KEY: $Secret('rotating-api-key')
+}
+
 ## Property: `sideContainers`
 
 - Required: no
@@ -76194,7 +76331,7 @@ Resource type: `worker-service`
 ## TypeScript definition
 
 ```typescript
-import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';
+import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';
 
 type WorkerServiceProps = {
   /** Configures the container image for the service. */
@@ -76215,6 +76352,18 @@ type WorkerServiceProps = {
   logging?: ContainerWorkloadContainerLogging;
   /** Auto-scaling: add/remove container instances based on demand. */
   scaling?: ContainerWorkloadScaling;
+  /** Sensitive environment variables fetched by the container runtime.
+
+Values must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for
+secrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features
+are useful.
+
+**Example (TypeScript):**
+secrets: {
+  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
+  ROTATING_API_KEY: $Secret('rotating-api-key')
+} */
+  secrets?: Array<SecretEnvironmentVar>;
   /** Helper containers that run alongside the main container. */
   sideContainers?: Array<ServiceHelperContainer>;
   /** Seconds to wait for graceful shutdown before force-killing the container. */
@@ -76735,6 +76884,23 @@ export default defineConfig(() => {
   return { resources: { api } };
 });
 ```
+
+## Property: `secrets`
+
+- Required: no
+- Type: `Array<SecretEnvironmentVar>`
+
+Sensitive environment variables fetched by the container runtime.
+
+Values must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for
+secrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features
+are useful.
+
+**Example (TypeScript):**
+secrets: {
+  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
+  ROTATING_API_KEY: $Secret('rotating-api-key')
+}
 
 ## Property: `sideContainers`
 

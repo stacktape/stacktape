@@ -16,7 +16,10 @@ import { fsPaths } from 'src/config/runtime-paths';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { EDGE_LAMBDA_ENV_ASSET_REPLACER_PLACEHOLDER } from '@stacktape/packaging/web/constants';
 import { getCfEnvironment, transformIntoCloudformationSubstitutedString } from '@utils/cloudformation';
-import { getResolvedConnectToEnvironmentVariables } from '../_utils/connect-to-helper';
+import {
+  getResolvedConnectToEnvironmentVariables,
+  mergeConnectToEnvironmentVariables
+} from '../_utils/connect-to-helper';
 import { getCustomResource, getStpServiceCustomResource } from '../_utils/custom-resource';
 import { resolveDirectivesForEnvironmentVariables } from '../_utils/env-vars';
 import { getStaticAssetCachePathPatterns } from '../_utils/ssr-web-shared';
@@ -150,13 +153,13 @@ export const getAssetReplacerTemplateOverride =
         connectTo: nextjsWeb.connectTo,
         localResolve: false
       });
-      const envVars = [
-        ...(await resolveDirectivesForEnvironmentVariables({
+      const envVars = mergeConnectToEnvironmentVariables(
+        await resolveDirectivesForEnvironmentVariables({
           vars: getCfEnvironment(nextjsWeb.environment),
           useLocalResolve: false
-        })),
-        ...variablesToInject
-      ];
+        }),
+        variablesToInject
+      );
 
       const varsObj = envVars.reduce((acc, { Name, Value }) => {
         acc[Name] = Value;

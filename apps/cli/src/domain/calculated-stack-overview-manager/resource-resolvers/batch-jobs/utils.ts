@@ -1,4 +1,4 @@
-import type { ContainerProperties } from '@stacktape/cloudformation/resources/aws-batch-jobdefinition';
+import type { ContainerProperties, Secret } from '@stacktape/cloudformation/resources/aws-batch-jobdefinition';
 import { cfnResource } from '@stacktape/cloudformation/resource';
 import { getAtt, ref } from '@stacktape/cloudformation/intrinsics';
 import type { StpBatchJob } from '@domain-services/config-manager/resolved-types/batch-jobs';
@@ -23,6 +23,12 @@ import type {
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 import type { StpStateMachine } from '@stacktape/config/state-machines';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
+import {
+  getContainerSecretIamResources,
+  getContainerSecretValueFrom,
+  getContainerSecretVersionLabels,
+  parseContainerSecretReference
+} from '@domain-services/config-manager/container-secrets';
 
 type BatchJobInstanceKind = 'spot' | 'onDemand';
 
@@ -76,14 +82,39 @@ export const getBatchJobExecutionRole = ({
   workloadName,
   iamRoleStatements,
   accessToResourcesRequiringRoleChanges,
-  accessToAwsServices
+  accessToAwsServices,
+  containerSecretValueFroms
 }: {
   workloadName: string;
   iamRoleStatements: StpIamRoleStatement[];
   accessToResourcesRequiringRoleChanges: StpResourceScopableByConnectToAffectingRole[];
   accessToAwsServices: ConnectToAwsServicesMacro[];
-}) =>
-  cfnResource('AWS::IAM::Role', {
+  containerSecretValueFroms: string[];
+}) => {
+  const policies = getPoliciesForRoles({
+    iamRoleStatements,
+    accessToResourcesRequiringRoleChanges,
+    accessToAwsServices
+  });
+  const { secretResources, parameterResources } = getContainerSecretIamResources(containerSecretValueFroms);
+  if (secretResources.length || parameterResources.length) {
+    policies.push({
+      PolicyName: 'container-runtime-secrets',
+      PolicyDocument: {
+        Version: '2012-10-17',
+        Statement: [
+          ...(secretResources.length
+            ? [{ Effect: 'Allow', Action: ['secretsmanager:GetSecretValue'], Resource: secretResources }]
+            : []),
+          ...(parameterResources.length
+            ? [{ Effect: 'Allow', Action: ['ssm:GetParameters'], Resource: parameterResources }]
+            : [])
+        ]
+      }
+    });
+  }
+
+  return cfnResource('AWS::IAM::Role', {
     Path: '/',
     RoleName: awsResourceNames.batchJobRole(
       calculatedStackOverviewManager.context.stackName,
@@ -94,12 +125,9 @@ export const getBatchJobExecutionRole = ({
       Version: '2012-10-17',
       Statement: [{ Effect: 'Allow', Principal: { Service: 'ecs-tasks.amazonaws.com' }, Action: 'sts:AssumeRole' }]
     },
-    Policies: getPoliciesForRoles({
-      iamRoleStatements,
-      accessToResourcesRequiringRoleChanges,
-      accessToAwsServices
-    })
+    Policies: policies
   });
+};
 
 /**
  * Generates the IAM Service Role Object that will be used to manage spot instances in the compute environment
@@ -238,11 +266,16 @@ export const getBatchJobDefinitionContainerProperties = ({
     entryfilePath,
     nodeVersion
   });
+  const secrets = (workload.container.secrets || []).map(({ name: secretName, valueFrom }) => ({
+    Name: secretName,
+    ValueFrom: getContainerSecretValueFrom(parseContainerSecretReference(valueFrom)!)
+  })) as Secret[];
 
   return {
     Command: (workload.container.packaging as CustomDockerfileBjImagePackaging | PrebuiltBjImagePackaging).properties
       .command,
     Environment: getCfEnvironment(augmentedEnvironment),
+    Secrets: secrets.length ? secrets : undefined,
     Image: getImageUrlForSingleTask(workload),
     // @todo set this cpu number properties consistently
     Vcpus: workload.resources.cpu,
@@ -265,15 +298,18 @@ export const getBatchJobDefinitionContainerProperties = ({
       }
     ],
     ResourceRequirements: workload.resources.gpu ? [{ Type: 'GPU', Value: `${workload.resources.gpu}` }] : [],
-    JobRoleArn: getAtt(cfLogicalNames.batchJobExecutionRole(name), 'Arn')
+    JobRoleArn: getAtt(cfLogicalNames.batchJobExecutionRole(name), 'Arn'),
+    ExecutionRoleArn: getAtt(cfLogicalNames.batchJobExecutionRole(name), 'Arn')
   };
 };
 
 export const getBatchJobDefinition = ({ name, workload }: { name: string; workload: StpBatchJob }) => {
+  const versionLabels = getContainerSecretVersionLabels(workload.container.secrets?.map(({ valueFrom }) => valueFrom));
   return cfnResource('AWS::Batch::JobDefinition', {
     JobDefinitionName: awsResourceNames.batchJobDefinition(name, calculatedStackOverviewManager.context.stackName),
     Type: 'container',
     PropagateTags: true,
+    Parameters: Object.keys(versionLabels).length ? versionLabels : undefined,
     ContainerProperties: getBatchJobDefinitionContainerProperties({
       name,
       workload

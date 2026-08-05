@@ -169,7 +169,9 @@ export const runDevContainer = async () => {
   const primaryPort = containerDefinition.events?.[0]?.properties?.containerPort;
 
   const environment = await getWorkloadEnvironmentVars({
-    jobEnvironment: containerDefinition.environment,
+    jobEnvironment: (containerDefinition.environment || []).concat(
+      (containerDefinition.secrets || []).map(({ name, valueFrom }) => ({ name, value: valueFrom }))
+    ),
     jobName,
     workloadName: containerDefinition.workloadName,
     connectTo: deployedResourceNames,

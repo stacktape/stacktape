@@ -289,4 +289,39 @@ describe('Prisma deployment artifacts', () => {
     expect(error).toBeInstanceOf(Error);
     expect(detailsSeen?.message).toContain('apps/alpha/prisma/schema.prisma, apps/beta/prisma/schema.prisma');
   });
+
+  test('selects the schema from the workload package in a monorepo', async () => {
+    const projectRoot = await mkdtemp(join(tmpdir(), 'stacktape-prisma-package-'));
+    temporaryDirectories.push(projectRoot);
+    const applicationRoot = join(projectRoot, 'apps', 'alpha');
+    const siblingRoot = join(projectRoot, 'apps', 'beta');
+    const distFolderPath = join(projectRoot, 'dist');
+    await Promise.all([
+      mkdir(join(applicationRoot, 'prisma'), { recursive: true }),
+      mkdir(join(siblingRoot, 'prisma'), { recursive: true }),
+      mkdir(distFolderPath, { recursive: true })
+    ]);
+    await Promise.all([
+      writeFile(join(projectRoot, 'package.json'), '{"name":"prisma-monorepo","private":true}'),
+      writeFile(join(projectRoot, 'pnpm-workspace.yaml'), "packages:\n  - 'apps/*'\n"),
+      writeFile(join(applicationRoot, 'package.json'), '{"name":"alpha"}'),
+      writeFile(join(siblingRoot, 'package.json'), '{"name":"beta"}')
+    ]);
+    await Promise.all([
+      writeFile(
+        join(applicationRoot, 'prisma', 'schema.prisma'),
+        'generator client { provider = "prisma-client" output = "../generated" engineType = "client" }'
+      ),
+      writeFile(join(siblingRoot, 'prisma', 'schema.prisma'), 'generator client {}')
+    ]);
+
+    await expect(
+      resolvePrisma({
+        createPackagingError: ({ message }) => new Error(message),
+        distFolderPath,
+        workingDir: applicationRoot,
+        workloadName: 'alphaApi'
+      })
+    ).resolves.toBeUndefined();
+  });
 });

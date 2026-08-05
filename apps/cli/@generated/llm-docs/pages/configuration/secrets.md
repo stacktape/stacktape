@@ -65,6 +65,77 @@ fetches the secret from AWS Secrets Manager, records its current version ID, and
 reference (`{{resolve:secretsmanager:...}}`) into the template. The actual secret value never appears in the
 CloudFormation template — AWS resolves it at resource creation time.
 
+### Native secret injection for containers
+
+For web services, private services, worker services, multi-container workloads, and Batch jobs, put sensitive
+environment variables in `secrets`, not `environment`. Stacktape then gives ECS or AWS Batch the SSM parameter ARN or
+Secrets Manager ARN. The container runtime fetches the value immediately before starting the container, so the value
+is not stored in the CloudFormation template or task/job definition.
+
+
+Example (TypeScript):
+
+```typescript
+import { $Secret, $SsmParam, WebService, StacktapeImageBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: new StacktapeImageBuildpackPackaging({ entryfilePath: './src/server.ts' }),
+    resources: { cpu: 0.25, memory: 512 },
+    environment: { LOG_LEVEL: 'info' },
+    secrets: {
+      API_TOKEN: $SsmParam('/my-app/production/api-token'),
+      ROTATING_KEY: $Secret('rotating-key.value')
+    }
+  });
+
+  return { resources: { api } };
+});
+```
+
+
+Example (YAML):
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: ./src/server.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+      environment:
+        - name: LOG_LEVEL
+          value: info
+      # stp-focus
+      secrets:
+        - name: API_TOKEN
+          valueFrom: $SsmParam('/my-app/production/api-token')
+        - name: ROTATING_KEY
+          valueFrom: $Secret('rotating-key.value')
+      # stp-end-focus
+```
+
+
+Every `valueFrom` must be one exact `$SsmParam(...)` or `$Secret(...)` directive. SSM parameters used here must be
+`SecureString`. Stacktape grants the container execution role read access only to the referenced parameters and
+secrets. If a SecureString uses a customer-managed KMS key, also grant `kms:Decrypt` for that key with
+`iamRoleStatements`.
+
+Stacktape records the current SSM parameter version as non-sensitive task metadata, so redeploying after a parameter
+update creates and rolls out a new task definition. Secrets Manager references are pinned to the current version ID.
+In local dev mode, Stacktape resolves the same directives and supplies the resulting environment variables locally.
+
+
+> **Warning:** Using `$Secret()` or `$SsmParam()` under a container's ordinary `environment` field makes CloudFormation resolve the
+value before registering the task definition. Use `secrets` to keep the value out of the task definition and its
+Describe APIs.
+
+
 `$Secret()` resolves to a CloudFormation dynamic reference at deploy time. It is commonly used in workload
 environment variables and database credential fields — config properties that accept runtime
 [directives](/configuration/directives).
@@ -232,10 +303,9 @@ parameters. Both are [directives](/configuration/directives).
 | Version pinning | Pins to VersionId | Pins to Version number |
 
 
-Use `$Secret()` for most Stacktape-managed credentials and API keys, especially when you want AWS Secrets Manager
-as the backing store. Use `$SsmParam()`
-when you already have parameters stored in AWS Systems Manager Parameter Store, or when you need to reference
-non-secret configuration values from Parameter Store that are shared across multiple stacks.
+Use `$Secret()` when you need Secrets Manager features such as managed rotation. Use a SecureString `$SsmParam()` for
+credentials that do not rotate and where Parameter Store's lower storage cost is preferable. Standard String
+parameters remain useful for non-secret configuration shared across stacks.
 
 ## FAQ
 

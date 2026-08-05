@@ -2,6 +2,7 @@ import type { StpContainerWorkload } from '@domain-services/config-manager/resol
 import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '@stacktape/config/container-workload-resources';
 import { CliError } from '@utils/errors';
 import type { ConfigManager } from '../index';
+import { parseContainerSecretReference } from '../container-secrets';
 import { configErrors } from '../errors';
 import type {
   ContainerWorkloadLoadBalancerIntegration,
@@ -35,6 +36,48 @@ const validateContainerNamesConsistency = (workload: StpContainerWorkload) => {
     }
   });
   // }
+};
+
+export const validateContainerSecrets = ({
+  environment,
+  secrets,
+  workloadName,
+  containerName
+}: {
+  environment?: Array<{ name: string }>;
+  secrets?: Array<{ name: string; valueFrom: string }>;
+  workloadName: string;
+  containerName?: string;
+}) => {
+  const secretNames = new Set<string>();
+  const environmentNames = new Set((environment || []).map(({ name }) => name));
+  const location = `container${containerName ? ` \`${containerName}\`` : ''} in workload \`${workloadName}\``;
+
+  for (const secret of secrets || []) {
+    if (secretNames.has(secret.name)) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_CONTAINER_SECRET_NAME_DUPLICATE',
+        message: `${location} defines more than one secret named \`${secret.name}\`.`
+      });
+    }
+    if (environmentNames.has(secret.name)) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_CONTAINER_SECRET_ENVIRONMENT_CONFLICT',
+        message: `${location} defines \`${secret.name}\` in both \`environment\` and \`secrets\`.`
+      });
+    }
+    if (!parseContainerSecretReference(secret.valueFrom)) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_CONTAINER_SECRET_SOURCE_INVALID',
+        message: `Secret \`${secret.name}\` in ${location} must use one exact \`$SsmParam(...)\` or \`$Secret(...)\` directive.`,
+        hints: 'Put non-sensitive or composed values in `environment` instead.'
+      });
+    }
+    secretNames.add(secret.name);
+  }
 };
 
 type SingleContainerTargetablePorts = {
@@ -230,6 +273,14 @@ export const validateMultiContainerWorkloadConfig = ({
   definition: StpContainerWorkload;
 }) => {
   validateContainerNamesConsistency(definition);
+  definition.containers.forEach((container) =>
+    validateContainerSecrets({
+      environment: container.environment,
+      secrets: container.secrets,
+      workloadName: definition.name,
+      containerName: container.name
+    })
+  );
   validatePortOverlapOfContainerWorkload(definition);
   validateLoadBalancerConfigurations(definition);
   validateServiceConnectLimitations(definition, activeConfig);

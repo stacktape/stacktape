@@ -838,6 +838,7 @@ export class ConfigManager {
         connectTo,
         iamRoleStatements,
         environment,
+        secrets,
         internalHealthCheck,
         logging,
         scaling,
@@ -894,6 +895,7 @@ export class ConfigManager {
                     { name: 'HOST', value: '0.0.0.0' }
                   ])
                   .concat(deployment ? [{ name: 'DEPLOYMENT_TEST_PORT', value: DEFAULT_TEST_LISTENER_PORT }] : []),
+                secrets,
                 logging,
                 internalHealthCheck,
                 loadBalancerHealthCheck: {
@@ -1052,6 +1054,7 @@ export class ConfigManager {
         connectTo,
         iamRoleStatements,
         environment,
+        secrets,
         internalHealthCheck,
         logging,
         scaling,
@@ -1100,6 +1103,7 @@ export class ConfigManager {
                   { name: 'PORT', value: port || 3000 },
                   { name: 'HOST', value: '0.0.0.0' }
                 ),
+                secrets,
                 logging,
                 internalHealthCheck,
                 essential: true,
@@ -1180,6 +1184,7 @@ export class ConfigManager {
         connectTo,
         iamRoleStatements,
         environment,
+        secrets,
         internalHealthCheck,
         logging,
         scaling,
@@ -1220,6 +1225,7 @@ export class ConfigManager {
                   : undefined,
                 packaging,
                 environment,
+                secrets,
                 logging,
                 internalHealthCheck,
                 essential: true,

@@ -26,6 +26,7 @@
     "prepare": "node scripts/workspace/configure-hooks.ts",
     "release": "pnpm --filter @stacktape/cli run release --channel stable",
     "release:preview": "pnpm --filter @stacktape/cli run release --channel preview",
+    "parameters:check:console:dev": "pnpm --filter @stacktape/console-api-app run parameters:check --stage dev",
     "test": "turbo run test",
     "test:tools": "node --test scripts/agents/worktree.test.ts scripts/workspace/check-generated-diff.test.ts scripts/workspace/check-staged-secrets.test.ts scripts/workspace/configure-hooks.test.ts",
     "typecheck": "turbo run typecheck",

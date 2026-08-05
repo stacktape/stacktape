@@ -534,6 +534,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `loadBalancing` | no | `http-api-gateway \| application-load-balancer \| network-load-balancer` | - |
 | `logging` | no | `ContainerWorkloadContainerLogging` | - |
 | `scaling` | no | `ContainerWorkloadScaling` | - |
+| `secrets` | no | `Array<SecretEnvironmentVar>` | - |
 | `sideContainers` | no | `Array<ServiceHelperContainer>` | - |
 | `stopTimeout` | no | `number` | `2` |
 | `useFirewall` | no | `string` | - |

@@ -258,7 +258,9 @@ export const buildBinaryFile = async ({
     // Bun 1.3.14 emits a separate `compiled-cli.js.map` even when a compiled executable asks for an inline map.
     // That file is useful while debugging, but shipping it added more than 70 MB to every installed release.
     sourcemap: debug ? 'external' : 'none',
-    minify: !debug,
+    // Production executables do not ship their >70 MB source map. Minify syntax and whitespace while retaining
+    // identifiers so PostHog exception grouping and stack traces still contain useful function/class names.
+    minify: debug ? false : { whitespace: true, syntax: true, identifiers: false },
     plugins: [openTuiBuildPlugin],
     tsconfig: localBuildTsConfigPath,
     define: { STACKTAPE_VERSION: JSON.stringify(version || 'dev') },

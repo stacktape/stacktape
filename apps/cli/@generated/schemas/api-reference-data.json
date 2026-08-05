@@ -9384,13 +9384,26 @@
             "code": "import { BatchJob, RelationalDatabase, defineConfig, $ResourceParam, $Secret } from 'stacktape';\n\nexport default defineConfig(() => {\n  const mainDb = new RelationalDatabase({\n    credentials: { masterUserPassword: $Secret('dbPassword') },\n    engine: {\n      type: 'postgres',\n      properties: { version: '16.2', primaryInstance: { instanceSize: 'db.t3.micro' } }\n    }\n  });\n  const worker = new BatchJob({\n    container: {\n      packaging: {\n        type: 'stacktape-image-buildpack',\n        properties: { entryfilePath: 'src/worker.ts' }\n      },\n      // [!code focus-start]\n      environment: {\n        DATABASE_URL: $ResourceParam('mainDb', 'connectionString'),\n        API_KEY: $Secret('externalApiKey')\n      }\n      // [!code focus-end]\n    },\n    resources: { cpu: 2, memory: 3840 },\n    connectTo: [mainDb]\n  });\n  return { resources: { mainDb, worker } };\n});"
           }
         ]
+      },
+      {
+        "name": "secrets",
+        "required": false,
+        "shortDescription": "<p> Sensitive environment variables fetched by AWS Batch instead of stored in the job definition.</p>\n<p>Each <code>valueFrom</code> must be an exact <code>$SsmParam(...)</code> or <code>$Secret(...)</code> directive.</p>",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "SecretEnvironmentVar"
+          }
+        }
       }
     ],
     "stats": {
       "requiredCount": 1,
-      "optionalCount": 1
+      "optionalCount": 2
     },
-    "typeDeclaration": "import type { CustomDockerfileBjImagePackaging, EnvironmentVar, ExternalBuildpackBjImagePackaging, NixpacksBjImagePackaging, PrebuiltBjImagePackaging, StpBuildpackBjImagePackaging } from 'stacktape';\n\n// [!code focus-start]\ntype BatchJobContainer = {\n  /** How to build or specify the container image for this job. */\n  packaging: BatchJobContainerPackaging;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n};\n\n/** Union choices used by the properties above. */\ntype BatchJobContainerPackaging =\n  | PrebuiltBjImagePackaging\n  | CustomDockerfileBjImagePackaging\n  | ExternalBuildpackBjImagePackaging\n  | NixpacksBjImagePackaging\n  | StpBuildpackBjImagePackaging;\n// [!code focus-end]"
+    "typeDeclaration": "import type { CustomDockerfileBjImagePackaging, EnvironmentVar, ExternalBuildpackBjImagePackaging, NixpacksBjImagePackaging, PrebuiltBjImagePackaging, SecretEnvironmentVar, StpBuildpackBjImagePackaging } from 'stacktape';\n\n// [!code focus-start]\ntype BatchJobContainer = {\n  /** How to build or specify the container image for this job. */\n  packaging: BatchJobContainerPackaging;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Sensitive environment variables fetched by AWS Batch instead of stored in the job definition.\n\nEach `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive. */\n  secrets?: Array<SecretEnvironmentVar>;\n};\n\n/** Union choices used by the properties above. */\ntype BatchJobContainerPackaging =\n  | PrebuiltBjImagePackaging\n  | CustomDockerfileBjImagePackaging\n  | ExternalBuildpackBjImagePackaging\n  | NixpacksBjImagePackaging\n  | StpBuildpackBjImagePackaging;\n// [!code focus-end]"
   },
   "BatchJobLogging": {
     "definitionName": "BatchJobLogging",
@@ -17117,6 +17130,19 @@
         ]
       },
       {
+        "name": "secrets",
+        "required": false,
+        "shortDescription": "<p> Sensitive environment variables fetched by ECS instead of stored in the task definition.</p>\n<p>Each <code>valueFrom</code> must be an exact <code>$SsmParam(...)</code> or <code>$Secret(...)</code> directive.</p>",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "SecretEnvironmentVar"
+          }
+        }
+      },
+      {
         "name": "stopTimeout",
         "required": false,
         "shortDescription": "<p> Seconds to wait after SIGTERM before SIGKILL (2-120).</p>",
@@ -17165,9 +17191,9 @@
     ],
     "stats": {
       "requiredCount": 2,
-      "optionalCount": 9
+      "optionalCount": 10
     },
-    "typeDeclaration": "import type { ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadHttpApiIntegration, ContainerWorkloadInternalIntegration, ContainerWorkloadLoadBalancerIntegration, ContainerWorkloadNetworkLoadBalancerIntegration, ContainerWorkloadServiceConnectIntegration, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, LoadBalancerHealthCheck, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, StpBuildpackCwImagePackaging } from 'stacktape';\n\n// [!code focus-start]\ntype ContainerWorkloadContainer = {\n  /** Unique container name within this workload. */\n  name: string;\n  /** How to build or specify the container image. */\n  packaging: ContainerWorkloadContainerPackaging;\n  /** Start this container only after the listed containers reach a specific state. */\n  dependsOn?: Array<ContainerDependency>;\n  /** Environment variables injected at runtime. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** If `true` (default), the entire workload restarts when this container fails. */\n  essential?: boolean;\n  /** How this container receives traffic (API Gateway, load balancer, or service-connect). */\n  events?: Array<ContainerWorkloadContainerEvents>;\n  /** Command-based health check. If it fails on an essential container, the workload instance is replaced. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** Load balancer health check settings. Only applies when integrated with an ALB or NLB. */\n  loadBalancerHealthCheck?: LoadBalancerHealthCheck;\n  /** Container logging (stdout/stderr). Sent to CloudWatch, viewable with `stacktape logs`. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Seconds to wait after SIGTERM before SIGKILL (2-120). */\n  stopTimeout?: number;\n  /** Mount EFS volumes for persistent, shared storage across containers. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype ContainerWorkloadContainerPackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n\ntype ContainerWorkloadContainerEvents =\n  | ContainerWorkloadLoadBalancerIntegration\n  | ContainerWorkloadHttpApiIntegration\n  | ContainerWorkloadInternalIntegration\n  | ContainerWorkloadServiceConnectIntegration\n  | ContainerWorkloadNetworkLoadBalancerIntegration;\n// [!code focus-end]"
+    "typeDeclaration": "import type { ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadHttpApiIntegration, ContainerWorkloadInternalIntegration, ContainerWorkloadLoadBalancerIntegration, ContainerWorkloadNetworkLoadBalancerIntegration, ContainerWorkloadServiceConnectIntegration, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, LoadBalancerHealthCheck, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, StpBuildpackCwImagePackaging } from 'stacktape';\n\n// [!code focus-start]\ntype ContainerWorkloadContainer = {\n  /** Unique container name within this workload. */\n  name: string;\n  /** How to build or specify the container image. */\n  packaging: ContainerWorkloadContainerPackaging;\n  /** Start this container only after the listed containers reach a specific state. */\n  dependsOn?: Array<ContainerDependency>;\n  /** Environment variables injected at runtime. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** If `true` (default), the entire workload restarts when this container fails. */\n  essential?: boolean;\n  /** How this container receives traffic (API Gateway, load balancer, or service-connect). */\n  events?: Array<ContainerWorkloadContainerEvents>;\n  /** Command-based health check. If it fails on an essential container, the workload instance is replaced. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** Load balancer health check settings. Only applies when integrated with an ALB or NLB. */\n  loadBalancerHealthCheck?: LoadBalancerHealthCheck;\n  /** Container logging (stdout/stderr). Sent to CloudWatch, viewable with `stacktape logs`. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Sensitive environment variables fetched by ECS instead of stored in the task definition.\n\nEach `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive. */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Seconds to wait after SIGTERM before SIGKILL (2-120). */\n  stopTimeout?: number;\n  /** Mount EFS volumes for persistent, shared storage across containers. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype ContainerWorkloadContainerPackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n\ntype ContainerWorkloadContainerEvents =\n  | ContainerWorkloadLoadBalancerIntegration\n  | ContainerWorkloadHttpApiIntegration\n  | ContainerWorkloadInternalIntegration\n  | ContainerWorkloadServiceConnectIntegration\n  | ContainerWorkloadNetworkLoadBalancerIntegration;\n// [!code focus-end]"
   },
   "ContainerWorkloadContainerLogging": {
     "definitionName": "ContainerWorkloadContainerLogging",
@@ -45010,6 +45036,19 @@
         ]
       },
       {
+        "name": "secrets",
+        "required": false,
+        "shortDescription": "<p> Sensitive environment variables fetched by the container runtime.</p>\n<p>Values must be exact <code>$SsmParam(...)</code> or <code>$Secret(...)</code> directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.</p>\n<p><strong>Example (TypeScript):</strong></p>\n<pre><code class=\"language-ts\">secrets: {\n  DATABASE_PASSWORD: $SsmParam(&#39;/my-app/production/database-password&#39;),\n  ROTATING_API_KEY: $Secret(&#39;rotating-api-key&#39;)\n}\n</code></pre>",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "SecretEnvironmentVar"
+          }
+        }
+      },
+      {
         "name": "sideContainers",
         "required": false,
         "shortDescription": "<p> Helper containers that run alongside the main container.</p>",
@@ -45094,9 +45133,9 @@
     ],
     "stats": {
       "requiredCount": 2,
-      "optionalCount": 14
+      "optionalCount": 15
     },
-    "typeDeclaration": "import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype PrivateServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: PrivateServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches this service from other resources. */\n  loadBalancing?: PrivateServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Port this service listens on. Injected as the `PORT` env var. */\n  port?: number;\n  /** Protocol for metrics collection. Set to enable protocol-specific metrics (e.g., HTTP 5xx tracking). */\n  protocol?: \"grpc\" | \"http\" | \"http2\";\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype PrivateServicePackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n// [!code focus-end]"
+    "typeDeclaration": "import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, PrivateServiceLoadBalancing, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype PrivateServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: PrivateServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches this service from other resources. */\n  loadBalancing?: PrivateServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Port this service listens on. Injected as the `PORT` env var. */\n  port?: number;\n  /** Protocol for metrics collection. Set to enable protocol-specific metrics (e.g., HTTP 5xx tracking). */\n  protocol?: \"grpc\" | \"http\" | \"http2\";\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nsecrets: {\n  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n  ROTATING_API_KEY: $Secret('rotating-api-key')\n} */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype PrivateServicePackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n// [!code focus-end]"
   },
   "PyLanguageSpecificConfig": {
     "definitionName": "PyLanguageSpecificConfig",
@@ -50206,6 +50245,40 @@
     },
     "typeDeclaration": "import type { EventInputTransformer } from 'stacktape';\n\n// [!code focus-start]\ntype ScheduleIntegrationProps = {\n  /** The schedule rate or cron expression. */\n  scheduleRate: string;\n  /** A fixed JSON object to be passed as the event payload. */\n  input?: unknown;\n  /** A JSONPath expression to extract a portion of the event to pass to the target. */\n  inputPath?: string;\n  /** Customizes the event payload sent to the target. */\n  inputTransformer?: EventInputTransformer;\n};\n// [!code focus-end]"
   },
+  "SecretEnvironmentVar": {
+    "definitionName": "SecretEnvironmentVar",
+    "properties": [
+      {
+        "name": "name",
+        "required": true,
+        "shortDescription": "<p> Environment variable name exposed to the container (e.g., <code>DATABASE_PASSWORD</code>, <code>API_KEY</code>).</p>",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      },
+      {
+        "name": "valueFrom",
+        "required": true,
+        "shortDescription": "<p> Secret source injected by the container runtime.</p>\n<p>Use an exact <code>$SsmParam(...)</code> or <code>$Secret(...)</code> directive. Unlike <code>environment</code>, Stacktape passes only the\nparameter or secret ARN to the container orchestrator; the sensitive value is never stored in the task\ndefinition.</p>",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ]
+        }
+      }
+    ],
+    "stats": {
+      "requiredCount": 2,
+      "optionalCount": 0
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype SecretEnvironmentVar = {\n  /** Environment variable name exposed to the container (e.g., `DATABASE_PASSWORD`, `API_KEY`). */\n  name: string;\n  /** Secret source injected by the container runtime.\n\nUse an exact `$SsmParam(...)` or `$Secret(...)` directive. Unlike `environment`, Stacktape passes only the\nparameter or secret ARN to the container orchestrator; the sensitive value is never stored in the task\ndefinition. */\n  valueFrom: string;\n};\n// [!code focus-end]"
+  },
   "ServiceHelperContainer": {
     "definitionName": "ServiceHelperContainer",
     "properties": [
@@ -51698,6 +51771,19 @@
         ]
       },
       {
+        "name": "secrets",
+        "required": false,
+        "shortDescription": "<p> Sensitive environment variables fetched by ECS instead of stored in the task definition.</p>\n<p>Each <code>valueFrom</code> must be an exact <code>$SsmParam(...)</code> or <code>$Secret(...)</code> directive.</p>",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "SecretEnvironmentVar"
+          }
+        }
+      },
+      {
         "name": "stopTimeout",
         "required": false,
         "shortDescription": "<p> Seconds to wait after SIGTERM before SIGKILL (2-120).</p>",
@@ -51746,9 +51832,9 @@
     ],
     "stats": {
       "requiredCount": 3,
-      "optionalCount": 7
+      "optionalCount": 8
     },
-    "typeDeclaration": "import type { ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, StpBuildpackCwImagePackaging } from 'stacktape';\n\n// [!code focus-start]\ntype ServiceHelperContainer = {\n  /** When and how this sidecar container runs. */\n  containerType: \"always-running\" | \"run-on-init\";\n  /** Unique container name within this workload. */\n  name: string;\n  /** How to build or specify the container image. */\n  packaging: ServiceHelperContainerPackaging;\n  /** Start this container only after the listed containers reach a specific state. */\n  dependsOn?: Array<ContainerDependency>;\n  /** Environment variables injected at runtime. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** If `true` (default), the entire workload restarts when this container fails. */\n  essential?: boolean;\n  /** Command-based health check. If it fails on an essential container, the workload instance is replaced. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** Container logging (stdout/stderr). Sent to CloudWatch, viewable with `stacktape logs`. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Seconds to wait after SIGTERM before SIGKILL (2-120). */\n  stopTimeout?: number;\n  /** Mount EFS volumes for persistent, shared storage across containers. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype ServiceHelperContainerPackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n// [!code focus-end]"
+    "typeDeclaration": "import type { ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, StpBuildpackCwImagePackaging } from 'stacktape';\n\n// [!code focus-start]\ntype ServiceHelperContainer = {\n  /** When and how this sidecar container runs. */\n  containerType: \"always-running\" | \"run-on-init\";\n  /** Unique container name within this workload. */\n  name: string;\n  /** How to build or specify the container image. */\n  packaging: ServiceHelperContainerPackaging;\n  /** Start this container only after the listed containers reach a specific state. */\n  dependsOn?: Array<ContainerDependency>;\n  /** Environment variables injected at runtime. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** If `true` (default), the entire workload restarts when this container fails. */\n  essential?: boolean;\n  /** Command-based health check. If it fails on an essential container, the workload instance is replaced. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** Container logging (stdout/stderr). Sent to CloudWatch, viewable with `stacktape logs`. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Sensitive environment variables fetched by ECS instead of stored in the task definition.\n\nEach `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive. */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Seconds to wait after SIGTERM before SIGKILL (2-120). */\n  stopTimeout?: number;\n  /** Mount EFS volumes for persistent, shared storage across containers. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype ServiceHelperContainerPackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n// [!code focus-end]"
   },
   "SlackIntegration": {
     "definitionName": "SlackIntegration",
@@ -63496,6 +63582,19 @@
         ]
       },
       {
+        "name": "secrets",
+        "required": false,
+        "shortDescription": "<p> Sensitive environment variables fetched by the container runtime.</p>\n<p>Values must be exact <code>$SsmParam(...)</code> or <code>$Secret(...)</code> directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.</p>\n<p><strong>Example (TypeScript):</strong></p>\n<pre><code class=\"language-ts\">secrets: {\n  DATABASE_PASSWORD: $SsmParam(&#39;/my-app/production/database-password&#39;),\n  ROTATING_API_KEY: $Secret(&#39;rotating-api-key&#39;)\n}\n</code></pre>",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "SecretEnvironmentVar"
+          }
+        }
+      },
+      {
         "name": "sideContainers",
         "required": false,
         "shortDescription": "<p> Helper containers that run alongside the main container.</p>",
@@ -63602,9 +63701,9 @@
     ],
     "stats": {
       "requiredCount": 2,
-      "optionalCount": 19
+      "optionalCount": 20
     },
-    "typeDeclaration": "import type { ApplicationLoadBalancerAlarm, CdnConfiguration, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, DomainConfiguration, EnvironmentVar, ExternalBuildpackCwImagePackaging, HttpApiCorsConfig, HttpApiGatewayAlarm, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement, WebServiceAlbLoadBalancing, WebServiceHttpApiGatewayLoadBalancing, WebServiceNlbLoadBalancing } from 'stacktape';\n\n// [!code focus-start]\ntype WebServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WebServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Alarms for this service (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<WebServiceAlarms>;\n  /** Put a CDN (CloudFront) in front of this service for caching and lower latency worldwide. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** CORS settings. Overrides any CORS headers from your application. */\n  cors?: HttpApiCorsConfig;\n  /** Custom domains (e.g., `api.example.com`). Stacktape auto-creates DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Gradual traffic shifting for safe deployments (canary, linear, or all-at-once). */\n  deployment?: ContainerWorkloadDeploymentConfig;\n  /** Global alarm names to exclude from this service. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches your containers. Affects pricing, features, and protocol support. */\n  loadBalancing?: WebServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Name of a `web-app-firewall` resource to protect this service from common web exploits. */\n  useFirewall?: string;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WebServicePackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n\ntype WebServiceAlarms =\n  | ApplicationLoadBalancerAlarm\n  | HttpApiGatewayAlarm;\n\ntype WebServiceLoadBalancing =\n  | WebServiceHttpApiGatewayLoadBalancing\n  | WebServiceAlbLoadBalancing\n  | WebServiceNlbLoadBalancing;\n// [!code focus-end]"
+    "typeDeclaration": "import type { ApplicationLoadBalancerAlarm, CdnConfiguration, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadDeploymentConfig, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, DomainConfiguration, EnvironmentVar, ExternalBuildpackCwImagePackaging, HttpApiCorsConfig, HttpApiGatewayAlarm, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement, WebServiceAlbLoadBalancing, WebServiceHttpApiGatewayLoadBalancing, WebServiceNlbLoadBalancing } from 'stacktape';\n\n// [!code focus-start]\ntype WebServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WebServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Alarms for this service (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<WebServiceAlarms>;\n  /** Put a CDN (CloudFront) in front of this service for caching and lower latency worldwide. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** CORS settings. Overrides any CORS headers from your application. */\n  cors?: HttpApiCorsConfig;\n  /** Custom domains (e.g., `api.example.com`). Stacktape auto-creates DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Gradual traffic shifting for safe deployments (canary, linear, or all-at-once). */\n  deployment?: ContainerWorkloadDeploymentConfig;\n  /** Global alarm names to exclude from this service. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** How traffic reaches your containers. Affects pricing, features, and protocol support. */\n  loadBalancing?: WebServiceLoadBalancing;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nsecrets: {\n  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n  ROTATING_API_KEY: $Secret('rotating-api-key')\n} */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Name of a `web-app-firewall` resource to protect this service from common web exploits. */\n  useFirewall?: string;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WebServicePackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n\ntype WebServiceAlarms =\n  | ApplicationLoadBalancerAlarm\n  | HttpApiGatewayAlarm;\n\ntype WebServiceLoadBalancing =\n  | WebServiceHttpApiGatewayLoadBalancing\n  | WebServiceAlbLoadBalancing\n  | WebServiceNlbLoadBalancing;\n// [!code focus-end]"
   },
   "WebhookIntegration": {
     "definitionName": "WebhookIntegration",
@@ -65250,6 +65349,19 @@
         ]
       },
       {
+        "name": "secrets",
+        "required": false,
+        "shortDescription": "<p> Sensitive environment variables fetched by the container runtime.</p>\n<p>Values must be exact <code>$SsmParam(...)</code> or <code>$Secret(...)</code> directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.</p>\n<p><strong>Example (TypeScript):</strong></p>\n<pre><code class=\"language-ts\">secrets: {\n  DATABASE_PASSWORD: $SsmParam(&#39;/my-app/production/database-password&#39;),\n  ROTATING_API_KEY: $Secret(&#39;rotating-api-key&#39;)\n}\n</code></pre>",
+        "longDescription": "",
+        "typeInfo": {
+          "kind": "array",
+          "itemType": {
+            "kind": "reference",
+            "typeName": "SecretEnvironmentVar"
+          }
+        }
+      },
+      {
         "name": "sideContainers",
         "required": false,
         "shortDescription": "<p> Helper containers that run alongside the main container.</p>",
@@ -65334,8 +65446,8 @@
     ],
     "stats": {
       "requiredCount": 2,
-      "optionalCount": 11
+      "optionalCount": 12
     },
-    "typeDeclaration": "import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype WorkerServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WorkerServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WorkerServicePackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n// [!code focus-end]"
+    "typeDeclaration": "import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype WorkerServiceProps = {\n  /** Configures the container image for the service. */\n  packaging: WorkerServicePackaging;\n  /** CPU, memory, and compute engine for the container. */\n  resources: ContainerWorkloadResourcesConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Allow SSH-like access to running containers for debugging. */\n  enableRemoteSessions?: boolean;\n  /** Environment variables injected into the container at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Health check that auto-replaces unhealthy containers. */\n  internalHealthCheck?: ContainerHealthCheck;\n  /** Logging configuration. */\n  logging?: ContainerWorkloadContainerLogging;\n  /** Auto-scaling: add/remove container instances based on demand. */\n  scaling?: ContainerWorkloadScaling;\n  /** Sensitive environment variables fetched by the container runtime.\n\nValues must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for\nsecrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features\nare useful.\n\n**Example (TypeScript):**\nsecrets: {\n  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),\n  ROTATING_API_KEY: $Secret('rotating-api-key')\n} */\n  secrets?: Array<SecretEnvironmentVar>;\n  /** Helper containers that run alongside the main container. */\n  sideContainers?: Array<ServiceHelperContainer>;\n  /** Seconds to wait for graceful shutdown before force-killing the container. */\n  stopTimeout?: number;\n  /** Deploy in private subnets with a static outbound IP via NAT Gateway. */\n  usePrivateSubnetsWithNAT?: boolean;\n  /** Persistent EFS volumes shared across containers and restarts. */\n  volumeMounts?: Array<ContainerEfsMount>;\n};\n\n/** Union choices used by the properties above. */\ntype WorkerServicePackaging =\n  | PrebuiltCwImagePackaging\n  | CustomDockerfileCwImagePackaging\n  | ExternalBuildpackCwImagePackaging\n  | NixpacksCwImagePackaging\n  | StpBuildpackCwImagePackaging;\n// [!code focus-end]"
   }
 }

@@ -5,13 +5,17 @@ Resource type: `batch-job`
 ## TypeScript definition
 
 ```typescript
-import type { CustomDockerfileBjImagePackaging, EnvironmentVar, ExternalBuildpackBjImagePackaging, NixpacksBjImagePackaging, PrebuiltBjImagePackaging, StpBuildpackBjImagePackaging } from 'stacktape';
+import type { CustomDockerfileBjImagePackaging, EnvironmentVar, ExternalBuildpackBjImagePackaging, NixpacksBjImagePackaging, PrebuiltBjImagePackaging, SecretEnvironmentVar, StpBuildpackBjImagePackaging } from 'stacktape';
 
 type BatchJobContainer = {
   /** How to build or specify the container image for this job. */
   packaging: BatchJobContainerPackaging;
   /** Environment variables injected into the container at runtime. */
   environment?: Array<EnvironmentVar>;
+  /** Sensitive environment variables fetched by AWS Batch instead of stored in the job definition.
+
+Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive. */
+  secrets?: Array<SecretEnvironmentVar>;
 };
 
 /** Union choices used by the properties above. */
@@ -148,3 +152,12 @@ export default defineConfig(() => {
   return { resources: { mainDb, worker } };
 });
 ```
+
+## Property: `secrets`
+
+- Required: no
+- Type: `Array<SecretEnvironmentVar>`
+
+Sensitive environment variables fetched by AWS Batch instead of stored in the job definition.
+
+Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive.

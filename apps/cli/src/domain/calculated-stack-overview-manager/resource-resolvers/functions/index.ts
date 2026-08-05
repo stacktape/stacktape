@@ -49,7 +49,10 @@ import {
   isCustomOriginRequestPolicyNeeded
 } from '../_utils/cdn';
 import type { ResourceWithPresentCdn } from '../_utils/cdn';
-import { getResolvedConnectToEnvironmentVariables } from '../_utils/connect-to-helper';
+import {
+  getResolvedConnectToEnvironmentVariables,
+  mergeConnectToEnvironmentVariables
+} from '../_utils/connect-to-helper';
 import { getEfsAccessPoint } from '../_utils/efs';
 import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';
 import { getAtlasMongoRoleAssociatedUserResource } from '../_utils/role-helpers';
@@ -556,9 +559,12 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         }
       };
       templateResourceProps.Environment = environment;
-      variablesToInject.forEach(({ Name, Value }) => {
-        environment.Variables[Name] = Value;
-      });
+      environment.Variables = Object.fromEntries(
+        mergeConnectToEnvironmentVariables(
+          Object.entries(environment.Variables).map(([Name, Value]) => ({ Name, Value })),
+          variablesToInject
+        ).map(({ Name, Value }) => [Name, Value])
+      );
     }
 
     // resolving s3 package

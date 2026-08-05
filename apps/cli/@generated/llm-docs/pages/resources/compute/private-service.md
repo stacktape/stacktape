@@ -478,6 +478,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `port` | no | `number` | `3000` |
 | `protocol` | no | `string: "grpc" \| "http" \| "http2"` | - |
 | `scaling` | no | `ContainerWorkloadScaling` | - |
+| `secrets` | no | `Array<SecretEnvironmentVar>` | - |
 | `sideContainers` | no | `Array<ServiceHelperContainer>` | - |
 | `stopTimeout` | no | `number` | `2` |
 | `usePrivateSubnetsWithNAT` | no | `boolean` | `false` |

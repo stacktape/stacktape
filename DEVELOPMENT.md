@@ -15,12 +15,13 @@ pnpm install --frozen-lockfile
 
 ## Credentials
 
-Nothing in this repository holds a credential, and nothing should start to.
+Nothing in this repository holds a credential, and nothing should start to. [`SECRETS.md`](SECRETS.md) is the
+canonical storage, provisioning, and rotation policy.
 
-- **Stacktape** — needed for deploys and commands that read or mutate Stacktape organization data. Set
-  `STACKTAPE_API_KEY` in the environment, or log in once with the development CLI
-  (`pnpm --filter @stacktape/cli run dev login`), which persists the session outside the repository. The local
-  `package`, `synth`, and `validate` commands do not use this credential.
+- **Stacktape** — needed for deploys and commands that read or mutate Stacktape organization data. Log in once with
+  the development CLI (`pnpm --filter @stacktape/cli run dev login`), which persists the session outside the
+  repository. Use a one-process `STACKTAPE_API_KEY` only for automation that cannot log in, and make it a separate
+  scoped, expiring identity. The local `package`, `synth`, and `validate` commands do not use this credential.
 - **AWS** — the standard AWS credential chain. The two selection flags are not interchangeable:
   - `--profile <name>` selects a **local AWS profile** from your `~/.aws` configuration (the `aws-profile:*` commands
     manage these, and `defaults:configure` can set a default one);
@@ -31,14 +32,20 @@ Nothing in this repository holds a credential, and nothing should start to.
   `AWS_REGION`. Exporting `AWS_PROFILE` is also the way to keep a whole session on one profile: `--profile` is
   accepted by most commands but not all (`info:stack` has no such flag and rejects it).
 
-The development CLI additionally loads `apps/cli/.env.local` on every run. That file is git-ignored and is the
-intended home for a local `STACKTAPE_API_KEY`; keep real values only there or in your shell. Set `SKIP_LOADING_ENV=1`
-to run without it.
+  Explicit standard-chain environment credentials (static session variables, web identity, or container credentials)
+  take precedence over a profile remembered by `defaults:configure`. An explicit `--profile` or `AWS_PROFILE` still
+  wins. This lets CI and agents use expiring role sessions without editing a human's saved defaults.
+
+The development CLI still understands `apps/cli/.env.local` for compatibility. It is git-ignored, but it is not the
+supported credential store: use the external login session or a short-lived shell environment instead. Set
+`SKIP_LOADING_ENV=1` to prove a workflow has no hidden `.env` dependency.
 
 `projectName` may be declared once at the top level of `stacktape.ts`/YAML. `--projectName` remains useful for
 temporary stacks and overrides the configured value. In v4, the old top-level `serviceName` property no longer exists.
 
 The pre-commit hook scans staged changes for credential patterns; `pnpm check:secrets` scans everything tracked.
+With the private Console present, `pnpm secrets:check:console:dev` separately validates the live AWS secret contract
+without printing values.
 
 ## Local repository checks
 

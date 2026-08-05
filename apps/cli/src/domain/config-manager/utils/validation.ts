@@ -29,7 +29,7 @@ import { validateHostingBucketConfig } from './buckets';
 import { validateConvexConfig } from './convex';
 import { validateHttpApiGatewayConfig } from './http-api-gateways';
 import { validateLambdaConfig } from './lambdas';
-import { validateMultiContainerWorkloadConfig } from './multi-container-workloads';
+import { validateContainerSecrets, validateMultiContainerWorkloadConfig } from './multi-container-workloads';
 import { validateNetworkLoadBalancerConfig } from './network-load-balancers';
 import { validateNextjsWebConfig } from './nextjs-webs';
 import { validateSsrWebConfig } from './ssr-webs';
@@ -670,6 +670,13 @@ export const runInitialValidations = ({
   // web services
   configManager.webServices.forEach((resource) => {
     validateWebServiceConfig({ resource });
+  });
+  configManager.batchJobs.forEach((definition) => {
+    validateContainerSecrets({
+      environment: definition.container.environment,
+      secrets: definition.container.secrets,
+      workloadName: definition.name
+    });
   });
   // multi container workload
   configManager.allContainerWorkloads.forEach((definition) => {

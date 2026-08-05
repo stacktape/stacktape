@@ -3268,6 +3268,22 @@ export interface EnvironmentVar {
 }
 
 
+export interface SecretEnvironmentVar {
+  /**
+   * #### Environment variable name exposed to the container (e.g., `DATABASE_PASSWORD`, `API_KEY`).
+   */
+  name: string;
+  /**
+   * #### Secret source injected by the container runtime.
+   *
+   * Use an exact `$SsmParam(...)` or `$Secret(...)` directive. Unlike `environment`, Stacktape passes only the
+   * parameter or secret ARN to the container orchestrator; the sensitive value is never stored in the task
+   * definition.
+   */
+  valueFrom: string;
+}
+
+
 export interface CloudformationTag {
   /**
    * #### Tag name (1-128 characters).
@@ -3560,6 +3576,23 @@ export interface SimpleServiceContainer extends ResourceAccessProps {
    * ```
    */
   environment?: EnvironmentVar[];
+  /**
+   * #### Sensitive environment variables fetched by the container runtime.
+   *
+   * Values must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for
+   * secrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features
+   * are useful.
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * secrets: {
+   *   DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
+   *   ROTATING_API_KEY: $Secret('rotating-api-key')
+   * }
+   * ```
+   */
+  secrets?: SecretEnvironmentVar[];
   /**
    * #### Logging configuration.
    *

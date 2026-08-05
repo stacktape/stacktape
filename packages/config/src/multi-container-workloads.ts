@@ -1,4 +1,4 @@
-import type { EnvironmentVar, ResourceAccessProps, ResourceOverrides } from './shared';
+import type { EnvironmentVar, ResourceAccessProps, ResourceOverrides, SecretEnvironmentVar } from './shared';
 import type { ContainerWorkloadContainerPackaging } from './deployment-artifacts';
 import type { ContainerWorkloadHttpApiIntegration, ContainerWorkloadInternalIntegration, ContainerWorkloadLoadBalancerIntegration, ContainerWorkloadNetworkLoadBalancerIntegration, ContainerWorkloadServiceConnectIntegration } from './events';
 import type { LogForwardingBase } from './log-forwarding';
@@ -1640,6 +1640,12 @@ export interface ContainerWorkloadContainerBase {
    * ```
    */
   environment?: EnvironmentVar[];
+  /**
+   * #### Sensitive environment variables fetched by ECS instead of stored in the task definition.
+   *
+   * Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive.
+   */
+  secrets?: SecretEnvironmentVar[];
   /**
    * #### Command-based health check. If it fails on an essential container, the workload instance is replaced.
    *

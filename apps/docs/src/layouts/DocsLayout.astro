@@ -10,6 +10,7 @@ import { Divider } from '@/components/Mdx/Divider';
 import { SidebarNavigation } from '@/components/Navigation/SidebarNavigation/Sidebar';
 import { MobileHamburgerNavigation } from '@/components/Navigation/MobileHamburgerNavigation/MobileHamburgerNavigation';
 import { TableOfContents } from '@/components/TableOfContents/TableOfContents';
+import PostHogAnalytics from '@/components/PostHogAnalytics.astro';
 
 type Props = {
   title: string;
@@ -136,6 +137,7 @@ const siteJsonLd = isHome ? [
     {pageJsonLd.map((node) => <script type="application/ld+json" set:html={JSON.stringify(node)} />)}
 
     <ClientRouter />
+    <PostHogAnalytics />
   </head>
 
   <body>
@@ -163,30 +165,5 @@ const siteJsonLd = isHome ? [
       </main>
       <TableOfContents client:idle tableOfContents={tableOfContents} />
     </div>
-
-    <!-- Analytics, deferred off the critical path. The queueing stub lets `trackAnalyticsEvent`
-         fire before plausible.js finishes loading. -->
-    <script is:inline>
-    window.plausible =
-        window.plausible ||
-        function () {
-          (window.plausible.q = window.plausible.q || []).push(arguments);
-        };
-    </script>
-    <script is:inline defer data-domain="docs.stacktape.com" src="https://plausible.io/js/script.js"></script>
-    <script is:inline>
-    (function loadApolloTracker() {
-        var script = document.createElement('script');
-        script.src =
-          'https://assets.apollo.io/micro/website-tracker/tracker.iife.js?nocache=' +
-          Math.random().toString(36).substring(7);
-        script.async = true;
-        script.defer = true;
-        script.addEventListener('load', function () {
-          window.trackingFunctions.onLoad({ appId: '6632714d8e944701af733bac' });
-        });
-        document.head.appendChild(script);
-      })();
-    </script>
   </body>
 </html>

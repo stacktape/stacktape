@@ -9,7 +9,6 @@ export const IS_DEV = process.env.STP_DEV_MODE === 'true';
 
 export const VALID_CONFIG_PATHS = ['stacktape.yaml', 'stacktape.yml', 'stacktape.js', 'stacktape.ts'];
 export const ANNOUNCEMENTS_ENDPOINT = 'https://announcements.stacktape-dev.com';
-export const SENTRY_DSN = 'https://93ed0b30b9b743bcbef5745266e8a30b@sentry.io/2119088';
 export const SCHEMAS_BUCKET_NAME =
   process.env.SCHEMAS_BUCKET_NAME || 'internal-services-production-schemasbucket-eb6fca19';
 export const LLM_DOCS_BUCKET_NAME = process.env.LLM_DOCS_BUCKET_NAME || 'console-app-dev-mcpdocsbucket-743a732';
@@ -75,7 +74,6 @@ export const DEFAULT_CLOUDFORMATION_REGISTRY_BUCKET_REGION = 'eu-west-1' as cons
 export const DEFAULT_KEEP_PREVIOUS_DEPLOYMENT_ARTIFACTS_COUNT = 25;
 
 export const MONITORING_FREQUENCY_SECONDS = 3.5;
-export const SENTRY_CAPTURE_EXCEPTION_WAIT_TIME_MS = 1500;
 export const DEFAULT_MAXIMUM_PARALLEL_ARTIFACT_UPLOADS = 10;
 export const DEFAULT_MAXIMUM_PARALLEL_BUCKET_SYNCS = 10;
 // @todo

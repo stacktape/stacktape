@@ -487,11 +487,11 @@ const ErrorView = (props: {
           </>
         )}
       </Show>
-      <Show when={props.error.sentryEventId}>
+      <Show when={props.error.errorTrackingId}>
         <GutterRow color={theme.error}>
           <text flexShrink={1} wrapMode="none" fg={theme.dim}>
             {' '}
-            error id {props.error.sentryEventId}
+            error id {props.error.errorTrackingId}
           </text>
         </GutterRow>
       </Show>

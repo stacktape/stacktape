@@ -16,7 +16,8 @@ import {
   LambdaS3FilesMount,
   LocalScript,
   RelationalDatabase,
-  StateMachine
+  StateMachine,
+  WebService
 } from './index.js';
 import { getAtt, ref, sub } from './index.js';
 import { compileAuthoringConfig } from './config.js';
@@ -210,6 +211,24 @@ describe('TypeScript authoring compilation', () => {
     ]);
     expect(handlerProperties.events[0].properties.httpApiGatewayName).toBe('api');
     expect(workflowProperties.connectTo).toEqual(['handler']);
+  });
+
+  test('transforms a container secrets map without resolving its directives', () => {
+    const api = new WebService({
+      packaging: { type: 'stacktape-image-buildpack', properties: { entryfilePath: './src/server.ts' } },
+      resources: { cpu: 0.25, memory: 512 },
+      secrets: {
+        API_TOKEN: "$SsmParam('/my-app/test/api-token')",
+        ROTATING_KEY: "$Secret('rotating-key.value')"
+      }
+    });
+
+    const { config } = compileAuthoringConfig({ resources: { api } });
+    const apiProperties = config.resources.api!.properties as Record<string, unknown>;
+    expect(apiProperties.secrets).toEqual([
+      { name: 'API_TOKEN', valueFrom: "$SsmParam('/my-app/test/api-token')" },
+      { name: 'ROTATING_KEY', valueFrom: "$Secret('rotating-key.value')" }
+    ]);
   });
 
   test('compiles typed helper classes to the same plain configuration shape', () => {

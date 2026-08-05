@@ -623,7 +623,9 @@ const startContainerWorkload = async (
   const skipAwsCredentials = !stackManager.existingStackDetails || isInjected;
   const getFreshEnvironment = async () => {
     return getWorkloadEnvironmentVars({
-      jobEnvironment: containerDefinition.environment,
+      jobEnvironment: (containerDefinition.environment || []).concat(
+        (containerDefinition.secrets || []).map(({ name, valueFrom }) => ({ name, value: valueFrom }))
+      ),
       jobName,
       workloadName: containerDefinition.workloadName,
       connectTo: resourceDeployedConnectTo,

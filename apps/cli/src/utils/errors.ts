@@ -71,7 +71,7 @@ export type ErrorDetails = {
   originalErrorType: string;
   code: string;
   errorType: ErrorCategory | 'UNEXPECTED';
-  sentryEventId: string | null;
+  errorTrackingId: string | null;
 };
 
 export class CliError extends Error {
@@ -168,7 +168,7 @@ export const getReturnableError = (error: HandledError): Error => {
   }
   const hints = error instanceof CliError ? error.hints : [];
   (res as any).details = {
-    errorId: details.sentryEventId,
+    errorId: details.errorTrackingId,
     errorType: details.errorType,
     code: details.code,
     hints: hints.length ? hints : null
@@ -304,7 +304,7 @@ export const getErrorDetails = (error: HandledError): ErrorDetails => {
     originalErrorType,
     code,
     errorType,
-    sentryEventId: null as string
+    errorTrackingId: null as string
   };
 };
 

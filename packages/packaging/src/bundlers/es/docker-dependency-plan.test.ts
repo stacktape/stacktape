@@ -50,4 +50,29 @@ describe('createDockerDependencyPlan', () => {
       packageManager: 'pnpm'
     });
   });
+
+  test('keeps an explicitly externalized dependency even when it is ignored by default', () => {
+    const plan = createDockerDependencyPlan({
+      bundledDependencies: [
+        { ...dependency('pg'), note: 'EXCLUDED_FROM_BUNDLE_BY_USER' },
+        dependency('bundled-native')
+      ],
+      explicitlyIncludedDependencies: [],
+      packageManager: 'pnpm',
+      createPackagingError
+    });
+
+    expect(plan?.dependencies.map(({ name }) => name)).toEqual(['pg', 'bundled-native']);
+  });
+
+  test('continues to omit a default-ignored dependency when the user did not externalize it', () => {
+    const plan = createDockerDependencyPlan({
+      bundledDependencies: [dependency('pg')],
+      explicitlyIncludedDependencies: [],
+      packageManager: 'pnpm',
+      createPackagingError
+    });
+
+    expect(plan).toBeNull();
+  });
 });
