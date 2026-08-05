@@ -47,3 +47,6 @@ catalog:
   tsx: 4.23.1
   typescript: 6.0.3
   zod: 4.4.3
+
+minimumReleaseAgeExclude:
+  - stacktape@4.0.0-preview.7
