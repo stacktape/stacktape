@@ -24,7 +24,7 @@
       "src/*": ["./src/*"]
     },
     "resolveJsonModule": true,
-    "types": ["bun-types"],
+    "types": ["bun"],
     "allowJs": true,
     "skipLibCheck": true,
     "noImplicitThis": true,

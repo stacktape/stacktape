@@ -9,7 +9,7 @@ import { acceptedConfiguration, alarmDefinition, api, rawSubscription } from './
  * The runtime half of the package's acceptance check.
  *
  * The configuration it asserts against is built in `config-import.acceptance.ts`, which the package's own
- * strict project compiles with `types: []`. This file needs `bun-types` for `bun:test`, and bun-types and
+ * strict project compiles with `types: []`. This file needs `@types/bun` for `bun:test`, and Bun's declarations and
  * @types/node disagree about a few web-stream globals, so it compiles under `tests/tsconfig.json` instead.
  */
 

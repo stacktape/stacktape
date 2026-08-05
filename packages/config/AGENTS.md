@@ -57,7 +57,7 @@ service-manager aliases. They stay with their real owners.
   package's own `tsconfig.json`, which compiles it with `types: []` and `skipLibCheck: false` — the environment a
   consumer actually has, so a stray dependency on a Bun or Node global cannot pass unnoticed.
   `tests/config-import.test.ts` pins structural CloudFormation helper output and the `connectTo` AWS-service macros.
-  It needs `bun-types` for `bun:test`, so it compiles under
+  It needs `@types/bun` for `bun:test`, so it compiles under
   `tests/tsconfig.json` instead; measured, that laxer project hides nothing repository-owned.
 
 ## Declaration content is product content

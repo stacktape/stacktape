@@ -17,7 +17,7 @@ import type { AlarmDefinition, AlarmTrigger } from '@stacktape/config/alarms';
  * runtime test: it belongs to the package's own `tsconfig.json`, which compiles with `types: []`. That is the
  * environment a consumer of `@stacktape/config` actually has — no Bun globals, no Node globals — so an
  * accidental dependency on an ambient global cannot pass unnoticed here. The runtime assertions live in
- * `config-import.test.ts`, which needs `bun-types` and therefore compiles under a laxer library check.
+ * `config-import.test.ts`, which needs `@types/bun` and therefore compiles under a laxer library check.
  *
  * Everything is imported through the package's own specifiers - the root, the `./shared` entry point and
  * ordinary wildcard subpaths - so this proves the export map a consumer actually resolves, not the file layout.

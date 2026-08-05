@@ -4,6 +4,6 @@
   "compilerOptions": {
     "module": "preserve",
     "moduleResolution": "bundler",
-    "types": ["bun-types"]
+    "types": ["bun"]
   }
 }
