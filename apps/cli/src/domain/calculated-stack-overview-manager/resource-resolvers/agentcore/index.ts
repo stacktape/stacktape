@@ -25,7 +25,10 @@ import { getJobName } from '@stacktape/naming/workload-names';
 import { getCfEnvironment } from '@utils/cloudformation';
 import { getIsDirective } from '@utils/directives';
 import { getAugmentedEnvironment } from '@utils/environment';
-import { getResolvedConnectToEnvironmentVariables } from '../_utils/connect-to-helper';
+import {
+  getResolvedConnectToEnvironmentVariables,
+  mergeConnectToEnvironmentVariables
+} from '../_utils/connect-to-helper';
 import { getPoliciesForRoles } from '../_utils/role-helpers';
 import { getLambdaFunctionSecurityGroup } from '../functions/utils';
 import type {
@@ -205,9 +208,12 @@ const resolveAgentCoreRuntimes = () => {
       });
       const environmentVariables = (props.EnvironmentVariables || {}) as Record<string, CloudFormationValue<string>>;
       props.EnvironmentVariables = environmentVariables;
-      variablesToInject.forEach(({ Name, Value }) => {
-        environmentVariables[Name] = Value;
-      });
+      props.EnvironmentVariables = Object.fromEntries(
+        mergeConnectToEnvironmentVariables(
+          Object.entries(environmentVariables).map(([Name, Value]) => ({ Name, Value })),
+          variablesToInject
+        ).map(({ Name, Value }) => [Name, Value])
+      );
     });
   });
 };

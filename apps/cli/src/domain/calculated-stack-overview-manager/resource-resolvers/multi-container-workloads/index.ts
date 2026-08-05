@@ -22,7 +22,10 @@ import { getJobName } from '@stacktape/naming/workload-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
 import { getLanguageFromExtension } from '@utils/environment';
 import { getContainerIssueFilterPattern, isIssueDetectionSupportedLanguage } from '../_utils/issue-detection';
-import { getResolvedConnectToEnvironmentVariables } from '../_utils/connect-to-helper';
+import {
+  getResolvedConnectToEnvironmentVariables,
+  mergeConnectToEnvironmentVariables
+} from '../_utils/connect-to-helper';
 import { getEfsAccessPoint } from '../_utils/efs';
 import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';
 import { getAtlasMongoRoleAssociatedUserResource } from '../_utils/role-helpers';
@@ -443,14 +446,7 @@ export const getTaskDefinitionTemplateOverrideFns = ({
 
       (templateResourceProps.ContainerDefinitions as ContainerDefinition[]).forEach((containerDef) => {
         const currentVars = (containerDef.Environment || []) as KeyValuePair[];
-        variablesToInject.forEach(({ Name, Value }) => {
-          const varIndex = currentVars.findIndex(({ Name: AlreadyAddedName }) => Name === AlreadyAddedName);
-          if (varIndex >= 0) {
-            currentVars[varIndex] = { Name, Value };
-          } else {
-            currentVars.push({ Name, Value });
-          }
-        });
+        containerDef.Environment = mergeConnectToEnvironmentVariables(currentVars, variablesToInject);
       });
     }
   ];

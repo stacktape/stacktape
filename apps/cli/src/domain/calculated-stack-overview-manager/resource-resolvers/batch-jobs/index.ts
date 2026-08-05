@@ -16,7 +16,10 @@ import { cfEvaluatedLinks } from '@domain-services/calculated-stack-overview-man
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getJobName } from '@stacktape/naming/workload-names';
 import { PARENT_IDENTIFIER_SHARED_GLOBAL } from 'src/config/constants';
-import { getResolvedConnectToEnvironmentVariables } from '../_utils/connect-to-helper';
+import {
+  getResolvedConnectToEnvironmentVariables,
+  mergeConnectToEnvironmentVariables
+} from '../_utils/connect-to-helper';
 import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';
 import { getAtlasMongoRoleAssociatedUserResource } from '../_utils/role-helpers';
 import { resolveFunction } from '../functions';
@@ -298,14 +301,8 @@ export const getJobDefinitionTemplateOverrideFns = ({
         localResolve: hotSwapDeploy
       });
 
-      variablesToInject.forEach(({ Name, Value }) => {
-        const varIndex = currentVars.findIndex(({ Name: AlreadyAddedName }) => Name === AlreadyAddedName);
-        if (varIndex >= 0) {
-          currentVars[varIndex] = { Name, Value };
-        } else {
-          currentVars.push({ Name, Value });
-        }
-      });
+      (templateResourceProps.ContainerProperties as ContainerProperties).Environment =
+        mergeConnectToEnvironmentVariables(currentVars, variablesToInject);
     }
   ];
 };

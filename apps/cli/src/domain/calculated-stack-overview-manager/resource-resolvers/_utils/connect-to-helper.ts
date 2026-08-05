@@ -29,3 +29,14 @@ export const getResolvedConnectToEnvironmentVariables = ({
     .flat()
     .filter(Boolean);
 };
+
+export const mergeConnectToEnvironmentVariables = <
+  TExplicit extends { Name?: unknown },
+  TConnected extends { Name?: unknown }
+>(
+  explicitVariables: TExplicit[],
+  connectToVariables: TConnected[]
+): (TExplicit | TConnected)[] => {
+  const explicitNames = new Set(explicitVariables.map(({ Name }) => Name));
+  return [...explicitVariables, ...connectToVariables.filter(({ Name }) => !explicitNames.has(Name))];
+};
