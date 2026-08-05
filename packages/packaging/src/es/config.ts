@@ -12,7 +12,7 @@ export const FILES_TO_INCLUDE_IN_DIGEST = [
   'tsconfig.json'
 ];
 
-export const DEPENDENCIES_TO_IGNORE_FROM_DOCKER_INSTALLATION = 'pg';
+export const DEPENDENCIES_TO_IGNORE_FROM_DOCKER_INSTALLATION: string[] = ['pg'];
 
 export const DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE = ['next'];
 

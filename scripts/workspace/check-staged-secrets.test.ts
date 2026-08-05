@@ -47,6 +47,26 @@ test('rejects newly staged high-confidence credential formats without echoing va
   assert.doesNotMatch(result.stderr, new RegExp(synthetic));
 });
 
+test('rejects tracked local environment files even when their value pattern is unknown', async () => {
+  await writeFile(path.join(repository, '.env.dev'), 'UNRECOGNIZED_VENDOR_CREDENTIAL=opaque-value\n');
+  assert.equal(run('git', ['add', '-f', '.env.dev']).status, 0);
+  const result = run(process.execPath, [checker, repository]);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /\.env\.dev: tracked local environment file/);
+  assert.doesNotMatch(result.stderr, /opaque-value/);
+});
+
+test('rejects source that logs a secret-like variable', async () => {
+  await writeFile(
+    path.join(repository, 'unsafe-log.ts'),
+    ['console', '.info(serverConfig.PAYMENT_AUTH_CODE);\n'].join('')
+  );
+  assert.equal(run('git', ['add', 'unsafe-log.ts']).status, 0);
+  const result = run(process.execPath, [checker, repository]);
+  assert.equal(result.status, 1);
+  assert.match(result.stderr, /possible secret-bearing log statement/);
+});
+
 test('checks added lines when a staged file is classified as a rename', async () => {
   const synthetic = ['AKIA', 'QRSTUVWXYZABCDEF'].join('');
   assert.equal(run('git', ['mv', 'safe.ts', 'renamed.ts']).status, 0);

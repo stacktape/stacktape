@@ -35,13 +35,28 @@ const detectors: Detector[] = [
     label: 'Slack token'
   },
   {
+    git: 'phx_[A-Za-z0-9]{20,255}',
+    js: /\bphx_[A-Za-z0-9]{20,255}\b/,
+    label: 'PostHog personal API key'
+  },
+  {
+    git: 'stp_(live|job)_[A-Za-z0-9_]{20,255}',
+    js: /\bstp_(?:live|job)_[A-Za-z0-9_]{20,255}\b/,
+    label: 'Stacktape API key'
+  },
+  {
+    git: '(console|logger)[.](log|info|warn|error|debug)[(][^)]*(PASSWORD|TOKEN|SECRET|AUTH_CODE|PRIVATE_KEY|ACCESS_KEY)',
+    js: /(?:console|logger)\.(?:log|info|warn|error|debug)\([^\r\n)]*(?:PASSWORD|TOKEN|SECRET|AUTH_CODE|PRIVATE_KEY|ACCESS_KEY)/,
+    label: 'secret-bearing log statement'
+  },
+  {
     // The host is part of the match because it is what separates a documented local example from a leak.
     git: '[A-Za-z][A-Za-z0-9+.-]*://[^/[:space:]:@]+:[^/[:space:]@]+@[^/[:space:]@]*',
     js: /\b[a-z][a-z0-9+.-]*:\/\/[^/\s:@]+:[^/\s@]+@[^/\s@]*/i,
     label: 'credential-bearing URL'
   },
   {
-    git: 'eyJ[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}\\.[A-Za-z0-9_-]{10,}',
+    git: 'eyJ[A-Za-z0-9_-]{10,}[.][A-Za-z0-9_-]{10,}[.][A-Za-z0-9_-]{10,}',
     js: /\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b/,
     label: 'JWT'
   }
@@ -88,6 +103,9 @@ const isSyntheticMatch = (label: string, match: string): boolean => {
   if (label === 'credential-bearing URL') {
     return isDocumentedCredentialUrl(match);
   }
+  if (label === 'Stacktape API key') {
+    return match.endsWith('_abcdefghijklmnopqrstuvwxyz') || match.endsWith('_characterization_secret');
+  }
   return false;
 };
 
@@ -115,6 +133,13 @@ const gitDiff = (root: string, diffArguments: string[]): string => {
 
 const scanStagedDiff = (root: string): string[] => {
   const findings = [];
+  const stagedFiles = gitDiff(root, ['--name-only', '--', '.']).split(/\r?\n/).filter(Boolean);
+  for (const file of stagedFiles) {
+    const basename = path.basename(file);
+    if (basename.startsWith('.env') && basename !== '.env.example') {
+      findings.push(`${file}: tracked local environment file`);
+    }
+  }
   for (const detector of detectors) {
     // Narrowing to the files whose staged changes touch the pattern keeps a large commit from being materialised
     // as one diff, then each candidate is inspected on its own to keep the "newly added lines" semantics.
@@ -135,6 +160,20 @@ const scanStagedDiff = (root: string): string[] => {
 
 const scanTrackedTree = (root: string): string[] => {
   const findings = [];
+  const trackedFiles = spawnSync('git', ['ls-files', '-z'], {
+    cwd: root,
+    encoding: 'utf8',
+    maxBuffer: 16 * 1024 * 1024
+  });
+  if (trackedFiles.status !== 0 || trackedFiles.error) {
+    throw new Error(`Unable to list tracked files.\n${trackedFiles.stderr ?? trackedFiles.error?.message ?? ''}`);
+  }
+  for (const file of trackedFiles.stdout.split('\0').filter(Boolean)) {
+    const basename = path.basename(file);
+    if (basename.startsWith('.env') && basename !== '.env.example') {
+      findings.push(`${file}: tracked local environment file`);
+    }
+  }
   for (const detector of detectors) {
     // `--only-matching` keeps the output small even for the vendored multi-megabyte schema files and lets the
     // synthetic-value filter run on the match itself. Matched values stay internal; only file names are reported.

@@ -39,7 +39,10 @@ export const createDockerDependencyPlan = ({
       return true;
     })
     .filter(({ name }) => !dependenciesToExcludeFromDeploymentPackage?.includes(name))
-    .filter(({ name }) => !DEPENDENCIES_TO_IGNORE_FROM_DOCKER_INSTALLATION.includes(name));
+    .filter(
+      ({ name, note }) =>
+        note === 'EXCLUDED_FROM_BUNDLE_BY_USER' || !DEPENDENCIES_TO_IGNORE_FROM_DOCKER_INSTALLATION.includes(name)
+    );
 
   if (!dependencies.length) {
     return null;
