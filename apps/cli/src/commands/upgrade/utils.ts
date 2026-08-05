@@ -1,7 +1,7 @@
-import { homedir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { resolve } from 'node:path';
 import { getInstallationScript } from '@utils/bin-executable';
 import { realpath } from 'fs-extra';
+import { localStatePaths } from 'src/config/local-state-paths';
 
 export type PackageManager = 'npm' | 'bun' | 'pnpm';
 
@@ -45,7 +45,7 @@ const inferPackageManager = ({ candidatePaths }: { candidatePaths: string[] }): 
 export const detectInstallationType = async (): Promise<InstallationDetection> => {
   const candidatePaths = await getCandidatePaths();
   const currentWorkingDir = `${normalizePath(process.cwd())}/`;
-  const nativeBinPath = normalizePath(join(homedir(), '.stacktape', 'bin'));
+  const nativeBinPath = normalizePath(localStatePaths.nativeInstallBinDirectory());
 
   const isNativeInstallation = candidatePaths.some((candidatePath) => candidatePath.includes(nativeBinPath));
   if (isNativeInstallation) {

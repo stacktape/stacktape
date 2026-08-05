@@ -6,7 +6,6 @@ import {
   PACK_BINARY_FILE_NAMES,
   SESSION_MANAGER_PLUGIN_BINARY_FILE_NAMES
 } from 'src/config/constants';
-import { getHomeDir } from '@utils/misc';
 import {
   BRIDGE_FILES_FOLDER_NAME,
   DEV_TMP_FOLDER_PATH,
@@ -14,6 +13,8 @@ import {
   SCRIPTS_ASSETS_PATH,
   STARTER_PROJECTS_METADATA_FOLDER_NAME
 } from './project-paths';
+import { getHomeDir } from '@utils/misc';
+import { localStatePaths } from './local-state-paths';
 
 export const fsPaths = {
   absoluteExecutableDirname() {
@@ -22,7 +23,7 @@ export const fsPaths = {
     return dirname(process.execPath);
   },
   absoluteTempFolderPath({ invocationId }: { invocationId: string }) {
-    return join(process.cwd(), '.stacktape', invocationId);
+    return localStatePaths.invocationDirectory({ commandWorkingDirectory: process.cwd(), invocationId });
   },
   absoluteBuildFolderPath({ invocationId }: { invocationId: string }) {
     return join(fsPaths.absoluteTempFolderPath({ invocationId }), 'build');
@@ -97,12 +98,6 @@ export const fsPaths = {
   },
   awsConfigFilePath() {
     return join(getHomeDir(), '.aws/config');
-  },
-  persistedStateFilePath() {
-    return join(fsPaths.stacktapeDataFolder(), 'persisted-state.json');
-  },
-  stacktapeDataFolder() {
-    return join(getHomeDir(), '.stacktape');
   },
   stackInfoCommandOutFile({ outputFileName, outputFormat }: { outputFileName: string; outputFormat: 'json' | 'yml' }) {
     return join(process.cwd(), outputFileName || `stack-info.${outputFormat}`);

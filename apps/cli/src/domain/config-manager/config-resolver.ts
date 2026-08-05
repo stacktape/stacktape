@@ -10,8 +10,8 @@ import type { DirectiveParam } from '@utils/directives';
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { randomUUID } from 'node:crypto';
 import { open, rm, type FileHandle } from 'node:fs/promises';
-import { join } from 'node:path';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
+import { localStatePaths } from 'src/config/local-state-paths';
 import { supportedCodeConfigLanguages } from '@config';
 import { getFileExtension } from '@utils/fs-utils';
 import { isNonNullObject, processAllNodes, serialize, traverseToMaximalExtent } from '@utils/misc';
@@ -325,7 +325,7 @@ export class ConfigResolver {
         yamlParseError = err;
       }
 
-      const tempConfigPath = join(workingDir, `.stacktape-template-${randomUUID()}.stp.ts`);
+      const tempConfigPath = localStatePaths.downloadedTemplateFile({ workingDirectory: workingDir, id: randomUUID() });
 
       let typescriptParseError: Error | null = null;
       let tempConfigFile: FileHandle | undefined;

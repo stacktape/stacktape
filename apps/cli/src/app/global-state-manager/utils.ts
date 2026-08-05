@@ -4,12 +4,12 @@ import type {
   PersistedState
 } from '@application-services/global-state-manager/types';
 import { configurableGlobalDefaultCliArgs, configurableGlobalDefaultOtherProps } from '@config';
-import { fsPaths } from 'src/config/runtime-paths';
+import { localStatePaths } from 'src/config/local-state-paths';
 import { ensureDir, outputJson, readJson } from 'fs-extra';
 
 export const loadPersistedState = async (): Promise<PersistedState> => {
   try {
-    const res = await readJson(fsPaths.persistedStateFilePath());
+    const res = await readJson(localStatePaths.persistedStateFile());
     return res;
   } catch {
     const cliArgsDefaults = {};
@@ -31,8 +31,8 @@ export const loadPersistedState = async (): Promise<PersistedState> => {
 let isStacktapeDataDirAvailable = false;
 export const savePersistedState = async (persistedState: PersistedState) => {
   if (!isStacktapeDataDirAvailable) {
-    await ensureDir(fsPaths.stacktapeDataFolder());
+    await ensureDir(localStatePaths.userDataDirectory());
     isStacktapeDataDirAvailable = true;
   }
-  return outputJson(fsPaths.persistedStateFilePath(), persistedState);
+  return outputJson(localStatePaths.persistedStateFile(), persistedState);
 };

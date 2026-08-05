@@ -1,6 +1,4 @@
 import type { ProxyServer } from './proxy';
-import { homedir } from 'node:os';
-import { join } from 'node:path';
 import { mkdirp, readFile } from 'fs-extra';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
@@ -9,6 +7,7 @@ import { findAvailablePort } from '../port-utils';
 import { ensureCerts, isCATrusted, trustCA, createSNICallback } from './certs';
 import { createProxyServer } from './proxy';
 import { formatUrl, parseHostname } from './utils';
+import { localStatePaths } from 'src/config/local-state-paths';
 
 type RouteMapping = {
   hostname: string;
@@ -65,7 +64,7 @@ const isTlsRequested = (): boolean => {
 };
 
 const getProxyStateDir = (): string => {
-  return process.env.STACKTAPE_DEV_PROXY_STATE_DIR || join(homedir(), '.stacktape', 'dev-proxy');
+  return localStatePaths.devProxyDirectory();
 };
 
 const ensureTlsOptions = async (): Promise<

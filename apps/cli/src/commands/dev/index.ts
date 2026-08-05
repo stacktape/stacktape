@@ -9,8 +9,8 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { outputNames } from '@stacktape/naming/stack-output-names';
 import { CliError } from '@utils/errors';
-import { join } from 'node:path';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
+import { localStatePaths } from 'src/config/local-state-paths';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
 import { devTuiState } from 'src/app/tui-manager/dev/state';
 import type { DevTuiState } from 'src/app/tui-manager/dev/types';
@@ -425,7 +425,7 @@ export const commandDev = async () => {
 
     registerAgentCleanupHook();
     setRebuildFunctions(rebuildWorkload, rebuildAllWorkloads);
-    await startAgentServer(agentPort, join(stackContext.workingDir, '.stacktape', 'dev-agent'));
+    await startAgentServer(agentPort, localStatePaths.devAgentDirectory({ workingDirectory: stackContext.workingDir }));
   }
 
   const devHeader = {

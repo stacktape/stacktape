@@ -1,4 +1,3 @@
-import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { tuiManager } from '@application-services/tui-manager';
 import { configManager } from '@domain-services/config-manager';
@@ -7,6 +6,7 @@ import { stopDockerContainer } from '@utils/docker';
 import { ExpectedError } from '@utils/errors';
 import { ensureDir } from 'fs-extra';
 import { devTuiManager } from 'src/app/tui-manager/dev/manager';
+import { localStatePaths } from 'src/config/local-state-paths';
 import { createCleanupHook } from '../cleanup-utils';
 import { clearReservedPorts } from './container-helpers';
 import { startLocalDynamoDb } from './dynamodb';
@@ -62,7 +62,11 @@ const localResourceInstances: LocalResourceInstance[] = [];
 
 const getDataDir = (resourceName: string) => {
   const { stage } = globalStateManager;
-  return join(globalStateManager.workingDir, '.stacktape', 'dev-data', stage, resourceName, 'data');
+  return localStatePaths.devResourceDataDirectory({
+    workingDirectory: globalStateManager.workingDir,
+    stage,
+    resourceName
+  });
 };
 
 const getLocalContainerName = (resourceName: string) => {

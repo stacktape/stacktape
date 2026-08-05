@@ -152,6 +152,16 @@ an unrelated refactor.
   fail-closed guard for normal AWS SDK paths, not an operating-system network sandbox; tests that spawn processes or
   use raw sockets still own their isolation.
 
+## Local state
+
+- `src/config/local-state-paths.ts` is the authoritative registry for hidden state written by the CLI. It documents
+  whether each path is user-persistent, project-persistent, runtime coordination, invocation-temporary, or
+  operation-temporary. Route new hidden writes through it and make their cleanup policy explicit.
+- Do not put user-selected outputs, initialized project files, AWS configuration, third-party configuration, or
+  package-manager caches in that registry. Those files are owned by the user or by another tool.
+- The registry is an ownership map, not a cache framework. Do not add SQLite or a new cache merely because a path is
+  centralized; add persistent caching only after measurements show a stable, reusable computation is material.
+
 ## Errors
 
 - Intentional user-actionable failures use `CliError` with a stable semantic code such as

@@ -23,6 +23,12 @@ integrated tasks.
 Do not split domain/infrastructure packages merely to imitate layered architecture. Extract a private package only when
 it has a coherent capability and more than one real consumer.
 
+The filesystem layout of Console-managed EC2 runners is owned by
+`api/server/services/remote-deploy/ec2/runner-paths.ts`. Generated scripts and SSM launch calls must use that registry.
+Invocation worktrees and GitHub Actions job directories are temporary; repository mirrors, runner tool caches, and the
+installed Actions runner persist across jobs. Add new persistent runner writes there so retention and cleanup remain
+reviewable.
+
 ## tRPC boundary
 
 - UI may directly infer the private Console router type from API source.

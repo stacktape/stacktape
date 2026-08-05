@@ -11,12 +11,11 @@ import { getEsInstallScript } from './es-install-scripts';
 import { exec } from '@utils/exec';
 import { CliError } from '@utils/errors';
 import { findProjectRoot } from '@stacktape/packaging/es/project-root';
+import { localStatePaths } from 'src/config/local-state-paths';
 
 const wait = async ({ ms }: { ms: number }) => {
   return new Promise((resolve) => setTimeout(resolve, ms));
 };
-
-const INSTALL_HASH_FILE = '.stacktape-install-hash';
 
 const computeLockfileHash = async ({
   installDir,
@@ -45,7 +44,9 @@ const isDepsInstallNeeded = async ({
   const currentHash = await computeLockfileHash({ installDir, lockfilePath });
   if (!currentHash) return true;
   try {
-    const storedHash = (await readFile(join(installDir, 'node_modules', INSTALL_HASH_FILE), 'utf-8')).trim();
+    const storedHash = (
+      await readFile(localStatePaths.dependencyInstallHashFile({ installDirectory: installDir }), 'utf-8')
+    ).trim();
     return storedHash !== currentHash;
   } catch {
     return true;
@@ -55,7 +56,7 @@ const isDepsInstallNeeded = async ({
 const saveInstallHash = async ({ installDir, lockfilePath }: { installDir: string; lockfilePath: string | null }) => {
   const hash = await computeLockfileHash({ installDir, lockfilePath });
   if (hash) {
-    await writeFile(join(installDir, 'node_modules', INSTALL_HASH_FILE), hash).catch(() => {});
+    await writeFile(localStatePaths.dependencyInstallHashFile({ installDirectory: installDir }), hash).catch(() => {});
   }
 };
 
@@ -73,7 +74,7 @@ const withInstallLock = async ({
   lockfilePath: string | null;
   installFn: () => Promise<ExecaReturnValue<string>>;
 }): Promise<ExecaReturnValue<string> | null> => {
-  const lockPath = join(installDir, '.stacktape-install.lock');
+  const lockPath = localStatePaths.dependencyInstallLockFile({ installDirectory: installDir });
   const startedAt = Date.now();
   const staleLockAfterMs = 5 * 60 * 1000;
   const maxWaitMs = 10 * 60 * 1000;
