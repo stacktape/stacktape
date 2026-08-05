@@ -5,7 +5,7 @@ Resource type: `multi-container-workload`
 ## TypeScript definition
 
 ```typescript
-import type { ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadHttpApiIntegration, ContainerWorkloadInternalIntegration, ContainerWorkloadLoadBalancerIntegration, ContainerWorkloadNetworkLoadBalancerIntegration, ContainerWorkloadServiceConnectIntegration, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, LoadBalancerHealthCheck, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, StpBuildpackCwImagePackaging } from 'stacktape';
+import type { ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadHttpApiIntegration, ContainerWorkloadInternalIntegration, ContainerWorkloadLoadBalancerIntegration, ContainerWorkloadNetworkLoadBalancerIntegration, ContainerWorkloadServiceConnectIntegration, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, LoadBalancerHealthCheck, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, StpBuildpackCwImagePackaging } from 'stacktape';
 
 type ContainerWorkloadContainer = {
   /** Unique container name within this workload. */
@@ -26,6 +26,10 @@ type ContainerWorkloadContainer = {
   loadBalancerHealthCheck?: LoadBalancerHealthCheck;
   /** Container logging (stdout/stderr). Sent to CloudWatch, viewable with `stacktape logs`. */
   logging?: ContainerWorkloadContainerLogging;
+  /** Sensitive environment variables fetched by ECS instead of stored in the task definition.
+
+Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive. */
+  secrets?: Array<SecretEnvironmentVar>;
   /** Seconds to wait after SIGTERM before SIGKILL (2-120). */
   stopTimeout?: number;
   /** Mount EFS volumes for persistent, shared storage across containers. */
@@ -557,6 +561,15 @@ export default defineConfig(() => {
   return { resources: { app } };
 });
 ```
+
+## Property: `secrets`
+
+- Required: no
+- Type: `Array<SecretEnvironmentVar>`
+
+Sensitive environment variables fetched by ECS instead of stored in the task definition.
+
+Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive.
 
 ## Property: `stopTimeout`
 

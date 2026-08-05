@@ -482,6 +482,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `internalHealthCheck` | no | `ContainerHealthCheck` | - |
 | `logging` | no | `ContainerWorkloadContainerLogging` | - |
 | `scaling` | no | `ContainerWorkloadScaling` | - |
+| `secrets` | no | `Array<SecretEnvironmentVar>` | - |
 | `sideContainers` | no | `Array<ServiceHelperContainer>` | - |
 | `stopTimeout` | no | `number` | `2` |
 | `usePrivateSubnetsWithNAT` | no | `boolean` | `false` |

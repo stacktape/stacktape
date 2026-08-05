@@ -296,6 +296,7 @@ type ResourcePropertiesOf<Type extends StacktapeResourceType> =
     : Record<string, never>;
 
 type AuthoringEnvironment = Record<string, string | number | boolean>;
+type AuthoringSecrets = Record<string, string>;
 
 /**
  * Property names whose string values identify another resource in the same Stacktape config.
@@ -373,8 +374,9 @@ export type WithAuthoringNamedResourceReferences<
       : Value;
 
 type WithAuthoringEnvironment<Value> = Value extends object
-  ? Omit<Value, 'environment'> &
-      ('environment' extends keyof Value ? { environment?: AuthoringEnvironment } : Record<never, never>)
+  ? Omit<Value, 'environment' | 'secrets'> &
+      ('environment' extends keyof Value ? { environment?: AuthoringEnvironment } : Record<never, never>) &
+      ('secrets' extends keyof Value ? { secrets?: AuthoringSecrets } : Record<never, never>)
   : Value;
 
 type WithAuthoringArrayEnvironment<
@@ -434,11 +436,12 @@ type HasAuthoringConnectTo<Properties, Type extends StacktapeResourceType | 'scr
 export type WithAuthoringResourceReferences<
   Properties,
   ResourceType extends StacktapeResourceType | 'script' = 'script'
-> = Omit<Properties, 'connectTo' | 'environment' | 'injectEnvironment'> &
+> = Omit<Properties, 'connectTo' | 'environment' | 'injectEnvironment' | 'secrets'> &
   (HasAuthoringConnectTo<Properties, ResourceType> extends true
     ? { connectTo?: Array<string | AuthoringResourceReference<ResourceType>> }
     : Record<never, never>) &
   ('environment' extends keyof Properties ? { environment?: AuthoringEnvironment } : Record<never, never>) &
+  ('secrets' extends keyof Properties ? { secrets?: AuthoringSecrets } : Record<never, never>) &
   ('injectEnvironment' extends keyof Properties ? { injectEnvironment?: AuthoringEnvironment } : Record<never, never>);
 
 type ResourcesWithoutCloudFormationCustomization =
@@ -622,6 +625,18 @@ const transformEnvironment = (env: any, resourceNames: ResourceNames): any => {
   }));
 };
 
+/** Transforms a concise secret map to the runtime container shape. */
+const transformSecrets = (secrets: any, resourceNames: ResourceNames): any => {
+  if (!secrets || typeof secrets !== 'object' || Array.isArray(secrets)) {
+    return secrets;
+  }
+
+  return Object.entries(secrets).map(([name, valueFrom]) => ({
+    name,
+    valueFrom: transformValue(valueFrom, resourceNames)
+  }));
+};
+
 /**
  * Transforms resource definitions (values in the resources object)
  */
@@ -789,9 +804,11 @@ export const transformValue = (value: any, resourceNames: ResourceNames = new Ma
   if (typeof value === 'object') {
     const result: any = {};
     for (const key in value) {
-      // Special handling for environment and injectEnvironment properties
+      // Special handling for authoring-friendly environment and secret maps.
       if (key === 'environment' || key === 'injectEnvironment') {
         result[key] = transformEnvironment(value[key], resourceNames);
+      } else if (key === 'secrets') {
+        result[key] = transformSecrets(value[key], resourceNames);
       } else {
         result[key] = transformValue(value[key], resourceNames);
       }

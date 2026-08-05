@@ -2056,6 +2056,7 @@
         "BatchJobContainer",
         "packaging",
         "environment",
+        "secrets",
         "batch-job"
       ],
       "chunks": [
@@ -2066,7 +2067,8 @@
         "config-reference:BatchJobContainer#example-2-typescript",
         "config-reference:BatchJobContainer#property-environment",
         "config-reference:BatchJobContainer#example-1-yaml-2",
-        "config-reference:BatchJobContainer#example-2-typescript-2"
+        "config-reference:BatchJobContainer#example-2-typescript-2",
+        "config-reference:BatchJobContainer#property-secrets"
       ]
     },
     {
@@ -7836,6 +7838,29 @@
       ]
     },
     {
+      "id": "config-reference:SecretEnvironmentVar",
+      "title": "SecretEnvironmentVar API Reference",
+      "route": "/config-reference/helpers",
+      "sourcePath": "packages/config/src/shared.ts",
+      "outputPath": "config-reference/helpers/secretenvironmentvar.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "SecretEnvironmentVar"
+      ],
+      "tags": [
+        "config-reference",
+        "SecretEnvironmentVar",
+        "name",
+        "valueFrom"
+      ],
+      "chunks": [
+        "config-reference:SecretEnvironmentVar#secretenvironmentvar-api-reference",
+        "config-reference:SecretEnvironmentVar#typescript-definition",
+        "config-reference:SecretEnvironmentVar#property-name",
+        "config-reference:SecretEnvironmentVar#property-valuefrom"
+      ]
+    },
+    {
       "id": "config-reference:ServiceHelperContainer",
       "title": "ServiceHelperContainer API Reference",
       "route": "/config-reference/helpers",
@@ -7856,6 +7881,7 @@
         "essential",
         "internalHealthCheck",
         "logging",
+        "secrets",
         "stopTimeout",
         "volumeMounts"
       ],
@@ -7886,6 +7912,7 @@
         "config-reference:ServiceHelperContainer#property-logging",
         "config-reference:ServiceHelperContainer#example-1-yaml-8",
         "config-reference:ServiceHelperContainer#example-2-typescript-8",
+        "config-reference:ServiceHelperContainer#property-secrets",
         "config-reference:ServiceHelperContainer#property-stoptimeout",
         "config-reference:ServiceHelperContainer#example-1-yaml-9",
         "config-reference:ServiceHelperContainer#example-2-typescript-9",
@@ -9046,6 +9073,7 @@
         "internalHealthCheck",
         "loadBalancerHealthCheck",
         "logging",
+        "secrets",
         "stopTimeout",
         "volumeMounts",
         "multi-container-workload"
@@ -9080,6 +9108,7 @@
         "config-reference:ContainerWorkloadContainer#property-logging",
         "config-reference:ContainerWorkloadContainer#example-1-yaml-9",
         "config-reference:ContainerWorkloadContainer#example-2-typescript-9",
+        "config-reference:ContainerWorkloadContainer#property-secrets",
         "config-reference:ContainerWorkloadContainer#property-stoptimeout",
         "config-reference:ContainerWorkloadContainer#example-1-yaml-10",
         "config-reference:ContainerWorkloadContainer#example-2-typescript-10",
@@ -10006,6 +10035,7 @@
         "port",
         "protocol",
         "scaling",
+        "secrets",
         "sideContainers",
         "stopTimeout",
         "usePrivateSubnetsWithNAT",
@@ -10051,6 +10081,7 @@
         "config-reference:PrivateServiceProps#property-scaling",
         "config-reference:PrivateServiceProps#example-1-yaml-12",
         "config-reference:PrivateServiceProps#example-2-typescript-12",
+        "config-reference:PrivateServiceProps#property-secrets",
         "config-reference:PrivateServiceProps#property-sidecontainers",
         "config-reference:PrivateServiceProps#property-stoptimeout",
         "config-reference:PrivateServiceProps#example-1-yaml-13",
@@ -13733,6 +13764,7 @@
         "loadBalancing",
         "logging",
         "scaling",
+        "secrets",
         "sideContainers",
         "stopTimeout",
         "useFirewall",
@@ -13791,6 +13823,7 @@
         "config-reference:WebServiceProps#property-scaling",
         "config-reference:WebServiceProps#example-1-yaml-16",
         "config-reference:WebServiceProps#example-2-typescript-16",
+        "config-reference:WebServiceProps#property-secrets",
         "config-reference:WebServiceProps#property-sidecontainers",
         "config-reference:WebServiceProps#property-stoptimeout",
         "config-reference:WebServiceProps#example-1-yaml-17",
@@ -13856,6 +13889,7 @@
         "internalHealthCheck",
         "logging",
         "scaling",
+        "secrets",
         "sideContainers",
         "stopTimeout",
         "usePrivateSubnetsWithNAT",
@@ -13892,6 +13926,7 @@
         "config-reference:WorkerServiceProps#property-scaling",
         "config-reference:WorkerServiceProps#example-1-yaml-9",
         "config-reference:WorkerServiceProps#example-2-typescript-9",
+        "config-reference:WorkerServiceProps#property-secrets",
         "config-reference:WorkerServiceProps#property-sidecontainers",
         "config-reference:WorkerServiceProps#property-stoptimeout",
         "config-reference:WorkerServiceProps#example-1-yaml-10",
@@ -16100,6 +16135,7 @@
         "page:/configuration/secrets#using-the-stacktape-console",
         "page:/configuration/secrets#using-the-cli",
         "page:/configuration/secrets#referencing-secrets-with-secret",
+        "page:/configuration/secrets#native-secret-injection-for-containers",
         "page:/configuration/secrets#basic-usage",
         "page:/configuration/secrets#json-secrets-with-dot-notation",
         "page:/configuration/secrets#how-secret-resolution-works",

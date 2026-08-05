@@ -1,4 +1,4 @@
-import type { EnvironmentVar, ResourceAccessProps, ResourceOverrides } from './shared';
+import type { EnvironmentVar, ResourceAccessProps, ResourceOverrides, SecretEnvironmentVar } from './shared';
 import type { BatchJobContainerPackaging } from './deployment-artifacts';
 import type { ApplicationLoadBalancerIntegration, CloudwatchLogIntegration, DynamoDbIntegration, EventBusIntegration, HttpApiIntegration, KinesisIntegration, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration } from './events';
 import type { LogForwardingBase } from './log-forwarding';
@@ -717,6 +717,12 @@ export interface BatchJobContainer {
    * ```
    */
   environment?: EnvironmentVar[];
+  /**
+   * #### Sensitive environment variables fetched by AWS Batch instead of stored in the job definition.
+   *
+   * Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive.
+   */
+  secrets?: SecretEnvironmentVar[];
 }
 
 

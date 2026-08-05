@@ -66,9 +66,12 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
   // these resources are shared between all ECS based container workloads
   if (!templateManager.getCfResourceFromTemplate(cfLogicalNames.ecsExecutionRole())) {
     const { prebuiltImageRepositoryCredentialsSecretArns } = configManager;
+    const containerSecretValueFroms = configManager.allContainerWorkloads.flatMap(({ containers }) =>
+      containers.flatMap(({ secrets }) => (secrets || []).map(({ valueFrom }) => valueFrom))
+    );
     calculatedStackOverviewManager.addCfChildResource({
       cfLogicalName: cfLogicalNames.ecsExecutionRole(),
-      resource: getEcsExecutionRole(prebuiltImageRepositoryCredentialsSecretArns),
+      resource: getEcsExecutionRole(prebuiltImageRepositoryCredentialsSecretArns, containerSecretValueFroms),
       nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
     });
   }

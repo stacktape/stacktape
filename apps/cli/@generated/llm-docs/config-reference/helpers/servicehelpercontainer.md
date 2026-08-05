@@ -3,7 +3,7 @@
 ## TypeScript definition
 
 ```typescript
-import type { ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, StpBuildpackCwImagePackaging } from 'stacktape';
+import type { ContainerDependency, ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, StpBuildpackCwImagePackaging } from 'stacktape';
 
 type ServiceHelperContainer = {
   /** When and how this sidecar container runs. */
@@ -22,6 +22,10 @@ type ServiceHelperContainer = {
   internalHealthCheck?: ContainerHealthCheck;
   /** Container logging (stdout/stderr). Sent to CloudWatch, viewable with `stacktape logs`. */
   logging?: ContainerWorkloadContainerLogging;
+  /** Sensitive environment variables fetched by ECS instead of stored in the task definition.
+
+Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive. */
+  secrets?: Array<SecretEnvironmentVar>;
   /** Seconds to wait after SIGTERM before SIGKILL (2-120). */
   stopTimeout?: number;
   /** Mount EFS volumes for persistent, shared storage across containers. */
@@ -473,6 +477,15 @@ export default defineConfig(() => {
   return { resources: { app } };
 });
 ```
+
+## Property: `secrets`
+
+- Required: no
+- Type: `Array<SecretEnvironmentVar>`
+
+Sensitive environment variables fetched by ECS instead of stored in the task definition.
+
+Each `valueFrom` must be an exact `$SsmParam(...)` or `$Secret(...)` directive.
 
 ## Property: `stopTimeout`
 

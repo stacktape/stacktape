@@ -325,6 +325,90 @@ export const createBuiltInDirectives = (context: BuiltInDirectiveContext): Direc
     }
   },
   {
+    // Internal directive emitted only for an ECS/Batch `secrets` entry. It returns an ARN selector, never the value.
+    name: 'ContainerSecret',
+    requiredParams: { secretReference: 'string' },
+    isRuntime: true,
+    resolveFunction: () => async (secretReference: string) => {
+      const [secretName, jsonKey] = secretReference.split('.');
+      let secret;
+      try {
+        secret = await awsSdkManager.secrets.get({ secretId: secretName });
+      } catch (error) {
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_SECRET_UNRESOLVED',
+          message: `Cannot resolve container secret \`$Secret('${secretName}')\`.\n${String(error)}`,
+          hints: 'If the secret does not exist yet, create it using `stacktape secret:set`.',
+          cause: error
+        });
+      }
+
+      if (jsonKey) {
+        let parsedSecret: unknown;
+        try {
+          parsedSecret = JSON.parse(secret.SecretString);
+        } catch (error) {
+          throw new CliError({
+            category: 'DIRECTIVE',
+            code: 'DIRECTIVE_SECRET_JSON_INVALID',
+            message: `Cannot resolve key \`${jsonKey}\` from container secret \`$Secret('${secretName}')\` because the secret is not valid JSON.`,
+            cause: error
+          });
+        }
+        if (
+          typeof parsedSecret !== 'object' ||
+          parsedSecret === null ||
+          Array.isArray(parsedSecret) ||
+          !Object.hasOwn(parsedSecret, jsonKey)
+        ) {
+          throw new CliError({
+            category: 'DIRECTIVE',
+            code: 'DIRECTIVE_SECRET_JSON_KEY_MISSING',
+            message: `Secret \`${secretName}\` does not contain JSON key \`${jsonKey}\` required by \`$Secret('${secretReference}')\`.`
+          });
+        }
+      }
+
+      if (!secret.ARN || !secret.VersionId) {
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_SECRET_UNRESOLVED',
+          message: `Cannot resolve an ARN and current version for container secret \`${secretName}\`.`
+        });
+      }
+      return `${secret.ARN}:${jsonKey || ''}::${secret.VersionId}`;
+    }
+  },
+  {
+    // Internal directive used as non-sensitive task metadata so a new SSM version creates a new task definition.
+    name: 'ContainerSsmParameterVersion',
+    requiredParams: { paramName: 'string' },
+    isRuntime: true,
+    resolveFunction: () => async (paramName: string) => {
+      let param;
+      try {
+        param = await awsSdkManager.parameterStore.get({ name: paramName });
+      } catch (error) {
+        throw new CliError({
+          category: 'DIRECTIVE',
+          code: 'DIRECTIVE_SSM_PARAMETER_UNRESOLVED',
+          message: `Cannot resolve container secret \`$SsmParam('${paramName}')\`.\n${String(error)}`,
+          hints: `If the parameter does not exist yet, create it in the Stacktape Console: ${linksMap.ssmParams}`,
+          cause: error
+        });
+      }
+      if (param.Parameter.Type !== 'SecureString') {
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_CONTAINER_SECRET_SSM_TYPE_INVALID',
+          message: `Container secret \`$SsmParam('${paramName}')\` must reference a SecureString parameter, but it is \`${param.Parameter.Type}\`.`
+        });
+      }
+      return String(param.Parameter.Version);
+    }
+  },
+  {
     name: 'SsmParam',
     requiredParams: { paramName: 'string' },
     isRuntime: true,

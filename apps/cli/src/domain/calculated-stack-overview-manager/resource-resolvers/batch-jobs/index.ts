@@ -230,7 +230,8 @@ export const resolveBatchJobs = async () => {
           workloadName: name,
           accessToResourcesRequiringRoleChanges,
           iamRoleStatements: definition.iamRoleStatements,
-          accessToAwsServices
+          accessToAwsServices,
+          containerSecretValueFroms: (definition.container.secrets || []).map(({ valueFrom }) => valueFrom)
         }),
         nameChain
       });

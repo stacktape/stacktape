@@ -5,7 +5,7 @@ Resource type: `worker-service`
 ## TypeScript definition
 
 ```typescript
-import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';
+import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling, CustomDockerfileCwImagePackaging, EnvironmentVar, ExternalBuildpackCwImagePackaging, NixpacksCwImagePackaging, PrebuiltCwImagePackaging, SecretEnvironmentVar, ServiceHelperContainer, StpBuildpackCwImagePackaging, StpIamRoleStatement } from 'stacktape';
 
 type WorkerServiceProps = {
   /** Configures the container image for the service. */
@@ -26,6 +26,18 @@ type WorkerServiceProps = {
   logging?: ContainerWorkloadContainerLogging;
   /** Auto-scaling: add/remove container instances based on demand. */
   scaling?: ContainerWorkloadScaling;
+  /** Sensitive environment variables fetched by the container runtime.
+
+Values must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for
+secrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features
+are useful.
+
+**Example (TypeScript):**
+secrets: {
+  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
+  ROTATING_API_KEY: $Secret('rotating-api-key')
+} */
+  secrets?: Array<SecretEnvironmentVar>;
   /** Helper containers that run alongside the main container. */
   sideContainers?: Array<ServiceHelperContainer>;
   /** Seconds to wait for graceful shutdown before force-killing the container. */
@@ -546,6 +558,23 @@ export default defineConfig(() => {
   return { resources: { api } };
 });
 ```
+
+## Property: `secrets`
+
+- Required: no
+- Type: `Array<SecretEnvironmentVar>`
+
+Sensitive environment variables fetched by the container runtime.
+
+Values must be exact `$SsmParam(...)` or `$Secret(...)` directives. Prefer a SecureString SSM parameter for
+secrets that do not need automatic rotation; use Secrets Manager when rotation or its other lifecycle features
+are useful.
+
+**Example (TypeScript):**
+secrets: {
+  DATABASE_PASSWORD: $SsmParam('/my-app/production/database-password'),
+  ROTATING_API_KEY: $Secret('rotating-api-key')
+}
 
 ## Property: `sideContainers`
 

@@ -1,7 +1,8 @@
 import type {
   ContainerDefinition,
   HealthCheck,
-  PortMapping
+  PortMapping,
+  Secret
 } from '@stacktape/cloudformation/resources/aws-ecs-taskdefinition';
 import type { Ingress } from '@stacktape/cloudformation/resources/aws-ec2-securitygroup';
 import type { KeyValuePair, MountPoint, Volume } from '@stacktape/cloudformation/resources/aws-ecs-taskdefinition';
@@ -70,6 +71,12 @@ import type {
 import type { ContainerEfsMount, ContainerWorkloadContainer } from '@stacktape/config/multi-container-workloads';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
+import {
+  getContainerSecretIamResources,
+  getContainerSecretValueFrom,
+  getContainerSecretVersionLabels,
+  parseContainerSecretReference
+} from '@domain-services/config-manager/container-secrets';
 
 const BLUE_GREEN_SERVICE_RESOURCE_TYPE: SupportedEcsBlueGreenV1ResourceType = 'Stacktape::ECSBlueGreenV1::Service';
 
@@ -84,8 +91,36 @@ export const getEcsCluster = ({ workload }: { workload: StpContainerWorkload }) 
   return cluster;
 };
 
-export const getEcsExecutionRole = (credentialSecretArns: string[]) =>
-  cfnResource('AWS::IAM::Role', {
+export const getEcsExecutionRole = (credentialSecretArns: string[], containerSecretValueFroms: string[]) => {
+  const { secretResources, parameterResources } = getContainerSecretIamResources(containerSecretValueFroms);
+  const policies = [];
+  if (credentialSecretArns.length) {
+    policies.push({
+      PolicyName: 'private-repo-credentials-secrets',
+      PolicyDocument: {
+        Version: '2012-10-17',
+        Statement: [{ Effect: 'Allow', Action: ['secretsmanager:GetSecretValue'], Resource: credentialSecretArns }]
+      }
+    });
+  }
+  if (secretResources.length || parameterResources.length) {
+    policies.push({
+      PolicyName: 'container-runtime-secrets',
+      PolicyDocument: {
+        Version: '2012-10-17',
+        Statement: [
+          ...(secretResources.length
+            ? [{ Effect: 'Allow', Action: ['secretsmanager:GetSecretValue'], Resource: secretResources }]
+            : []),
+          ...(parameterResources.length
+            ? [{ Effect: 'Allow', Action: ['ssm:GetParameters'], Resource: parameterResources }]
+            : [])
+        ]
+      }
+    });
+  }
+
+  return cfnResource('AWS::IAM::Role', {
     AssumeRolePolicyDocument: {
       Statement: [
         {
@@ -98,25 +133,9 @@ export const getEcsExecutionRole = (credentialSecretArns: string[]) =>
       ]
     },
     ManagedPolicyArns: ['arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy'],
-    Policies:
-      credentialSecretArns && credentialSecretArns.length
-        ? [
-            {
-              PolicyName: 'private-repo-credentials-secrets',
-              PolicyDocument: {
-                Version: '2012-10-17',
-                Statement: [
-                  {
-                    Effect: 'Allow',
-                    Action: ['secretsmanager:GetSecretValue'],
-                    Resource: credentialSecretArns
-                  }
-                ]
-              }
-            }
-          ]
-        : undefined
+    Policies: policies.length ? policies : undefined
   });
+};
 
 export const getEcsAutoScalingRole = () =>
   cfnResource('AWS::IAM::Role', {
@@ -303,6 +322,11 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
       entryfilePath,
       nodeVersion
     });
+    const secrets = (container.secrets || []).map(({ name, valueFrom }) => ({
+      Name: name,
+      ValueFrom: getContainerSecretValueFrom(parseContainerSecretReference(valueFrom)!)
+    })) as Secret[];
+    const secretVersionLabels = getContainerSecretVersionLabels(container.secrets?.map(({ valueFrom }) => valueFrom));
 
     // Prepare MountPoints for EFS volumes
     const mountPoints: MountPoint[] = (container.volumeMounts || []).map((mount) => {
@@ -328,6 +352,8 @@ const getContainerWorkloadContainerDefinitions = (workload: StpContainerWorkload
       }),
       Essential: definedValueOr(container.essential, true),
       Environment: getCfEnvironment(augmentedEnvironment) as KeyValuePair[],
+      Secrets: secrets.length ? secrets : undefined,
+      DockerLabels: Object.keys(secretVersionLabels).length ? secretVersionLabels : undefined,
       EntryPoint: entryPoint,
       Command: command,
       StopTimeout: container.stopTimeout || 2,
