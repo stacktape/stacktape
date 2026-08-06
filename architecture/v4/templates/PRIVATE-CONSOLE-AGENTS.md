@@ -64,6 +64,14 @@ reviewable.
   `.stp-ui-button`: Console's own blanket `*:focus-visible { outline: none }` would otherwise erase it.
 - Prefer native `<button>` and `<a>`. Never nest one inside the other and never revive `<div role="button">`; an
   icon-only control always carries an accessible name.
+- The configuration diagram is `@stacktape/ui-react/config-editor/diagram`. Console owns only
+  `DiagramView/IsometricDiagramView.tsx` — the compile indicator and the cannot-compile banner — and hands the
+  component a parsed `StacktapeConfig`. Diagram topology, layout, rendering and fixtures live in the package;
+  do not fork them or add a second set of infrastructure semantics here.
+- Keep that wrapper inside the `lazy()` boundary and keep the diagram's stylesheet imported there. The isopack
+  icon catalogue is about a megabyte and must stay in the diagram chunk.
+- `/diagram-test` is a development harness only. It may import the public component and its fixtures; it must
+  never hold diagram implementation.
 - Shared React components must remain router-neutral; Console navigation adapters stay in UI.
 - Preserve accessible loading, error, keyboard, and focus behavior.
 - Monaco's Stacktape declarations come from the workspace v4 CLI's `generate:monaco` output. UI build/dev generates
