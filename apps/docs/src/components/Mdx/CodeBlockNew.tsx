@@ -7,7 +7,7 @@ import { BiCheck, BiCopy } from 'react-icons/bi';
 import { IconButton } from '@stacktape/ui-react/icon-button';
 import { colors } from '@/styles/variables';
 import { marked } from 'marked';
-import { convertTypescriptToYaml, convertYamlToTypescript } from '@/utils/yaml-to-typescript';
+import { convertYamlToTypescript } from '@/utils/yaml-to-typescript';
 import { loadTwoslashFsMap, TWOSLASH_COMPILER_OPTIONS } from './twoslash-types';
 import { computeYamlHovers } from './yaml-hover';
 
@@ -112,31 +112,6 @@ const normalizeLanguage = (lang?: string | null) => {
 
 const isTwoslashLanguage = (lang?: string | null) => {
   return ['typescript', 'tsx', 'javascript', 'jsx'].includes(normalizeLanguage(lang));
-};
-
-const isStacktapeTypescriptConfig = (tab: CodeTab) => {
-  const lang = normalizeLanguage(tab.lang);
-  return isTwoslashLanguage(lang) && tab.code.includes('defineConfig') && /from\s+['"]stacktape['"]/.test(tab.code);
-};
-
-const withGeneratedYamlTabs = (tabs: CodeTab[], shouldEnableIntellisense: boolean): CodeTab[] => {
-  if (!shouldEnableIntellisense) return tabs;
-  if (tabs.some((tab) => normalizeLanguage(tab.lang) === 'yaml')) return tabs;
-
-  const stacktapeConfigTab = tabs.find(isStacktapeTypescriptConfig);
-  if (!stacktapeConfigTab) return tabs;
-
-  const yamlCode = convertTypescriptToYaml(stacktapeConfigTab.code);
-  if (!yamlCode) return tabs;
-
-  return [
-    ...tabs,
-    {
-      label: 'YAML',
-      lang: 'yaml',
-      code: yamlCode
-    }
-  ];
 };
 
 // Shiki-style notation parsing. Markers live inside `#` (YAML/bash/python) or `//` (TS/JS/...)
@@ -729,10 +704,7 @@ export function MdxCodeBlockNew({
 
 export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig = false }: CodeBlockNewProps) {
   const shouldEnableIntellisense = intellisense || stacktapeConfig;
-  const resolvedTabs = useMemo(
-    () => withGeneratedYamlTabs(tabs, shouldEnableIntellisense),
-    [shouldEnableIntellisense, tabs]
-  );
+  const resolvedTabs = tabs;
   const [activeTabLabel, setActiveTabLabel] = useState(() => String(resolvedTabs[0]?.label ?? ''));
   const [isCopiedShown, setIsCopiedShown] = useState(false);
   const [animationKey, setAnimationKey] = useState(0);

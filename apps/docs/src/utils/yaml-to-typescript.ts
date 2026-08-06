@@ -1,7 +1,4 @@
-import {
-  convertTypescriptToYaml as convertTypescriptToYamlShared,
-  convertYamlToTypescript as convertYamlToTypescriptShared
-} from '@stacktape/config-authoring/converter';
+import { convertYamlToTypescript as convertYamlToTypescriptShared } from '@stacktape/config-authoring/converter';
 
 const convertForDocumentation = (convert: (source: string) => string, source: string): string | null => {
   try {
@@ -14,6 +11,3 @@ const convertForDocumentation = (convert: (source: string) => string, source: st
 
 export const convertYamlToTypescript = (yaml: string): string | null =>
   convertForDocumentation(convertYamlToTypescriptShared, yaml);
-
-export const convertTypescriptToYaml = (typescript: string): string | null =>
-  convertForDocumentation(convertTypescriptToYamlShared, typescript);

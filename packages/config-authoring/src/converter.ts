@@ -11,16 +11,7 @@ import {
   RESOURCE_TYPE_TO_CLASS,
   SCRIPT_TYPE_TO_CLASS
 } from './class-config.js';
-import {
-  compileAuthoringConfig,
-  defineConfig,
-  isCompiledStacktapeConfig,
-  isResourceReferencePropertyKey
-} from './config.js';
-import { $CfFormat, $CfResourceParam, $CfStackOutput, $GitInfo, $ResourceParam, $Secret } from './directives.js';
-import { AWS_SES } from './global-aws-services.js';
-import * as resourceClasses from './resources.js';
-import * as typePropertyClasses from './type-properties.js';
+import { compileAuthoringConfig, isCompiledStacktapeConfig, isResourceReferencePropertyKey } from './config.js';
 import { parseYaml, stringifyToYaml } from './yaml.js';
 
 /** Lambda function event types (from events.d.ts) */
@@ -52,25 +43,6 @@ const getEventTypeMapping = (resourceType?: string): Record<string, string> => {
     return CONTAINER_EVENT_TYPE_TO_CLASS;
   }
   return LAMBDA_EVENT_TYPE_TO_CLASS;
-};
-
-/** All stacktape exports that can be used in configs */
-const STACKTAPE_EXPORTS: Record<string, unknown> = {
-  // Directives
-  $Secret,
-  $ResourceParam,
-  $CfFormat,
-  $CfResourceParam,
-  $CfStackOutput,
-  $GitInfo,
-  // Helper
-  defineConfig,
-  // AWS services
-  AWS_SES,
-  // Resource classes
-  ...resourceClasses,
-  // Type property classes (packaging, engines, integrations, etc.)
-  ...typePropertyClasses
 };
 
 /** Default params for executing defineConfig */
@@ -623,71 +595,25 @@ const typescriptConfigToObject = (
 };
 
 /**
- * Converts a TypeScript config (with classes) to YAML string.
- * @throws Error if config contains dynamic/non-serializable content
+ * Serializes an already-loaded authoring config to YAML.
+ *
+ * This deliberately does not accept source text. TypeScript configuration is executable code;
+ * evaluating editor or documentation text here would run it in the caller's browser/server origin.
+ * The CLI remains the only source-code execution boundary.
+ *
+ * @throws Error if config contains transforms or other content YAML cannot represent
  */
-export const convertTypescriptToYaml = (
-  input: string | ConfigExport,
-  params: Partial<GetConfigParams> = {}
-): string => {
-  let configOrFn: ConfigExport;
-
-  // If input is a string, evaluate it as TypeScript code
-  if (typeof input === 'string') {
-    configOrFn = evaluateTypescriptConfig(input);
-  } else {
-    configOrFn = input;
+export const convertAuthoringConfigToYaml = (input: ConfigExport, params: Partial<GetConfigParams> = {}): string => {
+  if (!input || (typeof input !== 'object' && typeof input !== 'function')) {
+    throw new TypeError('Expected an already-loaded Stacktape authoring config, not source text.');
   }
 
-  const config = typescriptConfigToObject(configOrFn, params);
+  const config = typescriptConfigToObject(input, params);
 
   // Validate it can be serialized
   validateSerializable(config);
 
   return configObjectToYaml(config);
-};
-
-/**
- * Evaluates TypeScript config code and returns the exported config.
- * Works in both Node.js and browser environments using Function constructor.
- */
-const evaluateTypescriptConfig = (tsCode: string): ConfigExport => {
-  // Transform the code:
-  // 1. Remove import statements (we inject stacktape exports)
-  // 2. Replace "export default" with a return statement
-
-  // Remove import statements (handles multi-line imports)
-  let transformedCode = tsCode
-    // Remove multi-line imports: import { ... } from '...'
-    .replace(/import\s*\{[\s\S]*?\}\s*from\s*['"][^'"]*['"];?/g, '')
-    // Remove single-line imports: import x from '...' or import '...'
-    .replace(/import\s[^;]*;?/g, '')
-    .trim();
-
-  // Handle "export default defineConfig(...)" -> "return defineConfig(...)"
-  // Not anchored to start because there may be const declarations before it
-  transformedCode = transformedCode.replace(/export\s+default\s+/, 'return ');
-
-  // Create parameter names and values arrays for Function constructor
-  const paramNames = Object.keys(STACKTAPE_EXPORTS);
-  const paramValues = Object.values(STACKTAPE_EXPORTS);
-
-  try {
-    // Create function with stacktape exports as parameters
-    const evaluator = new Function(...paramNames, transformedCode) as (...args: unknown[]) => unknown;
-
-    // Execute with stacktape exports
-    const result = evaluator(...paramValues) as ConfigExport;
-
-    if (!result) {
-      throw new Error('TypeScript config must have a default export (defineConfig) or return a config object');
-    }
-
-    return result;
-  } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    throw new Error(`Failed to evaluate TypeScript config: ${message}`, { cause: error });
-  }
 };
 
 /**
