@@ -1,0 +1,160 @@
+@import '@stacktape/design-tokens/css';
+
+@layer stacktape-ui {
+  .stp-config-editor {
+    position: relative;
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    padding-top: 7px;
+    border: 1px solid rgba(255, 255, 255, 0.04);
+    border-radius: var(--stp-radius-medium);
+    background: var(--stp-surface-input);
+    box-shadow:
+      inset 0 1px 3px rgba(0, 0, 0, 0.35),
+      0 2px 9px rgba(0, 0, 0, 0.5),
+      0 0 0 1px rgba(255, 255, 255, 0.06);
+    container-name: stacktape-config-editor;
+    container-type: inline-size;
+  }
+
+  .stp-config-editor--fullscreen {
+    position: fixed;
+    inset: 15px;
+    z-index: 1000;
+    width: auto;
+    height: auto;
+    background: var(--stp-surface-element);
+  }
+
+  .stp-config-editor__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex: none;
+    min-width: 0;
+    height: 42px;
+    padding: 0 10px 0 6px;
+    gap: 10px;
+  }
+
+  .stp-config-editor__tabs {
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  .stp-config-editor__actions {
+    z-index: 11;
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    flex-direction: row-reverse;
+    min-width: 0;
+    gap: 6px;
+  }
+
+  .stp-config-editor__tab {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 38px;
+    height: 32px;
+    padding: 0 9px;
+    gap: 6px;
+    border: 0;
+    border-radius: var(--stp-radius-small);
+    background: transparent;
+    color: var(--stp-text-muted);
+    font: inherit;
+    font-size: 0.79rem;
+    white-space: nowrap;
+    cursor: pointer;
+    transition:
+      color var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      background var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .stp-config-editor__tab:hover {
+    color: var(--stp-text-primary);
+    background: rgba(255, 255, 255, 0.045);
+  }
+
+  .stp-config-editor__tab--active {
+    color: var(--stp-text-primary);
+    background: var(--stp-surface-element);
+    box-shadow:
+      0 2px 7px rgba(0, 0, 0, 0.45),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
+
+  .stp-config-editor__tab:focus-visible {
+    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
+    outline-offset: var(--stp-focus-outline-offset);
+  }
+
+  .stp-config-editor__tab-icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    flex: none;
+  }
+
+  .stp-config-editor__tab-label--short {
+    display: none;
+  }
+
+  .stp-config-editor__unsaved {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--stp-color-brand);
+    box-shadow: 0 0 6px color-mix(in srgb, var(--stp-color-brand), transparent 25%);
+  }
+
+  .stp-config-editor__visually-hidden {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .stp-config-editor__panel {
+    flex: 1 1 auto;
+    min-height: 0;
+    width: 100%;
+  }
+
+  .stp-config-editor__overlay {
+    position: absolute;
+    inset: 0;
+    z-index: 900;
+    display: grid;
+    place-items: center;
+    background: rgba(23, 28, 28, 0.8);
+    backdrop-filter: blur(2px);
+  }
+
+  @container stacktape-config-editor (max-width: 760px) {
+    .stp-config-editor__tab-label--long {
+      display: none;
+    }
+
+    .stp-config-editor__tab-label--short {
+      display: inline;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stp-config-editor__tab {
+      transition: none;
+    }
+  }
+}

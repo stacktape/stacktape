@@ -17,6 +17,11 @@
       "types": "./dist/code-editor/CodeEditor.d.ts",
       "default": "./dist/code-editor/CodeEditor.js"
     },
+    "./config-editor": {
+      "types": "./dist/config-editor/ConfigEditor.d.ts",
+      "default": "./dist/config-editor/ConfigEditor.js"
+    },
+    "./config-editor.css": "./src/config-editor/config-editor.css",
     "./config-editor/diagram": {
       "types": "./dist/config-editor/diagram/ConfigDiagram.d.ts",
       "default": "./dist/config-editor/diagram/ConfigDiagram.js"
