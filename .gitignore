@@ -2,13 +2,11 @@
 .astro/
 .dprint-cache/
 .turbo/
-.worktrees/
+.claude/worktrees/
 coverage/
 dist/
 node_modules/
 *.tsbuildinfo
-.stacktape-agent.json
-.stacktape-dossier.md
 
 # Local credentials and deployed-stack output (see DEVELOPMENT.md)
 .env*

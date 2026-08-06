@@ -30,7 +30,7 @@ stacktape/                              # public stacktape/stacktape repository
 │   ├── design-tokens/                  # typed values, CSS vars, themes, generated CSS/Tailwind adapter
 │   └── ui-react/                       # small router-neutral shared React components
 ├── architecture/v4/                    # this migration contract
-├── scripts/                             # workspace, agent-worktree, release, and verification tools
+├── scripts/                             # workspace, release, and verification tools
 ├── pnpm-workspace.yaml
 ├── turbo.json
 ├── package.json

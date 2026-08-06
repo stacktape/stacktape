@@ -128,15 +128,17 @@ For changes spanning Console and public code:
 
 1. Commit private changes inside `apps/console`.
 2. Commit public source changes separately.
-3. Let the orchestrator integrate the private commit first.
-4. Record the final private commit with a public submodule-pointer commit.
+3. Push the reviewed private branch and run `pnpm console:pointer:verify` from the public root.
+4. Let the orchestrator integrate the private commit first.
+5. Record the final private commit with a public submodule-pointer commit.
 
-Do not force-push, update integration/default branches, push slice branches, or rewrite history unless the orchestrator
-explicitly requests it. Never treat a submodule pointer update as an unimportant generated diff.
+Do not force-push, update default branches, or rewrite history unless the orchestrator explicitly requests it. Never
+treat a submodule pointer update as an unimportant generated diff.
 
-Implementation agents work only in their assigned isolated worktree. Review agents remain read-only unless assigned a
-fix. `scripts/agents/README.md` documents the current `pnpm worktree:create` and `worktree:remove` helpers; migration
-dossiers and `v4/slice/*` branch names are historical.
+Use the worktree lifecycle built into Codex or Claude Code; this repository does not create or remove harness
+worktrees. Parallel writing sessions need distinct harness-managed worktrees. Codex subagents within one task share
+that task's checkout, so give only one of them write ownership; Claude writing subagents use worktree isolation.
+Review agents remain read-only unless assigned a fix. Migration dossiers and `v4/slice/*` branch names are historical.
 
 ## Security
 

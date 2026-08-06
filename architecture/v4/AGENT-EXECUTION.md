@@ -1,9 +1,8 @@
 # Agent execution model
 
 > Historical record: this describes the completed v4 migration orchestration. Do not use its `v4/integration`,
-> `v4/slice/*`, or mandatory-dossier instructions for current work. The reusable worktree helper is documented in
-> [`scripts/agents/README.md`](../../scripts/agents/README.md); current behavior and review rules live in the root
-> `AGENTS.md`.
+> `v4/slice/*`, mandatory-dossier instructions, or repository-owned worktree scripts for current work. Codex and
+> Claude Code now own worktree creation and cleanup; current behavior and review rules live in the root `AGENTS.md`.
 
 ## Principles
 
@@ -143,7 +142,7 @@ This was validated against the existing POC using Git 2.39 on Windows: two simul
 an independent `apps/console` Git directory under the parent worktree metadata. They did not share a private working
 tree.
 
-The checked-in `scripts/agents/create-worktree.ts` must:
+The retired repository-owned creation script was required to:
 
 1. Validate the slice ID and target path.
 2. Require a clean checkout whose current branch and HEAD are exactly the local `v4/integration` ref.
@@ -156,11 +155,10 @@ The checked-in `scripts/agents/create-worktree.ts` must:
 9. Write a local dossier pointer and base-SHA metadata.
 10. Print exact cleanup commands but never auto-delete a dirty worktree.
 
-The cleanup script resolves and verifies the absolute target is inside the dedicated `.worktrees` root before removing
-anything. Because Git stores each private submodule clone underneath its public worktree metadata, cleanup also refuses
-to proceed unless the private HEAD is reachable from a remote-tracking ref. Committing privately is not sufficient:
-push or integrate the private commit first, or removal could discard the only copy. Public slice branches remain in the
-parent repository after their worktree is removed.
+The retired cleanup script resolved and verified the absolute target inside the dedicated `.worktrees` root before
+removing anything. Because Git stores each private submodule clone underneath its public worktree metadata, cleanup
+also refused to proceed unless the private HEAD was reachable from a remote-tracking ref. That underlying Git risk
+still exists; the current workflow addresses it with `pnpm console:pointer:verify` before harness-owned cleanup.
 
 ## Commit and integration protocol
 

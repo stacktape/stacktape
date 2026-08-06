@@ -1,6 +1,6 @@
 {
-  "entry": ["scripts/agents/*.ts", "scripts/workspace/*.ts"],
-  "ignoreFiles": ["scripts/agents/*.ts", "scripts/workspace/*.ts"],
+  "entry": ["scripts/workspace/*.ts"],
+  "ignoreFiles": ["scripts/workspace/*.ts"],
   "workspaces": {
     "apps/cli": {
       "entry": [

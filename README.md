@@ -27,16 +27,16 @@ pnpm install --frozen-lockfile
 pnpm check:integrated
 ```
 
-The public checkout is a first-class supported state. Read
-[`architecture/v4/SIMPLIFIED-MIGRATION.md`](architecture/v4/SIMPLIFIED-MIGRATION.md) before changing package
-boundaries or migration behavior.
+The public checkout is a first-class supported state. Read the current `AGENTS.md` and the nearest package guidance
+before changing package boundaries or migration behavior.
 
-Migration agents receive isolated worktrees:
+Parallel Codex and Claude Code sessions use their harness-managed worktrees. For work spanning the private Console,
+push the reviewed private branch before recording its commit in the public repository:
 
 ```sh
-pnpm worktree:create public-cli-import --dossier architecture/v4/dossiers/simple-public-cli-import.md
+git -C apps/console push -u origin HEAD
+pnpm console:pointer:verify
 ```
 
-The scripts refuse dirty integration roots, existing branches/paths, and unsafe cleanup targets. They never
-automatically discard a dirty public or private worktree. Before cleanup, private HEAD must also be reachable from a
-remote-tracking ref: a private commit stored only inside the per-worktree submodule clone would otherwise be lost.
+The verification fails if the private commit exists only inside a disposable harness worktree. Codex or Claude Code
+then owns worktree handoff and cleanup.

@@ -69,8 +69,38 @@ pnpm --filter @stacktape/cli exec bun test tests/characterization
 pnpm --filter @stacktape/packaging run test
 ```
 
-`pnpm dev` at the root is `turbo run dev` — the Astro dev servers for `apps/docs` and `apps/website`. It is unrelated
-to the Stacktape `dev` command described below.
+`pnpm dev` starts every development task available in the checkout. Prefer `pnpm dev:console`, `pnpm dev:docs`, or
+`pnpm dev:website` when working on one application. These are unrelated to the Stacktape `dev` command described
+below.
+
+## Harness-managed worktrees
+
+Use the worktree lifecycle provided by Codex or Claude Code rather than repository scripts. In Codex, start a task in
+Worktree mode and use Handoff when you want it in the local checkout. In Claude Code, use a worktree-backed desktop
+session or `claude --worktree <name>`; the checked-in setting starts it from local `HEAD` so unpushed local commits are
+available.
+
+Parallel writing sessions need separate harness worktrees. Codex subagents inside one task share its checkout, so only
+one should write. Claude writing subagents can use `isolation: worktree`.
+
+Public-only work leaves `apps/console` uninitialized. A task that changes Console initializes it and creates a private
+feature branch inside the submodule:
+
+```powershell
+git submodule update --init apps/console
+git -C apps/console switch -c <private-feature-branch>
+```
+
+The harness only protects the public worktree; it cannot make an unpublished private submodule commit recoverable.
+After review, push the private branch and verify it before committing the public pointer:
+
+```powershell
+git -C apps/console push -u origin HEAD
+pnpm console:pointer:verify
+```
+
+Only then archive or delete the harness worktree. The verification command fetches the private remote and fails if the
+current Console commit is not reachable from any remote branch.
 
 ## Preview and stable releases
 

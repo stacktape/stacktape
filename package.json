@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "build": "turbo run build",
-    "check": "pnpm generate:check && turbo run typecheck && turbo run test && turbo run build && pnpm test:tools && pnpm typecheck:tools && pnpm check:pack && pnpm check:instructions && pnpm check:secrets && pnpm fmt:check && pnpm lint && pnpm check:architecture && pnpm check:patterns && pnpm check:workspace && pnpm check:deadcode && pnpm check:duplicates",
+    "check": "pnpm check:instructions && pnpm check:secrets && pnpm fmt:check && pnpm lint && pnpm check:workspace && pnpm check:patterns && pnpm generate:check && turbo run typecheck && turbo run test && turbo run build && pnpm test:tools && pnpm typecheck:tools && pnpm check:pack && pnpm check:architecture && pnpm check:deadcode && pnpm check:duplicates",
     "check:architecture": "depcruise --config dependency-cruiser.config.cjs --ignore-known .dependency-cruiser-known-violations.json apps packages",
     "check:architecture:update-known": "depcruise --config dependency-cruiser.config.cjs --output-type baseline apps packages",
     "check:deadcode": "knip --production --strict --treat-config-hints-as-errors --exclude dependencies",
@@ -17,7 +17,11 @@
     "check:public": "pnpm check",
     "check:secrets": "node scripts/workspace/check-staged-secrets.ts --tree",
     "check:workspace": "sherif --ignore-rule non-existant-packages --ignore-dependency @aws-sdk/client-ecs --ignore-dependency @fast-csv/parse --ignore-dependency @octokit/rest --ignore-dependency get-folder-size --ignore-dependency marked --ignore-dependency p-retry --ignore-dependency stacktape --ignore-dependency yaml --fail-on-warnings",
+    "console:pointer:verify": "node scripts/workspace/verify-console-pointer.ts",
     "dev": "turbo run dev",
+    "dev:console": "turbo run dev --filter=@stacktape/console-ui",
+    "dev:docs": "turbo run dev --filter=@stacktape/docs",
+    "dev:website": "turbo run dev --filter=@stacktape/website",
     "fmt": "oxfmt . && dprint fmt",
     "fmt:check": "oxfmt --check . && dprint check",
     "generate": "turbo run generate",
@@ -29,11 +33,9 @@
     "release:preview": "pnpm --filter @stacktape/cli run release --channel preview",
     "parameters:check:console:dev": "pnpm --filter @stacktape/console-api-app run parameters:check --stage dev",
     "test": "turbo run test",
-    "test:tools": "node --test scripts/agents/worktree.test.ts scripts/workspace/check-staged-secrets.test.ts scripts/workspace/configure-hooks.test.ts",
+    "test:tools": "node --test scripts/workspace/check-staged-secrets.test.ts scripts/workspace/configure-hooks.test.ts scripts/workspace/verify-console-pointer.test.ts",
     "typecheck": "turbo run typecheck",
-    "typecheck:tools": "tsc -p tsconfig.json",
-    "worktree:create": "node scripts/agents/create-worktree.ts",
-    "worktree:remove": "node scripts/agents/remove-worktree.ts"
+    "typecheck:tools": "tsc -p tsconfig.json"
   },
   "devDependencies": {
     "@ast-grep/cli": "catalog:",

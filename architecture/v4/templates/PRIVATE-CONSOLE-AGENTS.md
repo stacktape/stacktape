@@ -126,5 +126,7 @@ No deployment or real-AWS test is implied. Those require explicit authorization.
 
 Commit private application changes here first. The public parent records the reviewed private commit as a submodule
 pointer in a separate integration step. Do not update or push the public pointer yourself unless the orchestrator asks.
+Before that pointer is committed, push the reviewed private feature branch so the commit survives harness-worktree
+cleanup; the public parent verifies this with `pnpm console:pointer:verify`.
 
 Do not force-push or rewrite shared history. Report private and public commit ranges separately.
