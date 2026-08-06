@@ -38,6 +38,9 @@ importers:
       '@stacktape/design-tokens':
         specifier: workspace:*
         version: link:../design-tokens
+      monaco-types:
+        specifier: ^0.1.0
+        version: 0.1.2
     devDependencies:
       '@types/bun':
         specifier: 'catalog:'
@@ -48,6 +51,9 @@ importers:
       '@types/react-dom':
         specifier: 'catalog:'
         version: 19.1.7(@types/react@19.1.9)
+      monaco-editor:
+        specifier: 0.43.0
+        version: 0.43.0
       react:
         specifier: 'catalog:'
         version: 19.2.8
@@ -85,6 +91,12 @@ packages:
 
   csstype@3.2.3:
     resolution: {integrity: sha512-z1HGKcYy2xA8AGQfwrn0PAy+PB7X/GSj3UVJW9qKyn43xWa+gl5nXmU4qqLMRzWVLFC8KusUX8T/0kCiOYpAIQ==}
+
+  monaco-editor@0.43.0:
+    resolution: {integrity: sha512-cnoqwQi/9fml2Szamv1XbSJieGJ1Dc8tENVMD26Kcfl7xGQWp7OBKMjlwKVGYFJ3/AXJjSOGvcqK7Ry/j9BM1Q==}
+
+  monaco-types@0.1.2:
+    resolution: {integrity: sha512-8LwfrlWXsedHwAL41xhXyqzPibS8IqPuIXr9NdORhonS495c2/wky+sI1PRLvMCuiI0nqC2NH1six9hdiRY4Xg==}
 
   react-dom@19.2.8:
     resolution: {integrity: sha512-rVprimfGBG3DR+Tq0IQG2DT5PxKth1WIGDmj5yPmlzr4YBe7uyE+Du4oVqTDXZSHGGGXRtTJEGSSePyQCMBglQ==}
@@ -136,6 +148,10 @@ snapshots:
       '@types/node': 26.1.2
 
   csstype@3.2.3: {}
+
+  monaco-editor@0.43.0: {}
+
+  monaco-types@0.1.2: {}
 
   react-dom@19.2.8(react@19.2.8):
     dependencies:

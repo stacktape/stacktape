@@ -13,6 +13,10 @@
       "types": "./dist/icon-button.d.ts",
       "default": "./dist/icon-button.js"
     },
+    "./code-editor": {
+      "types": "./dist/code-editor/CodeEditor.d.ts",
+      "default": "./dist/code-editor/CodeEditor.js"
+    },
     "./config-editor/diagram": {
       "types": "./dist/config-editor/diagram/ConfigDiagram.d.ts",
       "default": "./dist/config-editor/diagram/ConfigDiagram.js"
@@ -35,12 +39,14 @@
   "dependencies": {
     "@isoflow/isopacks": "^0.0.10",
     "@stacktape/config": "workspace:*",
-    "@stacktape/design-tokens": "workspace:*"
+    "@stacktape/design-tokens": "workspace:*",
+    "monaco-types": "^0.1.0"
   },
   "devDependencies": {
     "@types/bun": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
+    "monaco-editor": "0.43.0",
     "react": "catalog:",
     "react-dom": "catalog:",
     "typescript": "catalog:",
