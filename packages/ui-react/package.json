@@ -2,7 +2,7 @@
   "name": "@stacktape/ui-react",
   "version": "4.0.0-dev.0",
   "private": true,
-  "description": "Presentational, router-neutral React controls shared by the Stacktape Console and documentation site.",
+  "description": "Reusable React controls and product UI shared by Stacktape applications.",
   "type": "module",
   "exports": {
     "./button": {
@@ -13,15 +13,28 @@
       "types": "./dist/icon-button.d.ts",
       "default": "./dist/icon-button.js"
     },
+    "./config-editor/diagram": {
+      "types": "./dist/config-editor/diagram/ConfigDiagram.d.ts",
+      "default": "./dist/config-editor/diagram/ConfigDiagram.js"
+    },
+    "./config-editor/diagram/fixtures": {
+      "types": "./dist/config-editor/diagram/fixtures.d.ts",
+      "default": "./dist/config-editor/diagram/fixtures.js"
+    },
+    "./config-editor/diagram.css": "./src/config-editor/diagram/diagram.css",
     "./styles.css": "./src/styles.css"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.diagram.build.json",
+    "dev": "pnpm run --parallel \"/^dev:(base|diagram)$/\"",
+    "dev:base": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "dev:diagram": "tsc -p tsconfig.diagram.build.json --watch --preserveWatchOutput",
     "test": "bun test src",
-    "typecheck": "tsc -p tsconfig.json"
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.diagram.json"
   },
   "dependencies": {
+    "@isoflow/isopacks": "^0.0.10",
+    "@stacktape/config": "workspace:*",
     "@stacktape/design-tokens": "workspace:*"
   },
   "devDependencies": {
@@ -30,7 +43,8 @@
     "@types/react-dom": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "typescript": "catalog:"
+    "typescript": "catalog:",
+    "yaml": "^2.8.0"
   },
   "peerDependencies": {
     "react": "catalog:"

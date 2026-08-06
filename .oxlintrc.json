@@ -124,7 +124,7 @@
       }
     },
     {
-      "files": ["apps/console/ui/diagram-test/**", "apps/console/ui/src/**"],
+      "files": ["apps/console/ui/src/**"],
       "rules": {
         "eslint/no-control-regex": "off",
         "eslint/no-shadow": "off",
@@ -162,6 +162,24 @@
         "unicorn/prefer-array-flat-map": "off",
         "unicorn/prefer-set-has": "off",
         "unicorn/prefer-string-starts-ends-with": "off"
+      }
+    },
+    {
+      // The configuration diagram was moved here from Console with its behaviour pinned by the scene-model
+      // and SVG-structure tests. These are the rules its imported implementation trips: dynamic traversal of
+      // the configuration model, in-place sorts inside layout passes whose results other passes hold
+      // references to, index keys over generated geometry, and the focusable pan/zoom surface.
+      // Rewriting them is a separate change from moving the code.
+      // New modules in this package are not exempt.
+      "files": ["packages/ui-react/src/config-editor/diagram/**"],
+      "rules": {
+        "jsx-a11y/no-noninteractive-element-interactions": "off",
+        // SVG has no semantic <img> element; role="img" is the interoperable labelled-diagram pattern.
+        "jsx-a11y/prefer-tag-over-role": "off",
+        "react/no-array-index-key": "off",
+        "typescript/no-explicit-any": "off",
+        "unicorn/no-array-reverse": "off",
+        "unicorn/no-array-sort": "off"
       }
     },
     {

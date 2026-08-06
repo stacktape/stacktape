@@ -1,0 +1,10 @@
+{
+  "extends": "./tsconfig.json",
+  "include": ["src/config-editor/diagram"],
+  "exclude": [],
+  "compilerOptions": {
+    // The imported layout/renderer uses guarded indexed geometry extensively. Keep this exception
+    // local so new primitives and the future ConfigEditor remain under the workspace default.
+    "noUncheckedIndexedAccess": false
+  }
+}

@@ -39,14 +39,7 @@
       "ignore": ["@generated/**", "dist/**"]
     },
     "apps/console/ui": {
-      "entry": [
-        "src/main.tsx",
-        "src/**/*.tsx",
-        "vite.config.ts",
-        "diagram-test/**/*.ts",
-        "diagram-test/**/*.tsx",
-        "scripts/**/*.ts"
-      ],
+      "entry": ["src/main.tsx", "src/**/*.tsx", "vite.config.ts", "scripts/**/*.ts"],
       "project": ["**/*.{ts,tsx}"],
       "ignore": ["dist/**", "public/**"]
     },

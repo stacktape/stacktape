@@ -1,0 +1,14 @@
+{
+  "extends": "./tsconfig.diagram.json",
+  // The fixture helper pulls in `yaml`, which is deliberately only a development dependency.
+  "exclude": ["src/**/*.test.ts", "src/**/*.test.tsx", "src/config-editor/diagram/fixture-scenes.ts"],
+  "compilerOptions": {
+    "allowImportingTsExtensions": false,
+    "declaration": true,
+    "declarationMap": true,
+    "noEmit": false,
+    "outDir": "dist",
+    "rootDir": "src",
+    "sourceMap": true
+  }
+}

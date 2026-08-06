@@ -1,6 +1,7 @@
 {
   "extends": "../../tsconfig.package.json",
   "include": ["src"],
+  "exclude": ["src/config-editor/diagram"],
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "jsx": "react-jsx",
