@@ -4,6 +4,7 @@ import type { ReactNode } from 'react';
 import clsx from 'clsx';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { BiCheck, BiCopy } from 'react-icons/bi';
+import { IconButton } from '@stacktape/ui-react/icon-button';
 import { colors } from '@/styles/variables';
 import { marked } from 'marked';
 import { convertTypescriptToYaml, convertYamlToTypescript } from '@/utils/yaml-to-typescript';
@@ -939,18 +940,19 @@ export function CodeBlockNew({ tabs, lang, intellisense = false, stacktapeConfig
       <TabSwitcher tabs={resolvedTabs} activeIndex={activeIndex >= 0 ? activeIndex : 0} onTabClick={handleTabClick} />
 
       <div className="stacktape-code-block-shell stp-box stp-pretty-scrollbar group relative overflow-x-auto overflow-y-hidden pt-4 pb-[14px] px-0 max-[500px]:mt-[3.5px]">
-        <button
-          type="button"
-          className="copy-button stp-icon-button absolute right-[14px] z-20 opacity-0 group-hover:opacity-100 [transition:all_250ms_ease,opacity_0.2s_ease-in-out]"
+        <IconButton
+          className="copy-button absolute right-[14px] z-20 opacity-0 group-hover:opacity-100 [transition:all_250ms_ease,opacity_0.2s_ease-in-out]"
           style={{ top: amountOfLines <= 2 ? '7px' : '14px' }}
+          label={isCopiedShown ? 'Code copied' : 'Copy code'}
+          icon={
+            isCopiedShown ? (
+              <BiCheck size={18} color={colors.fontColorPrimary} />
+            ) : (
+              <BiCopy size={18} color={colors.fontColorPrimary} />
+            )
+          }
           onClick={handleCopyClick}
-        >
-          {isCopiedShown ? (
-            <BiCheck size={18} color={colors.fontColorPrimary} />
-          ) : (
-            <BiCopy size={18} color={colors.fontColorPrimary} />
-          )}
-        </button>
+        />
 
         {renderError ? (
           <div className="pt-0 px-[18px] pb-[10px]">

@@ -1,50 +1,61 @@
+/* Layer order, declared before anything defines a layer. `stacktape-ui` sits between Tailwind's
+ * `base` and `components` so `@stacktape/ui-react` beats the element resets but still loses to this
+ * site's component classes and to every utility a call site passes through `className`. */
+@layer theme, base, stacktape-ui, components, utilities;
+
 @import 'tailwindcss';
 /* Algolia DocSearch base styles. Imported here (not in DocSearch.tsx) so our custom `:root`
  * `--docsearch-*` overrides below load AFTER Algolia's defaults and win the cascade — otherwise the
  * island's CSS chunk loads last and the modal theme regresses to Algolia's defaults. */
 @import '@docsearch/css/dist/style.css';
-/* Shared Stacktape brand primitive: defines `--stp-color-brand`. The rest of the palette below is
- * this site's own theme — only the brand colour is agreed across Stacktape frontends. */
+/* The shared Stacktape product-dark foundation: `--stp-*` surfaces, text, borders, interaction,
+ * status and AWS-category colours plus radii, focus and motion. The `@theme` block below names them
+ * for Tailwind; it does not restate their values. */
 @import '@stacktape/design-tokens/css';
+/* Appearance of the shared React controls. It carries its own `stacktape-ui` layer. */
+@import '@stacktape/ui-react/styles.css';
 
 /*
- * Design tokens. Mirrors src/styles/variables.ts `colors` + fonts. These generate Tailwind
- * utilities (e.g. `--color-element` → `bg-element`, `--color-fc-primary` → `text-fc-primary`).
- * Custom max-width breakpoints are NOT registered here — use arbitrary variants `max-[795px]:`
- * for the exact pixel media queries the design uses.
+ * Tailwind theme. Every colour that Stacktape frontends agree on is a reference to the shared token;
+ * the rest is this site's own theme. These generate Tailwind utilities (e.g. `--color-element` →
+ * `bg-element`, `--color-fc-primary` → `text-fc-primary`). Custom max-width breakpoints are NOT
+ * registered here — use arbitrary variants `max-[795px]:` for the exact pixel media queries the
+ * design uses.
  */
 @theme {
   --color-brand: var(--stp-color-brand);
-  --color-primary: rgb(17 105 105);
-  --color-primary-lighter: rgb(34 166 166);
-  --color-secondary: rgb(34 87 122);
+  --color-primary: var(--stp-interactive-primary);
+  --color-primary-lighter: var(--stp-interactive-primary-light);
+  --color-secondary: var(--stp-interactive-accent);
+  --color-page: var(--stp-surface-page);
+  --color-element: var(--stp-surface-element);
+  --color-modal: var(--stp-surface-modal);
+  --color-input: var(--stp-surface-input);
+  --color-border: var(--stp-border-strong);
+  --color-border-light: var(--stp-border-subtle);
+  --color-fc-primary: var(--stp-text-primary);
+  --color-fc-secondary: var(--stp-text-secondary);
+  --color-fc-light: var(--stp-text-subtle);
+  --color-fc-lighter: var(--stp-text-muted);
+  --color-fc-ternary: var(--stp-text-faint);
+  --color-fc-headline: var(--stp-text-headline);
+  --color-error: var(--stp-status-error);
+  --color-success: var(--stp-status-success);
+  --color-aws-compute: var(--stp-aws-category-compute);
+  --color-aws-database: var(--stp-aws-category-database);
+  --color-aws-integration: var(--stp-aws-category-integration);
+  --color-aws-security: var(--stp-aws-category-security);
+  --color-aws-storage: var(--stp-aws-category-storage);
+  --color-aws-network: var(--stp-aws-category-network);
+
+  /* This site's own theme: values no other Stacktape frontend shares. */
   --color-bg: rgb(28 33 33);
-  --color-page: rgb(22 28 28);
-  --color-element: rgb(34 40 40);
-  --color-modal: rgb(30 35 35);
   --color-darker: rgb(22 27 27);
-  --color-input: rgb(20 26 26);
   --color-input-hover: rgb(25 31 31);
   --color-hover: rgb(35 40 40);
-  --color-border: rgb(8 13 13);
-  --color-border-light: rgb(47 52 52);
-  --color-fc-primary: rgba(255, 255, 255, 0.87);
-  --color-fc-secondary: rgba(10, 187, 181, 1);
-  --color-fc-light: rgb(140 140 140);
-  --color-fc-lighter: rgb(160 160 160);
-  --color-fc-ternary: #848484;
-  --color-fc-headline: #cecece;
   --color-light-gray: #a6a5a5;
   --color-gray: #9a9a9a;
   --color-dark-grey: #2d2d2d;
-  --color-error: #eb6161;
-  --color-success: rgb(24 153 144);
-  --color-aws-compute: rgb(237 113 0);
-  --color-aws-database: #4d73f4;
-  --color-aws-integration: #f64683;
-  --color-aws-security: #f34446;
-  --color-aws-storage: #5ca034;
-  --color-aws-network: #8e58eb;
 
   --font-sans: Geist, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
   --font-mono: 'Geist Mono', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
@@ -1250,80 +1261,15 @@ html[data-mobile-nav-open] #main-content {
     backdrop-filter: blur(10px);
   }
 
-  /* Button — `.stp-btn` common root + per-visualType variant. Mirrors Button.tsx `rootStyle` +
-   * `buttonStyle[visualType]`. The disabled opacity is applied inline (it differs per variant). */
-  .stp-btn {
-    border-image-slice: 1;
-    border-radius: 8px;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    text-decoration: none;
-    color: var(--color-fc-primary);
-    background-size: 200% auto;
+  /* The surface, variants and press behaviour of every button now come from
+   * `@stacktape/ui-react/styles.css`. What stays here is the horizontal padding this site uses,
+   * which is narrower than the shared default; it sits in `components` so a call site's utility
+   * classes still win. */
+  .stp-doc-button {
     padding: 0px 10px 0px 14px;
   }
-  .stp-btn-primary {
-    background: linear-gradient(135deg, rgb(12, 95, 95), rgb(27, 109, 103));
-    box-shadow:
-      0 4px 12px rgba(0, 0, 0, 0.4),
-      0 0 0 1px rgba(81, 231, 236, 0.5),
-      inset 0 1px 0 rgba(43, 232, 239, 0.4);
-    border: none;
-    transition:
-      all 250ms ease,
-      transform 150ms ease;
-  }
-  .stp-btn-primary:hover {
-    box-shadow:
-      0 6px 16px rgba(0, 0, 0, 0.48),
-      0 0 0 1px rgba(81, 231, 236, 0.69),
-      inset 0 1px 0 rgba(43, 232, 239, 0.5),
-      0 0 0 1px rgba(90, 96, 96, 0.21),
-      inset 0 1px 0 rgba(170, 176, 176, 0.17),
-      inset 0 0 0 1px rgba(90, 96, 96, 0.15);
-  }
-  .stp-btn-primary:active {
-    transform: scale(0.98);
-  }
-  .stp-btn-secondary {
-    background: var(--color-element);
-    box-shadow:
-      0 2px 8px rgba(0, 0, 0, 0.75),
-      0 0 0 1px rgba(255, 255, 255, 0.1),
-      inset 0 1px 0 rgba(255, 255, 255, 0.15);
-    border: none;
-    transition:
-      all 250ms ease,
-      transform 150ms ease;
-  }
-  .stp-btn-secondary:hover {
-    box-shadow:
-      0 2px 8px rgba(0, 0, 0, 0.66),
-      0 0 0 1px rgba(255, 255, 255, 0.11),
-      inset 0 1px 0 rgba(255, 255, 255, 0.17),
-      0 0 0 1px rgba(90, 96, 96, 0.1),
-      inset 0 1px 0 rgba(140, 146, 146, 0.1),
-      inset 0 0 0 1px rgba(90, 96, 96, 0.08);
-  }
-  .stp-btn-secondary:active {
-    transform: scale(0.98);
-  }
-  .stp-btn-plain {
-    background: transparent;
-    box-shadow: none;
-    border: none;
-    transition: all 250ms ease;
-  }
-  .stp-btn-plain * {
+  .stp-doc-button.stp-ui-button--plain * {
     font-weight: bold;
-  }
-  .stp-btn-plain:hover {
-    box-shadow:
-      0 1px 4px rgba(0, 0, 0, 0.26),
-      0 0 0 1px rgba(90, 96, 96, 0.16),
-      inset 0 1px 0 rgba(150, 156, 156, 0.12),
-      inset 0 0 0 1px rgba(90, 96, 96, 0.1);
   }
 
   /* `clickableBoxStyle` */
@@ -1378,40 +1324,6 @@ html[data-mobile-nav-open] #main-content {
       inset 0 1px 4px rgba(0, 0, 0, 0.4),
       0 1px 0 rgba(255, 255, 255, 0.08),
       0 0 0 3px rgba(110, 116, 116, 0.12);
-  }
-
-  /* `iconButtonStyle` */
-  .stp-icon-button {
-    width: 32px;
-    height: 32px;
-    border-radius: 8px;
-    display: flex;
-    color: var(--color-fc-primary);
-    justify-content: center;
-    align-items: center;
-    user-select: none;
-    cursor: pointer;
-    transition:
-      all 250ms ease,
-      transform 150ms ease;
-    background: var(--color-element);
-    box-shadow:
-      0 2px 8px rgba(0, 0, 0, 0.75),
-      0 0 0 1px rgba(255, 255, 255, 0.1),
-      inset 0 1px 0 rgba(255, 255, 255, 0.15);
-    border: none;
-  }
-  .stp-icon-button:hover {
-    box-shadow:
-      0 3px 8px rgba(0, 0, 0, 0.55),
-      0 0 0 1px rgba(255, 255, 255, 0.12),
-      inset 0 1px 0 rgba(255, 255, 255, 0.18),
-      0 0 0 1px rgba(90, 96, 96, 0.18),
-      inset 0 1px 0 rgba(140, 146, 146, 0.16),
-      inset 0 0 0 1px rgba(90, 96, 96, 0.14);
-  }
-  .stp-icon-button:active {
-    transform: scale(0.92);
   }
 
   /* `tabContainerStyle` */

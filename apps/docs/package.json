@@ -24,6 +24,7 @@
     "@stacktape/config": "workspace:*",
     "@stacktape/config-authoring": "workspace:*",
     "@stacktape/design-tokens": "workspace:*",
+    "@stacktape/ui-react": "workspace:*",
     "@typescript/vfs": "1.6.4",
     "astro": "catalog:",
     "change-case": "^5.4.4",

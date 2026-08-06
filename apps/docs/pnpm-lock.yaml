@@ -74,6 +74,9 @@ importers:
       '@stacktape/design-tokens':
         specifier: workspace:*
         version: link:../../packages/design-tokens
+      '@stacktape/ui-react':
+        specifier: workspace:*
+        version: link:../../packages/ui-react
       '@typescript/vfs':
         specifier: 1.6.4
         version: 1.6.4(typescript@6.0.3)

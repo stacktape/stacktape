@@ -80,12 +80,23 @@ Three invariants follow, and all three are enforced:
 
 ## Styling
 
-The Tailwind theme, `stp-*` component classes, and every palette value in `src/styles/` belong to
-this site. The single exception is the brand colour: `packages/design-tokens` owns
-`--stp-color-brand` and its typed twin, because the marketing site has to render the same green.
-`global.css` imports the generated token CSS and aliases `--color-brand` to it;
-`src/styles/variables.ts` reads the same value for JS-side styles. Do not move the rest of the
-palette, typography, or spacing into that package — one consumer's theme is not a shared token.
+`packages/design-tokens` owns the values every Stacktape frontend agrees on: the brand green, the
+semantic surfaces, text, borders, interaction and status colours, the AWS category colours, and the
+shared radii, focus affordance and motion timings. `global.css` imports the generated token CSS and
+the `@theme` block aliases this site's Tailwind names to those `--stp-*` variables rather than
+restating their values; `src/styles/variables.ts` does the same for JS-side styles. Everything below
+the "this site's own theme" comment in either file is a value no other frontend shares — typography,
+spacing, and the backgrounds and hovers that deliberately differ from Console's. Promote a value only
+after checking that a second consumer really uses the same one.
+
+Buttons come from `@stacktape/ui-react`; `global.css` imports its stylesheet, and `.stp-doc-button`
+keeps only the narrower horizontal padding this site uses. The rest of the `stp-*` component classes
+belong to this site.
+
+The first line of `global.css` declares the cascade-layer order. `stacktape-ui` sits between
+Tailwind's `base` and `components`, so shared-control styles beat the element resets and still lose
+to this site's classes and to every utility a call site passes through `className`. Keep that
+statement first, before the `@import`s, or the shared package will start winning over utilities.
 
 ## Static assets
 

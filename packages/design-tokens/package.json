@@ -8,8 +8,10 @@
     "./css": "./generated/tokens.css"
   },
   "scripts": {
+    "dev": "node --watch scripts/generate-css.ts",
     "generate": "node scripts/generate-css.ts",
     "generate:check": "node scripts/generate-css.ts --check",
+    "test": "node --test src/tokens.test.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "devDependencies": {

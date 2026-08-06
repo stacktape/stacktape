@@ -121,20 +121,22 @@ function StarterCard({ project }: { project: Project }) {
       <div className="flex gap-[10px] mt-auto justify-end">
         <Button
           icon={<BiLogoGithub size={18} />}
-          text="GitHub"
           iconPosition="end"
-          visualType="secondary"
+          variant="secondary"
           width="fit-content"
-          linkTo={project.githubLink}
-        />
+          href={project.githubLink}
+        >
+          GitHub
+        </Button>
         <Button
           icon={<LuArrowUpRight size={18} />}
           iconPosition="end"
-          text="Deploy"
-          visualType="primary"
+          variant="primary"
           width="fit-content"
-          linkTo={`https://console.stacktape.com/create-new-project/git-project-using-console?name=my-stacktape-app&repositoryType=public&repositoryUrl=${project.githubLink}`}
-        />
+          href={`https://console.stacktape.com/create-new-project/git-project-using-console?name=my-stacktape-app&repositoryType=public&repositoryUrl=${project.githubLink}`}
+        >
+          Deploy
+        </Button>
       </div>
     </div>
   );

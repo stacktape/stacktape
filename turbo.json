@@ -48,17 +48,28 @@
     },
     "@stacktape/docs#typecheck": {
       "description": "Type-check the documentation site against the CLI's reviewed generated artifacts",
-      "dependsOn": ["^generate", "@stacktape/cli#generate", "@stacktape/cli#generate:monaco"],
+      "dependsOn": [
+        "^generate",
+        "@stacktape/cli#generate",
+        "@stacktape/cli#generate:monaco",
+        "@stacktape/ui-react#build"
+      ],
       "outputs": []
     },
     "@stacktape/docs#test": {
       "description": "Test the documentation site against the CLI-owned API-reference data and Stacktape declarations used by the build",
-      "dependsOn": ["@stacktape/cli#generate", "@stacktape/cli#generate:monaco"],
+      "dependsOn": ["@stacktape/cli#generate", "@stacktape/cli#generate:monaco", "@stacktape/ui-react#build"],
       "outputs": []
     },
     "@stacktape/docs#dev": {
       "description": "Serve the documentation site against the CLI's reviewed generated artifacts",
-      "dependsOn": ["@stacktape/cli#generate", "@stacktape/cli#generate:monaco"],
+      "dependsOn": ["@stacktape/cli#generate", "@stacktape/cli#generate:monaco", "@stacktape/ui-react#build"],
+      "with": ["@stacktape/ui-react#dev"],
+      "cache": false,
+      "persistent": true
+    },
+    "@stacktape/ui-react#dev": {
+      "with": ["@stacktape/design-tokens#dev"],
       "cache": false,
       "persistent": true
     }

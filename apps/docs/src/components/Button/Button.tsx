@@ -1,61 +1,53 @@
 import type { CSSProperties, ReactNode } from 'react';
 import clsx from 'clsx';
+import { ButtonLink } from '@stacktape/ui-react/button';
 
 /**
  * The documentation site's only button shape: a styled link. Every call site — the header, landing
- * call-to-actions, and the starter-project gallery — navigates somewhere, so the Console version's
- * submit/loading/disabled/tooltip modes are deliberately absent.
+ * call-to-actions, and the starter-project gallery — navigates somewhere, so the shared package's
+ * submit/loading/disabled modes are deliberately absent here.
+ *
+ * What this wrapper owns is the site's own layout contract: the anchor shrinks to its content unless
+ * a call site asks for a width, external destinations open in a new tab, and the horizontal padding
+ * is the site's rather than the shared default.
  */
 export function Button({
-  text,
-  linkTo,
+  children,
+  href,
   icon,
-  iconPosition = 'beginning',
-  visualType,
-  rootClassName,
+  iconPosition = 'start',
+  variant,
+  className,
   onClick,
   width = '100%',
   height = '32.5px'
 }: {
-  text: ReactNode;
-  linkTo: string;
+  children: ReactNode;
+  href: string;
   icon?: ReactNode;
-  iconPosition?: 'beginning' | 'end';
-  visualType: 'primary' | 'secondary' | 'plain';
-  rootClassName?: string;
+  iconPosition?: 'start' | 'end';
+  variant: 'primary' | 'secondary' | 'plain';
+  className?: string;
   onClick?: () => void;
   width?: CSSProperties['width'];
   height?: CSSProperties['height'];
 }) {
-  const iconElement = icon ? (
-    <span
-      className={clsx(
-        'flex items-center justify-center',
-        iconPosition === 'beginning' ? 'mr-[11px] ml-[5px]' : 'mr-[2px] ml-[9px]'
-      )}
-    >
-      {icon}
-    </span>
-  ) : null;
-
-  const isExternal = linkTo.startsWith('http');
+  const isExternal = href.startsWith('http');
 
   return (
-    <a
-      className="block w-fit"
-      href={linkTo}
-      onClick={onClick}
-      {...(isExternal && { target: '_blank', rel: 'noopener noreferrer' })}
-    >
-      <button
-        type="button"
-        className={clsx('stp-button stp-btn', `stp-btn-${visualType}`, rootClassName)}
-        style={{ cursor: 'pointer', height, width }}
+    <span className="block w-fit">
+      <ButtonLink
+        className={clsx('stp-doc-button', className)}
+        href={href}
+        icon={icon}
+        iconPosition={iconPosition}
+        onClick={onClick}
+        style={{ width, height }}
+        variant={variant}
+        {...(isExternal && { target: '_blank', rel: 'noopener noreferrer' })}
       >
-        {iconPosition === 'beginning' && iconElement}
-        <span className="m-0 text-center font-medium text-fc-primary align-middle truncate">{text}</span>
-        {iconPosition === 'end' && iconElement}
-      </button>
-    </a>
+        {children}
+      </ButtonLink>
+    </span>
   );
 }

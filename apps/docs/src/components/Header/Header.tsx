@@ -3,6 +3,7 @@ import clsx from 'clsx';
 import { Menu } from 'react-feather';
 import { BiLogoGithub, BiRightArrowAlt } from 'react-icons/bi';
 import { ANALYTICS_EVENTS } from '@stacktape/analytics/events';
+import { IconButton } from '@stacktape/ui-react/icon-button';
 import { trackMarketingAnalyticsEvent } from '@/utils/analytics';
 import { toggleMobileNav } from '@/stores/mobile-nav';
 import { Img as Image } from '@/components/Img';
@@ -10,14 +11,13 @@ import { Anchor as Link } from '@/components/Anchor';
 import StacktapeFullLogo from '@/assets/logo-full-dark.svg';
 import StacktapeLogo from '@/assets/logo.svg';
 import { Button } from '@/components/Button/Button';
-import { IconButton } from '@/components/Button/IconButton';
 import { DocSearch } from '@/components/Search/DocSearch';
 
 function SignUpButton() {
   return (
     <Button
-      visualType="primary"
-      linkTo="https://console.stacktape.com/sign-up"
+      variant="primary"
+      href="https://console.stacktape.com/sign-up"
       width={150}
       height="35px"
       onClick={() =>
@@ -26,18 +26,17 @@ function SignUpButton() {
           placement: 'docs_header'
         })
       }
-      text={
-        <div className="mx-auto">
-          <span className="flex items-center justify-center gap-[10px]">
-            <span className="pl-[4px]">Sign up</span>
-            <BiRightArrowAlt size={22} />
-          </span>
-        </div>
-      }
       // width/height come from props (Button applies them inline). The mobile overrides need `!` so
       // they beat that inline style.
-      rootClassName="text-[0.95rem] max-[650px]:w-full! max-[650px]:h-[34px]! max-[650px]:pt-0 max-[650px]:pr-[13px] max-[650px]:pb-0 max-[650px]:pl-[18px]"
-    />
+      className="text-[0.95rem] max-[650px]:w-full! max-[650px]:h-[34px]! max-[650px]:pt-0 max-[650px]:pr-[13px] max-[650px]:pb-0 max-[650px]:pl-[18px]"
+    >
+      <div className="mx-auto">
+        <span className="flex items-center justify-center gap-[10px]">
+          <span className="pl-[4px]">Sign up</span>
+          <BiRightArrowAlt size={22} />
+        </span>
+      </div>
+    </Button>
   );
 }
 
@@ -45,10 +44,10 @@ function StarOnGithubButton({ buttonWidth, style }: { buttonWidth?: number; styl
   return (
     <div className="flex items-center" style={{ width: buttonWidth || '100%', ...style }}>
       <Button
-        visualType="secondary"
+        variant="secondary"
         height="38px"
         width="100%"
-        linkTo="https://github.com/stacktape/stacktape"
+        href="https://github.com/stacktape/stacktape"
         onClick={() =>
           trackMarketingAnalyticsEvent(ANALYTICS_EVENTS.marketingCtaClicked, {
             cta: 'github',
@@ -56,8 +55,9 @@ function StarOnGithubButton({ buttonWidth, style }: { buttonWidth?: number; styl
           })
         }
         icon={<BiLogoGithub size={20} />}
-        text={<span style={{ paddingRight: '11px' }}>Github</span>}
-      />
+      >
+        <span style={{ paddingRight: '11px' }}>Github</span>
+      </Button>
     </div>
   );
 }
@@ -86,7 +86,7 @@ function MobileNavItems() {
       <div className="flex items-center gap-[15px]">
         <SignUpButton />
         <IconButton
-          rootClassName="hidden max-[795px]:flex"
+          className="m-[2px] hidden max-[795px]:flex"
           label="Toggle navigation"
           icon={<Menu size={27} />}
           onClick={() => toggleMobileNav()}

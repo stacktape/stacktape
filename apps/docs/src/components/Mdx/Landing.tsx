@@ -65,19 +65,20 @@ export function CTAButton({
   variant?: 'primary' | 'secondary' | 'ghost';
   icon?: string;
 }) {
-  // Map to the brand Button visual types used across the site (header, console, etc.).
-  const visualType = variant === 'secondary' ? 'secondary' : variant === 'ghost' ? 'plain' : 'primary';
+  // Map to the shared button variants used across the site (header, console, etc.).
+  const buttonVariant = variant === 'secondary' ? 'secondary' : variant === 'ghost' ? 'plain' : 'primary';
   return (
     <Button
-      visualType={visualType}
-      linkTo={href}
+      variant={buttonVariant}
+      href={href}
       width="fit-content"
       height="40px"
       iconPosition="end"
       icon={icon ? <Icon name={icon} size={18} color={colors.fontColorPrimary} /> : undefined}
-      text={children}
-      rootClassName="text-[0.95rem] py-0 pr-4 pl-[18px]"
-    />
+      className="text-[0.95rem] py-0 pr-4 pl-[18px]"
+    >
+      {children}
+    </Button>
   );
 }
 

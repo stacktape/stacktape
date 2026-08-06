@@ -86,8 +86,12 @@ mode, and the guarded real-AWS validation lane including the reusable packaging 
 - Do not add styled-components or styled-component APIs.
 - Console may use Emotion object styles and the `css` prop.
 - Docs and website use native Astro/CSS/Tailwind; do not require Emotion for Astro shells.
-- Shared tokens come from `packages/design-tokens`.
+- Shared tokens come from `packages/design-tokens`: brand, semantic surfaces/text/borders/interaction/status,
+  AWS category colours, radii, focus and motion. Promote a value only once a second consumer uses that exact value.
 - `packages/ui-react` components are presentational, router-neutral, and used by at least two consumers.
+- `packages/ui-react` ships compiled output because consumers must not recompile its JSX with their own pragma.
+  Its appearance is one explicitly imported stylesheet in the `stacktape-ui` cascade layer, so a consumer can
+  override it without `!important`; consumers declare where that layer sorts.
 
 ## Generated files
 

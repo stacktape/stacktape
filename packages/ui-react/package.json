@@ -1,0 +1,38 @@
+{
+  "name": "@stacktape/ui-react",
+  "version": "4.0.0-dev.0",
+  "private": true,
+  "description": "Presentational, router-neutral React controls shared by the Stacktape Console and documentation site.",
+  "type": "module",
+  "exports": {
+    "./button": {
+      "types": "./dist/button.d.ts",
+      "default": "./dist/button.js"
+    },
+    "./icon-button": {
+      "types": "./dist/icon-button.d.ts",
+      "default": "./dist/icon-button.js"
+    },
+    "./styles.css": "./src/styles.css"
+  },
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "dev": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
+    "test": "bun test src",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@stacktape/design-tokens": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "typescript": "catalog:"
+  },
+  "peerDependencies": {
+    "react": "catalog:"
+  }
+}

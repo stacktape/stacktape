@@ -53,7 +53,17 @@ reviewable.
 
 - Use Emotion object styles and the `css` prop where appropriate.
 - Never introduce styled-components/styled APIs.
-- Consume shared values from `@stacktape/design-tokens`.
+- Consume shared values from `@stacktape/design-tokens`. It owns the brand colour, the semantic surfaces, text,
+  borders, interaction and status colours, the AWS category colours, and the shared radii, focus and motion. Values
+  only Console uses stay in `ui/src/styles`, below the comment that says so.
+- Buttons and icon buttons come from `@stacktape/ui-react`. Console's own components keep only what is Console's:
+  React Router navigation, tooltips, the brief post-click acknowledgement, and the Emotion `rootCss`/`buttonCss`
+  escape hatches. Emotion `Css` types never cross into the shared package.
+- The shared stylesheet is imported once in `ui/src/main.tsx` and sits in the `stacktape-ui` cascade layer, so
+  Console's unlayered Emotion always wins over it. That is also why `globalCss` restores the focus ring for
+  `.stp-ui-button`: Console's own blanket `*:focus-visible { outline: none }` would otherwise erase it.
+- Prefer native `<button>` and `<a>`. Never nest one inside the other and never revive `<div role="button">`; an
+  icon-only control always carries an accessible name.
 - Shared React components must remain router-neutral; Console navigation adapters stay in UI.
 - Preserve accessible loading, error, keyboard, and focus behavior.
 - Monaco's Stacktape declarations come from the workspace v4 CLI's `generate:monaco` output. UI build/dev generates

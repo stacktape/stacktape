@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.package.json",
+  "include": ["src"],
+  "compilerOptions": {
+    "allowImportingTsExtensions": true,
+    "jsx": "react-jsx",
+    "lib": ["ES2024", "DOM", "DOM.Iterable"],
+    "module": "preserve",
+    "moduleResolution": "bundler",
+    "types": ["bun"]
+  }
+}

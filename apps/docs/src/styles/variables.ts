@@ -1,37 +1,53 @@
 import { designTokens } from '@stacktape/design-tokens';
 
+/**
+ * The JS-side twin of the `@theme` block in global.css, for the few components that pass a colour to
+ * a third-party React component instead of styling in CSS.
+ *
+ * Values referencing `designTokens` are the shared Stacktape foundation; the literals below them are
+ * this site's own theme and no other frontend agrees on them.
+ */
+const { awsCategory, border, color, interactive, status, surface, text } = designTokens;
+
 const mainBackground = 'rgb(28,33,33)';
-const pageBackground = 'rgb(22,28,28)';
-const elementBackground = 'rgb(34,40,40)';
-const tableBoxShadow = 'rgb(35,35,35)';
 
 export const colors = {
-  primary: 'rgb(17 105 105)',
-  primaryLighter: 'rgb(34, 166, 166)',
+  primary: interactive.primary,
+  primaryLighter: interactive.primaryLight,
+  secondary: interactive.accent,
+  secondaryDisabled: interactive.accent,
+  pageBackground: surface.page,
+  elementBackground: surface.element,
+  modalBackground: surface.modal,
+  inputBackground: surface.input,
+  borderColor: border.strong,
+  borderColorLight: border.subtle,
+  fontColorPrimary: text.primary,
+  fontColorSecondary: text.secondary,
+  fontColorLightGray: text.subtle,
+  fontColorLighterGray: text.muted,
+  fontColorTernary: text.faint,
+  fontColorHeadline: text.headline,
+  error: status.error,
+  success: status.success,
+  awsResourceCompute: awsCategory.compute,
+  awsResourceDatabase: awsCategory.database,
+  awsResourceIntegration: awsCategory.integration,
+  awsResourceSecurity: awsCategory.security,
+  awsResourceStorage: awsCategory.storage,
+  awsResourceNetwork: awsCategory.network,
+  brandGreen: color.brand,
+  stacktapeGreen: color.brand,
+
+  // This site's own theme.
   navigationHover: 'rgba(255,255,255,0.75)',
   primaryDisabled: 'rgb(21, 114, 120)',
-  borderColor: 'rgb(8, 13, 13)',
-  borderColorLight: 'rgb(47,52,52)',
   primaryButtonBorder: '#40958e',
-  secondary: 'rgb(34, 87, 122)',
-  secondaryDisabled: 'rgb(34, 87, 122)',
   secondaryButtonBorder: 'rgb(69,151,203)',
   backgroundColor: mainBackground,
-  pageBackground,
   darkerBackground: 'rgb(22,27,27)',
   highlightedCodeLine: 'rgb(53, 59, 69)',
-  error: '#eb6161',
-  success: 'rgb(24, 153, 144)',
-  elementBackground,
-  modalBackground: 'rgb(30,35,35)',
-  inputBackground: 'rgb(20,26,26)',
   inputHover: 'rgb(25, 31, 31)',
-  fontColorLightGray: 'rgb(140,140,140)',
-  fontColorLighterGray: 'rgb(160,160,160)',
-  fontColorPrimary: 'rgba(255,255,255,0.87)',
-  fontColorSecondary: 'rgba(10, 187, 181, 1)',
-  fontColorTernary: '#848484',
-  fontColorHeadline: '#cecece',
   scrollbarColor: '#131313',
   gray: '#9a9a9a',
   darkGrey: '#2D2D2D',
@@ -57,17 +73,8 @@ export const colors = {
   green: '#00965E',
   greenLight: '#D0EBE1',
   blue: '#0066CC',
-  // The one colour shared with the marketing site; owned by `packages/design-tokens`.
-  brandGreen: designTokens.color.brand,
-  stacktapeGreen: designTokens.color.brand,
-  tableBoxShadow,
-  vscodeBackground: '#1E1E1E',
-  awsResourceCompute: 'rgb(237, 113, 0)',
-  awsResourceDatabase: '#4D73F4',
-  awsResourceIntegration: '#F64683',
-  awsResourceSecurity: '#F34446',
-  awsResourceStorage: '#5CA034',
-  awsResourceNetwork: '#8E58EB'
+  tableBoxShadow: 'rgb(35,35,35)',
+  vscodeBackground: '#1E1E1E'
 } as const;
 
 export const pageLayout = {

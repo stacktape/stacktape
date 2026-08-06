@@ -1,4 +1,35 @@
 /* Generated from src/tokens.ts. Do not edit. */
 :root {
   --stp-color-brand: rgb(54, 190, 190);
+  --stp-surface-page: rgb(22, 28, 28);
+  --stp-surface-element: rgb(34, 40, 40);
+  --stp-surface-modal: rgb(30, 35, 35);
+  --stp-surface-input: rgb(20, 26, 26);
+  --stp-text-primary: rgba(255, 255, 255, 0.87);
+  --stp-text-secondary: rgba(10, 187, 181, 1);
+  --stp-text-headline: #cecece;
+  --stp-text-muted: rgb(160, 160, 160);
+  --stp-text-subtle: rgb(140, 140, 140);
+  --stp-text-faint: #848484;
+  --stp-border-strong: rgb(8, 13, 13);
+  --stp-border-subtle: rgb(47, 52, 52);
+  --stp-interactive-primary: rgb(17, 105, 105);
+  --stp-interactive-primary-light: rgb(34, 166, 166);
+  --stp-interactive-accent: rgb(34, 87, 122);
+  --stp-status-error: #eb6161;
+  --stp-status-success: rgb(24, 153, 144);
+  --stp-aws-category-compute: rgb(237, 113, 0);
+  --stp-aws-category-database: #4D73F4;
+  --stp-aws-category-integration: #F64683;
+  --stp-aws-category-security: #F34446;
+  --stp-aws-category-storage: #5CA034;
+  --stp-aws-category-network: #8E58EB;
+  --stp-radius-small: 4px;
+  --stp-radius-medium: 6px;
+  --stp-radius-large: 8px;
+  --stp-focus-outline-width: 2px;
+  --stp-focus-outline-offset: 2px;
+  --stp-motion-duration-fast: 150ms;
+  --stp-motion-duration-base: 250ms;
+  --stp-motion-easing: ease;
 }
