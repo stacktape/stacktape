@@ -69,9 +69,19 @@ pnpm --filter @stacktape/cli exec bun test tests/characterization
 pnpm --filter @stacktape/packaging run test
 ```
 
-`pnpm dev` starts every development task available in the checkout. Prefer `pnpm dev:console`, `pnpm dev:docs`, or
-`pnpm dev:website` when working on one application. These are unrelated to the Stacktape `dev` command described
-below.
+There is deliberately no root `pnpm dev`: the workspace does not have one meaningful all-app development process,
+and the CLI's source runner requires a command. Start the application you actually need:
+
+```powershell
+pnpm dev:console       # Console UI at http://localhost:4000
+pnpm dev:docs          # documentation at http://localhost:9001
+pnpm dev:website       # marketing website
+pnpm dev:cli version   # build and run one CLI command from source
+```
+
+The first three commands start local web development servers. `dev:cli` forwards everything after its name to the
+development-built Stacktape CLI described below. Console API development is intentionally separate because it opens a
+Stacktape session against real AWS; use the explicit commands in `apps/console/README.md`.
 
 ## Harness-managed worktrees
 

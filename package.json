@@ -18,7 +18,7 @@
     "check:secrets": "node scripts/workspace/check-staged-secrets.ts --tree",
     "check:workspace": "sherif --ignore-rule non-existant-packages --ignore-dependency @aws-sdk/client-ecs --ignore-dependency @fast-csv/parse --ignore-dependency @octokit/rest --ignore-dependency get-folder-size --ignore-dependency marked --ignore-dependency p-retry --ignore-dependency stacktape --ignore-dependency yaml --fail-on-warnings",
     "console:pointer:verify": "node scripts/workspace/verify-console-pointer.ts",
-    "dev": "turbo run dev",
+    "dev:cli": "pnpm --filter @stacktape/cli run dev",
     "dev:console": "turbo run dev --filter=@stacktape/console-ui",
     "dev:docs": "turbo run dev --filter=@stacktape/docs",
     "dev:website": "turbo run dev --filter=@stacktape/website",
