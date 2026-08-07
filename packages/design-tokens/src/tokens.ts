@@ -67,6 +67,10 @@ export const designTokens = {
     medium: '6px',
     large: '8px'
   },
+  /** Shared default height for controls rendered by `@stacktape/ui-react`. */
+  control: {
+    heightMedium: '36px'
+  },
   /** Keyboard focus affordance. Drawn with `outline` so it never competes with a component's shadow. */
   focus: {
     outlineWidth: '2px',
@@ -129,6 +133,9 @@ export const tokenVar = {
     small: 'var(--stp-radius-small)',
     medium: 'var(--stp-radius-medium)',
     large: 'var(--stp-radius-large)'
+  },
+  control: {
+    heightMedium: 'var(--stp-control-height-medium)'
   },
   focus: {
     outlineWidth: 'var(--stp-focus-outline-width)',

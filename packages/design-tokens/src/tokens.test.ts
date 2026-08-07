@@ -34,6 +34,7 @@ test('every token has a CSS custom property named after its path', () => {
       '--stp-radius-small',
       '--stp-radius-medium',
       '--stp-radius-large',
+      '--stp-control-height-medium',
       '--stp-focus-outline-width',
       '--stp-focus-outline-offset',
       '--stp-motion-duration-fast',

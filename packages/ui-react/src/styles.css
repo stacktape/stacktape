@@ -23,12 +23,14 @@
     display: flex;
     align-items: center;
     justify-content: center;
-    height: 32.5px;
-    padding: 0 16px;
+    height: var(--stp-control-height, var(--stp-control-height-medium));
+    padding: 0 var(--stp-control-padding-inline, 16px);
     border: none;
-    border-radius: var(--stp-radius-large);
+    border-radius: var(--stp-control-radius, var(--stp-radius-large));
     background: transparent;
     color: var(--stp-text-primary);
+    font-family: var(--stp-font-ui, inherit);
+    font-size: var(--stp-control-font-size, inherit);
     text-decoration: none;
     user-select: none;
     cursor: pointer;
@@ -123,25 +125,51 @@
   /* ── Variants ─────────────────────────────────────────────────────────────────────────────────
    * Every value below was already identical in Console and the documentation site. */
   .stp-ui-button--primary {
-    --stp-ui-button-surface: linear-gradient(135deg, rgb(12, 95, 95), rgb(27, 109, 103));
-    --stp-ui-button-shadow:
-      0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(81, 231, 236, 0.5), inset 0 1px 0 rgba(43, 232, 239, 0.4);
-    --stp-ui-button-shadow-hover:
-      0 6px 16px rgba(0, 0, 0, 0.48), 0 0 0 1px rgba(81, 231, 236, 0.69), inset 0 1px 0 rgba(43, 232, 239, 0.5),
-      0 0 0 1px rgba(90, 96, 96, 0.21), inset 0 1px 0 rgba(170, 176, 176, 0.17), inset 0 0 0 1px rgba(90, 96, 96, 0.15);
+    --stp-ui-button-surface: var(
+      --stp-button-primary-surface,
+      linear-gradient(135deg, rgb(12, 95, 95), rgb(27, 109, 103))
+    );
+    --stp-ui-button-shadow: var(
+      --stp-button-primary-shadow,
+      0 4px 12px rgba(0, 0, 0, 0.4),
+      0 0 0 1px rgba(81, 231, 236, 0.5),
+      inset 0 1px 0 rgba(43, 232, 239, 0.4)
+    );
+    --stp-ui-button-shadow-hover: var(
+      --stp-button-primary-shadow-hover,
+      0 6px 16px rgba(0, 0, 0, 0.48),
+      0 0 0 1px rgba(81, 231, 236, 0.69),
+      inset 0 1px 0 rgba(43, 232, 239, 0.5),
+      0 0 0 1px rgba(90, 96, 96, 0.21),
+      inset 0 1px 0 rgba(170, 176, 176, 0.17),
+      inset 0 0 0 1px rgba(90, 96, 96, 0.15)
+    );
   }
 
   .stp-ui-button--secondary {
-    --stp-ui-button-surface: var(--stp-surface-element);
-    --stp-ui-button-shadow:
-      0 2px 8px rgba(0, 0, 0, 0.75), 0 0 0 1px rgba(255, 255, 255, 0.1), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-    --stp-ui-button-shadow-hover:
-      0 2px 8px rgba(0, 0, 0, 0.66), 0 0 0 1px rgba(255, 255, 255, 0.11), inset 0 1px 0 rgba(255, 255, 255, 0.17),
-      0 0 0 1px rgba(90, 96, 96, 0.1), inset 0 1px 0 rgba(140, 146, 146, 0.1), inset 0 0 0 1px rgba(90, 96, 96, 0.08);
+    --stp-ui-button-surface: var(--stp-button-secondary-surface, var(--stp-surface-element));
+    --stp-ui-button-shadow: var(
+      --stp-button-secondary-shadow,
+      0 2px 8px rgba(0, 0, 0, 0.75),
+      0 0 0 1px rgba(255, 255, 255, 0.1),
+      inset 0 1px 0 rgba(255, 255, 255, 0.15)
+    );
+    --stp-ui-button-shadow-hover: var(
+      --stp-button-secondary-shadow-hover,
+      0 2px 8px rgba(0, 0, 0, 0.66),
+      0 0 0 1px rgba(255, 255, 255, 0.11),
+      inset 0 1px 0 rgba(255, 255, 255, 0.17),
+      0 0 0 1px rgba(90, 96, 96, 0.1),
+      inset 0 1px 0 rgba(140, 146, 146, 0.1),
+      inset 0 0 0 1px rgba(90, 96, 96, 0.08)
+    );
   }
 
   .stp-ui-button--accent {
-    --stp-ui-button-surface: linear-gradient(135deg, rgba(34, 87, 122, 1) 0%, rgba(40, 95, 130, 0.95) 100%);
+    --stp-ui-button-surface: var(
+      --stp-button-accent-surface,
+      linear-gradient(135deg, rgba(34, 87, 122, 1) 0%, rgba(40, 95, 130, 0.95) 100%)
+    );
     --stp-ui-button-shadow:
       0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.25);
     --stp-ui-button-shadow-hover:
@@ -150,7 +178,10 @@
   }
 
   .stp-ui-button--danger {
-    --stp-ui-button-surface: linear-gradient(135deg, rgb(235, 97, 97) 0%, rgb(200, 80, 80) 100%);
+    --stp-ui-button-surface: var(
+      --stp-button-danger-surface,
+      linear-gradient(135deg, rgb(235, 97, 97) 0%, rgb(200, 80, 80) 100%)
+    );
     --stp-ui-button-shadow:
       0 4px 12px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 160, 160, 0.7), inset 0 1px 0 rgba(255, 180, 180, 0.5);
     --stp-ui-button-shadow-hover:
@@ -176,8 +207,8 @@
    * layout that arranges them, and a host reset such as `button { margin: 0 }` would win over it
    * anyway. */
   .stp-ui-button--icon {
-    width: 32px;
-    height: 32px;
+    width: var(--stp-icon-button-size, var(--stp-control-height, 32px));
+    height: var(--stp-icon-button-size, var(--stp-control-height, 32px));
     padding: 0;
     transition:
       opacity var(--stp-motion-duration-base) var(--stp-motion-easing),
