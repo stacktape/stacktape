@@ -88,7 +88,10 @@ mode, and the guarded real-AWS validation lane including the reusable packaging 
 - Docs and website use native Astro/CSS/Tailwind; do not require Emotion for Astro shells.
 - Shared tokens come from `packages/design-tokens`: brand, semantic surfaces/text/borders/interaction/status,
   AWS category colours, radii, focus and motion. Promote a value only once a second consumer uses that exact value.
-- `packages/ui-react` components are presentational, router-neutral, and used by at least two consumers.
+- `packages/ui-react` components are presentational and router-neutral. Extract a primitive when it removes real
+  duplication or has a concrete second product consumer; do not invent abstractions only to populate the package.
+- Every public `ui-react` component owns a top-level source folder and an explicit subpath export. Product-wide
+  resource/framework icon meaning is shared too; the diagram may add a lazy heavy renderer, not a second mapping.
 - `packages/ui-react` ships compiled output because consumers must not recompile its JSX with their own pragma.
   Its appearance is one explicitly imported stylesheet in the `stacktape-ui` cascade layer, so a consumer can
   override it without `!important`; consumers declare where that layer sorts.

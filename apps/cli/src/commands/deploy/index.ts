@@ -6,7 +6,16 @@ import { stpErrors } from '@errors';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { fsPaths } from 'src/config/runtime-paths';
 import { obfuscatedNamesStateHolder } from '@stacktape/naming/resource-names';
-import { getDetailedStackInfoMap } from '@utils/stack-info-map-diff';
+import {
+  getCriticalResourcesPotentiallyEndangeredByOperation,
+  getDetailedStackInfoMap
+} from '@utils/stack-info-map-diff';
+import {
+  buildDeploymentChangePlan,
+  formatDeploymentChangePlanSummary,
+  getChangePlanProducerVersion,
+  type DeploymentChangePlanV1
+} from '@domain-services/deployment-change-plan';
 import {
   injectEnvironmentToHostedHtmlFiles,
   potentiallyPromptBeforeOperation,
@@ -22,6 +31,7 @@ import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import { deployWithCodebuildRunner } from './codebuild-runner';
 import { deployWithEc2Runner } from './ec2-runner';
+import { buildPreviewResourceChanges } from '../diff/utils';
 
 type DeployOperation = Awaited<ReturnType<typeof initializeDeployOperation>>;
 
@@ -96,7 +106,7 @@ const deployLocally = async () => {
   await ensureMissingSsmParamsCreated();
 
   event.setPhase('BUILD_AND_PACKAGE');
-  const [{ packagedWorkloads, abort, cfTemplateDiff }] = await Promise.all([
+  const [{ packagedWorkloads, cfTemplateDiff: initialCfTemplateDiff }] = await Promise.all([
     prepareArtifactsForStackDeployment({
       calculatedStackOverview,
       packaging,
@@ -108,17 +118,9 @@ const deployLocally = async () => {
     cloudformationRegistry.registerLatestCfPrivateTypes(config.requiredCloudformationPrivateTypes)
   ]);
 
-  if (abort) {
-    await application.handleExitSignal('SIGINT');
-    return;
-  }
-
-  if (stack.stackActionType === 'create') {
-    await stack.createResourcesForArtifacts();
-  }
-
   // here we decide if we will do hotswap(fast deploy) or full deploy
   let useHotswap = false;
+  let cfTemplateDiff = initialCfTemplateDiff;
   if (args.hotSwap) {
     const { isHotswapPossible = false, hotSwappableWorkloadsWhoseCodeWillBeUpdatedByCloudformation = [] } =
       stack.stackActionType !== 'create' &&
@@ -142,8 +144,58 @@ const deployLocally = async () => {
         // after we repackaged some of the resources (potentially)
         // we must rerun prepare deploy to reflect changes in cloudformation template
         await prepareTemplateForDeploy();
+        cfTemplateDiff = template.getOldTemplateDiff();
       }
     }
+  }
+
+  let changePlan: DeploymentChangePlanV1 | undefined;
+  if (!useHotswap) {
+    const dangerousResources = getCriticalResourcesPotentiallyEndangeredByOperation({
+      calculatedStackInfoMap: calculatedStackOverview.stackInfoMap,
+      deployedStackInfoMap: deployedStackOverview.stackInfoMap,
+      cfTemplateDiff
+    });
+    const resourceChanges = buildPreviewResourceChanges({
+      calculatedStackInfoMap: calculatedStackOverview.stackInfoMap,
+      deployedStackInfoMap: deployedStackOverview.stackInfoMap,
+      cfTemplateDiff,
+      changes: []
+    });
+    changePlan = buildDeploymentChangePlan({
+      cliVersion: getChangePlanProducerVersion(),
+      target: {
+        awsAccountId: stackContext.accountId,
+        region: stackContext.region,
+        projectName: stackContext.projectName,
+        stage: stackContext.stage,
+        stackName: stackContext.stackName
+      },
+      action: stack.stackActionType === 'create' ? 'create' : 'update',
+      changeEvidence: 'local-template-diff',
+      deploymentVersion: stack.nextVersion,
+      stackId: stack.existingStackDetails?.StackId,
+      previousDeploymentVersion: stack.lastVersion,
+      previousTemplate: stack.stackActionType === 'update' ? template.oldTemplate : undefined,
+      template: template.getTemplate(),
+      artifacts: packagedWorkloads,
+      resourceChanges,
+      dangerousResources
+    });
+    tui.info(formatDeploymentChangePlanSummary(changePlan));
+
+    // Approval must describe the last finalized template. A hotswap fallback can
+    // repackage workloads and finalize again, so prompting during initial preparation
+    // would approve a different change from the one that is uploaded below.
+    const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff });
+    if (abort) {
+      await application.handleExitSignal('SIGINT');
+      return;
+    }
+  }
+
+  if (stack.stackActionType === 'create') {
+    await stack.createResourcesForArtifacts();
   }
 
   // deploy all artifacts - use versions depending on whether this is hotswap or not
@@ -239,7 +291,11 @@ const deployLocally = async () => {
     event.addFinalAction(() => promptCiCdSetupAfterDeploy());
   }
 
-  return { stackInfo: detailedStackInfoSensitive, packagedWorkloads };
+  return {
+    stackInfo: detailedStackInfoSensitive,
+    packagedWorkloads,
+    ...(changePlan ? { changePlan } : {})
+  };
 };
 
 export const prepareArtifactsForStackDeployment = async ({
@@ -254,7 +310,6 @@ export const prepareArtifactsForStackDeployment = async ({
 >): Promise<{
   packagedWorkloads: PackageWorkloadOutput[];
   cfTemplateDiff: TemplateDiff;
-  abort: boolean;
 }> => {
   const packagedWorkloads = await packaging.packageAllWorkloads({ commandCanUseCache: true });
   await calculatedStackOverview.resolveAllResources();
@@ -266,9 +321,7 @@ export const prepareArtifactsForStackDeployment = async ({
   await prepareTemplateForDeploy();
 
   const cfTemplateDiff = template.getOldTemplateDiff();
-  const { abort } = await potentiallyPromptBeforeOperation({ cfTemplateDiff });
-
-  return { abort, packagedWorkloads, cfTemplateDiff };
+  return { packagedWorkloads, cfTemplateDiff };
 };
 
 export const performFullDeploy = async ({ deploymentArtifacts, stack, tui }: FullDeployOperation) => {

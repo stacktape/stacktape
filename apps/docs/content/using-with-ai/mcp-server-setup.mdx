@@ -50,6 +50,8 @@ OpenCode global paths: on Windows, `%APPDATA%\opencode\opencode.jsonc` or `%APPD
 
 The MCP server uses stdio transport — every client launches `stacktape mcp` as a child process and communicates over stdin/stdout using JSON-RPC.
 
+<Info>Stacktape MCP requires the modern MCP `2026-07-28` protocol. It does not fall back to the older session-based protocol. If a configured client cannot discover the four Stacktape tools, update that client to a version with MCP `2026-07-28` support.</Info>
+
 <Info>Detection is based on whether a config file exists on disk, not whether the client application is installed. A freshly installed client that has never been opened (and therefore has no config file) will not show the `(detected)` label in the interactive prompt — but you can still select it, and `mcp:add` will create the project-level config file.</Info>
 
 ## Automatic setup
@@ -188,6 +190,8 @@ The MCP server exposes four tools. Each tool uses an `action` parameter to group
 | `stacktape_cli` | `list`, `describe`, `plan`, `run` | Discover CLI commands, validate arguments, build execution plans, and execute non-interactive commands through safety-classified gates |
 | `stacktape_dev` | `plan`, `start`, `status`, `logs`, `rebuild`, `rebuild_all`, `stop` | Plan and control [dev mode](/local-development/dev-mode-overview) sessions |
 
+Every completed tool call returns a `stacktape.mcp.tool-result.v1` JSON envelope as structured content and as an identical text block. The envelope includes `ok`, `code`, and `message`, with operation-specific fields under `data`. This lets clients consume typed results while keeping the response readable in clients that primarily render text content.
+
 Tool arguments accept common snake_case and kebab-case forms (`project_name`, `config_path`, `start_time`, `end_time`, `secret_name`, etc.) and normalize them to camelCase automatically. Your AI assistant does not need to know the exact casing convention.
 
 ### Docs tool
@@ -236,7 +240,7 @@ The typical workflow:
 1. **`action: "list"`** — discover available commands, optionally filtered by `category` or `safety` level.
 2. **`action: "describe"`** — get full metadata for a specific command (allowed arguments, safety class, confirmation policy).
 3. **`action: "plan"`** — build a read-only execution plan. Pass `cwd` with the absolute path to the Stacktape project root when the assistant has it — `plan` uses it to scan config files and `package.json` scripts. The action infers defaults, validates arguments against CLI metadata, and returns a suggested `action: "run"` payload with a shell command preview. No credentials are required for planning.
-4. **`action: "run"`** — execute the planned command as a CLI subprocess. Mutating commands require `confirm: true`. Destructive commands require direct user confirmation through MCP form elicitation (see [Safety model](#safety-model)).
+4. **`action: "run"`** — execute the planned command as a CLI subprocess. Mutating commands require `confirm: true`. Destructive commands require direct user confirmation through the client's confirmation form (see [Safety model](#safety-model)).
 
 Common parameters accepted by `plan` and `run`:
 
@@ -257,7 +261,7 @@ Common parameters accepted by `plan` and `run`:
 | `secretValue` | string | Secret value for `secret:set` (masked in tool output) |
 | `secretFile` | string | Path to a file containing the secret value |
 | `hotSwap` | boolean | Request hotswap deployment when supported |
-| `confirm` | boolean | Required for mutating commands. Destructive commands also require direct user confirmation through MCP elicitation; this flag alone cannot authorize them. |
+| `confirm` | boolean | Required for mutating commands. Destructive commands also require direct user confirmation through the client's confirmation form; this flag alone cannot authorize them. |
 | `timeoutMs` | number | Command timeout in milliseconds for `run` |
 
 The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `secrets`) and `safety` (e.g. `readOnly`, `mutating`, `destructive`) to filter results.
@@ -269,13 +273,13 @@ The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `se
 `stacktape_dev` manages [dev mode](/local-development/dev-mode-overview) lifecycle without requiring a terminal. The dev mode agent listens on a local HTTP port (default `7331`) for control commands.
 
 - **`plan`** scans the project and returns suggested start arguments without starting anything. `plan` defaults `stage` to `dev` and infers `projectName`, `region`, `awsAccount`, `currentWorkingDirectory`, and `configPath` from deploy scripts and project scan when available. A dev-mode plan is only complete when `stage`, `region`, and `configPath` are resolved; otherwise the tool returns `MISSING_ARGS` with next steps. Since `stage` defaults to `dev`, the most common missing arguments are `region` and `configPath`.
-- **`start`** launches dev mode as a subprocess with a 12-minute timeout for initial setup. Pass `projectName`, `stage`, `region`, `configPath`, and optionally `awsAccount`, `agentPort`, `currentWorkingDirectory`, `resources`, `skipResources`, `watch`, `remoteResources`, or `freshDb`.
+- **`start`** launches dev mode as a subprocess with a 12-minute timeout for initial setup. Pass `projectName`, `stage`, `region`, `configPath`, and optionally `awsAccount`, `agentPort`, `currentWorkingDirectory`, `resources`, `skipResources`, `watch`, `remoteResources`, or `freshDb`. A successful start returns an opaque `data.session.devSessionId`.
 - **`status`** returns the current state of the running session.
 - **`logs`** paginates structured log entries. Accepts `cursor`, `limit`, and `workload` for filtering.
 - **`rebuild`** triggers a rebuild of a single workload (pass `workload` name). **`rebuild_all`** triggers a rebuild of every workload.
 - **`stop`** terminates the active session.
 
-Only one dev session can be active at a time within an MCP server process. Actions other than `plan` and `start` require an active session — if none exists or the session's port no longer responds to health checks, the tool returns `NOT_FOUND`.
+Multiple dev sessions can be active for different projects or ports. Pass the `devSessionId` returned by `start` as `args.devSessionId` to `rebuild`, `rebuild_all`, and `stop`; these mutating actions never guess which session you intended. `status` and `logs` may omit the handle only when exactly one session is active. With multiple sessions, omission returns `AMBIGUOUS_DEV_SESSION`; an unknown or unreachable handle returns `NOT_FOUND`.
 
 ## Safety model
 
@@ -287,10 +291,10 @@ The MCP server classifies every CLI command into a safety level and enforces per
 | `diagnostic` | Executes without confirmation | `query:sql`, `query:dynamodb`, `query:redis`, `query:opensearch` |
 | `local` | Executes without confirmation | `synth`, `validate`, `package` |
 | `mutating` | Requires `confirm: true` in the `run` call | [`deploy`](/cli/deploy), [`secret:set`](/cli/secret-set), [`rollback`](/cli/rollback) |
-| `destructive` | Requires direct user confirmation through MCP form elicitation; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret:delete`](/cli/secret-delete) |
+| `destructive` | Requires direct user confirmation for the exact command and target; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret:delete`](/cli/secret-delete) |
 | `interactive` | Rejected by the MCP server — must be run in the user's own terminal | [`login`](/cli/login), [`dev`](/cli/dev) (use `stacktape_dev` instead), `bastion:session` |
 
-For destructive commands, the MCP server uses the MCP elicitation protocol to prompt the user directly through their AI client's UI. If the client does not support form elicitation, the command fails closed and the assistant is told to ask the user to run the command in their own terminal.
+For destructive commands, the MCP server uses the modern protocol's multi-round input-required flow to prompt the user directly through their AI client's UI. The confirmation is short-lived, bound to the exact command, arguments, and project directory, and can be used only once. A declined, expired, replayed, or target-mismatched confirmation does not execute the command. If the client does not support confirmation forms, the command fails closed and the assistant is told to ask the user to run the command in their own terminal.
 
 <Warning>`diagnostic` describes the command category, not a guarantee that an individual query is read-only. SQL, Redis, DynamoDB, and OpenSearch query commands run without an MCP confirmation prompt and can change data when given mutating input. Review the planned command and query before it runs, especially against production stages.</Warning>
 
@@ -310,11 +314,11 @@ For CI environments, the MCP server's safety guidance tells assistants to ask us
 The MCP server starts when your AI client launches the `stacktape mcp` command as a child process using stdio transport. The startup sequence is:
 
 1. The client spawns `stacktape mcp` as a child process.
-2. The server registers and connects four tools (docs, project, CLI, and dev) so they are discoverable immediately.
+2. The client discovers the modern `2026-07-28` server and its four tools (docs, project, CLI, and dev).
 3. The bundled documentation search index initializes asynchronously. If indexing fails, operational tools remain available and `stacktape_docs` reports the indexing error.
 4. The assistant sends MCP tool calls over stdin; the server executes them and returns structured JSON over stdout.
 
-For CLI execution, the MCP server validates the command against CLI metadata, applies safety policy, spawns a Stacktape CLI subprocess, streams its JSONL output, and returns a consolidated response. Tool responses are capped at 30,000 characters. Large `rawTail` output is shortened by keeping the beginning and end. Other large payloads are compacted by dropping or shrinking bulky fields (such as truncating answer text, limiting reference and snippet counts, and shortening data content). If compaction is still insufficient, the server returns `RESPONSE_TOO_LARGE`.
+For CLI execution, the MCP server validates the command against CLI metadata, applies safety policy, spawns a Stacktape CLI subprocess, and forwards progress notifications while retaining a bounded event history for the final consolidated response. Cancelling the MCP call terminates the subprocess tree and returns `CANCELLED`; timeouts return `TIMEOUT`. A missing, malformed, or duplicate final CLI agent result fails closed instead of guessing whether the command succeeded. Tool responses are capped at 30,000 characters. Large `rawTail` output is shortened by keeping the beginning and end. Other large payloads are compacted by dropping or shrinking bulky fields (such as truncating answer text, limiting reference and snippet counts, and shortening data content). If compaction is still insufficient, the server returns `RESPONSE_TOO_LARGE`.
 
 For docs queries, search runs against a local index. No network calls are made.
 
@@ -382,7 +386,7 @@ Docs search, project scanning, and CLI metadata operations (`list`, `describe`, 
 
 ### Is the MCP server safe for production workflows?
 
-The MCP server is in preview. Docs, project scanning, CLI listing, description, and planning are read-only. The server classifies every CLI command into a safety level: `readOnly`, `diagnostic`, `local`, `mutating`, `destructive`, or `interactive`. Mutating commands require `confirm: true`, destructive commands require direct user confirmation through MCP elicitation when supported, and interactive commands are rejected. Note that diagnostic commands like [`query:sql`](/cli/query-sql) run without confirmation but can modify state depending on the query passed — review those tool calls before approving. Treat MCP-initiated deployments with the same care as manual CLI deployments.
+The MCP server is in preview. Docs, project scanning, CLI listing, description, and planning are read-only. The server classifies every CLI command into a safety level: `readOnly`, `diagnostic`, `local`, `mutating`, `destructive`, or `interactive`. Mutating commands require `confirm: true`, destructive commands require direct user confirmation for the exact command and target when the client supports confirmation forms, and interactive commands are rejected. Note that diagnostic commands like [`query:sql`](/cli/query-sql) run without confirmation but can modify state depending on the query passed — review those tool calls before approving. Treat MCP-initiated deployments with the same care as manual CLI deployments.
 
 ### What happens if a deployment times out through MCP?
 

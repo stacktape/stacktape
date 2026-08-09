@@ -470,13 +470,19 @@ export const validateGuardrails = ({
       }
       case 'database-instance-restriction': {
         if (!hasConfig) break;
-        const { blockedInstanceSizes } = guardrail.properties;
-        if (!blockedInstanceSizes?.length) break;
+        const { allowedInstanceSizes, blockedInstanceSizes } = guardrail.properties;
+        if (!allowedInstanceSizes?.length && !blockedInstanceSizes?.length) break;
         for (const db of configManager.databases) {
           const engine = (db as StpRelationalDatabase).engine;
           const instanceSizes = getDbInstanceSizes(engine);
           for (const size of instanceSizes) {
-            if (blockedInstanceSizes.includes(size)) {
+            if (allowedInstanceSizes?.length && !allowedInstanceSizes.includes(size)) {
+              throw guardrailViolation(
+                'GUARDRAIL_DATABASE_INSTANCE_SIZE_NOT_ALLOWED',
+                `Database \`${db.name}\` uses instance size \`${size}\`. Allowed sizes: ${allowedInstanceSizes.map((instanceSize) => `\`${instanceSize}\``).join(', ')}.`
+              );
+            }
+            if (blockedInstanceSizes?.includes(size)) {
               throw guardrailViolation(
                 'GUARDRAIL_DATABASE_INSTANCE_SIZE_BLOCKED',
                 `Database \`${db.name}\` uses blocked instance size \`${size}\`. Blocked sizes: ${blockedInstanceSizes.map((instanceSize) => `\`${instanceSize}\``).join(', ')}.`
@@ -488,11 +494,71 @@ export const validateGuardrails = ({
       }
       case 'require-waf': {
         if (!hasConfig || !guardrail.properties.enabled) break;
-        for (const alb of configManager.applicationLoadBalancers) {
+        // Convex owns a fixed internal ALB and does not expose `useFirewall`; enforcing the setting there would
+        // create an impossible policy. Direct ALBs and ALBs generated for web/private services are configurable.
+        const configurableLoadBalancers = configManager.allApplicationLoadBalancers.filter(
+          ({ configParentResourceType }) => configParentResourceType !== 'convex'
+        );
+        for (const alb of configurableLoadBalancers) {
           if (!(alb as StpApplicationLoadBalancer).useFirewall) {
             throw guardrailViolation(
               'GUARDRAIL_WAF_REQUIRED',
               `Application load balancer \`${alb.name}\` must enable \`useFirewall\`.`
+            );
+          }
+        }
+        break;
+      }
+      case 'require-stack-termination-protection': {
+        if (!hasConfig || !guardrail.properties.enabled) break;
+        if (!configManager.deploymentConfig.terminationProtection) {
+          throw guardrailViolation(
+            'GUARDRAIL_STACK_TERMINATION_PROTECTION_REQUIRED',
+            'This stack must set `deploymentConfig.terminationProtection` to `true`.'
+          );
+        }
+        break;
+      }
+      case 'require-data-backups': {
+        if (!hasConfig || !guardrail.properties.enabled) break;
+        for (const db of configManager.databases) {
+          if ((db as StpRelationalDatabase).automatedBackupRetentionDays === 0) {
+            throw guardrailViolation(
+              'GUARDRAIL_DATABASE_BACKUP_REQUIRED',
+              `Database \`${db.name}\` disables automated backups. Set \`automatedBackupRetentionDays\` to at least \`1\`.`
+            );
+          }
+        }
+        for (const table of configManager.dynamoDbTables) {
+          if (!table.enablePointInTimeRecovery) {
+            throw guardrailViolation(
+              'GUARDRAIL_DYNAMODB_BACKUP_REQUIRED',
+              `DynamoDB table \`${table.name}\` must set \`enablePointInTimeRecovery\` to \`true\`.`
+            );
+          }
+        }
+        for (const filesystem of configManager.efsFilesystems) {
+          if (!filesystem.backupEnabled) {
+            throw guardrailViolation(
+              'GUARDRAIL_EFS_BACKUP_REQUIRED',
+              `EFS filesystem \`${filesystem.name}\` must set \`backupEnabled\` to \`true\`.`
+            );
+          }
+        }
+        break;
+      }
+      case 'require-multiple-container-instances': {
+        if (!hasConfig || !guardrail.properties.enabled) break;
+        // Self-hosted Convex has a fixed single-backend correctness invariant. Users cannot raise its instance count,
+        // so only enforce this on container workloads whose scaling they can configure.
+        const configurableContainerWorkloads = configManager.allContainerWorkloads.filter(
+          ({ configParentResourceType }) => configParentResourceType !== 'convex'
+        );
+        for (const workload of configurableContainerWorkloads) {
+          if (workload.scaling.minInstances < 2) {
+            throw guardrailViolation(
+              'GUARDRAIL_MULTIPLE_CONTAINER_INSTANCES_REQUIRED',
+              `Container workload \`${workload.name}\` must configure \`scaling.minInstances\` to at least \`2\` (currently \`${workload.scaling.minInstances}\`).`
             );
           }
         }

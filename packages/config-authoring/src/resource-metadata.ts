@@ -10,7 +10,7 @@ import {
   type ResourceDefinition,
   type TypePropertiesDefinition
 } from './class-config.js';
-import type { StacktapeResourceType } from '@stacktape/config/schema-inspection';
+import type { StacktapeResourceType } from '@stacktape/config/resource-types';
 
 export type { ResourceDefinition, TypePropertiesDefinition };
 export {

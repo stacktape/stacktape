@@ -1,7 +1,7 @@
 {
   "extends": "../../tsconfig.package.json",
   "include": ["src"],
-  "exclude": ["src/config-editor/diagram"],
+  "exclude": ["src/isometric-diagram"],
   "compilerOptions": {
     "allowImportingTsExtensions": true,
     "jsx": "react-jsx",

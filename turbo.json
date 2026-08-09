@@ -72,6 +72,11 @@
       "with": ["@stacktape/design-tokens#dev"],
       "cache": false,
       "persistent": true
+    },
+    "@stacktape/design-tokens#dev": {
+      "dependsOn": ["generate"],
+      "cache": false,
+      "persistent": true
     }
   }
 }

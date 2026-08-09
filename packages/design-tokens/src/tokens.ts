@@ -44,10 +44,16 @@ export const designTokens = {
     /** The lifted hairline used inside element surfaces. */
     subtle: 'rgb(47, 52, 52)'
   },
+  /** Emphasized action and selected-state colours. These are not generic focus colours. */
   interactive: {
     primary: 'rgb(17, 105, 105)',
     primaryLight: 'rgb(34, 166, 166)',
     accent: 'rgb(34, 87, 122)'
+  },
+  /** Neutral field focus feedback. Text inputs and selects should not turn into brand actions. */
+  field: {
+    focusBorder: 'rgba(110, 116, 116, 0.56)',
+    focusRing: 'rgba(110, 116, 116, 0.12)'
   },
   status: {
     error: '#eb6161',
@@ -112,6 +118,10 @@ export const tokenVar = {
     primary: 'var(--stp-interactive-primary)',
     primaryLight: 'var(--stp-interactive-primary-light)',
     accent: 'var(--stp-interactive-accent)'
+  },
+  field: {
+    focusBorder: 'var(--stp-field-focus-border)',
+    focusRing: 'var(--stp-field-focus-ring)'
   },
   status: {
     error: 'var(--stp-status-error)',

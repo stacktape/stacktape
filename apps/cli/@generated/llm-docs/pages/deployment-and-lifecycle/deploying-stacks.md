@@ -10,9 +10,10 @@ A Stacktape deployment runs through several phases: configuration validation, wo
 ## Flow
 1. **Validate & prepare**: Parse config, check guardrails, create missing secrets and SSM parameters
 2. **Package & prepare template**: Bundle Lambda code, build container images, resolve resources, prepare CloudFormation template
-3. **Upload**: Upload packaged artifacts to S3, push container images to ECR
-4. **Deploy**: Create or update the CloudFormation stack (or hot-swap eligible workloads directly)
-5. **Post-deploy**: Run afterDeploy hooks, sync hosting buckets, invalidate CDN caches, send notifications
+3. **Plan & protect**: Fingerprint the final target, template, workload builds, and protected-resource risks
+4. **Upload**: Upload packaged artifacts to S3, push container images to ECR
+5. **Deploy**: Create or update the CloudFormation stack (or hot-swap eligible workloads directly)
+6. **Post-deploy**: Run afterDeploy hooks, sync hosting buckets, invalidate CDN caches, send notifications
 
 
 ### Validate and prepare
@@ -150,19 +151,30 @@ If a stack is left in `UPDATE_FAILED` state after a failed update, Stacktape inc
 
 ## Deployment confirmation
 
-Before modifying an existing stack, Stacktape computes the CloudFormation template diff and prompts you to confirm before proceeding. The confirmation shows which resources will be created, updated, replaced, or deleted, helping you catch potentially destructive changes before they reach your AWS account. Skip the prompt in non-interactive environments with `--autoConfirmOperation`:
+Every local, full CloudFormation deploy computes a versioned change plan after the final template is ready and before deployment artifacts are uploaded. The plan binds the resolved AWS account, region, project, stage, stack identity, previous and candidate semantic template digests, workload build digests, Stacktape resource-change counts, and protected stateful resources at risk. Stacktape prints a short plan ID; a successful JSONL/agent result also includes the complete `stacktape.change-plan.v1` object at `data.result.changePlan`. The plan contains target identifiers, but omits templates, resolved property values, credentials, and local paths.
+
+Ordinary creates and updates continue without an extra confirmation. Stacktape asks you to confirm only when the final local diff shows that a protected stateful resource—such as a database, DynamoDB table, S3 bucket, user pool, OpenSearch domain, or EFS file system—will be destroyed or replaced. If `--hotSwap` must fall back to a full deployment, Stacktape finishes any required repackaging, finalizes the template again, and builds the plan from that final template before asking. This prevents you from approving an earlier preview and deploying a later fallback result.
+
+The default deploy path still submits the template directly to CloudFormation; creating the local plan adds no AWS change-set request and no second packaging pass. Use [`stacktape diff`](/cli/diff) when you want AWS's property-level replacement assessment before deploying. Its plan records `aws-change-set` as its evidence source; the faster deploy plan records `local-template-diff`.
+
+In non-interactive CI/CD, explicitly skip the protected-resource confirmation with `--autoConfirmOperation`:
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
 ```
 
 
-> **Tip:** Always pass `--autoConfirmOperation` in CI/CD pipelines. Without it, the deploy command hangs waiting for input.
+> **Tip:** Pass `--autoConfirmOperation` only in a pipeline where deployment approval is handled outside Stacktape. Without it, a risky non-interactive deployment fails closed instead of waiting for input.
 
+
+> **Info:** The plan ID is a same-invocation audit fingerprint of semantic templates, workload build inputs, target identity, and the displayed Stacktape resource changes. It is not a checksum of uploaded bytes, a signature, or a reusable cross-job approval token. Portable approvals, signed plans, and immutable cross-account artifact promotion are separate workflows.
+
+
+Hot-swap deploys do not emit a CloudFormation change plan because they update selected Lambda or ECS targets directly. If hot-swap falls back to CloudFormation, Stacktape finalizes the fallback template and emits the plan before upload. CodeBuild and EC2 runners still use their existing launcher-level confirmation in this version; their remote execution is not yet bound to a returned plan ID.
 
 ## Previewing changes
 
-The [`stacktape diff`](/cli/diff) command generates the CloudFormation template and computes the diff against the currently deployed stack without modifying anything. Use it to verify that your config changes produce the expected infrastructure changes before committing to a deploy.
+The [`stacktape diff`](/cli/diff) command generates the CloudFormation template and computes the diff against the currently deployed stack without updating your application resources. It can create missing secret/parameter inputs, upload a preview template, and create a temporary CloudFormation change set. Use it to verify that your config changes produce the expected infrastructure changes before committing to a deploy.
 
 ```bash
 stacktape diff --stage dev --region eu-west-1

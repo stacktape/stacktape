@@ -25,7 +25,7 @@ export const getPropsOfResourceReferencedInConfig = <T extends StpResourceType>(
   referencedFrom,
   referencedFromType
 }: {
-  activeConfig?: ConfigManager;
+  activeConfig?: Pick<ConfigManager, 'findResourceInConfig'>;
   stpResourceReference: string;
   stpResourceType?: T;
   referencedFrom: string;
@@ -82,11 +82,13 @@ export const getConnectToReferencesForResource = ({
 export const resolveConnectToList = ({
   stpResourceNameOfReferencer,
   connectTo,
-  checkingDefaults
+  checkingDefaults,
+  activeConfig = runtimeConfigManager
 }: {
   stpResourceNameOfReferencer: string;
   connectTo: string[];
   checkingDefaults?: boolean;
+  activeConfig?: Pick<ConfigManager, 'findResourceInConfig'>;
 }): {
   accessToResourcesRequiringRoleChanges: StpResourceScopableByConnectToAffectingRole[];
   accessToAwsServices: ConnectToAwsServicesMacro[];
@@ -110,6 +112,7 @@ export const resolveConnectToList = ({
       return;
     }
     const resource = getPropsOfResourceReferencedInConfig<StpResourceType>({
+      activeConfig,
       referencedFrom: stpResourceNameOfReferencer,
       stpResourceReference: referencedName
     });
@@ -141,7 +144,12 @@ export const resolveConnectToList = ({
       resourceType === 'sqs-queue' ||
       resourceType === 'sns-topic' ||
       resourceType === 'open-search-domain' ||
-      resourceType === 'kinesis-stream'
+      resourceType === 'kinesis-stream' ||
+      resourceType === 'agentcore-runtime' ||
+      resourceType === 'agentcore-memory' ||
+      resourceType === 'agentcore-gateway' ||
+      resourceType === 'agentcore-browser' ||
+      resourceType === 'agentcore-code-interpreter'
     ) {
       result.accessToResourcesRequiringRoleChanges.push(resource as StpResourceScopableByConnectToAffectingRole);
       return;
@@ -152,6 +160,18 @@ export const resolveConnectToList = ({
     }
     if (resource.type === 'mongo-db-atlas-cluster') {
       result.accessToAtlasMongoClusterResources.push(resource);
+      return;
+    }
+    if (resource.type === 'hosting-bucket') {
+      // A hosting bucket is a higher-level website resource. IAM access is scoped
+      // to its nested S3 bucket while environment variables remain named after
+      // the parent resource referenced by the user.
+      result.accessToResourcesRequiringRoleChanges.push(resource._nestedResources.bucket);
+      return;
+    }
+    if (resource.type === 'efs-filesystem') {
+      // EFS access happens through an explicit volume mount, which owns the IAM
+      // and network wiring. connectTo only exposes the filesystem ID and ARN.
       return;
     }
     if (resource.type === 'upstash-redis') {

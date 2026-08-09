@@ -1,4 +1,5 @@
 import { stpErrors } from '@errors';
+import { configManager } from '@domain-services/config-manager';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 import { getNumericVersion } from '@utils/versioning';
 
@@ -147,6 +148,8 @@ const checkRollbackSafety = ({
 
 export const commandRollback = async () => {
   const operation = await initializeRollbackOperation();
+  await configManager.loadGlobalConfig();
+  configManager.validateGuardrails({ hasConfig: !!configManager.config });
   const { args, deployedStackOverview, deploymentArtifacts, event, stack, stackContext, tui } = operation;
 
   return executeRollbackOperation({

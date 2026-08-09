@@ -41,10 +41,7 @@
 
   .stp-config-editor__tabs {
     z-index: 2;
-    display: flex;
-    align-items: center;
     min-width: 0;
-    gap: 2px;
   }
 
   .stp-config-editor__actions {
@@ -55,56 +52,6 @@
     flex-direction: row-reverse;
     min-width: 0;
     gap: 6px;
-  }
-
-  .stp-config-editor__tab {
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    min-width: 38px;
-    height: 32px;
-    padding: 0 9px;
-    gap: 6px;
-    border: 0;
-    border-radius: var(--stp-radius-small);
-    background: transparent;
-    color: var(--stp-text-muted);
-    font: inherit;
-    font-size: 0.79rem;
-    white-space: nowrap;
-    cursor: pointer;
-    transition:
-      color var(--stp-motion-duration-fast) var(--stp-motion-easing),
-      background var(--stp-motion-duration-fast) var(--stp-motion-easing);
-  }
-
-  .stp-config-editor__tab:hover {
-    color: var(--stp-text-primary);
-    background: rgba(255, 255, 255, 0.045);
-  }
-
-  .stp-config-editor__tab--active {
-    color: var(--stp-text-primary);
-    background: var(--stp-surface-element);
-    box-shadow:
-      0 2px 7px rgba(0, 0, 0, 0.45),
-      inset 0 0 0 1px rgba(255, 255, 255, 0.07);
-  }
-
-  .stp-config-editor__tab:focus-visible {
-    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
-    outline-offset: var(--stp-focus-outline-offset);
-  }
-
-  .stp-config-editor__tab-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    flex: none;
-  }
-
-  .stp-config-editor__tab-label--short {
-    display: none;
   }
 
   .stp-config-editor__unsaved {
@@ -143,18 +90,12 @@
   }
 
   @container stacktape-config-editor (max-width: 760px) {
-    .stp-config-editor__tab-label--long {
+    .stp-config-editor .stp-ui-tab__label--full {
       display: none;
     }
 
-    .stp-config-editor__tab-label--short {
+    .stp-config-editor .stp-ui-tab__label--compact {
       display: inline;
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .stp-config-editor__tab {
-      transition: none;
     }
   }
 }

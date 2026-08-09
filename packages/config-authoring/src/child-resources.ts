@@ -1,4 +1,4 @@
-import type { StacktapeResourceType } from '@stacktape/config/schema-inspection';
+import type { StacktapeResourceType } from '@stacktape/config/resource-types';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 
 export const CHILD_RESOURCES: Record<

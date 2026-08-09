@@ -1,9 +1,10 @@
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { Client } from '@modelcontextprotocol/client';
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 
 const EXPECTED_TOOLS = ['stacktape_cli', 'stacktape_dev', 'stacktape_docs', 'stacktape_project'];
 
 type ToolEnvelope = {
+  schemaVersion?: string;
   ok?: boolean;
   code?: string;
   message?: string;
@@ -41,17 +42,33 @@ const callJsonTool = async (
   args: Record<string, unknown>,
   timeout = 15000
 ): Promise<ToolEnvelope> => {
-  const result = await client.callTool({ name, arguments: args }, undefined, { timeout });
+  const result = await client.callTool({ name, arguments: args }, { timeout });
   const text = getToolText(result);
   try {
-    return JSON.parse(text) as ToolEnvelope;
+    const parsed = JSON.parse(text) as ToolEnvelope;
+    assert(Boolean(result.structuredContent), `Tool ${name} did not return structuredContent.`);
+    assert(
+      JSON.stringify(result.structuredContent) === JSON.stringify(parsed),
+      `Tool ${name} text and structuredContent differed.`
+    );
+    assert(result.isError === !parsed.ok, `Tool ${name} returned inconsistent isError semantics.`);
+    return parsed.message === 'Stacktape MCP request completed.' && parsed.data
+      ? { ...parsed, ...parsed.data }
+      : parsed;
   } catch {
     throw new Error(`Tool ${name} did not return JSON text: ${text.slice(0, 500)}`);
   }
 };
 
 const stderrChunks: string[] = [];
-const client = new Client({ name: 'stacktape-mcp-smoke', version: '0.0.0' }, { capabilities: {} });
+const client = new Client(
+  { name: 'stacktape-mcp-smoke', version: '0.0.0' },
+  {
+    supportedProtocolVersions: ['2026-07-28'],
+    versionNegotiation: { mode: { pin: '2026-07-28' } },
+    capabilities: {}
+  }
+);
 
 const parseTransportArgs = () => {
   const rawArgs = process.env.MCP_SMOKE_ARGS_JSON;
@@ -80,6 +97,11 @@ transport.stderr?.on('data', (chunk) => {
 
 const main = async () => {
   await client.connect(transport, { timeout: 60000 });
+  assert(client.getProtocolEra() === 'modern', 'MCP server should use the modern protocol era.');
+  assert(client.getNegotiatedProtocolVersion() === '2026-07-28', 'MCP server should use protocol 2026-07-28.');
+  const discovery = client.getDiscoverResult();
+  assert(discovery?.supportedVersions?.length === 1, 'MCP discovery should advertise one protocol version.');
+  assert(discovery?.supportedVersions?.[0] === '2026-07-28', 'MCP discovery should advertise only 2026-07-28.');
 
   const listedTools = await client.listTools(undefined, { timeout: 15000 });
   const toolNames = listedTools.tools.map((tool) => tool.name).sort();

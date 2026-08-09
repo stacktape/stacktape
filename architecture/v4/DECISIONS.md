@@ -136,22 +136,25 @@ the instruction text.
 - Do not introduce styled-components or styled-component APIs.
 - Console may continue using Emotion object styles and the `css` prop.
 - Docs and website remain native Astro/CSS/Tailwind-oriented; do not move Astro shells to Emotion.
-- `packages/design-tokens` owns brand primitives only — today, the Stacktape green. A token belongs there when at
-  least two frontends must agree on its value; an application's palette, typography, and spacing stay with that
-  application. The package deliberately does not define semantic or layout tokens.
+- `packages/design-tokens` owns cross-product brand and semantic values: shared surfaces, text, borders,
+  interaction/status/AWS-category colours, radii, focus and motion. A token belongs there when multiple frontends
+  must agree on its meaning; application-specific layout, typography and one-off colours remain with the app.
 - Typed raw values and CSS-variable references are available directly to TypeScript consumers.
 - A tiny deterministic emitter writes the committed CSS variables. Consumers import that CSS and map it into their own
   theme (`apps/docs` aliases `--color-brand` to `--stp-color-brand` inside its Tailwind `@theme`); there is no adapter
   package or generator between them.
 - Shared visual recipes are ordinary CSS classes using a stable `stp-` prefix.
-- `packages/ui-react` is allowed, but components enter it only when they are genuinely shared, presentational,
-  router-neutral, styling-system-neutral at the API boundary, and used by at least two consumers.
+- `packages/ui-react` contains genuinely shared, presentational, router-neutral components with a styling-system-
+  neutral API. Extraction must remove real duplication or serve a concrete second product surface; it is not a
+  reason to invent component abstractions. Every public component has its own folder and explicit subpath export.
 - Shared Link/Button components must not import React Router, Astro, or framework-specific navigation. Prefer `href`,
   render props, `asChild`, or consumer adapters.
-- Logos and generally usable icons should be static assets or SVG exports rather than React-only components.
-- `apps/docs` keeps its own Tailwind theme and `stp-` classes, and consumes exactly one shared primitive — the brand
-  green — from `packages/design-tokens`. Docs and Website are therefore both real consumers of that package, and its
-  accent is the actual Stacktape green rather than a placeholder.
+- Framework artwork remains static SVG assets rendered by a small shared React component. Product resource icon,
+  AWS-category and diagram-isopack meaning has one catalog under `ui-react/resource-icon`; the heavy isopack resolver
+  remains reachable only from the lazy diagram subpath.
+- `apps/docs` keeps its own Tailwind theme and app-specific classes, but maps the shared semantic `--stp-*` values
+  into Tailwind and consumes shared router-neutral React primitives where they fit. Console maps the same values into
+  Emotion aliases. There is no Emotion/Tailwind adapter package between them.
 
 ## Documentation-site decisions
 

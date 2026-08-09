@@ -3,6 +3,12 @@ import { isAgentMode } from '../_utils/agent-mode';
 import { ensureMissingSecretsCreated } from '../_utils/secret-preflight';
 import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import { buildPreviewResourceChanges, getNormalizedPreviewTemplateDiff } from './utils';
+import { getCriticalResourcesPotentiallyEndangeredByOperation } from '@utils/stack-info-map-diff';
+import {
+  buildDeploymentChangePlan,
+  formatDeploymentChangePlanSummary,
+  getChangePlanProducerVersion
+} from '@domain-services/deployment-change-plan';
 
 const actionToLabel = (action: 'create' | 'delete' | 'replace' | 'update') => {
   if (action === 'create') return 'new';
@@ -111,6 +117,7 @@ export const commandDiff = async () => {
     packaging,
     prepareTemplateForDeploy,
     stack,
+    stackContext,
     template,
     tui
   } = await initializeDiffOperation();
@@ -129,7 +136,7 @@ export const commandDiff = async () => {
   await ensureMissingSecretsCreated();
   await ensureMissingSsmParamsCreated();
 
-  await packaging.packageAllWorkloads({ commandCanUseCache: true });
+  const packagedWorkloads = await packaging.packageAllWorkloads({ commandCanUseCache: true });
   await calculatedStackOverview.resolveAllResources();
   await calculatedStackOverview.populateStackMetadata();
   await prepareTemplateForDeploy();
@@ -137,6 +144,11 @@ export const commandDiff = async () => {
   const cfTemplateDiff = getNormalizedPreviewTemplateDiff({
     oldTemplate: template.oldTemplate,
     newTemplate: template.getTemplate()
+  });
+  const dangerousResources = getCriticalResourcesPotentiallyEndangeredByOperation({
+    calculatedStackInfoMap: calculatedStackOverview.stackInfoMap,
+    deployedStackInfoMap: deployedStackOverview.stackInfoMap,
+    cfTemplateDiff
   });
 
   await deploymentArtifacts.uploadCloudFormationTemplate();
@@ -151,6 +163,27 @@ export const commandDiff = async () => {
     cfTemplateDiff,
     changes
   });
+  const changePlan = buildDeploymentChangePlan({
+    cliVersion: getChangePlanProducerVersion(),
+    target: {
+      awsAccountId: stackContext.accountId,
+      region: stackContext.region,
+      projectName: stackContext.projectName,
+      stage: stackContext.stage,
+      stackName: stackContext.stackName
+    },
+    action: 'update',
+    changeEvidence: 'aws-change-set',
+    deploymentVersion: stack.nextVersion,
+    stackId: stack.existingStackDetails?.StackId,
+    previousDeploymentVersion: stack.lastVersion,
+    previousTemplate: template.oldTemplate,
+    template: template.getTemplate(),
+    artifacts: packagedWorkloads,
+    resourceChanges,
+    dangerousResources
+  });
+  tui.info(formatDeploymentChangePlanSummary(changePlan));
 
   const newCount = resourceChanges.filter(({ action }) => action === 'create').length;
   const removedCount = resourceChanges.filter(({ action }) => action === 'delete').length;
@@ -198,5 +231,5 @@ export const commandDiff = async () => {
     tui.printLines([tui.colorize('green', `✓ ${summary}`), tui.colorize('gray', '─'.repeat(54))]);
   }
 
-  return { changes, resourceChanges };
+  return { changes, resourceChanges, changePlan };
 };

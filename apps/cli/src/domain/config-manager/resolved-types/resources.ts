@@ -214,7 +214,12 @@ export type StpResourceScopableByConnectToAffectingRole =
   | Subtype<StpResource, StpUserAuthPool>
   | Subtype<StpResource, StpSqsQueue>
   | Subtype<StpResource, StpSnsTopic>
-  | Subtype<StpResource, StpKinesisStream>;
+  | Subtype<StpResource, StpKinesisStream>
+  | Subtype<StpResource, StpAgentCoreRuntime>
+  | Subtype<StpResource, StpAgentCoreMemory>
+  | Subtype<StpResource, StpAgentCoreGateway>
+  | Subtype<StpResource, StpAgentCoreBrowser>
+  | Subtype<StpResource, StpAgentCoreCodeInterpreter>;
 export type StpResourceScopableByConnectToAffectingSecurityGroup =
   | Subtype<StpResource, StpRelationalDatabase>
   | Subtype<StpResource, StpRedisCluster>;

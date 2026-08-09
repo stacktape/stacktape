@@ -27,7 +27,7 @@ stacktape/                              # public stacktape/stacktape repository
 │   ├── naming/                         # pure deterministic logical/physical naming
 │   ├── helper-lambdas/                 # separately built helper Lambda artifacts
 │   ├── schema-codegen/                 # config/schema generators with isolated compiler API dependency
-│   ├── design-tokens/                  # typed values, CSS vars, themes, generated CSS/Tailwind adapter
+│   ├── design-tokens/                  # styling-neutral typed values and generated CSS variables
 │   └── ui-react/                       # small router-neutral shared React components
 ├── architecture/v4/                    # this migration contract
 ├── scripts/                             # workspace, release, and verification tools
@@ -130,15 +130,18 @@ compiler dependency and must not determine the repository-wide TypeScript versio
 
 ### `@stacktape/design-tokens`
 
-Owns hand-authored TypeScript primitives and semantic product themes, typed raw values, typed `var(--stp-*)`
-references, a deterministic CSS emitter, a Tailwind adapter, and broadly shared CSS recipes. Generated CSS is
-committed and freshness-checked.
+Owns hand-authored TypeScript primitives and semantic product values, typed raw values, typed `var(--stp-*)`
+references, and a deterministic CSS-variable emitter. Generated CSS is committed and freshness-checked. Consumers
+map the variables into their own styling system; the package does not own an Emotion or Tailwind adapter.
 
 ### `@stacktape/ui-react`
 
-Starts intentionally small. It may contain accessible, presentational React primitives used by at least two
-applications. It must not import React Router, Astro, Console state, tRPC, or Emotion-specific component factories.
-Consumers own navigation and product behavior.
+Owns accessible, presentational React primitives shared by current or concrete planned product surfaces, plus the
+reusable ConfigEditor frame, Monaco lifecycle base, product resource/framework icons and independent isometric
+diagram. Each public component has its own folder and explicit subpath export. The package must not import React
+Router, Astro, Console state, tRPC, React Hook Form, or Emotion-specific component factories. Consumers own
+navigation, persistence and product behavior; the heavy isopack catalog stays reachable only from the lazy diagram
+subpath.
 
 ## Dependency directions
 
@@ -189,7 +192,7 @@ Initial policy:
 - config schemas/editor metadata: committed when they are cross-package or published inputs; freshness-checked.
 - CloudFormation specification-derived types: committed snapshots; refreshed deliberately.
 - AWS pricing data: committed external snapshot; refreshed deliberately, not on every CI run.
-- design-token CSS/Tailwind adapter: committed; regenerated and checked automatically.
+- design-token CSS variables: committed; regenerated and checked automatically.
 - helper Lambda and npm/binary artifacts: not committed; verified from real builds.
 
 No one should manually edit a generated file. No one should need to remember generation before build, typecheck, test,

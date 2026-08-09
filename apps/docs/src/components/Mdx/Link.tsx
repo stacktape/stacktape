@@ -1,4 +1,5 @@
 import type { CSSProperties, ReactNode } from 'react';
+import { linkClassName } from '@stacktape/ui-react/link';
 import clsx from 'clsx';
 import { ensureTrailingSlash, isExternalHref } from '@/utils/seo';
 
@@ -17,7 +18,7 @@ export function Link({
   className?: string;
   style?: CSSProperties;
 }) {
-  const cls = clsx('stp-mdx-link', className);
+  const cls = linkClassName({ className: clsx('stp-doc-link', className) });
 
   return isExternalHref(href) ? (
     <a className={cls} style={style} href={href} target="_blank" rel="noopener noreferrer">

@@ -34,7 +34,7 @@ type ProjectScanResult = {
   };
 };
 
-type ProjectScanCacheEntry = {
+type ProjectScanSnapshot = {
   cwd: string;
   configCandidates: ConfigCandidate[];
   packageJsonFiles: PackageJsonSummary[];
@@ -61,8 +61,6 @@ const IGNORE_PATTERNS = [
   '**/dist/**',
   '**/node_modules/**'
 ];
-
-const scanCache = new Map<string, ProjectScanCacheEntry>();
 
 const normalizeMaxFiles = (maxFiles: number | undefined): number => {
   if (typeof maxFiles !== 'number' || !Number.isFinite(maxFiles)) return 20;
@@ -175,11 +173,6 @@ export const scanStacktapeProject = async ({
   }
   const normalizedMaxFiles = normalizeMaxFiles(maxFiles);
 
-  const cached = scanCache.get(resolvedCwd);
-  if (cached) {
-    return buildProjectScanResult(cached, normalizedMaxFiles);
-  }
-
   const [configPaths, packageJsonPaths, lockfilePaths] = await Promise.all([
     fg(CONFIG_PATTERNS, { cwd: resolvedCwd, absolute: true, onlyFiles: true, ignore: IGNORE_PATTERNS, dot: true }),
     fg(PACKAGE_PATTERNS, { cwd: resolvedCwd, absolute: true, onlyFiles: true, ignore: IGNORE_PATTERNS, dot: true }),
@@ -202,37 +195,31 @@ export const scanStacktapeProject = async ({
   const sortedConfigCandidates = sortConfigCandidates(allConfigCandidates);
 
   const packageJsonFiles = (
-    await Promise.all(
-      packageJsonPaths
-        .slice(0, normalizedMaxFiles)
-        .map((packageJsonPath) => summarizePackageJson(resolvedCwd, packageJsonPath))
-    )
+    await Promise.all(packageJsonPaths.map((packageJsonPath) => summarizePackageJson(resolvedCwd, packageJsonPath)))
   ).filter((summary): summary is PackageJsonSummary => Boolean(summary));
 
-  const cacheEntry = {
+  const snapshot = {
     cwd: resolvedCwd,
     configCandidates: sortedConfigCandidates,
     packageJsonFiles,
     lockfiles: lockfilePaths.map((filePath) => toRelativePath(resolvedCwd, filePath))
   };
-  scanCache.set(resolvedCwd, cacheEntry);
-
-  return buildProjectScanResult(cacheEntry, normalizedMaxFiles);
+  return buildProjectScanResult(snapshot, normalizedMaxFiles);
 };
 
-const buildProjectScanResult = (cacheEntry: ProjectScanCacheEntry, maxFiles: number): ProjectScanResult => {
+const buildProjectScanResult = (snapshot: ProjectScanSnapshot, maxFiles: number): ProjectScanResult => {
   const limit = Math.max(1, maxFiles);
-  const configCandidates = cacheEntry.configCandidates.slice(0, limit);
+  const configCandidates = snapshot.configCandidates.slice(0, limit);
   const preferredConfig = configCandidates[0];
 
   return {
-    cwd: cacheEntry.cwd,
-    totalConfigCandidates: cacheEntry.configCandidates.length,
-    omittedConfigCandidates: Math.max(0, cacheEntry.configCandidates.length - configCandidates.length),
+    cwd: snapshot.cwd,
+    totalConfigCandidates: snapshot.configCandidates.length,
+    omittedConfigCandidates: Math.max(0, snapshot.configCandidates.length - configCandidates.length),
     primaryConfigCandidates: configCandidates.slice(0, 5),
     configCandidates,
-    packageJsonFiles: cacheEntry.packageJsonFiles.slice(0, limit),
-    lockfiles: cacheEntry.lockfiles.slice(0, limit),
+    packageJsonFiles: snapshot.packageJsonFiles.slice(0, limit),
+    lockfiles: snapshot.lockfiles.slice(0, limit),
     suggestedDefaults: {
       configPath: preferredConfig ? toCliConfigPath(preferredConfig) : undefined,
       currentWorkingDirectory: preferredConfig?.directory || '.'

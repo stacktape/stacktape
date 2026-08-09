@@ -16,7 +16,7 @@ Resource limit guardrails are policy definitions, separate from individual Lambd
 
 Resource limit guardrails are most valuable when multiple developers or teams share an AWS account and you need to prevent cost surprises or capacity mistakes:
 
-- **Cost control** — Cap Lambda memory and container CPU/memory to prevent developers from accidentally provisioning expensive resources. Large Lambda memory settings or large container CPU allocations can materially increase AWS compute spend.
+- **Sizing policy** — Cap Lambda memory and container CPU/memory when your organization has reviewed ceilings. These are configuration limits, not spending caps; Lambda memory can also reduce runtime duration.
 - **Staging environment discipline** — Apply sizing limits that keep development and staging stages cost-effective. These resource-limit guardrail property shapes do not include per-stage exception fields. If you need different limits by stage, model that at the guardrail-management layer rather than inside these individual property objects.
 - **Stack sprawl prevention** — Limit the number of resources per stack to keep infrastructure manageable and avoid hitting AWS CloudFormation or account-level limits.
 - **Restricting resource types** — Block resource types that are expensive, not yet approved, or unnecessary for your workloads (e.g., block `open-search-domain` or `redis-cluster` if your team only uses serverless databases).
@@ -92,16 +92,16 @@ The `resource-count-limit` guardrail caps the total number of Stacktape resource
 |---|---|---|
 | `maxResources` | `number` | Maximum number of resources allowed per stack |
 
-**When to set this:** Large stacks are harder to maintain, slower to deploy, and more likely to hit AWS CloudFormation limits (500 resources per stack by default). A limit of 20–30 resources per stack encourages teams to split large applications into separate projects. This also improves deploy speed — smaller stacks have faster CloudFormation changeset calculations.
+**When to set this:** Large Stacktape configurations are harder to review and have a wider blast radius. A limit of 20–30 user-declared resources can encourage teams to split applications into focused projects. It does not count generated CloudFormation resources and therefore is not a CloudFormation quota check.
 
 ## Combining guardrails
 
 A resource-limit policy commonly combines several guardrail definitions. A common production setup might include:
 
-- **Function memory limit** of 2048 MB and **timeout limit** of 60 seconds to keep Lambda costs predictable
+- **Function memory limit** of 2048 MB and **timeout limit** of 60 seconds to enforce reviewed sizing boundaries
 - **Container resource limit** of 4 vCPU and 8192 MB to prevent oversized Fargate tasks
 - **Resource count limit** of 30 to encourage modular stacks
-- **Resource type restriction** blocking expensive managed services in non-production stages
+- **Resource type restriction** blocking managed services your organization does not approve in any stage
 
 Combine resource limit guardrails with [deployment guardrails](/guardrails/deployment) (stage and region restrictions), [security guardrails](/guardrails/security-and-data-protection), and [database guardrails](/guardrails/databases) for comprehensive organizational governance.
 
@@ -129,7 +129,7 @@ AWS Lambda pricing is based on the number of requests and the duration billed in
 
 ### How does the resource count limit relate to AWS CloudFormation limits?
 
-AWS CloudFormation has a default limit of 500 resources per stack, but each Stacktape resource generates multiple CloudFormation resources (IAM roles, security groups, log groups, etc.). A stack with 30 Stacktape resources might produce 200+ CloudFormation resources. Setting a `resource-count-limit` guardrail keeps stacks well within CloudFormation limits and encourages teams to split large applications across multiple projects.
+The guardrail counts only user-declared Stacktape resources. It does not inspect the synthesized CloudFormation resource count, so it cannot guarantee that a template remains under an AWS quota. Use it to keep configuration ownership and blast radius manageable, and rely on synthesis/AWS validation for CloudFormation limits.
 
 ### When should I use resource type restriction vs other guardrails?
 

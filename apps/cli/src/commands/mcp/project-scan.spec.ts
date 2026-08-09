@@ -1,4 +1,4 @@
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { describe, expect, test } from 'bun:test';
@@ -66,6 +66,39 @@ export default defineConfig(() => ({
         configPath: 'stacktape.ts',
         currentWorkingDirectory: '.'
       });
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('does not let an earlier small result limit truncate later scans', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'stacktape-mcp-scan-limit-'));
+    try {
+      for (const name of ['a', 'b', 'c']) {
+        const directory = join(cwd, name);
+        await mkdir(directory);
+        await writeFile(join(directory, 'package.json'), JSON.stringify({ name }));
+      }
+
+      const first = await scanStacktapeProject({ cwd, maxFiles: 1 });
+      const second = await scanStacktapeProject({ cwd, maxFiles: 50 });
+
+      expect(first.packageJsonFiles).toHaveLength(1);
+      expect(second.packageJsonFiles).toHaveLength(3);
+    } finally {
+      await rm(cwd, { recursive: true, force: true });
+    }
+  });
+
+  test('reflects files added after an earlier scan', async () => {
+    const cwd = await mkdtemp(join(tmpdir(), 'stacktape-mcp-scan-refresh-'));
+    try {
+      expect((await scanStacktapeProject({ cwd })).totalConfigCandidates).toBe(0);
+      await writeFile(
+        join(cwd, 'stacktape.ts'),
+        "import { defineConfig } from 'stacktape';\nexport default defineConfig({});\n"
+      );
+      expect((await scanStacktapeProject({ cwd })).totalConfigCandidates).toBe(1);
     } finally {
       await rm(cwd, { recursive: true, force: true });
     }

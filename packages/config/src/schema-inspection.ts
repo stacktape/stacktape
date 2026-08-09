@@ -1,7 +1,6 @@
 import configSchema from '../generated/config-schema.json';
-import type { StacktapeResourceDefinition } from './shared';
-
-export type StacktapeResourceType = StacktapeResourceDefinition['type'];
+import { getPrettyResourceName } from './resource-types';
+import type { StacktapeResourceType } from './resource-types';
 
 export type StacktapeResourceCategory =
   | 'compute-resource'
@@ -86,29 +85,6 @@ const getResourceCategory = (resourceType: StacktapeResourceType): StacktapeReso
 };
 
 const FORCED_ORDER_RESOURCES: StacktapeResourceType[] = ['web-service', 'hosting-bucket', 'function'];
-
-const splitWords = (value: string) =>
-  value
-    .replace(/([a-z0-9])([A-Z])/g, '$1 $2')
-    .replace(/([A-Z])([A-Z][a-z])/g, '$1 $2')
-    .replace(/[-_]+/g, ' ')
-    .trim()
-    .toLowerCase()
-    .replace(/\b\w/g, (letter) => letter.toUpperCase());
-
-export const getPrettyResourceName = (resourceName: string) => {
-  return splitWords(resourceName)
-    .replaceAll(' Db', 'Db')
-    .replace('Sqs', 'SQS')
-    .replace('Sns', 'SNS')
-    .replace('Aws Cdk', 'AWS CDK')
-    .replace('Relational Database', 'SQL database')
-    .replace('Open Search Domain', 'OpenSearch (Elastic)')
-    .replace('Bastion', 'Bastion (Jump Host)')
-    .replace('Event Bus', 'Event Bus (EventBridge)')
-    .replace('State Machine', 'State Machine')
-    .replace('Application Load', 'Load');
-};
 
 const getDefinition = (ref: string): JsonSchemaDefinition | undefined => {
   const segments = ref.replace(/^#\//, '').split('/');

@@ -7,6 +7,13 @@ import type { SupportedMongoAtlasV1CfResourceType } from '@domain-services/cloud
 import type { StpEfsFilesystem } from '@domain-services/config-manager/resolved-types/efs-filesystem';
 import type { StpMongoDbAtlasCluster } from '@domain-services/config-manager/resolved-types/mongo-db-atlas-clusters';
 import type { StpResourceScopableByConnectToAffectingRole } from '@domain-services/config-manager/resolved-types/resources';
+import type {
+  StpAgentCoreBrowser,
+  StpAgentCoreCodeInterpreter,
+  StpAgentCoreGateway,
+  StpAgentCoreMemory,
+  StpAgentCoreRuntime
+} from '@domain-services/config-manager/resolved-types/agentcore';
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { configManager } from '@domain-services/config-manager';
 import { thirdPartyProviderManager } from '@domain-services/third-party-provider-credentials-manager';
@@ -289,6 +296,112 @@ const getStatementsForAccessingKinesisStream = (statementProps: StatementProps):
   }
 ];
 
+export type StpAgentCoreConnectToTarget =
+  | StpAgentCoreRuntime
+  | StpAgentCoreMemory
+  | StpAgentCoreGateway
+  | StpAgentCoreBrowser
+  | StpAgentCoreCodeInterpreter;
+
+export const getStatementsForAccessingAgentCoreResource = (
+  resource: StpAgentCoreConnectToTarget
+): StpIamRoleStatement[] => {
+  switch (resource.type) {
+    case 'agentcore-runtime': {
+      const endpoints = resource.endpoints?.length ? resource.endpoints : ['default'];
+      return [
+        {
+          Effect: 'Allow',
+          Action: [
+            'bedrock-agentcore:InvokeAgentRuntime',
+            'bedrock-agentcore:InvokeAgentRuntimeForUser',
+            'bedrock-agentcore:InvokeAgentRuntimeWithWebSocketStream',
+            'bedrock-agentcore:InvokeAgentRuntimeWithWebSocketStreamForUser',
+            'bedrock-agentcore:StopRuntimeSession',
+            'bedrock-agentcore:GetAgentCard'
+          ],
+          Resource: [
+            getAtt(cfLogicalNames.agentCoreRuntime(resource.name), 'AgentRuntimeArn') as unknown as string,
+            ...endpoints.map(
+              (endpoint) =>
+                ref(
+                  cfLogicalNames.agentCoreRuntimeEndpoint(
+                    resource.name,
+                    typeof endpoint === 'string' ? endpoint : endpoint.name
+                  )
+                ) as unknown as string
+            )
+          ]
+        }
+      ];
+    }
+    case 'agentcore-memory':
+      return [
+        {
+          Effect: 'Allow',
+          Action: [
+            'bedrock-agentcore:CreateEvent',
+            'bedrock-agentcore:GetEvent',
+            'bedrock-agentcore:DeleteEvent',
+            'bedrock-agentcore:ListEvents',
+            'bedrock-agentcore:ListActors',
+            'bedrock-agentcore:ListSessions',
+            'bedrock-agentcore:GetMemoryRecord',
+            'bedrock-agentcore:ListMemoryRecords',
+            'bedrock-agentcore:RetrieveMemoryRecords',
+            'bedrock-agentcore:DeleteMemoryRecord',
+            'bedrock-agentcore:BatchCreateMemoryRecords',
+            'bedrock-agentcore:BatchUpdateMemoryRecords',
+            'bedrock-agentcore:BatchDeleteMemoryRecords',
+            'bedrock-agentcore:StartMemoryExtractionJob',
+            'bedrock-agentcore:ListMemoryExtractionJobs'
+          ],
+          Resource: [ref(cfLogicalNames.agentCoreMemory(resource.name)) as unknown as string]
+        }
+      ];
+    case 'agentcore-gateway':
+      return [
+        {
+          Effect: 'Allow',
+          Action: ['bedrock-agentcore:InvokeGateway'],
+          Resource: [getAtt(cfLogicalNames.agentCoreGateway(resource.name), 'GatewayArn') as unknown as string]
+        }
+      ];
+    case 'agentcore-browser':
+      return [
+        {
+          Effect: 'Allow',
+          Action: [
+            'bedrock-agentcore:StartBrowserSession',
+            'bedrock-agentcore:GetBrowserSession',
+            'bedrock-agentcore:ListBrowserSessions',
+            'bedrock-agentcore:StopBrowserSession',
+            'bedrock-agentcore:UpdateBrowserStream',
+            'bedrock-agentcore:ConnectBrowserAutomationStream',
+            'bedrock-agentcore:ConnectBrowserLiveViewStream'
+          ],
+          Resource: [getAtt(cfLogicalNames.agentCoreBrowser(resource.name), 'BrowserArn') as unknown as string]
+        }
+      ];
+    case 'agentcore-code-interpreter':
+      return [
+        {
+          Effect: 'Allow',
+          Action: [
+            'bedrock-agentcore:StartCodeInterpreterSession',
+            'bedrock-agentcore:GetCodeInterpreterSession',
+            'bedrock-agentcore:ListCodeInterpreterSessions',
+            'bedrock-agentcore:InvokeCodeInterpreter',
+            'bedrock-agentcore:StopCodeInterpreterSession'
+          ],
+          Resource: [
+            getAtt(cfLogicalNames.agentCoreCodeInterpreter(resource.name), 'CodeInterpreterArn') as unknown as string
+          ]
+        }
+      ];
+  }
+};
+
 const getStatementsForAwsServiceMacro = (macro: ConnectToAwsServicesMacro): StpIamRoleStatement[] => {
   if (macro === 'aws:ses') {
     return [
@@ -404,6 +517,14 @@ export const getPoliciesForRoles = ({
         }
         case 'kinesis-stream': {
           connectToStatements.push(...getStatementsForAccessingKinesisStream(statementProps));
+          break;
+        }
+        case 'agentcore-runtime':
+        case 'agentcore-memory':
+        case 'agentcore-gateway':
+        case 'agentcore-browser':
+        case 'agentcore-code-interpreter': {
+          connectToStatements.push(...getStatementsForAccessingAgentCoreResource(resource));
           break;
         }
         // @todo

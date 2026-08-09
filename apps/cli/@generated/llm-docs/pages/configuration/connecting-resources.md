@@ -206,6 +206,21 @@ Assuming a resource named `uploads`:
 > **Tip:** Additional bucket parameters are available via [`$ResourceParam()`](/configuration/directives). See the [referenceable parameters](/configuration/referenceable-parameters) page for the full list.
 
 
+### Hosting bucket
+
+A [hosting bucket](/resources/frontend/static-hosting) exposes the same S3 `name` and `arn` variables as a regular bucket, using the hosting resource's name in the variable prefix. `connectTo` automatically grants access to the underlying S3 bucket; you do not need to know or reference its nested resource name.
+
+### EFS filesystem
+
+Assuming a resource named `sharedFiles`:
+
+| Parameter | Example env var | Description |
+|---|---|---|
+| `id` | `STP_SHARED_FILES_ID` | EFS filesystem ID |
+| `arn` | `STP_SHARED_FILES_ARN` | EFS filesystem ARN |
+
+`connectTo` deliberately does not mount the filesystem. A mount needs a local path and root-directory decision that Stacktape cannot safely infer. Configure the workload's EFS `volumeMounts` when it needs filesystem access; use `connectTo` alone when code only needs the ID or ARN.
+
 ### DynamoDB table
 
 Assuming a resource named `usersTable`:
@@ -311,6 +326,18 @@ Assuming a resource named `backend`:
 |---|---|---|
 | `address` | `STP_BACKEND_ADDRESS` | Internal service address |
 
+### AgentCore resources
+
+AgentCore targets inject their resource identifiers and grant only the data-plane permissions needed to use that target:
+
+| Target | Injected parameters | Access granted |
+|---|---|---|
+| [Runtime](/resources/ai/agentcore-runtime) | `id`, `arn`, `endpointName`, `endpointArn` | Invoke the runtime and configured endpoints |
+| [Memory](/resources/ai/agentcore-memory) | `id`, `arn` | Create, read, search, update, and delete events and memory records |
+| [Gateway](/resources/ai/agentcore-gateway) | `id`, `arn`, `url` | Invoke the gateway |
+| [Browser](/resources/ai/agentcore-browser) | `id`, `arn` | Start, use, inspect, and stop browser sessions |
+| [Code Interpreter](/resources/ai/agentcore-code-interpreter) | `id`, `arn` | Start, invoke, inspect, and stop code-interpreter sessions |
+
 ### Additional connectTo targets
 
 The tables above cover resource types with documented `connectTo` environment variables. Beyond those, `connectTo` also accepts **IAM-permission-only targets** — resource types where `connectTo` adds the required IAM permissions to the consuming workload's execution role but does not have a documented set of injected environment variables. These include:
@@ -322,7 +349,7 @@ The tables above cover resource types with documented `connectTo` environment va
 
 For these targets, use [`$ResourceParam()`](/configuration/directives) to pass specific parameters as environment variables manually.
 
-In the type definitions, `connectTo` targets fall into two categories: **role-affecting** targets (Lambda functions, container workloads, batch jobs, state machines, event buses, buckets, DynamoDB tables, OpenSearch domains, user auth pools, SQS queues, SNS topics, and Kinesis streams) that modify the consuming workload's IAM role, and **security-group-affecting** targets (relational databases and Redis clusters) that open network access. `connectTo` also accepts AWS service macros such as `aws:ses`.
+In the type definitions, `connectTo` targets fall into three categories: **role-affecting** targets (including AWS API resources and AgentCore resources) that modify the consuming workload's IAM role, **security-group-affecting** targets (relational databases and Redis clusters) that open network access, and **environment-only** targets such as EFS that expose identifiers without guessing additional configuration. `connectTo` also accepts AWS service macros such as `aws:ses`.
 
 ### Script-only variables
 
@@ -385,6 +412,7 @@ Stacktape generates IAM policies at deploy time based on the target resource typ
 | Target resource | Access granted |
 |---|---|
 | [Bucket](/resources/storage/s3-bucket) | Read, write, and delete objects; list bucket contents |
+| [Hosting bucket](/resources/frontend/static-hosting) | Read, write, and delete objects in its underlying S3 bucket; list bucket contents |
 | [DynamoDB table](/resources/databases/dynamodb) | CRUD operations (get, put, update, delete) + query and scan |
 | [SQS queue](/resources/messaging/sqs-queue) | Send, receive, and delete messages |
 | [SNS topic](/resources/messaging/sns-topic) | Publish and subscribe |
@@ -395,6 +423,12 @@ Stacktape generates IAM policies at deploy time based on the target resource typ
 | [MongoDB Atlas cluster](/resources/databases/mongodb-atlas) | Temporary credential-less access |
 | [Relational database](/resources/databases/relational-database) | Network access (security group rules, not IAM) |
 | [Redis cluster](/resources/databases/redis) | Network access (security group rules, not IAM) |
+| [AgentCore Runtime](/resources/ai/agentcore-runtime) | Invoke the runtime and its configured endpoints |
+| [AgentCore Memory](/resources/ai/agentcore-memory) | Use events and short- and long-term memory records |
+| [AgentCore Gateway](/resources/ai/agentcore-gateway) | Invoke the gateway |
+| [AgentCore Browser](/resources/ai/agentcore-browser) | Use browser sessions and streams |
+| [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter) | Use code-interpreter sessions |
+| [EFS filesystem](/resources/storage/efs-filesystem) | No access change from `connectTo`; use an explicit volume mount for IAM and network wiring |
 
 [Relational databases](/resources/databases/relational-database) and [Redis clusters](/resources/databases/redis) are network-bound resources — data-plane access is controlled through VPC security groups rather than IAM policies. Stacktape opens the correct port between the consuming resource and the target automatically.
 
@@ -527,6 +561,7 @@ The following list covers resources where the `connectTo` property is available 
 - [Worker service](/resources/compute/worker-service)
 - [Multi-container workload](/resources/compute/multi-container-workload)
 - [Batch job](/resources/compute/batch-job)
+- [AgentCore Runtime](/resources/ai/agentcore-runtime)
 - SSR frontends — see each resource's page for `connectTo` on the server workload: [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix)
 - [Deployment scripts](/resources/advanced/deployment-scripts)
 - Scripts (`local-script`, `local-script-with-bastion-tunneling`, `bastion-script`)

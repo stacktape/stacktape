@@ -448,6 +448,8 @@ export const initializeStackServicesForLocalResolve = async () => {
   await loadTargetStackContext();
   const stackContext = getStackContext();
   await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+  await configManager.loadGlobalConfig();
+  configManager.validateGuardrails({ hasConfig: true });
 
   await settleAllBeforeThrowing([
     startStackOperationRecording({
@@ -488,6 +490,8 @@ export const initializeStackServicesForHotSwapDeploy = async () => {
   await loadTargetStackContext();
   const stackContext = getStackContext();
   await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+  await configManager.loadGlobalConfig();
+  configManager.validateGuardrails({ hasConfig: true });
 
   await settleAllBeforeThrowing([
     startStackOperationRecording({
@@ -563,6 +567,8 @@ export const initializeStackServicesForDevPhase1 = async () => {
   await loadTargetStackContext();
   const stackContext = getStackContext();
   await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
+  await configManager.loadGlobalConfig();
+  configManager.validateGuardrails({ hasConfig: true });
   await Promise.all([
     templateManager.init({ stackDetails: undefined, stackName: stackContext.stackName }),
     calculatedStackOverviewManager.init({ context: stackContext })

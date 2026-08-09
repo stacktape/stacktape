@@ -6,6 +6,7 @@ import get from 'lodash/get';
 import yaml from 'yaml';
 import { Scalar, YAMLMap, YAMLSeq } from 'yaml/types';
 import { stacktapeConfigSchema } from '../../../../@generated/schemas/validate-config-zod';
+import { STACKTAPE_RESOURCE_TYPES } from '@stacktape/config/resource-types';
 
 type FormattedError = {
   path: string;
@@ -45,7 +46,7 @@ const levenshteinDistance = (a: string, b: string): number => {
   return matrix[b.length][a.length];
 };
 
-const findClosestMatch = (value: string, candidates: string[], maxDistance = 3): string | null => {
+const findClosestMatch = (value: string, candidates: readonly string[], maxDistance = 3): string | null => {
   if (!value || !candidates?.length) return null;
   const valueLower = String(value).toLowerCase();
   let closest: string | null = null;
@@ -271,52 +272,6 @@ const formatUnionMemberIssue = ({
   return { message: `Invalid configuration at ${inlineCode(formatZodIssuePath(errorPath))}` };
 };
 
-// Known resource and script types for "did you mean?" suggestions
-const RESOURCE_TYPES = [
-  'multi-container-workload',
-  'batch-job',
-  'web-service',
-  'private-service',
-  'worker-service',
-  'relational-database',
-  'application-load-balancer',
-  'network-load-balancer',
-  'http-api-gateway',
-  'bucket',
-  'user-auth-pool',
-  'event-bus',
-  'bastion',
-  'dynamo-db-table',
-  'state-machine',
-  'mongo-db-atlas-cluster',
-  'redis-cluster',
-  'custom-resource-instance',
-  'custom-resource-definition',
-  'upstash-redis',
-  'deployment-script',
-  'aws-cdk-construct',
-  'sqs-queue',
-  'sns-topic',
-  'hosting-bucket',
-  'web-app-firewall',
-  'nextjs-web',
-  'astro-web',
-  'nuxt-web',
-  'sveltekit-web',
-  'solidstart-web',
-  'tanstack-web',
-  'remix-web',
-  'open-search-domain',
-  'efs-filesystem',
-  'agentcore-runtime',
-  'agentcore-memory',
-  'agentcore-gateway',
-  'agentcore-browser',
-  'agentcore-code-interpreter',
-  'function',
-  'edge-lambda-function'
-];
-
 const SCRIPT_TYPES = ['local-script', 'bastion-script', 'local-script-with-bastion-tunneling'];
 
 const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap | null): FormattedError => {
@@ -360,7 +315,7 @@ const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap |
 
       if (isTopLevelResourceType || isTopLevelScriptType) {
         const thingType = isTopLevelScriptType ? 'script' : 'resource';
-        const validTypes = isTopLevelScriptType ? SCRIPT_TYPES : RESOURCE_TYPES;
+        const validTypes = isTopLevelScriptType ? SCRIPT_TYPES : STACKTAPE_RESOURCE_TYPES;
 
         message = `Invalid ${thingType} type ${inlineCode(formatActualValue(actualValue))}`;
 
@@ -396,7 +351,7 @@ const formatZodIssue = (issue: ZodIssue, config: unknown, sourceMap: SourceMap |
 
         if (isTopLevelResource) {
           message = `Invalid resource type ${inlineCode(`"${configType}"`)}`;
-          const suggestion = findClosestMatch(configType, RESOURCE_TYPES);
+          const suggestion = findClosestMatch(configType, STACKTAPE_RESOURCE_TYPES);
           if (suggestion) {
             hint = `Did you mean ${inlineCode(`"${suggestion}"`)}?`;
           }

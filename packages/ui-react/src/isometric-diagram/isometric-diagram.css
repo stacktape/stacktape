@@ -1,0 +1,200 @@
+/*
+ * Appearance of the configuration diagram.
+ *
+ * Import it next to the component — `@stacktape/ui-react/isometric-diagram.css` — rather than
+ * from the module itself, so it lands in whatever lazy chunk the host puts the diagram in and never
+ * reaches a consumer that only imports the buttons.
+ *
+ * Only the chrome lives here: the container, the tooltip, the hint and the zoom controls, plus the
+ * transitions the SVG layers use. Scene geometry is painted with attributes computed from the scene,
+ * because its colours are shaded arithmetically and cannot be variable references.
+ *
+ * Like the rest of the package, everything sits in the `stacktape-ui` layer so a host overrides it
+ * without `!important`.
+ */
+@import '@stacktape/design-tokens/css';
+
+@layer stacktape-ui {
+  .stp-diagram {
+    position: relative;
+    overflow: hidden;
+    background: var(--stp-surface-page);
+    cursor: default;
+    user-select: none;
+    touch-action: none;
+    outline: none;
+  }
+
+  .stp-diagram:focus-visible {
+    box-shadow: inset 0 0 0 var(--stp-focus-outline-width) color-mix(in srgb, var(--stp-color-brand) 40%, transparent);
+  }
+
+  .stp-diagram__canvas {
+    width: 100%;
+    height: 100%;
+    transform-origin: center center;
+  }
+
+  /* Hover focus: everything unrelated to the hovered node, connector or boundary fades back. */
+  .stp-diagram__fade {
+    transition: opacity var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .stp-diagram__zone {
+    transition:
+      stroke-width var(--stp-motion-duration-fast) var(--stp-motion-easing),
+      filter var(--stp-motion-duration-fast) var(--stp-motion-easing);
+  }
+
+  .stp-diagram__zone-tag {
+    text-transform: uppercase;
+  }
+
+  .stp-diagram__chip {
+    pointer-events: none;
+  }
+
+  /* ── Tooltip ─────────────────────────────────────────────────────────────────────────────────
+   * Positioned from the pointer by the renderer; everything else is fixed here. */
+  .stp-diagram__tooltip {
+    position: absolute;
+    z-index: 10;
+    max-width: 360px;
+    padding: 14px 18px;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+    border-radius: 10px;
+    background: var(--stp-surface-input);
+    box-shadow:
+      inset 0 1px 3px rgba(0, 0, 0, 0.35),
+      0 12px 28px rgba(0, 0, 0, 0.45),
+      0 0 0 1px rgba(255, 255, 255, 0.05);
+    backdrop-filter: blur(8px);
+    pointer-events: none;
+    font-family: Montserrat, Inter, sans-serif;
+    font-style: normal;
+    font-weight: 500;
+    font-size: 0.825rem;
+    line-height: 1.4;
+    color: var(--stp-text-primary);
+  }
+
+  .stp-diagram__tooltip p {
+    margin: 0;
+  }
+
+  .stp-diagram__tooltip-heading {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .stp-diagram__tooltip-title {
+    font-size: 15px;
+    font-weight: 600;
+    line-height: 1.4;
+    color: var(--stp-text-primary);
+  }
+
+  .stp-diagram__tooltip-subtitle {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+    color: var(--stp-color-brand);
+  }
+
+  .stp-diagram__tooltip-summary {
+    margin-top: 7px;
+    font-size: 13.5px;
+    line-height: 1.55;
+    color: var(--stp-text-primary);
+  }
+
+  .stp-diagram__tooltip-details {
+    margin-top: 7px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram__tooltip-note {
+    margin-top: 9px;
+    padding-left: 10px;
+    border-left: 2px solid var(--stp-color-brand);
+    font-size: 13px;
+    line-height: 1.55;
+    color: var(--stp-text-subtle);
+  }
+
+  /* ── Hint and view controls ──────────────────────────────────────────────────────────────── */
+  .stp-diagram__hint {
+    position: absolute;
+    left: 12px;
+    bottom: 12px;
+    margin: 0;
+    font-size: 11px;
+    color: rgba(255, 255, 255, 0.35);
+    pointer-events: none;
+    user-select: none;
+  }
+
+  .stp-diagram__controls {
+    position: absolute;
+    right: 12px;
+    bottom: 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .stp-diagram__control {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    border-radius: var(--stp-radius-small);
+    background: rgba(9, 11, 17, 0.72);
+    color: var(--stp-text-subtle);
+    font-size: 14px;
+    line-height: 1;
+    cursor: default;
+  }
+
+  .stp-diagram__control:hover {
+    background: rgba(9, 11, 17, 0.92);
+    color: #fff;
+  }
+
+  .stp-diagram__control:focus-visible {
+    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
+    outline-offset: var(--stp-focus-outline-offset);
+  }
+
+  /* ── Empty state ─────────────────────────────────────────────────────────────────────────── */
+  .stp-diagram-empty {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 100%;
+    color: var(--stp-text-subtle);
+  }
+
+  .stp-diagram-empty p {
+    margin: 0;
+    font-size: 13px;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stp-diagram__fade,
+    .stp-diagram__zone {
+      transition: none;
+    }
+
+    .stp-diagram__motion {
+      display: none;
+    }
+  }
+}

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import type { GuardrailDefinition } from './guardrails.js';
 
 /**
  * The Console API's API-key surface: procedures a Stacktape API key authorizes, scoped to the organization
@@ -219,10 +220,8 @@ export type IssueActionParams = z.input<typeof issueActionInputSchema>;
 /**
  * Organization-wide configuration a deployment has to honour.
  *
- * `guardrails` and `deploymentNotifications` are Stacktape configuration objects: the CLI's config schema
- * defines their shape, and the Console stores and returns them unchanged. Describing them again here would
- * mean maintaining a second copy of that schema, so they cross the wire as opaque values and the CLI reads
- * them with the types it already owns.
+ * Guardrails use the shared Console/CLI contract. Deployment notifications remain opaque because their
+ * configuration schema is still owned by the CLI.
  */
 export type GlobalConfigResponse = {
   alarms: {
@@ -237,7 +236,7 @@ export type GlobalConfigResponse = {
       properties: unknown;
     }>;
   }[];
-  guardrails: unknown[];
+  guardrails: GuardrailDefinition[];
   deploymentNotifications: unknown[];
 };
 

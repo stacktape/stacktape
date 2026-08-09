@@ -1,12 +1,12 @@
 # Security and Data Protection Guardrails
 
-Stacktape security guardrails are policy definitions that express your team's security requirements — VPC-only database access, deletion protection, dead-letter queues, WAF on application load balancers, custom domains, and approved database engines. Each guardrail has a `type` and a `properties` object that describes the requirement to enforce.
+Stacktape security and data-protection guardrails express requirements that the CLI can verify before changing infrastructure: private database access, deletion protection, recoverable data stores, dead-letter queues, WAF, and redundant container services. Each guardrail has a `type` and a `properties` object that describes the requirement to enforce.
 
 ## How security guardrails work
 
 Security guardrails are policy definitions with a `type` and `properties` object that express requirements for resource configurations. This is fundamentally different from [alarms](/observability/alarms), which reactively notify you when a running system behaves unexpectedly at runtime.
 
-Each guardrail has a `type` and a `properties` object. For the security and data-protection guardrails on this page, `require-*` guardrails use an optional `enabled` boolean, and `database-engine-restriction` uses an optional `allowedEngines` allowlist. Other guardrail types use different property shapes. See the [guardrails overview](/guardrails/overview) for the full list of all 15 guardrail types and their properties.
+Each guardrail has a `type` and a `properties` object. For the security and data-protection guardrails on this page, `require-*` guardrails use an `enabled` boolean, and `database-engine-restriction` uses an `allowedEngines` allowlist. Other guardrail types use different property shapes. See the [guardrails overview](/guardrails/overview) for the full list of all 18 guardrail types and their properties.
 
 | Aspect | Guardrails | Alarms |
 |--------|-----------|--------|
@@ -21,16 +21,19 @@ Each security guardrail is an object with a `type` string and a `properties` obj
 ```typescript
 // require-* guardrails — enabled toggle
 { type: 'require-vpc-databases', properties: { enabled: true } }
+{ type: 'require-stack-termination-protection', properties: { enabled: true } }
 { type: 'require-deletion-protection', properties: { enabled: true } }
+{ type: 'require-data-backups', properties: { enabled: true } }
 { type: 'require-dead-letter-queue', properties: { enabled: true } }
 { type: 'require-waf', properties: { enabled: true } }
+{ type: 'require-multiple-container-instances', properties: { enabled: true } }
 { type: 'require-custom-domain', properties: { enabled: true } }
 
 // Restriction guardrails — allowlist
 { type: 'database-engine-restriction', properties: { allowedEngines: ['postgres', 'aurora-postgresql'] } }
 ```
 
-The `GuardrailType` union currently includes 15 guardrail types; see the [guardrails overview](/guardrails/overview) for how the docs group them.
+The `GuardrailType` union currently includes 18 guardrail types; see the [guardrails overview](/guardrails/overview) for how the docs group them.
 
 The examples below show the resource-side settings that correspond to each guardrail requirement. See the linked resource pages for full resource configuration details.
 
@@ -48,9 +51,9 @@ Skip guardrails in early prototyping or single-developer projects where speed ma
 
 ## Require VPC databases
 
-The `require-vpc-databases` guardrail enforces that, when enabled, all databases must use VPC-only accessibility with no public internet access.
+The `require-vpc-databases` guardrail enforces that, when enabled, relational databases and OpenSearch domains use VPC-only accessibility with no public internet access. DynamoDB does not have an equivalent per-table public accessibility setting and is not checked.
 
-**When to enable:** Enable in production stages or any organization handling sensitive data. VPC-only databases cannot be reached from the public internet, eliminating an entire class of network-based attack vectors. The tradeoff is that you need a [bastion host](/resources/security/bastion-host) or VPC-connected workloads to access the database for administration and debugging. For most production workloads, VPC-only is the right default.
+**When to enable:** Enable when every stage in the organization should use private data services. VPC-only databases cannot be reached from the public internet, eliminating an entire class of network-based attack vectors. The tradeoff is that you need a [bastion host](/resources/security/bastion-host) or VPC-connected workloads to access the database for administration and debugging. Guardrails currently apply organization-wide rather than only to production.
 
 **When the default is fine:** During early development or prototyping, internet-accessible databases are more convenient for local development and ad-hoc queries. The risk is low when the database holds no real data.
 
@@ -122,6 +125,31 @@ export default defineConfig(() => {
 
 Setting `deletionProtection: true` satisfies this guardrail. With deletion protection enabled, AWS RDS rejects API calls that would remove the database instance — this is an AWS-level safeguard independent of Stacktape. When `require-deletion-protection` is enabled, every relational database must set `deletionProtection: true`.
 
+## Require stack termination protection
+
+The `require-stack-termination-protection` guardrail requires `deploymentConfig.terminationProtection: true`. CloudFormation rejects deletion of a protected stack regardless of whether deletion is attempted through Stacktape, AWS Console, or another AWS client.
+
+**When to enable:** Enable when deleting the complete stack would cause a serious outage or data-loss event. To intentionally delete it, an administrator must first remove this guardrail, deploy with termination protection disabled, and then delete the stack. This deliberate two-step process is stronger than blocking only the Stacktape `delete` command.
+
+```typescript
+{
+  deploymentConfig: { terminationProtection: true },
+  resources: { /* ... */ }
+}
+```
+
+## Require recoverable data stores
+
+The `require-data-backups` guardrail checks the backup controls Stacktape can determine from configuration:
+
+| Resource | Required configuration |
+|---|---|
+| Relational database | `automatedBackupRetentionDays` must not be `0`; an omitted value uses the AWS non-zero default |
+| DynamoDB table | `enablePointInTimeRecovery: true` |
+| EFS filesystem | `backupEnabled: true` |
+
+**When to enable:** Enable when those resources can contain data that cannot simply be recreated. DynamoDB PITR and EFS backups add storage cost. The guardrail confirms that backups are configured; it cannot prove that a restore has been tested or that the retention period meets your recovery objectives.
+
 ## Require dead-letter queue
 
 The `require-dead-letter-queue` guardrail ensures every [SQS queue](/resources/messaging/sqs-queue) in the stack has a `redrivePolicy` (dead-letter queue) configured. In AWS SQS, a dead-letter queue captures messages that fail processing repeatedly, preventing silent data loss in message-driven architectures.
@@ -156,7 +184,7 @@ The `redrivePolicy` specifies which queue receives failed messages and how many 
 
 ## Require WAF
 
-The `require-waf` guardrail requires every [application load balancer](/resources/networking/application-load-balancer) to have a [web application firewall](/resources/security/web-application-firewall) attached.
+The `require-waf` guardrail requires every directly configured [application load balancer](/resources/networking/application-load-balancer), plus load balancers generated for web and private services, to reference a configured [web application firewall](/resources/security/web-application-firewall). Internally generated load balancers that do not expose a configurable firewall setting are ignored.
 
 **When to enable:** Enable for public-facing applications that handle user input, authentication, or sensitive data. AWS WAF can defend against common web exploits including SQL injection and cross-site scripting. Most production APIs serving public traffic benefit from WAF.
 
@@ -185,13 +213,19 @@ export default defineConfig(() => {
 ```
 
 
-The `useFirewall` property references a [web application firewall](/resources/security/web-application-firewall) resource by name. When enabled, `require-waf` requires all application load balancers to have a web application firewall attached. See the [web application firewall page](/resources/security/web-application-firewall) for WAF rule configuration.
+The `useFirewall` property references a [web application firewall](/resources/security/web-application-firewall) resource by name. When enabled, `require-waf` checks directly configured load balancers and those generated for web and private services. See the [web application firewall page](/resources/security/web-application-firewall) for WAF rule configuration.
+
+## Require multiple container instances
+
+The `require-multiple-container-instances` guardrail requires `scaling.minInstances` of at least `2` for web services, private services, worker services, and user-defined multi-container workloads. It prevents a routine task or instance failure from leaving a service with no running copy. Fixed internal workloads, currently self-hosted Convex, are ignored because users cannot change their instance count.
+
+**Tradeoff:** Two instances improve instance-level availability but double the minimum compute allocation compared with the default single instance. This rule does not by itself establish a complete availability target; application dependencies and capacity still matter.
 
 ## Require custom domain
 
-When enabled, the `require-custom-domain` guardrail requires public-facing [web services](/resources/compute/web-service) and [hosting buckets](/resources/frontend/static-hosting) to have a [custom domain](/resources/networking/custom-domains) configured. Use it when production endpoints must be served from domains your team controls rather than auto-generated AWS URLs.
+When enabled, the `require-custom-domain` guardrail requires public-facing [web services](/resources/compute/web-service) and [hosting buckets](/resources/frontend/static-hosting) to have a [custom domain](/resources/networking/custom-domains) configured. This is a delivery and branding standard, not a security boundary.
 
-**When to enable:** Enable for production stages where URL stability, branding, and domain ownership matter. Custom domains give your users a predictable, professional endpoint. They also let you migrate backends without changing the URL your consumers depend on.
+**When to enable:** Enable only when every stage in the organization needs URL stability, branding, and domain ownership. Custom domains give your users a predictable, professional endpoint, but guardrails currently apply organization-wide rather than only to production.
 
 **When the default is fine:** Skip for development and staging stages where custom domains add DNS propagation delay and certificate provisioning time without adding value. Auto-generated URLs are perfectly adequate for internal testing.
 
@@ -251,18 +285,21 @@ Most production organizations enable multiple security guardrails together. A ty
 
 | Guardrail | What it enforces | Recommended for |
 |-----------|-----------------|-----------------|
-| `require-vpc-databases` | Network isolation for all databases | All production stages |
+| `require-vpc-databases` | Network isolation for relational databases and OpenSearch | Organizations requiring private access in every stage |
+| `require-stack-termination-protection` | Prevent complete stack deletion | Long-lived production stacks |
 | `require-deletion-protection` | Prevent accidental database removal | All stages with persistent data |
+| `require-data-backups` | Recoverable RDS, DynamoDB, and EFS data | Workloads with non-reproducible data |
 | `require-dead-letter-queue` | Message durability for SQS queues | Event-driven architectures |
 | `require-waf` | Application-layer firewall on application load balancers | Public-facing APIs |
+| `require-multiple-container-instances` | At least two running container copies | Availability-sensitive services |
 | `require-custom-domain` | Stable, branded endpoints | Production web services |
 | `database-engine-restriction` | Approved engine types only | Compliance-regulated teams |
 | `resource-type-restriction` | Block non-approved resource types | Security-sensitive environments |
 
-These guardrails complement each other. VPC databases prevent network-level exposure. WAF adds application-level protection. Deletion protection and dead-letter queues prevent data loss. Custom domains ensure stable endpoints. Engine restrictions enforce your approved technology list.
+These guardrails complement each other. VPC databases prevent network-level exposure. WAF adds application-level protection. Stack and database deletion protection stop accidental removal, while backups protect against corruption and accidental writes. Multiple container instances reduce single-task downtime. Custom domains ensure stable endpoints, and engine restrictions enforce your approved technology list.
 
 
-> **Tip:** Start with `require-vpc-databases` and `require-deletion-protection` — they provide the highest security value with the least friction. Add `require-waf`, `require-dead-letter-queue`, and `require-custom-domain` as your production security posture matures.
+> **Tip:** Start with `require-vpc-databases`, stack termination protection, and data backups for long-lived production workloads. Add WAF, dead-letter queues, and multiple container instances where their explicit cost and operational tradeoffs match the workload.
 
 
 ## Related guardrails
@@ -273,7 +310,7 @@ This page covers security and data-protection guardrails. Stacktape includes add
 - **Resource limit guardrails** — `function-memory-limit`, `function-timeout-limit`, `container-resource-limit`, and `resource-count-limit` cap the size and count of compute resources. See [resource limit guardrails](/guardrails/resource-limits).
 - **Database guardrails** — `database-engine-restriction` and `database-instance-restriction` control which database engines and instance sizes are allowed. See [database guardrails](/guardrails/databases).
 
-For a high-level overview of all 15 guardrail types, see the [guardrails overview](/guardrails/overview).
+For a high-level overview of all 18 guardrail types, see the [guardrails overview](/guardrails/overview).
 
 ## FAQ
 
@@ -283,7 +320,7 @@ VPC-only accessibility means the database has no public IP address and can only 
 
 ### What does the require-waf guardrail actually protect against?
 
-The guardrail itself only enforces that every [application load balancer](/resources/networking/application-load-balancer) has a [web application firewall](/resources/security/web-application-firewall) attached — the real protection depends on the WAF rules you configure. AWS WAF inspects incoming HTTP/HTTPS requests and blocks those matching your rules, with common rule sets defending against SQL injection, cross-site scripting (XSS), and bot traffic, plus rate limiting and geographic restrictions.
+The guardrail itself only enforces that configurable [application load balancers](/resources/networking/application-load-balancer) reference a [web application firewall](/resources/security/web-application-firewall) — the real protection depends on its rules. AWS WAF inspects incoming HTTP/HTTPS requests and blocks those matching your rules, with common rule sets defending against SQL injection, cross-site scripting (XSS), and bot traffic, plus rate limiting and geographic restrictions.
 
 ### Do security guardrails add cost to my AWS bill?
 

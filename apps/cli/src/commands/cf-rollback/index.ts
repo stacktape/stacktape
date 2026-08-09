@@ -1,4 +1,5 @@
 import { initializeCloudFormationRollbackOperation } from '../_utils/initialization';
+import { configManager } from '@domain-services/config-manager';
 
 type RollbackSpinner = {
   error: (text: string) => void;
@@ -17,6 +18,8 @@ type CloudFormationRollbackExecutionOperation = {
 
 export const commandCfRollback = async () => {
   const { deploymentArtifacts, stack, stackContext, tui } = await initializeCloudFormationRollbackOperation();
+  await configManager.loadGlobalConfig();
+  configManager.validateGuardrails({ hasConfig: !!configManager.config });
 
   return executeCloudFormationRollbackOperation({
     deploymentArtifacts,

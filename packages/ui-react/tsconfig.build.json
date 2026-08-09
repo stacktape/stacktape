@@ -1,6 +1,6 @@
 {
   "extends": "./tsconfig.json",
-  "exclude": ["src/config-editor/diagram", "src/**/*.test.ts", "src/**/*.test.tsx"],
+  "exclude": ["src/isometric-diagram", "src/**/*.test.ts", "src/**/*.test.tsx"],
   "compilerOptions": {
     "allowImportingTsExtensions": false,
     "declaration": true,

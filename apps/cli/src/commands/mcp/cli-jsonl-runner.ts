@@ -3,45 +3,14 @@ import { basename, dirname, isAbsolute, resolve } from 'node:path';
 import { createInterface } from 'node:readline';
 import { existsSync } from 'node:fs';
 import { getMcpOperationInvocationEnv } from '@application-services/operation-invocation-context';
-
-type JsonlEventEvent = {
-  type: 'event';
-  phase: string;
-  eventType: string;
-  status: 'started' | 'running' | 'completed';
-  message: string;
-  ts?: string;
-  instanceId?: string;
-  detail?: { kind: string; [key: string]: unknown };
-};
-
-type JsonlLogEvent = {
-  type: 'log';
-  level: 'info' | 'warn' | 'error';
-  source: string;
-  message: string;
-  ts?: string;
-  data?: Record<string, unknown>;
-};
-
-type JsonlOutputEvent = {
-  type: 'output';
-  eventType?: string;
-  instanceId?: string;
-  lines: string[];
-  ts?: string;
-};
-
-type JsonlResultEvent = {
-  ts?: string;
-  type: 'result';
-  ok: boolean;
-  code: string;
-  message: string;
-  data?: Record<string, unknown>;
-};
-
-type JsonlEvent = JsonlEventEvent | JsonlLogEvent | JsonlOutputEvent | JsonlResultEvent;
+import killProcessTree from 'tree-kill';
+import type {
+  JsonlEvent,
+  JsonlEventEvent,
+  JsonlLogEvent,
+  JsonlOutputEvent,
+  JsonlResultEvent
+} from '@application-services/tui-manager/output/jsonl-types';
 
 type RunStacktapeResult = {
   ok: boolean;
@@ -52,9 +21,15 @@ type RunStacktapeResult = {
   events: JsonlEventEvent[];
   logEvents: JsonlLogEvent[];
   outputEvents: JsonlOutputEvent[];
+  resolvedContext: {
+    cwd: string;
+    currentWorkingDirectory?: string;
+  };
 };
 
 const MAX_TAIL_LINES = 80;
+const MAX_RETAINED_EVENTS = 200;
+const PROCESS_EXIT_GRACE_MS = 3000;
 
 const pushTailLine = (tail: string[], line: string) => {
   const clean = line.trim();
@@ -65,17 +40,54 @@ const pushTailLine = (tail: string[], line: string) => {
   }
 };
 
-const parseJsonlLine = (line: string): JsonlEvent | undefined => {
+const pushBounded = <T>(items: T[], item: T) => {
+  items.push(item);
+  if (items.length > MAX_RETAINED_EVENTS) items.shift();
+};
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  Boolean(value) && typeof value === 'object' && !Array.isArray(value);
+
+const parseJsonlLine = (line: string): { event?: JsonlEvent; malformedResult: boolean } => {
   try {
-    const parsed = JSON.parse(line) as { type?: unknown };
-    if (!parsed || typeof parsed !== 'object' || typeof parsed.type !== 'string') return undefined;
-    if (parsed.type === 'event') return parsed as JsonlEventEvent;
-    if (parsed.type === 'log') return parsed as JsonlLogEvent;
-    if (parsed.type === 'output') return parsed as JsonlOutputEvent;
-    if (parsed.type === 'result') return parsed as JsonlResultEvent;
-    return undefined;
+    const parsed = JSON.parse(line) as unknown;
+    if (!isRecord(parsed) || typeof parsed.type !== 'string') return { malformedResult: false };
+    if (parsed.type === 'event') {
+      const valid =
+        typeof parsed.ts === 'string' &&
+        typeof parsed.phase === 'string' &&
+        typeof parsed.eventType === 'string' &&
+        ['started', 'running', 'completed'].includes(String(parsed.status)) &&
+        typeof parsed.message === 'string';
+      return { event: valid ? (parsed as JsonlEventEvent) : undefined, malformedResult: false };
+    }
+    if (parsed.type === 'log') {
+      const valid =
+        typeof parsed.ts === 'string' &&
+        ['info', 'warn', 'error'].includes(String(parsed.level)) &&
+        typeof parsed.source === 'string' &&
+        typeof parsed.message === 'string';
+      return { event: valid ? (parsed as JsonlLogEvent) : undefined, malformedResult: false };
+    }
+    if (parsed.type === 'output') {
+      const valid =
+        typeof parsed.ts === 'string' &&
+        Array.isArray(parsed.lines) &&
+        parsed.lines.every((item) => typeof item === 'string');
+      return { event: valid ? (parsed as JsonlOutputEvent) : undefined, malformedResult: false };
+    }
+    if (parsed.type === 'result') {
+      const valid =
+        typeof parsed.ts === 'string' &&
+        typeof parsed.ok === 'boolean' &&
+        typeof parsed.code === 'string' &&
+        typeof parsed.message === 'string' &&
+        (parsed.data === undefined || isRecord(parsed.data));
+      return { event: valid ? (parsed as JsonlResultEvent) : undefined, malformedResult: !valid };
+    }
+    return { malformedResult: false };
   } catch {
-    return undefined;
+    return { malformedResult: false };
   }
 };
 
@@ -183,42 +195,95 @@ const normalizeCliArgs = (args: Record<string, unknown> = {}): string[] => {
 
 const resolveUserProjectArgs = ({
   args,
-  spawnCwd
+  cwd
 }: {
   args: Record<string, unknown>;
-  spawnCwd?: string;
-}): Record<string, unknown> => {
-  if (!spawnCwd || spawnCwd === process.cwd()) return args;
+  cwd: string;
+}): { args: Record<string, unknown>; currentWorkingDirectory?: string } => {
   const currentWorkingDirectory = args.currentWorkingDirectory;
-  if (typeof currentWorkingDirectory !== 'string') return args;
-  if (isAbsolute(currentWorkingDirectory)) return args;
+  if (typeof currentWorkingDirectory !== 'string') return { args };
+  const resolvedCurrentWorkingDirectory = isAbsolute(currentWorkingDirectory)
+    ? resolve(currentWorkingDirectory)
+    : resolve(cwd, currentWorkingDirectory);
 
   return {
-    ...args,
-    currentWorkingDirectory: resolve(process.cwd(), currentWorkingDirectory)
+    args: {
+      ...args,
+      currentWorkingDirectory: resolvedCurrentWorkingDirectory
+    },
+    currentWorkingDirectory: resolvedCurrentWorkingDirectory
   };
+};
+
+const killTree = async (pid: number, signal: NodeJS.Signals): Promise<void> =>
+  new Promise((resolveKill) => {
+    killProcessTree(pid, signal, () => resolveKill());
+  });
+
+const waitForClose = async (
+  closePromise: Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>,
+  timeoutMs: number
+): Promise<boolean> =>
+  Promise.race([
+    closePromise.then(() => true),
+    new Promise<boolean>((resolveWait) => {
+      const timer = setTimeout(() => resolveWait(false), timeoutMs);
+      timer.unref?.();
+    })
+  ]);
+
+const terminateProcessTree = async ({
+  pid,
+  closePromise
+}: {
+  pid?: number;
+  closePromise: Promise<{ exitCode: number | null; signal: NodeJS.Signals | null }>;
+}) => {
+  if (!pid) return;
+  await killTree(pid, 'SIGTERM');
+  if (await waitForClose(closePromise, PROCESS_EXIT_GRACE_MS)) return;
+  await killTree(pid, 'SIGKILL');
+  await waitForClose(closePromise, PROCESS_EXIT_GRACE_MS);
 };
 
 export const runStacktapeCommandJsonl = async ({
   command,
   args,
-  timeoutMs = 10 * 60 * 1000
+  cwd,
+  timeoutMs = 10 * 60 * 1000,
+  signal,
+  tool = 'stacktape_cli',
+  clientName,
+  onProgress
 }: {
   command: string;
   args?: Record<string, unknown>;
+  cwd?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
+  tool?: 'stacktape_cli' | 'stacktape_dev';
+  clientName?: string;
+  onProgress?: (event: JsonlEventEvent) => void | Promise<void>;
 }): Promise<RunStacktapeResult> => {
   const { command: spawnCommand, prefixArgs, cwd: spawnCwd } = getStacktapeSpawnBase();
-  const resolvedArgs = resolveUserProjectArgs({ args: args || {}, spawnCwd });
+  const resolvedCwd = resolve(cwd || process.cwd());
+  const resolvedProjectArgs = resolveUserProjectArgs({ args: args || {}, cwd: resolvedCwd });
+  const resolvedArgs = resolvedProjectArgs.args;
   const cliArgs = normalizeCliArgs(resolvedArgs);
   const spawnArgs = [...prefixArgs, command, '--agent', ...cliArgs];
   const operationInvocationEnv = getMcpOperationInvocationEnv({
-    client: process.env.STACKTAPE_MCP_CLIENT_NAME || process.env.STACKTAPE_MCP_CLIENT,
-    tool: 'stacktape_cli'
+    client: clientName || process.env.STACKTAPE_MCP_CLIENT_NAME || process.env.STACKTAPE_MCP_CLIENT,
+    tool
   });
+  const resolvedContext = {
+    cwd: spawnCwd || resolvedCwd,
+    ...(resolvedProjectArgs.currentWorkingDirectory
+      ? { currentWorkingDirectory: resolvedProjectArgs.currentWorkingDirectory }
+      : {})
+  };
 
   const child = spawn(spawnCommand, spawnArgs, {
-    cwd: spawnCwd || process.cwd(),
+    cwd: resolvedCwd,
     env: {
       ...process.env,
       ...operationInvocationEnv
@@ -232,27 +297,37 @@ export const runStacktapeCommandJsonl = async ({
   const logEvents: JsonlLogEvent[] = [];
   const outputEvents: JsonlOutputEvent[] = [];
   let resultEvent: JsonlResultEvent | undefined;
+  let resultEventCount = 0;
+  let malformedResult = false;
 
   const stdoutRl = createInterface({ input: child.stdout! });
   const stderrRl = createInterface({ input: child.stderr! });
 
   stdoutRl.on('line', (line) => {
     pushTailLine(tailLines, line);
-    const parsed = parseJsonlLine(line);
+    const parsedLine = parseJsonlLine(line);
+    malformedResult ||= parsedLine.malformedResult;
+    const parsed = parsedLine.event;
     if (!parsed) return;
     if (parsed.type === 'event') {
-      events.push(parsed);
+      pushBounded(events, parsed);
+      if (onProgress) {
+        void Promise.resolve(onProgress(parsed)).catch(() => {
+          // Progress reporting must never change the command outcome.
+        });
+      }
       return;
     }
     if (parsed.type === 'log') {
-      logEvents.push(parsed);
+      pushBounded(logEvents, parsed);
       return;
     }
     if (parsed.type === 'output') {
-      outputEvents.push(parsed);
+      pushBounded(outputEvents, parsed);
       return;
     }
     if (parsed.type === 'result') {
+      resultEventCount += 1;
       resultEvent = parsed;
     }
   });
@@ -267,31 +342,56 @@ export const runStacktapeCommandJsonl = async ({
     });
   });
 
-  const errorPromise = new Promise<{ spawnError: Error }>((resolveError) => {
+  const errorPromise = new Promise<{ kind: 'spawn-error'; error: Error }>((resolveError) => {
     child.on('error', (error) => {
-      resolveError({ spawnError: error });
+      resolveError({ kind: 'spawn-error', error });
     });
   });
 
-  const timeoutPromise = new Promise<never>((_, reject) => {
-    const timer = setTimeout(() => {
-      try {
-        child.kill('SIGTERM');
-      } catch {
-        // noop
+  let timeout: NodeJS.Timeout | undefined;
+  let removeAbortListener = () => {};
+  const interruptedPromise = new Promise<{ kind: 'timeout' | 'cancelled' }>((resolveInterrupted) => {
+    timeout = setTimeout(() => resolveInterrupted({ kind: 'timeout' }), timeoutMs);
+    timeout.unref?.();
+
+    if (signal) {
+      const onAbort = () => resolveInterrupted({ kind: 'cancelled' });
+      if (signal.aborted) {
+        onAbort();
+      } else {
+        signal.addEventListener('abort', onAbort, { once: true });
+        removeAbortListener = () => signal.removeEventListener('abort', onAbort);
       }
-      reject(new Error(`Command timed out after ${timeoutMs}ms: stacktape ${command}`));
-    }, timeoutMs);
-
-    closePromise.finally(() => {
-      clearTimeout(timer);
-    });
+    }
   });
 
-  const closeOrError = await Promise.race([closePromise, timeoutPromise, errorPromise]);
+  const closeOutcome = closePromise.then((value) => ({ kind: 'close' as const, ...value }));
+  const outcome = await Promise.race([closeOutcome, interruptedPromise, errorPromise]);
+  if (timeout) clearTimeout(timeout);
+  removeAbortListener();
 
-  if ('spawnError' in closeOrError) {
-    const message = closeOrError.spawnError.message || `Failed to start Stacktape CLI subprocess for ${command}.`;
+  if (outcome.kind === 'timeout' || outcome.kind === 'cancelled') {
+    await terminateProcessTree({ pid: child.pid, closePromise });
+    stdoutRl.close();
+    stderrRl.close();
+    const rawTail = tailLines.length > 0 ? tailLines.join('\n') : undefined;
+    return {
+      ok: false,
+      code: outcome.kind === 'timeout' ? 'TIMEOUT' : 'CANCELLED',
+      message:
+        outcome.kind === 'timeout'
+          ? `Stacktape command timed out after ${timeoutMs}ms: ${command}.`
+          : `Stacktape command was cancelled: ${command}.`,
+      rawTail,
+      events,
+      logEvents,
+      outputEvents,
+      resolvedContext
+    };
+  }
+
+  if (outcome.kind === 'spawn-error') {
+    const message = outcome.error.message || `Failed to start Stacktape CLI subprocess for ${command}.`;
     return {
       ok: false,
       code: 'SPAWN_FAILED',
@@ -299,11 +399,31 @@ export const runStacktapeCommandJsonl = async ({
       rawTail: message,
       events,
       logEvents,
-      outputEvents
+      outputEvents,
+      resolvedContext
     };
   }
 
-  const { exitCode, signal } = closeOrError;
+  if (outcome.kind !== 'close') {
+    throw new Error(`Unexpected Stacktape CLI process outcome: ${outcome.kind}`);
+  }
+
+  const { exitCode, signal: exitSignal } = outcome;
+
+  if (malformedResult || resultEventCount > 1) {
+    return {
+      ok: false,
+      code: 'AGENT_PROTOCOL_ERROR',
+      message: malformedResult
+        ? 'Stacktape CLI emitted a malformed final agent result.'
+        : 'Stacktape CLI emitted more than one final agent result.',
+      rawTail: tailLines.length > 0 ? tailLines.join('\n') : undefined,
+      events,
+      logEvents,
+      outputEvents,
+      resolvedContext
+    };
+  }
 
   if (resultEvent) {
     return {
@@ -314,37 +434,24 @@ export const runStacktapeCommandJsonl = async ({
       rawTail: tailLines.length > 0 ? tailLines.join('\n') : undefined,
       events,
       logEvents,
-      outputEvents
+      outputEvents,
+      resolvedContext
     };
   }
 
-  const finalCode = exitCode === 0 ? 'OK' : 'INTERNAL_ERROR';
   const rawTail = tailLines.length > 0 ? tailLines.join('\n') : undefined;
   const inferredFailure = inferFailureFromTail(rawTail);
-
-  if (inferredFailure) {
-    return {
-      ok: false,
-      code: inferredFailure.code,
-      message: inferredFailure.message,
-      rawTail,
-      events,
-      logEvents,
-      outputEvents
-    };
-  }
-
   return {
-    ok: exitCode === 0,
-    code: finalCode,
-    message:
-      exitCode === 0
-        ? 'Command finished without JSONL result event'
-        : `Command failed without JSONL result event (exit=${exitCode}, signal=${signal || 'none'})`,
+    ok: false,
+    code: 'AGENT_RESULT_MISSING',
+    message: inferredFailure
+      ? `Stacktape CLI exited without its required final agent result: ${inferredFailure.message}`
+      : `Stacktape CLI exited without its required final agent result (exit=${exitCode}, signal=${exitSignal || 'none'}).`,
     rawTail,
     events,
     logEvents,
-    outputEvents
+    outputEvents,
+    resolvedContext
   };
 };
 

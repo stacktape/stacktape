@@ -6,4 +6,4 @@ export type StpEfsFilesystem = EfsFilesystem['properties'] & {
   configParentResourceType: EfsFilesystem['type'];
   nameChain: string[];
 };
-export type EfsFilesystemReferencableParam = 'arn';
+export type EfsFilesystemReferencableParam = 'arn' | 'id';

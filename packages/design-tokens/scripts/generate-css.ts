@@ -11,13 +11,13 @@ const css = `/* Generated from src/tokens.ts. Do not edit. */
 ${declarations}
 }
 `;
+const current = await readFile(outputUrl, 'utf8').catch(() => '');
 
 if (process.argv.includes('--check')) {
-  const current = await readFile(outputUrl, 'utf8').catch(() => '');
   if (current !== css) {
     throw new Error('Generated design-token CSS is stale. Run pnpm --filter @stacktape/design-tokens generate.');
   }
-} else {
+} else if (current !== css) {
   await mkdir(new URL('../generated/', import.meta.url), { recursive: true });
   await writeFile(outputUrl, css);
 }

@@ -171,7 +171,7 @@
       // references to, index keys over generated geometry, and the focusable pan/zoom surface.
       // Rewriting them is a separate change from moving the code.
       // New modules in this package are not exempt.
-      "files": ["packages/ui-react/src/config-editor/diagram/**"],
+      "files": ["packages/ui-react/src/isometric-diagram/**"],
       "rules": {
         "jsx-a11y/no-noninteractive-element-interactions": "off",
         // SVG has no semantic <img> element; role="img" is the interoperable labelled-diagram pattern.

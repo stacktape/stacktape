@@ -5,47 +5,144 @@
   "description": "Reusable React controls and product UI shared by Stacktape applications.",
   "type": "module",
   "exports": {
+    "./alert": {
+      "types": "./dist/alert/Alert.d.ts",
+      "default": "./dist/alert/Alert.js"
+    },
     "./button": {
-      "types": "./dist/button.d.ts",
-      "default": "./dist/button.js"
+      "types": "./dist/button/Button.d.ts",
+      "default": "./dist/button/Button.js"
+    },
+    "./checkbox": {
+      "types": "./dist/checkbox/Checkbox.d.ts",
+      "default": "./dist/checkbox/Checkbox.js"
+    },
+    "./dialog": {
+      "types": "./dist/dialog/Dialog.d.ts",
+      "default": "./dist/dialog/Dialog.js"
+    },
+    "./badge": {
+      "types": "./dist/badge/Badge.d.ts",
+      "default": "./dist/badge/Badge.js"
     },
     "./icon-button": {
-      "types": "./dist/icon-button.d.ts",
-      "default": "./dist/icon-button.js"
+      "types": "./dist/icon-button/IconButton.d.ts",
+      "default": "./dist/icon-button/IconButton.js"
     },
-    "./code-editor": {
-      "types": "./dist/code-editor/CodeEditor.d.ts",
-      "default": "./dist/code-editor/CodeEditor.js"
+    "./link": {
+      "types": "./dist/link/Link.d.ts",
+      "default": "./dist/link/Link.js"
+    },
+    "./linear-loader": {
+      "types": "./dist/linear-loader/LinearLoader.d.ts",
+      "default": "./dist/linear-loader/LinearLoader.js"
+    },
+    "./framework-icon": {
+      "types": "./dist/framework-icon/FrameworkIcon.d.ts",
+      "default": "./dist/framework-icon/FrameworkIcon.js"
+    },
+    "./grid-list": {
+      "types": "./dist/grid-list/GridList.d.ts",
+      "default": "./dist/grid-list/GridList.js"
+    },
+    "./resource-icon": {
+      "types": "./dist/resource-icon/ResourceIcon.d.ts",
+      "default": "./dist/resource-icon/ResourceIcon.js"
+    },
+    "./resource-icon/catalog": {
+      "types": "./dist/resource-icon/catalog.d.ts",
+      "default": "./dist/resource-icon/catalog.js"
+    },
+    "./radio-group": {
+      "types": "./dist/radio-group/RadioGroup.d.ts",
+      "default": "./dist/radio-group/RadioGroup.js"
+    },
+    "./monaco-editor": {
+      "types": "./dist/monaco-editor/MonacoEditor.d.ts",
+      "default": "./dist/monaco-editor/MonacoEditor.js"
+    },
+    "./section-loader": {
+      "types": "./dist/section-loader/SectionLoader.d.ts",
+      "default": "./dist/section-loader/SectionLoader.js"
+    },
+    "./select": {
+      "types": "./dist/select/Select.d.ts",
+      "default": "./dist/select/Select.js"
+    },
+    "./spinner": {
+      "types": "./dist/spinner/Spinner.d.ts",
+      "default": "./dist/spinner/Spinner.js"
+    },
+    "./progress": {
+      "types": "./dist/progress/Progress.d.ts",
+      "default": "./dist/progress/Progress.js"
+    },
+    "./switch": {
+      "types": "./dist/switch/Switch.d.ts",
+      "default": "./dist/switch/Switch.js"
+    },
+    "./tabs": {
+      "types": "./dist/tabs/Tabs.d.ts",
+      "default": "./dist/tabs/Tabs.js"
+    },
+    "./text-field": {
+      "types": "./dist/text-field/TextField.d.ts",
+      "default": "./dist/text-field/TextField.js"
+    },
+    "./tooltip": {
+      "types": "./dist/tooltip/Tooltip.d.ts",
+      "default": "./dist/tooltip/Tooltip.js"
     },
     "./config-editor": {
       "types": "./dist/config-editor/ConfigEditor.d.ts",
       "default": "./dist/config-editor/ConfigEditor.js"
     },
+    "./config-editor/capabilities": {
+      "types": "./dist/config-editor/capabilities.d.ts",
+      "default": "./dist/config-editor/capabilities.js"
+    },
+    "./config-editor/document": {
+      "types": "./dist/config-editor/document.d.ts",
+      "default": "./dist/config-editor/document.js"
+    },
+    "./config-editor/paths": {
+      "types": "./dist/config-editor/paths.d.ts",
+      "default": "./dist/config-editor/paths.js"
+    },
     "./config-editor.css": "./src/config-editor/config-editor.css",
-    "./config-editor/diagram": {
-      "types": "./dist/config-editor/diagram/ConfigDiagram.d.ts",
-      "default": "./dist/config-editor/diagram/ConfigDiagram.js"
+    "./isometric-diagram": {
+      "types": "./dist/isometric-diagram/IsometricDiagram.d.ts",
+      "default": "./dist/isometric-diagram/IsometricDiagram.js"
     },
-    "./config-editor/diagram/fixtures": {
-      "types": "./dist/config-editor/diagram/fixtures.d.ts",
-      "default": "./dist/config-editor/diagram/fixtures.js"
+    "./isometric-diagram/fixtures": {
+      "types": "./dist/isometric-diagram/fixtures.d.ts",
+      "default": "./dist/isometric-diagram/fixtures.js"
     },
-    "./config-editor/diagram.css": "./src/config-editor/diagram/diagram.css",
+    "./isometric-diagram.css": "./src/isometric-diagram/isometric-diagram.css",
     "./styles.css": "./src/styles.css"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.diagram.build.json",
-    "dev": "pnpm run --parallel \"/^dev:(base|diagram)$/\"",
+    "copy:assets": "node scripts/copy-assets.ts",
+    "prebuild": "pnpm run copy:assets",
+    "predev": "pnpm run copy:assets",
+    "build": "tsc -p tsconfig.build.json && tsc -p tsconfig.isometric-diagram.build.json",
+    "dev": "pnpm run --parallel \"/^dev:(base|isometric-diagram)$/\"",
     "dev:base": "tsc -p tsconfig.build.json --watch --preserveWatchOutput",
-    "dev:diagram": "tsc -p tsconfig.diagram.build.json --watch --preserveWatchOutput",
+    "dev:isometric-diagram": "tsc -p tsconfig.isometric-diagram.build.json --watch --preserveWatchOutput",
     "test": "bun test src",
-    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.diagram.json"
+    "typecheck": "tsc -p tsconfig.json && tsc -p tsconfig.isometric-diagram.json"
   },
   "dependencies": {
     "@isoflow/isopacks": "^0.0.10",
     "@stacktape/config": "workspace:*",
     "@stacktape/design-tokens": "workspace:*",
-    "monaco-types": "^0.1.0"
+    "@tippyjs/react": "^4.2.6",
+    "aws-react-icons": "^2.1.1",
+    "monaco-types": "^0.1.0",
+    "react-icons": "^5.5.0",
+    "react-select": "^5.10.2",
+    "thinking-orbs": "0.2.0",
+    "tippy.js": "^6.3.7"
   },
   "devDependencies": {
     "@types/bun": "catalog:",

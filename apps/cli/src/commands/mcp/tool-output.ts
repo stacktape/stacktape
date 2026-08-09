@@ -7,6 +7,12 @@ export type ToolOutput = {
   nextActions?: string[];
 };
 
+export const MCP_TOOL_RESULT_SCHEMA_VERSION = 'stacktape.mcp.tool-result.v1' as const;
+
+export type McpToolResultEnvelope = ToolOutput & {
+  schemaVersion: typeof MCP_TOOL_RESULT_SCHEMA_VERSION;
+};
+
 export const maskSecretString = (value: string): string => {
   if (value.length <= 8) {
     return '*'.repeat(Math.max(value.length, 1));
@@ -167,8 +173,22 @@ const shrinkToolPayload = (payload: ToolOutput | Record<string, unknown>): ToolO
   return compact;
 };
 
+const isToolOutput = (payload: ToolOutput | Record<string, unknown>): payload is ToolOutput =>
+  typeof payload.ok === 'boolean' && typeof payload.code === 'string' && typeof payload.message === 'string';
+
 export const toToolText = (payload: ToolOutput | Record<string, unknown>) => {
-  payload = maskSensitiveValues(payload) as ToolOutput | Record<string, unknown>;
+  const normalizedPayload: ToolOutput = isToolOutput(payload)
+    ? payload
+    : {
+        ok: true,
+        code: 'OK',
+        message: 'Stacktape MCP request completed.',
+        data: payload
+      };
+  payload = maskSensitiveValues({
+    schemaVersion: MCP_TOOL_RESULT_SCHEMA_VERSION,
+    ...normalizedPayload
+  }) as McpToolResultEnvelope;
 
   // Truncate rawTail if present
   if ('rawTail' in payload && typeof payload.rawTail === 'string') {
@@ -189,6 +209,7 @@ export const toToolText = (payload: ToolOutput | Record<string, unknown>) => {
     if (text.length > MAX_RESPONSE_CHARS) {
       text = JSON.stringify(
         {
+          schemaVersion: MCP_TOOL_RESULT_SCHEMA_VERSION,
           ok: false,
           code: 'RESPONSE_TOO_LARGE',
           message: `Tool response exceeded ${MAX_RESPONSE_CHARS} characters even after compaction. Retry with fewer results, a narrower query, a headingPath, or a lower maxChars.`,
@@ -204,13 +225,17 @@ export const toToolText = (payload: ToolOutput | Record<string, unknown>) => {
     }
   }
 
+  const structuredContent = JSON.parse(text) as McpToolResultEnvelope;
+
   return {
     content: [
       {
         type: 'text' as const,
         text
       }
-    ]
+    ],
+    structuredContent,
+    isError: !structuredContent.ok
   };
 };
 
@@ -358,6 +383,10 @@ export const buildCliRunOutput = ({
     message: string;
     data?: Record<string, unknown>;
     rawTail?: string;
+    resolvedContext?: {
+      cwd: string;
+      currentWorkingDirectory?: string;
+    };
   };
   command: string;
   policy: { category: string; safety: string; sensitiveOutput?: boolean };
@@ -395,6 +424,7 @@ export const buildCliRunOutput = ({
     data: {
       command,
       policy,
+      ...(result.resolvedContext ? { resolvedContext: result.resolvedContext } : {}),
       ...(data ? { cli: data } : {})
     },
     ...(rawTail ? { rawTail } : {}),

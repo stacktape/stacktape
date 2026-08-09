@@ -1,4 +1,4 @@
-import type { StacktapeResourceType } from '@stacktape/config/schema-inspection';
+import type { StacktapeResourceType } from '@stacktape/config/resource-types';
 
 type KebabToPascalCase<Value extends string> = Value extends `${infer First}-${infer Rest}`
   ? `${Capitalize<First>}${KebabToPascalCase<Rest>}`

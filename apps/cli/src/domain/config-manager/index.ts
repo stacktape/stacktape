@@ -36,6 +36,7 @@ import type { StpTanStackWeb } from '@domain-services/config-manager/resolved-ty
 import type { StpWebService } from '@domain-services/config-manager/resolved-types/web-services';
 import type { StpWorkerService } from '@domain-services/config-manager/resolved-types/worker-services';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
+import { guardrailDefinitionSchema } from '@stacktape/console-api/guardrails';
 import type { FinalTransform, ResourceTransform as CfResourceTransform } from '@stacktape/config-authoring/tooling';
 import type { DefaultedResource, ResourceDefinitionOf, StacktapeResourceType } from './normalized-resource';
 import { isAbsolute, join } from 'node:path';
@@ -107,6 +108,7 @@ import { configErrors } from './errors';
 import type { StackContext } from '@domain-services/stack-context';
 import type { ConfigManagerInitContext, IssueDetectionContext } from './context';
 import type { HelperLambdaDetails } from '@utils/helper-lambdas';
+import { CliError } from '@utils/errors';
 
 /**
  * A CDN-capable resource whose `cdn` block is present, as proved by reading `cdn.enabled` off it. Only the block
@@ -302,7 +304,16 @@ export class ConfigManager {
     );
     this.globalConfigDeploymentNotifications = (globalConfig.deploymentNotifications ||
       []) as DeploymentNotificationDefinition[];
-    this.globalConfigGuardrails = (globalConfig.guardrails || []) as GuardrailDefinition[];
+    const parsedGuardrails = guardrailDefinitionSchema.array().safeParse(globalConfig.guardrails || []);
+    if (!parsedGuardrails.success) {
+      throw new CliError({
+        category: 'GUARDRAIL',
+        code: 'GUARDRAIL_DEFINITION_INVALID',
+        message: 'Your organization has an invalid guardrail definition.',
+        hints: 'Ask an organization administrator to review and save the guardrail again in Stacktape Console.'
+      });
+    }
+    this.globalConfigGuardrails = parsedGuardrails.data;
     // this.alarms = this.alarms.concat(getGlobalConfigDefinedAlarms({ globalConfigAlarms: this.globalConfigAlarms }));
   };
 

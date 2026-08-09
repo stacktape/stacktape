@@ -1,7 +1,9 @@
 import { describe, expect, test } from 'bun:test';
 import { ALLOWED_MEMORY_VALUES_FOR_CPU } from '../src/container-workload-resources';
 import { type RelationalDatabaseEngine, normalizeEngineType } from '../src/relational-database-engines';
-import { getPrettyResourceName, getStacktapeResourceDefinitions } from '../src/schema-inspection';
+import { STACKTAPE_RESOURCE_TYPES } from '../src/resource-types';
+import { getStacktapeResourceDefinitions } from '../src/schema-inspection';
+import { getPrettyResourceName } from '../src/resource-types';
 
 describe('Fargate workload resource compatibility', () => {
   test('preserves every supported CPU and memory combination', () => {
@@ -50,6 +52,7 @@ describe('configuration schema inspection', () => {
     const resources = getStacktapeResourceDefinitions();
 
     expect(resources).toHaveLength(44);
+    expect(new Set(STACKTAPE_RESOURCE_TYPES)).toEqual(new Set(resources.map(({ type }) => type)));
     expect(resources.slice(0, 3).map(({ type }) => type)).toEqual(['function', 'hosting-bucket', 'web-service']);
     expect(resources.find(({ type }) => type === 'relational-database')?.category).toBe('database-resource');
     expect(resources.find(({ type }) => type === 'user-auth-pool')?.category).toBe('security-resource');

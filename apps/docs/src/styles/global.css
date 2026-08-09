@@ -1238,15 +1238,26 @@ html[data-mobile-nav-open] #main-content {
 
   /* Mdx <Link> base (teal inline link). Defined before `.stp-nav-row` so the sidebar row class,
    * which the same component also receives, wins on the conflicting `color`. */
-  .stp-mdx-link {
-    color: rgb(34, 186, 181);
+  .stp-doc-link {
     white-space: nowrap;
     font-weight: 500;
   }
   @media (max-width: 500px) {
-    .stp-mdx-link {
+    .stp-doc-link {
       white-space: normal;
     }
+  }
+
+  .stp-doc-tabs {
+    --stp-tabs-border: rgba(255, 255, 255, 0.1);
+    --stp-tab-padding-x: 16px;
+    --stp-tab-font-size: 14px;
+    --stp-tab-font-weight: 400;
+    --stp-tab-text: var(--color-fc-ternary);
+    --stp-tab-text-active: var(--color-fc-primary);
+    --stp-tab-border-active: var(--color-primary);
+
+    margin-bottom: 12px;
   }
 
   /* `box` */

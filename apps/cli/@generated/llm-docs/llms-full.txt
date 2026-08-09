@@ -8202,6 +8202,21 @@ Assuming a resource named `uploads`:
 > **Tip:** Additional bucket parameters are available via [`$ResourceParam()`](/configuration/directives). See the [referenceable parameters](/configuration/referenceable-parameters) page for the full list.
 
 
+### Hosting bucket
+
+A [hosting bucket](/resources/frontend/static-hosting) exposes the same S3 `name` and `arn` variables as a regular bucket, using the hosting resource's name in the variable prefix. `connectTo` automatically grants access to the underlying S3 bucket; you do not need to know or reference its nested resource name.
+
+### EFS filesystem
+
+Assuming a resource named `sharedFiles`:
+
+| Parameter | Example env var | Description |
+|---|---|---|
+| `id` | `STP_SHARED_FILES_ID` | EFS filesystem ID |
+| `arn` | `STP_SHARED_FILES_ARN` | EFS filesystem ARN |
+
+`connectTo` deliberately does not mount the filesystem. A mount needs a local path and root-directory decision that Stacktape cannot safely infer. Configure the workload's EFS `volumeMounts` when it needs filesystem access; use `connectTo` alone when code only needs the ID or ARN.
+
 ### DynamoDB table
 
 Assuming a resource named `usersTable`:
@@ -8307,6 +8322,18 @@ Assuming a resource named `backend`:
 |---|---|---|
 | `address` | `STP_BACKEND_ADDRESS` | Internal service address |
 
+### AgentCore resources
+
+AgentCore targets inject their resource identifiers and grant only the data-plane permissions needed to use that target:
+
+| Target | Injected parameters | Access granted |
+|---|---|---|
+| [Runtime](/resources/ai/agentcore-runtime) | `id`, `arn`, `endpointName`, `endpointArn` | Invoke the runtime and configured endpoints |
+| [Memory](/resources/ai/agentcore-memory) | `id`, `arn` | Create, read, search, update, and delete events and memory records |
+| [Gateway](/resources/ai/agentcore-gateway) | `id`, `arn`, `url` | Invoke the gateway |
+| [Browser](/resources/ai/agentcore-browser) | `id`, `arn` | Start, use, inspect, and stop browser sessions |
+| [Code Interpreter](/resources/ai/agentcore-code-interpreter) | `id`, `arn` | Start, invoke, inspect, and stop code-interpreter sessions |
+
 ### Additional connectTo targets
 
 The tables above cover resource types with documented `connectTo` environment variables. Beyond those, `connectTo` also accepts **IAM-permission-only targets** — resource types where `connectTo` adds the required IAM permissions to the consuming workload's execution role but does not have a documented set of injected environment variables. These include:
@@ -8318,7 +8345,7 @@ The tables above cover resource types with documented `connectTo` environment va
 
 For these targets, use [`$ResourceParam()`](/configuration/directives) to pass specific parameters as environment variables manually.
 
-In the type definitions, `connectTo` targets fall into two categories: **role-affecting** targets (Lambda functions, container workloads, batch jobs, state machines, event buses, buckets, DynamoDB tables, OpenSearch domains, user auth pools, SQS queues, SNS topics, and Kinesis streams) that modify the consuming workload's IAM role, and **security-group-affecting** targets (relational databases and Redis clusters) that open network access. `connectTo` also accepts AWS service macros such as `aws:ses`.
+In the type definitions, `connectTo` targets fall into three categories: **role-affecting** targets (including AWS API resources and AgentCore resources) that modify the consuming workload's IAM role, **security-group-affecting** targets (relational databases and Redis clusters) that open network access, and **environment-only** targets such as EFS that expose identifiers without guessing additional configuration. `connectTo` also accepts AWS service macros such as `aws:ses`.
 
 ### Script-only variables
 
@@ -8381,6 +8408,7 @@ Stacktape generates IAM policies at deploy time based on the target resource typ
 | Target resource | Access granted |
 |---|---|
 | [Bucket](/resources/storage/s3-bucket) | Read, write, and delete objects; list bucket contents |
+| [Hosting bucket](/resources/frontend/static-hosting) | Read, write, and delete objects in its underlying S3 bucket; list bucket contents |
 | [DynamoDB table](/resources/databases/dynamodb) | CRUD operations (get, put, update, delete) + query and scan |
 | [SQS queue](/resources/messaging/sqs-queue) | Send, receive, and delete messages |
 | [SNS topic](/resources/messaging/sns-topic) | Publish and subscribe |
@@ -8391,6 +8419,12 @@ Stacktape generates IAM policies at deploy time based on the target resource typ
 | [MongoDB Atlas cluster](/resources/databases/mongodb-atlas) | Temporary credential-less access |
 | [Relational database](/resources/databases/relational-database) | Network access (security group rules, not IAM) |
 | [Redis cluster](/resources/databases/redis) | Network access (security group rules, not IAM) |
+| [AgentCore Runtime](/resources/ai/agentcore-runtime) | Invoke the runtime and its configured endpoints |
+| [AgentCore Memory](/resources/ai/agentcore-memory) | Use events and short- and long-term memory records |
+| [AgentCore Gateway](/resources/ai/agentcore-gateway) | Invoke the gateway |
+| [AgentCore Browser](/resources/ai/agentcore-browser) | Use browser sessions and streams |
+| [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter) | Use code-interpreter sessions |
+| [EFS filesystem](/resources/storage/efs-filesystem) | No access change from `connectTo`; use an explicit volume mount for IAM and network wiring |
 
 [Relational databases](/resources/databases/relational-database) and [Redis clusters](/resources/databases/redis) are network-bound resources — data-plane access is controlled through VPC security groups rather than IAM policies. Stacktape opens the correct port between the consuming resource and the target automatically.
 
@@ -8523,6 +8557,7 @@ The following list covers resources where the `connectTo` property is available 
 - [Worker service](/resources/compute/worker-service)
 - [Multi-container workload](/resources/compute/multi-container-workload)
 - [Batch job](/resources/compute/batch-job)
+- [AgentCore Runtime](/resources/ai/agentcore-runtime)
 - SSR frontends — see each resource's page for `connectTo` on the server workload: [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix)
 - [Deployment scripts](/resources/advanced/deployment-scripts)
 - Scripts (`local-script`, `local-script-with-bastion-tunneling`, `bastion-script`)
@@ -10358,6 +10393,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 
 ## Platform resources
+
+### EFS filesystem
+
+An [EFS filesystem](/resources/storage/efs-filesystem) exposes both `id` and `arn`. `connectTo` injects both values but does not mount the filesystem; configure an explicit EFS volume mount when the workload needs filesystem access.
 
 ### Convex
 
@@ -12203,9 +12242,10 @@ A Stacktape deployment runs through several phases: configuration validation, wo
 ## Flow
 1. **Validate & prepare**: Parse config, check guardrails, create missing secrets and SSM parameters
 2. **Package & prepare template**: Bundle Lambda code, build container images, resolve resources, prepare CloudFormation template
-3. **Upload**: Upload packaged artifacts to S3, push container images to ECR
-4. **Deploy**: Create or update the CloudFormation stack (or hot-swap eligible workloads directly)
-5. **Post-deploy**: Run afterDeploy hooks, sync hosting buckets, invalidate CDN caches, send notifications
+3. **Plan & protect**: Fingerprint the final target, template, workload builds, and protected-resource risks
+4. **Upload**: Upload packaged artifacts to S3, push container images to ECR
+5. **Deploy**: Create or update the CloudFormation stack (or hot-swap eligible workloads directly)
+6. **Post-deploy**: Run afterDeploy hooks, sync hosting buckets, invalidate CDN caches, send notifications
 
 
 ### Validate and prepare
@@ -12343,19 +12383,30 @@ If a stack is left in `UPDATE_FAILED` state after a failed update, Stacktape inc
 
 ## Deployment confirmation
 
-Before modifying an existing stack, Stacktape computes the CloudFormation template diff and prompts you to confirm before proceeding. The confirmation shows which resources will be created, updated, replaced, or deleted, helping you catch potentially destructive changes before they reach your AWS account. Skip the prompt in non-interactive environments with `--autoConfirmOperation`:
+Every local, full CloudFormation deploy computes a versioned change plan after the final template is ready and before deployment artifacts are uploaded. The plan binds the resolved AWS account, region, project, stage, stack identity, previous and candidate semantic template digests, workload build digests, Stacktape resource-change counts, and protected stateful resources at risk. Stacktape prints a short plan ID; a successful JSONL/agent result also includes the complete `stacktape.change-plan.v1` object at `data.result.changePlan`. The plan contains target identifiers, but omits templates, resolved property values, credentials, and local paths.
+
+Ordinary creates and updates continue without an extra confirmation. Stacktape asks you to confirm only when the final local diff shows that a protected stateful resource—such as a database, DynamoDB table, S3 bucket, user pool, OpenSearch domain, or EFS file system—will be destroyed or replaced. If `--hotSwap` must fall back to a full deployment, Stacktape finishes any required repackaging, finalizes the template again, and builds the plan from that final template before asking. This prevents you from approving an earlier preview and deploying a later fallback result.
+
+The default deploy path still submits the template directly to CloudFormation; creating the local plan adds no AWS change-set request and no second packaging pass. Use [`stacktape diff`](/cli/diff) when you want AWS's property-level replacement assessment before deploying. Its plan records `aws-change-set` as its evidence source; the faster deploy plan records `local-template-diff`.
+
+In non-interactive CI/CD, explicitly skip the protected-resource confirmation with `--autoConfirmOperation`:
 
 ```bash
 stacktape deploy --stage production --region eu-west-1 --autoConfirmOperation
 ```
 
 
-> **Tip:** Always pass `--autoConfirmOperation` in CI/CD pipelines. Without it, the deploy command hangs waiting for input.
+> **Tip:** Pass `--autoConfirmOperation` only in a pipeline where deployment approval is handled outside Stacktape. Without it, a risky non-interactive deployment fails closed instead of waiting for input.
 
+
+> **Info:** The plan ID is a same-invocation audit fingerprint of semantic templates, workload build inputs, target identity, and the displayed Stacktape resource changes. It is not a checksum of uploaded bytes, a signature, or a reusable cross-job approval token. Portable approvals, signed plans, and immutable cross-account artifact promotion are separate workflows.
+
+
+Hot-swap deploys do not emit a CloudFormation change plan because they update selected Lambda or ECS targets directly. If hot-swap falls back to CloudFormation, Stacktape finalizes the fallback template and emits the plan before upload. CodeBuild and EC2 runners still use their existing launcher-level confirmation in this version; their remote execution is not yet bound to a returned plan ID.
 
 ## Previewing changes
 
-The [`stacktape diff`](/cli/diff) command generates the CloudFormation template and computes the diff against the currently deployed stack without modifying anything. Use it to verify that your config changes produce the expected infrastructure changes before committing to a deploy.
+The [`stacktape diff`](/cli/diff) command generates the CloudFormation template and computes the diff against the currently deployed stack without updating your application resources. It can create missing secret/parameter inputs, upload a preview template, and create a temporary CloudFormation change set. Use it to verify that your config changes produce the expected infrastructure changes before committing to a deploy.
 
 ```bash
 stacktape diff --stage dev --region eu-west-1
@@ -13944,6 +13995,8 @@ If your config matches the deployed stack exactly, the output shows `NO CHANGES 
 
 When agent mode is active (via the `--agent` flag), the command switches from colorized interactive output to a compact, machine-readable format suitable for programmatic consumption by CI scripts, coding assistants, and automation tools.
 
+The terminal JSONL result includes `data.result.changePlan`, a self-versioned `stacktape.change-plan.v1` object. It contains target and baseline identifiers, semantic template and workload-build digests, a short plan ID, Stacktape resource-change counts, protected-resource risks, and `aws-change-set` as the change-evidence source. It does not contain the generated template, resolved property values, credentials, or local paths.
+
 The output follows three paths depending on what CloudFormation reports:
 
 - **No changes at all** — when both raw CloudFormation changes and Stacktape resource changes are empty, the command prints `NO CHANGES DETECTED`.
@@ -15286,7 +15339,7 @@ Your stack is deployed and observable. The next step is automating deployments s
 Source: `apps/docs/content/guardrails/databases.mdx`
 Route: `/guardrails/databases`
 
-Stacktape database guardrails are preventive policy definitions that restrict which database engines, instance sizes, and accessibility modes your team can deploy. Each definition has a `type` identifier and a `properties` object describing what is allowed or blocked for database resources in the stack. The deletion protection guardrail targets [relational databases](/resources/databases/relational-database) specifically, the VPC-only guardrail applies to all databases, and the engine and instance restriction guardrails apply to databases that use engine types and instance sizes respectively.
+Stacktape database guardrails are preventive policy definitions that restrict which database engines, instance sizes, and accessibility modes your team can deploy. Each definition has a `type` identifier and a `properties` object describing what is allowed or blocked for database resources in the stack. The deletion protection guardrail targets [relational databases](/resources/databases/relational-database) specifically, the VPC-only guardrail applies to relational databases and OpenSearch, and the engine and instance restriction guardrails apply to databases that use engine types and instance sizes respectively.
 
 
 > **Info:** Guardrails are **preventive** — non-matching values are blocked, preventing non-compliant configurations from being applied. They are distinct from [alarms](/observability/alarms), which are **reactive** and notify you about runtime problems after deployment.
@@ -15297,7 +15350,7 @@ Stacktape defines four database-specific guardrail types:
 | Guardrail | Type identifier | Key property | Approach |
 |---|---|---|---|
 | [Engine restriction](#engine-restriction) | `database-engine-restriction` | `allowedEngines` | Allowlist |
-| [Instance restriction](#instance-restriction) | `database-instance-restriction` | `blockedInstanceSizes` | Blocklist |
+| [Instance restriction](#instance-restriction) | `database-instance-restriction` | `allowedInstanceSizes` | Allowlist |
 | [VPC-only databases](#vpc-only-databases) | `require-vpc-databases` | `enabled` | Boolean toggle |
 | [Deletion protection](#deletion-protection) | `require-deletion-protection` | `enabled` | Boolean toggle |
 
@@ -15332,7 +15385,7 @@ The `allowedEngines` property accepts an array of engine type identifier strings
 
 ## Instance restriction
 
-The `database-instance-restriction` guardrail prevents teams from provisioning databases with specific instance sizes. Unlike engine restriction, this guardrail uses a **blocklist** — the `blockedInstanceSizes` property lists forbidden instance size strings, and any database configured with a blocked size is blocked.
+The `database-instance-restriction` guardrail allows teams to provision only reviewed database instance sizes. It uses an **allowlist** — any provisioned RDS or Aurora instance size not listed in `allowedInstanceSizes` is blocked. This fails safely when AWS introduces a new size instead of silently permitting it.
 
 Guardrail definition shape (configured in the Stacktape Console):
 
@@ -15340,26 +15393,26 @@ Guardrail definition shape (configured in the Stacktape Console):
 {
   type: 'database-instance-restriction',
   properties: {
-    blockedInstanceSizes: ['db.r5.4xlarge', 'db.r6g.8xlarge']
+    allowedInstanceSizes: ['db.t4g.medium', 'db.r6g.large']
   }
 }
 ```
 
-The `blockedInstanceSizes` property accepts an array of database instance size strings. The type definition gives `db.r5.4xlarge` and `db.r6g.8xlarge` as examples.
+The `allowedInstanceSizes` property accepts an array of exact database instance size strings. Serverless Aurora engines do not select an instance size and are therefore unaffected by this guardrail.
 
-**Blocklist vs allowlist:** Instance restriction uses a **blocklist** — you forbid specific sizes, and everything else is allowed. This is more practical than an allowlist for instance sizes because the number of valid sizes is large and changes as AWS introduces new instance classes. Block the outliers you want to prevent rather than maintaining a comprehensive allowlist.
+**Why an allowlist:** A short reviewed list expresses the actual organizational decision. A blocklist is easy to bypass accidentally with another large class and automatically permits every future AWS size. Legacy `blockedInstanceSizes` definitions remain enforced, but newly saved policies use the allowlist.
 
 **When to enable:** You want to prevent cost surprises from oversized instance classes. Large memory-optimized instances (such as `db.r5.4xlarge` and above) can cost significantly more than smaller instances that handle the same workloads adequately. Blocking expensive sizes proactively is simpler than reviewing every deployment manually.
 
 **When to skip:** Teams with existing cost review processes, or organizations that exclusively use serverless database engines (which scale capacity automatically). Also less relevant when every database configuration is reviewed before deployment.
 
 
-> **Warning:** Each instance size must be listed individually. Blocking `db.r5.4xlarge` does not automatically block `db.r5.8xlarge` or `db.r6g.4xlarge` — add every variant you want to prevent.
+> **Warning:** Each allowed size must be listed exactly. Review this list when your organization adopts a new database family or size.
 
 
 ## VPC-only databases
 
-The `require-vpc-databases` guardrail enforces that all databases must use VPC-only accessibility with no public internet access. When `enabled` is `true`, any database without VPC-only accessibility is blocked.
+The `require-vpc-databases` guardrail enforces that relational databases and OpenSearch domains use VPC-only accessibility with no public internet access. DynamoDB is not checked because it is already accessed through AWS service endpoints rather than a per-table public/private setting. When `enabled` is `true`, any covered resource without VPC-only accessibility is blocked.
 
 Guardrail definition shape (configured in the Stacktape Console):
 
@@ -15376,7 +15429,7 @@ For the accessibility modes available on databases and how to configure them, se
 
 **When to enable:** Production environments, regulated industries, or any organization handling sensitive data — PII, financial records, or health information. Most compliance frameworks (SOC 2, HIPAA, PCI-DSS) require databases to be unreachable from the public internet. Enabling this guardrail ensures no team can accidentally expose a database.
 
-**When to skip:** Development-only environments where developers need to connect to databases directly from their local machines without a VPN or bastion. For production stages, the friction of requiring VPC-only access is worth the security benefit.
+**When to skip:** Organizations where any development stack still needs direct local database access without a VPN or bastion. Guardrails currently apply organization-wide, so this policy cannot be enabled only for production.
 
 **Tradeoff:** VPC-only databases remove public internet access, meaning workloads that need database connectivity must be configured for VPC networking. A [bastion host](/resources/security/bastion-host) can provide local access to VPC-only databases during development.
 
@@ -15405,20 +15458,20 @@ AWS RDS deletion protection is a safeguard that prevents a database instance fro
 
 ## Combining database guardrails
 
-Database guardrails work independently and can be enabled simultaneously to enforce a comprehensive database policy. A typical production setup enables all four: standardize on PostgreSQL engines, block oversized instances, require VPC isolation, and enforce deletion protection.
+Database guardrails work independently and can be enabled simultaneously to enforce a comprehensive database policy. A typical production setup enables all four: standardize on PostgreSQL engines, allow reviewed instance sizes, require VPC isolation, and enforce deletion protection.
 
 When multiple guardrails are active, a stack must satisfy every one of them that applies to its resources.
 
 | Guardrail | What it prevents |
 |---|---|
 | Engine restriction | Non-standard engine types (e.g., MySQL when only PostgreSQL is allowed) |
-| Instance restriction | Oversized or expensive instance sizes |
+| Instance restriction | Unreviewed instance sizes |
 | VPC-only databases | Publicly accessible databases |
 | Deletion protection | Accidentally deletable relational databases |
 
 **Recommended starting point:** Enable VPC-only databases and deletion protection first — they provide the highest-value safety net for production with minimal configuration overhead. They prevent the two most costly mistakes: data exposure and accidental deletion. Add engine restriction once your team has standardized on an engine family, and instance restriction once cost control across teams becomes a priority.
 
-The following database configuration satisfies all four guardrails — it uses a PostgreSQL engine, a non-blocked instance size, VPC-only accessibility, and deletion protection:
+The following database configuration satisfies all four guardrails — it uses a PostgreSQL engine, an allowed instance size, VPC-only accessibility, and deletion protection:
 
 
 Example (TypeScript):
@@ -15453,9 +15506,9 @@ export default defineConfig(() => {
 
 Database guardrails are managed at the organization level in the [Stacktape Console](/stacktape-console/console-overview) — they are not defined in your `stacktape.ts` config file. Your config defines the database; the guardrail (configured separately in the Console) decides whether that database is allowed to deploy. See the [guardrails overview](/guardrails/overview) for the full setup and management workflow.
 
-### Why does engine restriction use an allowlist but instance restriction use a blocklist?
+### Why do engine and instance restrictions use allowlists?
 
-The `database-engine-restriction` guardrail uses an **allowlist** (`allowedEngines`) so that new engine types are blocked by default until you deliberately add them — the safer choice for standardizing on one engine family. The `database-instance-restriction` guardrail uses a **blocklist** (`blockedInstanceSizes`) because the set of valid instance sizes is large and grows as AWS adds new classes; blocking the few outliers you care about is more practical than maintaining a complete allowlist. Note that each instance size must be listed individually — blocking `db.r5.4xlarge` does not block `db.r5.8xlarge`.
+Both restrictions fail closed. `allowedEngines` and `allowedInstanceSizes` require a deliberate review before a new engine or instance size can be deployed. This is safer than trying to enumerate every expensive size in a blocklist. Older `blockedInstanceSizes` policies remain supported so an upgrade does not silently remove protection.
 
 ### Should I use engine restriction or resource type restriction?
 
@@ -15463,7 +15516,7 @@ The `resource-type-restriction` guardrail (covered in [resource limit guardrails
 
 ### What happens when a guardrail blocks my deployment?
 
-The deployment is rejected before any non-compliant database reaches AWS — guardrails are preventive, so the blocked configuration is never applied. Update the database configuration to match the guardrail (for example, switch to an allowed engine, pick a non-blocked instance size, set `accessibilityMode: 'vpc'`, or add `deletionProtection: true`), then deploy again.
+The deployment is rejected before any non-compliant database reaches AWS — guardrails are preventive, so the blocked configuration is never applied. Update the database configuration to match the guardrail (for example, switch to an allowed engine, pick an allowed instance size, set `accessibilityMode: 'vpc'`, or add `deletionProtection: true`), then deploy again.
 
 ### Which database guardrails should I enable first?
 
@@ -15471,7 +15524,7 @@ Enable VPC-only databases and deletion protection first — they provide the hig
 
 ### Can a guardrail control my database costs?
 
-Indirectly, yes. The `database-instance-restriction` guardrail blocks expensive instance sizes (such as `db.r5.4xlarge` and above), preventing cost surprises from oversized memory-optimized classes before they deploy. It does not monitor spend — for ongoing cost tracking see the [managing costs overview](/managing-costs/overview).
+Indirectly, yes. The `database-instance-restriction` guardrail permits only reviewed instance sizes, preventing an unapproved large class from deploying. It does not monitor spend or compare current AWS prices — for ongoing cost tracking see the [managing costs overview](/managing-costs/overview).
 
 ---
 
@@ -15482,7 +15535,7 @@ Route: `/guardrails/deployment`
 
 Deployment guardrails are preventive policies that restrict where and how your team deploys. They enforce allowed stages, limit AWS regions, block specific CLI commands, ban resource types, and cap resources per stack. Unlike [alarms](/observability/alarms) that react to runtime anomalies, guardrails block non-compliant operations before any infrastructure changes happen.
 
-The type definitions include 15 guardrail types. This page focuses on stage, region, command, resource-type, and resource-count restrictions.
+The type definitions include 18 guardrail types. This page focuses on stage, region, command, resource-type, and resource-count restrictions.
 
 | Guardrail | Key property | What it controls |
 |---|---|---|
@@ -15493,7 +15546,7 @@ The type definitions include 15 guardrail types. This page focuses on stage, reg
 | [Resource count limit](#resource-count-limit) | `maxResources` | Maximum resources per stack |
 
 
-> **Info:** Other guardrail types include VPC database requirements, deletion protection, dead-letter queues, Lambda memory and timeout limits, container CPU and memory limits, database engine and instance restrictions, WAF requirements, and custom-domain requirements. See [Security and data protection](/guardrails/security-and-data-protection), [Resource limits](/guardrails/resource-limits), and [Database guardrails](/guardrails/databases). The [Guardrails overview](/guardrails/overview) covers the full set.
+> **Info:** Other guardrail types include VPC database requirements, stack and database deletion protection, recoverable data stores, dead-letter queues, redundant container instances, Lambda and container limits, database restrictions, WAF requirements, and custom-domain requirements. See [Security and data protection](/guardrails/security-and-data-protection), [Resource limits](/guardrails/resource-limits), and [Database guardrails](/guardrails/databases). The [Guardrails overview](/guardrails/overview) covers the full set.
 
 
 ## Where guardrails are configured
@@ -15510,7 +15563,7 @@ Enable deployment guardrails when any of these apply:
 
 - **Multiple people deploy.** Without guardrails, any team member can deploy to any stage or region. A misspelled stage name creates an orphaned stack that accumulates AWS costs.
 - **You have compliance requirements.** Regulations like GDPR or HIPAA may require infrastructure in specific AWS regions. Region restriction enforces this at the deployment layer rather than relying on manual discipline.
-- **You want to protect production.** Restricting the `delete` command discourages accidental stack removal. Capping resource counts discourages monolithic stacks.
+- **You want to protect production.** CloudFormation termination protection prevents accidental stack removal at the AWS layer. Command restrictions can add an earlier Stacktape policy check.
 
 ## When NOT to use deployment guardrails
 
@@ -15550,9 +15603,12 @@ If your team operates across many regions intentionally — for example, deployi
 
 ## Command restriction
 
-Command restriction defines commands that are blocked. Set a `blockedCommands` list with command names — the property accepts a string array, for example `["delete", "rollback"]`. Use it for commands your team does not want allowed by policy.
+Command restriction defines infrastructure-changing commands that are blocked. Supported values are `deploy`, `delete`, `dev`, `deployment-script:run`, `script:run`, `rollback`, and `cf:rollback`. Read-only `diff` and `validate` intentionally remain available so a developer can inspect and diagnose a policy violation.
 
 Command restriction is most useful for protecting production stacks from destructive operations by policy. Listing `delete` in `blockedCommands` is a way to signal that stack removal is not an allowed action under the active guardrail.
+
+
+> **Info:** Command restriction is enforced by Stacktape only. For deletion protection that also covers AWS Console and direct AWS API calls, enable the `require-stack-termination-protection` guardrail.
 
 
 > **Tip:** A common pattern is to block `delete` so that stack removal requires removing it from `blockedCommands` first. This adds a deliberate review step for destructive operations without removing the capability entirely.
@@ -15589,9 +15645,9 @@ If your team is small and everyone understands the cost and operational implicat
 
 ## Resource count limit
 
-Resource count limit caps the total number of Stacktape resources allowed in a single stack. Set a `maxResources` threshold — if the stack's resource count exceeds it, the deployment is blocked. The `maxResources` property accepts a number, for example `20`.
+Resource count limit caps the user-declared Stacktape resources allowed in a single configuration. Set a `maxResources` threshold — if that count exceeds it, the deployment is blocked. Generated nested and CloudFormation resources are not counted.
 
-Large stacks are harder to manage, slower to deploy, and riskier to update. As general AWS background, CloudFormation supports up to 500 resources per stack — but practical issues start well before that limit as deployment times grow, error surfaces widen, and blast radius increases. Setting a `maxResources` threshold encourages teams to decompose large applications into smaller, focused stacks.
+Large configurations are harder to review and carry a wider blast radius. `maxResources` is an architecture-governance threshold, not a CloudFormation quota check: one Stacktape resource can synthesize many CloudFormation resources.
 
 ### When to use
 
@@ -15613,7 +15669,8 @@ Deployment guardrails also combine with guardrails from other categories. A comm
 |---|---|---|
 | Stage restriction | `allowedStages: ["production", "staging", "dev"]` | Enforce naming conventions |
 | Region restriction | `allowedRegions: ["eu-west-1"]` | Data residency |
-| Command restriction | `blockedCommands: ["delete"]` | Discourage accidental stack deletion |
+| Command restriction | `blockedCommands: ["delete"]` | Add a Stacktape-only deletion policy check |
+| [Stack termination protection](/guardrails/security-and-data-protection) | `enabled: true` | Prevent deletion at the CloudFormation layer |
 | Resource count limit | `maxResources: 30` | Prevent stack sprawl |
 | [Require deletion protection](/guardrails/security-and-data-protection) | `enabled: true` | Protect database data |
 | [Function memory limit](/guardrails/resource-limits) | `maxMemoryMB: 2048` | Cost control |
@@ -15648,7 +15705,7 @@ The `GuardrailDefinition` types do not include a per-stage override field — ea
 
 ### How does resource count limit relate to AWS CloudFormation limits?
 
-As general AWS background, CloudFormation supports up to 500 resources per stack. Stacktape's `maxResources` guardrail (from the `resource-count-limit` type) lets you set a lower threshold — such as 20 or 30 — to encourage smaller, more manageable stacks. A single Stacktape resource often maps to multiple CloudFormation resources (a [web service](/resources/compute/web-service) creates an ECS service, task definition, IAM role, and more), so CloudFormation's 500-resource limit can be reached well before your Stacktape resource count seems high.
+It does not enforce the CloudFormation resource quota. `maxResources` counts user-declared Stacktape resources, while one Stacktape resource can map to many CloudFormation resources. Use it as an organization architecture limit; template synthesis and AWS validation remain responsible for CloudFormation limits.
 
 ### What stage names should I standardize on?
 
@@ -15679,14 +15736,14 @@ Guardrails and [alarms](/observability/alarms) serve fundamentally different pur
 
 Stacktape guardrails define organization-level restrictions for stages, regions, commands, resource types, and selected resource settings. Guardrail definitions contain allowed or blocked values; configurations that fall outside the defined policy are not permitted. Guardrails are managed in the [Stacktape Console](/stacktape-console/console-overview).
 
-Stacktape supports 15 guardrail types. This page groups them into four sections for readability:
+Stacktape supports 18 guardrail types. This page groups them into four sections for readability:
 
 | Section | What it controls |
 |---|---|
 | [Deployment restrictions](/guardrails/deployment) | Stages, regions, commands |
-| [Security and data protection](/guardrails/security-and-data-protection) | VPC access, deletion protection, DLQ, WAF, custom domains |
+| [Security and data protection](/guardrails/security-and-data-protection) | Network isolation, deletion protection, backups, DLQ, WAF, service redundancy |
 | [Resource limits](/guardrails/resource-limits) | Function memory/timeout, container CPU/memory, resource count |
-| [Database restrictions](/guardrails/databases) | Allowed engines, blocked instance sizes, blocked resource types |
+| [Database restrictions](/guardrails/databases) | Allowed engines, allowed instance sizes, blocked resource types |
 
 ## Deployment restrictions
 
@@ -15694,7 +15751,8 @@ Deployment restriction guardrails control allowed stages, allowed AWS regions, a
 
 - **Stage restriction** — Only allow deployments to specific stages. Configure an `allowedStages` list (e.g., `["production", "staging"]`); operations targeting any other stage name fail. Useful for enforcing naming conventions or limiting which stages can exist.
 - **Region restriction** — Only allow deployments to specific AWS regions. Configure an `allowedRegions` list (e.g., `["eu-west-1", "us-east-1"]`); operations targeting other regions fail. Essential for data residency compliance and cost control.
-- **Command restriction** — Block specific CLI commands. The `blockedCommands` list accepts command name strings. The source gives `["delete", "rollback"]` as examples — use this to prevent accidental production deletions or restrict destructive operations.
+- **Command restriction** — Block selected infrastructure-changing commands: `deploy`, `delete`, `dev`, `deployment-script:run`, `script:run`, `rollback`, and `cf:rollback`. Read-only `diff` and `validate` stay available so developers can diagnose a blocked configuration.
+- **Require custom domain** — Require web services and hosting buckets to use a domain your organization controls. This is a delivery standard rather than a security boundary.
 
 For full details, see [Deployment guardrails](/guardrails/deployment).
 
@@ -15702,11 +15760,13 @@ For full details, see [Deployment guardrails](/guardrails/deployment).
 
 Security guardrails enforce infrastructure best practices that protect data and reduce attack surface. Each is a toggle — enabled or disabled — with no additional parameters.
 
-- **Require VPC for databases** — When enabled, all databases must use VPC-only accessibility with no public internet access. This prevents accidentally exposing a database to the public internet. See [Relational databases](/resources/databases/relational-database) for supported accessibility modes.
+- **Keep SQL and OpenSearch private** — When enabled, relational databases and OpenSearch domains must use VPC-only accessibility with no public internet access. DynamoDB has no equivalent per-table accessibility setting. See [Relational databases](/resources/databases/relational-database) for supported accessibility modes.
 - **Require deletion protection** — When enabled, all [relational databases](/resources/databases/relational-database) must have `deletionProtection` set to `true`, reducing accidental deletion risk for database resources.
+- **Require stack termination protection** — Require `deploymentConfig.terminationProtection: true`. CloudFormation then rejects stack deletion through Stacktape, AWS Console, or the AWS API until protection is deliberately disabled and redeployed.
+- **Require recoverable data stores** — Require automated backups for RDS, DynamoDB point-in-time recovery, and EFS automatic backups. This adds backup storage cost and does not replace restore testing.
 - **Require dead-letter queue** — When enabled, all [SQS queues](/resources/messaging/sqs-queue) must have a `redrivePolicy` (dead-letter queue) configured. In AWS SQS, a dead-letter queue captures messages that fail processing, preventing silent message loss.
-- **Require WAF on load balancers** — When enabled, all [application load balancers](/resources/networking/application-load-balancer) must have a [web application firewall](/resources/security/web-application-firewall) attached. This adds a layer of protection against common web exploits.
-- **Require custom domain** — When enabled, public-facing [web services](/resources/compute/web-service) and [hosting buckets](/resources/frontend/static-hosting) must have a [custom domain](/resources/networking/custom-domains) configured. This enforces use of a configured custom domain for these resource types.
+- **Require WAF on load balancers** — When enabled, directly configured application load balancers and those generated for web/private services must reference a configured [web application firewall](/resources/security/web-application-firewall). Internally generated load balancers without a configurable firewall setting are ignored.
+- **Require multiple container instances** — Require `scaling.minInstances` of at least two for user-configurable container services. This removes a single-task failure point and increases baseline compute cost. Fixed internal workloads, currently self-hosted Convex, are ignored because their instance count cannot be changed.
 
 For full details, see [Security and data protection guardrails](/guardrails/security-and-data-protection).
 
@@ -15717,7 +15777,7 @@ Resource limit guardrails define maximum allowed values for Lambda memory, Lambd
 - **Function memory limit** — Set a maximum memory allocation (in MB) for all [Lambda functions](/resources/compute/lambda-function) via `maxMemoryMB`. Any function exceeding the configured threshold fails validation. See [Lambda functions](/resources/compute/lambda-function) for AWS-side memory constraints.
 - **Function timeout limit** — Set a maximum timeout (in seconds) for all [Lambda functions](/resources/compute/lambda-function) via `maxTimeoutSeconds`. See [Lambda functions](/resources/compute/lambda-function) for AWS-side timeout limits.
 - **Container resource limit** — Set maximum vCPU (`maxCpu`) and memory in MB (`maxMemoryMB`) for container workloads.
-- **Resource count limit** — Set the maximum number of resources allowed per stack via `maxResources`. Use it when your organization wants to keep stacks smaller and easier to review.
+- **Resource count limit** — Set the maximum number of user-declared Stacktape resources via `maxResources`. Generated CloudFormation resources are not counted.
 
 For full details, see [Resource limit guardrails](/guardrails/resource-limits).
 
@@ -15726,7 +15786,7 @@ For full details, see [Resource limit guardrails](/guardrails/resource-limits).
 Database guardrails standardize which database engines, instance sizes, and resource types your team can use.
 
 - **Allowed database engines** — Configure which engine types are permitted via the `allowedEngines` list. Enter the engine identifiers you want to permit (for example, `postgres`, `aurora-postgresql`). Refer to [Relational databases](/resources/databases/relational-database) for the full list of supported engine identifiers. Deployments using engines not in the list fail.
-- **Blocked instance sizes** — Block specific RDS instance sizes via the `blockedInstanceSizes` list (e.g., `["db.r5.4xlarge", "db.r6g.8xlarge"]`). Prevents teams from provisioning expensive database instances without approval.
+- **Allowed instance sizes** — Allow reviewed provisioned RDS and Aurora sizes via `allowedInstanceSizes` (e.g., `["db.t4g.medium", "db.r6g.large"]`). New or unreviewed sizes stay blocked. Existing legacy blocklist policies continue to be enforced until replaced.
 - **Blocked resource types** — Block specific Stacktape resource types via the `blockedResourceTypes` list. This guardrail accepts any Stacktape resource type — the source gives `["open-search-domain", "redis-cluster"]` as examples. Use it to prevent teams from provisioning resource types your organization hasn't approved.
 
 
@@ -15739,9 +15799,9 @@ For full details, see [Database guardrails](/guardrails/databases).
 
 Guardrails are managed in the [Stacktape Console](/stacktape-console/console-overview). Enabling a toggle guardrail creates it; disabling it removes it. Value-based guardrails are saved with a definition containing their listed properties.
 
-**Toggle-based guardrails** (require VPC for databases, require deletion protection, require dead-letter queue, require WAF on load balancers, require custom domain) are enabled or disabled with a switch.
+**Toggle-based guardrails** (require VPC for databases, stack/database deletion protection, recoverable data stores, dead-letter queues, WAF, custom domains, and multiple container instances) are enabled or disabled with a switch.
 
-**Value-based guardrails** (stage restriction, region restriction, command restriction, blocked resource types, function memory limit, function timeout limit, container resource limit, resource count limit, allowed database engines, blocked instance sizes) render an expandable configuration form with Save, Cancel, and — when active — Remove actions.
+**Value-based guardrails** (stage restriction, region restriction, command restriction, blocked resource types, function memory limit, function timeout limit, container resource limit, resource count limit, allowed database engines, allowed instance sizes) render an expandable configuration form with Save, Cancel, and — when active — Remove actions.
 
 Active value-based guardrails display an `active` label next to the title and a one-line summary of the configured values.
 
@@ -15774,7 +15834,7 @@ No — guardrails apply organization-wide. They are managed for the selected org
 
 ### Can guardrails prevent accidental stack deletion?
 
-Yes. The command restriction guardrail accepts a `blockedCommands` list with command name strings such as `delete` and `rollback`. Adding `delete` to `blockedCommands` blocks the [`stacktape delete`](/cli/delete) command for the organization.
+Yes. Prefer **Protect stacks from deletion**, which requires CloudFormation termination protection and also covers deletion attempted outside Stacktape. A command restriction containing `delete` adds an earlier Stacktape-only policy check, but it cannot stop deletion through AWS Console or another AWS client.
 
 ### Can I restrict which AWS regions my team deploys to?
 
@@ -15807,7 +15867,7 @@ Resource limit guardrails are policy definitions, separate from individual Lambd
 
 Resource limit guardrails are most valuable when multiple developers or teams share an AWS account and you need to prevent cost surprises or capacity mistakes:
 
-- **Cost control** — Cap Lambda memory and container CPU/memory to prevent developers from accidentally provisioning expensive resources. Large Lambda memory settings or large container CPU allocations can materially increase AWS compute spend.
+- **Sizing policy** — Cap Lambda memory and container CPU/memory when your organization has reviewed ceilings. These are configuration limits, not spending caps; Lambda memory can also reduce runtime duration.
 - **Staging environment discipline** — Apply sizing limits that keep development and staging stages cost-effective. These resource-limit guardrail property shapes do not include per-stage exception fields. If you need different limits by stage, model that at the guardrail-management layer rather than inside these individual property objects.
 - **Stack sprawl prevention** — Limit the number of resources per stack to keep infrastructure manageable and avoid hitting AWS CloudFormation or account-level limits.
 - **Restricting resource types** — Block resource types that are expensive, not yet approved, or unnecessary for your workloads (e.g., block `open-search-domain` or `redis-cluster` if your team only uses serverless databases).
@@ -15883,16 +15943,16 @@ The `resource-count-limit` guardrail caps the total number of Stacktape resource
 |---|---|---|
 | `maxResources` | `number` | Maximum number of resources allowed per stack |
 
-**When to set this:** Large stacks are harder to maintain, slower to deploy, and more likely to hit AWS CloudFormation limits (500 resources per stack by default). A limit of 20–30 resources per stack encourages teams to split large applications into separate projects. This also improves deploy speed — smaller stacks have faster CloudFormation changeset calculations.
+**When to set this:** Large Stacktape configurations are harder to review and have a wider blast radius. A limit of 20–30 user-declared resources can encourage teams to split applications into focused projects. It does not count generated CloudFormation resources and therefore is not a CloudFormation quota check.
 
 ## Combining guardrails
 
 A resource-limit policy commonly combines several guardrail definitions. A common production setup might include:
 
-- **Function memory limit** of 2048 MB and **timeout limit** of 60 seconds to keep Lambda costs predictable
+- **Function memory limit** of 2048 MB and **timeout limit** of 60 seconds to enforce reviewed sizing boundaries
 - **Container resource limit** of 4 vCPU and 8192 MB to prevent oversized Fargate tasks
 - **Resource count limit** of 30 to encourage modular stacks
-- **Resource type restriction** blocking expensive managed services in non-production stages
+- **Resource type restriction** blocking managed services your organization does not approve in any stage
 
 Combine resource limit guardrails with [deployment guardrails](/guardrails/deployment) (stage and region restrictions), [security guardrails](/guardrails/security-and-data-protection), and [database guardrails](/guardrails/databases) for comprehensive organizational governance.
 
@@ -15920,7 +15980,7 @@ AWS Lambda pricing is based on the number of requests and the duration billed in
 
 ### How does the resource count limit relate to AWS CloudFormation limits?
 
-AWS CloudFormation has a default limit of 500 resources per stack, but each Stacktape resource generates multiple CloudFormation resources (IAM roles, security groups, log groups, etc.). A stack with 30 Stacktape resources might produce 200+ CloudFormation resources. Setting a `resource-count-limit` guardrail keeps stacks well within CloudFormation limits and encourages teams to split large applications across multiple projects.
+The guardrail counts only user-declared Stacktape resources. It does not inspect the synthesized CloudFormation resource count, so it cannot guarantee that a template remains under an AWS quota. Use it to keep configuration ownership and blast radius manageable, and rely on synthesis/AWS validation for CloudFormation limits.
 
 ### When should I use resource type restriction vs other guardrails?
 
@@ -15933,13 +15993,13 @@ Use `resource-type-restriction` when an entire category of resource is off-limit
 Source: `apps/docs/content/guardrails/security-and-data-protection.mdx`
 Route: `/guardrails/security-and-data-protection`
 
-Stacktape security guardrails are policy definitions that express your team's security requirements — VPC-only database access, deletion protection, dead-letter queues, WAF on application load balancers, custom domains, and approved database engines. Each guardrail has a `type` and a `properties` object that describes the requirement to enforce.
+Stacktape security and data-protection guardrails express requirements that the CLI can verify before changing infrastructure: private database access, deletion protection, recoverable data stores, dead-letter queues, WAF, and redundant container services. Each guardrail has a `type` and a `properties` object that describes the requirement to enforce.
 
 ## How security guardrails work
 
 Security guardrails are policy definitions with a `type` and `properties` object that express requirements for resource configurations. This is fundamentally different from [alarms](/observability/alarms), which reactively notify you when a running system behaves unexpectedly at runtime.
 
-Each guardrail has a `type` and a `properties` object. For the security and data-protection guardrails on this page, `require-*` guardrails use an optional `enabled` boolean, and `database-engine-restriction` uses an optional `allowedEngines` allowlist. Other guardrail types use different property shapes. See the [guardrails overview](/guardrails/overview) for the full list of all 15 guardrail types and their properties.
+Each guardrail has a `type` and a `properties` object. For the security and data-protection guardrails on this page, `require-*` guardrails use an `enabled` boolean, and `database-engine-restriction` uses an `allowedEngines` allowlist. Other guardrail types use different property shapes. See the [guardrails overview](/guardrails/overview) for the full list of all 18 guardrail types and their properties.
 
 | Aspect | Guardrails | Alarms |
 |--------|-----------|--------|
@@ -15954,16 +16014,19 @@ Each security guardrail is an object with a `type` string and a `properties` obj
 ```typescript
 // require-* guardrails — enabled toggle
 { type: 'require-vpc-databases', properties: { enabled: true } }
+{ type: 'require-stack-termination-protection', properties: { enabled: true } }
 { type: 'require-deletion-protection', properties: { enabled: true } }
+{ type: 'require-data-backups', properties: { enabled: true } }
 { type: 'require-dead-letter-queue', properties: { enabled: true } }
 { type: 'require-waf', properties: { enabled: true } }
+{ type: 'require-multiple-container-instances', properties: { enabled: true } }
 { type: 'require-custom-domain', properties: { enabled: true } }
 
 // Restriction guardrails — allowlist
 { type: 'database-engine-restriction', properties: { allowedEngines: ['postgres', 'aurora-postgresql'] } }
 ```
 
-The `GuardrailType` union currently includes 15 guardrail types; see the [guardrails overview](/guardrails/overview) for how the docs group them.
+The `GuardrailType` union currently includes 18 guardrail types; see the [guardrails overview](/guardrails/overview) for how the docs group them.
 
 The examples below show the resource-side settings that correspond to each guardrail requirement. See the linked resource pages for full resource configuration details.
 
@@ -15981,9 +16044,9 @@ Skip guardrails in early prototyping or single-developer projects where speed ma
 
 ## Require VPC databases
 
-The `require-vpc-databases` guardrail enforces that, when enabled, all databases must use VPC-only accessibility with no public internet access.
+The `require-vpc-databases` guardrail enforces that, when enabled, relational databases and OpenSearch domains use VPC-only accessibility with no public internet access. DynamoDB does not have an equivalent per-table public accessibility setting and is not checked.
 
-**When to enable:** Enable in production stages or any organization handling sensitive data. VPC-only databases cannot be reached from the public internet, eliminating an entire class of network-based attack vectors. The tradeoff is that you need a [bastion host](/resources/security/bastion-host) or VPC-connected workloads to access the database for administration and debugging. For most production workloads, VPC-only is the right default.
+**When to enable:** Enable when every stage in the organization should use private data services. VPC-only databases cannot be reached from the public internet, eliminating an entire class of network-based attack vectors. The tradeoff is that you need a [bastion host](/resources/security/bastion-host) or VPC-connected workloads to access the database for administration and debugging. Guardrails currently apply organization-wide rather than only to production.
 
 **When the default is fine:** During early development or prototyping, internet-accessible databases are more convenient for local development and ad-hoc queries. The risk is low when the database holds no real data.
 
@@ -16055,6 +16118,31 @@ export default defineConfig(() => {
 
 Setting `deletionProtection: true` satisfies this guardrail. With deletion protection enabled, AWS RDS rejects API calls that would remove the database instance — this is an AWS-level safeguard independent of Stacktape. When `require-deletion-protection` is enabled, every relational database must set `deletionProtection: true`.
 
+## Require stack termination protection
+
+The `require-stack-termination-protection` guardrail requires `deploymentConfig.terminationProtection: true`. CloudFormation rejects deletion of a protected stack regardless of whether deletion is attempted through Stacktape, AWS Console, or another AWS client.
+
+**When to enable:** Enable when deleting the complete stack would cause a serious outage or data-loss event. To intentionally delete it, an administrator must first remove this guardrail, deploy with termination protection disabled, and then delete the stack. This deliberate two-step process is stronger than blocking only the Stacktape `delete` command.
+
+```typescript
+{
+  deploymentConfig: { terminationProtection: true },
+  resources: { /* ... */ }
+}
+```
+
+## Require recoverable data stores
+
+The `require-data-backups` guardrail checks the backup controls Stacktape can determine from configuration:
+
+| Resource | Required configuration |
+|---|---|
+| Relational database | `automatedBackupRetentionDays` must not be `0`; an omitted value uses the AWS non-zero default |
+| DynamoDB table | `enablePointInTimeRecovery: true` |
+| EFS filesystem | `backupEnabled: true` |
+
+**When to enable:** Enable when those resources can contain data that cannot simply be recreated. DynamoDB PITR and EFS backups add storage cost. The guardrail confirms that backups are configured; it cannot prove that a restore has been tested or that the retention period meets your recovery objectives.
+
 ## Require dead-letter queue
 
 The `require-dead-letter-queue` guardrail ensures every [SQS queue](/resources/messaging/sqs-queue) in the stack has a `redrivePolicy` (dead-letter queue) configured. In AWS SQS, a dead-letter queue captures messages that fail processing repeatedly, preventing silent data loss in message-driven architectures.
@@ -16089,7 +16177,7 @@ The `redrivePolicy` specifies which queue receives failed messages and how many 
 
 ## Require WAF
 
-The `require-waf` guardrail requires every [application load balancer](/resources/networking/application-load-balancer) to have a [web application firewall](/resources/security/web-application-firewall) attached.
+The `require-waf` guardrail requires every directly configured [application load balancer](/resources/networking/application-load-balancer), plus load balancers generated for web and private services, to reference a configured [web application firewall](/resources/security/web-application-firewall). Internally generated load balancers that do not expose a configurable firewall setting are ignored.
 
 **When to enable:** Enable for public-facing applications that handle user input, authentication, or sensitive data. AWS WAF can defend against common web exploits including SQL injection and cross-site scripting. Most production APIs serving public traffic benefit from WAF.
 
@@ -16118,13 +16206,19 @@ export default defineConfig(() => {
 ```
 
 
-The `useFirewall` property references a [web application firewall](/resources/security/web-application-firewall) resource by name. When enabled, `require-waf` requires all application load balancers to have a web application firewall attached. See the [web application firewall page](/resources/security/web-application-firewall) for WAF rule configuration.
+The `useFirewall` property references a [web application firewall](/resources/security/web-application-firewall) resource by name. When enabled, `require-waf` checks directly configured load balancers and those generated for web and private services. See the [web application firewall page](/resources/security/web-application-firewall) for WAF rule configuration.
+
+## Require multiple container instances
+
+The `require-multiple-container-instances` guardrail requires `scaling.minInstances` of at least `2` for web services, private services, worker services, and user-defined multi-container workloads. It prevents a routine task or instance failure from leaving a service with no running copy. Fixed internal workloads, currently self-hosted Convex, are ignored because users cannot change their instance count.
+
+**Tradeoff:** Two instances improve instance-level availability but double the minimum compute allocation compared with the default single instance. This rule does not by itself establish a complete availability target; application dependencies and capacity still matter.
 
 ## Require custom domain
 
-When enabled, the `require-custom-domain` guardrail requires public-facing [web services](/resources/compute/web-service) and [hosting buckets](/resources/frontend/static-hosting) to have a [custom domain](/resources/networking/custom-domains) configured. Use it when production endpoints must be served from domains your team controls rather than auto-generated AWS URLs.
+When enabled, the `require-custom-domain` guardrail requires public-facing [web services](/resources/compute/web-service) and [hosting buckets](/resources/frontend/static-hosting) to have a [custom domain](/resources/networking/custom-domains) configured. This is a delivery and branding standard, not a security boundary.
 
-**When to enable:** Enable for production stages where URL stability, branding, and domain ownership matter. Custom domains give your users a predictable, professional endpoint. They also let you migrate backends without changing the URL your consumers depend on.
+**When to enable:** Enable only when every stage in the organization needs URL stability, branding, and domain ownership. Custom domains give your users a predictable, professional endpoint, but guardrails currently apply organization-wide rather than only to production.
 
 **When the default is fine:** Skip for development and staging stages where custom domains add DNS propagation delay and certificate provisioning time without adding value. Auto-generated URLs are perfectly adequate for internal testing.
 
@@ -16184,18 +16278,21 @@ Most production organizations enable multiple security guardrails together. A ty
 
 | Guardrail | What it enforces | Recommended for |
 |-----------|-----------------|-----------------|
-| `require-vpc-databases` | Network isolation for all databases | All production stages |
+| `require-vpc-databases` | Network isolation for relational databases and OpenSearch | Organizations requiring private access in every stage |
+| `require-stack-termination-protection` | Prevent complete stack deletion | Long-lived production stacks |
 | `require-deletion-protection` | Prevent accidental database removal | All stages with persistent data |
+| `require-data-backups` | Recoverable RDS, DynamoDB, and EFS data | Workloads with non-reproducible data |
 | `require-dead-letter-queue` | Message durability for SQS queues | Event-driven architectures |
 | `require-waf` | Application-layer firewall on application load balancers | Public-facing APIs |
+| `require-multiple-container-instances` | At least two running container copies | Availability-sensitive services |
 | `require-custom-domain` | Stable, branded endpoints | Production web services |
 | `database-engine-restriction` | Approved engine types only | Compliance-regulated teams |
 | `resource-type-restriction` | Block non-approved resource types | Security-sensitive environments |
 
-These guardrails complement each other. VPC databases prevent network-level exposure. WAF adds application-level protection. Deletion protection and dead-letter queues prevent data loss. Custom domains ensure stable endpoints. Engine restrictions enforce your approved technology list.
+These guardrails complement each other. VPC databases prevent network-level exposure. WAF adds application-level protection. Stack and database deletion protection stop accidental removal, while backups protect against corruption and accidental writes. Multiple container instances reduce single-task downtime. Custom domains ensure stable endpoints, and engine restrictions enforce your approved technology list.
 
 
-> **Tip:** Start with `require-vpc-databases` and `require-deletion-protection` — they provide the highest security value with the least friction. Add `require-waf`, `require-dead-letter-queue`, and `require-custom-domain` as your production security posture matures.
+> **Tip:** Start with `require-vpc-databases`, stack termination protection, and data backups for long-lived production workloads. Add WAF, dead-letter queues, and multiple container instances where their explicit cost and operational tradeoffs match the workload.
 
 
 ## Related guardrails
@@ -16206,7 +16303,7 @@ This page covers security and data-protection guardrails. Stacktape includes add
 - **Resource limit guardrails** — `function-memory-limit`, `function-timeout-limit`, `container-resource-limit`, and `resource-count-limit` cap the size and count of compute resources. See [resource limit guardrails](/guardrails/resource-limits).
 - **Database guardrails** — `database-engine-restriction` and `database-instance-restriction` control which database engines and instance sizes are allowed. See [database guardrails](/guardrails/databases).
 
-For a high-level overview of all 15 guardrail types, see the [guardrails overview](/guardrails/overview).
+For a high-level overview of all 18 guardrail types, see the [guardrails overview](/guardrails/overview).
 
 ## FAQ
 
@@ -16216,7 +16313,7 @@ VPC-only accessibility means the database has no public IP address and can only 
 
 ### What does the require-waf guardrail actually protect against?
 
-The guardrail itself only enforces that every [application load balancer](/resources/networking/application-load-balancer) has a [web application firewall](/resources/security/web-application-firewall) attached — the real protection depends on the WAF rules you configure. AWS WAF inspects incoming HTTP/HTTPS requests and blocks those matching your rules, with common rule sets defending against SQL injection, cross-site scripting (XSS), and bot traffic, plus rate limiting and geographic restrictions.
+The guardrail itself only enforces that configurable [application load balancers](/resources/networking/application-load-balancer) reference a [web application firewall](/resources/security/web-application-firewall) — the real protection depends on its rules. AWS WAF inspects incoming HTTP/HTTPS requests and blocks those matching your rules, with common rule sets defending against SQL injection, cross-site scripting (XSS), and bot traffic, plus rate limiting and geographic restrictions.
 
 ### Do security guardrails add cost to my AWS bill?
 
@@ -46612,6 +46709,9 @@ OpenCode global paths: on Windows, `%APPDATA%\opencode\opencode.jsonc` or `%APPD
 The MCP server uses stdio transport — every client launches `stacktape mcp` as a child process and communicates over stdin/stdout using JSON-RPC.
 
 
+> **Info:** Stacktape MCP requires the modern MCP `2026-07-28` protocol. It does not fall back to the older session-based protocol. If a configured client cannot discover the four Stacktape tools, update that client to a version with MCP `2026-07-28` support.
+
+
 > **Info:** Detection is based on whether a config file exists on disk, not whether the client application is installed. A freshly installed client that has never been opened (and therefore has no config file) will not show the `(detected)` label in the interactive prompt — but you can still select it, and `mcp:add` will create the project-level config file.
 
 
@@ -46757,6 +46857,8 @@ The MCP server exposes four tools. Each tool uses an `action` parameter to group
 | `stacktape_cli` | `list`, `describe`, `plan`, `run` | Discover CLI commands, validate arguments, build execution plans, and execute non-interactive commands through safety-classified gates |
 | `stacktape_dev` | `plan`, `start`, `status`, `logs`, `rebuild`, `rebuild_all`, `stop` | Plan and control [dev mode](/local-development/dev-mode-overview) sessions |
 
+Every completed tool call returns a `stacktape.mcp.tool-result.v1` JSON envelope as structured content and as an identical text block. The envelope includes `ok`, `code`, and `message`, with operation-specific fields under `data`. This lets clients consume typed results while keeping the response readable in clients that primarily render text content.
+
 Tool arguments accept common snake_case and kebab-case forms (`project_name`, `config_path`, `start_time`, `end_time`, `secret_name`, etc.) and normalize them to camelCase automatically. Your AI assistant does not need to know the exact casing convention.
 
 ### Docs tool
@@ -46805,7 +46907,7 @@ The typical workflow:
 1. **`action: "list"`** — discover available commands, optionally filtered by `category` or `safety` level.
 2. **`action: "describe"`** — get full metadata for a specific command (allowed arguments, safety class, confirmation policy).
 3. **`action: "plan"`** — build a read-only execution plan. Pass `cwd` with the absolute path to the Stacktape project root when the assistant has it — `plan` uses it to scan config files and `package.json` scripts. The action infers defaults, validates arguments against CLI metadata, and returns a suggested `action: "run"` payload with a shell command preview. No credentials are required for planning.
-4. **`action: "run"`** — execute the planned command as a CLI subprocess. Mutating commands require `confirm: true`. Destructive commands require direct user confirmation through MCP form elicitation (see [Safety model](#safety-model)).
+4. **`action: "run"`** — execute the planned command as a CLI subprocess. Mutating commands require `confirm: true`. Destructive commands require direct user confirmation through the client's confirmation form (see [Safety model](#safety-model)).
 
 Common parameters accepted by `plan` and `run`:
 
@@ -46826,7 +46928,7 @@ Common parameters accepted by `plan` and `run`:
 | `secretValue` | string | Secret value for `secret:set` (masked in tool output) |
 | `secretFile` | string | Path to a file containing the secret value |
 | `hotSwap` | boolean | Request hotswap deployment when supported |
-| `confirm` | boolean | Required for mutating commands. Destructive commands also require direct user confirmation through MCP elicitation; this flag alone cannot authorize them. |
+| `confirm` | boolean | Required for mutating commands. Destructive commands also require direct user confirmation through the client's confirmation form; this flag alone cannot authorize them. |
 | `timeoutMs` | number | Command timeout in milliseconds for `run` |
 
 The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `secrets`) and `safety` (e.g. `readOnly`, `mutating`, `destructive`) to filter results.
@@ -46840,13 +46942,13 @@ The `list` action also accepts `category` (e.g. `deployment`, `diagnostics`, `se
 `stacktape_dev` manages [dev mode](/local-development/dev-mode-overview) lifecycle without requiring a terminal. The dev mode agent listens on a local HTTP port (default `7331`) for control commands.
 
 - **`plan`** scans the project and returns suggested start arguments without starting anything. `plan` defaults `stage` to `dev` and infers `projectName`, `region`, `awsAccount`, `currentWorkingDirectory`, and `configPath` from deploy scripts and project scan when available. A dev-mode plan is only complete when `stage`, `region`, and `configPath` are resolved; otherwise the tool returns `MISSING_ARGS` with next steps. Since `stage` defaults to `dev`, the most common missing arguments are `region` and `configPath`.
-- **`start`** launches dev mode as a subprocess with a 12-minute timeout for initial setup. Pass `projectName`, `stage`, `region`, `configPath`, and optionally `awsAccount`, `agentPort`, `currentWorkingDirectory`, `resources`, `skipResources`, `watch`, `remoteResources`, or `freshDb`.
+- **`start`** launches dev mode as a subprocess with a 12-minute timeout for initial setup. Pass `projectName`, `stage`, `region`, `configPath`, and optionally `awsAccount`, `agentPort`, `currentWorkingDirectory`, `resources`, `skipResources`, `watch`, `remoteResources`, or `freshDb`. A successful start returns an opaque `data.session.devSessionId`.
 - **`status`** returns the current state of the running session.
 - **`logs`** paginates structured log entries. Accepts `cursor`, `limit`, and `workload` for filtering.
 - **`rebuild`** triggers a rebuild of a single workload (pass `workload` name). **`rebuild_all`** triggers a rebuild of every workload.
 - **`stop`** terminates the active session.
 
-Only one dev session can be active at a time within an MCP server process. Actions other than `plan` and `start` require an active session — if none exists or the session's port no longer responds to health checks, the tool returns `NOT_FOUND`.
+Multiple dev sessions can be active for different projects or ports. Pass the `devSessionId` returned by `start` as `args.devSessionId` to `rebuild`, `rebuild_all`, and `stop`; these mutating actions never guess which session you intended. `status` and `logs` may omit the handle only when exactly one session is active. With multiple sessions, omission returns `AMBIGUOUS_DEV_SESSION`; an unknown or unreachable handle returns `NOT_FOUND`.
 
 ## Safety model
 
@@ -46858,10 +46960,10 @@ The MCP server classifies every CLI command into a safety level and enforces per
 | `diagnostic` | Executes without confirmation | `query:sql`, `query:dynamodb`, `query:redis`, `query:opensearch` |
 | `local` | Executes without confirmation | `synth`, `validate`, `package` |
 | `mutating` | Requires `confirm: true` in the `run` call | [`deploy`](/cli/deploy), [`secret:set`](/cli/secret-set), [`rollback`](/cli/rollback) |
-| `destructive` | Requires direct user confirmation through MCP form elicitation; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret:delete`](/cli/secret-delete) |
+| `destructive` | Requires direct user confirmation for the exact command and target; agent-supplied `confirm: true` alone is not sufficient | [`delete`](/cli/delete), [`secret:delete`](/cli/secret-delete) |
 | `interactive` | Rejected by the MCP server — must be run in the user's own terminal | [`login`](/cli/login), [`dev`](/cli/dev) (use `stacktape_dev` instead), `bastion:session` |
 
-For destructive commands, the MCP server uses the MCP elicitation protocol to prompt the user directly through their AI client's UI. If the client does not support form elicitation, the command fails closed and the assistant is told to ask the user to run the command in their own terminal.
+For destructive commands, the MCP server uses the modern protocol's multi-round input-required flow to prompt the user directly through their AI client's UI. The confirmation is short-lived, bound to the exact command, arguments, and project directory, and can be used only once. A declined, expired, replayed, or target-mismatched confirmation does not execute the command. If the client does not support confirmation forms, the command fails closed and the assistant is told to ask the user to run the command in their own terminal.
 
 
 > **Warning:** `diagnostic` describes the command category, not a guarantee that an individual query is read-only. SQL, Redis, DynamoDB, and OpenSearch query commands run without an MCP confirmation prompt and can change data when given mutating input. Review the planned command and query before it runs, especially against production stages.
@@ -46883,11 +46985,11 @@ For CI environments, the MCP server's safety guidance tells assistants to ask us
 The MCP server starts when your AI client launches the `stacktape mcp` command as a child process using stdio transport. The startup sequence is:
 
 1. The client spawns `stacktape mcp` as a child process.
-2. The server registers and connects four tools (docs, project, CLI, and dev) so they are discoverable immediately.
+2. The client discovers the modern `2026-07-28` server and its four tools (docs, project, CLI, and dev).
 3. The bundled documentation search index initializes asynchronously. If indexing fails, operational tools remain available and `stacktape_docs` reports the indexing error.
 4. The assistant sends MCP tool calls over stdin; the server executes them and returns structured JSON over stdout.
 
-For CLI execution, the MCP server validates the command against CLI metadata, applies safety policy, spawns a Stacktape CLI subprocess, streams its JSONL output, and returns a consolidated response. Tool responses are capped at 30,000 characters. Large `rawTail` output is shortened by keeping the beginning and end. Other large payloads are compacted by dropping or shrinking bulky fields (such as truncating answer text, limiting reference and snippet counts, and shortening data content). If compaction is still insufficient, the server returns `RESPONSE_TOO_LARGE`.
+For CLI execution, the MCP server validates the command against CLI metadata, applies safety policy, spawns a Stacktape CLI subprocess, and forwards progress notifications while retaining a bounded event history for the final consolidated response. Cancelling the MCP call terminates the subprocess tree and returns `CANCELLED`; timeouts return `TIMEOUT`. A missing, malformed, or duplicate final CLI agent result fails closed instead of guessing whether the command succeeded. Tool responses are capped at 30,000 characters. Large `rawTail` output is shortened by keeping the beginning and end. Other large payloads are compacted by dropping or shrinking bulky fields (such as truncating answer text, limiting reference and snippet counts, and shortening data content). If compaction is still insufficient, the server returns `RESPONSE_TOO_LARGE`.
 
 For docs queries, search runs against a local index. No network calls are made.
 
@@ -46955,7 +47057,7 @@ Docs search, project scanning, and CLI metadata operations (`list`, `describe`, 
 
 ### Is the MCP server safe for production workflows?
 
-The MCP server is in preview. Docs, project scanning, CLI listing, description, and planning are read-only. The server classifies every CLI command into a safety level: `readOnly`, `diagnostic`, `local`, `mutating`, `destructive`, or `interactive`. Mutating commands require `confirm: true`, destructive commands require direct user confirmation through MCP elicitation when supported, and interactive commands are rejected. Note that diagnostic commands like [`query:sql`](/cli/query-sql) run without confirmation but can modify state depending on the query passed — review those tool calls before approving. Treat MCP-initiated deployments with the same care as manual CLI deployments.
+The MCP server is in preview. Docs, project scanning, CLI listing, description, and planning are read-only. The server classifies every CLI command into a safety level: `readOnly`, `diagnostic`, `local`, `mutating`, `destructive`, or `interactive`. Mutating commands require `confirm: true`, destructive commands require direct user confirmation for the exact command and target when the client supports confirmation forms, and interactive commands are rejected. Note that diagnostic commands like [`query:sql`](/cli/query-sql) run without confirmation but can modify state depending on the query passed — review those tool calls before approving. Treat MCP-initiated deployments with the same care as manual CLI deployments.
 
 ### What happens if a deployment times out through MCP?
 
@@ -47021,7 +47123,7 @@ The server exposes four tools:
 
 ### How assistants use the MCP server
 
-An AI assistant interacting with the MCP server follows a plan-then-execute pattern. Before executing a Stacktape CLI command, the assistant calls `stacktape_cli` with `action=plan`, which scans your project, resolves config files, validates arguments, and returns validated command arguments with a run payload. The tool also supports `action=list` and `action=describe` for command discovery — the assistant uses these to find available commands and inspect their arguments before planning. The assistant then calls `action=run` with the planned payload, adding `confirm: true` for mutating commands only after receiving explicit user approval in the same conversation. Non-mutating commands (read-only, diagnostic, and local) run without user confirmation. Destructive commands go further — the assistant cannot supply confirmation on its own; the MCP server requires direct user confirmation through form elicitation before execution. This flow prevents the assistant from running commands with wrong arguments or against the wrong stage.
+An AI assistant interacting with the MCP server follows a plan-then-execute pattern. Before executing a Stacktape CLI command, the assistant calls `stacktape_cli` with `action=plan`, which scans your project, resolves config files, validates arguments, and returns validated command arguments with a run payload. The tool also supports `action=list` and `action=describe` for command discovery — the assistant uses these to find available commands and inspect their arguments before planning. The assistant then calls `action=run` with the planned payload, adding `confirm: true` for mutating commands only after receiving explicit user approval in the same conversation. Non-mutating commands (read-only, diagnostic, and local) run without user confirmation. Destructive commands go further — the assistant cannot supply confirmation on its own; the MCP server requires direct user confirmation through the client's confirmation form before execution. This flow prevents the assistant from running commands with wrong arguments or against the wrong stage.
 
 The `stacktape_docs` tool gives the assistant access to the full Stacktape documentation index. When you ask "how do I add a DynamoDB table?" or "what's the syntax for connecting resources?", the assistant searches the docs and returns grounded answers with code examples — rather than guessing from training data.
 
@@ -47037,10 +47139,10 @@ The MCP server categorizes every CLI command by safety level and enforces approp
 | `diagnostic` | Runs without confirmation | `query:sql`, `query:dynamodb`, `query:redis`, `query:opensearch` |
 | `local` | Runs without confirmation | `synth`, `validate`, `package` |
 | `mutating` | Requires explicit user approval (`confirm: true`) | `deploy`, `secret:set`, `domain:add` |
-| `destructive` | Requires direct user confirmation through MCP form elicitation | `delete`, `secret:delete` |
+| `destructive` | Requires direct user confirmation for the exact command and target | `delete`, `secret:delete` |
 | `interactive` | Rejected — must use user's terminal or `stacktape_dev` | `dev`, `init` |
 
-Read-only commands run without confirmation. Diagnostic database commands also run without confirmation, but their query text can still modify data; review SQL, Redis, DynamoDB, and OpenSearch operations carefully. Mutating commands require the user to explicitly approve execution in the current conversation. Destructive commands go further: the assistant cannot supply confirmation on its own. Instead, the MCP server uses form elicitation to present a confirmation dialog directly to the user, and the operation only proceeds if the user confirms through that dialog. If the MCP client does not support elicitation, destructive commands are refused entirely and the user is told to run them in their own terminal.
+Read-only commands run without confirmation. Diagnostic database commands also run without confirmation, but their query text can still modify data; review SQL, Redis, DynamoDB, and OpenSearch operations carefully. Mutating commands require the user to explicitly approve execution in the current conversation. Destructive commands go further: the assistant cannot supply confirmation on its own. Instead, the MCP server presents a confirmation dialog directly to the user, and the operation proceeds only if the user confirms the exact command and target. If the MCP client does not support confirmation forms, destructive commands are refused entirely and the user is told to run them in their own terminal.
 
 Interactive commands like [`stacktape dev`](/cli/dev) and [`stacktape init`](/cli/init) require a terminal UI and are rejected by `stacktape_cli`. Dev mode lifecycle is handled through the dedicated `stacktape_dev` tool instead.
 
@@ -47115,7 +47217,7 @@ Stacktape works with any MCP-compatible coding assistant. Run [`stacktape mcp:ad
 
 ### Can an AI assistant deploy to production through the MCP server?
 
-Yes, with safety gates — though the MCP server is still in preview and under active development. Mutating commands that change AWS resources require explicit user approval (`confirm: true`) and run through `stacktape_cli` only after planning. Destructive operations like [`stacktape delete`](/cli/delete) go further: they require direct user confirmation through MCP form elicitation that the AI assistant cannot supply on its own, and if the client doesn't support elicitation they are refused entirely. Sensitive outputs like secret values and connection strings are automatically masked in MCP responses.
+Yes, with safety gates — though the MCP server is still in preview and under active development. Mutating commands that change AWS resources require explicit user approval (`confirm: true`) and run through `stacktape_cli` only after planning. Destructive operations like [`stacktape delete`](/cli/delete) go further: they require direct user confirmation for the exact command and target that the AI assistant cannot supply on its own, and if the client doesn't support confirmation forms they are refused entirely. Sensitive outputs like secret values and connection strings are automatically masked in MCP responses.
 
 ### How does agent mode differ from standard dev mode?
 

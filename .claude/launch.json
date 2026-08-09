@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "console-ui",
+      "runtimeExecutable": "pnpm",
+      "runtimeArgs": ["dev:console"],
+      "port": 4000
+    }
+  ]
+}

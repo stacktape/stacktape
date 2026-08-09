@@ -113,6 +113,8 @@ If your config matches the deployed stack exactly, the output shows `NO CHANGES 
 
 When agent mode is active (via the `--agent` flag), the command switches from colorized interactive output to a compact, machine-readable format suitable for programmatic consumption by CI scripts, coding assistants, and automation tools.
 
+The terminal JSONL result includes `data.result.changePlan`, a self-versioned `stacktape.change-plan.v1` object. It contains target and baseline identifiers, semantic template and workload-build digests, a short plan ID, Stacktape resource-change counts, protected-resource risks, and `aws-change-set` as the change-evidence source. It does not contain the generated template, resolved property values, credentials, or local paths.
+
 The output follows three paths depending on what CloudFormation reports:
 
 - **No changes at all** — when both raw CloudFormation changes and Stacktape resource changes are empty, the command prints `NO CHANGES DETECTED`.

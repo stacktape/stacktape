@@ -1,10 +1,11 @@
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { Client } from '@modelcontextprotocol/sdk/client/index.js';
-import { StdioClientTransport } from '@modelcontextprotocol/sdk/client/stdio.js';
+import { Client } from '@modelcontextprotocol/client';
+import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 
 type ToolEnvelope = {
+  schemaVersion?: string;
   ok?: boolean;
   code?: string;
   message?: string;
@@ -39,10 +40,19 @@ const textOf = (result: Awaited<ReturnType<Client['callTool']>>): string => {
 };
 
 const callJsonTool = async (client: Client, tool: string, args: Record<string, unknown>): Promise<ToolEnvelope> => {
-  const result = await client.callTool({ name: tool, arguments: args }, undefined, { timeout: 30000 });
+  const result = await client.callTool({ name: tool, arguments: args }, { timeout: 30000 });
   const text = textOf(result);
   try {
-    return JSON.parse(text) as ToolEnvelope;
+    const parsed = JSON.parse(text) as ToolEnvelope;
+    assert(Boolean(result.structuredContent), `Tool ${tool} did not return structuredContent.`);
+    assert(
+      JSON.stringify(result.structuredContent) === JSON.stringify(parsed),
+      `Tool ${tool} text and structuredContent differed.`
+    );
+    assert(result.isError === !parsed.ok, `Tool ${tool} returned inconsistent isError semantics.`);
+    return parsed.message === 'Stacktape MCP request completed.' && parsed.data
+      ? { ...parsed, ...parsed.data }
+      : parsed;
   } catch {
     throw new Error(`Tool ${tool} did not return JSON. First 500 chars:\n${text.slice(0, 500)}`);
   }
@@ -588,7 +598,10 @@ const main = async () => {
         assert(args.region === 'eu-central-1', 'Expected deploy script region reused for diff context.');
         assert(args.projectName === 'prod-eval-choice', 'Expected projectName preserved.');
         assert(args.configPath === 'stacktape.ts', 'Expected config path.');
-        assert(args.currentWorkingDirectory === '.', 'Expected current working directory.');
+        assert(
+          args.currentWorkingDirectory === tempDeployScriptChoiceCwd,
+          'Expected absolute current working directory.'
+        );
         assert(!('hotSwap' in args), 'Expected unsupported hotSwap arg dropped for diff.');
         const matched = result.data?.matchedPackageScript as Record<string, unknown>;
         assert(matched.matchKind === 'deploy-context', 'Expected deploy-context package script match.');
@@ -726,16 +739,15 @@ const main = async () => {
       }
     },
     {
-      id: 'cli-run-destructive-confirm-true-fails-closed-without-elicitation',
+      id: 'cli-run-destructive-confirmation-declined',
       tool: 'stacktape_cli',
       args: { action: 'run', command: 'delete', args: { stage: 'dev', region: 'us-east-1' }, confirm: true },
       assert: (result) => {
-        assert(result.ok === false, 'Expected delete with agent-supplied confirm to fail closed.');
-        assert(result.code === 'USER_CONFIRMATION_REQUIRED', 'Expected direct user confirmation requirement.');
-        assert(includes(result.message, 'elicitation'), 'Expected elicitation guidance.');
+        assert(result.ok === false, 'Expected a declined destructive operation not to execute.');
+        assert(result.code === 'USER_CONFIRMATION_DECLINED', 'Expected direct user confirmation decline.');
         assert(
-          includes(result.nextActions, 'agent-supplied confirmation is not sufficient'),
-          'Expected agent safety guidance.'
+          includes(result.nextActions, 'fresh confirmation'),
+          'Expected fresh-confirmation guidance after decline.'
         );
       }
     },
@@ -875,12 +887,19 @@ const main = async () => {
         assert(args.hotSwap === true, 'Expected --hs normalized to hotSwap.');
         assert(args.region === 'eu-central-1', 'Expected region inferred from the selected package script.');
         assert(args.configPath === 'stacktape.ts', 'Expected config path.');
-        assert(args.currentWorkingDirectory === '.', 'Expected current working directory.');
+        assert(
+          args.currentWorkingDirectory === tempDeployScriptChoiceCwd,
+          'Expected absolute current working directory.'
+        );
         assert(!('aa' in args), 'Did not expect aa alias in final args.');
         assert(!('hs' in args), 'Did not expect hs alias in final args.');
         const cliRun = result.data?.stacktapeCliRun as Record<string, unknown>;
         const cliRunArguments = cliRun.arguments as Record<string, unknown>;
         assert(!('confirm' in cliRunArguments), 'Expected planner not to pre-fill agent-supplied confirm.');
+        assert(
+          cliRunArguments.cwd === tempDeployScriptChoiceCwd,
+          'Expected planned run payload to preserve the absolute project cwd.'
+        );
       }
     },
     {
@@ -1002,7 +1021,7 @@ const main = async () => {
         assert(result.ok === true, 'Expected temp deploy plan OK.');
         const args = result.data?.args as Record<string, unknown>;
         assert(args.configPath === 'stacktape.ts', 'Expected temp config path.');
-        assert(args.currentWorkingDirectory === '.', 'Expected temp working directory.');
+        assert(args.currentWorkingDirectory === tempProjectCwd, 'Expected absolute temp working directory.');
         assert(args.projectName === 'prod-eval-app', 'Expected projectName.');
       }
     },
@@ -1040,7 +1059,7 @@ const main = async () => {
         assert(args.region === 'us-east-1', 'Expected region inferred from the deploy script.');
         assert(args.stage === 'dev', 'Expected dev stage default.');
         assert(args.configPath === 'stacktape.ts', 'Expected config path.');
-        assert(args.currentWorkingDirectory === '.', 'Expected current working directory.');
+        assert(args.currentWorkingDirectory === tempProjectCwd, 'Expected absolute current working directory.');
         assert(!('hotSwap' in args), 'Expected deploy-only hotSwap removed.');
       }
     },
@@ -1068,7 +1087,16 @@ const main = async () => {
   const stderrChunks: string[] = [];
 
   const runBatch = async (batch: EvalCase[]) => {
-    const client = new Client({ name: 'stacktape-mcp-production-eval', version: '0.0.0' }, { capabilities: {} });
+    const client = new Client(
+      { name: 'stacktape-mcp-production-eval', version: '0.0.0' },
+      {
+        supportedProtocolVersions: ['2026-07-28'],
+        versionNegotiation: { mode: { pin: '2026-07-28' } },
+        capabilities: { elicitation: { form: {} } },
+        inputRequired: { autoFulfill: true, maxRounds: 4 }
+      }
+    );
+    client.setRequestHandler('elicitation/create', async () => ({ action: 'decline' }));
     const transport = new StdioClientTransport({
       command: 'bun',
       args: ['scripts/dev.ts', 'mcp', '--logLevel', 'error'],
@@ -1080,6 +1108,8 @@ const main = async () => {
 
     try {
       await client.connect(transport, { timeout: 60000 });
+      assert(client.getProtocolEra() === 'modern', 'Expected the modern MCP protocol era.');
+      assert(client.getNegotiatedProtocolVersion() === '2026-07-28', 'Expected MCP protocol 2026-07-28.');
       const tools = (await client.listTools(undefined, { timeout: 15000 })).tools.map((tool) => tool.name).sort();
       assert(JSON.stringify(tools) === JSON.stringify(EXPECTED_TOOLS), `Unexpected tools: ${tools.join(', ')}`);
 

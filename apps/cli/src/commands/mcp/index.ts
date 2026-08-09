@@ -1,7 +1,8 @@
-import { basename } from 'node:path';
+import { basename, resolve } from 'node:path';
 import { z } from 'zod';
-import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
-import { StdioServerTransport } from '@modelcontextprotocol/sdk/server/stdio.js';
+import { CLIENT_INFO_META_KEY, fromJsonSchema, McpServer, type ServerContext } from '@modelcontextprotocol/server';
+import { serveStdio } from '@modelcontextprotocol/server/stdio';
+import { getStacktapeVersion } from '@utils/versioning';
 import { buildIndex, search, formatAnswer } from './lexical-index';
 import type { LexicalIndex, DocKind } from './lexical-index';
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
@@ -14,9 +15,70 @@ import {
 } from './cli-command-tools';
 import { scanStacktapeProject } from './project-scan';
 import { getExactDocs } from './exact-docs';
-import { buildCliPlan, formatProjectScanForOutput, requestDestructiveExecutionConfirmation } from './cli-planning';
+import {
+  buildCliPlan,
+  formatProjectScanForOutput,
+  requestDestructiveExecutionConfirmation,
+  verifyDestructiveConfirmationState
+} from './cli-planning';
 import { handleDevToolAction } from './dev-tool';
-import { buildCliRunOutput, clampInteger, GENERIC_AWS_MCP_BOUNDARY, toToolText } from './tool-output';
+import {
+  buildCliRunOutput,
+  clampInteger,
+  GENERIC_AWS_MCP_BOUNDARY,
+  MCP_TOOL_RESULT_SCHEMA_VERSION,
+  toToolText
+} from './tool-output';
+
+const MODERN_MCP_PROTOCOL_VERSION = '2026-07-28';
+const STATIC_DISCOVERY_TTL_MS = 5 * 60 * 1000;
+
+const TOOL_RESULT_SCHEMA = fromJsonSchema<Record<string, unknown>>({
+  type: 'object',
+  properties: {
+    schemaVersion: { type: 'string', const: MCP_TOOL_RESULT_SCHEMA_VERSION },
+    ok: { type: 'boolean' },
+    code: { type: 'string' },
+    message: { type: 'string' },
+    data: { type: 'object', additionalProperties: true },
+    rawTail: { type: 'string' },
+    nextActions: { type: 'array', items: { type: 'string' } },
+    truncated: { type: 'boolean' }
+  },
+  required: ['schemaVersion', 'ok', 'code', 'message'],
+  additionalProperties: false
+});
+
+const getMcpServerVersion = (): string => {
+  try {
+    return getStacktapeVersion();
+  } catch {
+    return '4.0.0-dev.0';
+  }
+};
+
+const getAdvisoryClientName = (ctx: ServerContext): string | undefined => {
+  const envelope = ctx.mcpReq.envelope as Record<string, unknown> | undefined;
+  const clientInfo = envelope?.[CLIENT_INFO_META_KEY] as { name?: unknown } | undefined;
+  return typeof clientInfo?.name === 'string' ? clientInfo.name : undefined;
+};
+
+const createProgressReporter = (ctx: ServerContext) => {
+  const progressToken = ctx.mcpReq._meta?.progressToken;
+  if (progressToken === undefined) return undefined;
+  let progress = 0;
+  return async (event: { message: string }) => {
+    progress += 1;
+    await ctx.mcpReq.notify({
+      method: 'notifications/progress',
+      params: {
+        progressToken,
+        progress,
+        message: event.message
+      }
+    });
+  };
+};
 
 const SERVER_INSTRUCTIONS = `Use Stacktape MCP tools as the authoritative interface for Stacktape work.
 
@@ -37,27 +99,43 @@ Routing rules:
 - The stacktape CLI is forbidden as a Bash/shell command. If you need to plan, describe, or run a Stacktape command, use stacktape_cli with action=plan or action=run. Even if MCP returned a plan and you think you just need to run it, do not run it via Bash. This rule has no exceptions, including local validation commands (validate, synth, package), read-only commands (info:*, logs, metrics, alarms), and diagnostic commands.
 - Never read ~/.stacktape/, ~/.aws/, ~/.ssh/, or any persisted credential file to extract values for commands. If credentials are missing or auth fails, ask the user to authenticate in their own terminal. Never ask the user to paste an API key into chat, and never inline an API key, password, token, or connection string into a Bash command, MCP arguments, or final answer.
 - Interactive commands require the user's own terminal, except dev-mode lifecycle operations which should use stacktape_dev.
-- Destructive commands require direct user confirmation through MCP elicitation. Agent-supplied confirm=true is not sufficient.`;
+- Destructive commands use MCP's input-required flow to collect direct user confirmation for the exact command and target. Agent-supplied confirm=true is not sufficient.`;
 
-const createMcpServer = (getIndex: () => Promise<LexicalIndex>) => {
+type McpServerDependencies = {
+  runCli?: typeof runStacktapeCommandJsonl;
+  runDevAction?: typeof handleDevToolAction;
+};
+
+export const createMcpServer = (getIndex: () => Promise<LexicalIndex>, dependencies: McpServerDependencies = {}) => {
+  const runCli = dependencies.runCli || runStacktapeCommandJsonl;
+  const runDevAction = dependencies.runDevAction || handleDevToolAction;
   const server = new McpServer(
     {
       name: 'stacktape',
-      version: '1.0.0'
+      version: getMcpServerVersion()
     },
     {
+      supportedProtocolVersions: [MODERN_MCP_PROTOCOL_VERSION],
       instructions: SERVER_INSTRUCTIONS,
       capabilities: {
         tools: {}
+      },
+      cacheHints: {
+        'server/discover': { ttlMs: STATIC_DISCOVERY_TTL_MS, cacheScope: 'public' },
+        'tools/list': { ttlMs: STATIC_DISCOVERY_TTL_MS, cacheScope: 'public' }
+      },
+      requestState: {
+        verify: verifyDestructiveConfirmationState
       }
     }
   );
 
   // ─── Primary Tools ────────────────────────────────────────────────────────
 
-  server.tool(
+  server.registerTool(
     'stacktape_docs',
-    `Search or fetch Stacktape documentation.
+    {
+      description: `Search or fetch Stacktape documentation.
 
 Use action=search for Stacktape configuration help, resource types, deployment patterns, CLI usage, and troubleshooting.
 Use action=get after search when you need an exact route, headingPath, resourceType, definitionName, propertyName, or sourcePath.
@@ -65,29 +143,34 @@ Use action=get after search when you need an exact route, headingPath, resourceT
 Triggers: "give me a Stacktape config", "minimal example", "wire/connect X to Y", "Hono on Lambda", "DynamoDB access", "query database", "check a row", "run SELECT", "production DB from CLI".
 
 IMPORTANT: Always use this tool for Stacktape docs/config/CLI questions before answering from memory, including advisory or safety questions where you think you already know the answer. Prefer the current TypeScript constructor-based examples from the docs; do not translate them into legacy YAML or object-style config unless the user explicitly asks. When the user asks for a config, return a complete TypeScript code block with defineConfig and constructor-style resources.`,
-    {
-      action: z.enum(['search', 'get']).describe('Docs operation to perform'),
-      query: z.string().optional().describe('Search query for action=search'),
-      mode: z.enum(['answer', 'reference', 'snippet']).optional().describe('Search response mode. Default: answer'),
-      resourceType: z.string().optional().describe('Filter or selector resource type, for example "function"'),
-      docKind: z.enum(['docs-page', 'config-reference']).optional().describe('Filter to a docs artifact kind'),
-      maxItems: z.number().optional().describe('Max search results to return. Default: 3'),
-      route: z
-        .string()
-        .optional()
-        .describe('Exact docs route for action=get, for example "/config-reference/function"'),
-      definitionName: z
-        .string()
-        .optional()
-        .describe('Exact TypeScript interface/type name for action=get, for example "LambdaFunction"'),
-      propertyName: z.string().optional().describe('Exact config property name for action=get, for example "timeout"'),
-      sourcePath: z.string().optional().describe('Exact source path from a previous docs reference'),
-      headingPath: z.array(z.string()).optional().describe('Exact headingPath array from a previous docs reference'),
-      maxChars: z.number().optional().describe('Maximum content characters for action=get. Default: 16000'),
-      includeFullPage: z
-        .boolean()
-        .optional()
-        .describe('Set true only when intentionally fetching all content for a long route selector')
+      inputSchema: z.object({
+        action: z.enum(['search', 'get']).describe('Docs operation to perform'),
+        query: z.string().optional().describe('Search query for action=search'),
+        mode: z.enum(['answer', 'reference', 'snippet']).optional().describe('Search response mode. Default: answer'),
+        resourceType: z.string().optional().describe('Filter or selector resource type, for example "function"'),
+        docKind: z.enum(['docs-page', 'config-reference']).optional().describe('Filter to a docs artifact kind'),
+        maxItems: z.number().optional().describe('Max search results to return. Default: 3'),
+        route: z
+          .string()
+          .optional()
+          .describe('Exact docs route for action=get, for example "/config-reference/function"'),
+        definitionName: z
+          .string()
+          .optional()
+          .describe('Exact TypeScript interface/type name for action=get, for example "LambdaFunction"'),
+        propertyName: z
+          .string()
+          .optional()
+          .describe('Exact config property name for action=get, for example "timeout"'),
+        sourcePath: z.string().optional().describe('Exact source path from a previous docs reference'),
+        headingPath: z.array(z.string()).optional().describe('Exact headingPath array from a previous docs reference'),
+        maxChars: z.number().optional().describe('Maximum content characters for action=get. Default: 16000'),
+        includeFullPage: z
+          .boolean()
+          .optional()
+          .describe('Set true only when intentionally fetching all content for a long route selector')
+      }),
+      outputSchema: TOOL_RESULT_SCHEMA
     },
     async ({
       action,
@@ -144,28 +227,31 @@ IMPORTANT: Always use this tool for Stacktape docs/config/CLI questions before a
     }
   );
 
-  server.tool(
+  server.registerTool(
     'stacktape_project',
-    `Inspect a local Stacktape project.
+    {
+      description: `Inspect a local Stacktape project.
 
 Use action=scan for repository/project context. ALWAYS call this before using Read/Glob/Grep/Bash to inspect stacktape.ts, stacktape.yml, stacktape.config.*, or package.json when the user asks what is in a Stacktape project, what should be deployed, or says they inherited a Stacktape project.
 
 The tool ranks Stacktape config candidates, parses package.json scripts that invoke stacktape, infers suggested CLI defaults, and returns compact Stacktape-specific context.`,
-    {
-      action: z
-        .enum(['scan', 'orient'])
-        .describe('Project operation. orient currently returns a scan plus stronger next actions.'),
-      cwd: z
-        .string()
-        .optional()
-        .describe(
-          "Absolute path to the user's Stacktape project root. Pass this whenever you have it. If omitted, the server falls back to its process cwd, which may not match the user's project."
-        ),
-      maxFiles: z.number().optional().describe('Maximum ranked files to return per category. Default: 8'),
-      includeDetails: z
-        .boolean()
-        .optional()
-        .describe('Set true to include full package script commands and unabridged candidate metadata')
+      inputSchema: z.object({
+        action: z
+          .enum(['scan', 'orient'])
+          .describe('Project operation. orient currently returns a scan plus stronger next actions.'),
+        cwd: z
+          .string()
+          .optional()
+          .describe(
+            "Absolute path to the user's Stacktape project root. Pass this whenever you have it. If omitted, the server falls back to its process cwd, which may not match the user's project."
+          ),
+        maxFiles: z.number().optional().describe('Maximum ranked files to return per category. Default: 8'),
+        includeDetails: z
+          .boolean()
+          .optional()
+          .describe('Set true to include full package script commands and unabridged candidate metadata')
+      }),
+      outputSchema: TOOL_RESULT_SCHEMA
     },
     async ({ action, cwd, maxFiles, includeDetails }) => {
       try {
@@ -195,9 +281,10 @@ The tool ranks Stacktape config candidates, parses package.json scripts that inv
     }
   );
 
-  server.tool(
+  server.registerTool(
     'stacktape_cli',
-    `List, describe, plan, or run Stacktape CLI commands.
+    {
+      description: `List, describe, plan, or run Stacktape CLI commands.
 
 Use action=plan before every execution. action=plan is read-only, does not require Stacktape credentials, scans the project, normalizes args, validates CLI metadata, and returns an action=run payload.
 Use action=run when the user explicitly asks to execute the exact planned command. Non-mutating commands such as diff, synth, package, validate, info:*, logs, metrics, and alarms must still run through this tool, not Bash.
@@ -209,78 +296,83 @@ When generic AWS/AWS SDK MCP tools are available, prefer stacktape_cli for Stack
 
     Safety:
 - Mutating commands require confirm=true for action=run.
-- Destructive commands additionally require direct user confirmation through MCP elicitation; agent-supplied confirm=true is not sufficient.
+- Destructive commands additionally require direct user confirmation through MCP's input-required flow; agent-supplied confirm=true is not sufficient.
 - If the user asks to show/reveal/print/paste a secret value, refuse to put the value in chat. Do not ask for missing args just to retrieve a value for display. Tell the user to run the command in their own terminal.
 - Do not use action=run for secret:get just to display a secret value.
 - Interactive commands are rejected here; use stacktape_dev for dev mode or tell the user to run other interactive commands in their own terminal.`,
-    {
-      action: z.enum(['list', 'describe', 'plan', 'run']).describe('CLI operation to perform'),
-      command: z.string().optional().describe('Stacktape CLI command, for example "deploy", "logs", or "secret:get"'),
-      cwd: z
-        .string()
-        .optional()
-        .describe("Absolute path to the user's Stacktape project root. Pass this whenever you have it."),
-      args: z
-        .record(z.string(), z.unknown())
-        .optional()
-        .describe('CLI arguments as an object using camelCase arg names'),
-      category: z
-        .enum([
-          'account',
-          'config',
-          'deployment',
-          'dev',
-          'diagnostics',
-          'docs',
-          'issues',
-          'local',
-          'project',
-          'secrets',
-          'utility'
-        ])
-        .optional()
-        .describe('Filter for action=list'),
-      safety: z
-        .enum(['readOnly', 'diagnostic', 'local', 'mutating', 'destructive', 'interactive'])
-        .optional()
-        .describe('Filter for action=list'),
-      stage: z.string().optional().describe('Target Stacktape stage, for example "production" or "dev"'),
-      region: z.string().optional().describe('Target AWS region, for example "eu-west-1"'),
-      projectName: z.string().optional().describe('Stacktape project name, for example "docs"'),
-      awsAccount: z.string().optional().describe('Connected Stacktape AWS account name'),
-      configPath: z.string().optional().describe('Stacktape config path relative to currentWorkingDirectory'),
-      currentWorkingDirectory: z.string().optional().describe('Working directory for resolving config and app files'),
-      hotSwap: z.boolean().optional().describe('Whether to request hotswap deployment when supported'),
-      resourceName: z.string().optional().describe('Stacktape resource name for diagnostics commands'),
-      scriptName: z.string().optional().describe('Stacktape deployment script name for script:run commands'),
-      secretName: z.string().optional().describe('Stacktape secret name for secret commands'),
-      secretValue: z.string().optional().describe('Secret value for secret:set; tool output masks this value'),
-      secretFile: z.string().optional().describe('Path to a file containing the secret value for secret:set'),
-      confirm: z.boolean().optional().describe('Required for mutating or destructive commands when action=run'),
-      timeoutMs: z.number().optional().describe('Command timeout in milliseconds for action=run')
+      inputSchema: z.object({
+        action: z.enum(['list', 'describe', 'plan', 'run']).describe('CLI operation to perform'),
+        command: z.string().optional().describe('Stacktape CLI command, for example "deploy", "logs", or "secret:get"'),
+        cwd: z
+          .string()
+          .optional()
+          .describe("Absolute path to the user's Stacktape project root. Pass this whenever you have it."),
+        args: z
+          .record(z.string(), z.unknown())
+          .optional()
+          .describe('CLI arguments as an object using camelCase arg names'),
+        category: z
+          .enum([
+            'account',
+            'config',
+            'deployment',
+            'dev',
+            'diagnostics',
+            'docs',
+            'issues',
+            'local',
+            'project',
+            'secrets',
+            'utility'
+          ])
+          .optional()
+          .describe('Filter for action=list'),
+        safety: z
+          .enum(['readOnly', 'diagnostic', 'local', 'mutating', 'destructive', 'interactive'])
+          .optional()
+          .describe('Filter for action=list'),
+        stage: z.string().optional().describe('Target Stacktape stage, for example "production" or "dev"'),
+        region: z.string().optional().describe('Target AWS region, for example "eu-west-1"'),
+        projectName: z.string().optional().describe('Stacktape project name, for example "docs"'),
+        awsAccount: z.string().optional().describe('Connected Stacktape AWS account name'),
+        configPath: z.string().optional().describe('Stacktape config path relative to currentWorkingDirectory'),
+        currentWorkingDirectory: z.string().optional().describe('Working directory for resolving config and app files'),
+        hotSwap: z.boolean().optional().describe('Whether to request hotswap deployment when supported'),
+        resourceName: z.string().optional().describe('Stacktape resource name for diagnostics commands'),
+        scriptName: z.string().optional().describe('Stacktape deployment script name for script:run commands'),
+        secretName: z.string().optional().describe('Stacktape secret name for secret commands'),
+        secretValue: z.string().optional().describe('Secret value for secret:set; tool output masks this value'),
+        secretFile: z.string().optional().describe('Path to a file containing the secret value for secret:set'),
+        confirm: z.boolean().optional().describe('Required for mutating or destructive commands when action=run'),
+        timeoutMs: z.number().optional().describe('Command timeout in milliseconds for action=run')
+      }),
+      outputSchema: TOOL_RESULT_SCHEMA
     },
-    async ({
-      action,
-      command,
-      cwd,
-      args,
-      category,
-      safety,
-      stage,
-      region,
-      projectName,
-      awsAccount,
-      configPath,
-      currentWorkingDirectory,
-      hotSwap,
-      resourceName,
-      scriptName,
-      secretName,
-      secretValue,
-      secretFile,
-      confirm,
-      timeoutMs
-    }) => {
+    async (
+      {
+        action,
+        command,
+        cwd,
+        args,
+        category,
+        safety,
+        stage,
+        region,
+        projectName,
+        awsAccount,
+        configPath,
+        currentWorkingDirectory,
+        hotSwap,
+        resourceName,
+        scriptName,
+        secretName,
+        secretValue,
+        secretFile,
+        confirm,
+        timeoutMs
+      },
+      ctx
+    ) => {
       if (action === 'list') {
         return toToolText({
           ok: true,
@@ -358,20 +450,27 @@ When generic AWS/AWS SDK MCP tools are available, prefer stacktape_cli for Stack
       }
 
       if (prepared.policy.safety === 'destructive') {
-        const destructiveConfirmationFailure = await requestDestructiveExecutionConfirmation({
-          server,
+        const destructiveConfirmationResult = await requestDestructiveExecutionConfirmation({
+          ctx,
           command: prepared.command,
-          args: prepared.args
+          args: prepared.args,
+          cwd: resolve(cwd || process.cwd())
         });
-        if (destructiveConfirmationFailure) {
-          return toToolText(destructiveConfirmationFailure);
+        if (destructiveConfirmationResult) {
+          return 'resultType' in destructiveConfirmationResult
+            ? destructiveConfirmationResult
+            : toToolText(destructiveConfirmationResult);
         }
       }
 
-      const result = await runStacktapeCommandJsonl({
+      const result = await runCli({
         command: prepared.command,
         args: prepared.args,
-        timeoutMs
+        cwd,
+        timeoutMs,
+        signal: ctx.mcpReq.signal,
+        clientName: getAdvisoryClientName(ctx),
+        onProgress: createProgressReporter(ctx)
       });
 
       return toToolText(
@@ -384,16 +483,26 @@ When generic AWS/AWS SDK MCP tools are available, prefer stacktape_cli for Stack
     }
   );
 
-  server.tool(
+  server.registerTool(
     'stacktape_dev',
-    `Control Stacktape dev mode: plan or start local development, check status, read logs, rebuild workloads, and stop.
-
-Use this instead of running stacktape dev or stacktape dev:stop through Bash. Use action=plan to prepare dev mode without starting it.`,
     {
-      action: z.enum(['plan', 'start', 'status', 'logs', 'rebuild', 'rebuild_all', 'stop']),
-      args: z.record(z.string(), z.unknown()).optional()
+      description: `Control Stacktape dev mode: plan or start local development, check status, read logs, rebuild workloads, and stop.
+
+Use this instead of running stacktape dev or stacktape dev:stop through Bash. Use action=plan to prepare dev mode without starting it. action=start returns data.session.devSessionId; pass it as args.devSessionId for follow-up operations. Always pass it to rebuild, rebuild_all, and stop; status and logs may omit it only when exactly one session is active.`,
+      inputSchema: z.object({
+        action: z.enum(['plan', 'start', 'status', 'logs', 'rebuild', 'rebuild_all', 'stop']),
+        args: z.record(z.string(), z.unknown()).optional()
+      }),
+      outputSchema: TOOL_RESULT_SCHEMA
     },
-    async ({ action, args }) => handleDevToolAction({ action, args })
+    async ({ action, args }, ctx) =>
+      runDevAction({
+        action,
+        args,
+        signal: ctx.mcpReq.signal,
+        clientName: getAdvisoryClientName(ctx),
+        onProgress: createProgressReporter(ctx)
+      })
   );
 
   return server;
@@ -431,13 +540,20 @@ export const commandMcp = async () => {
   // Create and start the MCP server before loading the docs index so CLI/project
   // tools are discoverable immediately, even when another fast AWS MCP server is
   // installed in the same client.
-  const server = createMcpServer(getIndex);
-  const transport = new StdioServerTransport();
-
-  await server.connect(transport);
+  const stdioServer = serveStdio(() => createMcpServer(getIndex), {
+    legacy: 'reject',
+    onerror: (error) => console.error(`[stacktape-mcp] ${error.message}`)
+  });
   void getIndex().catch(() => {
     // Surface docs-index failures through stacktape_docs calls instead of
     // failing MCP startup and hiding the operational tools.
   });
-  await new Promise(() => {});
+  await new Promise<void>((resolveShutdown) => {
+    const shutdown = () => resolveShutdown();
+    process.stdin.once('end', shutdown);
+    process.stdin.once('close', shutdown);
+    process.once('SIGINT', shutdown);
+    process.once('SIGTERM', shutdown);
+  });
+  await stdioServer.close();
 };

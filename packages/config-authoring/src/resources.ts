@@ -1,7 +1,7 @@
 import type { AuthoringResourceProps } from './config.js';
 import { BaseResource } from './config.js';
 import { REFERENCEABLE_PARAMS } from './resource-metadata.js';
-import type { StacktapeResourceType } from '@stacktape/config/schema-inspection';
+import type { StacktapeResourceType } from '@stacktape/config/resource-types';
 
 const getParamReferenceSymbol = Symbol.for('stacktape:getParamReference');
 

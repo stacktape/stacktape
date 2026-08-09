@@ -1,4 +1,6 @@
 import { pathExists, readFile } from 'fs-extra';
+import { randomUUID } from 'node:crypto';
+import { isAbsolute, resolve } from 'node:path';
 import { findStacktapePackageScript } from './cli-command-tools';
 import { summarizeMatchedScriptForPlan, summarizeScanForPlan } from './cli-planning';
 import { runStacktapeCommandJsonl } from './cli-jsonl-runner';
@@ -6,11 +8,25 @@ import { scanStacktapeProject } from './project-scan';
 import { toToolText, type ToolOutput } from './tool-output';
 
 type DevSession = {
+  devSessionId: string;
   agentPort: number;
   startedAt: string;
+  cwd: string;
 };
 
-let activeDevSession: DevSession | null = null;
+type DevApiRequest = (input: {
+  port: number;
+  method: 'GET' | 'POST';
+  path: string;
+  body?: Record<string, unknown>;
+}) => Promise<Record<string, unknown>>;
+
+type DevToolDependencies = {
+  runCli?: typeof runStacktapeCommandJsonl;
+  requestDevApi?: DevApiRequest;
+  createId?: () => string;
+  now?: () => Date;
+};
 
 const ARG_ALIASES: Record<string, string> = {
   aa: 'awsAccount',
@@ -43,7 +59,7 @@ const normalizeToolArgs = (args?: Record<string, unknown>): Record<string, unkno
   return normalized;
 };
 
-const devApiRequest = async ({
+const devApiRequest: DevApiRequest = async ({
   port,
   method,
   path,
@@ -86,41 +102,71 @@ const devApiRequest = async ({
   }
 };
 
-const ensureDevSessionAvailable = async (): Promise<
-  { ok: true; session: DevSession } | { ok: false; output: ToolOutput }
-> => {
-  if (!activeDevSession) {
+const ensureDevSessionAvailable = async ({
+  devSessionId,
+  requireExplicit,
+  activeDevSessions,
+  requestDevApi
+}: {
+  devSessionId?: string;
+  requireExplicit: boolean;
+  activeDevSessions: Map<string, DevSession>;
+  requestDevApi: DevApiRequest;
+}): Promise<{ ok: true; session: DevSession } | { ok: false; output: ToolOutput }> => {
+  const inferredSession =
+    !devSessionId && !requireExplicit && activeDevSessions.size === 1 ? [...activeDevSessions.values()][0] : undefined;
+  const session = devSessionId ? activeDevSessions.get(devSessionId) : inferredSession;
+
+  if (!session) {
+    const ambiguous = !devSessionId && activeDevSessions.size > 1;
+    const noActiveSessions = activeDevSessions.size === 0;
     return {
       ok: false,
       output: {
         ok: false,
-        code: 'NOT_FOUND',
-        message: 'No active dev session found.',
-        nextActions: ['Call stacktape_dev with action=start first']
+        code: ambiguous
+          ? 'AMBIGUOUS_DEV_SESSION'
+          : noActiveSessions || devSessionId
+            ? 'NOT_FOUND'
+            : 'DEV_SESSION_ID_REQUIRED',
+        message: noActiveSessions
+          ? 'No active Stacktape dev session found.'
+          : ambiguous
+            ? 'Multiple Stacktape dev sessions are active. Specify args.devSessionId.'
+            : devSessionId
+              ? `No active dev session matches devSessionId ${devSessionId}.`
+              : 'Specify args.devSessionId for this dev operation.',
+        data: {
+          activeDevSessionIds: [...activeDevSessions.keys()]
+        },
+        nextActions: [
+          activeDevSessions.size === 0
+            ? 'Call stacktape_dev with action=start first.'
+            : 'Use a devSessionId returned by stacktape_dev action=start.'
+        ]
       }
     };
   }
 
-  const health = await devApiRequest({
-    port: activeDevSession.agentPort,
+  const health = await requestDevApi({
+    port: session.agentPort,
     method: 'GET',
     path: '/health'
   });
   if (health.ok === false) {
-    const stalePort = activeDevSession.agentPort;
-    activeDevSession = null;
+    activeDevSessions.delete(session.devSessionId);
     return {
       ok: false,
       output: {
         ok: false,
         code: 'NOT_FOUND',
-        message: `Dev session on port ${stalePort} is no longer reachable.`,
+        message: `Dev session ${session.devSessionId} on port ${session.agentPort} is no longer reachable.`,
         nextActions: ['Call stacktape_dev with action=start to create a new dev session']
       }
     };
   }
 
-  return { ok: true, session: activeDevSession };
+  return { ok: true, session };
 };
 
 const readDevLogs = async ({
@@ -200,6 +246,9 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
     ...(toolArgs.remoteResources !== undefined ? { remoteResources: toolArgs.remoteResources } : {}),
     ...(toolArgs.freshDb !== undefined ? { freshDb: toolArgs.freshDb } : {})
   };
+  if (typeof startArgs.currentWorkingDirectory === 'string' && !isAbsolute(startArgs.currentWorkingDirectory)) {
+    startArgs.currentWorkingDirectory = resolve(scan.cwd, startArgs.currentWorkingDirectory);
+  }
   delete (startArgs as Record<string, unknown>).hotSwap;
 
   const missingArgs = ['stage', 'region', 'configPath'].filter(
@@ -219,8 +268,13 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
         tool: 'stacktape_dev',
         arguments: {
           action: 'start',
+          cwd: scan.cwd,
           args: startArgs
         }
+      },
+      resolvedContext: {
+        cwd: scan.cwd,
+        currentWorkingDirectory: startArgs.currentWorkingDirectory
       },
       scan: summarizeScanForPlan(scan),
       matchedPackageScript: summarizeMatchedScriptForPlan(
@@ -243,187 +297,233 @@ const buildDevPlan = async (args?: Record<string, unknown>): Promise<ToolOutput>
   };
 };
 
-export const handleDevToolAction = async ({
-  action,
-  args
-}: {
-  action: 'plan' | 'start' | 'status' | 'logs' | 'rebuild' | 'rebuild_all' | 'stop';
-  args?: Record<string, unknown>;
-}): Promise<ReturnType<typeof toToolText>> => {
-  const toolArgs = normalizeToolArgs(args);
+export const createDevToolHandler = (dependencies: DevToolDependencies = {}) => {
+  const activeDevSessions = new Map<string, DevSession>();
+  const runCli = dependencies.runCli || runStacktapeCommandJsonl;
+  const requestDevApi = dependencies.requestDevApi || devApiRequest;
+  const createId = dependencies.createId || randomUUID;
+  const now = dependencies.now || (() => new Date());
 
-  if (action === 'plan') {
-    return toToolText(await buildDevPlan(toolArgs));
-  }
+  return async ({
+    action,
+    args,
+    signal,
+    clientName,
+    onProgress
+  }: {
+    action: 'plan' | 'start' | 'status' | 'logs' | 'rebuild' | 'rebuild_all' | 'stop';
+    args?: Record<string, unknown>;
+    signal?: AbortSignal;
+    clientName?: string;
+    onProgress?: (event: { message: string }) => void | Promise<void>;
+  }): Promise<ReturnType<typeof toToolText>> => {
+    const toolArgs = normalizeToolArgs(args);
 
-  if (action === 'start') {
-    const requestedPort =
-      typeof toolArgs.agentPort === 'number'
-        ? toolArgs.agentPort
-        : typeof toolArgs.agentPort === 'string'
-          ? Number(toolArgs.agentPort)
-          : 7331;
-
-    const result = await runStacktapeCommandJsonl({
-      command: 'dev',
-      args: {
-        ...toolArgs,
-        agentPort: Number.isFinite(requestedPort) ? requestedPort : 7331
-      },
-      timeoutMs: 12 * 60 * 1000
-    });
-
-    if (result.ok) {
-      const payload = (result.data?.result || result.data) as Record<string, unknown> | undefined;
-      const port =
-        (payload?.port as number | undefined) ||
-        (payload?.agentPort as number | undefined) ||
-        (Number.isFinite(requestedPort) ? requestedPort : 7331);
-      activeDevSession = {
-        agentPort: port,
-        startedAt: new Date().toISOString()
-      };
+    if (action === 'plan') {
+      return toToolText(await buildDevPlan(toolArgs));
     }
 
-    return toToolText({
-      ok: result.ok,
-      code: result.code,
-      message: result.message,
-      data: {
-        session: activeDevSession,
-        ...(result.data ? { cli: result.data } : {})
-      },
-      ...(result.rawTail ? { rawTail: result.rawTail } : {})
-    });
-  }
+    if (action === 'start') {
+      const requestedPort =
+        typeof toolArgs.agentPort === 'number'
+          ? toolArgs.agentPort
+          : typeof toolArgs.agentPort === 'string'
+            ? Number(toolArgs.agentPort)
+            : 7331;
+      const { cwd: requestedCwd, devSessionId: _ignoredSessionId, ...devCliArgs } = toolArgs;
 
-  const sessionResult = await ensureDevSessionAvailable();
-  if (sessionResult.ok === false) {
-    return toToolText(sessionResult.output);
-  }
-
-  const port = sessionResult.session.agentPort;
-
-  if (action === 'status') {
-    const response = await devApiRequest({ port, method: 'GET', path: '/status?verbose=true' });
-    return toToolText({
-      ok: (response.ok as boolean | undefined) ?? true,
-      code: ((response.ok as boolean | undefined) ?? true) ? 'OK' : 'INTERNAL_ERROR',
-      message: 'Fetched dev status.',
-      data: response
-    });
-  }
-
-  if (action === 'logs') {
-    const logsMeta = await devApiRequest({ port, method: 'GET', path: '/logs' });
-    const logFile = logsMeta.logFile as string | undefined;
-    if (!logFile) {
-      return toToolText({
-        ok: false,
-        code: 'NOT_FOUND',
-        message: 'Dev log file path not available.',
-        data: logsMeta
+      const result = await runCli({
+        command: 'dev',
+        args: {
+          ...devCliArgs,
+          agentPort: Number.isFinite(requestedPort) ? requestedPort : 7331
+        },
+        cwd: typeof requestedCwd === 'string' ? requestedCwd : undefined,
+        timeoutMs: 12 * 60 * 1000,
+        signal,
+        tool: 'stacktape_dev',
+        clientName,
+        onProgress
       });
-    }
 
-    const cursor = typeof toolArgs.cursor === 'number' ? toolArgs.cursor : Number(toolArgs.cursor || 0);
-    const limit = typeof toolArgs.limit === 'number' ? toolArgs.limit : Number(toolArgs.limit || 200);
-    const page = await readDevLogs({
-      logFile,
-      cursor: Number.isFinite(cursor) ? cursor : 0,
-      limit: Number.isFinite(limit) ? limit : 200
-    });
-
-    const requestedWorkload = typeof toolArgs.workload === 'string' ? toolArgs.workload.trim() : undefined;
-    const filteredEntries = requestedWorkload
-      ? page.entries.filter((entry) => {
-          const source = (entry as Record<string, unknown>).source;
-          return typeof source === 'string' && source === requestedWorkload;
-        })
-      : page.entries;
-
-    return toToolText({
-      ok: true,
-      code: 'OK',
-      message: requestedWorkload
-        ? `Fetched ${filteredEntries.length} log entries for workload '${requestedWorkload}'.`
-        : `Fetched ${filteredEntries.length} log entries.`,
-      data: {
-        logFile,
-        entries: filteredEntries,
-        nextCursor: page.nextCursor,
-        totalLines: page.totalLines
+      let session: DevSession | undefined;
+      if (result.ok) {
+        const payload = (result.data?.result || result.data) as Record<string, unknown> | undefined;
+        const port =
+          (payload?.port as number | undefined) ||
+          (payload?.agentPort as number | undefined) ||
+          (Number.isFinite(requestedPort) ? requestedPort : 7331);
+        session = {
+          devSessionId: createId(),
+          agentPort: port,
+          startedAt: now().toISOString(),
+          cwd: result.resolvedContext.currentWorkingDirectory || result.resolvedContext.cwd
+        };
+        activeDevSessions.set(session.devSessionId, session);
       }
-    });
-  }
 
-  if (action === 'rebuild') {
-    const workload = typeof toolArgs.workload === 'string' ? toolArgs.workload : undefined;
-    if (!workload) {
       return toToolText({
-        ok: false,
-        code: 'VALIDATION_ERROR',
-        message: 'Missing required args.workload for rebuild operation.'
+        ok: result.ok,
+        code: result.code,
+        message: result.message,
+        data: {
+          ...(session ? { session } : {}),
+          resolvedContext: result.resolvedContext,
+          ...(result.data ? { cli: result.data } : {})
+        },
+        ...(result.rawTail ? { rawTail: result.rawTail } : {})
       });
     }
 
-    const response = await devApiRequest({
-      port,
-      method: 'POST',
-      path: `/rebuild/${encodeURIComponent(workload)}`,
-      body: {}
+    const devSessionId = typeof toolArgs.devSessionId === 'string' ? toolArgs.devSessionId : undefined;
+    const sessionResult = await ensureDevSessionAvailable({
+      devSessionId,
+      requireExplicit: action === 'rebuild' || action === 'rebuild_all' || action === 'stop',
+      activeDevSessions,
+      requestDevApi
     });
-    return toToolText({
-      ok: (response.ok as boolean | undefined) ?? false,
-      code: ((response.ok as boolean | undefined) ?? false) ? 'OK' : 'INTERNAL_ERROR',
-      message:
-        ((response.ok as boolean | undefined) ?? false)
-          ? `Rebuild requested for workload '${workload}'.`
-          : 'Failed to request workload rebuild.',
-      data: response
-    });
-  }
-
-  if (action === 'rebuild_all') {
-    const response = await devApiRequest({
-      port,
-      method: 'POST',
-      path: '/rebuild/all',
-      body: {}
-    });
-    return toToolText({
-      ok: (response.ok as boolean | undefined) ?? false,
-      code: ((response.ok as boolean | undefined) ?? false) ? 'OK' : 'INTERNAL_ERROR',
-      message:
-        ((response.ok as boolean | undefined) ?? false)
-          ? 'Rebuild requested for all workloads.'
-          : 'Failed to request rebuild for all workloads.',
-      data: response
-    });
-  }
-
-  if (action === 'stop') {
-    const response = await devApiRequest({
-      port,
-      method: 'POST',
-      path: '/stop',
-      body: {}
-    });
-    const ok = (response.ok as boolean | undefined) ?? false;
-    if (ok) {
-      activeDevSession = null;
+    if (sessionResult.ok === false) {
+      return toToolText(sessionResult.output);
     }
-    return toToolText({
-      ok,
-      code: ok ? 'OK' : 'INTERNAL_ERROR',
-      message: ok ? 'Dev session stop requested.' : 'Failed to stop dev session.',
-      data: response
-    });
-  }
 
-  return toToolText({
-    ok: false,
-    code: 'VALIDATION_ERROR',
-    message: `Unsupported dev action: ${action}`
-  });
+    const port = sessionResult.session.agentPort;
+
+    if (action === 'status') {
+      const response = await requestDevApi({ port, method: 'GET', path: '/status?verbose=true' });
+      return toToolText({
+        ok: (response.ok as boolean | undefined) ?? true,
+        code: ((response.ok as boolean | undefined) ?? true) ? 'OK' : 'INTERNAL_ERROR',
+        message: 'Fetched dev status.',
+        data: {
+          session: sessionResult.session,
+          status: response
+        }
+      });
+    }
+
+    if (action === 'logs') {
+      const logsMeta = await requestDevApi({ port, method: 'GET', path: '/logs' });
+      const logFile = logsMeta.logFile as string | undefined;
+      if (!logFile) {
+        return toToolText({
+          ok: false,
+          code: 'NOT_FOUND',
+          message: 'Dev log file path not available.',
+          data: logsMeta
+        });
+      }
+
+      const cursor = typeof toolArgs.cursor === 'number' ? toolArgs.cursor : Number(toolArgs.cursor || 0);
+      const limit = typeof toolArgs.limit === 'number' ? toolArgs.limit : Number(toolArgs.limit || 200);
+      const page = await readDevLogs({
+        logFile,
+        cursor: Number.isFinite(cursor) ? cursor : 0,
+        limit: Number.isFinite(limit) ? limit : 200
+      });
+
+      const requestedWorkload = typeof toolArgs.workload === 'string' ? toolArgs.workload.trim() : undefined;
+      const filteredEntries = requestedWorkload
+        ? page.entries.filter((entry) => {
+            const source = (entry as Record<string, unknown>).source;
+            return typeof source === 'string' && source === requestedWorkload;
+          })
+        : page.entries;
+
+      return toToolText({
+        ok: true,
+        code: 'OK',
+        message: requestedWorkload
+          ? `Fetched ${filteredEntries.length} log entries for workload '${requestedWorkload}'.`
+          : `Fetched ${filteredEntries.length} log entries.`,
+        data: {
+          session: sessionResult.session,
+          logFile,
+          entries: filteredEntries,
+          nextCursor: page.nextCursor,
+          totalLines: page.totalLines
+        }
+      });
+    }
+
+    if (action === 'rebuild') {
+      const workload = typeof toolArgs.workload === 'string' ? toolArgs.workload : undefined;
+      if (!workload) {
+        return toToolText({
+          ok: false,
+          code: 'VALIDATION_ERROR',
+          message: 'Missing required args.workload for rebuild operation.'
+        });
+      }
+
+      const response = await requestDevApi({
+        port,
+        method: 'POST',
+        path: `/rebuild/${encodeURIComponent(workload)}`,
+        body: {}
+      });
+      return toToolText({
+        ok: (response.ok as boolean | undefined) ?? false,
+        code: ((response.ok as boolean | undefined) ?? false) ? 'OK' : 'INTERNAL_ERROR',
+        message:
+          ((response.ok as boolean | undefined) ?? false)
+            ? `Rebuild requested for workload '${workload}'.`
+            : 'Failed to request workload rebuild.',
+        data: {
+          session: sessionResult.session,
+          response
+        }
+      });
+    }
+
+    if (action === 'rebuild_all') {
+      const response = await requestDevApi({
+        port,
+        method: 'POST',
+        path: '/rebuild/all',
+        body: {}
+      });
+      return toToolText({
+        ok: (response.ok as boolean | undefined) ?? false,
+        code: ((response.ok as boolean | undefined) ?? false) ? 'OK' : 'INTERNAL_ERROR',
+        message:
+          ((response.ok as boolean | undefined) ?? false)
+            ? 'Rebuild requested for all workloads.'
+            : 'Failed to request rebuild for all workloads.',
+        data: {
+          session: sessionResult.session,
+          response
+        }
+      });
+    }
+
+    if (action === 'stop') {
+      const response = await requestDevApi({
+        port,
+        method: 'POST',
+        path: '/stop',
+        body: {}
+      });
+      const ok = (response.ok as boolean | undefined) ?? false;
+      if (ok) {
+        activeDevSessions.delete(sessionResult.session.devSessionId);
+      }
+      return toToolText({
+        ok,
+        code: ok ? 'OK' : 'INTERNAL_ERROR',
+        message: ok ? 'Dev session stop requested.' : 'Failed to stop dev session.',
+        data: {
+          session: sessionResult.session,
+          response
+        }
+      });
+    }
+
+    return toToolText({
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      message: `Unsupported dev action: ${action}`
+    });
+  };
 };
+
+export const handleDevToolAction = createDevToolHandler();

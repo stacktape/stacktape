@@ -442,6 +442,10 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 ## Platform resources
 
+### EFS filesystem
+
+An [EFS filesystem](/resources/storage/efs-filesystem) exposes both `id` and `arn`. `connectTo` injects both values but does not mount the filesystem; configure an explicit EFS volume mount when the workload needs filesystem access.
+
 ### Convex
 
 [Convex](/resources/compute/convex) exposes backend URLs, dashboard URL, and sensitive credentials via `$ResourceParam`. The `adminKey` and `instanceSecret` parameters are sensitive and are never auto-injected by `connectTo` — reference them explicitly with `$ResourceParam` when needed.

@@ -7,6 +7,7 @@
     "./anonymous": "./src/anonymous.ts",
     "./api-key": "./src/api-key.ts",
     "./aws-identity": "./src/aws-identity.ts",
+    "./guardrails": "./src/guardrails.ts",
     "./permissions": "./src/permissions.ts"
   },
   "scripts": {

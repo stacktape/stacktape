@@ -18,14 +18,14 @@ Guardrails and [alarms](/observability/alarms) serve fundamentally different pur
 
 Stacktape guardrails define organization-level restrictions for stages, regions, commands, resource types, and selected resource settings. Guardrail definitions contain allowed or blocked values; configurations that fall outside the defined policy are not permitted. Guardrails are managed in the [Stacktape Console](/stacktape-console/console-overview).
 
-Stacktape supports 15 guardrail types. This page groups them into four sections for readability:
+Stacktape supports 18 guardrail types. This page groups them into four sections for readability:
 
 | Section | What it controls |
 |---|---|
 | [Deployment restrictions](/guardrails/deployment) | Stages, regions, commands |
-| [Security and data protection](/guardrails/security-and-data-protection) | VPC access, deletion protection, DLQ, WAF, custom domains |
+| [Security and data protection](/guardrails/security-and-data-protection) | Network isolation, deletion protection, backups, DLQ, WAF, service redundancy |
 | [Resource limits](/guardrails/resource-limits) | Function memory/timeout, container CPU/memory, resource count |
-| [Database restrictions](/guardrails/databases) | Allowed engines, blocked instance sizes, blocked resource types |
+| [Database restrictions](/guardrails/databases) | Allowed engines, allowed instance sizes, blocked resource types |
 
 ## Deployment restrictions
 
@@ -33,7 +33,8 @@ Deployment restriction guardrails control allowed stages, allowed AWS regions, a
 
 - **Stage restriction** — Only allow deployments to specific stages. Configure an `allowedStages` list (e.g., `["production", "staging"]`); operations targeting any other stage name fail. Useful for enforcing naming conventions or limiting which stages can exist.
 - **Region restriction** — Only allow deployments to specific AWS regions. Configure an `allowedRegions` list (e.g., `["eu-west-1", "us-east-1"]`); operations targeting other regions fail. Essential for data residency compliance and cost control.
-- **Command restriction** — Block specific CLI commands. The `blockedCommands` list accepts command name strings. The source gives `["delete", "rollback"]` as examples — use this to prevent accidental production deletions or restrict destructive operations.
+- **Command restriction** — Block selected infrastructure-changing commands: `deploy`, `delete`, `dev`, `deployment-script:run`, `script:run`, `rollback`, and `cf:rollback`. Read-only `diff` and `validate` stay available so developers can diagnose a blocked configuration.
+- **Require custom domain** — Require web services and hosting buckets to use a domain your organization controls. This is a delivery standard rather than a security boundary.
 
 For full details, see [Deployment guardrails](/guardrails/deployment).
 
@@ -41,11 +42,13 @@ For full details, see [Deployment guardrails](/guardrails/deployment).
 
 Security guardrails enforce infrastructure best practices that protect data and reduce attack surface. Each is a toggle — enabled or disabled — with no additional parameters.
 
-- **Require VPC for databases** — When enabled, all databases must use VPC-only accessibility with no public internet access. This prevents accidentally exposing a database to the public internet. See [Relational databases](/resources/databases/relational-database) for supported accessibility modes.
+- **Keep SQL and OpenSearch private** — When enabled, relational databases and OpenSearch domains must use VPC-only accessibility with no public internet access. DynamoDB has no equivalent per-table accessibility setting. See [Relational databases](/resources/databases/relational-database) for supported accessibility modes.
 - **Require deletion protection** — When enabled, all [relational databases](/resources/databases/relational-database) must have `deletionProtection` set to `true`, reducing accidental deletion risk for database resources.
+- **Require stack termination protection** — Require `deploymentConfig.terminationProtection: true`. CloudFormation then rejects stack deletion through Stacktape, AWS Console, or the AWS API until protection is deliberately disabled and redeployed.
+- **Require recoverable data stores** — Require automated backups for RDS, DynamoDB point-in-time recovery, and EFS automatic backups. This adds backup storage cost and does not replace restore testing.
 - **Require dead-letter queue** — When enabled, all [SQS queues](/resources/messaging/sqs-queue) must have a `redrivePolicy` (dead-letter queue) configured. In AWS SQS, a dead-letter queue captures messages that fail processing, preventing silent message loss.
-- **Require WAF on load balancers** — When enabled, all [application load balancers](/resources/networking/application-load-balancer) must have a [web application firewall](/resources/security/web-application-firewall) attached. This adds a layer of protection against common web exploits.
-- **Require custom domain** — When enabled, public-facing [web services](/resources/compute/web-service) and [hosting buckets](/resources/frontend/static-hosting) must have a [custom domain](/resources/networking/custom-domains) configured. This enforces use of a configured custom domain for these resource types.
+- **Require WAF on load balancers** — When enabled, directly configured application load balancers and those generated for web/private services must reference a configured [web application firewall](/resources/security/web-application-firewall). Internally generated load balancers without a configurable firewall setting are ignored.
+- **Require multiple container instances** — Require `scaling.minInstances` of at least two for user-configurable container services. This removes a single-task failure point and increases baseline compute cost. Fixed internal workloads, currently self-hosted Convex, are ignored because their instance count cannot be changed.
 
 For full details, see [Security and data protection guardrails](/guardrails/security-and-data-protection).
 
@@ -56,7 +59,7 @@ Resource limit guardrails define maximum allowed values for Lambda memory, Lambd
 - **Function memory limit** — Set a maximum memory allocation (in MB) for all [Lambda functions](/resources/compute/lambda-function) via `maxMemoryMB`. Any function exceeding the configured threshold fails validation. See [Lambda functions](/resources/compute/lambda-function) for AWS-side memory constraints.
 - **Function timeout limit** — Set a maximum timeout (in seconds) for all [Lambda functions](/resources/compute/lambda-function) via `maxTimeoutSeconds`. See [Lambda functions](/resources/compute/lambda-function) for AWS-side timeout limits.
 - **Container resource limit** — Set maximum vCPU (`maxCpu`) and memory in MB (`maxMemoryMB`) for container workloads.
-- **Resource count limit** — Set the maximum number of resources allowed per stack via `maxResources`. Use it when your organization wants to keep stacks smaller and easier to review.
+- **Resource count limit** — Set the maximum number of user-declared Stacktape resources via `maxResources`. Generated CloudFormation resources are not counted.
 
 For full details, see [Resource limit guardrails](/guardrails/resource-limits).
 
@@ -65,7 +68,7 @@ For full details, see [Resource limit guardrails](/guardrails/resource-limits).
 Database guardrails standardize which database engines, instance sizes, and resource types your team can use.
 
 - **Allowed database engines** — Configure which engine types are permitted via the `allowedEngines` list. Enter the engine identifiers you want to permit (for example, `postgres`, `aurora-postgresql`). Refer to [Relational databases](/resources/databases/relational-database) for the full list of supported engine identifiers. Deployments using engines not in the list fail.
-- **Blocked instance sizes** — Block specific RDS instance sizes via the `blockedInstanceSizes` list (e.g., `["db.r5.4xlarge", "db.r6g.8xlarge"]`). Prevents teams from provisioning expensive database instances without approval.
+- **Allowed instance sizes** — Allow reviewed provisioned RDS and Aurora sizes via `allowedInstanceSizes` (e.g., `["db.t4g.medium", "db.r6g.large"]`). New or unreviewed sizes stay blocked. Existing legacy blocklist policies continue to be enforced until replaced.
 - **Blocked resource types** — Block specific Stacktape resource types via the `blockedResourceTypes` list. This guardrail accepts any Stacktape resource type — the source gives `["open-search-domain", "redis-cluster"]` as examples. Use it to prevent teams from provisioning resource types your organization hasn't approved.
 
 
@@ -78,9 +81,9 @@ For full details, see [Database guardrails](/guardrails/databases).
 
 Guardrails are managed in the [Stacktape Console](/stacktape-console/console-overview). Enabling a toggle guardrail creates it; disabling it removes it. Value-based guardrails are saved with a definition containing their listed properties.
 
-**Toggle-based guardrails** (require VPC for databases, require deletion protection, require dead-letter queue, require WAF on load balancers, require custom domain) are enabled or disabled with a switch.
+**Toggle-based guardrails** (require VPC for databases, stack/database deletion protection, recoverable data stores, dead-letter queues, WAF, custom domains, and multiple container instances) are enabled or disabled with a switch.
 
-**Value-based guardrails** (stage restriction, region restriction, command restriction, blocked resource types, function memory limit, function timeout limit, container resource limit, resource count limit, allowed database engines, blocked instance sizes) render an expandable configuration form with Save, Cancel, and — when active — Remove actions.
+**Value-based guardrails** (stage restriction, region restriction, command restriction, blocked resource types, function memory limit, function timeout limit, container resource limit, resource count limit, allowed database engines, allowed instance sizes) render an expandable configuration form with Save, Cancel, and — when active — Remove actions.
 
 Active value-based guardrails display an `active` label next to the title and a one-line summary of the configured values.
 
@@ -113,7 +116,7 @@ No — guardrails apply organization-wide. They are managed for the selected org
 
 ### Can guardrails prevent accidental stack deletion?
 
-Yes. The command restriction guardrail accepts a `blockedCommands` list with command name strings such as `delete` and `rollback`. Adding `delete` to `blockedCommands` blocks the [`stacktape delete`](/cli/delete) command for the organization.
+Yes. Prefer **Protect stacks from deletion**, which requires CloudFormation termination protection and also covers deletion attempted outside Stacktape. A command restriction containing `delete` adds an earlier Stacktape-only policy check, but it cannot stop deletion through AWS Console or another AWS client.
 
 ### Can I restrict which AWS regions my team deploys to?
 

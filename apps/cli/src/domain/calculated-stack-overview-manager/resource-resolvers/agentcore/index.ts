@@ -29,7 +29,7 @@ import {
   getResolvedConnectToEnvironmentVariables,
   mergeConnectToEnvironmentVariables
 } from '../_utils/connect-to-helper';
-import { getPoliciesForRoles } from '../_utils/role-helpers';
+import { getAtlasMongoRoleAssociatedUserResource, getPoliciesForRoles } from '../_utils/role-helpers';
 import { getLambdaFunctionSecurityGroup } from '../functions/utils';
 import type {
   AgentCoreBrowserProps,
@@ -59,6 +59,7 @@ const resolveAgentCoreRuntimes = () => {
     const {
       accessToResourcesRequiringRoleChanges,
       accessToResourcesPotentiallyRequiringSecurityGroupCreation,
+      accessToAtlasMongoClusterResources,
       accessToAwsServices
     } = resolveConnectToList({
       stpResourceNameOfReferencer: name,
@@ -77,6 +78,16 @@ const resolveAgentCoreRuntimes = () => {
       }),
       nameChain
     });
+    if (accessToAtlasMongoClusterResources.length) {
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: cfLogicalNames.atlasMongoUserAssociatedWithRole(name),
+        resource: getAtlasMongoRoleAssociatedUserResource({
+          roleCfLogicalName: roleLogicalName,
+          accessToAtlasMongoClusterResources
+        }),
+        nameChain
+      });
+    }
 
     const useVpc = !!accessToResourcesPotentiallyRequiringSecurityGroupCreation.length;
     if (useVpc) {

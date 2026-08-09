@@ -9,7 +9,7 @@ seoDescription: 'Restrict allowed stages, AWS regions, CLI commands, resource ty
 
 Deployment guardrails are preventive policies that restrict where and how your team deploys. They enforce allowed stages, limit AWS regions, block specific CLI commands, ban resource types, and cap resources per stack. Unlike [alarms](/observability/alarms) that react to runtime anomalies, guardrails block non-compliant operations before any infrastructure changes happen.
 
-The type definitions include 15 guardrail types. This page focuses on stage, region, command, resource-type, and resource-count restrictions.
+The type definitions include 18 guardrail types. This page focuses on stage, region, command, resource-type, and resource-count restrictions.
 
 | Guardrail | Key property | What it controls |
 |---|---|---|
@@ -20,7 +20,7 @@ The type definitions include 15 guardrail types. This page focuses on stage, reg
 | [Resource count limit](#resource-count-limit) | `maxResources` | Maximum resources per stack |
 
 <Info>
-Other guardrail types include VPC database requirements, deletion protection, dead-letter queues, Lambda memory and timeout limits, container CPU and memory limits, database engine and instance restrictions, WAF requirements, and custom-domain requirements. See [Security and data protection](/guardrails/security-and-data-protection), [Resource limits](/guardrails/resource-limits), and [Database guardrails](/guardrails/databases). The [Guardrails overview](/guardrails/overview) covers the full set.
+Other guardrail types include VPC database requirements, stack and database deletion protection, recoverable data stores, dead-letter queues, redundant container instances, Lambda and container limits, database restrictions, WAF requirements, and custom-domain requirements. See [Security and data protection](/guardrails/security-and-data-protection), [Resource limits](/guardrails/resource-limits), and [Database guardrails](/guardrails/databases). The [Guardrails overview](/guardrails/overview) covers the full set.
 </Info>
 
 ## Where guardrails are configured
@@ -37,7 +37,7 @@ Enable deployment guardrails when any of these apply:
 
 - **Multiple people deploy.** Without guardrails, any team member can deploy to any stage or region. A misspelled stage name creates an orphaned stack that accumulates AWS costs.
 - **You have compliance requirements.** Regulations like GDPR or HIPAA may require infrastructure in specific AWS regions. Region restriction enforces this at the deployment layer rather than relying on manual discipline.
-- **You want to protect production.** Restricting the `delete` command discourages accidental stack removal. Capping resource counts discourages monolithic stacks.
+- **You want to protect production.** CloudFormation termination protection prevents accidental stack removal at the AWS layer. Command restrictions can add an earlier Stacktape policy check.
 
 ## When NOT to use deployment guardrails
 
@@ -77,9 +77,13 @@ If your team operates across many regions intentionally — for example, deployi
 
 ## Command restriction
 
-Command restriction defines commands that are blocked. Set a `blockedCommands` list with command names — the property accepts a string array, for example `["delete", "rollback"]`. Use it for commands your team does not want allowed by policy.
+Command restriction defines infrastructure-changing commands that are blocked. Supported values are `deploy`, `delete`, `dev`, `deployment-script:run`, `script:run`, `rollback`, and `cf:rollback`. Read-only `diff` and `validate` intentionally remain available so a developer can inspect and diagnose a policy violation.
 
 Command restriction is most useful for protecting production stacks from destructive operations by policy. Listing `delete` in `blockedCommands` is a way to signal that stack removal is not an allowed action under the active guardrail.
+
+<Info>
+Command restriction is enforced by Stacktape only. For deletion protection that also covers AWS Console and direct AWS API calls, enable the `require-stack-termination-protection` guardrail.
+</Info>
 
 <Tip>
 A common pattern is to block `delete` so that stack removal requires removing it from `blockedCommands` first. This adds a deliberate review step for destructive operations without removing the capability entirely.
@@ -116,9 +120,9 @@ If your team is small and everyone understands the cost and operational implicat
 
 ## Resource count limit
 
-Resource count limit caps the total number of Stacktape resources allowed in a single stack. Set a `maxResources` threshold — if the stack's resource count exceeds it, the deployment is blocked. The `maxResources` property accepts a number, for example `20`.
+Resource count limit caps the user-declared Stacktape resources allowed in a single configuration. Set a `maxResources` threshold — if that count exceeds it, the deployment is blocked. Generated nested and CloudFormation resources are not counted.
 
-Large stacks are harder to manage, slower to deploy, and riskier to update. As general AWS background, CloudFormation supports up to 500 resources per stack — but practical issues start well before that limit as deployment times grow, error surfaces widen, and blast radius increases. Setting a `maxResources` threshold encourages teams to decompose large applications into smaller, focused stacks.
+Large configurations are harder to review and carry a wider blast radius. `maxResources` is an architecture-governance threshold, not a CloudFormation quota check: one Stacktape resource can synthesize many CloudFormation resources.
 
 ### When to use
 
@@ -140,7 +144,8 @@ Deployment guardrails also combine with guardrails from other categories. A comm
 |---|---|---|
 | Stage restriction | `allowedStages: ["production", "staging", "dev"]` | Enforce naming conventions |
 | Region restriction | `allowedRegions: ["eu-west-1"]` | Data residency |
-| Command restriction | `blockedCommands: ["delete"]` | Discourage accidental stack deletion |
+| Command restriction | `blockedCommands: ["delete"]` | Add a Stacktape-only deletion policy check |
+| [Stack termination protection](/guardrails/security-and-data-protection) | `enabled: true` | Prevent deletion at the CloudFormation layer |
 | Resource count limit | `maxResources: 30` | Prevent stack sprawl |
 | [Require deletion protection](/guardrails/security-and-data-protection) | `enabled: true` | Protect database data |
 | [Function memory limit](/guardrails/resource-limits) | `maxMemoryMB: 2048` | Cost control |
@@ -174,7 +179,7 @@ The `GuardrailDefinition` types do not include a per-stage override field — ea
 
 ### How does resource count limit relate to AWS CloudFormation limits?
 
-As general AWS background, CloudFormation supports up to 500 resources per stack. Stacktape's `maxResources` guardrail (from the `resource-count-limit` type) lets you set a lower threshold — such as 20 or 30 — to encourage smaller, more manageable stacks. A single Stacktape resource often maps to multiple CloudFormation resources (a [web service](/resources/compute/web-service) creates an ECS service, task definition, IAM role, and more), so CloudFormation's 500-resource limit can be reached well before your Stacktape resource count seems high.
+It does not enforce the CloudFormation resource quota. `maxResources` counts user-declared Stacktape resources, while one Stacktape resource can map to many CloudFormation resources. Use it as an organization architecture limit; template synthesis and AWS validation remain responsible for CloudFormation limits.
 
 ### What stage names should I standardize on?
 

@@ -1,10 +1,27 @@
 import { describe, expect, test } from 'bun:test';
-import { buildCliRunOutput, toToolText } from './tool-output';
+import { buildCliRunOutput, MCP_TOOL_RESULT_SCHEMA_VERSION, toToolText } from './tool-output';
 
 const readPayload = (result: ReturnType<typeof toToolText>): Record<string, unknown> =>
   JSON.parse(result.content[0].text) as Record<string, unknown>;
 
 describe('MCP tool output', () => {
+  test('returns a versioned structured result with an exact text mirror and error semantics', () => {
+    const success = toToolText({ ok: true, code: 'OK', message: 'Done.', data: { value: 1 } });
+    expect(success.structuredContent).toEqual({
+      schemaVersion: MCP_TOOL_RESULT_SCHEMA_VERSION,
+      ok: true,
+      code: 'OK',
+      message: 'Done.',
+      data: { value: 1 }
+    });
+    expect(success.content[0].text).toBe(JSON.stringify(success.structuredContent, null, 2));
+    expect(success.isError).toBe(false);
+
+    const failure = toToolText({ ok: false, code: 'FAILED', message: 'Failed.' });
+    expect(failure.content[0].text).toBe(JSON.stringify(failure.structuredContent, null, 2));
+    expect(failure.isError).toBe(true);
+  });
+
   test('masks secret values and credential patterns without hiding secret identifiers', () => {
     const secretValue = 'stp_live_keyid_abcdefghijklmnopqrstuvwxyz';
     const payload = readPayload(

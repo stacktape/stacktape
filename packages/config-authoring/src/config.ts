@@ -2,7 +2,7 @@ import { CHILD_RESOURCES } from './child-resources.js';
 import { RESOURCES_CONVERTIBLE_TO_CLASSES } from './class-config.js';
 import type { AlarmDefinitionBase, AlarmTrigger } from '@stacktape/config/alarms';
 import type { StacktapeConfig } from '@stacktape/config';
-import type { StacktapeResourceType } from '@stacktape/config/schema-inspection';
+import type { StacktapeResourceType } from '@stacktape/config/resource-types';
 import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
 import type { CloudFormationTemplate } from '@stacktape/cloudformation/resource';
 

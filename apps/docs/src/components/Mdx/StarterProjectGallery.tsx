@@ -6,7 +6,7 @@ import { colors } from '@/styles/variables';
 import { publicStarterProjects, type StarterProject } from '@/utils/starter-projects';
 import { Img as Image } from '@/components/Img';
 import { Button } from '@/components/Button/Button';
-import { GridList } from '@/components/Misc/GridList';
+import { GridList } from '@stacktape/ui-react/grid-list';
 
 type Project = StarterProject;
 
