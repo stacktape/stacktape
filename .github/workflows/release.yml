@@ -91,6 +91,7 @@ jobs:
     name: Create Release and Publish
     needs: build-binaries
     runs-on: ubuntu-latest
+    environment: release-publish
     permissions:
       contents: write # Required for creating releases and pushing commits
       id-token: write # Required for npm OIDC authentication
@@ -141,7 +142,7 @@ jobs:
       - name: Setup Node.js for npm publish
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
           registry-url: 'https://registry.npmjs.org'
 
       - name: Install npm for trusted publishing

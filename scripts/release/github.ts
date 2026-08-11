@@ -21,24 +21,32 @@ export const createGithubRelease = async ({ version, isPrerelease }: { version: 
   logInfo(`Creating Github ${releaseType}...`);
   const releaseNotesText = `Version: ${version}`;
   const {
-    data: { upload_url, id }
+    data: { upload_url, id, assets }
   } = await createRelease({ tag: version, body: releaseNotesText, prerelease: isPrerelease });
 
   logSuccess(`Successfully created Github ${releaseType}.`);
 
-  return { uploadUrl: upload_url, releaseId: id };
+  return { uploadUrl: upload_url, releaseId: id, existingAssetNames: assets.map(({ name }) => name) };
 };
 
-export const uploadReleaseAssets = async ({ releaseId }: { uploadUrl: string; releaseId: number }) => {
+export const uploadReleaseAssets = async ({
+  releaseId,
+  existingAssetNames = []
+}: {
+  uploadUrl: string;
+  releaseId: number;
+  existingAssetNames?: string[];
+}) => {
   logInfo('Uploading release assets...');
   const allItems = await readdir(DIST_PACKAGE_FOLDER_PATH);
+  const existingAssets = new Set(existingAssetNames);
 
   // Filter to only archive files (.tar.gz and .zip), skip directories
   const assetsToUpload: string[] = [];
   for (const item of allItems) {
     const absolutePath = join(DIST_PACKAGE_FOLDER_PATH, item);
     const stats = await stat(absolutePath);
-    if (stats.isFile() && (item.endsWith('.tar.gz') || item.endsWith('.zip'))) {
+    if (stats.isFile() && (item.endsWith('.tar.gz') || item.endsWith('.zip')) && !existingAssets.has(item)) {
       assetsToUpload.push(item);
     }
   }

@@ -10,8 +10,11 @@ const main = async () => {
     throw new Error('Version is required. Usage: --version <version> [--prerelease true]');
   }
 
-  const { uploadUrl, releaseId } = await createGithubRelease({ version, isPrerelease: prerelease });
-  await uploadReleaseAssets({ uploadUrl, releaseId });
+  const { uploadUrl, releaseId, existingAssetNames } = await createGithubRelease({
+    version,
+    isPrerelease: prerelease
+  });
+  await uploadReleaseAssets({ uploadUrl, releaseId, existingAssetNames });
 };
 
 if (import.meta.main) {
