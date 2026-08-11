@@ -1,12 +1,30 @@
-import type { StackEvent } from '@aws-sdk/client-cloudformation';
-import type { FilteredLogEvent } from '@aws-sdk/client-cloudwatch-logs';
+import type { StackEvent } from "@aws-sdk/client-cloudformation";
+import type { FilteredLogEvent } from "@aws-sdk/client-cloudwatch-logs";
 // import { TemplateDiff } from '@aws-cdk/cloudformation-diff';
-import type { Deployment, Task, TaskSet } from '@aws-sdk/client-ecs';
-import type { AwsSdkManager } from './sdk-manager';
-import { ResourceStatus } from '@aws-sdk/client-cloudformation';
-import { DeploymentControllerType, DesiredStatus } from '@aws-sdk/client-ecs';
-import { consoleLinks } from '@shared/naming/console-links';
-import { wait } from '@shared/utils/misc';
+import type { Deployment, Task, TaskSet } from "@aws-sdk/client-ecs";
+import type { AwsSdkManager } from "./sdk-manager";
+import { ResourceStatus } from "@aws-sdk/client-cloudformation";
+import { DeploymentControllerType, DesiredStatus, TaskStopCode } from "@aws-sdk/client-ecs";
+import { consoleLinks } from "@shared/naming/console-links";
+import { wait } from "@shared/utils/misc";
+
+export const findFailedTaskForEcsDeployment = ({
+  serviceName,
+  tasks,
+  targetDeploymentOrTaskSet,
+}: {
+  serviceName: string;
+  tasks: Task[];
+  targetDeploymentOrTaskSet: Deployment | TaskSet;
+}) => {
+  return tasks.find(
+    ({ createdAt, group, stopCode, taskDefinitionArn }) =>
+      group === `service:${serviceName}` &&
+      taskDefinitionArn === targetDeploymentOrTaskSet.taskDefinition &&
+      stopCode !== TaskStopCode.SERVICE_SCHEDULER_INITIATED &&
+      new Date(createdAt) > new Date(targetDeploymentOrTaskSet.createdAt),
+  );
+};
 
 export class EcsServiceDeploymentStatusPoller {
   #serviceArn: string;
@@ -34,7 +52,7 @@ export class EcsServiceDeploymentStatusPoller {
     ecsServiceArn,
     pollerPrintName,
     awsSdkManager,
-    inspectDeploymentsCreatedAfterDate
+    inspectDeploymentsCreatedAfterDate,
   }: {
     ecsServiceArn: string;
     pollerPrintName?: string;
@@ -42,12 +60,13 @@ export class EcsServiceDeploymentStatusPoller {
     inspectDeploymentsCreatedAfterDate?: Date;
   }) {
     this.#serviceArn = ecsServiceArn;
-    this.#clusterName = ecsServiceArn.split('/')[1];
+    this.#clusterName = ecsServiceArn.split("/")[1];
     this.#awsSdkManager = awsSdkManager;
     this.#printer = this.#awsSdkManager.printer;
-    this.#pollerPrintName = pollerPrintName || this.#serviceArn.split('/').at(-1);
+    this.#pollerPrintName = pollerPrintName || this.#serviceArn.split("/").at(-1);
     this.#pollInterval = setInterval(this.#pollStatus, 4000);
-    this.#inspectDeploymentsCreatedAfterDate = inspectDeploymentsCreatedAfterDate || new Date(Date.now() - 30000);
+    this.#inspectDeploymentsCreatedAfterDate =
+      inspectDeploymentsCreatedAfterDate || new Date(Date.now() - 30000);
   }
 
   // get pollingFinished() {
@@ -75,27 +94,31 @@ export class EcsServiceDeploymentStatusPoller {
       service.deploymentController?.type === DeploymentControllerType.CODE_DEPLOY
         ? service.taskSets?.find(
             ({ createdAt, status }) =>
-              status === 'ACTIVE' && new Date(createdAt) > this.#inspectDeploymentsCreatedAfterDate
+              status === "ACTIVE" && new Date(createdAt) > this.#inspectDeploymentsCreatedAfterDate,
           )
         : service.deployments?.find(
             ({ status, createdAt }) =>
-              status === 'PRIMARY' && new Date(createdAt) > this.#inspectDeploymentsCreatedAfterDate
+              status === "PRIMARY" &&
+              new Date(createdAt) > this.#inspectDeploymentsCreatedAfterDate,
           );
 
     if (this.#targetDeploymentOrTaskSet) {
+      const serviceName = this.#serviceArn.split("/").at(-1);
       const tasks = await this.#awsSdkManager.listEcsTasks({
         ecsClusterName: this.#clusterName,
-        desiredStatus: DesiredStatus.STOPPED
+        desiredStatus: DesiredStatus.STOPPED,
       });
-      this.#failedTask = tasks.find(
-        ({ createdAt }) => new Date(createdAt) > new Date(this.#targetDeploymentOrTaskSet.createdAt)
-      );
+      this.#failedTask = findFailedTaskForEcsDeployment({
+        serviceName,
+        tasks,
+        targetDeploymentOrTaskSet: this.#targetDeploymentOrTaskSet,
+      });
       // inspecting failed task
       if (this.#failedTask) {
         // wait for logs to be delivered and other things before inspecting
         await wait(20000);
         const { taskDefinition } = await this.#awsSdkManager.getEcsTaskDefinition({
-          ecsTaskDefinitionFamily: this.#failedTask.taskDefinitionArn
+          ecsTaskDefinitionFamily: this.#failedTask.taskDefinitionArn,
         });
         const essentialContainers = taskDefinition.containerDefinitions
           .filter(({ essential }) => essential)
@@ -105,12 +128,17 @@ export class EcsServiceDeploymentStatusPoller {
             .filter(({ name }) => essentialContainers.includes(name))
             .map(async (failedContainerInfo) => {
               const { name, healthStatus, exitCode, reason, runtimeId } = failedContainerInfo;
-              const logGroupName = taskDefinition.containerDefinitions.find(({ name: tdName }) => tdName === name)
-                .logConfiguration?.options?.['awslogs-group'];
-              const logStreamName = logGroupName && runtimeId ? `ecs/${name}/${runtimeId.split('-')[0]}` : undefined;
+              const logGroupName = taskDefinition.containerDefinitions.find(
+                ({ name: tdName }) => tdName === name,
+              ).logConfiguration?.options?.["awslogs-group"];
+              const logStreamName =
+                logGroupName && runtimeId ? `ecs/${name}/${runtimeId.split("-")[0]}` : undefined;
               const logs =
                 logGroupName && logStreamName
-                  ? await this.#awsSdkManager.getLogEvents({ logGroupName, logStreamNames: [logStreamName] })
+                  ? await this.#awsSdkManager.getLogEvents({
+                      logGroupName,
+                      logStreamNames: [logStreamName],
+                    })
                   : undefined;
               this.#failedContainersDetail.push({
                 name,
@@ -120,10 +148,14 @@ export class EcsServiceDeploymentStatusPoller {
                 logs,
                 logStreamLink:
                   logGroupName && logStreamName
-                    ? consoleLinks.logStream(this.#awsSdkManager.region, logGroupName, logStreamName)
-                    : undefined
+                    ? consoleLinks.logStream(
+                        this.#awsSdkManager.region,
+                        logGroupName,
+                        logStreamName,
+                      )
+                    : undefined,
               });
-            })
+            }),
         );
       }
     }
@@ -139,7 +171,7 @@ export class EcsServiceDeploymentStatusPoller {
       return undefined;
     }
 
-    const failedTaskId = this.#failedTask.taskArn.split('/').at(-1);
+    const failedTaskId = this.#failedTask.taskArn.split("/").at(-1);
     const lines: string[] = [];
 
     // Container failure details
@@ -148,12 +180,16 @@ export class EcsServiceDeploymentStatusPoller {
 
       // Exit code info
       if (Number.isInteger(exitCode)) {
-        const containerLabel = hasMultipleContainers ? `Container ${this.#printer.makeBold(name)} exited` : 'Exited';
+        const containerLabel = hasMultipleContainers
+          ? `Container ${this.#printer.makeBold(name)} exited`
+          : "Exited";
         lines.push(
-          `${containerLabel} with code ${this.#printer.colorize('red', String(exitCode))}${reason ? ` (${reason})` : ''}`
+          `${containerLabel} with code ${this.#printer.colorize("red", String(exitCode))}${reason ? ` (${reason})` : ""}`,
         );
       } else if (reason) {
-        const containerLabel = hasMultipleContainers ? `Container ${this.#printer.makeBold(name)}` : 'Container';
+        const containerLabel = hasMultipleContainers
+          ? `Container ${this.#printer.makeBold(name)}`
+          : "Container";
         lines.push(`${containerLabel} failed: ${reason}`);
       }
 
@@ -161,38 +197,40 @@ export class EcsServiceDeploymentStatusPoller {
       if (logs?.length) {
         const relevantLogs = this.#filterRelevantLogs(logs);
         if (relevantLogs.length > 0) {
-          lines.push('');
-          lines.push(this.#printer.colorize('gray', 'Last logs before exit:'));
+          lines.push("");
+          lines.push(this.#printer.colorize("gray", "Last logs before exit:"));
 
           // Limit to last 15 relevant log lines
           const logsToShow = relevantLogs.slice(-15);
           for (const { timestamp, message: logMessage } of logsToShow) {
-            const time = new Date(timestamp).toTimeString().split(' ')[0];
+            const time = new Date(timestamp).toTimeString().split(" ")[0];
             const trimmedMessage = logMessage.trim();
-            lines.push(`  ${this.#printer.colorize('gray', time)} ${trimmedMessage}`);
+            lines.push(`  ${this.#printer.colorize("gray", time)} ${trimmedMessage}`);
           }
 
           if (relevantLogs.length > 15) {
-            lines.push(`  ${this.#printer.colorize('gray', `... ${relevantLogs.length - 15} earlier lines omitted`)}`);
+            lines.push(
+              `  ${this.#printer.colorize("gray", `... ${relevantLogs.length - 15} earlier lines omitted`)}`,
+            );
           }
         }
       }
 
       // AWS Console links
-      lines.push('');
+      lines.push("");
       const taskLink = consoleLinks.ecsTask({
         clusterName: this.#clusterName,
         region: this.#awsSdkManager.region,
         taskId: failedTaskId,
-        selectedContainer: name
+        selectedContainer: name,
       });
-      lines.push(this.#printer.terminalLink('Task details', taskLink));
+      lines.push(this.#printer.terminalLink("Task details", taskLink));
       if (logStreamLink) {
-        lines.push(this.#printer.terminalLink('Full logs', logStreamLink));
+        lines.push(this.#printer.terminalLink("Full logs", logStreamLink));
       }
     }
 
-    return lines.join('\n');
+    return lines.join("\n");
   }
 
   /**
@@ -207,7 +245,7 @@ export class EcsServiceDeploymentStatusPoller {
       /FastifyWarning.*deprecated/i,
       /Server listening at http:\/\/127\.0\.0\.1/i,
       /Server listening at http:\/\/169\.254/i, // AWS metadata IP
-      /Server listening at http:\/\/172\./i // Internal Docker IPs
+      /Server listening at http:\/\/172\./i, // Internal Docker IPs
     ];
 
     return logs.filter(({ message }) => {
@@ -224,8 +262,12 @@ export class EcsServiceDeploymentStatusPoller {
     if (this.#printer) {
       const failureMessage = this.getFailureMessage();
       if (failureMessage) {
-        this.#printer.warn(`[${this.#pollerPrintName}] Container startup failed\n${failureMessage}`);
-        this.#printer.hint('Task logs are only available during deployment. Save the links above if needed.');
+        this.#printer.warn(
+          `[${this.#pollerPrintName}] Container startup failed\n${failureMessage}`,
+        );
+        this.#printer.hint(
+          "Task logs are only available during deployment. Save the links above if needed.",
+        );
       }
       this.#warnMessagePrinted = true;
     }
@@ -241,8 +283,8 @@ export class EcsServiceDeploymentStatusPoller {
 }
 
 export const isEcsServiceCreateOrUpdateCloudformationEvent = (stackEvent: StackEvent) =>
-  (stackEvent.ResourceType === 'AWS::ECS::Service' ||
-    stackEvent.ResourceType === 'Stacktape::ECSBlueGreenV1::Service') &&
+  (stackEvent.ResourceType === "AWS::ECS::Service" ||
+    stackEvent.ResourceType === "Stacktape::ECSBlueGreenV1::Service") &&
   (stackEvent.ResourceStatus === ResourceStatus.CREATE_IN_PROGRESS ||
     stackEvent.ResourceStatus === ResourceStatus.ROLLBACK_IN_PROGRESS ||
     stackEvent.ResourceStatus === ResourceStatus.UPDATE_IN_PROGRESS) &&
