@@ -713,6 +713,7 @@ export const initializeDeleteOperation = async () => {
     application: applicationManager,
     config: configManager,
     deploymentArtifacts: deploymentArtifactManager,
+    deployedStackOverview: deployedStackOverviewManager,
     event: eventManager,
     notification: notificationManager,
     stack: stackManager,

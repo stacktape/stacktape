@@ -14,7 +14,9 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getCloudFormationLogRetentionDays } from '@utils/cloudformation';
 import { normalizePathForLink } from '@utils/formatting';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
+import { getCloudFormationLogGroupClassProperties } from '../_utils/log-groups';
 import type { HttpApiIntegration } from '@stacktape/config/events';
+import type { CloudWatchLogGroupOptions } from '@stacktape/config/log-forwarding';
 import type { DomainConfiguration } from '@stacktape/config/shared';
 
 export const getHttpApi = (httpApiConfig: StpHttpApiGateway) => {
@@ -54,16 +56,19 @@ export const getHttpApiStage = ({
 
 export const getHttpApiLogGroup = ({
   httpApiUserResourceName,
-  retentionDays
+  retentionDays,
+  logClass
 }: {
   httpApiUserResourceName: string;
   retentionDays: number;
+  logClass?: CloudWatchLogGroupOptions['logClass'];
 }) => {
   return cfnResource('AWS::Logs::LogGroup', {
     LogGroupName: awsResourceNames.httpApiLogGroup({
       stackName: calculatedStackOverviewManager.context.stackName,
       stpResourceName: httpApiUserResourceName
     }),
+    ...getCloudFormationLogGroupClassProperties(logClass),
     RetentionInDays: getCloudFormationLogRetentionDays(retentionDays)
   });
 };

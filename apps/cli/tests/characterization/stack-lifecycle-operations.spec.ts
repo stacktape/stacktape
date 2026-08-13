@@ -142,6 +142,7 @@ describe('delete lifecycle', () => {
       stackName: 'project-dev',
       tui: {
         colorize: (_color, text) => text,
+        info: () => {},
         setPendingCompletion: () => events.push('complete')
       }
     });
@@ -183,6 +184,7 @@ describe('delete lifecycle', () => {
       stackName: 'project-dev',
       tui: {
         colorize: (_color, text) => text,
+        info: () => {},
         setPendingCompletion: () => events.push('complete')
       }
     });

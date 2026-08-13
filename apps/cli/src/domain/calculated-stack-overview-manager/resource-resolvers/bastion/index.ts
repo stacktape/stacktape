@@ -90,7 +90,8 @@ const resolveBastion = ({ bastion }: { bastion: StpBastion }) => {
       getResourcesNeededForLogForwarding({
         resource: bastion,
         logGroupCfLogicalName: cfLogicalNames.bastionLogGroup(bastion.name, 'audit'),
-        logForwardingConfig: bastion.logging?.audit?.logForwarding
+        logForwardingConfig: bastion.logging?.audit?.logForwarding,
+        logClass: bastion.logging?.audit?.logClass
       }).forEach(({ cfLogicalName, cfResource }) => {
         if (!templateManager.getCfResourceFromTemplate(cfLogicalName)) {
           calculatedStackOverviewManager.addCfChildResource({
@@ -123,7 +124,8 @@ const resolveBastion = ({ bastion }: { bastion: StpBastion }) => {
       getResourcesNeededForLogForwarding({
         resource: bastion,
         logGroupCfLogicalName: cfLogicalNames.bastionLogGroup(bastion.name, 'secure'),
-        logForwardingConfig: bastion.logging?.secure?.logForwarding
+        logForwardingConfig: bastion.logging?.secure?.logForwarding,
+        logClass: bastion.logging?.secure?.logClass
       }).forEach(({ cfLogicalName, cfResource }) => {
         if (!templateManager.getCfResourceFromTemplate(cfLogicalName)) {
           calculatedStackOverviewManager.addCfChildResource({
@@ -156,7 +158,8 @@ const resolveBastion = ({ bastion }: { bastion: StpBastion }) => {
       getResourcesNeededForLogForwarding({
         resource: bastion,
         logGroupCfLogicalName: cfLogicalNames.bastionLogGroup(bastion.name, 'messages'),
-        logForwardingConfig: bastion.logging?.messages?.logForwarding
+        logForwardingConfig: bastion.logging?.messages?.logForwarding,
+        logClass: bastion.logging?.messages?.logClass
       }).forEach(({ cfLogicalName, cfResource }) => {
         if (!templateManager.getCfResourceFromTemplate(cfLogicalName)) {
           calculatedStackOverviewManager.addCfChildResource({

@@ -13,6 +13,7 @@ import { getCliArgs } from './release/args';
 import {
   buildBinaryFile,
   copyConfigSchema,
+  copyInitWizardBundle,
   copyMcpDocs,
   copyNixpacksBinary,
   copyPackBinary,
@@ -68,9 +69,10 @@ const buildEverything = async () => {
     copyNixpacksBinary({ distFolderPath, platform }),
     copySessionsManagerPluginBinary({ distFolderPath, platform }),
     copyConfigSchema({ distFolderPath: platformDistFolderPath }),
+    copyInitWizardBundle({ distFolderPath: platformDistFolderPath }),
     copyMcpDocs({ distFolderPath: platformDistFolderPath }),
     generateStarterProjectsMetadata({ distFolderPath: platformDistFolderPath }),
-    packageHelperLambdas({ isDev: false, distFolderPath: platformDistFolderPath }),
+    packageHelperLambdas({ distFolderPath: platformDistFolderPath }),
     createReleaseDataFile({ distFolderPath: platformDistFolderPath, version }),
     generateSourceMapInstall({ distFolderPath: platformDistFolderPath })
   ]);

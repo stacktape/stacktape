@@ -149,6 +149,22 @@ Assuming a resource named `myDatabase`:
 > **Tip:** Use [`$Secret()`](/configuration/secrets) for the database password in your config to keep credentials out of source control. Additional database parameters like `dbName` and `masterUserName` are available via [`$ResourceParam()`](/configuration/directives).
 
 
+### Aurora DSQL
+
+Assuming a resource named `database`:
+
+| Parameter | Example env var | Description |
+|---|---|---|
+| `endpoint` | `STP_DATABASE_ENDPOINT` | Public TLS endpoint |
+| `port` | `STP_DATABASE_PORT` | PostgreSQL port (`5432`) |
+| `databaseName` | `STP_DATABASE_DATABASE_NAME` | Default database (`postgres`) |
+| `username` | `STP_DATABASE_USERNAME` | Built-in role (`admin`) |
+| `region` | `STP_DATABASE_REGION` | Region used to sign an IAM token |
+| `id` | `STP_DATABASE_ID` | Cluster ID |
+| `arn` | `STP_DATABASE_ARN` | Cluster ARN |
+
+DSQL does not expose a static password or connection string. Generate a short-lived IAM token for each new connection and keep TLS enabled. `connectTo` grants `dsql:DbConnectAdmin` on the connected cluster; see [Aurora DSQL](/resources/databases/dsql) for the explicit least-privilege path.
+
 ### Lambda to Postgres example
 
 Use `connectTo` on the Lambda function to inject database connection variables. For a database resource named `mainDatabase`, the Lambda reads `process.env.STP_MAIN_DATABASE_CONNECTION_STRING`.
@@ -338,6 +354,36 @@ AgentCore targets inject their resource identifiers and grant only the data-plan
 | [Browser](/resources/ai/agentcore-browser) | `id`, `arn` | Start, use, inspect, and stop browser sessions |
 | [Code Interpreter](/resources/ai/agentcore-code-interpreter) | `id`, `arn` | Start, invoke, inspect, and stop code-interpreter sessions |
 
+### WebSocket API Gateway
+
+Assuming a gateway named `realtime`:
+
+| Parameter | Example env var | Description |
+|---|---|---|
+| `apiId` | `STP_REALTIME_API_ID` | API Gateway ID |
+| `url` | `STP_REALTIME_URL` | Public `wss://` client URL |
+| `managementEndpoint` | `STP_REALTIME_MANAGEMENT_ENDPOINT` | HTTPS endpoint used by `ApiGatewayManagementApiClient` |
+| `canonicalDomain` | `STP_REALTIME_CANONICAL_DOMAIN` | AWS DNS target, useful with external DNS |
+
+Connecting to a WebSocket gateway grants only `execute-api:ManageConnections`, scoped to that API and Stacktape's managed stage. Lambda functions that own a WebSocket route receive this wiring automatically; use explicit `connectTo: [realtime]` for other producers that need to send messages to clients.
+
+Stacktape does not create a connection registry. Add a [DynamoDB table](/resources/databases/dynamodb) when your application needs broadcasts, rooms, presence, or user-to-connection lookup. See [WebSocket API Gateway](/resources/networking/websocket-api-gateway) for the cleanup pattern.
+
+### Kafka cluster
+
+Assuming a cluster named `events`:
+
+| Parameter | Example env var | Description |
+|---|---|---|
+| `arn` | `STP_EVENTS_ARN` | Amazon MSK cluster ARN |
+| `name` | `STP_EVENTS_NAME` | Physical MSK cluster name |
+| `bootstrapServers` | `STP_EVENTS_BOOTSTRAP_SERVERS` | Comma-separated IAM/TLS broker endpoints |
+
+`connectTo` grants Kafka IAM access scoped to the cluster, its topics, and consumer groups, including `CreateTopic`
+but excluding `AlterTopic` and `DeleteTopic`. It also opens port 9098 from deployed workloads. A Lambda function used
+as a direct Kafka client must set `joinDefaultVpc: true`; Lambda Kafka triggers have separate event-source networking.
+See [Kafka cluster](/resources/messaging/kafka-cluster).
+
 ### Additional connectTo targets
 
 The tables above cover resource types with documented `connectTo` environment variables. Beyond those, `connectTo` also accepts **IAM-permission-only targets** — resource types where `connectTo` adds the required IAM permissions to the consuming workload's execution role but does not have a documented set of injected environment variables. These include:
@@ -349,7 +395,7 @@ The tables above cover resource types with documented `connectTo` environment va
 
 For these targets, use [`$ResourceParam()`](/configuration/directives) to pass specific parameters as environment variables manually.
 
-In the type definitions, `connectTo` targets fall into three categories: **role-affecting** targets (including AWS API resources and AgentCore resources) that modify the consuming workload's IAM role, **security-group-affecting** targets (relational databases and Redis clusters) that open network access, and **environment-only** targets such as EFS that expose identifiers without guessing additional configuration. `connectTo` also accepts AWS service macros such as `aws:ses`.
+In the type definitions, `connectTo` targets fall into three categories: **role-affecting** targets (including AWS API resources and AgentCore resources) that modify the consuming workload's IAM role, **security-group-affecting** targets (relational databases and Redis clusters) that open network access, and **environment-only** targets such as EFS that expose identifiers without guessing additional configuration.
 
 ### Script-only variables
 
@@ -422,6 +468,7 @@ Stacktape generates IAM policies at deploy time based on the target resource typ
 | [User auth pool](/resources/security/user-auth-pool) | Full Cognito User Pool control |
 | [MongoDB Atlas cluster](/resources/databases/mongodb-atlas) | Temporary credential-less access |
 | [Relational database](/resources/databases/relational-database) | Network access (security group rules, not IAM) |
+| [Aurora DSQL](/resources/databases/dsql) | Connect as the built-in `admin` role on the target cluster (`dsql:DbConnectAdmin`) |
 | [Redis cluster](/resources/databases/redis) | Network access (security group rules, not IAM) |
 | [AgentCore Runtime](/resources/ai/agentcore-runtime) | Invoke the runtime and its configured endpoints |
 | [AgentCore Memory](/resources/ai/agentcore-memory) | Use events and short- and long-term memory records |
@@ -429,6 +476,8 @@ Stacktape generates IAM policies at deploy time based on the target resource typ
 | [AgentCore Browser](/resources/ai/agentcore-browser) | Use browser sessions and streams |
 | [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter) | Use code-interpreter sessions |
 | [EFS filesystem](/resources/storage/efs-filesystem) | No access change from `connectTo`; use an explicit volume mount for IAM and network wiring |
+| [Email sender](/resources/messaging/email-sender) | `ses:SendEmail` and `ses:SendRawEmail`, scoped to the exact identity and configuration set |
+| [Kafka cluster](/resources/messaging/kafka-cluster) | IAM cluster/topic/group access and port 9098 network access; no topic deletion or alteration |
 
 [Relational databases](/resources/databases/relational-database) and [Redis clusters](/resources/databases/redis) are network-bound resources — data-plane access is controlled through VPC security groups rather than IAM policies. Stacktape opens the correct port between the consuming resource and the target automatically.
 
@@ -437,32 +486,6 @@ Stacktape generates IAM policies at deploy time based on the target resource typ
 
 > **Info:** The exact IAM policy statements generated at deploy time may include additional supporting actions (e.g., listing, describing). For the authoritative policy, inspect the generated CloudFormation template or the deployed stack's IAM roles in the AWS Console.
 
-
-## AWS service macros
-
-In addition to stack resources, `connectTo` supports the `aws:ses` macro for granting AWS SES (Simple Email Service) permissions without a dedicated resource:
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
-export default defineConfig(() => {
-  const emailSender = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/send-email.ts'
-    }),
-    connectTo: ['aws:ses']
-  });
-
-  return {
-    resources: { emailSender }
-  };
-});
-```
-
-
-The `aws:ses` macro grants SES email sending permissions to the consuming resource. You call the SES API directly via the AWS SDK using methods like `SendEmailCommand`.
 
 ## Custom permissions with iamRoleStatements
 

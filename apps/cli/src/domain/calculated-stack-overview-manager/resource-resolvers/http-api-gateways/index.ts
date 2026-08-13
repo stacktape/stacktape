@@ -73,7 +73,8 @@ export const resolveHttpApiGateway = (definition: StpHttpApiGateway) => {
       nameChain,
       resource: getHttpApiLogGroup({
         httpApiUserResourceName: name,
-        retentionDays: definition.logging?.retentionDays || defaultLogRetentionDays.httpApiGateway
+        retentionDays: definition.logging?.retentionDays || defaultLogRetentionDays.httpApiGateway,
+        logClass: definition.logging?.logClass
       })
     });
     calculatedStackOverviewManager.addStacktapeResourceLink({
@@ -85,7 +86,8 @@ export const resolveHttpApiGateway = (definition: StpHttpApiGateway) => {
       getResourcesNeededForLogForwarding({
         resource: definition,
         logGroupCfLogicalName: cfLogicalNames.httpApiLogGroup(name),
-        logForwardingConfig: definition.logging?.logForwarding
+        logForwardingConfig: definition.logging?.logForwarding,
+        logClass: definition.logging?.logClass
       }).forEach(({ cfLogicalName, cfResource }) => {
         if (!templateManager.getCfResourceFromTemplate(cfLogicalName)) {
           calculatedStackOverviewManager.addCfChildResource({

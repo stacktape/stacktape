@@ -1,5 +1,10 @@
 import type { StpResourceType } from '@domain-services/config-manager/resolved-types/resources';
-import { isDevCommand, isResourceTypeExcludedInDevMode, isResourceTypeLocallyEmulatable } from './dev-mode-utils';
+import {
+  isDevCommand,
+  isResourceTypeExcludedInDevMode,
+  isResourceTypeLocallyEmulatable,
+  isResourceTypeRemoteOnlyInDevMode
+} from './dev-mode-utils';
 import { getRemoteResourceNames } from './local-resources';
 
 export { isDevCommand };
@@ -22,7 +27,7 @@ export const shouldExcludeResourceInDevMode = (resourceName: string, resourceTyp
   }
 
   // Check if this is a locally emulated resource type
-  if (isResourceTypeLocallyEmulatable(resourceType)) {
+  if (isResourceTypeLocallyEmulatable(resourceType) || isResourceTypeRemoteOnlyInDevMode(resourceType)) {
     const remoteResourceNames = getRemoteResourceNames();
     // Exclude unless it's marked as remote
     return !remoteResourceNames.has(resourceName);

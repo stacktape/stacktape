@@ -42,7 +42,7 @@ import {
   SourceCodeWatcher
 } from '../utils';
 import { updateAgentWorkloadStatus } from '../agent-server';
-import type { HttpApiIntegration } from '@stacktape/config/events';
+import type { HttpApiIntegration, WebSocketApiIntegration } from '@stacktape/config/events';
 import type { StacktapeCliArgs } from 'src/config/cli/types';
 import type { StackContext } from '@domain-services/stack-context';
 
@@ -91,6 +91,17 @@ export const runParallelWorkloads = async (
 
   // All resources run - no filtering needed in new dev mode
   const filteredResources = resources;
+
+  const usesWebSocketGateway = filteredResources.some((resource) =>
+    getConfigResource(resource.name, resource.type)?.events?.some(
+      (event: { type?: string }) => event.type === 'websocket-api-gateway'
+    )
+  );
+  if (usesWebSocketGateway) {
+    tuiManager.info(
+      'WebSocket gateways stay deployed during dev. Stacktape hot-swaps their Lambda handlers; connect to the displayed wss:// URL.'
+    );
+  }
 
   // Collect all referenced resources from all workloads (via connectTo and $ResourceParam directives)
   const allReferencedResources = new Set<string>();
@@ -986,6 +997,20 @@ const getFunctionIntegrationInfo = (resourceName: string): { url?: string; statu
       }
     }
     return { statusMessage: 'HTTP API' };
+  }
+
+  const websocketEvent = functionConfig.events.find(
+    (event): event is WebSocketApiIntegration => event.type === 'websocket-api-gateway'
+  );
+  if (websocketEvent) {
+    const gatewayResource = deployedStackOverviewManager.getStpResource({
+      nameChain: websocketEvent.properties.websocketApiGatewayName
+    });
+    const gatewayUrl = gatewayResource?.referencableParams?.url?.value;
+    if (gatewayUrl) {
+      return { url: gatewayUrl.toString() };
+    }
+    return { statusMessage: `WebSocket ${websocketEvent.properties.routeKey}` };
   }
 
   // Check other integration types and return descriptive status

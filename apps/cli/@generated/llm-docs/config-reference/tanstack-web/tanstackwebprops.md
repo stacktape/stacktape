@@ -193,7 +193,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 

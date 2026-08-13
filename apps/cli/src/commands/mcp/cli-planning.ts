@@ -76,7 +76,9 @@ const getStacktapeTargetSummary = (args: Record<string, unknown>): string => {
       ? `currentWorkingDirectory=${args.currentWorkingDirectory}`
       : undefined,
     typeof args.secretName === 'string' ? `secretName=${args.secretName}` : undefined,
-    typeof args.resourceName === 'string' ? `resourceName=${args.resourceName}` : undefined
+    typeof args.resourceName === 'string' ? `resourceName=${args.resourceName}` : undefined,
+    typeof args.operation === 'string' ? `operation=${args.operation}` : undefined,
+    typeof args.sql === 'string' ? `sql=${JSON.stringify(args.sql)}` : undefined
   ].filter(Boolean);
 
   return targetParts.length > 0 ? targetParts.join(', ') : 'target args not fully specified';
@@ -180,7 +182,7 @@ export const requestDestructiveExecutionConfirmation = async ({
       requestState: await destructiveConfirmationCodec.mint(approvalState, ctx),
       inputRequests: {
         [DESTRUCTIVE_CONFIRMATION_INPUT_KEY]: inputRequired.elicit({
-          message: `Confirm destructive Stacktape command: ${command}\n\nTarget: ${targetSummary}\n\nThis can delete or irreversibly change infrastructure. Confirm only if you intend to execute this exact command now.`,
+          message: `Confirm high-risk Stacktape command: ${command}\n\nTarget: ${targetSummary}\n\nThis can delete data or irreversibly change infrastructure. Confirm only if you intend to execute this exact command now.`,
           requestedSchema: {
             type: 'object',
             properties: {
@@ -468,7 +470,10 @@ export const buildCliPlan = async ({
   const prepared = prepareCliRun({
     command,
     args: planArgs,
-    confirm: description.requiresConfirmation
+    // Planning never executes the command. Passing confirmation here lets the
+    // argument-aware policy be returned in the plan without treating the plan
+    // itself as approval for a later run.
+    confirm: true
   });
 
   if (prepared.ok === false) {

@@ -12,6 +12,8 @@ import { stpErrors } from '@errors';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getCloudFormationLogRetentionDays } from '@utils/cloudformation';
+import type { CloudWatchLogGroupOptions } from '@stacktape/config/log-forwarding';
+import { getCloudFormationLogGroupClassProperties } from '../_utils/log-groups';
 
 export const getOpenSearchDomainResource = ({ resource }: { resource: StpOpenSearchDomain }) => {
   const clusterConfig: ClusterConfig = {
@@ -135,17 +137,20 @@ export const getOpenSearchDomainLogGroup = ({
   domainName,
   logGroupType,
   retentionDays,
+  logClass,
   region,
   stackName
 }: {
   domainName: string;
   logGroupType: string;
   retentionDays: number;
+  logClass?: CloudWatchLogGroupOptions['logClass'];
   region: string;
   stackName: string;
 }) => {
   return cfnResource('AWS::Logs::LogGroup', {
     LogGroupName: awsResourceNames.openSearchLogGroup(domainName, logGroupType, region, stackName),
+    ...getCloudFormationLogGroupClassProperties(logClass),
     RetentionInDays: getCloudFormationLogRetentionDays(retentionDays)
   });
 };

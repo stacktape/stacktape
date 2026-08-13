@@ -596,6 +596,7 @@ export class DeployedStackOverviewManager {
       if (
         [
           'http-api-gateway',
+          'websocket-api-gateway',
           'bucket',
           'application-load-balancer',
           'network-load-balancer',
@@ -668,6 +669,7 @@ export class DeployedStackOverviewManager {
       if (
         [
           'http-api-gateway',
+          'websocket-api-gateway',
           'bucket',
           'application-load-balancer',
           'network-load-balancer',

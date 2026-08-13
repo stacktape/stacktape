@@ -19,11 +19,12 @@ Custom domains are essential for any production-facing resource. Use them when y
 
 ## Supported resources
 
-Custom domains attach directly to four networking resources Stacktape exposes:
+Custom domains attach directly to five networking resources Stacktape exposes:
 
 | Resource | Typical use case |
 |----------|-----------------|
 | [HTTP API Gateway](/resources/networking/http-api-gateway) | `api.example.com` for Lambda-backed APIs |
+| [WebSocket API Gateway](/resources/networking/websocket-api-gateway) | `realtime.example.com` for Lambda-backed real-time APIs |
 | [Application Load Balancer](/resources/networking/application-load-balancer) | `app.example.com` for container workloads |
 | [Network Load Balancer](/resources/networking/network-load-balancer) | TCP/TLS services at a custom domain |
 | [CDN](/resources/networking/cdn) | `cdn.example.com` for cached content delivery |
@@ -31,6 +32,8 @@ Custom domains attach directly to four networking resources Stacktape exposes:
 A [CDN](/resources/networking/cdn) can target a [bucket](/resources/storage/s3-bucket), [Application Load Balancer](/resources/networking/application-load-balancer), [HTTP API Gateway](/resources/networking/http-api-gateway), or [Lambda function](/resources/compute/lambda-function), which is how you can put a custom domain in front of those origins. For [web services](/resources/compute/web-service), [hosting buckets](/resources/frontend/static-hosting), and SSR frontends, see each resource's page for how custom domains are configured through the underlying networking layer.
 
 Each entry in a resource's `customDomains` array is a `DomainConfiguration` object with three fields: `domainName` (required), `customCertificateArn` (optional), and `disableDnsRecordCreation` (optional, defaults to `false`). The structure is identical across every resource type that accepts custom domains.
+
+An API Gateway custom domain cannot contain both WebSocket and HTTP/REST API mappings. Use different hostnames, such as `api.example.com` and `realtime.example.com`; Stacktape rejects duplicate attachment before deployment.
 
 ## Prerequisites
 
@@ -177,7 +180,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 ### Which Stacktape resources support custom domains?
 
-Custom domains attach directly to [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), [Network Load Balancers](/resources/networking/network-load-balancer), and [CDNs](/resources/networking/cdn) — all four using the same `DomainConfiguration` structure. To put a custom domain in front of a [bucket](/resources/storage/s3-bucket) or [Lambda function](/resources/compute/lambda-function), front it with a [CDN](/resources/networking/cdn) and attach the domain there.
+Custom domains attach directly to [HTTP API Gateways](/resources/networking/http-api-gateway), [WebSocket API Gateways](/resources/networking/websocket-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), [Network Load Balancers](/resources/networking/network-load-balancer), and [CDNs](/resources/networking/cdn), using the same `DomainConfiguration` structure. To put a custom domain in front of a [bucket](/resources/storage/s3-bucket) or [Lambda function](/resources/compute/lambda-function), front it with a [CDN](/resources/networking/cdn) and attach the domain there.
 
 ### Can I use a domain registered outside AWS?
 

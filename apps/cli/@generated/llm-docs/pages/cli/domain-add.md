@@ -1,6 +1,6 @@
 # domain:add
 
-The `domain:add` command adds an already-registered root domain to your AWS account so Stacktape can manage DNS and TLS certificates for it. Once added, the domain and its subdomains can be used with [web services](/resources/compute/web-service), [hosting buckets](/resources/frontend/static-hosting), and [HTTP API Gateways](/resources/networking/http-api-gateway). The command requires `--region` and, on success, finishes with `Domain ready to use in <region>.`
+The `domain:add` command adds an already-registered root domain to your AWS account so Stacktape can manage DNS and TLS certificates for it. Once added, the domain and its subdomains can be used with [web services](/resources/compute/web-service), [hosting buckets](/resources/frontend/static-hosting), [HTTP API Gateways](/resources/networking/http-api-gateway), and [WebSocket API Gateways](/resources/networking/websocket-api-gateway). The command requires `--region` and, on success, finishes with `Domain ready to use in <region>.`
 
 ## Usage
 
@@ -18,7 +18,6 @@ The `domain:add` wizard walks through the following steps, stopping at the first
 2. **Check registration** — If the domain is not registered (not purchased), the command exits immediately and prints a hint to register via Route 53 or another registrar. Prices start at $3/year for `.click` domains.
 3. **Verify DNS ownership** — If DNS is managed outside AWS, the command asks whether to move DNS management to Route 53. If confirmed and no hosted zone exists, it creates one and prints the name servers to configure at your registrar.
 4. **Provision TLS certificates** — Requests a regional ACM certificate. When the selected region is not `us-east-1`, the command also requests a `us-east-1` ACM certificate, which Stacktape stores as `usEast1Cert` in domain status. When the regional certificate is not yet issued, it adds a DNS validation record from the regional certificate's domain validation options to the Route 53 hosted zone.
-5. **Optional SES verification** — If certificates are in place, optionally adds DKIM records so the domain can send email through AWS SES.
 
 The command stores domain status in Parameter Store after key checkpoints (hosted-zone setup, certificate-validation-record setup), so later runs can read saved domain status. Re-run `domain:add` after DNS or certificate validation has had time to complete.
 
@@ -54,10 +53,6 @@ The command requests a free AWS ACM certificate in the specified `--region`. Whe
 
 > **Tip:** The command prints https://console.stacktape.com/domains as the place to continue or check domain setup.
 
-
-## SES email verification
-
-If domain ownership and TLS certificates are complete, the command optionally offers to verify the domain for sending email through AWS SES. This adds DKIM authentication records to the hosted zone. Skip this step if you don't plan to send transactional email from your application.
 
 ## Arguments reference
 
@@ -116,7 +111,7 @@ The command creates a regional certificate for the selected `--region` and, when
 
 ### Is there a cost for adding a domain?
 
-Adding the domain is free: both the ACM TLS certificates and SES verification are free. The only cost is the underlying domain registration itself — Route 53 prices start at $3/year for `.click` domains, but registration is a separate step (`domain:add` requires the domain to already be registered).
+Adding the domain is free: ACM TLS certificates are free. The only cost is the underlying domain registration itself — Route 53 prices start at $3/year for `.click` domains, but registration is a separate step (`domain:add` requires the domain to already be registered).
 
 ### Can I use a domain registered outside AWS?
 

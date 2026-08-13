@@ -5,6 +5,7 @@ import type {
   ApplicationLoadBalancerOutputs,
   StpApplicationLoadBalancer
 } from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type { StpAppSyncApi } from '@domain-services/config-manager/resolved-types/appsync-apis';
 import type { StpAstroWeb } from '@domain-services/config-manager/resolved-types/astro-web';
 import type { StpAwsCdkConstruct } from '@domain-services/config-manager/resolved-types/aws-cdk-construct';
 import type { StpBastion } from '@domain-services/config-manager/resolved-types/bastion';
@@ -16,6 +17,8 @@ import type {
 } from '@domain-services/config-manager/resolved-types/custom-resources';
 import type { StpDeploymentScript } from '@domain-services/config-manager/resolved-types/deployment-script';
 import type { StpDynamoTable } from '@domain-services/config-manager/resolved-types/dynamo-db-tables';
+import type { StpDsqlDatabase } from '@domain-services/config-manager/resolved-types/dsql-databases';
+import type { StpKafkaCluster } from '@domain-services/config-manager/resolved-types/kafka-clusters';
 import type { StpEdgeLambdaFunction } from '@domain-services/config-manager/resolved-types/edge-lambda-functions';
 import type { StpEfsFilesystem } from '@domain-services/config-manager/resolved-types/efs-filesystem';
 import type { StpEventBus } from '@domain-services/config-manager/resolved-types/event-buses';
@@ -25,6 +28,7 @@ import type {
   HttpApiGatewayOutputs,
   StpHttpApiGateway
 } from '@domain-services/config-manager/resolved-types/http-api-gateways';
+import type { StpWebSocketApiGateway } from '@domain-services/config-manager/resolved-types/websocket-api-gateways';
 import type { StpMongoDbAtlasCluster } from '@domain-services/config-manager/resolved-types/mongo-db-atlas-clusters';
 import type { StpContainerWorkload } from '@domain-services/config-manager/resolved-types/multi-container-workloads';
 import type { StpNetworkLoadBalancer } from '@domain-services/config-manager/resolved-types/network-load-balancer';
@@ -116,76 +120,84 @@ export type DetailedStackInfoMap = Omit<
 
 export type ResourcePropsFromConfig<T extends StpResourceType> = T extends 'application-load-balancer'
   ? StpApplicationLoadBalancer // []
-  : T extends 'network-load-balancer'
-    ? StpNetworkLoadBalancer // []
-    : T extends 'batch-job'
-      ? StpBatchJob // []
-      : T extends 'bucket'
-        ? StpBucket // []
-        : T extends 'edge-lambda-function'
-          ? StpEdgeLambdaFunction // []
-          : T extends 'multi-container-workload'
-            ? StpContainerWorkload // []
-            : T extends 'custom-resource-definition'
-              ? StpCustomResourceDefinition // []
-              : T extends 'custom-resource-instance'
-                ? StpCustomResource // []
-                : T extends 'deployment-script'
-                  ? StpDeploymentScript // []
-                  : T extends 'dynamo-db-table'
-                    ? StpDynamoTable // []
-                    : T extends 'event-bus'
-                      ? StpEventBus // []
-                      : T extends 'bastion'
-                        ? StpBastion
-                        : T extends 'function'
-                          ? StpLambdaFunction // []
-                          : T extends 'http-api-gateway'
-                            ? StpHttpApiGateway // []
-                            : T extends 'mongo-db-atlas-cluster'
-                              ? StpMongoDbAtlasCluster // []
-                              : T extends 'redis-cluster'
-                                ? StpRedisCluster // []
-                                : T extends 'relational-database'
-                                  ? StpRelationalDatabase // []
-                                  : T extends 'state-machine'
-                                    ? StpStateMachine // []
-                                    : T extends 'upstash-redis'
-                                      ? StpUpstashRedis // []
-                                      : T extends 'user-auth-pool'
-                                        ? StpUserAuthPool // []
-                                        : T extends 'web-service'
-                                          ? StpWebService // []
-                                          : T extends 'worker-service'
-                                            ? StpWorkerService // []
-                                            : T extends 'private-service'
-                                              ? StpPrivateService // []
-                                              : T extends 'aws-cdk-construct'
-                                                ? StpAwsCdkConstruct // []
-                                                : T extends 'sqs-queue'
-                                                  ? StpSqsQueue // []
-                                                  : T extends 'sns-topic'
-                                                    ? StpSnsTopic // []
-                                                    : T extends 'hosting-bucket'
-                                                      ? StpHostingBucket // []
-                                                      : T extends 'web-app-firewall'
-                                                        ? StpWebAppFirewall // []
-                                                        : T extends 'nextjs-web'
-                                                          ? StpNextjsWeb // []
-                                                          : T extends 'astro-web'
-                                                            ? StpAstroWeb
-                                                            : T extends 'nuxt-web'
-                                                              ? StpNuxtWeb
-                                                              : T extends 'sveltekit-web'
-                                                                ? StpSvelteKitWeb
-                                                                : T extends 'solidstart-web'
-                                                                  ? StpSolidStartWeb
-                                                                  : T extends 'tanstack-web'
-                                                                    ? StpTanStackWeb
-                                                                    : T extends 'remix-web'
-                                                                      ? StpRemixWeb
-                                                                      : T extends 'open-search-domain'
-                                                                        ? StpOpenSearchDomain // []
-                                                                        : T extends 'efs-filesystem'
-                                                                          ? StpEfsFilesystem
-                                                                          : never;
+  : T extends 'appsync-api'
+    ? StpAppSyncApi
+    : T extends 'network-load-balancer'
+      ? StpNetworkLoadBalancer // []
+      : T extends 'batch-job'
+        ? StpBatchJob // []
+        : T extends 'bucket'
+          ? StpBucket // []
+          : T extends 'edge-lambda-function'
+            ? StpEdgeLambdaFunction // []
+            : T extends 'multi-container-workload'
+              ? StpContainerWorkload // []
+              : T extends 'custom-resource-definition'
+                ? StpCustomResourceDefinition // []
+                : T extends 'custom-resource-instance'
+                  ? StpCustomResource // []
+                  : T extends 'deployment-script'
+                    ? StpDeploymentScript // []
+                    : T extends 'dynamo-db-table'
+                      ? StpDynamoTable // []
+                      : T extends 'dsql-database'
+                        ? StpDsqlDatabase
+                        : T extends 'kafka-cluster'
+                          ? StpKafkaCluster
+                          : T extends 'event-bus'
+                            ? StpEventBus // []
+                            : T extends 'bastion'
+                              ? StpBastion
+                              : T extends 'function'
+                                ? StpLambdaFunction // []
+                                : T extends 'http-api-gateway'
+                                  ? StpHttpApiGateway // []
+                                  : T extends 'websocket-api-gateway'
+                                    ? StpWebSocketApiGateway
+                                    : T extends 'mongo-db-atlas-cluster'
+                                      ? StpMongoDbAtlasCluster // []
+                                      : T extends 'redis-cluster'
+                                        ? StpRedisCluster // []
+                                        : T extends 'relational-database'
+                                          ? StpRelationalDatabase // []
+                                          : T extends 'state-machine'
+                                            ? StpStateMachine // []
+                                            : T extends 'upstash-redis'
+                                              ? StpUpstashRedis // []
+                                              : T extends 'user-auth-pool'
+                                                ? StpUserAuthPool // []
+                                                : T extends 'web-service'
+                                                  ? StpWebService // []
+                                                  : T extends 'worker-service'
+                                                    ? StpWorkerService // []
+                                                    : T extends 'private-service'
+                                                      ? StpPrivateService // []
+                                                      : T extends 'aws-cdk-construct'
+                                                        ? StpAwsCdkConstruct // []
+                                                        : T extends 'sqs-queue'
+                                                          ? StpSqsQueue // []
+                                                          : T extends 'sns-topic'
+                                                            ? StpSnsTopic // []
+                                                            : T extends 'hosting-bucket'
+                                                              ? StpHostingBucket // []
+                                                              : T extends 'web-app-firewall'
+                                                                ? StpWebAppFirewall // []
+                                                                : T extends 'nextjs-web'
+                                                                  ? StpNextjsWeb // []
+                                                                  : T extends 'astro-web'
+                                                                    ? StpAstroWeb
+                                                                    : T extends 'nuxt-web'
+                                                                      ? StpNuxtWeb
+                                                                      : T extends 'sveltekit-web'
+                                                                        ? StpSvelteKitWeb
+                                                                        : T extends 'solidstart-web'
+                                                                          ? StpSolidStartWeb
+                                                                          : T extends 'tanstack-web'
+                                                                            ? StpTanStackWeb
+                                                                            : T extends 'remix-web'
+                                                                              ? StpRemixWeb
+                                                                              : T extends 'open-search-domain'
+                                                                                ? StpOpenSearchDomain // []
+                                                                                : T extends 'efs-filesystem'
+                                                                                  ? StpEfsFilesystem
+                                                                                  : never;

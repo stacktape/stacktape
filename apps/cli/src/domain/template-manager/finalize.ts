@@ -15,6 +15,7 @@ import type { ResourceOverrides } from '@stacktape/config/shared';
 import { CliError, getUserCodeStackTrace } from '@utils/errors';
 import { shouldExcludeResourceInDevMode } from '../../commands/dev/dev-resource-filter';
 import { templateManager } from '.';
+import { validateImmutableLogGroupClasses, validateInfrequentAccessSubscriptions } from './log-group-class';
 
 const throwTransformFailure = ({
   code,
@@ -250,6 +251,12 @@ export const finalizeTemplate = async () => {
   templateManager.template = await configManager.resolveDirectives<CloudFormationTemplate>({
     itemToResolve: templateManager.getTemplate(),
     resolveRuntime: true
+  });
+
+  validateInfrequentAccessSubscriptions({ candidateTemplate: templateManager.template });
+  validateImmutableLogGroupClasses({
+    previousTemplate: templateManager.oldTemplate,
+    candidateTemplate: templateManager.template
   });
 };
 

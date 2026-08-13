@@ -149,6 +149,21 @@
     }
   },
   {
+    "name": "Aurora DSQL database",
+    "description": "Serverless PostgreSQL-compatible database with automatic scaling and IAM authentication.",
+    "resourceType": "dsql-database",
+    "category": "database-resource",
+    "referenceableParams": {
+      "endpoint": "TLS endpoint of the DSQL cluster.",
+      "port": "PostgreSQL port (5432).",
+      "databaseName": "Default database name (postgres).",
+      "username": "Built-in database role used by connectTo (admin).",
+      "region": "AWS region containing the cluster.",
+      "id": "DSQL cluster ID.",
+      "arn": "DSQL cluster ARN."
+    }
+  },
+  {
     "name": "DynamoDb Table",
     "description": "Fully managed, serverless, highly-available and massively scalable key-value datastore.",
     "resourceType": "dynamo-db-table",
@@ -217,6 +232,35 @@
       "cdnUrl": "Default url of the [CDN distribution](#cdn) (only available if you DO NOT configure custom domain names for the CDN).\n",
       "cdnCustomDomains": "Comma-separated list of custom domain names assigned to the [CDN](#cdn)\n(only available if you configure custom domain names for the CDN).\n",
       "cdnCustomDomainUrls": "Comma-separated list of custom domain name URLs of the [CDN](#cdn)\n(only available if you configure custom domain names for the CDN).\n"
+    }
+  },
+  {
+    "name": "WebSocket API Gateway",
+    "description": "Managed, pay-per-use WebSocket routing for Lambda functions.",
+    "resourceType": "websocket-api-gateway",
+    "category": "other-resource",
+    "referenceableParams": {
+      "apiId": "API Gateway ID",
+      "url": "WebSocket client URL",
+      "managementEndpoint": "HTTPS endpoint for sending messages to connected clients",
+      "canonicalDomain": "AWS DNS target",
+      "customDomains": "Comma-separated list of custom domain names",
+      "customDomainUrls": "Comma-separated list of custom domain URLs",
+      "customDomainUrl": "URL of the first custom domain"
+    }
+  },
+  {
+    "name": "AppSync API",
+    "description": "Managed GraphQL API with Lambda resolvers and explicit authentication.",
+    "resourceType": "appsync-api",
+    "category": "other-resource",
+    "referenceableParams": {
+      "apiId": "AppSync API ID",
+      "arn": "AppSync API ARN",
+      "url": "GraphQL endpoint URL",
+      "realtimeUrl": "GraphQL subscriptions endpoint URL",
+      "customDomainUrl": "Custom GraphQL endpoint URL",
+      "apiKey": "Sensitive API key value (only for API key authentication)"
     }
   },
   {
@@ -333,6 +377,30 @@
     "resourceType": "sns-topic",
     "category": "other-resource",
     "referenceableParams": {}
+  },
+  {
+    "name": "Email sender",
+    "description": "Verified Amazon SES sender identity shared safely across projects and stages.",
+    "resourceType": "email-sender",
+    "category": "other-resource",
+    "referenceableParams": {
+      "identity": "Canonical SES sender identity",
+      "identityArn": "SES identity ARN",
+      "region": "AWS region containing the identity",
+      "configurationSetName": "SES configuration set used by default",
+      "feedbackTopicArn": "Shared SNS topic ARN for bounce and complaint events"
+    }
+  },
+  {
+    "name": "Kafka cluster",
+    "description": "IAM-secured Amazon MSK Serverless cluster with Stacktape-managed networking.",
+    "resourceType": "kafka-cluster",
+    "category": "other-resource",
+    "referenceableParams": {
+      "arn": "Amazon MSK cluster ARN",
+      "name": "Physical MSK cluster name",
+      "bootstrapServers": "Comma-separated IAM bootstrap broker addresses"
+    }
   },
   {
     "name": "Web App Firewall",

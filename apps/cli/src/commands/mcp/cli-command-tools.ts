@@ -7,6 +7,7 @@ import {
   getRequiredArgs,
   validateCommandArgs
 } from '../../config/cli/utils';
+import { isDefinitelyReadOnlySql } from '../_utils/read-only-diagnostics';
 
 export type CliCommandSafety = 'readOnly' | 'diagnostic' | 'local' | 'mutating' | 'destructive' | 'interactive';
 
@@ -321,6 +322,12 @@ const getDefaultPolicy = (command: StacktapeCommand): CliCommandPolicy => ({
 const requiresConfirmationForSafety = (safety: CliCommandSafety): boolean =>
   safety === 'mutating' || safety === 'destructive';
 
+const READ_ONLY_DIAGNOSTIC_OPERATIONS: Partial<Record<StacktapeCommand, ReadonlySet<string>>> = {
+  'query:dynamodb': new Set(['scan', 'query', 'get', 'schema', 'sample']),
+  'query:redis': new Set(['keys', 'get', 'ttl', 'info', 'type']),
+  'query:opensearch': new Set(['search', 'get', 'indices', 'mapping', 'count'])
+};
+
 const hasValue = (value: unknown): boolean => {
   if (value === undefined || value === null) return false;
   if (typeof value === 'string') return value.trim().length > 0;
@@ -337,6 +344,46 @@ const RAW_STACKTAPE_CREDENTIAL_ARG_NAMES = new Set([
 
 export const getRawStacktapeCredentialArgNames = (args: Record<string, unknown>): string[] =>
   Object.keys(args).filter((argName) => RAW_STACKTAPE_CREDENTIAL_ARG_NAMES.has(argName));
+
+const validateReadOnlyDiagnosticArgs = ({
+  command,
+  args
+}: {
+  command: StacktapeCommand;
+  args: Record<string, unknown>;
+}): PreparedCliRun | undefined => {
+  if (command === 'query:sql' && args.sql !== undefined) {
+    if (typeof args.sql !== 'string' || !isDefinitelyReadOnlySql(args.sql)) {
+      return {
+        ok: false,
+        code: 'VALIDATION_ERROR',
+        message: '`query:sql` only supports read-only SQL; write-like or ambiguous statements cannot be executed.',
+        data: { supportedReadOnlyStatements: ['SELECT', 'WITH', 'VALUES', 'SHOW', 'DESCRIBE', 'EXPLAIN'] },
+        nextActions: [
+          'Use a single read-only `SELECT`, `WITH`, `VALUES`, `SHOW`, `DESCRIBE`, or `EXPLAIN` statement.',
+          'If a database write is intended, use a dedicated database migration or administration workflow outside this read-only diagnostic command.'
+        ]
+      };
+    }
+    return undefined;
+  }
+
+  const supportedOperations = READ_ONLY_DIAGNOSTIC_OPERATIONS[command];
+  if (!supportedOperations || args.operation === undefined) return undefined;
+  if (typeof args.operation === 'string' && supportedOperations.has(args.operation.toLowerCase())) return undefined;
+
+  const alternatives = [...supportedOperations];
+  return {
+    ok: false,
+    code: 'VALIDATION_ERROR',
+    message: `Unsupported read-only operation \`${String(args.operation)}\` for \`${command}\`.`,
+    data: { supportedReadOnlyOperations: alternatives },
+    nextActions: [
+      `Choose one of the supported read-only operations: ${alternatives.map((operation) => `\`${operation}\``).join(', ')}.`,
+      'If a write is intended, use the service-specific application, migration, or administration workflow; Stacktape diagnostic query commands do not execute writes.'
+    ]
+  };
+};
 
 const validateMcpSpecificArgs = ({
   command,
@@ -413,7 +460,7 @@ const getMcpRequiredArgs = (command: StacktapeCommand): readonly string[] => {
   return baseRequiredArgs;
 };
 
-export const getCliCommandPolicy = (command: StacktapeCommand): CliCommandPolicy => {
+export const getCliCommandPolicy = (command: StacktapeCommand, _args?: Record<string, unknown>): CliCommandPolicy => {
   const override = policyOverrides[command] || {};
   const policy = {
     ...getDefaultPolicy(command),
@@ -487,8 +534,10 @@ export const prepareCliRun = ({
     };
   }
 
-  const policy = getCliCommandPolicy(command);
   const normalizedArgs = normalizeCliArgsForCommand(command, args);
+  const diagnosticValidation = validateReadOnlyDiagnosticArgs({ command, args: normalizedArgs });
+  if (diagnosticValidation) return diagnosticValidation;
+  const policy = getCliCommandPolicy(command, normalizedArgs);
   const rawCredentialValidation = validateMcpSpecificArgs({ command, args: normalizedArgs });
   if (
     rawCredentialValidation &&

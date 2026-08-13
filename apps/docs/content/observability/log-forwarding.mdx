@@ -36,6 +36,10 @@ Stacktape supports three log forwarding destination types. Each is configured vi
 
 The `logForwarding` property takes one of three destination shapes: `http-endpoint`, `highlight`, or `datadog`. Datadog and Highlight.io provide first-class integrations with those platforms, while the HTTP endpoint type works with any service that accepts HTTPS log delivery from AWS Kinesis Data Firehose.
 
+<Warning>
+CloudWatch Logs Infrequent Access does not support the subscription filters used for forwarding. Stacktape therefore rejects a logging block that combines `logClass: infrequent-access` with `logForwarding`; keep the default Standard class for forwarded logs.
+</Warning>
+
 ## Forwarding to Datadog
 
 Datadog is the most common external log destination for AWS workloads. The `datadog` log forwarding type requires only `apiKey` and uses the default Datadog endpoint unless you override `endpointUrl`. Use Datadog forwarding when Datadog is already your team's log search or alerting system and you want Stacktape resource logs alongside the rest of your Datadog data. Skip it if Stacktape's built-in [log viewing](/observability/logs) is sufficient — forwarding adds Firehose ingestion cost plus Datadog's own ingestion and retention charges. Use the dedicated `datadog` type for Datadog — it requires only `apiKey` and provides a default Datadog endpoint URL that you can override with `endpointUrl`.

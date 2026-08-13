@@ -31,6 +31,7 @@ import { getAugmentedEnvironment, getLanguageFromExtension } from '@utils/enviro
 import { CliError } from '@utils/errors';
 import { getLambdaIssueFilterPattern, isIssueDetectionSupportedLanguage } from '../_utils/issue-detection';
 import { resolveAlarmsForResource } from '../_utils/alarms';
+import { logClassSupportsSubscriptionFilters } from '../_utils/log-groups';
 import {
   getCachePolicyHash,
   getCdnDefaultDomainCustomResource,
@@ -57,11 +58,14 @@ import { getEfsAccessPoint } from '../_utils/efs';
 import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';
 import { getAtlasMongoRoleAssociatedUserResource } from '../_utils/role-helpers';
 import { resolveApplicationLoadBalancerEvents } from './events/application-load-balancer';
+import { resolveAppSyncApiEvents } from './events/appsync-api';
 import { resolveCloudwatchAlarmEvents } from './events/cloudwatch-alarm';
 import { resolveCloudWatchLogEvents } from './events/cloudwatch-log';
 import { resolveDynamoEvents } from './events/dynamo';
 import { resolveEventBusEvents } from './events/event-bus';
 import { resolveHttpApiEvents } from './events/http-api-gateway';
+import { resolveWebsocketApiEvents } from './events/websocket-api-gateway';
+import { getConnectToIncludingWebsocketApiGateways } from '@domain-services/config-manager/utils/websocket-api-gateways';
 import { resolveKafkaTopicEvents } from './events/kafka-topic';
 import { resolveKinesisEvents } from './events/kinesis';
 import { resolveS3Events } from './events/s3';
@@ -121,6 +125,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     cfLogicalName,
     resourceName,
     connectTo,
+    events,
     iamRoleStatements,
     joinDefaultVpc,
     destinations,
@@ -153,11 +158,13 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   const lambdaDependsOn = [];
   const policyStatementsFromEvents = [
     resolveApplicationLoadBalancerEvents({ lambdaFunction: lambdaProps }),
+    resolveAppSyncApiEvents({ lambdaFunction: lambdaProps }),
     resolveCloudwatchAlarmEvents({ lambdaFunction: lambdaProps }),
     resolveCloudWatchLogEvents({ lambdaFunction: lambdaProps }),
     resolveDynamoEvents({ lambdaFunction: lambdaProps }),
     resolveEventBusEvents({ lambdaFunction: lambdaProps }),
     resolveHttpApiEvents({ lambdaFunction: lambdaProps }),
+    resolveWebsocketApiEvents({ lambdaFunction: lambdaProps }),
     resolveKafkaTopicEvents({ lambdaFunction: lambdaProps }),
     resolveKinesisEvents({ lambdaFunction: lambdaProps }),
     resolveS3Events({ lambdaFunction: lambdaProps }),
@@ -165,6 +172,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     resolveSnsEvents({ lambdaFunction: lambdaProps }),
     resolveSqsEvents({ lambdaFunction: lambdaProps })
   ].flat();
+  const effectiveConnectTo = getConnectToIncludingWebsocketApiGateways({ connectTo, events });
   const {
     accessToResourcesRequiringRoleChanges,
     accessToResourcesPotentiallyRequiringSecurityGroupCreation,
@@ -172,7 +180,8 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     accessToAwsServices
   } = resolveConnectToList({
     stpResourceNameOfReferencer: name,
-    connectTo
+    stpResourceTypeOfReferencer: lambdaProps.configParentResourceType,
+    connectTo: effectiveConnectTo
   });
   const lambdaIsUsedInDeploymentHook = configManager.allLambdasUsedInDeploymentHooks.some(
     ({ name: hookLambdaName }) => hookLambdaName === name
@@ -307,10 +316,12 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     // if function is not in vpc but is trying to scope (connectTo) resources requiring security group throw error
     // this is only relevant if database or redis cluster is in vpc or scoping-workloads-in-vpc mode
     const resourcesRequiringOnlyVpcAccess = accessToResourcesPotentiallyRequiringSecurityGroupCreation.filter(
-      ({ type: t, accessibility }) =>
-        t === 'redis-cluster' ||
-        accessibility?.accessibilityMode === 'vpc' ||
-        accessibility?.accessibilityMode === 'scoping-workloads-in-vpc'
+      (resource) =>
+        resource.type === 'redis-cluster' ||
+        resource.type === 'kafka-cluster' ||
+        (resource.type === 'relational-database' &&
+          (resource.accessibility?.accessibilityMode === 'vpc' ||
+            resource.accessibility?.accessibilityMode === 'scoping-workloads-in-vpc'))
     );
     if (resourcesRequiringOnlyVpcAccess.length) {
       throw new CliError({
@@ -423,7 +434,8 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         cfLogicalName: logGroupLogicalName,
         resource: getLambdaLogGroup(
           awsResourceNames.lambdaLogGroup({ lambdaAwsResourceName: resourceName }),
-          logging?.retentionDays
+          logging?.retentionDays,
+          logging?.logClass
         ),
         initial: true
       });
@@ -432,7 +444,8 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
         cfLogicalName: logGroupLogicalName,
         resource: getLambdaLogGroup(
           awsResourceNames.lambdaLogGroup({ lambdaAwsResourceName: resourceName }),
-          logging?.retentionDays
+          logging?.retentionDays,
+          logging?.logClass
         ),
         nameChain
       });
@@ -455,7 +468,8 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       getResourcesNeededForLogForwarding({
         resource: lambdaProps as StpLambdaFunction,
         logGroupCfLogicalName: logGroupLogicalName,
-        logForwardingConfig: logging?.logForwarding
+        logForwardingConfig: logging?.logForwarding,
+        logClass: logging?.logClass
       }).forEach(({ cfLogicalName: cfLogicalNameOfResource, cfResource }) => {
         if (!templateManager.getCfResourceFromTemplate(cfLogicalName)) {
           calculatedStackOverviewManager.addCfChildResource({
@@ -486,7 +500,8 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       isNotServiceLambda &&
       isNotEdgeFunction &&
       !isUserManagedPackaging &&
-      !hasLogForwarding
+      !hasLogForwarding &&
+      logClassSupportsSubscriptionFilters(logging?.logClass)
     ) {
       const serviceLambdaArn = getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn');
       const subscriptionFilterLogicalName = cfLogicalNames.issueDetectionSubscriptionFilter(name);
@@ -548,7 +563,7 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   templateManager.addFinalTemplateOverrideFn(async (template) => {
     // resolving injecting env variables
     const variablesToInject = getResolvedConnectToEnvironmentVariables({
-      connectTo,
+      connectTo: effectiveConnectTo,
       localResolve: false
     });
     if (variablesToInject.length) {

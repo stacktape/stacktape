@@ -22,6 +22,39 @@ describe('TypeScript project ownership', () => {
     expect(workspaceTurboConfig.tasks['generate:monaco'].outputs).toEqual(['.generated/monaco-declarations/**']);
   });
 
+  test('prepares fixed CLI development artifacts through Turbo rather than the source launcher', async () => {
+    const [workspacePackageJson, cliPackageJson, cliTurboConfig] = await Promise.all([
+      readJson(join(workspacePath, 'package.json')),
+      readJson(join(cliPath, 'package.json')),
+      readJson(join(cliPath, 'turbo.json'))
+    ]);
+
+    expect(workspacePackageJson.scripts['dev:cli']).toBe(
+      'turbo run build:dev-artifacts --filter=@stacktape/cli && pnpm --filter @stacktape/cli run dev'
+    );
+    expect(cliTurboConfig.tasks['build:dev-artifacts'].outputs).toEqual([
+      '__stacktape-dist/dev/helper-lambdas/**',
+      '__stacktape-dist/source-map-install.js'
+    ]);
+    expect(cliPackageJson.scripts['build:dev-artifacts']).toBe('bun scripts/package-helper-lambdas.ts --dev');
+  });
+
+  test('declares cross-workspace development prerequisites in Turbo', async () => {
+    const workspaceTurboConfig = await readJson(join(workspacePath, 'turbo.json'));
+
+    expect(workspaceTurboConfig.tasks['@stacktape/console-ui#dev'].dependsOn).toEqual([
+      'generate',
+      'generate:monaco',
+      '@stacktape/ui-react#build'
+    ]);
+    expect(workspaceTurboConfig.tasks['@stacktape/init-ui#build:watch'].dependsOn).toEqual([
+      '@stacktape/ui-react#build'
+    ]);
+    expect(workspaceTurboConfig.tasks['@stacktape/website#dev'].dependsOn).toEqual([
+      '@stacktape/design-tokens#generate'
+    ]);
+  });
+
   test('keeps workspace tools in the standard root project', async () => {
     const [packageJson, tsConfig] = await Promise.all([
       readJson(join(workspacePath, 'package.json')),

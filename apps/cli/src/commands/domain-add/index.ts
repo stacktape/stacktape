@@ -2,7 +2,6 @@ import type { CertificateDetail } from '@domain-services/domain-manager/types';
 import { tuiManager } from '@application-services/tui-manager';
 import { CertificateStatus } from '@aws-sdk/client-acm';
 import { domainManager } from '@domain-services/domain-manager';
-import { sesManager } from '@domain-services/ses-manager';
 import { stpErrors } from '@errors';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
@@ -186,25 +185,6 @@ export const commandDomainAdd = async () => {
     return;
   }
   tuiManager.success('TLS certificates validated.');
-  await sesManager.init({ identities: [apexDomain] });
-  if (domainName === apexDomain && !sesManager.isIdentityVerified({ identity: apexDomain })) {
-    tuiManager.info('Optional: verify domain for AWS SES to send email. Free.');
-    const prepareForSES = await tuiManager.promptConfirm({
-      message: 'Do you wish to verify your domain for using with AWS SES?'
-    });
-    if (prepareForSES) {
-      const dkimTokens = await awsSdkManager.domains.verifyDomainForSesUsingDkim(apexDomain);
-      await awsSdkManager.domains.upsertDkimRecords({
-        hostedZoneId: zoneInfo.HostedZone.Id,
-        domainName: apexDomain,
-        dkimTokens
-      });
-      tuiManager.success('SES verification records added.');
-      tuiManager.info('SES verification can take a few minutes.');
-    }
-  } else if (domainName === apexDomain) {
-    tuiManager.success('Domain verified for AWS SES.');
-  }
   if (domainName === apexDomain) {
     domainStatus.regionalCert = regionalCert;
     domainStatus.usEast1Cert = usEast1Cert;

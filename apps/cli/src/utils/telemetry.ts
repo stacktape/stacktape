@@ -55,6 +55,9 @@ const posthogClient = telemetryEnabled
     })
   : null;
 
+/** The identity events are attributed to, exported for feature modules that capture their own. */
+export const getTelemetryIdentity = () => getIdentity();
+
 const getIdentity = () => {
   const userId = globalStateManager.userData?.id;
   const organizationId = globalStateManager.organizationData?.id;

@@ -1,3 +1,5 @@
+import { INFO_STACK_AGENT_SCHEMA_VERSION } from '../info-stack/agent-contract';
+
 export type ToolOutput = {
   ok: boolean;
   code: string;
@@ -341,15 +343,23 @@ const summarizeCloudformationResources = (stackResources: unknown) => {
 const summarizeInfoStackData = (data?: Record<string, unknown>): Record<string, unknown> | undefined => {
   if (!data) return data;
 
-  const stackOutput = parseJsonObject(data.stackOutput);
-  const stackInfoMap = parseJsonObject(stackOutput?.StpStackInfoMap);
+  const result = parseJsonObject(data.result);
+  if (result?.schemaVersion !== INFO_STACK_AGENT_SCHEMA_VERSION) {
+    return {
+      sourceSchemaVersion: result?.schemaVersion,
+      note: `Stacktape expected ${INFO_STACK_AGENT_SCHEMA_VERSION} from info:stack but received an unsupported result.`
+    };
+  }
+
+  const stackInfoMap = parseJsonObject(result.stackInfoMap);
   const stackInfoResources = summarizeStackInfoMapResources(stackInfoMap);
-  const cloudformation = summarizeCloudformationResources(data.stackResources);
+  const cloudformation = summarizeCloudformationResources(result.resources);
 
   return {
-    stackName: data.stackName,
-    region: data.region,
-    description: data.description,
+    sourceSchemaVersion: INFO_STACK_AGENT_SCHEMA_VERSION,
+    stackName: result.stackName,
+    region: result.region,
+    description: result.description,
     ...(stackInfoResources ? { stacktapeResources: stackInfoResources } : {}),
     ...(cloudformation ? { cloudformation } : {}),
     note: 'Full info:stack output was compacted for MCP. It can contain hundreds of CloudFormation records and sensitive-looking metadata; use this Stacktape summary instead of generic AWS MCP tools for Stacktape-managed stacks.'

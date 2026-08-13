@@ -14,7 +14,7 @@ import { getCfEnvironment, getCloudFormationLogRetentionDays } from '@utils/clou
 import { getAugmentedEnvironment } from '@utils/environment';
 import { getImageUrlForSingleTask } from '../_utils/image-urls';
 import { getPoliciesForRoles } from '../_utils/role-helpers';
-import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
+import type { CloudWatchLogGroupOptions } from '@stacktape/config/log-forwarding';
 import type {
   CustomDockerfileBjImagePackaging,
   EsLanguageSpecificConfig,
@@ -23,6 +23,7 @@ import type {
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
 import type { StpStateMachine } from '@stacktape/config/state-machines';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '@stacktape/packaging/bundlers/constants';
+import { getCloudFormationLogGroupClassProperties } from '../_utils/log-groups';
 import {
   getContainerSecretIamResources,
   getContainerSecretValueFrom,
@@ -88,7 +89,7 @@ export const getBatchJobExecutionRole = ({
   workloadName: string;
   iamRoleStatements: StpIamRoleStatement[];
   accessToResourcesRequiringRoleChanges: StpResourceScopableByConnectToAffectingRole[];
-  accessToAwsServices: ConnectToAwsServicesMacro[];
+  accessToAwsServices: never[];
   containerSecretValueFroms: string[];
 }) => {
   const policies = getPoliciesForRoles({
@@ -434,14 +435,17 @@ export const getBatchStateMachine = (
 export const getBachJobLogGroup = ({
   stackName,
   workloadName,
-  retentionDays
+  retentionDays,
+  logClass
 }: {
   workloadName: string;
   stackName: string;
   retentionDays: number;
+  logClass?: CloudWatchLogGroupOptions['logClass'];
 }) => {
   return cfnResource('AWS::Logs::LogGroup', {
     LogGroupName: awsResourceNames.batchJobLogGroup({ stpResourceName: workloadName, stackName }),
+    ...getCloudFormationLogGroupClassProperties(logClass),
     RetentionInDays: getCloudFormationLogRetentionDays(retentionDays)
   });
 };

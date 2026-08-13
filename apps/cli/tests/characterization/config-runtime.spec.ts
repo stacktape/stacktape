@@ -1164,7 +1164,7 @@ export default defineConfig(() => ({ projectName, resources: {} }));
     }
   });
 
-  test('requires the only supported Kafka event-source configuration at the schema boundary', () => {
+  test('requires exactly one current Kafka event source and an explicit starting position at the schema boundary', () => {
     const configWithKafkaEvent = (properties: Record<string, unknown>) => ({
       resources: {
         worker: {
@@ -1180,13 +1180,68 @@ export default defineConfig(() => ({ projectName, resources: {} }));
       }
     });
 
+    const validSources = [
+      {
+        kafkaClusterName: 'ordersKafka',
+        topicName: 'events',
+        startFrom: 'latest'
+      },
+      {
+        mskClusterArn: 'arn:aws:kafka:eu-west-1:111111111111:cluster/orders/uuid',
+        topicName: 'events',
+        startFrom: 'earliest'
+      },
+      {
+        customKafkaConfiguration: {
+          authentication: {
+            type: 'BASIC_AUTH',
+            properties: {
+              authenticationSecretArn: 'arn:aws:secretsmanager:eu-west-1:111111111111:secret:kafka'
+            }
+          },
+          bootstrapServers: ['broker.example.com:9092'],
+          topicName: 'events'
+        },
+        startFrom: 'latest'
+      }
+    ];
+    for (const properties of validSources) {
+      expect(validateConfigWithZod({ config: configWithKafkaEvent(properties), configPath: 'stacktape.yml' })).toEqual({
+        valid: true
+      });
+    }
+
     const missingSource = validateConfigWithZod({
-      config: configWithKafkaEvent({}),
+      config: configWithKafkaEvent({ topicName: 'events', startFrom: 'latest' }),
       configPath: 'stacktape.yml'
     });
     expect(missingSource.valid).toBe(false);
     if (missingSource.valid === false) {
-      expect(missingSource.errorMessage).toContain('customKafkaConfiguration');
+      expect(missingSource.errorMessage).toContain('kafkaClusterName');
+      expect(missingSource.errorMessage).toContain('Required property');
+    }
+
+    const missingStartFrom = validateConfigWithZod({
+      config: configWithKafkaEvent({ kafkaClusterName: 'ordersKafka', topicName: 'events' }),
+      configPath: 'stacktape.yml'
+    });
+    expect(missingStartFrom.valid).toBe(false);
+    if (missingStartFrom.valid === false) {
+      expect(missingStartFrom.errorMessage).toContain('startFrom');
+    }
+
+    const competingSources = validateConfigWithZod({
+      config: configWithKafkaEvent({
+        kafkaClusterName: 'ordersKafka',
+        mskClusterArn: 'arn:aws:kafka:eu-west-1:111111111111:cluster/orders/uuid',
+        topicName: 'events',
+        startFrom: 'latest'
+      }),
+      configPath: 'stacktape.yml'
+    });
+    expect(competingSources.valid).toBe(false);
+    if (competingSources.valid === false) {
+      expect(competingSources.errorMessage).toContain('mskClusterArn');
     }
 
     const missingAuthentication = validateConfigWithZod({
@@ -1194,14 +1249,14 @@ export default defineConfig(() => ({ projectName, resources: {} }));
         customKafkaConfiguration: {
           bootstrapServers: ['broker.example.com:9092'],
           topicName: 'events'
-        }
+        },
+        startFrom: 'latest'
       }),
       configPath: 'stacktape.yml'
     });
     expect(missingAuthentication.valid).toBe(false);
     if (missingAuthentication.valid === false) {
-      expect(missingAuthentication.errorMessage).toContain('authentication');
-      expect(missingAuthentication.errorMessage).toContain('Required property');
+      expect(missingAuthentication.errorMessage).toContain('Resource `worker` is invalid');
     }
 
     const missingMtlsCertificate = validateConfigWithZod({
@@ -1210,13 +1265,14 @@ export default defineConfig(() => ({ projectName, resources: {} }));
           authentication: { type: 'MTLS', properties: {} },
           bootstrapServers: ['broker.example.com:9092'],
           topicName: 'events'
-        }
+        },
+        startFrom: 'latest'
       }),
       configPath: 'stacktape.yml'
     });
     expect(missingMtlsCertificate.valid).toBe(false);
     if (missingMtlsCertificate.valid === false) {
-      expect(missingMtlsCertificate.errorMessage).toContain('clientCertificate');
+      expect(missingMtlsCertificate.errorMessage).toContain('Resource `worker` is invalid');
     }
 
     expect(
@@ -1231,7 +1287,8 @@ export default defineConfig(() => ({ projectName, resources: {} }));
             },
             bootstrapServers: ['broker.example.com:9092'],
             topicName: 'events'
-          }
+          },
+          startFrom: 'latest'
         }),
         configPath: 'stacktape.yml'
       })
@@ -1313,9 +1370,11 @@ export default defineConfig(() => ({ projectName, resources: {} }));
     expect(get(parsed, 'resources.search.properties.logging.searchSlowLogs.retentionDays')).toBeUndefined();
     expect(get(parsed, 'resources.search.properties.logging.indexSlowLogs.retentionDays')).toBeUndefined();
     expect(resolveOpenSearchLoggingDefaults()).toEqual({
-      errorLogs: { disabled: false, retentionDays: 30 },
-      searchSlowLogs: { disabled: false, retentionDays: 5 },
-      indexSlowLogs: { disabled: false, retentionDays: 5 }
+      // `logClass` is carried through undefined rather than defaulted: an unset log class means the
+      // log group takes the AWS default, which is not the same as asking for `standard`.
+      errorLogs: { disabled: false, retentionDays: 30, logClass: undefined },
+      searchSlowLogs: { disabled: false, retentionDays: 5, logClass: undefined },
+      indexSlowLogs: { disabled: false, retentionDays: 5, logClass: undefined }
     });
   });
 

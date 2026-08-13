@@ -16,7 +16,7 @@ stacktape info:stack --region eu-west-1 --stackName my-project-prod
 
 The `--region` flag is the only required argument. You identify the target stack in one of two ways: provide `--stackName` directly (formatted as `projectName-stage`), or provide both `--projectName` and `--stage` together. If neither combination is supplied, the command exits with an error: *"Provide either --stackName OR both --projectName and --stage"*.
 
-With `--agent`, `info:stack` skips the interactive stack-details view and prints a JSON-formatted payload containing the resolved stack name, region, and returned details. This is useful in CI scripts or when piping output to tools like `jq`.
+With `--agent`, `info:stack` skips the interactive stack-details view and uses the CLI's JSONL protocol. The final `result` event contains a versioned `stacktape.info-stack.v1` document at `data.result`, including the resolved stack name, region, outputs, Stacktape resource map, and CloudFormation resources. Read the final result event rather than parsing informational log messages.
 
 The `--awsAccount` flag selects which connected AWS account to query. The account must first be connected in the [Stacktape Console](/stacktape-console/connecting-your-aws-account). Omit it when the default account selection is sufficient.
 
@@ -51,10 +51,30 @@ Use the combined stack name instead of separate project and stage flags.
 stacktape info:stack --region us-east-1 --stackName my-api-prod
 ```
 
-Get JSON output for a CI pipeline or script. With `--agent`, the command skips the interactive view and prints a JSON-formatted payload containing the stack name, region, and details.
+Get versioned JSONL output for a CI pipeline, coding agent, or script.
 
 ```bash
 stacktape info:stack --region eu-west-1 --projectName my-api --stage staging --agent
+```
+
+The stable command document is nested in the final event:
+
+```json
+{
+  "type": "result",
+  "ok": true,
+  "data": {
+    "result": {
+      "schemaVersion": "stacktape.info-stack.v1",
+      "stackName": "my-api-staging",
+      "region": "eu-west-1",
+      "description": null,
+      "stackOutput": {},
+      "stackInfoMap": null,
+      "resources": []
+    }
+  }
+}
 ```
 
 Query a stack in a specific connected AWS account.

@@ -131,7 +131,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
   test('the schema still describes the same configuration language', async () => {
     const schema = await configSchema();
 
-    expect(Object.keys(schema.definitions)).toHaveLength(444);
+    expect(Object.keys(schema.definitions)).toHaveLength(466);
     expect(Object.keys(schema.properties).sort()).toEqual(
       [
         'cloudformationResources',
@@ -146,7 +146,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
         'deploymentConfig'
       ].sort()
     );
-    expect(schema.definitions.StacktapeResourceDefinition.anyOf).toHaveLength(44);
+    expect(schema.definitions.StacktapeResourceDefinition.anyOf).toHaveLength(49);
     // The raw escape hatch remains open while the legacy runtime-class shape is no longer published.
     expect(schema.properties.cloudformationResources.additionalProperties).toEqual({});
     expect(schema.definitions).not.toHaveProperty('IntrinsicFunction');
@@ -157,7 +157,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
 
     expect(schema.properties.projectName.description).toContain('#### Project name');
     expect(schema.definitions.LambdaFunction.description).toContain('serverless compute resource');
-    expect(countDescriptions(schema)).toBe(1415);
+    expect(countDescriptions(schema)).toBe(1493);
     // Examples are the documented product content the schema, docs and editor hovers all render.
     const descriptions = JSON.stringify(schema);
     expect(descriptions.split('**Example (YAML):**').length - 1).toBeGreaterThan(900);
@@ -181,17 +181,16 @@ describe('the configuration model is owned by @stacktape/config', () => {
     expect(readGlobalDeclarationNames(sourceFile)).toEqual(['PublishedGlobal']);
   });
 
-  test('the configuration model no longer reads the CLI resolver back through a type query', () => {
-    // The general "packages do not import apps" rule is enforced by dependency-cruiser, which resolves the real
-    // module graph. This pins only the specific historical edge: `ConnectToAwsServicesMacro` used to be
-    // `typeof import('../../src/domain/config-manager/utils/resource-references')[...]`, which dragged a CLI
-    // module that imports tuiManager and configManager into the published schema program.
-    const macros = readFileSync(join(CONFIG_PACKAGE_SRC_PATH, 'aws-service-macros.ts'), 'utf-8');
-    expect(macros).toContain('export const CONNECT_TO_AWS_SERVICE_MACROS');
-    expect(macros).toContain('export type ConnectToAwsServicesMacro = (typeof CONNECT_TO_AWS_SERVICE_MACROS)[number]');
-
+  test('connectTo no longer publishes or resolves unsafe AWS-service macros', () => {
+    expect(existsSync(join(CONFIG_PACKAGE_SRC_PATH, 'aws-service-macros.ts'))).toBe(false);
+    const authoredConfigSource = listConfigSourceFiles()
+      .map((file) => readFileSync(file, 'utf-8'))
+      .join('\n');
     const resolver = readFileSync(join('src', 'domain', 'config-manager', 'utils', 'resource-references.ts'), 'utf-8');
-    expect(resolver).toContain("from '@stacktape/config/aws-service-macros'");
-    expect(resolver).not.toContain('export const ConnectToAwsServiceMacros');
+
+    expect(authoredConfigSource).not.toContain('CONNECT_TO_AWS_SERVICE_MACROS');
+    expect(authoredConfigSource).not.toMatch(/["']aws:ses["']/);
+    expect(resolver).not.toContain('aws-service-macros');
+    expect(resolver).not.toMatch(/["']aws:ses["']/);
   });
 });

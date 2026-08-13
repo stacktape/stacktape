@@ -5,6 +5,7 @@ import {
   COMPLETIONS_SCRIPTS_PATH,
   CONFIG_SCHEMA_PATH,
   DIST_FOLDER_PATH,
+  INIT_WIZARD_BUNDLE_SOURCE_PATH,
   LLM_DOCS_FOLDER_PATH,
   SCRIPTS_ASSETS_PATH,
   SOURCE_MAP_INSTALL_FILE_NAME
@@ -437,6 +438,27 @@ export const copyMcpDocs = async ({ distFolderPath }: { distFolderPath?: string 
   const destPath = join(distFolderPath, 'llm-docs', 'chunks', 'chunks.jsonl');
   await copy(sourcePath, destPath);
   logSuccess('MCP documentation corpus copied successfully.');
+};
+
+/**
+ * The `init` wizard's built interface, placed where the CLI looks for it.
+ *
+ * `findWizardBundle` checks beside the binary first, so this directory name is a contract with it.
+ * Without this the wizard is missing from every installed CLI while working perfectly in a
+ * development checkout — the kind of difference that only shows up after a release.
+ */
+export const copyInitWizardBundle = async ({ distFolderPath }: { distFolderPath?: string }) => {
+  logInfo('Copying init wizard interface...');
+  const sourcePath = INIT_WIZARD_BUNDLE_SOURCE_PATH;
+  if (!(await pathExists(join(sourcePath, 'index.html')))) {
+    throw createCliPackagingError({
+      type: 'PACKAGING',
+      message: 'The init wizard interface has not been built.',
+      hint: 'Run `turbo run build --filter=@stacktape/init-ui` before building a release.'
+    });
+  }
+  await copy(sourcePath, join(distFolderPath, 'init-ui'));
+  logSuccess('Init wizard interface copied successfully.');
 };
 
 export const createReleaseDataFile = async ({

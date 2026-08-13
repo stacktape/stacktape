@@ -56,6 +56,7 @@ import { AwsEc2 } from '../ec2';
 import { AwsAutoScaling } from '../auto-scaling';
 import { AwsOpenSearch } from '../open-search';
 import { AwsRds } from '../rds';
+import { AwsEmail } from '../email';
 import { defaultGetErrorFunction } from './utils';
 
 export class AwsSdkManager {
@@ -80,6 +81,7 @@ export class AwsSdkManager {
   #autoScaling?: AwsAutoScaling;
   #openSearch?: AwsOpenSearch;
   #rds?: AwsRds;
+  #email?: AwsEmail;
   printer?: Printer;
   #getErrorHandler: (message: string) => (err: Error) => never = defaultGetErrorFunction;
 
@@ -197,6 +199,7 @@ export class AwsSdkManager {
       createClient: () => this.#rdsClient(),
       getErrorHandler: this.#getErrorHandler
     });
+    this.#email = new AwsEmail({ createClient: () => this.#sesv2(), getErrorHandler: this.#getErrorHandler });
   }
 
   get isInitialized() {
@@ -373,6 +376,12 @@ export class AwsSdkManager {
       throw new Error('AWS RDS has not been initialized.');
     }
     return this.#rds;
+  }
+
+  get email() {
+    this.#getContext();
+    if (!this.#email) throw new Error('AWS SES has not been initialized.');
+    return this.#email;
   }
 
   #getContext() {

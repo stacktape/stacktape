@@ -39,6 +39,7 @@ const resolveDevContainerWorkloadRole = ({ definition }: { definition: StpContai
   // Resolve connectTo to get the required IAM statements
   const { accessToResourcesRequiringRoleChanges, accessToAwsServices } = resolveConnectToList({
     stpResourceNameOfReferencer: definition.name,
+    stpResourceTypeOfReferencer: definition.type,
     connectTo: definition.connectTo
   });
 

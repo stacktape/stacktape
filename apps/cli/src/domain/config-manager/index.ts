@@ -4,6 +4,7 @@ import type { StpCfInfrastructureModuleType } from '@domain-services/cloudformat
 import type { EnrichedBjContainerProps, EnrichedCwContainerProps } from '@domain-services/packaging-manager/types';
 import type { StpAlarmEnabledResource } from '@domain-services/config-manager/resolved-types/alarms';
 import type { StpApplicationLoadBalancer } from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type { StpAppSyncApi } from '@domain-services/config-manager/resolved-types/appsync-apis';
 import type { StpAstroWeb } from '@domain-services/config-manager/resolved-types/astro-web';
 import type { StpBatchJob } from '@domain-services/config-manager/resolved-types/batch-jobs';
 import type { StpConvex } from '@domain-services/config-manager/resolved-types/convex';
@@ -35,12 +36,14 @@ import type { StpSvelteKitWeb } from '@domain-services/config-manager/resolved-t
 import type { StpTanStackWeb } from '@domain-services/config-manager/resolved-types/tanstack-web';
 import type { StpWebService } from '@domain-services/config-manager/resolved-types/web-services';
 import type { StpWorkerService } from '@domain-services/config-manager/resolved-types/worker-services';
+import type { StpWebSocketApiGateway } from '@domain-services/config-manager/resolved-types/websocket-api-gateways';
 import type { AlarmDefinition } from '@stacktape/config/alarms';
 import { guardrailDefinitionSchema } from '@stacktape/console-api/guardrails';
 import type { FinalTransform, ResourceTransform as CfResourceTransform } from '@stacktape/config-authoring/tooling';
 import type { DefaultedResource, ResourceDefinitionOf, StacktapeResourceType } from './normalized-resource';
 import { isAbsolute, join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
+import { getRemoteResourceNames } from '../../commands/dev/local-resources';
 import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
 import {
   getLambdaLogResourceArnsForPermissions,
@@ -109,6 +112,7 @@ import type { StackContext } from '@domain-services/stack-context';
 import type { ConfigManagerInitContext, IssueDetectionContext } from './context';
 import type { HelperLambdaDetails } from '@utils/helper-lambdas';
 import { CliError } from '@utils/errors';
+import { canonicalizeEmailIdentity } from '@domain-services/email-sender-manager/identity';
 
 /**
  * A CDN-capable resource whose `cdn` block is present, as proved by reading `cdn.enabled` off it. Only the block
@@ -619,6 +623,14 @@ export class ConfigManager {
     return this.getResourcesFromConfig('http-api-gateway');
   }
 
+  get websocketApiGateways() {
+    return this.getResourcesFromConfig('websocket-api-gateway');
+  }
+
+  get appsyncApis(): StpAppSyncApi[] {
+    return this.getResourcesFromConfig('appsync-api');
+  }
+
   get eventBuses() {
     return this.getResourcesFromConfig('event-bus');
   }
@@ -734,7 +746,8 @@ export class ConfigManager {
         ],
         logging: {
           disabled: edgeLambda.logging?.disabled,
-          retentionDays: edgeLambda.logging?.retentionDays || 180
+          retentionDays: edgeLambda.logging?.retentionDays || 180,
+          logClass: edgeLambda.logging?.logClass
         }
       } as StpEdgeLambdaFunction;
     });
@@ -754,6 +767,52 @@ export class ConfigManager {
 
   get kinesisStreams() {
     return this.getResourcesFromConfig('kinesis-stream');
+  }
+
+  get kafkaClusters() {
+    return this.getResourcesFromConfig('kafka-cluster');
+  }
+
+  get kafkaClustersWithLambdaEvents() {
+    const remoteNames = isDevCommand() ? getRemoteResourceNames() : new Set(this.kafkaClusters.map(({ name }) => name));
+    const used = new Set<string>();
+    [
+      ...this.functions,
+      ...this.deploymentScripts.map(({ _nestedResources }) => _nestedResources.scriptFunction),
+      ...this.customResourceDefinitions.map(({ _nestedResources }) => _nestedResources.backingFunction)
+    ].forEach((lambda) =>
+      lambda.events?.forEach((event) => {
+        if (
+          event.type === 'kafka-topic' &&
+          'kafkaClusterName' in event.properties &&
+          event.properties.kafkaClusterName &&
+          remoteNames.has(event.properties.kafkaClusterName)
+        ) {
+          used.add(event.properties.kafkaClusterName);
+        }
+      })
+    );
+    return this.kafkaClusters.filter(({ name }) => used.has(name));
+  }
+
+  get dsqlDatabases() {
+    return this.getResourcesFromConfig('dsql-database');
+  }
+
+  get emailSenders() {
+    return this.getResourcesFromConfig('email-sender').map((resource) => {
+      try {
+        return { ...resource, identity: canonicalizeEmailIdentity(resource.identity) };
+      } catch (cause) {
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_EMAIL_SENDER_IDENTITY_INVALID',
+          message: `Email sender \`${resource.name}\` has invalid identity \`${resource.identity}\`.`,
+          hints: 'Use a domain such as `example.com` or an exact address such as `billing@example.com`.',
+          cause
+        });
+      }
+    });
   }
 
   get webAppFirewalls() {
@@ -1444,6 +1503,14 @@ export class ConfigManager {
     ];
   }
 
+  get allWebsocketApiGateways(): StpWebSocketApiGateway[] {
+    return this.websocketApiGateways;
+  }
+
+  get allAppsyncApis(): StpAppSyncApi[] {
+    return this.appsyncApis;
+  }
+
   get allBuckets() {
     // In dev mode, filter out buckets from hosting-bucket and nextjs-web since they are excluded
     const filteredHostingBuckets = isDevCommand()
@@ -1541,11 +1608,11 @@ export class ConfigManager {
       [fullDomainName: string]: string[];
     } = {};
     const recordManagedDomain = ({ domain, resourceName }: { domain: DomainConfiguration; resourceName: string }) => {
+      domainAssociations[domain.domainName] = (domainAssociations[domain.domainName] || []).concat(resourceName);
       if (domain.disableDnsRecordCreation && domain.customCertificateArn) {
         return;
       }
 
-      domainAssociations[domain.domainName] = (domainAssociations[domain.domainName] || []).concat(resourceName);
       resultDomains.add(getApexDomain(domain.domainName));
     };
 
@@ -1560,6 +1627,14 @@ export class ConfigManager {
     // check http api gateways
     this.allHttpApiGateways.forEach(({ name, customDomains }) => {
       customDomains?.forEach((domain) => recordManagedDomain({ domain, resourceName: name }));
+    });
+    this.allWebsocketApiGateways.forEach(({ name, customDomains }) => {
+      customDomains?.forEach((domain) => recordManagedDomain({ domain, resourceName: name }));
+    });
+    this.allAppsyncApis.forEach(({ name, customDomain }) => {
+      if (customDomain) {
+        recordManagedDomain({ domain: customDomain, resourceName: name });
+      }
     });
 
     // check cdns
@@ -1857,14 +1932,19 @@ export class ConfigManager {
   }
 
   get cfLogicalNamesToBeProtected() {
-    return this.databases
-      .filter(({ deletionProtection }) => deletionProtection)
-      .map(({ name, engine }) => {
-        if (isAuroraEngine(engine.type)) {
-          return cfLogicalNames.auroraDbCluster(name);
-        }
-        return cfLogicalNames.dbInstance(name);
-      });
+    return [
+      ...this.databases
+        .filter(({ deletionProtection }) => deletionProtection)
+        .map(({ name, engine }) => {
+          if (isAuroraEngine(engine.type)) {
+            return cfLogicalNames.auroraDbCluster(name);
+          }
+          return cfLogicalNames.dbInstance(name);
+        }),
+      ...this.dsqlDatabases
+        .filter(({ deletionProtection }) => deletionProtection)
+        .map(({ name }) => cfLogicalNames.dsqlCluster(name))
+    ];
   }
 
   get allConfigResources(): StpResource[] {
@@ -1877,6 +1957,8 @@ export class ConfigManager {
       ...this.applicationLoadBalancers,
       ...this.networkLoadBalancers,
       ...this.httpApiGateways,
+      ...this.websocketApiGateways,
+      ...this.appsyncApis,
       ...this.eventBuses,
       ...this.bastions,
       ...this.stateMachines,
@@ -1896,6 +1978,9 @@ export class ConfigManager {
       ...this.sqsQueues,
       ...this.snsTopics,
       ...this.kinesisStreams,
+      ...this.kafkaClusters,
+      ...this.dsqlDatabases,
+      ...this.emailSenders,
       ...this.hostingBuckets,
       ...this.webAppFirewalls,
       ...this.nextjsWebs,
@@ -1943,6 +2028,7 @@ export class ConfigManager {
       ...this.openSearchDomains,
       ...this.bastions,
       ...this.efsFilesystems,
+      ...this.kafkaClusters,
       ...[...this.allUserCodeLambdas, ...this.allNextjsLambdaFunctions].filter(
         ({ joinDefaultVpc }: StpLambdaFunction) => joinDefaultVpc
       )

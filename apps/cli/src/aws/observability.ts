@@ -13,12 +13,17 @@ import {
   PutRetentionPolicyCommand,
   ResourceNotFoundException,
   StartQueryCommand,
+  StopQueryCommand,
   type CloudWatchLogsClient
 } from '@aws-sdk/client-cloudwatch-logs';
 import { wait } from '@utils/misc';
+import { CliError } from '@utils/errors';
 
 type ErrorHandlerFactory = (message: string) => (error: Error) => never;
 type LogRetentionDays = 1 | 3 | 5 | 7 | 14 | 30 | 60 | 90 | 120 | 150 | 180 | 365 | 400 | 545 | 731 | 1827 | 3653;
+
+const DEFAULT_LOGS_INSIGHTS_TIMEOUT_MS = 60_000;
+const DEFAULT_LOGS_INSIGHTS_POLL_INTERVAL_MS = 500;
 
 export class AwsObservability {
   readonly #createCloudWatchClient: () => CloudWatchClient;
@@ -185,12 +190,16 @@ export class AwsObservability {
     logGroupName,
     query,
     startTime,
-    endTime
+    endTime,
+    timeoutMs = DEFAULT_LOGS_INSIGHTS_TIMEOUT_MS,
+    pollIntervalMs = DEFAULT_LOGS_INSIGHTS_POLL_INTERVAL_MS
   }: {
     logGroupName: string;
     query: string;
     startTime: Date;
     endTime: Date;
+    timeoutMs?: number;
+    pollIntervalMs?: number;
   }): Promise<{ results: Record<string, string>[] }> => {
     const handleError = this.#getErrorHandler('Failed to run Logs Insights query.');
     const { queryId } = await this.#createLogsClient()
@@ -203,15 +212,30 @@ export class AwsObservability {
         })
       )
       .catch(handleError);
-    let status = 'Running';
-    let results: Record<string, string>[] = [];
+    if (!queryId) {
+      throw new CliError({
+        category: 'AWS',
+        code: 'LOGS_INSIGHTS_QUERY_ID_MISSING',
+        message: 'CloudWatch Logs Insights did not return a query ID.'
+      });
+    }
+    const deadline = Date.now() + Math.max(0, timeoutMs);
 
-    while (status === 'Running' || status === 'Scheduled') {
-      await wait(500);
+    while (true) {
+      if (Date.now() >= deadline) {
+        await this.#createLogsClient()
+          .send(new StopQueryCommand({ queryId }))
+          .catch(() => undefined);
+        throw new CliError({
+          category: 'AWS',
+          code: 'LOGS_INSIGHTS_QUERY_TIMEOUT',
+          message: `CloudWatch Logs Insights query did not finish within ${timeoutMs} ms.`
+        });
+      }
+      await wait(Math.max(0, pollIntervalMs));
       const response = await this.#createLogsClient().send(new GetQueryResultsCommand({ queryId })).catch(handleError);
-      status = response.status;
-      if (response.results) {
-        results = response.results.map((row) =>
+      if (response.status === 'Complete') {
+        const results = (response.results || []).map((row) =>
           row.reduce(
             (record, field) => {
               if (field.field && field.value) record[field.field] = field.value;
@@ -220,10 +244,21 @@ export class AwsObservability {
             {} as Record<string, string>
           )
         );
+        return { results };
       }
-    }
 
-    return { results };
+      if (response.status === 'Running' || response.status === 'Scheduled') {
+        continue;
+      }
+
+      throw new CliError({
+        category: 'AWS',
+        code: 'LOGS_INSIGHTS_QUERY_TERMINAL_STATUS',
+        message: response.status
+          ? `CloudWatch Logs Insights query ended with status \`${response.status}\`.`
+          : 'CloudWatch Logs Insights query returned no status.'
+      });
+    }
   };
 
   describeAlarms = async ({ alarmNamePrefix, stateValue }: { alarmNamePrefix?: string; stateValue?: StateValue }) => {

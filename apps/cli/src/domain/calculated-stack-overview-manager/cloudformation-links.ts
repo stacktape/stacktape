@@ -11,6 +11,9 @@ const getBaseCfSubstitutedAwsConsoleLink = (serviceName: string, serviceQuery: s
 };
 
 export const cfEvaluatedLinks = {
+  appsyncApi(apiId: string | Intrinsic) {
+    return getBaseCfSubstitutedAwsConsoleLink('appsync', sub('/v2/apis/${apiId}/home', { apiId }));
+  },
   ecsMonitoring(ecsClusterName: string | Intrinsic, ecsServiceName: string | Intrinsic) {
     return getBaseCfSubstitutedAwsConsoleLink(
       'ecs',

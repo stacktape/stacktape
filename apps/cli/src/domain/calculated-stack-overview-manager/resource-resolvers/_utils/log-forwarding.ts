@@ -6,6 +6,7 @@ import type { StpResourceType } from '@domain-services/config-manager/resolved-t
 import { calculatedStackOverviewManager } from '@domain-services/calculated-stack-overview-manager';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
+import { assertLogClassSupportsForwarding } from './log-groups';
 
 import type {
   DatadogLogForwarding,
@@ -17,12 +18,15 @@ import type {
 export const getResourcesNeededForLogForwarding = ({
   resource,
   logGroupCfLogicalName,
-  logForwardingConfig
+  logForwardingConfig,
+  logClass
 }: {
   resource: ResourcePropsFromConfig<StpResourceType>;
   logGroupCfLogicalName: string;
   logForwardingConfig: LogForwardingBase['logForwarding'];
+  logClass?: LogForwardingBase['logClass'];
 }) => {
+  assertLogClassSupportsForwarding({ logClass, logForwarding: logForwardingConfig });
   const resources: { cfLogicalName: string; cfResource: AnyCloudFormationResource }[] = [];
   if (logForwardingConfig.type === 'http-endpoint') {
     resources.push(...getResourcesCommonForHttpEndpoints({ resource, logGroupCfLogicalName }), {

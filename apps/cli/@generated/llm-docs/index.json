@@ -1676,6 +1676,143 @@
       ]
     },
     {
+      "id": "config-reference:AppSyncApi",
+      "title": "AppSyncApi API Reference",
+      "route": "/config-reference/appsync-apis",
+      "sourcePath": "packages/config/src/appsync-apis.ts",
+      "outputPath": "config-reference/appsync-apis/appsyncapi.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "AppSyncApi"
+      ],
+      "tags": [
+        "config-reference",
+        "AppSyncApi",
+        "properties",
+        "overrides"
+      ],
+      "chunks": [
+        "config-reference:AppSyncApi#appsyncapi-api-reference",
+        "config-reference:AppSyncApi#typescript-definition",
+        "config-reference:AppSyncApi#property-properties",
+        "config-reference:AppSyncApi#property-overrides",
+        "config-reference:AppSyncApi#example-1-yaml",
+        "config-reference:AppSyncApi#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:AppSyncApiKeyAuthenticationProps",
+      "title": "AppSyncApiKeyAuthenticationProps API Reference",
+      "route": "/config-reference/appsync-apis",
+      "sourcePath": "packages/config/src/appsync-apis.ts",
+      "outputPath": "config-reference/appsync-apis/appsyncapikeyauthenticationprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "AppSyncApiKeyAuthenticationProps"
+      ],
+      "tags": [
+        "config-reference",
+        "AppSyncApiKeyAuthenticationProps",
+        "expiresAt"
+      ],
+      "chunks": [
+        "config-reference:AppSyncApiKeyAuthenticationProps#appsyncapikeyauthenticationprops-api-reference",
+        "config-reference:AppSyncApiKeyAuthenticationProps#typescript-definition",
+        "config-reference:AppSyncApiKeyAuthenticationProps#property-expiresat"
+      ]
+    },
+    {
+      "id": "config-reference:AppSyncApiLogging",
+      "title": "AppSyncApiLogging API Reference",
+      "route": "/config-reference/appsync-apis",
+      "sourcePath": "packages/config/src/appsync-apis.ts",
+      "outputPath": "config-reference/appsync-apis/appsyncapilogging.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "AppSyncApiLogging"
+      ],
+      "tags": [
+        "config-reference",
+        "AppSyncApiLogging",
+        "disabled",
+        "fieldLogLevel",
+        "includeVerboseContent",
+        "logClass",
+        "logForwarding",
+        "retentionDays"
+      ],
+      "chunks": [
+        "config-reference:AppSyncApiLogging#appsyncapilogging-api-reference",
+        "config-reference:AppSyncApiLogging#typescript-definition",
+        "config-reference:AppSyncApiLogging#property-disabled",
+        "config-reference:AppSyncApiLogging#property-fieldloglevel",
+        "config-reference:AppSyncApiLogging#property-includeverbosecontent",
+        "config-reference:AppSyncApiLogging#property-logclass",
+        "config-reference:AppSyncApiLogging#example-1-yaml",
+        "config-reference:AppSyncApiLogging#example-2-typescript",
+        "config-reference:AppSyncApiLogging#property-logforwarding",
+        "config-reference:AppSyncApiLogging#example-1-yaml-2",
+        "config-reference:AppSyncApiLogging#example-2-typescript-2",
+        "config-reference:AppSyncApiLogging#property-retentiondays"
+      ]
+    },
+    {
+      "id": "config-reference:AppSyncApiProps",
+      "title": "AppSyncApiProps API Reference",
+      "route": "/config-reference/appsync-apis",
+      "sourcePath": "packages/config/src/appsync-apis.ts",
+      "outputPath": "config-reference/appsync-apis/appsyncapiprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "AppSyncApiProps"
+      ],
+      "tags": [
+        "config-reference",
+        "AppSyncApiProps",
+        "authentication",
+        "customDomain",
+        "introspectionEnabled",
+        "logging",
+        "queryDepthLimit",
+        "resolverCountLimit",
+        "schemaFilePath",
+        "xrayEnabled"
+      ],
+      "chunks": [
+        "config-reference:AppSyncApiProps#appsyncapiprops-api-reference",
+        "config-reference:AppSyncApiProps#typescript-definition",
+        "config-reference:AppSyncApiProps#property-authentication",
+        "config-reference:AppSyncApiProps#property-customdomain",
+        "config-reference:AppSyncApiProps#property-introspectionenabled",
+        "config-reference:AppSyncApiProps#property-logging",
+        "config-reference:AppSyncApiProps#property-querydepthlimit",
+        "config-reference:AppSyncApiProps#property-resolvercountlimit",
+        "config-reference:AppSyncApiProps#property-schemafilepath",
+        "config-reference:AppSyncApiProps#property-xrayenabled"
+      ]
+    },
+    {
+      "id": "config-reference:AppSyncUserAuthPoolAuthenticationProps",
+      "title": "AppSyncUserAuthPoolAuthenticationProps API Reference",
+      "route": "/config-reference/appsync-apis",
+      "sourcePath": "packages/config/src/appsync-apis.ts",
+      "outputPath": "config-reference/appsync-apis/appsyncuserauthpoolauthenticationprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "AppSyncUserAuthPoolAuthenticationProps"
+      ],
+      "tags": [
+        "config-reference",
+        "AppSyncUserAuthPoolAuthenticationProps",
+        "userAuthPoolName"
+      ],
+      "chunks": [
+        "config-reference:AppSyncUserAuthPoolAuthenticationProps#appsyncuserauthpoolauthenticationprops-api-reference",
+        "config-reference:AppSyncUserAuthPoolAuthenticationProps#typescript-definition",
+        "config-reference:AppSyncUserAuthPoolAuthenticationProps#property-userauthpoolname"
+      ]
+    },
+    {
       "id": "config-reference:AstroWeb",
       "title": "AstroWeb API Reference",
       "route": "/config-reference/astro-web",
@@ -1929,6 +2066,7 @@
         "config-reference",
         "BastionLogging",
         "disabled",
+        "logClass",
         "logForwarding",
         "retentionDays",
         "bastion"
@@ -1939,12 +2077,15 @@
         "config-reference:BastionLogging#property-disabled",
         "config-reference:BastionLogging#example-1-yaml",
         "config-reference:BastionLogging#example-2-typescript",
-        "config-reference:BastionLogging#property-logforwarding",
+        "config-reference:BastionLogging#property-logclass",
         "config-reference:BastionLogging#example-1-yaml-2",
         "config-reference:BastionLogging#example-2-typescript-2",
-        "config-reference:BastionLogging#property-retentiondays",
+        "config-reference:BastionLogging#property-logforwarding",
         "config-reference:BastionLogging#example-1-yaml-3",
-        "config-reference:BastionLogging#example-2-typescript-3"
+        "config-reference:BastionLogging#example-2-typescript-3",
+        "config-reference:BastionLogging#property-retentiondays",
+        "config-reference:BastionLogging#example-1-yaml-4",
+        "config-reference:BastionLogging#example-2-typescript-4"
       ]
     },
     {
@@ -2086,6 +2227,7 @@
         "config-reference",
         "BatchJobLogging",
         "disabled",
+        "logClass",
         "logForwarding",
         "retentionDays",
         "batch-job"
@@ -2096,12 +2238,15 @@
         "config-reference:BatchJobLogging#property-disabled",
         "config-reference:BatchJobLogging#example-1-yaml",
         "config-reference:BatchJobLogging#example-2-typescript",
-        "config-reference:BatchJobLogging#property-logforwarding",
+        "config-reference:BatchJobLogging#property-logclass",
         "config-reference:BatchJobLogging#example-1-yaml-2",
         "config-reference:BatchJobLogging#example-2-typescript-2",
-        "config-reference:BatchJobLogging#property-retentiondays",
+        "config-reference:BatchJobLogging#property-logforwarding",
         "config-reference:BatchJobLogging#example-1-yaml-3",
-        "config-reference:BatchJobLogging#example-2-typescript-3"
+        "config-reference:BatchJobLogging#example-2-typescript-3",
+        "config-reference:BatchJobLogging#property-retentiondays",
+        "config-reference:BatchJobLogging#example-1-yaml-4",
+        "config-reference:BatchJobLogging#example-2-typescript-4"
       ]
     },
     {
@@ -5178,6 +5323,58 @@
       ]
     },
     {
+      "id": "config-reference:DsqlDatabase",
+      "title": "DsqlDatabase API Reference",
+      "route": "/config-reference/dsql-database",
+      "sourcePath": "packages/config/src/dsql-databases.ts",
+      "outputPath": "config-reference/dsql-database/dsqldatabase.md",
+      "docKind": "config-reference",
+      "resourceType": "dsql-database",
+      "definitionNames": [
+        "DsqlDatabase"
+      ],
+      "tags": [
+        "config-reference",
+        "DsqlDatabase",
+        "overrides",
+        "properties",
+        "dsql-database"
+      ],
+      "chunks": [
+        "config-reference:DsqlDatabase#dsqldatabase-api-reference",
+        "config-reference:DsqlDatabase#typescript-definition",
+        "config-reference:DsqlDatabase#property-overrides",
+        "config-reference:DsqlDatabase#example-1-yaml",
+        "config-reference:DsqlDatabase#example-2-typescript",
+        "config-reference:DsqlDatabase#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:DsqlDatabaseProps",
+      "title": "DsqlDatabaseProps API Reference",
+      "route": "/config-reference/dsql-database",
+      "sourcePath": "packages/config/src/dsql-databases.ts",
+      "outputPath": "config-reference/dsql-database/dsqldatabaseprops.md",
+      "docKind": "config-reference",
+      "resourceType": "dsql-database",
+      "definitionNames": [
+        "DsqlDatabaseProps"
+      ],
+      "tags": [
+        "config-reference",
+        "DsqlDatabaseProps",
+        "deletionProtection",
+        "kmsKeyArn",
+        "dsql-database"
+      ],
+      "chunks": [
+        "config-reference:DsqlDatabaseProps#dsqldatabaseprops-api-reference",
+        "config-reference:DsqlDatabaseProps#typescript-definition",
+        "config-reference:DsqlDatabaseProps#property-deletionprotection",
+        "config-reference:DsqlDatabaseProps#property-kmskeyarn"
+      ]
+    },
+    {
       "id": "config-reference:DynamoDbAttribute",
       "title": "DynamoDbAttribute API Reference",
       "route": "/config-reference/dynamo-db-table",
@@ -5584,6 +5781,52 @@
       ]
     },
     {
+      "id": "config-reference:EmailSender",
+      "title": "EmailSender API Reference",
+      "route": "/config-reference/email-senders",
+      "sourcePath": "packages/config/src/email-senders.ts",
+      "outputPath": "config-reference/email-senders/emailsender.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "EmailSender"
+      ],
+      "tags": [
+        "config-reference",
+        "EmailSender",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:EmailSender#emailsender-api-reference",
+        "config-reference:EmailSender#typescript-definition",
+        "config-reference:EmailSender#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:EmailSenderProps",
+      "title": "EmailSenderProps API Reference",
+      "route": "/config-reference/email-senders",
+      "sourcePath": "packages/config/src/email-senders.ts",
+      "outputPath": "config-reference/email-senders/emailsenderprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "EmailSenderProps"
+      ],
+      "tags": [
+        "config-reference",
+        "EmailSenderProps",
+        "identity",
+        "configurationSetName",
+        "manageIdentity"
+      ],
+      "chunks": [
+        "config-reference:EmailSenderProps#emailsenderprops-api-reference",
+        "config-reference:EmailSenderProps#typescript-definition",
+        "config-reference:EmailSenderProps#property-identity",
+        "config-reference:EmailSenderProps#property-configurationsetname",
+        "config-reference:EmailSenderProps#property-manageidentity"
+      ]
+    },
+    {
       "id": "config-reference:EventBus",
       "title": "EventBus API Reference",
       "route": "/config-reference/event-bus",
@@ -5784,6 +6027,50 @@
         "config-reference:ApplicationLoadBalancerIntegrationProps#property-sourceips",
         "config-reference:ApplicationLoadBalancerIntegrationProps#example-1-yaml-9",
         "config-reference:ApplicationLoadBalancerIntegrationProps#example-2-typescript-9"
+      ]
+    },
+    {
+      "id": "config-reference:AppSyncApiIntegration",
+      "title": "AppSyncApiIntegration API Reference",
+      "route": "/config-reference/events",
+      "sourcePath": "packages/config/src/events.ts",
+      "outputPath": "config-reference/events/appsyncapiintegration.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "AppSyncApiIntegration"
+      ],
+      "tags": [
+        "config-reference",
+        "AppSyncApiIntegration",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:AppSyncApiIntegration#appsyncapiintegration-api-reference",
+        "config-reference:AppSyncApiIntegration#typescript-definition",
+        "config-reference:AppSyncApiIntegration#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:AppSyncApiIntegrationProps",
+      "title": "AppSyncApiIntegrationProps API Reference",
+      "route": "/config-reference/events",
+      "sourcePath": "packages/config/src/events.ts",
+      "outputPath": "config-reference/events/appsyncapiintegrationprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "AppSyncApiIntegrationProps"
+      ],
+      "tags": [
+        "config-reference",
+        "AppSyncApiIntegrationProps",
+        "appsyncApiName",
+        "field"
+      ],
+      "chunks": [
+        "config-reference:AppSyncApiIntegrationProps#appsyncapiintegrationprops-api-reference",
+        "config-reference:AppSyncApiIntegrationProps#typescript-definition",
+        "config-reference:AppSyncApiIntegrationProps#property-appsyncapiname",
+        "config-reference:AppSyncApiIntegrationProps#property-field"
       ]
     },
     {
@@ -6408,6 +6695,29 @@
       ]
     },
     {
+      "id": "config-reference:KafkaEventSourceVpcConfig",
+      "title": "KafkaEventSourceVpcConfig API Reference",
+      "route": "/config-reference/events",
+      "sourcePath": "packages/config/src/events.ts",
+      "outputPath": "config-reference/events/kafkaeventsourcevpcconfig.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "KafkaEventSourceVpcConfig"
+      ],
+      "tags": [
+        "config-reference",
+        "KafkaEventSourceVpcConfig",
+        "securityGroupIds",
+        "subnetIds"
+      ],
+      "chunks": [
+        "config-reference:KafkaEventSourceVpcConfig#kafkaeventsourcevpcconfig-api-reference",
+        "config-reference:KafkaEventSourceVpcConfig#typescript-definition",
+        "config-reference:KafkaEventSourceVpcConfig#property-securitygroupids",
+        "config-reference:KafkaEventSourceVpcConfig#property-subnetids"
+      ]
+    },
+    {
       "id": "config-reference:KafkaMTLSAuth",
       "title": "KafkaMTLSAuth API Reference",
       "route": "/config-reference/events",
@@ -6514,31 +6824,6 @@
         "config-reference:KafkaTopicIntegration#kafkatopicintegration-api-reference",
         "config-reference:KafkaTopicIntegration#typescript-definition",
         "config-reference:KafkaTopicIntegration#property-properties"
-      ]
-    },
-    {
-      "id": "config-reference:KafkaTopicIntegrationProps",
-      "title": "KafkaTopicIntegrationProps API Reference",
-      "route": "/config-reference/events",
-      "sourcePath": "packages/config/src/events.ts",
-      "outputPath": "config-reference/events/kafkatopicintegrationprops.md",
-      "docKind": "config-reference",
-      "definitionNames": [
-        "KafkaTopicIntegrationProps"
-      ],
-      "tags": [
-        "config-reference",
-        "KafkaTopicIntegrationProps",
-        "customKafkaConfiguration",
-        "batchSize",
-        "maxBatchWindowSeconds"
-      ],
-      "chunks": [
-        "config-reference:KafkaTopicIntegrationProps#kafkatopicintegrationprops-api-reference",
-        "config-reference:KafkaTopicIntegrationProps#typescript-definition",
-        "config-reference:KafkaTopicIntegrationProps#property-customkafkaconfiguration",
-        "config-reference:KafkaTopicIntegrationProps#property-batchsize",
-        "config-reference:KafkaTopicIntegrationProps#property-maxbatchwindowseconds"
       ]
     },
     {
@@ -6898,6 +7183,77 @@
       ]
     },
     {
+      "id": "config-reference:WebSocketApiIntegration",
+      "title": "WebSocketApiIntegration API Reference",
+      "route": "/config-reference/events",
+      "sourcePath": "packages/config/src/events.ts",
+      "outputPath": "config-reference/events/websocketapiintegration.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "WebSocketApiIntegration"
+      ],
+      "tags": [
+        "config-reference",
+        "WebSocketApiIntegration",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:WebSocketApiIntegration#websocketapiintegration-api-reference",
+        "config-reference:WebSocketApiIntegration#typescript-definition",
+        "config-reference:WebSocketApiIntegration#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:WebSocketApiIntegrationProps",
+      "title": "WebSocketApiIntegrationProps API Reference",
+      "route": "/config-reference/events",
+      "sourcePath": "packages/config/src/events.ts",
+      "outputPath": "config-reference/events/websocketapiintegrationprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "WebSocketApiIntegrationProps"
+      ],
+      "tags": [
+        "config-reference",
+        "WebSocketApiIntegrationProps",
+        "routeKey",
+        "websocketApiGatewayName",
+        "authorizer",
+        "returnResponse"
+      ],
+      "chunks": [
+        "config-reference:WebSocketApiIntegrationProps#websocketapiintegrationprops-api-reference",
+        "config-reference:WebSocketApiIntegrationProps#typescript-definition",
+        "config-reference:WebSocketApiIntegrationProps#property-routekey",
+        "config-reference:WebSocketApiIntegrationProps#property-websocketapigatewayname",
+        "config-reference:WebSocketApiIntegrationProps#property-authorizer",
+        "config-reference:WebSocketApiIntegrationProps#property-returnresponse"
+      ]
+    },
+    {
+      "id": "config-reference:WebSocketLambdaAuthorizerProps",
+      "title": "WebSocketLambdaAuthorizerProps API Reference",
+      "route": "/config-reference/events",
+      "sourcePath": "packages/config/src/events.ts",
+      "outputPath": "config-reference/events/websocketlambdaauthorizerprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "WebSocketLambdaAuthorizerProps"
+      ],
+      "tags": [
+        "config-reference",
+        "WebSocketLambdaAuthorizerProps",
+        "functionName",
+        "identitySources"
+      ],
+      "chunks": [
+        "config-reference:WebSocketLambdaAuthorizerProps#websocketlambdaauthorizerprops-api-reference",
+        "config-reference:WebSocketLambdaAuthorizerProps#typescript-definition",
+        "config-reference:WebSocketLambdaAuthorizerProps#property-functionname",
+        "config-reference:WebSocketLambdaAuthorizerProps#property-identitysources"
+      ]
+    },
+    {
       "id": "config-reference:LambdaDeploymentConfig",
       "title": "LambdaDeploymentConfig API Reference",
       "route": "/config-reference/function",
@@ -7059,6 +7415,7 @@
         "config-reference",
         "LambdaFunctionLogging",
         "disabled",
+        "logClass",
         "logForwarding",
         "retentionDays",
         "function"
@@ -7069,12 +7426,15 @@
         "config-reference:LambdaFunctionLogging#property-disabled",
         "config-reference:LambdaFunctionLogging#example-1-yaml",
         "config-reference:LambdaFunctionLogging#example-2-typescript",
-        "config-reference:LambdaFunctionLogging#property-logforwarding",
+        "config-reference:LambdaFunctionLogging#property-logclass",
         "config-reference:LambdaFunctionLogging#example-1-yaml-2",
         "config-reference:LambdaFunctionLogging#example-2-typescript-2",
-        "config-reference:LambdaFunctionLogging#property-retentiondays",
+        "config-reference:LambdaFunctionLogging#property-logforwarding",
         "config-reference:LambdaFunctionLogging#example-1-yaml-3",
-        "config-reference:LambdaFunctionLogging#example-2-typescript-3"
+        "config-reference:LambdaFunctionLogging#example-2-typescript-3",
+        "config-reference:LambdaFunctionLogging#property-retentiondays",
+        "config-reference:LambdaFunctionLogging#example-1-yaml-4",
+        "config-reference:LambdaFunctionLogging#example-2-typescript-4"
       ]
     },
     {
@@ -8229,6 +8589,7 @@
         "HttpApiAccessLogsConfig",
         "disabled",
         "format",
+        "logClass",
         "logForwarding",
         "retentionDays",
         "http-api-gateway"
@@ -8242,12 +8603,15 @@
         "config-reference:HttpApiAccessLogsConfig#property-format",
         "config-reference:HttpApiAccessLogsConfig#example-1-yaml-2",
         "config-reference:HttpApiAccessLogsConfig#example-2-typescript-2",
-        "config-reference:HttpApiAccessLogsConfig#property-logforwarding",
+        "config-reference:HttpApiAccessLogsConfig#property-logclass",
         "config-reference:HttpApiAccessLogsConfig#example-1-yaml-3",
         "config-reference:HttpApiAccessLogsConfig#example-2-typescript-3",
-        "config-reference:HttpApiAccessLogsConfig#property-retentiondays",
+        "config-reference:HttpApiAccessLogsConfig#property-logforwarding",
         "config-reference:HttpApiAccessLogsConfig#example-1-yaml-4",
-        "config-reference:HttpApiAccessLogsConfig#example-2-typescript-4"
+        "config-reference:HttpApiAccessLogsConfig#example-2-typescript-4",
+        "config-reference:HttpApiAccessLogsConfig#property-retentiondays",
+        "config-reference:HttpApiAccessLogsConfig#example-1-yaml-5",
+        "config-reference:HttpApiAccessLogsConfig#example-2-typescript-5"
       ]
     },
     {
@@ -8373,6 +8737,48 @@
         "config-reference:HttpApiGatewayProps#property-payloadformat",
         "config-reference:HttpApiGatewayProps#example-1-yaml-7",
         "config-reference:HttpApiGatewayProps#example-2-typescript-7"
+      ]
+    },
+    {
+      "id": "config-reference:KafkaCluster",
+      "title": "KafkaCluster API Reference",
+      "route": "/config-reference/kafka-clusters",
+      "sourcePath": "packages/config/src/kafka-clusters.ts",
+      "outputPath": "config-reference/kafka-clusters/kafkacluster.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "KafkaCluster"
+      ],
+      "tags": [
+        "config-reference",
+        "KafkaCluster",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:KafkaCluster#kafkacluster-api-reference",
+        "config-reference:KafkaCluster#typescript-definition",
+        "config-reference:KafkaCluster#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:KafkaClusterProps",
+      "title": "KafkaClusterProps API Reference",
+      "route": "/config-reference/kafka-clusters",
+      "sourcePath": "packages/config/src/kafka-clusters.ts",
+      "outputPath": "config-reference/kafka-clusters/kafkaclusterprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "KafkaClusterProps"
+      ],
+      "tags": [
+        "config-reference",
+        "KafkaClusterProps",
+        "dev"
+      ],
+      "chunks": [
+        "config-reference:KafkaClusterProps#kafkaclusterprops-api-reference",
+        "config-reference:KafkaClusterProps#typescript-definition",
+        "config-reference:KafkaClusterProps#property-dev"
       ]
     },
     {
@@ -8648,14 +9054,18 @@
       "tags": [
         "config-reference",
         "LogForwardingBase",
+        "logClass",
         "logForwarding"
       ],
       "chunks": [
         "config-reference:LogForwardingBase#logforwardingbase-api-reference",
         "config-reference:LogForwardingBase#typescript-definition",
-        "config-reference:LogForwardingBase#property-logforwarding",
+        "config-reference:LogForwardingBase#property-logclass",
         "config-reference:LogForwardingBase#example-1-yaml",
-        "config-reference:LogForwardingBase#example-2-typescript"
+        "config-reference:LogForwardingBase#example-2-typescript",
+        "config-reference:LogForwardingBase#property-logforwarding",
+        "config-reference:LogForwardingBase#example-1-yaml-2",
+        "config-reference:LogForwardingBase#example-2-typescript-2"
       ]
     },
     {
@@ -9134,6 +9544,7 @@
         "config-reference",
         "ContainerWorkloadContainerLogging",
         "disabled",
+        "logClass",
         "logForwarding",
         "retentionDays",
         "multi-container-workload"
@@ -9144,12 +9555,15 @@
         "config-reference:ContainerWorkloadContainerLogging#property-disabled",
         "config-reference:ContainerWorkloadContainerLogging#example-1-yaml",
         "config-reference:ContainerWorkloadContainerLogging#example-2-typescript",
-        "config-reference:ContainerWorkloadContainerLogging#property-logforwarding",
+        "config-reference:ContainerWorkloadContainerLogging#property-logclass",
         "config-reference:ContainerWorkloadContainerLogging#example-1-yaml-2",
         "config-reference:ContainerWorkloadContainerLogging#example-2-typescript-2",
-        "config-reference:ContainerWorkloadContainerLogging#property-retentiondays",
+        "config-reference:ContainerWorkloadContainerLogging#property-logforwarding",
         "config-reference:ContainerWorkloadContainerLogging#example-1-yaml-3",
-        "config-reference:ContainerWorkloadContainerLogging#example-2-typescript-3"
+        "config-reference:ContainerWorkloadContainerLogging#example-2-typescript-3",
+        "config-reference:ContainerWorkloadContainerLogging#property-retentiondays",
+        "config-reference:ContainerWorkloadContainerLogging#example-1-yaml-4",
+        "config-reference:ContainerWorkloadContainerLogging#example-2-typescript-4"
       ]
     },
     {
@@ -9912,6 +10326,7 @@
         "config-reference",
         "OpenSearchLogRetentionSettings",
         "disabled",
+        "logClass",
         "retentionDays",
         "open-search-domain"
       ],
@@ -9921,9 +10336,12 @@
         "config-reference:OpenSearchLogRetentionSettings#property-disabled",
         "config-reference:OpenSearchLogRetentionSettings#example-1-yaml",
         "config-reference:OpenSearchLogRetentionSettings#example-2-typescript",
-        "config-reference:OpenSearchLogRetentionSettings#property-retentiondays",
+        "config-reference:OpenSearchLogRetentionSettings#property-logclass",
         "config-reference:OpenSearchLogRetentionSettings#example-1-yaml-2",
-        "config-reference:OpenSearchLogRetentionSettings#example-2-typescript-2"
+        "config-reference:OpenSearchLogRetentionSettings#example-2-typescript-2",
+        "config-reference:OpenSearchLogRetentionSettings#property-retentiondays",
+        "config-reference:OpenSearchLogRetentionSettings#example-1-yaml-3",
+        "config-reference:OpenSearchLogRetentionSettings#example-2-typescript-3"
       ]
     },
     {
@@ -10295,6 +10713,7 @@
         "RedisLogging",
         "disabled",
         "format",
+        "logClass",
         "logForwarding",
         "retentionDays",
         "redis-cluster"
@@ -10308,12 +10727,15 @@
         "config-reference:RedisLogging#property-format",
         "config-reference:RedisLogging#example-1-yaml-2",
         "config-reference:RedisLogging#example-2-typescript-2",
-        "config-reference:RedisLogging#property-logforwarding",
+        "config-reference:RedisLogging#property-logclass",
         "config-reference:RedisLogging#example-1-yaml-3",
         "config-reference:RedisLogging#example-2-typescript-3",
-        "config-reference:RedisLogging#property-retentiondays",
+        "config-reference:RedisLogging#property-logforwarding",
         "config-reference:RedisLogging#example-1-yaml-4",
-        "config-reference:RedisLogging#example-2-typescript-4"
+        "config-reference:RedisLogging#example-2-typescript-4",
+        "config-reference:RedisLogging#property-retentiondays",
+        "config-reference:RedisLogging#example-1-yaml-5",
+        "config-reference:RedisLogging#example-2-typescript-5"
       ]
     },
     {
@@ -10883,6 +11305,7 @@
         "RelationalDatabaseLogging",
         "disabled",
         "engineSpecificOptions",
+        "logClass",
         "logForwarding",
         "logTypes",
         "retentionDays",
@@ -10897,15 +11320,18 @@
         "config-reference:RelationalDatabaseLogging#property-enginespecificoptions",
         "config-reference:RelationalDatabaseLogging#example-1-yaml-2",
         "config-reference:RelationalDatabaseLogging#example-2-typescript-2",
-        "config-reference:RelationalDatabaseLogging#property-logforwarding",
+        "config-reference:RelationalDatabaseLogging#property-logclass",
         "config-reference:RelationalDatabaseLogging#example-1-yaml-3",
         "config-reference:RelationalDatabaseLogging#example-2-typescript-3",
-        "config-reference:RelationalDatabaseLogging#property-logtypes",
+        "config-reference:RelationalDatabaseLogging#property-logforwarding",
         "config-reference:RelationalDatabaseLogging#example-1-yaml-4",
         "config-reference:RelationalDatabaseLogging#example-2-typescript-4",
-        "config-reference:RelationalDatabaseLogging#property-retentiondays",
+        "config-reference:RelationalDatabaseLogging#property-logtypes",
         "config-reference:RelationalDatabaseLogging#example-1-yaml-5",
-        "config-reference:RelationalDatabaseLogging#example-2-typescript-5"
+        "config-reference:RelationalDatabaseLogging#example-2-typescript-5",
+        "config-reference:RelationalDatabaseLogging#property-retentiondays",
+        "config-reference:RelationalDatabaseLogging#example-1-yaml-6",
+        "config-reference:RelationalDatabaseLogging#example-2-typescript-6"
       ]
     },
     {
@@ -13842,6 +14268,87 @@
       ]
     },
     {
+      "id": "config-reference:WebSocketApiAccessLogsConfig",
+      "title": "WebSocketApiAccessLogsConfig API Reference",
+      "route": "/config-reference/websocket-api-gateways",
+      "sourcePath": "packages/config/src/websocket-api-gateways.ts",
+      "outputPath": "config-reference/websocket-api-gateways/websocketapiaccesslogsconfig.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "WebSocketApiAccessLogsConfig"
+      ],
+      "tags": [
+        "config-reference",
+        "WebSocketApiAccessLogsConfig",
+        "disabled",
+        "logClass",
+        "logForwarding",
+        "retentionDays"
+      ],
+      "chunks": [
+        "config-reference:WebSocketApiAccessLogsConfig#websocketapiaccesslogsconfig-api-reference",
+        "config-reference:WebSocketApiAccessLogsConfig#typescript-definition",
+        "config-reference:WebSocketApiAccessLogsConfig#property-disabled",
+        "config-reference:WebSocketApiAccessLogsConfig#property-logclass",
+        "config-reference:WebSocketApiAccessLogsConfig#example-1-yaml",
+        "config-reference:WebSocketApiAccessLogsConfig#example-2-typescript",
+        "config-reference:WebSocketApiAccessLogsConfig#property-logforwarding",
+        "config-reference:WebSocketApiAccessLogsConfig#example-1-yaml-2",
+        "config-reference:WebSocketApiAccessLogsConfig#example-2-typescript-2",
+        "config-reference:WebSocketApiAccessLogsConfig#property-retentiondays"
+      ]
+    },
+    {
+      "id": "config-reference:WebSocketApiGateway",
+      "title": "WebSocketApiGateway API Reference",
+      "route": "/config-reference/websocket-api-gateways",
+      "sourcePath": "packages/config/src/websocket-api-gateways.ts",
+      "outputPath": "config-reference/websocket-api-gateways/websocketapigateway.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "WebSocketApiGateway"
+      ],
+      "tags": [
+        "config-reference",
+        "WebSocketApiGateway",
+        "overrides",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:WebSocketApiGateway#websocketapigateway-api-reference",
+        "config-reference:WebSocketApiGateway#typescript-definition",
+        "config-reference:WebSocketApiGateway#property-overrides",
+        "config-reference:WebSocketApiGateway#example-1-yaml",
+        "config-reference:WebSocketApiGateway#example-2-typescript",
+        "config-reference:WebSocketApiGateway#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:WebSocketApiGatewayProps",
+      "title": "WebSocketApiGatewayProps API Reference",
+      "route": "/config-reference/websocket-api-gateways",
+      "sourcePath": "packages/config/src/websocket-api-gateways.ts",
+      "outputPath": "config-reference/websocket-api-gateways/websocketapigatewayprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "WebSocketApiGatewayProps"
+      ],
+      "tags": [
+        "config-reference",
+        "WebSocketApiGatewayProps",
+        "customDomains",
+        "logging",
+        "routeSelectionExpression"
+      ],
+      "chunks": [
+        "config-reference:WebSocketApiGatewayProps#websocketapigatewayprops-api-reference",
+        "config-reference:WebSocketApiGatewayProps#typescript-definition",
+        "config-reference:WebSocketApiGatewayProps#property-customdomains",
+        "config-reference:WebSocketApiGatewayProps#property-logging",
+        "config-reference:WebSocketApiGatewayProps#property-routeselectionexpression"
+      ]
+    },
+    {
       "id": "config-reference:WorkerService",
       "title": "WorkerService API Reference",
       "route": "/config-reference/worker-service",
@@ -14775,7 +15282,6 @@
         "page:/cli/domain-add#dns-already-verified",
         "page:/cli/domain-add#dns-managed-outside-aws",
         "page:/cli/domain-add#tls-certificates",
-        "page:/cli/domain-add#ses-email-verification",
         "page:/cli/domain-add#arguments-reference",
         "page:/cli/domain-add#cli-options-stacktape-domain-add",
         "page:/cli/domain-add#examples",
@@ -14911,28 +15417,7 @@
         "init"
       ],
       "chunks": [
-        "page:/cli/init#init",
-        "page:/cli/init#usage",
-        "page:/cli/init#how-the-wizard-works",
-        "page:/cli/init#important-flags",
-        "page:/cli/init#configformat",
-        "page:/cli/init#infrastructuretype",
-        "page:/cli/init#starterid",
-        "page:/cli/init#starterproject",
-        "page:/cli/init#templateid",
-        "page:/cli/init#projectdirectory",
-        "page:/cli/init#initializeprojectto",
-        "page:/cli/init#examples",
-        "page:/cli/init#all-flags",
-        "page:/cli/init#cli-options-stacktape-init",
-        "page:/cli/init#related-commands",
-        "page:/cli/init#faq",
-        "page:/cli/init#do-i-need-an-aws-account-before-running-init",
-        "page:/cli/init#how-do-i-run-init-non-interactively-ci-or-an-ai-coding-agent",
-        "page:/cli/init#what-is-the-difference-between-starterid-and-templateid",
-        "page:/cli/init#which-infrastructuretype-should-i-choose",
-        "page:/cli/init#does-init-deploy-anything",
-        "page:/cli/init#will-init-overwrite-files-in-my-project-directory"
+        "page:/cli/init#init"
       ]
     },
     {
@@ -15825,6 +16310,7 @@
         "page:/configuration/connecting-resources#environment-variable-naming",
         "page:/configuration/connecting-resources#injected-variables",
         "page:/configuration/connecting-resources#relational-database",
+        "page:/configuration/connecting-resources#aurora-dsql",
         "page:/configuration/connecting-resources#lambda-to-postgres-example",
         "page:/configuration/connecting-resources#bucket",
         "page:/configuration/connecting-resources#hosting-bucket",
@@ -15841,11 +16327,12 @@
         "page:/configuration/connecting-resources#upstash-redis",
         "page:/configuration/connecting-resources#private-service",
         "page:/configuration/connecting-resources#agentcore-resources",
+        "page:/configuration/connecting-resources#websocket-api-gateway",
+        "page:/configuration/connecting-resources#kafka-cluster",
         "page:/configuration/connecting-resources#additional-connectto-targets",
         "page:/configuration/connecting-resources#script-only-variables",
         "page:/configuration/connecting-resources#using-injected-variables-in-code",
         "page:/configuration/connecting-resources#permissions-granted",
-        "page:/configuration/connecting-resources#aws-service-macros",
         "page:/configuration/connecting-resources#custom-permissions-with-iamrolestatements",
         "page:/configuration/connecting-resources#scripts-with-connectto",
         "page:/configuration/connecting-resources#resources-that-use-connectto",
@@ -17558,6 +18045,7 @@
       "chunks": [
         "page:/observability/logs#logs",
         "page:/observability/logs#how-logging-works",
+        "page:/observability/logs#lower-cost-ingestion-for-infrequently-inspected-logs",
         "page:/observability/logs#viewing-logs-in-the-console",
         "page:/observability/logs#time-range-filtering",
         "page:/observability/logs#filter-patterns",
@@ -18796,6 +19284,39 @@
       ]
     },
     {
+      "id": "page:/resources/databases/dsql",
+      "title": "Aurora DSQL",
+      "route": "/resources/databases/dsql",
+      "sourcePath": "apps/docs/content/resources/databases/dsql.mdx",
+      "outputPath": "pages/resources/databases/dsql.md",
+      "docKind": "docs-page",
+      "resourceType": "dsql-database",
+      "definitionNames": [
+        "DsqlDatabaseProps"
+      ],
+      "tags": [
+        "resources",
+        "databases",
+        "dsql",
+        "dsql-database",
+        "DsqlDatabaseProps"
+      ],
+      "chunks": [
+        "page:/resources/databases/dsql#aurora-dsql",
+        "page:/resources/databases/dsql#when-to-use",
+        "page:/resources/databases/dsql#when-not-to-use",
+        "page:/resources/databases/dsql#connect-a-workload",
+        "page:/resources/databases/dsql#least-privilege-access",
+        "page:/resources/databases/dsql#data-protection",
+        "page:/resources/databases/dsql#encryption",
+        "page:/resources/databases/dsql#current-boundaries",
+        "page:/resources/databases/dsql#referenceable-parameters",
+        "page:/resources/databases/dsql#referenceable-parameters-dsql-database",
+        "page:/resources/databases/dsql#api-reference",
+        "page:/resources/databases/dsql#definition-dsqldatabaseprops"
+      ]
+    },
+    {
       "id": "page:/resources/databases/dynamodb",
       "title": "DynamoDB",
       "route": "/resources/databases/dynamodb",
@@ -19431,6 +19952,32 @@
       ]
     },
     {
+      "id": "page:/resources/messaging/email-sender",
+      "title": "Email sender",
+      "route": "/resources/messaging/email-sender",
+      "sourcePath": "apps/docs/content/resources/messaging/email-sender.mdx",
+      "outputPath": "pages/resources/messaging/email-sender.md",
+      "docKind": "docs-page",
+      "definitionNames": [
+        "EmailSenderProps"
+      ],
+      "tags": [
+        "resources",
+        "messaging",
+        "email-sender",
+        "EmailSenderProps"
+      ],
+      "chunks": [
+        "page:/resources/messaging/email-sender#email-sender",
+        "page:/resources/messaging/email-sender#shared-identity-lifecycle",
+        "page:/resources/messaging/email-sender#handle-bounces-and-complaints",
+        "page:/resources/messaging/email-sender#verification-and-dns",
+        "page:/resources/messaging/email-sender#use-an-identity-managed-elsewhere",
+        "page:/resources/messaging/email-sender#current-boundaries",
+        "page:/resources/messaging/email-sender#definition-emailsenderprops"
+      ]
+    },
+    {
       "id": "page:/resources/messaging/event-bus",
       "title": "Event Bus",
       "route": "/resources/messaging/event-bus",
@@ -19469,6 +20016,30 @@
         "page:/resources/messaging/event-bus#how-do-i-subscribe-to-events-on-the-default-aws-event-bus",
         "page:/resources/messaging/event-bus#what-happens-if-an-event-fails-to-reach-a-target",
         "page:/resources/messaging/event-bus#can-container-services-subscribe-to-event-bus-events"
+      ]
+    },
+    {
+      "id": "page:/resources/messaging/kafka-cluster",
+      "title": "Kafka cluster",
+      "route": "/resources/messaging/kafka-cluster",
+      "sourcePath": "apps/docs/content/resources/messaging/kafka-cluster.mdx",
+      "outputPath": "pages/resources/messaging/kafka-cluster.md",
+      "docKind": "docs-page",
+      "definitionNames": [
+        "KafkaClusterProps"
+      ],
+      "tags": [
+        "resources",
+        "messaging",
+        "kafka-cluster",
+        "KafkaClusterProps"
+      ],
+      "chunks": [
+        "page:/resources/messaging/kafka-cluster#kafka-cluster",
+        "page:/resources/messaging/kafka-cluster#create-topics",
+        "page:/resources/messaging/kafka-cluster#development-mode",
+        "page:/resources/messaging/kafka-cluster#regions-and-lifecycle",
+        "page:/resources/messaging/kafka-cluster#definition-kafkaclusterprops"
       ]
     },
     {
@@ -19650,6 +20221,27 @@
       ]
     },
     {
+      "id": "page:/resources/networking/appsync-api",
+      "title": "AppSync API",
+      "route": "/resources/networking/appsync-api",
+      "sourcePath": "apps/docs/content/resources/networking/appsync-api.mdx",
+      "outputPath": "pages/resources/networking/appsync-api.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "resources",
+        "networking",
+        "appsync-api"
+      ],
+      "chunks": [
+        "page:/resources/networking/appsync-api#appsync-api",
+        "page:/resources/networking/appsync-api#basic-example",
+        "page:/resources/networking/appsync-api#authentication",
+        "page:/resources/networking/appsync-api#operational-defaults",
+        "page:/resources/networking/appsync-api#custom-domains"
+      ]
+    },
+    {
       "id": "page:/resources/networking/cdn",
       "title": "CDN",
       "route": "/resources/networking/cdn",
@@ -19820,6 +20412,45 @@
         "page:/resources/networking/network-load-balancer#can-i-expose-multiple-ports-on-a-single-network-load-balancer",
         "page:/resources/networking/network-load-balancer#how-do-container-workloads-connect-to-a-network-load-balancer",
         "page:/resources/networking/network-load-balancer#why-can-t-i-restrict-nlb-access-with-a-web-application-firewall"
+      ]
+    },
+    {
+      "id": "page:/resources/networking/websocket-api-gateway",
+      "title": "WebSocket API Gateway",
+      "route": "/resources/networking/websocket-api-gateway",
+      "sourcePath": "apps/docs/content/resources/networking/websocket-api-gateway.mdx",
+      "outputPath": "pages/resources/networking/websocket-api-gateway.md",
+      "docKind": "docs-page",
+      "resourceType": "websocket-api-gateway",
+      "definitionNames": [
+        "WebSocketApiGatewayProps",
+        "WebSocketApiIntegrationProps"
+      ],
+      "tags": [
+        "resources",
+        "networking",
+        "websocket-api-gateway",
+        "WebSocketApiGatewayProps",
+        "WebSocketApiIntegrationProps"
+      ],
+      "chunks": [
+        "page:/resources/networking/websocket-api-gateway#websocket-api-gateway",
+        "page:/resources/networking/websocket-api-gateway#when-to-use",
+        "page:/resources/networking/websocket-api-gateway#basic-example",
+        "page:/resources/networking/websocket-api-gateway#route-behavior",
+        "page:/resources/networking/websocket-api-gateway#sending-a-message-to-a-connection",
+        "page:/resources/networking/websocket-api-gateway#connection-storage-and-broadcasts",
+        "page:/resources/networking/websocket-api-gateway#authorization",
+        "page:/resources/networking/websocket-api-gateway#return-a-response-to-the-calling-client",
+        "page:/resources/networking/websocket-api-gateway#custom-domains",
+        "page:/resources/networking/websocket-api-gateway#logs",
+        "page:/resources/networking/websocket-api-gateway#dev-mode",
+        "page:/resources/networking/websocket-api-gateway#aws-limits-to-design-around",
+        "page:/resources/networking/websocket-api-gateway#referenceable-parameters",
+        "page:/resources/networking/websocket-api-gateway#referenceable-parameters-websocket-api-gateway",
+        "page:/resources/networking/websocket-api-gateway#api-reference",
+        "page:/resources/networking/websocket-api-gateway#definition-websocketapigatewayprops",
+        "page:/resources/networking/websocket-api-gateway#definition-websocketapiintegrationprops"
       ]
     },
     {
@@ -20288,40 +20919,27 @@
     },
     {
       "id": "page:/resources/triggers/kafka-topics",
-      "title": "Kafka Topics",
+      "title": "Kafka topics",
       "route": "/resources/triggers/kafka-topics",
       "sourcePath": "apps/docs/content/resources/triggers/kafka-topics.mdx",
       "outputPath": "pages/resources/triggers/kafka-topics.md",
       "docKind": "docs-page",
       "definitionNames": [
-        "KafkaTopicIntegrationProps"
+        "KafkaTopicIntegration"
       ],
       "tags": [
         "resources",
         "triggers",
         "kafka-topics",
-        "KafkaTopicIntegrationProps"
+        "KafkaTopicIntegration"
       ],
       "chunks": [
         "page:/resources/triggers/kafka-topics#kafka-topics",
-        "page:/resources/triggers/kafka-topics#when-to-use",
-        "page:/resources/triggers/kafka-topics#when-not-to-use",
-        "page:/resources/triggers/kafka-topics#basic-example",
-        "page:/resources/triggers/kafka-topics#authentication",
-        "page:/resources/triggers/kafka-topics#sasl-authentication",
-        "page:/resources/triggers/kafka-topics#mutual-tls-mtls-authentication",
-        "page:/resources/triggers/kafka-topics#batching-and-throughput",
-        "page:/resources/triggers/kafka-topics#handler-example",
-        "page:/resources/triggers/kafka-topics#network-connectivity",
-        "page:/resources/triggers/kafka-topics#api-reference",
-        "page:/resources/triggers/kafka-topics#definition-kafkatopicintegrationprops",
-        "page:/resources/triggers/kafka-topics#faq",
-        "page:/resources/triggers/kafka-topics#can-i-consume-from-multiple-kafka-topics-with-one-lambda-function",
-        "page:/resources/triggers/kafka-topics#what-happens-if-my-function-fails",
-        "page:/resources/triggers/kafka-topics#how-do-i-create-the-secrets-manager-secret-for-authentication",
-        "page:/resources/triggers/kafka-topics#which-authentication-type-should-i-use-sasl-or-mtls",
-        "page:/resources/triggers/kafka-topics#is-there-a-cost-for-the-kafka-event-source-mapping",
-        "page:/resources/triggers/kafka-topics#can-i-filter-messages-before-they-reach-my-function"
+        "page:/resources/triggers/kafka-topics#stacktape-kafka-cluster",
+        "page:/resources/triggers/kafka-topics#existing-amazon-msk-cluster",
+        "page:/resources/triggers/kafka-topics#self-managed-kafka",
+        "page:/resources/triggers/kafka-topics#batching-and-consumer-groups",
+        "page:/resources/triggers/kafka-topics#definition-kafkatopicintegration"
       ]
     },
     {
@@ -20385,6 +21003,7 @@
         "page:/resources/triggers/overview#why-triggers-exist",
         "page:/resources/triggers/overview#trigger-categories",
         "page:/resources/triggers/overview#synchronous-triggers",
+        "page:/resources/triggers/overview#websocket-routes",
         "page:/resources/triggers/overview#asynchronous-triggers",
         "page:/resources/triggers/overview#container-networking-integrations",
         "page:/resources/triggers/overview#which-resources-support-which-triggers",

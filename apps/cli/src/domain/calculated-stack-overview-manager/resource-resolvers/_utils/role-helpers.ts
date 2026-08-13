@@ -21,9 +21,13 @@ import { arns } from '@stacktape/naming/arns';
 import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import type { SupportedAWSRegion as AWSRegion } from '@stacktape/config/aws-regions';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
-import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
 import type { BucketPolicyIamRoleStatement } from '@stacktape/config/buckets';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
+import { WEBSOCKET_API_STAGE_NAME } from '@domain-services/config-manager/utils/websocket-api-gateways';
+import { getSharedEmailConfigurationSetName } from '@stacktape/naming/shared-stacks';
+import type { StpEmailSender } from '@domain-services/config-manager/resolved-types/email-senders';
+import type { StpAppSyncApi } from '@domain-services/config-manager/resolved-types/appsync-apis';
+import type { StpKafkaCluster } from '@domain-services/config-manager/resolved-types/kafka-clusters';
 
 export const getAtlasMongoRoleAssociatedUserResource = ({
   roleCfLogicalName,
@@ -296,6 +300,112 @@ const getStatementsForAccessingKinesisStream = (statementProps: StatementProps):
   }
 ];
 
+export const getStatementsForAccessingWebsocketApiGateway = (statementProps: StatementProps): StpIamRoleStatement[] => [
+  {
+    Effect: 'Allow',
+    Action: ['execute-api:ManageConnections'],
+    Resource: [
+      join('', [
+        `arn:aws:execute-api:${statementProps.region}:${statementProps.accountId}:`,
+        ref(cfLogicalNames.websocketApi(statementProps.stacktapeResourceName)),
+        `/${WEBSOCKET_API_STAGE_NAME}/POST/@connections`
+      ]) as unknown as string
+    ]
+  }
+];
+
+export const getStatementsForAccessingDsqlDatabase = (statementProps: StatementProps): StpIamRoleStatement[] => [
+  {
+    Effect: 'Allow',
+    Action: ['dsql:DbConnectAdmin'],
+    Resource: [
+      getAtt(cfLogicalNames.dsqlCluster(statementProps.stacktapeResourceName), 'ResourceArn') as unknown as string
+    ]
+  }
+];
+
+const getKafkaDataPlaneArn = ({
+  accountId,
+  clusterArn,
+  region,
+  resourceType,
+  resourceName = '*'
+}: {
+  clusterArn: string | Intrinsic;
+  accountId: string;
+  region: AWSRegion;
+  resourceType: 'topic' | 'group';
+  resourceName?: string;
+}) =>
+  join('', [
+    `arn:aws:kafka:${region}:${accountId}:${resourceType}/`,
+    select(1, split('/', clusterArn)),
+    '/',
+    select(2, split('/', clusterArn)),
+    `/${resourceName}`
+  ]) as unknown as string;
+
+export const getStatementsForAccessingKafkaCluster = (
+  resource: StpKafkaCluster,
+  statementProps: StatementProps
+): StpIamRoleStatement[] => {
+  const clusterArn = ref(cfLogicalNames.kafkaServerlessCluster(resource.name));
+  return [
+    {
+      Effect: 'Allow',
+      Action: ['kafka-cluster:Connect', 'kafka-cluster:DescribeCluster'],
+      Resource: [clusterArn as unknown as string]
+    },
+    {
+      Effect: 'Allow',
+      Action: [
+        'kafka-cluster:CreateTopic',
+        'kafka-cluster:DescribeTopic',
+        'kafka-cluster:DescribeTopicDynamicConfiguration',
+        'kafka-cluster:ReadData',
+        'kafka-cluster:WriteData'
+      ],
+      Resource: [
+        getKafkaDataPlaneArn({
+          accountId: statementProps.accountId,
+          clusterArn,
+          region: statementProps.region,
+          resourceType: 'topic'
+        })
+      ]
+    },
+    {
+      Effect: 'Allow',
+      Action: ['kafka-cluster:DescribeGroup', 'kafka-cluster:AlterGroup'],
+      Resource: [
+        getKafkaDataPlaneArn({
+          accountId: statementProps.accountId,
+          clusterArn,
+          region: statementProps.region,
+          resourceType: 'group'
+        })
+      ]
+    }
+  ];
+};
+
+export const getStatementsForAccessingAppSyncApi = (
+  resource: StpAppSyncApi,
+  statementProps: StatementProps
+): StpIamRoleStatement[] => [
+  {
+    Effect: 'Allow',
+    Action: ['appsync:GraphQL'],
+    Resource: [
+      join('', [
+        `arn:aws:appsync:${statementProps.region}:${statementProps.accountId}:apis/`,
+        getAtt(cfLogicalNames.appsyncApi(resource.name), 'ApiId'),
+        '/types/*/fields/*'
+      ]) as unknown as string
+    ]
+  }
+];
+
 export type StpAgentCoreConnectToTarget =
   | StpAgentCoreRuntime
   | StpAgentCoreMemory
@@ -374,13 +484,19 @@ export const getStatementsForAccessingAgentCoreResource = (
           Action: [
             'bedrock-agentcore:StartBrowserSession',
             'bedrock-agentcore:GetBrowserSession',
-            'bedrock-agentcore:ListBrowserSessions',
             'bedrock-agentcore:StopBrowserSession',
-            'bedrock-agentcore:UpdateBrowserStream',
+            'bedrock-agentcore:UpdateBrowserStream'
+          ],
+          Resource: [getAtt(cfLogicalNames.agentCoreBrowser(resource.name), 'BrowserArn') as unknown as string]
+        },
+        {
+          Effect: 'Allow',
+          Action: [
+            'bedrock-agentcore:ListBrowserSessions',
             'bedrock-agentcore:ConnectBrowserAutomationStream',
             'bedrock-agentcore:ConnectBrowserLiveViewStream'
           ],
-          Resource: [getAtt(cfLogicalNames.agentCoreBrowser(resource.name), 'BrowserArn') as unknown as string]
+          Resource: ['*']
         }
       ];
     case 'agentcore-code-interpreter':
@@ -402,17 +518,24 @@ export const getStatementsForAccessingAgentCoreResource = (
   }
 };
 
-const getStatementsForAwsServiceMacro = (macro: ConnectToAwsServicesMacro): StpIamRoleStatement[] => {
-  if (macro === 'aws:ses') {
-    return [
-      {
-        Effect: 'Allow',
-        Action: ['ses:*'],
-        Resource: ['*']
-      }
-    ];
-  }
-  return [];
+export const getStatementsForAccessingEmailSender = (
+  resource: StpEmailSender,
+  { accountId, region }: Pick<StatementProps, 'accountId' | 'region'>
+): StpIamRoleStatement[] => {
+  const configurationSetName =
+    resource.manageIdentity !== false
+      ? getSharedEmailConfigurationSetName(resource.identity)
+      : resource.configurationSetName;
+  return [
+    {
+      Effect: 'Allow',
+      Action: ['ses:SendEmail', 'ses:SendRawEmail'],
+      Resource: [
+        arns.sesIdentity({ accountId, identity: resource.identity, region }),
+        ...(configurationSetName ? [arns.sesConfigurationSet({ accountId, configurationSetName, region })] : [])
+      ]
+    }
+  ];
 };
 
 export const getPolicyForCustomIamRoleStatements = (statements: StpIamRoleStatement[]) => {
@@ -434,7 +557,7 @@ export const getPoliciesForRoles = ({
 }: {
   iamRoleStatements: StpIamRoleStatement[];
   accessToResourcesRequiringRoleChanges: StpResourceScopableByConnectToAffectingRole[];
-  accessToAwsServices: ConnectToAwsServicesMacro[];
+  accessToAwsServices: never[];
   mountedEfsFilesystems?: StpEfsFilesystem[];
   mountedS3FilesAccessPointArns?: (string | Intrinsic)[];
 }) => {
@@ -450,9 +573,6 @@ export const getPoliciesForRoles = ({
   }
   if (accessToResourcesRequiringRoleChanges?.length || accessToAwsServices?.length) {
     const connectToStatements = [];
-    Array.from(new Set(accessToAwsServices)).forEach((macro) => {
-      connectToStatements.push(...getStatementsForAwsServiceMacro(macro));
-    });
     accessToResourcesRequiringRoleChanges.forEach((resource) => {
       const statementProps: StatementProps = {
         stacktapeResourceName: resource.name,
@@ -517,6 +637,26 @@ export const getPoliciesForRoles = ({
         }
         case 'kinesis-stream': {
           connectToStatements.push(...getStatementsForAccessingKinesisStream(statementProps));
+          break;
+        }
+        case 'websocket-api-gateway': {
+          connectToStatements.push(...getStatementsForAccessingWebsocketApiGateway(statementProps));
+          break;
+        }
+        case 'dsql-database': {
+          connectToStatements.push(...getStatementsForAccessingDsqlDatabase(statementProps));
+          break;
+        }
+        case 'kafka-cluster': {
+          connectToStatements.push(...getStatementsForAccessingKafkaCluster(resource, statementProps));
+          break;
+        }
+        case 'appsync-api': {
+          connectToStatements.push(...getStatementsForAccessingAppSyncApi(resource, statementProps));
+          break;
+        }
+        case 'email-sender': {
+          connectToStatements.push(...getStatementsForAccessingEmailSender(resource, statementProps));
           break;
         }
         case 'agentcore-runtime':

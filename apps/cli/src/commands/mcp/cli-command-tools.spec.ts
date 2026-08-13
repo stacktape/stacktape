@@ -111,6 +111,79 @@ describe('MCP CLI command tools', () => {
     }
   });
 
+  test('keeps known read-only diagnostics frictionless and rejects operations the CLI cannot run', () => {
+    const readOnlySql = prepareCliRun({
+      command: 'query:sql',
+      args: { stage: 'dev', region: 'us-east-1', resourceName: 'mainDatabase', sql: 'SELECT 1' }
+    });
+    const mutatingSql = prepareCliRun({
+      command: 'query:sql',
+      args: {
+        stage: 'dev',
+        region: 'us-east-1',
+        resourceName: 'mainDatabase',
+        sql: 'WITH removed AS (DELETE FROM users RETURNING *) SELECT * FROM removed'
+      }
+    });
+    const unknownRedisOperation = prepareCliRun({
+      command: 'query:redis',
+      args: { stage: 'dev', region: 'us-east-1', resourceName: 'cache', operation: 'set' }
+    });
+    const readOnlyRedisOperation = prepareCliRun({
+      command: 'query:redis',
+      args: { stage: 'dev', region: 'us-east-1', resourceName: 'cache', operation: 'get', key: 'session' }
+    });
+
+    expect(readOnlySql.ok).toBe(true);
+    if (readOnlySql.ok) expect(readOnlySql.policy.requiresConfirmation).toBe(false);
+    expect(readOnlyRedisOperation.ok).toBe(true);
+    if (readOnlyRedisOperation.ok) expect(readOnlyRedisOperation.policy.requiresConfirmation).toBe(false);
+    expect(mutatingSql).toMatchObject({
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      data: { supportedReadOnlyStatements: ['SELECT', 'WITH', 'VALUES', 'SHOW', 'DESCRIBE', 'EXPLAIN'] }
+    });
+    expect(unknownRedisOperation).toMatchObject({
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      data: { supportedReadOnlyOperations: ['keys', 'get', 'ttl', 'info', 'type'] }
+    });
+
+    const confirmed = prepareCliRun({
+      command: 'query:sql',
+      args: {
+        stage: 'dev',
+        region: 'us-east-1',
+        resourceName: 'mainDatabase',
+        sql: 'DELETE FROM users'
+      },
+      confirm: true
+    });
+    expect(confirmed).toMatchObject({ ok: false, code: 'VALIDATION_ERROR' });
+  });
+
+  test('names the supported read-only alternatives for every operation-based diagnostic command', () => {
+    const expectations = [
+      ['query:dynamodb', ['scan', 'query', 'get', 'schema', 'sample']],
+      ['query:redis', ['keys', 'get', 'ttl', 'info', 'type']],
+      ['query:opensearch', ['search', 'get', 'indices', 'mapping', 'count']]
+    ] as const;
+
+    for (const [command, supportedReadOnlyOperations] of expectations) {
+      const result = prepareCliRun({
+        command,
+        args: { stage: 'dev', region: 'us-east-1', resourceName: 'data', operation: 'write' },
+        confirm: true
+      });
+      expect(result, command).toMatchObject({
+        ok: false,
+        code: 'VALIDATION_ERROR',
+        data: { supportedReadOnlyOperations: [...supportedReadOnlyOperations] }
+      });
+      if (result.ok === false) expect(result.nextActions?.[0], command).toContain('supported read-only operations');
+    }
+  });
+
   test('adds autoConfirmOperation only for confirmed commands that support it', () => {
     const prepared = prepareCliRun({
       command: 'deploy',

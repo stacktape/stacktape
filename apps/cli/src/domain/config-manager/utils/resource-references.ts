@@ -1,4 +1,3 @@
-import type { ResourcePropsFromConfig } from '@domain-services/stack-info/types';
 import type { StpMongoDbAtlasCluster } from '@domain-services/config-manager/resolved-types/mongo-db-atlas-clusters';
 import type {
   StpResource,
@@ -6,17 +5,17 @@ import type {
   StpResourceScopableByConnectToAffectingSecurityGroup,
   StpResourceType
 } from '@domain-services/config-manager/resolved-types/resources';
-import { CONNECT_TO_AWS_SERVICE_MACROS } from '@stacktape/config/aws-service-macros';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { CliError } from '@utils/errors';
 import {
   isDevCommand,
   isResourceTypeExcludedInDevMode,
-  isResourceTypeLocallyEmulatable
+  isResourceTypeLocallyEmulatable,
+  isResourceTypeRemoteOnlyInDevMode
 } from '../../../commands/dev/dev-mode-utils';
-import { configManager as runtimeConfigManager, type ConfigManager } from '../index';
-import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
-import { configErrors } from '../errors';
+import { configManager as runtimeConfigManager } from '../index';
+import { getRemoteResourceNames } from '../../../commands/dev/local-resources';
+import { getPropsOfResourceReferencedInConfig as getReferencedResource, type ResourceLookup } from './resource-lookup';
 
 export const getPropsOfResourceReferencedInConfig = <T extends StpResourceType>({
   activeConfig = runtimeConfigManager,
@@ -25,29 +24,19 @@ export const getPropsOfResourceReferencedInConfig = <T extends StpResourceType>(
   referencedFrom,
   referencedFromType
 }: {
-  activeConfig?: Pick<ConfigManager, 'findResourceInConfig'>;
+  activeConfig?: ResourceLookup;
   stpResourceReference: string;
   stpResourceType?: T;
   referencedFrom: string;
   referencedFromType?: StpResourceType | 'alarm';
-}): ResourcePropsFromConfig<T> => {
-  const { resource, restPath, validPath, fullyResolved } = activeConfig.findResourceInConfig({
-    nameChain: stpResourceReference.split('.')
+}) =>
+  getReferencedResource<T>({
+    activeConfig,
+    stpResourceReference,
+    stpResourceType,
+    referencedFrom,
+    referencedFromType
   });
-  if (!fullyResolved || (stpResourceType && resource.type !== stpResourceType)) {
-    throw configErrors.unresolvedResourceReference({
-      stpResourceName: stpResourceReference,
-      stpResourceType,
-      referencedFrom,
-      referencedFromType,
-      validResourcePath: validPath,
-      invalidRestResourcePath: restPath,
-      possibleNestedResources: Object.keys(resource?._nestedResources || {}),
-      incorrectResourceType: stpResourceType && resource?.type !== stpResourceType
-    });
-  }
-  return resource as ResourcePropsFromConfig<T>;
-};
 
 export const getConnectToReferencesForResource = ({
   nameChain
@@ -81,23 +70,25 @@ export const getConnectToReferencesForResource = ({
 };
 export const resolveConnectToList = ({
   stpResourceNameOfReferencer,
+  stpResourceTypeOfReferencer,
   connectTo,
   checkingDefaults,
   activeConfig = runtimeConfigManager
 }: {
   stpResourceNameOfReferencer: string;
+  stpResourceTypeOfReferencer?: StpResourceType;
   connectTo: string[];
   checkingDefaults?: boolean;
-  activeConfig?: Pick<ConfigManager, 'findResourceInConfig'>;
+  activeConfig?: ResourceLookup;
 }): {
   accessToResourcesRequiringRoleChanges: StpResourceScopableByConnectToAffectingRole[];
-  accessToAwsServices: ConnectToAwsServicesMacro[];
+  accessToAwsServices: never[];
   accessToResourcesPotentiallyRequiringSecurityGroupCreation: StpResourceScopableByConnectToAffectingSecurityGroup[];
   accessToAtlasMongoClusterResources: StpMongoDbAtlasCluster[];
 } => {
   const result: {
     accessToResourcesRequiringRoleChanges: StpResourceScopableByConnectToAffectingRole[];
-    accessToAwsServices: ConnectToAwsServicesMacro[];
+    accessToAwsServices: never[];
     accessToResourcesPotentiallyRequiringSecurityGroupCreation: StpResourceScopableByConnectToAffectingSecurityGroup[];
     accessToAtlasMongoClusterResources: StpMongoDbAtlasCluster[];
   } = {
@@ -107,10 +98,6 @@ export const resolveConnectToList = ({
     accessToAtlasMongoClusterResources: []
   };
   (connectTo || []).forEach((referencedName) => {
-    if (CONNECT_TO_AWS_SERVICE_MACROS.includes(referencedName as ConnectToAwsServicesMacro)) {
-      result.accessToAwsServices.push(referencedName as ConnectToAwsServicesMacro);
-      return;
-    }
     const resource = getPropsOfResourceReferencedInConfig<StpResourceType>({
       activeConfig,
       referencedFrom: stpResourceNameOfReferencer,
@@ -129,9 +116,40 @@ export const resolveConnectToList = ({
         // Note: remote check is done by the caller, we just skip creating CF references here
         return;
       }
+      if (isResourceTypeRemoteOnlyInDevMode(resource.type)) {
+        const isRemote = getRemoteResourceNames().has(resource.name);
+        if (!isRemote) return;
+      }
     }
 
     const resourceType = resource.type as StpResourceType;
+    if (resourceType === 'kafka-cluster') {
+      if (
+        stpResourceTypeOfReferencer &&
+        ![
+          'function',
+          'deployment-script',
+          'web-service',
+          'private-service',
+          'worker-service',
+          'multi-container-workload',
+          'batch-job'
+        ].includes(stpResourceTypeOfReferencer)
+      ) {
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_CONNECT_TO_KAFKA_UNSUPPORTED',
+          message: `Resource \`${stpResourceNameOfReferencer}\` of type \`${stpResourceTypeOfReferencer}\` cannot connect directly to Kafka.`,
+          hints:
+            'Use a VPC-capable Lambda function, deployment script, container workload, web/private/worker service, or batch job.'
+        });
+      }
+      result.accessToResourcesRequiringRoleChanges.push(resource as StpResourceScopableByConnectToAffectingRole);
+      result.accessToResourcesPotentiallyRequiringSecurityGroupCreation.push(
+        resource as StpResourceScopableByConnectToAffectingSecurityGroup
+      );
+      return;
+    }
     if (
       resourceType === 'function' ||
       resourceType === 'multi-container-workload' ||
@@ -149,7 +167,11 @@ export const resolveConnectToList = ({
       resourceType === 'agentcore-memory' ||
       resourceType === 'agentcore-gateway' ||
       resourceType === 'agentcore-browser' ||
-      resourceType === 'agentcore-code-interpreter'
+      resourceType === 'agentcore-code-interpreter' ||
+      resourceType === 'websocket-api-gateway' ||
+      resourceType === 'appsync-api' ||
+      resourceType === 'dsql-database' ||
+      resourceType === 'email-sender'
     ) {
       result.accessToResourcesRequiringRoleChanges.push(resource as StpResourceScopableByConnectToAffectingRole);
       return;

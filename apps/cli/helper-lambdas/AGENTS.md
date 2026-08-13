@@ -22,16 +22,15 @@ measurement that settled it remains the relevant baseline:
 - the four entrypoints reached **31 non-helper CLI modules, ~9,000 lines**, almost all broadly consumed elsewhere;
 - extracting the physical naming source into `@stacktape/naming` removed a public/private duplicate, but did not turn
   the remaining AWS, S3, CloudFormation, tRPC, and configuration closure into helper-owned code;
-- the largest are general CLI facilities: the AWS SDK manager, the S3 sync engine, and shared physical naming
-  (now honestly owned by `@stacktape/naming` because both CLI and Console consume it), alongside broadly used
-  filesystem, configuration, logical-naming, and miscellaneous CLI modules;
+- the largest are general CLI facilities: the AWS SDK manager, the S3 sync engine, and shared physical naming (now
+  honestly owned by `@stacktape/naming` because both CLI and Console consume it), alongside broadly used filesystem,
+  configuration, logical-naming, and miscellaneous CLI modules;
 - exactly one module is helper-only — `src/stacktape-api/aws-identity-protected.ts`, 78 lines — and it still depends on
   `src/aws/identity.ts` and `src/stacktape-api/client.ts`, which reach `src/aws/fetch-handler.ts` (13 other consumers);
-- alarm configuration uses an explicit `AlarmDefinition` import from `@stacktape/config`, while the runtime imports
-  the CLI-only `AlarmNotificationEventRuleInput` payload from
-  `src/domain/config-manager/resolved-types/alarms.ts`. AWS credentials are imported explicitly from the general CLI facility
-  `src/aws/credentials.ts`; supported region types come from the configuration vocabulary at
-  `@stacktape/config/aws-regions`. Neither capability is helper-owned.
+- alarm configuration uses an explicit `AlarmDefinition` import from `@stacktape/config`, while the runtime imports the
+  CLI-only `AlarmNotificationEventRuleInput` payload from `src/domain/config-manager/resolved-types/alarms.ts`. AWS
+  credentials are imported explicitly from the general CLI facility `src/aws/credentials.ts`; supported region types
+  come from the configuration vocabulary at `@stacktape/config/aws-regions`. Neither capability is helper-owned.
 
 Every way to make a package out of that is worse than co-location:
 
@@ -52,8 +51,8 @@ boundary plus the machinery required to pretend the dependency runs the other wa
 Extract the package when the helper runtimes no longer need general CLI implementation to run — concretely, when the
 non-helper closure is small and helper-dominant (a handful of modules whose honest owner is helper-Lambda runtime
 behavior), and the runtime source no longer depends on CLI-only resolved configuration contracts such as
-`AlarmNotificationEventRuleInput`. A deliberate,
-separately justified slice that narrows the closure is the prerequisite; the package is the result, not the trigger.
+`AlarmNotificationEventRuleInput`. A deliberate, separately justified slice that narrows the closure is the
+prerequisite; the package is the result, not the trigger.
 
 ## Compatibility contract
 
@@ -78,5 +77,5 @@ pnpm --filter @stacktape/cli run test:characterization:helper-lambdas # builds a
 
 `test:helper-lambdas` covers the deployed runtime behavior that has tests — alarm-notification delivery and console
 routing failures, multi-language issue stack-trace parsing — plus the CLI-side artifact lookup in
-`src/utils/helper-lambdas.ts`. `test:characterization:helper-lambdas` bundles with Bun, so per the CLI's `AGENTS.md`
-it has to run on Linux or macOS.
+`src/utils/helper-lambdas.ts`. `test:characterization:helper-lambdas` bundles with Bun, so per the CLI's `AGENTS.md` it
+has to run on Linux or macOS.

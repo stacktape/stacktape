@@ -229,8 +229,10 @@ export const getCriticalResourcesPotentiallyEndangeredByOperation = ({
   const cfResourceTypesToWatch: (KnownCloudFormationResourceType | SupportedPrivateCfResourceType)[] = [
     'AWS::RDS::DBCluster',
     'AWS::RDS::DBInstance',
+    'AWS::DSQL::Cluster',
     'AWS::DynamoDB::GlobalTable',
     'AWS::DynamoDB::Table',
+    'AWS::MSK::ServerlessCluster',
     'AWS::ElastiCache::GlobalReplicationGroup',
     'AWS::S3::Bucket',
     'MongoDB::StpAtlasV1::Cluster',

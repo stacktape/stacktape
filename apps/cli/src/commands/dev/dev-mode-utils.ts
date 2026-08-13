@@ -9,6 +9,9 @@ export const LOCAL_EMULATED_RESOURCE_TYPES: StpResourceType[] = [
   'open-search-domain'
 ];
 
+/** Costly cloud-only resources excluded from dev stacks unless explicitly marked `dev.remote: true`. */
+export const REMOTE_ONLY_RESOURCE_TYPES: StpResourceType[] = ['kafka-cluster'];
+
 /** Resource types that run locally (containers, frontends) - entirely skipped in dev stack */
 export const LOCALLY_RUN_RESOURCE_TYPES: StpResourceType[] = [
   'web-service',
@@ -39,3 +42,6 @@ export const isResourceTypeExcludedInDevMode = (resourceType: StpResourceType): 
 export const isResourceTypeLocallyEmulatable = (resourceType: StpResourceType): boolean => {
   return LOCAL_EMULATED_RESOURCE_TYPES.includes(resourceType);
 };
+
+export const isResourceTypeRemoteOnlyInDevMode = (resourceType: StpResourceType): boolean =>
+  REMOTE_ONLY_RESOURCE_TYPES.includes(resourceType);

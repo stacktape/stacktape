@@ -57,7 +57,8 @@ const getEdgeLambdaCustomResourceProperties = (lambdaProps: StpEdgeLambdaFunctio
     accessToAwsServices
   } = resolveConnectToList({
     connectTo: lambdaProps.connectTo,
-    stpResourceNameOfReferencer: lambdaProps.name
+    stpResourceNameOfReferencer: lambdaProps.name,
+    stpResourceTypeOfReferencer: lambdaProps.configParentResourceType
   });
   if (accessToAtlasMongoClusterResources.length || accessToResourcesPotentiallyRequiringSecurityGroupCreation.length) {
     const referencedResource = [

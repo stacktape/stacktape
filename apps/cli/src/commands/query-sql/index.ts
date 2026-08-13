@@ -8,9 +8,9 @@ import { locallyResolveSensitiveValue } from '@utils/stack-info-map-sensitive-va
 import { CliError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { initializeStackServicesForWorkingWithDeployedStack } from '../_utils/initialization';
+import { isDefinitelyReadOnlySql } from '../_utils/read-only-diagnostics';
 
 const SUPPORTED_DB_TYPES = ['relational-database'] as const;
-const READ_ONLY_SQL_KEYWORDS = new Set(['select', 'show', 'describe', 'explain', 'with', 'values']);
 
 export const parseSqlConnectionString = ({ connectionString }: { connectionString: string }) => {
   let url: URL;
@@ -63,10 +63,7 @@ export const parseSqlConnectionString = ({ connectionString }: { connectionStrin
 };
 
 export const assertReadOnlySql = ({ sql }: { sql: string }) => {
-  const normalizedSql = sql.toLowerCase().trimStart();
-  const firstKeyword = normalizedSql.match(/^[a-z]+/)?.[0];
-  const writesServerFile = /\binto\s+(?:out|dump)file\b/i.test(sql);
-  if (!firstKeyword || !READ_ONLY_SQL_KEYWORDS.has(firstKeyword) || writesServerFile) {
+  if (!isDefinitelyReadOnlySql(sql)) {
     throw new CliError({
       category: 'CLI',
       code: 'CLI_SQL_QUERY_NOT_READ_ONLY',

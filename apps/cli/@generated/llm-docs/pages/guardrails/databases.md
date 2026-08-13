@@ -73,7 +73,7 @@ The `allowedInstanceSizes` property accepts an array of exact database instance 
 
 ## VPC-only databases
 
-The `require-vpc-databases` guardrail enforces that relational databases and OpenSearch domains use VPC-only accessibility with no public internet access. DynamoDB is not checked because it is already accessed through AWS service endpoints rather than a per-table public/private setting. When `enabled` is `true`, any covered resource without VPC-only accessibility is blocked.
+The `require-vpc-databases` guardrail enforces that relational databases and OpenSearch domains use VPC-only accessibility with no public internet access. DynamoDB is not checked because it is already accessed through AWS service endpoints rather than a per-table public/private setting. Aurora DSQL currently uses its public service endpoint in Stacktape, so `dsql-database` fails this guardrail closed until Stacktape can manage the required PrivateLink endpoint. When `enabled` is `true`, any covered resource without a supported VPC-only path is blocked.
 
 Guardrail definition shape (configured in the Stacktape Console):
 
@@ -96,7 +96,7 @@ For the accessibility modes available on databases and how to configure them, se
 
 ## Deletion protection
 
-The `require-deletion-protection` guardrail enforces that all [relational databases](/resources/databases/relational-database) have `deletionProtection` set to `true`. When `enabled` is `true`, any relational database without explicit deletion protection is blocked.
+The `require-deletion-protection` guardrail enforces that all [relational databases](/resources/databases/relational-database) and [Aurora DSQL databases](/resources/databases/dsql) have `deletionProtection` set to `true`. When `enabled` is `true`, any of these databases without explicit deletion protection is blocked.
 
 Guardrail definition shape (configured in the Stacktape Console):
 
@@ -109,13 +109,13 @@ Guardrail definition shape (configured in the Stacktape Console):
 }
 ```
 
-AWS RDS deletion protection is a safeguard that prevents a database instance from being accidentally deleted. The guardrail ensures your team always has this flag active — every relational database in the stack must include `deletionProtection: true` in its configuration. This guardrail targets relational databases specifically.
+AWS RDS and Aurora DSQL deletion protection prevent a database resource from being accidentally deleted. The guardrail ensures your team always has this flag active — every relational or DSQL database in the stack must include `deletionProtection: true` in its configuration.
 
 **When to enable:** Any production environment, or as a blanket policy to prevent accidental database deletion. The cost of losing production data far outweighs the minor friction of managing the protection flag explicitly.
 
 **When to skip:** Development and testing stages where databases are ephemeral and frequently recreated. Enforcing deletion protection on short-lived dev databases adds friction without meaningful benefit.
 
-**Tradeoff:** With this guardrail active, you cannot deploy a relational database without `deletionProtection: true` in its configuration.
+**Tradeoff:** With this guardrail active, you cannot deploy a relational or DSQL database without `deletionProtection: true` in its configuration.
 
 ## Combining database guardrails
 
@@ -128,7 +128,7 @@ When multiple guardrails are active, a stack must satisfy every one of them that
 | Engine restriction | Non-standard engine types (e.g., MySQL when only PostgreSQL is allowed) |
 | Instance restriction | Unreviewed instance sizes |
 | VPC-only databases | Publicly accessible databases |
-| Deletion protection | Accidentally deletable relational databases |
+| Deletion protection | Accidentally deletable relational and DSQL databases |
 
 **Recommended starting point:** Enable VPC-only databases and deletion protection first — they provide the highest-value safety net for production with minimal configuration overhead. They prevent the two most costly mistakes: data exposure and accidental deletion. Add engine restriction once your team has standardized on an engine family, and instance restriction once cost control across teams becomes a priority.
 

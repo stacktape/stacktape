@@ -360,7 +360,7 @@ export default defineConfig(() => {
 ```
 
 
-The backing Lambda receives `STP_CONFIG_BUCKET_NAME` and `STP_CONFIG_BUCKET_ARN` as environment variables, and Stacktape grants read/write/delete object permissions to the bucket. The `timeout` is set to 60 seconds — the default is 10. The `aws:ses` macro grants full SES email sending permissions when listed in `connectTo`.
+The backing Lambda receives `STP_CONFIG_BUCKET_NAME` and `STP_CONFIG_BUCKET_ARN` as environment variables, and Stacktape grants read/write/delete object permissions to the bucket. The `timeout` is set to 60 seconds — the default is 10.
 
 Use `iamRoleStatements` for direct access to AWS services such as Rekognition, Textract, or Bedrock when `connectTo` does not cover the permission you need:
 

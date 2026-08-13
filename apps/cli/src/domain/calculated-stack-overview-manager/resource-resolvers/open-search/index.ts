@@ -11,15 +11,18 @@ import { getOpenSearchDomainLogGroup, getOpenSearchDomainResource, getOpenSearch
 export const resolveOpenSearchLoggingDefaults = (logging: OpenSearchLogConfiguration = {}) => ({
   errorLogs: {
     disabled: logging.errorLogs?.disabled ?? false,
-    retentionDays: logging.errorLogs?.retentionDays ?? 30
+    retentionDays: logging.errorLogs?.retentionDays ?? 30,
+    logClass: logging.errorLogs?.logClass
   },
   searchSlowLogs: {
     disabled: logging.searchSlowLogs?.disabled ?? false,
-    retentionDays: logging.searchSlowLogs?.retentionDays ?? 5
+    retentionDays: logging.searchSlowLogs?.retentionDays ?? 5,
+    logClass: logging.searchSlowLogs?.logClass
   },
   indexSlowLogs: {
     disabled: logging.indexSlowLogs?.disabled ?? false,
-    retentionDays: logging.indexSlowLogs?.retentionDays ?? 5
+    retentionDays: logging.indexSlowLogs?.retentionDays ?? 5,
+    logClass: logging.indexSlowLogs?.logClass
   }
 });
 
@@ -68,6 +71,7 @@ export const resolveOpenSearchDomains = () => {
               domainName: openSearchDomain.name,
               logGroupType: logType,
               retentionDays: loggingConfig.retentionDays,
+              logClass: loggingConfig.logClass,
               region: calculatedStackOverviewManager.context.region,
               stackName: calculatedStackOverviewManager.context.stackName
             })

@@ -3716,7 +3716,7 @@ Yes. The command is initialized as requiring a deployed stack, so use it after a
 Source: `apps/docs/content/cli/domain-add.mdx`
 Route: `/cli/domain-add`
 
-The `domain:add` command adds an already-registered root domain to your AWS account so Stacktape can manage DNS and TLS certificates for it. Once added, the domain and its subdomains can be used with [web services](/resources/compute/web-service), [hosting buckets](/resources/frontend/static-hosting), and [HTTP API Gateways](/resources/networking/http-api-gateway). The command requires `--region` and, on success, finishes with `Domain ready to use in <region>.`
+The `domain:add` command adds an already-registered root domain to your AWS account so Stacktape can manage DNS and TLS certificates for it. Once added, the domain and its subdomains can be used with [web services](/resources/compute/web-service), [hosting buckets](/resources/frontend/static-hosting), [HTTP API Gateways](/resources/networking/http-api-gateway), and [WebSocket API Gateways](/resources/networking/websocket-api-gateway). The command requires `--region` and, on success, finishes with `Domain ready to use in <region>.`
 
 ## Usage
 
@@ -3734,7 +3734,6 @@ The `domain:add` wizard walks through the following steps, stopping at the first
 2. **Check registration** — If the domain is not registered (not purchased), the command exits immediately and prints a hint to register via Route 53 or another registrar. Prices start at $3/year for `.click` domains.
 3. **Verify DNS ownership** — If DNS is managed outside AWS, the command asks whether to move DNS management to Route 53. If confirmed and no hosted zone exists, it creates one and prints the name servers to configure at your registrar.
 4. **Provision TLS certificates** — Requests a regional ACM certificate. When the selected region is not `us-east-1`, the command also requests a `us-east-1` ACM certificate, which Stacktape stores as `usEast1Cert` in domain status. When the regional certificate is not yet issued, it adds a DNS validation record from the regional certificate's domain validation options to the Route 53 hosted zone.
-5. **Optional SES verification** — If certificates are in place, optionally adds DKIM records so the domain can send email through AWS SES.
 
 The command stores domain status in Parameter Store after key checkpoints (hosted-zone setup, certificate-validation-record setup), so later runs can read saved domain status. Re-run `domain:add` after DNS or certificate validation has had time to complete.
 
@@ -3770,10 +3769,6 @@ The command requests a free AWS ACM certificate in the specified `--region`. Whe
 
 > **Tip:** The command prints https://console.stacktape.com/domains as the place to continue or check domain setup.
 
-
-## SES email verification
-
-If domain ownership and TLS certificates are complete, the command optionally offers to verify the domain for sending email through AWS SES. This adds DKIM authentication records to the hosted zone. Skip this step if you don't plan to send transactional email from your application.
 
 ## Arguments reference
 
@@ -3832,7 +3827,7 @@ The command creates a regional certificate for the selected `--region` and, when
 
 ### Is there a cost for adding a domain?
 
-Adding the domain is free: both the ACM TLS certificates and SES verification are free. The only cost is the underlying domain registration itself — Route 53 prices start at $3/year for `.click` domains, but registration is a separate step (`domain:add` requires the domain to already be registered).
+Adding the domain is free: ACM TLS certificates are free. The only cost is the underlying domain registration itself — Route 53 prices start at $3/year for `.click` domains, but registration is a separate step (`domain:add` requires the domain to already be registered).
 
 ### Can I use a domain registered outside AWS?
 
@@ -4019,7 +4014,7 @@ stacktape info:stack --region eu-west-1 --stackName my-project-prod
 
 The `--region` flag is the only required argument. You identify the target stack in one of two ways: provide `--stackName` directly (formatted as `projectName-stage`), or provide both `--projectName` and `--stage` together. If neither combination is supplied, the command exits with an error: *"Provide either --stackName OR both --projectName and --stage"*.
 
-With `--agent`, `info:stack` skips the interactive stack-details view and prints a JSON-formatted payload containing the resolved stack name, region, and returned details. This is useful in CI scripts or when piping output to tools like `jq`.
+With `--agent`, `info:stack` skips the interactive stack-details view and uses the CLI's JSONL protocol. The final `result` event contains a versioned `stacktape.info-stack.v1` document at `data.result`, including the resolved stack name, region, outputs, Stacktape resource map, and CloudFormation resources. Read the final result event rather than parsing informational log messages.
 
 The `--awsAccount` flag selects which connected AWS account to query. The account must first be connected in the [Stacktape Console](/stacktape-console/connecting-your-aws-account). Omit it when the default account selection is sufficient.
 
@@ -4054,10 +4049,30 @@ Use the combined stack name instead of separate project and stage flags.
 stacktape info:stack --region us-east-1 --stackName my-api-prod
 ```
 
-Get JSON output for a CI pipeline or script. With `--agent`, the command skips the interactive view and prints a JSON-formatted payload containing the stack name, region, and details.
+Get versioned JSONL output for a CI pipeline, coding agent, or script.
 
 ```bash
 stacktape info:stack --region eu-west-1 --projectName my-api --stage staging --agent
+```
+
+The stable command document is nested in the final event:
+
+```json
+{
+  "type": "result",
+  "ok": true,
+  "data": {
+    "result": {
+      "schemaVersion": "stacktape.info-stack.v1",
+      "stackName": "my-api-staging",
+      "region": "eu-west-1",
+      "description": null,
+      "stackOutput": {},
+      "stackInfoMap": null,
+      "resources": []
+    }
+  }
+}
 ```
 
 Query a stack in a specific connected AWS account.
@@ -4232,7 +4247,21 @@ stacktape info:whoami --logLevel debug
 Source: `apps/docs/content/cli/init.mdx`
 Route: `/cli/init`
 
-The `stacktape init` command initializes a new Stacktape project. By default, it runs an interactive wizard that analyzes your codebase with AI, generates a Stacktape configuration file, and walks you through account setup, AWS connection, and an optional first deployment — all in one flow.
+---
+title: 'init'
+order: 161
+seoTitle: 'stacktape init — Turn an existing project into infrastructure | Stacktape CLI'
+seoDescription: 'Read your project with your own coding agent and get a Stacktape configuration you can deploy, without answering a list of questions. Nothing leaves your machine.'
+---
+
+# init
+
+`stacktape init` reads the project you already have and writes a Stacktape configuration for it.
+
+It opens a wizard in your browser and reads your code **on your machine** using a coding agent you
+already have installed — Claude Code or Codex. It does not interview you: where your code does not say,
+it picks the sensible answer, then shows you what it picked and the line behind every resource it
+proposes, so you can change any of it. Nothing is sent to Stacktape, and no account is needed.
 
 ## Usage
 
@@ -4240,156 +4269,222 @@ The `stacktape init` command initializes a new Stacktape project. By default, it
 stacktape init
 ```
 
-No flags are required. Running `init` without arguments launches the interactive wizard. This command does not require a Stacktape API key — the wizard handles sign-up or login as part of the flow.
+Run it in the directory of the project you want to deploy. The command prints a `http://127.0.0.1:…`
+address and opens it; the wizard runs there and the terminal keeps the session alive until you close it
+with Ctrl+C.
 
-## How the wizard works
+## What happens, in order
 
-The default interactive wizard runs through these steps in order:
+1. **Start.** The wizard opens with nothing read yet. It shows which directory it will read and which
+   agents it found, and waits. Reading starts when you press the button — never before.
+2. **Read.** The agent opens files and you watch it happen: every file it reads appears as it reads it.
+   Only the *names* of your environment variables are ever kept or shown. Before the agent starts, a
+   deterministic pass has already read your `docker-compose.yml` — which states your database engine
+   and its version outright — and noticed anything that already deploys this project, such as a
+   `serverless.yml` or a Terraform directory.
+3. **Review.** Every resource, with the reason it exists, the line of your code behind it, and what it
+   costs — a real monthly estimate per resource and in total, priced from AWS list prices. Anything
+   the code could not settle was decided for you, listed under "Decided for you", and can be changed
+   with one click — the configuration is rebuilt from your choice, and the price updates with it.
+   Nothing blocks. You choose YAML or TypeScript, and the file is written.
+4. **Deploy.** The wizard shows which AWS account your credentials belong to, and deploys with progress,
+   warnings and the URLs it produced. This step is optional and clearly marked as the one that costs
+   money. If the deploy fails for a reason that could be our reading of your code — a wrong start
+   command, a missing build step — the agent re-reads the project against the actual error, the
+   configuration is rebuilt, and the deploy runs again. At most twice, and never for problems with the
+   AWS account itself.
 
-1. **Analyzes your project** — scans your codebase and uses AI to generate a matching Stacktape configuration.
-2. **Sign up or log in** — creates a new Stacktape account or authenticates an existing one.
-3. **Connects your AWS account** — links an AWS account to your Stacktape organization.
-4. **Creates a project** — registers the project in the Stacktape Console and optionally configures CI/CD.
-5. **Offers to deploy** — gives you the option to deploy the generated stack immediately.
+## Who reads your code
 
-You can skip the wizard entirely by using `--starterId` or `--templateId` to initialize from a pre-built template instead.
+`init` drives a coding agent that is already installed and already paid for — your subscription, your
+machine. It never sends your code to Stacktape.
+
+| Agent | How it is used |
+|---|---|
+| **Claude Code** | Every built-in tool is switched off; the only tools it has are the ones Stacktape gives it, all read-only. You can pick the model. |
+| **Codex** | Runs read-only in a scratch working directory, because its patch tool cannot be disabled. |
+| **No agent** | Reads package manifests, `docker-compose.yml`, Dockerfiles, lockfiles, environment-variable names, and whatever already deploys the project. Free, instant, and leans on defaults more often. |
+
+The agent cannot write to your repository, cannot reach the network through us, and cannot put words in
+front of you: it reports findings from a fixed list of kinds, and every word you read in the wizard is
+written by Stacktape.
 
 ## Important flags
 
-### `--configFormat`
+### `--codingAgent`
 
-Sets the format of the generated configuration. Accepts `typescript` or `yaml`.
+Which agent reads the project. `auto` (the default) takes the best one installed. Naming one that is not
+installed fails rather than quietly using another.
 
 ```bash
-stacktape init --configFormat typescript
+stacktape init --codingAgent claude-code
+stacktape init --codingAgent none          # static analysis only
+```
+
+### `--headless`
+
+Runs the whole thing in the terminal instead of opening a browser. Use it over SSH, in a container, or in
+CI. Nothing prompts: the terminal prints what was decided for you, and the configuration is written.
+
+```bash
+stacktape init --headless
+```
+
+### `--noBrowser`
+
+Starts the wizard and prints its address without opening anything. Use it when the browser you want is not
+this machine's default, or when the port is forwarded from somewhere else.
+
+```bash
+stacktape init --noBrowser
 ```
 
 ### `--infrastructureType`
 
-Sets the infrastructure tier for the generated configuration. This affects resource sizing, scaling, security posture, and cost:
+How much infrastructure to create: `low-cost`, `standard` (the default), or `production`. It sets every
+size and safety setting in the generated configuration, and it is the only thing reading your code
+cannot tell us.
 
-- **`low-cost`** — minimal resources, single instances, no WAF or VPC. Best for development and experimentation.
-- **`standard`** — balanced defaults with serverless databases and moderate scaling. Good for staging and small production workloads.
-- **`production`** — high-availability setup with Aurora, WAF, VPC, bastion hosts, backups, and deletion protection.
+- **low-cost** — one small copy of everything. Trying it out, a side project, staging.
+- **standard** — room for real traffic, a week of backups, deletion protection on your database.
+- **production** — two copies of your app so one failure changes nothing, and a standby database in a
+  second datacentre.
 
 ```bash
 stacktape init --infrastructureType production
 ```
 
-### `--starterId`
+### `--configFormat`
 
-Initializes from a specific starter project template instead of running the AI-powered wizard. Pass the identifier of the starter project you want to initialize.
-
-```bash
-stacktape init --starterId lambda-api-postgres
-```
-
-### `--starterProject`
-
-When set to `true`, initializes from a starter project template instead of running the default wizard flow.
+`yaml` (the default) or `typescript`. In the browser this is chosen on the Review step instead, once you
+have seen what is in the file.
 
 ```bash
-stacktape init --starterProject
-```
-
-### `--templateId`
-
-Fetches a configuration template from the Stacktape Console's Config Builder page and initializes the project from it.
-
-```bash
-stacktape init --templateId your-template-id
+stacktape init --headless --configFormat typescript
 ```
 
 ### `--projectDirectory`
 
-Sets the root directory where the project configuration should be generated.
+The project to read. Defaults to the current directory.
 
 ```bash
 stacktape init --projectDirectory ./my-app
 ```
 
-### `--initializeProjectTo`
+### `--starterId`, `--starterProject`, `--templateId`
 
-Sets the directory where a starter project's files are placed. If the directory is not empty, its contents are deleted before initialization.
+Initialize from a ready-made project instead of reading yours. These skip the wizard entirely.
 
 ```bash
-stacktape init --starterId lambda-api-postgres --initializeProjectTo ./my-starter
+stacktape init --starterId lambda-api-postgres
+stacktape init --templateId your-template-id
 ```
 
+### `--initializeProjectTo`
 
-> **Warning:** Using `--initializeProjectTo` on a non-empty directory deletes existing contents. Point it at a new or empty directory to avoid losing files.
+Where a starter project's files are placed.
 
+
+
+> **Warning:** If the directory is not empty, its contents are deleted first. Point it at a new or empty directory.
+
+
+
+## Your existing configuration is never overwritten
+
+If the project already has a `stacktape.yml` or `stacktape.ts`, `init` does not touch it. The new
+configuration is written beside it as `stacktape.generated.yml` (or `.ts`), and both the wizard and the
+terminal tell you so. Deploy the generated one with `--configPath`, or merge it in yourself:
+
+```bash
+stacktape deploy --configPath stacktape.generated.yml --stage dev --region eu-west-1
+```
 
 ## Examples
 
-Initialize with the AI wizard using TypeScript config and production-grade infrastructure:
+Read the project with Claude Code's most careful model:
 
 ```bash
-stacktape init --configFormat typescript --infrastructureType production
+stacktape init --codingAgent claude-code
 ```
 
-Initialize from a starter project into a specific directory:
+No agent, no browser, cheapest infrastructure — a configuration in one step:
 
 ```bash
-stacktape init --starterId nextjs-saas --initializeProjectTo ./my-saas-app
+stacktape init --headless --codingAgent none --infrastructureType low-cost
 ```
-
-Run in agent mode for programmatic use (JSONL output, no interactive terminal UI, auto-confirms operations):
-
-```bash
-stacktape init --agent
-```
-
-## All flags
-
-
-## CLI Options: `stacktape init`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--configFormat (-cf)` | no | `string` | Config Format — Format (language) used for the generated config. Options are typescript or yaml. | `yaml`, `typescript` |
-| `--infrastructureType (-it)` | no | `string` | Infrastructure Type — The infrastructure tier for the generated configuration. Affects resource sizing, scaling, security, and cost: • **low-cost**: Minimal resources, single instances, no WAF/VPC. Best for development and experimentation. • **standard**: Balanced defaults with serverless databases and moderate scaling. Best for staging and small production workloads. • **production**: High-availability setup with Aurora, WAF, VPC, bastions, backups, and deletion protection. | `low-cost`, `standard`, `production` |
-| `--initializeProjectTo (-ipt)` | no | `string` | Initialize Project To — The directory where the starter project should be initialized. If the directory is not empty, its contents will be deleted. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--projectDirectory (-pd)` | no | `string` | Project Directory — The root directory where the project configuration should be generated. | - |
-| `--starterId (-sid)` | no | `string` | Starter ID — The identifier of the starter project to initialize. | - |
-| `--starterProject (-sp)` | no | `boolean` | Starter Project — If `true`, initializes from a starter project template instead of running the default wizard flow. | - |
-| `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
-
 
 ## Related commands
 
-- [`deploy`](/cli/deploy) — deploy the generated configuration to AWS after initializing.
-- [`dev`](/cli/dev) — run the project locally in dev mode for rapid iteration.
-- [`login`](/cli/login) — configure your Stacktape API key separately if you skip the wizard's login step.
+- [`deploy`](/cli/deploy) — deploy the configuration `init` wrote.
+- [`dev`](/cli/dev) — run the project locally against a minimal dev stack.
+- [`delete`](/cli/delete) — remove everything a deploy created.
 
 ## FAQ
 
+### Does my code leave my machine?
+
+No. The agent runs locally under your own subscription and reads your files there. Stacktape receives
+no source, no file names, and no configuration contents. What it does receive is anonymous outcome
+statistics — which frameworks were detected, whether the deploy succeeded, how long the analysis
+took — so we can see where generation fails and fix it. Set `STP_DISABLE_TELEMETRY=1` to turn that
+off.
+
+### What about my .env files?
+
+Only the *names* are kept. `DATABASE_URL` tells the analysis that a database exists — and its value is
+looked at once, in memory on your machine, for two things and two things only: whether the scheme says
+`postgres://` or `mysql://`, and whether the host belongs to a provider like Supabase, so we do not
+propose replacing a database that is already live. Both reduce to a single word before anything is
+stored. The value itself is never written to the facts, never quoted in a citation, never logged and
+never shown — every citation from an environment file stops at the `=`.
+
 ### Do I need an AWS account before running init?
 
-No. The wizard walks you through connecting an AWS account as one of its steps, and it doesn't require a Stacktape API key either — sign-up or login happens inside the flow. You can also connect your account separately in the [Stacktape Console](/stacktape-console/connecting-your-aws-account) before running `init`.
+Not to run it. You need one to deploy, and the wizard's last step shows which account your local
+credentials belong to before it will deploy anything. If there are none, it says how to get them.
 
-### How do I run init non-interactively (CI or an AI coding agent)?
+### Do I need a Stacktape account?
 
-Pass `--agent`. It switches output to JSONL, disables the interactive terminal UI, and auto-confirms operations. Since the AI wizard is interactive, combine `--agent` with explicit flags — typically `--starterId` plus `--configFormat` and `--infrastructureType` — so the run has no prompts to answer.
+Not to analyze your project or to get the file — that all happens on your machine, with no account
+and nothing sent to us. Deploying from the wizard does go through Stacktape, so the Deploy step
+checks whether this machine is signed in and tells you to run `stacktape login` if it is not.
 
-### What is the difference between --starterId and --templateId?
+### How do I run init non-interactively, in CI or from an AI coding agent?
 
-`--starterId` initializes from a built-in starter project template bundled with Stacktape. `--templateId` fetches a configuration template from the Stacktape Console's [Config Builder page](/stacktape-console/visual-config-editor). Both skip the AI-powered wizard.
+`--headless`, optionally with `--agent` for JSONL output. Nothing prompts: everything the code cannot
+answer is decided, and the terminal prints what was decided.
 
-### Which --infrastructureType should I choose?
+### Why does it barely ask me anything?
 
-Use `low-cost` for development and experimentation (single instances, no WAF or VPC), `standard` for staging and small production workloads (serverless databases, moderate scaling), and `production` for high-availability workloads (Aurora, WAF, VPC, bastion hosts, backups, and deletion protection). The tier affects resource sizing, scaling, security posture, and cost.
+Because almost nothing needs asking. Where your code does not say, there is nearly always an answer a
+careful person would pick — so it picks it, shows you on the Review step, and lets you change it. The
+one real question is how big the infrastructure should be, which is why that is on the first screen.
+
+### Which agent should I choose?
+
+Whichever you already have. Claude Code and Codex both produce a better result than static analysis,
+because they read the code rather than pattern-matching over it. If you have neither, "Files only" still
+produces a working configuration — it just falls back to defaults more often.
+
+### What happens when the deploy fails?
+
+The failure is read first. If it is about your AWS account — expired credentials, a missing
+permission, a quota — it is shown to you plainly, because no change to the configuration can fix it.
+If it could be about the code, the same agent that read your project reads it again with the actual
+error in hand, corrects what we believed, and the deploy runs again with the rebuilt configuration.
+It stops after two repairs and shows the real error rather than looping. If you chose "Files only",
+nothing is ever handed to an agent — the deploy just fails, plainly.
 
 ### Does init deploy anything?
 
-Not automatically. At the end of the wizard, you're offered the option to deploy. You can decline and run [`stacktape deploy`](/cli/deploy) later when you're ready.
+Only if you press the button on the last step, and only after showing you the AWS account it would deploy
+into. Everything before that is a file on your disk.
 
-### Will init overwrite files in my project directory?
+### Will init overwrite files in my project?
 
-The AI wizard generates a config alongside your existing code, so review it before deploying. The destructive case is `--initializeProjectTo`: if you point it at a non-empty directory, its contents are deleted before the starter project is placed there, so use a new or empty directory.
+It writes exactly one file, and never on top of an existing configuration — see above. The one
+destructive flag is `--initializeProjectTo`, which empties the directory you point it at.
 
 ---
 
@@ -4830,6 +4925,8 @@ Source: `apps/docs/content/cli/logs.mdx`
 Route: `/cli/logs`
 
 The `stacktape logs` command fetches logs from a deployed resource's CloudWatch log group. It operates in two modes: standard mode retrieves recent log events with optional start-time and pattern filtering, while Insights mode runs a CloudWatch Logs Insights query for aggregation and structured analysis. The command requires a Stacktape configuration file and a deployed stack.
+
+If the resource uses `logging.logClass: infrequent-access`, the ordinary command automatically runs a bounded Logs Insights snapshot and preserves the usual formatted or JSON event shape. CloudWatch does not support live tail or filter-pattern reads for this class, so the command exits after the snapshot. Use `--query` instead of `--filter` when you need to narrow an Infrequent Access group.
 
 
 > **Info:** This command requires a Stacktape configuration file (set via `--configPath` or auto-detected in the working directory). The configuration is used to resolve the deployed stack and locate the correct CloudWatch log group for the specified resource.
@@ -8145,6 +8242,22 @@ Assuming a resource named `myDatabase`:
 > **Tip:** Use [`$Secret()`](/configuration/secrets) for the database password in your config to keep credentials out of source control. Additional database parameters like `dbName` and `masterUserName` are available via [`$ResourceParam()`](/configuration/directives).
 
 
+### Aurora DSQL
+
+Assuming a resource named `database`:
+
+| Parameter | Example env var | Description |
+|---|---|---|
+| `endpoint` | `STP_DATABASE_ENDPOINT` | Public TLS endpoint |
+| `port` | `STP_DATABASE_PORT` | PostgreSQL port (`5432`) |
+| `databaseName` | `STP_DATABASE_DATABASE_NAME` | Default database (`postgres`) |
+| `username` | `STP_DATABASE_USERNAME` | Built-in role (`admin`) |
+| `region` | `STP_DATABASE_REGION` | Region used to sign an IAM token |
+| `id` | `STP_DATABASE_ID` | Cluster ID |
+| `arn` | `STP_DATABASE_ARN` | Cluster ARN |
+
+DSQL does not expose a static password or connection string. Generate a short-lived IAM token for each new connection and keep TLS enabled. `connectTo` grants `dsql:DbConnectAdmin` on the connected cluster; see [Aurora DSQL](/resources/databases/dsql) for the explicit least-privilege path.
+
 ### Lambda to Postgres example
 
 Use `connectTo` on the Lambda function to inject database connection variables. For a database resource named `mainDatabase`, the Lambda reads `process.env.STP_MAIN_DATABASE_CONNECTION_STRING`.
@@ -8334,6 +8447,36 @@ AgentCore targets inject their resource identifiers and grant only the data-plan
 | [Browser](/resources/ai/agentcore-browser) | `id`, `arn` | Start, use, inspect, and stop browser sessions |
 | [Code Interpreter](/resources/ai/agentcore-code-interpreter) | `id`, `arn` | Start, invoke, inspect, and stop code-interpreter sessions |
 
+### WebSocket API Gateway
+
+Assuming a gateway named `realtime`:
+
+| Parameter | Example env var | Description |
+|---|---|---|
+| `apiId` | `STP_REALTIME_API_ID` | API Gateway ID |
+| `url` | `STP_REALTIME_URL` | Public `wss://` client URL |
+| `managementEndpoint` | `STP_REALTIME_MANAGEMENT_ENDPOINT` | HTTPS endpoint used by `ApiGatewayManagementApiClient` |
+| `canonicalDomain` | `STP_REALTIME_CANONICAL_DOMAIN` | AWS DNS target, useful with external DNS |
+
+Connecting to a WebSocket gateway grants only `execute-api:ManageConnections`, scoped to that API and Stacktape's managed stage. Lambda functions that own a WebSocket route receive this wiring automatically; use explicit `connectTo: [realtime]` for other producers that need to send messages to clients.
+
+Stacktape does not create a connection registry. Add a [DynamoDB table](/resources/databases/dynamodb) when your application needs broadcasts, rooms, presence, or user-to-connection lookup. See [WebSocket API Gateway](/resources/networking/websocket-api-gateway) for the cleanup pattern.
+
+### Kafka cluster
+
+Assuming a cluster named `events`:
+
+| Parameter | Example env var | Description |
+|---|---|---|
+| `arn` | `STP_EVENTS_ARN` | Amazon MSK cluster ARN |
+| `name` | `STP_EVENTS_NAME` | Physical MSK cluster name |
+| `bootstrapServers` | `STP_EVENTS_BOOTSTRAP_SERVERS` | Comma-separated IAM/TLS broker endpoints |
+
+`connectTo` grants Kafka IAM access scoped to the cluster, its topics, and consumer groups, including `CreateTopic`
+but excluding `AlterTopic` and `DeleteTopic`. It also opens port 9098 from deployed workloads. A Lambda function used
+as a direct Kafka client must set `joinDefaultVpc: true`; Lambda Kafka triggers have separate event-source networking.
+See [Kafka cluster](/resources/messaging/kafka-cluster).
+
 ### Additional connectTo targets
 
 The tables above cover resource types with documented `connectTo` environment variables. Beyond those, `connectTo` also accepts **IAM-permission-only targets** — resource types where `connectTo` adds the required IAM permissions to the consuming workload's execution role but does not have a documented set of injected environment variables. These include:
@@ -8345,7 +8488,7 @@ The tables above cover resource types with documented `connectTo` environment va
 
 For these targets, use [`$ResourceParam()`](/configuration/directives) to pass specific parameters as environment variables manually.
 
-In the type definitions, `connectTo` targets fall into three categories: **role-affecting** targets (including AWS API resources and AgentCore resources) that modify the consuming workload's IAM role, **security-group-affecting** targets (relational databases and Redis clusters) that open network access, and **environment-only** targets such as EFS that expose identifiers without guessing additional configuration. `connectTo` also accepts AWS service macros such as `aws:ses`.
+In the type definitions, `connectTo` targets fall into three categories: **role-affecting** targets (including AWS API resources and AgentCore resources) that modify the consuming workload's IAM role, **security-group-affecting** targets (relational databases and Redis clusters) that open network access, and **environment-only** targets such as EFS that expose identifiers without guessing additional configuration.
 
 ### Script-only variables
 
@@ -8418,6 +8561,7 @@ Stacktape generates IAM policies at deploy time based on the target resource typ
 | [User auth pool](/resources/security/user-auth-pool) | Full Cognito User Pool control |
 | [MongoDB Atlas cluster](/resources/databases/mongodb-atlas) | Temporary credential-less access |
 | [Relational database](/resources/databases/relational-database) | Network access (security group rules, not IAM) |
+| [Aurora DSQL](/resources/databases/dsql) | Connect as the built-in `admin` role on the target cluster (`dsql:DbConnectAdmin`) |
 | [Redis cluster](/resources/databases/redis) | Network access (security group rules, not IAM) |
 | [AgentCore Runtime](/resources/ai/agentcore-runtime) | Invoke the runtime and its configured endpoints |
 | [AgentCore Memory](/resources/ai/agentcore-memory) | Use events and short- and long-term memory records |
@@ -8425,6 +8569,8 @@ Stacktape generates IAM policies at deploy time based on the target resource typ
 | [AgentCore Browser](/resources/ai/agentcore-browser) | Use browser sessions and streams |
 | [AgentCore Code Interpreter](/resources/ai/agentcore-code-interpreter) | Use code-interpreter sessions |
 | [EFS filesystem](/resources/storage/efs-filesystem) | No access change from `connectTo`; use an explicit volume mount for IAM and network wiring |
+| [Email sender](/resources/messaging/email-sender) | `ses:SendEmail` and `ses:SendRawEmail`, scoped to the exact identity and configuration set |
+| [Kafka cluster](/resources/messaging/kafka-cluster) | IAM cluster/topic/group access and port 9098 network access; no topic deletion or alteration |
 
 [Relational databases](/resources/databases/relational-database) and [Redis clusters](/resources/databases/redis) are network-bound resources — data-plane access is controlled through VPC security groups rather than IAM policies. Stacktape opens the correct port between the consuming resource and the target automatically.
 
@@ -8433,32 +8579,6 @@ Stacktape generates IAM policies at deploy time based on the target resource typ
 
 > **Info:** The exact IAM policy statements generated at deploy time may include additional supporting actions (e.g., listing, describing). For the authoritative policy, inspect the generated CloudFormation template or the deployed stack's IAM roles in the AWS Console.
 
-
-## AWS service macros
-
-In addition to stack resources, `connectTo` supports the `aws:ses` macro for granting AWS SES (Simple Email Service) permissions without a dedicated resource:
-
-
-Example (TypeScript):
-
-```typescript
-import { defineConfig, LambdaFunction, StacktapeLambdaBuildpackPackaging } from 'stacktape';
-export default defineConfig(() => {
-  const emailSender = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/send-email.ts'
-    }),
-    connectTo: ['aws:ses']
-  });
-
-  return {
-    resources: { emailSender }
-  };
-});
-```
-
-
-The `aws:ses` macro grants SES email sending permissions to the consuming resource. You call the SES API directly via the AWS SDK using methods like `SendEmailCommand`.
 
 ## Custom permissions with iamRoleStatements
 
@@ -10592,10 +10712,10 @@ Stacktape groups resources by purpose. Each category maps to a set of AWS servic
 |----------|-----------|--------------|
 | **Compute** | [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), [worker service](/resources/compute/worker-service), [multi-container workload](/resources/compute/multi-container-workload), [batch job](/resources/compute/batch-job), [edge function](/resources/compute/edge-function) | Lambda, ECS Fargate/EC2, AWS Batch, Lambda@Edge |
 | **Frontend** | [Static hosting](/resources/frontend/static-hosting), [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix) | S3, CloudFront, Lambda |
-| **Databases** | [Relational database](/resources/databases/relational-database), [DynamoDB](/resources/databases/dynamodb), [Redis](/resources/databases/redis), [MongoDB Atlas](/resources/databases/mongodb-atlas), [Upstash Redis](/resources/databases/upstash-redis), [OpenSearch](/resources/databases/opensearch) | RDS, Aurora, DynamoDB, ElastiCache, OpenSearch Service |
+| **Databases** | [Relational database](/resources/databases/relational-database), [Aurora DSQL](/resources/databases/dsql), [DynamoDB](/resources/databases/dynamodb), [Redis](/resources/databases/redis), [MongoDB Atlas](/resources/databases/mongodb-atlas), [Upstash Redis](/resources/databases/upstash-redis), [OpenSearch](/resources/databases/opensearch) | RDS, Aurora, Aurora DSQL, DynamoDB, ElastiCache, OpenSearch Service |
 | **Storage** | [S3 bucket](/resources/storage/s3-bucket), [EFS filesystem](/resources/storage/efs-filesystem) | S3, EFS |
-| **Networking** | [HTTP API Gateway](/resources/networking/http-api-gateway), [Application Load Balancer](/resources/networking/application-load-balancer), [Network Load Balancer](/resources/networking/network-load-balancer), [CDN](/resources/networking/cdn), [custom domains](/resources/networking/custom-domains) | API Gateway, ALB, NLB, CloudFront, Route 53, ACM |
-| **Messaging** | [Event bus](/resources/messaging/event-bus), [SQS queue](/resources/messaging/sqs-queue), [SNS topic](/resources/messaging/sns-topic), [Kinesis stream](/resources/messaging/kinesis-stream) | EventBridge, SQS, SNS, Kinesis |
+| **Networking** | [HTTP API Gateway](/resources/networking/http-api-gateway), [WebSocket API Gateway](/resources/networking/websocket-api-gateway), [AppSync API](/resources/networking/appsync-api), [Application Load Balancer](/resources/networking/application-load-balancer), [Network Load Balancer](/resources/networking/network-load-balancer), [CDN](/resources/networking/cdn), [custom domains](/resources/networking/custom-domains) | API Gateway, AppSync, ALB, NLB, CloudFront, Route 53, ACM |
+| **Messaging** | [Event bus](/resources/messaging/event-bus), [SQS queue](/resources/messaging/sqs-queue), [SNS topic](/resources/messaging/sns-topic), [Kinesis stream](/resources/messaging/kinesis-stream), [Kafka cluster](/resources/messaging/kafka-cluster), [Email sender](/resources/messaging/email-sender) | EventBridge, SQS, SNS, Kinesis, MSK Serverless, SES |
 | **Orchestration** | [State machine](/resources/orchestration/state-machine) | Step Functions |
 | **Security** | [User auth pool](/resources/security/user-auth-pool), [Web application firewall](/resources/security/web-application-firewall), [Bastion host](/resources/security/bastion-host) | Cognito, WAF, EC2 (bastion) |
 | **Advanced** | [Custom resources](/resources/advanced/custom-resources), [deployment scripts](/resources/advanced/deployment-scripts), [CDK constructs](/resources/advanced/aws-cdk-constructs), [raw CloudFormation](/resources/advanced/raw-cloudformation-resources) | Any AWS resource |
@@ -10650,10 +10770,12 @@ In the TypeScript `defineConfig` style, pass the resource variables directly in 
 | **BatchJob** | `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN` |
 | **PrivateService** | `ADDRESS` |
 | **WebService** | `URL` |
+| **EmailSender** | `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`, `FEEDBACK_TOPIC_ARN` |
+| **KafkaCluster** | `ARN`, `NAME`, `BOOTSTRAP_SERVERS` |
 
 All variable names follow the pattern `STP_[RESOURCE_NAME]_[PARAM]`. For the full per-resource reference, see [Connecting resources](/configuration/connecting-resources).
 
-You can also connect to `aws:ses` to grant full SES email sending permissions without injecting environment variables.
+Use the native [Email sender](/resources/messaging/email-sender) resource for SES. It verifies or reuses the identity, injects the sending values, and scopes permissions to that exact identity and configuration set.
 
 ## Resource references with directives
 
@@ -15412,7 +15534,7 @@ The `allowedInstanceSizes` property accepts an array of exact database instance 
 
 ## VPC-only databases
 
-The `require-vpc-databases` guardrail enforces that relational databases and OpenSearch domains use VPC-only accessibility with no public internet access. DynamoDB is not checked because it is already accessed through AWS service endpoints rather than a per-table public/private setting. When `enabled` is `true`, any covered resource without VPC-only accessibility is blocked.
+The `require-vpc-databases` guardrail enforces that relational databases and OpenSearch domains use VPC-only accessibility with no public internet access. DynamoDB is not checked because it is already accessed through AWS service endpoints rather than a per-table public/private setting. Aurora DSQL currently uses its public service endpoint in Stacktape, so `dsql-database` fails this guardrail closed until Stacktape can manage the required PrivateLink endpoint. When `enabled` is `true`, any covered resource without a supported VPC-only path is blocked.
 
 Guardrail definition shape (configured in the Stacktape Console):
 
@@ -15435,7 +15557,7 @@ For the accessibility modes available on databases and how to configure them, se
 
 ## Deletion protection
 
-The `require-deletion-protection` guardrail enforces that all [relational databases](/resources/databases/relational-database) have `deletionProtection` set to `true`. When `enabled` is `true`, any relational database without explicit deletion protection is blocked.
+The `require-deletion-protection` guardrail enforces that all [relational databases](/resources/databases/relational-database) and [Aurora DSQL databases](/resources/databases/dsql) have `deletionProtection` set to `true`. When `enabled` is `true`, any of these databases without explicit deletion protection is blocked.
 
 Guardrail definition shape (configured in the Stacktape Console):
 
@@ -15448,13 +15570,13 @@ Guardrail definition shape (configured in the Stacktape Console):
 }
 ```
 
-AWS RDS deletion protection is a safeguard that prevents a database instance from being accidentally deleted. The guardrail ensures your team always has this flag active — every relational database in the stack must include `deletionProtection: true` in its configuration. This guardrail targets relational databases specifically.
+AWS RDS and Aurora DSQL deletion protection prevent a database resource from being accidentally deleted. The guardrail ensures your team always has this flag active — every relational or DSQL database in the stack must include `deletionProtection: true` in its configuration.
 
 **When to enable:** Any production environment, or as a blanket policy to prevent accidental database deletion. The cost of losing production data far outweighs the minor friction of managing the protection flag explicitly.
 
 **When to skip:** Development and testing stages where databases are ephemeral and frequently recreated. Enforcing deletion protection on short-lived dev databases adds friction without meaningful benefit.
 
-**Tradeoff:** With this guardrail active, you cannot deploy a relational database without `deletionProtection: true` in its configuration.
+**Tradeoff:** With this guardrail active, you cannot deploy a relational or DSQL database without `deletionProtection: true` in its configuration.
 
 ## Combining database guardrails
 
@@ -15467,7 +15589,7 @@ When multiple guardrails are active, a stack must satisfy every one of them that
 | Engine restriction | Non-standard engine types (e.g., MySQL when only PostgreSQL is allowed) |
 | Instance restriction | Unreviewed instance sizes |
 | VPC-only databases | Publicly accessible databases |
-| Deletion protection | Accidentally deletable relational databases |
+| Deletion protection | Accidentally deletable relational and DSQL databases |
 
 **Recommended starting point:** Enable VPC-only databases and deletion protection first — they provide the highest-value safety net for production with minimal configuration overhead. They prevent the two most costly mistakes: data exposure and accidental deletion. Add engine restriction once your team has standardized on an engine family, and instance restriction once cost control across teams becomes a priority.
 
@@ -16044,7 +16166,7 @@ Skip guardrails in early prototyping or single-developer projects where speed ma
 
 ## Require VPC databases
 
-The `require-vpc-databases` guardrail enforces that, when enabled, relational databases and OpenSearch domains use VPC-only accessibility with no public internet access. DynamoDB does not have an equivalent per-table public accessibility setting and is not checked.
+The `require-vpc-databases` guardrail enforces that, when enabled, relational databases and OpenSearch domains use VPC-only accessibility with no public internet access. DynamoDB does not have an equivalent per-table public accessibility setting and is not checked. Aurora DSQL currently uses its public service endpoint in Stacktape, so a stack containing `dsql-database` fails this guardrail closed until Stacktape supports its PrivateLink lifecycle.
 
 **When to enable:** Enable when every stage in the organization should use private data services. VPC-only databases cannot be reached from the public internet, eliminating an entire class of network-based attack vectors. The tradeoff is that you need a [bastion host](/resources/security/bastion-host) or VPC-connected workloads to access the database for administration and debugging. Guardrails currently apply organization-wide rather than only to production.
 
@@ -16084,7 +16206,7 @@ This example configures the database with VPC-only access and no public internet
 
 ## Require deletion protection
 
-The `require-deletion-protection` guardrail requires all [relational databases](/resources/databases/relational-database) to have `deletionProtection` set to `true`. Deletion protection is an AWS RDS safeguard that prevents a database instance from being deleted through API operations — you must explicitly disable it before removing the database.
+The `require-deletion-protection` guardrail requires all [relational databases](/resources/databases/relational-database) and [Aurora DSQL databases](/resources/databases/dsql) to have `deletionProtection` set to `true`. AWS rejects deletion of a protected database — you must explicitly disable protection before removing it.
 
 **When to enable:** Enable for any stage where accidental data loss is unacceptable — production, staging with real data, or shared development databases. The tradeoff is minimal: you must explicitly disable deletion protection before intentionally removing a database, which adds one deliberate step to prevent accidents.
 
@@ -16116,7 +16238,7 @@ export default defineConfig(() => {
 ```
 
 
-Setting `deletionProtection: true` satisfies this guardrail. With deletion protection enabled, AWS RDS rejects API calls that would remove the database instance — this is an AWS-level safeguard independent of Stacktape. When `require-deletion-protection` is enabled, every relational database must set `deletionProtection: true`.
+Setting `deletionProtection: true` satisfies this guardrail. This is an AWS-level safeguard independent of Stacktape. When `require-deletion-protection` is enabled, every relational and DSQL database must set `deletionProtection: true`.
 
 ## Require stack termination protection
 
@@ -16138,10 +16260,11 @@ The `require-data-backups` guardrail checks the backup controls Stacktape can de
 | Resource | Required configuration |
 |---|---|
 | Relational database | `automatedBackupRetentionDays` must not be `0`; an omitted value uses the AWS non-zero default |
+| Aurora DSQL database | Not currently satisfiable: Stacktape cannot configure or verify its separate AWS Backup plan, so the guardrail fails closed |
 | DynamoDB table | `enablePointInTimeRecovery: true` |
 | EFS filesystem | `backupEnabled: true` |
 
-**When to enable:** Enable when those resources can contain data that cannot simply be recreated. DynamoDB PITR and EFS backups add storage cost. The guardrail confirms that backups are configured; it cannot prove that a restore has been tested or that the retention period meets your recovery objectives.
+**When to enable:** Enable when those resources can contain data that cannot simply be recreated. DynamoDB PITR and EFS backups add storage cost. The guardrail confirms controls that Stacktape can verify; it cannot prove that a restore has been tested or that the retention period meets your recovery objectives. An externally configured DSQL backup plan is not detectable from the stack configuration and therefore does not satisfy the guardrail yet.
 
 ## Require dead-letter queue
 
@@ -16278,10 +16401,10 @@ Most production organizations enable multiple security guardrails together. A ty
 
 | Guardrail | What it enforces | Recommended for |
 |-----------|-----------------|-----------------|
-| `require-vpc-databases` | Network isolation for relational databases and OpenSearch | Organizations requiring private access in every stage |
+| `require-vpc-databases` | Network isolation for relational databases and OpenSearch; blocks DSQL until PrivateLink is supported | Organizations requiring private access in every stage |
 | `require-stack-termination-protection` | Prevent complete stack deletion | Long-lived production stacks |
 | `require-deletion-protection` | Prevent accidental database removal | All stages with persistent data |
-| `require-data-backups` | Recoverable RDS, DynamoDB, and EFS data | Workloads with non-reproducible data |
+| `require-data-backups` | Recoverable RDS, DynamoDB, and EFS data; blocks unverifiable DSQL backups | Workloads with non-reproducible data |
 | `require-dead-letter-queue` | Message durability for SQS queues | Event-driven architectures |
 | `require-waf` | Application-layer firewall on application load balancers | Public-facing APIs |
 | `require-multiple-container-instances` | At least two running container copies | Availability-sensitive services |
@@ -19361,6 +19484,10 @@ Stacktape Issues gives you structured error tracking with no additional SDK or e
 
 Issues works well as a first line of error visibility. For most teams shipping APIs and background workers on Stacktape, it replaces the need for a separate error tracking tool during early and mid-stage development.
 
+
+> **Info:** Resources configured with `logging.logClass: infrequent-access` do not feed Stacktape Issues because AWS does not support the required log subscription filters. Their logs remain available through bounded Logs Insights snapshots in the Console and CLI.
+
+
 ## When NOT to use
 
 Stacktape Issues displays recorded runtime errors in the Console and CLI without requiring you to add an SDK to your application. It does not instrument your application process directly. If you need breadcrumbs, custom tags, user session tracking, release tracking, or performance profiling, use a dedicated APM tool like Sentry or Datadog alongside or instead of Issues. Issues is best for triaging recurring runtime failures — not for full-stack observability.
@@ -19560,6 +19687,10 @@ Stacktape supports three log forwarding destination types. Each is configured vi
 | Highlight.io | `highlight` | `projectId` | Required project identifier |
 
 The `logForwarding` property takes one of three destination shapes: `http-endpoint`, `highlight`, or `datadog`. Datadog and Highlight.io provide first-class integrations with those platforms, while the HTTP endpoint type works with any service that accepts HTTPS log delivery from AWS Kinesis Data Firehose.
+
+
+> **Warning:** CloudWatch Logs Infrequent Access does not support the subscription filters used for forwarding. Stacktape therefore rejects a logging block that combines `logClass: infrequent-access` with `logForwarding`; keep the default Standard class for forwarded logs.
+
 
 ## Forwarding to Datadog
 
@@ -19795,6 +19926,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
+| `logClass` | no | `string: "infrequent-access" \| "standard"` | `standard` |
 | `logForwarding` | no | `http-endpoint \| highlight \| datadog` | - |
 
 ---
@@ -19814,6 +19946,27 @@ Both surfaces fetch from CloudWatch Logs. The CLI takes `--resourceName` (and `-
 
 For cost implications of CloudWatch Logs ingestion and storage, see [Managing Costs](/managing-costs/overview).
 
+## Lower-cost ingestion for infrequently inspected logs
+
+New log groups can opt into CloudWatch Logs Infrequent Access from the resource's existing logging block:
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+This lowers CloudWatch **ingestion** cost; storage and Logs Insights query pricing are unchanged. Standard remains the default because Infrequent Access does not support live tail, filter and subscription filters, embedded metrics, or Stacktape Issues and log forwarding. AWS fixes the class when a log group is created, so Stacktape blocks attempts to change an existing group and explains that the setting is for a new resource or stage.
+
+The simple viewing workflow remains available. `stacktape logs` and the Console detect Infrequent Access and use a bounded Logs Insights snapshot automatically. The CLI's `--filter` flag uses an incompatible CloudWatch filter language, so use `--query` for filtered IA reads; the Console's IA viewer offers a literal **Message contains** filter.
+
 ## Viewing logs in the Console
 
 The [Stacktape Console](/stacktape-console/console-overview) provides a paginated log viewer for resources that have a resolved CloudWatch log group. The viewer displays returned events with timestamps, and each log line is expandable to show its full content via the `ExpandableLogLine` component.
@@ -19827,7 +19980,7 @@ The Console log viewer offers two modes for selecting the time window, accessibl
 
 ### Filter patterns
 
-Enter a CloudWatch filter pattern in the **Filter pattern** input to narrow results to matching log events. The filter uses [CloudWatch filter pattern syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). The input is debounced — results refresh automatically after you stop typing, so there is no need to press a submit button.
+For Standard log groups, enter a CloudWatch filter pattern in the **Filter pattern** input to narrow results to matching log events. The filter uses [CloudWatch filter pattern syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). For Infrequent Access groups, the field is labeled **Message contains** and Stacktape uses a Logs Insights snapshot. The input is debounced — results refresh automatically after you stop typing, so there is no need to press a submit button.
 
 Filter patterns are useful for isolating error messages, matching JSON field values, or excluding noisy log lines. For example, entering `ERROR` shows only lines containing that keyword, while `{ $.level = "error" }` matches structured JSON logs with a specific field value.
 
@@ -23787,7 +23940,7 @@ export default defineConfig(() => {
 ```
 
 
-The backing Lambda receives `STP_CONFIG_BUCKET_NAME` and `STP_CONFIG_BUCKET_ARN` as environment variables, and Stacktape grants read/write/delete object permissions to the bucket. The `timeout` is set to 60 seconds — the default is 10. The `aws:ses` macro grants full SES email sending permissions when listed in `connectTo`.
+The backing Lambda receives `STP_CONFIG_BUCKET_NAME` and `STP_CONFIG_BUCKET_ARN` as environment variables, and Stacktape grants read/write/delete object permissions to the bucket. The `timeout` is set to 60 seconds — the default is 10.
 
 Use `iamRoleStatements` for direct access to AWS services such as Rekognition, Textract, or Bedrock when `connectTo` does not cover the permission you need:
 
@@ -25844,7 +25997,9 @@ Use `HTTP` for a conventional request/response endpoint. Use `MCP`, `A2A`, or `A
 
 ## Endpoints
 
-Define the API endpoints your agent runtime exposes with the `endpoints` property. Each endpoint can be a simple string (the endpoint name) or an object with additional configuration.
+Define the API endpoints your agent runtime exposes with the `endpoints` property. Each endpoint can be a simple string (the endpoint name) or an object with additional configuration. If you omit `endpoints`, Stacktape creates one endpoint named `default`. If you configure the property, provide at least one endpoint and give every endpoint a unique name.
+
+The resource's `endpointName` and `endpointArn` references point to the endpoint named `default` when the list contains one. Otherwise, they point to the first configured endpoint. Put the endpoint you want other resources to use first, or name it `default`; the remaining endpoints are still created but are not exposed through those shorthand resource parameters.
 
 
 Example (TypeScript):
@@ -27676,11 +27831,12 @@ export default defineConfig(() => {
 
 ## Triggers
 
-A Lambda function receives work through its `events` array. Stacktape supports 12 trigger types and auto-configures the permissions for each.
+A Lambda function receives work through its `events` array. Stacktape supports 13 trigger types and auto-configures the permissions for each.
 
 | Trigger type | Event discriminator | Docs |
 |---|---|---|
 | HTTP API Gateway | `http-api-gateway` | [HTTP triggers](/resources/triggers/http-triggers) |
+| WebSocket API Gateway | `websocket-api-gateway` | [WebSocket API Gateway](/resources/networking/websocket-api-gateway) |
 | Application Load Balancer | `application-load-balancer` | [HTTP triggers](/resources/triggers/http-triggers) |
 | Schedule | `schedule` | [Schedule triggers](/resources/triggers/schedule-triggers) |
 | S3 | `s3` | [S3 events](/resources/triggers/s3-events) |
@@ -28154,7 +28310,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `destinations` | no | `LambdaFunctionDestinations` | - |
 | `disabledGlobalAlarms` | no | `Array<string>` | - |
 | `environment` | no | `Array<EnvironmentVar>` | - |
-| `events` | no | `Array<application-load-balancer \| kafka-topic \| sns \| sqs \| kinesis-stream \| dynamo-db-stream \| s3 \| schedule \| cloudwatch-alarm \| cloudwatch-log \| http-api-gateway \| event-bus>` | - |
+| `events` | no | `Array<application-load-balancer \| kafka-topic \| sns \| sqs \| kinesis-stream \| dynamo-db-stream \| s3 \| schedule \| cloudwatch-alarm \| cloudwatch-log \| http-api-gateway \| appsync-api \| websocket-api-gateway \| event-bus>` | - |
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
 | `joinDefaultVpc` | no | `boolean` | `false` |
 | `layers` | no | `Array<string>` | - |
@@ -30505,6 +30661,200 @@ These values can be referenced with `$ResourceParam("<<resource-name>>", "<<para
 
 | Parameter | Description | Usage |
 | --- | --- | --- |
+
+---
+
+# Aurora DSQL
+
+Source: `apps/docs/content/resources/databases/dsql.mdx`
+Route: `/resources/databases/dsql`
+
+The `dsql-database` resource creates an Amazon Aurora DSQL cluster with no instances, capacity, passwords, or network rules to configure. DSQL is a serverless, PostgreSQL-compatible database that scales automatically. Connections use TLS and a short-lived IAM authentication token.
+
+## When to use
+
+DSQL is a good fit for a new application that needs relational transactions and SQL but does not want to size database instances, manage credentials, or operate failover. A resource can be created with no properties:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, DsqlDatabase } from 'stacktape';
+
+export default defineConfig(() => {
+  const database = new DsqlDatabase({});
+
+  return { resources: { database } };
+});
+```
+
+
+Example (YAML):
+
+```yaml
+resources:
+  database:
+    type: dsql-database
+```
+
+
+## When not to use
+
+DSQL implements a PostgreSQL-compatible subset rather than running ordinary PostgreSQL. Check the [Aurora DSQL PostgreSQL compatibility documentation](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-migration-guide.html) before migrating an existing application, especially if it depends on PostgreSQL extensions, unsupported data types, long-running sessions, or engine-specific administration.
+
+Use a [relational database](/resources/databases/relational-database) when you require full PostgreSQL, MySQL, MariaDB, Oracle, or SQL Server compatibility; a private VPC-only endpoint configured directly by Stacktape; conventional password authentication; or built-in Stacktape backup and restore settings.
+
+## Connect a workload
+
+`connectTo` is the shortest path for a new application. It injects the endpoint and other non-secret connection details and grants the workload `dsql:DbConnectAdmin` on this cluster only.
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  DsqlDatabase,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+export default defineConfig(() => {
+  const database = new DsqlDatabase({
+    deletionProtection: true
+  });
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    connectTo: [database]
+  });
+
+  return { resources: { database, api } };
+});
+```
+
+
+Example (YAML):
+
+```yaml
+resources:
+  database:
+    type: dsql-database
+    properties:
+      deletionProtection: true
+
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/handler.ts
+      connectTo:
+        - database
+```
+
+
+The workload receives:
+
+| Variable | Value |
+|---|---|
+| `STP_DATABASE_ENDPOINT` | Cluster hostname |
+| `STP_DATABASE_PORT` | `5432` |
+| `STP_DATABASE_DATABASE_NAME` | `postgres` |
+| `STP_DATABASE_USERNAME` | `admin` |
+| `STP_DATABASE_REGION` | Deployment region |
+| `STP_DATABASE_ID` | Cluster ID |
+| `STP_DATABASE_ARN` | Cluster ARN |
+
+There is deliberately no password or connection string. Generate an IAM authentication token for each new database connection and pass it to the PostgreSQL client as the password. Because `connectTo` injects the `admin` username, a raw signer must use the admin-token operation: `getDbConnectAdminAuthToken` in the JavaScript signer or `generate-db-connect-admin-auth-token` in the AWS CLI. The ordinary `DbConnect` token is for a custom database role and will not authenticate `admin`.
+
+For Node.js, the [official Aurora DSQL connector](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/SECTION_program-with-dsql-connector-for-node-postgres.html) automatically chooses the admin token from the injected username and refreshes credentials for new pooled connections:
+
+```ts
+import { AuroraDSQLPool } from '@aws/aurora-dsql-node-postgres-connector';
+
+const pool = new AuroraDSQLPool({
+  host: process.env.STP_DATABASE_ENDPOINT!,
+  user: process.env.STP_DATABASE_USERNAME!,
+  database: process.env.STP_DATABASE_DATABASE_NAME!
+});
+```
+
+Keep TLS enabled when using another PostgreSQL client.
+
+DSQL limits a database session to 60 minutes. Configure the client pool to recycle connections before that limit, and do not generate one token at process startup and reuse it forever.
+
+## Least-privilege access
+
+`connectTo` intentionally uses the built-in `admin` database role so a new cluster is immediately useful. That is full database access. When a platform engineer needs a narrower production boundary:
+
+1. Connect as `admin`, create an application database role, and map it to an IAM principal using DSQL's `AWS IAM GRANT` SQL command.
+2. Pass `endpoint`, `region`, and the other required values explicitly with `$ResourceParam()` or the TypeScript resource properties.
+3. Grant only `dsql:DbConnect` for the cluster ARN in the workload's `iamRoleStatements`.
+
+Do not leave the same workload connected through `connectTo`, because that would retain the `dsql:DbConnectAdmin` grant.
+
+## Data protection
+
+Set `deletionProtection: true` for production. Stacktape also treats DSQL as a database for the `require-deletion-protection` guardrail. When enabled, AWS rejects deletion until you redeploy with deletion protection disabled.
+
+Deletion protection is not a backup. This v1 resource does not configure AWS Backup, point-in-time recovery, or a final snapshot, and deleting a cluster can be irreversible without a separately configured backup. Restoring an AWS Backup recovery point creates a new cluster rather than rewinding the existing one.
+
+## Encryption
+
+By default, DSQL uses an AWS-owned encryption key. Set `kmsKeyArn` only when you need control over the key policy and lifecycle:
+
+```yaml
+resources:
+  database:
+    type: dsql-database
+    properties:
+      deletionProtection: true
+      kmsKeyArn: arn:aws:kms:eu-west-1:123456789012:key/example
+```
+
+## Current boundaries
+
+Stacktape v1 creates a single-region DSQL cluster using its public service endpoint. It does not yet configure multi-region peering, PrivateLink VPC endpoints, AWS Backup plans, adoption of an existing cluster, local emulation, or `query:sql` support. A DSQL resource therefore fails the `require-vpc-databases` and `require-data-backups` guardrails closed. These boundaries are explicit so a short configuration does not silently create cross-region infrastructure or account-level backup resources.
+
+Stacktape validates regional availability before deployment. Within Stacktape's region catalog, DSQL is supported in
+US East (N. Virginia and Ohio), US West (Oregon), Hong Kong, Mumbai, Osaka, Seoul, Singapore, Sydney, Tokyo, Canada
+Central, Frankfurt, Ireland, London, Paris, Stockholm, and São Paulo. An unsupported region fails before
+CloudFormation with the valid choices in the error.
+
+For CloudFormation properties not exposed above, use the `cluster` child through [overrides and transforms](/configuration/overrides-and-escape-hatches).
+
+## Referenceable parameters
+
+
+## Referenceable Parameters: `dsql-database`
+These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
+
+| Parameter | Description | Usage |
+| --- | --- | --- |
+| `endpoint` | TLS endpoint of the DSQL cluster. | `$ResourceParam("<<resource-name>>", "endpoint")` |
+| `port` | PostgreSQL port (5432). | `$ResourceParam("<<resource-name>>", "port")` |
+| `databaseName` | Default database name (postgres). | `$ResourceParam("<<resource-name>>", "databaseName")` |
+| `username` | Built-in database role used by connectTo (admin). | `$ResourceParam("<<resource-name>>", "username")` |
+| `region` | AWS region containing the cluster. | `$ResourceParam("<<resource-name>>", "region")` |
+| `id` | DSQL cluster ID. | `$ResourceParam("<<resource-name>>", "id")` |
+| `arn` | DSQL cluster ARN. | `$ResourceParam("<<resource-name>>", "arn")` |
+
+
+## API Reference
+
+
+### Definition: `DsqlDatabaseProps`
+
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/dsql-database` with definition name `DsqlDatabaseProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `deletionProtection` | no | `boolean` | `false` |
+| `kmsKeyArn` | no | `string` | - |
 
 ---
 
@@ -35413,6 +35763,132 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 ---
 
+# Email sender
+
+Source: `apps/docs/content/resources/messaging/email-sender.mdx`
+Route: `/resources/messaging/email-sender`
+
+An `email-sender` gives your workloads a verified Amazon SES identity without making identity lifecycle and IAM your application's problem. Give Stacktape a domain or exact email address, connect a workload, and use the injected values with the AWS SDK.
+
+```yaml
+resources:
+  mail:
+    type: email-sender
+    properties:
+      identity: example.com
+
+  sendWelcomeEmail:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/send-welcome-email.ts
+      connectTo:
+        - mail
+```
+
+```ts
+import { SESv2Client, SendEmailCommand } from '@aws-sdk/client-sesv2';
+
+const ses = new SESv2Client({ region: process.env.STP_MAIL_REGION });
+
+export const handler = async () => {
+  await ses.send(new SendEmailCommand({
+    FromEmailAddress: `hello@${process.env.STP_MAIL_IDENTITY}`,
+    Destination: { ToAddresses: ['customer@example.net'] },
+    ConfigurationSetName: process.env.STP_MAIL_CONFIGURATION_SET_NAME,
+    Content: {
+      Simple: {
+        Subject: { Data: 'Welcome' },
+        Body: { Text: { Data: 'Thanks for joining us.' } }
+      }
+    }
+  }));
+};
+```
+
+`connectTo` injects `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`, and `FEEDBACK_TOPIC_ARN`. It grants only `ses:SendEmail` and `ses:SendRawEmail` on the exact identity and configuration set. It does not grant SES administration.
+
+## Shared identity lifecycle
+
+A managed identity belongs to the AWS account and region, not to one Stacktape project or stage. Stacktape therefore creates one deterministic, termination-protected shared CloudFormation stack for the canonical identity. `example.com` converges across every project and stage in that account and region; `billing@example.com` remains a distinct identity.
+
+Deleting a project stack does not delete this shared stack. The delete output names retained shared resources so you do not mistake persistence for a leak. Stacktape does not automatically garbage-collect shared email identities in this version.
+
+The shared stack also owns:
+
+- a default configuration set with configuration-set-level suppression for bounces and complaints;
+- one standard SNS feedback topic; and
+- one configuration-set destination that publishes `BOUNCE` and `COMPLAINT` events to that topic.
+
+The default configuration set and feedback topic are identity-wide. A subscriber sees feedback for every send using that identity and configuration set, including sends from other projects and stages. Treat feedback consumers as shared infrastructure and make processing idempotent.
+
+## Handle bounces and complaints
+
+Use the injected `feedbackTopicArn` as an existing SNS event source:
+
+```yaml
+resources:
+  mail:
+    type: email-sender
+    properties:
+      identity: example.com
+
+  processEmailFeedback:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/process-email-feedback.ts
+      events:
+        - type: sns
+          properties:
+            snsTopicArn: $ResourceParam('mail', 'feedbackTopicArn')
+```
+
+## Verification and DNS
+
+For a domain, Stacktape uses 2048-bit Easy DKIM. When it finds a matching public Route 53 hosted zone and verifies that the zone is actually delegated, it creates the three DKIM CNAME records. A hosted zone merely existing in the account is not enough.
+
+With external DNS, deployment succeeds while verification is pending and prints the exact CNAME names and values returned by the SES identity resource. Add those records at your DNS provider. For an exact email address, SES sends a verification link to that mailbox instead; domain-only DKIM settings are not applied.
+
+SES identities and sandbox status are regional. In the SES sandbox you can send only to verified recipients and at sandbox quotas. Stacktape warns and links to the production-access request, but does not block deployment.
+
+## Use an identity managed elsewhere
+
+Set `manageIdentity: false` to use an identity created by another platform. Stacktape verifies that the exact identity exists but never adopts, updates, or broadens it to a parent domain.
+
+```yaml
+resources:
+  mail:
+    type: email-sender
+    properties:
+      identity: billing@example.com
+      manageIdentity: false
+      configurationSetName: centrally-managed-mail
+```
+
+`configurationSetName` is optional for external identities. When supplied, Stacktape also checks it exists and scopes sending permission to it. External identities do not receive Stacktape's shared feedback topic; configure feedback externally or omit the configuration set when your application does not use one.
+
+## Current boundaries
+
+This resource intentionally does not configure custom MAIL FROM domains, DMARC records, BYODKIM keys, SES templates, bulk sending, inbound email, dedicated IPs, Virtual Deliverability Manager, or multi-region identity replication. Use explicit IAM and CloudFormation resources for those advanced cases today.
+
+
+### Definition: `EmailSenderProps`
+
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/email-senders` with definition name `EmailSenderProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `identity` | yes | `string` | - |
+| `configurationSetName` | no | `string` | - |
+| `manageIdentity` | no | `boolean` | `true` |
+
+---
+
 # Event Bus
 
 Source: `apps/docs/content/resources/messaging/event-bus.mdx`
@@ -35701,6 +36177,129 @@ By default a failed delivery is eventually dropped. Configure `onDeliveryFailure
 ### Can container services subscribe to event bus events?
 
 Container services ([web service](/resources/compute/web-service), [worker service](/resources/compute/worker-service)) cannot directly subscribe to event bus events as triggers. Instead, route events from the bus to an [SQS queue](/resources/messaging/sqs-queue) using an event bus trigger on the queue, then have the container poll the queue using the AWS SDK. Use `connectTo` to grant the container access to the SQS queue. This gives the container backpressure control and retry semantics.
+
+---
+
+# Kafka cluster
+
+Source: `apps/docs/content/resources/messaging/kafka-cluster.mdx`
+Route: `/resources/messaging/kafka-cluster`
+
+> **Cost warning:** an MSK Serverless cluster has a substantial always-on charge. AWS's US East (Ohio) pricing
+> example is about **$0.75 per cluster-hour**, or **$558 per 31-day month**, before partition, data-processing,
+> transfer, and storage charges. Every stage creates and pays for another cluster. Lambda Kafka triggers also create
+> Lambda and STS interface endpoints, which add hourly charges per availability zone and data-processing charges.
+> Prefer SQS or Kinesis unless Kafka compatibility is a real requirement.
+
+A `kafka-cluster` creates Amazon MSK Serverless with IAM authentication in Stacktape's default VPC. There are no broker
+sizes, capacity units, authentication, or network knobs to choose. Stacktape supplies secure defaults and a dedicated
+security group.
+
+```yaml
+resources:
+  events:
+    type: kafka-cluster
+
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
+      joinDefaultVpc: true
+      connectTo:
+        - events
+```
+
+`connectTo` injects `ARN`, `NAME`, and comma-separated `BOOTSTRAP_SERVERS`. It grants only IAM Kafka connection and
+topic/group actions for this cluster, including `CreateTopic`; it does not grant `AlterTopic` or `DeleteTopic`.
+Functions that connect directly as Kafka clients require `joinDefaultVpc: true`. Container workloads already use the
+Stacktape VPC. A `kafka-topic` Lambda event is different: its AWS-managed poller has separate networking and does not
+require the function itself to join the VPC.
+
+## Create topics
+
+Topics are not infrastructure resources. MSK Serverless disables broker auto-creation, and `AWS::MSK::Topic` does not
+support Serverless clusters. Create a topic from application setup code or an explicit deployment script using a Kafka
+AdminClient. For Node.js:
+
+```bash
+pnpm add kafkajs aws-msk-iam-sasl-signer-js
+```
+
+```ts
+import { Kafka } from 'kafkajs';
+import { generateAuthToken } from 'aws-msk-iam-sasl-signer-js';
+
+const region = process.env.AWS_REGION!;
+const kafka = new Kafka({
+  clientId: 'topic-setup',
+  brokers: process.env.STP_EVENTS_BOOTSTRAP_SERVERS!.split(','),
+  ssl: true,
+  sasl: {
+    mechanism: 'oauthbearer',
+    oauthBearerProvider: async () => ({ value: (await generateAuthToken({ region })).token })
+  }
+});
+
+const admin = kafka.admin();
+await admin.connect();
+await admin.createTopics({ topics: [{ topic: 'orders', numPartitions: 3 }] });
+await admin.disconnect();
+```
+
+Make setup idempotent and decide partition count consciously: MSK Serverless pricing includes per-partition-hour charges,
+and increasing partitions affects both cost and consumer parallelism.
+
+## Development mode
+
+Stacktape does not emulate Kafka locally and does not deploy this costly resource during `stacktape dev` by default.
+Opt in only when a dev session really needs AWS Kafka:
+
+```yaml
+events:
+  type: kafka-cluster
+  properties:
+    dev:
+      remote: true
+```
+
+You can also select it for one session with `--remoteResources events`. This deploys the real cluster; it is not local
+emulation and normal AWS charges apply. Locally running container clients do not automatically gain network access to
+the private cluster. Use a deployed workload or deliberately provide private connectivity to the VPC.
+
+## Regions and lifecycle
+
+Stacktape validates MSK Serverless availability before deployment. Supported Stacktape regions currently include
+US East (N. Virginia and Ohio), US West (Oregon), Canada Central, Mumbai, Singapore, Sydney, Tokyo, Seoul, Frankfurt,
+Stockholm, Ireland, London, and Paris. Unsupported regions fail with a list of valid choices.
+
+Deleting the stage deletes the cluster and all topic data. Stacktape deliberately does not retain it: silently leaving
+an approximately $558/month orphan would be unsafe. Back up or replicate data before deletion.
+
+All CloudFormation properties of an MSK Serverless cluster require replacement. Because AWS requires a fixed cluster
+name, a replacement can require deleting the old cluster before CloudFormation can create the new one. Stacktape's
+trusted-change output flags replacement or deletion as destructive. Kafka v1 therefore exposes no raw capacity,
+network, authentication, tag, or CloudFormation override surface that could detach Stacktape's references and security
+wiring.
+
+In a reused VPC, Stacktape chooses one public subnet per supported availability zone and requires at least two. Amazon
+MSK does not support the physical zone `use1-az3`. Because availability-zone names map to physical zones differently
+in every AWS account, native Kafka in `us-east-1` requires `stackConfig.vpc.reuseVpc` in v1; discovery excludes
+`use1-az3` before selecting subnets. Use another supported region when you want Stacktape to create the default VPC.
+
+Review current prices before deployment: [Amazon MSK pricing](https://aws.amazon.com/msk/pricing/) and
+[AWS PrivateLink pricing](https://aws.amazon.com/privatelink/pricing/).
+
+
+### Definition: `KafkaClusterProps`
+
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/kafka-clusters` with definition name `KafkaClusterProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `dev` | no | `DevModeConfig` | - |
 
 ---
 
@@ -37084,13 +37683,13 @@ A Stacktape Application Load Balancer routes HTTP/HTTPS requests to container wo
 
 ## When to use
 
-Application Load Balancer is the right choice when you need advanced HTTP routing, WebSocket support, or a flat-cost alternative to pay-per-request API Gateway. It becomes more cost-effective than [HTTP API Gateway](/resources/networking/http-api-gateway) above roughly 500k requests per day (~15 million/month).
+Application Load Balancer is the right choice when you need advanced HTTP routing, a persistent container WebSocket server, or a flat-cost alternative to pay-per-request API Gateway. It becomes more cost-effective than [HTTP API Gateway](/resources/networking/http-api-gateway) above roughly 500k requests per day (~15 million/month).
 
 Common patterns that fit well:
 
 - **Container-based web services** — [web services](/resources/compute/web-service) and [private services](/resources/compute/private-service) that stay running and serve HTTP traffic
 - **Multiple services behind one endpoint** — route `/api/*` to one service, `/admin/*` to another, using priority-based rules
-- **WebSocket applications** — Stacktape's Application Load Balancer is the documented path for WebSocket connections; the [HTTP API Gateway](/resources/networking/http-api-gateway) integration source documents HTTP method/path routing, not WebSocket routes
+- **Container WebSocket applications** — keep framework-managed connections and server state in long-running services behind the ALB; for Lambda routes that scale to zero, use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway)
 - **Firewall-protected APIs** — attach a [web application firewall](/resources/security/web-application-firewall) directly to the ALB to protect against common web exploits
 - **Gradual deployments** — canary and linear deployment strategies require an ALB
 - **Sustained high traffic** — flat pricing is cheaper than pay-per-request above moderate volume
@@ -37485,15 +38084,89 @@ An [Application Load Balancer](/resources/networking/application-load-balancer) 
 
 ### When should I use an ALB vs HTTP API Gateway?
 
-Use an [HTTP API Gateway](/resources/networking/http-api-gateway) for Lambda-based APIs with variable or low traffic — pay-per-request scales to zero cost. Use an Application Load Balancer for container-based services, WebSocket applications, or when you need advanced routing (headers, query params, source IPs). ALB's flat pricing is cheaper above roughly 500k requests per day. ALB also supports [gradual deployments](/deployment-and-lifecycle/gradual-deployments) and direct [WAF attachment](/resources/security/web-application-firewall).
+Use an [HTTP API Gateway](/resources/networking/http-api-gateway) for Lambda-based request-response APIs with variable or low traffic. Use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway) for Lambda-backed real-time routes that should scale to zero. Use an Application Load Balancer for container-based services, persistent WebSocket servers, or advanced HTTP routing (headers, query params, source IPs). ALB's flat pricing is cheaper above roughly 500k requests per day. ALB also supports [gradual deployments](/deployment-and-lifecycle/gradual-deployments) and direct [WAF attachment](/resources/security/web-application-firewall).
 
 ### Does the Application Load Balancer support WebSockets?
 
-Yes. AWS ALB natively supports WebSocket connections over HTTP/HTTPS listeners. Once the initial HTTP upgrade handshake completes, the ALB maintains the persistent bidirectional connection between client and backend. This makes ALB the right networking choice for real-time applications using Socket.io, ws, or similar WebSocket libraries. Stacktape's Application Load Balancer is the documented path for WebSocket connections.
+Yes. AWS ALB natively supports WebSocket connections over HTTP/HTTPS listeners. Once the initial HTTP upgrade handshake completes, the ALB maintains the persistent bidirectional connection between client and backend. This makes ALB a good fit for container applications using Socket.IO, `ws`, or similar server frameworks. For Lambda-backed connection and message routes with pay-per-use pricing, use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway).
 
 ### Why isn't my health check configured on the Application Load Balancer resource?
 
 The ALB resource itself does not define health-check settings — they live on the target. AWS ALB continuously probes registered targets and removes unhealthy ones from the routing pool, but the health-check path and thresholds are configured on the container workload or service that receives the traffic. See [web service](/resources/compute/web-service) or [multi-container workload](/resources/compute/multi-container-workload) for health-check settings, and use the `application-load-balancer-unhealthy-targets` alarm to be notified when targets fail.
+
+---
+
+# AppSync API
+
+Source: `apps/docs/content/resources/networking/appsync-api.mdx`
+Route: `/resources/networking/appsync-api`
+
+An AppSync API is a managed, pay-per-request GraphQL endpoint. You provide a GraphQL schema and attach Lambda functions directly to fields. Stacktape creates the AppSync API, data sources, narrowly scoped invocation roles, resolvers, logs, and deployment dependencies.
+
+There is no resolver language or pipeline concept to learn in the initial version. Each configured field has one Lambda owner. The Lambda receives the standard AppSync resolver event, including `arguments`, `identity`, `source`, and field information.
+
+## Basic example
+
+Create `schema.graphql` in the project root:
+
+```graphql
+type Query {
+  user(id: ID!): User
+}
+
+type User {
+  id: ID!
+  name: String!
+}
+```
+
+Then configure the API and field handler:
+
+```yaml
+resources:
+  graphql:
+    type: appsync-api
+    properties:
+      authentication:
+        type: aws-iam
+
+  getUser:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/get-user.ts
+      events:
+        - type: appsync-api
+          properties:
+            appsyncApiName: graphql
+            field: Query.user
+```
+
+`schemaFilePath` defaults to `schema.graphql`. Stacktape parses the file before deployment and verifies that every configured `Type.field` exists. AWS-specific directives and custom scalars remain available because Stacktape checks syntax and resolver ownership without imposing a separate GraphQL schema policy.
+
+## Authentication
+
+Authentication is always explicit:
+
+- `aws-iam` is the safest default for calls from AWS workloads. Add the API to another resource's `connectTo` list to receive `appsync:GraphQL` permission scoped to this API's fields.
+- `user-auth-pool` uses an existing Stacktape user auth pool for application users.
+- `api-key` is suitable for deliberately public or short-lived access. It requires a fixed RFC 3339 `expiresAt` timestamp between 1 and 365 days in the future. Stacktape never silently extends it.
+
+API keys are treated as sensitive outputs and are not printed during normal deployment output.
+
+## Operational defaults
+
+By default, AppSync records errors without verbose request content, retains logs for 30 days, limits query depth to 10 and resolver executions to 1000, allows introspection, and leaves X-Ray disabled. These settings can be changed individually. Verbose logging can contain headers, variables, or personal data, so enable it only for deliberate debugging.
+
+CloudWatch Logs Infrequent Access is supported when logs are not forwarded. Log forwarding requires the standard log class because AWS does not support subscription filters on Infrequent Access log groups.
+
+## Custom domains
+
+Use `customDomain` when clients need a stable branded GraphQL endpoint. Stacktape uses its existing global certificate flow; AppSync custom-domain certificates must be in `us-east-1`, even when the API runs elsewhere. DNS records are created automatically unless explicitly disabled.
+
+The resource exposes `url`, `realtimeUrl`, `apiId`, and `arn`. API-key authentication additionally exposes the sensitive `apiKey` value.
 
 ---
 
@@ -38126,11 +38799,12 @@ Custom domains are essential for any production-facing resource. Use them when y
 
 ## Supported resources
 
-Custom domains attach directly to four networking resources Stacktape exposes:
+Custom domains attach directly to five networking resources Stacktape exposes:
 
 | Resource | Typical use case |
 |----------|-----------------|
 | [HTTP API Gateway](/resources/networking/http-api-gateway) | `api.example.com` for Lambda-backed APIs |
+| [WebSocket API Gateway](/resources/networking/websocket-api-gateway) | `realtime.example.com` for Lambda-backed real-time APIs |
 | [Application Load Balancer](/resources/networking/application-load-balancer) | `app.example.com` for container workloads |
 | [Network Load Balancer](/resources/networking/network-load-balancer) | TCP/TLS services at a custom domain |
 | [CDN](/resources/networking/cdn) | `cdn.example.com` for cached content delivery |
@@ -38138,6 +38812,8 @@ Custom domains attach directly to four networking resources Stacktape exposes:
 A [CDN](/resources/networking/cdn) can target a [bucket](/resources/storage/s3-bucket), [Application Load Balancer](/resources/networking/application-load-balancer), [HTTP API Gateway](/resources/networking/http-api-gateway), or [Lambda function](/resources/compute/lambda-function), which is how you can put a custom domain in front of those origins. For [web services](/resources/compute/web-service), [hosting buckets](/resources/frontend/static-hosting), and SSR frontends, see each resource's page for how custom domains are configured through the underlying networking layer.
 
 Each entry in a resource's `customDomains` array is a `DomainConfiguration` object with three fields: `domainName` (required), `customCertificateArn` (optional), and `disableDnsRecordCreation` (optional, defaults to `false`). The structure is identical across every resource type that accepts custom domains.
+
+An API Gateway custom domain cannot contain both WebSocket and HTTP/REST API mappings. Use different hostnames, such as `api.example.com` and `realtime.example.com`; Stacktape rejects duplicate attachment before deployment.
 
 ## Prerequisites
 
@@ -38284,7 +38960,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 
 ### Which Stacktape resources support custom domains?
 
-Custom domains attach directly to [HTTP API Gateways](/resources/networking/http-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), [Network Load Balancers](/resources/networking/network-load-balancer), and [CDNs](/resources/networking/cdn) — all four using the same `DomainConfiguration` structure. To put a custom domain in front of a [bucket](/resources/storage/s3-bucket) or [Lambda function](/resources/compute/lambda-function), front it with a [CDN](/resources/networking/cdn) and attach the domain there.
+Custom domains attach directly to [HTTP API Gateways](/resources/networking/http-api-gateway), [WebSocket API Gateways](/resources/networking/websocket-api-gateway), [Application Load Balancers](/resources/networking/application-load-balancer), [Network Load Balancers](/resources/networking/network-load-balancer), and [CDNs](/resources/networking/cdn), using the same `DomainConfiguration` structure. To put a custom domain in front of a [bucket](/resources/storage/s3-bucket) or [Lambda function](/resources/compute/lambda-function), front it with a [CDN](/resources/networking/cdn) and attach the domain there.
 
 ### Can I use a domain registered outside AWS?
 
@@ -38334,7 +39010,7 @@ Common patterns that fit well:
 
 - **Container-based services that stay running** — an [Application Load Balancer](/resources/networking/application-load-balancer) is a better fit for [web services](/resources/compute/web-service). ALBs offer richer routing (headers, query params, source IPs) and a flat hourly cost that's cheaper at sustained high throughput.
 - **Sustained high-volume APIs** (roughly above 50–100 million requests/month) — ALB's flat pricing becomes more economical than pay-per-request at that scale.
-- **WebSocket or persistent connections** — HTTP API Gateway routes request-response HTTP traffic only. It does not support long-lived bidirectional connections.
+- **WebSocket or persistent connections** — this HTTP API resource routes request-response traffic only. Use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway) for Lambda-backed real-time routes, or an [Application Load Balancer](/resources/networking/application-load-balancer) for a persistent container server.
 - **TCP/TLS (non-HTTP) protocols** — use a [Network Load Balancer](/resources/networking/network-load-balancer) instead.
 
 
@@ -38700,7 +39376,7 @@ Use HTTP API Gateway for Lambda-based APIs with variable traffic — you pay per
 
 ### Does HTTP API Gateway support WebSockets?
 
-No. HTTP API Gateway routes request-response HTTP traffic by method and path. It does not support WebSocket connections or other persistent bidirectional communication. If you need real-time bidirectional messaging, a container-based architecture running a WebSocket server (e.g., Socket.io, ws) behind an [Application Load Balancer](/resources/networking/application-load-balancer) is a common alternative.
+No. This HTTP API Gateway resource routes request-response HTTP traffic by method and path. For real-time messaging, use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway) with Lambda routes. Use an [Application Load Balancer](/resources/networking/application-load-balancer) when you run a persistent container WebSocket server such as Socket.IO or `ws`.
 
 ### What is the maximum payload size for HTTP API Gateway?
 
@@ -38974,6 +39650,316 @@ Container workloads add a `network-load-balancer` integration (type `network-loa
 ### Why can't I restrict NLB access with a web application firewall?
 
 NLB operates at Layer 4 (TCP/TLS) and does no HTTP-level processing, so it can't attach a [web application firewall](/resources/security/web-application-firewall) or [CDN](/resources/networking/cdn). The only access-control mechanism at the load balancer level is `whitelistIps` on each listener, which restricts connections to specific IPs or CIDR ranges. If you need rate limiting, geo-blocking, or bot protection, put the workload behind an [Application Load Balancer](/resources/networking/application-load-balancer) instead.
+
+---
+
+# WebSocket API Gateway
+
+Source: `apps/docs/content/resources/networking/websocket-api-gateway.mdx`
+Route: `/resources/networking/websocket-api-gateway`
+
+A Stacktape WebSocket API Gateway creates a managed, pay-per-use WebSocket endpoint backed by Lambda functions. You define the gateway once and attach routes such as `$connect`, `$disconnect`, `$default`, and `sendMessage` to functions. Stacktape creates the API, integrations, permissions, deployment stage, access logs, and connection-management access.
+
+The default route selection expression is `$request.body.action`. A client message such as `{ "action": "sendMessage", "text": "hello" }` therefore invokes the function that owns the `sendMessage` route.
+
+## When to use
+
+Use a WebSocket API Gateway for Lambda-based real-time features that should have no always-on server cost:
+
+- chat and collaboration updates
+- progress, job-status, and deployment notifications
+- lightweight presence and live dashboards
+- targeted server-to-client notifications
+- applications with spiky or modest concurrent connection counts
+
+Use an [Application Load Balancer](/resources/networking/application-load-balancer) instead when you already run a persistent container WebSocket server, need a framework such as Socket.IO with server-side state, or need more control over the connection process.
+
+## Basic example
+
+Routes live on Lambda functions rather than inside the gateway. The route handlers automatically receive the gateway connection variables and the scoped `execute-api:ManageConnections` permission; you do not also need to add the gateway to their `connectTo` lists.
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  WebSocketApiGateway,
+  WebSocketApiIntegration
+} from 'stacktape';
+
+export default defineConfig(() => {
+  const realtime = new WebSocketApiGateway({});
+
+  const connections = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/connections.ts'
+    }),
+    events: [
+      new WebSocketApiIntegration({
+        websocketApiGatewayName: realtime,
+        routeKey: '$connect'
+      }),
+      new WebSocketApiIntegration({
+        websocketApiGatewayName: realtime,
+        routeKey: '$disconnect'
+      })
+    ]
+  });
+
+  const messages = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/messages.ts'
+    }),
+    events: [
+      new WebSocketApiIntegration({
+        websocketApiGatewayName: realtime,
+        routeKey: 'sendMessage'
+      }),
+      new WebSocketApiIntegration({
+        websocketApiGatewayName: realtime,
+        routeKey: '$default'
+      })
+    ]
+  });
+
+  return { resources: { realtime, connections, messages } };
+});
+```
+
+
+Example (YAML):
+
+```yaml
+resources:
+  realtime:
+    type: websocket-api-gateway
+
+  connections:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/connections.ts
+      events:
+        - type: websocket-api-gateway
+          properties:
+            websocketApiGatewayName: realtime
+            routeKey: $connect
+        - type: websocket-api-gateway
+          properties:
+            websocketApiGatewayName: realtime
+            routeKey: $disconnect
+
+  messages:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/messages.ts
+      events:
+        - type: websocket-api-gateway
+          properties:
+            websocketApiGatewayName: realtime
+            routeKey: sendMessage
+        - type: websocket-api-gateway
+          properties:
+            websocketApiGatewayName: realtime
+            routeKey: $default
+```
+
+
+Stacktape owns one stable internal stage and deploys route changes automatically. There is no stage or deployment setting to keep in sync.
+
+## Route behavior
+
+| Route | When it runs |
+|---|---|
+| `$connect` | During the opening handshake. Returning an error rejects the connection. |
+| `$disconnect` | After a connection closes. Delivery is best-effort and is not guaranteed. |
+| `$default` | When no custom route matches, including messages that cannot be selected. |
+| Custom key | When the route selection expression resolves to that key. |
+
+Only JSON messages can be selected by `$request.body.action`. Non-JSON messages and JSON without a matching action go to `$default` when that route exists.
+
+Route handler return bodies are not sent to the client by default. Use `returnResponse: true` for a simple reply to the calling client, as described below. Use the API Gateway Management API when the application should send later, broadcast, or target a different connection.
+
+## Sending a message to a connection
+
+For a gateway named `realtime`, every route handler receives:
+
+- `STP_REALTIME_URL` — the public `wss://` client URL
+- `STP_REALTIME_MANAGEMENT_ENDPOINT` — the HTTPS endpoint for `ApiGatewayManagementApiClient`
+- `STP_REALTIME_API_ID` — the API ID
+- `STP_REALTIME_CANONICAL_DOMAIN` — the AWS DNS target
+
+The handler also gets connection-management permission scoped to this gateway and Stacktape's managed stage.
+
+```ts
+import {
+  ApiGatewayManagementApiClient,
+  PostToConnectionCommand
+} from '@aws-sdk/client-apigatewaymanagementapi';
+
+const client = new ApiGatewayManagementApiClient({
+  endpoint: process.env.STP_REALTIME_MANAGEMENT_ENDPOINT
+});
+
+export const handler = async (event) => {
+  await client.send(
+    new PostToConnectionCommand({
+      ConnectionId: event.requestContext.connectionId,
+      Data: Buffer.from(JSON.stringify({ type: 'ack' }))
+    })
+  );
+
+  return { statusCode: 200 };
+};
+```
+
+Do not post to the connection from `$connect`: the connection does not exist until that handler succeeds. Handle `GoneException` when a connection has already closed.
+
+Other producers can send to clients too. Add `connectTo: [realtime]` to a different Lambda, container workload, batch job, or script to receive the same scoped permission and environment variables.
+
+## Connection storage and broadcasts
+
+Stacktape does not create a DynamoDB connection registry automatically. A direct reply needs only the `connectionId` in the current event, while broadcast, rooms, and user-to-connection lookup each need different application data. An automatic table would impose the wrong schema on many applications.
+
+When you need lookup or broadcast:
+
+1. Add a normal [DynamoDB table](/resources/databases/dynamodb) for the fields your application needs.
+2. Connect the `$connect`, `$disconnect`, and broadcasting workloads to that table with `connectTo`.
+3. Store connection IDs with a TTL.
+4. Delete stale records when a Management API send returns `GoneException`.
+
+TTL and failed-send cleanup matter because `$disconnect` is best-effort and may not run.
+
+## Authorization
+
+Authorization is optional and belongs on the `$connect` route because API Gateway authorizes a WebSocket connection only while opening it. Later messages use the identity established at connection time and any checks in your application code.
+
+For application-specific authentication, use a Lambda REQUEST authorizer:
+
+```ts
+const connect = new LambdaFunction({
+  packaging: new StacktapeLambdaBuildpackPackaging({
+    entryfilePath: './src/connect.ts'
+  }),
+  events: [
+    new WebSocketApiIntegration({
+      websocketApiGatewayName: realtime,
+      routeKey: '$connect',
+      authorizer: {
+        type: 'lambda',
+        properties: {
+          functionName: authorizeConnection
+        }
+      }
+    })
+  ]
+});
+```
+
+The default identity source is `route.request.header.Authorization`. You can explicitly use header or query-string sources such as `route.request.querystring.token`. A WebSocket Lambda authorizer returns an IAM policy response; the HTTP API simple-response and JWT/Cognito authorizer settings do not apply.
+
+Use `{ type: 'aws-iam' }` only for clients that can sign the opening request with AWS Signature Version 4. It is usually unsuitable for ordinary browser clients.
+
+## Return a response to the calling client
+
+WebSocket routes are one-way by default. For a simple request-response interaction on `$default` or a custom message route, set `returnResponse: true` and return a `body` from the Lambda handler:
+
+```ts
+new WebSocketApiIntegration({
+  websocketApiGatewayName: realtime,
+  routeKey: 'getStatus',
+  returnResponse: true
+});
+```
+
+```ts
+export const handler = async () => ({
+  statusCode: 200,
+  body: JSON.stringify({ status: 'ready' })
+});
+```
+
+Stacktape configures the API Gateway route response, and only the client that invoked the route receives the returned body. Lifecycle routes (`$connect` and `$disconnect`) cannot use `returnResponse`, because no established calling connection is available for that reply. Keep the default for broadcasts, delayed responses, and messages sent to a different connection; use the management endpoint for those cases.
+
+## Custom domains
+
+Add `customDomains` when clients should connect through your own hostname:
+
+```ts
+const realtime = new WebSocketApiGateway({
+  customDomains: [{ domainName: 'realtime.example.com' }]
+});
+```
+
+Stacktape provisions the regional custom-domain mapping, certificate, and Route53 alias by default. Use `disableDnsRecordCreation` or `customCertificateArn` for externally managed DNS or certificates, as described in [Custom domains](/resources/networking/custom-domains).
+
+AWS does not allow one API Gateway custom domain to mix WebSocket mappings with HTTP or REST API mappings. Stacktape rejects duplicate domain attachment in the config before deployment.
+
+## Logs
+
+JSON access logs are enabled by default with connection ID, event type, route, status, source IP, request time, and integration error context. Payload data is not logged by default. Configure retention or forwarding through `logging`, or set `logging.disabled: true`.
+
+`logging.logClass: 'infrequent-access'` is available for newly created log groups when lower ingestion cost matters more than live log features. Infrequent Access logs require Logs Insights and cannot use log forwarding.
+
+## Dev mode
+
+`stacktape dev` keeps the WebSocket gateway deployed and hot-swaps its Lambda handlers. The dev UI shows the deployed `wss://` URL. Stacktape does not emulate API Gateway's connection lifecycle locally, so test clients continue to use the deployed endpoint while code changes are updated quickly.
+
+## AWS limits to design around
+
+API Gateway currently limits a connection to 2 hours with a 10-minute idle timeout. Frames are limited to 32 KB, messages to 128 KB, binary frames are unsupported, and integrations can run for at most 29 seconds. Split large payloads and design clients to reconnect.
+
+## Referenceable parameters
+
+Use `$ResourceParam('realtime', 'paramName')` in configuration. `connectTo` injects these values into workloads automatically.
+
+
+## Referenceable Parameters: `websocket-api-gateway`
+These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
+
+| Parameter | Description | Usage |
+| --- | --- | --- |
+| `apiId` | API Gateway ID | `$ResourceParam("<<resource-name>>", "apiId")` |
+| `url` | WebSocket client URL | `$ResourceParam("<<resource-name>>", "url")` |
+| `managementEndpoint` | HTTPS endpoint for sending messages to connected clients | `$ResourceParam("<<resource-name>>", "managementEndpoint")` |
+| `canonicalDomain` | AWS DNS target | `$ResourceParam("<<resource-name>>", "canonicalDomain")` |
+| `customDomains` | Comma-separated list of custom domain names | `$ResourceParam("<<resource-name>>", "customDomains")` |
+| `customDomainUrls` | Comma-separated list of custom domain URLs | `$ResourceParam("<<resource-name>>", "customDomainUrls")` |
+| `customDomainUrl` | URL of the first custom domain | `$ResourceParam("<<resource-name>>", "customDomainUrl")` |
+
+
+## API Reference
+
+
+### Definition: `WebSocketApiGatewayProps`
+
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/websocket-api-gateways` with definition name `WebSocketApiGatewayProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `customDomains` | no | `Array<DomainConfiguration>` | - |
+| `logging` | no | `WebSocketApiAccessLogsConfig` | - |
+| `routeSelectionExpression` | no | `string` | `$request.body.action` |
+
+
+### Definition: `WebSocketApiIntegrationProps`
+
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/events` with definition name `WebSocketApiIntegrationProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `routeKey` | yes | `string` | - |
+| `websocketApiGatewayName` | yes | `string` | - |
+| `authorizer` | no | `aws-iam \| lambda` | - |
+| `returnResponse` | no | `boolean` | `false` |
 
 ---
 
@@ -42629,261 +43615,157 @@ ALB rules are evaluated by `priority` from the lowest number to the highest, and
 
 ---
 
-# Kafka Topics
+# Kafka topics
 
 Source: `apps/docs/content/resources/triggers/kafka-topics.mdx`
 Route: `/resources/triggers/kafka-topics`
 
-A Kafka topic trigger invokes a function when new messages are available in an Apache Kafka topic. Configure this trigger on a [Lambda function](/resources/compute/lambda-function) to batch records and deliver them to your handler. The supported authentication methods are SASL and mutual TLS (MTLS), with credentials stored in AWS Secrets Manager.
+A `kafka-topic` event lets AWS Lambda poll one Kafka topic and invoke your function with batches of records. The
+simplest source is a Stacktape [Kafka cluster](/resources/messaging/kafka-cluster): Stacktape configures IAM access,
+networking, and the Lambda event-source mapping.
 
-## When to use
+Kafka is an expensive choice if you only need background jobs. Prefer an [SQS queue](/resources/messaging/sqs-queue)
+or [Kinesis stream](/resources/messaging/kinesis-stream) unless Kafka protocol compatibility is a requirement.
 
-Use a Kafka topic trigger when you have Kafka brokers reachable from Lambda and want a Lambda-based consumer for a topic. AWS Lambda handles polling and invocation for the event source mapping, so you do not run a separate consumer process yourself.
+## Stacktape Kafka cluster
 
-Common scenarios:
+```yaml
+resources:
+  events:
+    type: kafka-cluster
 
-- Processing order events, clickstreams, or CDC records from a Kafka topic
-- Bridging Kafka into AWS-native workflows (persist to DynamoDB, forward to SQS, trigger Step Functions)
-- Running lightweight transformations or enrichments on each batch of Kafka records
-
-## When NOT to use
-
-- **Simple message queuing** — if you don't already run Kafka, an [SQS queue trigger](/resources/triggers/sqs-events) is simpler and cheaper for standard async processing.
-- **Fan-out to multiple consumers** — Kafka handles fan-out natively via consumer groups, but if your architecture is AWS-native, [SNS](/resources/triggers/sns-events) or [EventBridge](/resources/triggers/event-bus-events) is typically easier to operate.
-- **Ordered stream processing with retry controls** — if you need `maximumRetryAttempts`, `onFailure` destinations, or `bisectBatchOnFunctionError`, consider a [Kinesis stream trigger](/resources/triggers/kinesis-events) or [DynamoDB stream trigger](/resources/triggers/dynamodb-streams) instead. The Kafka topic trigger does not expose these properties.
-
-## Basic example
-
-This example creates a Lambda function that consumes messages from a Kafka topic using SASL/SCRAM-512 authentication.
-
-
-Example (TypeScript):
-
-```typescript
-import {
-  defineConfig,
-  LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  KafkaTopicIntegration
-} from 'stacktape';
-export default defineConfig(() => {
-  const orderConsumer = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/kafka-consumer.ts'
-    }),
-    memory: 512,
-    timeout: 60,
-    events: [
-      new KafkaTopicIntegration({
-        customKafkaConfiguration: {
-          bootstrapServers: ['broker1.example.com:9092', 'broker2.example.com:9092'],
-          topicName: 'order-events',
-          authentication: {
-            type: 'SASL_SCRAM_512_AUTH',
-            properties: {
-              authenticationSecretArn:
-                'arn:aws:secretsmanager:eu-west-1:123456789012:secret:kafka-creds'
-            }
-          }
-        },
-        batchSize: 100,
-        maxBatchWindowSeconds: 5
-      })
-    ]
-  });
-
-  return { resources: { orderConsumer } };
-});
+  consumeOrders:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/consume-orders.ts
+      events:
+        - type: kafka-topic
+          properties:
+            kafkaClusterName: events
+            topicName: orders
+            startFrom: latest
 ```
 
+`startFrom` is deliberately required:
 
-The `bootstrapServers` array contains `host:port` addresses for your Kafka brokers. The `topicName` identifies which Kafka topic to consume from.
+- `latest` processes records that arrive after the mapping becomes active.
+- `earliest` starts from the oldest retained records and can cause a large first processing burst.
 
-`batchSize` controls how many records are delivered per invocation (default 100, maximum 10,000). `maxBatchWindowSeconds` sets the maximum wait time before invoking with whatever records are available (default 0.5 seconds, maximum 300 seconds). The function is triggered when either `batchSize` is reached or `maxBatchWindowSeconds` expires.
+Stacktape creates shared Lambda and STS interface VPC endpoints for an on-demand Lambda poller attached to a native
+cluster. Those endpoints have their own hourly and data-processing charges in every availability zone. The Lambda
+function itself does not need `joinDefaultVpc` merely to consume the trigger; the poller has separate networking.
+The endpoints use private DNS for the shared VPC and their default endpoint policy, so ordinary workload calls remain
+governed by workload IAM rather than being accidentally blocked at the endpoint.
 
-## Authentication
+The topic must already exist. MSK Serverless disables automatic topic creation and CloudFormation does not support
+declarative topics for Serverless clusters. See [Create topics](/resources/messaging/kafka-cluster#create-topics).
 
-The Kafka cluster configuration includes an authentication block. The supported authentication variants are SASL and MTLS, both referencing Secrets Manager secret ARNs for credentials.
+## Existing Amazon MSK cluster
 
-### SASL authentication
+Use `mskClusterArn` for an existing cluster in the same AWS account and region:
 
-SASL (Simple Authentication and Security Layer) authenticates with a username and password stored in AWS Secrets Manager. Three protocol variants are available:
-
-| Type value | Protocol | When to use |
-|---|---|---|
-| `BASIC_AUTH` | SASL/PLAIN | Clusters configured for the SASL/PLAIN mechanism |
-| `SASL_SCRAM_256_AUTH` | SCRAM-SHA-256 | Production clusters with SCRAM-256 enabled |
-| `SASL_SCRAM_512_AUTH` | SCRAM-SHA-512 | Production clusters with SCRAM-512 enabled |
-
-The referenced Secrets Manager secret must be a JSON object with `username` and `password` keys. You can create it using the [`stacktape secret:set`](/cli/secret-set) CLI command. Set `authenticationSecretArn` to the ARN of the Secrets Manager secret that contains the Kafka credentials.
-
-Stacktape exposes `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, and `SASL_SCRAM_512_AUTH`. Choose the variant that matches your Kafka cluster's configured SASL mechanism. Use `BASIC_AUTH` only when the broker requires SASL/PLAIN.
-
-
-Example (TypeScript):
-
-```typescript
-import {
-  defineConfig,
-  LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  KafkaTopicIntegration
-} from 'stacktape';
-export default defineConfig(() => {
-  const consumer = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/consumer.ts'
-    }),
-    events: [
-      new KafkaTopicIntegration({
-        customKafkaConfiguration: {
-          bootstrapServers: ['kafka.internal.example.com:9092'],
-          topicName: 'user-activity',
-          authentication: {
-            type: 'SASL_SCRAM_512_AUTH',
-            properties: {
-              authenticationSecretArn:
-                'arn:aws:secretsmanager:eu-west-1:123456789012:secret:kafka-sasl-creds'
-            }
-          }
-        }
-      })
-    ]
-  });
-
-  return { resources: { consumer } };
-});
+```yaml
+events:
+  - type: kafka-topic
+    properties:
+      mskClusterArn: arn:aws:kafka:eu-west-1:123456789012:cluster/events/cluster-uuid
+      topicName: orders
+      startFrom: earliest
 ```
 
+This v1 contract assumes the cluster uses IAM authentication. Stacktape scopes the function role to the exact cluster,
+topic, and consumer group. You remain responsible for the existing cluster's security groups, subnets, routes, and
+on-demand poller connectivity. A public subnet and internet gateway alone are not enough: the event-source poller
+needs NAT or private Lambda and STS endpoints. Secret-based SCRAM and mTLS for an existing MSK ARN are not exposed in
+this contract; use the self-managed form when those credentials are required.
 
-### Mutual TLS (MTLS) authentication
+Cross-account MSK event sources require an AWS-managed VPC connection and are not supported by this v1 event.
 
-MTLS authenticates using a client-side TLS certificate. Use this when your Kafka cluster requires certificate-based identity verification — typically in enterprise or zero-trust environments. The `clientCertificate` secret must contain the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password. Optionally provide a `serverRootCaCertificate` for clusters with self-signed or private CA certificates.
+A native Stacktape cluster in a reused VPC can be used by directly connected workloads, but cannot be a Lambda Kafka
+event source in v1. Lambda and STS private-DNS endpoints are VPC-global and Stacktape will not collide with endpoints
+owned by another project. Use an existing `mskClusterArn` after providing its networking yourself, or use a
+Stacktape-owned VPC outside `us-east-1` for the native cluster-and-trigger path.
 
-MTLS is more complex to set up than SASL — you need to manage certificate rotation and ensure the client certificate is trusted by the broker. Choose MTLS when your organization mandates certificate-based authentication; otherwise, SASL is simpler to operate.
+## Self-managed Kafka
 
+For Kafka outside Amazon MSK, provide bootstrap brokers and a Secrets Manager authentication secret:
 
-Example (TypeScript):
-
-```typescript
-import {
-  defineConfig,
-  LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  KafkaTopicIntegration
-} from 'stacktape';
-export default defineConfig(() => {
-  const consumer = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/consumer.ts'
-    }),
-    events: [
-      new KafkaTopicIntegration({
-        customKafkaConfiguration: {
-          bootstrapServers: ['broker.secure.example.com:9094'],
-          topicName: 'transactions',
-          authentication: {
-            type: 'MTLS',
-            properties: {
-              clientCertificate:
-                'arn:aws:secretsmanager:eu-west-1:123456789012:secret:kafka-client-cert',
-              serverRootCaCertificate:
-                'arn:aws:secretsmanager:eu-west-1:123456789012:secret:kafka-root-ca'
-            }
-          }
-        }
-      })
-    ]
-  });
-
-  return { resources: { consumer } };
-});
+```yaml
+events:
+  - type: kafka-topic
+    properties:
+      customKafkaConfiguration:
+        bootstrapServers:
+          - broker-1.internal.example.com:9096
+          - broker-2.internal.example.com:9096
+        topicName: orders
+        authentication:
+          type: SASL_SCRAM_512_AUTH
+          properties:
+            authenticationSecretArn: arn:aws:secretsmanager:eu-west-1:123456789012:secret:kafka-creds
+      startFrom: latest
+      vpc:
+        subnetIds:
+          - subnet-0123456789abcdef0
+          - subnet-0123456789abcdef1
+        securityGroupIds:
+          - sg-0123456789abcdef0
 ```
 
+The `vpc` block configures the **event-source poller's** network interfaces. Setting `joinDefaultVpc` on the function
+does not make the poller able to reach private brokers. Provide broker-reachable subnets and security groups; multi-AZ
+placement is recommended. The poller's subnets also need NAT or Lambda and STS interface endpoints; add a Secrets Manager endpoint when
+authentication secrets cannot be reached through NAT.
 
-> **Info:** The `serverRootCaCertificate` is optional. Omit it when your brokers use certificates issued by a publicly trusted CA. Include it when brokers use a private or self-signed CA.
+Supported authentication types are `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`, and `MTLS`. For SASL,
+the secret contains `username` and `password`. For mTLS, configure `clientCertificate` and optionally
+`serverRootCaCertificate` secret ARNs. Stacktape grants secret reads. If a secret is encrypted with a customer-managed
+KMS key, add `kms:Decrypt` for that exact key with `iamRoleStatements`; a key ARN cannot be inferred from the secret ARN.
 
+## Batching and consumer groups
 
-## Batching and throughput
+`batchSize` accepts 1–10,000 records. Omit `maxBatchWindowSeconds` to keep Lambda's 500 ms Kafka default. Unlike SQS,
+Kinesis, and DynamoDB mappings, Kafka can use a batch larger than 10 while retaining that sub-second default.
 
-Kafka topic triggers deliver messages in batches. Two properties on `KafkaTopicIntegration` control how batches are formed:
+Omit `consumerGroupId` for the safe default: AWS assigns a unique group to the mapping. The advanced explicit value is
+for retaining an existing group identity or controlled migrations. It is immutable, must be unique across mappings,
+and an existing group's committed offsets take precedence over `startFrom`. Sharing an ID with another active consumer
+splits partitions instead of duplicating messages.
 
-| Property | Default | Maximum | Effect |
-|---|---|---|---|
-| `batchSize` | 100 | 10,000 | Maximum records delivered per invocation |
-| `maxBatchWindowSeconds` | 0.5 | 300 | Maximum seconds to wait before invoking with available records |
+Changing a source, topic, start position, or explicit group replaces the mapping. AWS can reject create-before-delete
+replacement when the old mapping still owns the same explicit group. In that case, remove the mapping in one deployment
+and add it back in the next.
 
-The function is triggered when either `batchSize` is reached or `maxBatchWindowSeconds` expires — whichever comes first. A larger `batchSize` reduces the number of invocations (lower cost) but increases per-invocation latency and memory usage. A longer `maxBatchWindowSeconds` accumulates more records into each batch, which is useful for low-throughput topics where you want to avoid many small invocations.
-
-Increase `batchSize` or `maxBatchWindowSeconds` when you want larger batches and can tolerate more waiting. Keep the default batch window when latency matters more than invocation count.
-
-
-> **Warning:** Kafka records are delivered in batches, so design handlers so that repeated processing of the same record is safe when your broader pipeline can retry or replay messages.
-
-
-## Handler example
-
-Your Lambda function receives a batch of Kafka records as an event object. The event follows the standard AWS Lambda event format for Kafka triggers. AWS Lambda's self-managed Kafka event format encodes record keys and values as base64 strings.
-
-```typescript
-export const handler = async (event: any) => {
-  for (const [topicPartition, records] of Object.entries(event.records)) {
-    for (const record of records as any[]) {
-      const value = Buffer.from(record.value, 'base64').toString('utf-8');
-      const key = record.key ? Buffer.from(record.key, 'base64').toString('utf-8') : null;
-      console.info(`Partition: ${record.partition}, Offset: ${record.offset}, Key: ${key}, Value: ${value}`);
-    }
-  }
-};
+```yaml
+properties:
+  kafkaClusterName: events
+  topicName: orders
+  startFrom: latest
+  batchSize: 100
+  maxBatchWindowSeconds: 1
+  consumerGroupId: orders-worker-v2
 ```
 
-Stacktape does not redefine the AWS Lambda Kafka event payload. Refer to the [AWS Lambda documentation on self-managed Kafka events](https://docs.aws.amazon.com/lambda/latest/dg/with-kafka.html) for the complete event structure.
-
-## Network connectivity
-
-The Kafka brokers specified in `bootstrapServers` must be reachable from the AWS Lambda execution environment. Public broker endpoints are usually reachable without VPC configuration, while private brokers require Lambda VPC access and matching routing/security-group rules.
-
-For private Kafka clusters (running inside a VPC, on-premises, or behind a VPN), configure your Lambda function with VPC access so it can reach the broker endpoints. See the [Lambda function](/resources/compute/lambda-function) page for VPC configuration options. Ensure security groups and routing allow outbound connectivity to your broker endpoints on the configured ports.
-
-## API reference
+Kafka event functions can have a maximum timeout of 840 seconds (14 minutes). Records are delivered at least once;
+make handlers idempotent and decode Kafka record keys and values from base64.
 
 
-### Definition: `KafkaTopicIntegrationProps`
+### Definition: `KafkaTopicIntegration`
 
-The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/events` with definition name `KafkaTopicIntegrationProps`.
+Triggers a function when new messages are available in a Kafka topic.
+
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/events` with definition name `KafkaTopicIntegration`.
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `customKafkaConfiguration` | yes | `CustomKafkaEventSource` | - |
-| `batchSize` | no | `number` | `100` |
-| `maxBatchWindowSeconds` | no | `number` | `0.5` |
+| `properties` | yes | `option-1 \| option-2 \| option-3` | - |
 
 
-## FAQ
-
-### Can I consume from multiple Kafka topics with one Lambda function?
-
-Yes. The Lambda function `events` property accepts an array, so you can add multiple `KafkaTopicIntegration` entries — each pointing to a different topic or a different cluster. This is useful when a single function needs to process events from several sources with the same handler logic.
-
-### What happens if my function fails?
-
-Unlike [Kinesis stream](/resources/triggers/kinesis-events) or [DynamoDB stream](/resources/triggers/dynamodb-streams) triggers, which expose `maximumRetryAttempts` and `onFailure` destination properties, the Kafka topic trigger does not expose these controls. Design your handler to be idempotent, and consider implementing dead-letter logic within your function code if you need to capture persistently failing records.
-
-### How do I create the Secrets Manager secret for authentication?
-
-Create a Secrets Manager secret with the [`stacktape secret:set`](/cli/secret-set) command. For SASL, the secret value must be a JSON object with `username` and `password` keys — set the resulting ARN as `authenticationSecretArn`. For MTLS, the `clientCertificate` property (required) references a secret containing the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password. The `serverRootCaCertificate` property (optional) references a separate secret containing the server's root CA certificate for clusters using a private or self-signed CA.
-
-### Which authentication type should I use: SASL or MTLS?
-
-Stacktape exposes four types: `BASIC_AUTH` (SASL/PLAIN), `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`, and `MTLS`. The SASL variants authenticate with a username and password stored in Secrets Manager and are simpler to operate — pick the variant matching your cluster's configured SASL mechanism (use `BASIC_AUTH` only when the broker requires SASL/PLAIN). Choose `MTLS` (client TLS certificate) only when your organization mandates certificate-based identity, since you then have to manage certificate rotation and broker trust.
-
-### Is there a cost for the Kafka event-source mapping?
-
-There is no Stacktape-specific surcharge for Kafka topic triggers. Costs come from the underlying AWS services — primarily Lambda invocation and duration, plus Secrets Manager for credential retrieval. Refer to the AWS Lambda and AWS Secrets Manager pricing pages for current rates.
-
-### Can I filter messages before they reach my function?
-
-`KafkaTopicIntegrationProps` exposes `customKafkaConfiguration`, `batchSize`, and `maxBatchWindowSeconds`; it does not expose a Stacktape-level filter property for Kafka triggers. If you need filtering, implement it in your handler or route records into narrower Kafka topics before attaching the trigger.
+See [AWS Lambda Kafka event-source documentation](https://docs.aws.amazon.com/lambda/latest/dg/with-kafka.html) for the
+runtime event shape and current service constraints.
 
 ---
 
@@ -43160,6 +44042,15 @@ Synchronous triggers deliver a request and wait for a response. The caller block
 
 [HTTP API Gateway](/resources/networking/http-api-gateway) is the simplest option for serverless APIs — per-request pricing, no idle cost, automatic path and method routing. An [Application Load Balancer](/resources/networking/application-load-balancer) adds advanced routing (header matching, query parameters, source IP filtering) and is the natural choice when you already have an ALB for container workloads. A [Network Load Balancer](/resources/networking/network-load-balancer) operates at Layer 4 (TCP/TLS) and is container-only.
 
+### WebSocket routes
+
+| Trigger | Type value | Works with | Dedicated page |
+|---------|-----------|------------|----------------|
+| WebSocket API Gateway | `websocket-api-gateway` | Lambda functions | [WebSocket API Gateway](/resources/networking/websocket-api-gateway) |
+| AppSync API | `appsync-api` | Lambda functions | [AppSync API](/resources/networking/appsync-api) |
+
+A WebSocket gateway invokes Lambda functions for connection lifecycle and message routes. Messages are one-way by default: handlers send data explicitly through the connection-management API rather than returning an HTTP-style response body.
+
 ### Asynchronous triggers
 
 Asynchronous triggers fall into two delivery patterns. **Push-based** sources — S3, SNS, schedules, EventBridge, CloudWatch Logs, and alarms — push events directly to your function when they occur. **Poll-based** sources — SQS, Kinesis, DynamoDB streams, and Kafka — are consumed through AWS Lambda event-source mappings that continuously poll the source and invoke your function with batches of records. Use either pattern for background processing, reactions to state changes, and scheduled jobs.
@@ -43178,7 +44069,7 @@ Asynchronous triggers fall into two delivery patterns. **Push-based** sources �
 | Kafka topic | `kafka-topic` | Poll | [Kafka topics](/resources/triggers/kafka-topics) |
 
 
-> **Warning:** **S3 triggers** require the `s3EventType` property to specify which event fires the function — for example, `s3:ObjectCreated:*` or `s3:ObjectRemoved:*`. **DynamoDB stream triggers** require streaming to be enabled on the DynamoDB table (via the `streaming` property in your `dynamoDbTables` config) before the trigger can be configured. **Kafka triggers** require an `authentication` field on `customKafkaConfiguration` — either SASL (`BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`) or mTLS.
+> **Warning:** **S3 triggers** require the `s3EventType` property to specify which event fires the function — for example, `s3:ObjectCreated:*` or `s3:ObjectRemoved:*`. **DynamoDB stream triggers** require streaming to be enabled on the DynamoDB table (via the `streaming` property in your `dynamoDbTables` config) before the trigger can be configured. **Kafka triggers** accept a Stacktape Kafka cluster, a same-account and same-region Amazon MSK ARN using IAM authentication, or self-managed broker details with SASL or mTLS credentials.
 
 
 > **Info:** The source also defines an `iot` integration type (with `sql` and `sqlVersion` properties) for AWS IoT topic rules, but this overview does not document it as a supported trigger.
@@ -47948,6 +48839,11 @@ type AgentCoreRuntimeProps = {
   /** Give this resource access to other resources in your stack. */
   connectTo?: Array<string>;
   description?: string;
+  /** Runtime endpoints. Omit this property to create one endpoint named `default`.
+
+An explicit list must contain at least one endpoint and endpoint names must be unique. References to
+`endpointName` and `endpointArn` select the endpoint named `default` when present, or otherwise the first endpoint
+in this list. */
   endpoints?: Array<AgentCoreRuntimeEndpoints>;
   environment?: Array<EnvironmentVar>;
   /** Raw IAM policy statements for permissions not covered by `connectTo`. */
@@ -48037,7 +48933,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -48102,6 +48998,12 @@ export default defineConfig(() => {
 
 - Required: no
 - Type: `Array<AgentCoreRuntimeEndpoint | option-2>`
+
+Runtime endpoints. Omit this property to create one endpoint named `default`.
+
+An explicit list must contain at least one endpoint and endpoint names must be unique. References to
+`endpointName` and `endpointArn` select the endpoint named `default` when present, or otherwise the first endpoint
+in this list.
 
 Choices:
 - `AgentCoreRuntimeEndpoint` (`AgentCoreRuntimeEndpointConfig`). Properties: `name: string`, `description?: string`, `runtimeVersion?: string`.
@@ -55986,6 +56888,444 @@ export default defineConfig(() => {
 
 ---
 
+# AppSyncApi API Reference
+
+Source: `packages/config/src/appsync-apis.ts`
+Route: `/config-reference/appsync-apis`
+
+Managed GraphQL API powered by AWS AppSync.
+
+## TypeScript definition
+
+```typescript
+import type { AppSyncApiProps } from 'stacktape';
+
+type AppSyncApi = {
+  properties: AppSyncApiProps;
+  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */
+  overrides?: unknown;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `AppSyncApiProps`
+
+## Property: `overrides`
+
+- Required: no
+- Type: `unknown`
+
+Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
+
+Use dot-notation paths to override specific properties on any child resource.
+Find resource logical IDs with `stacktape info:stack`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  mainDb:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('db-password')
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          primaryInstance:
+            instanceSize: db.t3.micro
+    overrides:
+      MainDbDatabaseInstance:
+        Properties.StorageEncrypted: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const mainDb = new RelationalDatabase({
+    credentials: { masterUserPassword: $Secret('db-password') },
+    engine: new RdsEnginePostgres({
+      version: '16.2',
+      primaryInstance: { instanceSize: 'db.t3.micro' }
+    }),
+    overrides: {
+      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+    }
+  });
+
+  return { resources: { mainDb } };
+});
+```
+
+---
+
+# AppSyncApiKeyAuthenticationProps API Reference
+
+Source: `packages/config/src/appsync-apis.ts`
+Route: `/config-reference/appsync-apis`
+
+## TypeScript definition
+
+```typescript
+type AppSyncApiKeyAuthenticationProps = {
+  /** Fixed RFC 3339 timestamp when the API key expires. */
+  expiresAt: string;
+};
+```
+
+## Property: `expiresAt`
+
+- Required: yes
+- Type: `string`
+
+Fixed RFC 3339 timestamp when the API key expires.
+
+The timestamp must include a timezone and be between 1 and 365 days in the future when you deploy. AppSync rounds
+expiration down to the hour. Stacktape never silently extends the key on later deployments, so changing this value
+is an explicit security decision.
+
+**Example:** `2027-01-31T00:00:00Z`
+
+---
+
+# AppSyncApiLogging API Reference
+
+Source: `packages/config/src/appsync-apis.ts`
+Route: `/config-reference/appsync-apis`
+
+## TypeScript definition
+
+```typescript
+import type { DatadogLogForwarding, HighlightLogForwarding, HttpEndpointLogForwarding } from 'stacktape';
+
+type AppSyncApiLogging = {
+  /** Disable AppSync field logs. */
+  disabled?: boolean;
+  /** Which resolver results AppSync writes to CloudWatch Logs.
+
+`error` is suitable for normal operation. `all` is useful temporarily while debugging and can generate much more
+log data. */
+  fieldLogLevel?: "all" | "error";
+  /** Include request headers, variables, and full resolver context in logs.
+
+This content can contain credentials or personal data. Enable it only when you understand that exposure. */
+  includeVerboseContent?: boolean;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
+  /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
+  logForwarding?: AppSyncApiLoggingLogForwarding;
+  /** How many days to keep AppSync field logs. */
+  retentionDays?: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90;
+};
+
+/** Union choices used by the properties above. */
+type AppSyncApiLoggingLogForwarding =
+  | HttpEndpointLogForwarding
+  | HighlightLogForwarding
+  | DatadogLogForwarding;
+```
+
+## Property: `disabled`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Disable AppSync field logs.
+
+## Property: `fieldLogLevel`
+
+- Required: no
+- Type: `string: "all" | "error"`
+- Default: `error`
+
+Which resolver results AppSync writes to CloudWatch Logs.
+
+`error` is suitable for normal operation. `all` is useful temporarily while debugging and can generate much more
+log data.
+
+## Property: `includeVerboseContent`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Include request headers, variables, and full resolver context in logs.
+
+This content can contain credentials or personal data. Enable it only when you understand that exposure.
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
+});
+```
+
+## Property: `logForwarding`
+
+- Required: no
+- Type: `http-endpoint | highlight | datadog`
+
+Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).
+
+Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.
+
+Choices:
+- `http-endpoint` (`HttpEndpointLogForwarding`). Properties: `endpointUrl: string`, `gzipEncodingEnabled?: boolean`, `parameters?: unknown`, `retryDuration?: number`, `accessKey?: string`.
+- `highlight` (`HighlightLogForwarding`). Properties: `projectId: string`, `endpointUrl?: string`.
+- `datadog` (`DatadogLogForwarding`). Properties: `apiKey: string`, `endpointUrl?: string`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
+      memory: 512
+      timeout: 10
+      logging:
+        retentionDays: 90
+        logForwarding:
+          type: datadog
+          properties:
+            apiKey: $Secret('datadog.apiKey')
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiFunction = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+    memory: 512,
+    timeout: 10,
+    logging: {
+      retentionDays: 90,
+      logForwarding: {
+        type: 'datadog',
+        properties: { apiKey: $Secret('datadog.apiKey') }
+      }
+    }
+  });
+  return { resources: { apiFunction } };
+});
+```
+
+## Property: `retentionDays`
+
+- Required: no
+- Type: `number: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90`
+- Default: `30`
+
+How many days to keep AppSync field logs.
+
+---
+
+# AppSyncApiProps API Reference
+
+Source: `packages/config/src/appsync-apis.ts`
+Route: `/config-reference/appsync-apis`
+
+## TypeScript definition
+
+```typescript
+import type { AppSyncApiLogging, DomainConfiguration } from 'stacktape';
+
+type AppSyncApiProps = {
+  /** Authentication required by every GraphQL request. */
+  authentication: AppSyncApiAuthentication;
+  /** Optional custom domain for the GraphQL API. */
+  customDomain?: DomainConfiguration;
+  /** Allow clients and GraphQL tooling to inspect the schema.
+
+Disable this only when your security policy requires it; disabling introspection does not replace authorization. */
+  introspectionEnabled?: boolean;
+  /** Field-level AppSync logging. */
+  logging?: AppSyncApiLogging;
+  /** Maximum nested selection depth accepted by a GraphQL operation.
+
+Set to `0` only if you intentionally want no depth limit. */
+  queryDepthLimit?: number;
+  /** Maximum number of resolvers a single GraphQL operation can execute.
+
+Set to `0` only if you intentionally want no resolver-count limit. */
+  resolverCountLimit?: number;
+  /** Path to the GraphQL schema. */
+  schemaFilePath?: string;
+  /** Trace requests with AWS X-Ray. */
+  xrayEnabled?: boolean;
+};
+
+/** Union choices used by the properties above. */
+type AppSyncApiAuthentication =
+  | "aws-iam"
+  | "user-auth-pool"
+  | "api-key";
+```
+
+## Property: `authentication`
+
+- Required: yes
+- Type: `aws-iam | user-auth-pool | api-key`
+
+Authentication required by every GraphQL request.
+
+Choose IAM for service-to-service APIs, a Stacktape user auth pool for application users, or an expiring API key
+for deliberately public and short-lived access. AppSync APIs have one authentication mode in this version.
+
+Choices:
+- `aws-iam`
+- `user-auth-pool`. Properties: `userAuthPoolName: string`.
+- `api-key`. Properties: `expiresAt: string`.
+
+## Property: `customDomain`
+
+- Required: no
+- Type: `DomainConfiguration`
+
+Optional custom domain for the GraphQL API.
+
+AppSync requires its ACM certificate in `us-east-1`, even when the API is deployed in another region. Stacktape
+selects the correct managed certificate automatically. If you provide `customCertificateArn`, it must also be
+from `us-east-1`.
+
+## Property: `introspectionEnabled`
+
+- Required: no
+- Type: `boolean`
+- Default: `true`
+
+Allow clients and GraphQL tooling to inspect the schema.
+
+Disable this only when your security policy requires it; disabling introspection does not replace authorization.
+
+## Property: `logging`
+
+- Required: no
+- Type: `AppSyncApiLogging`
+
+Field-level AppSync logging.
+
+Errors are logged by default without request headers, variables, or full resolver context. Enable verbose content
+only while diagnosing a problem because it can contain sensitive application data.
+
+## Property: `queryDepthLimit`
+
+- Required: no
+- Type: `number`
+- Default: `10`
+
+Maximum nested selection depth accepted by a GraphQL operation.
+
+Set to `0` only if you intentionally want no depth limit.
+
+## Property: `resolverCountLimit`
+
+- Required: no
+- Type: `number`
+- Default: `1000`
+
+Maximum number of resolvers a single GraphQL operation can execute.
+
+Set to `0` only if you intentionally want no resolver-count limit.
+
+## Property: `schemaFilePath`
+
+- Required: no
+- Type: `string`
+- Default: `schema.graphql`
+
+Path to the GraphQL schema.
+
+The path is relative to the Stacktape project directory. Stacktape checks the schema syntax and verifies every
+configured Lambda resolver field before deployment.
+
+## Property: `xrayEnabled`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Trace requests with AWS X-Ray.
+
+---
+
+# AppSyncUserAuthPoolAuthenticationProps API Reference
+
+Source: `packages/config/src/appsync-apis.ts`
+Route: `/config-reference/appsync-apis`
+
+## TypeScript definition
+
+```typescript
+type AppSyncUserAuthPoolAuthenticationProps = {
+  /** Name of the `user-auth-pool` resource that authenticates GraphQL requests. */
+  userAuthPoolName: string;
+};
+```
+
+## Property: `userAuthPoolName`
+
+- Required: yes
+- Type: `string`
+
+Name of the `user-auth-pool` resource that authenticates GraphQL requests.
+
+---
+
 # AstroWeb API Reference
 
 Source: `packages/config/src/astro-web.ts`
@@ -56350,7 +57690,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -57129,6 +58469,12 @@ import type { DatadogLogForwarding, HighlightLogForwarding, HttpEndpointLogForwa
 type BastionLogging = {
   /** Disable this log type. Stops sending to CloudWatch. */
   disabled?: boolean;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: BastionLoggingLogForwarding;
   /** Days to keep logs in CloudWatch before automatic deletion. */
@@ -57181,6 +58527,49 @@ export default defineConfig(() => {
     }
   });
   return { resources: { bastion } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -57863,6 +59252,12 @@ import type { DatadogLogForwarding, HighlightLogForwarding, HttpEndpointLogForwa
 type BatchJobLogging = {
   /** Disable logging to CloudWatch. */
   disabled?: boolean;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: BatchJobLoggingLogForwarding;
   /** How many days to keep logs. */
@@ -57922,6 +59317,49 @@ export default defineConfig(() => {
     }
   });
   return { resources: { quietJob } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -58224,7 +59662,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -67892,7 +69330,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -74259,7 +75697,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -74687,6 +76125,128 @@ export default defineConfig(() => {
   return { resources: { longSeed } };
 });
 ```
+
+---
+
+# DsqlDatabase API Reference
+
+Source: `packages/config/src/dsql-databases.ts`
+Route: `/config-reference/dsql-database`
+
+Serverless PostgreSQL-compatible database powered by Amazon Aurora DSQL.
+
+Resource type: `dsql-database`
+
+## TypeScript definition
+
+```typescript
+import type { DsqlDatabaseProps } from 'stacktape';
+
+type DsqlDatabase = {
+  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */
+  overrides?: unknown;
+  properties?: DsqlDatabaseProps;
+};
+```
+
+## Property: `overrides`
+
+- Required: no
+- Type: `unknown`
+
+Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
+
+Use dot-notation paths to override specific properties on any child resource.
+Find resource logical IDs with `stacktape info:stack`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  mainDb:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('db-password')
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          primaryInstance:
+            instanceSize: db.t3.micro
+    overrides:
+      MainDbDatabaseInstance:
+        Properties.StorageEncrypted: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const mainDb = new RelationalDatabase({
+    credentials: { masterUserPassword: $Secret('db-password') },
+    engine: new RdsEnginePostgres({
+      version: '16.2',
+      primaryInstance: { instanceSize: 'db.t3.micro' }
+    }),
+    overrides: {
+      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+    }
+  });
+
+  return { resources: { mainDb } };
+});
+```
+
+## Property: `properties`
+
+- Required: no
+- Type: `DsqlDatabaseProps`
+
+---
+
+# DsqlDatabaseProps API Reference
+
+Source: `packages/config/src/dsql-databases.ts`
+Route: `/config-reference/dsql-database`
+
+Resource type: `dsql-database`
+
+## TypeScript definition
+
+```typescript
+type DsqlDatabaseProps = {
+  /** Prevent the cluster from being deleted. */
+  deletionProtection?: boolean;
+  /** ARN of a customer-managed KMS key used to encrypt the cluster. */
+  kmsKeyArn?: string;
+};
+```
+
+## Property: `deletionProtection`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Prevent the cluster from being deleted.
+
+Enable this for production data. You must disable it before intentionally removing the resource.
+
+DSQL does not create automatic backups, point-in-time recovery, or a final snapshot through this resource, so a
+deletion can be irreversible unless you configured AWS Backup separately.
+
+## Property: `kmsKeyArn`
+
+- Required: no
+- Type: `string`
+
+ARN of a customer-managed KMS key used to encrypt the cluster.
+
+Omit this to use an AWS-owned key, which is the simplest choice for most applications. Supplying your own key
+gives you control over its policy and lifecycle, and makes keeping that key available your responsibility.
 
 ---
 
@@ -76971,6 +78531,80 @@ export default defineConfig(() => {
 
 ---
 
+# EmailSender API Reference
+
+Source: `packages/config/src/email-senders.ts`
+Route: `/config-reference/email-senders`
+
+Verified Amazon SES sender identity shared safely across projects and stages.
+
+## TypeScript definition
+
+```typescript
+import type { EmailSenderProps } from 'stacktape';
+
+type EmailSender = {
+  properties: EmailSenderProps;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `EmailSenderProps`
+
+---
+
+# EmailSenderProps API Reference
+
+Source: `packages/config/src/email-senders.ts`
+Route: `/config-reference/email-senders`
+
+## TypeScript definition
+
+```typescript
+type EmailSenderProps = {
+  /** Domain or email address to verify as an SES sending identity. */
+  identity: string;
+  /** Existing SES configuration-set name. */
+  configurationSetName?: string;
+  /** Whether Stacktape owns the SES identity. */
+  manageIdentity?: boolean;
+};
+```
+
+## Property: `identity`
+
+- Required: yes
+- Type: `string`
+
+Domain or email address to verify as an SES sending identity.
+
+Use a domain such as `example.com` to send from any address on that domain, or an exact address such as
+`billing@example.com` when you only control that mailbox.
+
+## Property: `configurationSetName`
+
+- Required: no
+- Type: `string`
+
+Existing SES configuration-set name.
+
+Only applies when `manageIdentity` is `false`. Omit it when applications send without a configuration set.
+
+## Property: `manageIdentity`
+
+- Required: no
+- Type: `boolean`
+- Default: `true`
+
+Whether Stacktape owns the SES identity.
+
+Keep the default for the simplest setup and automatic reuse between projects and stages. Set this to `false`
+only when the identity is managed outside Stacktape.
+
+---
+
 # EventBus API Reference
 
 Source: `packages/config/src/event-buses.ts`
@@ -78004,6 +79638,66 @@ export default defineConfig(() => {
   return { resources: { publicAlb, apiFunction } };
 });
 ```
+
+---
+
+# AppSyncApiIntegration API Reference
+
+Source: `packages/config/src/events.ts`
+Route: `/config-reference/events`
+
+Resolves one GraphQL field with a Lambda function through AWS AppSync.
+
+## TypeScript definition
+
+```typescript
+import type { AppSyncApiIntegrationProps } from 'stacktape';
+
+type AppSyncApiIntegration = {
+  properties: AppSyncApiIntegrationProps;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `AppSyncApiIntegrationProps`
+
+---
+
+# AppSyncApiIntegrationProps API Reference
+
+Source: `packages/config/src/events.ts`
+Route: `/config-reference/events`
+
+## TypeScript definition
+
+```typescript
+type AppSyncApiIntegrationProps = {
+  /** Name of the `appsync-api` resource. */
+  appsyncApiName: string;
+  /** GraphQL field handled by this function, written as `Type.field`.
+
+**Examples:** `Query.user`, `Mutation.createOrder` */
+  field: string;
+};
+```
+
+## Property: `appsyncApiName`
+
+- Required: yes
+- Type: `string`
+
+Name of the `appsync-api` resource.
+
+## Property: `field`
+
+- Required: yes
+- Type: `string`
+
+GraphQL field handled by this function, written as `Type.field`.
+
+**Examples:** `Query.user`, `Mutation.createOrder`
 
 ---
 
@@ -80249,6 +81943,38 @@ For details on the differences between formats, see the [AWS documentation](http
 
 ---
 
+# KafkaEventSourceVpcConfig API Reference
+
+Source: `packages/config/src/events.ts`
+Route: `/config-reference/events`
+
+## TypeScript definition
+
+```typescript
+type KafkaEventSourceVpcConfig = {
+  /** Security-group IDs attached to Lambda's Kafka poller network interfaces. */
+  securityGroupIds: Array<string>;
+  /** Subnet IDs through which Lambda's poller can reach the brokers. Multi-AZ placement is recommended. */
+  subnetIds: Array<string>;
+};
+```
+
+## Property: `securityGroupIds`
+
+- Required: yes
+- Type: `Array<string>`
+
+Security-group IDs attached to Lambda's Kafka poller network interfaces.
+
+## Property: `subnetIds`
+
+- Required: yes
+- Type: `Array<string>`
+
+Subnet IDs through which Lambda's poller can reach the brokers. Multi-AZ placement is recommended.
+
+---
+
 # KafkaMTLSAuth API Reference
 
 Source: `packages/config/src/events.ts`
@@ -80385,70 +82111,26 @@ Triggers a function when new messages are available in a Kafka topic.
 ## TypeScript definition
 
 ```typescript
-import type { KafkaTopicIntegrationProps } from 'stacktape';
-
 type KafkaTopicIntegration = {
-  properties: KafkaTopicIntegrationProps;
+  properties: KafkaTopicIntegrationProperties;
 };
+
+/** Union choices used by the properties above. */
+type KafkaTopicIntegrationProperties =
+  | "option-1"
+  | "option-2"
+  | "option-3";
 ```
 
 ## Property: `properties`
 
 - Required: yes
-- Type: `KafkaTopicIntegrationProps`
+- Type: `option-1 | option-2 | option-3`
 
----
-
-# KafkaTopicIntegrationProps API Reference
-
-Source: `packages/config/src/events.ts`
-Route: `/config-reference/events`
-
-## TypeScript definition
-
-```typescript
-import type { CustomKafkaEventSource } from 'stacktape';
-
-type KafkaTopicIntegrationProps = {
-  /** The details of your Kafka cluster. */
-  customKafkaConfiguration: CustomKafkaEventSource;
-  /** The maximum number of records to process in a single batch. */
-  batchSize?: number;
-  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */
-  maxBatchWindowSeconds?: number;
-};
-```
-
-## Property: `customKafkaConfiguration`
-
-- Required: yes
-- Type: `CustomKafkaEventSource`
-
-The details of your Kafka cluster.
-
-Specifies the bootstrap servers, topic name, and authentication used by the self-managed Kafka event source.
-This is required because self-managed Kafka is the only Kafka source currently supported by Stacktape.
-
-## Property: `batchSize`
-
-- Required: no
-- Type: `number`
-- Default: `100`
-
-The maximum number of records to process in a single batch.
-
-The function will be invoked with up to this many records. Maximum is 10,000.
-
-## Property: `maxBatchWindowSeconds`
-
-- Required: no
-- Type: `number`
-- Default: `0.5`
-
-The maximum time (in seconds) to wait before invoking the function with a batch of records.
-
-The function will be triggered when either the `batchSize` is reached or this time window expires.
-Maximum is 300 seconds.
+Choices:
+- `option-1`. Properties: `kafkaClusterName: string`, `topicName: string`, `startFrom: string: "earliest" | "latest"`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `consumerGroupId?: string`.
+- `option-2`. Properties: `mskClusterArn: string`, `topicName: string`, `startFrom: string: "earliest" | "latest"`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `consumerGroupId?: string`.
+- `option-3`. Properties: `customKafkaConfiguration: CustomKafkaEventSource`, `vpc?: KafkaEventSourceVpcConfig`, `startFrom: string: "earliest" | "latest"`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `consumerGroupId?: string`.
 
 ---
 
@@ -81434,6 +83116,132 @@ You must specify either `sqsQueueName` or `sqsQueueArn`.
 
 ---
 
+# WebSocketApiIntegration API Reference
+
+Source: `packages/config/src/events.ts`
+Route: `/config-reference/events`
+
+Routes a WebSocket lifecycle event or message to a Lambda function.
+
+## TypeScript definition
+
+```typescript
+import type { WebSocketApiIntegrationProps } from 'stacktape';
+
+type WebSocketApiIntegration = {
+  properties: WebSocketApiIntegrationProps;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `WebSocketApiIntegrationProps`
+
+---
+
+# WebSocketApiIntegrationProps API Reference
+
+Source: `packages/config/src/events.ts`
+Route: `/config-reference/events`
+
+## TypeScript definition
+
+```typescript
+type WebSocketApiIntegrationProps = {
+  /** Route key handled by this function, for example `sendMessage`, `$connect`, or `$default`. */
+  routeKey: string;
+  /** Name of the `websocket-api-gateway` resource. */
+  websocketApiGatewayName: string;
+  /** Optional authorization for new connections. */
+  authorizer?: WebSocketApiIntegrationAuthorizer;
+  /** Send the Lambda handler's returned `body` directly back to the client that invoked this route. */
+  returnResponse?: boolean;
+};
+
+/** Union choices used by the properties above. */
+type WebSocketApiIntegrationAuthorizer =
+  | "aws-iam"
+  | "lambda";
+```
+
+## Property: `routeKey`
+
+- Required: yes
+- Type: `string`
+
+Route key handled by this function, for example `sendMessage`, `$connect`, or `$default`.
+
+## Property: `websocketApiGatewayName`
+
+- Required: yes
+- Type: `string`
+
+Name of the `websocket-api-gateway` resource.
+
+## Property: `authorizer`
+
+- Required: no
+- Type: `aws-iam | lambda`
+
+Optional authorization for new connections.
+
+Authorizers are supported only on the `$connect` route. Existing connections are not re-authorized for later
+messages. Use `aws-iam` for SigV4 clients or a Lambda function for application-specific authentication.
+
+Choices:
+- `aws-iam`
+- `lambda`. Properties: `functionName: string`, `identitySources?: Array<string>`.
+
+## Property: `returnResponse`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Send the Lambda handler's returned `body` directly back to the client that invoked this route.
+
+Keep this disabled for lifecycle routes, one-way events, broadcasts, and replies sent through the API Gateway
+Management API. Enable it on `$default` or a custom message route for simple request-response interactions where
+the handler should answer only the calling connection.
+
+---
+
+# WebSocketLambdaAuthorizerProps API Reference
+
+Source: `packages/config/src/events.ts`
+Route: `/config-reference/events`
+
+## TypeScript definition
+
+```typescript
+type WebSocketLambdaAuthorizerProps = {
+  /** Name of the Stacktape Lambda function that authorizes connections. */
+  functionName: string;
+  /** Request values passed to the authorizer. */
+  identitySources?: Array<string>;
+};
+```
+
+## Property: `functionName`
+
+- Required: yes
+- Type: `string`
+
+Name of the Stacktape Lambda function that authorizes connections.
+
+## Property: `identitySources`
+
+- Required: no
+- Type: `Array<string>`
+- Default: `["route.request.header.Authorization"]`
+
+Request values passed to the authorizer.
+
+WebSocket identity sources use `route.request.header.*` or `route.request.querystring.*` expressions.
+
+---
+
 # LambdaDeploymentConfig API Reference
 
 Source: `packages/config/src/functions.ts`
@@ -82048,6 +83856,12 @@ import type { DatadogLogForwarding, HighlightLogForwarding, HttpEndpointLogForwa
 type LambdaFunctionLogging = {
   /** Disable CloudWatch logging entirely. */
   disabled?: boolean;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: LambdaFunctionLoggingLogForwarding;
   /** How many days to keep logs. Longer retention = higher storage cost. */
@@ -82097,6 +83911,49 @@ export default defineConfig(() => {
     }
   });
   return { resources: { highVolumeFunction } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -82208,7 +84065,7 @@ Resource type: `function`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';
+import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement, WebSocketApiIntegration } from 'stacktape';
 
 type LambdaFunctionProps = {
   /** How your code is built and packaged for deployment. */
@@ -82276,6 +84133,8 @@ type LambdaFunctionEvents =
   | AlarmIntegration
   | CloudwatchLogIntegration
   | HttpApiIntegration
+  | AppSyncApiIntegration
+  | WebSocketApiIntegration
   | EventBusIntegration;
 
 type LambdaFunctionVolumeMounts =
@@ -82524,7 +84383,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -82770,7 +84629,7 @@ export default defineConfig(() => {
 ## Property: `events`
 
 - Required: no
-- Type: `Array<application-load-balancer | kafka-topic | sns | sqs | kinesis-stream | dynamo-db-stream | s3 | schedule | cloudwatch-alarm | cloudwatch-log | http-api-gateway | event-bus>`
+- Type: `Array<application-load-balancer | kafka-topic | sns | sqs | kinesis-stream | dynamo-db-stream | s3 | schedule | cloudwatch-alarm | cloudwatch-log | http-api-gateway | appsync-api | websocket-api-gateway | event-bus>`
 
 What triggers this function: HTTP requests, file uploads, queues, schedules, etc.
 
@@ -82779,7 +84638,7 @@ The event payload your function receives depends on the trigger type.
 
 Choices:
 - `application-load-balancer` (`ApplicationLoadBalancerIntegration`) — Triggers a function when an Application Load Balancer receives a matching HTTP request.. Properties: `loadBalancerName: string`, `listenerPort?: number`, `priority: number`, `paths?: Array<string>`, `methods?: Array<string>`, `hosts?: Array<string>`, `headers?: Array<LbHeaderCondition>`, `queryParams?: Array<LbQueryParamCondition>`, `sourceIps?: Array<string>`.
-- `kafka-topic` (`KafkaTopicIntegration`) — Triggers a function when new messages are available in a Kafka topic.. Properties: `customKafkaConfiguration: CustomKafkaEventSource`, `batchSize?: number`, `maxBatchWindowSeconds?: number`.
+- `kafka-topic` (`KafkaTopicIntegration`) — Triggers a function when new messages are available in a Kafka topic.
 - `sns` (`SnsIntegration`) — Triggers a function when a new message is published to an SNS topic.. Properties: `snsTopicName?: string`, `snsTopicArn?: string`, `filterPolicy?: unknown`, `onDeliveryFailure?: SnsOnDeliveryFailure`.
 - `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`.
 - `kinesis-stream` (`KinesisIntegration`) — Triggers a function when new records are available in a Kinesis Data Stream.. Properties: `kinesisStreamName?: string`, `streamArn?: string`, `consumerArn?: string`, `autoCreateConsumer?: boolean`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string: "LATEST" | "TRIM_HORIZON"`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`.
@@ -82789,6 +84648,8 @@ Choices:
 - `cloudwatch-alarm` (`AlarmIntegration`). Properties: `alarmName: string`.
 - `cloudwatch-log` (`CloudwatchLogIntegration`) — Triggers a function when new log records appear in a CloudWatch log group.. Properties: `logGroupArn: string`, `filter?: string`.
 - `http-api-gateway` (`HttpApiIntegration`) — Triggers a function when an HTTP API Gateway receives a matching request.. Properties: `httpApiGatewayName: string`, `method: string: "*" | "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT"`, `path: string`, `authorizer?: cognito | lambda`, `payloadFormat?: string: "1.0" | "2.0"`.
+- `appsync-api` (`AppSyncApiIntegration`) — Resolves one GraphQL field with a Lambda function through AWS AppSync.. Properties: `appsyncApiName: string`, `field: string`.
+- `websocket-api-gateway` (`WebSocketApiIntegration`) — Routes a WebSocket lifecycle event or message to a Lambda function.. Properties: `websocketApiGatewayName: string`, `routeKey: string`, `authorizer?: aws-iam | lambda`, `returnResponse?: boolean`.
 - `event-bus` (`EventBusIntegration`) — Triggers a batch job when an event matching a specified pattern is received by an event bus.. Properties: `eventBusArn?: string`, `eventBusName?: string`, `useDefaultBus?: boolean`, `eventPattern: EventBusIntegrationPattern`, `onDeliveryFailure?: EventBusOnDeliveryFailure`, `input?: unknown`, `inputPath?: string`, `inputTransformer?: EventInputTransformer`.
 
 ### Example 1 (yaml)
@@ -89710,6 +91571,12 @@ type HttpApiAccessLogsConfig = {
   disabled?: boolean;
   /** Log format. Logs include: requestId, IP, method, status, protocol, responseLength. */
   format?: "CLF" | "CSV" | "JSON" | "XML";
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: HttpApiAccessLogsConfigLogForwarding;
   /** How many days to keep logs. */
@@ -89828,6 +91695,49 @@ export default defineConfig(() => {
     events: [new HttpApiIntegration({ httpApiGatewayName: 'apiGateway', path: '/{proxy+}', method: '*' })]
   });
   return { resources: { apiGateway, apiHandler } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -90867,6 +92777,58 @@ export default defineConfig(() => {
   return { resources: { apiGateway, apiHandler } };
 });
 ```
+
+---
+
+# KafkaCluster API Reference
+
+Source: `packages/config/src/kafka-clusters.ts`
+Route: `/config-reference/kafka-clusters`
+
+Cost warning: an MSK Serverless cluster has a substantial always-on charge.
+
+## TypeScript definition
+
+```typescript
+import type { KafkaClusterProps } from 'stacktape';
+
+type KafkaCluster = {
+  properties?: KafkaClusterProps;
+};
+```
+
+## Property: `properties`
+
+- Required: no
+- Type: `KafkaClusterProps`
+
+---
+
+# KafkaClusterProps API Reference
+
+Source: `packages/config/src/kafka-clusters.ts`
+Route: `/config-reference/kafka-clusters`
+
+## TypeScript definition
+
+```typescript
+import type { DevModeConfig } from 'stacktape';
+
+type KafkaClusterProps = {
+  /** Development-mode behavior. */
+  dev?: DevModeConfig;
+};
+```
+
+## Property: `dev`
+
+- Required: no
+- Type: `DevModeConfig`
+
+Development-mode behavior.
+
+Stacktape does not emulate Kafka locally and does not deploy this costly cluster during `stacktape dev` by
+default. Set `remote: true` only when the dev session should use a cluster deployed in AWS.
 
 ---
 
@@ -92054,6 +94016,12 @@ Route: `/config-reference/log-forwarding`
 import type { DatadogLogForwarding, HighlightLogForwarding, HttpEndpointLogForwarding } from 'stacktape';
 
 type LogForwardingBase = {
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: LogForwardingBaseLogForwarding;
 };
@@ -92063,6 +94031,49 @@ type LogForwardingBaseLogForwarding =
   | HttpEndpointLogForwarding
   | HighlightLogForwarding
   | DatadogLogForwarding;
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
+});
 ```
 
 ## Property: `logForwarding`
@@ -95014,6 +97025,12 @@ import type { DatadogLogForwarding, HighlightLogForwarding, HttpEndpointLogForwa
 type ContainerWorkloadContainerLogging = {
   /** Disable logging to CloudWatch. */
   disabled?: boolean;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: ContainerWorkloadContainerLoggingLogForwarding;
   /** How many days to keep logs. */
@@ -95072,6 +97089,49 @@ export default defineConfig(() => {
     resources: { cpu: 0.5, memory: 1024 }
   });
   return { resources: { app } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -95674,7 +97734,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -98072,7 +100132,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -98786,7 +100846,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -100289,6 +102349,12 @@ Resource type: `open-search-domain`
 type OpenSearchLogRetentionSettings = {
   /** Disable this log type. */
   disabled?: boolean;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Days to keep logs in CloudWatch before automatic deletion. */
   retentionDays?: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90;
 };
@@ -100347,6 +102413,49 @@ export default defineConfig(() => {
     }
   });
   return { resources: { searchEngine } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -100953,7 +103062,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -102813,6 +104922,12 @@ type RedisLogging = {
   disabled?: boolean;
   /** Log format. */
   format?: "json" | "text";
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: RedisLoggingLogForwarding;
   /** How many days to keep logs. */
@@ -102903,6 +105018,49 @@ export default defineConfig(() => {
   });
 
   return { resources: { redis } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -105683,6 +107841,12 @@ type RelationalDatabaseLogging = {
   disabled?: boolean;
   /** Fine-grained logging settings (PostgreSQL: slow queries, statements; MySQL: audit events). */
   engineSpecificOptions?: RelationalDatabaseLoggingEngineSpecificOptions;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: RelationalDatabaseLoggingLogForwarding;
   /** Which log types to export. Depends on engine:
@@ -105815,6 +107979,49 @@ const mainDatabase = new RelationalDatabase({
   }
 });
 return { resources: { mainDatabase } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -106843,7 +109050,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -107979,7 +110186,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -112339,7 +114546,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -113017,7 +115224,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -122594,7 +124801,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -123484,6 +125691,285 @@ export default defineConfig(() => {
 
 ---
 
+# WebSocketApiAccessLogsConfig API Reference
+
+Source: `packages/config/src/websocket-api-gateways.ts`
+Route: `/config-reference/websocket-api-gateways`
+
+## TypeScript definition
+
+```typescript
+import type { DatadogLogForwarding, HighlightLogForwarding, HttpEndpointLogForwarding } from 'stacktape';
+
+type WebSocketApiAccessLogsConfig = {
+  /** Disable gateway access logs. */
+  disabled?: boolean;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
+  /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
+  logForwarding?: WebSocketApiAccessLogsConfigLogForwarding;
+  /** How many days to keep gateway access logs. */
+  retentionDays?: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90;
+};
+
+/** Union choices used by the properties above. */
+type WebSocketApiAccessLogsConfigLogForwarding =
+  | HttpEndpointLogForwarding
+  | HighlightLogForwarding
+  | DatadogLogForwarding;
+```
+
+## Property: `disabled`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Disable gateway access logs.
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
+});
+```
+
+## Property: `logForwarding`
+
+- Required: no
+- Type: `http-endpoint | highlight | datadog`
+
+Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).
+
+Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.
+
+Choices:
+- `http-endpoint` (`HttpEndpointLogForwarding`). Properties: `endpointUrl: string`, `gzipEncodingEnabled?: boolean`, `parameters?: unknown`, `retryDuration?: number`, `accessKey?: string`.
+- `highlight` (`HighlightLogForwarding`). Properties: `projectId: string`, `endpointUrl?: string`.
+- `datadog` (`DatadogLogForwarding`). Properties: `apiKey: string`, `endpointUrl?: string`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
+      memory: 512
+      timeout: 10
+      logging:
+        retentionDays: 90
+        logForwarding:
+          type: datadog
+          properties:
+            apiKey: $Secret('datadog.apiKey')
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiFunction = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+    memory: 512,
+    timeout: 10,
+    logging: {
+      retentionDays: 90,
+      logForwarding: {
+        type: 'datadog',
+        properties: { apiKey: $Secret('datadog.apiKey') }
+      }
+    }
+  });
+  return { resources: { apiFunction } };
+});
+```
+
+## Property: `retentionDays`
+
+- Required: no
+- Type: `number: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90`
+- Default: `30`
+
+How many days to keep gateway access logs.
+
+---
+
+# WebSocketApiGateway API Reference
+
+Source: `packages/config/src/websocket-api-gateways.ts`
+Route: `/config-reference/websocket-api-gateways`
+
+Managed, pay-per-use WebSocket API for real-time applications.
+
+## TypeScript definition
+
+```typescript
+import type { WebSocketApiGatewayProps } from 'stacktape';
+
+type WebSocketApiGateway = {
+  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */
+  overrides?: unknown;
+  properties?: WebSocketApiGatewayProps;
+};
+```
+
+## Property: `overrides`
+
+- Required: no
+- Type: `unknown`
+
+Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
+
+Use dot-notation paths to override specific properties on any child resource.
+Find resource logical IDs with `stacktape info:stack`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  mainDb:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('db-password')
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          primaryInstance:
+            instanceSize: db.t3.micro
+    overrides:
+      MainDbDatabaseInstance:
+        Properties.StorageEncrypted: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const mainDb = new RelationalDatabase({
+    credentials: { masterUserPassword: $Secret('db-password') },
+    engine: new RdsEnginePostgres({
+      version: '16.2',
+      primaryInstance: { instanceSize: 'db.t3.micro' }
+    }),
+    overrides: {
+      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+    }
+  });
+
+  return { resources: { mainDb } };
+});
+```
+
+## Property: `properties`
+
+- Required: no
+- Type: `WebSocketApiGatewayProps`
+
+---
+
+# WebSocketApiGatewayProps API Reference
+
+Source: `packages/config/src/websocket-api-gateways.ts`
+Route: `/config-reference/websocket-api-gateways`
+
+## TypeScript definition
+
+```typescript
+import type { DomainConfiguration, WebSocketApiAccessLogsConfig } from 'stacktape';
+
+type WebSocketApiGatewayProps = {
+  /** Custom domains such as `realtime.example.com`. */
+  customDomains?: Array<DomainConfiguration>;
+  /** Access-log settings. */
+  logging?: WebSocketApiAccessLogsConfig;
+  /** Expression used to choose a route from each JSON message. */
+  routeSelectionExpression?: string;
+};
+```
+
+## Property: `customDomains`
+
+- Required: no
+- Type: `Array<DomainConfiguration>`
+
+Custom domains such as `realtime.example.com`.
+
+Stacktape uses the root mapping, so clients connect to `wss://realtime.example.com` without a stage suffix. A
+WebSocket custom domain cannot also be attached to an HTTP or REST API Gateway in the same AWS account and region.
+
+## Property: `logging`
+
+- Required: no
+- Type: `WebSocketApiAccessLogsConfig`
+
+Access-log settings.
+
+JSON access logs are enabled by default and can be viewed with `stacktape logs` and in Console.
+
+## Property: `routeSelectionExpression`
+
+- Required: no
+- Type: `string`
+- Default: `$request.body.action`
+
+Expression used to choose a route from each JSON message.
+
+The default expects messages such as `{ "action": "sendMessage" }`. Change this only when your client already
+uses a different field.
+
+---
+
 # WorkerService API Reference
 
 Source: `packages/config/src/worker-services.ts`
@@ -123759,7 +126245,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 

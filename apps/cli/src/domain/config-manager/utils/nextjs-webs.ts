@@ -328,7 +328,8 @@ export const buildNextjsWebNestedResources = ({
         logging: {
           disabled: serverLambda?.logging?.disabled,
           logForwarding: serverLambda?.logging?.logForwarding,
-          retentionDays: serverLambda?.logging?.retentionDays || 180
+          retentionDays: serverLambda?.logging?.retentionDays || 180,
+          logClass: serverLambda?.logging?.logClass
         },
         memory: serverLambda?.memory || 1024,
         joinDefaultVpc: serverLambda?.joinDefaultVpc,
@@ -424,7 +425,8 @@ export const buildNextjsWebNestedResources = ({
           logging: {
             disabled: serverLambda?.logging?.disabled,
             logForwarding: serverLambda?.logging?.logForwarding,
-            retentionDays: serverLambda?.logging?.retentionDays || 180
+            retentionDays: serverLambda?.logging?.retentionDays || 180,
+            logClass: serverLambda?.logging?.logClass
           },
           memory: serverLambda?.memory || 1024,
           timeout: serverLambda?.timeout || 30,
@@ -455,7 +457,8 @@ export const buildNextjsWebNestedResources = ({
       logging: {
         disabled: serverLambda?.logging?.disabled,
         logForwarding: serverLambda?.logging?.logForwarding,
-        retentionDays: serverLambda?.logging?.retentionDays || 180
+        retentionDays: serverLambda?.logging?.retentionDays || 180,
+        logClass: serverLambda?.logging?.logClass
       },
       memory: 2048,
       timeout: 30,
@@ -483,7 +486,8 @@ export const buildNextjsWebNestedResources = ({
       logging: {
         disabled: serverLambda?.logging?.disabled,
         logForwarding: serverLambda?.logging?.logForwarding,
-        retentionDays: serverLambda?.logging?.retentionDays || 3
+        retentionDays: serverLambda?.logging?.retentionDays || 3,
+        logClass: serverLambda?.logging?.logClass
       },
       memory: 128,
       timeout: 30,
@@ -557,7 +561,8 @@ export const buildNextjsWebNestedResources = ({
       logging: {
         disabled: serverLambda?.logging?.disabled,
         logForwarding: serverLambda?.logging?.logForwarding,
-        retentionDays: serverLambda?.logging?.retentionDays || 3
+        retentionDays: serverLambda?.logging?.retentionDays || 3,
+        logClass: serverLambda?.logging?.logClass
       },
       memory: 1024,
       timeout: 900,
@@ -601,7 +606,8 @@ export const buildNextjsWebNestedResources = ({
             logging: {
               disabled: serverLambda?.logging?.disabled,
               logForwarding: serverLambda?.logging?.logForwarding,
-              retentionDays: serverLambda?.logging?.retentionDays || 3
+              retentionDays: serverLambda?.logging?.retentionDays || 3,
+              logClass: serverLambda?.logging?.logClass
             },
             connectTo: [nestedResourceInfo.serverFunction.stpReferenceableName],
             memory: 1024,

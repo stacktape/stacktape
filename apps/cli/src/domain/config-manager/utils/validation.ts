@@ -25,9 +25,12 @@ import { CliError } from '@utils/errors';
 import { parseUserCodeFilepath } from '@utils/file-loaders';
 import type { ConfigManager } from '../index';
 import { validateApplicationLoadBalancerConfig } from './application-load-balancers';
+import { validateAgentCoreRuntimeConfig } from './agentcore';
+import { validateAppSyncApiConfig, validateAppSyncIntegrations } from './appsync-apis';
 import { validateHostingBucketConfig } from './buckets';
 import { validateConvexConfig } from './convex';
 import { validateHttpApiGatewayConfig } from './http-api-gateways';
+import { validateWebsocketApiGatewayConfig } from './websocket-api-gateways';
 import { validateLambdaConfig } from './lambdas';
 import { validateContainerSecrets, validateMultiContainerWorkloadConfig } from './multi-container-workloads';
 import { validateNetworkLoadBalancerConfig } from './network-load-balancers';
@@ -35,6 +38,7 @@ import { validateNextjsWebConfig } from './nextjs-webs';
 import { validateSsrWebConfig } from './ssr-webs';
 import { validateRelationalDatabaseConfig } from './relational-databases';
 import { validateSnsTopicConfig } from './sns-topics';
+import { validateEmailSenderConfig, validateEmailSenderIdentityUniqueness } from './email-senders';
 import { validateSqsQueueConfig } from './sqs-queues';
 import { validateWebServiceConfig } from './web-services';
 import { validateConfigWithZod } from './zod-validator';
@@ -49,6 +53,30 @@ import type { LambdaRuntime } from '@stacktape/config/primitives';
 import type { AuroraEngine, RdsEngine } from '@stacktape/config/relational-databases';
 import type { BastionScript, LocalScriptWithBastionTunneling } from '@stacktape/config/shared';
 import { configErrors } from '../errors';
+
+export const validateKafkaConsumerGroupUniqueness = ({
+  configManager
+}: {
+  configManager: Pick<ConfigManager, 'functions'>;
+}) => {
+  const owners = new Map<string, string>();
+  configManager.functions.forEach(({ events, name }) => {
+    events?.forEach((event) => {
+      if (event.type !== 'kafka-topic' || !event.properties.consumerGroupId) return;
+      const previousOwner = owners.get(event.properties.consumerGroupId);
+      if (previousOwner) {
+        throw new CliError({
+          category: 'CONFIG_VALIDATION',
+          code: 'CONFIG_KAFKA_CONSUMER_GROUP_DUPLICATE',
+          message: `Kafka consumer group \`${event.properties.consumerGroupId}\` is used by both \`${previousOwner}\` and \`${name}\`.`,
+          hints:
+            'AWS requires an explicit consumer group ID to be unique across Kafka event-source mappings. Omit it or choose a distinct ID.'
+        });
+      }
+      owners.set(event.properties.consumerGroupId, name);
+    });
+  });
+};
 
 export const validatePackagingProps = ({
   packaging,
@@ -366,6 +394,12 @@ export const validateGuardrails = ({
             );
           }
         }
+        for (const db of configManager.dsqlDatabases) {
+          throw guardrailViolation(
+            'GUARDRAIL_DSQL_VPC_ACCESS_UNAVAILABLE',
+            `Aurora DSQL database \`${db.name}\` uses the public service endpoint. This Stacktape version cannot configure the PrivateLink endpoint required by \`require-vpc-databases\`.`
+          );
+        }
         for (const os of configManager.openSearchDomains) {
           const accessibilityMode = (os as StpOpenSearchDomain).accessibility?.accessibilityMode || 'internet';
           if (!vpcOnlyModes.includes(accessibilityMode)) {
@@ -381,6 +415,14 @@ export const validateGuardrails = ({
         if (!hasConfig || !guardrail.properties.enabled) break;
         for (const db of configManager.databases) {
           if (!(db as StpRelationalDatabase).deletionProtection) {
+            throw guardrailViolation(
+              'GUARDRAIL_DATABASE_DELETION_PROTECTION_REQUIRED',
+              `Database \`${db.name}\` must enable \`deletionProtection\`.`
+            );
+          }
+        }
+        for (const db of configManager.dsqlDatabases) {
+          if (!db.deletionProtection) {
             throw guardrailViolation(
               'GUARDRAIL_DATABASE_DELETION_PROTECTION_REQUIRED',
               `Database \`${db.name}\` must enable \`deletionProtection\`.`
@@ -521,6 +563,12 @@ export const validateGuardrails = ({
       }
       case 'require-data-backups': {
         if (!hasConfig || !guardrail.properties.enabled) break;
+        for (const db of configManager.dsqlDatabases) {
+          throw guardrailViolation(
+            'GUARDRAIL_DSQL_BACKUP_UNVERIFIABLE',
+            `Aurora DSQL database \`${db.name}\` has no Stacktape-managed backup policy. This Stacktape version cannot verify an external AWS Backup plan required by \`require-data-backups\`.`
+          );
+        }
         for (const db of configManager.databases) {
           if ((db as StpRelationalDatabase).automatedBackupRetentionDays === 0) {
             throw guardrailViolation(
@@ -685,6 +733,10 @@ export const runInitialValidations = ({
   validateReuseVpcConfig({ configManager });
   // validateProviders();
   validateBastionReferences({ configManager });
+  validateKafkaConsumerGroupUniqueness({ configManager });
+  configManager.agentCoreRuntimes.forEach((resource) => {
+    validateAgentCoreRuntimeConfig({ resource });
+  });
   // packaging props
   configManager.allContainerWorkloadContainers.forEach((props) =>
     validatePackagingProps({
@@ -717,6 +769,13 @@ export const runInitialValidations = ({
   // http-api-gateway
   configManager.allHttpApiGateways.forEach((resource) => {
     validateHttpApiGatewayConfig({ activeConfig: configManager, resource });
+  });
+  configManager.allWebsocketApiGateways.forEach((resource) => {
+    validateWebsocketApiGatewayConfig({ activeConfig: configManager, resource });
+  });
+  validateAppSyncIntegrations({ activeConfig: configManager });
+  configManager.allAppsyncApis.forEach((resource) => {
+    validateAppSyncApiConfig({ activeConfig: configManager, resource, workingDir: stackContext.workingDir });
   });
   // application-load-balancer
   configManager.applicationLoadBalancers.forEach((definition) => {
@@ -752,6 +811,10 @@ export const runInitialValidations = ({
   configManager.snsTopics.forEach((resource) => {
     validateSnsTopicConfig({ resource });
   });
+  configManager.emailSenders.forEach((resource) => {
+    validateEmailSenderConfig({ resource });
+  });
+  validateEmailSenderIdentityUniqueness(configManager.emailSenders);
   // sqs queues
   configManager.sqsQueues.forEach((resource) => {
     validateSqsQueueConfig({ resource });

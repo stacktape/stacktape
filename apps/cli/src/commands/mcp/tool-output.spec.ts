@@ -1,4 +1,5 @@
 import { describe, expect, test } from 'bun:test';
+import { INFO_STACK_AGENT_SCHEMA_VERSION } from '../info-stack/agent-contract';
 import { buildCliRunOutput, MCP_TOOL_RESULT_SCHEMA_VERSION, toToolText } from './tool-output';
 
 const readPayload = (result: ReturnType<typeof toToolText>): Record<string, unknown> =>
@@ -56,27 +57,30 @@ describe('MCP tool output', () => {
         code: 'OK',
         message: 'Fetched stack info.',
         data: {
-          stackName: 'project-stage',
-          region: 'eu-west-1',
-          stackOutput: {
-            StpStackInfoMap: {
-              resources: JSON.stringify({
+          result: {
+            schemaVersion: INFO_STACK_AGENT_SCHEMA_VERSION,
+            stackName: 'project-stage',
+            region: 'eu-west-1',
+            description: null,
+            stackOutput: {},
+            stackInfoMap: {
+              resources: {
                 api: {
                   resourceType: 'function',
                   cloudformationChildResources: {
                     ApiFunction: { cloudformationResourceType: 'AWS::Lambda::Function' }
                   }
                 }
-              })
-            }
-          },
-          stackResources: [
-            {
-              LogicalResourceId: 'ApiFunction',
-              ResourceType: 'AWS::Lambda::Function',
-              ResourceStatus: 'CREATE_COMPLETE'
-            }
-          ]
+              }
+            },
+            resources: [
+              {
+                LogicalResourceId: 'ApiFunction',
+                ResourceType: 'AWS::Lambda::Function',
+                ResourceStatus: 'CREATE_COMPLETE'
+              }
+            ]
+          }
         }
       }
     });
@@ -85,6 +89,7 @@ describe('MCP tool output', () => {
     const stacktapeResources = cli.stacktapeResources as Record<string, unknown>;
     const cloudformation = cli.cloudformation as Record<string, unknown>;
 
+    expect(cli.sourceSchemaVersion).toBe(INFO_STACK_AGENT_SCHEMA_VERSION);
     expect(stacktapeResources.resourceCount).toBe(1);
     expect(cloudformation.resourceCount).toBe(1);
     expect(cloudformation.resourceTypeCounts).toEqual({ 'AWS::Lambda::Function': 1 });

@@ -2,6 +2,40 @@
   "$schema": "https://turborepo.dev/schema.json",
   "extends": ["//"],
   "tasks": {
+    "build:dev-artifacts": {
+      "description": "Package the helper Lambdas and source-map bootstrap consumed by the source CLI",
+      "inputs": [
+        "helper-lambdas/**",
+        "src/**",
+        "scripts/package-helper-lambdas.ts",
+        "scripts/release/build-cli-sources.ts",
+        "scripts/support/**",
+        "package.json",
+        "pnpm-lock.yaml",
+        "tsconfig.build.json",
+        "$TURBO_ROOT$/packages/cloudformation/package.json",
+        "$TURBO_ROOT$/packages/cloudformation/pnpm-lock.yaml",
+        "$TURBO_ROOT$/packages/cloudformation/src/**",
+        "$TURBO_ROOT$/packages/config/package.json",
+        "$TURBO_ROOT$/packages/config/pnpm-lock.yaml",
+        "$TURBO_ROOT$/packages/config/src/**",
+        "$TURBO_ROOT$/packages/console-api/package.json",
+        "$TURBO_ROOT$/packages/console-api/pnpm-lock.yaml",
+        "$TURBO_ROOT$/packages/console-api/src/**",
+        "$TURBO_ROOT$/packages/naming/package.json",
+        "$TURBO_ROOT$/packages/naming/pnpm-lock.yaml",
+        "$TURBO_ROOT$/packages/naming/src/**",
+        "$TURBO_ROOT$/packages/packaging/package.json",
+        "$TURBO_ROOT$/packages/packaging/pnpm-lock.yaml",
+        "$TURBO_ROOT$/packages/packaging/src/**",
+        "!**/*.spec.ts",
+        "!**/*.test.ts",
+        "!$TURBO_ROOT$/packages/*/src/**/*.spec.ts",
+        "!$TURBO_ROOT$/packages/*/src/**/*.test.ts"
+      ],
+      "outputs": ["__stacktape-dist/dev/helper-lambdas/**", "__stacktape-dist/source-map-install.js"],
+      "outputLogs": "new-only"
+    },
     "generate": {
       "cache": false,
       "inputs": [

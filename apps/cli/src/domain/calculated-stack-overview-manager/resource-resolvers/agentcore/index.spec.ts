@@ -3,6 +3,7 @@ import {
   getBrowserRecordingS3BucketArn,
   getBrowserRecordingS3ObjectArn,
   getAgentCoreGatewayResource,
+  getReferenceableRuntimeEndpoint,
   getRuntimeEndpointVersion,
   transformJsonSchema
 } from './index';
@@ -40,6 +41,22 @@ describe('AgentCore resource resolver', () => {
 
   test('preserves an explicitly pinned runtime endpoint version', () => {
     expect(getRuntimeEndpointVersion('SupportAgentRuntime', { name: 'production', runtimeVersion: '1' })).toBe('1');
+  });
+
+  test('exposes the default endpoint when present, otherwise the first configured endpoint', () => {
+    expect(
+      getReferenceableRuntimeEndpoint([
+        { name: 'preview', runtimeVersion: '1' },
+        { name: 'default', runtimeVersion: '2' },
+        { name: 'stable', runtimeVersion: '3' }
+      ])
+    ).toEqual({ name: 'default', runtimeVersion: '2' });
+    expect(
+      getReferenceableRuntimeEndpoint([
+        { name: 'preview', runtimeVersion: '1' },
+        { name: 'stable', runtimeVersion: '3' }
+      ])
+    ).toEqual({ name: 'preview', runtimeVersion: '1' });
   });
 
   test('synthesizes the supported gateway search mode without a narrowing assertion', () => {

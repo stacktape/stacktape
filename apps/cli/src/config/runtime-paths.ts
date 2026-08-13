@@ -8,7 +8,7 @@ import {
 } from 'src/config/constants';
 import {
   BRIDGE_FILES_FOLDER_NAME,
-  DEV_TMP_FOLDER_PATH,
+  DEV_ARTIFACTS_FOLDER_PATH,
   HELPER_LAMBDAS_FOLDER_NAME,
   SCRIPTS_ASSETS_PATH,
   STARTER_PROJECTS_METADATA_FOLDER_NAME
@@ -86,7 +86,7 @@ export const fsPaths = {
   },
   helperLambdasDir() {
     if (IS_DEV) {
-      return join(DEV_TMP_FOLDER_PATH, HELPER_LAMBDAS_FOLDER_NAME);
+      return join(DEV_ARTIFACTS_FOLDER_PATH, HELPER_LAMBDAS_FOLDER_NAME);
     }
     return join(fsPaths.absoluteExecutableDirname(), HELPER_LAMBDAS_FOLDER_NAME);
   },

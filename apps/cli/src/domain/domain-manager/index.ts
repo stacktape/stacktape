@@ -254,7 +254,7 @@ export class DomainManager {
   getCertificateForDomain = (fullDomainName: string, attachingTo: StpDomainAttachableResourceType) => {
     // this.validateDomainUsability(fullDomainName);
     const cert = this.getCorrectCertForDomainAndResource(fullDomainName, attachingTo);
-    const region = attachingTo === 'cdn' ? 'us-east-1' : globalStateManager.region;
+    const region = attachingTo === 'cdn' || attachingTo === 'appsync-api' ? 'us-east-1' : globalStateManager.region;
     if (!cert) {
       throw stpErrors.e39({ fullDomainName, attachingTo, region });
     }
@@ -270,7 +270,7 @@ export class DomainManager {
   ): CertificateDetail => {
     const domainStatus = this.getDomainStatus(fullDomainName);
     const certs =
-      attachingTo === 'cdn'
+      attachingTo === 'cdn' || attachingTo === 'appsync-api'
         ? [domainStatus?.usEast1Cert, ...(domainStatus?.usEast1Certs || [])]
         : [domainStatus?.regionalCert, ...(domainStatus?.regionalCerts || [])];
     return this.#findCertificateCoveringDomain(
@@ -329,6 +329,36 @@ export class DomainManager {
       nameServers = await this.dnsResolver.resolveNs(domainName);
     }
     return nameServers.map((nameServer: string) => nameServer.toLowerCase());
+  };
+
+  findAuthoritativePublicHostedZoneId = async (domainName: string): Promise<string | undefined> => {
+    const normalize = (value: string) => value.replace(/\.$/, '').toLowerCase();
+    const normalizedDomain = normalize(domainName);
+    const zones = (await awsSdkManager.domains.listHostedZones())
+      .filter(({ Config }) => !Config?.PrivateZone)
+      .filter(({ Name }) => normalizedDomain === normalize(Name) || normalizedDomain.endsWith(`.${normalize(Name)}`))
+      .sort((left, right) => normalize(right.Name).length - normalize(left.Name).length);
+
+    // Resolve from the identity domain toward its parents so a subdomain delegated elsewhere never falls through to
+    // a Route 53 parent zone that is present in the account but is not authoritative for that identity.
+    let delegatedNameServers: string[] | undefined;
+    const labels = normalizedDomain.split('.');
+    for (let index = 0; index < labels.length - 1 && !delegatedNameServers; index += 1) {
+      try {
+        delegatedNameServers = await this.resolveCurrentNameServersForDomain(labels.slice(index).join('.'));
+      } catch {
+        // A non-zone name normally returns ENODATA; continue to its parent delegation.
+      }
+    }
+    if (!delegatedNameServers) return undefined;
+
+    for (const zone of zones) {
+      const details = await awsSdkManager.domains.getHostedZone(zone.Id);
+      if (areStringArraysContentsEqual(details.DelegationSet?.NameServers, delegatedNameServers)) {
+        return details.HostedZone.Id.replace(/^\/hostedzone\//, '');
+      }
+    }
+    return undefined;
   };
 
   #refreshCachedCertificates = async (status: StpDomainStatus) => {

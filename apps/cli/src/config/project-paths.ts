@@ -12,7 +12,10 @@ export const STARTER_PROJECTS_METADATA_FOLDER_NAME = 'starter-projects-metadata.
 
 export const DIST_FOLDER_PATH = join(process.cwd(), DIST_FOLDER_NAME);
 export const DEV_TMP_FOLDER_PATH = join(process.cwd(), 'node_modules', '__dev-tmp');
+export const DEV_ARTIFACTS_FOLDER_PATH = join(DIST_FOLDER_PATH, 'dev');
 export const CLI_BUILD_DIST_FOLDER_PATH = join(process.cwd(), '__cli-dist', 'stacktape');
+/** The built `init` wizard interface, which a release copies in beside the binary as `init-ui/`. */
+export const INIT_WIZARD_BUNDLE_SOURCE_PATH = join(process.cwd(), '..', 'init-ui', 'dist');
 export const DIST_PACKAGE_FOLDER_PATH = join(process.cwd(), '__dist');
 export const CLI_RELEASE_FOLDER_PATH = join(process.cwd(), CLI_RELEASE_FOLDER_NAME);
 export const NPM_RELEASE_FOLDER_PATH = join(process.cwd(), SDK_RELEASE_FOLDER_NAME);

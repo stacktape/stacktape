@@ -128,7 +128,7 @@ function getTransformsPropertyInfo(transformsTypeName: string): PropertyInfo {
  * Generates a ConnectTo type alias for a resource
  */
 function generateConnectToType(resourceType: string, canConnectTo: readonly string[]): string {
-  const connectToList = [...canConnectTo, 'GlobalAwsServiceConstant', 'string'];
+  const connectToList = [...canConnectTo, 'string'];
   return `type ${resourceType}ConnectTo = ${connectToList.join(' | ')};`;
 }
 

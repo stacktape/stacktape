@@ -1,8 +1,36 @@
 import { ExpectedError } from '@utils/errors';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
 import { initializeDeleteOperation } from '../_utils/initialization';
+import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
 
 type DeleteOperation = Awaited<ReturnType<typeof initializeDeleteOperation>>;
+type RetainedSharedResource = { kind: string; identity: string; stackName: string };
+
+const parseRetainedSharedResources = (serialized: string): RetainedSharedResource[] | undefined => {
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(serialized);
+  } catch {
+    return undefined;
+  }
+  if (
+    !Array.isArray(parsed) ||
+    !parsed.every(
+      (entry): entry is RetainedSharedResource =>
+        !!entry &&
+        typeof entry === 'object' &&
+        'kind' in entry &&
+        typeof entry.kind === 'string' &&
+        'identity' in entry &&
+        typeof entry.identity === 'string' &&
+        'stackName' in entry &&
+        typeof entry.stackName === 'string'
+    )
+  ) {
+    return undefined;
+  }
+  return parsed;
+};
 
 type DeleteExecutionOperation = {
   config: Pick<DeleteOperation['config'], 'config' | 'hooks'>;
@@ -14,12 +42,23 @@ type DeleteExecutionOperation = {
     existingStackDetails: { EnableTerminationProtection?: boolean };
   };
   stackName: string;
-  tui: Pick<DeleteOperation['tui'], 'colorize' | 'setPendingCompletion'>;
+  tui: Pick<DeleteOperation['tui'], 'colorize' | 'info' | 'setPendingCompletion'>;
+  retainedSharedResources?: RetainedSharedResource[];
 };
 
 export const commandDelete = async () => {
-  const { application, config, deploymentArtifacts, event, notification, stack, stackContext, template, tui } =
-    await initializeDeleteOperation();
+  const {
+    application,
+    config,
+    deployedStackOverview,
+    deploymentArtifacts,
+    event,
+    notification,
+    stack,
+    stackContext,
+    template,
+    tui
+  } = await initializeDeleteOperation();
 
   await config.loadGlobalConfig();
   config.validateGuardrails({ hasConfig: !!config.config });
@@ -33,7 +72,19 @@ export const commandDelete = async () => {
     return;
   }
 
-  return executeDeleteOperation({ config, deploymentArtifacts, event, notification, stack, stackName, tui });
+  const retainedMetadata = deployedStackOverview.getStackMetadata(stackMetadataNames.retainedSharedResources());
+  const retainedSharedResources =
+    typeof retainedMetadata === 'string' ? parseRetainedSharedResources(retainedMetadata) : undefined;
+  return executeDeleteOperation({
+    config,
+    deploymentArtifacts,
+    event,
+    notification,
+    retainedSharedResources,
+    stack,
+    stackName,
+    tui
+  });
 };
 
 export const executeDeleteOperation = async ({
@@ -41,6 +92,7 @@ export const executeDeleteOperation = async ({
   deploymentArtifacts,
   event,
   notification,
+  retainedSharedResources,
   stack,
   stackName,
   tui
@@ -68,6 +120,14 @@ export const executeDeleteOperation = async ({
   }
   await deploymentArtifacts.deleteAllArtifacts();
   await stack.deleteStack();
+
+  if (retainedSharedResources?.length) {
+    tui.info(
+      `Retained shared resources (used by other projects or stages):\n${retainedSharedResources
+        .map(({ identity, stackName }) => `- ${identity} (${stackName})`)
+        .join('\n')}`
+    );
+  }
 
   await notification.sendDeploymentNotification({
     message: { text: `Stack ${stackName} deleted successfully.`, type: 'success' }

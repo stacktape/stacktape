@@ -69,14 +69,16 @@ export const resolveRedisClusters = async () => {
         nameChain: resource.nameChain,
         resource: getLogGroupResource({
           resource,
-          retentionDays: resource.logging?.retentionDays || defaultLogRetentionDays.redisCluster
+          retentionDays: resource.logging?.retentionDays || defaultLogRetentionDays.redisCluster,
+          logClass: resource.logging?.logClass
         })
       });
       if (resource.logging?.logForwarding) {
         getResourcesNeededForLogForwarding({
           resource,
           logGroupCfLogicalName: cfLogicalNames.redisLogGroup(resource.name),
-          logForwardingConfig: resource.logging?.logForwarding
+          logForwardingConfig: resource.logging?.logForwarding,
+          logClass: resource.logging?.logClass
         }).forEach(({ cfLogicalName, cfResource }) => {
           if (!templateManager.getCfResourceFromTemplate(cfLogicalName)) {
             calculatedStackOverviewManager.addCfChildResource({

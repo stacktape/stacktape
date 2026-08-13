@@ -6,6 +6,7 @@ import { PRINT_LOGS_INTERVAL } from '@config';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
+import { CliError } from '@utils/errors';
 import { LambdaCloudwatchLogPrinter } from '@utils/cloudwatch-logs';
 import { isAgentMode } from '../_utils/agent-mode';
 import { printFormattedLogs } from '../_utils/debug-formatters';
@@ -16,6 +17,36 @@ import {
   loadUserCredentials
 } from '../_utils/initialization';
 import { getLogGroupInfoForStacktapeResource } from '../_utils/logs';
+import { buildInfrequentAccessSnapshotQuery, mapInsightsRowsToLogEvents } from './infrequent-access';
+
+const printLogEvents = ({
+  events,
+  logGroupName,
+  raw
+}: {
+  events: { timestamp?: number; message?: string; logStreamName?: string }[];
+  logGroupName: string;
+  raw?: boolean;
+}) => {
+  if (isAgentMode() || raw) {
+    tuiManager.info(
+      JSON.stringify(
+        {
+          logGroup: logGroupName,
+          events: events.map((event) => ({
+            timestamp: event.timestamp ? new Date(event.timestamp).toISOString() : null,
+            message: event.message,
+            logStream: event.logStreamName
+          }))
+        },
+        null,
+        2
+      )
+    );
+  } else {
+    printFormattedLogs(events, logGroupName);
+  }
+};
 
 export const commandLogs = async () => {
   const args = Object.freeze({ ...globalStateManager.args }) as Readonly<
@@ -99,6 +130,37 @@ export const commandLogs = async () => {
     return null;
   }
 
+  const logGroup = await awsSdkManager.observability.getLogGroup({ logGroupName });
+  if (logGroup?.logGroupClass === 'INFREQUENT_ACCESS') {
+    if (filter) {
+      throw new CliError({
+        category: 'CLI',
+        code: 'CLI_LOG_FILTER_UNSUPPORTED_FOR_INFREQUENT_ACCESS',
+        message: '`--filter` is not supported for an Infrequent Access log group.',
+        hints: [
+          'Use a Logs Insights query instead, for example: `--query "fields @timestamp, @message | filter @message like /error/ | sort @timestamp desc"`.',
+          'CloudWatch filter-pattern syntax and Logs Insights query syntax have different semantics, so Stacktape does not translate them automatically.'
+        ]
+      });
+    }
+
+    if (tuiManager.mode === 'tty') {
+      tuiManager.info('This log group uses Infrequent Access, so live tail is unavailable. Showing a recent snapshot.');
+    }
+    const result = await awsSdkManager.observability.runLogsInsightsQuery({
+      logGroupName,
+      query: buildInfrequentAccessSnapshotQuery(limit),
+      startTime,
+      endTime
+    });
+    printLogEvents({
+      events: mapInsightsRowsToLogEvents(result.results),
+      logGroupName,
+      raw
+    });
+    return null;
+  }
+
   // Live tail in an interactive terminal (the default). Falls back to a one-shot
   // window fetch when piped, redirected, --raw, --outputFormat plain|jsonl, or in
   // CI/agent mode — so `stacktape logs ... | grep` stays append-only and exits.
@@ -154,25 +216,7 @@ export const commandLogs = async () => {
   // Limit events
   const limitedEvents = events.slice(0, limit);
 
-  if (isAgentMode() || raw) {
-    const formattedEvents = limitedEvents.map((e) => ({
-      timestamp: new Date(e.timestamp).toISOString(),
-      message: e.message,
-      logStream: e.logStreamName
-    }));
-    tuiManager.info(
-      JSON.stringify(
-        {
-          logGroup: logGroupName,
-          events: formattedEvents
-        },
-        null,
-        2
-      )
-    );
-  } else {
-    printFormattedLogs(limitedEvents, logGroupName);
-  }
+  printLogEvents({ events: limitedEvents, logGroupName, raw });
 
   return null;
 };

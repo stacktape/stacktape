@@ -1,9 +1,9 @@
 # Release implementation
 
-The root `pnpm release <version>` and `pnpm release:preview <version>` commands call `trigger-release.ts`, a local dispatcher for
-`.github/workflows/release.yml`. The workflow owns all builds and publication. `preview` and `stable` use identical
-candidate bytes; channel-specific jobs change the npm tag, GitHub release classification, and installer endpoint.
-See the root [`RELEASING.md`](../../../../RELEASING.md) for the operator contract.
+The root `pnpm release <version>` and `pnpm release:preview <version>` commands call `trigger-release.ts`, a local
+dispatcher for `.github/workflows/release.yml`. The workflow owns all builds and publication. `preview` and `stable` use
+identical candidate bytes; channel-specific jobs change the npm tag, GitHub release classification, and installer
+endpoint. See the root [`RELEASING.md`](../../../../RELEASING.md) for the operator contract.
 
 Current release primitives:
 
@@ -20,5 +20,5 @@ Installer publication lives in `../publish-install-scripts.ts` because it owns t
 separate workflow job uses a narrow AWS OIDC identity after npm/GitHub publication succeeds, so failed installer
 publication can be retried without attempting to overwrite an immutable npm version.
 
-`stacktape.ts` remains only for the currently separate schema and generated AI-documentation publishers. Do not use
-it from `release.yml` or reintroduce `STACKTAPE_API_KEY` for npm/binary releases.
+`stacktape.ts` remains only for the currently separate schema and generated AI-documentation publishers. Do not use it
+from `release.yml` or reintroduce `STACKTAPE_API_KEY` for npm/binary releases.

@@ -8,6 +8,7 @@ import { awsSdkManager } from '@utils/aws-sdk-manager';
 import compose from '@utils/basic-compose-shim';
 import { cancelablePublicMethods, skipInitIfInitialized } from '@utils/decorators';
 import type { VpcReuseConfig } from '@stacktape/config/shared';
+import { CliError } from '@utils/errors';
 import { vpcErrors } from './errors';
 
 type SubnetDetails = {
@@ -197,6 +198,31 @@ export class VpcManager {
       ref(cfLogicalNames.subnet(true, 1)),
       ref(cfLogicalNames.subnet(true, 2))
     ];
+  };
+
+  getKafkaSubnetIds = () => {
+    if (this.#publicSubnets.length === 0) return this.getPublicSubnetIds();
+    const subnetsByAvailabilityZone = new Map<string, string>();
+    this.#publicSubnets.forEach(({ subnet }) => {
+      if (
+        subnet.SubnetId &&
+        subnet.AvailabilityZoneId !== 'use1-az3' &&
+        subnet.AvailabilityZone &&
+        !subnetsByAvailabilityZone.has(subnet.AvailabilityZone)
+      ) {
+        subnetsByAvailabilityZone.set(subnet.AvailabilityZone, subnet.SubnetId);
+      }
+    });
+    if (subnetsByAvailabilityZone.size < 2) {
+      throw new CliError({
+        category: 'CONFIG_VALIDATION',
+        code: 'CONFIG_KAFKA_VPC_SUBNETS_INVALID',
+        message: 'Kafka requires public subnets in at least two distinct supported availability zones.',
+        hints:
+          'Use a VPC with public subnets in at least two availability zones. In us-east-1, MSK does not support use1-az3.'
+      });
+    }
+    return [...subnetsByAvailabilityZone.values()];
   };
 
   getPrivateSubnetIds = () => {

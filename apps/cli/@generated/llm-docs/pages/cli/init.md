@@ -1,6 +1,20 @@
 # init
 
-The `stacktape init` command initializes a new Stacktape project. By default, it runs an interactive wizard that analyzes your codebase with AI, generates a Stacktape configuration file, and walks you through account setup, AWS connection, and an optional first deployment — all in one flow.
+---
+title: 'init'
+order: 161
+seoTitle: 'stacktape init — Turn an existing project into infrastructure | Stacktape CLI'
+seoDescription: 'Read your project with your own coding agent and get a Stacktape configuration you can deploy, without answering a list of questions. Nothing leaves your machine.'
+---
+
+# init
+
+`stacktape init` reads the project you already have and writes a Stacktape configuration for it.
+
+It opens a wizard in your browser and reads your code **on your machine** using a coding agent you
+already have installed — Claude Code or Codex. It does not interview you: where your code does not say,
+it picks the sensible answer, then shows you what it picked and the line behind every resource it
+proposes, so you can change any of it. Nothing is sent to Stacktape, and no account is needed.
 
 ## Usage
 
@@ -8,153 +22,219 @@ The `stacktape init` command initializes a new Stacktape project. By default, it
 stacktape init
 ```
 
-No flags are required. Running `init` without arguments launches the interactive wizard. This command does not require a Stacktape API key — the wizard handles sign-up or login as part of the flow.
+Run it in the directory of the project you want to deploy. The command prints a `http://127.0.0.1:…`
+address and opens it; the wizard runs there and the terminal keeps the session alive until you close it
+with Ctrl+C.
 
-## How the wizard works
+## What happens, in order
 
-The default interactive wizard runs through these steps in order:
+1. **Start.** The wizard opens with nothing read yet. It shows which directory it will read and which
+   agents it found, and waits. Reading starts when you press the button — never before.
+2. **Read.** The agent opens files and you watch it happen: every file it reads appears as it reads it.
+   Only the *names* of your environment variables are ever kept or shown. Before the agent starts, a
+   deterministic pass has already read your `docker-compose.yml` — which states your database engine
+   and its version outright — and noticed anything that already deploys this project, such as a
+   `serverless.yml` or a Terraform directory.
+3. **Review.** Every resource, with the reason it exists, the line of your code behind it, and what it
+   costs — a real monthly estimate per resource and in total, priced from AWS list prices. Anything
+   the code could not settle was decided for you, listed under "Decided for you", and can be changed
+   with one click — the configuration is rebuilt from your choice, and the price updates with it.
+   Nothing blocks. You choose YAML or TypeScript, and the file is written.
+4. **Deploy.** The wizard shows which AWS account your credentials belong to, and deploys with progress,
+   warnings and the URLs it produced. This step is optional and clearly marked as the one that costs
+   money. If the deploy fails for a reason that could be our reading of your code — a wrong start
+   command, a missing build step — the agent re-reads the project against the actual error, the
+   configuration is rebuilt, and the deploy runs again. At most twice, and never for problems with the
+   AWS account itself.
 
-1. **Analyzes your project** — scans your codebase and uses AI to generate a matching Stacktape configuration.
-2. **Sign up or log in** — creates a new Stacktape account or authenticates an existing one.
-3. **Connects your AWS account** — links an AWS account to your Stacktape organization.
-4. **Creates a project** — registers the project in the Stacktape Console and optionally configures CI/CD.
-5. **Offers to deploy** — gives you the option to deploy the generated stack immediately.
+## Who reads your code
 
-You can skip the wizard entirely by using `--starterId` or `--templateId` to initialize from a pre-built template instead.
+`init` drives a coding agent that is already installed and already paid for — your subscription, your
+machine. It never sends your code to Stacktape.
+
+| Agent | How it is used |
+|---|---|
+| **Claude Code** | Every built-in tool is switched off; the only tools it has are the ones Stacktape gives it, all read-only. You can pick the model. |
+| **Codex** | Runs read-only in a scratch working directory, because its patch tool cannot be disabled. |
+| **No agent** | Reads package manifests, `docker-compose.yml`, Dockerfiles, lockfiles, environment-variable names, and whatever already deploys the project. Free, instant, and leans on defaults more often. |
+
+The agent cannot write to your repository, cannot reach the network through us, and cannot put words in
+front of you: it reports findings from a fixed list of kinds, and every word you read in the wizard is
+written by Stacktape.
 
 ## Important flags
 
-### `--configFormat`
+### `--codingAgent`
 
-Sets the format of the generated configuration. Accepts `typescript` or `yaml`.
+Which agent reads the project. `auto` (the default) takes the best one installed. Naming one that is not
+installed fails rather than quietly using another.
 
 ```bash
-stacktape init --configFormat typescript
+stacktape init --codingAgent claude-code
+stacktape init --codingAgent none          # static analysis only
+```
+
+### `--headless`
+
+Runs the whole thing in the terminal instead of opening a browser. Use it over SSH, in a container, or in
+CI. Nothing prompts: the terminal prints what was decided for you, and the configuration is written.
+
+```bash
+stacktape init --headless
+```
+
+### `--noBrowser`
+
+Starts the wizard and prints its address without opening anything. Use it when the browser you want is not
+this machine's default, or when the port is forwarded from somewhere else.
+
+```bash
+stacktape init --noBrowser
 ```
 
 ### `--infrastructureType`
 
-Sets the infrastructure tier for the generated configuration. This affects resource sizing, scaling, security posture, and cost:
+How much infrastructure to create: `low-cost`, `standard` (the default), or `production`. It sets every
+size and safety setting in the generated configuration, and it is the only thing reading your code
+cannot tell us.
 
-- **`low-cost`** — minimal resources, single instances, no WAF or VPC. Best for development and experimentation.
-- **`standard`** — balanced defaults with serverless databases and moderate scaling. Good for staging and small production workloads.
-- **`production`** — high-availability setup with Aurora, WAF, VPC, bastion hosts, backups, and deletion protection.
+- **low-cost** — one small copy of everything. Trying it out, a side project, staging.
+- **standard** — room for real traffic, a week of backups, deletion protection on your database.
+- **production** — two copies of your app so one failure changes nothing, and a standby database in a
+  second datacentre.
 
 ```bash
 stacktape init --infrastructureType production
 ```
 
-### `--starterId`
+### `--configFormat`
 
-Initializes from a specific starter project template instead of running the AI-powered wizard. Pass the identifier of the starter project you want to initialize.
-
-```bash
-stacktape init --starterId lambda-api-postgres
-```
-
-### `--starterProject`
-
-When set to `true`, initializes from a starter project template instead of running the default wizard flow.
+`yaml` (the default) or `typescript`. In the browser this is chosen on the Review step instead, once you
+have seen what is in the file.
 
 ```bash
-stacktape init --starterProject
-```
-
-### `--templateId`
-
-Fetches a configuration template from the Stacktape Console's Config Builder page and initializes the project from it.
-
-```bash
-stacktape init --templateId your-template-id
+stacktape init --headless --configFormat typescript
 ```
 
 ### `--projectDirectory`
 
-Sets the root directory where the project configuration should be generated.
+The project to read. Defaults to the current directory.
 
 ```bash
 stacktape init --projectDirectory ./my-app
 ```
 
-### `--initializeProjectTo`
+### `--starterId`, `--starterProject`, `--templateId`
 
-Sets the directory where a starter project's files are placed. If the directory is not empty, its contents are deleted before initialization.
+Initialize from a ready-made project instead of reading yours. These skip the wizard entirely.
 
 ```bash
-stacktape init --starterId lambda-api-postgres --initializeProjectTo ./my-starter
+stacktape init --starterId lambda-api-postgres
+stacktape init --templateId your-template-id
 ```
 
+### `--initializeProjectTo`
 
-> **Warning:** Using `--initializeProjectTo` on a non-empty directory deletes existing contents. Point it at a new or empty directory to avoid losing files.
+Where a starter project's files are placed.
 
+
+
+> **Warning:** If the directory is not empty, its contents are deleted first. Point it at a new or empty directory.
+
+
+
+## Your existing configuration is never overwritten
+
+If the project already has a `stacktape.yml` or `stacktape.ts`, `init` does not touch it. The new
+configuration is written beside it as `stacktape.generated.yml` (or `.ts`), and both the wizard and the
+terminal tell you so. Deploy the generated one with `--configPath`, or merge it in yourself:
+
+```bash
+stacktape deploy --configPath stacktape.generated.yml --stage dev --region eu-west-1
+```
 
 ## Examples
 
-Initialize with the AI wizard using TypeScript config and production-grade infrastructure:
+Read the project with Claude Code's most careful model:
 
 ```bash
-stacktape init --configFormat typescript --infrastructureType production
+stacktape init --codingAgent claude-code
 ```
 
-Initialize from a starter project into a specific directory:
+No agent, no browser, cheapest infrastructure — a configuration in one step:
 
 ```bash
-stacktape init --starterId nextjs-saas --initializeProjectTo ./my-saas-app
+stacktape init --headless --codingAgent none --infrastructureType low-cost
 ```
-
-Run in agent mode for programmatic use (JSONL output, no interactive terminal UI, auto-confirms operations):
-
-```bash
-stacktape init --agent
-```
-
-## All flags
-
-
-## CLI Options: `stacktape init`
-
-| Option | Required | Type | Description | Values |
-| --- | --- | --- | --- | --- |
-| `--agent (-ag)` | no | `boolean` | Agent Mode — Optimizes CLI output for programmatic/LLM consumption: • Uses strict JSONL/NDJSON output (one JSON object per line) • Disables interactive terminal UI • Automatically confirms operations (equivalent to --autoConfirmOperation) For dev command: also enables HTTP server for programmatic control. | - |
-| `--configFormat (-cf)` | no | `string` | Config Format — Format (language) used for the generated config. Options are typescript or yaml. | `yaml`, `typescript` |
-| `--infrastructureType (-it)` | no | `string` | Infrastructure Type — The infrastructure tier for the generated configuration. Affects resource sizing, scaling, security, and cost: • **low-cost**: Minimal resources, single instances, no WAF/VPC. Best for development and experimentation. • **standard**: Balanced defaults with serverless databases and moderate scaling. Best for staging and small production workloads. • **production**: High-availability setup with Aurora, WAF, VPC, bastions, backups, and deletion protection. | `low-cost`, `standard`, `production` |
-| `--initializeProjectTo (-ipt)` | no | `string` | Initialize Project To — The directory where the starter project should be initialized. If the directory is not empty, its contents will be deleted. | - |
-| `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
-| `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
-| `--projectDirectory (-pd)` | no | `string` | Project Directory — The root directory where the project configuration should be generated. | - |
-| `--starterId (-sid)` | no | `string` | Starter ID — The identifier of the starter project to initialize. | - |
-| `--starterProject (-sp)` | no | `boolean` | Starter Project — If `true`, initializes from a starter project template instead of running the default wizard flow. | - |
-| `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
-
 
 ## Related commands
 
-- [`deploy`](/cli/deploy) — deploy the generated configuration to AWS after initializing.
-- [`dev`](/cli/dev) — run the project locally in dev mode for rapid iteration.
-- [`login`](/cli/login) — configure your Stacktape API key separately if you skip the wizard's login step.
+- [`deploy`](/cli/deploy) — deploy the configuration `init` wrote.
+- [`dev`](/cli/dev) — run the project locally against a minimal dev stack.
+- [`delete`](/cli/delete) — remove everything a deploy created.
 
 ## FAQ
 
+### Does my code leave my machine?
+
+No. The agent runs locally under your own subscription and reads your files there. Stacktape receives
+no source, no file names, and no configuration contents. What it does receive is anonymous outcome
+statistics — which frameworks were detected, whether the deploy succeeded, how long the analysis
+took — so we can see where generation fails and fix it. Set `STP_DISABLE_TELEMETRY=1` to turn that
+off.
+
+### What about my .env files?
+
+Only the *names* are kept. `DATABASE_URL` tells the analysis that a database exists — and its value is
+looked at once, in memory on your machine, for two things and two things only: whether the scheme says
+`postgres://` or `mysql://`, and whether the host belongs to a provider like Supabase, so we do not
+propose replacing a database that is already live. Both reduce to a single word before anything is
+stored. The value itself is never written to the facts, never quoted in a citation, never logged and
+never shown — every citation from an environment file stops at the `=`.
+
 ### Do I need an AWS account before running init?
 
-No. The wizard walks you through connecting an AWS account as one of its steps, and it doesn't require a Stacktape API key either — sign-up or login happens inside the flow. You can also connect your account separately in the [Stacktape Console](/stacktape-console/connecting-your-aws-account) before running `init`.
+Not to run it. You need one to deploy, and the wizard's last step shows which account your local
+credentials belong to before it will deploy anything. If there are none, it says how to get them.
 
-### How do I run init non-interactively (CI or an AI coding agent)?
+### Do I need a Stacktape account?
 
-Pass `--agent`. It switches output to JSONL, disables the interactive terminal UI, and auto-confirms operations. Since the AI wizard is interactive, combine `--agent` with explicit flags — typically `--starterId` plus `--configFormat` and `--infrastructureType` — so the run has no prompts to answer.
+Not to analyze your project or to get the file — that all happens on your machine, with no account
+and nothing sent to us. Deploying from the wizard does go through Stacktape, so the Deploy step
+checks whether this machine is signed in and tells you to run `stacktape login` if it is not.
 
-### What is the difference between --starterId and --templateId?
+### How do I run init non-interactively, in CI or from an AI coding agent?
 
-`--starterId` initializes from a built-in starter project template bundled with Stacktape. `--templateId` fetches a configuration template from the Stacktape Console's [Config Builder page](/stacktape-console/visual-config-editor). Both skip the AI-powered wizard.
+`--headless`, optionally with `--agent` for JSONL output. Nothing prompts: everything the code cannot
+answer is decided, and the terminal prints what was decided.
 
-### Which --infrastructureType should I choose?
+### Why does it barely ask me anything?
 
-Use `low-cost` for development and experimentation (single instances, no WAF or VPC), `standard` for staging and small production workloads (serverless databases, moderate scaling), and `production` for high-availability workloads (Aurora, WAF, VPC, bastion hosts, backups, and deletion protection). The tier affects resource sizing, scaling, security posture, and cost.
+Because almost nothing needs asking. Where your code does not say, there is nearly always an answer a
+careful person would pick — so it picks it, shows you on the Review step, and lets you change it. The
+one real question is how big the infrastructure should be, which is why that is on the first screen.
+
+### Which agent should I choose?
+
+Whichever you already have. Claude Code and Codex both produce a better result than static analysis,
+because they read the code rather than pattern-matching over it. If you have neither, "Files only" still
+produces a working configuration — it just falls back to defaults more often.
+
+### What happens when the deploy fails?
+
+The failure is read first. If it is about your AWS account — expired credentials, a missing
+permission, a quota — it is shown to you plainly, because no change to the configuration can fix it.
+If it could be about the code, the same agent that read your project reads it again with the actual
+error in hand, corrects what we believed, and the deploy runs again with the rebuilt configuration.
+It stops after two repairs and shows the real error rather than looping. If you chose "Files only",
+nothing is ever handed to an agent — the deploy just fails, plainly.
 
 ### Does init deploy anything?
 
-Not automatically. At the end of the wizard, you're offered the option to deploy. You can decline and run [`stacktape deploy`](/cli/deploy) later when you're ready.
+Only if you press the button on the last step, and only after showing you the AWS account it would deploy
+into. Everything before that is a file on your disk.
 
-### Will init overwrite files in my project directory?
+### Will init overwrite files in my project?
 
-The AI wizard generates a config alongside your existing code, so review it before deploying. The destructive case is `--initializeProjectTo`: if you point it at a non-empty directory, its contents are deleted before the starter project is placed there, so use a new or empty directory.
+It writes exactly one file, and never on top of an existing configuration — see above. The one
+destructive flag is `--initializeProjectTo`, which empties the directory you point it at.

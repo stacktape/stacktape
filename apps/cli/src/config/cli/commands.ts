@@ -27,6 +27,9 @@ import {
   filter,
   headersPreset,
   hotSwap,
+  headless,
+  noBrowser,
+  codingAgent,
   infrastructureType,
   initializeProjectTo,
   invalidateCdnCache,
@@ -483,6 +486,9 @@ Alternative modes:
       templateId: templateId.optional(),
       initializeProjectTo: initializeProjectTo.optional(),
       configFormat: configFormat.optional(),
+      headless: headless.optional(),
+      noBrowser: noBrowser.optional(),
+      codingAgent: codingAgent.optional(),
       infrastructureType: infrastructureType.optional()
     },
     requiredArgs: [] as const

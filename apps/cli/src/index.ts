@@ -149,6 +149,15 @@ const commandUi: Record<StacktapeCommand, CommandUi> = {
 };
 
 export const runCommand = async (opts: RunCommandOptions) => {
+  // Spawned by a coding agent as its MCP server, not invoked by a person. Triggered by environment
+  // rather than by a subcommand so it needs no entry in the command registry and cannot be reached
+  // by anyone reading `--help`; it speaks MCP on stdout and would be meaningless to a human.
+  if (process.env.STACKTAPE_INIT_MCP === '1') {
+    const { runInitMcpServer } = await import('./init/mcp/bin');
+    await runInitMcpServer();
+    return null;
+  }
+
   let commandResult: any = null;
   try {
     await applicationManager.init();

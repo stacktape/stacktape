@@ -9,6 +9,7 @@ import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { deployedStackOverviewManager } from '@domain-services/deployed-stack-overview-manager';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
+import { ensureManagedEmailSenders } from '@domain-services/email-sender-manager';
 import { packagingManager } from '@domain-services/packaging-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { prepareTemplateForDeploy } from '@domain-services/template-manager/finalize';
@@ -58,6 +59,10 @@ export const deployDevStack = async (): Promise<void> => {
     await applicationManager.handleExitSignal('SIGINT');
     return;
   }
+
+  // Shared email resources are an accepted dependency of this exact dev-stack update. Ensure them only after the
+  // user approves the finalized template and before any artifact or project-stack mutation begins.
+  await ensureManagedEmailSenders();
 
   // In dev mode, stackActionType is 'dev' not 'create', but we still need to create the initial stack
   // Check existingStackDetails to determine if this is a new stack

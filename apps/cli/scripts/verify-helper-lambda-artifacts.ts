@@ -1,5 +1,5 @@
 import { strict as assert } from 'node:assert';
-import { stat } from 'node:fs/promises';
+import { readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import AdmZip from 'adm-zip';
 import { loadHelperLambdaDetailsFromDir } from '../src/utils/helper-lambdas';
@@ -19,6 +19,12 @@ export const verifyHelperLambdaArtifacts = async ({
 } = {}) => {
   const details = await loadHelperLambdaDetailsFromDir({ helperLambdasDir });
   assert.deepEqual(Object.keys(details).sort(), [...requiredHelperLambdas].sort());
+  const archiveNames = (await readdir(helperLambdasDir)).filter((fileName) => fileName.endsWith('.zip'));
+  assert.equal(
+    archiveNames.length,
+    requiredHelperLambdas.length,
+    'helper-Lambda output must not retain stale archives'
+  );
 
   for (const name of requiredHelperLambdas) {
     const artifact = details[name];

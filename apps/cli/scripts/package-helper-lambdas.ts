@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import {
   DIST_FOLDER_PATH,
   CLI_BUILD_DIST_FOLDER_PATH,
-  HELPER_LAMBDAS_DIST_FOLDER_PATH,
+  DEV_ARTIFACTS_FOLDER_PATH,
   HELPER_LAMBDAS_FOLDER_NAME,
   HELPER_LAMBDAS_SOURCE_FOLDER_PATH,
   SOURCE_MAP_INSTALL_DIST_PATH
@@ -36,15 +36,14 @@ const helperLambdas = {
   }
 };
 
-export const packageHelperLambdas = async ({ distFolderPath }: { isDev?: boolean; distFolderPath: string }) => {
+export const packageHelperLambdas = async ({ distFolderPath }: { distFolderPath: string }) => {
   logInfo('Packaging helper lambdas...');
   const packagingRunId = `helper-lambdas-install-${process.pid}-${Date.now().toString(36)}`;
 
   await generateSourceMapInstall({ distFolderPath: DIST_FOLDER_PATH });
 
-  await fsExtra.ensureDir(HELPER_LAMBDAS_DIST_FOLDER_PATH);
-
   const lambdasDistFolderPath = join(distFolderPath, HELPER_LAMBDAS_FOLDER_NAME);
+  await remove(lambdasDistFolderPath);
   await fsExtra.ensureDir(lambdasDistFolderPath);
 
   for (const [name, { filePath, bundleSizeLimit }] of Object.entries(helperLambdas)) {
@@ -86,5 +85,7 @@ export const packageHelperLambdas = async ({ distFolderPath }: { isDev?: boolean
 };
 
 if (import.meta.main) {
-  packageHelperLambdas({ isDev: false, distFolderPath: CLI_BUILD_DIST_FOLDER_PATH });
+  packageHelperLambdas({
+    distFolderPath: process.argv.includes('--dev') ? DEV_ARTIFACTS_FOLDER_PATH : CLI_BUILD_DIST_FOLDER_PATH
+  });
 }

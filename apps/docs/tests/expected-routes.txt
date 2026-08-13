@@ -137,6 +137,7 @@
 /resources/compute/private-service
 /resources/compute/web-service
 /resources/compute/worker-service
+/resources/databases/dsql
 /resources/databases/dynamodb
 /resources/databases/mongodb-atlas
 /resources/databases/opensearch
@@ -151,15 +152,19 @@
 /resources/frontend/static-hosting
 /resources/frontend/sveltekit
 /resources/frontend/tanstack-start
+/resources/messaging/email-sender
 /resources/messaging/event-bus
+/resources/messaging/kafka-cluster
 /resources/messaging/kinesis-stream
 /resources/messaging/sns-topic
 /resources/messaging/sqs-queue
 /resources/networking/application-load-balancer
+/resources/networking/appsync-api
 /resources/networking/cdn
 /resources/networking/custom-domains
 /resources/networking/http-api-gateway
 /resources/networking/network-load-balancer
+/resources/networking/websocket-api-gateway
 /resources/orchestration/state-machine
 /resources/security/bastion-host
 /resources/security/user-auth-pool

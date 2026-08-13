@@ -126,6 +126,10 @@ export type StpServiceCustomResourceSsmParameterRetrieveProps = {
   parseAsJson?: boolean;
 };
 
+export type StpServiceCustomResourceKafkaBootstrapBrokersProps = {
+  clusterArn: string | Intrinsic;
+};
+
 export type StpServiceCustomResourceProperties = {
   s3Events?: StpServiceCustomResourceEventProps<S3IntegrationProps>[];
   // @deprecated - use edgeLambda instead
@@ -147,6 +151,7 @@ export type StpServiceCustomResourceProperties = {
   assetReplacer?: StpServiceCustomResourceAssetReplacerProps;
   userPoolDetails?: StpServiceCustomResourceUserPoolDetailsProps;
   ssmParameterRetrieve?: StpServiceCustomResourceSsmParameterRetrieveProps;
+  kafkaBootstrapBrokers?: StpServiceCustomResourceKafkaBootstrapBrokersProps;
 };
 
 export type StpServiceSharedCustomResourceProperties = Omit<

@@ -103,7 +103,8 @@ export const resolveDatabases = async () => {
           getResourcesNeededForLogForwarding({
             resource: definition,
             logGroupCfLogicalName: cfLogicalNames.auroraDbClusterLogGroup(name, logGroupType),
-            logForwardingConfig: definition.logging?.logForwarding
+            logForwardingConfig: definition.logging?.logForwarding,
+            logClass: definition.logging?.logClass
           }).forEach(({ cfLogicalName, cfResource }) => {
             if (!templateManager.getCfResourceFromTemplate(cfLogicalName)) {
               calculatedStackOverviewManager.addCfChildResource({
@@ -293,7 +294,8 @@ export const resolveDatabases = async () => {
           getResourcesNeededForLogForwarding({
             resource: definition,
             logGroupCfLogicalName: cfLogicalNames.dbInstanceLogGroup(name, logGroupType),
-            logForwardingConfig: definition.logging?.logForwarding
+            logForwardingConfig: definition.logging?.logForwarding,
+            logClass: definition.logging?.logClass
           }).forEach(({ cfLogicalName, cfResource }) => {
             if (!templateManager.getCfResourceFromTemplate(cfLogicalName)) {
               calculatedStackOverviewManager.addCfChildResource({

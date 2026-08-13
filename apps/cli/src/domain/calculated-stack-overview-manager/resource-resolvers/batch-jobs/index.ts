@@ -150,6 +150,7 @@ export const resolveBatchJobs = async () => {
         accessToAwsServices
       } = resolveConnectToList({
         stpResourceNameOfReferencer: name,
+        stpResourceTypeOfReferencer: definition.type,
         connectTo: definition.connectTo
       });
       const batchJobDefinitionLogicalName = cfLogicalNames.batchJobDefinition(name);
@@ -189,7 +190,8 @@ export const resolveBatchJobs = async () => {
           resource: getBachJobLogGroup({
             workloadName: name,
             stackName,
-            retentionDays: definition.logging?.retentionDays || defaultLogRetentionDays.batchJob
+            retentionDays: definition.logging?.retentionDays || defaultLogRetentionDays.batchJob,
+            logClass: definition.logging?.logClass
           }),
           nameChain
         });
@@ -213,7 +215,8 @@ export const resolveBatchJobs = async () => {
           getResourcesNeededForLogForwarding({
             resource: definition,
             logGroupCfLogicalName: cfLogicalNames.batchJobLogGroup(name),
-            logForwardingConfig: definition.logging?.logForwarding
+            logForwardingConfig: definition.logging?.logForwarding,
+            logClass: definition.logging?.logClass
           }).forEach(({ cfLogicalName, cfResource }) => {
             if (!templateManager.getCfResourceFromTemplate(cfLogicalName)) {
               calculatedStackOverviewManager.addCfChildResource({

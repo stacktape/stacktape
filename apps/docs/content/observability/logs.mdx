@@ -17,6 +17,27 @@ Both surfaces fetch from CloudWatch Logs. The CLI takes `--resourceName` (and `-
 
 For cost implications of CloudWatch Logs ingestion and storage, see [Managing Costs](/managing-costs/overview).
 
+## Lower-cost ingestion for infrequently inspected logs
+
+New log groups can opt into CloudWatch Logs Infrequent Access from the resource's existing logging block:
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+This lowers CloudWatch **ingestion** cost; storage and Logs Insights query pricing are unchanged. Standard remains the default because Infrequent Access does not support live tail, filter and subscription filters, embedded metrics, or Stacktape Issues and log forwarding. AWS fixes the class when a log group is created, so Stacktape blocks attempts to change an existing group and explains that the setting is for a new resource or stage.
+
+The simple viewing workflow remains available. `stacktape logs` and the Console detect Infrequent Access and use a bounded Logs Insights snapshot automatically. The CLI's `--filter` flag uses an incompatible CloudWatch filter language, so use `--query` for filtered IA reads; the Console's IA viewer offers a literal **Message contains** filter.
+
 ## Viewing logs in the Console
 
 The [Stacktape Console](/stacktape-console/console-overview) provides a paginated log viewer for resources that have a resolved CloudWatch log group. The viewer displays returned events with timestamps, and each log line is expandable to show its full content via the `ExpandableLogLine` component.
@@ -30,7 +51,7 @@ The Console log viewer offers two modes for selecting the time window, accessibl
 
 ### Filter patterns
 
-Enter a CloudWatch filter pattern in the **Filter pattern** input to narrow results to matching log events. The filter uses [CloudWatch filter pattern syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). The input is debounced — results refresh automatically after you stop typing, so there is no need to press a submit button.
+For Standard log groups, enter a CloudWatch filter pattern in the **Filter pattern** input to narrow results to matching log events. The filter uses [CloudWatch filter pattern syntax](https://docs.aws.amazon.com/AmazonCloudWatch/latest/logs/FilterAndPatternSyntax.html). For Infrequent Access groups, the field is labeled **Message contains** and Stacktape uses a Logs Insights snapshot. The input is debounced — results refresh automatically after you stop typing, so there is no need to press a submit button.
 
 Filter patterns are useful for isolating error messages, matching JSON field values, or excluding noisy log lines. For example, entering `ERROR` shows only lines containing that keyword, while `{ $.level = "error" }` matches structured JSON logs with a specific field value.
 

@@ -190,7 +190,9 @@ Use `HTTP` for a conventional request/response endpoint. Use `MCP`, `A2A`, or `A
 
 ## Endpoints
 
-Define the API endpoints your agent runtime exposes with the `endpoints` property. Each endpoint can be a simple string (the endpoint name) or an object with additional configuration.
+Define the API endpoints your agent runtime exposes with the `endpoints` property. Each endpoint can be a simple string (the endpoint name) or an object with additional configuration. If you omit `endpoints`, Stacktape creates one endpoint named `default`. If you configure the property, provide at least one endpoint and give every endpoint a unique name.
+
+The resource's `endpointName` and `endpointArn` references point to the endpoint named `default` when the list contains one. Otherwise, they point to the first configured endpoint. Put the endpoint you want other resources to use first, or name it `default`; the remaining endpoints are still created but are not exposed through those shorthand resource parameters.
 
 
 Example (TypeScript):

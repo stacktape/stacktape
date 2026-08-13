@@ -1,0 +1,861 @@
+/*
+ * The wizard's appearance.
+ *
+ * The layer order is the load-bearing line. `@stacktape/ui-react` paints its controls inside a
+ * `stacktape-ui` layer specifically so a consumer can decide where it sorts, and this app sorts it
+ * below Tailwind's utilities — so a `className="w-full"` on a Button wins without `!important` and
+ * without a specificity contest, while the control still arrives fully styled.
+ *
+ * The page is one document with a rail beside it. Everything here serves that: a single measure for
+ * prose, one accent colour used sparingly, and motion only where something genuinely changed.
+ */
+@layer theme, base, stacktape-ui, components, utilities;
+
+@import 'tailwindcss';
+@import '@stacktape/design-tokens/css';
+@import '@stacktape/ui-react/styles.css';
+
+@layer base {
+  :root {
+    color-scheme: dark;
+    /* One measure for every column of prose on the page. */
+    --wizard-measure: 68ch;
+  }
+
+  body {
+    margin: 0;
+    background: var(--stp-surface-page, #161c1c);
+    color: var(--stp-text-primary);
+    font-family:
+      Inter,
+      ui-sans-serif,
+      system-ui,
+      -apple-system,
+      'Segoe UI',
+      sans-serif;
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+    /* A single, very soft light from the top of the page. It gives the sections something to sit on
+     * without any of them needing a border. */
+    background-image: radial-gradient(120% 60% at 50% -10%, rgba(255, 255, 255, 0.045), transparent 70%);
+    background-attachment: fixed;
+  }
+
+  /* Both consuming applications suppress the browser ring globally and opt individual controls back
+   * in. Doing the same here keeps focus behaviour identical to Console rather than subtly different. */
+  :focus {
+    outline: none;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    html {
+      scroll-behavior: auto;
+    }
+  }
+}
+
+@layer components {
+  /* ── The page ──────────────────────────────────────────────────────────────────────────────── */
+
+  .wizard-shell {
+    max-width: 1080px;
+    margin: 0 auto;
+    padding: 72px 28px 140px;
+  }
+
+  .wizard-masthead {
+    max-width: var(--wizard-measure);
+    margin-bottom: 56px;
+  }
+
+  .wizard-step-label {
+    margin: 0;
+    font-size: 0.76rem;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--stp-color-brand);
+  }
+
+  .wizard-title {
+    margin: 10px 0 0;
+    font-size: 2.1rem;
+    font-weight: 660;
+    line-height: 1.15;
+    letter-spacing: -0.02em;
+  }
+
+  .wizard-lede {
+    margin: 12px 0 0;
+    max-width: var(--wizard-measure);
+    color: var(--stp-text-muted);
+  }
+
+  /* Rail and flow. The rail is 168px because the labels are one word and a summary; wider and it
+   * starts competing with the content it is supposed to be indexing. */
+  .wizard-page {
+    display: grid;
+    grid-template-columns: 168px minmax(0, 1fr);
+    gap: 56px;
+    align-items: start;
+  }
+
+  .wizard-flow {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+  }
+
+  /* ── The guide rail ────────────────────────────────────────────────────────────────────────── */
+
+  .wizard-rail {
+    position: sticky;
+    top: 72px;
+  }
+
+  .wizard-rail ol {
+    display: flex;
+    flex-direction: column;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .wizard-rail-step a {
+    position: relative;
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 9px 0 22px;
+    color: var(--stp-text-subtle);
+    font-size: 0.92rem;
+    text-decoration: none;
+    transition: color var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .wizard-rail-step[aria-disabled='true'] a,
+  .wizard-rail-step a[aria-disabled='true'] {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  /* The connector, drawn from each marker to the next. Stops at the last step rather than trailing
+   * off into nothing, which would imply a fifth band. */
+  .wizard-rail-step:not(:last-child) a::before {
+    content: '';
+    position: absolute;
+    left: 5px;
+    top: 26px;
+    bottom: 4px;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .wizard-rail-marker {
+    display: grid;
+    place-items: center;
+    width: 11px;
+    height: 11px;
+    margin-top: 6px;
+    flex: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.14);
+    font-size: 0.5rem;
+    font-weight: 800;
+    color: transparent;
+    transition:
+      background var(--stp-motion-duration-base) var(--stp-motion-easing),
+      box-shadow var(--stp-motion-duration-base) var(--stp-motion-easing),
+      transform var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .wizard-rail-label {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .wizard-rail-summary {
+    color: var(--stp-text-subtle);
+    font-size: 0.75rem;
+  }
+
+  .wizard-rail-step.is-done .wizard-rail-marker {
+    background: color-mix(in srgb, var(--stp-color-brand) 55%, transparent);
+  }
+
+  .wizard-rail-step.is-done a {
+    color: var(--stp-text-muted);
+  }
+
+  /* The band you are reading, which is not always the band the run is on — you can scroll back. */
+  .wizard-rail-step.is-current a {
+    color: var(--stp-text-primary);
+    font-weight: 600;
+  }
+
+  .wizard-rail-step.is-current .wizard-rail-marker {
+    background: var(--stp-color-brand);
+    transform: scale(1.35);
+    box-shadow: 0 0 0 4px color-mix(in srgb, var(--stp-color-brand) 16%, transparent);
+  }
+
+  .wizard-rail-step a:hover {
+    color: var(--stp-text-primary);
+  }
+
+  /* ── Sections ──────────────────────────────────────────────────────────────────────────────── */
+
+  .wizard-section {
+    padding: 0 0 64px;
+    scroll-margin-top: 64px;
+    animation: wizard-section-in var(--stp-motion-duration-slow, 420ms) var(--stp-motion-easing) both;
+  }
+
+  /* Behind you: still readable, still scrollable to, visibly not the thing to look at. */
+  .wizard-section.is-muted {
+    opacity: 0.58;
+    transition: opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .wizard-section.is-muted:hover,
+  .wizard-section.is-muted:focus-within {
+    opacity: 1;
+  }
+
+  .wizard-section-header {
+    margin-bottom: 20px;
+  }
+
+  .wizard-section-title {
+    margin: 8px 0 0;
+    font-size: 1.35rem;
+    font-weight: 640;
+    letter-spacing: -0.01em;
+  }
+
+  .wizard-section-heading {
+    margin: 0 0 8px;
+    font-size: 1rem;
+    font-weight: 620;
+  }
+
+  .wizard-recap {
+    margin: 0;
+    color: var(--stp-text-muted);
+  }
+
+  .wizard-recap strong {
+    color: var(--stp-text-primary);
+    font-weight: 600;
+  }
+
+  @keyframes wizard-section-in {
+    from {
+      opacity: 0;
+      transform: translateY(8px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* ── The first screen ──────────────────────────────────────────────────────────────────────── */
+
+  .wizard-promises {
+    counter-reset: promise;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 0;
+    padding: 0;
+    max-width: var(--wizard-measure);
+    list-style: none;
+    color: var(--stp-text-muted);
+  }
+
+  .wizard-promises li {
+    position: relative;
+    padding-left: 34px;
+    font-size: 0.95rem;
+  }
+
+  .wizard-promises li::before {
+    counter-increment: promise;
+    content: counter(promise);
+    position: absolute;
+    left: 0;
+    top: 1px;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+    color: var(--stp-color-brand);
+    font-size: 0.72rem;
+    font-weight: 700;
+  }
+
+  .wizard-promises strong {
+    color: var(--stp-text-primary);
+    font-weight: 600;
+  }
+
+  /* ── Reading ───────────────────────────────────────────────────────────────────────────────── */
+
+  .wizard-feed {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-height: 300px;
+    overflow-y: auto;
+    margin: 0;
+    padding: 14px 16px;
+    list-style: none;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    scroll-behavior: smooth;
+  }
+
+  .wizard-feed li {
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  /* ── Review: summary, editor frame, file view ────────────────────────────────────── */
+
+  /* The one sentence someone reads if they read nothing else. Sized like a subheading, not a note. */
+  .wizard-summary {
+    margin: 0;
+    max-width: var(--wizard-measure);
+    font-size: 1.05rem;
+    line-height: 1.55;
+    color: var(--stp-text-primary);
+  }
+
+  .wizard-summary strong {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* A fixed-height stage for the editor frame, so switching tabs never reflows the page below it. */
+  .wizard-editor .stp-config-editor {
+    height: min(64vh, 560px);
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
+
+  .wizard-editor .stp-config-editor__panel {
+    overflow: auto;
+  }
+
+  .wizard-source {
+    margin: 0;
+    padding: 16px 18px;
+    font-family: var(--stp-font-mono, ui-monospace, monospace);
+    font-size: 0.85rem;
+    line-height: 1.6;
+    color: var(--stp-text-primary);
+    white-space: pre;
+  }
+
+  .wizard-format-toggle {
+    display: inline-flex;
+    gap: 2px;
+    margin: 0;
+    padding: 2px;
+    border: 0;
+    border-radius: var(--stp-radius-medium, 8px);
+    background: rgba(255, 255, 255, 0.05);
+  }
+
+  .wizard-format-toggle button {
+    padding: 3px 10px;
+    border: 0;
+    border-radius: calc(var(--stp-radius-medium, 8px) - 2px);
+    background: none;
+    color: var(--stp-text-muted);
+    font: inherit;
+    font-size: 0.8rem;
+    cursor: pointer;
+  }
+
+  .wizard-format-toggle button[aria-pressed='true'] {
+    background: rgba(255, 255, 255, 0.1);
+    color: var(--stp-text-primary);
+  }
+
+  /* ── Resources ─────────────────────────────────────────────────────────────────────────────── */
+
+  .wizard-resources {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .wizard-resource {
+    display: flex;
+    gap: 14px;
+    padding: 16px;
+    border-radius: var(--stp-radius-large);
+    transition: background var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  /* No card, no border: a list of resources is a list, and eight bordered boxes in a column is a
+   * fence. The hover tint is enough to show which row you are on. */
+  .wizard-resource:hover {
+    background: rgba(255, 255, 255, 0.03);
+  }
+
+  .wizard-resource-icon {
+    margin-top: 2px;
+    flex: none;
+  }
+
+  .wizard-resource-name {
+    margin: 0;
+    font-size: 1rem;
+    font-weight: 620;
+  }
+
+  .wizard-resource-reason {
+    margin: 3px 0 0;
+    max-width: var(--wizard-measure);
+    font-size: 0.92rem;
+    color: var(--stp-text-muted);
+  }
+
+  /* Pushed to the right of the row: the cost belongs to the resource but is not its headline. */
+  .wizard-resource-cost {
+    margin-left: auto;
+    flex: none;
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    color: var(--stp-text-subtle);
+  }
+
+  .wizard-total-cost {
+    margin: 0;
+    max-width: var(--wizard-measure);
+    font-size: 0.9rem;
+    color: var(--stp-text-muted);
+  }
+
+  .wizard-total-cost strong {
+    color: var(--stp-text-primary);
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ── Decisions ─────────────────────────────────────────────────────────────────────────────── */
+
+  .wizard-decision {
+    padding: 14px 16px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+    transition:
+      box-shadow var(--stp-motion-duration-base) var(--stp-motion-easing),
+      opacity var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  /* The ones that bite later get an accent edge — one hairline, not a colour wash, because they are
+   * worth a glance rather than an alarm. */
+  .wizard-decision.is-notable {
+    box-shadow:
+      inset 3px 0 0 color-mix(in srgb, var(--stp-color-brand) 70%, transparent),
+      inset 0 0 0 1px rgba(255, 255, 255, 0.05);
+  }
+
+  .wizard-decision.is-busy {
+    opacity: 0.6;
+  }
+
+  .wizard-decision-head {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 16px;
+  }
+
+  .wizard-decision-summary {
+    margin: 0;
+    font-weight: 560;
+  }
+
+  .wizard-decision-detail {
+    margin: 4px 0 0;
+    max-width: var(--wizard-measure);
+    font-size: 0.9rem;
+    color: var(--stp-text-muted);
+  }
+
+  .wizard-decision-toggle {
+    flex: none;
+    padding: 4px 10px;
+    border: 0;
+    border-radius: var(--stp-radius-medium);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--stp-text-muted);
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+    transition:
+      background var(--stp-motion-duration-base) var(--stp-motion-easing),
+      color var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .wizard-decision-toggle:hover {
+    background: rgba(255, 255, 255, 0.09);
+    color: var(--stp-text-primary);
+  }
+
+  .wizard-decision-options {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 14px;
+    animation: wizard-expand var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .wizard-decision-option {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border: 0;
+    border-radius: var(--stp-radius-medium);
+    background: rgba(255, 255, 255, 0.04);
+    color: var(--stp-text-primary);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+    transition:
+      background var(--stp-motion-duration-base) var(--stp-motion-easing),
+      transform var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .wizard-decision-option:hover:not(:disabled) {
+    background: rgba(255, 255, 255, 0.08);
+    transform: translateX(2px);
+  }
+
+  .wizard-decision-option-label {
+    font-size: 0.92rem;
+    font-weight: 550;
+  }
+
+  .wizard-decision-option-consequence {
+    font-size: 0.82rem;
+    color: var(--stp-text-subtle);
+  }
+
+  @keyframes wizard-expand {
+    from {
+      opacity: 0;
+      transform: translateY(-4px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* ── Shared surfaces ───────────────────────────────────────────────────────────────────────── */
+
+  .wizard-panel {
+    border-radius: var(--stp-radius-large);
+    background: rgba(255, 255, 255, 0.02);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+  }
+
+  .wizard-code {
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.82rem;
+  }
+
+  .wizard-link {
+    color: var(--stp-color-brand);
+    text-decoration: none;
+  }
+
+  .wizard-link:hover {
+    text-decoration: underline;
+  }
+
+  .wizard-disclosure {
+    padding: 0;
+    border: 0;
+    background: none;
+    color: var(--stp-text-subtle);
+    font: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .wizard-disclosure:hover {
+    color: var(--stp-text-primary);
+  }
+
+  .wizard-facts {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 28px;
+    margin: 0;
+  }
+
+  .wizard-facts dt {
+    margin: 0 0 2px;
+    color: var(--stp-text-subtle);
+    font-size: 0.76rem;
+    text-transform: uppercase;
+    letter-spacing: 0.07em;
+  }
+
+  .wizard-facts dd {
+    margin: 0;
+    color: var(--stp-text-primary);
+  }
+
+  .wizard-input {
+    min-width: 190px;
+    padding: 7px 10px;
+    border: 0;
+    border-radius: var(--stp-radius-medium);
+    background: rgba(255, 255, 255, 0.05);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    color: var(--stp-text-primary);
+    font: inherit;
+    font-size: 0.92rem;
+  }
+
+  .wizard-input:focus-visible {
+    box-shadow:
+      inset 0 0 0 1px var(--stp-color-brand),
+      0 0 0 3px color-mix(in srgb, var(--stp-color-brand) 18%, transparent);
+  }
+
+  .wizard-command {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 12px 12px 12px 16px;
+    border-radius: var(--stp-radius-large);
+    background: rgba(0, 0, 0, 0.28);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.07);
+  }
+
+  .wizard-command code {
+    overflow-x: auto;
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.86rem;
+    color: var(--stp-text-primary);
+    white-space: pre;
+  }
+
+  /* ── Deploy progress ───────────────────────────────────────────────────────────────────────── */
+
+  .wizard-phases {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .wizard-phase {
+    position: relative;
+    display: flex;
+    gap: 12px;
+    padding: 10px 0 14px;
+  }
+
+  .wizard-phase:not(:last-child)::before {
+    content: '';
+    position: absolute;
+    left: 8px;
+    top: 28px;
+    bottom: 2px;
+    width: 1px;
+    background: rgba(255, 255, 255, 0.1);
+  }
+
+  .wizard-phase-marker {
+    display: grid;
+    place-items: center;
+    width: 17px;
+    height: 17px;
+    margin-top: 3px;
+    flex: none;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.06);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1);
+    font-size: 0.62rem;
+    font-weight: 700;
+    color: var(--stp-surface-page, #161c1c);
+  }
+
+  .wizard-phase.is-done .wizard-phase-marker {
+    background: var(--stp-color-brand);
+    box-shadow: none;
+  }
+
+  /* The running phase breathes rather than spins: one moving thing on the screen, not five. */
+  .wizard-phase.is-running .wizard-phase-marker {
+    background: var(--stp-color-brand);
+    box-shadow: none;
+    animation: wizard-breathe 1.6s ease-in-out infinite;
+  }
+
+  .wizard-phase-label {
+    font-weight: 600;
+  }
+
+  .wizard-phase.is-pending .wizard-phase-label {
+    color: var(--stp-text-subtle);
+    font-weight: 500;
+  }
+
+  .wizard-phase-message {
+    margin: 3px 0 0;
+    font-size: 0.9rem;
+    color: var(--stp-text-muted);
+  }
+
+  .wizard-meter {
+    height: 4px;
+    margin-top: 10px;
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.08);
+    overflow: hidden;
+  }
+
+  .wizard-meter span {
+    display: block;
+    height: 100%;
+    border-radius: inherit;
+    background: var(--stp-color-brand);
+    /* Steps, not a crawl: the bar only moves when CloudFormation says something finished. */
+    transition: width 400ms ease-out;
+  }
+
+  .wizard-resource-list {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    margin: 10px 0 0;
+    padding: 0;
+    list-style: none;
+    font-size: 0.84rem;
+    color: var(--stp-text-muted);
+  }
+
+  .wizard-resource-list li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .wizard-pulse {
+    width: 5px;
+    height: 5px;
+    flex: none;
+    border-radius: 999px;
+    background: var(--stp-color-brand);
+    animation: wizard-breathe 1.6s ease-in-out infinite;
+  }
+
+  .wizard-log {
+    max-height: 340px;
+    margin: 10px 0 0;
+    padding: 14px 16px;
+    overflow: auto;
+    border-radius: var(--stp-radius-large);
+    background: rgba(0, 0, 0, 0.3);
+    box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.06);
+    color: var(--stp-text-muted);
+    font-family: ui-monospace, SFMono-Regular, 'SF Mono', Menlo, Consolas, monospace;
+    font-size: 0.78rem;
+    line-height: 1.55;
+    white-space: pre-wrap;
+    word-break: break-word;
+  }
+
+  @keyframes wizard-breathe {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.35;
+    }
+  }
+
+  /* ── Narrow screens ────────────────────────────────────────────────────────────────────────── */
+
+  @media (max-width: 780px) {
+    .wizard-shell {
+      padding: 40px 18px 96px;
+    }
+
+    .wizard-title {
+      font-size: 1.7rem;
+    }
+
+    /* A 168px rail beside content is not a layout on a phone, it is two columns of nothing. It
+     * becomes a row of dots above the flow, which still says where you are. */
+    .wizard-page {
+      grid-template-columns: minmax(0, 1fr);
+      gap: 28px;
+    }
+
+    .wizard-rail {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      padding: 10px 0;
+      background: var(--stp-surface-page, #161c1c);
+    }
+
+    .wizard-rail ol {
+      flex-direction: row;
+      gap: 18px;
+    }
+
+    .wizard-rail-step a {
+      padding: 0;
+    }
+
+    .wizard-rail-step:not(:last-child) a::before {
+      display: none;
+    }
+
+    .wizard-rail-summary {
+      display: none;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .wizard-section,
+    .wizard-decision-options {
+      animation: none;
+    }
+
+    .wizard-pulse,
+    .wizard-phase.is-running .wizard-phase-marker {
+      animation: none;
+    }
+  }
+}

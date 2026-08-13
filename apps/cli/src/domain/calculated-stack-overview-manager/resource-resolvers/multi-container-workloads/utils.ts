@@ -54,8 +54,9 @@ import { getAugmentedEnvironment } from '@utils/environment';
 import uniqWith from 'lodash/uniqWith';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
 import { getImageUrlForMultiTask } from '../_utils/image-urls';
+import { getCloudFormationLogGroupClassProperties } from '../_utils/log-groups';
 import { getPoliciesForRoles } from '../_utils/role-helpers';
-import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
+import type { CloudWatchLogGroupOptions } from '@stacktape/config/log-forwarding';
 import type {
   CustomDockerfileCwImagePackagingProps,
   EsLanguageSpecificConfig,
@@ -180,7 +181,7 @@ export const getEcsTaskRole = ({
   workloadName: string;
   iamRoleStatements: StpIamRoleStatement[];
   accessToResourcesRequiringRoleChanges: StpResourceScopableByConnectToAffectingRole[];
-  accessToAwsServices: ConnectToAwsServicesMacro[];
+  accessToAwsServices: never[];
   mountedEfsFilesystems: StpEfsFilesystem[];
   enableRemoteSessions: boolean;
 }) => {
@@ -1233,12 +1234,14 @@ export const getEcsLogGroup = ({
   stackName,
   workloadName,
   containerName,
-  retentionDays
+  retentionDays,
+  logClass
 }: {
   workloadName: string;
   stackName: string;
   containerName?: string;
   retentionDays: number;
+  logClass?: CloudWatchLogGroupOptions['logClass'];
 }) => {
   return cfnResource('AWS::Logs::LogGroup', {
     LogGroupName: awsResourceNames.containerLogGroup({
@@ -1246,6 +1249,7 @@ export const getEcsLogGroup = ({
       stackName,
       containerName
     }),
+    ...getCloudFormationLogGroupClassProperties(logClass),
     RetentionInDays: getCloudFormationLogRetentionDays(retentionDays)
   });
 };

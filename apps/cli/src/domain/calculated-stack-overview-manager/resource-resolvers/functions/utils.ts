@@ -25,9 +25,10 @@ import {
   getLogGroupPolicyDocumentStatements,
   getPoliciesForRoles
 } from '../_utils/role-helpers';
-import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
 import type { ApplicationLoadBalancerIntegration } from '@stacktape/config/events';
+import type { CloudWatchLogGroupOptions } from '@stacktape/config/log-forwarding';
 import type { StpIamRoleStatement } from '@stacktape/config/shared';
+import { getCloudFormationLogGroupClassProperties } from '../_utils/log-groups';
 
 export const getLambdaFunctionSecurityGroup = ({
   stackName,
@@ -42,9 +43,14 @@ export const getLambdaFunctionSecurityGroup = ({
     GroupDescription: awsResourceNames.workloadSecurityGroupGroupDescription(stpFunctionName, stackName)
   });
 
-export const getLambdaLogGroup = (logGroupName: string, logRetentionInDays?: number) => {
+export const getLambdaLogGroup = (
+  logGroupName: string,
+  logRetentionInDays?: number,
+  logClass?: CloudWatchLogGroupOptions['logClass']
+) => {
   const logGroup = cfnResource('AWS::Logs::LogGroup', {
-    LogGroupName: logGroupName
+    LogGroupName: logGroupName,
+    ...getCloudFormationLogGroupClassProperties(logClass)
   });
   Object.assign(logGroup.Properties, {
     RetentionInDays: getCloudFormationLogRetentionDays(logRetentionInDays || defaultLogRetentionDays.lambdaFunction)
@@ -69,7 +75,7 @@ export const getLambdaFunctionRole = ({
   lambdaResourceName: string;
   iamRoleStatements: StpIamRoleStatement[];
   accessToResourcesRequiringRoleChanges: StpResourceScopableByConnectToAffectingRole[];
-  accessToAwsServices: ConnectToAwsServicesMacro[];
+  accessToAwsServices: never[];
   joinVpc?: boolean;
   destinations?: StpLambdaFunction['destinations'];
   isUsedInDeploymentHook?: boolean;

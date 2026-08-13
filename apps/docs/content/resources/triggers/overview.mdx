@@ -31,6 +31,15 @@ Synchronous triggers deliver a request and wait for a response. The caller block
 
 [HTTP API Gateway](/resources/networking/http-api-gateway) is the simplest option for serverless APIs — per-request pricing, no idle cost, automatic path and method routing. An [Application Load Balancer](/resources/networking/application-load-balancer) adds advanced routing (header matching, query parameters, source IP filtering) and is the natural choice when you already have an ALB for container workloads. A [Network Load Balancer](/resources/networking/network-load-balancer) operates at Layer 4 (TCP/TLS) and is container-only.
 
+### WebSocket routes
+
+| Trigger | Type value | Works with | Dedicated page |
+|---------|-----------|------------|----------------|
+| WebSocket API Gateway | `websocket-api-gateway` | Lambda functions | [WebSocket API Gateway](/resources/networking/websocket-api-gateway) |
+| AppSync API | `appsync-api` | Lambda functions | [AppSync API](/resources/networking/appsync-api) |
+
+A WebSocket gateway invokes Lambda functions for connection lifecycle and message routes. Messages are one-way by default: handlers send data explicitly through the connection-management API rather than returning an HTTP-style response body.
+
 ### Asynchronous triggers
 
 Asynchronous triggers fall into two delivery patterns. **Push-based** sources — S3, SNS, schedules, EventBridge, CloudWatch Logs, and alarms — push events directly to your function when they occur. **Poll-based** sources — SQS, Kinesis, DynamoDB streams, and Kafka — are consumed through AWS Lambda event-source mappings that continuously poll the source and invoke your function with batches of records. Use either pattern for background processing, reactions to state changes, and scheduled jobs.
@@ -49,7 +58,7 @@ Asynchronous triggers fall into two delivery patterns. **Push-based** sources �
 | Kafka topic | `kafka-topic` | Poll | [Kafka topics](/resources/triggers/kafka-topics) |
 
 <Warning>
-**S3 triggers** require the `s3EventType` property to specify which event fires the function — for example, `s3:ObjectCreated:*` or `s3:ObjectRemoved:*`. **DynamoDB stream triggers** require streaming to be enabled on the DynamoDB table (via the `streaming` property in your `dynamoDbTables` config) before the trigger can be configured. **Kafka triggers** require an `authentication` field on `customKafkaConfiguration` — either SASL (`BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`) or mTLS.
+**S3 triggers** require the `s3EventType` property to specify which event fires the function — for example, `s3:ObjectCreated:*` or `s3:ObjectRemoved:*`. **DynamoDB stream triggers** require streaming to be enabled on the DynamoDB table (via the `streaming` property in your `dynamoDbTables` config) before the trigger can be configured. **Kafka triggers** accept a Stacktape Kafka cluster, a same-account and same-region Amazon MSK ARN using IAM authentication, or self-managed broker details with SASL or mTLS credentials.
 </Warning>
 
 <Info>

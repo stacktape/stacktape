@@ -58,10 +58,10 @@ Stacktape groups resources by purpose. Each category maps to a set of AWS servic
 |----------|-----------|--------------|
 | **Compute** | [Lambda function](/resources/compute/lambda-function), [web service](/resources/compute/web-service), [private service](/resources/compute/private-service), [worker service](/resources/compute/worker-service), [multi-container workload](/resources/compute/multi-container-workload), [batch job](/resources/compute/batch-job), [edge function](/resources/compute/edge-function) | Lambda, ECS Fargate/EC2, AWS Batch, Lambda@Edge |
 | **Frontend** | [Static hosting](/resources/frontend/static-hosting), [Next.js](/resources/frontend/nextjs), [Astro](/resources/frontend/astro), [Nuxt](/resources/frontend/nuxt), [SvelteKit](/resources/frontend/sveltekit), [SolidStart](/resources/frontend/solidstart), [TanStack Start](/resources/frontend/tanstack-start), [Remix](/resources/frontend/remix) | S3, CloudFront, Lambda |
-| **Databases** | [Relational database](/resources/databases/relational-database), [DynamoDB](/resources/databases/dynamodb), [Redis](/resources/databases/redis), [MongoDB Atlas](/resources/databases/mongodb-atlas), [Upstash Redis](/resources/databases/upstash-redis), [OpenSearch](/resources/databases/opensearch) | RDS, Aurora, DynamoDB, ElastiCache, OpenSearch Service |
+| **Databases** | [Relational database](/resources/databases/relational-database), [Aurora DSQL](/resources/databases/dsql), [DynamoDB](/resources/databases/dynamodb), [Redis](/resources/databases/redis), [MongoDB Atlas](/resources/databases/mongodb-atlas), [Upstash Redis](/resources/databases/upstash-redis), [OpenSearch](/resources/databases/opensearch) | RDS, Aurora, Aurora DSQL, DynamoDB, ElastiCache, OpenSearch Service |
 | **Storage** | [S3 bucket](/resources/storage/s3-bucket), [EFS filesystem](/resources/storage/efs-filesystem) | S3, EFS |
-| **Networking** | [HTTP API Gateway](/resources/networking/http-api-gateway), [Application Load Balancer](/resources/networking/application-load-balancer), [Network Load Balancer](/resources/networking/network-load-balancer), [CDN](/resources/networking/cdn), [custom domains](/resources/networking/custom-domains) | API Gateway, ALB, NLB, CloudFront, Route 53, ACM |
-| **Messaging** | [Event bus](/resources/messaging/event-bus), [SQS queue](/resources/messaging/sqs-queue), [SNS topic](/resources/messaging/sns-topic), [Kinesis stream](/resources/messaging/kinesis-stream) | EventBridge, SQS, SNS, Kinesis |
+| **Networking** | [HTTP API Gateway](/resources/networking/http-api-gateway), [WebSocket API Gateway](/resources/networking/websocket-api-gateway), [AppSync API](/resources/networking/appsync-api), [Application Load Balancer](/resources/networking/application-load-balancer), [Network Load Balancer](/resources/networking/network-load-balancer), [CDN](/resources/networking/cdn), [custom domains](/resources/networking/custom-domains) | API Gateway, AppSync, ALB, NLB, CloudFront, Route 53, ACM |
+| **Messaging** | [Event bus](/resources/messaging/event-bus), [SQS queue](/resources/messaging/sqs-queue), [SNS topic](/resources/messaging/sns-topic), [Kinesis stream](/resources/messaging/kinesis-stream), [Kafka cluster](/resources/messaging/kafka-cluster), [Email sender](/resources/messaging/email-sender) | EventBridge, SQS, SNS, Kinesis, MSK Serverless, SES |
 | **Orchestration** | [State machine](/resources/orchestration/state-machine) | Step Functions |
 | **Security** | [User auth pool](/resources/security/user-auth-pool), [Web application firewall](/resources/security/web-application-firewall), [Bastion host](/resources/security/bastion-host) | Cognito, WAF, EC2 (bastion) |
 | **Advanced** | [Custom resources](/resources/advanced/custom-resources), [deployment scripts](/resources/advanced/deployment-scripts), [CDK constructs](/resources/advanced/aws-cdk-constructs), [raw CloudFormation](/resources/advanced/raw-cloudformation-resources) | Any AWS resource |
@@ -116,10 +116,12 @@ In the TypeScript `defineConfig` style, pass the resource variables directly in 
 | **BatchJob** | `JOB_DEFINITION_ARN`, `STATE_MACHINE_ARN` |
 | **PrivateService** | `ADDRESS` |
 | **WebService** | `URL` |
+| **EmailSender** | `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`, `FEEDBACK_TOPIC_ARN` |
+| **KafkaCluster** | `ARN`, `NAME`, `BOOTSTRAP_SERVERS` |
 
 All variable names follow the pattern `STP_[RESOURCE_NAME]_[PARAM]`. For the full per-resource reference, see [Connecting resources](/configuration/connecting-resources).
 
-You can also connect to `aws:ses` to grant full SES email sending permissions without injecting environment variables.
+Use the native [Email sender](/resources/messaging/email-sender) resource for SES. It verifies or reuses the identity, injects the sending values, and scopes permissions to that exact identity and configuration set.
 
 ## Resource references with directives
 

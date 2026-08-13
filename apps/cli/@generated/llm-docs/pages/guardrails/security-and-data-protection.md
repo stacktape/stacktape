@@ -51,7 +51,7 @@ Skip guardrails in early prototyping or single-developer projects where speed ma
 
 ## Require VPC databases
 
-The `require-vpc-databases` guardrail enforces that, when enabled, relational databases and OpenSearch domains use VPC-only accessibility with no public internet access. DynamoDB does not have an equivalent per-table public accessibility setting and is not checked.
+The `require-vpc-databases` guardrail enforces that, when enabled, relational databases and OpenSearch domains use VPC-only accessibility with no public internet access. DynamoDB does not have an equivalent per-table public accessibility setting and is not checked. Aurora DSQL currently uses its public service endpoint in Stacktape, so a stack containing `dsql-database` fails this guardrail closed until Stacktape supports its PrivateLink lifecycle.
 
 **When to enable:** Enable when every stage in the organization should use private data services. VPC-only databases cannot be reached from the public internet, eliminating an entire class of network-based attack vectors. The tradeoff is that you need a [bastion host](/resources/security/bastion-host) or VPC-connected workloads to access the database for administration and debugging. Guardrails currently apply organization-wide rather than only to production.
 
@@ -91,7 +91,7 @@ This example configures the database with VPC-only access and no public internet
 
 ## Require deletion protection
 
-The `require-deletion-protection` guardrail requires all [relational databases](/resources/databases/relational-database) to have `deletionProtection` set to `true`. Deletion protection is an AWS RDS safeguard that prevents a database instance from being deleted through API operations — you must explicitly disable it before removing the database.
+The `require-deletion-protection` guardrail requires all [relational databases](/resources/databases/relational-database) and [Aurora DSQL databases](/resources/databases/dsql) to have `deletionProtection` set to `true`. AWS rejects deletion of a protected database — you must explicitly disable protection before removing it.
 
 **When to enable:** Enable for any stage where accidental data loss is unacceptable — production, staging with real data, or shared development databases. The tradeoff is minimal: you must explicitly disable deletion protection before intentionally removing a database, which adds one deliberate step to prevent accidents.
 
@@ -123,7 +123,7 @@ export default defineConfig(() => {
 ```
 
 
-Setting `deletionProtection: true` satisfies this guardrail. With deletion protection enabled, AWS RDS rejects API calls that would remove the database instance — this is an AWS-level safeguard independent of Stacktape. When `require-deletion-protection` is enabled, every relational database must set `deletionProtection: true`.
+Setting `deletionProtection: true` satisfies this guardrail. This is an AWS-level safeguard independent of Stacktape. When `require-deletion-protection` is enabled, every relational and DSQL database must set `deletionProtection: true`.
 
 ## Require stack termination protection
 
@@ -145,10 +145,11 @@ The `require-data-backups` guardrail checks the backup controls Stacktape can de
 | Resource | Required configuration |
 |---|---|
 | Relational database | `automatedBackupRetentionDays` must not be `0`; an omitted value uses the AWS non-zero default |
+| Aurora DSQL database | Not currently satisfiable: Stacktape cannot configure or verify its separate AWS Backup plan, so the guardrail fails closed |
 | DynamoDB table | `enablePointInTimeRecovery: true` |
 | EFS filesystem | `backupEnabled: true` |
 
-**When to enable:** Enable when those resources can contain data that cannot simply be recreated. DynamoDB PITR and EFS backups add storage cost. The guardrail confirms that backups are configured; it cannot prove that a restore has been tested or that the retention period meets your recovery objectives.
+**When to enable:** Enable when those resources can contain data that cannot simply be recreated. DynamoDB PITR and EFS backups add storage cost. The guardrail confirms controls that Stacktape can verify; it cannot prove that a restore has been tested or that the retention period meets your recovery objectives. An externally configured DSQL backup plan is not detectable from the stack configuration and therefore does not satisfy the guardrail yet.
 
 ## Require dead-letter queue
 
@@ -285,10 +286,10 @@ Most production organizations enable multiple security guardrails together. A ty
 
 | Guardrail | What it enforces | Recommended for |
 |-----------|-----------------|-----------------|
-| `require-vpc-databases` | Network isolation for relational databases and OpenSearch | Organizations requiring private access in every stage |
+| `require-vpc-databases` | Network isolation for relational databases and OpenSearch; blocks DSQL until PrivateLink is supported | Organizations requiring private access in every stage |
 | `require-stack-termination-protection` | Prevent complete stack deletion | Long-lived production stacks |
 | `require-deletion-protection` | Prevent accidental database removal | All stages with persistent data |
-| `require-data-backups` | Recoverable RDS, DynamoDB, and EFS data | Workloads with non-reproducible data |
+| `require-data-backups` | Recoverable RDS, DynamoDB, and EFS data; blocks unverifiable DSQL backups | Workloads with non-reproducible data |
 | `require-dead-letter-queue` | Message durability for SQS queues | Event-driven architectures |
 | `require-waf` | Application-layer firewall on application load balancers | Public-facing APIs |
 | `require-multiple-container-instances` | At least two running container copies | Availability-sensitive services |

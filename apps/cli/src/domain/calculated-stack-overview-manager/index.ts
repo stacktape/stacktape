@@ -10,6 +10,7 @@ import type {
 } from '@domain-services/config-manager/resolved-types/resources';
 import { eventManager } from '@application-services/event-manager';
 import { configManager } from '@domain-services/config-manager';
+import { getEmailSenderBindingsFingerprint } from '@domain-services/email-sender-manager/bindings-fingerprint';
 import { templateManager } from '@domain-services/template-manager';
 import { consoleLinks } from '@stacktape/naming/console-links';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
@@ -24,6 +25,7 @@ import { kebabCase } from 'change-case';
 import get from 'lodash/get';
 import { resolveAgentCoreResources } from './resource-resolvers/agentcore';
 import { resolveApplicationLoadBalancers } from './resource-resolvers/application-load-balancers';
+import { resolveAppSyncApis } from './resource-resolvers/appsync-apis';
 import { resolveAwsCdkConstructs } from './resource-resolvers/aws-cdk-construct';
 import { resolveAcceptVpcPeeringCustomResource } from './resource-resolvers/background-resources/accept-vpc-peerings-custom-resource';
 import { resolveCodeDeploySharedResources } from './resource-resolvers/background-resources/code-deploy';
@@ -51,13 +53,17 @@ import { resolveCustomResources } from './resource-resolvers/custom-resources';
 import { resolveDatabases } from './resource-resolvers/databases';
 import { resolveDeploymentScripts } from './resource-resolvers/deployment-scripts';
 import { resolveDynamoTables } from './resource-resolvers/dynamo-db-tables';
+import { resolveDsqlDatabases } from './resource-resolvers/dsql-databases';
+import { resolveEmailSenders } from './resource-resolvers/email-senders';
 import { resolveEdgeLambdaFunctions } from './resource-resolvers/edge-lambda-functions';
 import { resolveEfsFilesystems } from './resource-resolvers/efs-filesystems';
 import { resolveEventBuses } from './resource-resolvers/event-buses';
 import { resolveFunctions } from './resource-resolvers/functions';
 import { resolveHostingBuckets } from './resource-resolvers/hosting-buckets';
 import { resolveHttpApiGateways } from './resource-resolvers/http-api-gateways';
+import { resolveWebsocketApiGateways } from './resource-resolvers/websocket-api-gateways';
 import { resolveKinesisStreams } from './resource-resolvers/kinesis-streams';
+import { resolveKafkaClusters } from './resource-resolvers/kafka-clusters';
 import { resolveAtlasMongoClusters } from './resource-resolvers/mongo-db-atlas-clusters';
 import { resolveContainerWorkloads } from './resource-resolvers/multi-container-workloads';
 import { resolveDevContainerWorkloadRoles } from './resource-resolvers/multi-container-workloads/dev-roles';
@@ -84,6 +90,7 @@ import { resolveWebAppFirewalls } from './resource-resolvers/web-app-firewalls';
 import { resolveWebServices } from './resource-resolvers/web-services';
 import { resolveWorkerServices } from './resource-resolvers/worker-services';
 import type { StackContext } from '@domain-services/stack-context';
+import { getSharedResourceStackName } from '@stacktape/naming/shared-stacks';
 
 /** Starts resolvers in order, waits for every one that started, then propagates the first observed failure. */
 export const settleResourceResolvers = async (
@@ -148,6 +155,7 @@ export class CalculatedStackOverviewManager {
       resolveDeploymentBucket,
       resolveImageRepository,
       resolveApplicationLoadBalancers,
+      resolveAppSyncApis,
       resolveBatchJobs,
       resolveNetworkLoadBalancers,
       resolveBuckets,
@@ -164,12 +172,15 @@ export class CalculatedStackOverviewManager {
       resolveDefaultDomainCertCustomResource,
       resolveDatabases,
       resolveDynamoTables,
+      resolveDsqlDatabases,
+      resolveEmailSenders,
       resolveOpenSearchDomains,
       resolveEventBuses,
       resolveBastions,
       resolveCloudformationResources,
       resolveStateMachines,
       resolveHttpApiGateways,
+      resolveWebsocketApiGateways,
       resolveUserPools,
       resolveAtlasMongoClusters,
       resolveServiceDiscoveryPrivateNamespace,
@@ -185,6 +196,7 @@ export class CalculatedStackOverviewManager {
       resolveSqsQueues,
       resolveSnsTopics,
       resolveKinesisStreams,
+      resolveKafkaClusters,
       resolveHostingBuckets,
       resolveWebAppFirewalls,
       resolveDeploymentScripts,
@@ -443,6 +455,28 @@ export class CalculatedStackOverviewManager {
       metaValue: JSON.stringify(rollbackSafety),
       showDuringPrint: false
     });
+    this.addStackMetadata({
+      metaName: stackMetadataNames.emailSenderBindingsFingerprint(),
+      metaValue: getEmailSenderBindingsFingerprint({
+        resources: configManager.allResourcesIncludingNested,
+        senders: configManager.emailSenders
+      }),
+      showDuringPrint: false
+    });
+    const retainedSharedResources = configManager.emailSenders
+      .filter(({ manageIdentity }) => manageIdentity !== false)
+      .map(({ identity }) => ({
+        kind: 'email-identity' as const,
+        identity,
+        stackName: getSharedResourceStackName('email-identity', identity)
+      }));
+    if (retainedSharedResources.length) {
+      this.addStackMetadata({
+        metaName: stackMetadataNames.retainedSharedResources(),
+        metaValue: JSON.stringify(retainedSharedResources),
+        showDuringPrint: false
+      });
+    }
   };
 
   isCfResourceChildOfStpResource = ({

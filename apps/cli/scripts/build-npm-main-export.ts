@@ -58,7 +58,6 @@ export const NPM_SOURCE_FILES = [
   'config.ts',
   'resources.ts',
   'type-properties.ts',
-  'global-aws-services.ts',
   'directives.ts',
   'resource-metadata.ts'
 ].map((file) => join(CONFIG_AUTHORING_PACKAGE_SRC_PATH, file));
@@ -109,6 +108,7 @@ const _PLAIN_TYPES_TO_GENERATE = [
   'DynamoDbTable',
   'EventBus',
   'HttpApiGateway',
+  'WebSocketApiGateway',
   'ApplicationLoadBalancer',
   'NetworkLoadBalancer',
   'RedisCluster',
@@ -147,6 +147,7 @@ const _PLAIN_TYPES_TO_GENERATE = [
   'DynamoDbTableProps',
   'EventBusProps',
   'HttpApiGatewayProps',
+  'WebSocketApiGatewayProps',
   'ApplicationLoadBalancerProps',
   'NetworkLoadBalancerProps',
   'RedisClusterProps',
@@ -1056,12 +1057,6 @@ ${typePropertiesClassDeclarations}
 
 ${stacktapeConfigType}
 
-// ==========================================
-// ADDITIONAL SDK TYPE RE-EXPORTS
-// ==========================================
-
-${cleanDeclarations(declarations.get('global-aws-services') || '')}
-
 ${extractReferenceableParamsDeclaration(declarations.get('resource-metadata') || '')}
 
 ${generatePlainSectionTypes()}
@@ -1133,12 +1128,6 @@ export type {
 // ==========================================
 
 ${cleanDeclarations(declarations.get('directives') || '')}
-
-// ==========================================
-// AWS SERVICE CONSTANTS
-// ==========================================
-
-export declare const AWS_SES: "aws:ses";
 
 ${generateAugmentedSectionTypes(resourceClassNames)}
 `;

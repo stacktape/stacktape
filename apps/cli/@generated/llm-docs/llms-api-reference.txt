@@ -715,6 +715,11 @@ type AgentCoreRuntimeProps = {
   /** Give this resource access to other resources in your stack. */
   connectTo?: Array<string>;
   description?: string;
+  /** Runtime endpoints. Omit this property to create one endpoint named `default`.
+
+An explicit list must contain at least one endpoint and endpoint names must be unique. References to
+`endpointName` and `endpointArn` select the endpoint named `default` when present, or otherwise the first endpoint
+in this list. */
   endpoints?: Array<AgentCoreRuntimeEndpoints>;
   environment?: Array<EnvironmentVar>;
   /** Raw IAM policy statements for permissions not covered by `connectTo`. */
@@ -804,7 +809,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -869,6 +874,12 @@ export default defineConfig(() => {
 
 - Required: no
 - Type: `Array<AgentCoreRuntimeEndpoint | option-2>`
+
+Runtime endpoints. Omit this property to create one endpoint named `default`.
+
+An explicit list must contain at least one endpoint and endpoint names must be unique. References to
+`endpointName` and `endpointArn` select the endpoint named `default` when present, or otherwise the first endpoint
+in this list.
 
 Choices:
 - `AgentCoreRuntimeEndpoint` (`AgentCoreRuntimeEndpointConfig`). Properties: `name: string`, `description?: string`, `runtimeVersion?: string`.
@@ -8753,6 +8764,444 @@ export default defineConfig(() => {
 
 ---
 
+# AppSyncApi API Reference
+
+Source: `packages/config/src/appsync-apis.ts`
+Route: `/config-reference/appsync-apis`
+
+Managed GraphQL API powered by AWS AppSync.
+
+## TypeScript definition
+
+```typescript
+import type { AppSyncApiProps } from 'stacktape';
+
+type AppSyncApi = {
+  properties: AppSyncApiProps;
+  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */
+  overrides?: unknown;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `AppSyncApiProps`
+
+## Property: `overrides`
+
+- Required: no
+- Type: `unknown`
+
+Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
+
+Use dot-notation paths to override specific properties on any child resource.
+Find resource logical IDs with `stacktape info:stack`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  mainDb:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('db-password')
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          primaryInstance:
+            instanceSize: db.t3.micro
+    overrides:
+      MainDbDatabaseInstance:
+        Properties.StorageEncrypted: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const mainDb = new RelationalDatabase({
+    credentials: { masterUserPassword: $Secret('db-password') },
+    engine: new RdsEnginePostgres({
+      version: '16.2',
+      primaryInstance: { instanceSize: 'db.t3.micro' }
+    }),
+    overrides: {
+      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+    }
+  });
+
+  return { resources: { mainDb } };
+});
+```
+
+---
+
+# AppSyncApiKeyAuthenticationProps API Reference
+
+Source: `packages/config/src/appsync-apis.ts`
+Route: `/config-reference/appsync-apis`
+
+## TypeScript definition
+
+```typescript
+type AppSyncApiKeyAuthenticationProps = {
+  /** Fixed RFC 3339 timestamp when the API key expires. */
+  expiresAt: string;
+};
+```
+
+## Property: `expiresAt`
+
+- Required: yes
+- Type: `string`
+
+Fixed RFC 3339 timestamp when the API key expires.
+
+The timestamp must include a timezone and be between 1 and 365 days in the future when you deploy. AppSync rounds
+expiration down to the hour. Stacktape never silently extends the key on later deployments, so changing this value
+is an explicit security decision.
+
+**Example:** `2027-01-31T00:00:00Z`
+
+---
+
+# AppSyncApiLogging API Reference
+
+Source: `packages/config/src/appsync-apis.ts`
+Route: `/config-reference/appsync-apis`
+
+## TypeScript definition
+
+```typescript
+import type { DatadogLogForwarding, HighlightLogForwarding, HttpEndpointLogForwarding } from 'stacktape';
+
+type AppSyncApiLogging = {
+  /** Disable AppSync field logs. */
+  disabled?: boolean;
+  /** Which resolver results AppSync writes to CloudWatch Logs.
+
+`error` is suitable for normal operation. `all` is useful temporarily while debugging and can generate much more
+log data. */
+  fieldLogLevel?: "all" | "error";
+  /** Include request headers, variables, and full resolver context in logs.
+
+This content can contain credentials or personal data. Enable it only when you understand that exposure. */
+  includeVerboseContent?: boolean;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
+  /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
+  logForwarding?: AppSyncApiLoggingLogForwarding;
+  /** How many days to keep AppSync field logs. */
+  retentionDays?: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90;
+};
+
+/** Union choices used by the properties above. */
+type AppSyncApiLoggingLogForwarding =
+  | HttpEndpointLogForwarding
+  | HighlightLogForwarding
+  | DatadogLogForwarding;
+```
+
+## Property: `disabled`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Disable AppSync field logs.
+
+## Property: `fieldLogLevel`
+
+- Required: no
+- Type: `string: "all" | "error"`
+- Default: `error`
+
+Which resolver results AppSync writes to CloudWatch Logs.
+
+`error` is suitable for normal operation. `all` is useful temporarily while debugging and can generate much more
+log data.
+
+## Property: `includeVerboseContent`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Include request headers, variables, and full resolver context in logs.
+
+This content can contain credentials or personal data. Enable it only when you understand that exposure.
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
+});
+```
+
+## Property: `logForwarding`
+
+- Required: no
+- Type: `http-endpoint | highlight | datadog`
+
+Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).
+
+Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.
+
+Choices:
+- `http-endpoint` (`HttpEndpointLogForwarding`). Properties: `endpointUrl: string`, `gzipEncodingEnabled?: boolean`, `parameters?: unknown`, `retryDuration?: number`, `accessKey?: string`.
+- `highlight` (`HighlightLogForwarding`). Properties: `projectId: string`, `endpointUrl?: string`.
+- `datadog` (`DatadogLogForwarding`). Properties: `apiKey: string`, `endpointUrl?: string`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
+      memory: 512
+      timeout: 10
+      logging:
+        retentionDays: 90
+        logForwarding:
+          type: datadog
+          properties:
+            apiKey: $Secret('datadog.apiKey')
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiFunction = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+    memory: 512,
+    timeout: 10,
+    logging: {
+      retentionDays: 90,
+      logForwarding: {
+        type: 'datadog',
+        properties: { apiKey: $Secret('datadog.apiKey') }
+      }
+    }
+  });
+  return { resources: { apiFunction } };
+});
+```
+
+## Property: `retentionDays`
+
+- Required: no
+- Type: `number: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90`
+- Default: `30`
+
+How many days to keep AppSync field logs.
+
+---
+
+# AppSyncApiProps API Reference
+
+Source: `packages/config/src/appsync-apis.ts`
+Route: `/config-reference/appsync-apis`
+
+## TypeScript definition
+
+```typescript
+import type { AppSyncApiLogging, DomainConfiguration } from 'stacktape';
+
+type AppSyncApiProps = {
+  /** Authentication required by every GraphQL request. */
+  authentication: AppSyncApiAuthentication;
+  /** Optional custom domain for the GraphQL API. */
+  customDomain?: DomainConfiguration;
+  /** Allow clients and GraphQL tooling to inspect the schema.
+
+Disable this only when your security policy requires it; disabling introspection does not replace authorization. */
+  introspectionEnabled?: boolean;
+  /** Field-level AppSync logging. */
+  logging?: AppSyncApiLogging;
+  /** Maximum nested selection depth accepted by a GraphQL operation.
+
+Set to `0` only if you intentionally want no depth limit. */
+  queryDepthLimit?: number;
+  /** Maximum number of resolvers a single GraphQL operation can execute.
+
+Set to `0` only if you intentionally want no resolver-count limit. */
+  resolverCountLimit?: number;
+  /** Path to the GraphQL schema. */
+  schemaFilePath?: string;
+  /** Trace requests with AWS X-Ray. */
+  xrayEnabled?: boolean;
+};
+
+/** Union choices used by the properties above. */
+type AppSyncApiAuthentication =
+  | "aws-iam"
+  | "user-auth-pool"
+  | "api-key";
+```
+
+## Property: `authentication`
+
+- Required: yes
+- Type: `aws-iam | user-auth-pool | api-key`
+
+Authentication required by every GraphQL request.
+
+Choose IAM for service-to-service APIs, a Stacktape user auth pool for application users, or an expiring API key
+for deliberately public and short-lived access. AppSync APIs have one authentication mode in this version.
+
+Choices:
+- `aws-iam`
+- `user-auth-pool`. Properties: `userAuthPoolName: string`.
+- `api-key`. Properties: `expiresAt: string`.
+
+## Property: `customDomain`
+
+- Required: no
+- Type: `DomainConfiguration`
+
+Optional custom domain for the GraphQL API.
+
+AppSync requires its ACM certificate in `us-east-1`, even when the API is deployed in another region. Stacktape
+selects the correct managed certificate automatically. If you provide `customCertificateArn`, it must also be
+from `us-east-1`.
+
+## Property: `introspectionEnabled`
+
+- Required: no
+- Type: `boolean`
+- Default: `true`
+
+Allow clients and GraphQL tooling to inspect the schema.
+
+Disable this only when your security policy requires it; disabling introspection does not replace authorization.
+
+## Property: `logging`
+
+- Required: no
+- Type: `AppSyncApiLogging`
+
+Field-level AppSync logging.
+
+Errors are logged by default without request headers, variables, or full resolver context. Enable verbose content
+only while diagnosing a problem because it can contain sensitive application data.
+
+## Property: `queryDepthLimit`
+
+- Required: no
+- Type: `number`
+- Default: `10`
+
+Maximum nested selection depth accepted by a GraphQL operation.
+
+Set to `0` only if you intentionally want no depth limit.
+
+## Property: `resolverCountLimit`
+
+- Required: no
+- Type: `number`
+- Default: `1000`
+
+Maximum number of resolvers a single GraphQL operation can execute.
+
+Set to `0` only if you intentionally want no resolver-count limit.
+
+## Property: `schemaFilePath`
+
+- Required: no
+- Type: `string`
+- Default: `schema.graphql`
+
+Path to the GraphQL schema.
+
+The path is relative to the Stacktape project directory. Stacktape checks the schema syntax and verifies every
+configured Lambda resolver field before deployment.
+
+## Property: `xrayEnabled`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Trace requests with AWS X-Ray.
+
+---
+
+# AppSyncUserAuthPoolAuthenticationProps API Reference
+
+Source: `packages/config/src/appsync-apis.ts`
+Route: `/config-reference/appsync-apis`
+
+## TypeScript definition
+
+```typescript
+type AppSyncUserAuthPoolAuthenticationProps = {
+  /** Name of the `user-auth-pool` resource that authenticates GraphQL requests. */
+  userAuthPoolName: string;
+};
+```
+
+## Property: `userAuthPoolName`
+
+- Required: yes
+- Type: `string`
+
+Name of the `user-auth-pool` resource that authenticates GraphQL requests.
+
+---
+
 # AstroWeb API Reference
 
 Source: `packages/config/src/astro-web.ts`
@@ -9117,7 +9566,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -9896,6 +10345,12 @@ import type { DatadogLogForwarding, HighlightLogForwarding, HttpEndpointLogForwa
 type BastionLogging = {
   /** Disable this log type. Stops sending to CloudWatch. */
   disabled?: boolean;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: BastionLoggingLogForwarding;
   /** Days to keep logs in CloudWatch before automatic deletion. */
@@ -9948,6 +10403,49 @@ export default defineConfig(() => {
     }
   });
   return { resources: { bastion } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -10630,6 +11128,12 @@ import type { DatadogLogForwarding, HighlightLogForwarding, HttpEndpointLogForwa
 type BatchJobLogging = {
   /** Disable logging to CloudWatch. */
   disabled?: boolean;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: BatchJobLoggingLogForwarding;
   /** How many days to keep logs. */
@@ -10689,6 +11193,49 @@ export default defineConfig(() => {
     }
   });
   return { resources: { quietJob } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -10991,7 +11538,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -20659,7 +21206,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -27026,7 +27573,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -27454,6 +28001,128 @@ export default defineConfig(() => {
   return { resources: { longSeed } };
 });
 ```
+
+---
+
+# DsqlDatabase API Reference
+
+Source: `packages/config/src/dsql-databases.ts`
+Route: `/config-reference/dsql-database`
+
+Serverless PostgreSQL-compatible database powered by Amazon Aurora DSQL.
+
+Resource type: `dsql-database`
+
+## TypeScript definition
+
+```typescript
+import type { DsqlDatabaseProps } from 'stacktape';
+
+type DsqlDatabase = {
+  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */
+  overrides?: unknown;
+  properties?: DsqlDatabaseProps;
+};
+```
+
+## Property: `overrides`
+
+- Required: no
+- Type: `unknown`
+
+Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
+
+Use dot-notation paths to override specific properties on any child resource.
+Find resource logical IDs with `stacktape info:stack`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  mainDb:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('db-password')
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          primaryInstance:
+            instanceSize: db.t3.micro
+    overrides:
+      MainDbDatabaseInstance:
+        Properties.StorageEncrypted: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const mainDb = new RelationalDatabase({
+    credentials: { masterUserPassword: $Secret('db-password') },
+    engine: new RdsEnginePostgres({
+      version: '16.2',
+      primaryInstance: { instanceSize: 'db.t3.micro' }
+    }),
+    overrides: {
+      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+    }
+  });
+
+  return { resources: { mainDb } };
+});
+```
+
+## Property: `properties`
+
+- Required: no
+- Type: `DsqlDatabaseProps`
+
+---
+
+# DsqlDatabaseProps API Reference
+
+Source: `packages/config/src/dsql-databases.ts`
+Route: `/config-reference/dsql-database`
+
+Resource type: `dsql-database`
+
+## TypeScript definition
+
+```typescript
+type DsqlDatabaseProps = {
+  /** Prevent the cluster from being deleted. */
+  deletionProtection?: boolean;
+  /** ARN of a customer-managed KMS key used to encrypt the cluster. */
+  kmsKeyArn?: string;
+};
+```
+
+## Property: `deletionProtection`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Prevent the cluster from being deleted.
+
+Enable this for production data. You must disable it before intentionally removing the resource.
+
+DSQL does not create automatic backups, point-in-time recovery, or a final snapshot through this resource, so a
+deletion can be irreversible unless you configured AWS Backup separately.
+
+## Property: `kmsKeyArn`
+
+- Required: no
+- Type: `string`
+
+ARN of a customer-managed KMS key used to encrypt the cluster.
+
+Omit this to use an AWS-owned key, which is the simplest choice for most applications. Supplying your own key
+gives you control over its policy and lifecycle, and makes keeping that key available your responsibility.
 
 ---
 
@@ -29738,6 +30407,80 @@ export default defineConfig(() => {
 
 ---
 
+# EmailSender API Reference
+
+Source: `packages/config/src/email-senders.ts`
+Route: `/config-reference/email-senders`
+
+Verified Amazon SES sender identity shared safely across projects and stages.
+
+## TypeScript definition
+
+```typescript
+import type { EmailSenderProps } from 'stacktape';
+
+type EmailSender = {
+  properties: EmailSenderProps;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `EmailSenderProps`
+
+---
+
+# EmailSenderProps API Reference
+
+Source: `packages/config/src/email-senders.ts`
+Route: `/config-reference/email-senders`
+
+## TypeScript definition
+
+```typescript
+type EmailSenderProps = {
+  /** Domain or email address to verify as an SES sending identity. */
+  identity: string;
+  /** Existing SES configuration-set name. */
+  configurationSetName?: string;
+  /** Whether Stacktape owns the SES identity. */
+  manageIdentity?: boolean;
+};
+```
+
+## Property: `identity`
+
+- Required: yes
+- Type: `string`
+
+Domain or email address to verify as an SES sending identity.
+
+Use a domain such as `example.com` to send from any address on that domain, or an exact address such as
+`billing@example.com` when you only control that mailbox.
+
+## Property: `configurationSetName`
+
+- Required: no
+- Type: `string`
+
+Existing SES configuration-set name.
+
+Only applies when `manageIdentity` is `false`. Omit it when applications send without a configuration set.
+
+## Property: `manageIdentity`
+
+- Required: no
+- Type: `boolean`
+- Default: `true`
+
+Whether Stacktape owns the SES identity.
+
+Keep the default for the simplest setup and automatic reuse between projects and stages. Set this to `false`
+only when the identity is managed outside Stacktape.
+
+---
+
 # EventBus API Reference
 
 Source: `packages/config/src/event-buses.ts`
@@ -30771,6 +31514,66 @@ export default defineConfig(() => {
   return { resources: { publicAlb, apiFunction } };
 });
 ```
+
+---
+
+# AppSyncApiIntegration API Reference
+
+Source: `packages/config/src/events.ts`
+Route: `/config-reference/events`
+
+Resolves one GraphQL field with a Lambda function through AWS AppSync.
+
+## TypeScript definition
+
+```typescript
+import type { AppSyncApiIntegrationProps } from 'stacktape';
+
+type AppSyncApiIntegration = {
+  properties: AppSyncApiIntegrationProps;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `AppSyncApiIntegrationProps`
+
+---
+
+# AppSyncApiIntegrationProps API Reference
+
+Source: `packages/config/src/events.ts`
+Route: `/config-reference/events`
+
+## TypeScript definition
+
+```typescript
+type AppSyncApiIntegrationProps = {
+  /** Name of the `appsync-api` resource. */
+  appsyncApiName: string;
+  /** GraphQL field handled by this function, written as `Type.field`.
+
+**Examples:** `Query.user`, `Mutation.createOrder` */
+  field: string;
+};
+```
+
+## Property: `appsyncApiName`
+
+- Required: yes
+- Type: `string`
+
+Name of the `appsync-api` resource.
+
+## Property: `field`
+
+- Required: yes
+- Type: `string`
+
+GraphQL field handled by this function, written as `Type.field`.
+
+**Examples:** `Query.user`, `Mutation.createOrder`
 
 ---
 
@@ -33016,6 +33819,38 @@ For details on the differences between formats, see the [AWS documentation](http
 
 ---
 
+# KafkaEventSourceVpcConfig API Reference
+
+Source: `packages/config/src/events.ts`
+Route: `/config-reference/events`
+
+## TypeScript definition
+
+```typescript
+type KafkaEventSourceVpcConfig = {
+  /** Security-group IDs attached to Lambda's Kafka poller network interfaces. */
+  securityGroupIds: Array<string>;
+  /** Subnet IDs through which Lambda's poller can reach the brokers. Multi-AZ placement is recommended. */
+  subnetIds: Array<string>;
+};
+```
+
+## Property: `securityGroupIds`
+
+- Required: yes
+- Type: `Array<string>`
+
+Security-group IDs attached to Lambda's Kafka poller network interfaces.
+
+## Property: `subnetIds`
+
+- Required: yes
+- Type: `Array<string>`
+
+Subnet IDs through which Lambda's poller can reach the brokers. Multi-AZ placement is recommended.
+
+---
+
 # KafkaMTLSAuth API Reference
 
 Source: `packages/config/src/events.ts`
@@ -33152,70 +33987,26 @@ Triggers a function when new messages are available in a Kafka topic.
 ## TypeScript definition
 
 ```typescript
-import type { KafkaTopicIntegrationProps } from 'stacktape';
-
 type KafkaTopicIntegration = {
-  properties: KafkaTopicIntegrationProps;
+  properties: KafkaTopicIntegrationProperties;
 };
+
+/** Union choices used by the properties above. */
+type KafkaTopicIntegrationProperties =
+  | "option-1"
+  | "option-2"
+  | "option-3";
 ```
 
 ## Property: `properties`
 
 - Required: yes
-- Type: `KafkaTopicIntegrationProps`
+- Type: `option-1 | option-2 | option-3`
 
----
-
-# KafkaTopicIntegrationProps API Reference
-
-Source: `packages/config/src/events.ts`
-Route: `/config-reference/events`
-
-## TypeScript definition
-
-```typescript
-import type { CustomKafkaEventSource } from 'stacktape';
-
-type KafkaTopicIntegrationProps = {
-  /** The details of your Kafka cluster. */
-  customKafkaConfiguration: CustomKafkaEventSource;
-  /** The maximum number of records to process in a single batch. */
-  batchSize?: number;
-  /** The maximum time (in seconds) to wait before invoking the function with a batch of records. */
-  maxBatchWindowSeconds?: number;
-};
-```
-
-## Property: `customKafkaConfiguration`
-
-- Required: yes
-- Type: `CustomKafkaEventSource`
-
-The details of your Kafka cluster.
-
-Specifies the bootstrap servers, topic name, and authentication used by the self-managed Kafka event source.
-This is required because self-managed Kafka is the only Kafka source currently supported by Stacktape.
-
-## Property: `batchSize`
-
-- Required: no
-- Type: `number`
-- Default: `100`
-
-The maximum number of records to process in a single batch.
-
-The function will be invoked with up to this many records. Maximum is 10,000.
-
-## Property: `maxBatchWindowSeconds`
-
-- Required: no
-- Type: `number`
-- Default: `0.5`
-
-The maximum time (in seconds) to wait before invoking the function with a batch of records.
-
-The function will be triggered when either the `batchSize` is reached or this time window expires.
-Maximum is 300 seconds.
+Choices:
+- `option-1`. Properties: `kafkaClusterName: string`, `topicName: string`, `startFrom: string: "earliest" | "latest"`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `consumerGroupId?: string`.
+- `option-2`. Properties: `mskClusterArn: string`, `topicName: string`, `startFrom: string: "earliest" | "latest"`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `consumerGroupId?: string`.
+- `option-3`. Properties: `customKafkaConfiguration: CustomKafkaEventSource`, `vpc?: KafkaEventSourceVpcConfig`, `startFrom: string: "earliest" | "latest"`, `batchSize?: number`, `maxBatchWindowSeconds?: number`, `consumerGroupId?: string`.
 
 ---
 
@@ -34201,6 +34992,132 @@ You must specify either `sqsQueueName` or `sqsQueueArn`.
 
 ---
 
+# WebSocketApiIntegration API Reference
+
+Source: `packages/config/src/events.ts`
+Route: `/config-reference/events`
+
+Routes a WebSocket lifecycle event or message to a Lambda function.
+
+## TypeScript definition
+
+```typescript
+import type { WebSocketApiIntegrationProps } from 'stacktape';
+
+type WebSocketApiIntegration = {
+  properties: WebSocketApiIntegrationProps;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `WebSocketApiIntegrationProps`
+
+---
+
+# WebSocketApiIntegrationProps API Reference
+
+Source: `packages/config/src/events.ts`
+Route: `/config-reference/events`
+
+## TypeScript definition
+
+```typescript
+type WebSocketApiIntegrationProps = {
+  /** Route key handled by this function, for example `sendMessage`, `$connect`, or `$default`. */
+  routeKey: string;
+  /** Name of the `websocket-api-gateway` resource. */
+  websocketApiGatewayName: string;
+  /** Optional authorization for new connections. */
+  authorizer?: WebSocketApiIntegrationAuthorizer;
+  /** Send the Lambda handler's returned `body` directly back to the client that invoked this route. */
+  returnResponse?: boolean;
+};
+
+/** Union choices used by the properties above. */
+type WebSocketApiIntegrationAuthorizer =
+  | "aws-iam"
+  | "lambda";
+```
+
+## Property: `routeKey`
+
+- Required: yes
+- Type: `string`
+
+Route key handled by this function, for example `sendMessage`, `$connect`, or `$default`.
+
+## Property: `websocketApiGatewayName`
+
+- Required: yes
+- Type: `string`
+
+Name of the `websocket-api-gateway` resource.
+
+## Property: `authorizer`
+
+- Required: no
+- Type: `aws-iam | lambda`
+
+Optional authorization for new connections.
+
+Authorizers are supported only on the `$connect` route. Existing connections are not re-authorized for later
+messages. Use `aws-iam` for SigV4 clients or a Lambda function for application-specific authentication.
+
+Choices:
+- `aws-iam`
+- `lambda`. Properties: `functionName: string`, `identitySources?: Array<string>`.
+
+## Property: `returnResponse`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Send the Lambda handler's returned `body` directly back to the client that invoked this route.
+
+Keep this disabled for lifecycle routes, one-way events, broadcasts, and replies sent through the API Gateway
+Management API. Enable it on `$default` or a custom message route for simple request-response interactions where
+the handler should answer only the calling connection.
+
+---
+
+# WebSocketLambdaAuthorizerProps API Reference
+
+Source: `packages/config/src/events.ts`
+Route: `/config-reference/events`
+
+## TypeScript definition
+
+```typescript
+type WebSocketLambdaAuthorizerProps = {
+  /** Name of the Stacktape Lambda function that authorizes connections. */
+  functionName: string;
+  /** Request values passed to the authorizer. */
+  identitySources?: Array<string>;
+};
+```
+
+## Property: `functionName`
+
+- Required: yes
+- Type: `string`
+
+Name of the Stacktape Lambda function that authorizes connections.
+
+## Property: `identitySources`
+
+- Required: no
+- Type: `Array<string>`
+- Default: `["route.request.header.Authorization"]`
+
+Request values passed to the authorizer.
+
+WebSocket identity sources use `route.request.header.*` or `route.request.querystring.*` expressions.
+
+---
+
 # LambdaDeploymentConfig API Reference
 
 Source: `packages/config/src/functions.ts`
@@ -34815,6 +35732,12 @@ import type { DatadogLogForwarding, HighlightLogForwarding, HttpEndpointLogForwa
 type LambdaFunctionLogging = {
   /** Disable CloudWatch logging entirely. */
   disabled?: boolean;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: LambdaFunctionLoggingLogForwarding;
   /** How many days to keep logs. Longer retention = higher storage cost. */
@@ -34864,6 +35787,49 @@ export default defineConfig(() => {
     }
   });
   return { resources: { highVolumeFunction } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -34975,7 +35941,7 @@ Resource type: `function`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';
+import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement, WebSocketApiIntegration } from 'stacktape';
 
 type LambdaFunctionProps = {
   /** How your code is built and packaged for deployment. */
@@ -35043,6 +36009,8 @@ type LambdaFunctionEvents =
   | AlarmIntegration
   | CloudwatchLogIntegration
   | HttpApiIntegration
+  | AppSyncApiIntegration
+  | WebSocketApiIntegration
   | EventBusIntegration;
 
 type LambdaFunctionVolumeMounts =
@@ -35291,7 +36259,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -35537,7 +36505,7 @@ export default defineConfig(() => {
 ## Property: `events`
 
 - Required: no
-- Type: `Array<application-load-balancer | kafka-topic | sns | sqs | kinesis-stream | dynamo-db-stream | s3 | schedule | cloudwatch-alarm | cloudwatch-log | http-api-gateway | event-bus>`
+- Type: `Array<application-load-balancer | kafka-topic | sns | sqs | kinesis-stream | dynamo-db-stream | s3 | schedule | cloudwatch-alarm | cloudwatch-log | http-api-gateway | appsync-api | websocket-api-gateway | event-bus>`
 
 What triggers this function: HTTP requests, file uploads, queues, schedules, etc.
 
@@ -35546,7 +36514,7 @@ The event payload your function receives depends on the trigger type.
 
 Choices:
 - `application-load-balancer` (`ApplicationLoadBalancerIntegration`) — Triggers a function when an Application Load Balancer receives a matching HTTP request.. Properties: `loadBalancerName: string`, `listenerPort?: number`, `priority: number`, `paths?: Array<string>`, `methods?: Array<string>`, `hosts?: Array<string>`, `headers?: Array<LbHeaderCondition>`, `queryParams?: Array<LbQueryParamCondition>`, `sourceIps?: Array<string>`.
-- `kafka-topic` (`KafkaTopicIntegration`) — Triggers a function when new messages are available in a Kafka topic.. Properties: `customKafkaConfiguration: CustomKafkaEventSource`, `batchSize?: number`, `maxBatchWindowSeconds?: number`.
+- `kafka-topic` (`KafkaTopicIntegration`) — Triggers a function when new messages are available in a Kafka topic.
 - `sns` (`SnsIntegration`) — Triggers a function when a new message is published to an SNS topic.. Properties: `snsTopicName?: string`, `snsTopicArn?: string`, `filterPolicy?: unknown`, `onDeliveryFailure?: SnsOnDeliveryFailure`.
 - `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`.
 - `kinesis-stream` (`KinesisIntegration`) — Triggers a function when new records are available in a Kinesis Data Stream.. Properties: `kinesisStreamName?: string`, `streamArn?: string`, `consumerArn?: string`, `autoCreateConsumer?: boolean`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string: "LATEST" | "TRIM_HORIZON"`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`.
@@ -35556,6 +36524,8 @@ Choices:
 - `cloudwatch-alarm` (`AlarmIntegration`). Properties: `alarmName: string`.
 - `cloudwatch-log` (`CloudwatchLogIntegration`) — Triggers a function when new log records appear in a CloudWatch log group.. Properties: `logGroupArn: string`, `filter?: string`.
 - `http-api-gateway` (`HttpApiIntegration`) — Triggers a function when an HTTP API Gateway receives a matching request.. Properties: `httpApiGatewayName: string`, `method: string: "*" | "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT"`, `path: string`, `authorizer?: cognito | lambda`, `payloadFormat?: string: "1.0" | "2.0"`.
+- `appsync-api` (`AppSyncApiIntegration`) — Resolves one GraphQL field with a Lambda function through AWS AppSync.. Properties: `appsyncApiName: string`, `field: string`.
+- `websocket-api-gateway` (`WebSocketApiIntegration`) — Routes a WebSocket lifecycle event or message to a Lambda function.. Properties: `websocketApiGatewayName: string`, `routeKey: string`, `authorizer?: aws-iam | lambda`, `returnResponse?: boolean`.
 - `event-bus` (`EventBusIntegration`) — Triggers a batch job when an event matching a specified pattern is received by an event bus.. Properties: `eventBusArn?: string`, `eventBusName?: string`, `useDefaultBus?: boolean`, `eventPattern: EventBusIntegrationPattern`, `onDeliveryFailure?: EventBusOnDeliveryFailure`, `input?: unknown`, `inputPath?: string`, `inputTransformer?: EventInputTransformer`.
 
 ### Example 1 (yaml)
@@ -42477,6 +43447,12 @@ type HttpApiAccessLogsConfig = {
   disabled?: boolean;
   /** Log format. Logs include: requestId, IP, method, status, protocol, responseLength. */
   format?: "CLF" | "CSV" | "JSON" | "XML";
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: HttpApiAccessLogsConfigLogForwarding;
   /** How many days to keep logs. */
@@ -42595,6 +43571,49 @@ export default defineConfig(() => {
     events: [new HttpApiIntegration({ httpApiGatewayName: 'apiGateway', path: '/{proxy+}', method: '*' })]
   });
   return { resources: { apiGateway, apiHandler } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -43634,6 +44653,58 @@ export default defineConfig(() => {
   return { resources: { apiGateway, apiHandler } };
 });
 ```
+
+---
+
+# KafkaCluster API Reference
+
+Source: `packages/config/src/kafka-clusters.ts`
+Route: `/config-reference/kafka-clusters`
+
+Cost warning: an MSK Serverless cluster has a substantial always-on charge.
+
+## TypeScript definition
+
+```typescript
+import type { KafkaClusterProps } from 'stacktape';
+
+type KafkaCluster = {
+  properties?: KafkaClusterProps;
+};
+```
+
+## Property: `properties`
+
+- Required: no
+- Type: `KafkaClusterProps`
+
+---
+
+# KafkaClusterProps API Reference
+
+Source: `packages/config/src/kafka-clusters.ts`
+Route: `/config-reference/kafka-clusters`
+
+## TypeScript definition
+
+```typescript
+import type { DevModeConfig } from 'stacktape';
+
+type KafkaClusterProps = {
+  /** Development-mode behavior. */
+  dev?: DevModeConfig;
+};
+```
+
+## Property: `dev`
+
+- Required: no
+- Type: `DevModeConfig`
+
+Development-mode behavior.
+
+Stacktape does not emulate Kafka locally and does not deploy this costly cluster during `stacktape dev` by
+default. Set `remote: true` only when the dev session should use a cluster deployed in AWS.
 
 ---
 
@@ -44821,6 +45892,12 @@ Route: `/config-reference/log-forwarding`
 import type { DatadogLogForwarding, HighlightLogForwarding, HttpEndpointLogForwarding } from 'stacktape';
 
 type LogForwardingBase = {
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: LogForwardingBaseLogForwarding;
 };
@@ -44830,6 +45907,49 @@ type LogForwardingBaseLogForwarding =
   | HttpEndpointLogForwarding
   | HighlightLogForwarding
   | DatadogLogForwarding;
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
+});
 ```
 
 ## Property: `logForwarding`
@@ -47781,6 +48901,12 @@ import type { DatadogLogForwarding, HighlightLogForwarding, HttpEndpointLogForwa
 type ContainerWorkloadContainerLogging = {
   /** Disable logging to CloudWatch. */
   disabled?: boolean;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: ContainerWorkloadContainerLoggingLogForwarding;
   /** How many days to keep logs. */
@@ -47839,6 +48965,49 @@ export default defineConfig(() => {
     resources: { cpu: 0.5, memory: 1024 }
   });
   return { resources: { app } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -48441,7 +49610,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -50839,7 +52008,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -51553,7 +52722,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -53056,6 +54225,12 @@ Resource type: `open-search-domain`
 type OpenSearchLogRetentionSettings = {
   /** Disable this log type. */
   disabled?: boolean;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Days to keep logs in CloudWatch before automatic deletion. */
   retentionDays?: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90;
 };
@@ -53114,6 +54289,49 @@ export default defineConfig(() => {
     }
   });
   return { resources: { searchEngine } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -53720,7 +54938,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -55580,6 +56798,12 @@ type RedisLogging = {
   disabled?: boolean;
   /** Log format. */
   format?: "json" | "text";
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: RedisLoggingLogForwarding;
   /** How many days to keep logs. */
@@ -55670,6 +56894,49 @@ export default defineConfig(() => {
   });
 
   return { resources: { redis } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -58450,6 +59717,12 @@ type RelationalDatabaseLogging = {
   disabled?: boolean;
   /** Fine-grained logging settings (PostgreSQL: slow queries, statements; MySQL: audit events). */
   engineSpecificOptions?: RelationalDatabaseLoggingEngineSpecificOptions;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
   /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
   logForwarding?: RelationalDatabaseLoggingLogForwarding;
   /** Which log types to export. Depends on engine:
@@ -58582,6 +59855,49 @@ const mainDatabase = new RelationalDatabase({
   }
 });
 return { resources: { mainDatabase } };
+});
+```
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
 });
 ```
 
@@ -59610,7 +60926,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -60746,7 +62062,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -65106,7 +66422,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -65784,7 +67100,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -75361,7 +76677,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -76251,6 +77567,285 @@ export default defineConfig(() => {
 
 ---
 
+# WebSocketApiAccessLogsConfig API Reference
+
+Source: `packages/config/src/websocket-api-gateways.ts`
+Route: `/config-reference/websocket-api-gateways`
+
+## TypeScript definition
+
+```typescript
+import type { DatadogLogForwarding, HighlightLogForwarding, HttpEndpointLogForwarding } from 'stacktape';
+
+type WebSocketApiAccessLogsConfig = {
+  /** Disable gateway access logs. */
+  disabled?: boolean;
+  /** Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages. */
+  logClass?: "infrequent-access" | "standard";
+  /** Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint). */
+  logForwarding?: WebSocketApiAccessLogsConfigLogForwarding;
+  /** How many days to keep gateway access logs. */
+  retentionDays?: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90;
+};
+
+/** Union choices used by the properties above. */
+type WebSocketApiAccessLogsConfigLogForwarding =
+  | HttpEndpointLogForwarding
+  | HighlightLogForwarding
+  | DatadogLogForwarding;
+```
+
+## Property: `disabled`
+
+- Required: no
+- Type: `boolean`
+- Default: `false`
+
+Disable gateway access logs.
+
+## Property: `logClass`
+
+- Required: no
+- Type: `string: "infrequent-access" | "standard"`
+- Default: `standard`
+
+Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+
+`infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+created, so use this for new resources or stages.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  archiveWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/archive.ts
+      logging:
+        logClass: infrequent-access
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const archiveWorker = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+    logging: {
+      logClass: 'infrequent-access'
+    }
+  });
+  return { resources: { archiveWorker } };
+});
+```
+
+## Property: `logForwarding`
+
+- Required: no
+- Type: `http-endpoint | highlight | datadog`
+
+Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).
+
+Uses Kinesis Data Firehose (~$0.03/GB). Failed deliveries go to a backup S3 bucket.
+
+Choices:
+- `http-endpoint` (`HttpEndpointLogForwarding`). Properties: `endpointUrl: string`, `gzipEncodingEnabled?: boolean`, `parameters?: unknown`, `retryDuration?: number`, `accessKey?: string`.
+- `highlight` (`HighlightLogForwarding`). Properties: `projectId: string`, `endpointUrl?: string`.
+- `datadog` (`DatadogLogForwarding`). Properties: `apiKey: string`, `endpointUrl?: string`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiFunction:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
+      memory: 512
+      timeout: 10
+      logging:
+        retentionDays: 90
+        logForwarding:
+          type: datadog
+          properties:
+            apiKey: $Secret('datadog.apiKey')
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig, $Secret } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiFunction = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/api.ts' }),
+    memory: 512,
+    timeout: 10,
+    logging: {
+      retentionDays: 90,
+      logForwarding: {
+        type: 'datadog',
+        properties: { apiKey: $Secret('datadog.apiKey') }
+      }
+    }
+  });
+  return { resources: { apiFunction } };
+});
+```
+
+## Property: `retentionDays`
+
+- Required: no
+- Type: `number: 1 | 120 | 14 | 150 | 180 | 1827 | 3 | 30 | 365 | 3653 | 400 | 5 | 545 | 60 | 7 | 731 | 90`
+- Default: `30`
+
+How many days to keep gateway access logs.
+
+---
+
+# WebSocketApiGateway API Reference
+
+Source: `packages/config/src/websocket-api-gateways.ts`
+Route: `/config-reference/websocket-api-gateways`
+
+Managed, pay-per-use WebSocket API for real-time applications.
+
+## TypeScript definition
+
+```typescript
+import type { WebSocketApiGatewayProps } from 'stacktape';
+
+type WebSocketApiGateway = {
+  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */
+  overrides?: unknown;
+  properties?: WebSocketApiGatewayProps;
+};
+```
+
+## Property: `overrides`
+
+- Required: no
+- Type: `unknown`
+
+Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
+
+Use dot-notation paths to override specific properties on any child resource.
+Find resource logical IDs with `stacktape info:stack`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  mainDb:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('db-password')
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          primaryInstance:
+            instanceSize: db.t3.micro
+    overrides:
+      MainDbDatabaseInstance:
+        Properties.StorageEncrypted: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const mainDb = new RelationalDatabase({
+    credentials: { masterUserPassword: $Secret('db-password') },
+    engine: new RdsEnginePostgres({
+      version: '16.2',
+      primaryInstance: { instanceSize: 'db.t3.micro' }
+    }),
+    overrides: {
+      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+    }
+  });
+
+  return { resources: { mainDb } };
+});
+```
+
+## Property: `properties`
+
+- Required: no
+- Type: `WebSocketApiGatewayProps`
+
+---
+
+# WebSocketApiGatewayProps API Reference
+
+Source: `packages/config/src/websocket-api-gateways.ts`
+Route: `/config-reference/websocket-api-gateways`
+
+## TypeScript definition
+
+```typescript
+import type { DomainConfiguration, WebSocketApiAccessLogsConfig } from 'stacktape';
+
+type WebSocketApiGatewayProps = {
+  /** Custom domains such as `realtime.example.com`. */
+  customDomains?: Array<DomainConfiguration>;
+  /** Access-log settings. */
+  logging?: WebSocketApiAccessLogsConfig;
+  /** Expression used to choose a route from each JSON message. */
+  routeSelectionExpression?: string;
+};
+```
+
+## Property: `customDomains`
+
+- Required: no
+- Type: `Array<DomainConfiguration>`
+
+Custom domains such as `realtime.example.com`.
+
+Stacktape uses the root mapping, so clients connect to `wss://realtime.example.com` without a stage suffix. A
+WebSocket custom domain cannot also be attached to an HTTP or REST API Gateway in the same AWS account and region.
+
+## Property: `logging`
+
+- Required: no
+- Type: `WebSocketApiAccessLogsConfig`
+
+Access-log settings.
+
+JSON access logs are enabled by default and can be viewed with `stacktape logs` and in Console.
+
+## Property: `routeSelectionExpression`
+
+- Required: no
+- Type: `string`
+- Default: `$request.body.action`
+
+Expression used to choose a route from each JSON message.
+
+The default expects messages such as `{ "action": "sendMessage" }`. Change this only when your client already
+uses a different field.
+
+---
+
 # WorkerService API Reference
 
 Source: `packages/config/src/worker-services.ts`
@@ -76526,7 +78121,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 

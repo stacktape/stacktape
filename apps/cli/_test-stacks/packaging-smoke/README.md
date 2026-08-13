@@ -2,10 +2,10 @@
 
 A disposable stack that checks Stacktape's Node packaging against real AWS.
 
-`src/retry-advisor.ts` and `src/catalog-report.ts` are two Node Lambdas that both import `src/status-catalog.ts`.
-Two Node Lambdas is the minimum that turns split bundling on, and the catalog is larger than the 1 KiB minimum chunk
-size, so a correct deployment lifts the shared code into a Lambda layer instead of copying it into both packages.
-Each function is exposed through its own public function URL, and each response carries:
+`src/retry-advisor.ts` and `src/catalog-report.ts` are two Node Lambdas that both import `src/status-catalog.ts`. Two
+Node Lambdas is the minimum that turns split bundling on, and the catalog is larger than the 1 KiB minimum chunk size,
+so a correct deployment lifts the shared code into a Lambda layer instead of copying it into both packages. Each
+function is exposed through its own public function URL, and each response carries:
 
 - `handler` — which of the two handlers ran;
 - `revision` — the environment-only revision used by the automated update canary;
@@ -15,38 +15,37 @@ Each function is exposed through its own public function URL, and each response 
 Same fingerprint from both URLs plus the same fingerprint computed from this source tree is the proof that the shared
 module was packaged intact and executed on both functions.
 
-`tsconfig.json` is here because the Lambda bundler reads the config file's directory: it is the compiler
-configuration for `src/`, not for `stacktape.ts` (which is loaded by Stacktape's own TypeScript loader). The CLI's
-`typecheck` script runs against it too, so the deployed handlers are type-checked before anyone spends a deployment
-on them.
+`tsconfig.json` is here because the Lambda bundler reads the config file's directory: it is the compiler configuration
+for `src/`, not for `stacktape.ts` (which is loaded by Stacktape's own TypeScript loader). The CLI's `typecheck` script
+runs against it too, so the deployed handlers are type-checked before anyone spends a deployment on them.
 
-Read [`DEVELOPMENT.md`](../../../../DEVELOPMENT.md) first — it covers credentials, the development CLI, and the
-dev-only guardrails. Everything below assumes you already confirmed the AWS identity, account and region.
+Read [`DEVELOPMENT.md`](../../../../DEVELOPMENT.md) first — it covers credentials, the development CLI, and the dev-only
+guardrails. Everything below assumes you already confirmed the AWS identity, account and region.
 
 ## Cost and blast radius
 
 Two 128 MB Lambdas, up to three Lambda layer versions, the CloudFormation stack, and the artifact objects Stacktape
-uploads to its deployment bucket. Nothing runs unless you call a URL, so an idle stack costs effectively nothing —
-but it is still a real stack in a real account. Delete it when you are done.
+uploads to its deployment bucket. Nothing runs unless you call a URL, so an idle stack costs effectively nothing — but
+it is still a real stack in a real account. Delete it when you are done.
 
-Both function URLs are **public and unauthenticated**. They serve static HTTP semantics and read no input other than
-a status code, but do not leave them deployed longer than the check needs.
+Both function URLs are **public and unauthenticated**. They serve static HTTP semantics and read no input other than a
+status code, but do not leave them deployed longer than the check needs.
 
 ## Automated canary
 
 The release lane runs this fixture through `scripts/real-aws/packaging-canary.ts`. That runner verifies the exact AWS
-account before mutation, refuses to delete a stack without the exact run-owner tag, deploys and invokes both functions, proves an unchanged deploy
-is a no-op, changes only `STP_AWS_CANARY_REVISION`, proves code and layer identity remain stable, and deletes the stack
-and automatic Lambda log groups. Its required opt-ins and local invocation are documented in the root
-[`DEVELOPMENT.md`](../../../../DEVELOPMENT.md).
+account before mutation, refuses to delete a stack without the exact run-owner tag, deploys and invokes both functions,
+proves an unchanged deploy is a no-op, changes only `STP_AWS_CANARY_REVISION`, proves code and layer identity remain
+stable, and deletes the stack and automatic Lambda log groups. Its required opt-ins and local invocation are documented
+in the root [`DEVELOPMENT.md`](../../../../DEVELOPMENT.md).
 
 The commands below remain the human-readable manual diagnostic flow.
 
 ## Manual commands
 
-Run on Linux, macOS, or a WSL-native checkout from the repository root. The Windows checkout cannot run this CLI
-because of the Bun bundling constraint in `DEVELOPMENT.md`. `--configPath` is resolved against `apps/cli`, where the
-`dev` script runs.
+Run on Linux, macOS, or a WSL-native checkout from the repository root. The Windows checkout cannot run this CLI because
+of the Bun bundling constraint in `DEVELOPMENT.md`. `--configPath` is resolved against `apps/cli`, where the `dev`
+script runs.
 
 Create a unique, deliberately short name. A short name keeps generated AWS names readable:
 
@@ -77,7 +76,7 @@ aws sts get-caller-identity --region "$region" --profile '<profile>'
 For a connected account, inspect the authenticated Stacktape identity and connected accounts:
 
 ```sh
-pnpm --filter @stacktape/cli run dev info:whoami --agent
+pnpm dev:cli info:whoami --agent
 ```
 
 Find the entry whose `name` exactly matches the value in `account_args`; confirm it is `ACTIVE` and its `awsAccountId`
@@ -85,14 +84,14 @@ is the expected disposable development account. Then list that target account's 
 `${project_name}-${stage}` is absent:
 
 ```sh
-pnpm --filter @stacktape/cli run dev info:stacks --region "$region" "${account_args[@]}" --agent
+pnpm dev:cli info:stacks --region "$region" "${account_args[@]}" --agent
 ```
 
 Install cleanup before deploying so interruption and ordinary command failures also attempt deletion:
 
 ```sh
 delete_stack() {
-  pnpm --filter @stacktape/cli run dev delete \
+  pnpm dev:cli delete \
     --configPath _test-stacks/packaging-smoke/stacktape.ts \
     --projectName "$project_name" --stage "$stage" --region "$region" \
     "${account_args[@]}" --agent
@@ -106,7 +105,7 @@ trap cleanup_on_exit EXIT
 Deploy:
 
 ```sh
-pnpm --filter @stacktape/cli run dev deploy \
+pnpm dev:cli deploy \
   --configPath _test-stacks/packaging-smoke/stacktape.ts \
   --projectName "$project_name" --stage "$stage" --region "$region" \
   "${account_args[@]}" --agent
@@ -119,10 +118,10 @@ Find the two URLs — they are printed at the end of deploy and can also be fetc
 `param:get` uses the explicitly selected local profile or connected account:
 
 ```sh
-pnpm --filter @stacktape/cli run dev param:get \
+pnpm dev:cli param:get \
   --projectName "$project_name" --stage "$stage" --region "$region" \
   "${account_args[@]}" --resourceName retryAdvisor --paramName url --agent
-pnpm --filter @stacktape/cli run dev param:get \
+pnpm dev:cli param:get \
   --projectName "$project_name" --stage "$stage" --region "$region" \
   "${account_args[@]}" --resourceName catalogReport --paramName url --agent
 ```
@@ -151,7 +150,7 @@ Redeploy without changing anything — this should report cache hits and an unch
 replacing the layer:
 
 ```sh
-pnpm --filter @stacktape/cli run dev deploy \
+pnpm dev:cli deploy \
   --configPath _test-stacks/packaging-smoke/stacktape.ts \
   --projectName "$project_name" --stage "$stage" --region "$region" \
   "${account_args[@]}" --agent
@@ -159,15 +158,15 @@ pnpm --filter @stacktape/cli run dev deploy \
 
 ### Confirm both functions share one layer version
 
-The responses prove the shared module ran correctly. This proves it was actually _shared_ — packaged once into a
-layer and attached to both functions, rather than copied into each deployment package.
+The responses prove the shared module ran correctly. This proves it was actually _shared_ — packaged once into a layer
+and attached to both functions, rather than copied into each deployment package.
 
 The short project name keeps the physical function names deterministic. Query both through Stacktape's reviewed
 read-only operation:
 
 ```sh
 for resource in retryAdvisor catalogReport; do
-  pnpm --filter @stacktape/cli run dev aws:call \
+  pnpm dev:cli aws:call \
     --projectName "$project_name" --stage "$stage" --region "$region" \
     "${account_args[@]}" \
     --service lambda --command GetFunctionConfiguration \
@@ -183,7 +182,7 @@ the fixture failed.
 Logs, if a function misbehaved:
 
 ```sh
-pnpm --filter @stacktape/cli run dev logs \
+pnpm dev:cli logs \
   --projectName "$project_name" --stage "$stage" --region "$region" \
   "${account_args[@]}" --resourceName retryAdvisor --startTime 30m --agent
 ```
@@ -197,7 +196,7 @@ delete_stack
 List the same target account's stacks again and confirm `${project_name}-${stage}` is absent:
 
 ```sh
-pnpm --filter @stacktape/cli run dev info:stacks --region "$region" "${account_args[@]}" --agent
+pnpm dev:cli info:stacks --region "$region" "${account_args[@]}" --agent
 ```
 
 Only after confirming absence, disable the already-installed cleanup trap:

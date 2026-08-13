@@ -191,11 +191,30 @@ export const RESOURCE_DEFAULTS = {
   'custom-resource-definition': {},
   'event-bus': {},
   'http-api-gateway': {},
+  'websocket-api-gateway': {
+    routeSelectionExpression: '$request.body.action'
+  },
+  'appsync-api': {
+    schemaFilePath: 'schema.graphql',
+    logging: {
+      fieldLogLevel: 'error',
+      includeVerboseContent: false,
+      retentionDays: 30
+    },
+    queryDepthLimit: 10,
+    resolverCountLimit: 1000,
+    introspectionEnabled: true,
+    xrayEnabled: false
+  },
   'mongo-db-atlas-cluster': {},
   'relational-database': {},
   'state-machine': {},
   'user-auth-pool': {},
   'dynamo-db-table': {},
+  'dsql-database': {},
+  'email-sender': {
+    manageIdentity: true as boolean
+  },
   'redis-cluster': {},
   'deployment-script': {},
   'upstash-redis': {},
@@ -205,6 +224,7 @@ export const RESOURCE_DEFAULTS = {
   'sns-topic': {},
   'sqs-queue': {},
   'kinesis-stream': {},
+  'kafka-cluster': {},
   'web-app-firewall': {},
   bastion: {
     instanceSize: 't3.micro'

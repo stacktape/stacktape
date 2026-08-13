@@ -104,6 +104,14 @@ export class AwsCloudFormationStacks {
       .catch(handleError);
   };
 
+  /** Shared-resource orchestration handles CloudFormation races itself, so errors intentionally remain unwrapped. */
+  createSharedStack = (template: CloudFormationTemplate, stackParams: CreateStackInput) =>
+    this.#createClient().send(new CreateStackCommand({ ...stackParams, TemplateBody: JSON.stringify(template) }));
+
+  /** Shared stacks are small enough to update from TemplateBody and do not use the deployment artifact bucket. */
+  updateSharedStack = (template: CloudFormationTemplate, stackParams: UpdateStackInput) =>
+    this.#createClient().send(new UpdateStackCommand({ ...stackParams, TemplateBody: JSON.stringify(template) }));
+
   update = (templateUrl: string, stackParams: UpdateStackInput) => {
     const handleError = this.#getErrorHandler('Failed to initiate stack update.');
     return this.#createClient()

@@ -17,7 +17,7 @@ Common patterns that fit well:
 
 - **Container-based services that stay running** — an [Application Load Balancer](/resources/networking/application-load-balancer) is a better fit for [web services](/resources/compute/web-service). ALBs offer richer routing (headers, query params, source IPs) and a flat hourly cost that's cheaper at sustained high throughput.
 - **Sustained high-volume APIs** (roughly above 50–100 million requests/month) — ALB's flat pricing becomes more economical than pay-per-request at that scale.
-- **WebSocket or persistent connections** — HTTP API Gateway routes request-response HTTP traffic only. It does not support long-lived bidirectional connections.
+- **WebSocket or persistent connections** — this HTTP API resource routes request-response traffic only. Use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway) for Lambda-backed real-time routes, or an [Application Load Balancer](/resources/networking/application-load-balancer) for a persistent container server.
 - **TCP/TLS (non-HTTP) protocols** — use a [Network Load Balancer](/resources/networking/network-load-balancer) instead.
 
 
@@ -383,7 +383,7 @@ Use HTTP API Gateway for Lambda-based APIs with variable traffic — you pay per
 
 ### Does HTTP API Gateway support WebSockets?
 
-No. HTTP API Gateway routes request-response HTTP traffic by method and path. It does not support WebSocket connections or other persistent bidirectional communication. If you need real-time bidirectional messaging, a container-based architecture running a WebSocket server (e.g., Socket.io, ws) behind an [Application Load Balancer](/resources/networking/application-load-balancer) is a common alternative.
+No. This HTTP API Gateway resource routes request-response HTTP traffic by method and path. For real-time messaging, use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway) with Lambda routes. Use an [Application Load Balancer](/resources/networking/application-load-balancer) when you run a persistent container WebSocket server such as Socket.IO or `ws`.
 
 ### What is the maximum payload size for HTTP API Gateway?
 

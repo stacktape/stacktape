@@ -227,7 +227,11 @@ resources:
       connectTo:
         - database
         - auth
-        - aws:ses  # Grants permission to send emails via AWS SES
+        - emailSender
+  emailSender:
+    type: email-sender
+    properties:
+      identity: example.com
 \`\`\`
 
 Then in your code:
@@ -290,7 +294,12 @@ resources:
             batchSize: 1
       connectTo:
         - database
-        - aws:ses
+        - emailSender
+
+  emailSender:
+    type: email-sender
+    properties:
+      identity: example.com
 
   # API can send jobs to queue
   app:
@@ -354,7 +363,12 @@ resources:
         - cache
         - uploads
         - jobQueue
-        - aws:ses
+        - emailSender
+
+  emailSender:
+    type: email-sender
+    properties:
+      identity: example.com
 
   # PostgreSQL (serverless)
   database:
@@ -430,7 +444,12 @@ resources:
       connectTo:
         - database
         - cache
-        - aws:ses
+        - emailSender
+
+  emailSender:
+    type: email-sender
+    properties:
+      identity: example.com
 
 # Run migrations after each deploy
 hooks:
@@ -859,7 +878,12 @@ resources:
           value: $Secret('anthropic-key')
       connectTo:
         - database
-        - aws:ses  # Agent can send emails
+        - emailSender
+
+  emailSender:
+    type: email-sender
+    properties:
+      identity: example.com
 
   database:
     type: relational-database
@@ -1149,7 +1173,12 @@ resources:
             method: POST
             httpApiGatewayName: apiGateway
       connectTo:
-        - aws:ses  # For sending emails
+        - emailSender
+
+  emailSender:
+    type: email-sender
+    properties:
+      identity: example.com
 
   apiGateway:
     type: http-api-gateway
@@ -1287,7 +1316,12 @@ resources:
         - cache
         - uploads
         - auth
-        - aws:ses
+        - emailSender
+
+  emailSender:
+    type: email-sender
+    properties:
+      identity: example.com
 
   database:
     type: relational-database
@@ -1394,7 +1428,12 @@ resources:
             scheduleRate: cron(0 9 * * ? *)  # 9 AM UTC daily
       connectTo:
         - database
-        - aws:ses
+        - emailSender
+
+  emailSender:
+    type: email-sender
+    properties:
+      identity: example.com
 \`\`\`
 
 Common cron patterns:
@@ -1502,7 +1541,12 @@ resources:
           properties:
             sqsQueueName: notificationQueue
       connectTo:
-        - aws:ses
+        - emailSender
+
+  emailSender:
+    type: email-sender
+    properties:
+      identity: example.com
 \`\`\`
 
 ## File Processing Pipeline
@@ -1606,7 +1650,12 @@ resources:
                 - OrderCreated
                 - OrderShipped
       connectTo:
-        - aws:ses
+        - emailSender
+
+  emailSender:
+    type: email-sender
+    properties:
+      identity: example.com
 
   # Analytics service listens for all events
   analyticsService:
@@ -1920,7 +1969,12 @@ resources:
           value: $Secret('stripe-secret')
       connectTo:
         - database
-        - aws:ses
+        - emailSender
+
+  emailSender:
+    type: email-sender
+    properties:
+      identity: example.com
 
   # Handle Stripe webhooks
   stripeWebhook:
@@ -1960,7 +2014,12 @@ resources:
             sqsQueueName: orderQueue
       connectTo:
         - database
-        - aws:ses
+        - emailSender
+
+  emailSender:
+    type: email-sender
+    properties:
+      identity: example.com
 
   database:
     type: relational-database

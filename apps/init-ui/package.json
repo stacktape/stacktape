@@ -1,0 +1,35 @@
+{
+  "name": "@stacktape/init-ui",
+  "version": "4.0.0-dev.0",
+  "private": true,
+  "description": "The browser wizard for `stacktape init`. Builds to static assets embedded in the CLI, served from a localhost server for one session.",
+  "type": "module",
+  "scripts": {
+    "build": "vite build",
+    "build:watch": "vite build --watch",
+    "dev": "vite",
+    "test": "bun test src",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "@stacktape/config-inference": "workspace:*",
+    "@stacktape/design-tokens": "workspace:*",
+    "@stacktape/ui-react": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:"
+  },
+  "devDependencies": {
+    "@stacktape/config": "workspace:*",
+    "@tailwindcss/vite": "4.3.3",
+    "@types/bun": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "^5.1.1",
+    "tailwindcss": "4.3.3",
+    "typescript": "catalog:",
+    "vite": "^7.2.4"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

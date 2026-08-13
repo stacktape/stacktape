@@ -75,7 +75,7 @@ describe('configuration-derived initialization metadata', () => {
           cdn: {
             enabled: true,
             customDomains: [
-              externallyManagedDomain,
+              { ...externallyManagedDomain, domainName: 'cdn-externally-managed.example.org' },
               { domainName: 'certificate-managed.example.net', disableDnsRecordCreation: true }
             ]
           }
@@ -107,5 +107,19 @@ describe('configuration-derived initialization metadata', () => {
     });
 
     expect(manager.allUsedDomainsInConfig.sort()).toEqual(['example.com', 'example.io', 'example.net']);
+  });
+
+  test('rejects duplicate API Gateway domains even when DNS and certificates are externally managed', () => {
+    const externalDomain = {
+      domainName: 'realtime.example.com',
+      disableDnsRecordCreation: true,
+      customCertificateArn: 'arn:aws:acm:eu-west-1:123456789999:certificate/external'
+    };
+    const manager = managerFor({
+      httpApi: { type: 'http-api-gateway', properties: { customDomains: [externalDomain] } },
+      realtimeApi: { type: 'websocket-api-gateway', properties: { customDomains: [externalDomain] } }
+    });
+
+    expect(() => manager.allUsedDomainsInConfig).toThrow('realtime.example.com');
   });
 });

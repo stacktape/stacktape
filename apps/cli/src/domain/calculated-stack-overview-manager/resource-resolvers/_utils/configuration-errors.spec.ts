@@ -196,7 +196,7 @@ describe('configuration errors used during resource synthesis', () => {
         resolveKafkaTopicEvents({
           lambdaFunction: functionWithEvent({ type: 'kafka-topic', properties: {} })
         }),
-      'CONFIG_KAFKA_SOURCE_REQUIRED'
+      'CONFIG_KAFKA_SOURCE_EXACTLY_ONE'
     );
     expect(error.message).toContain('function `worker`');
   });

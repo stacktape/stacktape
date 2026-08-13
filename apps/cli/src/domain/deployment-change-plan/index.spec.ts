@@ -69,7 +69,7 @@ const makeInput = (): Parameters<typeof buildDeploymentChangePlan>[0] => ({
 });
 
 describe('deployment change plan', () => {
-  test('builds a redacted, versioned plan with a deterministic semantic ID', () => {
+  test('builds a versioned plan that omits template property values', () => {
     const first = buildDeploymentChangePlan(makeInput());
     const reordered = makeInput();
     reordered.artifacts.reverse();

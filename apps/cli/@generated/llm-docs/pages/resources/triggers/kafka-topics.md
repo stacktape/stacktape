@@ -1,252 +1,148 @@
-# Kafka Topics
+# Kafka topics
 
-A Kafka topic trigger invokes a function when new messages are available in an Apache Kafka topic. Configure this trigger on a [Lambda function](/resources/compute/lambda-function) to batch records and deliver them to your handler. The supported authentication methods are SASL and mutual TLS (MTLS), with credentials stored in AWS Secrets Manager.
+A `kafka-topic` event lets AWS Lambda poll one Kafka topic and invoke your function with batches of records. The
+simplest source is a Stacktape [Kafka cluster](/resources/messaging/kafka-cluster): Stacktape configures IAM access,
+networking, and the Lambda event-source mapping.
 
-## When to use
+Kafka is an expensive choice if you only need background jobs. Prefer an [SQS queue](/resources/messaging/sqs-queue)
+or [Kinesis stream](/resources/messaging/kinesis-stream) unless Kafka protocol compatibility is a requirement.
 
-Use a Kafka topic trigger when you have Kafka brokers reachable from Lambda and want a Lambda-based consumer for a topic. AWS Lambda handles polling and invocation for the event source mapping, so you do not run a separate consumer process yourself.
+## Stacktape Kafka cluster
 
-Common scenarios:
+```yaml
+resources:
+  events:
+    type: kafka-cluster
 
-- Processing order events, clickstreams, or CDC records from a Kafka topic
-- Bridging Kafka into AWS-native workflows (persist to DynamoDB, forward to SQS, trigger Step Functions)
-- Running lightweight transformations or enrichments on each batch of Kafka records
-
-## When NOT to use
-
-- **Simple message queuing** — if you don't already run Kafka, an [SQS queue trigger](/resources/triggers/sqs-events) is simpler and cheaper for standard async processing.
-- **Fan-out to multiple consumers** — Kafka handles fan-out natively via consumer groups, but if your architecture is AWS-native, [SNS](/resources/triggers/sns-events) or [EventBridge](/resources/triggers/event-bus-events) is typically easier to operate.
-- **Ordered stream processing with retry controls** — if you need `maximumRetryAttempts`, `onFailure` destinations, or `bisectBatchOnFunctionError`, consider a [Kinesis stream trigger](/resources/triggers/kinesis-events) or [DynamoDB stream trigger](/resources/triggers/dynamodb-streams) instead. The Kafka topic trigger does not expose these properties.
-
-## Basic example
-
-This example creates a Lambda function that consumes messages from a Kafka topic using SASL/SCRAM-512 authentication.
-
-
-Example (TypeScript):
-
-```typescript
-import {
-  defineConfig,
-  LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  KafkaTopicIntegration
-} from 'stacktape';
-export default defineConfig(() => {
-  const orderConsumer = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/kafka-consumer.ts'
-    }),
-    memory: 512,
-    timeout: 60,
-    events: [
-      new KafkaTopicIntegration({
-        customKafkaConfiguration: {
-          bootstrapServers: ['broker1.example.com:9092', 'broker2.example.com:9092'],
-          topicName: 'order-events',
-          authentication: {
-            type: 'SASL_SCRAM_512_AUTH',
-            properties: {
-              authenticationSecretArn:
-                'arn:aws:secretsmanager:eu-west-1:123456789012:secret:kafka-creds'
-            }
-          }
-        },
-        batchSize: 100,
-        maxBatchWindowSeconds: 5
-      })
-    ]
-  });
-
-  return { resources: { orderConsumer } };
-});
+  consumeOrders:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/consume-orders.ts
+      events:
+        - type: kafka-topic
+          properties:
+            kafkaClusterName: events
+            topicName: orders
+            startFrom: latest
 ```
 
+`startFrom` is deliberately required:
 
-The `bootstrapServers` array contains `host:port` addresses for your Kafka brokers. The `topicName` identifies which Kafka topic to consume from.
+- `latest` processes records that arrive after the mapping becomes active.
+- `earliest` starts from the oldest retained records and can cause a large first processing burst.
 
-`batchSize` controls how many records are delivered per invocation (default 100, maximum 10,000). `maxBatchWindowSeconds` sets the maximum wait time before invoking with whatever records are available (default 0.5 seconds, maximum 300 seconds). The function is triggered when either `batchSize` is reached or `maxBatchWindowSeconds` expires.
+Stacktape creates shared Lambda and STS interface VPC endpoints for an on-demand Lambda poller attached to a native
+cluster. Those endpoints have their own hourly and data-processing charges in every availability zone. The Lambda
+function itself does not need `joinDefaultVpc` merely to consume the trigger; the poller has separate networking.
+The endpoints use private DNS for the shared VPC and their default endpoint policy, so ordinary workload calls remain
+governed by workload IAM rather than being accidentally blocked at the endpoint.
 
-## Authentication
+The topic must already exist. MSK Serverless disables automatic topic creation and CloudFormation does not support
+declarative topics for Serverless clusters. See [Create topics](/resources/messaging/kafka-cluster#create-topics).
 
-The Kafka cluster configuration includes an authentication block. The supported authentication variants are SASL and MTLS, both referencing Secrets Manager secret ARNs for credentials.
+## Existing Amazon MSK cluster
 
-### SASL authentication
+Use `mskClusterArn` for an existing cluster in the same AWS account and region:
 
-SASL (Simple Authentication and Security Layer) authenticates with a username and password stored in AWS Secrets Manager. Three protocol variants are available:
-
-| Type value | Protocol | When to use |
-|---|---|---|
-| `BASIC_AUTH` | SASL/PLAIN | Clusters configured for the SASL/PLAIN mechanism |
-| `SASL_SCRAM_256_AUTH` | SCRAM-SHA-256 | Production clusters with SCRAM-256 enabled |
-| `SASL_SCRAM_512_AUTH` | SCRAM-SHA-512 | Production clusters with SCRAM-512 enabled |
-
-The referenced Secrets Manager secret must be a JSON object with `username` and `password` keys. You can create it using the [`stacktape secret:set`](/cli/secret-set) CLI command. Set `authenticationSecretArn` to the ARN of the Secrets Manager secret that contains the Kafka credentials.
-
-Stacktape exposes `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, and `SASL_SCRAM_512_AUTH`. Choose the variant that matches your Kafka cluster's configured SASL mechanism. Use `BASIC_AUTH` only when the broker requires SASL/PLAIN.
-
-
-Example (TypeScript):
-
-```typescript
-import {
-  defineConfig,
-  LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  KafkaTopicIntegration
-} from 'stacktape';
-export default defineConfig(() => {
-  const consumer = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/consumer.ts'
-    }),
-    events: [
-      new KafkaTopicIntegration({
-        customKafkaConfiguration: {
-          bootstrapServers: ['kafka.internal.example.com:9092'],
-          topicName: 'user-activity',
-          authentication: {
-            type: 'SASL_SCRAM_512_AUTH',
-            properties: {
-              authenticationSecretArn:
-                'arn:aws:secretsmanager:eu-west-1:123456789012:secret:kafka-sasl-creds'
-            }
-          }
-        }
-      })
-    ]
-  });
-
-  return { resources: { consumer } };
-});
+```yaml
+events:
+  - type: kafka-topic
+    properties:
+      mskClusterArn: arn:aws:kafka:eu-west-1:123456789012:cluster/events/cluster-uuid
+      topicName: orders
+      startFrom: earliest
 ```
 
+This v1 contract assumes the cluster uses IAM authentication. Stacktape scopes the function role to the exact cluster,
+topic, and consumer group. You remain responsible for the existing cluster's security groups, subnets, routes, and
+on-demand poller connectivity. A public subnet and internet gateway alone are not enough: the event-source poller
+needs NAT or private Lambda and STS endpoints. Secret-based SCRAM and mTLS for an existing MSK ARN are not exposed in
+this contract; use the self-managed form when those credentials are required.
 
-### Mutual TLS (MTLS) authentication
+Cross-account MSK event sources require an AWS-managed VPC connection and are not supported by this v1 event.
 
-MTLS authenticates using a client-side TLS certificate. Use this when your Kafka cluster requires certificate-based identity verification — typically in enterprise or zero-trust environments. The `clientCertificate` secret must contain the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password. Optionally provide a `serverRootCaCertificate` for clusters with self-signed or private CA certificates.
+A native Stacktape cluster in a reused VPC can be used by directly connected workloads, but cannot be a Lambda Kafka
+event source in v1. Lambda and STS private-DNS endpoints are VPC-global and Stacktape will not collide with endpoints
+owned by another project. Use an existing `mskClusterArn` after providing its networking yourself, or use a
+Stacktape-owned VPC outside `us-east-1` for the native cluster-and-trigger path.
 
-MTLS is more complex to set up than SASL — you need to manage certificate rotation and ensure the client certificate is trusted by the broker. Choose MTLS when your organization mandates certificate-based authentication; otherwise, SASL is simpler to operate.
+## Self-managed Kafka
 
+For Kafka outside Amazon MSK, provide bootstrap brokers and a Secrets Manager authentication secret:
 
-Example (TypeScript):
-
-```typescript
-import {
-  defineConfig,
-  LambdaFunction,
-  StacktapeLambdaBuildpackPackaging,
-  KafkaTopicIntegration
-} from 'stacktape';
-export default defineConfig(() => {
-  const consumer = new LambdaFunction({
-    packaging: new StacktapeLambdaBuildpackPackaging({
-      entryfilePath: './src/consumer.ts'
-    }),
-    events: [
-      new KafkaTopicIntegration({
-        customKafkaConfiguration: {
-          bootstrapServers: ['broker.secure.example.com:9094'],
-          topicName: 'transactions',
-          authentication: {
-            type: 'MTLS',
-            properties: {
-              clientCertificate:
-                'arn:aws:secretsmanager:eu-west-1:123456789012:secret:kafka-client-cert',
-              serverRootCaCertificate:
-                'arn:aws:secretsmanager:eu-west-1:123456789012:secret:kafka-root-ca'
-            }
-          }
-        }
-      })
-    ]
-  });
-
-  return { resources: { consumer } };
-});
+```yaml
+events:
+  - type: kafka-topic
+    properties:
+      customKafkaConfiguration:
+        bootstrapServers:
+          - broker-1.internal.example.com:9096
+          - broker-2.internal.example.com:9096
+        topicName: orders
+        authentication:
+          type: SASL_SCRAM_512_AUTH
+          properties:
+            authenticationSecretArn: arn:aws:secretsmanager:eu-west-1:123456789012:secret:kafka-creds
+      startFrom: latest
+      vpc:
+        subnetIds:
+          - subnet-0123456789abcdef0
+          - subnet-0123456789abcdef1
+        securityGroupIds:
+          - sg-0123456789abcdef0
 ```
 
+The `vpc` block configures the **event-source poller's** network interfaces. Setting `joinDefaultVpc` on the function
+does not make the poller able to reach private brokers. Provide broker-reachable subnets and security groups; multi-AZ
+placement is recommended. The poller's subnets also need NAT or Lambda and STS interface endpoints; add a Secrets Manager endpoint when
+authentication secrets cannot be reached through NAT.
 
-> **Info:** The `serverRootCaCertificate` is optional. Omit it when your brokers use certificates issued by a publicly trusted CA. Include it when brokers use a private or self-signed CA.
+Supported authentication types are `BASIC_AUTH`, `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`, and `MTLS`. For SASL,
+the secret contains `username` and `password`. For mTLS, configure `clientCertificate` and optionally
+`serverRootCaCertificate` secret ARNs. Stacktape grants secret reads. If a secret is encrypted with a customer-managed
+KMS key, add `kms:Decrypt` for that exact key with `iamRoleStatements`; a key ARN cannot be inferred from the secret ARN.
 
+## Batching and consumer groups
 
-## Batching and throughput
+`batchSize` accepts 1–10,000 records. Omit `maxBatchWindowSeconds` to keep Lambda's 500 ms Kafka default. Unlike SQS,
+Kinesis, and DynamoDB mappings, Kafka can use a batch larger than 10 while retaining that sub-second default.
 
-Kafka topic triggers deliver messages in batches. Two properties on `KafkaTopicIntegration` control how batches are formed:
+Omit `consumerGroupId` for the safe default: AWS assigns a unique group to the mapping. The advanced explicit value is
+for retaining an existing group identity or controlled migrations. It is immutable, must be unique across mappings,
+and an existing group's committed offsets take precedence over `startFrom`. Sharing an ID with another active consumer
+splits partitions instead of duplicating messages.
 
-| Property | Default | Maximum | Effect |
-|---|---|---|---|
-| `batchSize` | 100 | 10,000 | Maximum records delivered per invocation |
-| `maxBatchWindowSeconds` | 0.5 | 300 | Maximum seconds to wait before invoking with available records |
+Changing a source, topic, start position, or explicit group replaces the mapping. AWS can reject create-before-delete
+replacement when the old mapping still owns the same explicit group. In that case, remove the mapping in one deployment
+and add it back in the next.
 
-The function is triggered when either `batchSize` is reached or `maxBatchWindowSeconds` expires — whichever comes first. A larger `batchSize` reduces the number of invocations (lower cost) but increases per-invocation latency and memory usage. A longer `maxBatchWindowSeconds` accumulates more records into each batch, which is useful for low-throughput topics where you want to avoid many small invocations.
-
-Increase `batchSize` or `maxBatchWindowSeconds` when you want larger batches and can tolerate more waiting. Keep the default batch window when latency matters more than invocation count.
-
-
-> **Warning:** Kafka records are delivered in batches, so design handlers so that repeated processing of the same record is safe when your broader pipeline can retry or replay messages.
-
-
-## Handler example
-
-Your Lambda function receives a batch of Kafka records as an event object. The event follows the standard AWS Lambda event format for Kafka triggers. AWS Lambda's self-managed Kafka event format encodes record keys and values as base64 strings.
-
-```typescript
-export const handler = async (event: any) => {
-  for (const [topicPartition, records] of Object.entries(event.records)) {
-    for (const record of records as any[]) {
-      const value = Buffer.from(record.value, 'base64').toString('utf-8');
-      const key = record.key ? Buffer.from(record.key, 'base64').toString('utf-8') : null;
-      console.info(`Partition: ${record.partition}, Offset: ${record.offset}, Key: ${key}, Value: ${value}`);
-    }
-  }
-};
+```yaml
+properties:
+  kafkaClusterName: events
+  topicName: orders
+  startFrom: latest
+  batchSize: 100
+  maxBatchWindowSeconds: 1
+  consumerGroupId: orders-worker-v2
 ```
 
-Stacktape does not redefine the AWS Lambda Kafka event payload. Refer to the [AWS Lambda documentation on self-managed Kafka events](https://docs.aws.amazon.com/lambda/latest/dg/with-kafka.html) for the complete event structure.
-
-## Network connectivity
-
-The Kafka brokers specified in `bootstrapServers` must be reachable from the AWS Lambda execution environment. Public broker endpoints are usually reachable without VPC configuration, while private brokers require Lambda VPC access and matching routing/security-group rules.
-
-For private Kafka clusters (running inside a VPC, on-premises, or behind a VPN), configure your Lambda function with VPC access so it can reach the broker endpoints. See the [Lambda function](/resources/compute/lambda-function) page for VPC configuration options. Ensure security groups and routing allow outbound connectivity to your broker endpoints on the configured ports.
-
-## API reference
+Kafka event functions can have a maximum timeout of 840 seconds (14 minutes). Records are delivered at least once;
+make handlers idempotent and decode Kafka record keys and values from base64.
 
 
-### Definition: `KafkaTopicIntegrationProps`
+### Definition: `KafkaTopicIntegration`
 
-The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/events` with definition name `KafkaTopicIntegrationProps`.
+Triggers a function when new messages are available in a Kafka topic.
+
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/events` with definition name `KafkaTopicIntegration`.
 
 | Property | Required | Type | Default |
 | --- | --- | --- | --- |
-| `customKafkaConfiguration` | yes | `CustomKafkaEventSource` | - |
-| `batchSize` | no | `number` | `100` |
-| `maxBatchWindowSeconds` | no | `number` | `0.5` |
+| `properties` | yes | `option-1 \| option-2 \| option-3` | - |
 
 
-## FAQ
-
-### Can I consume from multiple Kafka topics with one Lambda function?
-
-Yes. The Lambda function `events` property accepts an array, so you can add multiple `KafkaTopicIntegration` entries — each pointing to a different topic or a different cluster. This is useful when a single function needs to process events from several sources with the same handler logic.
-
-### What happens if my function fails?
-
-Unlike [Kinesis stream](/resources/triggers/kinesis-events) or [DynamoDB stream](/resources/triggers/dynamodb-streams) triggers, which expose `maximumRetryAttempts` and `onFailure` destination properties, the Kafka topic trigger does not expose these controls. Design your handler to be idempotent, and consider implementing dead-letter logic within your function code if you need to capture persistently failing records.
-
-### How do I create the Secrets Manager secret for authentication?
-
-Create a Secrets Manager secret with the [`stacktape secret:set`](/cli/secret-set) command. For SASL, the secret value must be a JSON object with `username` and `password` keys — set the resulting ARN as `authenticationSecretArn`. For MTLS, the `clientCertificate` property (required) references a secret containing the certificate chain (X.509 PEM), private key (PKCS#8 PEM), and an optional private key password. The `serverRootCaCertificate` property (optional) references a separate secret containing the server's root CA certificate for clusters using a private or self-signed CA.
-
-### Which authentication type should I use: SASL or MTLS?
-
-Stacktape exposes four types: `BASIC_AUTH` (SASL/PLAIN), `SASL_SCRAM_256_AUTH`, `SASL_SCRAM_512_AUTH`, and `MTLS`. The SASL variants authenticate with a username and password stored in Secrets Manager and are simpler to operate — pick the variant matching your cluster's configured SASL mechanism (use `BASIC_AUTH` only when the broker requires SASL/PLAIN). Choose `MTLS` (client TLS certificate) only when your organization mandates certificate-based identity, since you then have to manage certificate rotation and broker trust.
-
-### Is there a cost for the Kafka event-source mapping?
-
-There is no Stacktape-specific surcharge for Kafka topic triggers. Costs come from the underlying AWS services — primarily Lambda invocation and duration, plus Secrets Manager for credential retrieval. Refer to the AWS Lambda and AWS Secrets Manager pricing pages for current rates.
-
-### Can I filter messages before they reach my function?
-
-`KafkaTopicIntegrationProps` exposes `customKafkaConfiguration`, `batchSize`, and `maxBatchWindowSeconds`; it does not expose a Stacktape-level filter property for Kafka triggers. If you need filtering, implement it in your handler or route records into narrower Kafka topics before attaching the trigger.
+See [AWS Lambda Kafka event-source documentation](https://docs.aws.amazon.com/lambda/latest/dg/with-kafka.html) for the
+runtime event shape and current service constraints.

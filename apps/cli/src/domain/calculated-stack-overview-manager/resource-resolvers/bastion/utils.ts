@@ -10,6 +10,7 @@ import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { tagNames } from '@stacktape/naming/tag-names';
 
 import type { BastionLoggingConfig } from '@stacktape/config/bastion';
+import { getCloudFormationLogGroupClassProperties } from '../_utils/log-groups';
 
 export const getEc2AutoscalingGroup = ({ definition }: { definition: StpBastion }) => {
   const resource = cfnResource('AWS::AutoScaling::AutoScalingGroup', {
@@ -294,6 +295,7 @@ export const getLogGroup = ({
       stpResourceName: definition.name,
       logType
     }),
+    ...getCloudFormationLogGroupClassProperties(definition.logging?.[logType]?.logClass),
     RetentionInDays:
       definition.logging?.[logType]?.retentionDays || logType === 'audit' ? 365 : logType === 'secure' ? 180 : 30
   });

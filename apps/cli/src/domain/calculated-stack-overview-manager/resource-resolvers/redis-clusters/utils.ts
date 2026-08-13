@@ -10,6 +10,8 @@ import { awsResourceNames } from '@stacktape/naming/aws-resource-names';
 import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getCloudFormationLogRetentionDays } from '@utils/cloudformation';
 import { ExpectedError } from '@utils/errors';
+import type { CloudWatchLogGroupOptions } from '@stacktape/config/log-forwarding';
+import { getCloudFormationLogGroupClassProperties } from '../_utils/log-groups';
 
 export const getRedisParameterGroupResource = ({ resource }: { resource: StpRedisCluster }) => {
   return cfnResource('AWS::ElastiCache::ParameterGroup', {
@@ -137,13 +139,16 @@ export const getRedisSecurityGroupResource = ({ resource }: { resource: StpRedis
 
 export const getLogGroupResource = ({
   resource,
-  retentionDays
+  retentionDays,
+  logClass
 }: {
   resource: StpRedisCluster;
   retentionDays: number;
+  logClass?: CloudWatchLogGroupOptions['logClass'];
 }) => {
   return cfnResource('AWS::Logs::LogGroup', {
     LogGroupName: awsResourceNames.redisLogGroup(resource.name, calculatedStackOverviewManager.context.stackName),
+    ...getCloudFormationLogGroupClassProperties(logClass),
     RetentionInDays: getCloudFormationLogRetentionDays(retentionDays)
   });
 };

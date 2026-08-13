@@ -4,6 +4,8 @@ import type { HelperLambdaPackaging } from '@domain-services/packaging-manager/t
 import type { StpLambdaFunction } from '@domain-services/config-manager/resolved-types/functions';
 import type { StpWorkloadType } from '@domain-services/config-manager/resolved-types/resources';
 import type { StackContext } from '@domain-services/stack-context';
+import { isDevCommand } from '../../../commands/dev/dev-mode-utils';
+import { globalStateManager } from '@application-services/global-state-manager';
 import { IS_DEV } from '../../../config/random';
 import { STACKTAPE_TRPC_API_ENDPOINT } from '../../../config/params';
 import { sesManager } from '@domain-services/ses-manager';
@@ -447,6 +449,20 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
     }
   ];
 
+  const remoteResourceNames = new Set(globalStateManager.args.remoteResources || []);
+  const hasDeployedKafkaCluster = activeConfig.kafkaClusters.some(
+    ({ dev, name }) => !isDevCommand() || dev?.remote || remoteResourceNames.has(name)
+  );
+  const kafkaBootstrapBrokers = hasDeployedKafkaCluster
+    ? [
+        {
+          Resource: ['*'],
+          Action: ['kafka:GetBootstrapBrokers'],
+          Effect: 'Allow' as const
+        }
+      ]
+    : [];
+
   return [
     ...s3Events,
     ...acceptVpcPeeringConnections,
@@ -461,7 +477,8 @@ export const getStacktapeServiceLambdaCustomResourceInducedStatements = ({
     ...disableEcsManagedTerminationProtection,
     ...defaultDomainCert,
     ...userPoolDetails,
-    ...ssmGetAnyStpParameter
+    ...ssmGetAnyStpParameter,
+    ...kafkaBootstrapBrokers
   ];
 };
 

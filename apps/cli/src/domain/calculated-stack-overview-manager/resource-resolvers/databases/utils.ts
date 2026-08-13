@@ -24,6 +24,7 @@ import { getCloudFormationLogRetentionDays } from '@utils/cloudformation';
 import { isAuroraEngine } from 'src/aws/rds-engines';
 import { ExpectedError } from '@utils/errors';
 import { getStpServiceCustomResource } from '../_utils/custom-resource';
+import { getCloudFormationLogGroupClassProperties } from '../_utils/log-groups';
 import type {
   AuroraEngine,
   MysqlLoggingOptions,
@@ -318,6 +319,7 @@ export const getDbLogGroup = ({
         );
   return cfnResource('AWS::Logs::LogGroup', {
     LogGroupName: awsResourceNames.dbLogGroup(awsDatabaseIdentifier, isAuroraCluster({ resource }), logGroupType),
+    ...getCloudFormationLogGroupClassProperties(resource.logging?.logClass),
     RetentionInDays: getCloudFormationLogRetentionDays(
       resource.logging?.retentionDays || defaultLogRetentionDays.relationalDatabase
     )

@@ -5,11 +5,9 @@ import { logError, logInfo, logWarn } from '@scripts/support/logging';
 import { localBuildTsConfigPath } from '@utils/misc';
 import { createStacktapeOpenTuiBuildPlugin } from '@scripts/support/opentui-loader';
 import packageJson from '../package.json';
-import { packageHelperLambdas } from './package-helper-lambdas';
 import { config } from 'dotenv';
 import { setTimeout as sleep } from 'node:timers/promises';
 
-const skipPackagingHelperLambdas = Boolean(process.env.SPHL);
 const skipLoadingEnv = Boolean(process.env.SKIP_LOADING_ENV);
 const hasArgValue = ({ flag, value }: { flag: string; value: string }) => {
   const args = process.argv;
@@ -155,19 +153,20 @@ export const runDev = async () => {
 
   try {
     process.env.STP_DEV_MODE = 'true';
+    if (process.env.STACKTAPE_INIT_MCP === '1') {
+      // Run straight from source, like MCP mode below: rebuilding the whole CLI for a child process
+      // the agent spawns per session would add seconds to every run for no benefit.
+      const { runInitMcpServer } = await import('../src/init/mcp/bin');
+      await runInitMcpServer();
+      return;
+    }
     if (isMcpMode) {
       const { commandMcp } = await import('../src/commands/mcp');
       await commandMcp();
       return;
     }
 
-    const cliDistPath = await withDevBuildLock(async () => {
-      const [cliDistPath] = await Promise.all([
-        buildSource(),
-        !skipPackagingHelperLambdas && packageHelperLambdas({ isDev: true, distFolderPath: DEV_TMP_FOLDER_PATH })
-      ]);
-      return cliDistPath;
-    });
+    const cliDistPath = await withDevBuildLock(buildSource);
 
     if (!isSilentMode) {
       logInfo('----- RUN -----');

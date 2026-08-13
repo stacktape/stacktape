@@ -32,6 +32,7 @@ import { ensureMissingSsmParamsCreated } from '../_utils/ssm-param-preflight';
 import { deployWithCodebuildRunner } from './codebuild-runner';
 import { deployWithEc2Runner } from './ec2-runner';
 import { buildPreviewResourceChanges } from '../diff/utils';
+import { ensureManagedEmailSenders } from '@domain-services/email-sender-manager';
 
 type DeployOperation = Awaited<ReturnType<typeof initializeDeployOperation>>;
 
@@ -194,6 +195,11 @@ const deployLocally = async () => {
     }
   }
 
+  // A newly added/changed EmailSender changes StackInfo and therefore cannot enter the hotswap path. Existing
+  // dependencies were already ensured by their full deployment, so keep routine code hotswaps free of this preflight.
+  if (!useHotswap) {
+    await ensureManagedEmailSenders();
+  }
   if (stack.stackActionType === 'create') {
     await stack.createResourcesForArtifacts();
   }

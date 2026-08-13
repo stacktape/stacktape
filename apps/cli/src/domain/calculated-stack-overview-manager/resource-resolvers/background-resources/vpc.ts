@@ -79,6 +79,30 @@ const getVpcGatewayEndpoint = ({ type }: { type: 's3' | 'dynamo-db' }) => {
   return resource;
 };
 
+const getKafkaOnDemandEndpointSecurityGroup = () =>
+  cfnResource('AWS::EC2::SecurityGroup', {
+    VpcId: vpcManager.getVpcId(),
+    GroupDescription: 'PrivateLink endpoints used by Lambda on-demand Kafka event-source mappings',
+    SecurityGroupIngress: [
+      {
+        CidrIp: vpcManager.getVpcCidr(),
+        FromPort: 443,
+        ToPort: 443,
+        IpProtocol: 'tcp'
+      }
+    ]
+  });
+
+const getKafkaOnDemandVpcEndpoint = (service: 'lambda' | 'sts') =>
+  cfnResource('AWS::EC2::VPCEndpoint', {
+    VpcId: vpcManager.getVpcId(),
+    VpcEndpointType: 'Interface',
+    ServiceName: `com.amazonaws.${calculatedStackOverviewManager.context.region}.${service}`,
+    SubnetIds: vpcManager.getKafkaSubnetIds(),
+    SecurityGroupIds: [ref(cfLogicalNames.kafkaOnDemandEndpointSecurityGroup())],
+    PrivateDnsEnabled: true
+  });
+
 const getNatElasticIp = () => cfnResource('AWS::EC2::EIP', { Domain: 'vpc' });
 
 const getNatGateway = (azIndex: number) => {
@@ -244,6 +268,20 @@ export const resolveAwsVpcDeployment = async () => {
       cfLogicalName: cfLogicalNames.vpcGatewayEndpoint('dynamo-db'),
       resource: getVpcGatewayEndpoint({ type: 'dynamo-db' }),
       nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+    });
+  }
+  if (configManager.kafkaClustersWithLambdaEvents.length && !configManager.reuseVpcConfig) {
+    calculatedStackOverviewManager.addCfChildResource({
+      cfLogicalName: cfLogicalNames.kafkaOnDemandEndpointSecurityGroup(),
+      resource: getKafkaOnDemandEndpointSecurityGroup(),
+      nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+    });
+    (['lambda', 'sts'] as const).forEach((service) => {
+      calculatedStackOverviewManager.addCfChildResource({
+        cfLogicalName: cfLogicalNames.kafkaOnDemandVpcEndpoint(service),
+        resource: getKafkaOnDemandVpcEndpoint(service),
+        nameChain: [PARENT_IDENTIFIER_SHARED_GLOBAL]
+      });
     });
   }
 };

@@ -287,11 +287,12 @@ export default defineConfig(() => {
 
 ## Triggers
 
-A Lambda function receives work through its `events` array. Stacktape supports 12 trigger types and auto-configures the permissions for each.
+A Lambda function receives work through its `events` array. Stacktape supports 13 trigger types and auto-configures the permissions for each.
 
 | Trigger type | Event discriminator | Docs |
 |---|---|---|
 | HTTP API Gateway | `http-api-gateway` | [HTTP triggers](/resources/triggers/http-triggers) |
+| WebSocket API Gateway | `websocket-api-gateway` | [WebSocket API Gateway](/resources/networking/websocket-api-gateway) |
 | Application Load Balancer | `application-load-balancer` | [HTTP triggers](/resources/triggers/http-triggers) |
 | Schedule | `schedule` | [Schedule triggers](/resources/triggers/schedule-triggers) |
 | S3 | `s3` | [S3 events](/resources/triggers/s3-events) |
@@ -765,7 +766,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `destinations` | no | `LambdaFunctionDestinations` | - |
 | `disabledGlobalAlarms` | no | `Array<string>` | - |
 | `environment` | no | `Array<EnvironmentVar>` | - |
-| `events` | no | `Array<application-load-balancer \| kafka-topic \| sns \| sqs \| kinesis-stream \| dynamo-db-stream \| s3 \| schedule \| cloudwatch-alarm \| cloudwatch-log \| http-api-gateway \| event-bus>` | - |
+| `events` | no | `Array<application-load-balancer \| kafka-topic \| sns \| sqs \| kinesis-stream \| dynamo-db-stream \| s3 \| schedule \| cloudwatch-alarm \| cloudwatch-log \| http-api-gateway \| appsync-api \| websocket-api-gateway \| event-bus>` | - |
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
 | `joinDefaultVpc` | no | `boolean` | `false` |
 | `layers` | no | `Array<string>` | - |

@@ -41,6 +41,10 @@ import { initDevAgentCredentials } from './dev-agent-credentials';
 import { registerDevServerCleanupHook } from './dev-server';
 import { deployDevStack } from './dev-stack-deployer';
 import {
+  emailSenderBindingsNeedDevStackUpdate,
+  getEmailSenderBindingsFingerprint
+} from '@domain-services/email-sender-manager/bindings-fingerprint';
+import {
   getLocalEmulateableResources,
   getRemoteResourceNames,
   registerLocalResourceCleanupHook
@@ -535,8 +539,21 @@ export const commandDev = async () => {
     }
   }
 
-  // Deploy the dev stack if it does not exist.
-  if (!stackManager.existingStackDetails) {
+  const desiredEmailSenderBindingsFingerprint = getEmailSenderBindingsFingerprint({
+    resources: configManager.allResourcesIncludingNested,
+    senders: configManager.emailSenders
+  });
+  const emailSenderBindingsChanged = emailSenderBindingsNeedDevStackUpdate({
+    deployedFingerprint: deployedStackOverviewManager.getStackMetadata(
+      stackMetadataNames.emailSenderBindingsFingerprint()
+    ),
+    desiredFingerprint: desiredEmailSenderBindingsFingerprint,
+    hasEmailSenders: configManager.emailSenders.length > 0
+  });
+
+  // New dev stacks always deploy. Existing dev stacks redeploy only when their email-sender bindings changed; old
+  // no-email dev stacks deliberately stay fast even though they predate this metadata key.
+  if (!stackManager.existingStackDetails || emailSenderBindingsChanged) {
     if (agentEnabled) {
       // Agent mode: plain text output for dev stack deployment
       tuiManager.info('[~] Deploying dev stack (minimal stack for dev mode)...');

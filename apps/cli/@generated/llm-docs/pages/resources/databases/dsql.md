@@ -1,0 +1,188 @@
+# Aurora DSQL
+
+The `dsql-database` resource creates an Amazon Aurora DSQL cluster with no instances, capacity, passwords, or network rules to configure. DSQL is a serverless, PostgreSQL-compatible database that scales automatically. Connections use TLS and a short-lived IAM authentication token.
+
+## When to use
+
+DSQL is a good fit for a new application that needs relational transactions and SQL but does not want to size database instances, manage credentials, or operate failover. A resource can be created with no properties:
+
+
+Example (TypeScript):
+
+```typescript
+import { defineConfig, DsqlDatabase } from 'stacktape';
+
+export default defineConfig(() => {
+  const database = new DsqlDatabase({});
+
+  return { resources: { database } };
+});
+```
+
+
+Example (YAML):
+
+```yaml
+resources:
+  database:
+    type: dsql-database
+```
+
+
+## When not to use
+
+DSQL implements a PostgreSQL-compatible subset rather than running ordinary PostgreSQL. Check the [Aurora DSQL PostgreSQL compatibility documentation](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/working-with-postgresql-compatibility-migration-guide.html) before migrating an existing application, especially if it depends on PostgreSQL extensions, unsupported data types, long-running sessions, or engine-specific administration.
+
+Use a [relational database](/resources/databases/relational-database) when you require full PostgreSQL, MySQL, MariaDB, Oracle, or SQL Server compatibility; a private VPC-only endpoint configured directly by Stacktape; conventional password authentication; or built-in Stacktape backup and restore settings.
+
+## Connect a workload
+
+`connectTo` is the shortest path for a new application. It injects the endpoint and other non-secret connection details and grants the workload `dsql:DbConnectAdmin` on this cluster only.
+
+
+Example (TypeScript):
+
+```typescript
+import {
+  defineConfig,
+  DsqlDatabase,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging
+} from 'stacktape';
+
+export default defineConfig(() => {
+  const database = new DsqlDatabase({
+    deletionProtection: true
+  });
+
+  const api = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/handler.ts'
+    }),
+    connectTo: [database]
+  });
+
+  return { resources: { database, api } };
+});
+```
+
+
+Example (YAML):
+
+```yaml
+resources:
+  database:
+    type: dsql-database
+    properties:
+      deletionProtection: true
+
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/handler.ts
+      connectTo:
+        - database
+```
+
+
+The workload receives:
+
+| Variable | Value |
+|---|---|
+| `STP_DATABASE_ENDPOINT` | Cluster hostname |
+| `STP_DATABASE_PORT` | `5432` |
+| `STP_DATABASE_DATABASE_NAME` | `postgres` |
+| `STP_DATABASE_USERNAME` | `admin` |
+| `STP_DATABASE_REGION` | Deployment region |
+| `STP_DATABASE_ID` | Cluster ID |
+| `STP_DATABASE_ARN` | Cluster ARN |
+
+There is deliberately no password or connection string. Generate an IAM authentication token for each new database connection and pass it to the PostgreSQL client as the password. Because `connectTo` injects the `admin` username, a raw signer must use the admin-token operation: `getDbConnectAdminAuthToken` in the JavaScript signer or `generate-db-connect-admin-auth-token` in the AWS CLI. The ordinary `DbConnect` token is for a custom database role and will not authenticate `admin`.
+
+For Node.js, the [official Aurora DSQL connector](https://docs.aws.amazon.com/aurora-dsql/latest/userguide/SECTION_program-with-dsql-connector-for-node-postgres.html) automatically chooses the admin token from the injected username and refreshes credentials for new pooled connections:
+
+```ts
+import { AuroraDSQLPool } from '@aws/aurora-dsql-node-postgres-connector';
+
+const pool = new AuroraDSQLPool({
+  host: process.env.STP_DATABASE_ENDPOINT!,
+  user: process.env.STP_DATABASE_USERNAME!,
+  database: process.env.STP_DATABASE_DATABASE_NAME!
+});
+```
+
+Keep TLS enabled when using another PostgreSQL client.
+
+DSQL limits a database session to 60 minutes. Configure the client pool to recycle connections before that limit, and do not generate one token at process startup and reuse it forever.
+
+## Least-privilege access
+
+`connectTo` intentionally uses the built-in `admin` database role so a new cluster is immediately useful. That is full database access. When a platform engineer needs a narrower production boundary:
+
+1. Connect as `admin`, create an application database role, and map it to an IAM principal using DSQL's `AWS IAM GRANT` SQL command.
+2. Pass `endpoint`, `region`, and the other required values explicitly with `$ResourceParam()` or the TypeScript resource properties.
+3. Grant only `dsql:DbConnect` for the cluster ARN in the workload's `iamRoleStatements`.
+
+Do not leave the same workload connected through `connectTo`, because that would retain the `dsql:DbConnectAdmin` grant.
+
+## Data protection
+
+Set `deletionProtection: true` for production. Stacktape also treats DSQL as a database for the `require-deletion-protection` guardrail. When enabled, AWS rejects deletion until you redeploy with deletion protection disabled.
+
+Deletion protection is not a backup. This v1 resource does not configure AWS Backup, point-in-time recovery, or a final snapshot, and deleting a cluster can be irreversible without a separately configured backup. Restoring an AWS Backup recovery point creates a new cluster rather than rewinding the existing one.
+
+## Encryption
+
+By default, DSQL uses an AWS-owned encryption key. Set `kmsKeyArn` only when you need control over the key policy and lifecycle:
+
+```yaml
+resources:
+  database:
+    type: dsql-database
+    properties:
+      deletionProtection: true
+      kmsKeyArn: arn:aws:kms:eu-west-1:123456789012:key/example
+```
+
+## Current boundaries
+
+Stacktape v1 creates a single-region DSQL cluster using its public service endpoint. It does not yet configure multi-region peering, PrivateLink VPC endpoints, AWS Backup plans, adoption of an existing cluster, local emulation, or `query:sql` support. A DSQL resource therefore fails the `require-vpc-databases` and `require-data-backups` guardrails closed. These boundaries are explicit so a short configuration does not silently create cross-region infrastructure or account-level backup resources.
+
+Stacktape validates regional availability before deployment. Within Stacktape's region catalog, DSQL is supported in
+US East (N. Virginia and Ohio), US West (Oregon), Hong Kong, Mumbai, Osaka, Seoul, Singapore, Sydney, Tokyo, Canada
+Central, Frankfurt, Ireland, London, Paris, Stockholm, and São Paulo. An unsupported region fails before
+CloudFormation with the valid choices in the error.
+
+For CloudFormation properties not exposed above, use the `cluster` child through [overrides and transforms](/configuration/overrides-and-escape-hatches).
+
+## Referenceable parameters
+
+
+## Referenceable Parameters: `dsql-database`
+These values can be referenced with `$ResourceParam("<<resource-name>>", "<<parameter-name>>")`.
+
+| Parameter | Description | Usage |
+| --- | --- | --- |
+| `endpoint` | TLS endpoint of the DSQL cluster. | `$ResourceParam("<<resource-name>>", "endpoint")` |
+| `port` | PostgreSQL port (5432). | `$ResourceParam("<<resource-name>>", "port")` |
+| `databaseName` | Default database name (postgres). | `$ResourceParam("<<resource-name>>", "databaseName")` |
+| `username` | Built-in database role used by connectTo (admin). | `$ResourceParam("<<resource-name>>", "username")` |
+| `region` | AWS region containing the cluster. | `$ResourceParam("<<resource-name>>", "region")` |
+| `id` | DSQL cluster ID. | `$ResourceParam("<<resource-name>>", "id")` |
+| `arn` | DSQL cluster ARN. | `$ResourceParam("<<resource-name>>", "arn")` |
+
+
+## API Reference
+
+
+### Definition: `DsqlDatabaseProps`
+
+The complete property-level reference is included in `llms-api-reference.txt` and indexed under route `/config-reference/dsql-database` with definition name `DsqlDatabaseProps`.
+
+| Property | Required | Type | Default |
+| --- | --- | --- | --- |
+| `deletionProtection` | no | `boolean` | `false` |
+| `kmsKeyArn` | no | `string` | - |

@@ -16,6 +16,10 @@ import type {
   ApplicationLoadBalancerReferenceableParam,
   StpApplicationLoadBalancer
 } from '@domain-services/config-manager/resolved-types/application-load-balancers';
+import type {
+  AppSyncApiReferencableParam,
+  StpAppSyncApi
+} from '@domain-services/config-manager/resolved-types/appsync-apis';
 import type { StpAstroWeb } from '@domain-services/config-manager/resolved-types/astro-web';
 import type { StpAwsCdkConstruct } from '@domain-services/config-manager/resolved-types/aws-cdk-construct';
 import type { StpBastion } from '@domain-services/config-manager/resolved-types/bastion';
@@ -31,6 +35,14 @@ import type {
   DynamoDBTableReferencableParam,
   StpDynamoTable
 } from '@domain-services/config-manager/resolved-types/dynamo-db-tables';
+import type {
+  DsqlDatabaseReferencableParam,
+  StpDsqlDatabase
+} from '@domain-services/config-manager/resolved-types/dsql-databases';
+import type {
+  EmailSenderReferencableParam,
+  StpEmailSender
+} from '@domain-services/config-manager/resolved-types/email-senders';
 import type {
   StpEdgeLambdaFunction,
   StpHelperEdgeLambdaFunction
@@ -51,9 +63,17 @@ import type {
   StpHttpApiGateway
 } from '@domain-services/config-manager/resolved-types/http-api-gateways';
 import type {
+  StpWebSocketApiGateway,
+  WebSocketApiGatewayReferencableParam
+} from '@domain-services/config-manager/resolved-types/websocket-api-gateways';
+import type {
   KinesisStreamReferencableParam,
   StpKinesisStream
 } from '@domain-services/config-manager/resolved-types/kinesis-streams';
+import type {
+  KafkaClusterReferencableParam,
+  StpKafkaCluster
+} from '@domain-services/config-manager/resolved-types/kafka-clusters';
 import type {
   MongoDbAtlasClusterReferencableParam,
   StpMongoDbAtlasCluster
@@ -118,13 +138,17 @@ export type StpResource = (
   | StpWorkloadDefinition
   | StpRelationalDatabase
   | StpApplicationLoadBalancer
+  | StpAppSyncApi
   | StpNetworkLoadBalancer
   | StpHttpApiGateway
+  | StpWebSocketApiGateway
   | StpBucket
   | StpUserAuthPool
   | StpEventBus
   | StpBastion
   | StpDynamoTable
+  | StpDsqlDatabase
+  | StpEmailSender
   | StpStateMachine
   | StpMongoDbAtlasCluster
   | StpRedisCluster
@@ -149,6 +173,7 @@ export type StpResource = (
   | StpOpenSearchDomain
   | StpEfsFilesystem
   | StpKinesisStream
+  | StpKafkaCluster
   | StpConvex
   | StpAgentCoreRuntime
   | StpAgentCoreMemory
@@ -200,7 +225,14 @@ export type DevModeCapableResourceType = Subtype<
 >;
 export type StpCdnOriginTargetableByRouteRewrite = StpCdnAttachableResourceType | 'custom-origin';
 export type StpDomainAttachableResourceType =
-  | Subtype<StpResourceType, 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer'>
+  | Subtype<
+      StpResourceType,
+      | 'application-load-balancer'
+      | 'appsync-api'
+      | 'http-api-gateway'
+      | 'websocket-api-gateway'
+      | 'network-load-balancer'
+    >
   | 'cdn';
 export type StpResourceScopableByConnectToAffectingRole =
   | Subtype<StpResource, StpLambdaFunction>
@@ -210,19 +242,25 @@ export type StpResourceScopableByConnectToAffectingRole =
   | Subtype<StpResource, StpEventBus>
   | Subtype<StpResource, StpBucket>
   | Subtype<StpResource, StpDynamoTable>
+  | Subtype<StpResource, StpDsqlDatabase>
+  | Subtype<StpResource, StpEmailSender>
   | Subtype<StpResource, StpOpenSearchDomain>
   | Subtype<StpResource, StpUserAuthPool>
   | Subtype<StpResource, StpSqsQueue>
   | Subtype<StpResource, StpSnsTopic>
   | Subtype<StpResource, StpKinesisStream>
+  | Subtype<StpResource, StpKafkaCluster>
   | Subtype<StpResource, StpAgentCoreRuntime>
   | Subtype<StpResource, StpAgentCoreMemory>
   | Subtype<StpResource, StpAgentCoreGateway>
   | Subtype<StpResource, StpAgentCoreBrowser>
-  | Subtype<StpResource, StpAgentCoreCodeInterpreter>;
+  | Subtype<StpResource, StpAgentCoreCodeInterpreter>
+  | Subtype<StpResource, StpWebSocketApiGateway>
+  | Subtype<StpResource, StpAppSyncApi>;
 export type StpResourceScopableByConnectToAffectingSecurityGroup =
   | Subtype<StpResource, StpRelationalDatabase>
-  | Subtype<StpResource, StpRedisCluster>;
+  | Subtype<StpResource, StpRedisCluster>
+  | Subtype<StpResource, StpKafkaCluster>;
 export type StpResourceScopableByConnectTo =
   | StpResourceScopableByConnectToAffectingSecurityGroup
   | StpResourceScopableByConnectToAffectingRole;
@@ -291,9 +329,12 @@ export type StacktapeResourceReferenceableParam =
   | BucketReferencableParam
   | ContainerWorkloadReferencableParam
   | DynamoDBTableReferencableParam
+  | DsqlDatabaseReferencableParam
+  | EmailSenderReferencableParam
   | EventBusReferencableParam
   | FunctionReferencableParam
   | HttpApiGatewayReferencableParam
+  | WebSocketApiGatewayReferencableParam
   | MongoDbAtlasClusterReferencableParam
   | RedisClusterReferencableParam
   | RelationalDatabaseReferencableParam
@@ -306,9 +347,11 @@ export type StacktapeResourceReferenceableParam =
   | WebAppFirewallReferencableParams
   | OpenSearchDomainReferencableParams
   | KinesisStreamReferencableParam
+  | KafkaClusterReferencableParam
   | ConvexReferencableParam
   | AgentCoreRuntimeReferencableParam
   | AgentCoreMemoryReferencableParam
   | AgentCoreGatewayReferencableParam
   | AgentCoreBrowserReferencableParam
-  | AgentCoreCodeInterpreterReferencableParam;
+  | AgentCoreCodeInterpreterReferencableParam
+  | AppSyncApiReferencableParam;

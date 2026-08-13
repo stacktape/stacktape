@@ -4,13 +4,13 @@ A Stacktape Application Load Balancer routes HTTP/HTTPS requests to container wo
 
 ## When to use
 
-Application Load Balancer is the right choice when you need advanced HTTP routing, WebSocket support, or a flat-cost alternative to pay-per-request API Gateway. It becomes more cost-effective than [HTTP API Gateway](/resources/networking/http-api-gateway) above roughly 500k requests per day (~15 million/month).
+Application Load Balancer is the right choice when you need advanced HTTP routing, a persistent container WebSocket server, or a flat-cost alternative to pay-per-request API Gateway. It becomes more cost-effective than [HTTP API Gateway](/resources/networking/http-api-gateway) above roughly 500k requests per day (~15 million/month).
 
 Common patterns that fit well:
 
 - **Container-based web services** — [web services](/resources/compute/web-service) and [private services](/resources/compute/private-service) that stay running and serve HTTP traffic
 - **Multiple services behind one endpoint** — route `/api/*` to one service, `/admin/*` to another, using priority-based rules
-- **WebSocket applications** — Stacktape's Application Load Balancer is the documented path for WebSocket connections; the [HTTP API Gateway](/resources/networking/http-api-gateway) integration source documents HTTP method/path routing, not WebSocket routes
+- **Container WebSocket applications** — keep framework-managed connections and server state in long-running services behind the ALB; for Lambda routes that scale to zero, use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway)
 - **Firewall-protected APIs** — attach a [web application firewall](/resources/security/web-application-firewall) directly to the ALB to protect against common web exploits
 - **Gradual deployments** — canary and linear deployment strategies require an ALB
 - **Sustained high traffic** — flat pricing is cheaper than pay-per-request above moderate volume
@@ -405,11 +405,11 @@ An [Application Load Balancer](/resources/networking/application-load-balancer) 
 
 ### When should I use an ALB vs HTTP API Gateway?
 
-Use an [HTTP API Gateway](/resources/networking/http-api-gateway) for Lambda-based APIs with variable or low traffic — pay-per-request scales to zero cost. Use an Application Load Balancer for container-based services, WebSocket applications, or when you need advanced routing (headers, query params, source IPs). ALB's flat pricing is cheaper above roughly 500k requests per day. ALB also supports [gradual deployments](/deployment-and-lifecycle/gradual-deployments) and direct [WAF attachment](/resources/security/web-application-firewall).
+Use an [HTTP API Gateway](/resources/networking/http-api-gateway) for Lambda-based request-response APIs with variable or low traffic. Use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway) for Lambda-backed real-time routes that should scale to zero. Use an Application Load Balancer for container-based services, persistent WebSocket servers, or advanced HTTP routing (headers, query params, source IPs). ALB's flat pricing is cheaper above roughly 500k requests per day. ALB also supports [gradual deployments](/deployment-and-lifecycle/gradual-deployments) and direct [WAF attachment](/resources/security/web-application-firewall).
 
 ### Does the Application Load Balancer support WebSockets?
 
-Yes. AWS ALB natively supports WebSocket connections over HTTP/HTTPS listeners. Once the initial HTTP upgrade handshake completes, the ALB maintains the persistent bidirectional connection between client and backend. This makes ALB the right networking choice for real-time applications using Socket.io, ws, or similar WebSocket libraries. Stacktape's Application Load Balancer is the documented path for WebSocket connections.
+Yes. AWS ALB natively supports WebSocket connections over HTTP/HTTPS listeners. Once the initial HTTP upgrade handshake completes, the ALB maintains the persistent bidirectional connection between client and backend. This makes ALB a good fit for container applications using Socket.IO, `ws`, or similar server frameworks. For Lambda-backed connection and message routes with pay-per-use pricing, use a [WebSocket API Gateway](/resources/networking/websocket-api-gateway).
 
 ### Why isn't my health check configured on the Application Load Balancer resource?
 

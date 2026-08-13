@@ -37,7 +37,6 @@ import type {
   AgentCoreJwtAuthorizerConfig,
   AgentCoreRuntimeEndpointConfig
 } from '@stacktape/config/agentcore';
-import type { ConnectToAwsServicesMacro } from '@stacktape/config/aws-service-macros';
 import type { EsLanguageSpecificConfig, PrebuiltImageCwPackagingProps } from '@stacktape/config/deployment-artifacts';
 import type { CloudformationTag, EnvironmentVar, StpIamRoleStatement } from '@stacktape/config/shared';
 
@@ -63,6 +62,7 @@ const resolveAgentCoreRuntimes = () => {
       accessToAwsServices
     } = resolveConnectToList({
       stpResourceNameOfReferencer: name,
+      stpResourceTypeOfReferencer: runtime.type,
       connectTo: runtime.connectTo
     });
 
@@ -170,7 +170,8 @@ const resolveAgentCoreRuntimes = () => {
       showDuringPrint: true
     });
 
-    getRuntimeEndpoints(runtime).forEach((endpoint) => {
+    const runtimeEndpoints = getRuntimeEndpoints(runtime);
+    runtimeEndpoints.forEach((endpoint) => {
       const endpointLogicalName = cfLogicalNames.agentCoreRuntimeEndpoint(name, endpoint.name);
       calculatedStackOverviewManager.addCfChildResource({
         cfLogicalName: endpointLogicalName,
@@ -183,18 +184,20 @@ const resolveAgentCoreRuntimes = () => {
         }) as any,
         nameChain
       });
-      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
-        nameChain,
-        paramName: 'endpointName',
-        paramValue: awsResourceNames.agentCoreRuntimeEndpoint(stackName, name, endpoint.name),
-        showDuringPrint: true
-      });
-      calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
-        nameChain,
-        paramName: 'endpointArn',
-        paramValue: ref(endpointLogicalName),
-        showDuringPrint: true
-      });
+    });
+    const referenceableEndpoint = getReferenceableRuntimeEndpoint(runtimeEndpoints);
+    const referenceableEndpointLogicalName = cfLogicalNames.agentCoreRuntimeEndpoint(name, referenceableEndpoint.name);
+    calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+      nameChain,
+      paramName: 'endpointName',
+      paramValue: awsResourceNames.agentCoreRuntimeEndpoint(stackName, name, referenceableEndpoint.name),
+      showDuringPrint: true
+    });
+    calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+      nameChain,
+      paramName: 'endpointArn',
+      paramValue: ref(referenceableEndpointLogicalName),
+      showDuringPrint: true
     });
 
     templateManager.addFinalTemplateOverrideFn(async (template) => {
@@ -457,7 +460,7 @@ const getAgentCoreExecutionRole = ({
   roleSuffix: string;
   iamRoleStatements?: StpIamRoleStatement[];
   accessToResourcesRequiringRoleChanges?: StpResourceScopableByConnectToAffectingRole[];
-  accessToAwsServices?: ConnectToAwsServicesMacro[];
+  accessToAwsServices?: never[];
 }) =>
   cfnResource('AWS::IAM::Role', {
     RoleName: awsResourceNames.agentCoreRole(
@@ -537,6 +540,14 @@ const getRuntimeEndpoints = (runtime: StpAgentCoreRuntime): AgentCoreRuntimeEndp
   (runtime.endpoints?.length ? runtime.endpoints : ['default']).map((endpoint) =>
     typeof endpoint === 'string' ? { name: endpoint } : endpoint
   );
+
+export const getReferenceableRuntimeEndpoint = (
+  endpoints: AgentCoreRuntimeEndpointConfig[]
+): AgentCoreRuntimeEndpointConfig => {
+  const selectedEndpoint = endpoints.find(({ name }) => name === 'default') || endpoints[0];
+  if (!selectedEndpoint) throw new Error('AgentCore runtime endpoint selection requires at least one endpoint.');
+  return selectedEndpoint;
+};
 
 export const getRuntimeEndpointVersion = (
   runtimeCfLogicalName: string,

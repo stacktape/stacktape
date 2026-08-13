@@ -11,6 +11,11 @@ type AgentCoreRuntimeProps = {
   /** Give this resource access to other resources in your stack. */
   connectTo?: Array<string>;
   description?: string;
+  /** Runtime endpoints. Omit this property to create one endpoint named `default`.
+
+An explicit list must contain at least one endpoint and endpoint names must be unique. References to
+`endpointName` and `endpointArn` select the endpoint named `default` when present, or otherwise the first endpoint
+in this list. */
   endpoints?: Array<AgentCoreRuntimeEndpoints>;
   environment?: Array<EnvironmentVar>;
   /** Raw IAM policy statements for permissions not covered by `connectTo`. */
@@ -100,7 +105,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -165,6 +170,12 @@ export default defineConfig(() => {
 
 - Required: no
 - Type: `Array<AgentCoreRuntimeEndpoint | option-2>`
+
+Runtime endpoints. Omit this property to create one endpoint named `default`.
+
+An explicit list must contain at least one endpoint and endpoint names must be unique. References to
+`endpointName` and `endpointArn` select the endpoint named `default` when present, or otherwise the first endpoint
+in this list.
 
 Choices:
 - `AgentCoreRuntimeEndpoint` (`AgentCoreRuntimeEndpointConfig`). Properties: `name: string`, `description?: string`, `runtimeVersion?: string`.

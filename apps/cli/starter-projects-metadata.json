@@ -7,36 +7,12 @@
     "starterProjectId": "agentcore-customer-support-agent",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "supportGateway",
-        "type": "agentcore-gateway",
-        "containerNames": []
-      },
-      {
-        "name": "supportMemory",
-        "type": "agentcore-memory",
-        "containerNames": []
-      },
-      {
-        "name": "supportAgent",
-        "type": "agentcore-runtime",
-        "containerNames": []
-      },
-      {
-        "name": "tickets",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "getCustomerProfile",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "createSupportTicket",
-        "type": "function",
-        "containerNames": []
-      }
+      { "name": "supportGateway", "type": "agentcore-gateway", "containerNames": [] },
+      { "name": "supportMemory", "type": "agentcore-memory", "containerNames": [] },
+      { "name": "supportAgent", "type": "agentcore-runtime", "containerNames": [] },
+      { "name": "tickets", "type": "dynamo-db-table", "containerNames": [] },
+      { "name": "getCustomerProfile", "type": "function", "containerNames": [] },
+      { "name": "createSupportTicket", "type": "function", "containerNames": [] }
     ],
     "usedResourceTypes": ["agentcore-gateway", "agentcore-memory", "agentcore-runtime", "dynamo-db-table", "function"],
     "isServerSideRenderedWebsite": false,
@@ -60,26 +36,10 @@
     "starterProjectId": "agentcore-data-analyst",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "analysisCodeInterpreter",
-        "type": "agentcore-code-interpreter",
-        "containerNames": []
-      },
-      {
-        "name": "analysisMemory",
-        "type": "agentcore-memory",
-        "containerNames": []
-      },
-      {
-        "name": "analystAgent",
-        "type": "agentcore-runtime",
-        "containerNames": []
-      },
-      {
-        "name": "reportsBucket",
-        "type": "bucket",
-        "containerNames": []
-      }
+      { "name": "analysisCodeInterpreter", "type": "agentcore-code-interpreter", "containerNames": [] },
+      { "name": "analysisMemory", "type": "agentcore-memory", "containerNames": [] },
+      { "name": "analystAgent", "type": "agentcore-runtime", "containerNames": [] },
+      { "name": "reportsBucket", "type": "bucket", "containerNames": [] }
     ],
     "usedResourceTypes": ["agentcore-code-interpreter", "agentcore-memory", "agentcore-runtime", "bucket"],
     "isServerSideRenderedWebsite": false,
@@ -103,21 +63,9 @@
     "starterProjectId": "agentcore-research-assistant",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "researchBrowser",
-        "type": "agentcore-browser",
-        "containerNames": []
-      },
-      {
-        "name": "researchMemory",
-        "type": "agentcore-memory",
-        "containerNames": []
-      },
-      {
-        "name": "researchAgent",
-        "type": "agentcore-runtime",
-        "containerNames": []
-      }
+      { "name": "researchBrowser", "type": "agentcore-browser", "containerNames": [] },
+      { "name": "researchMemory", "type": "agentcore-memory", "containerNames": [] },
+      { "name": "researchAgent", "type": "agentcore-runtime", "containerNames": [] }
     ],
     "usedResourceTypes": ["agentcore-browser", "agentcore-memory", "agentcore-runtime"],
     "isServerSideRenderedWebsite": false,
@@ -141,16 +89,8 @@
     "starterProjectId": "ai-agent-api",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "conversations",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "agent",
-        "type": "function",
-        "containerNames": []
-      }
+      { "name": "conversations", "type": "dynamo-db-table", "containerNames": [] },
+      { "name": "agent", "type": "function", "containerNames": [] }
     ],
     "usedResourceTypes": ["dynamo-db-table", "function"],
     "isServerSideRenderedWebsite": false,
@@ -173,13 +113,7 @@
     "priority": 0,
     "starterProjectId": "ai-chatbot-api",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "chat",
-        "type": "function",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "chat", "type": "function", "containerNames": [] }],
     "usedResourceTypes": ["function"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-ai-chatbot-api",
@@ -202,13 +136,7 @@
     "hasOwnTsConfig": true,
     "starterProjectId": "astro-serverless",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "web",
-        "type": "astro-web",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "web", "type": "astro-web", "containerNames": [] }],
     "usedResourceTypes": ["astro-web"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-astro-serverless",
@@ -230,13 +158,7 @@
     "priority": 0,
     "starterProjectId": "astro-ssr",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "web",
-        "type": "astro-web",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "web", "type": "astro-web", "containerNames": [] }],
     "usedResourceTypes": ["astro-web"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-astro-ssr",
@@ -258,13 +180,7 @@
     "priority": 0,
     "starterProjectId": "astro-static",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "webBucket",
-        "type": "hosting-bucket",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "webBucket", "type": "hosting-bucket", "containerNames": [] }],
     "usedResourceTypes": ["hosting-bucket"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-astro-static",
@@ -287,16 +203,8 @@
     "starterProjectId": "expressjs-api-postgres",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "mainDatabase",
-        "type": "relational-database",
-        "containerNames": []
-      },
-      {
-        "name": "webService",
-        "type": "web-service",
-        "containerNames": []
-      }
+      { "name": "mainDatabase", "type": "relational-database", "containerNames": [] },
+      { "name": "webService", "type": "web-service", "containerNames": [] }
     ],
     "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
@@ -320,16 +228,8 @@
     "starterProjectId": "fastapi-api-postgres",
     "projectType": "python",
     "usedResources": [
-      {
-        "name": "mainDatabase",
-        "type": "relational-database",
-        "containerNames": []
-      },
-      {
-        "name": "webService",
-        "type": "web-service",
-        "containerNames": []
-      }
+      { "name": "mainDatabase", "type": "relational-database", "containerNames": [] },
+      { "name": "webService", "type": "web-service", "containerNames": [] }
     ],
     "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
@@ -353,16 +253,8 @@
     "starterProjectId": "fullstack-nextjs-drizzle",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "web",
-        "type": "nextjs-web",
-        "containerNames": []
-      },
-      {
-        "name": "database",
-        "type": "relational-database",
-        "containerNames": []
-      }
+      { "name": "web", "type": "nextjs-web", "containerNames": [] },
+      { "name": "database", "type": "relational-database", "containerNames": [] }
     ],
     "usedResourceTypes": ["nextjs-web", "relational-database"],
     "isServerSideRenderedWebsite": true,
@@ -386,26 +278,10 @@
     "starterProjectId": "fullstack-todo-app",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "todosTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "frontend",
-        "type": "hosting-bucket",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "todosTable", "type": "dynamo-db-table", "containerNames": [] },
+      { "name": "api", "type": "function", "containerNames": [] },
+      { "name": "frontend", "type": "hosting-bucket", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["dynamo-db-table", "function", "hosting-bucket", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -429,16 +305,8 @@
     "starterProjectId": "hono-api",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "api", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -461,13 +329,7 @@
     "priority": 0,
     "starterProjectId": "mcp-server",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "mcpServer",
-        "type": "function",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "mcpServer", "type": "function", "containerNames": [] }],
     "usedResourceTypes": ["function"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-mcp-server",
@@ -490,16 +352,8 @@
     "starterProjectId": "n8n-self-hosted",
     "projectType": "docker",
     "usedResources": [
-      {
-        "name": "database",
-        "type": "relational-database",
-        "containerNames": []
-      },
-      {
-        "name": "n8n",
-        "type": "web-service",
-        "containerNames": []
-      }
+      { "name": "database", "type": "relational-database", "containerNames": [] },
+      { "name": "n8n", "type": "web-service", "containerNames": [] }
     ],
     "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
@@ -522,13 +376,7 @@
     "priority": 0,
     "starterProjectId": "nextjs-container",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "webService",
-        "type": "web-service",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "webService", "type": "web-service", "containerNames": [] }],
     "usedResourceTypes": ["web-service"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-nextjs-container",
@@ -563,21 +411,9 @@
     "starterProjectId": "nextjs-saas",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "web",
-        "type": "nextjs-web",
-        "containerNames": []
-      },
-      {
-        "name": "database",
-        "type": "relational-database",
-        "containerNames": []
-      },
-      {
-        "name": "authPool",
-        "type": "user-auth-pool",
-        "containerNames": []
-      }
+      { "name": "web", "type": "nextjs-web", "containerNames": [] },
+      { "name": "database", "type": "relational-database", "containerNames": [] },
+      { "name": "authPool", "type": "user-auth-pool", "containerNames": [] }
     ],
     "usedResourceTypes": ["nextjs-web", "relational-database", "user-auth-pool"],
     "isServerSideRenderedWebsite": true,
@@ -600,13 +436,7 @@
     "priority": 0,
     "starterProjectId": "nextjs-serverless",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "web",
-        "type": "nextjs-web",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "web", "type": "nextjs-web", "containerNames": [] }],
     "usedResourceTypes": ["nextjs-web"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-nextjs-serverless",
@@ -630,13 +460,7 @@
     "disableLintingOption": true,
     "starterProjectId": "nuxt-serverless",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "web",
-        "type": "nuxt-web",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "web", "type": "nuxt-web", "containerNames": [] }],
     "usedResourceTypes": ["nuxt-web"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-nuxt-serverless",
@@ -659,26 +483,10 @@
     "starterProjectId": "rag-api",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "chunks",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "ingest",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "ask",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "chunks", "type": "dynamo-db-table", "containerNames": [] },
+      { "name": "ingest", "type": "function", "containerNames": [] },
+      { "name": "ask", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -702,16 +510,8 @@
     "starterProjectId": "s3files-dataset-reporting",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "buildCatalog",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "datasetApi",
-        "type": "function",
-        "containerNames": []
-      }
+      { "name": "buildCatalog", "type": "function", "containerNames": [] },
+      { "name": "datasetApi", "type": "function", "containerNames": [] }
     ],
     "usedResourceTypes": ["function"],
     "isServerSideRenderedWebsite": false,
@@ -734,13 +534,7 @@
     "priority": 0,
     "starterProjectId": "s3files-model-inference-api",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "inferenceApi",
-        "type": "function",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "inferenceApi", "type": "function", "containerNames": [] }],
     "usedResourceTypes": ["function"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-s3files-model-inference-api",
@@ -764,13 +558,7 @@
     "disableLintingOption": true,
     "starterProjectId": "sveltekit-serverless",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "web",
-        "type": "sveltekit-web",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "web", "type": "sveltekit-web", "containerNames": [] }],
     "usedResourceTypes": ["sveltekit-web"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-sveltekit-serverless",
@@ -793,26 +581,10 @@
     "starterProjectId": "api-with-auth",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "publicEndpoint",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "protectedEndpoint",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      },
-      {
-        "name": "authPool",
-        "type": "user-auth-pool",
-        "containerNames": []
-      }
+      { "name": "publicEndpoint", "type": "function", "containerNames": [] },
+      { "name": "protectedEndpoint", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] },
+      { "name": "authPool", "type": "user-auth-pool", "containerNames": [] }
     ],
     "usedResourceTypes": ["function", "http-api-gateway", "user-auth-pool"],
     "isServerSideRenderedWebsite": false,
@@ -835,13 +607,7 @@
     "priority": 1,
     "starterProjectId": "cron-job",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "scheduledTask",
-        "type": "function",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "scheduledTask", "type": "function", "containerNames": [] }],
     "usedResourceTypes": ["function"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-cron-job",
@@ -864,16 +630,8 @@
     "starterProjectId": "django-api-postgres",
     "projectType": "python",
     "usedResources": [
-      {
-        "name": "mainDatabase",
-        "type": "relational-database",
-        "containerNames": []
-      },
-      {
-        "name": "webService",
-        "type": "web-service",
-        "containerNames": []
-      }
+      { "name": "mainDatabase", "type": "relational-database", "containerNames": [] },
+      { "name": "webService", "type": "web-service", "containerNames": [] }
     ],
     "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
@@ -896,13 +654,7 @@
     "priority": 1,
     "starterProjectId": "docker",
     "projectType": "docker",
-    "usedResources": [
-      {
-        "name": "app",
-        "type": "web-service",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "app", "type": "web-service", "containerNames": [] }],
     "usedResourceTypes": ["web-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-docker",
@@ -925,16 +677,8 @@
     "starterProjectId": "dotnet-api-postgres",
     "projectType": "dotnet",
     "usedResources": [
-      {
-        "name": "mainDatabase",
-        "type": "relational-database",
-        "containerNames": []
-      },
-      {
-        "name": "webService",
-        "type": "web-service",
-        "containerNames": []
-      }
+      { "name": "mainDatabase", "type": "relational-database", "containerNames": [] },
+      { "name": "webService", "type": "web-service", "containerNames": [] }
     ],
     "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
@@ -958,31 +702,11 @@
     "starterProjectId": "dynamodb-streams-audit",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "productsTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "auditTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "processStream",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "productsTable", "type": "dynamo-db-table", "containerNames": [] },
+      { "name": "auditTable", "type": "dynamo-db-table", "containerNames": [] },
+      { "name": "processStream", "type": "function", "containerNames": [] },
+      { "name": "api", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -1006,41 +730,13 @@
     "starterProjectId": "event-driven-pipeline",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "eventBus",
-        "type": "event-bus",
-        "containerNames": []
-      },
-      {
-        "name": "submitOrder",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "processOrder",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "onOrderProcessed",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      },
-      {
-        "name": "orderDlq",
-        "type": "sqs-queue",
-        "containerNames": []
-      },
-      {
-        "name": "orderQueue",
-        "type": "sqs-queue",
-        "containerNames": []
-      }
+      { "name": "eventBus", "type": "event-bus", "containerNames": [] },
+      { "name": "submitOrder", "type": "function", "containerNames": [] },
+      { "name": "processOrder", "type": "function", "containerNames": [] },
+      { "name": "onOrderProcessed", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] },
+      { "name": "orderDlq", "type": "sqs-queue", "containerNames": [] },
+      { "name": "orderQueue", "type": "sqs-queue", "containerNames": [] }
     ],
     "usedResourceTypes": ["event-bus", "function", "http-api-gateway", "sqs-queue"],
     "isServerSideRenderedWebsite": false,
@@ -1064,16 +760,8 @@
     "starterProjectId": "expressjs-api-mongo-db",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "mongoDbCluster",
-        "type": "mongo-db-atlas-cluster",
-        "containerNames": []
-      },
-      {
-        "name": "webService",
-        "type": "web-service",
-        "containerNames": []
-      }
+      { "name": "mongoDbCluster", "type": "mongo-db-atlas-cluster", "containerNames": [] },
+      { "name": "webService", "type": "web-service", "containerNames": [] }
     ],
     "usedResourceTypes": ["mongo-db-atlas-cluster", "web-service"],
     "isServerSideRenderedWebsite": false,
@@ -1097,21 +785,9 @@
     "starterProjectId": "file-upload-api",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "filesBucket",
-        "type": "bucket",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "filesBucket", "type": "bucket", "containerNames": [] },
+      { "name": "api", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["bucket", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -1135,16 +811,8 @@
     "starterProjectId": "flask-api-postgres",
     "projectType": "python",
     "usedResources": [
-      {
-        "name": "mainDatabase",
-        "type": "relational-database",
-        "containerNames": []
-      },
-      {
-        "name": "webService",
-        "type": "web-service",
-        "containerNames": []
-      }
+      { "name": "mainDatabase", "type": "relational-database", "containerNames": [] },
+      { "name": "webService", "type": "web-service", "containerNames": [] }
     ],
     "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
@@ -1168,16 +836,8 @@
     "starterProjectId": "gin-api-postgres",
     "projectType": "go",
     "usedResources": [
-      {
-        "name": "mainDatabase",
-        "type": "relational-database",
-        "containerNames": []
-      },
-      {
-        "name": "webService",
-        "type": "web-service",
-        "containerNames": []
-      }
+      { "name": "mainDatabase", "type": "relational-database", "containerNames": [] },
+      { "name": "webService", "type": "web-service", "containerNames": [] }
     ],
     "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
@@ -1201,21 +861,9 @@
     "starterProjectId": "graphql-api",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "postsTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "postsTable", "type": "dynamo-db-table", "containerNames": [] },
+      { "name": "api", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -1239,31 +887,11 @@
     "starterProjectId": "kinesis-realtime-analytics",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "analyticsTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "processEvents",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      },
-      {
-        "name": "eventStream",
-        "type": "kinesis-stream",
-        "containerNames": []
-      }
+      { "name": "analyticsTable", "type": "dynamo-db-table", "containerNames": [] },
+      { "name": "processEvents", "type": "function", "containerNames": [] },
+      { "name": "api", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] },
+      { "name": "eventStream", "type": "kinesis-stream", "containerNames": [] }
     ],
     "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway", "kinesis-stream"],
     "isServerSideRenderedWebsite": false,
@@ -1287,21 +915,9 @@
     "starterProjectId": "lambda-api-dynamo-db",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "postsTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "postsTable", "type": "dynamo-db-table", "containerNames": [] },
+      { "name": "api", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -1325,26 +941,10 @@
     "starterProjectId": "lambda-api-mongo-db",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "savePost",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "getPosts",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "mainApiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      },
-      {
-        "name": "mongoDbCluster",
-        "type": "mongo-db-atlas-cluster",
-        "containerNames": []
-      }
+      { "name": "savePost", "type": "function", "containerNames": [] },
+      { "name": "getPosts", "type": "function", "containerNames": [] },
+      { "name": "mainApiGateway", "type": "http-api-gateway", "containerNames": [] },
+      { "name": "mongoDbCluster", "type": "mongo-db-atlas-cluster", "containerNames": [] }
     ],
     "usedResourceTypes": ["function", "http-api-gateway", "mongo-db-atlas-cluster"],
     "isServerSideRenderedWebsite": false,
@@ -1368,21 +968,9 @@
     "starterProjectId": "monorepo-typescript-pnpm",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "myLambda",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "myApiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      },
-      {
-        "name": "myServer",
-        "type": "web-service",
-        "containerNames": []
-      }
+      { "name": "myLambda", "type": "function", "containerNames": [] },
+      { "name": "myApiGateway", "type": "http-api-gateway", "containerNames": [] },
+      { "name": "myServer", "type": "web-service", "containerNames": [] }
     ],
     "usedResourceTypes": ["function", "http-api-gateway", "web-service"],
     "isServerSideRenderedWebsite": false,
@@ -1406,36 +994,12 @@
     "starterProjectId": "multi-step-workflow",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "validateInput",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "processData",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "generateReport",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "startWorkflow",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      },
-      {
-        "name": "workflow",
-        "type": "state-machine",
-        "containerNames": []
-      }
+      { "name": "validateInput", "type": "function", "containerNames": [] },
+      { "name": "processData", "type": "function", "containerNames": [] },
+      { "name": "generateReport", "type": "function", "containerNames": [] },
+      { "name": "startWorkflow", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] },
+      { "name": "workflow", "type": "state-machine", "containerNames": [] }
     ],
     "usedResourceTypes": ["function", "http-api-gateway", "state-machine"],
     "isServerSideRenderedWebsite": false,
@@ -1459,16 +1023,8 @@
     "starterProjectId": "nestjs-api-postgres",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "mainDatabase",
-        "type": "relational-database",
-        "containerNames": []
-      },
-      {
-        "name": "webService",
-        "type": "web-service",
-        "containerNames": []
-      }
+      { "name": "mainDatabase", "type": "relational-database", "containerNames": [] },
+      { "name": "webService", "type": "web-service", "containerNames": [] }
     ],
     "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
@@ -1491,13 +1047,7 @@
     "priority": 1,
     "starterProjectId": "open-webui-self-hosted",
     "projectType": "docker",
-    "usedResources": [
-      {
-        "name": "openWebUi",
-        "type": "web-service",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "openWebUi", "type": "web-service", "containerNames": [] }],
     "usedResourceTypes": ["web-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-open-webui-self-hosted",
@@ -1520,16 +1070,8 @@
     "starterProjectId": "phoenix-api-postgres",
     "projectType": "elixir",
     "usedResources": [
-      {
-        "name": "mainDatabase",
-        "type": "relational-database",
-        "containerNames": []
-      },
-      {
-        "name": "webService",
-        "type": "web-service",
-        "containerNames": []
-      }
+      { "name": "mainDatabase", "type": "relational-database", "containerNames": [] },
+      { "name": "webService", "type": "web-service", "containerNames": [] }
     ],
     "usedResourceTypes": ["relational-database", "web-service"],
     "isServerSideRenderedWebsite": false,
@@ -1553,26 +1095,10 @@
     "starterProjectId": "queue-worker",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "enqueueJob",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "processJob",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      },
-      {
-        "name": "jobQueue",
-        "type": "sqs-queue",
-        "containerNames": []
-      }
+      { "name": "enqueueJob", "type": "function", "containerNames": [] },
+      { "name": "processJob", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] },
+      { "name": "jobQueue", "type": "sqs-queue", "containerNames": [] }
     ],
     "usedResourceTypes": ["function", "http-api-gateway", "sqs-queue"],
     "isServerSideRenderedWebsite": false,
@@ -1596,13 +1122,7 @@
     "hasOwnTsConfig": true,
     "starterProjectId": "remix-serverless",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "web",
-        "type": "remix-web",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "web", "type": "remix-web", "containerNames": [] }],
     "usedResourceTypes": ["remix-web"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-remix-serverless",
@@ -1625,13 +1145,7 @@
     "hasOwnTsConfig": true,
     "starterProjectId": "remix-website-container",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "webService",
-        "type": "web-service",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "webService", "type": "web-service", "containerNames": [] }],
     "usedResourceTypes": ["web-service"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-remix-website-container",
@@ -1654,16 +1168,8 @@
     "starterProjectId": "rust-lambda-api",
     "projectType": "rust",
     "usedResources": [
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "api", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -1687,26 +1193,10 @@
     "starterProjectId": "s3-image-processor",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "imagesBucket",
-        "type": "bucket",
-        "containerNames": []
-      },
-      {
-        "name": "processImage",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "imagesBucket", "type": "bucket", "containerNames": [] },
+      { "name": "processImage", "type": "function", "containerNames": [] },
+      { "name": "api", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["bucket", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -1730,26 +1220,10 @@
     "starterProjectId": "scheduled-health-checker",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "monitorsTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "checkHealth",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "monitorsTable", "type": "dynamo-db-table", "containerNames": [] },
+      { "name": "checkHealth", "type": "function", "containerNames": [] },
+      { "name": "api", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -1773,36 +1247,12 @@
     "starterProjectId": "sns-notification-fanout",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "notificationsTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "logNotification",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "storeNotification",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      },
-      {
-        "name": "notificationTopic",
-        "type": "sns-topic",
-        "containerNames": []
-      }
+      { "name": "notificationsTable", "type": "dynamo-db-table", "containerNames": [] },
+      { "name": "logNotification", "type": "function", "containerNames": [] },
+      { "name": "storeNotification", "type": "function", "containerNames": [] },
+      { "name": "api", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] },
+      { "name": "notificationTopic", "type": "sns-topic", "containerNames": [] }
     ],
     "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway", "sns-topic"],
     "isServerSideRenderedWebsite": false,
@@ -1827,13 +1277,7 @@
     "disableLintingOption": true,
     "starterProjectId": "solidstart-serverless",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "web",
-        "type": "solidstart-web",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "web", "type": "solidstart-web", "containerNames": [] }],
     "usedResourceTypes": ["solidstart-web"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-solidstart-serverless",
@@ -1856,13 +1300,7 @@
     "hasOwnTsConfig": true,
     "starterProjectId": "tanstack-start-serverless",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "web",
-        "type": "tanstack-web",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "web", "type": "tanstack-web", "containerNames": [] }],
     "usedResourceTypes": ["tanstack-web"],
     "isServerSideRenderedWebsite": true,
     "githubLink": "https://github.com/stacktape/starter-tanstack-start-serverless",
@@ -1884,13 +1322,7 @@
     "priority": 1,
     "starterProjectId": "telegram-bot",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "bot",
-        "type": "function",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "bot", "type": "function", "containerNames": [] }],
     "usedResourceTypes": ["function"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-telegram-bot",
@@ -1913,21 +1345,9 @@
     "starterProjectId": "url-shortener",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "linksTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "api",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "linksTable", "type": "dynamo-db-table", "containerNames": [] },
+      { "name": "api", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -1951,26 +1371,10 @@
     "starterProjectId": "webhook-ingestion",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "receiveWebhook",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "processWebhook",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      },
-      {
-        "name": "webhookQueue",
-        "type": "sqs-queue",
-        "containerNames": []
-      }
+      { "name": "receiveWebhook", "type": "function", "containerNames": [] },
+      { "name": "processWebhook", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] },
+      { "name": "webhookQueue", "type": "sqs-queue", "containerNames": [] }
     ],
     "usedResourceTypes": ["function", "http-api-gateway", "sqs-queue"],
     "isServerSideRenderedWebsite": false,
@@ -1993,13 +1397,7 @@
     "priority": 100,
     "starterProjectId": "discord-bot",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "bot",
-        "type": "worker-service",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "bot", "type": "worker-service", "containerNames": [] }],
     "usedResourceTypes": ["worker-service"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-discord-bot",
@@ -2021,26 +1419,10 @@
     "starterProjectId": "go-lambda-api",
     "projectType": "go",
     "usedResources": [
-      {
-        "name": "mainDynamoDbTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "savePost",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "getPosts",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "mainApiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "mainDynamoDbTable", "type": "dynamo-db-table", "containerNames": [] },
+      { "name": "savePost", "type": "function", "containerNames": [] },
+      { "name": "getPosts", "type": "function", "containerNames": [] },
+      { "name": "mainApiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -2065,26 +1447,10 @@
     "starterProjectId": "gpu-inference-api",
     "projectType": "python",
     "usedResources": [
-      {
-        "name": "inferenceJob",
-        "type": "batch-job",
-        "containerNames": []
-      },
-      {
-        "name": "outputBucket",
-        "type": "bucket",
-        "containerNames": []
-      },
-      {
-        "name": "triggerInference",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "apiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "inferenceJob", "type": "batch-job", "containerNames": [] },
+      { "name": "outputBucket", "type": "bucket", "containerNames": [] },
+      { "name": "triggerInference", "type": "function", "containerNames": [] },
+      { "name": "apiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["batch-job", "bucket", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -2107,26 +1473,10 @@
     "starterProjectId": "java-lambda-api",
     "projectType": "java",
     "usedResources": [
-      {
-        "name": "mainDynamoDbTable",
-        "type": "dynamo-db-table",
-        "containerNames": []
-      },
-      {
-        "name": "savePost",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "getPosts",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "mainApiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "mainDynamoDbTable", "type": "dynamo-db-table", "containerNames": [] },
+      { "name": "savePost", "type": "function", "containerNames": [] },
+      { "name": "getPosts", "type": "function", "containerNames": [] },
+      { "name": "mainApiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["dynamo-db-table", "function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -2150,26 +1500,10 @@
     "starterProjectId": "lambda-api-mysql",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "savePost",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "getPosts",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "mainApiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      },
-      {
-        "name": "mainDatabase",
-        "type": "relational-database",
-        "containerNames": []
-      }
+      { "name": "savePost", "type": "function", "containerNames": [] },
+      { "name": "getPosts", "type": "function", "containerNames": [] },
+      { "name": "mainApiGateway", "type": "http-api-gateway", "containerNames": [] },
+      { "name": "mainDatabase", "type": "relational-database", "containerNames": [] }
     ],
     "usedResourceTypes": ["function", "http-api-gateway", "relational-database"],
     "isServerSideRenderedWebsite": false,
@@ -2193,21 +1527,9 @@
     "starterProjectId": "lambda-app-redis",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "storeKeyValuePair",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "mainApiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      },
-      {
-        "name": "redis",
-        "type": "redis-cluster",
-        "containerNames": []
-      }
+      { "name": "storeKeyValuePair", "type": "function", "containerNames": [] },
+      { "name": "mainApiGateway", "type": "http-api-gateway", "containerNames": [] },
+      { "name": "redis", "type": "redis-cluster", "containerNames": [] }
     ],
     "usedResourceTypes": ["function", "http-api-gateway", "redis-cluster"],
     "isServerSideRenderedWebsite": false,
@@ -2231,16 +1553,8 @@
     "starterProjectId": "lambda-web-scraper-puppeteer",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "scrapeLinks",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "mainApiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      }
+      { "name": "scrapeLinks", "type": "function", "containerNames": [] },
+      { "name": "mainApiGateway", "type": "http-api-gateway", "containerNames": [] }
     ],
     "usedResourceTypes": ["function", "http-api-gateway"],
     "isServerSideRenderedWebsite": false,
@@ -2264,26 +1578,10 @@
     "starterProjectId": "python-lambda-api",
     "projectType": "python",
     "usedResources": [
-      {
-        "name": "savePost",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "getPosts",
-        "type": "function",
-        "containerNames": []
-      },
-      {
-        "name": "mainApiGateway",
-        "type": "http-api-gateway",
-        "containerNames": []
-      },
-      {
-        "name": "mongoDbCluster",
-        "type": "mongo-db-atlas-cluster",
-        "containerNames": []
-      }
+      { "name": "savePost", "type": "function", "containerNames": [] },
+      { "name": "getPosts", "type": "function", "containerNames": [] },
+      { "name": "mainApiGateway", "type": "http-api-gateway", "containerNames": [] },
+      { "name": "mongoDbCluster", "type": "mongo-db-atlas-cluster", "containerNames": [] }
     ],
     "usedResourceTypes": ["function", "http-api-gateway", "mongo-db-atlas-cluster"],
     "isServerSideRenderedWebsite": false,
@@ -2308,13 +1606,7 @@
     "priority": 100,
     "starterProjectId": "react-spa-vitejs",
     "projectType": "es",
-    "usedResources": [
-      {
-        "name": "webBucket",
-        "type": "hosting-bucket",
-        "containerNames": []
-      }
-    ],
+    "usedResources": [{ "name": "webBucket", "type": "hosting-bucket", "containerNames": [] }],
     "usedResourceTypes": ["hosting-bucket"],
     "isServerSideRenderedWebsite": false,
     "githubLink": "https://github.com/stacktape/starter-react-spa-vitejs",
@@ -2336,21 +1628,9 @@
     "starterProjectId": "socketio-websocket-api-redis",
     "projectType": "es",
     "usedResources": [
-      {
-        "name": "mainLoadBalancer",
-        "type": "application-load-balancer",
-        "containerNames": []
-      },
-      {
-        "name": "websocketServer",
-        "type": "multi-container-workload",
-        "containerNames": ["socketio-server"]
-      },
-      {
-        "name": "redis",
-        "type": "redis-cluster",
-        "containerNames": []
-      }
+      { "name": "mainLoadBalancer", "type": "application-load-balancer", "containerNames": [] },
+      { "name": "websocketServer", "type": "multi-container-workload", "containerNames": ["socketio-server"] },
+      { "name": "redis", "type": "redis-cluster", "containerNames": [] }
     ],
     "usedResourceTypes": ["application-load-balancer", "multi-container-workload", "redis-cluster"],
     "isServerSideRenderedWebsite": false,
@@ -2375,21 +1655,9 @@
     "starterProjectId": "tensorflow-image-classification",
     "projectType": "python",
     "usedResources": [
-      {
-        "name": "classifierJob",
-        "type": "batch-job",
-        "containerNames": []
-      },
-      {
-        "name": "inputBucket",
-        "type": "bucket",
-        "containerNames": []
-      },
-      {
-        "name": "outputBucket",
-        "type": "bucket",
-        "containerNames": []
-      }
+      { "name": "classifierJob", "type": "batch-job", "containerNames": [] },
+      { "name": "inputBucket", "type": "bucket", "containerNames": [] },
+      { "name": "outputBucket", "type": "bucket", "containerNames": [] }
     ],
     "usedResourceTypes": ["batch-job", "bucket"],
     "isServerSideRenderedWebsite": false,

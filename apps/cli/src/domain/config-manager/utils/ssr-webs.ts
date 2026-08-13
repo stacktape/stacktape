@@ -271,7 +271,8 @@ export const buildSsrWebNestedResources = ({
       logging: {
         disabled: serverLambda?.logging?.disabled,
         logForwarding: serverLambda?.logging?.logForwarding,
-        retentionDays: serverLambda?.logging?.retentionDays || 180
+        retentionDays: serverLambda?.logging?.retentionDays || 180,
+        logClass: serverLambda?.logging?.logClass
       },
       memory: serverLambda?.memory || 1024,
       joinDefaultVpc: serverLambda?.joinDefaultVpc,

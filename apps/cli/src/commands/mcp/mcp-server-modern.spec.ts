@@ -133,6 +133,52 @@ describe('modern-only Stacktape MCP server', () => {
     expect(executions).toBe(1);
   });
 
+  test('keeps read-only SQL frictionless and rejects writes without requesting MRTR confirmation', async () => {
+    let executions = 0;
+    let confirmations = 0;
+    const client = await createTestClient({
+      runCli: ({ cwd }) => {
+        executions += 1;
+        return successfulRun(cwd || process.cwd());
+      }
+    });
+    client.setRequestHandler('elicitation/create', async () => {
+      confirmations += 1;
+      return { action: 'accept', content: { confirm: true } };
+    });
+    const target = { stage: 'dev', region: 'us-east-1', resourceName: 'database' };
+
+    expect(
+      readEnvelope(
+        await client.callTool({
+          name: 'stacktape_cli',
+          arguments: { action: 'run', command: 'query:sql', args: { ...target, sql: 'SELECT 1' } }
+        })
+      )
+    ).toMatchObject({ ok: true, code: 'OK' });
+    expect(confirmations).toBe(0);
+
+    expect(
+      readEnvelope(
+        await client.callTool({
+          name: 'stacktape_cli',
+          arguments: {
+            action: 'run',
+            command: 'query:sql',
+            args: { ...target, sql: 'DELETE FROM customers' },
+            confirm: true
+          }
+        })
+      )
+    ).toMatchObject({
+      ok: false,
+      code: 'VALIDATION_ERROR',
+      data: { supportedReadOnlyStatements: ['SELECT', 'WITH', 'VALUES', 'SHOW', 'DESCRIBE', 'EXPLAIN'] }
+    });
+    expect(confirmations).toBe(0);
+    expect(executions).toBe(1);
+  });
+
   test('passes the explicit top-level project cwd to the CLI executor', async () => {
     let executedCwd: string | undefined;
     const client = await createTestClient({

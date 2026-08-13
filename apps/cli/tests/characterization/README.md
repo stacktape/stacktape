@@ -15,8 +15,8 @@ bun run test:characterization:helper-lambdas
 The npm and helper-Lambda gates build into ignored release directories before inspecting the real artifacts.
 
 `packaging-smoke-fixture.spec.ts` is the one exception to the coverage matrix below: it asserts nothing about the
-product, only that `_test-stacks/packaging-smoke` is still able to prove what it claims when somebody deploys it to
-real AWS by hand. See that fixture's `README.md`.
+product, only that `_test-stacks/packaging-smoke` is still able to prove what it claims when somebody deploys it to real
+AWS by hand. See that fixture's `README.md`.
 
 ## Coverage matrix
 
@@ -37,22 +37,22 @@ real AWS by hand. See that fixture's `README.md`.
 
 ## Migration rule
 
-A failed baseline is evidence that a capability or semantic contract changed. It is not an instruction to preserve v3
-at all costs. The implementing agent must either restore the behavior or record the intentional v4 decision and update
-the narrow assertion. Reviewers should reject regenerated golden blobs that obscure what changed.
+A failed baseline is evidence that a capability or semantic contract changed. It is not an instruction to preserve v3 at
+all costs. The implementing agent must either restore the behavior or record the intentional v4 decision and update the
+narrow assertion. Reviewers should reject regenerated golden blobs that obscure what changed.
 
 ## Known v3 bugs fixed in v4
 
 - **Lambda-layer dependency closure** — `known-v3-bug`, `packages/packaging/src/split-bundler/layer-assignment.ts`.
   Layer assignment promotes a layered chunk's dependencies into the layer candidate set, then packs the candidates
-  first-fit-decreasing and, in v3, silently left behind whatever no layer could take. Candidates that fit the layers
-  in aggregate can still strand one chunk, because first fit leaves an unusable remainder in every layer, and the
-  chunk's importers stayed layered — producing a Lambda whose `/opt/nodejs/chunks` code imports a chunk that only
-  exists in `/var/task/chunks`. v4 un-layers a chunk the packing could not place together with everything that
-  transitively imports it, and packs what is left again. Regression coverage lives beside the code in
-  `layer-assignment.test.ts`, including the two-importers-over-one-dependency counterexample and a swept invariant
-  over deeper graphs. A project that hit this now gets different layer contents and layer content hashes than v3
-  produced; the v3 layers being replaced could not load.
+  first-fit-decreasing and, in v3, silently left behind whatever no layer could take. Candidates that fit the layers in
+  aggregate can still strand one chunk, because first fit leaves an unusable remainder in every layer, and the chunk's
+  importers stayed layered — producing a Lambda whose `/opt/nodejs/chunks` code imports a chunk that only exists in
+  `/var/task/chunks`. v4 un-layers a chunk the packing could not place together with everything that transitively
+  imports it, and packs what is left again. Regression coverage lives beside the code in `layer-assignment.test.ts`,
+  including the two-importers-over-one-dependency counterexample and a swept invariant over deeper graphs. A project
+  that hit this now gets different layer contents and layer content hashes than v3 produced; the v3 layers being
+  replaced could not load.
 
 ## Synthesis preservation policy
 

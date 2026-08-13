@@ -5,7 +5,7 @@ Resource type: `function`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';
+import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement, WebSocketApiIntegration } from 'stacktape';
 
 type LambdaFunctionProps = {
   /** How your code is built and packaged for deployment. */
@@ -73,6 +73,8 @@ type LambdaFunctionEvents =
   | AlarmIntegration
   | CloudwatchLogIntegration
   | HttpApiIntegration
+  | AppSyncApiIntegration
+  | WebSocketApiIntegration
   | EventBusIntegration;
 
 type LambdaFunctionVolumeMounts =
@@ -321,7 +323,7 @@ Aurora also gets `READER_CONNECTION_STRING`, `READER_HOST`.
 
 **`PrivateService`** → `ADDRESS`
 
-**`aws:ses`** — full SES email sending permissions
+**`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
 
 ### Example 1 (yaml)
 
@@ -567,7 +569,7 @@ export default defineConfig(() => {
 ## Property: `events`
 
 - Required: no
-- Type: `Array<application-load-balancer | kafka-topic | sns | sqs | kinesis-stream | dynamo-db-stream | s3 | schedule | cloudwatch-alarm | cloudwatch-log | http-api-gateway | event-bus>`
+- Type: `Array<application-load-balancer | kafka-topic | sns | sqs | kinesis-stream | dynamo-db-stream | s3 | schedule | cloudwatch-alarm | cloudwatch-log | http-api-gateway | appsync-api | websocket-api-gateway | event-bus>`
 
 What triggers this function: HTTP requests, file uploads, queues, schedules, etc.
 
@@ -576,7 +578,7 @@ The event payload your function receives depends on the trigger type.
 
 Choices:
 - `application-load-balancer` (`ApplicationLoadBalancerIntegration`) — Triggers a function when an Application Load Balancer receives a matching HTTP request.. Properties: `loadBalancerName: string`, `listenerPort?: number`, `priority: number`, `paths?: Array<string>`, `methods?: Array<string>`, `hosts?: Array<string>`, `headers?: Array<LbHeaderCondition>`, `queryParams?: Array<LbQueryParamCondition>`, `sourceIps?: Array<string>`.
-- `kafka-topic` (`KafkaTopicIntegration`) — Triggers a function when new messages are available in a Kafka topic.. Properties: `customKafkaConfiguration: CustomKafkaEventSource`, `batchSize?: number`, `maxBatchWindowSeconds?: number`.
+- `kafka-topic` (`KafkaTopicIntegration`) — Triggers a function when new messages are available in a Kafka topic.
 - `sns` (`SnsIntegration`) — Triggers a function when a new message is published to an SNS topic.. Properties: `snsTopicName?: string`, `snsTopicArn?: string`, `filterPolicy?: unknown`, `onDeliveryFailure?: SnsOnDeliveryFailure`.
 - `sqs` (`SqsIntegration`) — Triggers a function when new messages are available in an SQS queue.. Properties: `sqsQueueName?: string`, `sqsQueueArn?: string`, `batchSize?: number`, `maxBatchWindowSeconds?: number`.
 - `kinesis-stream` (`KinesisIntegration`) — Triggers a function when new records are available in a Kinesis Data Stream.. Properties: `kinesisStreamName?: string`, `streamArn?: string`, `consumerArn?: string`, `autoCreateConsumer?: boolean`, `maxBatchWindowSeconds?: number`, `batchSize?: number`, `startingPosition?: string: "LATEST" | "TRIM_HORIZON"`, `maximumRetryAttempts?: number`, `onFailure?: DestinationOnFailure`, `parallelizationFactor?: number`, `bisectBatchOnFunctionError?: boolean`.
@@ -586,6 +588,8 @@ Choices:
 - `cloudwatch-alarm` (`AlarmIntegration`). Properties: `alarmName: string`.
 - `cloudwatch-log` (`CloudwatchLogIntegration`) — Triggers a function when new log records appear in a CloudWatch log group.. Properties: `logGroupArn: string`, `filter?: string`.
 - `http-api-gateway` (`HttpApiIntegration`) — Triggers a function when an HTTP API Gateway receives a matching request.. Properties: `httpApiGatewayName: string`, `method: string: "*" | "DELETE" | "GET" | "HEAD" | "OPTIONS" | "PATCH" | "POST" | "PUT"`, `path: string`, `authorizer?: cognito | lambda`, `payloadFormat?: string: "1.0" | "2.0"`.
+- `appsync-api` (`AppSyncApiIntegration`) — Resolves one GraphQL field with a Lambda function through AWS AppSync.. Properties: `appsyncApiName: string`, `field: string`.
+- `websocket-api-gateway` (`WebSocketApiIntegration`) — Routes a WebSocket lifecycle event or message to a Lambda function.. Properties: `websocketApiGatewayName: string`, `routeKey: string`, `authorizer?: aws-iam | lambda`, `returnResponse?: boolean`.
 - `event-bus` (`EventBusIntegration`) — Triggers a batch job when an event matching a specified pattern is received by an event bus.. Properties: `eventBusArn?: string`, `eventBusName?: string`, `useDefaultBus?: boolean`, `eventPattern: EventBusIntegrationPattern`, `onDeliveryFailure?: EventBusOnDeliveryFailure`, `input?: unknown`, `inputPath?: string`, `inputTransformer?: EventInputTransformer`.
 
 ### Example 1 (yaml)

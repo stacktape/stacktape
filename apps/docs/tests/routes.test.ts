@@ -42,7 +42,7 @@ test('the corpus produces exactly the reviewed route set', () => {
 test('the route manifest is sorted, unique, and human-reviewable', () => {
   const expected = expectedRoutes();
 
-  assert.equal(expected.length, 194, 'the manifest must list every migrated page');
+  assert.equal(expected.length, 199, 'the manifest must list every migrated page');
   assert.deepEqual(expected, expected.toSorted(), 'keep the manifest sorted so diffs stay readable');
   assert.equal(new Set(expected).size, expected.length, 'the manifest must not repeat a route');
   assert.ok(expected.includes('/'), 'the site root must be listed');

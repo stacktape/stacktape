@@ -44,7 +44,7 @@ const verifyCliSmoke = async () => {
     });
     // Every command loads the helper-Lambda artifacts that sit next to the executable, so the binary on its own
     // is not a runnable installation. Assembling them here is what makes this a check of the release layout.
-    await packageHelperLambdas({ isDev: false, distFolderPath: binaryFolderPath });
+    await packageHelperLambdas({ distFolderPath: binaryFolderPath });
     const binaryPath = join(binaryFolderPath, platform === 'win' ? 'stacktape.exe' : 'stacktape');
 
     expectOutputToContain({

@@ -88,3 +88,13 @@ describe('resources with modelled children still get overrides', () => {
     }
   });
 });
+
+describe('connectTo declaration generation', () => {
+  test('publishes resource objects and string references without the removed AWS-service macro type', () => {
+    const augmentedProps = generateAugmentedPropsTypes();
+
+    expect(augmentedProps).toContain('type LambdaFunctionConnectTo = ');
+    expect(augmentedProps).toContain(' | string;');
+    expect(augmentedProps).not.toContain('GlobalAwsServiceConstant');
+  });
+});

@@ -23,6 +23,7 @@ const baseConfigManager = {
   databases: [],
   deploymentConfig: {},
   dynamoDbTables: [],
+  dsqlDatabases: [],
   edgeLambdaFunctions: [],
   efsFilesystems: [],
   functions: [],
@@ -82,6 +83,33 @@ describe('guardrail enforcement', () => {
         efsFilesystems: [{ name: 'uploads', backupEnabled: true }]
       } as Partial<typeof baseConfigManager>)
     ).not.toThrow();
+  });
+
+  test('fails DSQL closed when a requested data-protection control is not available', () => {
+    const deletionGuardrail = {
+      type: 'require-deletion-protection',
+      properties: { enabled: true }
+    } satisfies GuardrailDefinition;
+    expect(() => validate(deletionGuardrail, { dsqlDatabases: [{ name: 'ledger' }] })).toThrow('ledger');
+    expect(() =>
+      validate(deletionGuardrail, { dsqlDatabases: [{ name: 'ledger', deletionProtection: true }] })
+    ).not.toThrow();
+
+    const backupGuardrail = {
+      type: 'require-data-backups',
+      properties: { enabled: true }
+    } satisfies GuardrailDefinition;
+    expect(() => validate(backupGuardrail, { dsqlDatabases: [{ name: 'ledger' }] })).toThrow(
+      'cannot verify an external AWS Backup plan'
+    );
+
+    const vpcGuardrail = {
+      type: 'require-vpc-databases',
+      properties: { enabled: true }
+    } satisfies GuardrailDefinition;
+    expect(() => validate(vpcGuardrail, { dsqlDatabases: [{ name: 'ledger' }] })).toThrow(
+      'cannot configure the PrivateLink endpoint'
+    );
   });
 
   test('requires two running instances for container services', () => {

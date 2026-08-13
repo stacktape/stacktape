@@ -511,10 +511,12 @@ const setupLogGroupsInAllRegions = async ({
   const lambdaLogGroupName = lambdaProps.lambdaLogGroupName;
   await Promise.all(
     loggingApis.map(async (logsCli) => {
-      const regionalLogGroupExists = await logGroupExists({ logGroupName: lambdaLogGroupName, logsCli });
-      console.info(`Log group for ${lambdaProps.resourceName} exists in region ${await logsCli.config.region()}.`);
+      const regionalLogGroup = await getLogGroup({ logGroupName: lambdaLogGroupName, logsCli });
+      console.info(
+        `Log group for ${lambdaProps.resourceName} ${regionalLogGroup ? 'exists' : 'does not exist'} in region ${await logsCli.config.region()}.`
+      );
       if (lambdaProps.logging.disabled) {
-        if (regionalLogGroupExists) {
+        if (regionalLogGroup) {
           console.info(
             `Deleting log group for ${
               lambdaProps.resourceName
@@ -525,8 +527,20 @@ const setupLogGroupsInAllRegions = async ({
         // nothing else to do
         return lambdaLogGroupName;
       }
-      if (!regionalLogGroupExists) {
-        await createLogGroup({ logGroupName: lambdaLogGroupName, logsCli });
+      const desiredLogGroupClass =
+        lambdaProps.logging.logClass === 'infrequent-access' ? 'INFREQUENT_ACCESS' : 'STANDARD';
+      const existingLogGroupClass = regionalLogGroup?.logGroupClass || 'STANDARD';
+      if (regionalLogGroup && existingLogGroupClass !== desiredLogGroupClass) {
+        throw new Error(
+          `CloudWatch log group ${lambdaLogGroupName} in ${await logsCli.config.region()} already uses ${existingLogGroupClass}; its immutable class cannot be changed to ${desiredLogGroupClass}. Use a new stage or keep the existing logging.logClass.`
+        );
+      }
+      if (!regionalLogGroup) {
+        await createLogGroup({
+          logGroupName: lambdaLogGroupName,
+          logsCli,
+          logGroupClass: desiredLogGroupClass === 'INFREQUENT_ACCESS' ? desiredLogGroupClass : undefined
+        });
       }
       await setLogGroupRetention({
         logGroupName: lambdaLogGroupName,
@@ -551,9 +565,9 @@ const deleteLogGroupsInAllRegions = async ({
   );
 };
 
-const logGroupExists = async ({ logGroupName, logsCli }: { logGroupName: string; logsCli: CloudWatchLogs }) => {
+const getLogGroup = async ({ logGroupName, logsCli }: { logGroupName: string; logsCli: CloudWatchLogs }) => {
   const { logGroups } = await logsCli.describeLogGroups({ logGroupNamePrefix: logGroupName });
-  return !!logGroups?.length;
+  return logGroups?.find(({ logGroupName: existingName }) => existingName === logGroupName);
 };
 
 const deleteLogGroup = async ({ logGroupName, logsCli }: { logGroupName: string; logsCli: CloudWatchLogs }) => {
@@ -569,10 +583,18 @@ const deleteLogGroup = async ({ logGroupName, logsCli }: { logGroupName: string;
   console.info(`Deleting log group ${logGroupName} (${region}) - SUCCESS`);
 };
 
-const createLogGroup = async ({ logGroupName, logsCli }: { logGroupName: string; logsCli: CloudWatchLogs }) => {
+const createLogGroup = async ({
+  logGroupName,
+  logsCli,
+  logGroupClass
+}: {
+  logGroupName: string;
+  logsCli: CloudWatchLogs;
+  logGroupClass?: 'INFREQUENT_ACCESS';
+}) => {
   const region = await logsCli.config.region();
   console.info(`Creating log group ${logGroupName} (${region})...`);
-  await logsCli.createLogGroup({ logGroupName, tags });
+  await logsCli.createLogGroup({ logGroupName, logGroupClass, tags });
   console.info(`Creating log group ${logGroupName} (${region}) - SUCCESS`);
 };
 

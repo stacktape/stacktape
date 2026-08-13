@@ -2,6 +2,7 @@ import { tuiManager } from '@application-services/tui-manager';
 import { CliError } from '@utils/errors';
 import { isAgentMode } from '../_utils/agent-mode';
 import { initializeControlPlaneOperation } from '../_utils/initialization';
+import { buildInfoStackAgentResult, type InfoStackAgentResultV1 } from './agent-contract';
 
 export const resolveInfoStackName = ({
   projectName,
@@ -33,12 +34,7 @@ const printStackDetails = ({
 }: {
   stackName: string;
   region: string;
-  details: {
-    stackOutput?: { [key: string]: string };
-    stackInfoMap?: any;
-    resources?: any[];
-    description?: string | null;
-  };
+  details: Pick<InfoStackAgentResultV1, 'description' | 'resources' | 'stackInfoMap' | 'stackOutput'>;
 }) => {
   const lines: string[] = [];
 
@@ -79,11 +75,11 @@ const printStackDetails = ({
     lines.push(tuiManager.makeBold('CloudFormation Resources:'));
     const resourcesSummary = details.resources.slice(0, 20);
     for (const res of resourcesSummary) {
-      const status = res.ResourceStatus || 'N/A';
+      const status = typeof res.ResourceStatus === 'string' ? res.ResourceStatus : 'N/A';
+      const logicalId = typeof res.LogicalResourceId === 'string' ? res.LogicalResourceId : 'N/A';
+      const resourceType = typeof res.ResourceType === 'string' ? res.ResourceType : 'N/A';
       const statusColor = status.includes('COMPLETE') ? 'green' : status.includes('FAILED') ? 'red' : 'yellow';
-      lines.push(
-        `  ${res.LogicalResourceId || 'N/A'} (${res.ResourceType || 'N/A'}) - ${tuiManager.colorize(statusColor, status)}`
-      );
+      lines.push(`  ${logicalId} (${resourceType}) - ${tuiManager.colorize(statusColor, status)}`);
     }
     if (details.resources.length > 20) {
       lines.push(`  ${tuiManager.colorize('gray', `...and ${details.resources.length - 20} more resources`)}`);
@@ -104,12 +100,15 @@ export const commandInfoStack = async () => {
     region: region!,
     awsAccountName: awsAccount
   });
+  const result = buildInfoStackAgentResult({
+    stackName: resolvedStackName,
+    region: region!,
+    details
+  });
 
-  if (isAgentMode(args)) {
-    tuiManager.info(JSON.stringify({ stackName: resolvedStackName, region: region!, ...details }, null, 2));
-  } else {
-    printStackDetails({ stackName: resolvedStackName, region: region!, details });
+  if (!isAgentMode(args)) {
+    printStackDetails({ stackName: resolvedStackName, region: region!, details: result });
   }
 
-  return details;
+  return result;
 };

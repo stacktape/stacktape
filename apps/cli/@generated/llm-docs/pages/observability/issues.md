@@ -12,6 +12,10 @@ Stacktape Issues gives you structured error tracking with no additional SDK or e
 
 Issues works well as a first line of error visibility. For most teams shipping APIs and background workers on Stacktape, it replaces the need for a separate error tracking tool during early and mid-stage development.
 
+
+> **Info:** Resources configured with `logging.logClass: infrequent-access` do not feed Stacktape Issues because AWS does not support the required log subscription filters. Their logs remain available through bounded Logs Insights snapshots in the Console and CLI.
+
+
 ## When NOT to use
 
 Stacktape Issues displays recorded runtime errors in the Console and CLI without requiring you to add an SDK to your application. It does not instrument your application process directly. If you need breadcrumbs, custom tags, user session tracking, release tracking, or performance profiling, use a dedicated APM tool like Sentry or Datadog alongside or instead of Issues. Issues is best for triaging recurring runtime failures — not for full-stack observability.

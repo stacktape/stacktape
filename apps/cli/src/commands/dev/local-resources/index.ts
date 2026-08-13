@@ -133,7 +133,6 @@ export const getLocalEmulateableResources = (): {
   for (const openSearchDomain of configManager.openSearchDomains || []) {
     resources.push({ name: openSearchDomain.name, type: 'open-search-domain', engineType: 'opensearch' });
   }
-
   return resources;
 };
 
@@ -169,6 +168,11 @@ export const getRemoteResourceNames = (): Set<string> => {
   for (const openSearchDomain of configManager.openSearchDomains || []) {
     if ((openSearchDomain as any).dev?.remote) {
       remoteNames.add(openSearchDomain.name);
+    }
+  }
+  for (const kafkaCluster of configManager.kafkaClusters || []) {
+    if (kafkaCluster.dev?.remote) {
+      remoteNames.add(kafkaCluster.name);
     }
   }
 

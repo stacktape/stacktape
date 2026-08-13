@@ -278,12 +278,31 @@ export const configFormat = z.enum(['yaml', 'typescript']).describe(`#### Config
 ---
 Format (language) used for the generated config. Options are typescript or yaml.`);
 
+export const headless = z.boolean().describe(`#### Headless
+---
+If \`true\`, runs \`init\` entirely in the terminal instead of opening the browser wizard. Use this over SSH, in a container, or in CI. Questions that cannot be answered from the command line are reported rather than asked, and the configuration is still written.`);
+
+export const noBrowser = z.boolean().describe(`#### No Browser
+---
+If \`true\`, \`init\` starts the wizard and prints its address instead of opening a browser. Use this when the browser you want is not this machine's default, or when the wizard runs behind a forwarded port.`);
+
 export const infrastructureType = z.enum(['low-cost', 'standard', 'production']).describe(`#### Infrastructure Type
 ---
-The infrastructure tier for the generated configuration. Affects resource sizing, scaling, security, and cost:
-- **low-cost**: Minimal resources, single instances, no WAF/VPC. Best for development and experimentation.
-- **standard**: Balanced defaults with serverless databases and moderate scaling. Best for staging and small production workloads.
-- **production**: High-availability setup with Aurora, WAF, VPC, bastions, backups, and deletion protection.`);
+How much infrastructure \`init\` creates for you. It sets every size and safety setting in the generated configuration, and it is the one thing reading your code cannot tell us.
+- **low-cost**: one small copy of everything. For trying this out, a side project, or staging.
+- **standard** (default): room for real traffic, a week of backups, and deletion protection on your database.
+- **production**: two copies of your app so one failure changes nothing, and a standby database in a second datacentre.`);
+
+export const codingAgent = z.enum(['auto', 'claude-code', 'codex', 'none']).describe(`#### Coding Agent
+---
+Which installed coding agent analyses the project. The agent reads your code using your own subscription; your code is never sent to Stacktape.
+- **auto** (default): use the best agent found on this machine.
+- **claude-code** / **codex**: use that agent specifically, and fail if it is not installed.
+- **none**: skip the agent entirely and rely on static analysis alone. Faster and free, but finds less.`);
+
+export const acceptDefaults = z.boolean().describe(`#### Accept Defaults
+---
+If \`true\`, answers every question \`init\` would ask with its recommended value instead of stopping. Intended for automation. Take care with it: the questions exist because a wrong guess produces infrastructure that deploys and then does not work.`);
 
 export const newVersion = z.string().describe(`#### New Version
 ---
@@ -511,7 +530,6 @@ export const argAliases = {
   agent: 'ag',
   agentPort: 'ap',
   outputFormat: 'ofmt',
-  infrastructureType: 'it',
   limit: 'lim',
   stackName: 'sn',
   secretName: 'secn',
@@ -600,7 +618,6 @@ export const allCliArgsSchema = z.object({
   outputFormat: outputFormat.optional(),
   cleanupContainers: cleanupContainers.optional(),
   freshDb: freshDb.optional(),
-  infrastructureType: infrastructureType.optional(),
   limit: limit.optional(),
   stackName: stackName.optional(),
   secretName: secretName.optional(),
@@ -627,7 +644,11 @@ export const allCliArgsSchema = z.object({
   thorough: thorough.optional(),
   targetVersion: rollbackVersion.optional(),
   rollbackSteps: rollbackSteps.optional(),
-  listVersions: listVersions.optional()
+  listVersions: listVersions.optional(),
+  headless: headless.optional(),
+  noBrowser: noBrowser.optional(),
+  codingAgent: codingAgent.optional(),
+  infrastructureType: infrastructureType.optional()
 });
 
 // Inferred type from Zod schema

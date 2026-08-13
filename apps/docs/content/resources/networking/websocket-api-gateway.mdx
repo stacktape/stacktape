@@ -1,0 +1,280 @@
+---
+title: 'WebSocket API Gateway'
+order: 54.5
+seoTitle: 'WebSocket API Gateway - Serverless Real-Time APIs | Stacktape Docs'
+seoDescription: 'Build pay-per-use WebSocket APIs with Lambda routes, automatic connection-management permissions, custom domains, and connect-time authorization.'
+---
+
+# WebSocket API Gateway
+
+A Stacktape WebSocket API Gateway creates a managed, pay-per-use WebSocket endpoint backed by Lambda functions. You define the gateway once and attach routes such as `$connect`, `$disconnect`, `$default`, and `sendMessage` to functions. Stacktape creates the API, integrations, permissions, deployment stage, access logs, and connection-management access.
+
+The default route selection expression is `$request.body.action`. A client message such as `{ "action": "sendMessage", "text": "hello" }` therefore invokes the function that owns the `sendMessage` route.
+
+## When to use
+
+Use a WebSocket API Gateway for Lambda-based real-time features that should have no always-on server cost:
+
+- chat and collaboration updates
+- progress, job-status, and deployment notifications
+- lightweight presence and live dashboards
+- targeted server-to-client notifications
+- applications with spiky or modest concurrent connection counts
+
+Use an [Application Load Balancer](/resources/networking/application-load-balancer) instead when you already run a persistent container WebSocket server, need a framework such as Socket.IO with server-side state, or need more control over the connection process.
+
+## Basic example
+
+Routes live on Lambda functions rather than inside the gateway. The route handlers automatically receive the gateway connection variables and the scoped `execute-api:ManageConnections` permission; you do not also need to add the gateway to their `connectTo` lists.
+
+<CodeBlock
+  intellisense
+  tabs={[
+    {
+      label: 'TypeScript',
+      lang: 'typescript',
+      code: `import {
+  defineConfig,
+  LambdaFunction,
+  StacktapeLambdaBuildpackPackaging,
+  WebSocketApiGateway,
+  WebSocketApiIntegration
+} from 'stacktape';
+
+export default defineConfig(() => {
+  const realtime = new WebSocketApiGateway({});
+
+  const connections = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/connections.ts'
+    }),
+    events: [
+      new WebSocketApiIntegration({
+        websocketApiGatewayName: realtime,
+        routeKey: '$connect'
+      }),
+      new WebSocketApiIntegration({
+        websocketApiGatewayName: realtime,
+        routeKey: '$disconnect'
+      })
+    ]
+  });
+
+  const messages = new LambdaFunction({
+    packaging: new StacktapeLambdaBuildpackPackaging({
+      entryfilePath: './src/messages.ts'
+    }),
+    events: [
+      new WebSocketApiIntegration({
+        websocketApiGatewayName: realtime,
+        routeKey: 'sendMessage'
+      }),
+      new WebSocketApiIntegration({
+        websocketApiGatewayName: realtime,
+        routeKey: '$default'
+      })
+    ]
+  });
+
+  return { resources: { realtime, connections, messages } };
+});`
+    },
+    {
+      label: 'YAML',
+      lang: 'yaml',
+      code: `resources:
+  realtime:
+    type: websocket-api-gateway
+
+  connections:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/connections.ts
+      events:
+        - type: websocket-api-gateway
+          properties:
+            websocketApiGatewayName: realtime
+            routeKey: $connect
+        - type: websocket-api-gateway
+          properties:
+            websocketApiGatewayName: realtime
+            routeKey: $disconnect
+
+  messages:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/messages.ts
+      events:
+        - type: websocket-api-gateway
+          properties:
+            websocketApiGatewayName: realtime
+            routeKey: sendMessage
+        - type: websocket-api-gateway
+          properties:
+            websocketApiGatewayName: realtime
+            routeKey: $default`
+    }
+  ]}
+/>
+
+Stacktape owns one stable internal stage and deploys route changes automatically. There is no stage or deployment setting to keep in sync.
+
+## Route behavior
+
+| Route | When it runs |
+|---|---|
+| `$connect` | During the opening handshake. Returning an error rejects the connection. |
+| `$disconnect` | After a connection closes. Delivery is best-effort and is not guaranteed. |
+| `$default` | When no custom route matches, including messages that cannot be selected. |
+| Custom key | When the route selection expression resolves to that key. |
+
+Only JSON messages can be selected by `$request.body.action`. Non-JSON messages and JSON without a matching action go to `$default` when that route exists.
+
+Route handler return bodies are not sent to the client by default. Use `returnResponse: true` for a simple reply to the calling client, as described below. Use the API Gateway Management API when the application should send later, broadcast, or target a different connection.
+
+## Sending a message to a connection
+
+For a gateway named `realtime`, every route handler receives:
+
+- `STP_REALTIME_URL` — the public `wss://` client URL
+- `STP_REALTIME_MANAGEMENT_ENDPOINT` — the HTTPS endpoint for `ApiGatewayManagementApiClient`
+- `STP_REALTIME_API_ID` — the API ID
+- `STP_REALTIME_CANONICAL_DOMAIN` — the AWS DNS target
+
+The handler also gets connection-management permission scoped to this gateway and Stacktape's managed stage.
+
+```ts
+import {
+  ApiGatewayManagementApiClient,
+  PostToConnectionCommand
+} from '@aws-sdk/client-apigatewaymanagementapi';
+
+const client = new ApiGatewayManagementApiClient({
+  endpoint: process.env.STP_REALTIME_MANAGEMENT_ENDPOINT
+});
+
+export const handler = async (event) => {
+  await client.send(
+    new PostToConnectionCommand({
+      ConnectionId: event.requestContext.connectionId,
+      Data: Buffer.from(JSON.stringify({ type: 'ack' }))
+    })
+  );
+
+  return { statusCode: 200 };
+};
+```
+
+Do not post to the connection from `$connect`: the connection does not exist until that handler succeeds. Handle `GoneException` when a connection has already closed.
+
+Other producers can send to clients too. Add `connectTo: [realtime]` to a different Lambda, container workload, batch job, or script to receive the same scoped permission and environment variables.
+
+## Connection storage and broadcasts
+
+Stacktape does not create a DynamoDB connection registry automatically. A direct reply needs only the `connectionId` in the current event, while broadcast, rooms, and user-to-connection lookup each need different application data. An automatic table would impose the wrong schema on many applications.
+
+When you need lookup or broadcast:
+
+1. Add a normal [DynamoDB table](/resources/databases/dynamodb) for the fields your application needs.
+2. Connect the `$connect`, `$disconnect`, and broadcasting workloads to that table with `connectTo`.
+3. Store connection IDs with a TTL.
+4. Delete stale records when a Management API send returns `GoneException`.
+
+TTL and failed-send cleanup matter because `$disconnect` is best-effort and may not run.
+
+## Authorization
+
+Authorization is optional and belongs on the `$connect` route because API Gateway authorizes a WebSocket connection only while opening it. Later messages use the identity established at connection time and any checks in your application code.
+
+For application-specific authentication, use a Lambda REQUEST authorizer:
+
+```ts
+const connect = new LambdaFunction({
+  packaging: new StacktapeLambdaBuildpackPackaging({
+    entryfilePath: './src/connect.ts'
+  }),
+  events: [
+    new WebSocketApiIntegration({
+      websocketApiGatewayName: realtime,
+      routeKey: '$connect',
+      authorizer: {
+        type: 'lambda',
+        properties: {
+          functionName: authorizeConnection
+        }
+      }
+    })
+  ]
+});
+```
+
+The default identity source is `route.request.header.Authorization`. You can explicitly use header or query-string sources such as `route.request.querystring.token`. A WebSocket Lambda authorizer returns an IAM policy response; the HTTP API simple-response and JWT/Cognito authorizer settings do not apply.
+
+Use `{ type: 'aws-iam' }` only for clients that can sign the opening request with AWS Signature Version 4. It is usually unsuitable for ordinary browser clients.
+
+## Return a response to the calling client
+
+WebSocket routes are one-way by default. For a simple request-response interaction on `$default` or a custom message route, set `returnResponse: true` and return a `body` from the Lambda handler:
+
+```ts
+new WebSocketApiIntegration({
+  websocketApiGatewayName: realtime,
+  routeKey: 'getStatus',
+  returnResponse: true
+});
+```
+
+```ts
+export const handler = async () => ({
+  statusCode: 200,
+  body: JSON.stringify({ status: 'ready' })
+});
+```
+
+Stacktape configures the API Gateway route response, and only the client that invoked the route receives the returned body. Lifecycle routes (`$connect` and `$disconnect`) cannot use `returnResponse`, because no established calling connection is available for that reply. Keep the default for broadcasts, delayed responses, and messages sent to a different connection; use the management endpoint for those cases.
+
+## Custom domains
+
+Add `customDomains` when clients should connect through your own hostname:
+
+```ts
+const realtime = new WebSocketApiGateway({
+  customDomains: [{ domainName: 'realtime.example.com' }]
+});
+```
+
+Stacktape provisions the regional custom-domain mapping, certificate, and Route53 alias by default. Use `disableDnsRecordCreation` or `customCertificateArn` for externally managed DNS or certificates, as described in [Custom domains](/resources/networking/custom-domains).
+
+AWS does not allow one API Gateway custom domain to mix WebSocket mappings with HTTP or REST API mappings. Stacktape rejects duplicate domain attachment in the config before deployment.
+
+## Logs
+
+JSON access logs are enabled by default with connection ID, event type, route, status, source IP, request time, and integration error context. Payload data is not logged by default. Configure retention or forwarding through `logging`, or set `logging.disabled: true`.
+
+`logging.logClass: 'infrequent-access'` is available for newly created log groups when lower ingestion cost matters more than live log features. Infrequent Access logs require Logs Insights and cannot use log forwarding.
+
+## Dev mode
+
+`stacktape dev` keeps the WebSocket gateway deployed and hot-swaps its Lambda handlers. The dev UI shows the deployed `wss://` URL. Stacktape does not emulate API Gateway's connection lifecycle locally, so test clients continue to use the deployed endpoint while code changes are updated quickly.
+
+## AWS limits to design around
+
+API Gateway currently limits a connection to 2 hours with a 10-minute idle timeout. Frames are limited to 32 KB, messages to 128 KB, binary frames are unsupported, and integrations can run for at most 29 seconds. Split large payloads and design clients to reconnect.
+
+## Referenceable parameters
+
+Use `$ResourceParam('realtime', 'paramName')` in configuration. `connectTo` injects these values into workloads automatically.
+
+<ReferenceableParams resource="websocket-api-gateway" />
+
+## API Reference
+
+<ApiReference definitionName="WebSocketApiGatewayProps" />
+
+<ApiReference definitionName="WebSocketApiIntegrationProps" />

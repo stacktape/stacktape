@@ -96,6 +96,18 @@ const verifyNativeInstallation = async ({
     await parseJsonArtifact(join(binDirectory, relativePath));
   }
 
+  // The `init` wizard is served from beside the binary. A release without it produces a CLI that
+  // starts the wizard, opens a browser and serves nothing — which is exactly the failure a
+  // development checkout cannot reproduce, because there the bundle is always in the workspace.
+  const wizardEntryPath = join(binDirectory, 'init-ui', 'index.html');
+  if (!existsSync(wizardEntryPath)) {
+    throw new Error('Native release archive is missing the init wizard interface (init-ui/index.html).');
+  }
+  const wizardEntry = await readFile(wizardEntryPath, 'utf8');
+  if (!/<script[^>]+src="[^"]+"/.test(wizardEntry)) {
+    throw new Error('Native release archive contains an init wizard interface with no bundle to load.');
+  }
+
   const docsChunkPath = join(binDirectory, 'llm-docs', 'chunks', 'chunks.jsonl');
   const firstDocsChunk = (await readFile(docsChunkPath, 'utf8')).split('\n').find(Boolean);
   if (!firstDocsChunk) {

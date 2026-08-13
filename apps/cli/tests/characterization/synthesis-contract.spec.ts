@@ -29,6 +29,7 @@ import { ec2Manager } from '@domain-services/ec2-manager';
 import { templateManager } from '@domain-services/template-manager';
 import { finalizeTemplate } from '@domain-services/template-manager/finalize';
 import { outputNames } from '@stacktape/naming/stack-output-names';
+import { cfLogicalNames } from '@stacktape/naming/cloudformation-logical-names';
 import { getStackCfTemplateDescription } from '@stacktape/naming/stacks';
 import type { ResourceOverrides } from '@stacktape/config/shared';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
@@ -37,12 +38,18 @@ import { getConfigManagerContext } from '../../src/commands/_utils/initializatio
 import {
   ApplicationLoadBalancer,
   ApplicationLoadBalancerIntegration,
+  AppSyncApi,
+  AppSyncApiIntegration,
   Bucket,
+  CloudwatchLogIntegration,
   DynamoDbTable,
+  DsqlDatabase,
   EventBus,
   EventBusIntegration,
   HttpApiGateway,
   HttpApiIntegration,
+  KafkaCluster,
+  KafkaTopicIntegration,
   LambdaFunction,
   RdsEnginePostgres,
   RelationalDatabase,
@@ -52,11 +59,31 @@ import {
   StacktapeImageBuildpackPackaging,
   StacktapeLambdaBuildpackPackaging,
   UserAuthPool,
+  WebSocketApiGateway,
+  WebSocketApiIntegration,
   WebService,
   defineConfig
 } from '@stacktape/config-authoring';
 
-const createDenseConfig = () =>
+const createDenseConfig = ({
+  includeAppsync = false,
+  includeDsql = false,
+  includeWebsocket = false,
+  includeKafka = false,
+  kafkaConnectTo = true,
+  kafkaRemoteInDev = false,
+  infrequentAccessWorkerLogs = false,
+  subscribeToWorkerLogs = false
+}: {
+  includeAppsync?: boolean;
+  includeDsql?: boolean;
+  includeWebsocket?: boolean;
+  includeKafka?: boolean;
+  kafkaConnectTo?: boolean;
+  kafkaRemoteInDev?: boolean;
+  infrequentAccessWorkerLogs?: boolean;
+  subscribeToWorkerLogs?: boolean;
+} = {}) =>
   defineConfig(() => {
     const apiGateway = new HttpApiGateway({
       cors: { enabled: true }
@@ -65,6 +92,13 @@ const createDenseConfig = () =>
       allowEmailAsUserName: true,
       userVerificationType: 'email-code',
       passwordPolicy: { minimumLength: 12 }
+    });
+    const graphql = new AppSyncApi({
+      authentication: {
+        type: 'user-auth-pool',
+        properties: { userAuthPoolName: authPool }
+      },
+      schemaFilePath: 'schema.graphql'
     });
     const records = new DynamoDbTable({
       primaryKey: {
@@ -122,39 +156,88 @@ const createDenseConfig = () =>
         }
       })
     });
+    const dsqlDatabase = new DsqlDatabase({
+      deletionProtection: true,
+      kmsKeyArn: 'arn:aws:kms:eu-west-1:123456789999:key/dsql-key'
+    });
+    const kafkaCluster = new KafkaCluster(kafkaRemoteInDev ? { dev: { remote: true } } : {});
     const api = new LambdaFunction({
       packaging: new StacktapeLambdaBuildpackPackaging({
         entryfilePath: './src/api.ts'
       }),
       memory: 512,
-      connectTo: [records, files, jobs, events, database],
-      events: [
-        new HttpApiIntegration({
-          httpApiGatewayName: 'apiGateway',
-          path: '/records/{proxy+}',
-          method: '*',
-          authorizer: {
-            type: 'cognito',
-            properties: { userPoolName: 'authPool' }
+      connectTo: [
+        records,
+        files,
+        jobs,
+        events,
+        database,
+        ...(includeDsql ? [dsqlDatabase] : []),
+        ...(includeKafka && kafkaConnectTo ? [kafkaCluster] : [])
+      ],
+      ...(includeKafka
+        ? {
+            ...(kafkaConnectTo ? { joinDefaultVpc: true } : {}),
+            events: [
+              new KafkaTopicIntegration({
+                kafkaClusterName: kafkaCluster,
+                topicName: 'orders',
+                startFrom: 'latest'
+              })
+            ]
           }
-        }),
-        new ApplicationLoadBalancerIntegration({
-          loadBalancerName: 'edge',
-          priority: 1,
-          paths: ['/*']
-        })
-      ]
+        : {
+            events: [
+              new HttpApiIntegration({
+                httpApiGatewayName: 'apiGateway',
+                path: '/records/{proxy+}',
+                method: '*',
+                authorizer: {
+                  type: 'cognito',
+                  properties: { userPoolName: 'authPool' }
+                }
+              }),
+              new ApplicationLoadBalancerIntegration({
+                loadBalancerName: 'edge',
+                priority: 1,
+                paths: ['/*']
+              })
+            ]
+          })
     });
     const worker = new LambdaFunction({
       packaging: new StacktapeLambdaBuildpackPackaging({
         entryfilePath: './src/worker.ts'
       }),
       timeout: 30,
+      ...(infrequentAccessWorkerLogs ? { logging: { logClass: 'infrequent-access' as const } } : {}),
       connectTo: [records, events],
       events: [
         new SqsIntegration({
           sqsQueueName: 'jobs',
           batchSize: 5
+        })
+      ]
+    });
+    const graphqlHandler = new LambdaFunction({
+      packaging: new StacktapeLambdaBuildpackPackaging({
+        entryfilePath: './src/api.ts'
+      }),
+      connectTo: [graphql],
+      events: [
+        new AppSyncApiIntegration({
+          appsyncApiName: graphql,
+          field: 'Query.user'
+        })
+      ]
+    });
+    const logObserver = new LambdaFunction({
+      packaging: new StacktapeLambdaBuildpackPackaging({
+        entryfilePath: './src/audit.ts'
+      }),
+      events: [
+        new CloudwatchLogIntegration({
+          logGroupArn: worker.logGroupArn
         })
       ]
     });
@@ -169,6 +252,25 @@ const createDenseConfig = () =>
             source: ['characterization'],
             'detail-type': ['RecordChanged']
           }
+        })
+      ]
+    });
+    const realtime = new WebSocketApiGateway({});
+    const realtimeHandler = new LambdaFunction({
+      packaging: new StacktapeLambdaBuildpackPackaging({
+        entryfilePath: './src/api.ts'
+      }),
+      timeout: 10,
+      events: [
+        new WebSocketApiIntegration({
+          websocketApiGatewayName: realtime,
+          routeKey: '$connect',
+          authorizer: { type: 'lambda', properties: { functionName: audit } }
+        }),
+        new WebSocketApiIntegration({
+          websocketApiGatewayName: realtime,
+          routeKey: 'sendMessage',
+          returnResponse: true
         })
       ]
     });
@@ -190,6 +292,7 @@ const createDenseConfig = () =>
       resources: {
         apiGateway,
         authPool,
+        ...(includeAppsync ? { graphql, graphqlHandler } : {}),
         edge,
         records,
         files,
@@ -197,10 +300,14 @@ const createDenseConfig = () =>
         jobs,
         events,
         database,
+        ...(includeDsql ? { dsqlDatabase } : {}),
+        ...(includeKafka ? { kafkaCluster } : {}),
         api,
         worker,
+        ...(subscribeToWorkerLogs ? { logObserver } : {}),
         audit,
-        web
+        web,
+        ...(includeWebsocket ? { realtime, realtimeHandler } : {})
       },
       stackConfig: {
         outputs: [
@@ -231,11 +338,27 @@ export const synthesizeDenseFixture = async ({
   synthesisContext,
   beforeFinalize,
   command = 'synth',
+  includeWebsocket,
+  includeAppsync,
+  includeDsql,
+  includeKafka,
+  kafkaConnectTo,
+  kafkaRemoteInDev,
+  infrequentAccessWorkerLogs,
+  subscribeToWorkerLogs,
   remoteResources
 }: {
   synthesisContext?: Partial<StackContext>;
   beforeFinalize?: () => void;
   command?: 'dev' | 'synth';
+  includeWebsocket?: boolean;
+  includeAppsync?: boolean;
+  includeDsql?: boolean;
+  includeKafka?: boolean;
+  kafkaConnectTo?: boolean;
+  kafkaRemoteInDev?: boolean;
+  infrequentAccessWorkerLogs?: boolean;
+  subscribeToWorkerLogs?: boolean;
   remoteResources?: string[];
 } = {}) => {
   return withCredentiallessSynthesisBoundary(async () => {
@@ -262,7 +385,16 @@ export const synthesizeDenseFixture = async ({
       ...(remoteResources ? { remoteResources } : {})
     };
     globalStateManager.additionalArgs = {};
-    const compiledConfig = createDenseConfig();
+    const compiledConfig = createDenseConfig({
+      includeAppsync,
+      includeDsql,
+      includeKafka,
+      kafkaConnectTo,
+      kafkaRemoteInDev,
+      includeWebsocket,
+      infrequentAccessWorkerLogs,
+      subscribeToWorkerLogs
+    });
     globalStateManager.presetConfig = compiledConfig.config;
     globalStateManager.persistedState = {
       systemId: 'characterization-system',
@@ -784,6 +916,372 @@ describe('full synthesis contract', () => {
     ]) {
       expect(resourceTypes).toContain(expectedType);
     }
+  });
+
+  test('synthesizes Infrequent Access on a managed log group and omits subscription-filter features', async () => {
+    const template = await synthesizeDenseFixture({ infrequentAccessWorkerLogs: true });
+    const workerLogGroupLogicalId = cfLogicalNames.lambdaLogGroup('worker');
+    const workerLogGroup = template.Resources[workerLogGroupLogicalId];
+
+    expect(workerLogGroup).toMatchObject({
+      Type: 'AWS::Logs::LogGroup',
+      Properties: { LogGroupClass: 'INFREQUENT_ACCESS' }
+    });
+    expect(template.Resources[cfLogicalNames.issueDetectionSubscriptionFilter('worker')]).toBeUndefined();
+  });
+
+  test('rejects a function subscription to a same-stack Infrequent Access log group', async () => {
+    await expect(
+      synthesizeDenseFixture({ infrequentAccessWorkerLogs: true, subscribeToWorkerLogs: true })
+    ).rejects.toMatchObject({ code: 'CONFIG_LOG_CLASS_SUBSCRIPTION_UNSUPPORTED' });
+  });
+
+  test('synthesizes DSQL with connection metadata, scoped admin access, and deletion protection', async () => {
+    const template = await synthesizeDenseFixture({ includeDsql: true });
+    const resources = template.Resources as Record<string, any>;
+
+    expect(resources.DsqlDatabaseDsqlCluster).toMatchObject({
+      Type: 'AWS::DSQL::Cluster',
+      Properties: {
+        DeletionProtectionEnabled: true,
+        KmsEncryptionKey: 'arn:aws:kms:eu-west-1:123456789999:key/dsql-key'
+      }
+    });
+    expect(resources.DsqlDatabaseDsqlCluster.Properties.Tags).toContainEqual({
+      Key: 'stp:stack-name',
+      Value: 'characterization-baseline'
+    });
+
+    const apiStatements = resources.ApiRole.Properties.Policies.flatMap(
+      ({ PolicyDocument }: { PolicyDocument: { Statement: any[] } }) => PolicyDocument.Statement
+    );
+    expect(apiStatements).toContainEqual({
+      Effect: 'Allow',
+      Action: ['dsql:DbConnectAdmin'],
+      Resource: [{ 'Fn::GetAtt': ['DsqlDatabaseDsqlCluster', 'ResourceArn'] }]
+    });
+
+    const apiEnvironment = resources.ApiFunction.Properties.Environment.Variables as Record<string, unknown>;
+    expect(apiEnvironment).toMatchObject({
+      STP_DSQL_DATABASE_DATABASE_NAME: 'postgres',
+      STP_DSQL_DATABASE_ENDPOINT: { 'Fn::GetAtt': ['DsqlDatabaseDsqlCluster', 'Endpoint'] },
+      STP_DSQL_DATABASE_PORT: '5432',
+      STP_DSQL_DATABASE_USERNAME: 'admin'
+    });
+
+    expect(configManager.cfLogicalNamesToBeProtected).toContain('DsqlDatabaseDsqlCluster');
+    expect(calculatedStackOverviewManager.stackInfoMap.resources.dsqlDatabase).toMatchObject({
+      resourceType: 'dsql-database',
+      cloudformationChildResources: {
+        DsqlDatabaseDsqlCluster: { cloudformationResourceType: 'AWS::DSQL::Cluster' }
+      },
+      referencableParams: {
+        databaseName: { value: 'postgres' },
+        port: { value: 5432 },
+        username: { value: 'admin' }
+      }
+    });
+  });
+
+  test('synthesizes the complete AppSync Lambda-resolver and connectTo contract', async () => {
+    const template = await synthesizeDenseFixture({ includeAppsync: true });
+    const resources = template.Resources as Record<string, any>;
+    const apiLogicalName = cfLogicalNames.appsyncApi('graphql');
+    const schemaLogicalName = cfLogicalNames.appsyncApiSchema('graphql');
+    const logRoleLogicalName = cfLogicalNames.appsyncApiLogRole('graphql');
+    const logGroupLogicalName = cfLogicalNames.appsyncApiLogGroup('graphql');
+    const dataSourceLogicalName = cfLogicalNames.appsyncApiDataSource({
+      stpAppsyncApiName: 'graphql',
+      stpLambdaFunctionName: 'graphqlHandler'
+    });
+    const dataSourceRoleLogicalName = cfLogicalNames.appsyncApiDataSourceRole({
+      stpAppsyncApiName: 'graphql',
+      stpLambdaFunctionName: 'graphqlHandler'
+    });
+    const resolverLogicalName = cfLogicalNames.appsyncApiResolver({
+      fieldName: 'user',
+      stpAppsyncApiName: 'graphql',
+      typeName: 'Query'
+    });
+    const handlerLogicalName = cfLogicalNames.lambda('graphqlHandler');
+
+    expect(resources[apiLogicalName]).toMatchObject({
+      Type: 'AWS::AppSync::GraphQLApi',
+      Properties: {
+        AuthenticationType: 'AMAZON_COGNITO_USER_POOLS',
+        IntrospectionConfig: 'ENABLED',
+        QueryDepthLimit: 10,
+        ResolverCountLimit: 1000,
+        UserPoolConfig: {
+          AppIdClientRegex: { Ref: cfLogicalNames.userPoolClient('authPool') },
+          AwsRegion: { Ref: 'AWS::Region' },
+          DefaultAction: 'ALLOW',
+          UserPoolId: { Ref: cfLogicalNames.userPool('authPool') }
+        },
+        LogConfig: {
+          CloudWatchLogsRoleArn: { 'Fn::GetAtt': [logRoleLogicalName, 'Arn'] },
+          ExcludeVerboseContent: true,
+          FieldLogLevel: 'ERROR'
+        }
+      }
+    });
+    expect(resources[schemaLogicalName]).toMatchObject({
+      Type: 'AWS::AppSync::GraphQLSchema',
+      Properties: { ApiId: { 'Fn::GetAtt': [apiLogicalName, 'ApiId'] } }
+    });
+    expect(resources[schemaLogicalName].Properties.Definition).toContain('user(id: ID!): User');
+    expect(resources[logGroupLogicalName]).toMatchObject({
+      Type: 'AWS::Logs::LogGroup',
+      Properties: { RetentionInDays: 30 }
+    });
+    expect(resources[dataSourceRoleLogicalName]).toMatchObject({
+      Type: 'AWS::IAM::Role',
+      Properties: {
+        AssumeRolePolicyDocument: {
+          Statement: [{ Action: 'sts:AssumeRole', Effect: 'Allow', Principal: { Service: 'appsync.amazonaws.com' } }]
+        }
+      }
+    });
+    expect(resources[dataSourceRoleLogicalName].Properties.Policies[0].PolicyDocument.Statement).toEqual([
+      {
+        Action: ['lambda:InvokeFunction'],
+        Effect: 'Allow',
+        Resource: [{ 'Fn::GetAtt': [handlerLogicalName, 'Arn'] }]
+      }
+    ]);
+    expect(resources[dataSourceLogicalName]).toMatchObject({
+      Type: 'AWS::AppSync::DataSource',
+      DependsOn: [dataSourceRoleLogicalName],
+      Properties: {
+        ApiId: { 'Fn::GetAtt': [apiLogicalName, 'ApiId'] },
+        LambdaConfig: { LambdaFunctionArn: { 'Fn::GetAtt': [handlerLogicalName, 'Arn'] } },
+        ServiceRoleArn: { 'Fn::GetAtt': [dataSourceRoleLogicalName, 'Arn'] },
+        Type: 'AWS_LAMBDA'
+      }
+    });
+    expect(resources[resolverLogicalName]).toMatchObject({
+      Type: 'AWS::AppSync::Resolver',
+      DependsOn: [schemaLogicalName, dataSourceLogicalName],
+      Properties: {
+        ApiId: { 'Fn::GetAtt': [apiLogicalName, 'ApiId'] },
+        FieldName: 'user',
+        TypeName: 'Query'
+      }
+    });
+
+    const handlerEnvironment = resources[handlerLogicalName].Properties.Environment.Variables;
+    expect(handlerEnvironment).toMatchObject({
+      STP_GRAPHQL_API_ID: { 'Fn::GetAtt': [apiLogicalName, 'ApiId'] },
+      STP_GRAPHQL_ARN: { 'Fn::GetAtt': [apiLogicalName, 'Arn'] },
+      STP_GRAPHQL_URL: { 'Fn::GetAtt': [apiLogicalName, 'GraphQLUrl'] }
+    });
+    const handlerStatements = resources[cfLogicalNames.lambdaRole('graphqlHandler')].Properties.Policies.flatMap(
+      ({ PolicyDocument }: any) => PolicyDocument.Statement
+    );
+    expect(handlerStatements).toContainEqual({
+      Effect: 'Allow',
+      Action: ['appsync:GraphQL'],
+      Resource: [
+        {
+          'Fn::Join': [
+            '',
+            [
+              'arn:aws:appsync:eu-west-1:123456789999:apis/',
+              { 'Fn::GetAtt': [apiLogicalName, 'ApiId'] },
+              '/types/*/fields/*'
+            ]
+          ]
+        }
+      ]
+    });
+    expect(calculatedStackOverviewManager.stackInfoMap.resources.graphql).toMatchObject({
+      resourceType: 'appsync-api',
+      cloudformationChildResources: {
+        [apiLogicalName]: { cloudformationResourceType: 'AWS::AppSync::GraphQLApi' },
+        [schemaLogicalName]: { cloudformationResourceType: 'AWS::AppSync::GraphQLSchema' },
+        [dataSourceLogicalName]: { cloudformationResourceType: 'AWS::AppSync::DataSource' },
+        [resolverLogicalName]: { cloudformationResourceType: 'AWS::AppSync::Resolver' }
+      },
+      referencableParams: {
+        apiId: { value: { 'Fn::GetAtt': [apiLogicalName, 'ApiId'] } },
+        arn: { value: { 'Fn::GetAtt': [apiLogicalName, 'Arn'] } },
+        url: { value: { 'Fn::GetAtt': [apiLogicalName, 'GraphQLUrl'] } },
+        realtimeUrl: { value: { 'Fn::GetAtt': [apiLogicalName, 'RealtimeUrl'] } }
+      }
+    });
+  });
+
+  test('synthesizes MSK Serverless with IAM networking, scoped Lambda access, and on-demand endpoints', async () => {
+    const template = await synthesizeDenseFixture({ includeKafka: true });
+    const resources = template.Resources as Record<string, any>;
+    const cluster = Object.values(resources).find(({ Type }: any) => Type === 'AWS::MSK::ServerlessCluster') as any;
+    const mapping = Object.values(resources).find(
+      ({ Type, Properties }: any) => Type === 'AWS::Lambda::EventSourceMapping' && Properties.Topics?.[0] === 'orders'
+    ) as any;
+    const endpoints = Object.values(resources).filter(
+      ({ Type, Properties }: any) => Type === 'AWS::EC2::VPCEndpoint' && Properties.VpcEndpointType === 'Interface'
+    ) as any[];
+
+    expect(cluster.Properties.ClientAuthentication).toEqual({ Sasl: { Iam: { Enabled: true } } });
+    expect(cluster.Properties.VpcConfigs[0].SecurityGroups).toHaveLength(1);
+    expect(mapping.Properties).toMatchObject({
+      EventSourceArn: { Ref: expect.any(String) },
+      StartingPosition: 'LATEST',
+      Topics: ['orders']
+    });
+    expect(mapping.DependsOn).toEqual([
+      cfLogicalNames.kafkaOnDemandVpcEndpoint('lambda'),
+      cfLogicalNames.kafkaOnDemandVpcEndpoint('sts')
+    ]);
+    expect(endpoints.map(({ Properties }) => Properties.ServiceName).sort()).toEqual([
+      'com.amazonaws.eu-west-1.lambda',
+      'com.amazonaws.eu-west-1.sts'
+    ]);
+    expect(endpoints.every(({ Properties }) => Properties.PrivateDnsEnabled === true)).toBe(true);
+    expect(endpoints.every(({ Properties }) => Properties.PolicyDocument === undefined)).toBe(true);
+    const endpointSecurityGroup = Object.values(resources).find(
+      ({ Type, Properties }: any) =>
+        Type === 'AWS::EC2::SecurityGroup' &&
+        Properties.GroupDescription === 'PrivateLink endpoints used by Lambda on-demand Kafka event-source mappings'
+    ) as any;
+    expect(endpointSecurityGroup.Properties.SecurityGroupIngress).toEqual([
+      { CidrIp: '172.16.0.0/16', FromPort: 443, ToPort: 443, IpProtocol: 'tcp' }
+    ]);
+
+    const apiRole = resources.ApiRole;
+    const statements = apiRole.Properties.Policies.flatMap(({ PolicyDocument }: any) => PolicyDocument.Statement);
+    expect(statements.some(({ Action }: any) => Action?.includes?.('kafka:GetBootstrapBrokers'))).toBe(true);
+    expect(statements.some(({ Action }: any) => Action?.includes?.('kafka-cluster:ReadData'))).toBe(true);
+    expect(statements.some(({ Action }: any) => Action?.includes?.('kafka-cluster:DeleteTopic'))).toBe(false);
+  });
+
+  test('grants Kafka event-source permissions without requiring connectTo or function VPC attachment', async () => {
+    const template = await synthesizeDenseFixture({ includeKafka: true, kafkaConnectTo: false });
+    const resources = template.Resources as Record<string, any>;
+    const apiFunction = resources[cfLogicalNames.lambda('api')];
+    const statements = resources[cfLogicalNames.lambdaRole('api')].Properties.Policies.flatMap(
+      ({ PolicyDocument }: any) => PolicyDocument.Statement
+    );
+
+    expect(apiFunction.Properties.VpcConfig).toBeUndefined();
+    expect(JSON.stringify(apiFunction.Properties.Environment.Variables)).not.toContain('STP_KAFKA_CLUSTER');
+    for (const action of [
+      'kafka:DescribeClusterV2',
+      'kafka:GetBootstrapBrokers',
+      'kafka-cluster:Connect',
+      'kafka-cluster:DescribeTopic',
+      'kafka-cluster:ReadData',
+      'kafka-cluster:DescribeGroup',
+      'kafka-cluster:AlterGroup',
+      'ec2:CreateNetworkInterface',
+      'ec2:DescribeNetworkInterfaces',
+      'ec2:DeleteNetworkInterface'
+    ]) {
+      expect(statements.some(({ Action }: any) => Action?.includes?.(action))).toBe(true);
+    }
+    expect(statements.some(({ Action }: any) => Action?.includes?.('kafka-cluster:CreateTopic'))).toBe(false);
+    expect(statements.some(({ Action }: any) => Action?.includes?.('kafka-cluster:WriteData'))).toBe(false);
+  });
+
+  test('keeps costly Kafka resources out of dev unless remote use is explicit', async () => {
+    const localTemplate = await synthesizeDenseFixture({ includeKafka: true, command: 'dev' });
+    expect(Object.values(localTemplate.Resources).some(({ Type }) => Type === 'AWS::MSK::ServerlessCluster')).toBe(
+      false
+    );
+    expect(
+      Object.values(localTemplate.Resources).some(
+        ({ Type, Properties }: any) => Type === 'AWS::Lambda::EventSourceMapping' && Properties.Topics?.[0] === 'orders'
+      )
+    ).toBe(false);
+    expect(JSON.stringify(localTemplate)).not.toContain('kafka:GetBootstrapBrokers');
+
+    const remoteTemplate = await synthesizeDenseFixture({
+      includeKafka: true,
+      command: 'dev',
+      remoteResources: ['kafkaCluster']
+    });
+    expect(Object.values(remoteTemplate.Resources).some(({ Type }) => Type === 'AWS::MSK::ServerlessCluster')).toBe(
+      true
+    );
+    expect(JSON.stringify(remoteTemplate)).not.toMatch(/WorkloadSecurityGroup[^"}]*Ref/);
+
+    const configOptInTemplate = await synthesizeDenseFixture({
+      includeKafka: true,
+      kafkaRemoteInDev: true,
+      command: 'dev'
+    });
+    expect(
+      Object.values(configOptInTemplate.Resources).some(({ Type }) => Type === 'AWS::MSK::ServerlessCluster')
+    ).toBe(true);
+  });
+
+  test('synthesizes a complete WebSocket API with automatic handler access', async () => {
+    const template = await synthesizeDenseFixture({ includeWebsocket: true });
+    const resources = template.Resources as Record<string, any>;
+    const apiLogicalName = cfLogicalNames.websocketApi('realtime');
+    const stageLogicalName = cfLogicalNames.websocketApiStage('realtime');
+    const connectRouteLogicalName = cfLogicalNames.websocketApiRoute({
+      routeKey: '$connect',
+      stpResourceName: 'realtime'
+    });
+    const messageRouteLogicalName = cfLogicalNames.websocketApiRoute({
+      routeKey: 'sendMessage',
+      stpResourceName: 'realtime'
+    });
+    const messageRouteResponseLogicalName = cfLogicalNames.websocketApiRouteResponse({
+      routeKey: 'sendMessage',
+      stpResourceName: 'realtime'
+    });
+
+    expect(resources[apiLogicalName]).toMatchObject({
+      Type: 'AWS::ApiGatewayV2::Api',
+      Properties: { ProtocolType: 'WEBSOCKET', RouteSelectionExpression: '$request.body.action' }
+    });
+    expect(resources[stageLogicalName]).toMatchObject({
+      Type: 'AWS::ApiGatewayV2::Stage',
+      DependsOn: [connectRouteLogicalName, messageRouteLogicalName, messageRouteResponseLogicalName],
+      Properties: { AutoDeploy: true, StageName: 'default' }
+    });
+    expect(resources[connectRouteLogicalName].Properties).toMatchObject({
+      AuthorizationType: 'CUSTOM',
+      AuthorizerId: { Ref: cfLogicalNames.websocketApiAuthorizer('realtime') },
+      RouteKey: '$connect'
+    });
+    expect(resources[messageRouteLogicalName].Properties).toMatchObject({
+      AuthorizationType: 'NONE',
+      RouteKey: 'sendMessage',
+      RouteResponseSelectionExpression: '$default'
+    });
+    expect(Object.values(resources).some(({ Type }) => Type === 'AWS::ApiGatewayV2::Deployment')).toBe(false);
+    expect(resources[messageRouteResponseLogicalName]).toEqual({
+      Type: 'AWS::ApiGatewayV2::RouteResponse',
+      DependsOn: [],
+      Properties: {
+        ApiId: { Ref: apiLogicalName },
+        RouteId: { Ref: messageRouteLogicalName },
+        RouteResponseKey: '$default'
+      }
+    });
+    expect(resources[cfLogicalNames.websocketApiAuthorizer('realtime')]).toMatchObject({
+      Type: 'AWS::ApiGatewayV2::Authorizer',
+      Properties: {
+        AuthorizerType: 'REQUEST',
+        IdentitySource: ['route.request.header.Authorization']
+      }
+    });
+    expect(resources[cfLogicalNames.websocketApiAuthorizer('realtime')].Properties).not.toHaveProperty(
+      'AuthorizerPayloadFormatVersion'
+    );
+
+    const handler = resources[cfLogicalNames.lambda('realtimeHandler')];
+    expect(handler.Properties.Environment.Variables).toMatchObject({
+      STP_REALTIME_API_ID: { Ref: apiLogicalName },
+      STP_REALTIME_MANAGEMENT_ENDPOINT: expect.any(Object),
+      STP_REALTIME_URL: expect.any(Object)
+    });
+    const role = resources[cfLogicalNames.lambdaRole('realtimeHandler')];
+    expect(JSON.stringify(role)).toContain('execute-api:ManageConnections');
+    expect(JSON.stringify(role)).toContain('/default/POST/@connections');
   });
 
   test('applies resource and final transforms during real template finalization', () => {

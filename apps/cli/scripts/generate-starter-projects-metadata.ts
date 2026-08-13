@@ -4,9 +4,10 @@ import { join } from 'node:path';
 import { STARTER_PROJECTS_METADATA_FOLDER_NAME, STARTER_PROJECTS_SOURCE_PATH } from 'src/config/project-paths';
 import { logInfo, logSuccess, logWarn } from '@scripts/support/logging';
 import { getUniqueDuplicates, hasDuplicates } from '@utils/misc';
-import { pathExists, remove, writeJson } from 'fs-extra';
+import { pathExists, remove, writeFile } from 'fs-extra';
+import { format, resolveConfig } from 'prettier';
 import { getAllStarterProjectIds } from './generate-starter-project';
-import { getStarterProjectMetadata, prettierFix } from './starter-projects/utils';
+import { getStarterProjectMetadata } from './starter-projects/utils';
 
 type SortableStarterProjectMetadata = {
   priority?: number;
@@ -57,9 +58,13 @@ export const generateStarterProjectsMetadata = async ({ distFolderPath }: { dist
   }
   const sorted = metadata.sort(compareStarterProjectMetadata);
 
-  await writeJson(distPath, sorted, { spaces: 2 });
-
-  await prettierFix({ paths: [distPath] });
+  // Formatted in-process and written once. Spawning `npx prettier` on the just-written file lost a
+  // race often enough on Windows — the antivirus still holds a fresh file when the second process
+  // opens it — that the generate task failed with `UNKNOWN: unknown error, open` under load.
+  const prettierOptions = await resolveConfig(distPath, {
+    config: 'scripts/starter-projects/starters-prettierrc.json'
+  });
+  await writeFile(distPath, await format(JSON.stringify(sorted), { ...prettierOptions, parser: 'json' }));
 
   logSuccess(`Successfully generated starter projects metadata to ${distPath}`);
   return distPath;

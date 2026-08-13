@@ -28,6 +28,7 @@ import {
 } from '../_utils/connect-to-helper';
 import { getEfsAccessPoint } from '../_utils/efs';
 import { getResourcesNeededForLogForwarding } from '../_utils/log-forwarding';
+import { logClassSupportsSubscriptionFilters } from '../_utils/log-groups';
 import { getAtlasMongoRoleAssociatedUserResource } from '../_utils/role-helpers';
 import { resolveApplicationLoadBalancerEvents } from './events/application-load-balancer';
 import { resolveHttpApiEvents } from './events/http-api-gateway';
@@ -253,7 +254,8 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
           workloadName: definition.name,
           stackName: calculatedStackOverviewManager.context.stackName,
           containerName,
-          retentionDays: logging?.retentionDays || defaultLogRetentionDays.containerWorkload
+          retentionDays: logging?.retentionDays || defaultLogRetentionDays.containerWorkload,
+          logClass: logging?.logClass
         }),
         nameChain
       });
@@ -272,7 +274,8 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
         getResourcesNeededForLogForwarding({
           resource: definition,
           logGroupCfLogicalName: cfLogicalNames.ecsLogGroup(definition.name, containerName),
-          logForwardingConfig: logging?.logForwarding
+          logForwardingConfig: logging?.logForwarding,
+          logClass: logging?.logClass
         }).forEach(({ cfLogicalName, cfResource }) => {
           if (!templateManager.getCfResourceFromTemplate(cfLogicalName)) {
             calculatedStackOverviewManager.addCfChildResource({
@@ -294,7 +297,8 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
         configManager.isIssueDetectionEnabled &&
         isIssueDetectionSupportedLanguage(containerLanguage) &&
         isStpManagedPackaging &&
-        !hasContainerLogForwarding
+        !hasContainerLogForwarding &&
+        logClassSupportsSubscriptionFilters(logging?.logClass)
       ) {
         const serviceLambdaArn = getAtt(configManager.stacktapeServiceLambdaProps.cfLogicalName, 'Arn');
         const filterLogicalName = cfLogicalNames.issueDetectionSubscriptionFilter(
@@ -362,6 +366,7 @@ export const resolveContainerWorkload = ({ definition }: { definition: StpContai
   const { accessToResourcesRequiringRoleChanges, accessToAtlasMongoClusterResources, accessToAwsServices } =
     resolveConnectToList({
       stpResourceNameOfReferencer: definition.name,
+      stpResourceTypeOfReferencer: definition.type,
       connectTo: definition.connectTo
     });
   const roleCfLogicalName = cfLogicalNames.ecsTaskRole(definition.name);
