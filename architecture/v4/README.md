@@ -16,10 +16,10 @@ The migration must still produce:
 - agent instructions and automation that make the unusual Git topology and generated artifacts difficult to misuse;
 - a fresh v4 history while retaining the existing GitHub repository identities.
 
-The migration may redesign customer-facing configuration and CLI behavior without maintaining a v3 compatibility
-ledger. Broad product changes should be discussed and the chosen v4 contract tested directly. Structural work must
-not accidentally alter deployed CloudFormation identities, resource names, security boundaries, packaging semantics,
-or customer data migrations.
+The migration may redesign customer-facing configuration and CLI behavior without maintaining a v3 compatibility ledger.
+Broad product changes should be discussed and the chosen v4 contract tested directly. Structural work must not
+accidentally alter deployed CloudFormation identities, resource names, security boundaries, packaging semantics, or
+customer data migrations.
 
 ## Current status
 
@@ -36,8 +36,8 @@ or customer data migrations.
 
 - [SIMPLIFIED-MIGRATION.md](./SIMPLIFIED-MIGRATION.md) records the migration approach, destination tree,
   conceptual-complexity budget, sequence, and review process.
-- [DECISIONS.md](./DECISIONS.md) records pinned decisions, superseded decisions, non-goals, deferred work, and
-  remaining gates.
+- [DECISIONS.md](./DECISIONS.md) records pinned decisions, superseded decisions, non-goals, deferred work, and remaining
+  gates.
 - [AGENT-EXECUTION.md](./AGENT-EXECUTION.md) records the migration's isolated-worktree and review process. Use the
   current root instructions for new work.
 - [TEST-STRATEGY.md](./TEST-STRATEGY.md) defines the deterministic, Floci-certified, and selective real-AWS testing

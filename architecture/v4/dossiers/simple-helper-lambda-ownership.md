@@ -5,9 +5,8 @@
 Give Stacktape's four internally deployed helper Lambda artifacts the clearest maintainable ownership available in the
 simplified monorepo, while preserving their runtime contents and avoiding a fake workspace boundary.
 
-The desired result is `packages/helper-lambdas` only if it can be a real, independently understandable package. A
-token package that reaches backward into `apps/cli` is worse than keeping this tightly coupled artifact module inside
-the CLI.
+The desired result is `packages/helper-lambdas` only if it can be a real, independently understandable package. A token
+package that reaches backward into `apps/cli` is worse than keeping this tightly coupled artifact module inside the CLI.
 
 ## Starting point
 
@@ -35,9 +34,9 @@ The deployed helper source currently imports general CLI implementation such as:
 - resource/tag/console-link naming;
 - ZIP, role-policy, constants, and miscellaneous utilities.
 
-Some of those modules have many non-helper CLI consumers. Moving them wholesale into a helper-Lambda package would
-make that package a misleading general utility/AWS package. Copying them would create multiple sources of truth.
-Importing them from `apps/cli` would reverse the monorepo dependency direction.
+Some of those modules have many non-helper CLI consumers. Moving them wholesale into a helper-Lambda package would make
+that package a misleading general utility/AWS package. Copying them would create multiple sources of truth. Importing
+them from `apps/cli` would reverse the monorepo dependency direction.
 
 ## Acceptable outcomes
 
@@ -58,14 +57,14 @@ Create `@stacktape/helper-lambdas` only if all of the following are true:
 
 ### Outcome B — intentional co-location
 
-If Outcome A requires backward dependencies, duplication, misleading ownership, or the package cascade abandoned by
-the simplified migration:
+If Outcome A requires backward dependencies, duplication, misleading ownership, or the package cascade abandoned by the
+simplified migration:
 
 - do not create `packages/helper-lambdas`;
 - keep the actual source and build flow co-located in `apps/cli`;
 - make its boundary explicit with a focused local `AGENTS.md` and/or similarly small existing instruction update;
-- update `SIMPLIFIED-MIGRATION.md` and the decision record so the target no longer falsely promises a workspace
-  package under current constraints;
+- update `SIMPLIFIED-MIGRATION.md` and the decision record so the target no longer falsely promises a workspace package
+  under current constraints;
 - record the concrete dependency evidence and the condition that would justify revisiting the decision;
 - improve only a small, directly useful artifact test or ownership detail if evidence shows a real gap. Do not create
   work merely to make the slice non-empty.

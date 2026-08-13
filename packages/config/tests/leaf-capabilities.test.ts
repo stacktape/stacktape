@@ -51,17 +51,23 @@ describe('configuration schema inspection', () => {
   test('preserves resource count, forced order, and category assignments', () => {
     const resources = getStacktapeResourceDefinitions();
 
-    expect(resources).toHaveLength(44);
+    expect(resources).toHaveLength(49);
     expect(new Set(STACKTAPE_RESOURCE_TYPES)).toEqual(new Set(resources.map(({ type }) => type)));
     expect(resources.slice(0, 3).map(({ type }) => type)).toEqual(['function', 'hosting-bucket', 'web-service']);
     expect(resources.find(({ type }) => type === 'relational-database')?.category).toBe('database-resource');
+    expect(resources.find(({ type }) => type === 'dsql-database')?.category).toBe('database-resource');
     expect(resources.find(({ type }) => type === 'user-auth-pool')?.category).toBe('security-resource');
     expect(resources.find(({ type }) => type === 'mongo-db-atlas-cluster')?.category).toBe('3rd-party-resource');
     expect(resources.find(({ type }) => type === 'bucket')?.category).toBe('other-resource');
+    expect(resources.find(({ type }) => type === 'websocket-api-gateway')?.category).toBe('other-resource');
+    expect(resources.find(({ type }) => type === 'appsync-api')?.category).toBe('other-resource');
+    expect(resources.find(({ type }) => type === 'kafka-cluster')?.category).toBe('other-resource');
   });
 
   test.each([
     ['RelationalDatabase', 'SQL database'],
+    ['DsqlDatabase', 'DSQL database'],
+    ['EmailSender', 'Email sender'],
     ['open-search-domain', 'OpenSearch (Elastic)'],
     ['AwsCdkConstruct', 'AWS CDK Construct'],
     ['sqs-queue', 'SQS Queue'],

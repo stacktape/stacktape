@@ -116,6 +116,9 @@ jobs:
         with:
           bun-version: 1.3.14
       - run: pnpm install --frozen-lockfile
+      # The binary serves this from beside itself; the packaging step fails loudly without it.
+      - name: Build init wizard interface
+        run: pnpm turbo run build --filter=@stacktape/init-ui
       - name: Build binary archive
         working-directory: apps/cli
         run: >-

@@ -29,8 +29,8 @@ export type ResourceWithPresentCdn<TResource extends StpCdnCompatibleResource = 
   TResource & { cdn: NonNullable<TResource['cdn']> };
 ```
 
-Add a generic `hasEnabledCdn` predicate whose runtime expression is equivalent to the existing branch checks. Use it
-at the existing bucket, application-load-balancer, HTTP-API, and Lambda resolver boundaries.
+Add a generic `hasEnabledCdn` predicate whose runtime expression is equivalent to the existing branch checks. Use it at
+the existing bucket, application-load-balancer, HTTP-API, and Lambda resolver boundaries.
 
 Require the refined shape only in helpers that actually dereference `cdn`:
 
@@ -44,8 +44,7 @@ Do not tighten helpers that do not read `cdn`. Do not move resolver responsibili
 attempt to remove existing unrelated resource-correlation casts in this slice.
 
 The Lambda resolver accepts user and helper Lambdas, while only the user shape participates in CDN synthesis. If one
-existing cast is still necessary at that already-guarded boundary, consolidate rather than multiply it and document
-why.
+existing cast is still necessary at that already-guarded boundary, consolidate rather than multiply it and document why.
 
 ## Measured expectation
 
@@ -57,8 +56,8 @@ TypeScript probe reduced the project to 2,183, exactly 32 fewer diagnostics, wit
 - The predicate rejects an absent CDN block.
 - The predicate rejects a present but disabled CDN block.
 - The predicate accepts an enabled CDN block and narrows the resource for callers.
-- Existing synthesis characterization continues to prove that an enabled load-balancer CDN creates exactly one
-  enabled CloudFront distribution with the load balancer origin.
+- Existing synthesis characterization continues to prove that an enabled load-balancer CDN creates exactly one enabled
+  CloudFront distribution with the load balancer origin.
 - CloudFormation output from the characterized synthesis fixture remains unchanged.
 
 ## Known behavior debt outside this slice

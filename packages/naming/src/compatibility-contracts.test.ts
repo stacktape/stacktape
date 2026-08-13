@@ -27,6 +27,13 @@ describe('migrated naming compatibility contracts', () => {
       lambda: cfLogicalNames.lambda('api'),
       blueGreenService: cfLogicalNames.ecsService('web', true),
       route: cfLogicalNames.httpApiRoute({ method: 'GET', path: '/users/{id}', stpResourceName: 'api' }),
+      websocketApi: cfLogicalNames.websocketApi('realtime'),
+      websocketRoute: cfLogicalNames.websocketApiRoute({ routeKey: '$connect', stpResourceName: 'realtime' }),
+      websocketRouteResponse: cfLogicalNames.websocketApiRouteResponse({
+        routeKey: 'sendMessage',
+        stpResourceName: 'realtime'
+      }),
+      dsqlCluster: cfLogicalNames.dsqlCluster('primary'),
       longDnsRecord: cfLogicalNames.dnsRecord(
         'this-is-an-extremely-long-subdomain-name-that-needs-to-be-shortened.for-a-very-long-example-domain-name.example.com'
       ),
@@ -36,6 +43,10 @@ describe('migrated naming compatibility contracts', () => {
       lambda: 'ApiFunction',
       blueGreenService: 'WebBlueGreenService',
       route: 'StpApiGetUsersIdRoute',
+      websocketApi: 'RealtimeWebsocketApi',
+      dsqlCluster: 'PrimaryDsqlCluster',
+      websocketRoute: 'StpRealtimeWebsocketConnectRoute',
+      websocketRouteResponse: 'StpRealtimeWebsocketSendMessageRouteResponse',
       longDnsRecord: 'StpThisIsAnExtrLongSubdNameThatNeedToBeShorForAVeryLongExamDomaNameExamComRecordSet',
       privateRegistryResource: 'StpAtlasMongoProject'
     });
@@ -62,7 +73,9 @@ describe('migrated naming compatibility contracts', () => {
       natPublicIps: 'natPublicIps',
       devAgentRoleExternalId: 'devAgentRoleExternalId',
       debugAgentRoleExternalId: 'debugAgentRoleExternalId',
-      rollbackSafety: 'rollbackSafety'
+      rollbackSafety: 'rollbackSafety',
+      retainedSharedResources: 'retainedSharedResources',
+      emailSenderBindingsFingerprint: 'emailSenderBindingsFingerprint'
     });
   });
 
@@ -121,5 +134,12 @@ describe('migrated naming compatibility contracts', () => {
       'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-294f10'
     );
     expect(helperLambdaAwsResourceNames.edgeDeploymentBucket('abc123')).toBe('stp-edge-deployment-bucket-abc123');
+  });
+
+  test('uses protocol-neutral API Gateway V2 custom-domain logical IDs', () => {
+    const domainName = 'realtime.example.com';
+    expect(cfLogicalNames.websocketApiDomain(domainName)).toBe(cfLogicalNames.httpApiDomain(domainName));
+    expect(cfLogicalNames.websocketApiDomainMapping(domainName)).toBe(cfLogicalNames.httpApiDomainMapping(domainName));
+    expect(cfLogicalNames.websocketApiDnsRecord(domainName)).toBe(cfLogicalNames.dnsRecord(domainName));
   });
 });

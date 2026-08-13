@@ -3,7 +3,7 @@ import type { LambdaAlarm } from './alarms';
 import type { CdnConfiguration } from './cdn';
 import type { Intrinsic } from '@stacktape/cloudformation/intrinsics';
 import type { LambdaPackaging } from './deployment-artifacts';
-import type { AlarmIntegration, ApplicationLoadBalancerIntegration, CloudwatchLogIntegration, DynamoDbIntegration, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration } from './events';
+import type { AlarmIntegration, ApplicationLoadBalancerIntegration, AppSyncApiIntegration, CloudwatchLogIntegration, DynamoDbIntegration, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, WebSocketApiIntegration } from './events';
 import type { HttpMethod } from './http-api-gateways';
 import type { LogForwardingBase } from './log-forwarding';
 import type { LambdaRuntime } from './primitives';
@@ -137,6 +137,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    */
   events?: (
     | HttpApiIntegration
+    | AppSyncApiIntegration
     | S3Integration
     | ScheduleIntegration
     | SnsIntegration
@@ -148,6 +149,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
     | EventBusIntegration
     | KafkaTopicIntegration
     | AlarmIntegration
+    | WebSocketApiIntegration
   )[];
   /**
    * #### Environment variables available to the function at runtime.

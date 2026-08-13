@@ -36,6 +36,9 @@ describe('ARNs and AWS Console links', () => {
     expect(consoleLinks.sqsQueue('eu-west-1', '123456789012', 'jobs.fifo')).toBe(
       'https://eu-west-1.console.aws.amazon.com/sqs/v2/home?region=eu-west-1#/queues/https%3A%2F%2Fsqs.eu-west-1.amazonaws.com%2F123456789012%2Fjobs.fifo'
     );
+    expect(consoleLinks.dsqlClusters('eu-west-1')).toBe(
+      'https://eu-west-1.console.aws.amazon.com/dsql/home?region=eu-west-1#/clusters'
+    );
     expect(consoleLinks.createCertificateUrl('cdn', 'eu-west-1')).toBe(
       'https://us-east-1.console.aws.amazon.com/acm/home?region=us-east-1#/certificates/request'
     );

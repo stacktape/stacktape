@@ -43,8 +43,8 @@ Before every dispatch it:
 7. runs focused checks after each slice and fresh public/integrated clones at wave gates;
 8. updates a migration matrix with preserved behavior, intentional v4 breaks, known v3 bugs, and remaining risks.
 
-An implementer reads legacy files through Git refs or clean legacy checkouts. It never copies legacy repository
-metadata into v4. Agents never coordinate through uncommitted sibling-worktree files; they consume integration commits.
+An implementer reads legacy files through Git refs or clean legacy checkouts. It never copies legacy repository metadata
+into v4. Agents never coordinate through uncommitted sibling-worktree files; they consume integration commits.
 
 Interfaces are provisional until exercised. Local improvements with tests are welcome. Shared seam changes use the
 proposal protocol in `AGENT-EXECUTION.md` and are integrated before dependent work continues.
@@ -67,8 +67,8 @@ These slices can mostly run in parallel because they own narrow pure boundaries:
 
 1. **Naming compatibility:** move logical-ID and physical-name algorithms into `packages/naming`; import exhaustive
    legacy fixtures and property invariants.
-2. **Command contracts and machine protocol:** extract option/input/result contracts into
-   `packages/command-contracts`; intentionally specify v4 JSONL and retain subprocess CLI characterization.
+2. **Command contracts and machine protocol:** extract option/input/result contracts into `packages/command-contracts`;
+   intentionally specify v4 JSONL and retain subprocess CLI characterization.
 3. **Config model and schema generation:** establish the browser-safe config entry, explicit Node loader subpaths,
    directive/reference validation, and deterministic schema/editor outputs.
 4. **Packaging foundation:** move deterministic selection, hashing, buildpack contracts, and artifact tracking into
@@ -177,5 +177,5 @@ At each wave gate the orchestrator records:
 - customer-infrastructure and security risks reviewed;
 - unresolved risks and the exact next prerequisite.
 
-Passing an emulator or typecheck never substitutes for artifact equivalence, runtime authorization, or real AWS
-behavior where AWS itself is the only oracle.
+Passing an emulator or typecheck never substitutes for artifact equivalence, runtime authorization, or real AWS behavior
+where AWS itself is the only oracle.

@@ -1,6 +1,11 @@
 import {
   Alarm,
   Bucket,
+  DsqlDatabase,
+  DeploymentScript,
+  KafkaCluster,
+  EmailSender,
+  EfsFilesystem,
   HttpApiGateway,
   HttpApiIntegration,
   LambdaFunction,
@@ -14,6 +19,8 @@ import {
   SqsQueueNotEmptyTrigger,
   StateMachine,
   StacktapeLambdaBuildpackPackaging,
+  WebSocketApiGateway,
+  WebSocketApiIntegration,
   defineConfig
 } from './index.js';
 
@@ -24,9 +31,30 @@ const database = new RelationalDatabase({
     primaryInstance: { instanceSize: 'db.t4g.micro' }
   })
 });
+const dsqlDatabase = new DsqlDatabase({});
+const kafkaCluster = new KafkaCluster({});
+const kafkaClusterWithUnsupportedOverride = new KafkaCluster({
+  // @ts-expect-error Kafka networking, authentication, and naming invariants cannot be overridden in v1
+  overrides: { cluster: { ClusterName: 'detached' } }
+});
+void kafkaClusterWithUnsupportedOverride;
+const emailSender = new EmailSender({ identity: 'example.com' });
+const filesystem = new EfsFilesystem({});
 const api = new HttpApiGateway({});
 const packaging = new StacktapeLambdaBuildpackPackaging({ entryfilePath: './src/handler.ts' });
+const topicSetup = new DeploymentScript({
+  trigger: 'after:deploy',
+  packaging,
+  joinDefaultVpc: true,
+  connectTo: [kafkaCluster]
+});
 const integration = new HttpApiIntegration({ httpApiGatewayName: api, method: 'GET', path: '/' });
+const realtime = new WebSocketApiGateway({});
+const websocketIntegration = new WebSocketApiIntegration({
+  websocketApiGatewayName: realtime,
+  routeKey: '$connect',
+  authorizer: { type: 'aws-iam' }
+});
 const mount = new LambdaS3FilesMount({
   accessPointArn: 'arn:aws:s3files:us-east-1:111111111111:fs/fs-abc/ap-abc',
   mountPath: '/mnt/data'
@@ -37,7 +65,13 @@ const highErrorRate = new Alarm({
   includeInHistory: false,
   description: 'Handler error rate is too high'
 });
-const worker = new LambdaFunction({ packaging, events: [integration], volumeMounts: [mount], alarms: [highErrorRate] });
+const worker = new LambdaFunction({
+  packaging,
+  events: [integration],
+  volumeMounts: [mount],
+  alarms: [highErrorRate],
+  connectTo: [filesystem]
+});
 const uploads = new Bucket({});
 const workerUsingNamedReference = new LambdaFunction({ packaging, connectTo: ['uploads'] });
 const workerWithInvalidConnection = new LambdaFunction({
@@ -72,11 +106,12 @@ const wrongLoadBalancerTarget = new MultiContainerWorkloadNetworkLoadBalancerInt
 });
 const seed = new LocalScript({
   executeCommand: 'bun run seed.ts',
-  connectTo: [database, uploads],
+  connectTo: [database, dsqlDatabase, emailSender, uploads],
   environment: { RETRIES: 3 }
 });
 
 const integrationType: 'http-api-gateway' = integration.type;
+const websocketIntegrationType: 'websocket-api-gateway' = websocketIntegration.type;
 const triggerType: 'sqs-queue-not-empty' = new SqsQueueNotEmptyTrigger().type;
 const alarmThreshold: number = highErrorRate.trigger.properties.thresholdPercent;
 
@@ -109,20 +144,27 @@ const invalidMount = new LambdaS3FilesMount({
   properties: { accessPointArn: 'arn', mountPath: '/mnt/data' }
 });
 
-const config = defineConfig(() => ({ resources: { api, database, uploads, worker }, scripts: { seed } }));
+const config = defineConfig(() => ({
+  resources: { api, database, dsqlDatabase, filesystem, uploads, worker },
+  scripts: { seed }
+}));
 void [
   alarmThreshold,
   config,
   integrationType,
+  kafkaCluster,
   invalidIntegration,
   invalidMount,
   invalidPackaging,
   networkIntegration,
   triggerType,
+  topicSetup,
   workerUsingNamedReference,
   workerWithInvalidConnection,
   workflow,
   workflowWithInvalidConnection,
+  websocketIntegration,
+  websocketIntegrationType,
   wrongIntegrationTarget,
   wrongLoadBalancerTarget
 ];

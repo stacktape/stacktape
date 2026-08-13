@@ -314,7 +314,10 @@ export const RESOURCE_REFERENCE_TARGETS = {
   function: ['function'],
   functionName: ['function'],
   httpApiGatewayName: ['http-api-gateway'],
+  appsyncApiName: ['appsync-api'],
+  websocketApiGatewayName: ['websocket-api-gateway'],
   kinesisStreamName: ['kinesis-stream'],
+  kafkaClusterName: ['kafka-cluster'],
   loadBalancerName: ['application-load-balancer', 'network-load-balancer'],
   onOriginRequest: ['edge-lambda-function'],
   onOriginResponse: ['edge-lambda-function'],
@@ -328,6 +331,7 @@ export const RESOURCE_REFERENCE_TARGETS = {
   useFirewall: ['web-app-firewall'],
   useGateway: ['agentcore-gateway'],
   useMemory: ['agentcore-memory'],
+  userAuthPoolName: ['user-auth-pool'],
   userPool: ['user-auth-pool'],
   userPoolName: ['user-auth-pool']
 } as const satisfies Record<string, readonly StacktapeResourceType[] | '*'>;
@@ -449,6 +453,8 @@ type ResourcesWithoutCloudFormationCustomization =
   | 'custom-resource-definition'
   | 'custom-resource-instance'
   | 'deployment-script'
+  | 'email-sender'
+  | 'kafka-cluster'
   | 'mongo-db-atlas-cluster'
   | 'upstash-redis'
   | 'aws-cdk-construct';

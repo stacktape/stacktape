@@ -67,18 +67,27 @@ export const RESOURCE_VISUALS = {
   'edge-lambda-function': visual('compute', 'cloudfront', 'aws-cloudfront'),
   bastion: visual('compute', 'ec2', 'aws-ec2'),
   'relational-database': visual('database', 'rds', 'aws-rds'),
+  // Aurora DSQL has no icon of its own in either pack; it is Aurora, so it borrows RDS's.
+  'dsql-database': visual('database', 'rds', 'aws-aurora'),
   'dynamo-db-table': visual('database', 'dynamo-db', 'aws-dynamodb'),
   'redis-cluster': visual('database', 'elasticache', 'aws-elasticache'),
   'mongo-db-atlas-cluster': frameworkVisual('database', 'mongodb', 'aws-documentdb'),
   'upstash-redis': frameworkVisual('database', 'upstash', 'aws-elasticache'),
   'open-search-domain': visual('database', 'open-search', 'aws-opensearch-service'),
   'http-api-gateway': visual('network', 'api-gateway', 'aws-api-gateway'),
+  'websocket-api-gateway': visual('network', 'api-gateway', 'aws-api-gateway'),
+  'appsync-api': visual('network', 'api-gateway', 'aws-appsync'),
   'application-load-balancer': visual('network', 'elastic-load-balancing', 'aws-elastic-load-balancing'),
   'network-load-balancer': visual('network', 'elastic-load-balancing', 'aws-elastic-load-balancing'),
   'sqs-queue': visual('integration', 'sqs', 'aws-simple-queue-service'),
   'sns-topic': visual('integration', 'sns', 'aws-simple-notification-service'),
+  // SES has no icon in the pack this component draws from; SNS is the nearest messaging mark.
+  'email-sender': visual('integration', 'sns', 'aws-simple-email-service'),
   'event-bus': visual('integration', 'eventbridge', 'aws-eventbridge'),
   'kinesis-stream': visual('integration', 'kinesis', 'aws-kinesis'),
+  // MSK has no mark in the flat icon set this component draws from; Kinesis is the nearest streaming
+  // one. The diagram has the real Kafka icon and uses it.
+  'kafka-cluster': visual('integration', 'kinesis', 'aws-managed-streaming-for-apache-kafka'),
   bucket: visual('storage', 's3', 'aws-simple-storage-service'),
   'hosting-bucket': visual('network', 'cloudfront', 'aws-cloudfront'),
   'efs-filesystem': visual('storage', 'efs', 'aws-efs'),

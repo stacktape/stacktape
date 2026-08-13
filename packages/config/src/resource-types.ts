@@ -11,9 +11,11 @@ export const STACKTAPE_RESOURCE_TYPES = [
   'hosting-bucket',
   'web-service',
   'application-load-balancer',
+  'appsync-api',
   'bucket',
   'user-auth-pool',
   'http-api-gateway',
+  'websocket-api-gateway',
   'astro-web',
   'aws-cdk-construct',
   'bastion',
@@ -25,10 +27,13 @@ export const STACKTAPE_RESOURCE_TYPES = [
   'custom-resource-instance',
   'deployment-script',
   'dynamo-db-table',
+  'dsql-database',
+  'email-sender',
   'edge-lambda-function',
   'efs-filesystem',
   'event-bus',
   'kinesis-stream',
+  'kafka-cluster',
   'mongo-db-atlas-cluster',
   'network-load-balancer',
   'nextjs-web',
@@ -66,6 +71,11 @@ export const getPrettyResourceName = (resourceName: string) => {
   return splitWords(resourceName)
     .replaceAll(' Db', 'Db')
     .replace('Agentcore', 'AgentCore')
+    .replace('Appsync', 'AppSync')
+    .replace('Websocket', 'WebSocket')
+    .replace('Dsql Database', 'DSQL database')
+    .replace('Email Sender', 'Email sender')
+    .replace('Kafka Cluster', 'Kafka cluster')
     .replace('Efs', 'EFS')
     .replace('Sqs', 'SQS')
     .replace('Sns', 'SNS')

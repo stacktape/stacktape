@@ -61,6 +61,145 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::ElastiCache::ReplicationGroup' }
     });
   },
+  dsqlCluster(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'Dsql' },
+      suffix: { cloudformationResourceType: 'AWS::DSQL::Cluster' }
+    });
+  },
+  kafkaServerlessCluster(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'Kafka' },
+      suffix: { cloudformationResourceType: 'AWS::MSK::ServerlessCluster' }
+    });
+  },
+  kafkaClusterSecurityGroup(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'Kafka' },
+      suffix: { cloudformationResourceType: 'AWS::EC2::SecurityGroup' }
+    });
+  },
+  kafkaClusterSelfIngress(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'KafkaSelf' },
+      suffix: { cloudformationResourceType: 'AWS::EC2::SecurityGroupIngress' }
+    });
+  },
+  kafkaBootstrapBrokers(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'KafkaBootstrapBrokers' },
+      suffix: { cloudformationResourceType: 'AWS::CloudFormation::CustomResource' }
+    });
+  },
+  kafkaOnDemandEndpointSecurityGroup() {
+    return buildCfLogicalName({
+      specifier: { type: 'KafkaOnDemandEndpoints' },
+      suffix: { cloudformationResourceType: 'AWS::EC2::SecurityGroup' }
+    });
+  },
+  kafkaOnDemandVpcEndpoint(service: 'lambda' | 'sts') {
+    return buildCfLogicalName({
+      specifier: { type: `KafkaOnDemand${service}` },
+      suffix: { cloudformationResourceType: 'AWS::EC2::VPCEndpoint' }
+    });
+  },
+  kafkaEventSourceMapping(functionName: string, stableEventKey: string) {
+    return buildCfLogicalName({
+      stpResourceName: functionName,
+      specifier: { type: `Kafka${stableEventKey}` },
+      suffix: { cloudformationResourceType: 'AWS::Lambda::EventSourceMapping' }
+    });
+  },
+  appsyncApi(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'AppSync' },
+      suffix: { cloudformationResourceType: 'AWS::AppSync::GraphQLApi' }
+    });
+  },
+  appsyncApiSchema(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'AppSync' },
+      suffix: { cloudformationResourceType: 'AWS::AppSync::GraphQLSchema' }
+    });
+  },
+  appsyncApiLogRole(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'AppSyncLogs' },
+      suffix: { cloudformationResourceType: 'AWS::IAM::Role' }
+    });
+  },
+  appsyncApiLogGroup(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'AppSync' },
+      suffix: { cloudformationResourceType: 'AWS::Logs::LogGroup' }
+    });
+  },
+  appsyncApiKey(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'AppSync' },
+      suffix: { cloudformationResourceType: 'AWS::AppSync::ApiKey' }
+    });
+  },
+  appsyncApiDataSource({
+    stpAppsyncApiName,
+    stpLambdaFunctionName
+  }: {
+    stpAppsyncApiName: string;
+    stpLambdaFunctionName: string;
+  }) {
+    return buildCfLogicalName({
+      stpResourceName: stpAppsyncApiName,
+      specifier: { type: `${stpLambdaFunctionName}AppSync` },
+      suffix: { cloudformationResourceType: 'AWS::AppSync::DataSource' }
+    });
+  },
+  appsyncApiDataSourceRole({
+    stpAppsyncApiName,
+    stpLambdaFunctionName
+  }: {
+    stpAppsyncApiName: string;
+    stpLambdaFunctionName: string;
+  }) {
+    return buildCfLogicalName({
+      stpResourceName: stpAppsyncApiName,
+      specifier: { type: `${stpLambdaFunctionName}AppSyncDataSource` },
+      suffix: { cloudformationResourceType: 'AWS::IAM::Role' }
+    });
+  },
+  appsyncApiResolver({
+    fieldName,
+    stpAppsyncApiName,
+    typeName
+  }: {
+    fieldName: string;
+    stpAppsyncApiName: string;
+    typeName: string;
+  }) {
+    return buildCfLogicalName({
+      stpResourceName: stpAppsyncApiName,
+      specifier: { type: `${typeName}-${fieldName}-AppSync` },
+      suffix: { cloudformationResourceType: 'AWS::AppSync::Resolver' }
+    });
+  },
+  appsyncApiDomain(fullyQualifiedDomainName: string) {
+    return getDomainBoundLogicalName(fullyQualifiedDomainName, 'AWS::AppSync::DomainName');
+  },
+  appsyncApiDomainAssociation(fullyQualifiedDomainName: string) {
+    return getDomainBoundLogicalName(fullyQualifiedDomainName, 'AWS::AppSync::DomainNameApiAssociation');
+  },
+  appsyncApiDnsRecord(fullyQualifiedDomainName: string) {
+    return getDomainBoundLogicalName(fullyQualifiedDomainName, 'AWS::Route53::RecordSet');
+  },
   redisLogGroup(stpResourceName: string) {
     return buildCfLogicalName({
       stpResourceName,
@@ -206,11 +345,7 @@ export const cfLogicalNames = {
   dnsRecord(fullyQualifiedDomainName: string) {
     // we do not build build the resource name conventionally through stpResourceName
     // this is due to update behaviors of Cloudformation
-    return buildCfLogicalName({
-      stpResourceName: '',
-      specifier: { type: getSpecifierForDomainResource(fullyQualifiedDomainName) },
-      suffix: { cloudformationResourceType: 'AWS::Route53::RecordSet' }
-    });
+    return getDomainBoundLogicalName(fullyQualifiedDomainName, 'AWS::Route53::RecordSet');
   },
   dynamoGlobalTable(stpResourceName: string) {
     return buildCfLogicalName({
@@ -1133,11 +1268,7 @@ export const cfLogicalNames = {
   httpApiDomain(fullyQualifiedDomainName: string) {
     // we do not build build the resource name conventionally through stpResourceName
     // this is due to update behaviors of Cloudformation
-    return buildCfLogicalName({
-      stpResourceName: '',
-      specifier: { type: getSpecifierForDomainResource(fullyQualifiedDomainName) },
-      suffix: { cloudformationResourceType: 'AWS::ApiGatewayV2::DomainName' }
-    });
+    return getDomainBoundLogicalName(fullyQualifiedDomainName, 'AWS::ApiGatewayV2::DomainName');
   },
   httpApiDefaultDomain(stpResourceName: string) {
     return buildCfLogicalName({
@@ -1148,17 +1279,103 @@ export const cfLogicalNames = {
   httpApiDomainMapping(fullyQualifiedDomainName: string) {
     // we do not build build the resource name conventionally through stpResourceName
     // this is due to update behaviors of Cloudformation
-    return buildCfLogicalName({
-      stpResourceName: '',
-      specifier: { type: getSpecifierForDomainResource(fullyQualifiedDomainName) },
-      suffix: { cloudformationResourceType: 'AWS::ApiGatewayV2::ApiMapping' }
-    });
+    return getDomainBoundLogicalName(fullyQualifiedDomainName, 'AWS::ApiGatewayV2::ApiMapping');
   },
   httpApiDefaultDomainMapping(stpResourceName: string) {
     return buildCfLogicalName({
       stpResourceName,
       suffix: { cloudformationResourceType: 'AWS::ApiGatewayV2::ApiMapping' }
     });
+  },
+  websocketApi(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'Websocket' },
+      suffix: { cloudformationResourceType: 'AWS::ApiGatewayV2::Api' }
+    });
+  },
+  websocketApiStage(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'Websocket' },
+      suffix: { cloudformationResourceType: 'AWS::ApiGatewayV2::Stage' }
+    });
+  },
+  websocketApiLogGroup(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'Websocket' },
+      suffix: { cloudformationResourceType: 'AWS::Logs::LogGroup' }
+    });
+  },
+  websocketApiLambdaIntegration({
+    stpResourceName,
+    stpWebsocketApiGatewayName
+  }: {
+    stpResourceName: string;
+    stpWebsocketApiGatewayName: string;
+  }) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: `${stpWebsocketApiGatewayName}Websocket` },
+      suffix: { cloudformationResourceType: 'AWS::ApiGatewayV2::Integration' }
+    });
+  },
+  websocketApiRoute({ routeKey, stpResourceName }: { routeKey: string; stpResourceName: string }) {
+    return buildCfLogicalName({
+      stpResourceName: '',
+      specifier: { type: `${stpResourceName}-Websocket-${routeKey}` },
+      suffix: { cloudformationResourceType: 'AWS::ApiGatewayV2::Route' }
+    });
+  },
+  websocketApiRouteResponse({ routeKey, stpResourceName }: { routeKey: string; stpResourceName: string }) {
+    return buildCfLogicalName({
+      stpResourceName: '',
+      specifier: { type: `${stpResourceName}-Websocket-${routeKey}` },
+      suffix: { cloudformationResourceType: 'AWS::ApiGatewayV2::RouteResponse' }
+    });
+  },
+  websocketApiLambdaPermission({
+    stpResourceNameOfLambda,
+    stpResourceNameOfWebsocketApiGateway
+  }: {
+    stpResourceNameOfLambda: string;
+    stpResourceNameOfWebsocketApiGateway: string;
+  }) {
+    return buildCfLogicalName({
+      stpResourceName: stpResourceNameOfLambda,
+      specifier: { type: `${stpResourceNameOfWebsocketApiGateway}Websocket` },
+      suffix: { cloudformationResourceType: 'AWS::Lambda::Permission' }
+    });
+  },
+  websocketApiAuthorizer(stpResourceName: string) {
+    return buildCfLogicalName({
+      stpResourceName,
+      specifier: { type: 'WebsocketAuthorizer' },
+      suffix: { cloudformationResourceType: 'AWS::ApiGatewayV2::Authorizer' }
+    });
+  },
+  websocketApiAuthorizerLambdaPermission({
+    stpResourceNameOfLambda,
+    stpResourceNameOfWebsocketApiGateway
+  }: {
+    stpResourceNameOfLambda: string;
+    stpResourceNameOfWebsocketApiGateway: string;
+  }) {
+    return buildCfLogicalName({
+      stpResourceName: stpResourceNameOfLambda,
+      specifier: { type: `${stpResourceNameOfWebsocketApiGateway}WebsocketAuthorizer` },
+      suffix: { cloudformationResourceType: 'AWS::Lambda::Permission' }
+    });
+  },
+  websocketApiDomain(fullyQualifiedDomainName: string) {
+    return getDomainBoundLogicalName(fullyQualifiedDomainName, 'AWS::ApiGatewayV2::DomainName');
+  },
+  websocketApiDomainMapping(fullyQualifiedDomainName: string) {
+    return getDomainBoundLogicalName(fullyQualifiedDomainName, 'AWS::ApiGatewayV2::ApiMapping');
+  },
+  websocketApiDnsRecord(fullyQualifiedDomainName: string) {
+    return getDomainBoundLogicalName(fullyQualifiedDomainName, 'AWS::Route53::RecordSet');
   },
   listener(exposurePort: number, stpResourceName: string) {
     return buildCfLogicalName({
@@ -1523,3 +1740,10 @@ const getSpecifierForDomainResource = (fullyQualifiedDomainName: string) => {
   const maxCharactersPerWord = Math.floor(85 / splittedDomain.length);
   return splittedDomain.map((word) => pascalCase(word.slice(0, maxCharactersPerWord)).replace('_', '')).join('');
 };
+
+const getDomainBoundLogicalName = (fullyQualifiedDomainName: string, cloudformationResourceType: string) =>
+  buildCfLogicalName({
+    stpResourceName: '',
+    specifier: { type: getSpecifierForDomainResource(fullyQualifiedDomainName) },
+    suffix: { cloudformationResourceType }
+  });

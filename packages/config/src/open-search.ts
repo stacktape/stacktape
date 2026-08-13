@@ -1,4 +1,5 @@
 import type { ResourceOverrides } from './shared';
+import type { CloudWatchLogGroupOptions } from './log-forwarding';
 /**
  * #### Managed search and analytics engine (OpenSearch/Elasticsearch compatible).
  *
@@ -1159,7 +1160,7 @@ export interface OpenSearchLogConfiguration {
 }
 
 
-export interface OpenSearchLogRetentionSettings {
+export interface OpenSearchLogRetentionSettings extends CloudWatchLogGroupOptions {
   /**
    * #### Disable this log type.
    *

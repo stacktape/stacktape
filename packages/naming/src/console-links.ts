@@ -6,7 +6,12 @@ const getBaseAwsConsoleLink = (region: string, serviceName: string, serviceQuery
   return `${baseUrl}${serviceQuery}`;
 };
 
-type DomainAttachableResourceType = 'application-load-balancer' | 'http-api-gateway' | 'network-load-balancer' | 'cdn';
+type DomainAttachableResourceType =
+  | 'application-load-balancer'
+  | 'appsync-api'
+  | 'http-api-gateway'
+  | 'network-load-balancer'
+  | 'cdn';
 
 export const consoleLinks = {
   stackUrl(region: string, stackId: string, tab: 'stackInfo' | 'resources' | 'events') {
@@ -23,7 +28,7 @@ export const consoleLinks = {
     return getBaseAwsConsoleLink(region, 'secretsmanager', `secret?name=${secretName}`);
   },
   createCertificateUrl(attachingTo: DomainAttachableResourceType, region: string) {
-    if (attachingTo === 'cdn') {
+    if (attachingTo === 'cdn' || attachingTo === 'appsync-api') {
       return 'https://us-east-1.console.aws.amazon.com/acm/home?region=us-east-1#/certificates/request';
     }
     return `https://${region}.console.aws.amazon.com/acm/home?region=${region}#/certificates/request`;
@@ -50,6 +55,9 @@ export const consoleLinks = {
   },
   createSesIdentity(region: string) {
     return getBaseAwsConsoleLink(region, 'ses', '/verified-identities/create');
+  },
+  sesIdentity(region: string, identity: string) {
+    return getBaseAwsConsoleLink(region, 'ses', `/identities/${encodeURIComponent(identity)}`);
   },
   cloudwatchAlarm(region: string, awsAlarmName: string) {
     return getBaseAwsConsoleLink(region, 'cloudwatch', `alarmsV2:alarm/${awsAlarmName}`);
@@ -79,6 +87,15 @@ export const consoleLinks = {
   },
   kinesisStream(region: string, kinesisStreamAwsName: string) {
     return getBaseAwsConsoleLink(region, 'kinesis', `streams/${kinesisStreamAwsName}/streamDetails`);
+  },
+  dsqlClusters(region: string) {
+    return getBaseAwsConsoleLink(region, 'dsql', '/clusters');
+  },
+  mskClusters(region: string) {
+    return getBaseAwsConsoleLink(region, 'msk', `/clusters`);
+  },
+  appsyncApi(region: string, apiId: string) {
+    return getBaseAwsConsoleLink(region, 'appsync', `/v2/apis/${apiId}/home`);
   },
   firewallMetrics({ region }: { region: string }) {
     return `https://console.aws.amazon.com/cloudwatch/home?region=${region}#metricsV2:graph=~();namespace=~'AWS*2fWAFV2`;

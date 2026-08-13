@@ -1,10 +1,9 @@
 # Simplified Stacktape v4 migration (completed)
 
-This document records the migration that produced the current monorepo. It is no longer an implementation plan.
-Current work follows the root `AGENTS.md`, the code, and focused architecture guides such as
-`architecture/GENERATION.md`. `TARGET-ARCHITECTURE.md`, `ORCHESTRATION-PLAN.md`, and `MIGRATION-RUNBOOK.md` describe an
-earlier rejected plan and are retained only as history. Remaining intentional follow-up work is tracked in
-`DEFERRED-ISSUES.md`.
+This document records the migration that produced the current monorepo. It is no longer an implementation plan. Current
+work follows the root `AGENTS.md`, the code, and focused architecture guides such as `architecture/GENERATION.md`.
+`TARGET-ARCHITECTURE.md`, `ORCHESTRATION-PLAN.md`, and `MIGRATION-RUNBOOK.md` describe an earlier rejected plan and are
+retained only as history. Remaining intentional follow-up work is tracked in `DEFERRED-ISSUES.md`.
 
 ## Goal
 
@@ -35,21 +34,21 @@ packages/
 └── ui-react/            # only components used by at least two applications
 ```
 
-The directory list is a destination, not a requirement to create empty packages. A package is absent until it owns
-real code.
+The directory list is a destination, not a requirement to create empty packages. A package is absent until it owns real
+code.
 
 The helper Lambdas are deliberately not in that list. They are separately built deployment artifacts, but their source
 transitively needs general CLI implementation and CLI-owned resolved configuration contracts. They stay in
 `apps/cli/helper-lambdas`, whose `AGENTS.md` records the measurement and the condition for revisiting. The narrow
-`naming` package exists because the migrated CLI and Console had duplicated the same
-replacement-sensitive AWS names, ARNs, links, and SSM paths; it does not imply a broader helper-Lambda extraction.
+`naming` package exists because the migrated CLI and Console had duplicated the same replacement-sensitive AWS names,
+ARNs, links, and SSM paths; it does not imply a broader helper-Lambda extraction.
 
 ## Conceptual-complexity budget
 
 Conceptual complexity is an acceptance criterion, not a stylistic preference.
 
-- Prefer a direct function call or existing application object over a new port, registry, factory, service container,
-  or framework.
+- Prefer a direct function call or existing application object over a new port, registry, factory, service container, or
+  framework.
 - Do not introduce an interface for a single implementation unless it is an actual external boundary.
 - Do not split code merely to make directories look architecturally symmetric.
 - Do not create packages for possible future consumers.
@@ -58,8 +57,8 @@ Conceptual complexity is an acceptance criterion, not a stylistic preference.
   focused behavioral evidence.
 - Apply adversarial input hardening at genuinely untrusted boundaries. Internal trusted objects do not need to defend
   against exotic Proxies, monkey-patched built-ins, or deliberately hostile JavaScript runtimes.
-- A reviewer must be able to explain the changed execution path plainly. If that requires teaching a new framework,
-  the implementation has not passed maintainability review.
+- A reviewer must be able to explain the changed execution path plainly. If that requires teaching a new framework, the
+  implementation has not passed maintainability review.
 
 An abstraction is justified only when it reduces the total number of concepts a maintainer must hold in their head.
 

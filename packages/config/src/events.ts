@@ -1342,17 +1342,86 @@ export interface KafkaTopicIntegration {
   properties: KafkaTopicIntegrationProps;
 }
 
+export type KafkaTopicIntegrationProps = (
+  | StacktapeKafkaEventSource
+  | ExistingMskKafkaEventSource
+  | SelfManagedKafkaEventSource
+) &
+  KafkaTopicIntegrationOptions;
 
-export interface KafkaTopicIntegrationProps {
+export interface StacktapeKafkaEventSource {
   /**
-   * #### The details of your Kafka cluster.
+   * #### Stacktape Kafka cluster to consume from.
    *
    * ---
    *
-   * Specifies the bootstrap servers, topic name, and authentication used by the self-managed Kafka event source.
-   * This is required because self-managed Kafka is the only Kafka source currently supported by Stacktape.
+   * References a `kafka-cluster` resource in this stack. Stacktape configures IAM access, broker networking, and the
+   * Lambda event-source connection. This does not create the topic; create it once with a Kafka AdminClient.
+   */
+  kafkaClusterName: string;
+  /** #### Kafka topic name to consume. */
+  topicName: string;
+  mskClusterArn?: never;
+  customKafkaConfiguration?: never;
+}
+
+export interface ExistingMskKafkaEventSource {
+  /**
+   * #### ARN of an existing Amazon MSK cluster in the deployment account and region.
+   *
+   * ---
+   *
+     * The cluster VPC must already allow Lambda event-source mappings and, for on-demand pollers, must provide NAT or
+     * Lambda and STS interface endpoints. Stacktape cannot safely infer or modify another stack's network.
+     * This v1 source is specifically for IAM-authenticated MSK. Use `customKafkaConfiguration` for secret-based
+     * SCRAM or mTLS broker authentication.
+   */
+  mskClusterArn: string;
+  /** #### Kafka topic name to consume. */
+  topicName: string;
+  kafkaClusterName?: never;
+  customKafkaConfiguration?: never;
+}
+
+export interface SelfManagedKafkaEventSource {
+  /**
+   * #### Connection details for a self-managed Kafka cluster.
+   *
+   * ---
+   *
+     * Use this for Kafka outside Amazon MSK. Authentication secrets stay in AWS Secrets Manager and are granted only to
+     * the Lambda event-source mapping role.
+     * If a secret uses a customer-managed KMS key, add `kms:Decrypt` for that key with `iamRoleStatements`; the KMS key
+     * ARN cannot be inferred safely from a secret ARN.
    */
   customKafkaConfiguration: CustomKafkaEventSource;
+  /**
+   * #### VPC connection used by the Lambda event-source poller.
+   *
+   * ---
+   *
+   * Required when brokers are reachable only inside a VPC. These are the poller's subnets and security groups; they
+   * are independent of the Lambda function's own `joinDefaultVpc` setting.
+   */
+  vpc?: KafkaEventSourceVpcConfig;
+  kafkaClusterName?: never;
+  mskClusterArn?: never;
+  topicName?: never;
+}
+
+export interface KafkaTopicIntegrationOptions {
+  /**
+   * #### Which records to consume when the event source is created.
+   *
+   * ---
+   *
+   * - `latest` starts with records arriving after the event source becomes active.
+   * - `earliest` replays retained records from the beginning and can cause a large initial invocation burst.
+   *
+   * This choice is required because silently choosing one can either miss retained records or unexpectedly replay
+   * them. Changing it later does not reset an existing consumer's offsets.
+   */
+  startFrom: 'latest' | 'earliest';
   /**
    * #### The maximum number of records to process in a single batch.
    *
@@ -1371,9 +1440,28 @@ export interface KafkaTopicIntegrationProps {
    * The function will be triggered when either the `batchSize` is reached or this time window expires.
    * Maximum is 300 seconds.
    *
-   * @default 0.5
+   * Omit this to keep AWS Lambda's 500 ms Kafka default.
    */
   maxBatchWindowSeconds?: number;
+  /**
+   * #### Stable Kafka consumer-group identifier.
+   *
+   * ---
+   *
+   * Omit this unless the consumer must retain a pre-existing group identity. AWS otherwise assigns a group for the
+     * event source. This value is immutable after the event source is created. Existing committed offsets take
+     * precedence over `startFrom`, and sharing an ID with another active consumer splits topic partitions between them.
+     * Replacing a mapping that uses an explicit ID can require removing the old mapping in a separate deployment first,
+     * because AWS will not create two event-source mappings with the same consumer group at once.
+     */
+  consumerGroupId?: string;
+}
+
+export interface KafkaEventSourceVpcConfig {
+    /** #### Subnet IDs through which Lambda's poller can reach the brokers. Multi-AZ placement is recommended. */
+  subnetIds: string[];
+  /** #### Security-group IDs attached to Lambda's Kafka poller network interfaces. */
+  securityGroupIds: string[];
 }
 
 
@@ -2186,6 +2274,103 @@ export interface HttpApiIntegrationProps {
    * @default "1.0"
    */
   payloadFormat?: '1.0' | '2.0';
+}
+
+
+/**
+ * #### Resolves one GraphQL field with a Lambda function through AWS AppSync.
+ *
+ * ---
+ *
+ * Stacktape creates and secures the Lambda data source automatically. The function receives the complete AppSync
+ * resolver context, including arguments, identity, source, request, and field information.
+ */
+export interface AppSyncApiIntegration {
+  type: 'appsync-api';
+  properties: AppSyncApiIntegrationProps;
+}
+
+
+export interface AppSyncApiIntegrationProps {
+  /** #### Name of the `appsync-api` resource. */
+  appsyncApiName: string;
+  /**
+   * #### GraphQL field handled by this function, written as `Type.field`.
+   *
+   * **Examples:** `Query.user`, `Mutation.createOrder`
+   */
+  field: string;
+}
+
+
+/**
+ * #### Routes a WebSocket lifecycle event or message to a Lambda function.
+ *
+ * ---
+ *
+ * Use `$connect`, `$disconnect`, or `$default` for lifecycle and fallback routes. Other values are matched against the
+ * gateway's route selection expression (by default, the message body's `action` field).
+ */
+export interface WebSocketApiIntegration {
+  type: 'websocket-api-gateway';
+  properties: WebSocketApiIntegrationProps;
+}
+
+
+export interface WebSocketApiIntegrationProps {
+  /** #### Name of the `websocket-api-gateway` resource. */
+  websocketApiGatewayName: string;
+  /** #### Route key handled by this function, for example `sendMessage`, `$connect`, or `$default`. */
+  routeKey: string;
+  /**
+   * #### Optional authorization for new connections.
+   *
+   * ---
+   *
+   * Authorizers are supported only on the `$connect` route. Existing connections are not re-authorized for later
+   * messages. Use `aws-iam` for SigV4 clients or a Lambda function for application-specific authentication.
+   */
+  authorizer?: WebSocketAuthorizer;
+  /**
+   * #### Send the Lambda handler's returned `body` directly back to the client that invoked this route.
+   *
+   * ---
+   *
+   * Keep this disabled for lifecycle routes, one-way events, broadcasts, and replies sent through the API Gateway
+   * Management API. Enable it on `$default` or a custom message route for simple request-response interactions where
+   * the handler should answer only the calling connection.
+   *
+   * @default false
+   */
+  returnResponse?: boolean;
+}
+
+
+export type WebSocketAuthorizer =
+  | {
+      /** #### Require AWS Signature Version 4 when opening a connection. */
+      type: 'aws-iam';
+    }
+  | {
+      /** #### Call a Lambda REQUEST authorizer when opening a connection. */
+      type: 'lambda';
+      properties: WebSocketLambdaAuthorizerProps;
+    };
+
+
+export interface WebSocketLambdaAuthorizerProps {
+  /** #### Name of the Stacktape Lambda function that authorizes connections. */
+  functionName: string;
+  /**
+   * #### Request values passed to the authorizer.
+   *
+   * ---
+   *
+   * WebSocket identity sources use `route.request.header.*` or `route.request.querystring.*` expressions.
+   *
+   * @default ["route.request.header.Authorization"]
+   */
+  identitySources?: string[];
 }
 
 

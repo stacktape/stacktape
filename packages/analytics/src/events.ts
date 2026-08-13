@@ -12,7 +12,8 @@ export const ANALYTICS_EVENTS = {
   awsAccountConnectionCompleted: 'aws_account_connection_completed',
   apiKeyCreated: 'api_key_created',
   organizationCreated: 'organization_created',
-  stackDeploymentStarted: 'stack_deployment_started'
+  stackDeploymentStarted: 'stack_deployment_started',
+  initCompleted: 'init_completed'
 } as const;
 
 export type AnalyticsEventName = (typeof ANALYTICS_EVENTS)[keyof typeof ANALYTICS_EVENTS];
@@ -93,5 +94,37 @@ export type ProductAnalyticsEventMap = {
     source: 'cli' | 'console';
     trigger: string;
     region: string;
+  };
+  /**
+   * One `stacktape init` session, reported when it ends.
+   *
+   * Everything here is a category or a count — never a name from the user's repository, never a
+   * path, never file contents. The point is to learn where generation succeeds and where it dies:
+   * which frameworks fail, whether the repair loop earns its keep, how far people get before they
+   * stop.
+   */
+  [ANALYTICS_EVENTS.initCompleted]: {
+    presentation: 'browser' | 'terminal';
+    /** Which reader produced the facts. */
+    agent: 'claude-code' | 'codex' | 'none' | (string & {});
+    mode: 'low-cost' | 'standard' | 'production';
+    /** How far the session got before it ended. */
+    reached: 'analysed' | 'reviewed' | 'written' | 'deploy_failed' | 'deployed';
+    /** Category labels only, e.g. frameworks and dependency kinds the pipeline already names. */
+    frameworks: string[];
+    dependency_kinds: string[];
+    resource_types: string[];
+    service_count: number;
+    decision_count: number;
+    /** Decisions the user changed away from the recommendation. */
+    decisions_changed: number;
+    gap_count: number;
+    analysis_duration_ms: number | null;
+    deploy_duration_ms: number | null;
+    /** One entry per repair attempt: whether the agent changed the configuration. */
+    repairs: boolean[];
+    /** The CLI's own result code when a deploy failed, e.g. `DEPLOY_FAILED`. */
+    deploy_error_code?: string;
+    existing_deployment_tools: string[];
   };
 };

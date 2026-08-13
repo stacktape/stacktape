@@ -13,7 +13,7 @@ generator and the private Console applications.
 - The package intentionally standardizes on `@fast-csv/parse` v5, matching the already-deployed Console loader. This
   updates the CLI generator from v4; quoted fields, escaped quotes, blank columns, and multi-name product rows are
   compatibility fixtures and must stay deterministic.
-- Unsupported resource types are logged and skipped independently. This intentional fix makes the existing
-  per-resource isolation explicit so one newly added resource cannot discard estimates for supported resources.
+- Unsupported resource types are logged and skipped independently. This intentional fix makes the existing per-resource
+  isolation explicit so one newly added resource cannot discard estimates for supported resources.
 - Tests must not contact AWS Pricing or DynamoDB.
 - Do not turn this package into a general AWS or utility package.

@@ -1,0 +1,54 @@
+{
+  "name": "@stacktape/config-inference",
+  "version": "4.0.0-dev.0",
+  "private": true,
+  "description": "Turns a repository into a Stacktape configuration: file-access policy, deterministic project probes, the evidence contract an agent submits, citation verification, and the composer. Contains no AI.",
+  "type": "module",
+  "exports": {
+    "./compose": "./src/compose/compose.ts",
+    "./compose/assumptions": "./src/compose/assumptions.ts",
+    "./compose/classify": "./src/compose/classify.ts",
+    "./compose/modes": "./src/compose/modes.ts",
+    "./facts": "./src/facts/project-facts.ts",
+    "./facts/agent-submission": "./src/facts/agent-submission.ts",
+    "./facts/apply-answer": "./src/facts/apply-answer.ts",
+    "./facts/citation": "./src/facts/citation.ts",
+    "./facts/dependency": "./src/facts/dependency.ts",
+    "./facts/existing-deployment": "./src/facts/existing-deployment.ts",
+    "./facts/service": "./src/facts/service.ts",
+    "./facts/uncertainty": "./src/facts/uncertainty.ts",
+    "./policy": "./src/policy/file-access.ts",
+    "./scan/assemble": "./src/scan/assemble.ts",
+    "./scan/file-tree": "./src/scan/file-tree.ts",
+    "./scan/language": "./src/scan/language.ts",
+    "./scan/probe": "./src/scan/probe.ts",
+    "./scan/probes/docker-compose": "./src/scan/probes/docker-compose.ts",
+    "./scan/probes/environment": "./src/scan/probes/environment.ts",
+    "./scan/probes/existing-deployment": "./src/scan/probes/existing-deployment.ts",
+    "./scan/probes/language-manifests": "./src/scan/probes/language-manifests.ts",
+    "./scan/probes/manifest": "./src/scan/probes/manifest.ts",
+    "./scan/probes/procfile": "./src/scan/probes/procfile.ts",
+    "./scan/read-source": "./src/scan/read-source.ts",
+    "./verify": "./src/verify/verify-facts.ts",
+    "./verify/anchors": "./src/verify/anchors.ts",
+    "./verify/quote-match": "./src/verify/quote-match.ts"
+  },
+  "scripts": {
+    "test": "bun test src",
+    "typecheck": "tsc -p tsconfig.json"
+  },
+  "dependencies": {
+    "yaml": "1.10.2",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@stacktape/config": "workspace:*",
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "ajv": "^6.12.6",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=24"
+  }
+}

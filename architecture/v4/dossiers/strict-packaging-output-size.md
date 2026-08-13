@@ -14,8 +14,8 @@ artifacts continue to emit a number.
 ## Why this slice exists
 
 At integration commit `20c8270c`, the ambient `PackagingOutput` and `PackageWorkloadOutput` contracts require a numeric
-size even though existing producers use `number`, `null`, and `undefined`. This creates 21 direct strict diagnostics
-and has encouraged assertion casts in six Lambda wrappers.
+size even though existing producers use `number`, `null`, and `undefined`. This creates 21 direct strict diagnostics and
+has encouraged assertion casts in six Lambda wrappers.
 
 ## Prerequisite integration commit
 

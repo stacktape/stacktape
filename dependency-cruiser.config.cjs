@@ -86,7 +86,7 @@ module.exports = {
        */
       path:
         '^apps/(cli/(@generated|generated|starter-projects|_test-stacks|__release|__release-npm|__stacktape-dist|__cli-dist|__dist|\\.stacktape)/|cli/starter-projects-metadata\\.json$' +
-        '|docs/dist/|console/(api/(@generated|dist)|ui/(dist|public))/)'
+        '|docs/dist/|init-ui/dist/|console/(api/(@generated|dist)|ui/(dist|public))/)'
     },
     includeOnly: '^(apps|packages)/',
     tsConfig: { fileName: 'tsconfig.base.json' }

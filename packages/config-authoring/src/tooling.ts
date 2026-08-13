@@ -29,7 +29,6 @@ import {
   $Secret,
   $SsmParam
 } from './directives.js';
-import { AWS_SES } from './global-aws-services.js';
 import * as resourceClasses from './resources.js';
 import * as typePropertyClasses from './type-properties.js';
 
@@ -50,7 +49,6 @@ export {
   $ResourceParam,
   $Secret,
   $SsmParam,
-  AWS_SES,
   compileAuthoringConfig,
   defineConfig,
   ENGINE_TYPE_TO_CLASS,

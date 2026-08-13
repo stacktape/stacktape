@@ -10,22 +10,22 @@ feature styles with large lazy dependencies may ship a separate stylesheet besid
   component-specific helpers beside it. There is no root barrel; every public entry point is an explicit package
   subpath.
 - Reusable primitives currently include buttons and links, form controls, tabs, badges, dialog, tooltip, alerts,
-  determinate progress, linear/section loaders, and responsive grid lists. Application wrappers may translate old
-  prop names or add form-library/router behavior, but must not duplicate the primitive's DOM, focus, or interaction
+  determinate progress, linear/section loaders, and responsive grid lists. Application wrappers may translate old prop
+  names or add form-library/router behavior, but must not duplicate the primitive's DOM, focus, or interaction
   implementation.
 - `resource-icon` owns the product-wide resource-to-icon/category/diagram mapping. `framework-icon` owns reusable
-  framework artwork. The isometric diagram consumes the same catalog through its heavy, private isopack resolver;
-  do not put product icon meaning back under `isometric-diagram` or reproduce the mapping in an application.
+  framework artwork. The isometric diagram consumes the same catalog through its heavy, private isopack resolver; do not
+  put product icon meaning back under `isometric-diagram` or reproduce the mapping in an application.
 - `config-editor` is the reusable editor frame: view navigation, panels, overlays, fullscreen layout, and shared
   document state. A host controller supplies compilation, persistence, pricing, Monaco language behavior, and actions.
 - `isometric-diagram` is an independent component that accepts a parsed `StacktapeConfig`. It does not belong to or
   import ConfigEditor. Keep its icon-heavy entry point lazy in applications.
-- `monaco-editor` is the small lifecycle-safe base for Monaco models and editor instances. It has no Stacktape
-  language services or toolbar. Console adds those in `components/StacktapeEditor`.
+- `monaco-editor` is the small lifecycle-safe base for Monaco models and editor instances. It has no Stacktape language
+  services or toolbar. Console adds those in `components/StacktapeEditor`.
 
-Do not move a private API call, router, global store, account context, or navigation behavior into this package. Give
-an application a thin adapter when those concerns must surround shared presentation. Conversely, do not rebuild
-shared keyboard, focus, loading, or semantic behavior in an application wrapper.
+Do not move a private API call, router, global store, account context, or navigation behavior into this package. Give an
+application a thin adapter when those concerns must surround shared presentation. Conversely, do not rebuild shared
+keyboard, focus, loading, or semantic behavior in an application wrapper.
 
 ## Styling
 

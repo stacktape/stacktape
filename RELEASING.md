@@ -1,15 +1,15 @@
 # Releasing Stacktape v4
 
-`.github/workflows/release.yml` is the only release path. It always builds and verifies the same six platform
-archives, checksum manifest, and npm tarball. The explicit channel changes only the public pointers:
+`.github/workflows/release.yml` is the only release path. It always builds and verifies the same six platform archives,
+checksum manifest, and npm tarball. The explicit channel changes only the public pointers:
 
 | Channel   | Version example   | npm tag   | GitHub release | Installer endpoint                       |
 | --------- | ----------------- | --------- | -------------- | ---------------------------------------- |
 | `preview` | `4.0.0-preview.1` | `preview` | Prerelease     | `https://installs-preview.stacktape.com` |
 | `stable`  | `4.0.0`           | `latest`  | Latest         | `https://installs.stacktape.com`         |
 
-Both top-level release commands dispatch the workflow from `main`, and stable releases are accepted only from
-`main`. Neither channel deploys a Stacktape project or uses `STACKTAPE_API_KEY`.
+Both top-level release commands dispatch the workflow from `main`, and stable releases are accepted only from `main`.
+Neither channel deploys a Stacktape project or uses `STACKTAPE_API_KEY`.
 
 ## Normal use
 
@@ -28,8 +28,8 @@ gh run list --repo stacktape/stacktape --workflow release.yml --limit 1
 gh run watch <run-id> --repo stacktape/stacktape
 ```
 
-Every npm version and GitHub release is immutable. Increment the preview sequence instead of attempting to overwrite
-an existing version. Verify a preview with:
+Every npm version and GitHub release is immutable. Increment the preview sequence instead of attempting to overwrite an
+existing version. Verify a preview with:
 
 ```powershell
 npm view stacktape@4.0.0-preview.1 version
@@ -48,9 +48,9 @@ The workflow uses no long-lived publishing secret:
   environment.
 - `release-installers` grants a separate job GitHub OIDC access to the AWS role
   `arn:aws:iam::977946299200:role/stacktape-github-release-installers`.
-- The AWS role may upload only the seven known installer paths in the production and preview buckets, read them back
-  for checksum verification, and create/read invalidations for the two corresponding CloudFront distributions. It
-  cannot list buckets, write another object path, invalidate another distribution, or deploy infrastructure.
+- The AWS role may upload only the seven known installer paths in the production and preview buckets, read them back for
+  checksum verification, and create/read invalidations for the two corresponding CloudFront distributions. It cannot
+  list buckets, write another object path, invalidate another distribution, or deploy infrastructure.
 
 `publish-install-scripts.ts` replaces the release version in the seven canonical sources, uploads exact bytes with
 SHA-256 checksums and preserved cache/content headers, checks S3's stored checksums, invalidates only those seven CDN
@@ -85,6 +85,6 @@ Do not add `NPM_TOKEN`, AWS access keys, or `STACKTAPE_API_KEY` to the workflow.
 
 ## Other mutable publications
 
-The old release also invoked the CLI to update schemas and generated AI documentation. Those endpoints remain
-separate from v4 npm/binary releases for now; do not reintroduce a Stacktape API key into `release.yml` to publish
-them. When they are reconnected, give their exact buckets/distributions the same direct-OIDC treatment.
+The old release also invoked the CLI to update schemas and generated AI documentation. Those endpoints remain separate
+from v4 npm/binary releases for now; do not reintroduce a Stacktape API key into `release.yml` to publish them. When
+they are reconnected, give their exact buckets/distributions the same direct-OIDC treatment.

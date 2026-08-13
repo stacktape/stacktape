@@ -46,6 +46,9 @@ function createResourceClass<Type extends StacktapeResourceType>(
 }
 
 export const RelationalDatabase = createResourceClass('RelationalDatabase', 'relational-database');
+export const DsqlDatabase = createResourceClass('DsqlDatabase', 'dsql-database');
+export const KafkaCluster = createResourceClass('KafkaCluster', 'kafka-cluster');
+export const EmailSender = createResourceClass('EmailSender', 'email-sender');
 export const WebService = createResourceClass('WebService', 'web-service');
 export const PrivateService = createResourceClass('PrivateService', 'private-service');
 export const WorkerService = createResourceClass('WorkerService', 'worker-service');
@@ -58,7 +61,9 @@ export const HostingBucket = createResourceClass('HostingBucket', 'hosting-bucke
 export const DynamoDbTable = createResourceClass('DynamoDbTable', 'dynamo-db-table');
 export const EventBus = createResourceClass('EventBus', 'event-bus');
 export const HttpApiGateway = createResourceClass('HttpApiGateway', 'http-api-gateway');
+export const WebSocketApiGateway = createResourceClass('WebSocketApiGateway', 'websocket-api-gateway');
 export const ApplicationLoadBalancer = createResourceClass('ApplicationLoadBalancer', 'application-load-balancer');
+export const AppSyncApi = createResourceClass('AppSyncApi', 'appsync-api');
 export const NetworkLoadBalancer = createResourceClass('NetworkLoadBalancer', 'network-load-balancer');
 export const RedisCluster = createResourceClass('RedisCluster', 'redis-cluster');
 export const MongoDbAtlasCluster = createResourceClass('MongoDbAtlasCluster', 'mongo-db-atlas-cluster');

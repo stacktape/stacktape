@@ -1,8 +1,8 @@
 # Agent execution model
 
 > Historical record: this describes the completed v4 migration orchestration. Do not use its `v4/integration`,
-> `v4/slice/*`, mandatory-dossier instructions, or repository-owned worktree scripts for current work. Codex and
-> Claude Code now own worktree creation and cleanup; current behavior and review rules live in the root `AGENTS.md`.
+> `v4/slice/*`, mandatory-dossier instructions, or repository-owned worktree scripts for current work. Codex and Claude
+> Code now own worktree creation and cleanup; current behavior and review rules live in the root `AGENTS.md`.
 
 ## Principles
 
@@ -74,8 +74,8 @@ The reviewer is read-only until the orchestrator explicitly assigns a follow-up 
 
 ### Verification agent
 
-At major phase gates, a verification agent may run the full matrix, inspect artifacts, exercise chosen v4 contracts,
-and test clean clones. It must be distinct from the agents that implemented the majority of the phase.
+At major phase gates, a verification agent may run the full matrix, inspect artifacts, exercise chosen v4 contracts, and
+test clean clones. It must be distinct from the agents that implemented the majority of the phase.
 
 ## Slice dossier
 
@@ -156,9 +156,9 @@ The retired repository-owned creation script was required to:
 10. Print exact cleanup commands but never auto-delete a dirty worktree.
 
 The retired cleanup script resolved and verified the absolute target inside the dedicated `.worktrees` root before
-removing anything. Because Git stores each private submodule clone underneath its public worktree metadata, cleanup
-also refused to proceed unless the private HEAD was reachable from a remote-tracking ref. That underlying Git risk
-still exists; the current workflow addresses it with `pnpm console:pointer:verify` before harness-owned cleanup.
+removing anything. Because Git stores each private submodule clone underneath its public worktree metadata, cleanup also
+refused to proceed unless the private HEAD was reachable from a remote-tracking ref. That underlying Git risk still
+exists; the current workflow addresses it with `pnpm console:pointer:verify` before harness-owned cleanup.
 
 ## Commit and integration protocol
 
@@ -173,8 +173,8 @@ For a slice touching private and public code:
 6. The orchestrator records the final integrated private commit in `apps/console` and commits the pointer update.
 7. The orchestrator reruns integrated and public-only checks.
 
-No agent pushes slice branches unless the orchestrator requests it. No slice agent force-pushes. The orchestrator is
-the only role allowed to update integration branches or submodule pointers.
+No agent pushes slice branches unless the orchestrator requests it. No slice agent force-pushes. The orchestrator is the
+only role allowed to update integration branches or submodule pointers.
 
 Commit messages identify behavior, not file movement:
 

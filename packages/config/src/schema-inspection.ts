@@ -40,6 +40,7 @@ const COMPUTE_RESOURCES = new Set<StacktapeResourceType>([
 
 const DATABASE_RESOURCES = new Set<StacktapeResourceType>([
   'relational-database',
+  'dsql-database',
   'redis-cluster',
   'dynamo-db-table',
   'open-search-domain'
@@ -55,6 +56,9 @@ const OTHER_RESOURCES = new Set<StacktapeResourceType>([
   'sqs-queue',
   'application-load-balancer',
   'http-api-gateway',
+  'websocket-api-gateway',
+  'appsync-api',
+  'kafka-cluster',
   'state-machine',
   'custom-resource-definition',
   'custom-resource-instance',

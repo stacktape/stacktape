@@ -52,6 +52,23 @@ export const arns = {
   },
   snsTopic({ accountId, region, snsTopicAwsName }: { snsTopicAwsName: string; accountId: string; region: string }) {
     return `arn:aws:sns:${region}:${accountId}:${snsTopicAwsName}`;
+  },
+  sesIdentity({ accountId, identity, region }: { accountId: string; identity: string; region: string }) {
+    return `arn:aws:ses:${region}:${accountId}:identity/${identity}`;
+  },
+  sesConfigurationSet({
+    accountId,
+    configurationSetName,
+    region
+  }: {
+    accountId: string;
+    configurationSetName: string;
+    region: string;
+  }) {
+    return `arn:aws:ses:${region}:${accountId}:configuration-set/${configurationSetName}`;
+  },
+  appsyncApi({ accountId, apiId, region }: { accountId: string; apiId: string; region: string }) {
+    return `arn:aws:appsync:${region}:${accountId}:apis/${apiId}`;
   }
 };
 

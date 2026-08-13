@@ -3,6 +3,14 @@
   "singleQuote": true,
   "trailingComma": "none",
   "endOfLine": "lf",
+  "overrides": [
+    {
+      "files": ["**/*.md", "**/*.mdx"],
+      "options": {
+        "proseWrap": "always"
+      }
+    }
+  ],
   "ignorePatterns": [
     "**/*.astro",
     "**/.astro/**",

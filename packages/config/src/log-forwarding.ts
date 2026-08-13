@@ -1,4 +1,52 @@
-export interface LogForwardingBase {
+export interface CloudWatchLogGroupOptions {
+  /**
+   * #### Choose the lower-ingestion-cost CloudWatch Logs class for logs that you inspect only occasionally.
+   *
+   * `infrequent-access` still supports Logs Insights, but it does not support live tail, metric or subscription
+   * filters, embedded metrics, or Stacktape log forwarding. A log group's class cannot be changed after it is
+   * created, so use this for new resources or stages.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   archiveWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/archive.ts
+   *       logging:
+   *         # stp-focus
+   *         logClass: infrequent-access
+   *         # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, StacktapeLambdaBuildpackPackaging, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const archiveWorker = new LambdaFunction({
+   *     packaging: new StacktapeLambdaBuildpackPackaging({ entryfilePath: 'src/archive.ts' }),
+   *     logging: {
+   *       // stp-focus
+   *       logClass: 'infrequent-access'
+   *       // stp-end-focus
+   *     }
+   *   });
+   *   return { resources: { archiveWorker } };
+   * });
+   * ```
+   *
+   * @default standard
+   */
+  logClass?: 'standard' | 'infrequent-access';
+}
+
+export interface LogForwardingBase extends CloudWatchLogGroupOptions {
   /**
    * #### Forward logs to an external service (Datadog, Highlight.io, or any HTTP endpoint).
    *

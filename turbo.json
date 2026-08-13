@@ -41,6 +41,11 @@
       "cache": false,
       "persistent": true
     },
+    "@stacktape/cli#build:dev-artifacts": {
+      "description": "Build everything the development CLI serves from disk: packaged helper lambdas and the init wizard bundle",
+      "dependsOn": ["@stacktape/init-ui#build"],
+      "outputs": ["__stacktape-dist/dev/**"]
+    },
     "@stacktape/docs#build": {
       "description": "Build the documentation site against the CLI's reviewed generated artifacts",
       "dependsOn": ["^build", "^generate", "@stacktape/cli#generate", "@stacktape/cli#generate:monaco"],
@@ -65,6 +70,58 @@
       "description": "Serve the documentation site against the CLI's reviewed generated artifacts",
       "dependsOn": ["@stacktape/cli#generate", "@stacktape/cli#generate:monaco", "@stacktape/ui-react#build"],
       "with": ["@stacktape/ui-react#dev"],
+      "cache": false,
+      "persistent": true
+    },
+    "@stacktape/console-ui#generate": {
+      "description": "Materialize the canonical Stacktape schema for the Console editor",
+      "outputs": ["public/config-schema.json"]
+    },
+    "@stacktape/console-ui#generate:monaco": {
+      "description": "Materialize CLI-generated Stacktape declarations for Console Monaco",
+      "dependsOn": ["@stacktape/cli#generate:monaco"],
+      "outputs": ["public/stacktape/**"]
+    },
+    "@stacktape/console-ui#build": {
+      "description": "Build the Console UI after its editor inputs and workspace UI are ready",
+      "dependsOn": ["^build", "^generate", "generate", "generate:monaco"],
+      "outputs": ["dist/**"]
+    },
+    "@stacktape/console-ui#dev": {
+      "description": "Serve the Console UI after its editor inputs and initial workspace UI build are ready",
+      "dependsOn": ["generate", "generate:monaco", "@stacktape/ui-react#build"],
+      "with": ["@stacktape/ui-react#dev"],
+      "cache": false,
+      "persistent": true
+    },
+    "@stacktape/console-ui#typecheck": {
+      "description": "Type-check the Console UI against generated workspace inputs and built shared UI types",
+      "dependsOn": ["^generate", "generate", "@stacktape/ui-react#build"],
+      "outputs": []
+    },
+    "@stacktape/init-ui#build:watch": {
+      "description": "Continuously build the embedded init wizard after its workspace UI is ready",
+      "dependsOn": ["@stacktape/ui-react#build"],
+      "with": ["@stacktape/ui-react#dev"],
+      "cache": false,
+      "persistent": true
+    },
+    "@stacktape/init-ui#dev": {
+      "description": "Serve the init wizard after its initial workspace UI build is ready",
+      "dependsOn": ["@stacktape/ui-react#build"],
+      "with": ["@stacktape/ui-react#dev"],
+      "cache": false,
+      "persistent": true
+    },
+    "@stacktape/init-ui#typecheck": {
+      "description": "Type-check the init wizard against built shared UI types",
+      "dependsOn": ["^generate", "@stacktape/ui-react#build"],
+      "outputs": []
+    },
+    "@stacktape/website#dev": {
+      "description": "Serve the website against live generated design tokens",
+      "dependsOn": ["@stacktape/design-tokens#generate"],
+      "with": ["@stacktape/design-tokens#dev"],
       "cache": false,
       "persistent": true
     },

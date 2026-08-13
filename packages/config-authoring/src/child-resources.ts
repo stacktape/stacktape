@@ -5,6 +5,48 @@ export const CHILD_RESOURCES: Record<
   StacktapeResourceType,
   Array<{ logicalName: (...args: any[]) => string; resourceType: string; conditional?: true; unresolvable?: true }>
 > = {
+  'kafka-cluster': [
+    { logicalName: cfLogicalNames.kafkaServerlessCluster, resourceType: 'AWS::MSK::ServerlessCluster' },
+    { logicalName: cfLogicalNames.kafkaClusterSecurityGroup, resourceType: 'AWS::EC2::SecurityGroup' },
+    { logicalName: cfLogicalNames.kafkaClusterSelfIngress, resourceType: 'AWS::EC2::SecurityGroupIngress' },
+    {
+      logicalName: cfLogicalNames.kafkaBootstrapBrokers,
+      resourceType: 'AWS::CloudFormation::CustomResource'
+    }
+  ],
+  'email-sender': [],
+  'appsync-api': [
+    { logicalName: cfLogicalNames.appsyncApi, resourceType: 'AWS::AppSync::GraphQLApi' },
+    { logicalName: cfLogicalNames.appsyncApiSchema, resourceType: 'AWS::AppSync::GraphQLSchema' },
+    { logicalName: cfLogicalNames.appsyncApiLogRole, resourceType: 'AWS::IAM::Role', conditional: true },
+    { logicalName: cfLogicalNames.appsyncApiLogGroup, resourceType: 'AWS::Logs::LogGroup', conditional: true },
+    { logicalName: cfLogicalNames.appsyncApiKey, resourceType: 'AWS::AppSync::ApiKey', conditional: true },
+    {
+      logicalName: cfLogicalNames.appsyncApiDataSource,
+      resourceType: 'AWS::AppSync::DataSource',
+      conditional: true,
+      unresolvable: true
+    },
+    {
+      logicalName: cfLogicalNames.appsyncApiDataSourceRole,
+      resourceType: 'AWS::IAM::Role',
+      conditional: true,
+      unresolvable: true
+    },
+    {
+      logicalName: cfLogicalNames.appsyncApiResolver,
+      resourceType: 'AWS::AppSync::Resolver',
+      conditional: true,
+      unresolvable: true
+    },
+    { logicalName: cfLogicalNames.appsyncApiDomain, resourceType: 'AWS::AppSync::DomainName', conditional: true },
+    {
+      logicalName: cfLogicalNames.appsyncApiDomainAssociation,
+      resourceType: 'AWS::AppSync::DomainNameApiAssociation',
+      conditional: true
+    },
+    { logicalName: cfLogicalNames.appsyncApiDnsRecord, resourceType: 'AWS::Route53::RecordSet', conditional: true }
+  ],
   // ===== BUCKET =====
   bucket: [
     { logicalName: cfLogicalNames.bucket, resourceType: 'AWS::S3::Bucket' },
@@ -187,6 +229,9 @@ export const CHILD_RESOURCES: Record<
     }
   ],
 
+  // ===== DSQL DATABASE =====
+  'dsql-database': [{ logicalName: cfLogicalNames.dsqlCluster, resourceType: 'AWS::DSQL::Cluster' }],
+
   // ===== DYNAMO DB TABLE =====
   'dynamo-db-table': [{ logicalName: cfLogicalNames.dynamoGlobalTable, resourceType: 'AWS::DynamoDB::GlobalTable' }],
 
@@ -251,6 +296,28 @@ export const CHILD_RESOURCES: Record<
     {
       logicalName: cfLogicalNames.cloudfrontDistribution,
       resourceType: 'AWS::CloudFront::Distribution',
+      conditional: true
+    }
+  ],
+
+  // ===== WEBSOCKET API GATEWAY =====
+  'websocket-api-gateway': [
+    { logicalName: cfLogicalNames.websocketApi, resourceType: 'AWS::ApiGatewayV2::Api' },
+    { logicalName: cfLogicalNames.websocketApiStage, resourceType: 'AWS::ApiGatewayV2::Stage' },
+    { logicalName: cfLogicalNames.websocketApiLogGroup, resourceType: 'AWS::Logs::LogGroup', conditional: true },
+    {
+      logicalName: cfLogicalNames.websocketApiDomain,
+      resourceType: 'AWS::ApiGatewayV2::DomainName',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.websocketApiDomainMapping,
+      resourceType: 'AWS::ApiGatewayV2::ApiMapping',
+      conditional: true
+    },
+    {
+      logicalName: cfLogicalNames.websocketApiDnsRecord,
+      resourceType: 'AWS::Route53::RecordSet',
       conditional: true
     }
   ],

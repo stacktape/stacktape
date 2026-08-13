@@ -3,12 +3,15 @@ import type { StacktapeResourceDefinition } from '@stacktape/config/shared';
 import type { AnyCloudFormationResource } from '@stacktape/cloudformation/resource';
 import { ref } from '@stacktape/cloudformation/intrinsics';
 import type { LambdaPackaging } from '@stacktape/config/deployment-artifacts';
-import type { HttpApiIntegration } from '@stacktape/config/events';
+import type { HttpApiIntegration, WebSocketApiIntegration } from '@stacktape/config/events';
 import type { LambdaFunction } from '@stacktape/config/functions';
 import type { Bucket } from '@stacktape/config/buckets';
 import type { WebService } from '@stacktape/config/web-services';
 import type { BudgetControl } from '@stacktape/config/budget';
 import type { AlarmDefinition, AlarmTrigger } from '@stacktape/config/alarms';
+import type { WebSocketApiGateway } from '@stacktape/config/websocket-api-gateways';
+import type { DsqlDatabase } from '@stacktape/config/dsql-databases';
+import type { EmailSender } from '@stacktape/config/email-senders';
 
 /**
  * A real Stacktape configuration built from explicit package imports.
@@ -33,9 +36,18 @@ export const httpIntegration: HttpApiIntegration = {
   properties: { httpApiGatewayName: 'gateway', method: 'GET', path: '/items' }
 };
 
+export const realtimeGateway: WebSocketApiGateway = {
+  type: 'websocket-api-gateway'
+};
+
+export const websocketIntegration: WebSocketApiIntegration = {
+  type: 'websocket-api-gateway',
+  properties: { websocketApiGatewayName: 'realtime', routeKey: 'sendMessage' }
+};
+
 export const api: LambdaFunction = {
   type: 'function',
-  properties: { packaging: lambdaPackaging, events: [httpIntegration], memory: 512 }
+  properties: { packaging: lambdaPackaging, events: [httpIntegration, websocketIntegration], memory: 512 }
 };
 
 export const site: WebService = {
@@ -47,6 +59,8 @@ export const site: WebService = {
 };
 
 export const uploads: Bucket = { type: 'bucket', properties: { versioning: true } };
+export const primaryDsql: DsqlDatabase = { type: 'dsql-database' };
+export const transactionalEmail: EmailSender = { type: 'email-sender', properties: { identity: 'example.com' } };
 
 export const rawTopic: AnyCloudFormationResource = {
   Type: 'AWS::SNS::Topic',
@@ -61,7 +75,14 @@ export const rawSubscription: AnyCloudFormationResource = {
 };
 
 // Every resource a user can write must be assignable to the union the schema is generated from.
-const resources: Record<string, StacktapeResourceDefinition> = { api, site, uploads };
+const resources: Record<string, StacktapeResourceDefinition> = {
+  api,
+  primaryDsql,
+  realtime: realtimeGateway,
+  site,
+  transactionalEmail,
+  uploads
+};
 
 export const acceptedConfiguration: StacktapeConfig = {
   projectName: 'acceptance',

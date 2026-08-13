@@ -11,7 +11,7 @@ type KebabToPascalCase<Value extends string> = Value extends `${infer First}-${i
  */
 
 export type ResourceClassName =
-  | Exclude<KebabToPascalCase<StacktapeResourceType>, 'Function'>
+  | Exclude<KebabToPascalCase<StacktapeResourceType>, 'AppsyncApi' | 'Function' | 'WebsocketApiGateway'>
   | 'Script'
   | 'LambdaFunction'
   | 'SvelteKitWeb'
@@ -21,7 +21,9 @@ export type ResourceClassName =
   | 'AgentCoreMemory'
   | 'AgentCoreGateway'
   | 'AgentCoreBrowser'
-  | 'AgentCoreCodeInterpreter';
+  | 'AgentCoreCodeInterpreter'
+  | 'AppSyncApi'
+  | 'WebSocketApiGateway';
 
 export type ResourceDefinition = {
   /** Class name for the resource (e.g., 'LambdaFunction') */
@@ -34,13 +36,78 @@ export type ResourceDefinition = {
   interfaceName: string;
   /** Source .d.ts file name (e.g., 'functions.d.ts') */
   sourceFile: string;
-  /** Resources and AWS services this resource can connect to. GlobalAwsServiceConstant is for global services, e.g. aws:ses  */
+  /** Resources this resource can connect to. */
   canConnectTo?: readonly ResourceClassName[];
   /** Whether this resource supports overrides (default: true) */
   supportsOverrides?: boolean;
   /** Whether this resource has augmented connectTo/environment props (default: false) */
   hasAugmentedProps?: boolean;
 };
+
+const AGENTCORE_CONNECT_TO_TARGET_CLASSES = [
+  'AgentCoreRuntime',
+  'AgentCoreMemory',
+  'AgentCoreGateway',
+  'AgentCoreBrowser',
+  'AgentCoreCodeInterpreter'
+] as const satisfies readonly ResourceClassName[];
+
+// Keep connection capabilities grouped by the runtime behavior that makes them possible. These tuples are also used
+// by the declaration generator, so adding a new connectable resource in one place reaches every matching workload.
+const STANDARD_COMPUTE_CONNECTION_TARGET_CLASSES = [
+  'RelationalDatabase',
+  'DsqlDatabase',
+  'EmailSender',
+  'AppSyncApi',
+  ...AGENTCORE_CONNECT_TO_TARGET_CLASSES,
+  'Bucket',
+  'HostingBucket',
+  'DynamoDbTable',
+  'EventBus',
+  'RedisCluster',
+  'MongoDbAtlasCluster',
+  'UpstashRedis',
+  'SqsQueue',
+  'SnsTopic',
+  'KinesisStream',
+  'OpenSearchDomain',
+  'EfsFilesystem'
+] as const satisfies readonly ResourceClassName[];
+
+const VPC_COMPUTE_CONNECTION_TARGET_CLASSES = [
+  'RelationalDatabase',
+  'DsqlDatabase',
+  'KafkaCluster',
+  'EmailSender',
+  'AppSyncApi',
+  ...AGENTCORE_CONNECT_TO_TARGET_CLASSES,
+  'Bucket',
+  'HostingBucket',
+  'DynamoDbTable',
+  'EventBus',
+  'RedisCluster',
+  'MongoDbAtlasCluster',
+  'UpstashRedis',
+  'SqsQueue',
+  'SnsTopic',
+  'KinesisStream',
+  'OpenSearchDomain',
+  'EfsFilesystem'
+] as const satisfies readonly ResourceClassName[];
+
+const VPC_SERVICE_CONNECTION_TARGET_CLASSES = [
+  ...VPC_COMPUTE_CONNECTION_TARGET_CLASSES,
+  'WebSocketApiGateway'
+] as const satisfies readonly ResourceClassName[];
+
+const APPLICATION_RUNTIME_CONNECTION_TARGET_CLASSES = [
+  ...STANDARD_COMPUTE_CONNECTION_TARGET_CLASSES,
+  'PrivateService',
+  'WebService',
+  'LambdaFunction',
+  'BatchJob',
+  'UserAuthPool'
+] as const satisfies readonly ResourceClassName[];
 
 /**
  * Complete list of all Stacktape resources.
@@ -56,28 +123,47 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     canConnectTo: []
   },
   {
+    className: 'DsqlDatabase',
+    resourceType: 'dsql-database',
+    propsType: 'DsqlDatabaseProps',
+    interfaceName: 'DsqlDatabase',
+    sourceFile: 'dsql-databases.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'KafkaCluster',
+    resourceType: 'kafka-cluster',
+    propsType: 'KafkaClusterProps',
+    interfaceName: 'KafkaCluster',
+    sourceFile: 'kafka-clusters.d.ts',
+    canConnectTo: [],
+    supportsOverrides: false
+  },
+  {
+    className: 'AppSyncApi',
+    resourceType: 'appsync-api',
+    propsType: 'AppSyncApiProps',
+    interfaceName: 'AppSyncApi',
+    sourceFile: 'appsync-apis.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'EmailSender',
+    resourceType: 'email-sender',
+    propsType: 'EmailSenderProps',
+    interfaceName: 'EmailSender',
+    sourceFile: 'email-senders.d.ts',
+    canConnectTo: [],
+    supportsOverrides: false
+  },
+  {
     className: 'WebService',
     resourceType: 'web-service',
     propsType: 'WebServiceProps',
     interfaceName: 'WebService',
     sourceFile: 'web-services.d.ts',
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem',
-      'PrivateService'
-    ]
+    canConnectTo: [...VPC_SERVICE_CONNECTION_TARGET_CLASSES, 'PrivateService']
   },
   {
     className: 'PrivateService',
@@ -86,21 +172,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     interfaceName: 'PrivateService',
     sourceFile: 'private-services.d.ts',
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem'
-    ]
+    canConnectTo: VPC_SERVICE_CONNECTION_TARGET_CLASSES
   },
   {
     className: 'WorkerService',
@@ -109,21 +181,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     interfaceName: 'WorkerService',
     sourceFile: 'worker-services.d.ts',
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem'
-    ]
+    canConnectTo: VPC_SERVICE_CONNECTION_TARGET_CLASSES
   },
   {
     className: 'MultiContainerWorkload',
@@ -132,24 +190,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     interfaceName: 'MultiContainerWorkload',
     sourceFile: 'multi-container-workloads.d.ts',
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem',
-      'LambdaFunction',
-      'BatchJob',
-      'UserAuthPool'
-    ]
+    canConnectTo: [...VPC_SERVICE_CONNECTION_TARGET_CLASSES, 'LambdaFunction', 'BatchJob', 'UserAuthPool']
   },
   {
     className: 'LambdaFunction',
@@ -159,18 +200,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     sourceFile: 'functions.d.ts',
     hasAugmentedProps: true,
     canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
+      ...VPC_SERVICE_CONNECTION_TARGET_CLASSES,
       'PrivateService',
       'WebService',
       'LambdaFunction',
@@ -185,21 +215,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     interfaceName: 'BatchJob',
     sourceFile: 'batch-jobs.d.ts',
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem'
-    ]
+    canConnectTo: VPC_SERVICE_CONNECTION_TARGET_CLASSES
   },
   {
     className: 'Convex',
@@ -251,6 +267,14 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     propsType: 'HttpApiGatewayProps',
     interfaceName: 'HttpApiGateway',
     sourceFile: 'http-api-gateways.d.ts',
+    canConnectTo: []
+  },
+  {
+    className: 'WebSocketApiGateway',
+    resourceType: 'websocket-api-gateway',
+    propsType: 'WebSocketApiGatewayProps',
+    interfaceName: 'WebSocketApiGateway',
+    sourceFile: 'websocket-api-gateways.d.ts',
     canConnectTo: []
   },
   {
@@ -368,19 +392,8 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     sourceFile: 'nextjs-web.d.ts',
     hasAugmentedProps: true,
     canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem',
+      ...STANDARD_COMPUTE_CONNECTION_TARGET_CLASSES,
+      'WebSocketApiGateway',
       'PrivateService',
       'WebService',
       'LambdaFunction',
@@ -395,26 +408,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     interfaceName: 'AstroWeb',
     sourceFile: 'astro-web.d.ts',
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem',
-      'PrivateService',
-      'WebService',
-      'LambdaFunction',
-      'BatchJob',
-      'UserAuthPool'
-    ]
+    canConnectTo: APPLICATION_RUNTIME_CONNECTION_TARGET_CLASSES
   },
   {
     className: 'NuxtWeb',
@@ -423,26 +417,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     interfaceName: 'NuxtWeb',
     sourceFile: 'nuxt-web.d.ts',
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem',
-      'PrivateService',
-      'WebService',
-      'LambdaFunction',
-      'BatchJob',
-      'UserAuthPool'
-    ]
+    canConnectTo: APPLICATION_RUNTIME_CONNECTION_TARGET_CLASSES
   },
   {
     className: 'SvelteKitWeb',
@@ -451,26 +426,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     interfaceName: 'SvelteKitWeb',
     sourceFile: 'sveltekit-web.d.ts',
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem',
-      'PrivateService',
-      'WebService',
-      'LambdaFunction',
-      'BatchJob',
-      'UserAuthPool'
-    ]
+    canConnectTo: APPLICATION_RUNTIME_CONNECTION_TARGET_CLASSES
   },
   {
     className: 'SolidStartWeb',
@@ -479,26 +435,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     interfaceName: 'SolidStartWeb',
     sourceFile: 'solidstart-web.d.ts',
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem',
-      'PrivateService',
-      'WebService',
-      'LambdaFunction',
-      'BatchJob',
-      'UserAuthPool'
-    ]
+    canConnectTo: APPLICATION_RUNTIME_CONNECTION_TARGET_CLASSES
   },
   {
     className: 'TanStackWeb',
@@ -507,26 +444,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     interfaceName: 'TanStackWeb',
     sourceFile: 'tanstack-web.d.ts',
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem',
-      'PrivateService',
-      'WebService',
-      'LambdaFunction',
-      'BatchJob',
-      'UserAuthPool'
-    ]
+    canConnectTo: APPLICATION_RUNTIME_CONNECTION_TARGET_CLASSES
   },
   {
     className: 'RemixWeb',
@@ -535,26 +453,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     interfaceName: 'RemixWeb',
     sourceFile: 'remix-web.d.ts',
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem',
-      'PrivateService',
-      'WebService',
-      'LambdaFunction',
-      'BatchJob',
-      'UserAuthPool'
-    ]
+    canConnectTo: APPLICATION_RUNTIME_CONNECTION_TARGET_CLASSES
   },
   {
     className: 'Bastion',
@@ -571,26 +470,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     interfaceName: 'AgentCoreRuntime',
     sourceFile: 'agentcore.d.ts',
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem',
-      'PrivateService',
-      'WebService',
-      'LambdaFunction',
-      'BatchJob',
-      'UserAuthPool'
-    ]
+    canConnectTo: APPLICATION_RUNTIME_CONNECTION_TARGET_CLASSES
   },
   {
     className: 'AgentCoreMemory',
@@ -641,22 +521,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     sourceFile: 'custom-resources.d.ts',
     supportsOverrides: false,
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem',
-      'PrivateService'
-    ]
+    canConnectTo: [...STANDARD_COMPUTE_CONNECTION_TARGET_CLASSES, 'PrivateService']
   },
   {
     className: 'CustomResourceInstance',
@@ -675,22 +540,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     sourceFile: 'deployment-script.d.ts',
     supportsOverrides: false,
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem',
-      'PrivateService'
-    ]
+    canConnectTo: [...VPC_COMPUTE_CONNECTION_TARGET_CLASSES, 'PrivateService']
   },
   {
     className: 'EdgeLambdaFunction',
@@ -699,22 +549,7 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     interfaceName: 'EdgeLambdaFunction',
     sourceFile: 'edge-lambda-functions.d.ts',
     hasAugmentedProps: true,
-    canConnectTo: [
-      'RelationalDatabase',
-      'Bucket',
-      'HostingBucket',
-      'DynamoDbTable',
-      'EventBus',
-      'RedisCluster',
-      'MongoDbAtlasCluster',
-      'UpstashRedis',
-      'SqsQueue',
-      'SnsTopic',
-      'KinesisStream',
-      'OpenSearchDomain',
-      'EfsFilesystem',
-      'PrivateService'
-    ]
+    canConnectTo: [...STANDARD_COMPUTE_CONNECTION_TARGET_CLASSES, 'PrivateService']
   }
 ] as const satisfies readonly ResourceDefinition[];
 
@@ -897,6 +732,20 @@ export const MISC_TYPES_CONVERTIBLE_TO_CLASSES = [
     typeValue: 'http-api-gateway',
     propsType: 'HttpApiIntegrationProps',
     interfaceName: 'HttpApiIntegration',
+    sourceFile: 'events.d.ts'
+  },
+  {
+    className: 'AppSyncApiIntegration',
+    typeValue: 'appsync-api',
+    propsType: 'AppSyncApiIntegrationProps',
+    interfaceName: 'AppSyncApiIntegration',
+    sourceFile: 'events.d.ts'
+  },
+  {
+    className: 'WebSocketApiIntegration',
+    typeValue: 'websocket-api-gateway',
+    propsType: 'WebSocketApiIntegrationProps',
+    interfaceName: 'WebSocketApiIntegration',
     sourceFile: 'events.d.ts'
   },
   {

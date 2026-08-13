@@ -49,6 +49,19 @@ export const awsResourceNames = {
       lengthLimit: 255
     });
   },
+  // AWS::MSK::ServerlessCluster ClusterName: 1-64 characters.
+  kafkaServerlessCluster(stpResourceName: string, stackName: string) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-${stpResourceName}`,
+      lengthLimit: 64
+    });
+  },
+  kafkaClusterSecurityGroup(stpResourceName: string, stackName: string) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-${stpResourceName}-kafka-sg`,
+      lengthLimit: 255
+    });
+  },
   // max 40 chars
   // https://docs.aws.amazon.com/cli/latest/reference/elasticache/create-replication-group.html
   redisReplicationGroupId(stpResourceName: string, stackName: string) {
@@ -457,6 +470,9 @@ export const awsResourceNames = {
   workloadSecurityGroupGroupDescription(workloadName: string, stackName: string) {
     return `Security group associated with ${workloadName} in stack ${stackName}`;
   },
+  kafkaClusterSecurityGroupDescription(stpResourceName: string, stackName: string) {
+    return `Security group for Kafka cluster ${stpResourceName} in stack ${stackName}`;
+  },
   // length - no limits found
   httpApiAuthorizer({
     stackName,
@@ -538,6 +554,39 @@ export const awsResourceNames = {
   // length limits not found
   httpApi(stackName: string) {
     return `${stackName}-http-api`;
+  },
+  websocketApi({ stackName, stpResourceName }: { stackName: string; stpResourceName: string }) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-${stpResourceName}-websocket-api`,
+      lengthLimit: 128
+    });
+  },
+  websocketApiLogGroup({ stackName, stpResourceName }: { stackName: string; stpResourceName: string }) {
+    return buildResourceName({
+      proposedResourceName: `/aws/vendedlogs/${stackName}/api-gateway/${stpResourceName}/websocket-access-logs`,
+      lengthLimit: 512
+    });
+  },
+  appsyncApi({ stackName, stpResourceName }: { stackName: string; stpResourceName: string }) {
+    return buildResourceName({
+      proposedResourceName: `${stackName}-${stpResourceName}-appsync-api`,
+      lengthLimit: 255
+    });
+  },
+  appsyncApiLogGroup({ apiId }: { apiId: string }) {
+    return `/aws/appsync/apis/${apiId}`;
+  },
+  appsyncDataSource({
+    stpAppsyncApiName,
+    stpLambdaFunctionName
+  }: {
+    stpAppsyncApiName: string;
+    stpLambdaFunctionName: string;
+  }) {
+    const sourceIdentity = `${stpAppsyncApiName}_${stpLambdaFunctionName}`;
+    const readableName = sourceIdentity.replaceAll(/[^_0-9A-Za-z]/g, '_');
+    const proposedName = `${readableName}_${shortHash(sourceIdentity)}`;
+    return /^[A-Za-z_]/.test(proposedName) ? proposedName : `_${proposedName}`;
   },
   // length limits not found
   httpApiVpcLink({ stackName, stpResourceName }: { stackName: string; stpResourceName: string }) {

@@ -26,17 +26,16 @@ Do not fix unrelated strict diagnostics in these files.
 
 1. Let TypeScript retain the actual inferred shape of each entry in `RESOURCE_DEFAULTS`. Constrain the table with
    `satisfies`, without `as const` and without adding a recursive `DeepPartial` abstraction.
-2. Add a `ResourceDefaultsOf<T>` lookup and a `DefaultedResource<T, TParent>` intersection beside
-   `NormalizedResource`. `NormalizedResource` must continue to describe the honest pre-default shape.
-3. Keep the runtime merge algorithm. Use one localized assertion-signature helper to state its postcondition rather
-   than scattering casts or non-null assertions through consumers.
+2. Add a `ResourceDefaultsOf<T>` lookup and a `DefaultedResource<T, TParent>` intersection beside `NormalizedResource`.
+   `NormalizedResource` must continue to describe the honest pre-default shape.
+3. Keep the runtime merge algorithm. Use one localized assertion-signature helper to state its postcondition rather than
+   scattering casts or non-null assertions through consumers.
 4. Make `getResourcesFromConfig` return defaulted resources.
-5. If measurement remains favorable, state the all-producer container-workload guarantee that
-   `scaling.minInstances` and `scaling.maxInstances` are present. Do not make `scalingPolicy` required: the Convex
-   producer does not supply it.
+5. If measurement remains favorable, state the all-producer container-workload guarantee that `scaling.minInstances` and
+   `scaling.maxInstances` are present. Do not make `scalingPolicy` required: the Convex producer does not supply it.
 
-Implement items 1–4 and measure before item 5. If tightening the all-producer contract causes broader dishonest
-typing or net-negative churn, omit item 5 and report why.
+Implement items 1–4 and measure before item 5. If tightening the all-producer contract causes broader dishonest typing
+or net-negative churn, omit item 5 and report why.
 
 ## Behavior to characterize
 
@@ -45,16 +44,16 @@ typing or net-negative churn, omit item 5 and report why.
 - Existing nested write-back behavior is pinned, not silently changed.
 - A returned nested object does not alias the defaults table, and repeated reads are stable.
 - Empty default entries do not change a resource.
-- Compile-time tests distinguish normalized from defaulted resources, retain parent identity, and keep
-  `scalingPolicy` optional for the all-producer container shape.
+- Compile-time tests distinguish normalized from defaulted resources, retain parent identity, and keep `scalingPolicy`
+  optional for the all-producer container shape.
 
 ## Known behavior debt outside this slice
 
 - Minimal-template cleanup deletes `cleanedConfig[key]` instead of `cleanedConfig.resources[key]`.
-- The special `container` merge branch assigns to a `forEach` parameter and therefore does not update the array when
-  its fallback branch is reached. No current resource default exercises that branch.
-- Nested default merging can write into the working resolved-config object because the resource copy is shallow.
-  Raw authored config remains isolated by the earlier serialization clone.
+- The special `container` merge branch assigns to a `forEach` parameter and therefore does not update the array when its
+  fallback branch is reached. No current resource default exercises that branch.
+- Nested default merging can write into the working resolved-config object because the resource copy is shallow. Raw
+  authored config remains isolated by the earlier serialization clone.
 
 Record these; do not opportunistically change them in this slice.
 

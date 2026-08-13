@@ -87,6 +87,227 @@
     opacity: 0.6;
   }
 
+  /* ── Selection card ────────────────────────────────────────────────────────────────────────────
+   * A pressable option that needs a sentence to be chosen honestly. It is built from the shared
+   * control recipe rather than from a card recipe, because it is a thing you press: same fill as a
+   * secondary button, same rest/hover/press ladder, differing only in size and in what it holds.
+   * Selection is shown by an accent ring and a lift, never by a colour swap — a filled card would
+   * read as a button that had already been pressed. */
+  .stp-ui-selection-card-group {
+    gap: var(--stp-selection-card-gap, 12px);
+  }
+
+  /* Grid rather than wrapping flex. Both give equal columns, but a wrapping flex row lets the last
+   * line stretch to fill: three options in a two-wide space produced two half-width cards above one
+   * full-width one, which reads as a hierarchy that is not there. `auto-fill` keeps the empty track,
+   * so a wrapped card stays the same width as its siblings. */
+  .stp-ui-selection-card-group--row {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(var(--stp-selection-card-basis, 200px), 1fr));
+    align-items: stretch;
+  }
+
+  .stp-ui-selection-card-group--column {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .stp-ui-selection-card {
+    position: relative;
+    isolation: isolate;
+    box-sizing: border-box;
+    display: flex;
+    gap: 12px;
+    align-items: flex-start;
+    padding: var(--stp-selection-card-padding, 14px 16px);
+    border-radius: var(--stp-selection-card-radius, var(--stp-radius-large));
+    color: var(--stp-text-primary);
+    text-align: left;
+    user-select: none;
+    cursor: pointer;
+    /* The card itself moves; the fill and the ring are painted by ::before and follow it. Motion is
+     * what makes a press feel like a press — without it the ring simply appears somewhere else. */
+    transition:
+      transform var(--stp-motion-duration-base) var(--stp-motion-easing),
+      color var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  .stp-ui-selection-card:hover:not(.stp-ui-selection-card--disabled) {
+    transform: translateY(-1px);
+  }
+
+  .stp-ui-selection-card:active:not(.stp-ui-selection-card--disabled) {
+    transform: translateY(0.5px);
+    transition-duration: var(--stp-motion-duration-fast, 90ms);
+  }
+
+  /* Painted by ::before like every other control here, so a host reset on background cannot erase
+   * it and the ring below can sit on its own layer without fighting the fill. */
+  .stp-ui-selection-card::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    background: var(--stp-control-surface);
+    box-shadow:
+      0 2px 6px rgba(0, 0, 0, 0.35),
+      inset 0 1px 0 rgba(255, 255, 255, 0.09);
+    transition: box-shadow var(--stp-motion-duration-base) var(--stp-motion-easing);
+  }
+
+  /* Hover lifts the card and brightens its edge. It deliberately does *not* borrow any part of the
+   * selected ring: a hover that looks like a selection makes every card look chosen as the pointer
+   * crosses the row, and the one that really is chosen stops standing out. */
+  .stp-ui-selection-card:hover:not(.stp-ui-selection-card--disabled)::before {
+    box-shadow:
+      0 6px 16px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  }
+
+  .stp-ui-selection-card:active:not(.stp-ui-selection-card--disabled)::before {
+    box-shadow:
+      0 1px 2px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  }
+
+  /* The selected state adds a ring rather than replacing the fill, so a selected card still reads
+   * as pressable and the row keeps one material throughout. Hover on top of it deepens the shadow
+   * without touching the ring, so the two states compose instead of competing. */
+  .stp-ui-selection-card--selected::before {
+    box-shadow:
+      0 3px 9px rgba(0, 0, 0, 0.38),
+      inset 0 1px 0 rgba(255, 255, 255, 0.12),
+      0 0 0 1px var(--stp-color-brand),
+      0 0 0 4px color-mix(in srgb, var(--stp-color-brand) 18%, transparent);
+  }
+
+  .stp-ui-selection-card--selected:hover:not(.stp-ui-selection-card--disabled)::before {
+    box-shadow:
+      0 6px 16px rgba(0, 0, 0, 0.4),
+      inset 0 1px 0 rgba(255, 255, 255, 0.16),
+      0 0 0 1px var(--stp-color-brand),
+      0 0 0 4px color-mix(in srgb, var(--stp-color-brand) 18%, transparent);
+  }
+
+  /* The ring arrives with a single pulse when a card becomes selected. One animation, on the thing
+   * that changed, so the eye lands on the new answer rather than hunting for it. */
+  .stp-ui-selection-card--selected::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 0;
+    border-radius: inherit;
+    box-shadow: 0 0 0 1px var(--stp-color-brand);
+    animation: stp-selection-ring var(--stp-motion-duration-slow, 420ms) var(--stp-motion-easing) 1;
+    pointer-events: none;
+  }
+
+  @keyframes stp-selection-ring {
+    from {
+      opacity: 0.9;
+      transform: scale(1);
+      box-shadow: 0 0 0 0 color-mix(in srgb, var(--stp-color-brand) 60%, transparent);
+    }
+    to {
+      opacity: 0;
+      transform: scale(1.015);
+      box-shadow: 0 0 0 10px color-mix(in srgb, var(--stp-color-brand) 0%, transparent);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .stp-ui-selection-card,
+    .stp-ui-selection-card:hover:not(.stp-ui-selection-card--disabled),
+    .stp-ui-selection-card:active:not(.stp-ui-selection-card--disabled) {
+      transform: none;
+      transition: none;
+    }
+
+    .stp-ui-selection-card--selected::after {
+      animation: none;
+    }
+  }
+
+  .stp-ui-selection-card:focus-visible {
+    outline: var(--stp-focus-outline-width) solid var(--stp-color-brand);
+    outline-offset: var(--stp-focus-outline-offset);
+  }
+
+  .stp-ui-selection-card--disabled {
+    cursor: default;
+    opacity: 0.55;
+  }
+
+  .stp-ui-selection-card__icon,
+  .stp-ui-selection-card__body,
+  .stp-ui-selection-card__meta {
+    position: relative;
+    z-index: 1;
+  }
+
+  .stp-ui-selection-card__icon {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex: none;
+    /* Nudged down so the glyph sits on the title's optical centre rather than its box top. */
+    margin-top: 1px;
+  }
+
+  .stp-ui-selection-card__body {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+  }
+
+  .stp-ui-selection-card__heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .stp-ui-selection-card__title {
+    font-weight: 600;
+    line-height: 1.3;
+  }
+
+  /* A flag, not a shout: the recommendation should be findable while scanning and never the loudest
+   * thing on the card, because the point is that the other options remain real choices. */
+  .stp-ui-selection-card__recommended {
+    padding: 1px 6px;
+    border-radius: var(--stp-radius-small, 4px);
+    background: color-mix(in srgb, var(--stp-color-brand) 16%, transparent);
+    color: var(--stp-color-brand);
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    text-transform: uppercase;
+    white-space: nowrap;
+  }
+
+  /* `--stp-text-muted`, not `--stp-text-secondary`. Despite the name, "secondary" is the accent
+   * teal used for links; a description painted with it reads as a row of hyperlinks. */
+  .stp-ui-selection-card__description {
+    color: var(--stp-text-muted);
+    font-size: 0.85rem;
+    line-height: 1.45;
+  }
+
+  .stp-ui-selection-card__meta {
+    margin-left: auto;
+    padding-left: 8px;
+    /* A shade quieter than the description: it is scanned and compared, not read. */
+    color: var(--stp-text-subtle);
+    font-size: 0.85rem;
+    font-variant-numeric: tabular-nums;
+    white-space: nowrap;
+  }
+
   /* ── Label, icon and busy state ─────────────────────────────────────────────────────────────── */
   /* The icon and the label are one centred group with one gap between them. Call sites used to
    * correct an asymmetric icon margin with their own negative margins; there is nothing left to

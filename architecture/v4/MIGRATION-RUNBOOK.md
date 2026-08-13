@@ -2,9 +2,9 @@
 
 > **Archived — historical.** Phases 2 through 8 below belong to the rejected complex migration: they assume the
 > `packages/core` runtime extraction and the `helper-lambdas`, `aws`, and `naming` packages that
-> [SIMPLIFIED-MIGRATION.md](./SIMPLIFIED-MIGRATION.md) abandoned. That document supersedes this sequence for all
-> current work. Phases 0 and 1 are kept because they record real completed evidence — the security, characterization,
-> checksum, and backbone commits, which [DECISIONS.md](./DECISIONS.md) also carries.
+> [SIMPLIFIED-MIGRATION.md](./SIMPLIFIED-MIGRATION.md) abandoned. That document supersedes this sequence for all current
+> work. Phases 0 and 1 are kept because they record real completed evidence — the security, characterization, checksum,
+> and backbone commits, which [DECISIONS.md](./DECISIONS.md) also carries.
 
 ## End state
 
@@ -49,8 +49,8 @@ Completed phase-0 evidence:
 7. Independent review of the characterization and release-integrity changes is complete; every reported finding was
    resolved and the final review found no remaining blocker.
 
-The phase-0 characterization, checksum, and architecture freeze is committed on the legacy public branch at
-`17aef681`. The reviewed Console and Stacktape security baselines remain `b098a76` and `747d6371`.
+The phase-0 characterization, checksum, and architecture freeze is committed on the legacy public branch at `17aef681`.
+The reviewed Console and Stacktape security baselines remain `b098a76` and `747d6371`.
 
 Gate:
 

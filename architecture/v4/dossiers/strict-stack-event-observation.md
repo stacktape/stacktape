@@ -5,17 +5,17 @@
 Normalize `DescribeStackEvents` pages into the resource-event shape the deployment monitor can actually observe.
 
 Preserve CloudFormation's newest-first page order; the monitor remains responsible for its single reversal before
-processing. This slice may fix the existing cutoff bug where the terminal page is appended without applying `since`,
-but must not redesign polling, progress accounting, stack-status handling, or the AWS manager.
+processing. This slice may fix the existing cutoff bug where the terminal page is appended without applying `since`, but
+must not redesign polling, progress accounting, stack-status handling, or the AWS manager.
 
 ## Owned files
 
 - `apps/cli/shared/aws/sdk-manager/index.ts`
 - `apps/cli/src/domain/cloudformation-stack-manager/index.ts`
-- `apps/cli/shared/aws/ecs-deployment-monitoring.ts`, only to give
-  `isEcsServiceCreateOrUpdateCloudformationEvent` a type-predicate return for the `PhysicalResourceId` check it
-  already performs. Its runtime expression must not change, and `PhysicalResourceId` must not become a required
-  member of `MonitoredStackEvent`: it is genuinely absent on events for resources that have no physical identity yet.
+- `apps/cli/shared/aws/ecs-deployment-monitoring.ts`, only to give `isEcsServiceCreateOrUpdateCloudformationEvent` a
+  type-predicate return for the `PhysicalResourceId` check it already performs. Its runtime expression must not change,
+  and `PhysicalResourceId` must not become a required member of `MonitoredStackEvent`: it is genuinely absent on events
+  for resources that have no physical identity yet.
 - the smallest existing/new characterization file needed for no-AWS event pagination and monitor typing
 - this dossier
 - `architecture/v4/DEFERRED-ISSUES.md` only for newly discovered debt
@@ -24,8 +24,8 @@ Do not change `getStackDetails` nullability or private registry pagination in th
 
 ## Intended contract
 
-Export a narrow `MonitoredStackEvent` from the AWS SDK manager. It is a `StackEvent` whose deployment-monitor fields
-are present:
+Export a narrow `MonitoredStackEvent` from the AWS SDK manager. It is a `StackEvent` whose deployment-monitor fields are
+present:
 
 - finite `Timestamp`
 - string `EventId`
@@ -33,8 +33,8 @@ are present:
 - string `ResourceStatus`
 
 CloudFormation hook and other non-resource events may legitimately omit resource fields. Ignore them rather than
-crashing deployment monitoring. Keep optional fields optional unless a downstream operation has an independently
-checked guard.
+crashing deployment monitoring. Keep optional fields optional unless a downstream operation has an independently checked
+guard.
 
 Normalize every page:
 
@@ -49,8 +49,8 @@ Use the configured AWS error handler for request failures exactly as before. Do 
 generic pagination machinery.
 
 In the poll batch, replace the boolean short-circuit `condition && getStackDetails()` with the equivalent ternary that
-returns `null` when no details request is scheduled. This expresses the existing fallback state without allowing
-`false` into the Promise result.
+returns `null` when no details request is scheduled. This expresses the existing fallback state without allowing `false`
+into the Promise result.
 
 ## Behavior to characterize
 
@@ -78,10 +78,9 @@ Expected total: 2,145, exactly 29 fewer diagnostics, with no new diagnostic.
 
 ## Compatibility note
 
-The existing implementation filters only the first page by `since` and appends later pages wholesale. A stale event
-from the terminal page can therefore seed monitoring state even though it is older than the requested cutoff.
-Filtering every page is an intentional bug fix. Everything at or after the cutoff retains its original order and
-identity.
+The existing implementation filters only the first page by `since` and appends later pages wholesale. A stale event from
+the terminal page can therefore seed monitoring state even though it is older than the requested cutoff. Filtering every
+page is an intentional bug fix. Everything at or after the cutoff retains its original order and identity.
 
 ## Gates
 
@@ -90,5 +89,5 @@ identity.
 - All six TypeScript projects.
 - Exact strict before/after comparison normalized by file and diagnostic code.
 - Oxfmt, Oxlint, `git diff --check`, and scan for casts, suppressions, and unrelated stack logic.
-- Independent reviewer approval covering page cutoff semantics, empty-page continuation, event-field validation,
-  Promise fallback equivalence, global stub isolation, runtime ordering, and conceptual complexity.
+- Independent reviewer approval covering page cutoff semantics, empty-page continuation, event-field validation, Promise
+  fallback equivalence, global stub isolation, runtime ordering, and conceptual complexity.

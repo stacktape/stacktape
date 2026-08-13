@@ -25,6 +25,11 @@
     "apps/website": {
       "entry": ["src/**/*.astro"]
     },
+    "apps/init-ui": {
+      "entry": ["index.html", "src/main.tsx", "vite.config.ts", "**/*.spec.ts"],
+      "project": ["src/**/*.{ts,tsx}", "vite.config.ts"],
+      "ignore": ["dist/**"]
+    },
     "apps/console/api": {
       "entry": [
         "server/index.ts",

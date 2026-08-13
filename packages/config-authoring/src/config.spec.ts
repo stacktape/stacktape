@@ -25,6 +25,7 @@ import {
   getResourceByType,
   MISC_TYPES_CONVERTIBLE_TO_CLASSES,
   RESOURCES_CONVERTIBLE_TO_CLASSES,
+  type ResourceClassName,
   type ResourceDefinition
 } from './class-config.js';
 import * as resourceClasses from './resources.js';
@@ -369,6 +370,90 @@ describe('TypeScript authoring compilation', () => {
         expect(definition.hasAugmentedProps).toBe(true);
       }
     }
+  });
+
+  test('keeps connection capabilities aligned across matching compute families', () => {
+    const targetsFor = (className: ResourceDefinition['className']): ResourceClassName[] => [
+      ...(RESOURCES_CONVERTIBLE_TO_CLASSES.find((resource) => resource.className === className)?.canConnectTo || [])
+    ];
+    const agentCoreTargets: ResourceClassName[] = [
+      'AgentCoreRuntime',
+      'AgentCoreMemory',
+      'AgentCoreGateway',
+      'AgentCoreBrowser',
+      'AgentCoreCodeInterpreter'
+    ];
+    const standardTargets: ResourceClassName[] = [
+      'RelationalDatabase',
+      'DsqlDatabase',
+      'EmailSender',
+      'AppSyncApi',
+      ...agentCoreTargets,
+      'Bucket',
+      'HostingBucket',
+      'DynamoDbTable',
+      'EventBus',
+      'RedisCluster',
+      'MongoDbAtlasCluster',
+      'UpstashRedis',
+      'SqsQueue',
+      'SnsTopic',
+      'KinesisStream',
+      'OpenSearchDomain',
+      'EfsFilesystem'
+    ];
+    const vpcComputeTargets: ResourceClassName[] = [
+      ...standardTargets.slice(0, 2),
+      'KafkaCluster',
+      ...standardTargets.slice(2)
+    ];
+    const vpcServiceTargets: ResourceClassName[] = [...vpcComputeTargets, 'WebSocketApiGateway'];
+    const applicationTargets: ResourceClassName[] = [
+      ...standardTargets,
+      'PrivateService',
+      'WebService',
+      'LambdaFunction',
+      'BatchJob',
+      'UserAuthPool'
+    ];
+
+    for (const className of ['PrivateService', 'WorkerService', 'BatchJob'] as const) {
+      expect(targetsFor(className)).toEqual(vpcServiceTargets);
+    }
+    expect(targetsFor('WebService')).toEqual([...vpcServiceTargets, 'PrivateService']);
+    expect(targetsFor('MultiContainerWorkload')).toEqual([
+      ...vpcServiceTargets,
+      'LambdaFunction',
+      'BatchJob',
+      'UserAuthPool'
+    ]);
+    expect(targetsFor('LambdaFunction')).toEqual([
+      ...vpcServiceTargets,
+      'PrivateService',
+      'WebService',
+      'LambdaFunction',
+      'BatchJob',
+      'UserAuthPool'
+    ]);
+    for (const className of [
+      'AstroWeb',
+      'NuxtWeb',
+      'SvelteKitWeb',
+      'SolidStartWeb',
+      'TanStackWeb',
+      'RemixWeb',
+      'AgentCoreRuntime'
+    ] as const) {
+      expect(targetsFor(className)).toEqual(applicationTargets);
+    }
+    expect(targetsFor('NextjsWeb')).toEqual([
+      ...standardTargets,
+      'WebSocketApiGateway',
+      ...applicationTargets.slice(standardTargets.length)
+    ]);
+    expect(targetsFor('CustomResourceDefinition')).toEqual([...standardTargets, 'PrivateService']);
+    expect(targetsFor('EdgeLambdaFunction')).toEqual([...standardTargets, 'PrivateService']);
+    expect(targetsFor('DeploymentScript')).toEqual([...vpcComputeTargets, 'PrivateService']);
   });
 
   test('exports every configured helper constructor at runtime', () => {

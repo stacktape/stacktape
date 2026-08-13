@@ -78,8 +78,8 @@ type OperationContext = {
 };
 ```
 
-This sketch is provisional. Slice implementers may improve it, but they must preserve explicit ownership,
-testability, concurrency safety, and dependency direction.
+This sketch is provisional. Slice implementers may improve it, but they must preserve explicit ownership, testability,
+concurrency safety, and dependency direction.
 
 ### `@stacktape/config`
 
@@ -92,8 +92,8 @@ Owns the public configuration model, validation, references/directives, and conf
 
 ### `@stacktape/command-contracts`
 
-Promotes the existing Zod-backed command option definitions. It owns intentional command inputs and the v4
-machine-event envelope. It does not own the config model and does not preserve every internal event name.
+Promotes the existing Zod-backed command option definitions. It owns intentional command inputs and the v4 machine-event
+envelope. It does not own the config model and does not preserve every internal event name.
 
 ### `@stacktape/console-api`
 
@@ -110,8 +110,8 @@ temporary storage explicitly; it must not read a global Stacktape state manager.
 ### `@stacktape/aws`
 
 Owns reusable AWS SDK client construction/adapters and AWS-specific operations used by more than one deployable.
-Centralized client construction is mandatory so tests can redirect endpoints and prohibit accidental real-AWS access.
-It is not allowed to import CLI/TUI/core application state.
+Centralized client construction is mandatory so tests can redirect endpoints and prohibit accidental real-AWS access. It
+is not allowed to import CLI/TUI/core application state.
 
 ### `@stacktape/naming`
 
@@ -120,8 +120,8 @@ package. Naming compatibility tests protect existing deployed stacks.
 
 ### `@stacktape/helper-lambdas`
 
-Owns source, dependencies, and deterministic packaging of helper Lambda artifacts. It is not an app because users do
-not operate or deploy it independently; CLI/core packaging consumes its versioned artifacts.
+Owns source, dependencies, and deterministic packaging of helper Lambda artifacts. It is not an app because users do not
+operate or deploy it independently; CLI/core packaging consumes its versioned artifacts.
 
 ### `@stacktape/schema-codegen`
 
@@ -130,18 +130,17 @@ compiler dependency and must not determine the repository-wide TypeScript versio
 
 ### `@stacktape/design-tokens`
 
-Owns hand-authored TypeScript primitives and semantic product values, typed raw values, typed `var(--stp-*)`
-references, and a deterministic CSS-variable emitter. Generated CSS is committed and freshness-checked. Consumers
-map the variables into their own styling system; the package does not own an Emotion or Tailwind adapter.
+Owns hand-authored TypeScript primitives and semantic product values, typed raw values, typed `var(--stp-*)` references,
+and a deterministic CSS-variable emitter. Generated CSS is committed and freshness-checked. Consumers map the variables
+into their own styling system; the package does not own an Emotion or Tailwind adapter.
 
 ### `@stacktape/ui-react`
 
 Owns accessible, presentational React primitives shared by current or concrete planned product surfaces, plus the
-reusable ConfigEditor frame, Monaco lifecycle base, product resource/framework icons and independent isometric
-diagram. Each public component has its own folder and explicit subpath export. The package must not import React
-Router, Astro, Console state, tRPC, React Hook Form, or Emotion-specific component factories. Consumers own
-navigation, persistence and product behavior; the heavy isopack catalog stays reachable only from the lazy diagram
-subpath.
+reusable ConfigEditor frame, Monaco lifecycle base, product resource/framework icons and independent isometric diagram.
+Each public component has its own folder and explicit subpath export. The package must not import React Router, Astro,
+Console state, tRPC, React Hook Form, or Emotion-specific component factories. Consumers own navigation, persistence and
+product behavior; the heavy isopack catalog stays reachable only from the lazy diagram subpath.
 
 ## Dependency directions
 

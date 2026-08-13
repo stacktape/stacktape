@@ -9,6 +9,10 @@
       "types": "./dist/alert/Alert.d.ts",
       "default": "./dist/alert/Alert.js"
     },
+    "./badge": {
+      "types": "./dist/badge/Badge.d.ts",
+      "default": "./dist/badge/Badge.js"
+    },
     "./button": {
       "types": "./dist/button/Button.d.ts",
       "default": "./dist/button/Button.js"
@@ -17,25 +21,26 @@
       "types": "./dist/checkbox/Checkbox.d.ts",
       "default": "./dist/checkbox/Checkbox.js"
     },
+    "./config-editor": {
+      "types": "./dist/config-editor/ConfigEditor.d.ts",
+      "default": "./dist/config-editor/ConfigEditor.js"
+    },
+    "./config-editor.css": "./src/config-editor/config-editor.css",
+    "./config-editor/capabilities": {
+      "types": "./dist/config-editor/capabilities.d.ts",
+      "default": "./dist/config-editor/capabilities.js"
+    },
+    "./config-editor/document": {
+      "types": "./dist/config-editor/document.d.ts",
+      "default": "./dist/config-editor/document.js"
+    },
+    "./config-editor/paths": {
+      "types": "./dist/config-editor/paths.d.ts",
+      "default": "./dist/config-editor/paths.js"
+    },
     "./dialog": {
       "types": "./dist/dialog/Dialog.d.ts",
       "default": "./dist/dialog/Dialog.js"
-    },
-    "./badge": {
-      "types": "./dist/badge/Badge.d.ts",
-      "default": "./dist/badge/Badge.js"
-    },
-    "./icon-button": {
-      "types": "./dist/icon-button/IconButton.d.ts",
-      "default": "./dist/icon-button/IconButton.js"
-    },
-    "./link": {
-      "types": "./dist/link/Link.d.ts",
-      "default": "./dist/link/Link.js"
-    },
-    "./linear-loader": {
-      "types": "./dist/linear-loader/LinearLoader.d.ts",
-      "default": "./dist/linear-loader/LinearLoader.js"
     },
     "./framework-icon": {
       "types": "./dist/framework-icon/FrameworkIcon.d.ts",
@@ -45,6 +50,39 @@
       "types": "./dist/grid-list/GridList.d.ts",
       "default": "./dist/grid-list/GridList.js"
     },
+    "./icon-button": {
+      "types": "./dist/icon-button/IconButton.d.ts",
+      "default": "./dist/icon-button/IconButton.js"
+    },
+    "./isometric-diagram": {
+      "types": "./dist/isometric-diagram/IsometricDiagram.d.ts",
+      "default": "./dist/isometric-diagram/IsometricDiagram.js"
+    },
+    "./isometric-diagram.css": "./src/isometric-diagram/isometric-diagram.css",
+    "./isometric-diagram/fixtures": {
+      "types": "./dist/isometric-diagram/fixtures.d.ts",
+      "default": "./dist/isometric-diagram/fixtures.js"
+    },
+    "./linear-loader": {
+      "types": "./dist/linear-loader/LinearLoader.d.ts",
+      "default": "./dist/linear-loader/LinearLoader.js"
+    },
+    "./link": {
+      "types": "./dist/link/Link.d.ts",
+      "default": "./dist/link/Link.js"
+    },
+    "./monaco-editor": {
+      "types": "./dist/monaco-editor/MonacoEditor.d.ts",
+      "default": "./dist/monaco-editor/MonacoEditor.js"
+    },
+    "./progress": {
+      "types": "./dist/progress/Progress.d.ts",
+      "default": "./dist/progress/Progress.js"
+    },
+    "./radio-group": {
+      "types": "./dist/radio-group/RadioGroup.d.ts",
+      "default": "./dist/radio-group/RadioGroup.js"
+    },
     "./resource-icon": {
       "types": "./dist/resource-icon/ResourceIcon.d.ts",
       "default": "./dist/resource-icon/ResourceIcon.js"
@@ -52,14 +90,6 @@
     "./resource-icon/catalog": {
       "types": "./dist/resource-icon/catalog.d.ts",
       "default": "./dist/resource-icon/catalog.js"
-    },
-    "./radio-group": {
-      "types": "./dist/radio-group/RadioGroup.d.ts",
-      "default": "./dist/radio-group/RadioGroup.js"
-    },
-    "./monaco-editor": {
-      "types": "./dist/monaco-editor/MonacoEditor.d.ts",
-      "default": "./dist/monaco-editor/MonacoEditor.js"
     },
     "./section-loader": {
       "types": "./dist/section-loader/SectionLoader.d.ts",
@@ -69,14 +99,12 @@
       "types": "./dist/select/Select.d.ts",
       "default": "./dist/select/Select.js"
     },
+    "./selection-card": "./src/selection-card/SelectionCard.tsx",
     "./spinner": {
       "types": "./dist/spinner/Spinner.d.ts",
       "default": "./dist/spinner/Spinner.js"
     },
-    "./progress": {
-      "types": "./dist/progress/Progress.d.ts",
-      "default": "./dist/progress/Progress.js"
-    },
+    "./styles.css": "./src/styles.css",
     "./switch": {
       "types": "./dist/switch/Switch.d.ts",
       "default": "./dist/switch/Switch.js"
@@ -92,34 +120,7 @@
     "./tooltip": {
       "types": "./dist/tooltip/Tooltip.d.ts",
       "default": "./dist/tooltip/Tooltip.js"
-    },
-    "./config-editor": {
-      "types": "./dist/config-editor/ConfigEditor.d.ts",
-      "default": "./dist/config-editor/ConfigEditor.js"
-    },
-    "./config-editor/capabilities": {
-      "types": "./dist/config-editor/capabilities.d.ts",
-      "default": "./dist/config-editor/capabilities.js"
-    },
-    "./config-editor/document": {
-      "types": "./dist/config-editor/document.d.ts",
-      "default": "./dist/config-editor/document.js"
-    },
-    "./config-editor/paths": {
-      "types": "./dist/config-editor/paths.d.ts",
-      "default": "./dist/config-editor/paths.js"
-    },
-    "./config-editor.css": "./src/config-editor/config-editor.css",
-    "./isometric-diagram": {
-      "types": "./dist/isometric-diagram/IsometricDiagram.d.ts",
-      "default": "./dist/isometric-diagram/IsometricDiagram.js"
-    },
-    "./isometric-diagram/fixtures": {
-      "types": "./dist/isometric-diagram/fixtures.d.ts",
-      "default": "./dist/isometric-diagram/fixtures.js"
-    },
-    "./isometric-diagram.css": "./src/isometric-diagram/isometric-diagram.css",
-    "./styles.css": "./src/styles.css"
+    }
   },
   "scripts": {
     "copy:assets": "node scripts/copy-assets.ts",

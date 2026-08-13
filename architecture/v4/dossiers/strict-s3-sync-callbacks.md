@@ -43,8 +43,8 @@ runtime contract. Do not introduce a generic async framework, dependency injecti
 - Existing exported class methods, accepted option shapes, and returned event emitters.
 - Retry count/delay and the meaning of a non-retryable error.
 - Event names, event ordering, progress accounting, abort behavior, and error propagation.
-- S3 request payloads, pagination, metadata replacement, multipart ETag checks, URL formatting, and filesystem
-  mutation order.
+- S3 request payloads, pagination, metadata replacement, multipart ETag checks, URL formatting, and filesystem mutation
+  order.
 - `getS3Params` may asynchronously skip an item by returning no parameters.
 
 ## Intentional v4 changes allowed
@@ -73,8 +73,8 @@ All other production files, workspace configuration, dependencies, generated fil
 
 ## Artifact/AWS checks
 
-No deployment and no real AWS calls. Bundling/release artifact checks are deferred to the Linux/macOS phase gate
-because the current Windows Bun bundler cannot traverse pnpm symlinks.
+No deployment and no real AWS calls. Bundling/release artifact checks are deferred to the Linux/macOS phase gate because
+the current Windows Bun bundler cannot traverse pnpm symlinks.
 
 ## Public/private/generated implications
 

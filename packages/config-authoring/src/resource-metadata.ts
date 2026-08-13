@@ -36,6 +36,27 @@ export const REFERENCEABLE_PARAMS = {
     { name: 'readerConnectionString', description: 'Reader connection string' },
     { name: 'readerJdbcConnectionString', description: 'Reader JDBC connection string' }
   ],
+  'dsql-database': [
+    { name: 'endpoint', description: 'DSQL cluster endpoint' },
+    { name: 'port', description: 'PostgreSQL port' },
+    { name: 'databaseName', description: 'Default database name' },
+    { name: 'username', description: 'Built-in database role used by connectTo' },
+    { name: 'region', description: 'AWS region containing the cluster' },
+    { name: 'id', description: 'DSQL cluster ID' },
+    { name: 'arn', description: 'DSQL cluster ARN' }
+  ],
+  'kafka-cluster': [
+    { name: 'arn', description: 'MSK cluster ARN' },
+    { name: 'name', description: 'MSK cluster name' },
+    { name: 'bootstrapServers', description: 'Comma-separated IAM bootstrap brokers' }
+  ],
+  'email-sender': [
+    { name: 'identity', description: 'Canonical SES sender identity' },
+    { name: 'identityArn', description: 'SES identity ARN' },
+    { name: 'region', description: 'AWS region containing the identity' },
+    { name: 'configurationSetName', description: 'SES configuration set used by default' },
+    { name: 'feedbackTopicArn', description: 'Shared SNS topic ARN for bounce and complaint events' }
+  ],
   'web-service': [
     { name: 'domain', description: 'Web service domain' },
     { name: 'url', description: 'Web service URL' },
@@ -71,6 +92,22 @@ export const REFERENCEABLE_PARAMS = {
     { name: 'customDomains', description: 'Custom domains' },
     { name: 'customDomainUrls', description: 'Custom domain URLs' },
     { name: 'customDomainUrl', description: 'First custom domain URL' }
+  ],
+  'websocket-api-gateway': [
+    { name: 'apiId', description: 'API Gateway ID' },
+    { name: 'url', description: 'WebSocket client URL' },
+    { name: 'managementEndpoint', description: 'HTTPS endpoint for sending messages to connected clients' },
+    { name: 'customDomains', description: 'Custom domains' },
+    { name: 'customDomainUrl', description: 'First custom domain URL' },
+    { name: 'customDomainUrls', description: 'Custom domain URLs' }
+  ],
+  'appsync-api': [
+    { name: 'apiId', description: 'AppSync API ID' },
+    { name: 'arn', description: 'AppSync API ARN' },
+    { name: 'url', description: 'GraphQL HTTPS endpoint' },
+    { name: 'realtimeUrl', description: 'GraphQL realtime WebSocket endpoint' },
+    { name: 'customDomainUrl', description: 'GraphQL endpoint on the configured custom domain' },
+    { name: 'apiKey', description: 'Sensitive AppSync API key when API-key authentication is configured' }
   ],
   'mongo-db-atlas-cluster': [{ name: 'connectionString', description: 'MongoDB connection string' }],
   'redis-cluster': [

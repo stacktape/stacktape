@@ -2,17 +2,17 @@
 
 ## Goal
 
-Move the CLI's real artifact-building implementation into `packages/packaging` while preserving behavior and making
-the code easier—not harder—to follow.
+Move the CLI's real artifact-building implementation into `packages/packaging` while preserving behavior and making the
+code easier—not harder—to follow.
 
 This is a structural extraction from the working v4 CLI. It is not a packaging redesign.
 
 ## Why this phase exists
 
-Packaging is a concrete capability with many current consumers inside the CLI and a meaningful independent test
-surface. It owns language bundlers, buildpacks, artifact assembly, content tracking, and related filesystem/Docker
-work. Keeping all of that under `apps/cli/shared` makes the application own a reusable capability and makes the later
-helper-Lambda package depend on CLI-internal paths.
+Packaging is a concrete capability with many current consumers inside the CLI and a meaningful independent test surface.
+It owns language bundlers, buildpacks, artifact assembly, content tracking, and related filesystem/Docker work. Keeping
+all of that under `apps/cli/shared` makes the application own a reusable capability and makes the later helper-Lambda
+package depend on CLI-internal paths.
 
 The current implementation already works. The purpose of this phase is to give it honest ownership and package
 boundaries without replacing it with a framework.
@@ -23,8 +23,8 @@ boundaries without replacing it with a framework.
 - The existing implementation is primarily under `apps/cli/shared/packaging`.
 - `apps/cli/src/domain/packaging-manager` is application orchestration and should remain in the CLI unless moving a
   specific piece clearly reduces coupling.
-- Existing characterization coverage includes custom-artifact contents, content digests, cache invalidation,
-  synthesis behavior, CLI smoke, npm/release assembly, and helper-Lambda artifact verification.
+- Existing characterization coverage includes custom-artifact contents, content digests, cache invalidation, synthesis
+  behavior, CLI smoke, npm/release assembly, and helper-Lambda artifact verification.
 - The exact public line has passed a clean native-WSL public proof. Bun 1.3.9 can crash while building the CLI from a
   sparse Windows worktree because of its own backslash path assertion; reproduce suspicious Windows-only failures in
   native WSL before treating them as product defects.
@@ -37,8 +37,8 @@ boundaries without replacing it with a framework.
   truth.
 - Update CLI consumers to import the package directly.
 - Preserve artifact bytes/structure, handler names, file selection, hashes, cache behavior, source maps, layers,
-  buildpack behavior, Docker invocation semantics, and release composition unless a difference is explicitly proven
-  to be a pre-existing bug and documented.
+  buildpack behavior, Docker invocation semantics, and release composition unless a difference is explicitly proven to
+  be a pre-existing bug and documented.
 - Keep `apps/cli` as the composition root. CLI command flow, managers, user interaction, event reporting, and global
   application state remain application concerns.
 - Leave helper-Lambda source and its extraction for the following phase, but its existing packaging and verification
@@ -104,8 +104,8 @@ At minimum:
 - workspace architecture, pattern, secret, format, lint, dead-code, and duplicate gates;
 - a clean public-only proof with the private submodule absent.
 
-Add focused characterization only where an important moved behavior lacks evidence. Do not add tests that merely
-assert file paths or restate implementation details.
+Add focused characterization only where an important moved behavior lacks evidence. Do not add tests that merely assert
+file paths or restate implementation details.
 
 ## Safety
 

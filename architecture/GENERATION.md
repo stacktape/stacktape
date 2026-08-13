@@ -54,8 +54,8 @@ source of truth; a separate manifest would duplicate paths and task names and co
 
 The config-schema exception is explicit: its model belongs to `@stacktape/config`, but the current schema compiler also
 provides CLI declaration generation and relies on the CLI's TypeScript program. Do not create a duplicate config
-compiler merely to eliminate the cross-package write. Move it only when one compiler can own both uses and preserve
-the schema byte-for-byte.
+compiler merely to eliminate the cross-package write. Move it only when one compiler can own both uses and preserve the
+schema byte-for-byte.
 
 `apps/cli/.generated/monaco-declarations` is intentionally ignored materialization. Docs and Console request
 `@stacktape/cli#generate:monaco` through Turbo, then consume the four declarations. Console's copied public files and

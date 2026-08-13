@@ -39,9 +39,9 @@ on failure, and never reaches real AWS.
 
 ## Measured expectation
 
-At prerequisite commit `febf7f59`, strict diagnostics are 2,145. The audit measured five direct SDK-manager
-diagnostics plus one downstream registry-manager diagnostic. Expected result: 2,139, exactly six fewer diagnostics,
-with none introduced.
+At prerequisite commit `febf7f59`, strict diagnostics are 2,145. The audit measured five direct SDK-manager diagnostics
+plus one downstream registry-manager diagnostic. Expected result: 2,139, exactly six fewer diagnostics, with none
+introduced.
 
 ## Gates
 

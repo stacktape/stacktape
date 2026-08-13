@@ -10,8 +10,7 @@ Use three complementary layers:
 
 1. deterministic CLI/application, synthesis, packaging, CLI-process, and static infrastructure tests;
 2. a future Floci integration lane for a deliberately certified subset;
-3. the disposable packaging smoke test now, with broader real-AWS canaries and scheduled workflows added when
-   justified.
+3. the disposable packaging smoke test now, with broader real-AWS canaries and scheduled workflows added when justified.
 
 Every production defect receives a regression at the cheapest layer capable of reproducing it.
 
@@ -20,10 +19,10 @@ Every production defect receives a regression at the cheapest layer capable of r
 V4 may intentionally change configuration, commands and machine output. Tests should protect behavior we deliberately
 want, not preserve v3 compatibility by default.
 
-When a refactor exposes a better product surface, record the proposed behavior in the relevant architecture decision
-or migration plan and discuss it before implementing a broad user-facing redesign. Within an approved redesign, test
-the new contract directly. Continue to protect infrastructure properties whose accidental changes can replace or
-orphan resources, including logical IDs, deterministic resource names and replacement-sensitive properties.
+When a refactor exposes a better product surface, record the proposed behavior in the relevant architecture decision or
+migration plan and discuss it before implementing a broad user-facing redesign. Within an approved redesign, test the
+new contract directly. Continue to protect infrastructure properties whose accidental changes can replace or orphan
+resources, including logical IDs, deterministic resource names and replacement-sensitive properties.
 
 ## Layer 1 — deterministic and static tests
 
@@ -43,8 +42,8 @@ Run on every relevant change:
 - npm package, binary input, and helper-Lambda artifact verification;
 - typed AWS adapter fakes for throttling, malformed responses, pagination, and error classification.
 
-Prefer existing seams, subprocess boundaries, and focused fakes. Introduce injection only when the changed behavior
-owns an external interaction and the resulting API is simpler than module-level mocking. Important seams include:
+Prefer existing seams, subprocess boundaries, and focused fakes. Introduce injection only when the changed behavior owns
+an external interaction and the resulting API is simpler than module-level mocking. Important seams include:
 
 - AWS client factory/endpoints;
 - Console/control-plane adapter;
@@ -87,16 +86,15 @@ Therefore the Floci harness must:
 Floci currently covers useful foundations including S3, SQS, SNS, DynamoDB, basic Lambda/layers/event mappings, IAM,
 ECR, basic ECS/RDS/VPC/ELBv2/API Gateway, Step Functions, Batch, Kinesis, Firehose, logs, and alarms.
 
-Important Stacktape resource groups requiring real AWS or new Floci contributions include CloudFront, EFS,
-ElastiCache, OpenSearch, WAF, Scheduler, Service Discovery, Lambda alias/permission/URL/event-invoke resources, several
-API Gateway v2 resources, ECS capacity providers, and Application Auto Scaling.
+Important Stacktape resource groups requiring real AWS or new Floci contributions include CloudFront, EFS, ElastiCache,
+OpenSearch, WAF, Scheduler, Service Discovery, Lambda alias/permission/URL/event-invoke resources, several API Gateway
+v2 resources, ECS capacity providers, and Application Auto Scaling.
 
-The first provider-baseline spike is implemented at
-[`apps/cli/scripts/floci/`](../../apps/cli/scripts/floci/). Against pinned Floci 1.5.34, CloudFormation create, real
-S3/SQS data-plane operations, persistent restart and stack-record deletion work. The emulator currently accepts an
-identical update, reports a changed SQS property as updated without changing the data plane, and deletes the stack
-record without deleting its S3/SQS resources. The command therefore exits `2`, is not part of normal checks, and is
-not a Stacktape end-to-end test.
+The first provider-baseline spike is implemented at [`apps/cli/scripts/floci/`](../../apps/cli/scripts/floci/). Against
+pinned Floci 1.5.34, CloudFormation create, real S3/SQS data-plane operations, persistent restart and stack-record
+deletion work. The emulator currently accepts an identical update, reports a changed SQS property as updated without
+changing the data plane, and deletes the stack record without deleting its S3/SQS resources. The command therefore exits
+`2`, is not part of normal checks, and is not a Stacktape end-to-end test.
 
 Before Floci becomes a public-PR gate, a later Stacktape-integrated feasibility spike must demonstrate:
 
@@ -231,11 +229,10 @@ drift, replacements, concurrency, and deletion fidelity.
 
 ## Alternatives
 
-- LocalStack is more mature, but its supported image requires authentication after March 2026 and its free Hobby plan
-  is non-commercial. Do not make it a dependency now. Reconsider a sponsored/commercial side-by-side benchmark later.
-  See [transition](https://blog.localstack.cloud/2026-upcoming-pricing-changes/),
-  [licensing](https://docs.localstack.cloud/aws/licensing/), and
-  [pricing](https://www.localstack.cloud/pricing).
+- LocalStack is more mature, but its supported image requires authentication after March 2026 and its free Hobby plan is
+  non-commercial. Do not make it a dependency now. Reconsider a sponsored/commercial side-by-side benchmark later. See
+  [transition](https://blog.localstack.cloud/2026-upcoming-pricing-changes/),
+  [licensing](https://docs.localstack.cloud/aws/licensing/), and [pricing](https://www.localstack.cloud/pricing).
 - Moto is useful for narrow Python-backed service tests, not as a general Stacktape CloudFormation lifecycle oracle.
 - LocalEmu is an Apache-licensed fork of archived LocalStack code but is too new to become a v4 release gate.
 - AWS SAM local can invoke Lambda/API handlers but does not reproduce Stacktape infrastructure lifecycle.
@@ -248,14 +245,14 @@ real-AWS packaging smoke are implemented. CLI Bun tests now also preload an appl
 inherited AWS credentials, disables metadata/profile endpoint resolution, and blocks non-loopback fetch/HTTP(S)
 dispatch. It covers normal AWS SDK paths but is not an OS sandbox for child processes, raw sockets, or loopback
 redirects. Public CI writes the credential-free dense synthesis fixture to a temporary file and validates deployment
-errors against the CloudFormation resource specification with pinned `cfn-lint`; warnings remain visible without
-turning existing style diagnostics into a baseline.
+errors against the CloudFormation resource specification with pinned `cfn-lint`; warnings remain visible without turning
+existing style diagnostics into a baseline.
 
 Next:
 
 1. Re-evaluate Floci after no-op, update and delete fidelity are fixed; then run a Stacktape-synthesized certified
    subset through it.
-2. Certify the implemented packaging deploy/no-op/update/delete canary in a dedicated disposable AWS account through
-   the protected preview workflow. It is intentionally narrower than the proposed `serverless-mesh` project.
+2. Certify the implemented packaging deploy/no-op/update/delete canary in a dedicated disposable AWS account through the
+   protected preview workflow. It is intentionally narrower than the proposed `serverless-mesh` project.
 3. Build `serverless-mesh` only after the packaging canary has demonstrated stable cleanup and useful failure signals.
 4. Expand nightly/weekly coverage by observed risk and production defects.

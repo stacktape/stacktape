@@ -43,13 +43,15 @@ import type {
   DynamoDbIntegrationProps,
   EventBusIntegrationProps,
   HttpApiIntegrationProps,
+  AppSyncApiIntegrationProps,
   IotIntegrationProps,
   KafkaTopicIntegrationProps,
   KinesisIntegrationProps,
   S3IntegrationProps,
   ScheduleIntegrationProps,
   SnsIntegrationProps,
-  SqsIntegrationProps
+  SqsIntegrationProps,
+  WebSocketApiIntegrationProps
 } from '@stacktape/config/events';
 import type { LambdaEfsMountProps, LambdaS3FilesMountProps } from '@stacktape/config/functions';
 import type {
@@ -116,6 +118,8 @@ type TypePropertyProperties = CompletePropertiesMap<{
   NixpacksPackaging: NixpacksCwImagePackagingProps;
   StacktapeImageBuildpackPackaging: StpBuildpackCwImagePackagingProps;
   HttpApiIntegration: HttpApiIntegrationProps;
+  AppSyncApiIntegration: AppSyncApiIntegrationProps;
+  WebSocketApiIntegration: WebSocketApiIntegrationProps;
   S3Integration: S3IntegrationProps;
   ScheduleIntegration: ScheduleIntegrationProps;
   SnsIntegration: SnsIntegrationProps;
@@ -246,6 +250,8 @@ export const {
   NixpacksPackaging,
   StacktapeImageBuildpackPackaging,
   HttpApiIntegration,
+  AppSyncApiIntegration,
+  WebSocketApiIntegration,
   S3Integration,
   ScheduleIntegration,
   SnsIntegration,

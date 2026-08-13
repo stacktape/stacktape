@@ -16,13 +16,13 @@ fn.DependsOn = 'ExecutionRole';
 ```
 
 `cfnResourceUnchecked` is the explicit escape hatch for private registry, third-party or newly released types that are
-not in the pinned specification. Generated modules contain only writable properties and definitions reachable from
-those properties; read-only resource attributes are not accepted as template input.
+not in the pinned specification. Generated modules contain only writable properties and definitions reachable from those
+properties; read-only resource attributes are not accepted as template input.
 
 The generated layout intentionally uses one module per resource. This keeps nested property imports local and avoids
 loading unrelated service definitions when a consumer imports a resource subpath. The central resource map necessarily
-references every module to provide type-name autocomplete to `cfnResource`; its compiler cost is measured as part of
-the package typecheck when the pinned schema is updated.
+references every module to provide type-name autocomplete to `cfnResource`; its compiler cost is measured as part of the
+package typecheck when the pinned schema is updated.
 
 With service specification `0.1.199`, the committed output is 1,722 resource modules and approximately 3.5 MB. A warm
 full package typecheck, including the central map, took approximately two seconds on the migration workstation. This is

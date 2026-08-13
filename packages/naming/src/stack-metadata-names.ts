@@ -54,5 +54,11 @@ export const stackMetadataNames = {
   },
   rollbackSafety() {
     return 'rollbackSafety';
+  },
+  retainedSharedResources() {
+    return 'retainedSharedResources';
+  },
+  emailSenderBindingsFingerprint() {
+    return 'emailSenderBindingsFingerprint';
   }
 };

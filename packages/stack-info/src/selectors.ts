@@ -45,6 +45,7 @@ export type StackInfoQuickLink = {
 
 const QUICK_LINK_RESOURCE_TYPES = new Set([
   'http-api-gateway',
+  'websocket-api-gateway',
   'bucket',
   'application-load-balancer',
   'web-service',

@@ -1,8 +1,8 @@
 # Agent-instruction audit
 
 The v4 instructions are a rewrite, not an edit of the legacy files. Old guidance describes the repository before the
-monorepo, assumes human-oriented workflows, and in places embeds environment-specific credentials. It must not be
-copied into the fresh history.
+monorepo, assumes human-oriented workflows, and in places embeds environment-specific credentials. It must not be copied
+into the fresh history.
 
 ## Existing public instructions
 
@@ -36,10 +36,10 @@ Material to retire:
 - rules tied to the old directory layout rather than owned applications/packages.
 
 `AGENTS_DEV_PLAYBOOK.md` contains useful high-level topology and some read-only diagnostic ideas, but it also contains
-personal login material, credential values, production-adjacent endpoints, and commands whose safety depends on
-unstated local state. No credential, password, token, user identity, account identifier, or copy-paste authenticated
-request from it is copied into v4. Historical cleanup and rotation remain separately deferred; omission from the new
-history is mandatory.
+personal login material, credential values, production-adjacent endpoints, and commands whose safety depends on unstated
+local state. No credential, password, token, user identity, account identifier, or copy-paste authenticated request from
+it is copied into v4. Historical cleanup and rotation remain separately deferred; omission from the new history is
+mandatory.
 
 ## v4 instruction hierarchy
 

@@ -1,5 +1,6 @@
 import type { AgentCoreBrowser, AgentCoreCodeInterpreter, AgentCoreGateway, AgentCoreMemory, AgentCoreRuntime } from './agentcore';
 import type { ApplicationLoadBalancer } from './application-load-balancers';
+import type { AppSyncApi } from './appsync-apis';
 import type { AstroWeb } from './astro-web';
 import type { AwsCdkConstruct } from './aws-cdk-construct';
 import type { Bastion } from './bastion';
@@ -10,13 +11,17 @@ import type { CustomResourceDefinition, CustomResourceInstance } from './custom-
 import type { ContainerWorkloadContainerPackaging } from './deployment-artifacts';
 import type { DeploymentScript } from './deployment-script';
 import type { DynamoDbTable } from './dynamo-db-tables';
+import type { DsqlDatabase } from './dsql-databases';
+import type { EmailSender } from './email-senders';
 import type { EdgeLambdaFunction } from './edge-lambda-functions';
 import type { EfsFilesystem } from './efs-filesystem';
 import type { EventBus } from './event-buses';
 import type { LambdaFunction } from './functions';
 import type { HostingBucket } from './hosting-buckets';
 import type { HttpApiGateway } from './http-api-gateways';
+import type { WebSocketApiGateway } from './websocket-api-gateways';
 import type { KinesisStream } from './kinesis-streams';
+import type { KafkaCluster } from './kafka-clusters';
 import type { MongoDbAtlasCluster } from './mongo-db-atlas-clusters';
 import type { ContainerEfsMount, ContainerHealthCheck, ContainerWorkload, ContainerWorkloadContainerBase, ContainerWorkloadContainerLogging, ContainerWorkloadResourcesConfig, ContainerWorkloadScaling } from './multi-container-workloads';
 import type { NetworkLoadBalancer } from './network-load-balancer';
@@ -51,13 +56,17 @@ export type StacktapeResourceDefinition =
   | StacktapeWorkloadDefinition
   | RelationalDatabase
   | ApplicationLoadBalancer
+  | AppSyncApi
   | NetworkLoadBalancer
   | HttpApiGateway
+  | WebSocketApiGateway
   | Bucket
   | UserAuthPool
   | EventBus
   | Bastion
   | DynamoDbTable
+  | DsqlDatabase
+  | EmailSender
   | RedisCluster
   | StateMachine
   | MongoDbAtlasCluster
@@ -72,6 +81,7 @@ export type StacktapeResourceDefinition =
   | OpenSearchDomain
   | EfsFilesystem
   | KinesisStream
+  | KafkaCluster
   | Convex
   | AgentCoreRuntime
   | AgentCoreMemory
@@ -3341,7 +3351,7 @@ export interface ResourceAccessProps {
    *
    * **`PrivateService`** → `ADDRESS`
    *
-   * **`aws:ses`** — full SES email sending permissions
+   * **`EmailSender`** — scoped SES sending permission → `IDENTITY`, `IDENTITY_ARN`, `REGION`, `CONFIGURATION_SET_NAME`
    *
    * **Example (YAML):**
    *

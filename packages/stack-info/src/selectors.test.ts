@@ -80,6 +80,31 @@ describe('stack-info selectors', () => {
     ]);
   });
 
+  test('exposes WebSocket client URLs as quick links', () => {
+    expect(
+      getQuickLinks({
+        ...stackInfoMap,
+        resources: {
+          realtime: {
+            resourceType: 'websocket-api-gateway',
+            referenceableParams: {
+              url: { value: 'wss://socket.example.com', showDuringPrint: true }
+            },
+            cloudformationChildResources: {},
+            links: {},
+            outputs: {}
+          }
+        }
+      })
+    ).toEqual([
+      {
+        resourceName: 'realtime',
+        url: 'wss://socket.example.com',
+        resourceType: 'websocket-api-gateway'
+      }
+    ]);
+  });
+
   test('selects metrics and decodes CloudWatch log group names', () => {
     expect(getResourcesWithMetrics({ stackInfoMap })).toEqual([
       {

@@ -62,9 +62,9 @@ mode, and the guarded real-AWS validation lane including the reusable packaging 
 - Avoid hidden side effects at module import time.
 - Prefer narrow types and explicit validation at I/O boundaries. Do not use `any` or unsafe assertions to bridge a
   package boundary.
-- The duplicate-code gate excludes the imported pricing implementation, structurally repetitive stack-info
-  contracts, and the declarative config-authoring child-resource matrix. Treat those as explicit data/legacy
-  baselines; do not broaden the exclusions, and do not introduce abstractions solely to satisfy the metric.
+- The duplicate-code gate excludes the imported pricing implementation, structurally repetitive stack-info contracts,
+  and the declarative config-authoring child-resource matrix. Treat those as explicit data/legacy baselines; do not
+  broaden the exclusions, and do not introduce abstractions solely to satisfy the metric.
 
 ## Engineering judgment
 
@@ -86,23 +86,22 @@ mode, and the guarded real-AWS validation lane including the reusable packaging 
 - Do not add styled-components or styled-component APIs.
 - Console may use Emotion object styles and the `css` prop.
 - Docs and website use native Astro/CSS/Tailwind; do not require Emotion for Astro shells.
-- Shared tokens come from `packages/design-tokens`: brand, semantic surfaces/text/borders/interaction/status,
-  AWS category colours, radii, focus and motion. Promote a value only once a second consumer uses that exact value.
+- Shared tokens come from `packages/design-tokens`: brand, semantic surfaces/text/borders/interaction/status, AWS
+  category colours, radii, focus and motion. Promote a value only once a second consumer uses that exact value.
 - `packages/ui-react` components are presentational and router-neutral. Extract a primitive when it removes real
   duplication or has a concrete second product consumer; do not invent abstractions only to populate the package.
 - Every public `ui-react` component owns a top-level source folder and an explicit subpath export. Product-wide
   resource/framework icon meaning is shared too; the diagram may add a lazy heavy renderer, not a second mapping.
-- `packages/ui-react` ships compiled output because consumers must not recompile its JSX with their own pragma.
-  Its appearance is one explicitly imported stylesheet in the `stacktape-ui` cascade layer, so a consumer can
-  override it without `!important`; consumers declare where that layer sorts.
+- `packages/ui-react` ships compiled output because consumers must not recompile its JSX with their own pragma. Its
+  appearance is one explicitly imported stylesheet in the `stacktape-ui` cascade layer, so a consumer can override it
+  without `!important`; consumers declare where that layer sorts.
 
 ## Generated files
 
-The executable ownership model and output classes are documented in `architecture/GENERATION.md`.
-Turbo tasks own dependencies for deterministic generators used by ordinary build/typecheck/test work. Humans and
-agents should not need to remember a separate generation step for those outputs. The CLI config-schema generator is
-part of its ordinary `generate` task; only live-upstream generators remain deliberate manual operations documented in
-`apps/cli/AGENTS.md`.
+The executable ownership model and output classes are documented in `architecture/GENERATION.md`. Turbo tasks own
+dependencies for deterministic generators used by ordinary build/typecheck/test work. Humans and agents should not need
+to remember a separate generation step for those outputs. The CLI config-schema generator is part of its ordinary
+`generate` task; only live-upstream generators remain deliberate manual operations documented in `apps/cli/AGENTS.md`.
 
 - Never hand-edit generated output.
 - Run the owning package's non-mutating `generate:check` after changing canonical inputs.
@@ -138,10 +137,10 @@ For changes spanning Console and public code:
 Do not force-push, update default branches, or rewrite history unless the orchestrator explicitly requests it. Never
 treat a submodule pointer update as an unimportant generated diff.
 
-Use the worktree lifecycle built into Codex or Claude Code; this repository does not create or remove harness
-worktrees. Parallel writing sessions need distinct harness-managed worktrees. Codex subagents within one task share
-that task's checkout, so give only one of them write ownership; Claude writing subagents use worktree isolation.
-Review agents remain read-only unless assigned a fix. Migration dossiers and `v4/slice/*` branch names are historical.
+Use the worktree lifecycle built into Codex or Claude Code; this repository does not create or remove harness worktrees.
+Parallel writing sessions need distinct harness-managed worktrees. Codex subagents within one task share that task's
+checkout, so give only one of them write ownership; Claude writing subagents use worktree isolation. Review agents
+remain read-only unless assigned a fix. Migration dossiers and `v4/slice/*` branch names are historical.
 
 ## Security
 

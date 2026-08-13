@@ -3,8 +3,8 @@
 ## Goal
 
 Replace the placeholder `apps/cli` with the real public Stacktape CLI from exact source commit
-`17aef681cf6fdf1cc2516bba87e66d17f225180b`, and make it an ordinary pnpm workspace application without redesigning
-its runtime.
+`17aef681cf6fdf1cc2516bba87e66d17f225180b`, and make it an ordinary pnpm workspace application without redesigning its
+runtime.
 
 ## Why this phase exists
 
@@ -18,8 +18,8 @@ faithful, understandable, runnable application; extract or refactor only afterwa
 - Source commit: `17aef681cf6fdf1cc2516bba87e66d17f225180b`
 - Public integration base: the exact `v4/integration` commit recorded in `.stacktape-agent.json`
 - Import tracked Git content from the source commit, never untracked working-tree files.
-- Never copy `.env*`, `.sentryclirc`, credentials, caches, build outputs, `node_modules`, or another repository's
-  `.git` data.
+- Never copy `.env*`, `.sentryclirc`, credentials, caches, build outputs, `node_modules`, or another repository's `.git`
+  data.
 
 Expected application content includes the existing `src`, `shared`, `scripts`, `tests`, `types`, `@generated`,
 `helper-lambdas`, and starter-project assets required by build/release behavior. Existing docs and GitHub workflows

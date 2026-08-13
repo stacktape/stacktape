@@ -1,7 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import configSchema from '@stacktape/config/config-schema.json';
 import { equals, getAtt, ref } from '@stacktape/cloudformation/intrinsics';
-import { CONNECT_TO_AWS_SERVICE_MACROS } from '../src/aws-service-macros';
 import canonicalConfigSchema from '../generated/config-schema.json';
 import { acceptedConfiguration, alarmDefinition, api, rawSubscription } from './config-import.acceptance';
 
@@ -15,7 +14,14 @@ import { acceptedConfiguration, alarmDefinition, api, rawSubscription } from './
 
 describe('a Stacktape configuration can be built from explicit package imports', () => {
   test('the authored resource model, packaging, events and escape hatch compose', () => {
-    expect(Object.keys(acceptedConfiguration.resources)).toEqual(['api', 'site', 'uploads']);
+    expect(Object.keys(acceptedConfiguration.resources)).toEqual([
+      'api',
+      'primaryDsql',
+      'realtime',
+      'site',
+      'transactionalEmail',
+      'uploads'
+    ]);
     expect(acceptedConfiguration.cloudformationResources?.LegacyTopic?.Type).toBe('AWS::SNS::Topic');
     expect(api.properties.packaging.type).toBe('stacktape-lambda-buildpack');
     expect(alarmDefinition.trigger.type).toBe('lambda-error-rate');
@@ -25,8 +31,10 @@ describe('a Stacktape configuration can be built from explicit package imports',
 describe('the generated configuration schema package export', () => {
   test('resolves the canonical committed schema', () => {
     expect(configSchema).toBe(canonicalConfigSchema);
-    expect(Object.keys(configSchema.definitions)).toHaveLength(444);
-    expect(configSchema.definitions.StacktapeResourceDefinition.anyOf).toHaveLength(44);
+    expect(Object.keys(configSchema.definitions)).toHaveLength(466);
+    expect(configSchema.definitions.StacktapeResourceDefinition.anyOf).toHaveLength(49);
+    expect(configSchema.definitions.AppSyncApiProps).toBeDefined();
+    expect(configSchema.definitions.KafkaClusterProps).toBeDefined();
   });
 
   test('publishes defaults that match the authored and runtime configuration contract', () => {
@@ -34,6 +42,15 @@ describe('the generated configuration schema package export', () => {
     expect(configSchema.definitions.PyLanguageSpecificConfig.properties.pythonVersion.default).toBe(3.12);
     expect(configSchema.definitions.LambdaFunctionLogging.properties.retentionDays.default).toBe(90);
     expect(configSchema.definitions.RedisLogging.properties.retentionDays.default).toBe(30);
+    expect(configSchema.definitions.LambdaFunctionLogging.properties.logClass).toMatchObject({
+      default: 'standard',
+      enum: ['infrequent-access', 'standard']
+    });
+    expect(configSchema.definitions.OpenSearchLogRetentionSettings.properties.logClass.default).toBe('standard');
+    expect(configSchema.definitions.WebSocketApiGatewayProps.properties.routeSelectionExpression.default).toBe(
+      '$request.body.action'
+    );
+    expect(configSchema.definitions.DsqlDatabaseProps.properties.deletionProtection.default).toBe(false);
 
     // These defaults depend on another property or the containing log type. They are applied by the
     // packaging/synthesis runtime and cannot be represented by one scalar JSON Schema default.
@@ -104,14 +121,5 @@ describe('the CloudFormation value vocabulary the escape hatch is written agains
       Properties: { TopicArn: { Ref: 'Topic' } },
       Condition: 'CreateRawResources'
     });
-  });
-});
-
-describe('connectTo AWS service macros', () => {
-  test('are the authored vocabulary, owned here rather than read back out of the CLI resolver', () => {
-    expect(CONNECT_TO_AWS_SERVICE_MACROS).toEqual(['aws:ses']);
-    // The CLI narrows `connectTo` entries with this list, so membership must be a real runtime check.
-    expect(CONNECT_TO_AWS_SERVICE_MACROS.includes('aws:ses')).toBe(true);
-    expect((CONNECT_TO_AWS_SERVICE_MACROS as readonly string[]).includes('myDatabase')).toBe(false);
   });
 });

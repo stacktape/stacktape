@@ -16,6 +16,13 @@ export interface AgentCoreRuntimeProps extends ResourceAccessProps {
   useGateway?: string;
   useBrowser?: string;
   useCodeInterpreter?: string;
+  /**
+   * Runtime endpoints. Omit this property to create one endpoint named `default`.
+   *
+   * An explicit list must contain at least one endpoint and endpoint names must be unique. References to
+   * `endpointName` and `endpointArn` select the endpoint named `default` when present, or otherwise the first endpoint
+   * in this list.
+   */
   endpoints?: (string | AgentCoreRuntimeEndpointConfig)[];
   lifecycle?: AgentCoreRuntimeLifecycleConfig;
   requestHeaders?: string[];
