@@ -49,6 +49,6 @@ describe('buildPythonArtifactDockerfile', () => {
     expect(dockerfile).toContain('--no-group $group');
     expect(dockerfile).toContain('--only-group $group');
     expect(dockerfile).toContain('uv pip compile "$STP_PY_DEP_FILE" $compile_uv_args -o /tmp/requirements.txt');
-    expect(dockerfile).toContain('uv pip compile --pipfile "$STP_PY_DEP_FILE" -o /tmp/requirements.txt');
+    expect(dockerfile).toContain('uvx --from pipenv pipenv requirements > /tmp/requirements.txt');
   });
 });

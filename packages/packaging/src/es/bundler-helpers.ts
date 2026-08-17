@@ -263,13 +263,23 @@ export const createModuleResolver = ({ cwd, monorepoRoot }: { cwd: string; monor
 
 export const ensureDefaultExport = (content: string): string => {
   if (/export\s*\{[^}]*\bas\s+default\b[^}]*\}/.test(content)) return content;
-  const exportBlocks = content.match(/export\s*\{([^}]*)\}/g);
-  if (!exportBlocks?.some((exportBlock) => /\bhandler\b/.test(exportBlock))) return content;
+  for (const match of content.matchAll(/export\s*\{([^}]*)\}/g)) {
+    const specifiers = match[1]?.split(',') ?? [];
+    for (const specifier of specifiers) {
+      const parsed = specifier.trim().match(/^([\w$]+)(?:\s+as\s+([\w$]+))?$/);
+      if (!parsed) continue;
+      const localName = parsed[1];
+      const exportedName = parsed[2] ?? localName;
+      if (exportedName !== 'handler' || !localName || match.index === undefined) continue;
 
-  const sourceMapMatch = content.match(/\/\/[#@]\s*sourceMappingURL=.*(?:\r?\n)?$/);
-  if (!sourceMapMatch) return `${content}\nexport { handler as default };\n`;
-  const sourceMapComment = sourceMapMatch[0];
-  return `${content.slice(0, -sourceMapComment.length)}\nexport { handler as default };\n${sourceMapComment}`;
+      const closeBraceIndex = match.index + match[0].lastIndexOf('}');
+      const whitespaceBeforeBrace = content.slice(0, closeBraceIndex).match(/\s*$/)?.[0] ?? '';
+      const insertionIndex = closeBraceIndex - whitespaceBeforeBrace.length;
+      const separator = match[1]?.trim().length ? ', ' : '';
+      return `${content.slice(0, insertionIndex)}${separator}${localName} as default${whitespaceBeforeBrace}${content.slice(closeBraceIndex)}`;
+    }
+  }
+  return content;
 };
 
 export const ESM_SOURCE_MAP_BANNER = `import { createRequire as __stp_createRequire } from "node:module";

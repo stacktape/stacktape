@@ -1,8 +1,8 @@
 ---
-title: 'Astro'
+title: "Astro"
 order: 40
-seoTitle: 'Deploy Astro SSR Apps with Stacktape | Stacktape Docs'
-seoDescription: 'Deploy an Astro SSR app on AWS with Stacktape using Lambda for SSR, S3 for static assets, CloudFront CDN, custom domains, and dev mode.'
+seoTitle: "Deploy Astro SSR Apps with Stacktape | Stacktape Docs"
+seoDescription: "Deploy an Astro SSR app on AWS with Stacktape using Lambda for SSR, S3 for static assets, CloudFront CDN, custom domains, and dev mode."
 ---
 
 # Astro
@@ -41,20 +41,36 @@ This example deploys an Astro SSR app from the repository root. The default app 
 
 // [!code focus-start]
 export default defineConfig(() => {
-  const site = new AstroWeb({
-    appDirectory: '.'
-  });
+const site = new AstroWeb({
+appDirectory: '.'
+});
 
-  return {
-    resources: { site }
-  };
+return {
+resources: { site }
+};
 });
 // [!code focus-end]`
-    }
-  ]}
+}
+]}
 />
 
 Use `appDirectory` when `astro.config.mjs` lives outside the default `.` app directory, such as an Astro workspace in a monorepo. Use `buildCommand` only when the project should not run the default Astro build command, for example when a package manager script wraps the build.
+
+Stacktape's Astro resource requires Astro's Node adapter in middleware mode; the default static Astro scaffold does not
+produce the server entrypoint used by the Lambda wrapper. Install `@astrojs/node`, then configure the app itself:
+
+```js title="astro.config.mjs"
+import node from "@astrojs/node";
+import { defineConfig } from "astro/config";
+
+export default defineConfig({
+  output: "server",
+  adapter: node({ mode: "middleware" }),
+});
+```
+
+Packaging fails early with an actionable error when the adapter is not declared, instead of producing an unusable
+Lambda artifact. Static Astro projects should use the hosting-bucket path described above.
 
 ## Project directory
 
@@ -76,10 +92,10 @@ export default defineConfig(() => {
     // [!code focus-end]
   });
 
-  return { resources: { site } };
+return { resources: { site } };
 });`
-    }
-  ]}
+}
+]}
 />
 
 `buildCommand` overrides the default `astro build` command. Keep the default unless the Astro app already standardizes builds through a script such as `pnpm build`, or the monorepo needs package-manager-specific behavior before Astro runs.
@@ -106,10 +122,10 @@ export default defineConfig(() => {
     // [!code focus-end]
   });
 
-  return { resources: { site } };
+return { resources: { site } };
 });`
-    }
-  ]}
+}
+]}
 />
 
 Increase `memory` when SSR routes do meaningful server-side work, because Lambda CPU scales with memory and the source notes that `1,769` MB corresponds to `1` vCPU. Lowering `timeout` can fail slow requests earlier; leave it at the default `30` seconds when routes may need the full allowed execution window.
@@ -139,10 +155,10 @@ export default defineConfig(() => {
     // [!code focus-end]
   });
 
-  return { resources: { site } };
+return { resources: { site } };
 });`
-    }
-  ]}
+}
+]}
 />
 
 `domainName` must not include `https://`. By default, Stacktape creates the DNS record and provisions a free TLS certificate. Set `customCertificateArn` only when you need to use your own ACM certificate (for example, an EV or OV certificate).
@@ -166,16 +182,16 @@ export default defineConfig(() => {
     scope: 'cdn'
   });
 
-  const site = new AstroWeb({
-    // [!code focus-start]
-    useFirewall: 'firewall'
-    // [!code focus-end]
-  });
+const site = new AstroWeb({
+// [!code focus-start]
+useFirewall: 'firewall'
+// [!code focus-end]
+});
 
-  return { resources: { firewall, site } };
+return { resources: { firewall, site } };
 });`
-    }
-  ]}
+}
+]}
 />
 
 The `fileOptions` array sets custom HTTP headers for static files whose path matches an `includePattern` glob (for example, `assets/**`). Each entry accepts `includePattern`, an optional `excludePattern`, and a `headers` array of key-value pairs. Use `fileOptions` to set `Cache-Control` or other headers on fingerprinted build assets. For SSR route caching and path-specific CDN cache behavior, use the separate `cdn` property. See the API reference below for the exact shape of each entry.
@@ -195,17 +211,17 @@ Use `connectTo` to give the Astro resource access to other resources in your sta
 export default defineConfig(() => {
   const mediaBucket = new Bucket({});
 
-  const site = new AstroWeb({
-    // [!code focus-start]
-    connectTo: ['mediaBucket'],
-    environment: [{ name: 'PUBLIC_SITE_NAME', value: 'Docs Portal' }]
-    // [!code focus-end]
-  });
+const site = new AstroWeb({
+// [!code focus-start]
+connectTo: ['mediaBucket'],
+environment: [{ name: 'PUBLIC_SITE_NAME', value: 'Docs Portal' }]
+// [!code focus-end]
+});
 
-  return { resources: { mediaBucket, site } };
+return { resources: { mediaBucket, site } };
 });`
-    }
-  ]}
+}
+]}
 />
 
 With the `mediaBucket` resource name shown above, the Astro SSR function receives `STP_MEDIA_BUCKET_NAME` and `STP_MEDIA_BUCKET_ARN` as environment variables. Use `environment` for application settings and directives such as `$Secret()` or `$ResourceParam()`, and use `iamRoleStatements` only for AWS permissions not covered by `connectTo`.
@@ -235,10 +251,10 @@ export default defineConfig(() => {
     // [!code focus-end]
   });
 
-  return { resources: { site } };
+return { resources: { site } };
 });`
-    }
-  ]}
+}
+]}
 />
 
 Keep `dev.command` aligned with how the team runs Astro locally outside Stacktape. `dev.workingDirectory` is relative to the project root, so it is useful when the command must run from the Astro package directory rather than the repository root. See [`stacktape dev`](/cli/dev) for the CLI command reference.

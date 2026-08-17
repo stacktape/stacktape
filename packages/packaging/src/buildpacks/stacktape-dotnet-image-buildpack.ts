@@ -2,11 +2,11 @@ import type { ImageBuildActions, StpBuildpackInput } from '../runtime-contracts'
 import type { PackagingOutput } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
 import { buildDotnetDockerfile } from '../docker/dockerfiles';
-import { getFolder } from '../fs/files';
-import { outputFile } from 'fs-extra';
 import { DEFAULT_DOTNET_VERSION } from '../bundlers/constants';
 import { buildDotnetArtifact } from '../bundlers/dotnet';
 import type { DotnetLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
+import { findNearestProjectRoot, resolveExplicitProjectRoot } from './project-root';
+import { buildGeneratedDockerImage } from '../artifact/generated-image-build';
 
 export const buildUsingStacktapeDotnetImageBuildpack = async ({
   buildDockerImage,
@@ -27,8 +27,14 @@ export const buildUsingStacktapeDotnetImageBuildpack = async ({
     cacheFromRef?: string | undefined;
     cacheToRef?: string | undefined;
   }): Promise<PackagingOutput> => {
-  const sourcePath = getFolder(entryfilePath);
-  const absoluteSourcePath = isAbsolute(sourcePath) ? sourcePath : join(cwd, sourcePath);
+  const absoluteSourcePath = languageSpecificConfig?.projectFile
+    ? resolveExplicitProjectRoot({ cwd, projectFile: languageSpecificConfig.projectFile })
+    : findNearestProjectRoot({
+        cwd,
+        entryfilePath,
+        markerFiles: ['Directory.Build.props'],
+        markerFileExtensions: ['.csproj']
+      });
   const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
 
   const bundlingOutput = await buildDotnetArtifact({
@@ -43,7 +49,8 @@ export const buildUsingStacktapeDotnetImageBuildpack = async ({
     requiresGlibcBinaries,
     dockerBuildOutputArchitecture,
     cwd,
-    languageSpecificConfig
+    languageSpecificConfig,
+    target: 'container'
   });
 
   const { digest, outcome, sourceFiles, assemblyName, ...otherOutputProps } = bundlingOutput;
@@ -54,20 +61,18 @@ export const buildUsingStacktapeDotnetImageBuildpack = async ({
 
   await progressLogger.startEvent({ eventType: 'CREATE_DOCKERFILE', description: 'Creating Dockerfile' });
 
-  const dockerfilePath = join(distFolderPath, 'Dockerfile');
-  await outputFile(
-    dockerfilePath,
-    buildDotnetDockerfile({
-      dotnetVersion: languageSpecificConfig?.dotnetVersion ?? DEFAULT_DOTNET_VERSION,
-      assemblyName: assemblyName || 'app',
-      customDockerBuildCommands: otherProps.customDockerBuildCommands
-    })
-  );
+  const dockerfileContents = buildDotnetDockerfile({
+    dotnetVersion: languageSpecificConfig?.dotnetVersion ?? DEFAULT_DOTNET_VERSION,
+    assemblyName: assemblyName || 'app',
+    customDockerBuildCommands: otherProps.customDockerBuildCommands
+  });
 
   await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });
 
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image' });
-  const { size, dockerOutput, duration, created } = await buildDockerImage({
+  const { size, dockerOutput, duration, created } = await buildGeneratedDockerImage({
+    dockerfileContents,
+    buildDockerImage,
     imageTag: name,
     buildContextPath: distFolderPath,
     dockerBuildOutputArchitecture,

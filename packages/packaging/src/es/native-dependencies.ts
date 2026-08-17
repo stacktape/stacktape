@@ -8,9 +8,10 @@ import { createHash, type Hash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
 import { lstat, readdir, readlink } from 'node:fs/promises';
 import { join, relative, resolve as resolvePath } from 'node:path';
-import { copy, ensureDir, outputJSON, pathExists, remove, writeFile } from 'fs-extra';
-import getFolderSize from 'get-folder-size';
+import { copy, emptyDir, ensureDir, outputJSON, pathExists, remove, writeFile } from 'fs-extra';
 import objectHash from 'object-hash';
+import { getFolderSizeBytes } from '../fs/files';
+import { getInstallDependenciesCommand, getInstallPackageManagerCommand } from './package-manager-install';
 
 export type RunDocker = (commands: string[]) => Promise<unknown>;
 
@@ -91,48 +92,6 @@ const getLayerContentHash = async (layerPath: string): Promise<string> => {
     }
   }
   return hash.digest('hex').slice(0, 12);
-};
-
-const getRoundedFolderSizeInBytes = (folderPath: string): Promise<number> =>
-  new Promise((resolve, reject) => {
-    getFolderSize(folderPath, (error, size) => {
-      if (error) {
-        reject(error);
-        return;
-      }
-      resolve(Math.round(Number((size / 1024).toFixed(0)) * 1024));
-    });
-  });
-
-const getInstallDependenciesCommand = ({
-  dependencies,
-  packageManager
-}: {
-  dependencies: { name: string; version: string }[];
-  packageManager: SupportedEsPackageManager;
-}) => {
-  if (!dependencies.length) {
-    return '';
-  }
-  const installCommand = packageManager === 'npm' ? 'install --save' : 'add';
-  const dependencyList = dependencies.map(({ name, version }) => `${name}@${version}`).join(' ');
-  return `RUN ${packageManager} ${installCommand} ${dependencyList}`;
-};
-
-const getInstallPackageManagerCommand = (packageManager: SupportedEsPackageManager) => {
-  if (packageManager === 'pnpm') {
-    return 'RUN npm install -g pnpm\n';
-  }
-  if (packageManager === 'yarn') {
-    return 'RUN command -v yarn >/dev/null 2>&1 || npm install -g yarn\n';
-  }
-  if (packageManager === 'deno') {
-    return 'RUN npm install -g deno\n';
-  }
-  if (packageManager === 'bun') {
-    return 'RUN npm install -g bun\n';
-  }
-  return '';
 };
 
 const buildEsBinInstallerDockerfile = ({
@@ -328,6 +287,7 @@ export const buildNativeBinaryLayer = async ({
   packageManager,
   dockerBuildOutputArchitecture,
   usedByLambdas,
+  layerName = 'layer-native',
   runDocker
 }: {
   dependencies: SplitBundleDependency[];
@@ -337,6 +297,7 @@ export const buildNativeBinaryLayer = async ({
   packageManager: SupportedEsPackageManager;
   dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture | undefined;
   usedByLambdas: string[];
+  layerName?: string | undefined;
   runDocker: RunDocker;
 }): Promise<NativeBinaryLayerResult | null> => {
   if (!dependencies.length) {
@@ -352,8 +313,10 @@ export const buildNativeBinaryLayer = async ({
     runDocker
   });
 
-  const layerPath = join(layerBasePath, 'layer-native');
+  const layerPath = join(layerBasePath, layerName);
   const layerNodejsPath = join(layerPath, 'nodejs');
+  // The stable layer path is reused by dev/repackage flows. Never merge a new dependency set into the previous one.
+  await emptyDir(layerPath);
   await ensureDir(join(layerNodejsPath, 'node_modules'));
   await copy(nodeModulesPath, join(layerNodejsPath, 'node_modules'));
   await outputJSON(join(layerNodejsPath, 'package.json'), { type: 'module' });
@@ -362,7 +325,7 @@ export const buildNativeBinaryLayer = async ({
   return {
     layerPath,
     contentHash,
-    sizeBytes: await getRoundedFolderSizeInBytes(layerPath),
+    sizeBytes: await getFolderSizeBytes(layerPath),
     usedByLambdas,
     dependencies
   };

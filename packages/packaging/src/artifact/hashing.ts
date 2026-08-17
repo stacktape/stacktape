@@ -37,27 +37,7 @@ export const mergeHashes = (...hashes: string[]): string => {
 };
 
 /**
- * Directories never included when checksumming a project: build output, caches, and VCS metadata.
- * Including them would make every artifact digest depend on unrelated local state.
+ * Editor/VCS/Stacktape state that cannot intentionally be an image input. Build outputs, dependencies, and language
+ * caches remain included because a custom Dockerfile or buildpack can copy or otherwise consume them.
  */
-export const EXCLUDE_FROM_CHECKSUM_GLOBS = [
-  'node_modules',
-  'test_coverage',
-  '.git',
-  '.idea',
-  '.vscode',
-  '.stacktape',
-  '.serverless',
-  '.next',
-  '.open-next',
-  '.venv',
-  '__pycache__',
-  '.pytest_cache',
-  '.ruff_cache',
-  '.mypy_cache',
-  '.gradle',
-  '.mvn',
-  'dist',
-  'build',
-  'target'
-];
+export const EXCLUDE_FROM_CHECKSUM_GLOBS = ['.git', '.idea', '.vscode', '.stacktape'];

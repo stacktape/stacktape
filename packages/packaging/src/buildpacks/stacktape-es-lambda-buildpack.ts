@@ -4,9 +4,11 @@ import type { PackagingOutput } from '../runtime-contracts';
 import { emptyDir, rename } from 'fs-extra';
 import { createEsBundle } from '../bundlers/es';
 import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
-import { getFileSize, getFolderSize } from '../fs/files';
+import { getFileSizeBytes, getFolderSizeBytes } from '../fs/files';
 
 const FILE_SIZE_UNIT = 'MB';
+const BYTES_PER_MB = 1024 * 1024;
+const formatSizeMb = (sizeBytes: number): number => Math.round((sizeBytes / BYTES_PER_MB) * 100) / 100;
 
 export const buildUsingStacktapeEsLambdaBuildpack = async ({
   progressLogger,
@@ -61,9 +63,10 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
     return { ...bundlingOutput, size: null, jobName: name, resolvedModules };
   }
 
-  const unzippedSize = await getFolderSize(bundledDistFolderPath, FILE_SIZE_UNIT, 2);
+  const unzippedSizeBytes = await getFolderSizeBytes(bundledDistFolderPath);
+  const unzippedSize = formatSizeMb(unzippedSizeBytes);
 
-  if (sizeLimit && unzippedSize > sizeLimit) {
+  if (sizeLimit && unzippedSizeBytes > sizeLimit * BYTES_PER_MB) {
     throw createPackagingError({
       type: 'PACKAGING',
       message: `Function ${name} has size ${unzippedSize}${FILE_SIZE_UNIT}. Should be less than ${sizeLimit}${FILE_SIZE_UNIT}.`
@@ -83,8 +86,9 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
   });
   const originalZipPath = `${bundledDistFolderPath}.zip`;
 
-  zippedSize = await getFileSize(originalZipPath, FILE_SIZE_UNIT, 2);
-  if (zippedSizeLimit && zippedSize > zippedSizeLimit) {
+  const zippedSizeBytes = await getFileSizeBytes(originalZipPath);
+  zippedSize = formatSizeMb(zippedSizeBytes);
+  if (zippedSizeLimit && zippedSizeBytes > zippedSizeLimit * BYTES_PER_MB) {
     throw createPackagingError({
       type: 'PACKAGING',
       message: `${name} has size ${zippedSize}. Should be less than ${zippedSizeLimit}.`

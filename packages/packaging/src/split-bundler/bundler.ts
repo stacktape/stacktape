@@ -14,10 +14,10 @@ import type {
   SplitBundleResult
 } from './types';
 import type { PackageJsonDepsInfo } from '../es/bundler-helpers';
-import { existsSync } from 'node:fs';
+import { existsSync, statSync } from 'node:fs';
 import { basename, isAbsolute, join, posix, resolve } from 'node:path';
 import { rewriteChunkImports } from './chunk-rewriter';
-import { copy, ensureDir, outputJSON, readFile, writeFile } from 'fs-extra';
+import { copy, emptyDir, ensureDir, outputJSON, readFile, writeFile } from 'fs-extra';
 import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_MODULES, NODE_BUILTIN_MODULES } from '../es/config';
 import { findProjectRoot } from '../es/project-root';
 import { formatBuildError } from './error-format';
@@ -29,6 +29,7 @@ import {
   getInfoFromPackageJson,
   getTsconfigAliases
 } from '../es/bundler-helpers';
+import { rewriteLambdaAssetReferences } from '../artifact/lambda-assets';
 
 const transformToUnixPath = (path: string): string => path.replace(/\\/g, '/');
 
@@ -90,11 +91,8 @@ export const buildSplitBundle = async ({
     createPackagingError
   });
 
-  // Extract source files from metafile (replaces onLoad plugin tracking)
-  const sourceFiles = getSourceFilesFromMetafile(metafile);
-
   // Separate entry files from chunk files
-  const { chunkFiles } = categorizeOutputFiles(buildResult.outputs);
+  const { chunkFiles, assetFiles } = categorizeOutputFiles(buildResult.outputs);
 
   // Build mapping from metafile relative paths to absolute paths on disk
   const metafileToAbsolutePath = buildMetafilePathMapping(buildResult.outputs, sharedOutdir);
@@ -104,12 +102,12 @@ export const buildSplitBundle = async ({
     entrypoints,
     metafile,
     tracker,
-    sourceFiles,
+    assetFiles,
     metafileToAbsolutePath,
     createPackagingError
   });
 
-  // Build chunk usage analysis from metafile (no file reading needed)
+  // Build chunk usage analysis from the metafile plus emitted source-map sizes.
   const chunkAnalysis = buildChunkAnalysisFromMetafile(metafile, chunkUsageMap, metafileToAbsolutePath);
 
   return {
@@ -122,16 +120,31 @@ export const buildSplitBundle = async ({
 
 /** Dependency tracking state during bundling (source files now from metafile) */
 type DependencyTracker = {
-  resolvedModules: Set<string>;
-  dependenciesToInstallInDocker: PackageJsonDepsInfo[];
+  resolvedModulesByImporter: Map<string, Set<string>>;
+  dependenciesByImporter: Map<string, PackageJsonDepsInfo[]>;
   externalModules: Array<{ name: string; note: string }>;
 };
 
 const createDependencyTracker = (): DependencyTracker => ({
-  resolvedModules: new Set(),
-  dependenciesToInstallInDocker: [],
+  resolvedModulesByImporter: new Map(),
+  dependenciesByImporter: new Map(),
   externalModules: []
 });
+
+const trackResolvedModule = (tracker: DependencyTracker, importer: string, moduleName: string) => {
+  const importerKey = canonicalizeEntrypointPath(importer);
+  const resolvedModules = tracker.resolvedModulesByImporter.get(importerKey) ?? new Set<string>();
+  resolvedModules.add(moduleName);
+  tracker.resolvedModulesByImporter.set(importerKey, resolvedModules);
+};
+
+const trackDependencies = (tracker: DependencyTracker, importer: string, dependencies: PackageJsonDepsInfo[]) => {
+  if (dependencies.length === 0) return;
+  const importerKey = canonicalizeEntrypointPath(importer);
+  const trackedDependencies = tracker.dependenciesByImporter.get(importerKey) ?? [];
+  trackedDependencies.push(...dependencies);
+  tracker.dependenciesByImporter.set(importerKey, trackedDependencies);
+};
 
 /** Execute Bun.build with all plugins and configuration, returns build result and metafile */
 const executeBunBuild = async ({
@@ -201,7 +214,9 @@ const executeBunBuild = async ({
   };
   const banner = await getSourceMapBanner(sourceMapBannerType);
 
-  await ensureDir(sharedOutdir);
+  // A packaging manager can rebuild the same invocation paths in dev mode. Bun does not remove outputs that are no
+  // longer emitted, so retaining this directory would leak stale chunks and source maps into later artifacts.
+  await emptyDir(sharedOutdir);
   let result: Awaited<ReturnType<typeof Bun.build>>;
 
   try {
@@ -218,6 +233,8 @@ const executeBunBuild = async ({
       sourcemap: sourceMaps === 'disabled' ? 'none' : sourceMaps === 'external' ? 'linked' : 'inline',
       external: ['fsevents', ...tracker.externalModules.map((m) => m.name)],
       define: {
+        // Avoid baking the packaging process's development mode into every deployed Lambda.
+        'process.env.NODE_ENV': 'process.env.NODE_ENV',
         __dirname: '__stp_dirname',
         __filename: '__stp_filename'
       },
@@ -250,6 +267,18 @@ const executeBunBuild = async ({
     throw createPackagingError({
       message: `Split bundle build failed: ${errors}`
     });
+  }
+
+  const assetFiles = result.outputs.filter((output) => output.kind === 'asset').map(({ path }) => path);
+  if (assetFiles.length > 0) {
+    await Promise.all(
+      result.outputs
+        .filter(({ path }) => path.endsWith('.js'))
+        .map(async ({ path }) => {
+          const contents = await readFile(path, 'utf8');
+          await writeFile(path, rewriteLambdaAssetReferences(contents, assetFiles));
+        })
+    );
   }
 
   return {
@@ -288,21 +317,16 @@ const createAnalyzePlugin = ({
 
       // Analyze and handle external dependencies
       build.onResolve({ filter: /^[^.]/ }, async (args): Promise<{ path: string; external?: boolean } | undefined> => {
-        if (args.path.startsWith('.') || args.path.startsWith('/')) {
+        if (args.path.startsWith('.') || args.path.startsWith('/') || isAbsolute(args.path)) {
           return undefined;
         }
 
         const moduleName = getModuleName(args.path);
-        tracker.resolvedModules.add(moduleName);
+        trackResolvedModule(tracker, args.importer, moduleName);
 
         // Skip built-in modules
         if (NODE_BUILTIN_MODULES.includes(moduleName) || args.path.startsWith('node:')) {
           return undefined;
-        }
-
-        // Already marked as external
-        if (tracker.externalModules.find((m) => m.name === moduleName)) {
-          return { path: args.path, external: true };
         }
 
         // Check if it's a tsconfig alias
@@ -321,9 +345,11 @@ const createAnalyzePlugin = ({
             dependencyType: 'root'
           }).catch(() => null);
           if (pkgInfo) {
-            tracker.dependenciesToInstallInDocker.push({ ...pkgInfo, note: 'WILDCARD_EXTERNALIZED' });
+            trackDependencies(tracker, args.importer, [{ ...pkgInfo, note: 'WILDCARD_EXTERNALIZED' }]);
           }
-          tracker.externalModules.push({ name: moduleName, note: 'WILDCARD_EXTERNALIZED' });
+          if (!tracker.externalModules.some(({ name }) => name === moduleName)) {
+            tracker.externalModules.push({ name: moduleName, note: 'WILDCARD_EXTERNALIZED' });
+          }
           return { path: args.path, external: true };
         }
 
@@ -336,10 +362,12 @@ const createAnalyzePlugin = ({
               dependencyType: 'root'
             }).catch(() => null);
             if (pkgInfo) {
-              tracker.dependenciesToInstallInDocker.push({ ...pkgInfo, note: 'IGNORED' });
+              trackDependencies(tracker, args.importer, [{ ...pkgInfo, note: 'IGNORED' }]);
             }
           }
-          tracker.externalModules.push({ name: moduleName, note: 'IGNORED' });
+          if (!tracker.externalModules.some(({ name }) => name === moduleName)) {
+            tracker.externalModules.push({ name: moduleName, note: 'IGNORED' });
+          }
           return { path: args.path, external: true };
         }
 
@@ -350,10 +378,12 @@ const createAnalyzePlugin = ({
             dependenciesToExcludeFromBundle
           });
 
-          tracker.dependenciesToInstallInDocker.push(...dependenciesToInstallInDocker);
+          trackDependencies(tracker, args.importer, dependenciesToInstallInDocker);
 
           if (dependenciesToInstallInDocker.find((dep) => dep.name === moduleName)) {
-            tracker.externalModules.push({ name: moduleName, note: 'INSTALLED_IN_DOCKER' });
+            if (!tracker.externalModules.some(({ name }) => name === moduleName)) {
+              tracker.externalModules.push({ name: moduleName, note: 'INSTALLED_IN_DOCKER' });
+            }
             for (const dep of allExternalDeps) {
               if (!tracker.externalModules.find((m) => m.name === dep)) {
                 tracker.externalModules.push({ name: dep, note: `ADDED_BY_${moduleName}` });
@@ -470,27 +500,25 @@ const resolveMetafileOutputPath = (mapping: Map<string, string>, metafilePath: s
   mapping.get(metafilePath) ?? mapping.get(posix.normalize(transformToUnixPath(metafilePath)));
 
 /** Categorize build outputs into entry files and chunk files */
-const categorizeOutputFiles = (outputs: Array<{ path: string }>): { entryFiles: string[]; chunkFiles: string[] } => {
+const categorizeOutputFiles = (
+  outputs: Array<{ path: string; kind?: string | undefined }>
+): { entryFiles: string[]; chunkFiles: string[]; assetFiles: string[] } => {
   const entryFiles: string[] = [];
   const chunkFiles: string[] = [];
+  const assetFiles: string[] = [];
 
   for (const output of outputs) {
     const outputPath = output.path;
-    if (outputPath.includes('chunks/') || outputPath.includes('chunks\\')) {
+    if (output.kind === 'asset') {
+      assetFiles.push(outputPath);
+    } else if (outputPath.includes('chunks/') || outputPath.includes('chunks\\')) {
       chunkFiles.push(outputPath);
     } else if (outputPath.endsWith('.js')) {
       entryFiles.push(outputPath);
     }
   }
 
-  return { entryFiles, chunkFiles };
-};
-
-/** Extract source files from metafile inputs (replaces onLoad plugin tracking) */
-const getSourceFilesFromMetafile = (metafile: BuildMetafile): Array<{ path: string }> => {
-  return Array.from(
-    new Set(Object.keys(metafile.inputs).filter((inputPath) => !inputPath.includes('node_modules')))
-  ).map((inputPath) => ({ path: inputPath }));
+  return { entryFiles, chunkFiles, assetFiles };
 };
 
 /** Find all chunks required by an output (direct + transitive) using metafile */
@@ -534,19 +562,62 @@ const canonicalizeEntrypointPath = (path: string): string => {
   return process.platform === 'win32' ? normalizedPath.toLowerCase() : normalizedPath;
 };
 
+const collectOutputInputPaths = ({
+  outputPath,
+  chunkPaths,
+  metafile
+}: {
+  outputPath: string;
+  chunkPaths: Set<string>;
+  metafile: BuildMetafile;
+}): Set<string> => {
+  const inputPaths = new Set<string>();
+  for (const emittedPath of [outputPath, ...chunkPaths]) {
+    for (const inputPath of Object.keys(metafile.outputs[emittedPath]?.inputs ?? {})) {
+      inputPaths.add(inputPath);
+    }
+  }
+  return inputPaths;
+};
+
+const getTrackedDependenciesForInputs = (
+  tracker: DependencyTracker,
+  inputPaths: Set<string>
+): PackageJsonDepsInfo[] => {
+  const dependencies = Array.from(inputPaths).flatMap(
+    (inputPath) => tracker.dependenciesByImporter.get(canonicalizeEntrypointPath(inputPath)) ?? []
+  );
+  const seen = new Set<string>();
+  return dependencies.filter((dependency) => {
+    const identity = [dependency.name, dependency.version, dependency.note ?? '', dependency.path].join('\0');
+    if (seen.has(identity)) return false;
+    seen.add(identity);
+    return true;
+  });
+};
+
+const getTrackedModulesForInputs = (tracker: DependencyTracker, inputPaths: Set<string>): string[] =>
+  Array.from(
+    new Set(
+      Array.from(inputPaths).flatMap((inputPath) =>
+        Array.from(tracker.resolvedModulesByImporter.get(canonicalizeEntrypointPath(inputPath)) ?? [])
+      )
+    )
+  );
+
 /** Process lambda outputs using metafile for chunk dependency analysis */
 const processLambdaOutputsWithMetafile = async ({
   entrypoints,
   metafile,
   tracker,
-  sourceFiles,
+  assetFiles,
   metafileToAbsolutePath,
   createPackagingError
 }: {
   entrypoints: BuildSplitBundleOptions['entrypoints'];
   metafile: BuildMetafile;
   tracker: DependencyTracker;
-  sourceFiles: Array<{ path: string }>;
+  assetFiles: string[];
   metafileToAbsolutePath: Map<string, string>;
   createPackagingError: BuildSplitBundleOptions['createPackagingError'];
 }): Promise<{
@@ -567,7 +638,8 @@ const processLambdaOutputsWithMetafile = async ({
   // Pre-create all lambda directories
   await Promise.all(
     entrypoints.map(async (ep) => {
-      await ensureDir(ep.distFolderPath);
+      // Rebuilding into the same invocation path must not retain chunks or source maps from an earlier graph.
+      await emptyDir(ep.distFolderPath);
       await ensureDir(join(ep.distFolderPath, 'chunks'));
     })
   );
@@ -587,6 +659,7 @@ const processLambdaOutputsWithMetafile = async ({
 
       // Find all required chunks using metafile (no file reading needed!)
       const allRequiredChunks = findAllChunksFromMetafile(outputPath, metafile);
+      const inputPaths = collectOutputInputPaths({ outputPath, chunkPaths: allRequiredChunks, metafile });
 
       // Track chunk usage for layer analysis
       for (const chunk of allRequiredChunks) {
@@ -616,16 +689,23 @@ const processLambdaOutputsWithMetafile = async ({
       await processLambdaEntrypointWithMetafile({
         entrypoint,
         outputPath: absoluteOutputPath,
-        allRequiredChunks: absoluteChunkPaths
+        allRequiredChunks: absoluteChunkPaths,
+        assetFiles
       });
 
       lambdaOutputs.set(entrypoint.name, {
         name: entrypoint.name,
         entryFile: join(entrypoint.distFolderPath, 'index.js'),
-        files: [join(entrypoint.distFolderPath, 'index.js')],
-        sourceFiles,
-        dependenciesToInstallInDocker: tracker.dependenciesToInstallInDocker,
-        resolvedModules: Array.from(tracker.resolvedModules)
+        files: [
+          join(entrypoint.distFolderPath, 'index.js'),
+          ...Array.from(absoluteChunkPaths, (path) => join(entrypoint.distFolderPath, 'chunks', basename(path))),
+          ...assetFiles.map((path) => join(entrypoint.distFolderPath, basename(path)))
+        ],
+        sourceFiles: Array.from(inputPaths)
+          .filter((inputPath) => !transformToUnixPath(inputPath).includes('/node_modules/'))
+          .map((path) => ({ path })),
+        dependenciesToInstallInDocker: getTrackedDependenciesForInputs(tracker, inputPaths),
+        resolvedModules: getTrackedModulesForInputs(tracker, inputPaths)
       });
     })
   );
@@ -637,11 +717,13 @@ const processLambdaOutputsWithMetafile = async ({
 const processLambdaEntrypointWithMetafile = async ({
   entrypoint,
   outputPath,
-  allRequiredChunks
+  allRequiredChunks,
+  assetFiles
 }: {
   entrypoint: BuildSplitBundleOptions['entrypoints'][0];
   outputPath: string;
   allRequiredChunks: Set<string>;
+  assetFiles: string[];
 }): Promise<void> => {
   // Read and process entry file
   let entryContent = await readFile(outputPath, 'utf-8');
@@ -660,6 +742,10 @@ const processLambdaEntrypointWithMetafile = async ({
   await writeFile(destIndexPath, entryContent);
 
   const chunksDestDir = join(entrypoint.distFolderPath, 'chunks');
+
+  await Promise.all(
+    assetFiles.map((assetPath) => copy(assetPath, join(entrypoint.distFolderPath, basename(assetPath))))
+  );
 
   // Copy and rewrite chunks in parallel
   await Promise.all(
@@ -687,7 +773,7 @@ const processLambdaEntrypointWithMetafile = async ({
   await outputJSON(join(entrypoint.distFolderPath, 'package.json'), { type: 'module' });
 };
 
-/** Build chunk usage analysis from metafile (no file reading needed) */
+/** Build chunk usage analysis from metafile metadata and emitted sidecar source maps. */
 const buildChunkAnalysisFromMetafile = (
   metafile: BuildMetafile,
   chunkUsageMap: Map<string, Set<string>>,
@@ -703,7 +789,8 @@ const buildChunkAnalysisFromMetafile = (
     const absoluteChunkPath = resolveMetafileOutputPath(metafileToAbsolutePath, relativeChunkPath) ?? relativeChunkPath;
 
     const chunkName = basename(relativeChunkPath);
-    const sizeBytes = chunkMeta.bytes; // Direct from metafile - no filesystem call!
+    const sourceMapPath = `${absoluteChunkPath}.map`;
+    const sizeBytes = chunkMeta.bytes + (existsSync(sourceMapPath) ? statSync(sourceMapPath).size : 0);
     const usedByLambdas = Array.from(lambdaNames);
     const usageCount = usedByLambdas.length;
     const deduplicationValue = sizeBytes * (usageCount - 1);

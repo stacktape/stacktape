@@ -1,9 +1,8 @@
 import type { CreatePackagingError, RunDocker, StpBuildpackInput } from '../../runtime-contracts';
 import type { CreateBundleOutput } from '../../runtime-contracts';
-import { join, relative } from 'node:path';
+import { relative } from 'node:path';
 import { buildPythonArtifactDockerfile } from '../../docker/dockerfiles';
 import { transformToUnixPath } from '../../fs/files';
-import { outputFile } from 'fs-extra';
 import objectHash from 'object-hash';
 import {
   getBundleDigest,
@@ -14,6 +13,13 @@ import {
   resolvePythonDependencyFile
 } from './utils';
 import type { PyLanguageSpecificConfig, SupportedPythonVersion } from '@stacktape/config/deployment-artifacts';
+import {
+  applyArtifactFileSelection,
+  assertRequiredArtifactFile,
+  mergeExplicitlyIncludedSourceFiles,
+  resolveArtifactFileSelection
+} from '../../artifact/file-selection';
+import { runDockerArtifactBuild } from '../../artifact/docker-artifact-build';
 
 type LanguageBundleOutput = Omit<CreateBundleOutput, 'distIndexFilePath'> &
   Partial<Pick<CreateBundleOutput, 'distIndexFilePath'>>;
@@ -31,6 +37,9 @@ export const buildPythonArtifact = async ({
   languageSpecificConfig,
   requiresGlibcBinaries,
   dockerBuildOutputArchitecture,
+  includeFiles,
+  excludeFiles,
+  target = 'container',
   createPackagingError,
   runDocker
 }: StpBuildpackInput & {
@@ -39,6 +48,7 @@ export const buildPythonArtifact = async ({
   rawEntryfilePath: string;
   distIndexFilePath?: string | undefined;
   languageSpecificConfig: PyLanguageSpecificConfig;
+  target?: 'container' | 'lambda' | undefined;
   createPackagingError: CreatePackagingError;
   runDocker: RunDocker;
 }): Promise<LanguageBundleOutput> => {
@@ -52,6 +62,7 @@ export const buildPythonArtifact = async ({
       message: 'Only the "uv" package manager is supported for Python.'
     });
   }
+  const artifactFileSelection = await resolveArtifactFileSelection({ cwd, includeFiles });
   const dependencyFilePath = await resolvePythonDependencyFile({
     cwd,
     sourcePath,
@@ -66,21 +77,19 @@ export const buildPythonArtifact = async ({
   }
   const dependencyRootPath = getPythonDependencyRootPath(dependencyFilePath, sourcePath);
   const dependencyFileType = getPythonDependencyFileType(dependencyFilePath);
-  if (dependencyFileType === 'uv-lock') {
-    throw createPackagingError({
-      type: 'PACKAGING',
-      message: 'uv.lock is not supported as a dependency input. Use pyproject.toml or requirements.txt instead.'
-    });
-  }
   const uvDependencySelectorBuildArgs = getPythonUvDependencySelectorBuildArgs(
     languageSpecificConfig,
     createPackagingError
   );
-  if (Object.values(uvDependencySelectorBuildArgs).some(Boolean) && dependencyFileType !== 'pyproject') {
+  if (
+    Object.values(uvDependencySelectorBuildArgs).some(Boolean) &&
+    dependencyFileType !== 'pyproject' &&
+    dependencyFileType !== 'uv-lock'
+  ) {
     throw createPackagingError({
       type: 'PACKAGING',
       message:
-        'Python uv dependency selectors (uvOptionalDependencies, uvWithGroups, uvWithoutGroups, uvOnlyGroups) require pyproject.toml as the packageManagerFile.'
+        'Python uv dependency selectors (uvOptionalDependencies, uvWithGroups, uvWithoutGroups, uvOnlyGroups) require pyproject.toml or uv.lock as the packageManagerFile.'
     });
   }
   const dependencyFilePathRelative = dependencyFilePath
@@ -89,11 +98,22 @@ export const buildPythonArtifact = async ({
   const digest = await getBundleDigest({
     externalDependencies: [],
     rootPath: dependencyRootPath,
-    additionalDigestInput: objectHash({ additionalDigestInput, dockerBuildOutputArchitecture }),
+    additionalDigestInput: objectHash({
+      additionalDigestInput,
+      dockerBuildOutputArchitecture,
+      includeFiles,
+      excludeFiles,
+      target,
+      explicitlyIncludedFilesDigest: artifactFileSelection.digest
+    }),
     languageSpecificConfig,
     rawEntryfilePath
   });
-  const sourceFiles = await getSourceFiles({ rootPath: dependencyRootPath });
+  const sourceFiles = mergeExplicitlyIncludedSourceFiles({
+    cwd,
+    sourceFiles: await getSourceFiles({ rootPath: dependencyRootPath }),
+    explicitlyIncludedFiles: artifactFileSelection.explicitlyIncludedFiles
+  });
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
       eventType: 'CALCULATE_CHECKSUM',
@@ -119,16 +139,16 @@ export const buildPythonArtifact = async ({
   const dockerfileContents = buildPythonArtifactDockerfile({
     pythonVersion,
     minify: languageSpecificConfig?.minify ?? false,
-    alpine: !requiresGlibcBinaries
+    alpine: !requiresGlibcBinaries,
+    target
   });
 
-  const dockerfilePath = join(distFolderPath, 'Dockerfile');
-  await outputFile(dockerfilePath, dockerfileContents);
-  await runDocker(
-    [
-      'image',
-      'build',
-      ...(dockerBuildOutputArchitecture ? ['--platform', dockerBuildOutputArchitecture] : []),
+  await runDockerArtifactBuild({
+    dockerfileContents,
+    sourcePath: dependencyRootPath,
+    distFolderPath,
+    dockerBuildOutputArchitecture,
+    buildArgs: [
       '--build-arg',
       `STP_PY_DEP_FILE=${dependencyFilePathRelative || ''}`,
       '--build-arg',
@@ -140,17 +160,24 @@ export const buildPythonArtifact = async ({
       '--build-arg',
       `STP_PY_UV_WITHOUT_GROUPS=${uvDependencySelectorBuildArgs.withoutGroups}`,
       '--build-arg',
-      `STP_PY_UV_ONLY_GROUPS=${uvDependencySelectorBuildArgs.onlyGroups}`,
-      '--target',
-      'artifact',
-      '--file',
-      dockerfilePath,
-      '--output',
-      `type=local,dest=${transformToUnixPath(distFolderPath)}`,
-      dependencyRootPath
+      `STP_PY_UV_ONLY_GROUPS=${uvDependencySelectorBuildArgs.onlyGroups}`
     ],
-    { cwd: process.cwd() }
-  );
+    runDocker
+  });
+  await applyArtifactFileSelection({
+    cwd,
+    outputDirectory: distFolderPath,
+    includeFiles,
+    excludeFiles,
+    explicitlyIncludedFiles: artifactFileSelection.explicitlyIncludedFiles,
+    createPackagingError
+  });
+  await assertRequiredArtifactFile({
+    outputDirectory: distFolderPath,
+    relativePath: transformToUnixPath(relative(dependencyRootPath, rawEntryfilePath)),
+    description: 'Python entrypoint',
+    createPackagingError
+  });
   await progressLogger.finishEvent({ eventType: 'BUILD_CODE' });
 
   return {

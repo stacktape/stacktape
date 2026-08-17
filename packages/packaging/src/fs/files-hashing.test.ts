@@ -71,6 +71,18 @@ describe('multi-file hashing', () => {
     expect(await digest(root, ['missing'])).not.toBe(await digest(root, ['empty']));
   });
 
+  test('hashes file bytes without replacing invalid UTF-8 sequences', async () => {
+    const firstRoot = await createRoot();
+    const secondRoot = await createRoot();
+    // Both byte sequences decode to the Unicode replacement character when read as UTF-8.
+    await Promise.all([
+      writeFile(join(firstRoot, 'binary'), Buffer.from([0x80])),
+      writeFile(join(secondRoot, 'binary'), Buffer.from([0x81]))
+    ]);
+
+    expect(await digest(firstRoot, ['binary'])).not.toBe(await digest(secondRoot, ['binary']));
+  });
+
   test('keeps generated artifacts stable when invocation directories change', async () => {
     const firstRoot = await createRoot();
     const secondRoot = await createRoot();

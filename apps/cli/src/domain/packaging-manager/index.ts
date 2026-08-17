@@ -12,12 +12,9 @@ import type { StpSvelteKitWeb } from '@domain-services/config-manager/resolved-t
 import type { StpTanStackWeb } from '@domain-services/config-manager/resolved-types/tanstack-web';
 import type { NativeBinaryLayerResult } from '@stacktape/packaging/es/native-dependencies';
 import type { DockerBuildOutputArchitecture, PackagingOutput } from '@stacktape/packaging/runtime-contracts';
-import type {
-  LambdaEntrypoint,
-  LayerAssignmentResult,
-  SplitBundleDependency
-} from '@stacktape/packaging/split-bundler/types';
-import { join } from 'node:path';
+import type { LambdaEntrypoint } from '@stacktape/packaging/split-bundler/types';
+import { existsSync } from 'node:fs';
+import { isAbsolute, join } from 'node:path';
 import { eventManager } from '@application-services/event-manager';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
@@ -29,10 +26,10 @@ import { fsPaths } from 'src/config/runtime-paths';
 import { SOURCE_MAP_INSTALL_DIST_PATH } from 'src/config/project-paths';
 import { buildLayerS3Key } from '@domain-services/deployment-artifact-manager/artifact-names';
 import { getJobName } from '@stacktape/naming/workload-names';
-import { DEPENDENCIES_WITH_BINARIES } from '@stacktape/packaging/es/config';
 import { buildNativeBinaryLayer } from '@stacktape/packaging/es/native-dependencies';
 import { buildSplitBundle } from '@stacktape/packaging/split-bundler/bundler';
 import { getLambdaRuntimeFromNodeTarget, getLockFileData } from '@stacktape/packaging/bundlers/es/utils';
+import { STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION } from '@stacktape/packaging/bundlers/constants';
 import { assignChunksToLayers, DEFAULT_LAYER_CONFIG } from '@stacktape/packaging/split-bundler/layer-assignment';
 import { createLayerArtifacts } from '@stacktape/packaging/split-bundler/layer-builder';
 import { buildUsingCustomArtifact } from '@stacktape/packaging/artifact/custom-artifact';
@@ -56,7 +53,6 @@ import { buildUsingStacktapeJavaLambdaBuildpack } from '@stacktape/packaging/bui
 import { buildUsingStacktapeRbImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-rb-image-buildpack';
 import { buildUsingStacktapeRbLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-rb-lambda-buildpack';
 import { buildUsingStacktapePhpImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-php-image-buildpack';
-import { buildUsingStacktapePhpLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-php-lambda-buildpack';
 import { buildUsingStacktapeDotnetImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-dotnet-image-buildpack';
 import { buildUsingStacktapeDotnetLambdaBuildpack } from '@stacktape/packaging/buildpacks/stacktape-dotnet-lambda-buildpack';
 import { buildUsingStacktapePyImageBuildpack } from '@stacktape/packaging/buildpacks/stacktape-py-image-buildpack';
@@ -100,9 +96,57 @@ import type { ContainerWorkloadResourcesConfig } from '@stacktape/config/multi-c
 import type { LambdaRuntime } from '@stacktape/config/primitives';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 import { resolveNodeVersion } from '@stacktape/packaging/bundlers/node-version';
-import { getFileSize, getFolderSize, getHashFromMultipleFiles } from '@stacktape/packaging/fs/files';
+import { getFileSizeBytes, getFolderSizeBytes } from '@stacktape/packaging/fs/files';
+import { getDirectoryChecksum, mergeHashes } from '@stacktape/packaging/artifact/hashing';
+import {
+  formatBytesAsMb,
+  getLambdaCombinedUnzippedSizeBytes,
+  LAMBDA_MAX_COMBINED_UNZIPPED_SIZE_BYTES
+} from '@stacktape/packaging/artifact/lambda-limits';
 import { loadFromJavascript, loadFromTypescript } from '@utils/file-loaders';
 import { canBuildSplitNativeDependencies, canUseSplitBundling } from './split-bundling-policy';
+import { groupCompatibleNativeDependencies } from './native-layer-groups';
+import {
+  areBuildAndRuntimeVersionsAligned,
+  getDotnetBuildVersionForRuntime,
+  getJavaBuildVersionForRuntime,
+  getPythonBuildVersionForRuntime,
+  getRubyBuildVersionForRuntime
+} from './runtime-build-version';
+
+const resolveManagedLambdaBuildVersion = <Version extends string | number>({
+  configuredVersion,
+  runtimeVersion,
+  runtime,
+  language,
+  workloadName
+}: {
+  configuredVersion?: Version | undefined;
+  runtimeVersion?: Version | undefined;
+  runtime?: LambdaRuntime | undefined;
+  language: string;
+  workloadName: string;
+}): Version | undefined => {
+  if (runtime !== undefined && runtimeVersion === undefined) {
+    throw createCliPackagingError({
+      type: 'PACKAGING',
+      message: `Lambda runtime ${runtime} is not compatible with the ${language} Stacktape buildpack for ${workloadName}.`,
+      hint: `Select a managed ${language} runtime that matches the entry file.`
+    });
+  }
+  if (
+    configuredVersion !== undefined &&
+    runtimeVersion !== undefined &&
+    !areBuildAndRuntimeVersionsAligned(configuredVersion, runtimeVersion)
+  ) {
+    throw createCliPackagingError({
+      type: 'PACKAGING',
+      message: `${language} build version ${configuredVersion} does not match Lambda runtime ${runtime} for ${workloadName}.`,
+      hint: 'Remove the explicit language version to inherit it from the runtime, or make both versions match.'
+    });
+  }
+  return configuredVersion ?? runtimeVersion;
+};
 
 const formatLambdaSize = ({ sizeMB, sizeKB }: { sizeMB: number; sizeKB: number }) => {
   if (Number.isNaN(sizeMB) || Number.isNaN(sizeKB)) {
@@ -147,7 +191,6 @@ const shouldUseRemoteDockerCache = () => {
 
 export class PackagingManager {
   #packagedJobs: PackageWorkloadOutput[] = [];
-  #layerAssignment: LayerAssignmentResult | null = null;
   #layerArtifacts: Array<{
     layerNumber: number;
     layerPath: string;
@@ -159,14 +202,14 @@ export class PackagingManager {
     s3Key: string;
   }> = [];
 
-  /** Native binary layer (bcrypt, sharp, etc.) - separate from chunk layers */
-  #nativeBinaryLayer: (NativeBinaryLayerResult & { s3Key: string }) | null = null;
+  /** Native/external dependency layers (bcrypt, sharp, explicit externals, etc.) - separate from chunk layers. */
+  #nativeBinaryLayers: Array<NativeBinaryLayerResult & { layerNumber: number; s3Key: string }> = [];
 
   /** Maps lambda name -> set of layer numbers it uses (for chunk layers) */
   #lambdaLayerMap: Map<string, Set<number>> = new Map();
 
-  /** Set of lambda names that use the native binary layer */
-  #lambdasUsingNativeBinaryLayer: Set<string> = new Set();
+  /** Maps each Lambda to its compatible native dependency layer. */
+  #nativeBinaryLayerByLambda: Map<string, number> = new Map();
 
   init = async () => {};
 
@@ -183,6 +226,10 @@ export class PackagingManager {
 
   clearPackagedJobs() {
     this.#packagedJobs = [];
+    this.#layerArtifacts = [];
+    this.#nativeBinaryLayers = [];
+    this.#lambdaLayerMap.clear();
+    this.#nativeBinaryLayerByLambda.clear();
   }
 
   getPackagingOutputForJob(jobName: string) {
@@ -192,15 +239,8 @@ export class PackagingManager {
   /**
    * Check if a lambda uses shared layers.
    */
-  shouldLambdaUseSharedLayer(_lambdaName: string): boolean {
-    if (!this.#layerAssignment) return false;
-    // Check if any layered chunk is used by this lambda
-    return this.#layerAssignment.layeredChunks.some((chunk) => {
-      const analysis = this.#layerAssignment?.layeredChunks.find((c) => c.chunkName === chunk.chunkName);
-      // We'd need to look up the original chunk analysis for usedByLambdas
-      // For now, if we have layers, all lambdas use them
-      return analysis !== undefined;
-    });
+  shouldLambdaUseSharedLayer(lambdaName: string): boolean {
+    return (this.#lambdaLayerMap.get(lambdaName)?.size ?? 0) > 0 || this.#nativeBinaryLayerByLambda.has(lambdaName);
   }
 
   /**
@@ -208,14 +248,15 @@ export class PackagingManager {
    */
   getLayerArtifact(layerNumber: number) {
     // Layer 0 is native binary layer
-    if (layerNumber === 0 && this.#nativeBinaryLayer) {
+    const nativeLayer = this.#nativeBinaryLayers.find((layer) => layer.layerNumber === layerNumber);
+    if (nativeLayer) {
       return {
-        layerNumber: 0,
-        layerPath: this.#nativeBinaryLayer.layerPath,
+        layerNumber: nativeLayer.layerNumber,
+        layerPath: nativeLayer.layerPath,
         chunks: [], // Native layer doesn't have chunks
-        sizeBytes: this.#nativeBinaryLayer.sizeBytes,
-        contentHash: this.#nativeBinaryLayer.contentHash,
-        s3Key: this.#nativeBinaryLayer.s3Key
+        sizeBytes: nativeLayer.sizeBytes,
+        contentHash: nativeLayer.contentHash,
+        s3Key: nativeLayer.s3Key
       };
     }
     return this.#layerArtifacts.find((l) => l.layerNumber === layerNumber) || null;
@@ -227,15 +268,14 @@ export class PackagingManager {
   getLayerArtifacts() {
     const allLayers = [...this.#layerArtifacts];
 
-    // Include native binary layer as layer 0 if it exists
-    if (this.#nativeBinaryLayer) {
+    for (const nativeLayer of this.#nativeBinaryLayers) {
       allLayers.unshift({
-        layerNumber: 0,
-        layerPath: this.#nativeBinaryLayer.layerPath,
+        layerNumber: nativeLayer.layerNumber,
+        layerPath: nativeLayer.layerPath,
         chunks: [],
-        sizeBytes: this.#nativeBinaryLayer.sizeBytes,
-        contentHash: this.#nativeBinaryLayer.contentHash,
-        s3Key: this.#nativeBinaryLayer.s3Key
+        sizeBytes: nativeLayer.sizeBytes,
+        contentHash: nativeLayer.contentHash,
+        s3Key: nativeLayer.s3Key
       });
     }
 
@@ -272,8 +312,12 @@ export class PackagingManager {
     const layerNumbers: number[] = [];
 
     // Add native binary layer (layer 0) if this lambda uses native deps
-    if (this.#lambdasUsingNativeBinaryLayer.has(lambdaName) && this.#nativeBinaryLayer) {
-      layerNumbers.push(0);
+    const nativeLayerNumber = this.#nativeBinaryLayerByLambda.get(lambdaName);
+    if (
+      nativeLayerNumber !== undefined &&
+      this.#nativeBinaryLayers.some((layer) => layer.layerNumber === nativeLayerNumber)
+    ) {
+      layerNumbers.push(nativeLayerNumber);
     }
 
     // Add chunk layers (1-5)
@@ -282,21 +326,21 @@ export class PackagingManager {
       layerNumbers.push(...Array.from(chunkLayerNumbers));
     }
 
-    return layerNumbers.sort();
+    return layerNumbers.sort((left, right) => left - right);
   }
 
   /**
    * Check if a lambda uses the native binary layer.
    */
   lambdaUsesNativeBinaryLayer(lambdaName: string): boolean {
-    return this.#lambdasUsingNativeBinaryLayer.has(lambdaName);
+    return this.#nativeBinaryLayerByLambda.has(lambdaName);
   }
 
   /**
    * Get native binary layer artifact if one was created.
    */
   getNativeBinaryLayer() {
-    return this.#nativeBinaryLayer;
+    return this.#nativeBinaryLayers[0] ?? null;
   }
 
   /**
@@ -311,9 +355,8 @@ export class PackagingManager {
    * Returns the first layer artifact if there are any, null otherwise.
    */
   getPendingSharedLayer(): { layerPath: string; layerNumber: number } | null {
-    if (this.#layerArtifacts.length === 0) return null;
-    // Return first layer - the upload process will handle all layers
-    const first = this.#layerArtifacts[0];
+    const first = this.getLayerArtifacts()[0];
+    if (!first) return null;
     return { layerPath: first.layerPath, layerNumber: first.layerNumber };
   }
 
@@ -338,10 +381,7 @@ export class PackagingManager {
       layersToZip.push(layer.layerPath);
     }
 
-    // Add native binary layer
-    if (this.#nativeBinaryLayer) {
-      layersToZip.push(this.#nativeBinaryLayer.layerPath);
-    }
+    layersToZip.push(...this.#nativeBinaryLayers.map(({ layerPath }) => layerPath));
 
     if (layersToZip.length === 0) return;
 
@@ -375,6 +415,10 @@ export class PackagingManager {
     commandCanUseCache: boolean;
   }): Promise<void> => {
     if (nodeLambdas.length === 0) return;
+    this.#layerArtifacts = [];
+    this.#nativeBinaryLayers = [];
+    this.#lambdaLayerMap.clear();
+    this.#nativeBinaryLayerByLambda.clear();
 
     // Prepare entrypoints for split bundling
     const entrypoints: LambdaEntrypoint[] = nodeLambdas.map(({ name, type, packaging }) => {
@@ -427,13 +471,26 @@ export class PackagingManager {
       });
     }
 
+    const configuredTsConfigPath = languageSpecificConfig?.tsConfigPath;
+    const explicitTsConfigPath = configuredTsConfigPath
+      ? isAbsolute(configuredTsConfigPath)
+        ? configuredTsConfigPath
+        : join(globalStateManager.workingDir, configuredTsConfigPath)
+      : undefined;
+    if (explicitTsConfigPath && !existsSync(explicitTsConfigPath)) {
+      throw createCliPackagingError({
+        type: 'PACKAGING',
+        message: `Configured TypeScript configuration file does not exist: ${configuredTsConfigPath}.`
+      });
+    }
+    const defaultTsConfigPath = join(globalStateManager.workingDir, 'tsconfig.json');
+    const tsConfigPath = explicitTsConfigPath ?? (existsSync(defaultTsConfigPath) ? defaultTsConfigPath : undefined);
+
     const splitResult = await buildSplitBundle({
       entrypoints,
       sharedOutdir: fsPaths.absoluteSplitBundleOutdir({ invocationId: globalStateManager.invocationId }),
       cwd: globalStateManager.workingDir,
-      tsConfigPath: languageSpecificConfig?.tsConfigPath
-        ? join(globalStateManager.workingDir, languageSpecificConfig.tsConfigPath)
-        : join(globalStateManager.workingDir, 'tsconfig.json'),
+      ...(tsConfigPath ? { tsConfigPath } : {}),
       minify: false, // Match existing behavior
       sourceMaps: languageSpecificConfig?.disableSourceMaps ? 'disabled' : 'external',
       sourceMapBannerType: 'pre-compiled',
@@ -486,49 +543,50 @@ export class PackagingManager {
       const firstLambdaArch = nodeLambdas[0]?.architecture;
       const dockerArch = firstLambdaArch === 'arm64' ? 'linux/arm64' : 'linux/amd64';
 
-      // Collect all unique native dependencies across all lambdas
-      const allNativeDeps = new Map<string, SplitBundleDependency>();
-      for (const [, output] of lambdasWithNativeDeps) {
-        for (const dep of output.dependenciesToInstallInDocker) {
-          if (!allNativeDeps.has(dep.name)) {
-            allNativeDeps.set(dep.name, dep);
+      const dependencyGroups = groupCompatibleNativeDependencies(
+        lambdasWithNativeDeps.map(([lambdaName, output]) => ({
+          lambdaName,
+          dependencies: output.dependenciesToInstallInDocker
+        }))
+      );
+      const nativeLayers = await Promise.all(
+        dependencyGroups.map(async ({ dependencies, lambdaNames }, groupIndex) => {
+          // Preserve layer 0 for the ordinary single-group case. Additional version-isolated layers use a disjoint
+          // range so their logical IDs cannot collide with shared chunk layers 1-5.
+          const layerNumber = groupIndex === 0 ? 0 : 99 + groupIndex;
+          const nativeLayer = await buildNativeBinaryLayer({
+            dependencies,
+            installationRootPath: join(
+              fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId }),
+              '_bin-install'
+            ),
+            layerBasePath: `${fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId })}/layers`,
+            lambdaRuntimeVersion: getLambdaRuntimeFromNodeTarget(String(nodeVersion)),
+            packageManager,
+            dockerBuildOutputArchitecture: dockerArch,
+            usedByLambdas: lambdaNames,
+            layerName: groupIndex === 0 ? 'layer-native' : `layer-native-${layerNumber}`,
+            runDocker: execDocker
+          });
+          if (!nativeLayer) {
+            throw createCliPackagingError({
+              type: 'PACKAGING',
+              message: 'Failed to create a native dependency layer for the split Lambda bundle.',
+              hint: 'Review the native dependency build output and retry the deployment.'
+            });
           }
+          return {
+            ...nativeLayer,
+            layerNumber,
+            s3Key: buildLayerS3Key(layerNumber, nativeLayer.contentHash, '')
+          };
+        })
+      );
+      this.#nativeBinaryLayers = nativeLayers;
+      for (const layer of nativeLayers) {
+        for (const lambdaName of layer.usedByLambdas) {
+          this.#nativeBinaryLayerByLambda.set(lambdaName, layer.layerNumber);
         }
-      }
-
-      // Build native binaries into a shared layer
-      const nativeLayer = await buildNativeBinaryLayer({
-        dependencies: Array.from(allNativeDeps.values()),
-        installationRootPath: join(
-          fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId }),
-          '_bin-install'
-        ),
-        layerBasePath: `${fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId })}/layers`,
-        lambdaRuntimeVersion: getLambdaRuntimeFromNodeTarget(String(nodeVersion)),
-        packageManager,
-        dockerBuildOutputArchitecture: dockerArch,
-        usedByLambdas: lambdasWithNativeDeps.map(([name]) => name),
-        runDocker: execDocker
-      });
-
-      if (!nativeLayer) {
-        throw createCliPackagingError({
-          type: 'PACKAGING',
-          message: 'Failed to create the native dependency layer for the split Lambda bundle.',
-          hint: 'Review the native dependency build output and retry the deployment.'
-        });
-      }
-
-      // Store native layer with S3 key for upload
-      // Use layer number 0 for native binaries (chunk layers use 1-5)
-      this.#nativeBinaryLayer = {
-        ...nativeLayer,
-        s3Key: buildLayerS3Key(0, nativeLayer.contentHash, '')
-      };
-
-      // Track which lambdas use the native binary layer
-      for (const [lambdaName] of lambdasWithNativeDeps) {
-        this.#lambdasUsingNativeBinaryLayer.add(lambdaName);
       }
     }
 
@@ -560,11 +618,9 @@ export class PackagingManager {
     }
 
     // Store layer assignment and artifacts
-    this.#layerAssignment = layerAssignment;
     this.#layerArtifacts = layerArtifactsWithS3Keys;
 
     // Build lambda -> layer map: which lambdas use which layers
-    this.#lambdaLayerMap.clear();
     for (const layeredChunk of layerAssignment.layeredChunks) {
       // Find the original chunk analysis to get usedByLambdas
       const chunkAnalysis = splitResult.chunkAnalysis.find((c) => c.chunkName === layeredChunk.chunkName);
@@ -628,12 +684,6 @@ export class PackagingManager {
       const shouldUseCache = this.#shouldWorkloadUseCache({ workloadName: name, commandCanUseCache });
       const existingDigests = shouldUseCache ? deploymentArtifactManager.getExistingDigestsForJob(jobName) : [];
 
-      // Hash the bundled output file (like normal bundler does)
-      const bundledIndexPath = join(distFolderPath, 'index.js');
-      const bundleHashObj = await getHashFromMultipleFiles({
-        files: [{ path: bundledIndexPath, identity: 'stacktape-split-bundle-index.js' }]
-      });
-
       // Include layer assignment in digest - layer assignment affects import paths
       const layerNumbers = this.#lambdaLayerMap.get(name);
       const layerDigestParts = layerNumbers
@@ -645,8 +695,50 @@ export class PackagingManager {
             })
             .join(',')
         : 'none';
-      bundleHashObj.update(layerDigestParts);
-      const digest = bundleHashObj.digest('hex');
+      const nativeLayerNumber = this.#nativeBinaryLayerByLambda.get(name);
+      const nativeLayer =
+        nativeLayerNumber === undefined
+          ? undefined
+          : this.#nativeBinaryLayers.find((layer) => layer.layerNumber === nativeLayerNumber);
+      const usesNativeLayer = nativeLayerNumber !== undefined;
+      if (usesNativeLayer && !nativeLayer) {
+        throw createCliPackagingError({
+          type: 'PACKAGING',
+          message: `A native dependency layer was assigned to function ${name}, but its artifact is missing.`
+        });
+      }
+      const nativeLayerDigestPart = nativeLayer
+        ? `native:${nativeLayer.layerNumber}:${nativeLayer.contentHash}`
+        : 'native:none';
+      // Hash every final package file, including local chunks and source maps, rather than only index.js.
+      const bundleDirectoryHash = await getDirectoryChecksum({ absoluteDirectoryPath: distFolderPath });
+      const digest = mergeHashes(bundleDirectoryHash, layerDigestParts, nativeLayerDigestPart);
+
+      const functionSizeBytes = await getFolderSizeBytes(distFolderPath);
+      const attachedLayerSizes = Array.from(layerNumbers ?? []).map((layerNumber) => {
+        const layer = this.#layerArtifacts.find((artifact) => artifact.layerNumber === layerNumber);
+        if (!layer) {
+          throw createCliPackagingError({
+            type: 'PACKAGING',
+            message: `Shared layer ${layerNumber} was assigned to function ${name}, but its artifact is missing.`
+          });
+        }
+        return layer.sizeBytes;
+      });
+      if (nativeLayer) {
+        attachedLayerSizes.push(nativeLayer.sizeBytes);
+      }
+      const combinedUnzippedSizeBytes = getLambdaCombinedUnzippedSizeBytes({
+        functionSizeBytes,
+        layerSizeBytes: attachedLayerSizes
+      });
+      if (combinedUnzippedSizeBytes > LAMBDA_MAX_COMBINED_UNZIPPED_SIZE_BYTES) {
+        throw createCliPackagingError({
+          type: 'PACKAGING',
+          message: `Function ${name} and its Stacktape layers have a combined unzipped size of ${formatBytesAsMb(combinedUnzippedSizeBytes)}MB. AWS Lambda allows at most 250MB.`,
+          hint: 'Exclude unnecessary files or dependencies, reduce source maps, or disable shared-layer optimization for this deployment.'
+        });
+      }
 
       // Check if we can skip (artifact already exists with same digest)
       if (existingDigests.includes(digest)) {
@@ -666,14 +758,14 @@ export class PackagingManager {
 
       await lambdaLogger.updateEvent({ eventType: 'BUILD_CODE', additionalMessage: 'Zipping package' });
 
-      const unzippedSizeMB = await getFolderSize(distFolderPath, 'MB', 2);
-      const unzippedSizeKB = await getFolderSize(distFolderPath, 'KB', 1);
+      const unzippedSizeMB = Number((functionSizeBytes / 1024 / 1024).toFixed(2));
+      const unzippedSizeKB = Number((functionSizeBytes / 1024).toFixed(1));
 
       // Check size limits
       const sizeLimit = 250; // MB
       const zippedSizeLimit = 50; // MB
 
-      if (unzippedSizeMB > sizeLimit) {
+      if (functionSizeBytes > sizeLimit * 1024 * 1024) {
         throw new Error(`Function ${name} has size ${unzippedSizeMB}MB. Should be less than ${sizeLimit}MB.`);
       }
 
@@ -684,10 +776,11 @@ export class PackagingManager {
       });
 
       const originalZipPath = `${distFolderPath}.zip`;
-      const zippedSizeMB = await getFileSize(originalZipPath, 'MB', 2);
-      const zippedSizeKB = await getFileSize(originalZipPath, 'KB', 1);
+      const zippedSizeBytes = await getFileSizeBytes(originalZipPath);
+      const zippedSizeMB = Number((zippedSizeBytes / 1024 / 1024).toFixed(2));
+      const zippedSizeKB = Number((zippedSizeBytes / 1024).toFixed(1));
 
-      if (zippedSizeMB > zippedSizeLimit) {
+      if (zippedSizeBytes > zippedSizeLimit * 1024 * 1024) {
         throw new Error(`Function ${name} zipped size ${zippedSizeMB}MB exceeds limit of ${zippedSizeLimit}MB.`);
       }
 
@@ -1201,10 +1294,17 @@ export class PackagingManager {
         eventManager.createChildLogger({ instanceId, parentEventType: 'PACKAGE_ARTIFACTS' }),
       buildConfig: {
         buildCommand: resource.buildCommand || frameworkConfig.defaultBuildCommand,
+        bundledApplicationPackages: frameworkConfig.bundledApplicationPackages,
+        copyStaticAssetsToServerDirectory: frameworkConfig.copyStaticAssetsToServerDirectory,
         workingDir,
         serverOutputPath: frameworkConfig.serverOutputPath,
         staticOutputPath: frameworkConfig.staticOutputPath,
         handlerFileName: frameworkConfig.handlerPath,
+        adapterConfigurationHint: frameworkConfig.adapterConfigurationHint,
+        preserveServerOutputDirectory: frameworkConfig.preserveServerOutputDirectory,
+        requiredAdapterPackages: frameworkConfig.requiredAdapterPackages,
+        nativeRuntimePackages: frameworkConfig.nativeRuntimePackages,
+        traceBasePath: globalStateManager.workingDir,
         staticAssetPrefix: frameworkConfig.staticAssetPrefix,
         wrapperType: frameworkConfig.wrapperType,
         buildEnv:
@@ -1226,7 +1326,13 @@ export class PackagingManager {
         : [],
       archiveItem,
       createPackagingError: createCliPackagingError,
-      executeProcess: exec
+      executeProcess: exec,
+      runDocker: execDocker,
+      nativeDependencyInstallationRootPath: join(
+        fsPaths.absoluteBuildFolderPath({ invocationId: globalStateManager.invocationId }),
+        '_bin-install'
+      ),
+      dockerBuildOutputArchitecture: 'linux/amd64'
     });
 
     packagingOutputs.forEach((result) => this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' }));
@@ -1242,7 +1348,6 @@ export class PackagingManager {
     parentEventType = 'PACKAGE_ARTIFACTS',
     devMode,
     customProgressLogger,
-    useDeployedLayers,
     workloadType
   }: {
     workloadName: string;
@@ -1258,8 +1363,6 @@ export class PackagingManager {
     parentEventType?: Subtype<LoggableEventType, 'PACKAGE_ARTIFACTS' | 'REPACKAGE_ARTIFACTS'>;
     devMode?: boolean;
     customProgressLogger?: ProgressLogger;
-    /** When true, externalize native binary deps assuming they're available from deployed layers */
-    useDeployedLayers?: boolean;
     /** Workload type - used to determine packaging behavior (e.g., edge functions don't support ESM) */
     workloadType?: string;
   }): Promise<PackagingOutput | undefined> => {
@@ -1344,13 +1447,12 @@ export class PackagingManager {
             entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath),
             ...(useEsm && { outputModuleFormat: 'esm' as const })
           };
-          const additionalDigestInput = objectHash(sharedStpBuildpackProps);
+          const additionalDigestInput = objectHash({
+            buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
+            props: sharedStpBuildpackProps
+          });
 
           if (packagingType === 'stacktape-lambda-buildpack') {
-            // When useDeployedLayers is true (dev mode with deployed layers), externalize native binary deps
-            // These deps are available from the deployed native binary layer at /opt/nodejs/node_modules
-            const sharedLayerExternals = useDeployedLayers ? DEPENDENCIES_WITH_BINARIES : [];
-
             const result = await buildUsingStacktapeEsLambdaBuildpack({
               ...sharedProps,
               ...sharedStpBuildpackProps,
@@ -1361,8 +1463,7 @@ export class PackagingManager {
                 jobName,
                 invocationId: globalStateManager.invocationId
               }),
-              additionalDigestInput,
-              ...(sharedLayerExternals.length > 0 && { sharedLayerExternals, usesSharedLayer: true })
+              additionalDigestInput
             });
             this.#packagedJobs.push({
               ...result,
@@ -1391,15 +1492,34 @@ export class PackagingManager {
         }
 
         case 'py': {
+          const languageSpecificConfig = packaging.properties.languageSpecificConfig as
+            | PyLanguageSpecificConfig
+            | undefined;
+          const runtimePythonVersion =
+            packagingType === 'stacktape-lambda-buildpack' ? getPythonBuildVersionForRuntime(runtime) : undefined;
+          const pythonVersion =
+            packagingType === 'stacktape-lambda-buildpack'
+              ? resolveManagedLambdaBuildVersion({
+                  configuredVersion: languageSpecificConfig?.pythonVersion,
+                  runtimeVersion: runtimePythonVersion,
+                  runtime,
+                  language: 'Python',
+                  workloadName
+                })
+              : languageSpecificConfig?.pythonVersion;
           const sharedStpBuildpackProps = {
             ...packaging.properties,
             languageSpecificConfig: {
-              ...(packaging.properties.languageSpecificConfig as PyLanguageSpecificConfig)
+              ...languageSpecificConfig,
+              minify: languageSpecificConfig?.minify ?? true,
+              ...(pythonVersion !== undefined ? { pythonVersion } : {})
             },
-            minify: true,
             entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
           };
-          const additionalDigestInput = objectHash(sharedStpBuildpackProps);
+          const additionalDigestInput = objectHash({
+            buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
+            props: sharedStpBuildpackProps
+          });
           if (packagingType === 'stacktape-lambda-buildpack') {
             const result = await buildUsingStacktapePyLambdaBuildpack({
               ...sharedProps,
@@ -1431,13 +1551,34 @@ export class PackagingManager {
           break;
         }
         case 'java': {
+          const languageSpecificConfig = packaging.properties.languageSpecificConfig as
+            | JavaLanguageSpecificConfig
+            | undefined;
+          const runtimeJavaVersion =
+            packagingType === 'stacktape-lambda-buildpack' ? getJavaBuildVersionForRuntime(runtime) : undefined;
+          const javaVersion =
+            packagingType === 'stacktape-lambda-buildpack'
+              ? resolveManagedLambdaBuildVersion({
+                  configuredVersion: languageSpecificConfig?.javaVersion,
+                  runtimeVersion: runtimeJavaVersion,
+                  runtime,
+                  language: 'Java',
+                  workloadName
+                })
+              : languageSpecificConfig?.javaVersion;
           const sharedStpBuildpackProps = {
             ...packaging.properties,
-            languageSpecificConfig: packaging.properties.languageSpecificConfig as JavaLanguageSpecificConfig,
+            languageSpecificConfig: {
+              ...languageSpecificConfig,
+              ...(javaVersion !== undefined ? { javaVersion } : {})
+            },
             minify: true,
             entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
           };
-          const additionalDigestInput = objectHash(sharedStpBuildpackProps);
+          const additionalDigestInput = objectHash({
+            buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
+            props: sharedStpBuildpackProps
+          });
           if (packagingType === 'stacktape-lambda-buildpack') {
             const result = await buildUsingStacktapeJavaLambdaBuildpack({
               ...sharedProps,
@@ -1469,12 +1610,27 @@ export class PackagingManager {
           break;
         }
         case 'go': {
+          if (
+            packagingType === 'stacktape-lambda-buildpack' &&
+            runtime !== undefined &&
+            runtime !== 'provided.al2' &&
+            runtime !== 'provided.al2023'
+          ) {
+            throw createCliPackagingError({
+              type: 'PACKAGING',
+              message: `Lambda runtime ${runtime} is not compatible with the Go Stacktape buildpack for ${workloadName}.`,
+              hint: 'Use provided.al2023 for Go Lambda functions.'
+            });
+          }
           const sharedStpBuildpackProps = {
             ...packaging.properties,
             minify: true,
             entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
           };
-          const additionalDigestInput = objectHash(sharedStpBuildpackProps);
+          const additionalDigestInput = objectHash({
+            buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
+            props: sharedStpBuildpackProps
+          });
           if (packagingType === 'stacktape-lambda-buildpack') {
             const result = await buildUsingStacktapeGoLambdaBuildpack({
               ...sharedProps,
@@ -1506,13 +1662,34 @@ export class PackagingManager {
           break;
         }
         case 'rb': {
+          const languageSpecificConfig = packaging.properties.languageSpecificConfig as
+            | RubyLanguageSpecificConfig
+            | undefined;
+          const runtimeRubyVersion =
+            packagingType === 'stacktape-lambda-buildpack' ? getRubyBuildVersionForRuntime(runtime) : undefined;
+          const rubyVersion =
+            packagingType === 'stacktape-lambda-buildpack'
+              ? resolveManagedLambdaBuildVersion({
+                  configuredVersion: languageSpecificConfig?.rubyVersion,
+                  runtimeVersion: runtimeRubyVersion,
+                  runtime,
+                  language: 'Ruby',
+                  workloadName
+                })
+              : languageSpecificConfig?.rubyVersion;
           const sharedStpBuildpackProps = {
             ...packaging.properties,
-            languageSpecificConfig: packaging.properties.languageSpecificConfig as RubyLanguageSpecificConfig,
+            languageSpecificConfig: {
+              ...languageSpecificConfig,
+              ...(rubyVersion !== undefined ? { rubyVersion } : {})
+            },
             minify: true,
             entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
           };
-          const additionalDigestInput = objectHash(sharedStpBuildpackProps);
+          const additionalDigestInput = objectHash({
+            buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
+            props: sharedStpBuildpackProps
+          });
           if (packagingType === 'stacktape-lambda-buildpack') {
             const result = await buildUsingStacktapeRbLambdaBuildpack({
               ...sharedProps,
@@ -1544,28 +1721,23 @@ export class PackagingManager {
           break;
         }
         case 'php': {
+          if (packagingType === 'stacktape-lambda-buildpack') {
+            throw createCliPackagingError({
+              type: 'PACKAGING',
+              message: `The Stacktape Lambda buildpack cannot create a PHP custom runtime for ${workloadName}.`,
+              hint: 'Use stacktape-image-buildpack for a container workload, or custom-artifact with a PHP runtime and bootstrap executable.'
+            });
+          }
           const sharedStpBuildpackProps = {
             ...packaging.properties,
             languageSpecificConfig: packaging.properties.languageSpecificConfig as PhpLanguageSpecificConfig,
             minify: true,
             entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
           };
-          const additionalDigestInput = objectHash(sharedStpBuildpackProps);
-          if (packagingType === 'stacktape-lambda-buildpack') {
-            const result = await buildUsingStacktapePhpLambdaBuildpack({
-              ...sharedProps,
-              ...sharedStpBuildpackProps,
-              sizeLimit: 250,
-              zippedSizeLimit: 50,
-              distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
-                jobName,
-                invocationId: globalStateManager.invocationId
-              }),
-              additionalDigestInput
-            });
-            this.#packagedJobs.push({ ...result, skipped: result.outcome === 'skipped' });
-            return result;
-          }
+          const additionalDigestInput = objectHash({
+            buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
+            props: sharedStpBuildpackProps
+          });
           if (packagingType === 'stacktape-image-buildpack') {
             const result = await buildUsingStacktapePhpImageBuildpack({
               ...sharedProps,
@@ -1582,13 +1754,34 @@ export class PackagingManager {
           break;
         }
         case 'cs': {
+          const languageSpecificConfig = packaging.properties.languageSpecificConfig as
+            | DotnetLanguageSpecificConfig
+            | undefined;
+          const runtimeDotnetVersion =
+            packagingType === 'stacktape-lambda-buildpack' ? getDotnetBuildVersionForRuntime(runtime) : undefined;
+          const dotnetVersion =
+            packagingType === 'stacktape-lambda-buildpack'
+              ? resolveManagedLambdaBuildVersion({
+                  configuredVersion: languageSpecificConfig?.dotnetVersion,
+                  runtimeVersion: runtimeDotnetVersion,
+                  runtime,
+                  language: '.NET',
+                  workloadName
+                })
+              : languageSpecificConfig?.dotnetVersion;
           const sharedStpBuildpackProps = {
             ...packaging.properties,
-            languageSpecificConfig: packaging.properties.languageSpecificConfig as DotnetLanguageSpecificConfig,
+            languageSpecificConfig: {
+              ...languageSpecificConfig,
+              ...(dotnetVersion !== undefined ? { dotnetVersion } : {})
+            },
             minify: true,
             entryfilePath: join(globalStateManager.workingDir, packaging.properties.entryfilePath)
           };
-          const additionalDigestInput = objectHash(sharedStpBuildpackProps);
+          const additionalDigestInput = objectHash({
+            buildpackImplementationVersion: STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION,
+            props: sharedStpBuildpackProps
+          });
           if (packagingType === 'stacktape-lambda-buildpack') {
             const result = await buildUsingStacktapeDotnetLambdaBuildpack({
               ...sharedProps,

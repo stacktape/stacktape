@@ -247,8 +247,8 @@ export type CreateBundleOutput = {
 export type PackagingOutput = {
   /**
    * A number when the artifact was measured; `null` for cached/skipped results and for bundled ES image development
-   * builds. Pre-zipped custom artifacts return an own `size` property whose value is `undefined`, which JSON
-   * serialization then omits.
+   * builds. Pre-zipped custom artifacts report the sum of their ZIP entries' uncompressed sizes. `undefined` remains
+   * in the boundary type for compatibility with callers that may still construct a legacy output.
    */
   size: number | null | undefined;
   zippedSize?: number | undefined;

@@ -547,7 +547,8 @@ export interface PyLanguageSpecificConfig {
    *
    * ---
    *
-   * This can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.
+   * This can be a `requirements.txt`, `Pipfile`, `pyproject.toml`, or `uv.lock` file. When both
+   * `pyproject.toml` and `uv.lock` exist, Stacktape uses the lock file by default.
   *
   * **Example (YAML):**
   *
@@ -1023,7 +1024,8 @@ export interface PyLanguageSpecificConfig {
 }
 
 
-export type SupportedPythonVersion = 2.7 | 3.6 | 3.7 | 3.8 | 3.9 | 3.11 | 3.12 | 3.13 | 3.14;
+// Python 3.10 is a string because the numeric literal 3.10 is indistinguishable from 3.1.
+export type SupportedPythonVersion = 2.7 | 3.6 | 3.7 | 3.8 | 3.9 | '3.10' | 3.11 | 3.12 | 3.13 | 3.14;
 
 
 export type SupportedPythonPackageManager = 'uv';
@@ -1187,7 +1189,7 @@ export interface JavaLanguageSpecificConfig {
 }
 
 
-export type SupportedJavaVersion = 8 | 11 | 17 | 19;
+export type SupportedJavaVersion = 8 | 11 | 17 | 19 | 21 | 25;
 
 
 export interface GoLanguageSpecificConfig {}
@@ -1253,7 +1255,7 @@ export interface RubyLanguageSpecificConfig {
 }
 
 
-export type SupportedRubyVersion = 3.2 | 3.3;
+export type SupportedRubyVersion = 3.2 | 3.3 | 3.4 | 4;
 
 
 export interface PhpLanguageSpecificConfig {
@@ -1424,7 +1426,7 @@ export interface DotnetLanguageSpecificConfig {
 }
 
 
-export type SupportedDotnetVersion = 6 | 8;
+export type SupportedDotnetVersion = 6 | 7 | 8 | 10;
 
 
 export interface StpBuildpackSharedProps {
@@ -3476,6 +3478,9 @@ export interface NixpacksBjImagePackagingProps {
   startRunImage?: string;
   /**
    * #### A list of file paths to include in the runtime environment; all other files will be excluded.
+   *
+   * Requires `startRunImage`. Nixpacks applies this filter while copying artifacts from the build image into that
+   * separate runtime image.
   *
   * ---
   *
@@ -3491,7 +3496,8 @@ export interface NixpacksBjImagePackagingProps {
   *         properties:
   *           sourceDirectoryPath: ./worker
   *           # stp-focus
-  *           startOnlyIncludeFiles:
+   *           startRunImage: node:22-slim
+   *           startOnlyIncludeFiles:
   *             - dist
   *             - node_modules
   *           # stp-end-focus
@@ -3512,7 +3518,8 @@ export interface NixpacksBjImagePackagingProps {
   *       properties: {
   *         sourceDirectoryPath: './worker',
   *         // stp-focus
-  *         startOnlyIncludeFiles: ['dist', 'node_modules']
+   *         startRunImage: 'node:22-slim',
+   *         startOnlyIncludeFiles: ['dist', 'node_modules']
   *         // stp-end-focus
   *       }
   *     },

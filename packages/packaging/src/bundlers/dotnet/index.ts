@@ -5,15 +5,23 @@ import type {
   StpBuildpackInput
 } from '../../runtime-contracts';
 import type { CreateBundleOutput } from '../../runtime-contracts';
-import { dirname, join, relative } from 'node:path';
-import { buildDotnetArtifactDockerfile } from '../../docker/dockerfiles';
+import { isAbsolute, join, relative } from 'node:path';
+import { buildDotnetArtifactDockerfile, DOTNET_ASSEMBLY_NAME_FILE } from '../../docker/dockerfiles';
 import { transformToUnixPath } from '../../fs/files';
-import { outputFile } from 'fs-extra';
 import objectHash from 'object-hash';
 
 import { getBundleDigest, getDotnetAssemblyName, getSourceFiles, resolveDotnetProjectFile } from './utils';
 import type { DotnetLanguageSpecificConfig, SupportedDotnetVersion } from '@stacktape/config/deployment-artifacts';
 import { DEFAULT_DOTNET_VERSION } from '../constants';
+import {
+  applyArtifactFileSelection,
+  assertRequiredArtifactFile,
+  mergeExplicitlyIncludedSourceFiles,
+  resolveArtifactFileSelection
+} from '../../artifact/file-selection';
+import { runDockerArtifactBuild } from '../../artifact/docker-artifact-build';
+import { findDotnetBuildRoot } from '../../buildpacks/project-root';
+import { pathExists, readFile, remove } from 'fs-extra';
 
 type LanguageBundleOutput = Omit<CreateBundleOutput, 'distIndexFilePath'> &
   Partial<Pick<CreateBundleOutput, 'distIndexFilePath'>>;
@@ -23,13 +31,16 @@ export const buildDotnetArtifact = async ({
   distFolderPath,
   dotnetVersion = DEFAULT_DOTNET_VERSION,
   rawEntryfilePath,
-  cwd: _cwd,
+  cwd,
   additionalDigestInput,
   distIndexFilePath,
   progressLogger,
   existingDigests,
   languageSpecificConfig,
   dockerBuildOutputArchitecture,
+  includeFiles,
+  excludeFiles,
+  target = 'container',
   createPackagingError,
   runDocker
 }: StpBuildpackInput & {
@@ -41,11 +52,16 @@ export const buildDotnetArtifact = async ({
   languageSpecificConfig?: DotnetLanguageSpecificConfig | undefined;
   createPackagingError: CreatePackagingError;
   runDocker: RunDocker;
+  target?: 'container' | 'lambda' | undefined;
 }): Promise<LanguageBundleOutput & { assemblyName?: string }> => {
   const resolvedProjectFile = await resolveDotnetProjectFile({
     rootPath: sourcePath,
     entryfilePath: rawEntryfilePath,
     projectFile: languageSpecificConfig?.projectFile
+      ? isAbsolute(languageSpecificConfig.projectFile)
+        ? languageSpecificConfig.projectFile
+        : join(cwd, languageSpecificConfig.projectFile)
+      : undefined
   });
   if (!resolvedProjectFile) {
     throw createPackagingError({
@@ -54,18 +70,32 @@ export const buildDotnetArtifact = async ({
     });
   }
 
-  const projectRootPath = dirname(resolvedProjectFile);
-  const projectFileRelative = transformToUnixPath(relative(projectRootPath, resolvedProjectFile));
-  const assemblyName = getDotnetAssemblyName(resolvedProjectFile);
+  const buildRootPath = findDotnetBuildRoot({
+    cwd,
+    projectFile: resolvedProjectFile
+  });
+  const projectFileRelative = transformToUnixPath(relative(buildRootPath, resolvedProjectFile));
+  const fallbackAssemblyName = getDotnetAssemblyName(resolvedProjectFile);
 
   await progressLogger.startEvent({
     eventType: 'CALCULATE_CHECKSUM',
     description: 'Calculating checksum for caching'
   });
+  const artifactFileSelection = await resolveArtifactFileSelection({
+    cwd,
+    includeFiles
+  });
   const digest = await getBundleDigest({
     externalDependencies: [],
-    rootPath: projectRootPath,
-    additionalDigestInput: objectHash({ additionalDigestInput, dockerBuildOutputArchitecture }),
+    rootPath: buildRootPath,
+    additionalDigestInput: objectHash({
+      additionalDigestInput,
+      dockerBuildOutputArchitecture,
+      includeFiles,
+      excludeFiles,
+      explicitlyIncludedFilesDigest: artifactFileSelection.digest,
+      target
+    }),
     languageSpecificConfig: {
       ...languageSpecificConfig,
       projectFile: projectFileRelative,
@@ -73,7 +103,11 @@ export const buildDotnetArtifact = async ({
     },
     rawEntryfilePath
   });
-  const sourceFiles = await getSourceFiles({ rootPath: projectRootPath });
+  const sourceFiles = mergeExplicitlyIncludedSourceFiles({
+    cwd,
+    sourceFiles: await getSourceFiles({ rootPath: buildRootPath }),
+    explicitlyIncludedFiles: artifactFileSelection.explicitlyIncludedFiles
+  });
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
       eventType: 'CALCULATE_CHECKSUM',
@@ -86,33 +120,52 @@ export const buildDotnetArtifact = async ({
       ...(distIndexFilePath !== undefined ? { distIndexFilePath } : {}),
       sourceFiles,
       languageSpecificBundleOutput: { dotnet: { dotnetVersion } },
-      assemblyName
+      assemblyName: fallbackAssemblyName
     };
   }
   await progressLogger.finishEvent({ eventType: 'CALCULATE_CHECKSUM' });
 
-  await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: 'Building code' });
+  await progressLogger.startEvent({
+    eventType: 'BUILD_CODE',
+    description: 'Building code'
+  });
   const dockerfileContents = buildDotnetArtifactDockerfile({
     dotnetVersion,
-    projectFilePath: projectFileRelative
+    projectFilePath: projectFileRelative,
+    target
   });
-  const dockerfilePath = join(distFolderPath, 'Dockerfile');
-  await outputFile(dockerfilePath, dockerfileContents);
-  await runDocker(
-    [
-      'image',
-      'build',
-      ...(dockerBuildOutputArchitecture ? ['--platform', dockerBuildOutputArchitecture] : []),
-      '--target',
-      'artifact',
-      '--file',
-      dockerfilePath,
-      '--output',
-      `type=local,dest=${transformToUnixPath(distFolderPath)}`,
-      projectRootPath
-    ],
-    { cwd: process.cwd() }
-  );
+  await runDockerArtifactBuild({
+    dockerfileContents,
+    sourcePath: buildRootPath,
+    distFolderPath,
+    dockerBuildOutputArchitecture,
+    runDocker
+  });
+  const assemblyNameMarkerPath = join(distFolderPath, DOTNET_ASSEMBLY_NAME_FILE);
+  const evaluatedAssemblyName = (await pathExists(assemblyNameMarkerPath))
+    ? (await readFile(assemblyNameMarkerPath, 'utf8')).trim()
+    : fallbackAssemblyName;
+  await remove(assemblyNameMarkerPath);
+  if (!evaluatedAssemblyName || evaluatedAssemblyName.includes('/') || evaluatedAssemblyName.includes('\\')) {
+    throw createPackagingError({
+      type: 'PACKAGING',
+      message: `The .NET project produced an invalid AssemblyName: ${JSON.stringify(evaluatedAssemblyName)}.`
+    });
+  }
+  await applyArtifactFileSelection({
+    cwd,
+    outputDirectory: distFolderPath,
+    includeFiles,
+    excludeFiles,
+    explicitlyIncludedFiles: artifactFileSelection.explicitlyIncludedFiles,
+    createPackagingError
+  });
+  await assertRequiredArtifactFile({
+    outputDirectory: distFolderPath,
+    relativePath: `${evaluatedAssemblyName}.dll`,
+    description: '.NET assembly',
+    createPackagingError
+  });
   await progressLogger.finishEvent({ eventType: 'BUILD_CODE' });
 
   return {
@@ -122,6 +175,6 @@ export const buildDotnetArtifact = async ({
     outcome: 'bundled' as const,
     sourceFiles,
     languageSpecificBundleOutput: { dotnet: { dotnetVersion } },
-    assemblyName
+    assemblyName: evaluatedAssemblyName
   };
 };

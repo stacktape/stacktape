@@ -1,11 +1,11 @@
 import type { LambdaArtifactActions, StpBuildpackInput } from '../runtime-contracts';
 import type { PackagingOutput } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
-import { getFolder } from '../fs/files';
 import { DEFAULT_JAVA_VERSION } from '../bundlers/constants';
 import { buildJavaArtifact } from '../bundlers/java';
 import { createLambdaZipArtifact } from '../artifact/lambda-artifact';
 import type { JavaLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
+import { findJavaProjectRoots } from './project-root';
 
 export const buildUsingStacktapeJavaLambdaBuildpack = async ({
   progressLogger,
@@ -21,23 +21,31 @@ export const buildUsingStacktapeJavaLambdaBuildpack = async ({
     zippedSizeLimit: number;
     languageSpecificConfig: JavaLanguageSpecificConfig;
   }): Promise<PackagingOutput> => {
-  const sourcePath = getFolder(entryfilePath);
-  const absoluteSourcePath = isAbsolute(sourcePath) ? sourcePath : join(cwd, sourcePath);
-  const rootSourceIndex = absoluteSourcePath.search(/src(\/|\\)main(\/|\\)java/);
-  const rootSourcePath = rootSourceIndex === -1 ? absoluteSourcePath : absoluteSourcePath.slice(0, rootSourceIndex);
+  const useMaven =
+    languageSpecificConfig?.useMaven ?? languageSpecificConfig?.packageManagerFile?.endsWith('pom.xml') ?? false;
+  const { buildRoot: rootSourcePath } = findJavaProjectRoots({
+    cwd,
+    entryfilePath,
+    useMaven,
+    explicitProjectFile: languageSpecificConfig?.packageManagerFile
+  });
   const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
 
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildJavaArtifact({
     ...otherProps,
     distFolderPath: otherProps.distFolderPath,
     javaVersion: languageSpecificConfig?.javaVersion ?? DEFAULT_JAVA_VERSION,
+    useMaven,
     sourcePath: rootSourcePath,
     entryfilePath: absoluteEntryfilePath,
     name,
     progressLogger,
     rawEntryfilePath: absoluteEntryfilePath,
     cwd,
-    languageSpecificConfig
+    languageSpecificConfig,
+    target: 'lambda',
+    // JNI dependencies packaged for Lambda must target glibc rather than Alpine/musl.
+    requiresGlibcBinaries: true
   });
 
   if (outcome === 'skipped') {

@@ -2,9 +2,9 @@ import type { ImageBuildActions, StpBuildpackInput } from '../runtime-contracts'
 import type { PackagingOutput } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
 import { buildGoDockerfile } from '../docker/dockerfiles';
-import { getFolder } from '../fs/files';
-import { outputFile } from 'fs-extra';
 import { buildGoArtifact } from '../bundlers/go';
+import { findGoProjectRoots } from './project-root';
+import { buildGeneratedDockerImage } from '../artifact/generated-image-build';
 
 export const buildUsingStacktapeGoImageBuildpack = async ({
   buildDockerImage,
@@ -21,8 +21,7 @@ export const buildUsingStacktapeGoImageBuildpack = async ({
     cacheFromRef?: string | undefined;
     cacheToRef?: string | undefined;
   }): Promise<PackagingOutput> => {
-  const sourcePath = getFolder(entryfilePath);
-  const absoluteSourcePath = isAbsolute(sourcePath) ? sourcePath : join(cwd, sourcePath);
+  const { buildRoot: absoluteSourcePath, moduleRoot } = findGoProjectRoots({ cwd, entryfilePath });
   const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
   const bundlingOutput = await buildGoArtifact({
     ...otherProps,
@@ -31,6 +30,7 @@ export const buildUsingStacktapeGoImageBuildpack = async ({
     name,
     entryfilePath: absoluteEntryfilePath,
     rawEntryfilePath: absoluteEntryfilePath,
+    artifactSourcePath: moduleRoot,
     cwd,
     dockerBuildOutputArchitecture
   });
@@ -42,19 +42,17 @@ export const buildUsingStacktapeGoImageBuildpack = async ({
 
   await progressLogger.startEvent({ eventType: 'CREATE_DOCKERFILE', description: 'Creating Dockerfile' });
 
-  const dockerfilePath = join(distFolderPath, 'Dockerfile');
-  await outputFile(
-    dockerfilePath,
-    buildGoDockerfile({
-      alpine: !otherProps?.requiresGlibcBinaries,
-      customDockerBuildCommands: otherProps.customDockerBuildCommands
-    })
-  );
+  const dockerfileContents = buildGoDockerfile({
+    alpine: !otherProps?.requiresGlibcBinaries,
+    customDockerBuildCommands: otherProps.customDockerBuildCommands
+  });
 
   await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });
 
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image' });
-  const { size, dockerOutput, duration, created } = await buildDockerImage({
+  const { size, dockerOutput, duration, created } = await buildGeneratedDockerImage({
+    dockerfileContents,
+    buildDockerImage,
     imageTag: name,
     buildContextPath: distFolderPath,
     dockerBuildOutputArchitecture,

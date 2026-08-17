@@ -80,6 +80,8 @@ jobs:
             exit 1
           fi
       - run: pnpm check:public
+      - name: Execute packaging artifacts in real runtimes
+        run: pnpm test:packaging-e2e
 
   build-binaries:
     name: Build ${{ matrix.platform }}

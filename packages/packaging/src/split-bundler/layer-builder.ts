@@ -1,8 +1,10 @@
 import type { LambdaSplitOutput, LayerArtifact, LayerAssignmentResult } from './types';
 import { existsSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import { copy, ensureDir, outputJSON, readdir, readFile, remove, writeFile } from 'fs-extra';
+import { copy, emptyDir, ensureDir, outputJSON, readdir, readFile, remove, writeFile } from 'fs-extra';
 import { rewriteChunkImportsSelective } from './chunk-rewriter';
+import { getDirectoryChecksum } from '../artifact/hashing';
+import { getFolderSizeBytes } from '../fs/files';
 
 /** Where a published layer's chunks are mounted inside a Lambda execution environment. */
 const LAYER_CHUNKS_PATH = '/opt/nodejs/chunks/';
@@ -46,6 +48,9 @@ export const createLayerArtifacts = async ({
     layerAssignment.layers.map(async (layer) => {
       const layerDir = join(layerBasePath, `layer-${layer.layerNumber}`);
       const layerChunksDir = join(layerDir, 'nodejs', 'chunks');
+      // Layer numbers are stable across rebuilds while content hashes are not. Clear the prior publishable tree so a
+      // changed chunk graph cannot leave obsolete bytes in the next layer ZIP or content digest.
+      await emptyDir(layerDir);
       await ensureDir(layerChunksDir);
 
       // Copy all chunks to layer in parallel
@@ -74,14 +79,17 @@ export const createLayerArtifacts = async ({
       // Create package.json for ESM support in layer
       await outputJSON(join(layerDir, 'nodejs', 'package.json'), { type: 'module' });
 
-      // Compute content hash for caching
-      const contentHash = computeLayerContentHash(layer.chunks, layerAssignment);
+      // Hash and measure the final publishable tree, including rewritten code, source maps, and package metadata.
+      const [contentHash, sizeBytes] = await Promise.all([
+        getDirectoryChecksum({ absoluteDirectoryPath: layerDir }).then((hash) => hash.slice(0, 12)),
+        getFolderSizeBytes(layerDir)
+      ]);
 
       return {
         layerNumber: layer.layerNumber,
         layerPath: layerDir,
         chunks: layer.chunks,
-        sizeBytes: layer.totalSizeBytes,
+        sizeBytes,
         contentHash
       };
     })
@@ -91,23 +99,6 @@ export const createLayerArtifacts = async ({
   await updateLambdaPackages(lambdaOutputs, layeredChunkNames);
 
   return { layerArtifacts };
-};
-
-/**
- * Compute a content-based hash for a layer.
- * Hash is based on chunk names and sizes to ensure re-upload only when content changes.
- */
-const computeLayerContentHash = (chunks: string[], layerAssignment: LayerAssignmentResult): string => {
-  const chunkInfo = chunks
-    .map((chunkName) => {
-      const assignment = layerAssignment.layeredChunks.find((c) => c.chunkName === chunkName);
-      const size = assignment?.chunkPath ? Bun.file(assignment.chunkPath).size : 0;
-      return `${chunkName}:${size}`;
-    })
-    .toSorted()
-    .join('|');
-
-  return Bun.hash(chunkInfo).toString(16).slice(0, 12);
 };
 
 /**

@@ -1,9 +1,9 @@
 import type { LambdaArtifactActions, StpBuildpackInput } from '../runtime-contracts';
 import type { PackagingOutput } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
-import { getFolder } from '../fs/files';
 import { buildGoArtifact } from '../bundlers/go';
 import { createLambdaZipArtifact } from '../artifact/lambda-artifact';
+import { findGoProjectRoots } from './project-root';
 
 export const buildUsingStacktapeGoLambdaBuildpack = async ({
   progressLogger,
@@ -14,8 +14,7 @@ export const buildUsingStacktapeGoLambdaBuildpack = async ({
   cwd,
   ...otherProps
 }: StpBuildpackInput & LambdaArtifactActions & { zippedSizeLimit: number }): Promise<PackagingOutput> => {
-  const sourcePath = getFolder(entryfilePath);
-  const absoluteSourcePath = isAbsolute(sourcePath) ? sourcePath : join(cwd, sourcePath);
+  const { buildRoot: absoluteSourcePath, moduleRoot } = findGoProjectRoots({ cwd, entryfilePath });
   const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
 
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildGoArtifact({
@@ -26,6 +25,7 @@ export const buildUsingStacktapeGoLambdaBuildpack = async ({
     name,
     entryfilePath: absoluteEntryfilePath,
     rawEntryfilePath: absoluteEntryfilePath,
+    artifactSourcePath: moduleRoot,
     cwd
   });
 

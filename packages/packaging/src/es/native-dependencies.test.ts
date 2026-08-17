@@ -96,6 +96,16 @@ describe('native dependency packaging', () => {
     const workspace = await createWorkspace();
     const { calls, runDocker } = createFakeDocker();
     const dependencies = [dependency('native-layout-test')];
+    const obsoleteModulePath = join(
+      workspace.layerBasePath,
+      'layer-native',
+      'nodejs',
+      'node_modules',
+      'obsolete',
+      'index.js'
+    );
+    await ensureDir(join(obsoleteModulePath, '..'));
+    await writeFile(obsoleteModulePath, 'stale');
 
     const result = await buildNativeBinaryLayer({
       dependencies,
@@ -128,6 +138,7 @@ describe('native dependency packaging', () => {
     expect(await readFile(join(installDirPath, 'Dockerfile'), 'utf8')).toContain(
       'RUN pnpm add native-layout-test@1.2.3'
     );
+    expect(await pathExists(obsoleteModulePath)).toBe(false);
     expect(JSON.parse(await readFile(join(result!.layerPath, 'nodejs', 'package.json'), 'utf8'))).toEqual({
       type: 'module'
     });

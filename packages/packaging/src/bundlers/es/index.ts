@@ -2,11 +2,14 @@ import type { CreatePackagingError, EsBuildActions, StpBuildpackInput } from '..
 import type { BunPlugin } from 'bun';
 import type { PackageJsonDepsInfo } from '../../es/bundler-helpers';
 import { existsSync } from 'node:fs';
-import { basename, dirname, isAbsolute, join, resolve, sep } from 'node:path';
+import { basename, dirname, isAbsolute, join, resolve } from 'node:path';
 import { getRelativePath, isFileAccessible, transformToUnixPath } from '../../fs/files';
-import { NODE_RUNTIME_VERSIONS_WITH_SKIPPED_SDK_V3_PACKAGING } from '../constants';
+import {
+  NODE_RUNTIME_VERSIONS_WITH_SKIPPED_SDK_V3_PACKAGING,
+  STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION
+} from '../constants';
 import { findProjectRoot } from '../../es/project-root';
-import { copy, outputJSON, readFile, readFileSync, realpathSync, remove, writeJson } from 'fs-extra';
+import { outputJSON, readFile, readFileSync, realpathSync, writeJson } from 'fs-extra';
 import objectHash from 'object-hash';
 import {
   DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE,
@@ -37,6 +40,15 @@ import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-arti
 import type { ResolvedPackageDependency } from '../../runtime-contracts';
 import { getFirstExistingPath, getHashFromMultipleFiles, getMatchingFilesByGlob } from '../../fs/files';
 import { createDockerDependencyPlan } from './docker-dependency-plan';
+import {
+  copyExplicitlyIncludedFiles,
+  removeExplicitlyExcludedFiles as removeArtifactFiles
+} from '../../artifact/file-selection';
+import { getDirectoryChecksum } from '../../artifact/hashing';
+import { rewriteLambdaAssetReferences } from '../../artifact/lambda-assets';
+
+/** Kept on the established ES bundler surface while file-selection ownership lives in the artifact layer. */
+export const removeExplicitlyExcludedFiles: typeof removeArtifactFiles = (options) => removeArtifactFiles(options);
 
 // Extract module name from import path (handles scoped packages)
 const getModuleNameFromPath = (importPath: string): string => {
@@ -181,7 +193,7 @@ export const buildEsCode = async ({
           { filter: /^[^.]/ },
           async (args): Promise<{ path: string; external?: boolean } | undefined> => {
             // Skip relative imports (starting with . or /)
-            if (args.path.startsWith('.') || args.path.startsWith('/')) {
+            if (args.path.startsWith('.') || args.path.startsWith('/') || isAbsolute(args.path)) {
               return undefined;
             }
 
@@ -382,7 +394,7 @@ export const buildEsCode = async ({
         }
 
         build.onResolve({ filter: /^[^./]/ }, (args) => {
-          if (args.path.startsWith('.') || args.path.startsWith('/')) return undefined;
+          if (args.path.startsWith('.') || args.path.startsWith('/') || isAbsolute(args.path)) return undefined;
 
           const moduleName = getModuleNameFromPath(args.path);
           if (isNodeBuiltinImport(args.path)) return undefined;
@@ -555,7 +567,13 @@ export const buildEsCode = async ({
         minify: minifyConfig,
         sourcemap: sourceMaps === 'disabled' ? 'none' : sourceMaps === 'external' ? 'linked' : 'inline',
         external: ['fsevents', ...externals, ...externalModules.map((m) => m.name)],
-        define: { ...esmDefines, ...define },
+        // Bun otherwise replaces NODE_ENV with the Bun process's value at build time (normally "development").
+        // Keep it runtime-configurable; production images provide their own production default.
+        define: {
+          'process.env.NODE_ENV': 'process.env.NODE_ENV',
+          ...esmDefines,
+          ...define
+        },
         plugins: allBunPlugins,
         root: buildRoot,
         ...(shouldInjectBanner && banner.js ? { banner: banner.js } : {}),
@@ -588,6 +606,20 @@ export const buildEsCode = async ({
         type: 'PACKAGING',
         message: `Build failed: ${errors}`
       });
+    }
+
+    if (isLambda) {
+      const assetFiles = buildResult.outputs.filter((output) => output.kind === 'asset').map(({ path }) => path);
+      if (assetFiles.length > 0) {
+        await Promise.all(
+          buildResult.outputs
+            .filter(({ path }) => path.endsWith('.js'))
+            .map(async ({ path }) => {
+              const contents = await readFile(path, 'utf8');
+              await Bun.write(path, rewriteLambdaAssetReferences(contents, assetFiles));
+            })
+        );
+      }
     }
 
     // If single output file expected, rename it
@@ -686,64 +718,6 @@ export const buildEsCode = async ({
       stack: error?.stack
     });
   });
-};
-
-const copyExplicitlyIncludedFiles = ({
-  explicitlyIncludedFiles,
-  outputDirectory,
-  cwd
-}: {
-  explicitlyIncludedFiles: string[];
-  outputDirectory: string;
-  cwd: string;
-}) => {
-  const filesToHandle = explicitlyIncludedFiles.map((filePath) => {
-    return { src: join(cwd, filePath), dest: join(outputDirectory, filePath) };
-  });
-  return Promise.all(
-    filesToHandle.map(({ src, dest }) => {
-      return copy(src, dest).catch((err) => {
-        if (err.code !== 'EEXIST') {
-          throw err;
-        }
-      });
-    })
-  );
-};
-
-export const removeExplicitlyExcludedFiles = async ({
-  createPackagingError,
-  excludeFiles,
-  outputDirectory
-}: {
-  createPackagingError: CreatePackagingError;
-  excludeFiles: string[];
-  outputDirectory: string;
-}) => {
-  if (excludeFiles.length === 0) {
-    return;
-  }
-  const matchedPaths = await getMatchingFilesByGlob({
-    globPattern: excludeFiles,
-    cwd: outputDirectory,
-    followSymbolicLinks: false
-  });
-  const normalizedOutputRoot = resolve(outputDirectory);
-  const comparableOutputRoot = process.platform === 'win32' ? normalizedOutputRoot.toLowerCase() : normalizedOutputRoot;
-  const outputRootPrefix = comparableOutputRoot.endsWith(sep) ? comparableOutputRoot : `${comparableOutputRoot}${sep}`;
-  const absolutePaths = matchedPaths.map((matchedPath) => {
-    const absolutePath = resolve(outputDirectory, matchedPath);
-    const comparablePath = process.platform === 'win32' ? absolutePath.toLowerCase() : absolutePath;
-    if (comparablePath !== comparableOutputRoot && !comparablePath.startsWith(outputRootPrefix)) {
-      throw createPackagingError({
-        type: 'PACKAGING',
-        message: `The excludeFiles pattern matched a path outside the deployment package: ${matchedPath}.`,
-        hint: 'Use excludeFiles patterns that stay within the packaged artifact.'
-      });
-    }
-    return absolutePath;
-  });
-  await Promise.all(absolutePaths.map((path) => remove(path)));
 };
 
 export const createEsBundle = async ({
@@ -892,7 +866,7 @@ export const createEsBundle = async ({
     digest = await getBundleDigest({
       externalDependencies: dependenciesToInstallInDocker.map((dep) => ({ name: dep.name, version: dep.version })),
       cwd,
-      workloadPath: distIndexFilePath,
+      distFolderPath,
       additionalDigestInput: [
         additionalDigestInput,
         explicitlyIncludedFilesDigestHex,
@@ -978,12 +952,12 @@ export const createEsBundle = async ({
 };
 
 const getBundleDigest = async ({
-  workloadPath,
+  distFolderPath,
   cwd,
   externalDependencies,
   additionalDigestInput
 }: {
-  workloadPath: string; // absolute
+  distFolderPath: string;
   cwd: string;
   externalDependencies: { name: string; version: string }[];
   additionalDigestInput: string;
@@ -991,8 +965,10 @@ const getBundleDigest = async ({
   const filesToIncludeInDigest = FILES_TO_INCLUDE_IN_DIGEST.map((filePath) => ({
     path: join(cwd, filePath),
     identity: filePath
-  })).concat({ path: workloadPath, identity: 'stacktape-generated-workload.js' });
+  }));
   const hash = await getHashFromMultipleFiles({ files: filesToIncludeInDigest });
+  hash.update(await getDirectoryChecksum({ absoluteDirectoryPath: distFolderPath }));
+  hash.update(`stacktape-buildpack:${STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION}`);
   hash.update(objectHash(externalDependencies));
   hash.update(additionalDigestInput || '');
   return hash.digest('hex');
@@ -1045,7 +1021,7 @@ const analyzeDependency = async ({
   return { dependenciesToInstallInDocker, allExternalDeps };
 };
 
-let sourceMapBannerFromFile: string;
+const cjsSourceMapBannersByPath = new Map<string, string>();
 
 const getSourceMapBanner = async ({
   sourceMapBannerType,
@@ -1061,26 +1037,26 @@ const getSourceMapBanner = async ({
       return { js: '' };
     }
     if (sourceMapBannerType === 'pre-compiled') {
-      if (!sourceMapBannerFromFile) {
-        if (outputModuleFormat === 'cjs') {
-          const sourceMapBannerFilePath = getFirstExistingPath([
-            resolve(__dirname, './source-map-install.js'),
-            ...(sourceMapInstallPath ? [sourceMapInstallPath] : [])
-          ]);
-          if (!sourceMapBannerFilePath) {
-            return { js: '' };
-          }
-          sourceMapBannerFromFile = await readFile(sourceMapBannerFilePath, 'utf-8').catch(() => {
-            return '';
-          });
-          return { js: sourceMapBannerFromFile };
-        }
-        if (outputModuleFormat === 'esm') {
-          return { js: ESM_SOURCE_MAP_BANNER };
-        }
-        return { js: '' };
+      if (outputModuleFormat === 'esm') {
+        return { js: ESM_SOURCE_MAP_BANNER };
       }
-      return { js: sourceMapBannerFromFile };
+      if (outputModuleFormat === 'cjs') {
+        const sourceMapBannerFilePath = getFirstExistingPath([
+          resolve(__dirname, './source-map-install.js'),
+          ...(sourceMapInstallPath ? [sourceMapInstallPath] : [])
+        ]);
+        if (!sourceMapBannerFilePath) {
+          return { js: '' };
+        }
+        if (!cjsSourceMapBannersByPath.has(sourceMapBannerFilePath)) {
+          cjsSourceMapBannersByPath.set(
+            sourceMapBannerFilePath,
+            await readFile(sourceMapBannerFilePath, 'utf-8').catch(() => '')
+          );
+        }
+        return { js: cjsSourceMapBannersByPath.get(sourceMapBannerFilePath)! };
+      }
+      return { js: '' };
     }
 
     if (sourceMapBannerType === 'node_modules') {

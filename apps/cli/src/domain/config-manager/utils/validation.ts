@@ -187,7 +187,7 @@ export const validatePackagingProps = ({
         hints: cwdHint
       });
     }
-  } else if (packaging.type === 'external-buildpack') {
+  } else if (packaging.type === 'external-buildpack' || packaging.type === 'nixpacks') {
     const { sourceDirectoryPath } = packaging.properties;
     const fullLocation = join(workingDir, sourceDirectoryPath);
     if (!isFileAccessible(fullLocation) && !isDirAccessible(fullLocation)) {
@@ -196,6 +196,19 @@ export const validatePackagingProps = ({
         code: 'PACKAGING_SOURCE_DIRECTORY_MISSING',
         message: `${workloadDescription} source directory \`${fullLocation}\` does not exist or is not accessible.`,
         hints: cwdHint
+      });
+    }
+    if (
+      packaging.type === 'nixpacks' &&
+      packaging.properties.startOnlyIncludeFiles?.length &&
+      !packaging.properties.startRunImage
+    ) {
+      throw new CliError({
+        category: 'PACKAGING_CONFIG',
+        code: 'NIXPACKS_RUNTIME_FILTER_REQUIRES_RUN_IMAGE',
+        message: `${workloadDescription} uses Nixpacks startOnlyIncludeFiles without startRunImage.`,
+        hints:
+          'Nixpacks applies startOnlyIncludeFiles only when copying files into a separate runtime image. Configure startRunImage or remove startOnlyIncludeFiles.'
       });
     }
   }

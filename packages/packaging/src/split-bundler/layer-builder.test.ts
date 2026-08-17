@@ -94,7 +94,7 @@ describe('createLayerArtifacts', () => {
     expect(artifact!.layerNumber).toBe(1);
     expect(artifact!.layerPath).toBe(join(workspace.layerBasePath, 'layer-1'));
     expect(artifact!.chunks).toEqual(['chunk-shared.js', 'chunk-dep.js']);
-    expect(artifact!.sizeBytes).toBe(4242);
+    expect(artifact!.sizeBytes).toBeGreaterThan(0);
 
     const layerNodejs = join(artifact!.layerPath, 'nodejs');
     expect((await readdir(join(layerNodejs, 'chunks'))).toSorted()).toEqual([
@@ -103,6 +103,16 @@ describe('createLayerArtifacts', () => {
       'chunk-shared.js.map'
     ]);
     expect(JSON.parse(await readFile(join(layerNodejs, 'package.json'), 'utf8'))).toEqual({ type: 'module' });
+  });
+
+  test('removes obsolete files when a stable layer number is rebuilt', async () => {
+    const workspace = await buildWorkspace();
+    const obsoletePath = join(workspace.layerBasePath, 'layer-1', 'nodejs', 'chunks', 'obsolete.js');
+    await outputFile(obsoletePath, 'stale');
+
+    await createLayerArtifacts(workspace);
+
+    expect(await pathExists(obsoletePath)).toBe(false);
   });
 
   test('points layered chunks at the layer mount and non-layered chunks at the lambda package', async () => {
@@ -146,6 +156,17 @@ describe('createLayerArtifacts', () => {
 
     expect(first.layerArtifacts[0]!.contentHash).toMatch(/^[a-f0-9]{1,12}$/);
     expect(identical.layerArtifacts[0]!.contentHash).toBe(first.layerArtifacts[0]!.contentHash);
+    expect(changed.layerArtifacts[0]!.contentHash).not.toBe(first.layerArtifacts[0]!.contentHash);
+  });
+
+  test('changes the layer hash when same-size chunk contents change', async () => {
+    const first = await createLayerArtifacts(
+      await buildWorkspace({ sharedChunkBody: 'import "./chunk-dep.js";\nexport const shared = 1;\n' })
+    );
+    const changed = await createLayerArtifacts(
+      await buildWorkspace({ sharedChunkBody: 'import "./chunk-dep.js";\nexport const shared = 2;\n' })
+    );
+
     expect(changed.layerArtifacts[0]!.contentHash).not.toBe(first.layerArtifacts[0]!.contentHash);
   });
 });

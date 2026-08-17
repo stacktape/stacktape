@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 
-/** Creates an exclusively owned temporary file inside a build context without touching customer files. */
+/** Creates an exclusively owned temporary build file without touching an existing customer file. */
 export const createTemporaryBuildFile = async ({
   contents,
   directoryPath,

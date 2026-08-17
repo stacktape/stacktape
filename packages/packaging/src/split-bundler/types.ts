@@ -143,7 +143,7 @@ export type LayerArtifact = {
   layerPath: string;
   chunks: string[];
   sizeBytes: number;
-  /** Content-based hash for caching (based on chunk names and sizes) */
+  /** Content-based hash of the final publishable layer tree. */
   contentHash: string;
 };
 

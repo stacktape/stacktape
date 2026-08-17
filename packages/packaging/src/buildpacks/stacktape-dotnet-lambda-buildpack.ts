@@ -1,11 +1,11 @@
 import type { LambdaArtifactActions, StpBuildpackInput } from '../runtime-contracts';
 import type { PackagingOutput } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
-import { getFolder } from '../fs/files';
 import { DEFAULT_DOTNET_VERSION } from '../bundlers/constants';
 import { buildDotnetArtifact } from '../bundlers/dotnet';
 import { createLambdaZipArtifact } from '../artifact/lambda-artifact';
 import type { DotnetLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
+import { findNearestProjectRoot, resolveExplicitProjectRoot } from './project-root';
 
 export const buildUsingStacktapeDotnetLambdaBuildpack = async ({
   progressLogger,
@@ -21,8 +21,14 @@ export const buildUsingStacktapeDotnetLambdaBuildpack = async ({
     zippedSizeLimit: number;
     languageSpecificConfig?: DotnetLanguageSpecificConfig | undefined;
   }): Promise<PackagingOutput> => {
-  const sourcePath = getFolder(entryfilePath);
-  const absoluteSourcePath = isAbsolute(sourcePath) ? sourcePath : join(cwd, sourcePath);
+  const absoluteSourcePath = languageSpecificConfig?.projectFile
+    ? resolveExplicitProjectRoot({ cwd, projectFile: languageSpecificConfig.projectFile })
+    : findNearestProjectRoot({
+        cwd,
+        entryfilePath,
+        markerFiles: ['Directory.Build.props'],
+        markerFileExtensions: ['.csproj']
+      });
   const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
 
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildDotnetArtifact({
@@ -35,7 +41,8 @@ export const buildUsingStacktapeDotnetLambdaBuildpack = async ({
     name,
     progressLogger,
     cwd,
-    languageSpecificConfig
+    languageSpecificConfig,
+    target: 'lambda'
   });
 
   if (outcome === 'skipped') {

@@ -118,7 +118,7 @@ describe('custom artifact packaging contract', () => {
     expect(JSON.parse(JSON.stringify(cached))).toHaveProperty('size', null);
   });
 
-  test('leaves the size of an already zipped package undefined and omits it from serialization', async () => {
+  test('reports and serializes the uncompressed size of an already zipped package', async () => {
     const { root, output } = await createWorkspace();
     const archive = new AdmZip();
     archive.addFile('index.js', Buffer.from('export const handler = () => "v1";\n'));
@@ -140,11 +140,11 @@ describe('custom artifact packaging contract', () => {
     expect(result.outcome).toBe('bundled');
     expect(result.artifactPath).toBe(join(output, 'prezipped.zip'));
     expect(Object.hasOwn(result, 'size')).toBe(true);
-    expect(result.size).toBeUndefined();
-    expect(Object.keys(JSON.parse(JSON.stringify(result)))).not.toContain('size');
+    expect(result.size).toBe(0);
+    expect(JSON.parse(JSON.stringify(result))).toHaveProperty('size', 0);
   });
 
-  test('does not invalidate a package for excluded dependency/cache directories', async () => {
+  test('invalidates a custom directory artifact when a packaged dependency changes', async () => {
     const { source, output } = await createWorkspace();
     const first = await packageDirectory({ source, output });
 
@@ -156,7 +156,7 @@ describe('custom artifact packaging contract', () => {
       existingDigests: [first.digest]
     });
 
-    expect(second.outcome).toBe('skipped');
-    expect(second.digest).toBe(first.digest);
+    expect(second.outcome).toBe('bundled');
+    expect(second.digest).not.toBe(first.digest);
   });
 });

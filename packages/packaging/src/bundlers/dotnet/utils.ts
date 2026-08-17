@@ -2,10 +2,11 @@ import { basename, dirname, isAbsolute, join } from 'node:path';
 import { exists } from 'fs-extra';
 
 import type { DotnetLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
+import { STACKTAPE_LANGUAGE_SOURCE_GLOBS } from '../../artifact/language-build-context';
 import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../digest';
 import { getMatchingFilesByGlob } from '../../fs/files';
 
-const FILE_GLOBS = ['./**/*.cs', './**/*.csproj', './**/*.sln', './**/*.props', './**/*.targets'];
+const FILE_GLOBS = STACKTAPE_LANGUAGE_SOURCE_GLOBS;
 const EXTRA_FILES = [
   'global.json',
   'NuGet.config',

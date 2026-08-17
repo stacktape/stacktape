@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import { dirExists } from '../fs/files';
 import { serializeEnvironment } from '../runtime-helpers';
 import { EDGE_LAMBDA_ENV_ASSET_REPLACER_PLACEHOLDER } from './constants';
-import { copy, move, outputFile, readdir, remove, writeFile } from 'fs-extra';
+import { copy, emptyDir, move, outputFile, readdir, remove, writeFile } from 'fs-extra';
 import kleur from 'kleur';
 import { buildUsingCustomArtifact } from '../artifact/custom-artifact';
 import type { EnvironmentVar } from '@stacktape/config/shared';
@@ -47,6 +47,7 @@ type PackagedNextjsWeb = NextjsWeb['properties'] & {
 };
 
 type OpenNextConfig = Pick<UpstreamOpenNextConfig, 'buildCommand' | 'default' | 'functions'>;
+const OPEN_NEXT_BUILD_PACKAGE = '@opennextjs/aws@3.10.4';
 
 export const createNextjsWebArtifacts = async ({
   resource,
@@ -77,10 +78,12 @@ export const createNextjsWebArtifacts = async ({
         loadModuleExport
       });
       const configFilePath = join(absoluteAppDirectory, configFileName);
+      let temporaryNextConfigPath: string | undefined;
       const openNextDir = join(absoluteAppDirectory, '.open-next');
       await remove(openNextDir);
       try {
-        await executeProcess('npx', ['--yes', '@opennextjs/aws@^3.6.2', 'build', '--config-path', configFileName], {
+        temporaryNextConfigPath = await ensureNextConfig(absoluteAppDirectory);
+        await executeProcess('npx', ['--yes', OPEN_NEXT_BUILD_PACKAGE, 'build', '--config-path', configFileName], {
           cwd: absoluteAppDirectory,
           env: { ...copyEnv },
           disableStderr: true,
@@ -94,9 +97,13 @@ export const createNextjsWebArtifacts = async ({
           cause: error
         });
       } finally {
-        await remove(configFilePath);
+        await Promise.all([
+          remove(configFilePath),
+          ...(temporaryNextConfigPath ? [remove(temporaryNextConfigPath)] : [])
+        ]);
       }
 
+      await emptyDir(distFolderPath);
       try {
         await move(openNextDir, distFolderPath);
       } catch {
@@ -205,6 +212,18 @@ export const createNextjsWebArtifacts = async ({
     serverFunction,
     warmerFunction
   ].filter(Boolean);
+};
+
+const ensureNextConfig = async (absoluteAppDirectory: string): Promise<string | undefined> => {
+  const nextConfigNames = ['next.config.ts', 'next.config.js', 'next.config.mjs', 'next.config.cjs'];
+  const appDirectoryContents = new Set(await readdir(absoluteAppDirectory));
+  if (nextConfigNames.some((fileName) => appDirectoryContents.has(fileName))) return undefined;
+
+  // Next.js itself permits no config, but OpenNext currently requires a conventional config filename before it will
+  // invoke Next. The file is exclusively created for the build and removed on both success and failure.
+  const temporaryNextConfigPath = join(absoluteAppDirectory, 'next.config.mjs');
+  await writeFile(temporaryNextConfigPath, 'export default {};\n', { flag: 'wx' });
+  return temporaryNextConfigPath;
 };
 
 const moveAssetsForUpload = async ({ distFolderPath }: { distFolderPath: string }) => {
@@ -339,7 +358,12 @@ const getOpenNextConfig = async ({
   createPackagingError: CreatePackagingError;
   loadModuleExport: LoadModuleExport;
 }): Promise<OpenNextConfig> => {
-  const openNextConfigFileNames = new Set(['open-next.config.ts', 'open-next.config.js']);
+  const openNextConfigFileNames = new Set([
+    'open-next.config.ts',
+    'open-next.config.js',
+    'open-next.config.mjs',
+    'open-next.config.cjs'
+  ]);
   const appDirectoryContents = await readdir(join(cwd, resource.appDirectory || '.'));
   const existingOpenNextConfigFile = appDirectoryContents.find((fileName) => openNextConfigFileNames.has(fileName));
   let userOpenNextConfig: OpenNextConfig = { default: { runtime: 'node' } };

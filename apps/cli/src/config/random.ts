@@ -45,11 +45,11 @@ export const lambdaRuntimesForFileExtension: {
   mts: ['nodejs24.x', 'nodejs22.x', 'nodejs20.x', 'nodejs18.x'],
   jsx: ['nodejs24.x', 'nodejs22.x', 'nodejs20.x', 'nodejs18.x'],
   tsx: ['nodejs24.x', 'nodejs22.x', 'nodejs20.x', 'nodejs18.x'],
-  py: ['python3.13', 'python3.12', 'python3.11', 'python3.10'],
-  java: ['java21', 'java17', 'java11'],
-  rb: ['ruby3.3'],
-  php: ['provided.al2', 'provided.al2023'],
-  go: ['provided.al2', 'provided.al2023'],
+  py: ['python3.14', 'python3.13', 'python3.12', 'python3.11', 'python3.10'],
+  java: ['java25', 'java21', 'java17', 'java11'],
+  rb: ['ruby4.0', 'ruby3.4', 'ruby3.3'],
+  php: ['provided.al2023'],
+  go: ['provided.al2023', 'provided.al2'],
   cs: ['dotnet10', 'dotnet8', 'dotnet6']
 };
 export const supportedWorkloadExtensions: (typeof possiblySupportedLangExtensions)[number][] = [

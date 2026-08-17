@@ -1,12 +1,13 @@
 import type { ImageBuildActions, StpBuildpackInput } from '../runtime-contracts';
 import type { PackagingOutput } from '../runtime-contracts';
-import { isAbsolute, join } from 'node:path';
+import { isAbsolute, join, relative } from 'node:path';
 import { buildRubyDockerfile } from '../docker/dockerfiles';
-import { getFolder } from '../fs/files';
-import { outputFile } from 'fs-extra';
 import { DEFAULT_RUBY_VERSION } from '../bundlers/constants';
 import { buildRubyArtifact } from '../bundlers/ruby';
 import type { RubyLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
+import { findNearestProjectRoot } from './project-root';
+import { buildGeneratedDockerImage } from '../artifact/generated-image-build';
+import { transformToUnixPath } from '../fs/files';
 
 export const buildUsingStacktapeRbImageBuildpack = async ({
   buildDockerImage,
@@ -27,8 +28,7 @@ export const buildUsingStacktapeRbImageBuildpack = async ({
     cacheFromRef?: string | undefined;
     cacheToRef?: string | undefined;
   }): Promise<PackagingOutput> => {
-  const sourcePath = getFolder(entryfilePath);
-  const absoluteSourcePath = isAbsolute(sourcePath) ? sourcePath : join(cwd, sourcePath);
+  const absoluteSourcePath = findNearestProjectRoot({ cwd, entryfilePath, markerFiles: ['Gemfile', 'gems.rb'] });
   const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
 
   const bundlingOutput = await buildRubyArtifact({
@@ -54,21 +54,19 @@ export const buildUsingStacktapeRbImageBuildpack = async ({
 
   await progressLogger.startEvent({ eventType: 'CREATE_DOCKERFILE', description: 'Creating Dockerfile' });
 
-  const dockerfilePath = join(distFolderPath, 'Dockerfile');
-  await outputFile(
-    dockerfilePath,
-    buildRubyDockerfile({
-      rubyVersion: languageSpecificConfig?.rubyVersion ?? DEFAULT_RUBY_VERSION,
-      entryfilePath: absoluteEntryfilePath,
-      alpine: !requiresGlibcBinaries,
-      customDockerBuildCommands: otherProps.customDockerBuildCommands
-    })
-  );
+  const dockerfileContents = buildRubyDockerfile({
+    rubyVersion: languageSpecificConfig?.rubyVersion ?? DEFAULT_RUBY_VERSION,
+    entryfilePath: transformToUnixPath(relative(absoluteSourcePath, absoluteEntryfilePath)),
+    alpine: !requiresGlibcBinaries,
+    customDockerBuildCommands: otherProps.customDockerBuildCommands
+  });
 
   await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });
 
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image' });
-  const { size, dockerOutput, duration, created } = await buildDockerImage({
+  const { size, dockerOutput, duration, created } = await buildGeneratedDockerImage({
+    dockerfileContents,
+    buildDockerImage,
     imageTag: name,
     buildContextPath: distFolderPath,
     dockerBuildOutputArchitecture,

@@ -1,11 +1,11 @@
 import type { LambdaArtifactActions, StpBuildpackInput } from '../runtime-contracts';
 import type { PackagingOutput } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
-import { getFolder } from '../fs/files';
 import { DEFAULT_PHP_VERSION } from '../bundlers/constants';
 import { buildPhpArtifact } from '../bundlers/php';
 import { createLambdaZipArtifact } from '../artifact/lambda-artifact';
 import type { PhpLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
+import { findNearestProjectRoot } from './project-root';
 
 export const buildUsingStacktapePhpLambdaBuildpack = async ({
   progressLogger,
@@ -21,8 +21,7 @@ export const buildUsingStacktapePhpLambdaBuildpack = async ({
     zippedSizeLimit: number;
     languageSpecificConfig?: PhpLanguageSpecificConfig | undefined;
   }): Promise<PackagingOutput> => {
-  const sourcePath = getFolder(entryfilePath);
-  const absoluteSourcePath = isAbsolute(sourcePath) ? sourcePath : join(cwd, sourcePath);
+  const absoluteSourcePath = findNearestProjectRoot({ cwd, entryfilePath, markerFiles: ['composer.json'] });
   const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
 
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildPhpArtifact({

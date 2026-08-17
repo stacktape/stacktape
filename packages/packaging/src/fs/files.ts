@@ -85,8 +85,8 @@ export const getHashFromMultipleFiles = async ({ files }: { files: Array<{ path:
   return hash;
 };
 
-const readFileOrNull = async (filePath: string) =>
-  readFile(filePath, { encoding: 'utf8' }).catch((err: NodeJS.ErrnoException) => {
+const readFileOrNull = async (filePath: string): Promise<Buffer | null> =>
+  readFile(filePath).catch((err: NodeJS.ErrnoException) => {
     if (err.code === 'ENOENT') {
       return null;
     }
@@ -105,11 +105,25 @@ export const getFolderSize = (folderPath: string, unit: 'MB' | 'KB', decimals = 
     });
   });
 
+/** Exact recursive folder size in bytes. Use this for hard platform limits and content metadata. */
+export const getFolderSizeBytes = (folderPath: string): Promise<number> =>
+  new Promise((resolve, reject) => {
+    getFolderSizeCb(folderPath, (err: Error | null, size: number) => {
+      if (err) {
+        reject(err);
+        return;
+      }
+      resolve(size);
+    });
+  });
+
 export const getFileSize = async (filePath: string, unit: 'MB' | 'KB', decimals = 2): Promise<number> => {
   const { size } = await stat(filePath);
   const res = unit === 'MB' ? size / 1024 / 1024 : size / 1024;
   return Number(res.toFixed(decimals));
 };
+
+export const getFileSizeBytes = async (filePath: string): Promise<number> => (await stat(filePath)).size;
 
 /** The first path in `paths` that exists, or `undefined`. Used to locate optional project files. */
 export const getFirstExistingPath = (paths: string[]): string | undefined => {

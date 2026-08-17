@@ -4,19 +4,30 @@ import type {
   ExecuteProcess,
   PackagingProgressLogger as ProgressLogger
 } from '../runtime-contracts';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { serializeEnvironment } from '../runtime-helpers';
-import { copy, ensureDir, outputFile, pathExists, remove, writeFile } from 'fs-extra';
+import { copy, emptyDir, ensureDir, outputFile, pathExists, readFile, remove, writeFile } from 'fs-extra';
 import { buildUsingCustomArtifact } from '../artifact/custom-artifact';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 import { runWebBuildExclusive } from './build-coordinator';
+import { parseCommand } from '../process/command';
+import { copyTracedNodeRuntimeFiles } from './node-runtime-files';
+import { resolveInstalledNodePackage } from './node-runtime-files';
+import { copyDockerInstalledModulesForLambda } from '../es/native-dependencies';
+import type { DockerBuildOutputArchitecture, RunDocker } from '../runtime-contracts';
 
 /**
  * Framework-specific build configuration
  */
 export type SsrWebBuildConfig = {
+  /** Actionable adapter configuration shown when the framework did not emit its expected server output. */
+  adapterConfigurationHint?: string | undefined;
   /** Build command to execute */
   buildCommand: string;
+  /** Declared framework packages whose runtime is already bundled into the emitted server output. */
+  bundledApplicationPackages?: string[] | undefined;
+  /** Static output directory also required beside the server output at runtime. */
+  copyStaticAssetsToServerDirectory?: string | undefined;
   /** Working directory for the build */
   workingDir: string;
   /** Path to server output after build */
@@ -25,6 +36,14 @@ export type SsrWebBuildConfig = {
   staticOutputPath: string;
   /** Handler file name (e.g., 'index.mjs') */
   handlerFileName: string;
+  /** Preserve the server output's final directory name when framework code resolves files relative to it. */
+  preserveServerOutputDirectory?: boolean | undefined;
+  /** Root used for runtime dependency tracing, normally the Stacktape project directory. */
+  traceBasePath?: string | undefined;
+  /** Framework runtime adapters which must be declared by the application package. */
+  requiredAdapterPackages?: string[] | undefined;
+  /** Native runtime packages bundled as JS but loaded dynamically by the framework at runtime. */
+  nativeRuntimePackages?: Array<{ name: string; resolveFromPackage?: string | undefined }> | undefined;
   /** Static asset prefix for CDN routing (e.g., '_astro', '_nuxt') */
   staticAssetPrefix: string;
   /** Environment variables to set during build */
@@ -47,6 +66,33 @@ export type SsrWebPackagingProps = {
   archiveItem: ArchiveItem;
   createPackagingError: CreatePackagingError;
   executeProcess: ExecuteProcess;
+  runDocker?: RunDocker | undefined;
+  nativeDependencyInstallationRootPath?: string | undefined;
+  dockerBuildOutputArchitecture?: DockerBuildOutputArchitecture | undefined;
+};
+
+type ApplicationManifest = {
+  dependencies?: Record<string, string> | undefined;
+  devDependencies?: Record<string, string> | undefined;
+  optionalDependencies?: Record<string, string> | undefined;
+  peerDependencies?: Record<string, string> | undefined;
+};
+
+export const getMissingRequiredAdapterPackages = async ({
+  requiredAdapterPackages = [],
+  workingDir
+}: Pick<SsrWebBuildConfig, 'requiredAdapterPackages' | 'workingDir'>) => {
+  if (requiredAdapterPackages.length === 0) return [];
+  const manifestPath = join(workingDir, 'package.json');
+  if (!(await pathExists(manifestPath))) return requiredAdapterPackages;
+  const manifest = JSON.parse(await readFile(manifestPath, 'utf8')) as ApplicationManifest;
+  const declaredPackages = new Set([
+    ...Object.keys(manifest.dependencies ?? {}),
+    ...Object.keys(manifest.devDependencies ?? {}),
+    ...Object.keys(manifest.optionalDependencies ?? {}),
+    ...Object.keys(manifest.peerDependencies ?? {})
+  ]);
+  return requiredAdapterPackages.filter((packageName) => !declaredPackages.has(packageName));
 };
 
 /**
@@ -56,7 +102,7 @@ export type SsrWebPackagingProps = {
  * - 'node-http': for frameworks that output a Node.js HTTP handler (Astro, SvelteKit)
  * - 'web-fetch': for frameworks that export a Web Fetch API handler (Remix)
  */
-const createServerWrapper = async ({
+export const createServerWrapper = async ({
   distFolderPath,
   handlerFileName,
   wrapperType
@@ -96,10 +142,23 @@ async function ensureServer() {
   }
 
   return new Promise((resolve, reject) => {
-    _server = createServer(h);
+    _server = createServer((request, response) => {
+      const publicHost = request.headers["x-stacktape-public-host"];
+      if (typeof publicHost === "string" && publicHost) {
+        request.headers.host = publicHost;
+      }
+      const publicProtocol = request.headers["x-stacktape-public-protocol"];
+      if (publicProtocol === "https") {
+        Object.defineProperty(request.socket, "encrypted", { configurable: true, value: true });
+      }
+      delete request.headers["x-stacktape-public-host"];
+      delete request.headers["x-stacktape-public-protocol"];
+      return h(request, response);
+    });
     _server.listen(0, "127.0.0.1", () => {
       const addr = _server.address();
       _baseUrl = "http://127.0.0.1:" + addr.port;
+      _server.unref?.();
       resolve(_baseUrl);
     });
     _server.on("error", reject);
@@ -112,24 +171,49 @@ export const handler = async (event) => {
   const {
     requestContext,
     headers: eventHeaders = {},
-    rawPath = "/",
-    rawQueryString = "",
+    rawPath,
+    rawQueryString,
+    path: requestPath,
+    queryStringParameters,
+    multiValueQueryStringParameters = {},
+    multiValueHeaders = {},
     body: eventBody,
     isBase64Encoded,
     cookies
   } = event;
 
   const method = requestContext?.http?.method || event.httpMethod || "GET";
-  const url = baseUrl + rawPath + (rawQueryString ? "?" + rawQueryString : "");
+  const requestQuery = rawQueryString !== undefined
+    ? rawQueryString
+    : (() => {
+        const params = new URLSearchParams();
+        const multiValueKeys = new Set(Object.keys(multiValueQueryStringParameters));
+        for (const [key, values] of Object.entries(multiValueQueryStringParameters)) {
+          for (const value of values || []) params.append(key, String(value));
+        }
+        for (const [key, value] of Object.entries(queryStringParameters || {})) {
+          if (!multiValueKeys.has(key) && value !== undefined) params.append(key, String(value));
+        }
+        return params.toString();
+      })();
+  const url = baseUrl + (rawPath || requestPath || "/") + (requestQuery ? "?" + requestQuery : "");
 
   // Build headers
   const headers = new Headers();
+  const multiValueHeaderNames = new Set(Object.keys(multiValueHeaders).map((key) => key.toLowerCase()));
   for (const [key, value] of Object.entries(eventHeaders)) {
-    headers.set(key, value);
+    if (value !== undefined && !multiValueHeaderNames.has(key.toLowerCase())) headers.set(key, String(value));
+  }
+  for (const [key, values] of Object.entries(multiValueHeaders)) {
+    for (const value of values || []) headers.append(key, String(value));
   }
   if (cookies && cookies.length > 0) {
     headers.set("cookie", cookies.join("; "));
   }
+  const publicHost = eventHeaders["x-forwarded-host"] || eventHeaders["X-Forwarded-Host"] || eventHeaders.host || eventHeaders.Host;
+  if (publicHost) headers.set("x-stacktape-public-host", String(publicHost));
+  const publicProtocol = eventHeaders["x-forwarded-proto"] || eventHeaders["X-Forwarded-Proto"] || "https";
+  headers.set("x-stacktape-public-protocol", String(publicProtocol).split(",", 1)[0].trim().toLowerCase());
 
   // Build body
   let reqBody = undefined;
@@ -141,11 +225,17 @@ export const handler = async (event) => {
 
   // Convert response
   const respHeaders = {};
-  const setCookies = [];
+  const setCookies = typeof response.headers.getSetCookie === "function" ? response.headers.getSetCookie() : [];
+  const contentEncoding = response.headers.get("content-encoding");
+  const droppedResponseHeaders = new Set([
+    "connection", "content-length", "keep-alive", "proxy-authenticate", "proxy-authorization",
+    "te", "trailer", "transfer-encoding", "upgrade",
+    ...(contentEncoding ? ["content-encoding"] : [])
+  ]);
   response.headers.forEach((value, key) => {
-    if (key.toLowerCase() === "set-cookie") {
+    if (key.toLowerCase() === "set-cookie" && setCookies.length === 0) {
       setCookies.push(value);
-    } else {
+    } else if (key.toLowerCase() !== "set-cookie" && !droppedResponseHeaders.has(key.toLowerCase())) {
       respHeaders[key] = value;
     }
   });
@@ -157,7 +247,11 @@ export const handler = async (event) => {
   return {
     statusCode: response.status,
     headers: respHeaders,
-    ...(setCookies.length > 0 ? { cookies: setCookies } : {}),
+    ...(setCookies.length > 0
+      ? requestContext?.http || event.version === "2.0"
+        ? { cookies: setCookies }
+        : { multiValueHeaders: { "set-cookie": setCookies } }
+      : {}),
     body: isText ? respBuffer.toString("utf-8") : respBuffer.toString("base64"),
     isBase64Encoded: !isText
   };
@@ -186,22 +280,43 @@ export const handler = async (event) => {
   const {
     requestContext,
     headers: eventHeaders = {},
-    rawPath = "/",
-    rawQueryString = "",
+    rawPath,
+    rawQueryString,
+    path: requestPath,
+    queryStringParameters,
+    multiValueQueryStringParameters = {},
+    multiValueHeaders = {},
     body: eventBody,
     isBase64Encoded,
     cookies
   } = event;
 
   const method = requestContext?.http?.method || event.httpMethod || "GET";
-  const host = eventHeaders["host"] || eventHeaders["Host"] || "localhost";
-  const protocol = eventHeaders["x-forwarded-proto"] || "https";
-  const url = protocol + "://" + host + rawPath + (rawQueryString ? "?" + rawQueryString : "");
+  const host = eventHeaders["x-forwarded-host"] || eventHeaders["X-Forwarded-Host"] || multiValueHeaders["x-forwarded-host"]?.[0] || eventHeaders["host"] || eventHeaders["Host"] || multiValueHeaders["host"]?.[0] || "localhost";
+  const protocol = eventHeaders["x-forwarded-proto"] || multiValueHeaders["x-forwarded-proto"]?.[0] || "https";
+  const requestQuery = rawQueryString !== undefined
+    ? rawQueryString
+    : (() => {
+        const params = new URLSearchParams();
+        const multiValueKeys = new Set(Object.keys(multiValueQueryStringParameters));
+        for (const [key, values] of Object.entries(multiValueQueryStringParameters)) {
+          for (const value of values || []) params.append(key, String(value));
+        }
+        for (const [key, value] of Object.entries(queryStringParameters || {})) {
+          if (!multiValueKeys.has(key) && value !== undefined) params.append(key, String(value));
+        }
+        return params.toString();
+      })();
+  const url = protocol + "://" + host + (rawPath || requestPath || "/") + (requestQuery ? "?" + requestQuery : "");
 
   // Build headers
   const headers = new Headers();
+  const multiValueHeaderNames = new Set(Object.keys(multiValueHeaders).map((key) => key.toLowerCase()));
   for (const [key, value] of Object.entries(eventHeaders)) {
-    headers.set(key, value);
+    if (value !== undefined && !multiValueHeaderNames.has(key.toLowerCase())) headers.set(key, String(value));
+  }
+  for (const [key, values] of Object.entries(multiValueHeaders)) {
+    for (const value of values || []) headers.append(key, String(value));
   }
   if (cookies && cookies.length > 0) {
     headers.set("cookie", cookies.join("; "));
@@ -218,23 +333,32 @@ export const handler = async (event) => {
 
   // Convert Web Response to Lambda response
   const respHeaders = {};
-  const setCookies = [];
+  const setCookies = typeof response.headers.getSetCookie === "function" ? response.headers.getSetCookie() : [];
+  const droppedResponseHeaders = new Set([
+    "connection", "content-length", "keep-alive", "proxy-authenticate", "proxy-authorization",
+    "te", "trailer", "transfer-encoding", "upgrade"
+  ]);
   response.headers.forEach((value, key) => {
-    if (key.toLowerCase() === "set-cookie") {
+    if (key.toLowerCase() === "set-cookie" && setCookies.length === 0) {
       setCookies.push(value);
-    } else {
+    } else if (key.toLowerCase() !== "set-cookie" && !droppedResponseHeaders.has(key.toLowerCase())) {
       respHeaders[key] = value;
     }
   });
 
   const contentType = response.headers.get("content-type") || "";
-  const isText = /text\\/|application\\/json|application\\/xml|application\\/javascript|charset=/i.test(contentType);
+  const contentEncoding = response.headers.get("content-encoding");
+  const isText = !contentEncoding && /text\\/|application\\/json|application\\/xml|application\\/javascript|charset=/i.test(contentType);
   const respBuffer = Buffer.from(await response.arrayBuffer());
 
   return {
     statusCode: response.status,
     headers: respHeaders,
-    ...(setCookies.length > 0 ? { cookies: setCookies } : {}),
+    ...(setCookies.length > 0
+      ? requestContext?.http || event.version === "2.0"
+        ? { cookies: setCookies }
+        : { multiValueHeaders: { "set-cookie": setCookies } }
+      : {}),
     body: isText ? respBuffer.toString("utf-8") : respBuffer.toString("base64"),
     isBase64Encoded: !isText
   };
@@ -248,14 +372,12 @@ export const handler = async (event) => {
  * Reorganizes the build output for Stacktape deployment.
  * Moves server code to server-function/ and static assets to bucket-content/
  */
-const reorganizeBuildOutput = async ({
+export const reorganizeBuildOutput = async ({
   distFolderPath,
-  buildConfig,
-  executeProcess
+  buildConfig
 }: {
   distFolderPath: string;
   buildConfig: SsrWebBuildConfig;
-  executeProcess: ExecuteProcess;
 }) => {
   const serverFunctionPath = join(distFolderPath, 'server-function');
   const bucketContentPath = join(distFolderPath, 'bucket-content');
@@ -266,6 +388,10 @@ const reorganizeBuildOutput = async ({
   const normalizedServer = buildConfig.serverOutputPath.replace(/\\/g, '/');
   const normalizedStatic = buildConfig.staticOutputPath.replace(/\\/g, '/');
   const staticIsInsideServer = normalizedStatic.startsWith(`${normalizedServer}/`);
+  const serverIsInsideStatic = normalizedServer.startsWith(`${normalizedStatic}/`);
+  const serverCopyDestination = buildConfig.preserveServerOutputDirectory
+    ? join(serverFunctionPath, basename(normalizedServer))
+    : serverFunctionPath;
 
   // Use dereference: true so symlinks (e.g. Nitro's .nitro/ node_modules symlinks)
   // are resolved to actual files - Lambda zip archives don't support symlinks
@@ -276,11 +402,11 @@ const reorganizeBuildOutput = async ({
     // Copy the server output to server-function, then remove the static subdirectory from it.
     const serverSourcePath = join(distFolderPath, 'build-output', buildConfig.serverOutputPath);
     if (await pathExists(serverSourcePath)) {
-      await copy(serverSourcePath, serverFunctionPath, copyOpts);
+      await copy(serverSourcePath, serverCopyDestination, copyOpts);
     }
     // Remove the static assets subdirectory from server-function to avoid bloating Lambda
     const staticRelative = normalizedStatic.slice(normalizedServer.length + 1);
-    const staticInServerFunction = join(serverFunctionPath, staticRelative);
+    const staticInServerFunction = join(serverCopyDestination, staticRelative);
     if (await pathExists(staticInServerFunction)) {
       await remove(staticInServerFunction);
     }
@@ -289,11 +415,20 @@ const reorganizeBuildOutput = async ({
     if (await pathExists(staticAssetsPath)) {
       await copy(staticAssetsPath, bucketContentPath, copyOpts);
     }
+  } else if (serverIsInsideStatic) {
+    const serverSourcePath = join(distFolderPath, 'build-output', '__server-output');
+    if (await pathExists(serverSourcePath)) {
+      await copy(serverSourcePath, serverCopyDestination, copyOpts);
+    }
+    const staticSourcePath = join(distFolderPath, 'build-output', buildConfig.staticOutputPath);
+    if (await pathExists(staticSourcePath)) {
+      await copy(staticSourcePath, bucketContentPath, copyOpts);
+    }
   } else {
     // Independent paths - copy server and static separately
     const serverSourcePath = join(distFolderPath, 'build-output', buildConfig.serverOutputPath);
     if (await pathExists(serverSourcePath)) {
-      await copy(serverSourcePath, serverFunctionPath, copyOpts);
+      await copy(serverSourcePath, serverCopyDestination, copyOpts);
     }
     const staticSourcePath = join(distFolderPath, 'build-output', buildConfig.staticOutputPath);
     if (await pathExists(staticSourcePath)) {
@@ -301,34 +436,40 @@ const reorganizeBuildOutput = async ({
     }
   }
 
-  // For non-passthrough wrappers, copy node_modules into server-function since
-  // the build output has external dependencies that aren't bundled
+  // For non-passthrough wrappers, trace and materialize only reachable runtime dependencies. Copying a whole pnpm
+  // graph both duplicates symlink targets and can make even a trivial framework app exceed Lambda's ZIP limit.
   if (buildConfig.wrapperType !== 'passthrough') {
-    const nodeModulesPath = join(buildConfig.workingDir, 'node_modules');
-    if (await pathExists(nodeModulesPath)) {
-      await copy(nodeModulesPath, join(serverFunctionPath, 'node_modules'), copyOpts);
-      // Prune devDependencies to reduce Lambda package size
-      const pkgJsonPath = join(buildConfig.workingDir, 'package.json');
-      const lockfilePath = join(buildConfig.workingDir, 'package-lock.json');
-      if (await pathExists(pkgJsonPath)) {
-        await copy(pkgJsonPath, join(serverFunctionPath, 'package.json'));
-        if (await pathExists(lockfilePath)) {
-          await copy(lockfilePath, join(serverFunctionPath, 'package-lock.json'));
-        }
-        try {
-          await executeProcess('npm', ['prune', '--omit=dev'], {
-            cwd: serverFunctionPath,
-            disableStderr: true,
-            disableStdout: true
-          });
-        } catch {
-          // Pruning is best-effort - if it fails, we still have the full node_modules
-        }
-        await remove(join(serverFunctionPath, 'package-lock.json')).catch(() => {});
-      }
+    const originalEntrypointPath = join(
+      buildConfig.workingDir,
+      buildConfig.serverOutputPath,
+      buildConfig.handlerFileName
+    );
+    if (await pathExists(originalEntrypointPath)) {
+      await copyTracedNodeRuntimeFiles({
+        bundledApplicationPackages: buildConfig.bundledApplicationPackages,
+        entrypointPath: originalEntrypointPath,
+        serverFunctionPath,
+        traceBasePath: buildConfig.traceBasePath ?? buildConfig.workingDir,
+        processCwd: buildConfig.workingDir
+      });
     }
-    // Add package.json with "type": "module" so Lambda treats .js files as ESM
-    await writeFile(join(serverFunctionPath, 'package.json'), JSON.stringify({ type: 'module' }, null, 2));
+    // Add package.json with "type": "module" so Lambda treats framework-generated .js files as ESM, while keeping
+    // application metadata used by runtime libraries.
+    const applicationManifestPath = join(buildConfig.workingDir, 'package.json');
+    const applicationManifest = (await pathExists(applicationManifestPath))
+      ? (JSON.parse(await readFile(applicationManifestPath, 'utf8')) as Record<string, unknown>)
+      : {};
+    await writeFile(
+      join(serverFunctionPath, 'package.json'),
+      JSON.stringify({ ...applicationManifest, type: 'module' }, null, 2)
+    );
+  }
+
+  if (buildConfig.copyStaticAssetsToServerDirectory) {
+    const staticSourcePath = join(distFolderPath, 'build-output', buildConfig.staticOutputPath);
+    if (await pathExists(staticSourcePath)) {
+      await copy(staticSourcePath, join(serverFunctionPath, buildConfig.copyStaticAssetsToServerDirectory), copyOpts);
+    }
   }
 };
 
@@ -349,8 +490,19 @@ export const createSsrWebArtifacts = async ({
   existingDigests = [],
   archiveItem,
   createPackagingError,
-  executeProcess
+  executeProcess,
+  runDocker,
+  nativeDependencyInstallationRootPath,
+  dockerBuildOutputArchitecture
 }: SsrWebPackagingProps) => {
+  const missingAdapterPackages = await getMissingRequiredAdapterPackages(buildConfig);
+  if (missingAdapterPackages.length > 0) {
+    throw createPackagingError({
+      type: 'PACKAGING',
+      message: `The ${resourceType} application must declare the required server adapter ${missingAdapterPackages.join(', ')} in its package.json.${buildConfig.adapterConfigurationHint ? ` ${buildConfig.adapterConfigurationHint}` : ''}`
+    });
+  }
+
   const copyEnv = serializeEnvironment(process.env);
 
   // Add environment variables
@@ -365,8 +517,8 @@ export const createSsrWebArtifacts = async ({
     });
   }
 
-  // Ensure dist folder exists
-  await ensureDir(distFolderPath);
+  // The path can be reused by retries and dev repackaging. Never let removed build output leak into a new artifact.
+  await emptyDir(distFolderPath);
   const buildOutputPath = join(distFolderPath, 'build-output');
   await ensureDir(buildOutputPath);
 
@@ -379,7 +531,7 @@ export const createSsrWebArtifacts = async ({
       });
       try {
         // Run the build command via npx to ensure local binaries are found
-        await executeProcess('npx', ['--yes', ...buildConfig.buildCommand.split(' ')], {
+        await executeProcess('npx', ['--yes', ...parseCommand(buildConfig.buildCommand)], {
           cwd: buildConfig.workingDir,
           env: { ...copyEnv },
           disableStderr: true,
@@ -397,6 +549,12 @@ export const createSsrWebArtifacts = async ({
         const staticOutputFullPath = join(buildConfig.workingDir, buildConfig.staticOutputPath);
         const deref = { dereference: true };
 
+        if (!(await pathExists(serverOutputFullPath))) {
+          throw new Error(
+            `The ${resourceType} build completed without creating the configured server output at ${buildConfig.serverOutputPath}.${buildConfig.adapterConfigurationHint ? ` ${buildConfig.adapterConfigurationHint}` : ''}`
+          );
+        }
+
         const normalizedServer = buildConfig.serverOutputPath.replace(/\\/g, '/');
         const normalizedStatic = buildConfig.staticOutputPath.replace(/\\/g, '/');
         const staticIsInsideServer = normalizedStatic.startsWith(`${normalizedServer}/`);
@@ -407,7 +565,6 @@ export const createSsrWebArtifacts = async ({
           // Copy the parent (server) first, then the child (static) is already inside
           if (await pathExists(serverOutputFullPath)) {
             await copy(serverOutputFullPath, join(buildOutputPath, buildConfig.serverOutputPath), deref);
-            await remove(serverOutputFullPath);
           }
           // Static output is now at its relative position inside the copied server output
           const staticWithinCopied = join(buildOutputPath, buildConfig.staticOutputPath);
@@ -419,7 +576,6 @@ export const createSsrWebArtifacts = async ({
           // Server is nested inside static - copy parent (static) first
           if (await pathExists(staticOutputFullPath)) {
             await copy(staticOutputFullPath, join(buildOutputPath, buildConfig.staticOutputPath), deref);
-            await remove(staticOutputFullPath);
           }
           const serverWithinCopied = join(buildOutputPath, buildConfig.serverOutputPath);
           if (await pathExists(serverWithinCopied)) {
@@ -429,11 +585,9 @@ export const createSsrWebArtifacts = async ({
           // Independent paths - copy both
           if (await pathExists(serverOutputFullPath)) {
             await copy(serverOutputFullPath, join(buildOutputPath, buildConfig.serverOutputPath), deref);
-            await remove(serverOutputFullPath);
           }
           if (await pathExists(staticOutputFullPath)) {
             await copy(staticOutputFullPath, join(buildOutputPath, buildConfig.staticOutputPath), deref);
-            await remove(staticOutputFullPath);
           }
         }
       } catch (error) {
@@ -456,10 +610,50 @@ export const createSsrWebArtifacts = async ({
     description: `Bundling ${resourceType} functions`
   });
 
-  await reorganizeBuildOutput({ distFolderPath, buildConfig, executeProcess });
+  await reorganizeBuildOutput({ distFolderPath, buildConfig });
+  if (buildConfig.nativeRuntimePackages?.length) {
+    if (!runDocker || !nativeDependencyInstallationRootPath) {
+      throw createPackagingError({
+        type: 'PACKAGING',
+        message: `The ${resourceType} runtime requires Docker-built native dependencies, but no Docker build action was configured.`
+      });
+    }
+    const resolvedPackages = await Promise.all(
+      buildConfig.nativeRuntimePackages.map(async (runtimePackage) => {
+        const resolvedPackage = await resolveInstalledNodePackage({
+          applicationRoot: buildConfig.workingDir,
+          packageName: runtimePackage.name,
+          resolveFromPackage: runtimePackage.resolveFromPackage,
+          traceBasePath: buildConfig.traceBasePath ?? buildConfig.workingDir
+        });
+        if (!resolvedPackage) {
+          throw createPackagingError({
+            type: 'PACKAGING',
+            message: `Could not resolve native runtime package ${runtimePackage.name}${runtimePackage.resolveFromPackage ? ` from ${runtimePackage.resolveFromPackage}` : ''} for ${resourceType}.`
+          });
+        }
+        return {
+          ...resolvedPackage,
+          dependencyType: 'root' as const,
+          note: 'FRAMEWORK_NATIVE_RUNTIME'
+        };
+      })
+    );
+    await copyDockerInstalledModulesForLambda({
+      dependencies: resolvedPackages,
+      installationRootPath: nativeDependencyInstallationRootPath,
+      distFolderPath: join(distFolderPath, 'server-function'),
+      lambdaRuntimeVersion: 24,
+      packageManager: 'npm',
+      dockerBuildOutputArchitecture: dockerBuildOutputArchitecture ?? 'linux/amd64',
+      runDocker: (commands) => runDocker(commands)
+    });
+  }
   await createServerWrapper({
     distFolderPath,
-    handlerFileName: buildConfig.handlerFileName,
+    handlerFileName: buildConfig.preserveServerOutputDirectory
+      ? `${basename(buildConfig.serverOutputPath)}/${buildConfig.handlerFileName}`
+      : buildConfig.handlerFileName,
     wrapperType: buildConfig.wrapperType
   });
 

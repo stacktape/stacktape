@@ -3,9 +3,10 @@ import { exists } from 'fs-extra';
 
 import type { PyLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 import type { CreatePackagingError } from '../../runtime-contracts';
+import { STACKTAPE_LANGUAGE_SOURCE_GLOBS } from '../../artifact/language-build-context';
 import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../digest';
 
-const FILE_GLOBS = ['./**/*.py'];
+const FILE_GLOBS = STACKTAPE_LANGUAGE_SOURCE_GLOBS;
 const EXTRA_FILES = [
   'pyproject.toml',
   'requirements.txt',
@@ -58,7 +59,8 @@ export const resolvePythonDependencyFile = async ({
   }
 
   const roots = [sourcePath, cwd].filter(Boolean);
-  const defaultNames = ['pyproject.toml', 'requirements.txt', 'Pipfile'];
+  // Prefer a committed lock over its pyproject input so default builds are reproducible.
+  const defaultNames = ['uv.lock', 'pyproject.toml', 'requirements.txt', 'Pipfile'];
   roots.forEach((root) => {
     defaultNames.forEach((name) => {
       candidates.push(join(root, name));

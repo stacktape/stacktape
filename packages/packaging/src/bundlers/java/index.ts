@@ -1,14 +1,27 @@
-import type { PackagingProgressLogger as ProgressLogger, RunDocker, StpBuildpackInput } from '../../runtime-contracts';
+import type {
+  CreatePackagingError,
+  PackagingProgressLogger as ProgressLogger,
+  RunDocker,
+  StpBuildpackInput
+} from '../../runtime-contracts';
 import type { CreateBundleOutput } from '../../runtime-contracts';
-import { join } from 'node:path';
 import { buildJavaArtifactDockerfile } from '../../docker/dockerfiles';
-import { transformToUnixPath } from '../../fs/files';
-import { outputFile, remove } from 'fs-extra';
+import { remove } from 'fs-extra';
 import { createTemporaryBuildFile } from '../../fs/temporary-file';
 import objectHash from 'object-hash';
 import { getBundleDigest, getSourceFiles } from './utils';
 import type { JavaLanguageSpecificConfig, SupportedJavaVersion } from '@stacktape/config/deployment-artifacts';
 import { DEFAULT_JAVA_VERSION } from '../constants';
+import {
+  applyArtifactFileSelection,
+  assertRequiredArtifactFile,
+  mergeExplicitlyIncludedSourceFiles,
+  resolveArtifactFileSelection
+} from '../../artifact/file-selection';
+import { runDockerArtifactBuild } from '../../artifact/docker-artifact-build';
+import { findNearestProjectRoot } from '../../buildpacks/project-root';
+import { basename, relative } from 'node:path';
+import { getMatchingFilesByGlob, transformToUnixPath } from '../../fs/files';
 
 type LanguageBundleOutput = Omit<CreateBundleOutput, 'distIndexFilePath'> &
   Partial<Pick<CreateBundleOutput, 'distIndexFilePath'>>;
@@ -26,31 +39,49 @@ export const buildJavaArtifact = async ({
   existingDigests,
   languageSpecificConfig,
   dockerBuildOutputArchitecture,
+  includeFiles,
+  excludeFiles,
+  target = 'container',
+  createPackagingError,
   requiresGlibcBinaries,
   runDocker
 }: StpBuildpackInput & {
   sourcePath: string;
   javaVersion?: SupportedJavaVersion | undefined;
   useMaven?: boolean | undefined;
+  target?: 'container' | 'lambda' | undefined;
   rawEntryfilePath: string;
   distIndexFilePath?: string | undefined;
   progressLogger: ProgressLogger;
   languageSpecificConfig: JavaLanguageSpecificConfig;
+  createPackagingError: CreatePackagingError;
   runDocker: RunDocker;
 }): Promise<LanguageBundleOutput> => {
   await progressLogger.startEvent({
     eventType: 'CALCULATE_CHECKSUM',
     description: 'Calculating checksum for caching'
   });
+  const artifactFileSelection = await resolveArtifactFileSelection({ cwd: _cwd, includeFiles });
 
   const digest = await getBundleDigest({
     externalDependencies: [],
     rootPath: sourcePath,
-    additionalDigestInput: objectHash({ additionalDigestInput, dockerBuildOutputArchitecture }),
+    additionalDigestInput: objectHash({
+      additionalDigestInput,
+      dockerBuildOutputArchitecture,
+      includeFiles,
+      excludeFiles,
+      target,
+      explicitlyIncludedFilesDigest: artifactFileSelection.digest
+    }),
     languageSpecificConfig,
     rawEntryfilePath
   });
-  const sourceFiles = await getSourceFiles({ rootPath: sourcePath });
+  const sourceFiles = mergeExplicitlyIncludedSourceFiles({
+    cwd: _cwd,
+    sourceFiles: await getSourceFiles({ rootPath: sourcePath }),
+    explicitlyIncludedFiles: artifactFileSelection.explicitlyIncludedFiles
+  });
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
       eventType: 'CALCULATE_CHECKSUM',
@@ -73,51 +104,83 @@ export const buildJavaArtifact = async ({
   await progressLogger.finishEvent({ eventType: 'CALCULATE_CHECKSUM' });
 
   await progressLogger.startEvent({ eventType: 'BUILD_CODE', description: 'Building code' });
-  const dockerfilePath = join(distFolderPath, 'Dockerfile');
-  const { fileName: initScriptFileName, filePath: stpInitGradlePath } = await createTemporaryBuildFile({
-    contents: gradleInitFileContent,
-    directoryPath: sourcePath,
-    prefix: 'stp-init-',
-    suffix: '.gradle'
+  const moduleRootPath = findNearestProjectRoot({
+    cwd: sourcePath,
+    entryfilePath: rawEntryfilePath,
+    markerFiles: useMaven ? ['pom.xml'] : ['build.gradle', 'build.gradle.kts']
   });
+  const modulePath = transformToUnixPath(relative(sourcePath, moduleRootPath)) || '.';
+  const temporaryInitScript = useMaven
+    ? undefined
+    : await createTemporaryBuildFile({
+        contents: gradleInitFileContent,
+        directoryPath: sourcePath,
+        prefix: 'stp-init-',
+        suffix: '.gradle'
+      });
   const dockerfileContents = buildJavaArtifactDockerfile({
     javaVersion,
     useMaven,
     alpine: !requiresGlibcBinaries,
-    initScriptFileName
+    initScriptFileName: temporaryInitScript?.fileName,
+    modulePath,
+    target
   });
 
   let buildResult: { succeeded: true } | { succeeded: false; error: unknown };
   try {
-    await outputFile(dockerfilePath, dockerfileContents);
-    await runDocker(
-      [
-        'image',
-        'build',
-        ...(dockerBuildOutputArchitecture ? ['--platform', dockerBuildOutputArchitecture] : []),
-        '--target',
-        'artifact',
-        '--file',
-        dockerfilePath,
-        '--output',
-        `type=local,dest=${transformToUnixPath(distFolderPath)}`,
-        sourcePath
-      ],
-      { cwd: process.cwd() }
-    );
+    await runDockerArtifactBuild({
+      dockerfileContents,
+      sourcePath,
+      distFolderPath,
+      dockerBuildOutputArchitecture,
+      runDocker
+    });
     buildResult = { succeeded: true };
   } catch (error) {
     buildResult = { succeeded: false, error };
   }
-  try {
-    await remove(stpInitGradlePath);
-  } catch (cleanupError) {
-    if (buildResult.succeeded) {
-      throw cleanupError;
+  if (temporaryInitScript) {
+    try {
+      await remove(temporaryInitScript.filePath);
+    } catch (cleanupError) {
+      if (buildResult.succeeded) {
+        throw cleanupError;
+      }
     }
   }
   if ('error' in buildResult) {
     throw buildResult.error;
+  }
+  await applyArtifactFileSelection({
+    cwd: _cwd,
+    outputDirectory: distFolderPath,
+    includeFiles,
+    excludeFiles,
+    explicitlyIncludedFiles: artifactFileSelection.explicitlyIncludedFiles,
+    createPackagingError
+  });
+  const entryClassName = basename(rawEntryfilePath).replace(/\.java$/, '.class');
+  const normalizedEntrypoint = transformToUnixPath(rawEntryfilePath);
+  const conventionalSourceMarker = '/src/main/java/';
+  const conventionalSourceIndex = normalizedEntrypoint.lastIndexOf(conventionalSourceMarker);
+  if (conventionalSourceIndex >= 0) {
+    await assertRequiredArtifactFile({
+      outputDirectory: distFolderPath,
+      relativePath: normalizedEntrypoint
+        .slice(conventionalSourceIndex + conventionalSourceMarker.length)
+        .replace(/\.java$/, '.class'),
+      description: 'Java entry class',
+      createPackagingError
+    });
+  } else if (
+    (await getMatchingFilesByGlob({ globPattern: [`**/${entryClassName}`], cwd: distFolderPath })).length === 0
+  ) {
+    throw createPackagingError({
+      type: 'PACKAGING',
+      message: `The packaged artifact is missing its required Java entry class: ${entryClassName}.`,
+      hint: 'Check entryfilePath, the selected Maven/Gradle module, and excludeFiles.'
+    });
   }
   await progressLogger.finishEvent({ eventType: 'BUILD_CODE' });
 
@@ -137,15 +200,19 @@ export const buildJavaArtifact = async ({
 };
 
 // init.gradle file used for gradle task definition used for building deployment artifact
-const gradleInitFileContent = `allprojects {
-  apply plugin: 'java'
-  task stacktapeDist(type: Copy) {
-    from compileJava
-    from processResources
+const gradleInitFileContent = `gradle.projectsEvaluated {
+  def requestedDir = new File(rootProject.projectDir, gradle.startParameter.projectProperties['stacktapeTargetDir']).canonicalFile
+  def targetProject = rootProject.allprojects.find { it.projectDir.canonicalFile == requestedDir }
+  if (targetProject == null) {
+    throw new GradleException("Stacktape could not find Gradle project at " + requestedDir)
+  }
+  rootProject.tasks.register('stacktapeDist', Copy) {
+    dependsOn targetProject.tasks.named('classes')
+    from targetProject.sourceSets.main.output
     into('lib') {
-        from configurations.runtimeClasspath
+      from targetProject.configurations.runtimeClasspath
     }
-    into "dist"
+    into rootProject.file('dist')
   }
 }
 `;

@@ -1,7 +1,7 @@
 import { afterEach, describe, expect, spyOn, test } from 'bun:test';
 import { mkdtemp, mkdir, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { isAbsolute, join } from 'node:path';
 import * as fsExtra from 'fs-extra';
 import { buildUsingNixpacks } from './nixpacks';
 
@@ -44,7 +44,8 @@ describe('Nixpacks packaging failures', () => {
       },
       runNixpacks: async ({ args, cwd }) => {
         const configArgumentIndex = args.indexOf('--config');
-        configPath = join(cwd, args[configArgumentIndex + 1]!);
+        const configArgument = args[configArgumentIndex + 1]!;
+        configPath = isAbsolute(configArgument) ? configArgument : join(cwd, configArgument);
         throw semanticError;
       }
     });
@@ -86,5 +87,74 @@ describe('Nixpacks packaging failures', () => {
 
     await expect(operation).rejects.toBe(semanticError);
     removeSpy.mockRestore();
+  });
+});
+
+describe('Nixpacks configuration', () => {
+  test('parses TOML arrays and nested phases before applying Stacktape overrides', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stacktape-nixpacks-config-'));
+    temporaryDirectories.push(root);
+    const sourceDirectory = join(root, 'service');
+    await mkdir(sourceDirectory);
+    await writeFile(
+      join(sourceDirectory, 'nixpacks.toml'),
+      '[phases.setup]\nnixPkgs = ["nodejs_22", "openssl"]\n[phases.build]\ncmds = ["npm run build"]\n[start]\ncmd = "node old.js"\n'
+    );
+    let generatedConfig: Record<string, unknown> | undefined;
+
+    await buildUsingNixpacks({
+      name: 'worker',
+      progressLogger: {
+        eventContext: {},
+        startEvent: () => {},
+        updateEvent: () => {},
+        finishEvent: () => {}
+      },
+      existingDigests: [],
+      cwd: root,
+      sourceDirectoryPath: 'service',
+      startCmd: 'node server.js',
+      phases: [{ name: 'build', cmds: ['npm run compile'] }],
+      getDockerImageDetails: async () => ({ size: 1, id: 'image', created: 1 }),
+      runNixpacks: async ({ args, cwd }) => {
+        const configArgumentIndex = args.indexOf('--config');
+        const configArgument = args[configArgumentIndex + 1]!;
+        const configPath = isAbsolute(configArgument) ? configArgument : join(cwd, configArgument);
+        generatedConfig = JSON.parse(await readFile(configPath, 'utf8'));
+        return { stdout: '', stderr: '', exitCode: 0 };
+      }
+    });
+
+    expect(generatedConfig).toEqual({
+      phases: {
+        setup: { nixPkgs: ['nodejs_22', 'openssl'] },
+        build: { cmds: ['npm run compile'] }
+      },
+      start: { cmd: 'node server.js' }
+    });
+  });
+
+  test('rejects start-only filtering without a separate runtime image', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stacktape-nixpacks-config-'));
+    temporaryDirectories.push(root);
+    await mkdir(join(root, 'service'));
+
+    await expect(
+      buildUsingNixpacks({
+        name: 'worker',
+        progressLogger: {
+          eventContext: {},
+          startEvent: () => {},
+          updateEvent: () => {},
+          finishEvent: () => {}
+        },
+        existingDigests: [],
+        cwd: root,
+        sourceDirectoryPath: 'service',
+        startOnlyIncludeFiles: ['src/**'],
+        getDockerImageDetails: async () => ({ size: 1, id: 'image', created: 1 }),
+        runNixpacks: async () => ({ stdout: '', stderr: '', exitCode: 0 })
+      })
+    ).rejects.toThrow('requires startRunImage');
   });
 });

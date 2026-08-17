@@ -43,8 +43,10 @@ describe('Java artifact build files', () => {
       existingDigests: [],
       languageSpecificConfig: {},
       progressLogger,
-      runDocker: async () => {
-        const dockerfile = await readFile(join(distFolderPath, 'Dockerfile'), 'utf8');
+      createPackagingError: ({ message }) => new Error(message),
+      runDocker: async (args) => {
+        const dockerfilePath = args[args.indexOf('--file') + 1]!;
+        const dockerfile = await readFile(dockerfilePath, 'utf8');
         generatedInitFileName = dockerfile.match(/--init-script ([^\s]+)/)?.[1];
         expect(generatedInitFileName).toStartWith('stp-init-');
         expect(await readFile(join(sourcePath, generatedInitFileName!), 'utf8')).toContain('stacktapeDist');
@@ -77,6 +79,7 @@ describe('Java artifact build files', () => {
       existingDigests: [],
       languageSpecificConfig: {},
       progressLogger,
+      createPackagingError: ({ message }) => new Error(message),
       runDocker: async () => {
         throw new Error('Docker should not run when the Dockerfile cannot be written.');
       }

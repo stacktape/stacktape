@@ -1,7 +1,6 @@
 import type { BuildDockerImage, PackagingProgressLogger as ProgressLogger } from '../runtime-contracts';
 import type { DockerBuildOutputArchitecture, PackagingOutput } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
-import { readFile } from 'node:fs/promises';
 
 import objectHash from 'object-hash';
 
@@ -9,8 +8,8 @@ import type {
   CustomDockerfileBjImagePackagingProps,
   CustomDockerfileCwImagePackagingProps
 } from '@stacktape/config/deployment-artifacts';
-import { EXCLUDE_FROM_CHECKSUM_GLOBS, getDirectoryChecksum, mergeHashes } from '../artifact/hashing';
-import { getAllFilesInDir } from '../fs/files';
+import { mergeHashes } from '../artifact/hashing';
+import { getDockerContextChecksum } from '../artifact/docker-context';
 
 export const buildUsingCustomDockerfile = async ({
   name,
@@ -46,20 +45,17 @@ export const buildUsingCustomDockerfile = async ({
     eventType: 'CALCULATE_CHECKSUM',
     description: 'Calculating checksum for caching'
   });
-  const dirChecksum = await getDirectoryChecksum({
-    absoluteDirectoryPath: absoluteBuildContextPath,
-    excludeGlobs: EXCLUDE_FROM_CHECKSUM_GLOBS
-  });
   const effectiveDockerfilePath = dockerfilePath || 'Dockerfile';
-  const dockerfileContents = await readFile(join(absoluteBuildContextPath, effectiveDockerfilePath));
+  const { checksum: contextChecksum, includedFilePaths } = await getDockerContextChecksum({
+    absoluteBuildContextPath,
+    dockerfilePath: effectiveDockerfilePath
+  });
   const digest = mergeHashes(
-    dirChecksum,
+    contextChecksum,
     objectHash({
-      EXCLUDE_FROM_CHECKSUM_GLOBS,
-      buildArgs,
+      buildArgs: buildArgsObject,
       dockerBuildOutputArchitecture,
-      dockerfilePath: effectiveDockerfilePath,
-      dockerfileContents
+      dockerfilePath: effectiveDockerfilePath.replaceAll('\\', '/')
     })
   );
   if (existingDigests.includes(digest)) {
@@ -93,14 +89,12 @@ export const buildUsingCustomDockerfile = async ({
     finalMessage: `Image size: ${imageDetails.size} MB.`
   });
 
-  const allFilesInContextPath = await getAllFilesInDir(absoluteBuildContextPath, false);
-
   return {
     outcome: 'bundled',
     size: imageDetails.size,
     digest,
     imageName: name,
-    sourceFiles: allFilesInContextPath.map((path) => ({ path })),
+    sourceFiles: includedFilePaths.map((path) => ({ path })),
     details: { duration: Date.now() - start },
     jobName: name
   };

@@ -8,16 +8,15 @@ import type {
   StpBuildpackInput
 } from '../runtime-contracts';
 import type { LanguageSpecificBundleOutput, PackagingOutput } from '../runtime-contracts';
-import { join } from 'node:path';
 
 import { buildEsDevDockerfile, buildEsDockerfile } from '../docker/dockerfiles';
 import { getFolder } from '../fs/files';
-import { outputFile } from 'fs-extra';
 import objectHash from 'object-hash';
 import { createEsBundle } from '../bundlers/es';
 import type { EsLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 import { DEFAULT_CONTAINER_NODE_VERSION } from '../bundlers/constants';
 import { getFolderSize } from '../fs/files';
+import { buildGeneratedDockerImage } from '../artifact/generated-image-build';
 
 export const buildUsingStacktapeEsImageBuildpack = async ({
   buildDockerImage,
@@ -127,8 +126,7 @@ export const buildUsingStacktapeEsImageBuildpack = async ({
 
   // Production mode: full Docker build with code baked in
   await progressLogger.startEvent({ eventType: 'CREATE_DOCKERFILE', description: 'Creating Dockerfile' });
-  await createEsDockerFile({
-    buildContextPath,
+  const dockerfileContents = createEsDockerFile({
     languageSpecificBundleOutput,
     requiresGlibcBinaries,
     customDockerBuildCommands: otherProps.customDockerBuildCommands,
@@ -137,7 +135,9 @@ export const buildUsingStacktapeEsImageBuildpack = async ({
   await progressLogger.finishEvent({ eventType: 'CREATE_DOCKERFILE' });
 
   await progressLogger.startEvent({ eventType: 'BUILD_IMAGE', description: 'Building docker image' });
-  const { size, dockerOutput, duration, created } = await buildDockerImage({
+  const { size, dockerOutput, duration, created } = await buildGeneratedDockerImage({
+    dockerfileContents,
+    buildDockerImage,
     imageTag: name,
     buildContextPath,
     dockerBuildOutputArchitecture,
@@ -218,13 +218,11 @@ const buildDevBaseImage = async ({
       nodeVersion
     });
 
-    const dockerfilePath = join(buildContextPath, 'Dockerfile.dev');
-    await outputFile(dockerfilePath, dockerfileContents);
-
-    await buildDockerImage({
+    await buildGeneratedDockerImage({
+      dockerfileContents,
+      buildDockerImage,
       imageTag: devBaseImageTag,
-      buildContextPath,
-      dockerfilePath: 'Dockerfile.dev'
+      buildContextPath
     });
 
     await progressLogger.finishEvent({ eventType: 'BUILD_IMAGE', finalMessage: 'Dev base image built.' });
@@ -241,30 +239,25 @@ const buildDevBaseImage = async ({
   }
 };
 
-const createEsDockerFile = async ({
-  buildContextPath,
+const createEsDockerFile = ({
   languageSpecificBundleOutput,
   requiresGlibcBinaries = false,
   customDockerBuildCommands,
   nodeVersion
 }: {
-  buildContextPath: string;
   languageSpecificBundleOutput: LanguageSpecificBundleOutput;
   requiresGlibcBinaries: boolean;
   customDockerBuildCommands?: string[] | undefined;
   nodeVersion: number;
 }) => {
   const esBundleOutput = languageSpecificBundleOutput.es;
-  const dockerfileContents = buildEsDockerfile({
+  return buildEsDockerfile({
     dependencies: esBundleOutput?.dependenciesToInstallInDocker ?? [],
     packageManager: esBundleOutput?.packageManager ?? 'npm',
     requiresGlibcBinaries,
     customDockerBuildCommands,
     nodeVersion
   });
-  const dockerfilePath = join(buildContextPath, 'Dockerfile');
-  await outputFile(dockerfilePath, dockerfileContents);
-  return { dockerfilePath };
 };
 
 const normalizeLanguageSpecificBundleOutput = ({

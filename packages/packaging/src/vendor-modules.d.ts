@@ -25,8 +25,3 @@ declare module 'folder-hash' {
 
   export function hashElement(path: string, options?: HashElementOptions): Promise<HashElementResult> | undefined;
 }
-
-declare module 'ini' {
-  /** Parses a Nixpacks TOML/INI-style configuration into nested JSON-compatible values. */
-  export function parse(contents: string): Record<string, unknown>;
-}

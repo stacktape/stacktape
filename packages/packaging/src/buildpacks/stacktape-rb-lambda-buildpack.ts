@@ -1,11 +1,11 @@
 import type { LambdaArtifactActions, StpBuildpackInput } from '../runtime-contracts';
 import type { PackagingOutput } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
-import { getFolder } from '../fs/files';
 import { DEFAULT_RUBY_VERSION } from '../bundlers/constants';
 import { buildRubyArtifact } from '../bundlers/ruby';
 import { createLambdaZipArtifact } from '../artifact/lambda-artifact';
 import type { RubyLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
+import { findNearestProjectRoot } from './project-root';
 
 export const buildUsingStacktapeRbLambdaBuildpack = async ({
   progressLogger,
@@ -21,8 +21,7 @@ export const buildUsingStacktapeRbLambdaBuildpack = async ({
     zippedSizeLimit: number;
     languageSpecificConfig?: RubyLanguageSpecificConfig | undefined;
   }): Promise<PackagingOutput> => {
-  const sourcePath = getFolder(entryfilePath);
-  const absoluteSourcePath = isAbsolute(sourcePath) ? sourcePath : join(cwd, sourcePath);
+  const absoluteSourcePath = findNearestProjectRoot({ cwd, entryfilePath, markerFiles: ['Gemfile', 'gems.rb'] });
   const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
 
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildRubyArtifact({
@@ -35,7 +34,10 @@ export const buildUsingStacktapeRbLambdaBuildpack = async ({
     name,
     progressLogger,
     cwd,
-    languageSpecificConfig
+    languageSpecificConfig,
+    target: 'lambda',
+    // Managed Lambda runtimes are glibc-based. Alpine-built native gems are not ABI-compatible.
+    requiresGlibcBinaries: true
   });
 
   if (outcome === 'skipped') {

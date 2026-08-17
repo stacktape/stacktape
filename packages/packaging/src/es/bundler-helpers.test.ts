@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, realpath, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createModuleResolver, determineIfAlias } from './bundler-helpers';
+import { createModuleResolver, determineIfAlias, ensureDefaultExport } from './bundler-helpers';
 
 const tempDirs: string[] = [];
 
@@ -175,5 +175,22 @@ describe('es bundler module resolution', () => {
     expect(findModulePath('consumer', join(applicationDir, 'src', 'index.ts'))).toBe(storeDir('consumer', '1.0.0'));
     // An importer that cannot see the package still falls back to the project.
     expect(findModulePath('consumer', join(store, 'unrelated', 'index.js'))).toBe(storeDir('consumer', '1.0.0'));
+  });
+});
+
+describe('Lambda ESM default handler compatibility', () => {
+  test('re-exports the minified local binding that Bun aliases as handler', () => {
+    expect(ensureDefaultExport('var e=()=>1;export{e as handler};')).toBe(
+      'var e=()=>1;export{e as handler, e as default};'
+    );
+  });
+
+  test('uses a direct handler binding and preserves existing defaults', () => {
+    expect(ensureDefaultExport('const handler=()=>1; export { handler };')).toBe(
+      'const handler=()=>1; export { handler, handler as default };'
+    );
+    expect(ensureDefaultExport('const e=()=>1; export { e as handler, e as default };')).toBe(
+      'const e=()=>1; export { e as handler, e as default };'
+    );
   });
 });

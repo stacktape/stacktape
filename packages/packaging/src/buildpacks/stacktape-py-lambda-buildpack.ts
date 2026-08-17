@@ -4,6 +4,7 @@ import { isAbsolute, join } from 'node:path';
 import { getFolder } from '../fs/files';
 import { DEFAULT_PYTHON_VERSION } from '../bundlers/constants';
 import { buildPythonArtifact } from '../bundlers/py';
+import { resolvePythonDependencyFile } from '../bundlers/py/utils';
 import { createLambdaZipArtifact } from '../artifact/lambda-artifact';
 import type { PyLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
 
@@ -27,7 +28,13 @@ export const buildUsingStacktapePyLambdaBuildpack = async ({
       : join(cwd, languageSpecificConfig.packageManagerFile)
     : null;
   const relativeSourcePath = packageManagerFilePath ? getFolder(packageManagerFilePath) : getFolder(entryfilePath);
-  const sourcePath = isAbsolute(relativeSourcePath) ? relativeSourcePath : join(cwd, relativeSourcePath);
+  const initialSourcePath = isAbsolute(relativeSourcePath) ? relativeSourcePath : join(cwd, relativeSourcePath);
+  const resolvedDependencyFile = await resolvePythonDependencyFile({
+    cwd,
+    sourcePath: initialSourcePath,
+    packageManagerFile: languageSpecificConfig?.packageManagerFile
+  });
+  const sourcePath = resolvedDependencyFile ? getFolder(resolvedDependencyFile) : initialSourcePath;
   const absoluteEntryfilePath = isAbsolute(entryfilePath) ? entryfilePath : join(cwd, entryfilePath);
 
   const { digest, outcome, distFolderPath, ...otherOutputProps } = await buildPythonArtifact({
@@ -40,7 +47,10 @@ export const buildUsingStacktapePyLambdaBuildpack = async ({
     name,
     progressLogger,
     cwd,
-    languageSpecificConfig
+    languageSpecificConfig,
+    target: 'lambda',
+    // Managed Lambda runtimes are glibc-based. Alpine-built native wheels are not ABI-compatible.
+    requiresGlibcBinaries: true
   });
 
   if (outcome === 'skipped') {

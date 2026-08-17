@@ -137,6 +137,7 @@ export interface EdgeLambdaFunctionProps {
   | 'nodejs22.x'
   | 'nodejs20.x'
   | 'nodejs18.x'
+  | 'python3.14'
   | 'python3.13'
   | 'python3.12'
   | 'python3.11'

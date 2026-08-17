@@ -152,6 +152,10 @@ export type SsrWebFrameworkConfig = {
   defaultDevCommand: string;
   /** Default build command */
   defaultBuildCommand: string;
+  /** Declared framework packages whose runtime is bundled into the server output. */
+  bundledApplicationPackages?: string[];
+  /** Static output directory also required beside the server output at runtime. */
+  copyStaticAssetsToServerDirectory?: string;
   /** Path to server output relative to app directory */
   serverOutputPath: string;
   /** Path to static assets relative to app directory */
@@ -160,6 +164,8 @@ export type SsrWebFrameworkConfig = {
   staticAssetPrefix: string;
   /** Handler file path after build */
   handlerPath: string;
+  /** Keep the final server output directory because framework code resolves sibling files from it. */
+  preserveServerOutputDirectory?: boolean;
   /** Environment variable to set the Nitro/Vinxi preset */
   presetEnvVar?: string;
   /** Preset value for Lambda deployment */
@@ -168,6 +174,10 @@ export type SsrWebFrameworkConfig = {
   wrapperType: 'passthrough' | 'node-http' | 'web-fetch';
   /** Required npm packages for the adapter (installed in user's project before build) */
   requiredAdapterPackages?: string[];
+  /** Native dependencies loaded dynamically by otherwise bundled framework runtime code. */
+  nativeRuntimePackages?: Array<{ name: string; resolveFromPackage?: string }>;
+  /** Exact framework configuration required for the server adapter. */
+  adapterConfigurationHint?: string;
 };
 
 export const SSR_WEB_FRAMEWORK_CONFIGS: Record<SsrWebResourceType, SsrWebFrameworkConfig> = {
@@ -179,8 +189,13 @@ export const SSR_WEB_FRAMEWORK_CONFIGS: Record<SsrWebResourceType, SsrWebFramewo
     staticOutputPath: 'dist/client',
     staticAssetPrefix: '_astro',
     handlerPath: 'entry.mjs',
+    preserveServerOutputDirectory: true,
+    bundledApplicationPackages: ['astro', '@astrojs/node'],
+    copyStaticAssetsToServerDirectory: 'client',
+    nativeRuntimePackages: [{ name: 'sharp', resolveFromPackage: 'astro' }],
     wrapperType: 'node-http',
-    requiredAdapterPackages: ['@astrojs/node']
+    requiredAdapterPackages: ['@astrojs/node'],
+    adapterConfigurationHint: "Configure astro.config with output: 'server' and @astrojs/node in middleware mode."
   },
   'nuxt-web': {
     displayName: 'Nuxt',
@@ -227,7 +242,9 @@ export const SSR_WEB_FRAMEWORK_CONFIGS: Record<SsrWebResourceType, SsrWebFramewo
     staticAssetPrefix: '_app',
     handlerPath: 'handler.js',
     wrapperType: 'node-http',
-    requiredAdapterPackages: ['@sveltejs/adapter-node']
+    requiredAdapterPackages: ['@sveltejs/adapter-node'],
+    adapterConfigurationHint:
+      'Configure svelte.config.js to use @sveltejs/adapter-node instead of @sveltejs/adapter-auto.'
   },
   'remix-web': {
     displayName: 'Remix',

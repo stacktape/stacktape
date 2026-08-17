@@ -7,8 +7,8 @@ import type {
   ExternalBuildpackBjImagePackagingProps,
   ExternalBuildpackCwImagePackagingProps
 } from '@stacktape/config/deployment-artifacts';
-import { EXCLUDE_FROM_CHECKSUM_GLOBS, getDirectoryChecksum, mergeHashes } from '../artifact/hashing';
-import { getAllFilesInDir } from '../fs/files';
+import { mergeHashes } from '../artifact/hashing';
+import { getDockerContextChecksum } from '../artifact/docker-context';
 
 export const buildUsingExternalBuildpack = async ({
   builder = 'paketobuildpacks/builder-jammy-base',
@@ -38,14 +38,12 @@ export const buildUsingExternalBuildpack = async ({
     eventType: 'CALCULATE_CHECKSUM',
     description: 'Calculating checksum for caching'
   });
-  const dirChecksum = await getDirectoryChecksum({
-    absoluteDirectoryPath: absoluteSourceDirectoryPath,
-    excludeGlobs: EXCLUDE_FROM_CHECKSUM_GLOBS
+  const { checksum: sourceChecksum, includedFilePaths } = await getDockerContextChecksum({
+    absoluteBuildContextPath: absoluteSourceDirectoryPath,
+    includeDockerfile: false,
+    applyDockerIgnore: false
   });
-  const digest = mergeHashes(
-    dirChecksum,
-    objectHash({ EXCLUDE_FROM_CHECKSUM_GLOBS, builder, buildpacks, dockerBuildOutputArchitecture })
-  );
+  const digest = mergeHashes(sourceChecksum, objectHash({ builder, buildpacks, dockerBuildOutputArchitecture }));
   if (existingDigests.includes(digest)) {
     await progressLogger.finishEvent({
       eventType: 'CALCULATE_CHECKSUM',
@@ -93,15 +91,13 @@ export const buildUsingExternalBuildpack = async ({
     finalMessage: `Image size: ${imageDetails.size} MB.`
   });
 
-  const allFilesInSourceDir = await getAllFilesInDir(absoluteSourceDirectoryPath, false);
-
   return {
     outcome: 'bundled',
     size: imageDetails.size,
     digest,
     imageName: name,
     // @todo
-    sourceFiles: allFilesInSourceDir.map((path) => ({ path })),
+    sourceFiles: includedFilePaths.map((path) => ({ path })),
     details: { duration: Date.now() - start, buildOutput, ...imageDetails },
     jobName: name
   };

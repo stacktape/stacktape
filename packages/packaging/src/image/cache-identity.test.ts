@@ -110,4 +110,102 @@ describe('image cache identity', () => {
     expect(second.digest).not.toBe(first.digest);
     expect(buildCount).toBe(2);
   });
+
+  test('changes when a custom Dockerfile build output or vendored dependency changes', async () => {
+    const { root, sourceDirectory } = await createFixture();
+    await Promise.all([
+      mkdir(join(sourceDirectory, 'dist')),
+      mkdir(join(sourceDirectory, 'node_modules', 'runtime'), { recursive: true }),
+      writeFile(join(sourceDirectory, 'Dockerfile'), 'FROM scratch\nCOPY . /app')
+    ]);
+    const outputPath = join(sourceDirectory, 'dist', 'server.js');
+    const dependencyPath = join(sourceDirectory, 'node_modules', 'runtime', 'index.js');
+    await Promise.all([writeFile(outputPath, 'one'), writeFile(dependencyPath, 'one')]);
+    const build = (existingDigests: string[]) =>
+      buildUsingCustomDockerfile({
+        name: 'service',
+        cwd: root,
+        buildContextPath: 'service',
+        dockerfilePath: 'Dockerfile',
+        progressLogger,
+        existingDigests,
+        buildDockerImage: async () => ({ size: 1, id: 'image', created: 1, dockerOutput: '', duration: 1 })
+      });
+
+    const first = await build([]);
+    await writeFile(outputPath, 'two');
+    const outputChanged = await build([first.digest]);
+    await writeFile(dependencyPath, 'two');
+    const dependencyChanged = await build([outputChanged.digest]);
+
+    expect(outputChanged.digest).not.toBe(first.digest);
+    expect(dependencyChanged.digest).not.toBe(outputChanged.digest);
+  });
+
+  test('matches Docker context inclusion, including VCS files and .dockerignore exclusions', async () => {
+    const { root, sourceDirectory } = await createFixture();
+    await mkdir(join(sourceDirectory, '.git'));
+    await writeFile(join(sourceDirectory, 'Dockerfile'), 'FROM scratch\nCOPY . /app');
+    await writeFile(join(sourceDirectory, '.dockerignore'), 'ignored.txt\n');
+    await writeFile(join(sourceDirectory, '.git', 'marker'), 'revision-one');
+    await writeFile(join(sourceDirectory, 'ignored.txt'), 'ignored-one');
+    let buildCount = 0;
+    const build = (existingDigests: string[]) =>
+      buildUsingCustomDockerfile({
+        name: 'service',
+        cwd: root,
+        buildContextPath: 'service',
+        progressLogger,
+        existingDigests,
+        buildDockerImage: async () => {
+          buildCount++;
+          return { size: 1, id: 'image', created: 1, dockerOutput: '', duration: 1 };
+        }
+      });
+
+    const first = await build([]);
+    await writeFile(join(sourceDirectory, 'ignored.txt'), 'ignored-two');
+    const ignoredChanged = await build([first.digest]);
+    await writeFile(join(sourceDirectory, '.git', 'marker'), 'revision-two');
+    const vcsChanged = await build([ignoredChanged.digest]);
+
+    expect(ignoredChanged.outcome).toBe('skipped');
+    expect(ignoredChanged.digest).toBe(first.digest);
+    expect(vcsChanged.outcome).toBe('bundled');
+    expect(vcsChanged.digest).not.toBe(first.digest);
+    expect(buildCount).toBe(2);
+  });
+
+  test('normalizes equivalent custom Docker build arguments', async () => {
+    const { root, sourceDirectory } = await createFixture();
+    await writeFile(join(sourceDirectory, 'Dockerfile'), 'FROM scratch');
+    const build = (buildArgs: Array<{ argName: string; value: string }>, existingDigests: string[]) =>
+      buildUsingCustomDockerfile({
+        name: 'service',
+        cwd: root,
+        buildContextPath: 'service',
+        progressLogger,
+        buildArgs,
+        existingDigests,
+        buildDockerImage: async () => ({ size: 1, id: 'image', created: 1, dockerOutput: '', duration: 1 })
+      });
+
+    const first = await build(
+      [
+        { argName: 'FIRST', value: 'one' },
+        { argName: 'SECOND', value: 'two' }
+      ],
+      []
+    );
+    const reordered = await build(
+      [
+        { argName: 'SECOND', value: 'two' },
+        { argName: 'FIRST', value: 'one' }
+      ],
+      [first.digest]
+    );
+
+    expect(reordered.outcome).toBe('skipped');
+    expect(reordered.digest).toBe(first.digest);
+  });
 });

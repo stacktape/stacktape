@@ -1,7 +1,8 @@
 import type { RubyLanguageSpecificConfig } from '@stacktape/config/deployment-artifacts';
+import { STACKTAPE_LANGUAGE_SOURCE_GLOBS } from '../../artifact/language-build-context';
 import { getBundleDigestFromGlobs, getSourceFilesFromGlobs } from '../digest';
 
-const FILE_GLOBS = ['./**/*.rb'];
+const FILE_GLOBS = STACKTAPE_LANGUAGE_SOURCE_GLOBS;
 const EXTRA_FILES = [
   'Gemfile',
   'Gemfile.lock',

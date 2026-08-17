@@ -23,3 +23,11 @@ export const DEFAULT_LAMBDA_NODE_VERSION = 24;
 
 /** AWS Lambda Node runtimes that already include the modular AWS SDK v3 clients. */
 export const NODE_RUNTIME_VERSIONS_WITH_SKIPPED_SDK_V3_PACKAGING = [24, 22, 20, 18];
+
+/**
+ * Cache format for artifacts produced by Stacktape-owned buildpacks.
+ *
+ * Increment this whenever implementation changes can alter the output without changing customer source or config.
+ * This prevents an already uploaded artifact from silently bypassing buildpack fixes after a CLI upgrade.
+ */
+export const STACKTAPE_BUILDPACK_IMPLEMENTATION_VERSION = 3;

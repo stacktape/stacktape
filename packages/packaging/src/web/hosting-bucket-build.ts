@@ -5,6 +5,7 @@ import type {
 } from '../runtime-contracts';
 import { isAbsolute, join } from 'node:path';
 import { serializeEnvironment } from '../runtime-helpers';
+import { parseCommand } from '../process/command';
 
 /**
  * Strips ANSI escape codes from a string.
@@ -343,15 +344,11 @@ export const buildHostingBucket = async ({
       : join(cwd, build.workingDirectory)
     : cwd;
 
-  // Parse command - split by spaces but respect quotes
-  const commandParts = build.command.match(/(?:[^\s"]+|"[^"]*")+/g) || [build.command];
-  const [parsedCommand, ...args] = commandParts.map((part) => part.replace(/^"|"$/g, ''));
-  const command = parsedCommand ?? build.command;
-
   // Collect output for parsing
   let outputBuffer = '';
 
   try {
+    const [command, ...args] = parseCommand(build.command);
     await executeProcess(command, args, {
       cwd: workingDir,
       env: { ...serializeEnvironment(process.env), FORCE_COLOR: '1' },
