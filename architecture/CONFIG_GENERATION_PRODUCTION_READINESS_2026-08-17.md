@@ -207,13 +207,15 @@ same event as reviewing or reversing a visible default. Until that definition is
   to the exact StackId. The mutating child snapshots that expectation before authored TypeScript config can execute,
   then describes the target with its selected credentials before config loading, dependency installation, hooks, or AWS
   mutations; it checks again before secret creation. Existing-stack CloudFormation mutations use the approved StackId
-  ARN rather than the reusable stack name, so a same-name delete/recreate race fails closed. Concurrent checks and
-  configuration changes invalidate both the observation and any previously written config file, and an expectation
-  mismatch is never sent to an agent repair loop. The server requires the exact target to have been published before a
-  create/update confirmation; a crafted one-step POST becomes only the read-only check. The expectation transport and
-  mutually exclusive check/deploy child environments have direct regression coverage. `ROLLBACK_COMPLETE` is blocked
-  because a failed-create stack permits deletion, not update. Multi-account organizations can pin the account with
-  `init --awsAccount`; that name reaches the check, deploy and typed URL children.
+  ARN rather than the reusable stack name, so a same-name delete/recreate race fails closed. The observation also binds
+  consent to the SHA-256 of the exact authored config bytes: a change between review and confirmation returns to review,
+  and the deploy child verifies the digest before config execution and again before secret mutation. Concurrent checks
+  and wizard configuration changes invalidate both the observation and any previously written config file, and an
+  expectation mismatch is never sent to an agent repair loop. The server requires the exact target to have been
+  published before a create/update confirmation; a crafted one-step POST becomes only the read-only check. The
+  expectation transport and mutually exclusive check/deploy child environments have direct regression coverage.
+  `ROLLBACK_COMPLETE` is blocked because a failed-create stack permits deletion, not update. Multi-account organizations
+  can pin the account with `init --awsAccount`; that name reaches the check, deploy and typed URL children.
 - Generated database secrets now run inside the deploy child, after the mutation-time target assertion and with the same
   selected AWS credentials. This removes an ambient-credential write before confirmation. The canary's absent-before and
   cleanup ownership now tracks the Secrets Manager name the CLI directive actually resolves. The inference workstream
@@ -221,7 +223,7 @@ same event as reviewing or reversing a visible default. Until that definition is
   key; regression coverage resolves the emitted directive through the CLI grammar rather than assuming its shape. Canary
   preflight, recording and cleanup now share one project-prefix predicate, and the paid lane checks the authoritative
   deploy child's account/region/name in addition to its own ambient cleanup credentials.
-- The full local upstream-project corpus currently passes 19/19 repositories with 211 semantic assertions and real
+- The full local upstream-project corpus currently passes 19/19 repositories with 210 semantic assertions and real
   schema validation on every generated config. It includes the Procfile-only false-live-deployment regression and the
   NestJS migration/generated-password contract. This is deterministic evidence, not the 50-repository independent
   population needed for the operational reliability percentage.

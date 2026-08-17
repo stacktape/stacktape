@@ -18,6 +18,8 @@ const request = {
   projectName: 'orders'
 };
 
+const CONFIG_SHA256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+
 /** A child process that emits what we tell it to, then exits. */
 const fakeChild = (stdout: string[], stderr: string[] = [], exitCode = 0) => {
   const child = new EventEmitter() as EventEmitter & { stdout: Readable; stderr: Readable; kill: () => void };
@@ -127,6 +129,7 @@ describe('reading what the deploy says', () => {
       projectName: 'orders',
       stage: 'dev',
       region: 'eu-west-1',
+      configSha256: CONFIG_SHA256,
       stackId: 'arn:aws:cloudformation:eu-west-1:123456789012:stack/orders-dev/one'
     };
     let environment: NodeJS.ProcessEnv | undefined;
@@ -233,6 +236,7 @@ describe('checking the deploy target with deploy credentials', () => {
       projectName: 'orders',
       stage: 'dev',
       region: 'eu-west-1',
+      configSha256: CONFIG_SHA256,
       status: 'absent'
     } as const;
     const observed = await inspectDeployTarget({
@@ -255,6 +259,7 @@ describe('checking the deploy target with deploy credentials', () => {
       projectName: 'orders',
       stage: 'dev',
       region: 'eu-west-1',
+      configSha256: CONFIG_SHA256,
       status: 'absent'
     } as const;
     let environment: NodeJS.ProcessEnv | undefined;
@@ -294,6 +299,7 @@ describe('checking the deploy target with deploy credentials', () => {
                   projectName: 'another',
                   stage: 'dev',
                   region: 'eu-west-1',
+                  configSha256: CONFIG_SHA256,
                   status: 'absent'
                 }
               }
@@ -311,6 +317,7 @@ describe('checking the deploy target with deploy credentials', () => {
       projectName: 'orders',
       stage: 'dev',
       region: 'eu-west-1',
+      configSha256: CONFIG_SHA256,
       status: 'absent'
     } as const;
     expect(

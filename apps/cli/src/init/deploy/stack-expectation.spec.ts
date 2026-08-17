@@ -14,7 +14,8 @@ const target = {
   stackName: 'orders-dev',
   projectName: 'orders',
   stage: 'dev',
-  region: 'eu-west-1'
+  region: 'eu-west-1',
+  configSha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
 } as const;
 
 const STACK_ID = 'arn:aws:cloudformation:eu-west-1:123456789012:stack/orders-dev/one';
@@ -41,6 +42,7 @@ const observation = (value: Stack | null = stack()) =>
     projectName: target.projectName,
     stage: target.stage,
     region: target.region,
+    configSha256: target.configSha256,
     stack: value
   });
 
@@ -111,6 +113,12 @@ describe('enforcing the reviewed target inside deploy', () => {
         observation: observation()
       })
     ).toThrow('not the same stack');
+    expect(() =>
+      assertDeployTargetExpectation({
+        expectation: approveUpdate(STACK_ID),
+        observation: { ...observation(), configSha256: 'b'.repeat(64) }
+      })
+    ).toThrow('configuration changed');
   });
 
   it('parses a closed expectation shape and rejects malformed input', () => {
@@ -118,6 +126,9 @@ describe('enforcing the reviewed target inside deploy', () => {
     expect(parseDeployTargetExpectation(JSON.stringify(expected))).toEqual(expected);
     expect(() => parseDeployTargetExpectation('{"expected":"anything"}')).toThrow('malformed');
     expect(() => parseDeployTargetExpectation(JSON.stringify({ ...expected, accountId: ' ' }))).toThrow('malformed');
+    expect(() => parseDeployTargetExpectation(JSON.stringify({ ...expected, configSha256: 'not-a-digest' }))).toThrow(
+      'malformed'
+    );
     expect(() => parseDeployTargetExpectation('not json')).toThrow('not valid JSON');
   });
 });

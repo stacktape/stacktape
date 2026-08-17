@@ -649,7 +649,8 @@ export const startWizardSession = async ({
             previouslyReviewedTarget.stackName === observed.stackName &&
             previouslyReviewedTarget.projectName === observed.projectName &&
             previouslyReviewedTarget.stage === observed.stage &&
-            previouslyReviewedTarget.region === observed.region;
+            previouslyReviewedTarget.region === observed.region &&
+            previouslyReviewedTarget.configSha256 === observed.configSha256;
           // The request body is not proof that the page actually displayed an observation. A
           // direct create/update POST becomes a read-only check; only a later request can confirm
           // the exact identity the session had already published.

@@ -232,7 +232,9 @@ const isDeployTargetObservation = (value: unknown): value is DeployTargetObserva
     typeof candidate.stackName === 'string' &&
     typeof candidate.projectName === 'string' &&
     typeof candidate.stage === 'string' &&
-    typeof candidate.region === 'string';
+    typeof candidate.region === 'string' &&
+    typeof candidate.configSha256 === 'string' &&
+    /^[a-f0-9]{64}$/.test(candidate.configSha256);
   if (!common) return false;
   if (candidate.status === 'absent') return true;
   if (candidate.status === 'updateable') {

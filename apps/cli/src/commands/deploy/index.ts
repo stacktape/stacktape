@@ -38,7 +38,8 @@ import {
   classifyDeployTarget,
   INIT_TARGET_CHECK_ENV,
   INIT_TARGET_EXPECTATION_ENV,
-  parseDeployTargetExpectation
+  parseDeployTargetExpectation,
+  readDeployConfigSha256
 } from '../../init/deploy/stack-expectation';
 import { inspectDeployTargetWithDeployCredentials } from './init-target-check';
 import { awsSdkManager } from '@utils/aws-sdk-manager';
@@ -116,7 +117,10 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
           // This is the first gate. It runs after the deploy command has selected credentials and
           // its immutable stack context, but before loading/executing authored config or hooks.
           beforeConfigInit: async (target) => {
-            const existingStack = await awsSdkManager.cloudFormation.getDetails(target.stackName);
+            const [existingStack, configSha256] = await Promise.all([
+              awsSdkManager.cloudFormation.getDetails(target.stackName),
+              readDeployConfigSha256(globalStateManager.configPath)
+            ]);
             assertDeployTargetExpectation({
               expectation: initTargetExpectation,
               observation: classifyDeployTarget({
@@ -124,6 +128,7 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
                 projectName: target.projectName,
                 stage: target.stage,
                 region: target.region,
+                configSha256,
                 stack: existingStack
               })
             });
@@ -134,16 +139,19 @@ const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeplo
   // Recheck after initialization as well. The first assertion prevents config/hooks/install from
   // running against an unapproved target; this one protects the first generated-secret mutation
   // from a target transition during read-only initialization.
-  assertDeployTargetExpectation({
-    expectation: initTargetExpectation,
-    observation: classifyDeployTarget({
-      accountId: stackContext.accountId,
-      projectName: stackContext.projectName,
-      stage: stackContext.stage,
-      region: stackContext.region,
-      stack: stack.existingStackDetails
-    })
-  });
+  if (initTargetExpectation !== undefined) {
+    assertDeployTargetExpectation({
+      expectation: initTargetExpectation,
+      observation: classifyDeployTarget({
+        accountId: stackContext.accountId,
+        projectName: stackContext.projectName,
+        stage: stackContext.stage,
+        region: stackContext.region,
+        configSha256: await readDeployConfigSha256(globalStateManager.configPath),
+        stack: stack.existingStackDetails
+      })
+    });
+  }
   if (initTargetExpectation?.expected === 'update') {
     // CloudFormation accepts the physical StackId anywhere it accepts StackName. Keep the friendly
     // name for deterministic resource naming/tags, but send the approved ARN for stack mutations so

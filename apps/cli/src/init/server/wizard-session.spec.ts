@@ -2,9 +2,12 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { composeConfig } from '@stacktape/config-inference/compose';
 import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema, type ProjectFacts } from '@stacktape/config-inference/facts';
 import type { GreenfieldResult } from '../missions/greenfield';
+import { INIT_TARGET_SCHEMA_VERSION } from '../deploy/stack-expectation';
 import { startWizardSession, toTimelineEntry, type WizardSession } from './wizard-session';
 
 let session: WizardSession | undefined;
+
+const CONFIG_SHA256 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 
 afterEach(async () => {
   await session?.close();
@@ -373,13 +376,14 @@ describe('startWizardSession', () => {
         inspectDeployTarget: async () => {
           inspections += 1;
           return {
-            schemaVersion: 'stacktape.init-target.v1',
+            schemaVersion: INIT_TARGET_SCHEMA_VERSION,
             status: 'updateable',
             accountId: '123456789012',
             stackName: 'demo-dev',
             projectName: 'demo',
             stage: 'dev',
             region: 'eu-west-1',
+            configSha256: CONFIG_SHA256,
             stackId,
             stackStatus: 'UPDATE_COMPLETE'
           };
@@ -431,13 +435,14 @@ describe('startWizardSession', () => {
     it('turns a direct create confirmation into a read-only check until that exact target was displayed', async () => {
       const deployed: unknown[] = [];
       const absent = {
-        schemaVersion: 'stacktape.init-target.v1' as const,
+        schemaVersion: INIT_TARGET_SCHEMA_VERSION,
         status: 'absent' as const,
         accountId: '123456789012',
         stackName: 'demo-dev',
         projectName: 'demo',
         stage: 'dev',
-        region: 'eu-west-1'
+        region: 'eu-west-1',
+        configSha256: CONFIG_SHA256
       };
       session = await startWizardSession({
         projectName: 'demo',
@@ -477,15 +482,64 @@ describe('startWizardSession', () => {
       expect(deployed).toHaveLength(1);
     });
 
-    it('allows only one exact-target inspection at a time', async () => {
-      const absent = {
-        schemaVersion: 'stacktape.init-target.v1' as const,
+    it('returns to review when the authored config bytes change after the target was displayed', async () => {
+      const observation = (configSha256: string) => ({
+        schemaVersion: INIT_TARGET_SCHEMA_VERSION,
         status: 'absent' as const,
         accountId: '123456789012',
         stackName: 'demo-dev',
         projectName: 'demo',
         stage: 'dev',
-        region: 'eu-west-1'
+        region: 'eu-west-1',
+        configSha256
+      });
+      let inspections = 0;
+      const deployed: unknown[] = [];
+      session = await startWizardSession({
+        projectName: 'demo',
+        result: resultFor(factsWith({})),
+        write: async () => ({ path: '/repo/stacktape.yml', filename: 'stacktape.yml' }),
+        inspectDeployTarget: async () => observation(++inspections === 1 ? CONFIG_SHA256 : 'b'.repeat(64)),
+        deploy: async (input) => {
+          deployed.push(input);
+          return { ok: true, code: 'OK', message: 'Deployed' };
+        }
+      });
+      const origin = `http://127.0.0.1:${session.server.port}`;
+      const token = new URL(session.server.url).hash.replace('#token=', '');
+      const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+        method: 'POST',
+        headers: { Origin: origin }
+      });
+      const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+      const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+      const headers = { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken };
+      const postCreate = () =>
+        fetch(`${origin}/api/deploy`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } })
+        });
+      await fetch(`${origin}/api/write`, { method: 'POST', headers, body: JSON.stringify({ format: 'yaml' }) });
+
+      await postCreate();
+      expect(session.server.current().deployTarget).toMatchObject({ configSha256: CONFIG_SHA256 });
+      await postCreate();
+
+      expect(deployed).toEqual([]);
+      expect(session.server.current().deployTarget).toMatchObject({ configSha256: 'b'.repeat(64) });
+    });
+
+    it('allows only one exact-target inspection at a time', async () => {
+      const absent = {
+        schemaVersion: INIT_TARGET_SCHEMA_VERSION,
+        status: 'absent' as const,
+        accountId: '123456789012',
+        stackName: 'demo-dev',
+        projectName: 'demo',
+        stage: 'dev',
+        region: 'eu-west-1',
+        configSha256: CONFIG_SHA256
       };
       let inspections = 0;
       let announceStarted: () => void = () => {};
@@ -543,13 +597,14 @@ describe('startWizardSession', () => {
 
     it('drops an exact-target result when the reviewed configuration changes during the check', async () => {
       const absent = {
-        schemaVersion: 'stacktape.init-target.v1' as const,
+        schemaVersion: INIT_TARGET_SCHEMA_VERSION,
         status: 'absent' as const,
         accountId: '123456789012',
         stackName: 'demo-dev',
         projectName: 'demo',
         stage: 'dev',
-        region: 'eu-west-1'
+        region: 'eu-west-1',
+        configSha256: CONFIG_SHA256
       };
       let announceStarted: () => void = () => {};
       const started = new Promise<void>((resolve) => {

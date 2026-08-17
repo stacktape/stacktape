@@ -16,6 +16,7 @@ import { composeConfig } from '@stacktape/config-inference/compose';
 import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema } from '@stacktape/config-inference/facts';
 import { startWizardSession } from '../src/init/server/wizard-session';
 import { findWizardBundle } from '../src/init/run-init';
+import { INIT_TARGET_SCHEMA_VERSION } from '../src/init/deploy/stack-expectation';
 
 const failed = process.argv.includes('--failed');
 
@@ -121,13 +122,14 @@ const start = async () => {
       requiredSecrets: [{ name: 'AWS_DEPLOY_ROLE_ARN', description: 'ARN of an IAM role your repository may assume.' }]
     }),
     inspectDeployTarget: async ({ stage, region }) => ({
-      schemaVersion: 'stacktape.init-target.v1',
+      schemaVersion: INIT_TARGET_SCHEMA_VERSION,
       status: 'absent',
       accountId: '123456789012',
       stackName: `stacktape-init-demo-${stage}`,
       projectName: 'stacktape-init-demo',
       stage,
-      region
+      region,
+      configSha256: 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
     }),
     deploy: async ({ onEvent, onCommand }) => {
       onCommand('stacktape deploy --configPath stacktape.yml --stage dev --region eu-west-1');

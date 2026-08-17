@@ -6,13 +6,15 @@
  */
 
 import type { Stack } from '@aws-sdk/client-cloudformation';
+import { createHash } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 import { CliError } from '@utils/errors';
 import { getStackName, getStacktapeStackInfoFromTemplateDescription } from '@stacktape/naming/stacks';
 import { tagNames } from '@stacktape/naming/tag-names';
 
 export const INIT_TARGET_CHECK_ENV = 'STACKTAPE_INIT_TARGET_CHECK';
 export const INIT_TARGET_EXPECTATION_ENV = 'STACKTAPE_INIT_TARGET_EXPECTATION';
-export const INIT_TARGET_SCHEMA_VERSION = 'stacktape.init-target.v1' as const;
+export const INIT_TARGET_SCHEMA_VERSION = 'stacktape.init-target.v2' as const;
 
 const UPDATEABLE_STATUSES: ReadonlySet<string> = new Set([
   'CREATE_COMPLETE',
@@ -30,6 +32,8 @@ type TargetIdentity = {
   projectName: string;
   stage: string;
   region: string;
+  /** SHA-256 of the exact authored config bytes the user reviewed. */
+  configSha256: string;
 };
 
 export type DeployTargetObservation = TargetIdentity &
@@ -62,12 +66,14 @@ export const classifyDeployTarget = ({
   projectName,
   stage,
   region,
+  configSha256,
   stack
 }: {
   accountId: string;
   projectName: string;
   stage: string;
   region: string;
+  configSha256: string;
   stack: Stack | null | undefined;
 }): DeployTargetObservation => {
   const identity: TargetIdentity = {
@@ -76,7 +82,8 @@ export const classifyDeployTarget = ({
     stackName: getStackName(projectName, stage),
     projectName,
     stage,
-    region
+    region,
+    configSha256
   };
   if (stack == null) return { ...identity, status: 'absent' };
 
@@ -128,6 +135,12 @@ const expectationError = (message: string): never => {
   });
 };
 
+/** Hash the config as bytes so YAML/TypeScript formatting changes invalidate deploy consent too. */
+export const readDeployConfigSha256 = async (configPath: string): Promise<string> =>
+  createHash('sha256')
+    .update(await readFile(configPath))
+    .digest('hex');
+
 export const parseDeployTargetExpectation = (raw: string | undefined): DeployTargetExpectation | undefined => {
   if (raw === undefined || raw === '') return undefined;
   try {
@@ -141,6 +154,8 @@ export const parseDeployTargetExpectation = (raw: string | undefined): DeployTar
       !nonEmptyString(value.projectName) ||
       !nonEmptyString(value.stage) ||
       !nonEmptyString(value.region) ||
+      typeof value.configSha256 !== 'string' ||
+      !/^[a-f0-9]{64}$/.test(value.configSha256) ||
       (value.expected !== 'create' && value.expected !== 'update') ||
       (value.expected === 'update' && !nonEmptyString(value.stackId))
     ) {
@@ -168,6 +183,9 @@ export const assertDeployTargetExpectation = ({
     if (expectation[key] !== observation[key]) {
       return expectationError(`The deploy target changed (${key}) after it was reviewed.`);
     }
+  }
+  if (expectation.configSha256 !== observation.configSha256) {
+    return expectationError('The authored configuration changed after it was reviewed.');
   }
   if (observation.status === 'blocked') {
     return expectationError('The target stack is not safe for this wizard to modify.');
