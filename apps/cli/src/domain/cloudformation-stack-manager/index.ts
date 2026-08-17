@@ -139,6 +139,14 @@ export class StackManager {
   existingStackResources: EnrichedStackResourceInfo[] = [];
   stackMonitoringInterval: NodeJS.Timeout;
   #stackName: string;
+  /**
+   * Optional physical identity for mutations of an existing stack.
+   *
+   * Ordinary commands retain the historical name target. The init wizard binds this to the
+   * user-approved StackId so a delete/recreate with the same name cannot redirect a long build to
+   * a different stack between consent and UpdateStack.
+   */
+  #stackMutationTarget?: string;
 
   // for polling ECS Service statuses during deploy
   #ecsDeploymentStatusPoller: { [serviceCfLogicalName: string]: EcsServiceDeploymentStatusPoller } = {};
@@ -165,6 +173,7 @@ export class StackManager {
       instanceId: parentEventType ? 'Stack data' : undefined
     });
     this.#stackName = stackName;
+    this.#stackMutationTarget = undefined;
 
     let stackDetails = await awsSdkManager.cloudFormation.getDetails(stackName);
     const instanceId = parentEventType ? 'Stack data' : undefined;
@@ -193,6 +202,10 @@ export class StackManager {
       parentEventType,
       instanceId: parentEventType ? 'Stack data' : undefined
     });
+  };
+
+  bindExistingStackMutationsToId = (stackId: string): void => {
+    this.#stackMutationTarget = stackId;
   };
 
   get nextVersion() {
@@ -326,7 +339,7 @@ export class StackManager {
       })
       .filter(Boolean);
     return {
-      StackName: this.#stackName,
+      StackName: this.#stackMutationTarget ?? this.#stackName,
       Tags: operationRequiresTags ? this.getTags() : [],
       Parameters: [],
       Capabilities: ['CAPABILITY_IAM', 'CAPABILITY_NAMED_IAM', 'CAPABILITY_AUTO_EXPAND'] as Capability[],
@@ -510,7 +523,7 @@ export class StackManager {
       }
       await awsSdkManager.cloudFormation.setTerminationProtection(
         !!stackParams.EnableTerminationProtection,
-        this.#stackName
+        stackParams.StackName
       );
       await eventManager.finishEvent({
         eventType: 'UPDATE_STACK',

@@ -151,7 +151,7 @@ export default defineConfig(() => {
 
 ## Runtime file filtering
 
-Use `startOnlyIncludeFiles` to list file paths included in the runtime environment; files outside that list are excluded. This reduces image size by excluding build artifacts, tests, documentation, and other files not needed at runtime.
+Runtime file filtering is available when you also configure a separate `startRunImage`. Use `startOnlyIncludeFiles` to list the paths copied from the build stage into that run image; files outside that list are excluded. This reduces image size by excluding build artifacts, tests, documentation, and other files not needed at runtime.
 
 
 Example (TypeScript):
@@ -162,6 +162,7 @@ export default defineConfig(() => {
   const api = new WebService({
     packaging: new NixpacksPackaging({
       sourceDirectoryPath: './',
+      startRunImage: 'node:22-bookworm-slim',
       startOnlyIncludeFiles: ['dist/', 'node_modules/', 'package.json']
     }),
     resources: {
@@ -175,7 +176,7 @@ export default defineConfig(() => {
 ```
 
 
-When set, all files **not** matching the listed paths are excluded from the runtime image. This is especially effective for compiled languages where only the output binary is needed, or for Node.js apps where you want to exclude source files and keep only the compiled `dist/` directory.
+When both properties are set, all files **not** matching the listed paths are excluded from the runtime image. `startOnlyIncludeFiles` without `startRunImage` is rejected because Nixpacks' default single-image build does not enforce that final-runtime inventory. This is especially effective for compiled languages where only the output binary is needed, or for Node.js apps where you want to exclude source files and keep only the compiled `dist/` directory.
 
 ## Providers
 

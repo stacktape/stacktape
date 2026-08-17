@@ -25,7 +25,7 @@ type DeploymentScriptProps = {
   /** Structured data passed to the handler function as the event payload. Not for secrets — use `environment`. */
   parameters?: unknown;
   /** Lambda runtime. Auto-detected from file extension if not specified. */
-  runtime?: "dotnet6" | "dotnet7" | "dotnet8" | "java11" | "java17" | "java8" | "java8.al2" | "nodejs18.x" | "nodejs20.x" | "nodejs22.x" | "nodejs24.x" | "provided.al2" | "provided.al2023" | "python3.10" | "python3.11" | "python3.12" | "python3.13" | "python3.8" | "python3.9" | "ruby3.3";
+  runtime?: "dotnet10" | "dotnet6" | "dotnet7" | "dotnet8" | "java11" | "java17" | "java21" | "java25" | "java8" | "java8.al2" | "nodejs18.x" | "nodejs20.x" | "nodejs22.x" | "nodejs24.x" | "provided.al2" | "provided.al2023" | "python3.10" | "python3.11" | "python3.12" | "python3.13" | "python3.14" | "python3.8" | "python3.9" | "ruby3.3" | "ruby3.4" | "ruby4.0";
   /** Ephemeral `/tmp` storage in MB (512–10,240). */
   storage?: number;
   /** Max execution time in seconds. Max: 900 (15 minutes). */
@@ -473,7 +473,7 @@ export default defineConfig(() => {
 ## Property: `runtime`
 
 - Required: no
-- Type: `string: "dotnet6" | "dotnet7" | "dotnet8" | "java11" | "java17" | "java8" | "java8.al2" | "nodejs18.x" | "nodejs20.x" | "nodejs22.x" | "nodejs24.x" | "provided.al2" | "provided.al2023" | "python3.10" | "python3.11" | "python3.12" | "python3.13" | "python3.8" | "python3.9" | "ruby3.3"`
+- Type: `string: "dotnet10" | "dotnet6" | "dotnet7" | "dotnet8" | "java11" | "java17" | "java21" | "java25" | "java8" | "java8.al2" | "nodejs18.x" | "nodejs20.x" | "nodejs22.x" | "nodejs24.x" | "provided.al2" | "provided.al2023" | "python3.10" | "python3.11" | "python3.12" | "python3.13" | "python3.14" | "python3.8" | "python3.9" | "ruby3.3" | "ruby3.4" | "ruby4.0"`
 
 Lambda runtime. Auto-detected from file extension if not specified.
 

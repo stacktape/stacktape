@@ -69,6 +69,15 @@ pnpm --filter @stacktape/cli exec bun test tests/characterization
 pnpm --filter @stacktape/packaging run test
 ```
 
+Before a packaging-sensitive release, run the real Docker artifact gate. It creates synthetic Go, Python, Ruby, Java,
+.NET, Node.js, and PHP projects (including workspace/reactor layouts and native dependencies), builds them through the
+public packaging package, and executes the produced Lambda artifacts or images. It does not contact AWS, but it does
+require Docker and network access for pinned dependency/base-image downloads.
+
+```powershell
+pnpm test:packaging-e2e
+```
+
 There is deliberately no root `pnpm dev`: the workspace does not have one meaningful all-app development process, and
 the CLI's source runner requires a command. Start the application you actually need:
 
@@ -292,6 +301,56 @@ pnpm --filter @stacktape/cli run test:real-aws-canary
 Do not point this runner at an account merely because it is called “development”; verify the account is disposable. The
 project name and unique owner are also written outside the runner in CI. A separate cancellation-preserving cleanup job
 reacquires AWS credentials and deletes only a stack carrying that exact owner tag.
+
+### Init-to-healthy-URL canary
+
+The config-generation canary uses the same account and credential guardrails, but drives the browser presentation of
+`stacktape init` through its authenticated loopback API. It runs one versioned fixture per invocation so a protected CI
+matrix can retry, report, and clean each outcome independently. It writes a 0600 recovery file before any mutation,
+requires the generated stack and secret names to be absent, validates and packages with the same selected CLI, enforces
+the fixture's local-preflight contract, deploys through the wizard, resolves the composed resource's `url` with
+`param:get`, checks the live response, and then deletes the exact recorded stack, generated secrets, and canary-prefixed
+log groups.
+
+Run this only from a Linux/macOS checkout (or WSL with WSL-native AWS configuration), after the same disposable-account
+verification described above:
+
+```sh
+export STACKTAPE_API_KEY='<development API key>'
+export STP_AWS_CANARY_DEPLOY=1
+export STP_AWS_CANARY_CONFIRM_DISPOSABLE=this-is-a-disposable-test-account
+export STP_AWS_CANARY_EXPECTED_ACCOUNT_ID='<12-digit-disposable-account-id>'
+export STP_AWS_CANARY_CREDENTIAL_MODE=profile
+export STP_AWS_CANARY_PROFILE='<disposable-account-profile>'
+export STP_INIT_CANARY_AWS_ACCOUNT='<Stacktape-connected disposable account name>'
+export STP_AWS_CANARY_PROJECT_NAME="v4canary-init-$(date -u +%s)"
+export STP_AWS_CANARY_OWNER="local-init-$(date -u +%s)"
+export STP_AWS_CANARY_STATE_FILE="$(pwd)/.stacktape-init-canary-${STP_AWS_CANARY_PROJECT_NAME}.json"
+export STP_INIT_CANARY_FIXTURE=express-basic
+export STP_INIT_CANARY_CODING_AGENT=none
+pnpm --filter @stacktape/cli run test:real-aws-init-canary
+```
+
+Allowed fixture ids are `express-basic`, `express-postgres-migration`, `vite-static`, and `fastapi-basic`. Files-only is
+the default and is scored separately from local-agent runs. To exercise an installed agent explicitly, set
+`STP_INIT_CANARY_CODING_AGENT` to `claude-code` or `codex`; `STP_INIT_CANARY_MODEL_ID` defaults to that agent's
+configured model. For an immutable preview artifact, also set `STP_AWS_CANARY_CLI_PATH` to its absolute executable path
+and `STP_AWS_CANARY_EXPECTED_CLI_VERSION` to the exact reported version. The init process and deploy child then use that
+same executable.
+
+If the run is interrupted or cleanup fails, retain the state file and reacquire the same scoped credentials and
+environment values before running:
+
+```sh
+pnpm --filter @stacktape/cli run test:real-aws-init-canary -- --cleanup-only
+```
+
+Cleanup-only refuses an account, owner, fixture, project, stage, region, recorded StackId, secret ARN, description, or
+creation-time mismatch. If an abrupt stop happened before the StackId became observable, it adopts only the exact stack
+name that the state file reserved before deployment and whose AWS creation time falls inside that run. A new run also
+refuses to overwrite any existing recovery file. After a successful cleanup, retain that file as evidence or review its
+`cleanedAt` value before removing it yourself. Do not edit it to bypass a refusal; investigate the mismatched resource
+instead.
 
 Useful read-only commands against a deployed stack:
 

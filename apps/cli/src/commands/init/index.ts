@@ -36,6 +36,7 @@ export const commandInit = async () => {
     ...(args.codingAgent === undefined ? {} : { codingAgent: args.codingAgent }),
     ...(args.configFormat === undefined ? {} : { configFormat: args.configFormat }),
     ...(args.infrastructureType === undefined ? {} : { mode: args.infrastructureType }),
+    ...(args.awsAccount === undefined ? {} : { awsAccount: args.awsAccount }),
     // `--noBrowser` still starts the wizard and still prints its address; it only stops us from
     // deciding which browser sees it. That matters over a forwarded port, and for anyone whose
     // default browser is not the one they work in.

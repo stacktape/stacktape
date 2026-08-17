@@ -118,11 +118,13 @@ const detectConfigPath = () => {
   globalStateManager.setConfigPath(getConfigPath());
 };
 
-export const loadTargetStackContext = async () => {
+export const loadTargetStackContext = async ({ skipRawConfig = false }: { skipRawConfig?: boolean } = {}) => {
   detectConfigPath();
-  await configManager.loadRawConfigOnly({ context: getConfigResolverContext() });
+  if (!skipRawConfig) {
+    await configManager.loadRawConfigOnly({ context: getConfigResolverContext() });
+  }
   await globalStateManager.loadTargetStackInfo({
-    configProjectName: configManager.configResolver.rawConfig?.projectName
+    configProjectName: skipRawConfig ? undefined : configManager.configResolver.rawConfig?.projectName
   });
 };
 
@@ -180,13 +182,22 @@ export const initializeStackOperationLifecycle = async ({
   commandRequiresDeployedStack,
   loadGlobalConfig,
   requiresControlPlane = true,
-  requiresSubscription
+  requiresSubscription,
+  beforeConfigInit,
+  skipRawConfigForTarget = false
 }: {
   commandModifiesStack?: boolean;
   commandRequiresDeployedStack?: boolean;
   loadGlobalConfig?: boolean;
   requiresControlPlane?: boolean;
   requiresSubscription?: boolean;
+  /**
+   * Read-only assertion after the final account/region/stack context exists, but before authored
+   * config, dependency installation, hooks, metadata initialization, or AWS mutations can run.
+   */
+  beforeConfigInit?: (stackContext: StackContext) => Promise<void>;
+  /** The caller already supplied an authoritative project name, so target resolution need not execute config first. */
+  skipRawConfigForTarget?: boolean;
 }) => {
   const getHeaderAction = () => {
     const command = globalStateManager.command;
@@ -223,7 +234,7 @@ export const initializeStackOperationLifecycle = async ({
         throw stpErrors.e502({ message });
       }
     }
-    await loadTargetStackContext();
+    await loadTargetStackContext({ skipRawConfig: skipRawConfigForTarget });
     assertCommandPermissions({
       command: globalStateManager.command,
       stage: globalStateManager.stage,
@@ -236,6 +247,7 @@ export const initializeStackOperationLifecycle = async ({
     await loadLocalAwsContext();
   }
   const stackContext = getStackContext();
+  await beforeConfigInit?.(stackContext);
   await configManager.init({ configRequired: true, context: getConfigManagerContext(stackContext) });
 
   if (loadGlobalConfig && requiresControlPlane) {
@@ -372,12 +384,20 @@ export const initializeDiffOperation = async () => ({
   tui: tuiManager
 });
 
-export const initializeDeployOperation = async () => ({
+export const initializeDeployOperation = async ({
+  beforeConfigInit,
+  skipRawConfigForTarget
+}: {
+  beforeConfigInit?: (stackContext: StackContext) => Promise<void>;
+  skipRawConfigForTarget?: boolean;
+} = {}) => ({
   ...(await initializeStackOperationLifecycle({
     commandRequiresDeployedStack: false,
     commandModifiesStack: true,
     loadGlobalConfig: true,
-    requiresSubscription: true
+    requiresSubscription: true,
+    beforeConfigInit,
+    skipRawConfigForTarget
   })),
   application: applicationManager,
   budget: budgetManager,

@@ -218,7 +218,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `iamRoleStatements` | no | `Array<StpIamRoleStatement>` | - |
 | `logging` | no | `LambdaFunctionLogging` | - |
 | `memory` | no | `number` | `128` |
-| `runtime` | no | `string: "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.8" \| "python3.9"` | - |
+| `runtime` | no | `string: "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.14" \| "python3.8" \| "python3.9"` | - |
 | `timeout` | no | `number` | `3` |
 
 

@@ -15417,7 +15417,10 @@
         "init"
       ],
       "chunks": [
-        "page:/cli/init#init"
+        "page:/cli/init#init",
+        "page:/cli/init#does-my-code-leave-my-machine",
+        "page:/cli/init#do-i-need-a-stacktape-account",
+        "page:/cli/init#what-does-try-it-here-first-run"
       ]
     },
     {

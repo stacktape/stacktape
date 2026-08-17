@@ -5,7 +5,7 @@
 ```typescript
 type JavaLanguageSpecificConfig = {
   /** The version of Java to use. */
-  javaVersion?: 11 | 17 | 19 | 8;
+  javaVersion?: 11 | 17 | 19 | 21 | 25 | 8;
   /** The path to your project's build file (`pom.xml` for Maven or `build.gradle` for Gradle). */
   packageManagerFile?: string;
   /** Specifies whether to use Maven instead of Gradle. */
@@ -16,7 +16,7 @@ type JavaLanguageSpecificConfig = {
 ## Property: `javaVersion`
 
 - Required: no
-- Type: `number: 11 | 17 | 19 | 8`
+- Type: `number: 11 | 17 | 19 | 21 | 25 | 8`
 - Default: `11`
 
 The version of Java to use.

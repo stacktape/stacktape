@@ -16,7 +16,10 @@ type NixpacksBjImagePackagingProps = {
   providers?: Array<string>;
   /** The command to execute when starting the application. */
   startCmd?: string;
-  /** A list of file paths to include in the runtime environment; all other files will be excluded. */
+  /** A list of file paths to include in the runtime environment; all other files will be excluded.
+
+Requires `startRunImage`. Nixpacks applies this filter while copying artifacts from the build image into that
+separate runtime image. */
   startOnlyIncludeFiles?: Array<string>;
   /** The base image to use for running the application. */
   startRunImage?: string;
@@ -277,6 +280,9 @@ export default defineConfig(() => {
 
 A list of file paths to include in the runtime environment; all other files will be excluded.
 
+Requires `startRunImage`. Nixpacks applies this filter while copying artifacts from the build image into that
+separate runtime image.
+
 ### Example 1 (yaml)
 
 ```yaml
@@ -288,7 +294,8 @@ resources:
        type: nixpacks
        properties:
          sourceDirectoryPath: ./worker
-         startOnlyIncludeFiles:
+          startRunImage: node:22-slim
+          startOnlyIncludeFiles:
            - dist
            - node_modules
      resources:
@@ -307,7 +314,8 @@ export default defineConfig(() => {
      type: 'nixpacks',
      properties: {
        sourceDirectoryPath: './worker',
-       startOnlyIncludeFiles: ['dist', 'node_modules']
+        startRunImage: 'node:22-slim',
+        startOnlyIncludeFiles: ['dist', 'node_modules']
      }
    },
    resources: {

@@ -149,23 +149,3 @@ export const buildDeployModel = (
 
   return { phases: ordered, notices, log: [...log, ...lines] };
 };
-
-/**
- * The URLs a finished deploy produced.
- *
- * Pulled out of the log rather than out of a structured field because the CLI prints its stack
- * overview as text. It is the first thing anyone wants after a deploy finishes, and a link they can
- * click beats a line they have to find.
- */
-export const extractUrls = (log: readonly string[]): string[] => {
-  const found = new Set<string>();
-  for (const line of log) {
-    for (const match of line.matchAll(/https?:\/\/[^\s"'<>)\]]+/g)) {
-      const url = match[0].replace(/[.,;]$/, '');
-      // Console links and AWS consoles are not what the user deployed; their own endpoints are.
-      if (/amazonaws\.com\/(console|cloudformation)|console\.aws|stacktape\.com/.test(url)) continue;
-      found.add(url);
-    }
-  }
-  return [...found];
-};

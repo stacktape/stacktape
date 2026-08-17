@@ -774,7 +774,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `memory` | no | `number` | - |
 | `provisionedConcurrency` | no | `number` | - |
 | `reservedConcurrency` | no | `number` | - |
-| `runtime` | no | `string: "dotnet6" \| "dotnet7" \| "dotnet8" \| "java11" \| "java17" \| "java8" \| "java8.al2" \| "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "provided.al2" \| "provided.al2023" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.8" \| "python3.9" \| "ruby3.3"` | - |
+| `runtime` | no | `string: "dotnet10" \| "dotnet6" \| "dotnet7" \| "dotnet8" \| "java11" \| "java17" \| "java21" \| "java25" \| "java8" \| "java8.al2" \| "nodejs18.x" \| "nodejs20.x" \| "nodejs22.x" \| "nodejs24.x" \| "provided.al2" \| "provided.al2023" \| "python3.10" \| "python3.11" \| "python3.12" \| "python3.13" \| "python3.14" \| "python3.8" \| "python3.9" \| "ruby3.3" \| "ruby3.4" \| "ruby4.0"` | - |
 | `storage` | no | `number` | `512` |
 | `tags` | no | `Array<CloudformationTag>` | - |
 | `timeout` | no | `number` | `10` |

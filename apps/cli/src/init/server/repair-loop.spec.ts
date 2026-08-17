@@ -50,7 +50,10 @@ type Outcome = { ok: boolean; code: string; message: string };
 /** One planned attempt: its outcome, and which CloudFormation action it visibly performed. */
 type Attempt = { outcome: Outcome; action?: 'create' | 'update' };
 
-type Deployment = { status: string; repairs?: Array<{ attempt: number; applied: boolean }> };
+type Deployment = {
+  status: string;
+  repairs?: Array<{ attempt: number; applied: boolean; changedResources?: string[] }>;
+};
 
 type Client = {
   origin: string;
@@ -144,7 +147,7 @@ const runDeploy = async ({
   await fetch(`${client.origin}/api/deploy`, {
     method: 'POST',
     headers: client.headers,
-    body: JSON.stringify({ stage: 'dev', region: 'eu-west-1' })
+    body: JSON.stringify({ stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } })
   });
 
   const deployment = await settledDeployment(client);
@@ -170,10 +173,11 @@ describe('deploying with repairs', () => {
     });
 
     // A failed update stops at UPDATE_FAILED, which `deploy` runs over — so the retry may keep
-    // whatever the failed attempt managed to create.
+    // whatever the failed attempt managed to create. The repair entry also names what it rewrote,
+    // diffed from the compositions, so the page can say where the deployed file differs.
     expect(run.attempts).toEqual([false, true]);
     expect(run.deployment.status).toBe('succeeded');
-    expect(run.deployment.repairs).toEqual([{ attempt: 1, applied: true }]);
+    expect(run.deployment.repairs).toEqual([{ attempt: 1, applied: true, changedResources: ['api'] }]);
   });
 
   it('never disables rollback while the stack is still being created', async () => {
@@ -265,7 +269,7 @@ describe('deploying with repairs', () => {
       headers: client.headers,
       body: JSON.stringify({ format: 'yaml' })
     });
-    const deployBody = JSON.stringify({ stage: 'dev', region: 'eu-west-1' });
+    const deployBody = JSON.stringify({ stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
     await fetch(`${client.origin}/api/deploy`, { method: 'POST', headers: client.headers, body: deployBody });
 
     // Wait until the failure has been handed to the (blocked) repair, then press Deploy again.
@@ -324,7 +328,7 @@ describe('deploying with repairs', () => {
     await fetch(`${client.origin}/api/deploy`, {
       method: 'POST',
       headers: client.headers,
-      body: JSON.stringify({ stage: 'dev', region: 'eu-west-1' })
+      body: JSON.stringify({ stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } })
     });
 
     const deployment = await settledDeployment(client);

@@ -48,7 +48,17 @@ type StateComposition = {
  */
 export const initTelemetryEvent = (
   state: WizardState,
-  { presentation, analysisDurationMs }: { presentation: 'browser' | 'terminal'; analysisDurationMs?: number }
+  {
+    presentation,
+    analysisDurationMs,
+    deployDurationMs,
+    agentSkipped
+  }: {
+    presentation: 'browser' | 'terminal';
+    analysisDurationMs?: number;
+    deployDurationMs?: number;
+    agentSkipped?: boolean;
+  }
 ): InitCompleted | undefined => {
   const reached = reachedFrom(state);
   if (reached === undefined) return undefined;
@@ -71,19 +81,59 @@ export const initTelemetryEvent = (
     decisions_changed: Object.keys(state.answers ?? {}).length,
     gap_count: (composition.gaps ?? []).length,
     analysis_duration_ms: analysisDurationMs ?? null,
-    deploy_duration_ms: null,
+    deploy_duration_ms: deployDurationMs ?? null,
     repairs: (state.deployment?.repairs ?? []).map((repair) => repair.applied),
     ...(state.deployment !== undefined && state.deployment.status !== 'succeeded' && state.deployment.outcome
       ? { deploy_error_code: state.deployment.outcome.code }
       : {}),
-    existing_deployment_tools: (facts.existingDeployments ?? []).map((deployment) => deployment.tool)
+    existing_deployment_tools: (facts.existingDeployments ?? []).map((deployment) => deployment.tool),
+    ...verificationSummary(state),
+    ...(agentSkipped === true ? { agent_skipped: true } : {})
+  };
+};
+
+/**
+ * How the local try-out went, reduced to a category. Statuses only — nothing a container printed
+ * ever leaves the machine, because a log line is repository content.
+ */
+const verificationSummary = (
+  state: WizardState
+): Pick<
+  InitCompleted,
+  | 'verification'
+  | 'verification_passed_services'
+  | 'verification_failed_services'
+  | 'verification_inconclusive_services'
+  | 'verification_skipped_services'
+> => {
+  const verification = state.verification;
+  if (verification === undefined) return {};
+  if (verification.status === 'unavailable' || verification.status === 'dismissed') {
+    return { verification: verification.status };
+  }
+  const services = verification.services ?? [];
+  const passed = services.filter((service) => service.status === 'passed').length;
+  const failed = services.filter((service) => service.status === 'failed').length;
+  const inconclusive = services.filter((service) => service.status === 'inconclusive').length;
+  const skipped = services.filter((service) => service.status === 'skipped').length;
+  return {
+    verification: failed > 0 ? 'failed' : inconclusive > 0 || skipped > 0 || passed === 0 ? 'inconclusive' : 'passed',
+    ...(passed > 0 ? { verification_passed_services: passed } : {}),
+    ...(failed > 0 ? { verification_failed_services: failed } : {}),
+    ...(inconclusive > 0 ? { verification_inconclusive_services: inconclusive } : {}),
+    ...(skipped > 0 ? { verification_skipped_services: skipped } : {})
   };
 };
 
 /** Send the session summary, if there is one. Fire-and-forget by design. */
 export const reportInitTelemetry = async (
   state: WizardState,
-  context: { presentation: 'browser' | 'terminal'; analysisDurationMs?: number }
+  context: {
+    presentation: 'browser' | 'terminal';
+    analysisDurationMs?: number;
+    deployDurationMs?: number;
+    agentSkipped?: boolean;
+  }
 ): Promise<void> => {
   try {
     const event = initTelemetryEvent(state, context);

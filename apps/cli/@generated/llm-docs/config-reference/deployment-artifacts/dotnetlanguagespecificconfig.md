@@ -5,7 +5,7 @@
 ```typescript
 type DotnetLanguageSpecificConfig = {
   /** The version of .NET to use. */
-  dotnetVersion?: 6 | 8;
+  dotnetVersion?: 10 | 6 | 7 | 8;
   /** The path to your .NET project file (.csproj). */
   projectFile?: string;
 };
@@ -14,7 +14,7 @@ type DotnetLanguageSpecificConfig = {
 ## Property: `dotnetVersion`
 
 - Required: no
-- Type: `number: 6 | 8`
+- Type: `number: 10 | 6 | 7 | 8`
 - Default: `8`
 
 The version of .NET to use.

@@ -11,6 +11,7 @@
  */
 
 import { spawn } from 'node:child_process';
+import { extname } from 'node:path';
 import { INIT_MCP_SERVER_NAME } from '../../mcp/session-server';
 import { terminateChild } from '../../terminate-child';
 import { looksRateLimited, TransportError, type AgentEvent, type TokenUsage } from '../transport';
@@ -173,11 +174,14 @@ export type Spawner = (input: {
 
 export const spawnProcess: Spawner = async ({ command, args, cwd, stdin, timeoutMs, signal }) =>
   new Promise((resolveSpawn, rejectSpawn) => {
+    const extension = extname(command).toLowerCase();
+    const needsShell =
+      process.platform === 'win32' && (extension === '' || extension === '.cmd' || extension === '.bat');
     const child = spawn(command, [...args], {
       cwd,
       stdio: ['pipe', 'pipe', 'pipe'],
-      // Agent CLIs install as `.cmd` shims on Windows, which `spawn` will not resolve without this.
-      ...(process.platform === 'win32' ? { shell: true } : {})
+      // Batch shims need cmd.exe; native launchers must preserve TOML arrays in Codex `-c` argv.
+      ...(needsShell ? { shell: true } : {})
     });
 
     let stdout = '';

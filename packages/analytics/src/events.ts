@@ -126,5 +126,14 @@ export type ProductAnalyticsEventMap = {
     /** The CLI's own result code when a deploy failed, e.g. `DEPLOY_FAILED`. */
     deploy_error_code?: string;
     existing_deployment_tools: string[];
+    /** Where the local try-out ended, when one was asked for. Absent means it was never clicked. */
+    verification?: 'passed' | 'failed' | 'inconclusive' | 'unavailable' | 'dismissed';
+    /** Per-service counts stay separate so a partial check can never be reported as a pass. */
+    verification_passed_services?: number;
+    verification_failed_services?: number;
+    verification_inconclusive_services?: number;
+    verification_skipped_services?: number;
+    /** The offered agent was not run because the scan left nothing material open. */
+    agent_skipped?: boolean;
   };
 };

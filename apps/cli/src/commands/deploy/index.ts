@@ -1,4 +1,4 @@
-import type { ExpectedError } from '@utils/errors';
+import { CliError, type ExpectedError } from '@utils/errors';
 import type { PackageWorkloadOutput } from '@domain-services/packaging-manager/types';
 import type { TemplateDiff } from '@aws-cdk/cloudformation-diff';
 import { globalStateManager } from '@application-services/global-state-manager';
@@ -33,6 +33,15 @@ import { deployWithCodebuildRunner } from './codebuild-runner';
 import { deployWithEc2Runner } from './ec2-runner';
 import { buildPreviewResourceChanges } from '../diff/utils';
 import { ensureManagedEmailSenders } from '@domain-services/email-sender-manager';
+import {
+  assertDeployTargetExpectation,
+  classifyDeployTarget,
+  INIT_TARGET_CHECK_ENV,
+  INIT_TARGET_EXPECTATION_ENV,
+  parseDeployTargetExpectation
+} from '../../init/deploy/stack-expectation';
+import { inspectDeployTargetWithDeployCredentials } from './init-target-check';
+import { awsSdkManager } from '@utils/aws-sdk-manager';
 
 type DeployOperation = Awaited<ReturnType<typeof initializeDeployOperation>>;
 
@@ -52,17 +61,34 @@ type FullDeployOperation = {
 };
 
 export const commandDeploy = async () => {
+  // The init wizard probes in a fresh child so the check uses the exact account/profile resolver a
+  // deploy will use without sharing this command's global singletons. It returns before config,
+  // packaging, secrets, artifact buckets, or any CloudFormation mutation.
+  if (process.env[INIT_TARGET_CHECK_ENV] === '1') {
+    return inspectDeployTargetWithDeployCredentials();
+  }
+  // Snapshot before authored TypeScript configuration executes. Config is allowed to run code, so
+  // process.env is transport only and must not remain the authority for the approved target.
+  const initTargetExpectation = parseDeployTargetExpectation(process.env[INIT_TARGET_EXPECTATION_ENV]);
   const runner = globalStateManager.args.runner ?? 'local';
+  if (initTargetExpectation !== undefined && runner !== 'local') {
+    throw new CliError({
+      category: 'STACK',
+      code: 'INIT_DEPLOY_RUNNER_UNSUPPORTED',
+      message: 'The init wizard can deploy only with the local runner.',
+      hints: 'Run the remote-runner deploy manually after reviewing its target and implications.'
+    });
+  }
   if (runner === 'codebuild') {
     return deployWithCodebuildRunner();
   }
   if (runner === 'ec2') {
     return deployWithEc2Runner();
   }
-  return deployLocally();
+  return deployLocally(initTargetExpectation);
 };
 
-const deployLocally = async () => {
+const deployLocally = async (initTargetExpectation: ReturnType<typeof parseDeployTargetExpectation>) => {
   const {
     args,
     application,
@@ -82,7 +108,48 @@ const deployLocally = async () => {
     stacktapeApi,
     template,
     tui
-  } = await initializeDeployOperation();
+  } = await initializeDeployOperation({
+    ...(initTargetExpectation === undefined ? {} : { skipRawConfigForTarget: true }),
+    ...(initTargetExpectation === undefined
+      ? {}
+      : {
+          // This is the first gate. It runs after the deploy command has selected credentials and
+          // its immutable stack context, but before loading/executing authored config or hooks.
+          beforeConfigInit: async (target) => {
+            const existingStack = await awsSdkManager.cloudFormation.getDetails(target.stackName);
+            assertDeployTargetExpectation({
+              expectation: initTargetExpectation,
+              observation: classifyDeployTarget({
+                accountId: target.accountId,
+                projectName: target.projectName,
+                stage: target.stage,
+                region: target.region,
+                stack: existingStack
+              })
+            });
+          }
+        })
+  });
+
+  // Recheck after initialization as well. The first assertion prevents config/hooks/install from
+  // running against an unapproved target; this one protects the first generated-secret mutation
+  // from a target transition during read-only initialization.
+  assertDeployTargetExpectation({
+    expectation: initTargetExpectation,
+    observation: classifyDeployTarget({
+      accountId: stackContext.accountId,
+      projectName: stackContext.projectName,
+      stage: stackContext.stage,
+      region: stackContext.region,
+      stack: stack.existingStackDetails
+    })
+  });
+  if (initTargetExpectation?.expected === 'update') {
+    // CloudFormation accepts the physical StackId anywhere it accepts StackName. Keep the friendly
+    // name for deterministic resource naming/tags, but send the approved ARN for stack mutations so
+    // a same-name replacement after this check fails instead of receiving the update.
+    stack.bindExistingStackMutationsToId(initTargetExpectation.stackId);
+  }
 
   // Check if trying to deploy to an existing dev stack
   if (deployedStackOverview.getStackMetadata(stackMetadataNames.isDevStack())) {
@@ -103,7 +170,9 @@ const deployLocally = async () => {
     tui.info(`Issues: enabled (${issueDetectionPolicy.reason}${issueHighVolumeProtection}).`);
   }
 
-  await ensureMissingSecretsCreated();
+  await ensureMissingSecretsCreated({
+    ...(initTargetExpectation === undefined ? {} : { generatedSecretDescription: 'Generated by stacktape init' })
+  });
   await ensureMissingSsmParamsCreated();
 
   event.setPhase('BUILD_AND_PACKAGE');

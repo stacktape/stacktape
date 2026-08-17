@@ -30,6 +30,9 @@ type WizardService = {
   framework?: string;
   exposesHttp: boolean;
   port?: number;
+  executionModel: 'long-running' | 'per-request' | 'scheduled';
+  servesStaticAssets?: { path: string };
+  functionTriggers?: Array<{ type: string }>;
   source: 'probe' | 'agent';
   evidence: Array<{ file: string; line: number; quote: string }>;
 };
@@ -41,6 +44,11 @@ type WizardDependency = {
   currentlyHostedOn?: string;
   source: 'probe' | 'agent';
   evidence: Array<{ file: string; line: number; quote: string }>;
+};
+
+type WizardExistingDeployment = {
+  tool: string;
+  managesAws: boolean;
 };
 
 type WizardModelOption = { id: string; label: string; description: string };
@@ -96,11 +104,78 @@ export type WizardState = {
     events: unknown[];
     lines: string[];
     outcome?: { ok: boolean; code: string; message: string };
-    /** One entry per failed attempt the agent was asked about. `applied` means it changed the file. */
-    repairs?: Array<{ attempt: number; applied: boolean }>;
+    /**
+     * One entry per failed attempt the agent was asked about. `applied` means it changed the file;
+     * `changedResources` names where, computed by diffing — never taken from the agent's words.
+     */
+    repairs?: Array<{ attempt: number; applied: boolean; changedResources?: string[] }>;
+    /** A failed attempt left its progress standing (a retry over an existing stack). It still bills. */
+    keptPartialProgress?: boolean;
+    /** Typed deployed-resource URLs; never inferred from build or application logs. */
+    urls?: string[];
+  };
+  /** Exact CloudFormation target observed with the credentials the deploy command will use. */
+  deployTarget?:
+    | {
+        status: 'absent';
+        accountId: string;
+        stackName: string;
+        projectName: string;
+        stage: string;
+        region: string;
+      }
+    | {
+        status: 'updateable';
+        accountId: string;
+        stackName: string;
+        projectName: string;
+        stage: string;
+        region: string;
+        stackId: string;
+        stackStatus: string;
+        createdAt?: string;
+        updatedAt?: string;
+      }
+    | {
+        status: 'blocked';
+        accountId: string;
+        stackName: string;
+        projectName: string;
+        stage: string;
+        region: string;
+        reason: 'foreign-stack' | 'identity-mismatch' | 'unsafe-status' | 'incomplete-stack-data';
+        stackId?: string;
+        stackStatus?: string;
+      }
+    | { status: 'unverified'; stackName: string; stage: string; region: string; detail: string };
+  /**
+   * The local try-out of the composed services, once one has been asked for.
+   *
+   * `dismissed` keeps the last results visible while removing their hold on the deploy button.
+   * Absent until the user clicks — running their code is a permission the page never assumes.
+   */
+  verification?: {
+    status: 'running' | 'repairing' | 'completed' | 'unavailable' | 'dismissed';
+    services?: Array<{
+      serviceName: string;
+      resourceName: string;
+      status: 'passed' | 'failed' | 'inconclusive' | 'skipped';
+      reason: string;
+      observations: {
+        listeningPorts: number[];
+        dialedDependency: boolean;
+        missingEnvironmentVariables: string[];
+        logTail: string[];
+      };
+    }>;
   };
   timeline: Array<{ kind: string; label: string }>;
-  facts?: { services: WizardService[]; dependencies: WizardDependency[]; decisions: WizardDecision[] };
+  facts?: {
+    services: WizardService[];
+    dependencies: WizardDependency[];
+    existingDeployments: WizardExistingDeployment[];
+    decisions: WizardDecision[];
+  };
   composition?: {
     resources: Record<string, { type: string; properties: Record<string, unknown> }>;
     provenance: Record<string, { reason: string; evidence: Array<{ file: string; line: number; quote: string }> }>;
@@ -113,6 +188,8 @@ export type WizardState = {
      * without it rather than waiting for it.
      */
     price?: { monthly: string; byResource: Record<string, string>; region: string };
+    /** The real monthly figure per size, as each estimate lands, so the size cards can compare. */
+    modePrices?: Partial<Record<InfrastructureMode, string>>;
     /**
      * The configuration file exactly as saving it will write it.
      *
@@ -144,12 +221,25 @@ export type Session = {
   /** Write the configuration to the repository, in the format chosen on the Review step. */
   write: (format: 'yaml' | 'typescript') => Promise<WizardState>;
   /** Deploy it. The only thing in this wizard that creates anything outside the repository. */
-  deploy: (stage: string, region: string) => Promise<WizardState>;
+  deploy: (
+    stage: string,
+    region: string,
+    expected: { kind: 'check' | 'create' } | { kind: 'update'; stackId: string }
+  ) => Promise<WizardState>;
+  /** Try the composed services on this machine. The click is the consent to run the project's code. */
+  verify: () => Promise<WizardState>;
+  /** Set a verification result aside: it stays visible, but stops holding the deploy button. */
+  dismissVerification: () => Promise<WizardState>;
   /** Write a deployment pipeline for the project's git host. */
   pipeline: (stage: string, region: string) => Promise<WizardState>;
+  /** Re-check AWS credentials and the Stacktape sign-in, after the user fixed one in a terminal. */
+  recheck: () => Promise<WizardState>;
   answer: (questionId: string, value: string) => Promise<WizardState>;
-  /** Calls back on every server-pushed update. Returns a function that stops listening. */
-  subscribe: (onState: (state: WizardState) => void) => () => void;
+  /** Calls back on every server-pushed update and connection transition. */
+  subscribe: (
+    onState: (state: WizardState) => void,
+    onConnectionState?: (state: 'connected' | 'reconnecting') => void
+  ) => () => void;
 };
 
 export const connect = async (): Promise<Session> => {
@@ -223,17 +313,41 @@ export const connect = async (): Promise<Session> => {
       publish((await wrote.json()) as WizardState);
       return current;
     },
-    deploy: async (stage, region) => {
+    deploy: async (stage, region, expected) => {
       const deploying = await fetch('/api/deploy', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-        body: JSON.stringify({ stage, region })
+        body: JSON.stringify({ stage, region, expected })
       });
       if (!deploying.ok) {
         const problem = (await deploying.json().catch(() => ({}))) as { error?: string };
         throw new SessionError(problem.error ?? 'The deploy could not be started.');
       }
       publish((await deploying.json()) as WizardState);
+      return current;
+    },
+    verify: async () => {
+      const verifying = await fetch('/api/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+        body: '{}'
+      });
+      if (!verifying.ok) {
+        throw new SessionError('The local try-out could not be started.');
+      }
+      publish((await verifying.json()) as WizardState);
+      return current;
+    },
+    dismissVerification: async () => {
+      const dismissed = await fetch('/api/verify/dismiss', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+        body: '{}'
+      });
+      if (!dismissed.ok) {
+        throw new SessionError('Could not set the result aside.');
+      }
+      publish((await dismissed.json()) as WizardState);
       return current;
     },
     pipeline: async (stage, region) => {
@@ -260,6 +374,18 @@ export const connect = async (): Promise<Session> => {
       publish((await changed.json()) as WizardState);
       return current;
     },
+    recheck: async () => {
+      const checked = await fetch('/api/recheck', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+        body: '{}'
+      });
+      if (!checked.ok) {
+        throw new SessionError('Could not re-check the sign-ins.');
+      }
+      publish((await checked.json()) as WizardState);
+      return current;
+    },
     answer: async (questionId, value) => {
       const answered = await fetch('/api/answer', {
         method: 'POST',
@@ -275,11 +401,15 @@ export const connect = async (): Promise<Session> => {
       // caller should be told what the page is showing rather than what this request happened to see.
       return current;
     },
-    subscribe: (onState) => {
+    subscribe: (onState, onConnectionState) => {
       listeners.add(onState);
       // One EventSource per subscriber is wasteful, but a wizard has one subscriber and the
       // alternative is a shared connection with its own lifecycle to get wrong.
       const stream = new EventSource('/api/events');
+      stream.addEventListener('open', () => onConnectionState?.('connected'));
+      // EventSource retries automatically. Naming that state prevents a dead CLI or broken tunnel
+      // from looking like a long operation whose progress simply stopped.
+      stream.addEventListener('error', () => onConnectionState?.('reconnecting'));
       // Sent when the bundle on disk changes, so working on the wizard does not mean restarting the
       // CLI and losing the session to see a style change.
       stream.addEventListener('reload', () => window.location.reload());

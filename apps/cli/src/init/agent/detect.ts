@@ -17,6 +17,7 @@
 
 import { terminateChild } from '../terminate-child';
 import { spawn } from 'node:child_process';
+import { extname } from 'node:path';
 import type { AgentProviderId } from './transport';
 
 export type AgentCapabilities = {
@@ -89,19 +90,38 @@ const PROVIDERS: ReadonlyArray<{
 
 const VERSION_TIMEOUT_MS = 5_000;
 
-/**
- * Run `<executable> --version` and return its first line, or undefined if it is not installed.
- *
- * `shell: true` on Windows because agent CLIs are installed as `.cmd` shims that `spawn` will not
- * find otherwise — a detail that silently reports every agent as missing if you skip it.
- */
-const probeVersion = async (executable: string, args: readonly string[]): Promise<string | undefined> =>
-  new Promise((resolveVersion) => {
+/** Resolve the actual Windows launcher so native `.exe` installs do not need a quoting shell. */
+const resolveExecutable = async (executable: string): Promise<string> => {
+  if (process.platform !== 'win32') return executable;
+  return new Promise((resolveExecutablePath) => {
+    const child = spawn('where.exe', [executable], { stdio: ['ignore', 'pipe', 'ignore'] });
+    let output = '';
+    child.stdout?.on('data', (chunk: Buffer) => {
+      output += chunk.toString();
+    });
+    child.on('error', () => resolveExecutablePath(executable));
+    child.on('close', (code) => {
+      const first = output.split(/\r?\n/).find((line) => line.trim() !== '');
+      resolveExecutablePath(code === 0 && first !== undefined ? first.trim() : executable);
+    });
+  });
+};
+
+/** Run `<executable> --version` and return both its resolved path and first output line. */
+const probeVersion = async (
+  executableName: string,
+  args: readonly string[]
+): Promise<{ executable: string; version: string } | undefined> => {
+  const executable = await resolveExecutable(executableName);
+  return new Promise((resolveVersion) => {
+    const extension = extname(executable).toLowerCase();
+    const needsShell =
+      process.platform === 'win32' && (extension === '' || extension === '.cmd' || extension === '.bat');
     let child: ReturnType<typeof spawn>;
     try {
       child = spawn(executable, [...args], {
         stdio: ['ignore', 'pipe', 'ignore'],
-        ...(process.platform === 'win32' ? { shell: true } : {})
+        ...(needsShell ? { shell: true } : {})
       });
     } catch {
       resolveVersion(undefined);
@@ -110,7 +130,7 @@ const probeVersion = async (executable: string, args: readonly string[]): Promis
 
     let output = '';
     let settled = false;
-    const settle = (value: string | undefined) => {
+    const settle = (value: { executable: string; version: string } | undefined) => {
       if (settled) return;
       settled = true;
       clearTimeout(timer);
@@ -129,9 +149,10 @@ const probeVersion = async (executable: string, args: readonly string[]): Promis
     child.on('error', () => settle(undefined));
     child.on('close', (code) => {
       const firstLine = output.split(/\r?\n/).find((line) => line.trim() !== '');
-      settle(code === 0 && firstLine !== undefined ? firstLine.trim() : undefined);
+      settle(code === 0 && firstLine !== undefined ? { executable, version: firstLine.trim() } : undefined);
     });
   });
+};
 
 /**
  * Find every installed agent, probed concurrently.
@@ -142,13 +163,13 @@ const probeVersion = async (executable: string, args: readonly string[]): Promis
 export const detectAgents = async (): Promise<DetectedAgent[]> => {
   const results = await Promise.all(
     PROVIDERS.map(async (provider): Promise<DetectedAgent | undefined> => {
-      const version = await probeVersion(provider.executable, provider.versionArgs);
-      return version === undefined
+      const detected = await probeVersion(provider.executable, provider.versionArgs);
+      return detected === undefined
         ? undefined
         : {
             id: provider.id,
-            executable: provider.executable,
-            version,
+            executable: detected.executable,
+            version: detected.version,
             capabilities: provider.capabilities
           };
     })

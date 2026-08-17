@@ -90,7 +90,9 @@ const promptAndCreateUserInputSecrets = async (secrets: [string, Set<string>][])
  *   The user is prompted to enter the value interactively. In non-interactive mode,
  *   deployment is aborted with a hint to use `secret:set`.
  */
-export const ensureMissingSecretsCreated = async () => {
+export const ensureMissingSecretsCreated = async ({
+  generatedSecretDescription
+}: { generatedSecretDescription?: string } = {}) => {
   const secretRefs = configManager.allSecretReferencesUsedInConfig;
   if (!secretRefs.size) {
     return;
@@ -163,7 +165,11 @@ export const ensureMissingSecretsCreated = async () => {
     const spinner = tuiManager.createSpinner({ text: `Creating ${autoGenerable.length} database secret(s)` });
     for (const [secretName, jsonKeys] of autoGenerable) {
       const secretValue = buildSecretValue(jsonKeys);
-      await awsSdkManager.secrets.create({ name: secretName, value: secretValue });
+      await awsSdkManager.secrets.create({
+        name: secretName,
+        value: secretValue,
+        ...(generatedSecretDescription === undefined ? {} : { description: generatedSecretDescription })
+      });
     }
     spinner.success({
       text: `Created ${autoGenerable.length} secret(s): ${autoGenerable.map(([n]) => tuiManager.makeBold(n)).join(', ')}`

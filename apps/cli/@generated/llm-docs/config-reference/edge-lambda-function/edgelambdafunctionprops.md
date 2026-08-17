@@ -19,7 +19,7 @@ type EdgeLambdaFunctionProps = {
   /** Memory in MB. Max depends on event type: viewer events = 128 MB, origin events = 10,240 MB. */
   memory?: number;
   /** Lambda runtime. Auto-detected from file extension. Edge functions support Node.js and Python only. */
-  runtime?: "nodejs18.x" | "nodejs20.x" | "nodejs22.x" | "nodejs24.x" | "python3.10" | "python3.11" | "python3.12" | "python3.13" | "python3.8" | "python3.9";
+  runtime?: "nodejs18.x" | "nodejs20.x" | "nodejs22.x" | "nodejs24.x" | "python3.10" | "python3.11" | "python3.12" | "python3.13" | "python3.14" | "python3.8" | "python3.9";
   /** Max execution time in seconds. Viewer events: max 5s. Origin events: max 30s. */
   timeout?: number;
 };
@@ -341,7 +341,7 @@ export default defineConfig(() => {
 ## Property: `runtime`
 
 - Required: no
-- Type: `string: "nodejs18.x" | "nodejs20.x" | "nodejs22.x" | "nodejs24.x" | "python3.10" | "python3.11" | "python3.12" | "python3.13" | "python3.8" | "python3.9"`
+- Type: `string: "nodejs18.x" | "nodejs20.x" | "nodejs22.x" | "nodejs24.x" | "python3.10" | "python3.11" | "python3.12" | "python3.13" | "python3.14" | "python3.8" | "python3.9"`
 
 Lambda runtime. Auto-detected from file extension. Edge functions support Node.js and Python only.
 

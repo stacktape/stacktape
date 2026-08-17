@@ -112,12 +112,22 @@ const start = async () => {
       arn: 'arn:aws:iam::123456789012:user/fixture',
       region: 'eu-west-1'
     }),
+    stacktapeAccount: async () => ({ signedIn: true, detail: 'Signed in for the local fixture.' }),
     gitHost: 'github',
     writePipeline: async () => ({
       filename: '.github/workflows/deploy.yml',
       host: 'github',
       authSummary: 'Assumes an IAM role through GitHub’s OIDC provider, so no AWS key is stored in your repository.',
       requiredSecrets: [{ name: 'AWS_DEPLOY_ROLE_ARN', description: 'ARN of an IAM role your repository may assume.' }]
+    }),
+    inspectDeployTarget: async ({ stage, region }) => ({
+      schemaVersion: 'stacktape.init-target.v1',
+      status: 'absent',
+      accountId: '123456789012',
+      stackName: `stacktape-init-demo-${stage}`,
+      projectName: 'stacktape-init-demo',
+      stage,
+      region
     }),
     deploy: async ({ onEvent, onCommand }) => {
       onCommand('stacktape deploy --configPath stacktape.yml --stage dev --region eu-west-1');

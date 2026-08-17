@@ -31,7 +31,6 @@ export function ScanStep({ state, startedAt, isDone }: { state: WizardState; sta
     feed.current?.scrollTo({ top: feed.current.scrollHeight });
   }, [state.timeline.length]);
 
-  const lastThought = state.timeline.toReversed().find((entry) => entry.kind === 'thought');
   const filesRead = state.timeline.filter((entry) => entry.kind === 'tool').length;
 
   if (isDone) {
@@ -59,7 +58,11 @@ export function ScanStep({ state, startedAt, isDone }: { state: WizardState; sta
       <div className="flex items-center gap-3">
         <Spinner />
         <div>
-          <p className="m-0 font-medium">{lastThought?.label ?? 'Reading your project…'}</p>
+          {/* House copy only: the agent's own prose never becomes a headline. The feed below shows
+              what it is actually doing. */}
+          <p className="m-0 font-medium">
+            {filesRead === 0 ? 'Reading your project…' : `Reading your project — ${filesRead} files so far`}
+          </p>
           <p className="m-0 text-[0.85rem] text-[var(--stp-text-subtle)]">
             {elapsed < 1 ? 'Just started' : `${elapsed}s`} · everything happens on this machine
           </p>

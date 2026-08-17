@@ -13,8 +13,10 @@
 import { watch, type FSWatcher } from 'node:fs';
 import { readFile } from 'node:fs/promises';
 import { createServer, type IncomingMessage, type Server, type ServerResponse } from 'node:http';
+import type { ServicePreflightResult } from '../preflight/preflight';
 import { AddressInfo, type Socket } from 'node:net';
 import { extname, join, normalize } from 'node:path';
+import type { DeployTargetObservation } from '../deploy/stack-expectation';
 import {
   createSessionSecrets,
   isSameOrigin,
@@ -74,12 +76,30 @@ export type WizardDeployment = {
    * One entry per failed attempt the agent was asked to explain.
    *
    * `applied: false` means it had nothing to change, which is why the deploy stopped rather than
-   * trying again — the same configuration would fail the same way.
+   * trying again — the same configuration would fail the same way. `changedResources` names what a
+   * repair rewrote, computed by diffing the compositions — never the agent's own words — so the page
+   * can say what was deployed the second time differs from what was reviewed, and where.
    */
-  repairs?: Array<{ attempt: number; applied: boolean }>;
+  repairs?: Array<{ attempt: number; applied: boolean; changedResources?: string[] }>;
+  /**
+   * Whether a failed deploy left its progress standing rather than rolling back.
+   *
+   * True only for a retry over an existing stack, where keeping the database that took eight
+   * minutes is the point. The page must say so: resources that exist are resources that bill.
+   */
+  keptPartialProgress?: boolean;
+  /** Typed deployed-resource URLs resolved after success; never scraped from repository output. */
+  urls?: string[];
 };
 
 /** What the page renders. Serialised as-is, so nothing here may contain a secret. */
+export type WizardVerification = {
+  /** `repairing` means it failed here and the agent is working out what we got wrong — locally. */
+  status: 'running' | 'repairing' | 'completed' | 'unavailable' | 'dismissed';
+  /** Per-service outcomes, once there are any. Shape owned by the preflight engine. */
+  services?: ServicePreflightResult[];
+};
+
 export type WizardState = {
   /**
    * Increments on every publish. Assigned by the server; callers never set it.
@@ -131,6 +151,18 @@ export type WizardState = {
   };
   /** The deploy, once one has been asked for. */
   deployment?: WizardDeployment;
+  /** Exact target observed with the credential/account resolver the deploy child will use. */
+  deployTarget?:
+    | DeployTargetObservation
+    | { status: 'unverified'; stackName: string; stage: string; region: string; detail: string };
+  /**
+   * The local try-out of the composed services, once the user has asked for one.
+   *
+   * Never present before they ask: running repository code is a permission, and the request that
+   * grants it is the click itself. `dismissed` keeps the last results visible while removing their
+   * hold on the deploy button — the user has seen them and decided to proceed anyway.
+   */
+  verification?: WizardVerification;
   /** Normalised agent timeline, newest last. */
   timeline: Array<{ kind: string; label: string }>;
   facts?: unknown;
@@ -166,9 +198,29 @@ export type WizardServerHooks = {
   /** Called when the user asks for the configuration to be written, in the format they chose. */
   onWrite: (format: 'yaml' | 'typescript') => Promise<void> | void;
   /** Called when the user asks to deploy. Publishes for itself, like `onStart`. */
-  onDeploy: (input: { stage: string; region: string }) => Promise<void> | void;
+  onDeploy: (input: {
+    stage: string;
+    region: string;
+    expected: { kind: 'check' | 'create' } | { kind: 'update'; stackId: string };
+  }) => Promise<void> | void;
+  /**
+   * Called when the user consents to trying the composed services on this machine.
+   *
+   * The click is the consent: nothing runs repository code before it. Publishes for itself, like
+   * `onDeploy` — a build takes long enough that the answer arrives over the event stream.
+   */
+  onVerify: () => Promise<void> | void;
+  /** Called when the user sets a verification result aside. Returns the state to broadcast. */
+  onVerifyDismiss: () => Promise<WizardState> | WizardState;
   /** Called when the user asks for a deployment pipeline for their git host. */
   onPipeline: (input: { stage: string; region: string }) => Promise<void> | void;
+  /**
+   * Called when the user has just signed in somewhere and wants the page to notice.
+   *
+   * Re-resolves the AWS identity and the Stacktape account. Exists so that "run stacktape login,
+   * then come back" ends with a button rather than with reloading the page and hoping.
+   */
+  onRecheck: () => Promise<WizardState> | WizardState;
 };
 
 const json = (response: ServerResponse, status: number, body: unknown, extraHeaders: Record<string, string> = {}) => {
@@ -282,7 +334,9 @@ export const startWizardServer = async ({
     streams.size > 0 ||
     state.phase === 'analysing' ||
     state.deployment?.status === 'running' ||
-    state.deployment?.status === 'repairing';
+    state.deployment?.status === 'repairing' ||
+    state.verification?.status === 'running' ||
+    state.verification?.status === 'repairing';
 
   const resetIdleTimer = () => {
     if (idleTimer) clearTimeout(idleTimer);
@@ -515,6 +569,19 @@ export const startWizardServer = async ({
         return;
       }
 
+      if (url.pathname === '/api/recheck' && request.method === 'POST') {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          json(response, 200, await hooks.onRecheck());
+        } catch (error) {
+          json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
+        }
+        return;
+      }
+
       // Writing to the user's repository. Same gate as everything else that changes something, and
       // the format is checked here rather than trusted, because it decides a filename.
       if (url.pathname === '/api/write' && request.method === 'POST') {
@@ -544,7 +611,11 @@ export const startWizardServer = async ({
           return;
         }
         try {
-          const body = JSON.parse(await readBody(request)) as { stage?: unknown; region?: unknown };
+          const body = JSON.parse(await readBody(request)) as {
+            stage?: unknown;
+            region?: unknown;
+            expected?: { kind?: unknown; stackId?: unknown };
+          };
           // Both end up on a command line, so both are checked against the shapes AWS and Stacktape
           // accept rather than passed through as free text.
           if (
@@ -556,7 +627,33 @@ export const startWizardServer = async ({
             json(response, 400, { error: 'Expected a stage of up to 12 lowercase characters and an AWS region.' });
             return;
           }
-          await hooks.onDeploy({ stage: body.stage, region: body.region });
+          const expected = body.expected;
+          if (
+            expected === undefined ||
+            (expected.kind !== 'check' && expected.kind !== 'create' && expected.kind !== 'update')
+          ) {
+            json(response, 400, { error: 'Expected a closed deploy-target confirmation.' });
+            return;
+          }
+          let confirmedExpected: { kind: 'check' | 'create' } | { kind: 'update'; stackId: string };
+          if (expected.kind === 'update') {
+            if (
+              typeof expected.stackId !== 'string' ||
+              expected.stackId.length < 1 ||
+              expected.stackId.length > 2_048
+            ) {
+              json(response, 400, { error: 'Expected the reviewed stack id for an update.' });
+              return;
+            }
+            confirmedExpected = { kind: 'update', stackId: expected.stackId };
+          } else {
+            confirmedExpected = { kind: expected.kind };
+          }
+          await hooks.onDeploy({
+            stage: body.stage,
+            region: body.region,
+            expected: confirmedExpected
+          });
           json(response, 200, state);
         } catch (error) {
           json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
@@ -583,6 +680,36 @@ export const startWizardServer = async ({
             return;
           }
           await hooks.onPipeline({ stage: body.stage, region: body.region });
+          json(response, 200, state);
+        } catch (error) {
+          json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
+        }
+        return;
+      }
+
+      // Consent to run the repository's own code locally. No body: the click is the whole request,
+      // and everything it may touch — the composed services — is already in the session.
+      if (url.pathname === '/api/verify' && request.method === 'POST') {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          await hooks.onVerify();
+          json(response, 200, state);
+        } catch (error) {
+          json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
+        }
+        return;
+      }
+
+      if (url.pathname === '/api/verify/dismiss' && request.method === 'POST') {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          publish(await hooks.onVerifyDismiss());
           json(response, 200, state);
         } catch (error) {
           json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });

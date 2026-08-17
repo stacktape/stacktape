@@ -23,7 +23,8 @@ export function DeployProgress({
   repairs,
   outcome,
   urls,
-  commandLine
+  commandLine,
+  keptPartialProgress
 }: {
   model: DeployModel;
   status: 'running' | 'repairing' | 'succeeded' | 'failed';
@@ -31,7 +32,9 @@ export function DeployProgress({
   urls: string[];
   commandLine: string;
   /** One entry per attempt the agent was asked about, so the failure message can say what happened. */
-  repairs?: Array<{ attempt: number; applied: boolean }>;
+  repairs?: Array<{ attempt: number; applied: boolean; changedResources?: string[] }>;
+  /** The failed attempt left its progress standing — resources that exist are resources that bill. */
+  keptPartialProgress?: boolean;
 }) {
   const [showLog, setShowLog] = useState(false);
   const logRef = useRef<HTMLPreElement>(null);
@@ -40,11 +43,24 @@ export function DeployProgress({
     if (showLog) logRef.current?.scrollTo({ top: logRef.current.scrollHeight });
   }, [model.log.length, showLog]);
 
+  // What the repairs rewrote, by resource name — diffed by the CLI, never the agent's words. Names
+  // let the success and failure messages say *where* the deployed file differs from the reviewed one.
+  const rewritten = [...new Set((repairs ?? []).flatMap((entry) => entry.changedResources ?? []))];
+  const rewrittenLabel =
+    rewritten.length === 0
+      ? 'the configuration'
+      : rewritten.length === 1
+        ? rewritten[0]
+        : `${rewritten.slice(0, -1).join(', ')} and ${rewritten.at(-1)}`;
+  const anyRepairApplied = (repairs ?? []).some((entry) => entry.applied);
+
   return (
     <div className="flex flex-col gap-6">
       {status === 'succeeded' && (
         <Alert tone="success" title="Deployed">
           {urls.length > 0 ? 'Your infrastructure is live.' : (outcome?.message ?? 'Your infrastructure is live.')}
+          {anyRepairApplied &&
+            ` One honest note: after the first attempt failed, we changed ${rewrittenLabel} and tried again — the file in your project is the version that is live now.`}
         </Alert>
       )}
 
@@ -52,7 +68,7 @@ export function DeployProgress({
         <Alert tone="info" title="That did not work. Looking at your code again.">
           {outcome?.message ?? 'The deploy failed.'} A failed deploy tells us something we believed about your project
           is wrong, so the agent is reading it again to find out what. If it finds something, we rewrite the
-          configuration and try once more.
+          configuration, save the file, and try once more — you will see exactly what changed.
         </Alert>
       )}
 
@@ -60,9 +76,12 @@ export function DeployProgress({
         <Alert tone="danger" title="The deploy did not finish">
           {outcome?.message ?? 'Something went wrong.'}
           {repairs !== undefined && repairs.length > 0
-            ? repairs.some((entry) => entry.applied)
-              ? ' We changed the configuration and tried again, and it still did not work.'
+            ? anyRepairApplied
+              ? ` We changed ${rewrittenLabel} and tried again, and it still did not work.`
               : ' We looked at your code again and found nothing to change, so we stopped rather than repeat the same deploy.'
+            : ''}
+          {keptPartialProgress === true
+            ? ' What was created before the failure is still in your account, and it bills until you remove it — the command below under “clean up” takes care of that.'
             : ' Nothing is left half-created: Stacktape rolls a failed deploy back to the last state that worked.'}
         </Alert>
       )}

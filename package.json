@@ -34,6 +34,7 @@
     "release": "pnpm --filter @stacktape/cli run release --channel stable",
     "release:preview": "pnpm --filter @stacktape/cli run release --channel preview",
     "test": "turbo run test",
+    "test:packaging-e2e": "pnpm --filter @stacktape/packaging run test:docker-smoke && pnpm --filter @stacktape/packaging run test:node-lambda-e2e && pnpm --filter @stacktape/packaging run test:web-framework-e2e",
     "test:tools": "node --test scripts/workspace/check-staged-secrets.test.ts scripts/workspace/configure-hooks.test.ts scripts/workspace/verify-console-pointer.test.ts",
     "typecheck": "turbo run typecheck",
     "typecheck:tools": "tsc -p tsconfig.json"

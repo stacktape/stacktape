@@ -12,7 +12,11 @@ const baseState: WizardState = {
 
 /** What the server passed to its hooks, in order. Both reset by each `start()`. */
 let started: Array<{ agentId: string; modelId: string }> = [];
-let deployed: Array<{ stage: string; region: string }> = [];
+let deployed: Array<{
+  stage: string;
+  region: string;
+  expected: { kind: 'check' | 'create' } | { kind: 'update'; stackId: string };
+}> = [];
 
 const start = async (overrides: Partial<Parameters<typeof startWizardServer>[0]> = {}) => {
   started = [];
@@ -29,7 +33,10 @@ const start = async (overrides: Partial<Parameters<typeof startWizardServer>[0]>
       onDeploy: (input) => {
         deployed.push(input);
       },
-      onPipeline: () => {}
+      onVerify: () => {},
+      onVerifyDismiss: () => baseState,
+      onPipeline: () => {},
+      onRecheck: () => baseState
     },
     ...overrides
   });
@@ -312,8 +319,8 @@ describe('deploying', () => {
 
   it('passes a valid stage and region through', async () => {
     const { post } = await opened();
-    expect((await post({ stage: 'dev', region: 'eu-west-1' })).status).toBe(200);
-    expect(deployed).toEqual([{ stage: 'dev', region: 'eu-west-1' }]);
+    expect((await post({ stage: 'dev', region: 'eu-west-1', expected: { kind: 'check' } })).status).toBe(200);
+    expect(deployed).toEqual([{ stage: 'dev', region: 'eu-west-1', expected: { kind: 'check' } }]);
   });
 
   it('refuses anything that is not a stage and a region', async () => {
@@ -331,6 +338,22 @@ describe('deploying', () => {
     const statuses = await Promise.all(rejected.map(async (payload) => (await post(payload)).status));
 
     expect(statuses).toEqual(rejected.map(() => 400));
+    expect(deployed).toEqual([]);
+  });
+
+  it('requires a closed target-confirmation shape', async () => {
+    const { post } = await opened();
+    const rejected = [
+      { stage: 'dev', region: 'eu-west-1' },
+      { stage: 'dev', region: 'eu-west-1', expected: { kind: 'anything' } },
+      { stage: 'dev', region: 'eu-west-1', expected: { kind: 'update' } },
+      { stage: 'dev', region: 'eu-west-1', expected: { kind: 'update', stackId: '' } },
+      { stage: 'dev', region: 'eu-west-1', expected: { kind: 'update', stackId: 'x'.repeat(2_049) } }
+    ];
+
+    expect(await Promise.all(rejected.map(async (payload) => (await post(payload)).status))).toEqual(
+      rejected.map(() => 400)
+    );
     expect(deployed).toEqual([]);
   });
 });
@@ -448,6 +471,18 @@ describe('idle shutdown', () => {
     expect(alive.status).toBe(401);
 
     started.publish({ ...quietState, deployment: { ...running, status: 'succeeded' as const } });
+    expect(await started.whenClosed).toBe('idle');
+  });
+
+  it('stays up while the consented local try-out is running without a page', async () => {
+    const { origin, server: started } = await start({ initialState: quietState, idleTimeoutMs: 50 });
+    started.publish({ ...quietState, verification: { status: 'running' } });
+
+    await new Promise((resolveWait) => setTimeout(resolveWait, 160));
+    const alive = await fetch(`${origin}/api/state`, { headers: { Origin: origin } });
+    expect(alive.status).toBe(401);
+
+    started.publish({ ...quietState, verification: { status: 'unavailable' } });
     expect(await started.whenClosed).toBe('idle');
   });
 });

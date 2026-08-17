@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'bun:test';
-import { buildDeployModel, extractUrls, type DeployEvent } from './deploy-model';
+import { buildDeployModel, type DeployEvent } from './deploy-model';
 
 const event = (overrides: Partial<DeployEvent>): DeployEvent => ({ type: 'event', status: 'started', ...overrides });
 
@@ -76,15 +76,5 @@ describe('the deploy model', () => {
     // Everything is still in the log, including the unparsed output.
     expect(model.log).toContain('Using profile default');
     expect(model.log).toContain('a line straight from stderr');
-  });
-
-  it('finds the endpoints a deploy produced, and ignores the consoles', () => {
-    expect(
-      extractUrls([
-        'Web service URL: https://api-abc.eu-west-1.elb.amazonaws.com',
-        'Open https://console.aws.amazon.com/cloudformation/home to watch',
-        'Docs: https://docs.stacktape.com/deploying'
-      ])
-    ).toEqual(['https://api-abc.eu-west-1.elb.amazonaws.com']);
   });
 });

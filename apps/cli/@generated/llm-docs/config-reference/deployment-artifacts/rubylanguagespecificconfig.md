@@ -5,14 +5,14 @@
 ```typescript
 type RubyLanguageSpecificConfig = {
   /** The version of Ruby to use. */
-  rubyVersion?: 3.2 | 3.3;
+  rubyVersion?: 3.2 | 3.3 | 3.4 | 4;
 };
 ```
 
 ## Property: `rubyVersion`
 
 - Required: no
-- Type: `number: 3.2 | 3.3`
+- Type: `number: 3.2 | 3.3 | 3.4 | 4`
 - Default: `3.3`
 
 The version of Ruby to use.

@@ -51,17 +51,26 @@ export function StartStep({
     <div className="flex flex-col gap-7">
       <ol className="wizard-promises">
         <li>
-          <strong>Your code stays on this machine.</strong> It is read here
-          {agent !== undefined && agent.id !== 'none' ? `, by your own ${agent.label}` : ''} — nothing is uploaded to
-          Stacktape, and no account is needed.
+          {agent !== undefined && agent.id !== 'none' ? (
+            <>
+              <strong>No code is sent to Stacktape.</strong> Your own {agent.label} reads the project right here, under
+              the account you already have with it, with read-only tools — it cannot run scripts or install anything.
+              Prefer that no AI provider receives code? Pick “Files only” under Options.
+            </>
+          ) : (
+            <>
+              <strong>Your code stays on this machine.</strong> The built-in scanner reads your manifests and config
+              files right here — nothing goes to Stacktape or to any AI provider, and no account is needed.
+            </>
+          )}
         </li>
         <li>
-          <strong>Nothing is created and nothing is billed.</strong> The result is one file in your project. AWS only
-          comes into it if you press Deploy at the end, and that step says so before it does anything.
+          <strong>Nothing is created on AWS and nothing is billed.</strong> The result is one file in your project. AWS
+          only comes into it if you press Deploy at the end, and that step says so before it does anything.
         </li>
         <li>
           <strong>You will see everything before you commit to it.</strong> Every piece of infrastructure comes with the
-          line of your own code that made us propose it, what it costs per month, and a way to change it.
+          place in your own code that made us propose it, what it costs per month, and a way to change it.
         </li>
       </ol>
 
@@ -81,7 +90,9 @@ export function StartStep({
           Analyze my project
         </Button>
         <span className="text-[0.9rem] text-[var(--stp-text-subtle)]">
-          {agent === undefined || agent.id === 'none' ? 'Takes a second.' : 'Usually under a minute.'}
+          {agent === undefined || agent.id === 'none'
+            ? 'Takes a second.'
+            : `Usually under a minute, on your own ${agent.label} plan.`}
         </span>
       </div>
 

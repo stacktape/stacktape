@@ -489,7 +489,8 @@ Alternative modes:
       headless: headless.optional(),
       noBrowser: noBrowser.optional(),
       codingAgent: codingAgent.optional(),
-      infrastructureType: infrastructureType.optional()
+      infrastructureType: infrastructureType.optional(),
+      awsAccount: awsAccount.optional()
     },
     requiredArgs: [] as const
   },

@@ -24,10 +24,18 @@ export class AwsSecrets {
     this.#getErrorHandler = getErrorHandler;
   }
 
-  create = ({ name, value }: { name: string; value: string }) => {
+  create = ({
+    name,
+    value,
+    description = 'Created by Stacktape'
+  }: {
+    name: string;
+    value: string;
+    description?: string;
+  }) => {
     const handleError = this.#getErrorHandler('Failed to create secret.');
     return this.#createClient()
-      .send(new CreateSecretCommand({ Description: 'Created by Stacktape', Name: name, SecretString: value }))
+      .send(new CreateSecretCommand({ Description: description, Name: name, SecretString: value }))
       .catch(handleError);
   };
 

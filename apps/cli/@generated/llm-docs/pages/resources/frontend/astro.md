@@ -30,18 +30,34 @@ Example (TypeScript):
 ```typescript
 import { defineConfig, AstroWeb } from 'stacktape';
 export default defineConfig(() => {
-  const site = new AstroWeb({
-    appDirectory: '.'
-  });
+const site = new AstroWeb({
+appDirectory: '.'
+});
 
-  return {
-    resources: { site }
-  };
+return {
+resources: { site }
+};
 });
 ```
 
 
 Use `appDirectory` when `astro.config.mjs` lives outside the default `.` app directory, such as an Astro workspace in a monorepo. Use `buildCommand` only when the project should not run the default Astro build command, for example when a package manager script wraps the build.
+
+Stacktape's Astro resource requires Astro's Node adapter in middleware mode; the default static Astro scaffold does not
+produce the server entrypoint used by the Lambda wrapper. Install `@astrojs/node`, then configure the app itself:
+
+```js title="astro.config.mjs"
+import node from "@astrojs/node";
+import { defineConfig } from "astro/config";
+
+export default defineConfig({
+  output: "server",
+  adapter: node({ mode: "middleware" }),
+});
+```
+
+Packaging fails early with an actionable error when the adapter is not declared, instead of producing an unusable
+Lambda artifact. Static Astro projects should use the hosting-bucket path described above.
 
 ## Project directory
 
@@ -59,7 +75,7 @@ export default defineConfig(() => {
     buildCommand: 'pnpm build'
   });
 
-  return { resources: { site } };
+return { resources: { site } };
 });
 ```
 
@@ -84,7 +100,7 @@ export default defineConfig(() => {
     }
   });
 
-  return { resources: { site } };
+return { resources: { site } };
 });
 ```
 
@@ -112,7 +128,7 @@ export default defineConfig(() => {
     ]
   });
 
-  return { resources: { site } };
+return { resources: { site } };
 });
 ```
 
@@ -136,11 +152,11 @@ export default defineConfig(() => {
     scope: 'cdn'
   });
 
-  const site = new AstroWeb({
-    useFirewall: 'firewall'
-  });
+const site = new AstroWeb({
+useFirewall: 'firewall'
+});
 
-  return { resources: { firewall, site } };
+return { resources: { firewall, site } };
 });
 ```
 
@@ -160,12 +176,12 @@ import { defineConfig, AstroWeb, Bucket } from 'stacktape';
 export default defineConfig(() => {
   const mediaBucket = new Bucket({});
 
-  const site = new AstroWeb({
-    connectTo: ['mediaBucket'],
-    environment: [{ name: 'PUBLIC_SITE_NAME', value: 'Docs Portal' }]
-  });
+const site = new AstroWeb({
+connectTo: ['mediaBucket'],
+environment: [{ name: 'PUBLIC_SITE_NAME', value: 'Docs Portal' }]
+});
 
-  return { resources: { mediaBucket, site } };
+return { resources: { mediaBucket, site } };
 });
 ```
 
@@ -193,7 +209,7 @@ export default defineConfig(() => {
     }
   });
 
-  return { resources: { site } };
+return { resources: { site } };
 });
 ```
 

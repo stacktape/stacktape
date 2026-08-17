@@ -16,7 +16,15 @@ import { spawn, type ChildProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { basename, join, resolve } from 'node:path';
 import type { JsonlEvent } from '@application-services/tui-manager/output/jsonl-types';
+import { getStackName } from '@stacktape/naming/stacks';
 import { terminateChild } from '../terminate-child';
+import {
+  INIT_TARGET_CHECK_ENV,
+  INIT_TARGET_EXPECTATION_ENV,
+  INIT_TARGET_SCHEMA_VERSION,
+  type DeployTargetExpectation,
+  type DeployTargetObservation
+} from './stack-expectation';
 
 export type DeployRequest = {
   /** Directory holding the configuration. The child runs here, so relative paths resolve. */
@@ -27,6 +35,8 @@ export type DeployRequest = {
   projectName: string;
   /** Named AWS profile, when the user picked one rather than using the ambient credentials. */
   profile?: string;
+  /** Connected Stacktape AWS account name, when more than one account is available. */
+  awsAccount?: string;
   /**
    * Leave whatever was created in place if this attempt fails.
    *
@@ -36,6 +46,8 @@ export type DeployRequest = {
    * which nothing can update, so keeping it there only forces a manual rollback first.
    */
   keepPartialProgress?: boolean;
+  /** Exact create/update consent, rechecked by the child after it loads deploy credentials. */
+  targetExpectation?: DeployTargetExpectation;
 };
 
 export type DeployHandle = {
@@ -43,6 +55,10 @@ export type DeployHandle = {
   finished: Promise<number>;
   /** Stops the deploy. CloudFormation keeps going; this only stops watching and reporting. */
   cancel: () => void;
+};
+
+type ResourceUrlRequest = Pick<DeployRequest, 'projectName' | 'stage' | 'region' | 'profile' | 'awsAccount'> & {
+  resourceName: string;
 };
 
 /**
@@ -87,6 +103,7 @@ export const deployArgs = (request: DeployRequest): string[] => [
   '--projectName',
   request.projectName,
   ...(request.profile === undefined ? [] : ['--profile', request.profile]),
+  ...(request.awsAccount === undefined ? [] : ['--awsAccount', request.awsAccount]),
   ...(request.keepPartialProgress === true ? ['--disableAutoRollback'] : []),
   // Agent mode is the machine-readable contract: JSONL on stdout, and no interactive confirmation
   // to answer — the user already confirmed by pressing the button.
@@ -111,10 +128,209 @@ export const deployCommandLine = (request: DeployRequest): string =>
     request.region,
     '--projectName',
     request.projectName,
-    ...(request.profile === undefined ? [] : ['--profile', request.profile])
+    ...(request.profile === undefined ? [] : ['--profile', request.profile]),
+    ...(request.awsAccount === undefined ? [] : ['--awsAccount', request.awsAccount])
   ]
     .map((part) => (part.includes(' ') ? `"${part}"` : part))
     .join(' ');
+
+/**
+ * Read one typed resource URL after a successful deploy.
+ *
+ * The wizard used to scrape URL-looking strings from raw build output. Repository-controlled output
+ * can print any URL it likes, so that turns “Live now” into a phishing surface. `param:get` resolves
+ * the deployed stack's typed `url` parameter instead, under the same exact stack target.
+ */
+export const readResourceUrl = async ({
+  request,
+  spawnChild = spawn,
+  timeoutMs = 30_000,
+  terminate = terminateChild
+}: {
+  request: ResourceUrlRequest;
+  spawnChild?: typeof spawn;
+  /** Keeps a post-deploy convenience lookup from holding a successful wizard open forever. */
+  timeoutMs?: number;
+  terminate?: (child: ChildProcess) => void;
+}): Promise<string | undefined> => {
+  const self = resolveSelfCommand();
+  const child = spawnChild(
+    self.command,
+    [
+      ...self.args,
+      'param:get',
+      '--projectName',
+      request.projectName,
+      '--stage',
+      request.stage,
+      '--region',
+      request.region,
+      '--resourceName',
+      request.resourceName,
+      '--paramName',
+      'url',
+      ...(request.profile === undefined ? [] : ['--profile', request.profile]),
+      ...(request.awsAccount === undefined ? [] : ['--awsAccount', request.awsAccount]),
+      '--agent'
+    ],
+    {
+      stdio: ['ignore', 'pipe', 'ignore'],
+      env: { ...process.env, STACKTAPE_INIT_MCP: '', FORCE_COLOR: '0' },
+      ...(process.platform === 'win32' && !self.command.includes('\\') ? { shell: true } : {})
+    }
+  );
+
+  let output = '';
+  child.stdout?.on('data', (chunk: Buffer) => {
+    // A param result is tiny. Bound unexpected output so a broken child cannot grow this session.
+    output = `${output}${chunk.toString('utf8')}`.slice(-64_000);
+  });
+
+  const exitCode = await new Promise<number>((resolveFinished) => {
+    let settled = false;
+    const finish = (code: number) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      resolveFinished(code);
+    };
+    const timeout = setTimeout(() => {
+      terminate(child);
+      finish(1);
+    }, timeoutMs);
+    child.on('error', () => finish(1));
+    child.on('close', (code) => finish(code ?? 1));
+  });
+  if (exitCode !== 0) return undefined;
+
+  const terminalResults: Array<{ ok?: unknown; data?: { result?: unknown } }> = [];
+  for (const line of output.split(/\r?\n/)) {
+    try {
+      const event = JSON.parse(line) as { type?: unknown; ok?: unknown; data?: { result?: unknown } };
+      if (event.type === 'result') terminalResults.push(event);
+    } catch {
+      // Not JSONL. Raw child output is untrusted and never becomes a URL.
+    }
+  }
+  if (terminalResults.length !== 1) return undefined;
+  const terminal = terminalResults[0]!;
+  if (terminal.ok !== true || typeof terminal.data?.result !== 'string') return undefined;
+  try {
+    const url = new URL(terminal.data.result);
+    return url.protocol === 'https:' ? url.toString() : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const isDeployTargetObservation = (value: unknown): value is DeployTargetObservation => {
+  if (typeof value !== 'object' || value === null) return false;
+  const candidate = value as Partial<DeployTargetObservation>;
+  const common =
+    candidate.schemaVersion === INIT_TARGET_SCHEMA_VERSION &&
+    typeof candidate.accountId === 'string' &&
+    typeof candidate.stackName === 'string' &&
+    typeof candidate.projectName === 'string' &&
+    typeof candidate.stage === 'string' &&
+    typeof candidate.region === 'string';
+  if (!common) return false;
+  if (candidate.status === 'absent') return true;
+  if (candidate.status === 'updateable') {
+    return typeof candidate.stackId === 'string' && typeof candidate.stackStatus === 'string';
+  }
+  if (candidate.status === 'blocked') {
+    return (
+      candidate.reason === 'foreign-stack' ||
+      candidate.reason === 'identity-mismatch' ||
+      candidate.reason === 'unsafe-status' ||
+      candidate.reason === 'incomplete-stack-data'
+    );
+  }
+  return false;
+};
+
+/**
+ * Inspect the target in a short-lived deploy child.
+ *
+ * This deliberately does not use the init process's ambient AWS SDK. The deploy command may select
+ * Console-issued credentials, an organization account, or persisted profile defaults; only the
+ * child can authoritatively say which account it will mutate.
+ */
+export const inspectDeployTarget = async ({
+  request,
+  spawnChild = spawn,
+  timeoutMs = 30_000,
+  terminate = terminateChild,
+  signal
+}: {
+  request: DeployRequest;
+  spawnChild?: typeof spawn;
+  timeoutMs?: number;
+  terminate?: (child: ChildProcess) => void;
+  signal?: AbortSignal;
+}): Promise<DeployTargetObservation | undefined> => {
+  const self = resolveSelfCommand();
+  const child = spawnChild(self.command, [...self.args, ...deployArgs({ ...request, keepPartialProgress: false })], {
+    stdio: ['ignore', 'pipe', 'ignore'],
+    env: {
+      ...process.env,
+      STACKTAPE_INIT_MCP: '',
+      [INIT_TARGET_CHECK_ENV]: '1',
+      [INIT_TARGET_EXPECTATION_ENV]: '',
+      FORCE_COLOR: '0'
+    },
+    ...(process.platform === 'win32' && !self.command.includes('\\') ? { shell: true } : {})
+  });
+
+  let output = '';
+  child.stdout?.on('data', (chunk: Buffer) => {
+    output = `${output}${chunk.toString('utf8')}`.slice(-128_000);
+  });
+  const exitCode = await new Promise<number>((resolveFinished) => {
+    let settled = false;
+    let timeout: ReturnType<typeof setTimeout> | undefined;
+    const abort = () => {
+      terminate(child);
+      finish(1);
+    };
+    const finish = (code: number) => {
+      if (settled) return;
+      settled = true;
+      if (timeout !== undefined) clearTimeout(timeout);
+      signal?.removeEventListener('abort', abort);
+      resolveFinished(code);
+    };
+    timeout = setTimeout(() => {
+      terminate(child);
+      finish(1);
+    }, timeoutMs);
+    child.on('error', () => finish(1));
+    child.on('close', (code) => finish(code ?? 1));
+    if (signal?.aborted === true) abort();
+    else signal?.addEventListener('abort', abort, { once: true });
+  });
+  if (exitCode !== 0) return undefined;
+
+  const terminalResults: Array<{ ok?: unknown; data?: { result?: unknown } }> = [];
+  for (const line of output.split(/\r?\n/)) {
+    try {
+      const event = JSON.parse(line) as { type?: unknown; ok?: unknown; data?: { result?: unknown } };
+      if (event.type === 'result') terminalResults.push(event);
+    } catch {
+      // Only a singular typed terminal result is authoritative.
+    }
+  }
+  if (terminalResults.length !== 1) return undefined;
+  const terminal = terminalResults[0]!;
+  if (terminal.ok !== true || !isDeployTargetObservation(terminal.data?.result)) return undefined;
+  const observed = terminal.data.result;
+  return observed.projectName === request.projectName &&
+    observed.stage === request.stage &&
+    observed.region === request.region &&
+    observed.stackName === getStackName(request.projectName, request.stage)
+    ? observed
+    : undefined;
+};
 
 /**
  * Start a deploy and report everything it emits.
@@ -140,7 +356,14 @@ export const startDeploy = ({
   // this makes no difference; in development it is the difference between running and not.
   const child: ChildProcess = spawnChild(self.command, [...self.args, ...deployArgs(request)], {
     stdio: ['ignore', 'pipe', 'pipe'],
-    env: { ...process.env, STACKTAPE_INIT_MCP: '', FORCE_COLOR: '0' },
+    env: {
+      ...process.env,
+      STACKTAPE_INIT_MCP: '',
+      [INIT_TARGET_CHECK_ENV]: '',
+      [INIT_TARGET_EXPECTATION_ENV]:
+        request.targetExpectation === undefined ? '' : JSON.stringify(request.targetExpectation),
+      FORCE_COLOR: '0'
+    },
     // Agent CLIs on Windows are `.cmd` shims; the same is true of `stacktape` from PATH.
     ...(process.platform === 'win32' && !self.command.includes('\\') ? { shell: true } : {})
   });

@@ -126,7 +126,7 @@ describe('tools run for real in the child rather than being acknowledged', () =>
           language: 'javascript',
           exposesHttp: true,
           executionModel: 'long-running',
-          startCommand: 'node src/index.ts',
+          containerEntrypoint: 'src/index.ts',
           evidence: [{ file: 'src/index.ts', line: 1, quote: 'app.listen(4000);' }]
         }
       ]

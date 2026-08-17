@@ -1,0 +1,11 @@
+{
+  "name": "express-postgres-migration",
+  "private": true,
+  "scripts": {
+    "start": "node src/index.js"
+  },
+  "dependencies": {
+    "express": "4.21.2",
+    "pg": "8.16.3"
+  }
+}

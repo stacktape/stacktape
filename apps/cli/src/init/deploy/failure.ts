@@ -39,7 +39,7 @@ export type DeployFailure = {
  * Matched against the result code and, failing that, the message. Being wrong in this direction
  * costs a retry; being wrong in the other direction sends an agent to fix a permissions problem.
  */
-const UNFIXABLE_PATTERNS: readonly RegExp[] = [
+const ACCOUNT_PATTERNS: readonly RegExp[] = [
   // AWS phrases this several ways — "The security token included in the request is expired" puts
   // the two words either side of the noun, so matching them adjacently misses the common case.
   /credential|security token|token.*expired|expired.*token/i,
@@ -48,10 +48,16 @@ const UNFIXABLE_PATTERNS: readonly RegExp[] = [
   /api key|not logged in|not signed in|stacktape login/i,
   /quota|limit exceeded|too many|throttl/i,
   /\bsecret\b.*\b(not set|missing|does not exist)\b/i,
-  /insufficient permissions|assume role/i,
-  // The user cancelled, or we did.
-  /cancelled|canceled|aborted|interrupt/i
+  /insufficient permissions|assume role/i
 ];
+
+/**
+ * The user cancelled, or we did. Matched only against the outcome and error lines: build and
+ * container output is arbitrary application text, and a bundler printing "aborted" is not a
+ * cancellation — treating it as one suppresses a legitimate repair.
+ */
+const CANCELLATION_PATTERN = /cancelled|canceled|aborted|interrupt/i;
+const NEVER_REPAIR_CODES: ReadonlySet<string> = new Set(['INIT_STACK_EXPECTATION_MISMATCH']);
 
 const MAX_ERRORS = 12;
 const MAX_OUTPUT = 40;
@@ -97,14 +103,25 @@ export const summariseFailure = ({
   // at the end, and this list is truncated from the front.
   output.push(...lines);
 
-  const haystack = [outcome.message, ...errors].join('\n');
-  const worthRetrying = !UNFIXABLE_PATTERNS.some((pattern) => pattern.test(haystack));
+  const keptErrors = errors.slice(-MAX_ERRORS);
+  const keptOutput = output.slice(-MAX_OUTPUT);
+
+  // Account-level failures land in build output as often as in the outcome line — an SDK printing
+  // an expired credential to stdout must not send the agent hunting for a repository fact that
+  // does not exist. So those patterns scan everything we keep, while cancellation stays scoped to
+  // the outcome and errors.
+  const narrow = [outcome.message, ...keptErrors].join('\n');
+  const broad = [narrow, ...keptOutput].join('\n');
+  const worthRetrying =
+    !NEVER_REPAIR_CODES.has(outcome.code) &&
+    !ACCOUNT_PATTERNS.some((pattern) => pattern.test(broad)) &&
+    !CANCELLATION_PATTERN.test(narrow);
 
   return {
     code: outcome.code,
     message: outcome.message,
-    errors: errors.slice(-MAX_ERRORS),
-    output: output.slice(-MAX_OUTPUT),
+    errors: keptErrors,
+    output: keptOutput,
     failedResources: [...failedResources],
     worthRetrying
   };

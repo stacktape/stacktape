@@ -3,6 +3,8 @@
 ## TypeScript definition
 
 ```typescript
+import type { SupportedPythonVersion } from 'stacktape';
+
 type PyLanguageSpecificConfig = {
   /** Minify Python code to reduce package size. Makes production stack traces harder to read. */
   minify?: boolean;
@@ -11,7 +13,7 @@ type PyLanguageSpecificConfig = {
   /** The path to your project's dependency file. */
   packageManagerFile?: string;
   /** The Python version the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */
-  pythonVersion?: 2.7 | 3.11 | 3.12 | 3.13 | 3.14 | 3.6 | 3.7 | 3.8 | 3.9;
+  pythonVersion?: SupportedPythonVersion;
   /** Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette). */
   runAppAs?: "ASGI" | "WSGI";
   /** Only include these dependency groups from `pyproject.toml`. */
@@ -128,7 +130,8 @@ export default defineConfig(() => {
 
 The path to your project's dependency file.
 
-This can be a `requirements.txt`, `Pipfile`, or `pyproject.toml` file.
+This can be a `requirements.txt`, `Pipfile`, `pyproject.toml`, or `uv.lock` file. When both
+`pyproject.toml` and `uv.lock` exist, Stacktape uses the lock file by default.
 
 ### Example 1 (yaml)
 
@@ -171,7 +174,7 @@ export default defineConfig(() => {
 ## Property: `pythonVersion`
 
 - Required: no
-- Type: `number: 2.7 | 3.11 | 3.12 | 3.13 | 3.14 | 3.6 | 3.7 | 3.8 | 3.9`
+- Type: `SupportedPythonVersion`
 - Default: `3.12`
 
 The Python version the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value.

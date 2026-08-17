@@ -72,6 +72,42 @@ describe('summarising a failed deploy', () => {
     }
   });
 
+  it('never asks an agent to work around a changed deploy target', () => {
+    expect(
+      summariseFailure({
+        events: [],
+        lines: [],
+        outcome: {
+          ok: false,
+          code: 'INIT_STACK_EXPECTATION_MISMATCH',
+          message: 'A stack now exists where a new stack was approved.'
+        }
+      })?.worthRetrying
+    ).toBe(false);
+  });
+
+  it('catches an account problem that only ever reached the output stream', () => {
+    // The comment in the implementation says the interesting content lands in `output` — an SDK or
+    // build step printing to stdout. The retryability judgement has to read the same stream.
+    const failure = summariseFailure({
+      events: [],
+      lines: ['ExpiredToken: The security token included in the request is expired'],
+      outcome: { ok: false, code: 'DEPLOY_FAILED', message: 'Deployment failed' }
+    });
+
+    expect(failure?.worthRetrying).toBe(false);
+  });
+
+  it('does not mistake build output saying "aborted" for a cancellation', () => {
+    const failure = summariseFailure({
+      events: [log('error', 'Container exited with code 1')],
+      lines: ['warning: incremental compilation aborted, falling back to full rebuild'],
+      outcome: { ok: false, code: 'DEPLOY_FAILED', message: 'Deployment failed' }
+    });
+
+    expect(failure?.worthRetrying).toBe(true);
+  });
+
   it('reads as a transcript rather than as a data structure', () => {
     const failure = summariseFailure({
       events: [log('error', 'Container exited with code 1')],

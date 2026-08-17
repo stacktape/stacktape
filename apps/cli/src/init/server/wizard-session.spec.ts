@@ -206,6 +206,34 @@ describe('startWizardSession', () => {
       expect((await post(opened, { agentId: 'claude-code', modelId: 'gpt-9' })).status).toBe(400);
     });
 
+    it('lets a failed analysis be started again from the page', async () => {
+      let attempts = 0;
+      const opened = await openSession(async () => {
+        attempts += 1;
+        if (attempts === 1) throw new Error('The agent crashed.');
+        return resultFor(factsWith({}));
+      });
+
+      const phaseAfter = async (until: (phase: string) => boolean): Promise<string> => {
+        for (let attempt = 0; attempt < 50; attempt += 1) {
+          const state = (await (
+            await fetch(`${opened.origin}/api/state`, { headers: { Origin: opened.origin, Cookie: opened.cookie } })
+          ).json()) as { phase: string };
+          if (until(state.phase)) return state.phase;
+          await new Promise((settle) => setTimeout(settle, 20));
+        }
+        return 'timed-out';
+      };
+
+      await post(opened, { agentId: 'claude-code', modelId: 'default' });
+      expect(await phaseAfter((phase) => phase === 'failed')).toBe('failed');
+
+      // The retry must clear the failure, or the page stays on `failed` forever with a run inside.
+      await post(opened, { agentId: 'claude-code', modelId: 'default' });
+      expect(await phaseAfter((phase) => phase === 'reviewing')).toBe('reviewing');
+      expect(attempts).toBe(2);
+    });
+
     it('starts once, however many times the button is pressed', async () => {
       let runs = 0;
       const opened = await openSession(async () => {
@@ -258,15 +286,17 @@ describe('startWizardSession', () => {
 
     it('streams a deploy to the page and ends with its outcome', async () => {
       let emit: ((event: unknown) => void) | undefined;
-      let settle: ((outcome: { ok: boolean; code: string; message: string }) => void) | undefined;
+      let settle: ((outcome: { ok: boolean; code: string; message: string; urls?: string[] }) => void) | undefined;
+      let requestedUrlResources: string[] = [];
 
       session = await startWizardSession({
         projectName: 'demo',
         result: resultFor(factsWith({})),
         write: async () => ({ path: '/repo/stacktape.yml', filename: 'stacktape.yml' }),
-        deploy: async ({ onEvent, onCommand }) => {
+        deploy: async ({ onEvent, onCommand, urlResourceNames }) => {
           onCommand('stacktape deploy --stage dev');
           emit = onEvent;
+          requestedUrlResources = urlResourceNames;
           return new Promise((resolveDeploy) => {
             settle = resolveDeploy;
           });
@@ -283,14 +313,20 @@ describe('startWizardSession', () => {
       const headers = { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken };
       const readState = async () =>
         (await (await fetch(`${origin}/api/state`, { headers: { Origin: origin, Cookie: cookie } })).json()) as {
-          deployment?: { status: string; events: unknown[]; commandLine: string; outcome?: { ok: boolean } };
+          deployment?: {
+            status: string;
+            events: Array<{ type?: string; data?: unknown }>;
+            commandLine: string;
+            outcome?: { ok: boolean; urls?: string[] };
+            urls?: string[];
+          };
         };
 
       // Nothing to deploy before the configuration is written.
       await fetch(`${origin}/api/deploy`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ stage: 'dev', region: 'eu-west-1' })
+        body: JSON.stringify({ stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } })
       });
       expect((await readState()).deployment).toBeUndefined();
 
@@ -298,24 +334,362 @@ describe('startWizardSession', () => {
       await fetch(`${origin}/api/deploy`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ stage: 'dev', region: 'eu-west-1' })
+        body: JSON.stringify({ stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } })
       });
 
       const running = await readState();
       expect(running.deployment?.status).toBe('running');
       expect(running.deployment?.commandLine).toBe('stacktape deploy --stage dev');
+      expect(requestedUrlResources).toEqual(['api']);
 
       emit!({ type: 'event', phase: 'DEPLOY', message: 'Creating resources' });
+      emit!({ type: 'result', ok: true, code: 'OK', message: 'Done', data: { secret: 'do-not-publish' } });
       // Progress publishing is coalesced, so the page sees this a beat later rather than instantly.
       await new Promise((wait) => setTimeout(wait, 300));
-      expect((await readState()).deployment?.events).toHaveLength(1);
+      const streamed = (await readState()).deployment?.events ?? [];
+      expect(streamed).toHaveLength(2);
+      expect(streamed[1]).toMatchObject({ type: 'result', ok: true, code: 'OK' });
+      expect(streamed[1]?.data).toBeUndefined();
+      expect(JSON.stringify(streamed)).not.toContain('do-not-publish');
 
-      settle!({ ok: true, code: 'OK', message: 'Deployed' });
+      settle!({ ok: true, code: 'OK', message: 'Deployed', urls: ['https://api.example.com/'] });
       await new Promise((wait) => setTimeout(wait, 50));
 
       const finished = await readState();
       expect(finished.deployment?.status).toBe('succeeded');
       expect(finished.deployment?.outcome?.ok).toBe(true);
+      expect(finished.deployment?.outcome?.urls).toBeUndefined();
+      expect(finished.deployment?.urls).toEqual(['https://api.example.com/']);
+    });
+
+    it('checks with deploy credentials, then binds update consent to the exact StackId', async () => {
+      const stackId = 'arn:aws:cloudformation:eu-west-1:123456789012:stack/demo-dev/one';
+      const deployed: Array<{ targetExpectation?: { expected: string; stackId?: string } }> = [];
+      let inspections = 0;
+      session = await startWizardSession({
+        projectName: 'demo',
+        result: resultFor(factsWith({})),
+        write: async () => ({ path: '/repo/stacktape.yml', filename: 'stacktape.yml' }),
+        inspectDeployTarget: async () => {
+          inspections += 1;
+          return {
+            schemaVersion: 'stacktape.init-target.v1',
+            status: 'updateable',
+            accountId: '123456789012',
+            stackName: 'demo-dev',
+            projectName: 'demo',
+            stage: 'dev',
+            region: 'eu-west-1',
+            stackId,
+            stackStatus: 'UPDATE_COMPLETE'
+          };
+        },
+        deploy: async (input) => {
+          deployed.push(input);
+          return { ok: true, code: 'OK', message: 'Deployed' };
+        }
+      });
+      const origin = `http://127.0.0.1:${session.server.port}`;
+      const token = new URL(session.server.url).hash.replace('#token=', '');
+      const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+        method: 'POST',
+        headers: { Origin: origin }
+      });
+      const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+      const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+      const headers = { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken };
+      const post = (expected: { kind: string; stackId?: string }) =>
+        fetch(`${origin}/api/deploy`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ stage: 'dev', region: 'eu-west-1', expected })
+        });
+      await fetch(`${origin}/api/write`, { method: 'POST', headers, body: JSON.stringify({ format: 'yaml' }) });
+
+      await post({ kind: 'check' });
+      expect(session.server.current().deployTarget).toMatchObject({ status: 'updateable', stackId });
+      expect(deployed).toHaveLength(0);
+
+      // Neither a create confirmation nor an update for a different physical stack widens consent.
+      await post({ kind: 'create' });
+      await post({ kind: 'update', stackId: `${stackId}-replacement` });
+      expect(deployed).toHaveLength(0);
+
+      await post({ kind: 'update', stackId });
+      for (let attempt = 0; attempt < 50 && deployed.length === 0; attempt += 1) {
+        await new Promise((wait) => setTimeout(wait, 10));
+      }
+      expect(inspections).toBe(4);
+      expect(deployed[0]?.targetExpectation).toMatchObject({
+        expected: 'update',
+        accountId: '123456789012',
+        stackName: 'demo-dev',
+        stackId
+      });
+    });
+
+    it('turns a direct create confirmation into a read-only check until that exact target was displayed', async () => {
+      const deployed: unknown[] = [];
+      const absent = {
+        schemaVersion: 'stacktape.init-target.v1' as const,
+        status: 'absent' as const,
+        accountId: '123456789012',
+        stackName: 'demo-dev',
+        projectName: 'demo',
+        stage: 'dev',
+        region: 'eu-west-1'
+      };
+      session = await startWizardSession({
+        projectName: 'demo',
+        result: resultFor(factsWith({})),
+        write: async () => ({ path: '/repo/stacktape.yml', filename: 'stacktape.yml' }),
+        inspectDeployTarget: async () => absent,
+        deploy: async (input) => {
+          deployed.push(input);
+          return { ok: true, code: 'OK', message: 'Deployed' };
+        }
+      });
+      const origin = `http://127.0.0.1:${session.server.port}`;
+      const token = new URL(session.server.url).hash.replace('#token=', '');
+      const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+        method: 'POST',
+        headers: { Origin: origin }
+      });
+      const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+      const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+      const headers = { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken };
+      const postCreate = () =>
+        fetch(`${origin}/api/deploy`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } })
+        });
+      await fetch(`${origin}/api/write`, { method: 'POST', headers, body: JSON.stringify({ format: 'yaml' }) });
+
+      await postCreate();
+      expect(session.server.current().deployTarget).toEqual(absent);
+      expect(deployed).toEqual([]);
+
+      await postCreate();
+      for (let attempt = 0; attempt < 50 && deployed.length === 0; attempt += 1) {
+        await new Promise((wait) => setTimeout(wait, 10));
+      }
+      expect(deployed).toHaveLength(1);
+    });
+
+    it('allows only one exact-target inspection at a time', async () => {
+      const absent = {
+        schemaVersion: 'stacktape.init-target.v1' as const,
+        status: 'absent' as const,
+        accountId: '123456789012',
+        stackName: 'demo-dev',
+        projectName: 'demo',
+        stage: 'dev',
+        region: 'eu-west-1'
+      };
+      let inspections = 0;
+      let announceStarted: () => void = () => {};
+      const started = new Promise<void>((resolve) => {
+        announceStarted = resolve;
+      });
+      let finishInspection: (result: typeof absent) => void = () => {};
+      const deployed: unknown[] = [];
+      session = await startWizardSession({
+        projectName: 'demo',
+        result: resultFor(factsWith({})),
+        write: async () => ({ path: '/repo/stacktape.yml', filename: 'stacktape.yml' }),
+        inspectDeployTarget: async () => {
+          inspections += 1;
+          announceStarted();
+          return new Promise((resolve) => {
+            finishInspection = resolve;
+          });
+        },
+        deploy: async (input) => {
+          deployed.push(input);
+          return { ok: true, code: 'OK', message: 'Deployed' };
+        }
+      });
+      const origin = `http://127.0.0.1:${session.server.port}`;
+      const token = new URL(session.server.url).hash.replace('#token=', '');
+      const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+        method: 'POST',
+        headers: { Origin: origin }
+      });
+      const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+      const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+      const headers = { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken };
+      const post = (expected: { kind: string }) =>
+        fetch(`${origin}/api/deploy`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ stage: 'dev', region: 'eu-west-1', expected })
+        });
+      await fetch(`${origin}/api/write`, { method: 'POST', headers, body: JSON.stringify({ format: 'yaml' }) });
+
+      const firstCheck = post({ kind: 'check' });
+      await started;
+      // A second tab cannot start another probe or turn its click into create consent while the
+      // first read-only observation is unresolved.
+      await post({ kind: 'create' });
+      expect(inspections).toBe(1);
+      expect(deployed).toEqual([]);
+
+      finishInspection(absent);
+      await firstCheck;
+      expect(session.server.current().deployTarget).toMatchObject({ status: 'absent', accountId: '123456789012' });
+      expect(deployed).toEqual([]);
+    });
+
+    it('drops an exact-target result when the reviewed configuration changes during the check', async () => {
+      const absent = {
+        schemaVersion: 'stacktape.init-target.v1' as const,
+        status: 'absent' as const,
+        accountId: '123456789012',
+        stackName: 'demo-dev',
+        projectName: 'demo',
+        stage: 'dev',
+        region: 'eu-west-1'
+      };
+      let announceStarted: () => void = () => {};
+      const started = new Promise<void>((resolve) => {
+        announceStarted = resolve;
+      });
+      let finishInspection: (result: typeof absent) => void = () => {};
+      const deployed: unknown[] = [];
+      session = await startWizardSession({
+        projectName: 'demo',
+        result: resultFor(factsWith({})),
+        write: async () => ({ path: '/repo/stacktape.yml', filename: 'stacktape.yml' }),
+        inspectDeployTarget: async () => {
+          announceStarted();
+          return new Promise((resolve) => {
+            finishInspection = resolve;
+          });
+        },
+        deploy: async (input) => {
+          deployed.push(input);
+          return { ok: true, code: 'OK', message: 'Deployed' };
+        }
+      });
+      const origin = `http://127.0.0.1:${session.server.port}`;
+      const token = new URL(session.server.url).hash.replace('#token=', '');
+      const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+        method: 'POST',
+        headers: { Origin: origin }
+      });
+      const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+      const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+      const headers = { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken };
+      await fetch(`${origin}/api/write`, { method: 'POST', headers, body: JSON.stringify({ format: 'yaml' }) });
+      expect(session.server.current().configFile).toBeDefined();
+
+      const check = fetch(`${origin}/api/deploy`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ stage: 'dev', region: 'eu-west-1', expected: { kind: 'check' } })
+      });
+      await started;
+      await fetch(`${origin}/api/mode`, {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ mode: 'production' })
+      });
+      // Changing the composition also invalidates the previously written file. It must be reviewed
+      // and written again before either a target check or a paid deploy is possible.
+      expect(session.server.current().configFile).toBeUndefined();
+
+      finishInspection(absent);
+      await check;
+      expect(session.server.current().deployTarget).toBeUndefined();
+      expect(session.server.current().deployment).toBeUndefined();
+      expect(deployed).toEqual([]);
+    });
+
+    it('enforces composition, AWS identity, and Stacktape sign-in gates on the server', async () => {
+      type GateState = {
+        composition?: { deployable: boolean };
+        awsIdentity?: { available: boolean };
+        stacktapeAccount?: { signedIn: boolean };
+      };
+      const ordinary = resultFor(factsWith({}));
+      const emptyFacts = projectFactsSchema.parse({ schemaVersion: PROJECT_FACTS_SCHEMA_VERSION, services: [] });
+      const blockedCases: Array<{
+        result: GreenfieldResult;
+        awsIdentity?: Parameters<typeof startWizardSession>[0]['awsIdentity'];
+        stacktapeAccount?: Parameters<typeof startWizardSession>[0]['stacktapeAccount'];
+        ready: (state: GateState) => boolean;
+      }> = [
+        {
+          result: resultFor(emptyFacts),
+          ready: (state) => state.composition?.deployable === false
+        },
+        {
+          result: ordinary,
+          awsIdentity: async () => ({
+            available: false,
+            reason: 'no-credentials',
+            detail: 'No AWS credentials were found.'
+          }),
+          stacktapeAccount: async () => ({ signedIn: true, detail: 'Signed in.' }),
+          ready: (state) => state.awsIdentity?.available === false && state.stacktapeAccount?.signedIn === true
+        },
+        {
+          result: ordinary,
+          awsIdentity: async () => ({
+            available: true,
+            accountId: '123456789012',
+            arn: 'arn:aws:iam::123456789012:user/test'
+          }),
+          stacktapeAccount: async () => ({ signedIn: false, detail: 'Not signed in.' }),
+          ready: (state) => state.awsIdentity?.available === true && state.stacktapeAccount?.signedIn === false
+        }
+      ];
+
+      for (const blocked of blockedCases) {
+        let deployCalls = 0;
+        session = await startWizardSession({
+          projectName: 'demo',
+          result: blocked.result,
+          write: async () => ({ path: '/repo/stacktape.yml', filename: 'stacktape.yml' }),
+          deploy: async () => {
+            deployCalls += 1;
+            return { ok: true, code: 'OK', message: 'Deployed.' };
+          },
+          ...(blocked.awsIdentity === undefined ? {} : { awsIdentity: blocked.awsIdentity }),
+          ...(blocked.stacktapeAccount === undefined ? {} : { stacktapeAccount: blocked.stacktapeAccount })
+        });
+        const origin = `http://127.0.0.1:${session.server.port}`;
+        const token = new URL(session.server.url).hash.replace('#token=', '');
+        const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+          method: 'POST',
+          headers: { Origin: origin }
+        });
+        const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+        const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+        const headers = {
+          Origin: origin,
+          Cookie: cookie,
+          'Content-Type': 'application/json',
+          'x-csrf-token': csrfToken
+        };
+
+        for (let attempt = 0; attempt < 50; attempt += 1) {
+          const response = await fetch(`${origin}/api/state`, { headers: { Origin: origin, Cookie: cookie } });
+          if (blocked.ready((await response.json()) as GateState)) break;
+          await new Promise((settle) => setTimeout(settle, 10));
+        }
+        await fetch(`${origin}/api/write`, { method: 'POST', headers, body: JSON.stringify({ format: 'yaml' }) });
+        await fetch(`${origin}/api/deploy`, {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } })
+        });
+
+        expect(deployCalls).toBe(0);
+        await session.close();
+        session = undefined;
+      }
     });
 
     it('refuses a format it does not emit', async () => {
@@ -360,15 +734,198 @@ describe('startWizardSession', () => {
 });
 
 describe('toTimelineEntry', () => {
-  it('renders a tool call and a thought, and ignores accounting', () => {
+  it('renders a tool call, and drops agent prose and accounting', () => {
     expect(toTimelineEntry({ type: 'tool-call', name: 'read_file', summary: 'package.json' })).toEqual({
       kind: 'tool',
       label: 'read_file package.json'
     });
-    expect(toTimelineEntry({ type: 'text', text: 'Checking the manifest.' })).toEqual({
-      kind: 'thought',
-      label: 'Checking the manifest.'
-    });
+    // Model output produced while reading untrusted files never becomes something the page shows.
+    expect(toTimelineEntry({ type: 'text', text: 'Checking the manifest.' })).toBeUndefined();
     expect(toTimelineEntry({ type: 'usage', usage: { inputTokens: 1, outputTokens: 1 } })).toBeUndefined();
+  });
+});
+
+describe('the local try-out', () => {
+  const result = () => {
+    const facts = projectFactsSchema.parse({ schemaVersion: PROJECT_FACTS_SCHEMA_VERSION, services: [service] });
+    return { facts, composition: composeConfig({ facts, projectName: 'demo' }), verification: [], completeness: [] };
+  };
+
+  const failedService = {
+    serviceName: 'api',
+    resourceName: 'api',
+    status: 'failed' as const,
+    reason: 'Exited on startup asking for: X_API_KEY.',
+    observations: {
+      listeningPorts: [],
+      dialedDependency: false,
+      missingEnvironmentVariables: ['X_API_KEY'],
+      logTail: []
+    }
+  };
+
+  const open = async (verify: NonNullable<Parameters<typeof startWizardSession>[0]['verify']>, deploys: unknown[]) => {
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: result(),
+      write: async () => ({ path: 'C:/repo/stacktape.yml', filename: 'stacktape.yml' }),
+      deploy: async (input) => {
+        deploys.push(input);
+        return { ok: true, code: 'OK', message: 'done' };
+      },
+      verify
+    });
+    const origin = `http://127.0.0.1:${session.server.port}`;
+    const token = new URL(session.server.url).hash.replace('#token=', '');
+    const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+      method: 'POST',
+      headers: { Origin: origin }
+    });
+    const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+    const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+    const post = (path: string, body: Record<string, unknown> = {}) =>
+      fetch(`${origin}${path}`, {
+        method: 'POST',
+        headers: { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+        body: JSON.stringify(body)
+      });
+    const stateNow = async () =>
+      (await (await fetch(`${origin}/api/state`, { headers: { Origin: origin, Cookie: cookie } })).json()) as {
+        verification?: { status: string; services?: Array<{ status: string }> };
+        deployment?: { status: string };
+      };
+    const until = async (predicate: (state: Awaited<ReturnType<typeof stateNow>>) => boolean) => {
+      for (let attempt = 0; attempt < 100; attempt += 1) {
+        const state = await stateNow();
+        if (predicate(state)) return state;
+        await new Promise((settle) => setTimeout(settle, 10));
+      }
+      throw new Error('The state never reached the expected shape.');
+    };
+    return { post, stateNow, until };
+  };
+
+  it('holds the deploy on a proven failure until the user sets it aside', async () => {
+    let finishVerify: (value: { status: 'completed'; services: Array<typeof failedService> }) => void = () => {};
+    const deploys: unknown[] = [];
+    const { post, until, stateNow } = await open(
+      () =>
+        new Promise((resolve) => {
+          finishVerify = resolve as typeof finishVerify;
+        }),
+      deploys
+    );
+
+    await post('/api/write', { format: 'yaml' });
+    await post('/api/verify');
+    expect((await stateNow()).verification?.status).toBe('running');
+
+    // While it runs, the button does nothing — a deploy racing the evidence would defeat the gate.
+    await post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
+    expect(deploys).toEqual([]);
+
+    finishVerify({ status: 'completed', services: [failedService] });
+    await until((state) => state.verification?.status === 'completed');
+
+    // A proven failure holds the deploy: the click is answered by the state, not by AWS spend.
+    await post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
+    expect(deploys).toEqual([]);
+
+    // Setting it aside is the user's call, and it is honoured immediately.
+    await post('/api/verify/dismiss');
+    expect((await stateNow()).verification?.status).toBe('dismissed');
+    await post('/api/deploy', { stage: 'dev', region: 'eu-west-1', expected: { kind: 'create' } });
+    await until((state) => state.deployment !== undefined);
+    expect(deploys.length).toBe(1);
+  });
+
+  it('repairs a proven local failure once, then proves the fix the same way', async () => {
+    const verifyCalls: number[] = [];
+    let repairCalls = 0;
+    let repairFailure:
+      | Parameters<NonNullable<Parameters<typeof startWizardSession>[0]['repair']>>[0]['failure']
+      | undefined;
+    const facts = projectFactsSchema.parse({ schemaVersion: PROJECT_FACTS_SCHEMA_VERSION, services: [service] });
+    const failureWithPrivateLog = {
+      ...failedService,
+      observations: {
+        ...failedService.observations,
+        logTail: ['DATABASE_URL=postgresql://user:do-not-send@database.example/app']
+      }
+    };
+
+    session = await startWizardSession({
+      projectName: 'demo',
+      result: { facts, composition: composeConfig({ facts, projectName: 'demo' }), verification: [], completeness: [] },
+      verify: async () => {
+        verifyCalls.push(Date.now());
+        // First look fails; the look after the repair passes.
+        return verifyCalls.length === 1
+          ? { status: 'completed', services: [failureWithPrivateLog] }
+          : {
+              status: 'completed',
+              services: [{ ...failedService, status: 'passed' as const, reason: 'Listening on port 8080.' }]
+            };
+      },
+      repair: async ({ failure }) => {
+        repairCalls += 1;
+        repairFailure = failure;
+        return { facts, composition: composeConfig({ facts, projectName: 'demo' }), changed: true };
+      }
+    });
+    const origin = `http://127.0.0.1:${session.server.port}`;
+    const token = new URL(session.server.url).hash.replace('#token=', '');
+    const handshake = await fetch(`${origin}/api/handshake?token=${token}`, {
+      method: 'POST',
+      headers: { Origin: origin }
+    });
+    const cookie = handshake.headers.get('set-cookie')?.split(';')[0] ?? '';
+    const { csrfToken } = (await handshake.json()) as { csrfToken: string };
+
+    await fetch(`${origin}/api/verify`, {
+      method: 'POST',
+      headers: { Origin: origin, Cookie: cookie, 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
+      body: '{}'
+    });
+
+    for (let attempt = 0; attempt < 100; attempt += 1) {
+      const state = (await (
+        await fetch(`${origin}/api/state`, { headers: { Origin: origin, Cookie: cookie } })
+      ).json()) as { verification?: { status: string; services?: Array<{ status: string }> } };
+      if (state.verification?.status === 'completed') {
+        // The failure was repaired locally and re-proven locally — one repair, two looks, no AWS.
+        expect(state.verification.services?.[0]?.status).toBe('passed');
+        expect(repairCalls).toBe(1);
+        expect(verifyCalls.length).toBe(2);
+        expect(repairFailure?.output).toEqual([]);
+        expect(JSON.stringify(repairFailure)).not.toContain('do-not-send');
+        return;
+      }
+      await new Promise((settle) => setTimeout(settle, 10));
+    }
+    throw new Error('Verification never completed.');
+  });
+
+  it('drops a result earned against a configuration the user has since changed', async () => {
+    let finishVerify: (value: { status: 'completed'; services: Array<typeof failedService> }) => void = () => {};
+    const { post, stateNow } = await open(
+      () =>
+        new Promise((resolve) => {
+          finishVerify = resolve as typeof finishVerify;
+        }),
+      []
+    );
+
+    await post('/api/verify');
+    expect((await stateNow()).verification?.status).toBe('running');
+
+    // Changing anything recomposes, and a different configuration is a different thing to prove.
+    await post('/api/answer', { id: 'some-decision', value: 'changed' });
+    expect((await stateNow()).verification).toBeUndefined();
+
+    // The old run finishing late must not resurrect its verdict against the new configuration.
+    finishVerify({ status: 'completed', services: [failedService] });
+    await new Promise((settle) => setTimeout(settle, 30));
+    expect((await stateNow()).verification).toBeUndefined();
   });
 });

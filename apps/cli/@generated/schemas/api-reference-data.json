@@ -1242,7 +1242,7 @@
                 {
                   "name": "startOnlyIncludeFiles",
                   "required": false,
-                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>",
+                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>\n<p>Requires <code>startRunImage</code>. Nixpacks applies this filter while copying artifacts from the build image into that\nseparate runtime image.</p>",
                   "longDescription": "",
                   "typeInfo": {
                     "kind": "array",
@@ -1256,11 +1256,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n         # [!code focus-start]\n         startOnlyIncludeFiles:\n           - dist\n           - node_modules\n         # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
+                      "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n          # [!code focus-start]\n          startRunImage: node:22-slim\n          startOnlyIncludeFiles:\n           - dist\n           - node_modules\n          # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n       // [!code focus-start]\n       startOnlyIncludeFiles: ['dist', 'node_modules']\n       // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
+                      "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n        // [!code focus-start]\n        startRunImage: 'node:22-slim',\n        startOnlyIncludeFiles: ['dist', 'node_modules']\n        // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
                     }
                   ]
                 },
@@ -1514,7 +1514,7 @@
                             "name": "packageManagerFile",
                             "required": false,
                             "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
                             "typeInfo": {
                               "kind": "primitive",
                               "types": [
@@ -1662,21 +1662,8 @@
                             "longDescription": "",
                             "defaultValue": "3.12",
                             "typeInfo": {
-                              "kind": "primitive",
-                              "types": [
-                                "number"
-                              ],
-                              "enumValues": [
-                                2.7,
-                                3.11,
-                                3.12,
-                                3.13,
-                                3.14,
-                                3.6,
-                                3.7,
-                                3.8,
-                                3.9
-                              ]
+                              "kind": "reference",
+                              "typeName": "SupportedPythonVersion"
                             },
                             "examples": [
                               {
@@ -1803,6 +1790,8 @@
                                 11,
                                 17,
                                 19,
+                                21,
+                                25,
                                 8
                               ]
                             },
@@ -1841,7 +1830,9 @@
                               ],
                               "enumValues": [
                                 3.2,
-                                3.3
+                                3.3,
+                                3.4,
+                                4
                               ]
                             },
                             "examples": [
@@ -1928,7 +1919,9 @@
                                 "number"
                               ],
                               "enumValues": [
+                                10,
                                 6,
+                                7,
                                 8
                               ]
                             },
@@ -9150,7 +9143,7 @@
                 {
                   "name": "startOnlyIncludeFiles",
                   "required": false,
-                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>",
+                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>\n<p>Requires <code>startRunImage</code>. Nixpacks applies this filter while copying artifacts from the build image into that\nseparate runtime image.</p>",
                   "longDescription": "",
                   "typeInfo": {
                     "kind": "array",
@@ -9164,11 +9157,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n         # [!code focus-start]\n         startOnlyIncludeFiles:\n           - dist\n           - node_modules\n         # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
+                      "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n          # [!code focus-start]\n          startRunImage: node:22-slim\n          startOnlyIncludeFiles:\n           - dist\n           - node_modules\n          # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n       // [!code focus-start]\n       startOnlyIncludeFiles: ['dist', 'node_modules']\n       // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
+                      "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n        // [!code focus-start]\n        startRunImage: 'node:22-slim',\n        startOnlyIncludeFiles: ['dist', 'node_modules']\n        // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
                     }
                   ]
                 },
@@ -9421,7 +9414,7 @@
                             "name": "packageManagerFile",
                             "required": false,
                             "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
                             "typeInfo": {
                               "kind": "primitive",
                               "types": [
@@ -9569,21 +9562,8 @@
                             "longDescription": "",
                             "defaultValue": "3.12",
                             "typeInfo": {
-                              "kind": "primitive",
-                              "types": [
-                                "number"
-                              ],
-                              "enumValues": [
-                                2.7,
-                                3.11,
-                                3.12,
-                                3.13,
-                                3.14,
-                                3.6,
-                                3.7,
-                                3.8,
-                                3.9
-                              ]
+                              "kind": "reference",
+                              "typeName": "SupportedPythonVersion"
                             },
                             "examples": [
                               {
@@ -9710,6 +9690,8 @@
                                 11,
                                 17,
                                 19,
+                                21,
+                                25,
                                 8
                               ]
                             },
@@ -9748,7 +9730,9 @@
                               ],
                               "enumValues": [
                                 3.2,
-                                3.3
+                                3.3,
+                                3.4,
+                                4
                               ]
                             },
                             "examples": [
@@ -9835,7 +9819,9 @@
                                 "number"
                               ],
                               "enumValues": [
+                                10,
                                 6,
+                                7,
                                 8
                               ]
                             },
@@ -16115,7 +16101,7 @@
                 {
                   "name": "startOnlyIncludeFiles",
                   "required": false,
-                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>",
+                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>\n<p>Requires <code>startRunImage</code>. Nixpacks applies this filter while copying artifacts from the build image into that\nseparate runtime image.</p>",
                   "longDescription": "",
                   "typeInfo": {
                     "kind": "array",
@@ -16129,11 +16115,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n         # [!code focus-start]\n         startOnlyIncludeFiles:\n           - dist\n           - node_modules\n         # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
+                      "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n          # [!code focus-start]\n          startRunImage: node:22-slim\n          startOnlyIncludeFiles:\n           - dist\n           - node_modules\n          # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n       // [!code focus-start]\n       startOnlyIncludeFiles: ['dist', 'node_modules']\n       // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
+                      "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n        // [!code focus-start]\n        startRunImage: 'node:22-slim',\n        startOnlyIncludeFiles: ['dist', 'node_modules']\n        // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
                     }
                   ]
                 },
@@ -16387,7 +16373,7 @@
                             "name": "packageManagerFile",
                             "required": false,
                             "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
                             "typeInfo": {
                               "kind": "primitive",
                               "types": [
@@ -16535,21 +16521,8 @@
                             "longDescription": "",
                             "defaultValue": "3.12",
                             "typeInfo": {
-                              "kind": "primitive",
-                              "types": [
-                                "number"
-                              ],
-                              "enumValues": [
-                                2.7,
-                                3.11,
-                                3.12,
-                                3.13,
-                                3.14,
-                                3.6,
-                                3.7,
-                                3.8,
-                                3.9
-                              ]
+                              "kind": "reference",
+                              "typeName": "SupportedPythonVersion"
                             },
                             "examples": [
                               {
@@ -16676,6 +16649,8 @@
                                 11,
                                 17,
                                 19,
+                                21,
+                                25,
                                 8
                               ]
                             },
@@ -16714,7 +16689,9 @@
                               ],
                               "enumValues": [
                                 3.2,
-                                3.3
+                                3.3,
+                                3.4,
+                                4
                               ]
                             },
                             "examples": [
@@ -16801,7 +16778,9 @@
                                 "number"
                               ],
                               "enumValues": [
+                                10,
                                 6,
+                                7,
                                 8
                               ]
                             },
@@ -23616,7 +23595,7 @@
                             "name": "packageManagerFile",
                             "required": false,
                             "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
                             "typeInfo": {
                               "kind": "primitive",
                               "types": [
@@ -23764,21 +23743,8 @@
                             "longDescription": "",
                             "defaultValue": "3.12",
                             "typeInfo": {
-                              "kind": "primitive",
-                              "types": [
-                                "number"
-                              ],
-                              "enumValues": [
-                                2.7,
-                                3.11,
-                                3.12,
-                                3.13,
-                                3.14,
-                                3.6,
-                                3.7,
-                                3.8,
-                                3.9
-                              ]
+                              "kind": "reference",
+                              "typeName": "SupportedPythonVersion"
                             },
                             "examples": [
                               {
@@ -23905,6 +23871,8 @@
                                 11,
                                 17,
                                 19,
+                                21,
+                                25,
                                 8
                               ]
                             },
@@ -23943,7 +23911,9 @@
                               ],
                               "enumValues": [
                                 3.2,
-                                3.3
+                                3.3,
+                                3.4,
+                                4
                               ]
                             },
                             "examples": [
@@ -24030,7 +24000,9 @@
                                 "number"
                               ],
                               "enumValues": [
+                                10,
                                 6,
+                                7,
                                 8
                               ]
                             },
@@ -24230,11 +24202,14 @@
             "string"
           ],
           "enumValues": [
+            "dotnet10",
             "dotnet6",
             "dotnet7",
             "dotnet8",
             "java11",
             "java17",
+            "java21",
+            "java25",
             "java8",
             "java8.al2",
             "nodejs18.x",
@@ -24247,9 +24222,12 @@
             "python3.11",
             "python3.12",
             "python3.13",
+            "python3.14",
             "python3.8",
             "python3.9",
-            "ruby3.3"
+            "ruby3.3",
+            "ruby3.4",
+            "ruby4.0"
           ]
         },
         "examples": [
@@ -24291,7 +24269,7 @@
       "requiredCount": 1,
       "optionalCount": 6
     },
-    "typeDeclaration": "import type { CustomArtifactLambdaPackaging, EnvironmentVar, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype CustomResourceDefinitionProps = {\n  /** How the Lambda function code is packaged and deployed. */\n  packaging: CustomResourceDefinitionPackaging;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Environment variables injected into the Lambda function. Use `$ResourceParam()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU. */\n  memory?: number;\n  /** Lambda runtime. Auto-detected from file extension if not specified. */\n  runtime?: \"dotnet6\" | \"dotnet7\" | \"dotnet8\" | \"java11\" | \"java17\" | \"java8\" | \"java8.al2\" | \"nodejs18.x\" | \"nodejs20.x\" | \"nodejs22.x\" | \"nodejs24.x\" | \"provided.al2\" | \"provided.al2023\" | \"python3.10\" | \"python3.11\" | \"python3.12\" | \"python3.13\" | \"python3.8\" | \"python3.9\" | \"ruby3.3\";\n  /** Max execution time in seconds. Max: 900. */\n  timeout?: number;\n};\n\n/** Union choices used by the properties above. */\ntype CustomResourceDefinitionPackaging =\n  | StpBuildpackLambdaPackaging\n  | CustomArtifactLambdaPackaging;\n// [!code focus-end]"
+    "typeDeclaration": "import type { CustomArtifactLambdaPackaging, EnvironmentVar, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype CustomResourceDefinitionProps = {\n  /** How the Lambda function code is packaged and deployed. */\n  packaging: CustomResourceDefinitionPackaging;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Environment variables injected into the Lambda function. Use `$ResourceParam()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU. */\n  memory?: number;\n  /** Lambda runtime. Auto-detected from file extension if not specified. */\n  runtime?: \"dotnet10\" | \"dotnet6\" | \"dotnet7\" | \"dotnet8\" | \"java11\" | \"java17\" | \"java21\" | \"java25\" | \"java8\" | \"java8.al2\" | \"nodejs18.x\" | \"nodejs20.x\" | \"nodejs22.x\" | \"nodejs24.x\" | \"provided.al2\" | \"provided.al2023\" | \"python3.10\" | \"python3.11\" | \"python3.12\" | \"python3.13\" | \"python3.14\" | \"python3.8\" | \"python3.9\" | \"ruby3.3\" | \"ruby3.4\" | \"ruby4.0\";\n  /** Max execution time in seconds. Max: 900. */\n  timeout?: number;\n};\n\n/** Union choices used by the properties above. */\ntype CustomResourceDefinitionPackaging =\n  | StpBuildpackLambdaPackaging\n  | CustomArtifactLambdaPackaging;\n// [!code focus-end]"
   },
   "CustomResourceInstance": {
     "definitionName": "CustomResourceInstance",
@@ -25296,7 +25274,7 @@
                             "name": "packageManagerFile",
                             "required": false,
                             "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
                             "typeInfo": {
                               "kind": "primitive",
                               "types": [
@@ -25444,21 +25422,8 @@
                             "longDescription": "",
                             "defaultValue": "3.12",
                             "typeInfo": {
-                              "kind": "primitive",
-                              "types": [
-                                "number"
-                              ],
-                              "enumValues": [
-                                2.7,
-                                3.11,
-                                3.12,
-                                3.13,
-                                3.14,
-                                3.6,
-                                3.7,
-                                3.8,
-                                3.9
-                              ]
+                              "kind": "reference",
+                              "typeName": "SupportedPythonVersion"
                             },
                             "examples": [
                               {
@@ -25585,6 +25550,8 @@
                                 11,
                                 17,
                                 19,
+                                21,
+                                25,
                                 8
                               ]
                             },
@@ -25623,7 +25590,9 @@
                               ],
                               "enumValues": [
                                 3.2,
-                                3.3
+                                3.3,
+                                3.4,
+                                4
                               ]
                             },
                             "examples": [
@@ -25710,7 +25679,9 @@
                                 "number"
                               ],
                               "enumValues": [
+                                10,
                                 6,
+                                7,
                                 8
                               ]
                             },
@@ -25977,11 +25948,14 @@
             "string"
           ],
           "enumValues": [
+            "dotnet10",
             "dotnet6",
             "dotnet7",
             "dotnet8",
             "java11",
             "java17",
+            "java21",
+            "java25",
             "java8",
             "java8.al2",
             "nodejs18.x",
@@ -25994,9 +25968,12 @@
             "python3.11",
             "python3.12",
             "python3.13",
+            "python3.14",
             "python3.8",
             "python3.9",
-            "ruby3.3"
+            "ruby3.3",
+            "ruby3.4",
+            "ruby4.0"
           ]
         },
         "examples": [
@@ -26061,7 +26038,7 @@
       "requiredCount": 2,
       "optionalCount": 9
     },
-    "typeDeclaration": "import type { CustomArtifactLambdaPackaging, EnvironmentVar, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype DeploymentScriptProps = {\n  /** How the script code is packaged. Use `stacktape-lambda-buildpack` for auto-bundling. */\n  packaging: DeploymentScriptPackaging;\n  /** When to run: `after:deploy` (fails → rollback) or `before:delete` (fails → deletion continues). */\n  trigger: \"after:deploy\" | \"before:delete\";\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Environment variables injected at runtime. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Connect to VPC resources (databases, Redis). **Warning:** function loses direct internet access. */\n  joinDefaultVpc?: boolean;\n  /** Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU. */\n  memory?: number;\n  /** Structured data passed to the handler function as the event payload. Not for secrets — use `environment`. */\n  parameters?: unknown;\n  /** Lambda runtime. Auto-detected from file extension if not specified. */\n  runtime?: \"dotnet6\" | \"dotnet7\" | \"dotnet8\" | \"java11\" | \"java17\" | \"java8\" | \"java8.al2\" | \"nodejs18.x\" | \"nodejs20.x\" | \"nodejs22.x\" | \"nodejs24.x\" | \"provided.al2\" | \"provided.al2023\" | \"python3.10\" | \"python3.11\" | \"python3.12\" | \"python3.13\" | \"python3.8\" | \"python3.9\" | \"ruby3.3\";\n  /** Ephemeral `/tmp` storage in MB (512–10,240). */\n  storage?: number;\n  /** Max execution time in seconds. Max: 900 (15 minutes). */\n  timeout?: number;\n};\n\n/** Union choices used by the properties above. */\ntype DeploymentScriptPackaging =\n  | StpBuildpackLambdaPackaging\n  | CustomArtifactLambdaPackaging;\n// [!code focus-end]"
+    "typeDeclaration": "import type { CustomArtifactLambdaPackaging, EnvironmentVar, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype DeploymentScriptProps = {\n  /** How the script code is packaged. Use `stacktape-lambda-buildpack` for auto-bundling. */\n  packaging: DeploymentScriptPackaging;\n  /** When to run: `after:deploy` (fails → rollback) or `before:delete` (fails → deletion continues). */\n  trigger: \"after:deploy\" | \"before:delete\";\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Environment variables injected at runtime. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Connect to VPC resources (databases, Redis). **Warning:** function loses direct internet access. */\n  joinDefaultVpc?: boolean;\n  /** Memory in MB (128–10,240). CPU scales proportionally — 1,769 MB = 1 vCPU. */\n  memory?: number;\n  /** Structured data passed to the handler function as the event payload. Not for secrets — use `environment`. */\n  parameters?: unknown;\n  /** Lambda runtime. Auto-detected from file extension if not specified. */\n  runtime?: \"dotnet10\" | \"dotnet6\" | \"dotnet7\" | \"dotnet8\" | \"java11\" | \"java17\" | \"java21\" | \"java25\" | \"java8\" | \"java8.al2\" | \"nodejs18.x\" | \"nodejs20.x\" | \"nodejs22.x\" | \"nodejs24.x\" | \"provided.al2\" | \"provided.al2023\" | \"python3.10\" | \"python3.11\" | \"python3.12\" | \"python3.13\" | \"python3.14\" | \"python3.8\" | \"python3.9\" | \"ruby3.3\" | \"ruby3.4\" | \"ruby4.0\";\n  /** Ephemeral `/tmp` storage in MB (512–10,240). */\n  storage?: number;\n  /** Max execution time in seconds. Max: 900 (15 minutes). */\n  timeout?: number;\n};\n\n/** Union choices used by the properties above. */\ntype DeploymentScriptPackaging =\n  | StpBuildpackLambdaPackaging\n  | CustomArtifactLambdaPackaging;\n// [!code focus-end]"
   },
   "DestinationOnFailure": {
     "definitionName": "DestinationOnFailure",
@@ -26620,7 +26597,9 @@
             "number"
           ],
           "enumValues": [
+            10,
             6,
+            7,
             8
           ]
         },
@@ -26662,7 +26641,7 @@
       "requiredCount": 0,
       "optionalCount": 2
     },
-    "typeDeclaration": "// [!code focus-start]\ntype DotnetLanguageSpecificConfig = {\n  /** The version of .NET to use. */\n  dotnetVersion?: 6 | 8;\n  /** The path to your .NET project file (.csproj). */\n  projectFile?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype DotnetLanguageSpecificConfig = {\n  /** The version of .NET to use. */\n  dotnetVersion?: 10 | 6 | 7 | 8;\n  /** The path to your .NET project file (.csproj). */\n  projectFile?: string;\n};\n// [!code focus-end]"
   },
   "DsqlDatabase": {
     "definitionName": "DsqlDatabase",
@@ -27995,7 +27974,7 @@
                             "name": "packageManagerFile",
                             "required": false,
                             "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
                             "typeInfo": {
                               "kind": "primitive",
                               "types": [
@@ -28143,21 +28122,8 @@
                             "longDescription": "",
                             "defaultValue": "3.12",
                             "typeInfo": {
-                              "kind": "primitive",
-                              "types": [
-                                "number"
-                              ],
-                              "enumValues": [
-                                2.7,
-                                3.11,
-                                3.12,
-                                3.13,
-                                3.14,
-                                3.6,
-                                3.7,
-                                3.8,
-                                3.9
-                              ]
+                              "kind": "reference",
+                              "typeName": "SupportedPythonVersion"
                             },
                             "examples": [
                               {
@@ -28284,6 +28250,8 @@
                                 11,
                                 17,
                                 19,
+                                21,
+                                25,
                                 8
                               ]
                             },
@@ -28322,7 +28290,9 @@
                               ],
                               "enumValues": [
                                 3.2,
-                                3.3
+                                3.3,
+                                3.4,
+                                4
                               ]
                             },
                             "examples": [
@@ -28409,7 +28379,9 @@
                                 "number"
                               ],
                               "enumValues": [
+                                10,
                                 6,
+                                7,
                                 8
                               ]
                             },
@@ -28615,6 +28587,7 @@
             "python3.11",
             "python3.12",
             "python3.13",
+            "python3.14",
             "python3.8",
             "python3.9"
           ]
@@ -28658,7 +28631,7 @@
       "requiredCount": 1,
       "optionalCount": 6
     },
-    "typeDeclaration": "import type { CustomArtifactLambdaPackaging, LambdaFunctionLogging, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype EdgeLambdaFunctionProps = {\n  /** How the function code is packaged and deployed. */\n  packaging: EdgeLambdaFunctionPackaging;\n  /** Grant access to other resources in your stack (IAM permissions only — no env vars or VPC access). */\n  connectTo?: Array<string>;\n  /** Custom IAM policy statements for fine-grained AWS permissions beyond what `connectTo` provides. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Logging config. Logs are sent to CloudWatch **in the region where the function executed** (not your stack region). */\n  logging?: LambdaFunctionLogging;\n  /** Memory in MB. Max depends on event type: viewer events = 128 MB, origin events = 10,240 MB. */\n  memory?: number;\n  /** Lambda runtime. Auto-detected from file extension. Edge functions support Node.js and Python only. */\n  runtime?: \"nodejs18.x\" | \"nodejs20.x\" | \"nodejs22.x\" | \"nodejs24.x\" | \"python3.10\" | \"python3.11\" | \"python3.12\" | \"python3.13\" | \"python3.8\" | \"python3.9\";\n  /** Max execution time in seconds. Viewer events: max 5s. Origin events: max 30s. */\n  timeout?: number;\n};\n\n/** Union choices used by the properties above. */\ntype EdgeLambdaFunctionPackaging =\n  | StpBuildpackLambdaPackaging\n  | CustomArtifactLambdaPackaging;\n// [!code focus-end]"
+    "typeDeclaration": "import type { CustomArtifactLambdaPackaging, LambdaFunctionLogging, StpBuildpackLambdaPackaging, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype EdgeLambdaFunctionProps = {\n  /** How the function code is packaged and deployed. */\n  packaging: EdgeLambdaFunctionPackaging;\n  /** Grant access to other resources in your stack (IAM permissions only — no env vars or VPC access). */\n  connectTo?: Array<string>;\n  /** Custom IAM policy statements for fine-grained AWS permissions beyond what `connectTo` provides. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Logging config. Logs are sent to CloudWatch **in the region where the function executed** (not your stack region). */\n  logging?: LambdaFunctionLogging;\n  /** Memory in MB. Max depends on event type: viewer events = 128 MB, origin events = 10,240 MB. */\n  memory?: number;\n  /** Lambda runtime. Auto-detected from file extension. Edge functions support Node.js and Python only. */\n  runtime?: \"nodejs18.x\" | \"nodejs20.x\" | \"nodejs22.x\" | \"nodejs24.x\" | \"python3.10\" | \"python3.11\" | \"python3.12\" | \"python3.13\" | \"python3.14\" | \"python3.8\" | \"python3.9\";\n  /** Max execution time in seconds. Viewer events: max 5s. Origin events: max 30s. */\n  timeout?: number;\n};\n\n/** Union choices used by the properties above. */\ntype EdgeLambdaFunctionPackaging =\n  | StpBuildpackLambdaPackaging\n  | CustomArtifactLambdaPackaging;\n// [!code focus-end]"
   },
   "EfsFilesystem": {
     "definitionName": "EfsFilesystem",
@@ -33253,6 +33226,8 @@
             11,
             17,
             19,
+            21,
+            25,
             8
           ]
         },
@@ -33316,7 +33291,7 @@
       "requiredCount": 0,
       "optionalCount": 3
     },
-    "typeDeclaration": "// [!code focus-start]\ntype JavaLanguageSpecificConfig = {\n  /** The version of Java to use. */\n  javaVersion?: 11 | 17 | 19 | 8;\n  /** The path to your project's build file (`pom.xml` for Maven or `build.gradle` for Gradle). */\n  packageManagerFile?: string;\n  /** Specifies whether to use Maven instead of Gradle. */\n  useMaven?: boolean;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype JavaLanguageSpecificConfig = {\n  /** The version of Java to use. */\n  javaVersion?: 11 | 17 | 19 | 21 | 25 | 8;\n  /** The path to your project's build file (`pom.xml` for Maven or `build.gradle` for Gradle). */\n  packageManagerFile?: string;\n  /** Specifies whether to use Maven instead of Gradle. */\n  useMaven?: boolean;\n};\n// [!code focus-end]"
   },
   "KafkaCluster": {
     "definitionName": "KafkaCluster",
@@ -36003,7 +35978,7 @@
                             "name": "packageManagerFile",
                             "required": false,
                             "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
                             "typeInfo": {
                               "kind": "primitive",
                               "types": [
@@ -36151,21 +36126,8 @@
                             "longDescription": "",
                             "defaultValue": "3.12",
                             "typeInfo": {
-                              "kind": "primitive",
-                              "types": [
-                                "number"
-                              ],
-                              "enumValues": [
-                                2.7,
-                                3.11,
-                                3.12,
-                                3.13,
-                                3.14,
-                                3.6,
-                                3.7,
-                                3.8,
-                                3.9
-                              ]
+                              "kind": "reference",
+                              "typeName": "SupportedPythonVersion"
                             },
                             "examples": [
                               {
@@ -36292,6 +36254,8 @@
                                 11,
                                 17,
                                 19,
+                                21,
+                                25,
                                 8
                               ]
                             },
@@ -36330,7 +36294,9 @@
                               ],
                               "enumValues": [
                                 3.2,
-                                3.3
+                                3.3,
+                                3.4,
+                                4
                               ]
                             },
                             "examples": [
@@ -36417,7 +36383,9 @@
                                 "number"
                               ],
                               "enumValues": [
+                                10,
                                 6,
+                                7,
                                 8
                               ]
                             },
@@ -38115,11 +38083,14 @@
             "string"
           ],
           "enumValues": [
+            "dotnet10",
             "dotnet6",
             "dotnet7",
             "dotnet8",
             "java11",
             "java17",
+            "java21",
+            "java25",
             "java8",
             "java8.al2",
             "nodejs18.x",
@@ -38132,9 +38103,12 @@
             "python3.11",
             "python3.12",
             "python3.13",
+            "python3.14",
             "python3.8",
             "python3.9",
-            "ruby3.3"
+            "ruby3.3",
+            "ruby3.4",
+            "ruby4.0"
           ]
         },
         "examples": [
@@ -38543,7 +38517,7 @@
       "requiredCount": 1,
       "optionalCount": 22
     },
-    "typeDeclaration": "import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement, WebSocketApiIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaFunctionProps = {\n  /** How your code is built and packaged for deployment. */\n  packaging: LambdaFunctionPackaging;\n  /** Alarms for this function (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<LambdaAlarm>;\n  /** Processor architecture: `x86_64` (default) or `arm64` (Graviton, ~20% cheaper). */\n  architecture?: \"arm64\" | \"x86_64\";\n  /** Put a CDN (CloudFront) in front of this function for caching and lower latency. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Gradual traffic shifting for safe deployments. */\n  deployment?: LambdaDeploymentConfig;\n  /** Route async invocation results to another service (SQS, SNS, EventBus, or another function). */\n  destinations?: LambdaFunctionDestinations;\n  /** Global alarm names to exclude from this function. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Environment variables available to the function at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** What triggers this function: HTTP requests, file uploads, queues, schedules, etc. */\n  events?: Array<LambdaFunctionEvents>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Connects the function to your VPC so it can reach databases, Redis, and other VPC-only resources. */\n  joinDefaultVpc?: boolean;\n  /** Lambda Layer ARNs to attach (shared libraries, custom runtimes, etc.). */\n  layers?: Array<string>;\n  /** Logging configuration (retention, forwarding). */\n  logging?: LambdaFunctionLogging;\n  /** Memory in MB (128 - 10,240). Also determines CPU power. */\n  memory?: number;\n  /** Eliminates cold starts by keeping function instances warm and ready. */\n  provisionedConcurrency?: number;\n  /** Cap the maximum number of concurrent instances for this function. */\n  reservedConcurrency?: number;\n  /** The language runtime (e.g., `nodejs22.x`, `python3.13`). */\n  runtime?: \"dotnet6\" | \"dotnet7\" | \"dotnet8\" | \"java11\" | \"java17\" | \"java8\" | \"java8.al2\" | \"nodejs18.x\" | \"nodejs20.x\" | \"nodejs22.x\" | \"nodejs24.x\" | \"provided.al2\" | \"provided.al2023\" | \"python3.10\" | \"python3.11\" | \"python3.12\" | \"python3.13\" | \"python3.8\" | \"python3.9\" | \"ruby3.3\";\n  /** Size of the `/tmp` directory in MB (512 - 10,240). Ephemeral per invocation. */\n  storage?: number;\n  /** Additional tags for this function (on top of stack-level tags). Max 50. */\n  tags?: Array<CloudformationTag>;\n  /** Max execution time in seconds. Function is killed if it exceeds this. */\n  timeout?: number;\n  /** Give this function its own HTTPS URL (no API Gateway needed). */\n  url?: LambdaUrlConfig;\n  /** Persistent file-system mounts shared across invocations and functions. */\n  volumeMounts?: Array<LambdaFunctionVolumeMounts>;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaFunctionPackaging =\n  | StpBuildpackLambdaPackaging\n  | CustomArtifactLambdaPackaging;\n\ntype LambdaFunctionEvents =\n  | ApplicationLoadBalancerIntegration\n  | KafkaTopicIntegration\n  | SnsIntegration\n  | SqsIntegration\n  | KinesisIntegration\n  | DynamoDbIntegration\n  | S3Integration\n  | ScheduleIntegration\n  | AlarmIntegration\n  | CloudwatchLogIntegration\n  | HttpApiIntegration\n  | AppSyncApiIntegration\n  | WebSocketApiIntegration\n  | EventBusIntegration;\n\ntype LambdaFunctionVolumeMounts =\n  | LambdaEfsMount\n  | LambdaS3FilesMount;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement, WebSocketApiIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaFunctionProps = {\n  /** How your code is built and packaged for deployment. */\n  packaging: LambdaFunctionPackaging;\n  /** Alarms for this function (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<LambdaAlarm>;\n  /** Processor architecture: `x86_64` (default) or `arm64` (Graviton, ~20% cheaper). */\n  architecture?: \"arm64\" | \"x86_64\";\n  /** Put a CDN (CloudFront) in front of this function for caching and lower latency. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Gradual traffic shifting for safe deployments. */\n  deployment?: LambdaDeploymentConfig;\n  /** Route async invocation results to another service (SQS, SNS, EventBus, or another function). */\n  destinations?: LambdaFunctionDestinations;\n  /** Global alarm names to exclude from this function. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Environment variables available to the function at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** What triggers this function: HTTP requests, file uploads, queues, schedules, etc. */\n  events?: Array<LambdaFunctionEvents>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Connects the function to your VPC so it can reach databases, Redis, and other VPC-only resources. */\n  joinDefaultVpc?: boolean;\n  /** Lambda Layer ARNs to attach (shared libraries, custom runtimes, etc.). */\n  layers?: Array<string>;\n  /** Logging configuration (retention, forwarding). */\n  logging?: LambdaFunctionLogging;\n  /** Memory in MB (128 - 10,240). Also determines CPU power. */\n  memory?: number;\n  /** Eliminates cold starts by keeping function instances warm and ready. */\n  provisionedConcurrency?: number;\n  /** Cap the maximum number of concurrent instances for this function. */\n  reservedConcurrency?: number;\n  /** The language runtime (e.g., `nodejs22.x`, `python3.13`). */\n  runtime?: \"dotnet10\" | \"dotnet6\" | \"dotnet7\" | \"dotnet8\" | \"java11\" | \"java17\" | \"java21\" | \"java25\" | \"java8\" | \"java8.al2\" | \"nodejs18.x\" | \"nodejs20.x\" | \"nodejs22.x\" | \"nodejs24.x\" | \"provided.al2\" | \"provided.al2023\" | \"python3.10\" | \"python3.11\" | \"python3.12\" | \"python3.13\" | \"python3.14\" | \"python3.8\" | \"python3.9\" | \"ruby3.3\" | \"ruby3.4\" | \"ruby4.0\";\n  /** Size of the `/tmp` directory in MB (512 - 10,240). Ephemeral per invocation. */\n  storage?: number;\n  /** Additional tags for this function (on top of stack-level tags). Max 50. */\n  tags?: Array<CloudformationTag>;\n  /** Max execution time in seconds. Function is killed if it exceeds this. */\n  timeout?: number;\n  /** Give this function its own HTTPS URL (no API Gateway needed). */\n  url?: LambdaUrlConfig;\n  /** Persistent file-system mounts shared across invocations and functions. */\n  volumeMounts?: Array<LambdaFunctionVolumeMounts>;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaFunctionPackaging =\n  | StpBuildpackLambdaPackaging\n  | CustomArtifactLambdaPackaging;\n\ntype LambdaFunctionEvents =\n  | ApplicationLoadBalancerIntegration\n  | KafkaTopicIntegration\n  | SnsIntegration\n  | SqsIntegration\n  | KinesisIntegration\n  | DynamoDbIntegration\n  | S3Integration\n  | ScheduleIntegration\n  | AlarmIntegration\n  | CloudwatchLogIntegration\n  | HttpApiIntegration\n  | AppSyncApiIntegration\n  | WebSocketApiIntegration\n  | EventBusIntegration;\n\ntype LambdaFunctionVolumeMounts =\n  | LambdaEfsMount\n  | LambdaS3FilesMount;\n// [!code focus-end]"
   },
   "LambdaS3FilesMount": {
     "definitionName": "LambdaS3FilesMount",
@@ -42372,7 +42346,7 @@
       {
         "name": "startOnlyIncludeFiles",
         "required": false,
-        "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>",
+        "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>\n<p>Requires <code>startRunImage</code>. Nixpacks applies this filter while copying artifacts from the build image into that\nseparate runtime image.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "array",
@@ -42386,11 +42360,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n         # [!code focus-start]\n         startOnlyIncludeFiles:\n           - dist\n           - node_modules\n         # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
+            "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n          # [!code focus-start]\n          startRunImage: node:22-slim\n          startOnlyIncludeFiles:\n           - dist\n           - node_modules\n          # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
           },
           {
             "lang": "typescript",
-            "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n       // [!code focus-start]\n       startOnlyIncludeFiles: ['dist', 'node_modules']\n       // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
+            "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n        // [!code focus-start]\n        startRunImage: 'node:22-slim',\n        startOnlyIncludeFiles: ['dist', 'node_modules']\n        // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
           }
         ]
       },
@@ -42421,7 +42395,7 @@
       "requiredCount": 1,
       "optionalCount": 6
     },
-    "typeDeclaration": "import type { NixpacksPhase } from 'stacktape';\n\n// [!code focus-start]\ntype NixpacksBjImagePackagingProps = {\n  /** The path to the source code directory. */\n  sourceDirectoryPath: string;\n  /** The base image to use for building the application. */\n  buildImage?: string;\n  /** The build phases for the application. */\n  phases?: Array<NixpacksPhase>;\n  /** A list of providers to use for determining the build and runtime environments. */\n  providers?: Array<string>;\n  /** The command to execute when starting the application. */\n  startCmd?: string;\n  /** A list of file paths to include in the runtime environment; all other files will be excluded. */\n  startOnlyIncludeFiles?: Array<string>;\n  /** The base image to use for running the application. */\n  startRunImage?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { NixpacksPhase } from 'stacktape';\n\n// [!code focus-start]\ntype NixpacksBjImagePackagingProps = {\n  /** The path to the source code directory. */\n  sourceDirectoryPath: string;\n  /** The base image to use for building the application. */\n  buildImage?: string;\n  /** The build phases for the application. */\n  phases?: Array<NixpacksPhase>;\n  /** A list of providers to use for determining the build and runtime environments. */\n  providers?: Array<string>;\n  /** The command to execute when starting the application. */\n  startCmd?: string;\n  /** A list of file paths to include in the runtime environment; all other files will be excluded.\n\nRequires `startRunImage`. Nixpacks applies this filter while copying artifacts from the build image into that\nseparate runtime image. */\n  startOnlyIncludeFiles?: Array<string>;\n  /** The base image to use for running the application. */\n  startRunImage?: string;\n};\n// [!code focus-end]"
   },
   "NixpacksCwImagePackaging": {
     "definitionName": "NixpacksCwImagePackaging",
@@ -42564,7 +42538,7 @@
       {
         "name": "startOnlyIncludeFiles",
         "required": false,
-        "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>",
+        "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>\n<p>Requires <code>startRunImage</code>. Nixpacks applies this filter while copying artifacts from the build image into that\nseparate runtime image.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "array",
@@ -42578,11 +42552,11 @@
         "examples": [
           {
             "lang": "yaml",
-            "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n         # [!code focus-start]\n         startOnlyIncludeFiles:\n           - dist\n           - node_modules\n         # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
+            "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n          # [!code focus-start]\n          startRunImage: node:22-slim\n          startOnlyIncludeFiles:\n           - dist\n           - node_modules\n          # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
           },
           {
             "lang": "typescript",
-            "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n       // [!code focus-start]\n       startOnlyIncludeFiles: ['dist', 'node_modules']\n       // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
+            "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n        // [!code focus-start]\n        startRunImage: 'node:22-slim',\n        startOnlyIncludeFiles: ['dist', 'node_modules']\n        // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
           }
         ]
       },
@@ -42613,7 +42587,7 @@
       "requiredCount": 1,
       "optionalCount": 6
     },
-    "typeDeclaration": "import type { NixpacksPhase } from 'stacktape';\n\n// [!code focus-start]\ntype NixpacksCwImagePackagingProps = {\n  /** The path to the source code directory. */\n  sourceDirectoryPath: string;\n  /** The base image to use for building the application. */\n  buildImage?: string;\n  /** The build phases for the application. */\n  phases?: Array<NixpacksPhase>;\n  /** A list of providers to use for determining the build and runtime environments. */\n  providers?: Array<string>;\n  /** The command to execute when starting the application. */\n  startCmd?: string;\n  /** A list of file paths to include in the runtime environment; all other files will be excluded. */\n  startOnlyIncludeFiles?: Array<string>;\n  /** The base image to use for running the application. */\n  startRunImage?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { NixpacksPhase } from 'stacktape';\n\n// [!code focus-start]\ntype NixpacksCwImagePackagingProps = {\n  /** The path to the source code directory. */\n  sourceDirectoryPath: string;\n  /** The base image to use for building the application. */\n  buildImage?: string;\n  /** The build phases for the application. */\n  phases?: Array<NixpacksPhase>;\n  /** A list of providers to use for determining the build and runtime environments. */\n  providers?: Array<string>;\n  /** The command to execute when starting the application. */\n  startCmd?: string;\n  /** A list of file paths to include in the runtime environment; all other files will be excluded.\n\nRequires `startRunImage`. Nixpacks applies this filter while copying artifacts from the build image into that\nseparate runtime image. */\n  startOnlyIncludeFiles?: Array<string>;\n  /** The base image to use for running the application. */\n  startRunImage?: string;\n};\n// [!code focus-end]"
   },
   "NixpacksPhase": {
     "definitionName": "NixpacksPhase",
@@ -45580,7 +45554,7 @@
                 {
                   "name": "startOnlyIncludeFiles",
                   "required": false,
-                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>",
+                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>\n<p>Requires <code>startRunImage</code>. Nixpacks applies this filter while copying artifacts from the build image into that\nseparate runtime image.</p>",
                   "longDescription": "",
                   "typeInfo": {
                     "kind": "array",
@@ -45594,11 +45568,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n         # [!code focus-start]\n         startOnlyIncludeFiles:\n           - dist\n           - node_modules\n         # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
+                      "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n          # [!code focus-start]\n          startRunImage: node:22-slim\n          startOnlyIncludeFiles:\n           - dist\n           - node_modules\n          # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n       // [!code focus-start]\n       startOnlyIncludeFiles: ['dist', 'node_modules']\n       // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
+                      "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n        // [!code focus-start]\n        startRunImage: 'node:22-slim',\n        startOnlyIncludeFiles: ['dist', 'node_modules']\n        // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
                     }
                   ]
                 },
@@ -45852,7 +45826,7 @@
                             "name": "packageManagerFile",
                             "required": false,
                             "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
                             "typeInfo": {
                               "kind": "primitive",
                               "types": [
@@ -46000,21 +45974,8 @@
                             "longDescription": "",
                             "defaultValue": "3.12",
                             "typeInfo": {
-                              "kind": "primitive",
-                              "types": [
-                                "number"
-                              ],
-                              "enumValues": [
-                                2.7,
-                                3.11,
-                                3.12,
-                                3.13,
-                                3.14,
-                                3.6,
-                                3.7,
-                                3.8,
-                                3.9
-                              ]
+                              "kind": "reference",
+                              "typeName": "SupportedPythonVersion"
                             },
                             "examples": [
                               {
@@ -46141,6 +46102,8 @@
                                 11,
                                 17,
                                 19,
+                                21,
+                                25,
                                 8
                               ]
                             },
@@ -46179,7 +46142,9 @@
                               ],
                               "enumValues": [
                                 3.2,
-                                3.3
+                                3.3,
+                                3.4,
+                                4
                               ]
                             },
                             "examples": [
@@ -46266,7 +46231,9 @@
                                 "number"
                               ],
                               "enumValues": [
+                                10,
                                 6,
+                                7,
                                 8
                               ]
                             },
@@ -46855,7 +46822,7 @@
         "name": "packageManagerFile",
         "required": false,
         "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-        "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+        "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
         "typeInfo": {
           "kind": "primitive",
           "types": [
@@ -46880,21 +46847,8 @@
         "longDescription": "",
         "defaultValue": "3.12",
         "typeInfo": {
-          "kind": "primitive",
-          "types": [
-            "number"
-          ],
-          "enumValues": [
-            2.7,
-            3.11,
-            3.12,
-            3.13,
-            3.14,
-            3.6,
-            3.7,
-            3.8,
-            3.9
-          ]
+          "kind": "reference",
+          "typeName": "SupportedPythonVersion"
         },
         "examples": [
           {
@@ -47038,7 +46992,7 @@
       "requiredCount": 0,
       "optionalCount": 9
     },
-    "typeDeclaration": "// [!code focus-start]\ntype PyLanguageSpecificConfig = {\n  /** Minify Python code to reduce package size. Makes production stack traces harder to read. */\n  minify?: boolean;\n  /** The Python package manager to use. */\n  packageManager?: \"uv\";\n  /** The path to your project's dependency file. */\n  packageManagerFile?: string;\n  /** The Python version the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  pythonVersion?: 2.7 | 3.11 | 3.12 | 3.13 | 3.14 | 3.6 | 3.7 | 3.8 | 3.9;\n  /** Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette). */\n  runAppAs?: \"ASGI\" | \"WSGI\";\n  /** Only include these dependency groups from `pyproject.toml`. */\n  uvOnlyGroups?: Array<string>;\n  /** Optional dependency extras to include from `pyproject.toml`. */\n  uvOptionalDependencies?: Array<string>;\n  /** Dependency groups to include from `pyproject.toml`. */\n  uvWithGroups?: Array<string>;\n  /** Dependency groups to exclude from `pyproject.toml`. */\n  uvWithoutGroups?: Array<string>;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { SupportedPythonVersion } from 'stacktape';\n\n// [!code focus-start]\ntype PyLanguageSpecificConfig = {\n  /** Minify Python code to reduce package size. Makes production stack traces harder to read. */\n  minify?: boolean;\n  /** The Python package manager to use. */\n  packageManager?: \"uv\";\n  /** The path to your project's dependency file. */\n  packageManagerFile?: string;\n  /** The Python version the buildpack uses to create the artifact. For Lambda packaging, keep the function's `runtime` aligned with this value. */\n  pythonVersion?: SupportedPythonVersion;\n  /** Python server type: `WSGI` (Flask, Django) or `ASGI` (FastAPI, Starlette). */\n  runAppAs?: \"ASGI\" | \"WSGI\";\n  /** Only include these dependency groups from `pyproject.toml`. */\n  uvOnlyGroups?: Array<string>;\n  /** Optional dependency extras to include from `pyproject.toml`. */\n  uvOptionalDependencies?: Array<string>;\n  /** Dependency groups to include from `pyproject.toml`. */\n  uvWithGroups?: Array<string>;\n  /** Dependency groups to exclude from `pyproject.toml`. */\n  uvWithoutGroups?: Array<string>;\n};\n// [!code focus-end]"
   },
   "RateBasedStatement": {
     "definitionName": "RateBasedStatement",
@@ -51731,7 +51685,9 @@
           ],
           "enumValues": [
             3.2,
-            3.3
+            3.3,
+            3.4,
+            4
           ]
         },
         "examples": [
@@ -51750,7 +51706,7 @@
       "requiredCount": 0,
       "optionalCount": 1
     },
-    "typeDeclaration": "// [!code focus-start]\ntype RubyLanguageSpecificConfig = {\n  /** The version of Ruby to use. */\n  rubyVersion?: 3.2 | 3.3;\n};\n// [!code focus-end]"
+    "typeDeclaration": "// [!code focus-start]\ntype RubyLanguageSpecificConfig = {\n  /** The version of Ruby to use. */\n  rubyVersion?: 3.2 | 3.3 | 3.4 | 4;\n};\n// [!code focus-end]"
   },
   "S3FilterRule": {
     "definitionName": "S3FilterRule",
@@ -52506,7 +52462,7 @@
                 {
                   "name": "startOnlyIncludeFiles",
                   "required": false,
-                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>",
+                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>\n<p>Requires <code>startRunImage</code>. Nixpacks applies this filter while copying artifacts from the build image into that\nseparate runtime image.</p>",
                   "longDescription": "",
                   "typeInfo": {
                     "kind": "array",
@@ -52520,11 +52476,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n         # [!code focus-start]\n         startOnlyIncludeFiles:\n           - dist\n           - node_modules\n         # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
+                      "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n          # [!code focus-start]\n          startRunImage: node:22-slim\n          startOnlyIncludeFiles:\n           - dist\n           - node_modules\n          # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n       // [!code focus-start]\n       startOnlyIncludeFiles: ['dist', 'node_modules']\n       // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
+                      "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n        // [!code focus-start]\n        startRunImage: 'node:22-slim',\n        startOnlyIncludeFiles: ['dist', 'node_modules']\n        // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
                     }
                   ]
                 },
@@ -52778,7 +52734,7 @@
                             "name": "packageManagerFile",
                             "required": false,
                             "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
                             "typeInfo": {
                               "kind": "primitive",
                               "types": [
@@ -52926,21 +52882,8 @@
                             "longDescription": "",
                             "defaultValue": "3.12",
                             "typeInfo": {
-                              "kind": "primitive",
-                              "types": [
-                                "number"
-                              ],
-                              "enumValues": [
-                                2.7,
-                                3.11,
-                                3.12,
-                                3.13,
-                                3.14,
-                                3.6,
-                                3.7,
-                                3.8,
-                                3.9
-                              ]
+                              "kind": "reference",
+                              "typeName": "SupportedPythonVersion"
                             },
                             "examples": [
                               {
@@ -53067,6 +53010,8 @@
                                 11,
                                 17,
                                 19,
+                                21,
+                                25,
                                 8
                               ]
                             },
@@ -53105,7 +53050,9 @@
                               ],
                               "enumValues": [
                                 3.2,
-                                3.3
+                                3.3,
+                                3.4,
+                                4
                               ]
                             },
                             "examples": [
@@ -53192,7 +53139,9 @@
                                 "number"
                               ],
                               "enumValues": [
+                                10,
                                 6,
+                                7,
                                 8
                               ]
                             },
@@ -56629,7 +56578,7 @@
                   "name": "packageManagerFile",
                   "required": false,
                   "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-                  "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+                  "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -56777,21 +56726,8 @@
                   "longDescription": "",
                   "defaultValue": "3.12",
                   "typeInfo": {
-                    "kind": "primitive",
-                    "types": [
-                      "number"
-                    ],
-                    "enumValues": [
-                      2.7,
-                      3.11,
-                      3.12,
-                      3.13,
-                      3.14,
-                      3.6,
-                      3.7,
-                      3.8,
-                      3.9
-                    ]
+                    "kind": "reference",
+                    "typeName": "SupportedPythonVersion"
                   },
                   "examples": [
                     {
@@ -56918,6 +56854,8 @@
                       11,
                       17,
                       19,
+                      21,
+                      25,
                       8
                     ]
                   },
@@ -56956,7 +56894,9 @@
                     ],
                     "enumValues": [
                       3.2,
-                      3.3
+                      3.3,
+                      3.4,
+                      4
                     ]
                   },
                   "examples": [
@@ -57043,7 +56983,9 @@
                       "number"
                     ],
                     "enumValues": [
+                      10,
                       6,
+                      7,
                       8
                     ]
                   },
@@ -57469,7 +57411,7 @@
                   "name": "packageManagerFile",
                   "required": false,
                   "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-                  "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+                  "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -57617,21 +57559,8 @@
                   "longDescription": "",
                   "defaultValue": "3.12",
                   "typeInfo": {
-                    "kind": "primitive",
-                    "types": [
-                      "number"
-                    ],
-                    "enumValues": [
-                      2.7,
-                      3.11,
-                      3.12,
-                      3.13,
-                      3.14,
-                      3.6,
-                      3.7,
-                      3.8,
-                      3.9
-                    ]
+                    "kind": "reference",
+                    "typeName": "SupportedPythonVersion"
                   },
                   "examples": [
                     {
@@ -57758,6 +57687,8 @@
                       11,
                       17,
                       19,
+                      21,
+                      25,
                       8
                     ]
                   },
@@ -57796,7 +57727,9 @@
                     ],
                     "enumValues": [
                       3.2,
-                      3.3
+                      3.3,
+                      3.4,
+                      4
                     ]
                   },
                   "examples": [
@@ -57883,7 +57816,9 @@
                       "number"
                     ],
                     "enumValues": [
+                      10,
                       6,
+                      7,
                       8
                     ]
                   },
@@ -58305,7 +58240,7 @@
                   "name": "packageManagerFile",
                   "required": false,
                   "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-                  "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+                  "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
                   "typeInfo": {
                     "kind": "primitive",
                     "types": [
@@ -58453,21 +58388,8 @@
                   "longDescription": "",
                   "defaultValue": "3.12",
                   "typeInfo": {
-                    "kind": "primitive",
-                    "types": [
-                      "number"
-                    ],
-                    "enumValues": [
-                      2.7,
-                      3.11,
-                      3.12,
-                      3.13,
-                      3.14,
-                      3.6,
-                      3.7,
-                      3.8,
-                      3.9
-                    ]
+                    "kind": "reference",
+                    "typeName": "SupportedPythonVersion"
                   },
                   "examples": [
                     {
@@ -58594,6 +58516,8 @@
                       11,
                       17,
                       19,
+                      21,
+                      25,
                       8
                     ]
                   },
@@ -58632,7 +58556,9 @@
                     ],
                     "enumValues": [
                       3.2,
-                      3.3
+                      3.3,
+                      3.4,
+                      4
                     ]
                   },
                   "examples": [
@@ -58719,7 +58645,9 @@
                       "number"
                     ],
                     "enumValues": [
+                      10,
                       6,
+                      7,
                       8
                     ]
                   },
@@ -62762,7 +62690,7 @@
                 {
                   "name": "startOnlyIncludeFiles",
                   "required": false,
-                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>",
+                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>\n<p>Requires <code>startRunImage</code>. Nixpacks applies this filter while copying artifacts from the build image into that\nseparate runtime image.</p>",
                   "longDescription": "",
                   "typeInfo": {
                     "kind": "array",
@@ -62776,11 +62704,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n         # [!code focus-start]\n         startOnlyIncludeFiles:\n           - dist\n           - node_modules\n         # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
+                      "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n          # [!code focus-start]\n          startRunImage: node:22-slim\n          startOnlyIncludeFiles:\n           - dist\n           - node_modules\n          # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n       // [!code focus-start]\n       startOnlyIncludeFiles: ['dist', 'node_modules']\n       // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
+                      "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n        // [!code focus-start]\n        startRunImage: 'node:22-slim',\n        startOnlyIncludeFiles: ['dist', 'node_modules']\n        // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
                     }
                   ]
                 },
@@ -63034,7 +62962,7 @@
                             "name": "packageManagerFile",
                             "required": false,
                             "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
                             "typeInfo": {
                               "kind": "primitive",
                               "types": [
@@ -63182,21 +63110,8 @@
                             "longDescription": "",
                             "defaultValue": "3.12",
                             "typeInfo": {
-                              "kind": "primitive",
-                              "types": [
-                                "number"
-                              ],
-                              "enumValues": [
-                                2.7,
-                                3.11,
-                                3.12,
-                                3.13,
-                                3.14,
-                                3.6,
-                                3.7,
-                                3.8,
-                                3.9
-                              ]
+                              "kind": "reference",
+                              "typeName": "SupportedPythonVersion"
                             },
                             "examples": [
                               {
@@ -63323,6 +63238,8 @@
                                 11,
                                 17,
                                 19,
+                                21,
+                                25,
                                 8
                               ]
                             },
@@ -63361,7 +63278,9 @@
                               ],
                               "enumValues": [
                                 3.2,
-                                3.3
+                                3.3,
+                                3.4,
+                                4
                               ]
                             },
                             "examples": [
@@ -63448,7 +63367,9 @@
                                 "number"
                               ],
                               "enumValues": [
+                                10,
                                 6,
+                                7,
                                 8
                               ]
                             },
@@ -66580,7 +66501,7 @@
                 {
                   "name": "startOnlyIncludeFiles",
                   "required": false,
-                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>",
+                  "shortDescription": "<p> A list of file paths to include in the runtime environment; all other files will be excluded.</p>\n<p>Requires <code>startRunImage</code>. Nixpacks applies this filter while copying artifacts from the build image into that\nseparate runtime image.</p>",
                   "longDescription": "",
                   "typeInfo": {
                     "kind": "array",
@@ -66594,11 +66515,11 @@
                   "examples": [
                     {
                       "lang": "yaml",
-                      "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n         # [!code focus-start]\n         startOnlyIncludeFiles:\n           - dist\n           - node_modules\n         # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
+                      "code": "resources:\n worker:\n   type: worker-service\n   properties:\n     packaging:\n       type: nixpacks\n       properties:\n         sourceDirectoryPath: ./worker\n          # [!code focus-start]\n          startRunImage: node:22-slim\n          startOnlyIncludeFiles:\n           - dist\n           - node_modules\n          # [!code focus-end]\n     resources:\n       cpu: 0.5\n       memory: 1024"
                     },
                     {
                       "lang": "typescript",
-                      "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n       // [!code focus-start]\n       startOnlyIncludeFiles: ['dist', 'node_modules']\n       // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
+                      "code": "import { WorkerService, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n const worker = new WorkerService({\n   packaging: {\n     type: 'nixpacks',\n     properties: {\n       sourceDirectoryPath: './worker',\n        // [!code focus-start]\n        startRunImage: 'node:22-slim',\n        startOnlyIncludeFiles: ['dist', 'node_modules']\n        // [!code focus-end]\n     }\n   },\n   resources: {\n     cpu: 0.5,\n     memory: 1024\n   }\n });\n return { resources: { worker } };\n});"
                     }
                   ]
                 },
@@ -66852,7 +66773,7 @@
                             "name": "packageManagerFile",
                             "required": false,
                             "shortDescription": "<p> The path to your project&#39;s dependency file.</p>",
-                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, or <code>pyproject.toml</code> file.</p>",
+                            "longDescription": "<p>This can be a <code>requirements.txt</code>, <code>Pipfile</code>, <code>pyproject.toml</code>, or <code>uv.lock</code> file. When both\n<code>pyproject.toml</code> and <code>uv.lock</code> exist, Stacktape uses the lock file by default.</p>",
                             "typeInfo": {
                               "kind": "primitive",
                               "types": [
@@ -67000,21 +66921,8 @@
                             "longDescription": "",
                             "defaultValue": "3.12",
                             "typeInfo": {
-                              "kind": "primitive",
-                              "types": [
-                                "number"
-                              ],
-                              "enumValues": [
-                                2.7,
-                                3.11,
-                                3.12,
-                                3.13,
-                                3.14,
-                                3.6,
-                                3.7,
-                                3.8,
-                                3.9
-                              ]
+                              "kind": "reference",
+                              "typeName": "SupportedPythonVersion"
                             },
                             "examples": [
                               {
@@ -67141,6 +67049,8 @@
                                 11,
                                 17,
                                 19,
+                                21,
+                                25,
                                 8
                               ]
                             },
@@ -67179,7 +67089,9 @@
                               ],
                               "enumValues": [
                                 3.2,
-                                3.3
+                                3.3,
+                                3.4,
+                                4
                               ]
                             },
                             "examples": [
@@ -67266,7 +67178,9 @@
                                 "number"
                               ],
                               "enumValues": [
+                                10,
                                 6,
+                                7,
                                 8
                               ]
                             },

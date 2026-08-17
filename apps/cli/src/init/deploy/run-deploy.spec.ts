@@ -2,7 +2,13 @@ import { EventEmitter } from 'node:events';
 import { join } from 'node:path';
 import { Readable } from 'node:stream';
 import { describe, expect, it } from 'bun:test';
-import { deployArgs, deployCommandLine, startDeploy } from './run-deploy';
+import { deployArgs, deployCommandLine, inspectDeployTarget, readResourceUrl, startDeploy } from './run-deploy';
+import {
+  INIT_TARGET_CHECK_ENV,
+  INIT_TARGET_EXPECTATION_ENV,
+  INIT_TARGET_SCHEMA_VERSION,
+  type DeployTargetExpectation
+} from './stack-expectation';
 
 const request = {
   repositoryRoot: '/repo',
@@ -49,6 +55,16 @@ describe('the deploy command line', () => {
     expect(deployCommandLine(request)).toBe(
       'stacktape deploy --configPath stacktape.yml --stage dev --region eu-west-1 --projectName orders'
     );
+  });
+
+  it('carries an explicit connected-account selection into child and copyable commands', () => {
+    const selected = { ...request, awsAccount: 'production-account' };
+    const args = deployArgs(selected);
+    expect(args.slice(args.indexOf('--awsAccount'), args.indexOf('--awsAccount') + 2)).toEqual([
+      '--awsAccount',
+      'production-account'
+    ]);
+    expect(deployCommandLine(selected)).toEndWith('--awsAccount production-account');
   });
 });
 
@@ -100,5 +116,230 @@ describe('reading what the deploy says', () => {
 
     expect(await handle.finished).toBe(1);
     expect(lines[0]).toContain('ENOENT');
+  });
+
+  it('transports the exact expectation and disables target-check mode in the deploy child', async () => {
+    const expectation: DeployTargetExpectation = {
+      schemaVersion: INIT_TARGET_SCHEMA_VERSION,
+      expected: 'update',
+      accountId: '123456789012',
+      stackName: 'orders-dev',
+      projectName: 'orders',
+      stage: 'dev',
+      region: 'eu-west-1',
+      stackId: 'arn:aws:cloudformation:eu-west-1:123456789012:stack/orders-dev/one'
+    };
+    let environment: NodeJS.ProcessEnv | undefined;
+    const handle = startDeploy({
+      request: { ...request, targetExpectation: expectation },
+      onEvent: () => {},
+      onLine: () => {},
+      spawnChild: ((_: string, __: string[], options: { env?: NodeJS.ProcessEnv }) => {
+        environment = options.env;
+        return fakeChild([]);
+      }) as never
+    });
+
+    expect(await handle.finished).toBe(0);
+    expect(environment?.[INIT_TARGET_CHECK_ENV]).toBe('');
+    expect(environment?.[INIT_TARGET_EXPECTATION_ENV]).toBe(JSON.stringify(expectation));
+  });
+});
+
+describe('reading a deployed resource URL', () => {
+  it('accepts only the typed HTTPS result from param:get', async () => {
+    let childArgs: string[] = [];
+    const url = await readResourceUrl({
+      request: {
+        projectName: 'orders',
+        stage: 'dev',
+        region: 'eu-west-1',
+        resourceName: 'api',
+        awsAccount: 'production-account'
+      },
+      spawnChild: ((_: string, args: string[]) => {
+        childArgs = args;
+        return fakeChild([
+          'untrusted build output: https://attacker.example\n',
+          `${JSON.stringify({
+            type: 'result',
+            ok: true,
+            code: 'OK',
+            message: 'param:get completed',
+            data: { result: 'https://api.example.com' }
+          })}\n`
+        ]);
+      }) as never
+    });
+
+    expect(url).toBe('https://api.example.com/');
+    expect(childArgs.slice(childArgs.indexOf('--awsAccount'), childArgs.indexOf('--awsAccount') + 2)).toEqual([
+      '--awsAccount',
+      'production-account'
+    ]);
+  });
+
+  it('rejects a non-HTTPS typed value', async () => {
+    const url = await readResourceUrl({
+      request: { projectName: 'orders', stage: 'dev', region: 'eu-west-1', resourceName: 'api' },
+      spawnChild: (() =>
+        fakeChild([
+          `${JSON.stringify({ type: 'result', ok: true, data: { result: 'http://localhost:3000' } })}\n`
+        ])) as never
+    });
+
+    expect(url).toBeUndefined();
+  });
+
+  it('rejects multiple terminal URL results rather than choosing one', async () => {
+    const url = await readResourceUrl({
+      request: { projectName: 'orders', stage: 'dev', region: 'eu-west-1', resourceName: 'api' },
+      spawnChild: (() =>
+        fakeChild([
+          `${JSON.stringify({ type: 'result', ok: true, data: { result: 'https://api.example.com' } })}\n`,
+          `${JSON.stringify({ type: 'result', ok: true, data: { result: 'https://other.example.com' } })}\n`
+        ])) as never
+    });
+
+    expect(url).toBeUndefined();
+  });
+
+  it('stops a lookup that never finishes', async () => {
+    const child = new EventEmitter() as EventEmitter & { stdout: Readable; stderr: null };
+    child.stdout = new Readable({ read() {} });
+    child.stderr = null;
+    let terminated = false;
+
+    const url = await readResourceUrl({
+      request: { projectName: 'orders', stage: 'dev', region: 'eu-west-1', resourceName: 'api' },
+      spawnChild: (() => child) as never,
+      timeoutMs: 5,
+      terminate: () => {
+        terminated = true;
+      }
+    });
+
+    expect(url).toBeUndefined();
+    expect(terminated).toBe(true);
+  });
+});
+
+describe('checking the deploy target with deploy credentials', () => {
+  it('accepts only the typed target result and ignores untrusted output', async () => {
+    const target = {
+      schemaVersion: INIT_TARGET_SCHEMA_VERSION,
+      accountId: '123456789012',
+      stackName: 'orders-dev',
+      projectName: 'orders',
+      stage: 'dev',
+      region: 'eu-west-1',
+      status: 'absent'
+    } as const;
+    const observed = await inspectDeployTarget({
+      request,
+      spawnChild: (() =>
+        fakeChild([
+          `${JSON.stringify({ status: 'updateable', stackId: 'attacker-controlled' })}\n`,
+          `${JSON.stringify({ type: 'result', ok: true, data: { result: target } })}\n`
+        ])) as never
+    });
+
+    expect(observed).toEqual(target);
+  });
+
+  it('enables only target-check mode and clears any inherited expectation', async () => {
+    const target = {
+      schemaVersion: INIT_TARGET_SCHEMA_VERSION,
+      accountId: '123456789012',
+      stackName: 'orders-dev',
+      projectName: 'orders',
+      stage: 'dev',
+      region: 'eu-west-1',
+      status: 'absent'
+    } as const;
+    let environment: NodeJS.ProcessEnv | undefined;
+    const observed = await inspectDeployTarget({
+      request,
+      spawnChild: ((_: string, __: string[], options: { env?: NodeJS.ProcessEnv }) => {
+        environment = options.env;
+        return fakeChild([`${JSON.stringify({ type: 'result', ok: true, data: { result: target } })}\n`]);
+      }) as never
+    });
+
+    expect(observed).toEqual(target);
+    expect(environment?.[INIT_TARGET_CHECK_ENV]).toBe('1');
+    expect(environment?.[INIT_TARGET_EXPECTATION_ENV]).toBe('');
+  });
+
+  it('fails closed when the target child fails or never returns a typed result', async () => {
+    expect(
+      await inspectDeployTarget({
+        request,
+        spawnChild: (() => fakeChild(['plain output\n'], [], 1)) as never
+      })
+    ).toBeUndefined();
+    expect(
+      await inspectDeployTarget({
+        request,
+        spawnChild: (() =>
+          fakeChild([
+            `${JSON.stringify({
+              type: 'result',
+              ok: true,
+              data: {
+                result: {
+                  schemaVersion: INIT_TARGET_SCHEMA_VERSION,
+                  accountId: '123456789012',
+                  stackName: 'another-dev',
+                  projectName: 'another',
+                  stage: 'dev',
+                  region: 'eu-west-1',
+                  status: 'absent'
+                }
+              }
+            })}\n`
+          ])) as never
+      })
+    ).toBeUndefined();
+  });
+
+  it('rejects multiple target results and terminates an aborted check', async () => {
+    const target = {
+      schemaVersion: INIT_TARGET_SCHEMA_VERSION,
+      accountId: '123456789012',
+      stackName: 'orders-dev',
+      projectName: 'orders',
+      stage: 'dev',
+      region: 'eu-west-1',
+      status: 'absent'
+    } as const;
+    expect(
+      await inspectDeployTarget({
+        request,
+        spawnChild: (() =>
+          fakeChild([
+            `${JSON.stringify({ type: 'result', ok: true, data: { result: target } })}\n`,
+            `${JSON.stringify({ type: 'result', ok: true, data: { result: target } })}\n`
+          ])) as never
+      })
+    ).toBeUndefined();
+
+    const child = new EventEmitter() as EventEmitter & { stdout: Readable; stderr: null };
+    child.stdout = new Readable({ read() {} });
+    child.stderr = null;
+    const controller = new AbortController();
+    let terminated = false;
+    const pending = inspectDeployTarget({
+      request,
+      spawnChild: (() => child) as never,
+      signal: controller.signal,
+      terminate: () => {
+        terminated = true;
+      }
+    });
+    controller.abort();
+
+    expect(await pending).toBeUndefined();
+    expect(terminated).toBe(true);
   });
 });

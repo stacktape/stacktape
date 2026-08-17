@@ -141,6 +141,26 @@ describe('runInit', () => {
     expect(said.join('\n')).toContain('not sent to Stacktape');
   });
 
+  it('says when an agent failed and the result fell back to file scans', async () => {
+    const repoRoot = await makeRepo(EXPRESS_APP);
+    const said: string[] = [];
+
+    await runInit({
+      repositoryRoot: repoRoot,
+      presentation: 'terminal',
+      detect: async () => [agent('codex')],
+      runSession: async () => ({
+        usage: { inputTokens: 0, outputTokens: 0 },
+        stopReason: 'error',
+        errorMessage: 'Authentication expired.'
+      }),
+      onOutput: (line) => said.push(line)
+    });
+
+    expect(said.join('\n')).toContain('uses file scans only');
+    expect(said.join('\n')).toContain('Authentication expired.');
+  });
+
   it('fails loudly when the requested agent is not installed', async () => {
     const repoRoot = await makeRepo(EXPRESS_APP);
 

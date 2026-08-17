@@ -19,11 +19,19 @@ import { detectRepository } from './cicd/detect-host';
 import { writePipeline } from './cicd/write-pipeline';
 import { resolveAwsIdentity } from './deploy/credentials';
 import { resolveStacktapeAccount } from './deploy/stacktape-account';
-import { ensureGeneratedSecrets } from './deploy/ensure-secrets';
-import { deployCommandLine, startDeploy } from './deploy/run-deploy';
+import {
+  deployCommandLine,
+  inspectDeployTarget,
+  readResourceUrl,
+  startDeploy,
+  type DeployHandle
+} from './deploy/run-deploy';
 import { runAgentSessionWithRetry } from './agent/session-runner';
 import type { AgentEvent } from './agent/transport';
 import { runGreenfieldMission, type AgentRunner, type GreenfieldResult } from './missions/greenfield';
+import { createNixpacksPlanner } from './nixpacks-planner';
+import { runPreflight } from './preflight/preflight';
+import { createPreflightRunners } from './preflight/runners';
 import { runRepairMission } from './missions/repair';
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
 import type { WizardAgentOption } from './server/wizard-server';
@@ -43,6 +51,8 @@ export type InitPresentation = 'browser' | 'terminal';
 export type InitOptions = {
   repositoryRoot?: string;
   projectName?: string;
+  /** Connected Stacktape AWS account name, required when no default disambiguates multiple accounts. */
+  awsAccount?: string;
   /** Forced by `--headless`; otherwise decided by whether a browser can plausibly be opened. */
   presentation?: InitPresentation;
   /**
@@ -247,6 +257,9 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       projectName,
       mode,
       onEvent,
+      // The container builder answers what the repository and the convention table could not; the
+      // eval harness deliberately runs without it so the baseline never depends on a binary.
+      planner: createNixpacksPlanner(repositoryRoot),
       ...(runAgent === undefined ? {} : { runAgent })
     });
 
@@ -300,7 +313,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
         composition: { resources: result.composition.config.resources, gaps: result.composition.gaps },
         answers: {}
       },
-      { presentation: 'terminal' }
+      { presentation: 'terminal', ...(result.agentSkipped === true ? { agentSkipped: true } : {}) }
     );
 
     return { presentation, ...(agent === undefined ? {} : { agent }), result: result, configFile };
@@ -324,6 +337,13 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
   let activeChoice: { agent?: DetectedAgent; modelId: string } | undefined;
   /** How long the analysis took, for the session summary. Only the start wrapper sees both ends. */
   let analysisMs: number | undefined;
+  /** Wall-clock time from the first paid attempt through its terminal retry/repair outcome. */
+  let deployStartedAt: number | undefined;
+  let deployMs: number | undefined;
+  /** The child must not outlive an explicit Ctrl+C/termination of the wizard. */
+  let activeDeploy: DeployHandle | undefined;
+  let activeTargetCheck: { controller: AbortController; finished: Promise<unknown> } | undefined;
+  let agentWasSkipped = false;
 
   // Opened before anything is read, and nothing is read until the user says so. The analysis spends
   // their own agent subscription, so it starts on a button they pressed after seeing what it will do
@@ -357,9 +377,20 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
         }
       );
       analysisMs = Date.now() - analysisStartedAt;
+      if (result.agentSkipped === true) {
+        agentWasSkipped = true;
+        const skippedNote = 'The scan answered everything — your agent was not needed, and no tokens were spent.';
+        say(`  ${skippedNote}`);
+        onProgress({ kind: 'note', label: skippedNote });
+      }
       return result;
     },
     write: ({ composition, format }) => writeComposedConfig({ repositoryRoot, composition, format }),
+    // The local try-out: build the composed services the way the deploy will, start them in an
+    // isolated container with stub values, and watch. Only ever invoked after the user's click —
+    // the session owns that consent — and every machinery failure reads as "unavailable" there.
+    verify: ({ facts, composition }) =>
+      runPreflight({ repositoryRoot, facts, composition, runners: createPreflightRunners() }),
     // Only with an agent. The probes read files, and a deploy failure is not in a file: without a
     // model there is nothing new to learn between one attempt and the next. The session enforces
     // the user's own choice on top of this — someone who picked "Files only" is never repaired by
@@ -425,33 +456,47 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
             };
           }
         }),
+    inspectDeployTarget: async ({ configFile, stage, region }) => {
+      const controller = new AbortController();
+      const finished = inspectDeployTarget({
+        request: {
+          repositoryRoot,
+          configPath: configFile.filename,
+          projectName,
+          stage,
+          region,
+          ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount })
+        },
+        signal: controller.signal
+      });
+      const active = { controller, finished };
+      activeTargetCheck = active;
+      try {
+        return await finished;
+      } finally {
+        if (activeTargetCheck === active) activeTargetCheck = undefined;
+      }
+    },
     deploy: async ({
       configFile,
       stage,
       region,
       keepPartialProgress,
-      generatedSecrets,
+      targetExpectation,
+      urlResourceNames,
       onEvent,
       onLine,
       onCommand
     }) => {
-      // The composer invented these passwords, so inventing their values is our job, not the
-      // user's. Existing secrets are never touched; failures surface as ordinary deploy output.
-      try {
-        const ensured = await ensureGeneratedSecrets({ names: generatedSecrets, region });
-        for (const secret of ensured.filter((entry) => entry.created)) {
-          onLine(`Created secret ${secret.name} with a generated password. It is in your AWS Secrets Manager.`);
-          say(`Created secret ${secret.name} with a generated password.`);
-        }
-      } catch (error) {
-        onLine(`Could not prepare secrets: ${error instanceof Error ? error.message : String(error)}`);
-      }
+      deployStartedAt ??= Date.now();
       const deployRequest = {
         repositoryRoot,
         configPath: configFile.filename,
         stage,
         region,
         projectName,
+        ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount }),
+        ...(targetExpectation === undefined ? {} : { targetExpectation }),
         ...(keepPartialProgress === true ? { keepPartialProgress: true } : {})
       };
       onCommand(deployCommandLine(deployRequest));
@@ -460,27 +505,57 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       // The CLI ends its stream with exactly one result event, and that is the authority on what
       // happened. The exit code is the fallback for a child that died without emitting one.
       let reported: { ok: boolean; code: string; message: string } | undefined;
+      let resultCount = 0;
       const handle = startDeploy({
         request: deployRequest,
         onEvent: (event) => {
           if (event.type === 'result') {
-            reported = { ok: event.ok, code: event.code, message: event.message };
+            resultCount += 1;
+            reported =
+              resultCount === 1
+                ? { ok: event.ok, code: event.code, message: event.message }
+                : {
+                    ok: false,
+                    code: 'DEPLOY_PROTOCOL_INVALID',
+                    message: 'The deploy child emitted more than one terminal result.'
+                  };
           }
           onEvent(event);
         },
         onLine
       });
+      activeDeploy = handle;
 
       const exitCode = await handle.finished;
+      if (activeDeploy === handle) activeDeploy = undefined;
+      deployMs = Date.now() - deployStartedAt;
       say(exitCode === 0 ? 'Deploy finished.' : `Deploy failed (exit code ${exitCode}).`);
-      return (
-        reported ?? {
+      const outcome =
+        reported ??
+        ({
           ok: exitCode === 0,
           code: exitCode === 0 ? 'OK' : 'DEPLOY_FAILED',
           message:
             exitCode === 0 ? 'Deployed.' : 'The deploy stopped without saying why. The output below is what it printed.'
-        }
-      );
+        } as const);
+      if (!outcome.ok) return outcome;
+
+      const urls = (
+        await Promise.all(
+          urlResourceNames.map((resourceName) =>
+            readResourceUrl({
+              request: {
+                projectName,
+                stage,
+                region,
+                resourceName,
+                ...(options.awsAccount === undefined ? {} : { awsAccount: options.awsAccount })
+              }
+            })
+          )
+        )
+      ).filter((url): url is string => url !== undefined);
+      return { ...outcome, urls: [...new Set(urls)] };
     },
     ...(bundle === undefined ? {} : { staticRoot: bundle }),
     // Only in a development checkout. A released CLI serves a bundle that cannot change underneath
@@ -517,11 +592,31 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
       }
     }),
     close: async () => {
+      const targetCheckToStop = activeTargetCheck;
+      if (targetCheckToStop !== undefined) {
+        targetCheckToStop.controller.abort();
+        await Promise.race([
+          targetCheckToStop.finished.then(() => undefined),
+          new Promise<void>((resolveTimeout) => setTimeout(resolveTimeout, 2_000))
+        ]);
+      }
+      const deploymentToStop = activeDeploy;
+      if (deploymentToStop !== undefined) {
+        deploymentToStop.cancel();
+        // Give the child a short chance to close its streams so the command does not leave a CLI
+        // process behind. Shutdown still completes if a platform refuses to reap it promptly.
+        await Promise.race([
+          deploymentToStop.finished.then(() => undefined),
+          new Promise<void>((resolveTimeout) => setTimeout(resolveTimeout, 2_000))
+        ]);
+      }
       // The session summary goes out as the session ends, when the outcome is known. Categories
       // and counts only — see `initTelemetryEvent` for the rule and its reasons.
       await reportInitTelemetry(session.server.current(), {
         presentation: 'browser',
-        ...(analysisMs === undefined ? {} : { analysisDurationMs: analysisMs })
+        ...(analysisMs === undefined ? {} : { analysisDurationMs: analysisMs }),
+        ...(deployMs === undefined ? {} : { deployDurationMs: deployMs }),
+        ...(agentWasSkipped ? { agentSkipped: true } : {})
       });
       await session.close();
     }
@@ -538,6 +633,11 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
 export const describeResult = (result: GreenfieldResult): string[] => {
   const lines: string[] = [];
   const resources = Object.entries(result.composition.config.resources);
+
+  if (result.agent !== undefined && result.agent.stopReason !== 'complete') {
+    lines.push('The coding agent could not finish, so this result uses file scans only.');
+    if (result.agent.errorMessage !== undefined) lines.push(`  ${result.agent.errorMessage.trim()}`);
+  }
 
   if (resources.length === 0) {
     lines.push('Nothing here needs deploying yet.');

@@ -1,0 +1,10 @@
+{
+  "name": "vite-static",
+  "private": true,
+  "scripts": {
+    "build": "vite build"
+  },
+  "dependencies": {
+    "vite": "7.2.4"
+  }
+}

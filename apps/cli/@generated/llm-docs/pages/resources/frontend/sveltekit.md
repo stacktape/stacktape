@@ -33,18 +33,35 @@ Example (TypeScript):
 ```typescript
 import { defineConfig, SvelteKitWeb } from 'stacktape';
 export default defineConfig(() => {
-  const frontend = new SvelteKitWeb({
-    appDirectory: './apps/web'
-  });
+const frontend = new SvelteKitWeb({
+appDirectory: './apps/web'
+});
 
-  return {
-    resources: { frontend }
-  };
+return {
+resources: { frontend }
+};
 });
 ```
 
 
 The `frontend` resource builds the SvelteKit app from `./apps/web`, uses S3 for static assets, uses CloudFront as the CDN, and configures a Lambda-based SvelteKit server.
+
+Stacktape's Lambda packaging requires `@sveltejs/adapter-node`. The `@sveltejs/adapter-auto` used by the standard
+scaffold does not emit the `build/handler.js` server output Stacktape deploys. Install the Node adapter and select it in
+the SvelteKit app:
+
+```js title="svelte.config.js"
+import adapter from "@sveltejs/adapter-node";
+
+export default {
+  kit: {
+    adapter: adapter(),
+  },
+};
+```
+
+Stacktape validates the adapter dependency before building and reports the exact configuration requirement when the
+server output is missing.
 
 ## Project directory
 
@@ -68,7 +85,7 @@ export default defineConfig(() => {
     buildCommand: 'pnpm build'
   });
 
-  return { resources: { frontend } };
+return { resources: { frontend } };
 });
 ```
 
@@ -91,7 +108,7 @@ export default defineConfig(() => {
     customDomains: [{ domainName: 'www.example.com' }]
   });
 
-  return { resources: { frontend } };
+return { resources: { frontend } };
 });
 ```
 
@@ -99,16 +116,18 @@ export default defineConfig(() => {
 For most teams, Stacktape-managed certificates are the right default. Use `customCertificateArn` only when you already need a specific ACM certificate, and use `disableDnsRecordCreation` only when another DNS provider or process owns the DNS record.
 
 
-> **Info:** Custom domains for SvelteKitWeb require a Route 53 hosted zone in the AWS account. If your registrar is not Route 53, the registrar still needs to point the domain to the Route 53 hosted zone nameservers.
+> **Info:** Custom domains for SvelteKitWeb require a Route 53 hosted zone in the AWS
+  account. If your registrar is not Route 53, the registrar still needs to point
+  the domain to the Route 53 hosted zone nameservers.
 
 
 ## Caching and headers
 
 SvelteKitWeb uses a CloudFront CDN in front of the SvelteKit app. The `cdn` property controls cache behavior for SSR routes and specific path patterns, while `fileOptions` sets headers such as `Cache-Control` for static files that match a pattern.
 
-| Concern | Property | Use it when |
-|---|---|---|
-| SSR route caching | `cdn` | You need explicit cache controls for rendered routes or path patterns. |
+| Concern             | Property      | Use it when                                                                 |
+| ------------------- | ------------- | --------------------------------------------------------------------------- |
+| SSR route caching   | `cdn`         | You need explicit cache controls for rendered routes or path patterns.      |
 | Static file headers | `fileOptions` | You need custom headers for uploaded static files, such as `Cache-Control`. |
 
 Most SvelteKit apps should start with the default CDN behavior and add cache rules only after deciding which routes are safe to cache. Be careful with pages that depend on cookies, authorization headers, or user-specific data; caching those responses broadly can expose stale or incorrect content.
@@ -129,16 +148,16 @@ export default defineConfig(() => {
     credentials: { masterUserPassword: $Secret('database.password') }
   });
 
-  const frontend = new SvelteKitWeb({
-    appDirectory: './apps/web',
-    environment: [
-      { name: 'INTERNAL_API_BASE_URL', value: 'https://api.example.com' },
-      { name: 'FEATURE_SEARCH_ENABLED', value: true }
-    ],
-    connectTo: ['mainDatabase']
-  });
+const frontend = new SvelteKitWeb({
+appDirectory: './apps/web',
+environment: [
+{ name: 'INTERNAL_API_BASE_URL', value: 'https://api.example.com' },
+{ name: 'FEATURE_SEARCH_ENABLED', value: true }
+],
+connectTo: ['mainDatabase']
+});
 
-  return { resources: { mainDatabase, frontend } };
+return { resources: { mainDatabase, frontend } };
 });
 ```
 

@@ -21,16 +21,19 @@ import type { AgentEvent } from '../agent/transport';
 import type { GreenfieldResult } from '../missions/greenfield';
 import { summariseFailure, type DeployFailure } from '../deploy/failure';
 import type { JsonlEvent } from '@application-services/tui-manager/output/jsonl-types';
-import { generatedSecretNames } from '../deploy/ensure-secrets';
+import { getStackName } from '@stacktape/naming/stacks';
+import type { DeployTargetExpectation, DeployTargetObservation } from '../deploy/stack-expectation';
 import { estimateMonthlyCost, type PriceEstimate } from '../pricing';
 import { renderTypeScript, renderYaml } from '../write-config';
+import type { PreflightResult } from '../preflight/preflight';
 import {
   startWizardServer,
   type WizardAgentOption,
   type WizardAwsIdentity,
   type WizardDeployment,
   type WizardServer,
-  type WizardState
+  type WizardState,
+  type WizardVerification
 } from './wizard-server';
 
 /**
@@ -64,6 +67,31 @@ const MAX_DEPLOY_LINES = 400;
  */
 const MAX_DEPLOY_ATTEMPTS = 3;
 
+/** Every size the wizard offers, for pricing the ones not currently chosen. */
+const ALL_MODES: InfrastructureMode[] = ['low-cost', 'standard', 'production'];
+
+/** Resource kinds whose typed `url` parameter is a public application entry point. */
+const PUBLIC_URL_RESOURCE_TYPES: ReadonlySet<string> = new Set([
+  'web-service',
+  'nextjs-web',
+  'nuxt-web',
+  'sveltekit-web',
+  'astro-web',
+  'remix-web',
+  'solid-start-web',
+  'hosting-bucket',
+  'http-api-gateway',
+  'application-load-balancer'
+]);
+
+/** Which top-level resources differ between two compositions — added, removed, or rewritten. */
+const changedResourceNames = (before: CompositionResult | undefined, after: CompositionResult): string[] => {
+  const beforeResources: Record<string, unknown> = before?.config.resources ?? {};
+  const afterResources: Record<string, unknown> = after.config.resources;
+  const names = new Set([...Object.keys(beforeResources), ...Object.keys(afterResources)]);
+  return [...names].filter((name) => JSON.stringify(beforeResources[name]) !== JSON.stringify(afterResources[name]));
+};
+
 export type WizardSession = {
   server: WizardServer;
   /** The current facts, after every answer applied so far. Undefined until the mission finishes. */
@@ -88,6 +116,8 @@ export const startWizardSession = async ({
   start,
   write,
   deploy,
+  inspectDeployTarget,
+  verify,
   repair,
   awsIdentity,
   stacktapeAccount,
@@ -147,17 +177,28 @@ export const startWizardSession = async ({
      * is real: the database that took eight minutes is still there for the next attempt.
      */
     keepPartialProgress?: boolean;
-    /**
-     * Composer-generated secret names this configuration references, e.g. `mainDatabase.password`.
-     *
-     * The deployer creates the missing ones with random values before deploying — passwords nobody
-     * has ever typed, for databases that do not exist yet, must not be the user's problem.
-     */
-    generatedSecrets: string[];
+    /** Consent bound to the account/name/region and, for an update, the exact existing StackId. */
+    targetExpectation?: DeployTargetExpectation;
+    /** Public resources whose deployed, typed `url` parameters should be shown after success. */
+    urlResourceNames: string[];
     onEvent: (event: unknown) => void;
     onLine: (line: string) => void;
     onCommand: (commandLine: string) => void;
-  }) => Promise<{ ok: boolean; code: string; message: string }>;
+  }) => Promise<{ ok: boolean; code: string; message: string; urls?: string[] }>;
+  /** Probe in a child that resolves the same connected account/profile as the deploy child. */
+  inspectDeployTarget?: (input: {
+    configFile: { path: string; filename: string };
+    stage: string;
+    region: string;
+  }) => Promise<DeployTargetObservation | undefined>;
+  /**
+   * Tries the composed services on this machine — build them, start them, watch what happens.
+   *
+   * Only ever called after the user clicked for it: running repository code is a permission, and
+   * the session never grants it on their behalf. Absent when the caller has no way to verify,
+   * which removes the offer rather than degrading it.
+   */
+  verify?: (input: { facts: ProjectFacts; composition: CompositionResult }) => Promise<PreflightResult>;
   /**
    * Asks the agent what we got wrong about the repository, given a failure.
    *
@@ -209,12 +250,34 @@ export const startWizardSession = async ({
     const current = composition;
     if (current === undefined) return;
     price = undefined;
+    modePrices = undefined;
     void estimateMonthlyCost(renderYaml(current)).then((estimate) => {
       // Another recomposition may have happened while this was in flight. Its own call will publish.
       if (composition !== current) return;
       price = estimate;
+      if (estimate !== undefined) modePrices = { ...modePrices, [mode]: estimate.monthly };
       publish(buildState());
     });
+    // The other sizes are priced too, so each size card can carry its real monthly figure — comparing
+    // sizes must never mean switching back and forth to watch one number change. Recomposing is
+    // deterministic and free; only the price lookups cost a round trip.
+    const currentFacts = facts;
+    if (currentFacts === undefined) return;
+    for (const other of ALL_MODES) {
+      if (other === mode) continue;
+      const candidate = composeConfig({
+        facts: currentFacts,
+        projectName,
+        mode: other,
+        decisions: answers,
+        engineVersions: versionJson.rds
+      });
+      void estimateMonthlyCost(renderYaml(candidate)).then((estimate) => {
+        if (composition !== current || estimate === undefined) return;
+        modePrices = { ...modePrices, [other]: estimate.monthly };
+        publish(buildState());
+      });
+    }
   };
 
   /**
@@ -227,6 +290,13 @@ export const startWizardSession = async ({
    */
   const adoptComposition = (next: NonNullable<typeof composition>): void => {
     composition = next;
+    // A different configuration is a different thing to prove. Results earned against the old one
+    // must neither gate nor vouch for the new one. The file on disk is another derivative: keeping
+    // its handle would let a direct mode/answer request show one configuration while deploy reads
+    // the previously written one.
+    verification = undefined;
+    deployTarget = undefined;
+    configFile = undefined;
     configText = { yaml: renderYaml(next) };
     void renderTypeScript(next).then((text) => {
       if (composition !== next || configText === undefined) return;
@@ -238,13 +308,137 @@ export const startWizardSession = async ({
   let failure: string | undefined;
   let choice: { agentId: string; modelId: string } | undefined;
   let running = false;
+  let modePrices: Partial<Record<InfrastructureMode, string>> | undefined;
   let configFile: WizardState['configFile'];
   let identity: WizardAwsIdentity | undefined;
   let account: { signedIn: boolean; detail: string } | undefined;
   let deployment: WizardDeployment | undefined;
+  let deployTarget: WizardState['deployTarget'];
+  let checkingDeployTarget = false;
   let pipeline: WizardState['pipeline'];
   let mode: InfrastructureMode = initialMode;
+  let verification: WizardVerification | undefined;
   const answers: Record<string, string> = {};
+
+  /**
+   * Whether the local try-out holds the deploy button.
+   *
+   * Only two states do: a run still in progress, and a *proven* failure the user has not set
+   * aside. `unavailable` and `inconclusive` never block — the machinery failing to answer is not
+   * the user's failure, and the agreed gate blocks on evidence, never on absence of it.
+   */
+  const verificationBlocksDeploy = (): boolean =>
+    verification?.status === 'running' ||
+    verification?.status === 'repairing' ||
+    (verification?.status === 'completed' &&
+      (verification.services ?? []).some((service) => service.status === 'failed'));
+
+  /**
+   * Try the composed services on this machine, and — once, with permission already standing — let
+   * the agent fix what provably failed.
+   *
+   * The local half of the same loop a failed deploy runs, and materially cheaper: a counterexample
+   * from a container on this machine costs seconds and no AWS spend. `allowRepair` is consumed by
+   * the first repair — a fix that did not fix it stops here rather than looping, exactly like the
+   * deploy loop's attempt cap.
+   */
+  const startVerification = (allowRepair: boolean): void => {
+    // Nothing to try before a composition exists, no way to try without a verifier, and a second
+    // click while one runs must not start a second build. All answered by doing nothing; the state
+    // the page gets back says what is actually happening.
+    if (verify === undefined || facts === undefined || composition === undefined) return;
+    if (verification?.status === 'running' || verification?.status === 'repairing') return;
+
+    verification = { status: 'running' };
+    publish(buildState());
+
+    // Captured so a result earned against this composition can be recognised as stale if a
+    // decision changes while the build runs. `adoptComposition` clears `verification`; a late
+    // result for the old configuration must not resurrect it against the new one.
+    const current = composition;
+    void verify({ facts, composition: current }).then(
+      async (result) => {
+        if (composition !== current) return;
+        if (result.status === 'unavailable') {
+          verification = { status: 'unavailable' };
+          publish(buildState());
+          return;
+        }
+
+        const failed = result.services.filter((service) => service.status === 'failed');
+        const canRepair =
+          allowRepair &&
+          failed.length > 0 &&
+          repair !== undefined &&
+          facts !== undefined &&
+          // The same rule as the deploy loop: "Files only" was an explicit decision that no agent
+          // reads this code, and a failed try-out does not revoke it.
+          choice?.agentId !== 'none';
+
+        if (!canRepair) {
+          verification = { status: 'completed', services: result.services };
+          publish(buildState());
+          return;
+        }
+
+        verification = { status: 'repairing', services: result.services };
+        publish(buildState());
+
+        // The failure in the shape the repair mission already speaks. Container output stays local:
+        // application logs can contain runtime secrets that were never present in the repository,
+        // and consent to let an agent read source is not consent to send those values as a prompt.
+        // The structured missing-variable names and service reasons carry the actionable evidence.
+        const failure: DeployFailure = {
+          code: 'PREFLIGHT_FAILED',
+          message: `${failed.map((service) => service.serviceName).join(', ')} did not start in the local try-out.`,
+          errors: failed.flatMap((service) => [
+            service.reason,
+            ...service.observations.missingEnvironmentVariables.map((name) => `${name} is not set`)
+          ]),
+          output: [],
+          failedResources: failed.map((service) => service.resourceName),
+          worthRetrying: true
+        };
+
+        const repaired = await repair!({
+          facts: facts!,
+          decisions: answers,
+          failure,
+          onProgress: (entry) => {
+            timeline.push(entry);
+            publish(buildState());
+          }
+        }).catch(() => undefined);
+
+        if (composition !== current) return;
+        if (repaired === undefined || !repaired.changed) {
+          // Nothing learned. The failure stands, visibly, rather than being retried into.
+          verification = { status: 'completed', services: result.services };
+          publish(buildState());
+          return;
+        }
+
+        const previousConfigFile = configFile;
+        facts = repaired.facts;
+        adoptComposition(repaired.composition);
+        if (write !== undefined && previousConfigFile !== undefined) {
+          const written = await write({ composition: repaired.composition, format: previousConfigFile.format }).catch(
+            () => undefined
+          );
+          if (written !== undefined) configFile = { ...previousConfigFile, ...written };
+        }
+        publish(buildState());
+        // One more look, and only one: the repair either proved itself here or the user sees why not.
+        startVerification(false);
+      },
+      () => {
+        // The machinery failing is never reported as the user's failure.
+        if (composition !== current) return;
+        verification = { status: 'unavailable' };
+        publish(buildState());
+      }
+    );
+  };
 
   const buildState = (): WizardState => ({
     phase:
@@ -264,6 +458,8 @@ export const startWizardSession = async ({
     ...(identity === undefined ? {} : { awsIdentity: identity }),
     ...(account === undefined ? {} : { stacktapeAccount: account }),
     ...(deployment === undefined ? {} : { deployment }),
+    ...(deployTarget === undefined ? {} : { deployTarget }),
+    ...(verification === undefined ? {} : { verification }),
     ...(gitHost === undefined ? {} : { gitHost }),
     mode,
     ...(pipeline === undefined ? {} : { pipeline }),
@@ -291,6 +487,7 @@ export const startWizardSession = async ({
             gaps: composition.gaps,
             deployable: composition.deployable,
             ...(price === undefined ? {} : { price }),
+            ...(modePrices === undefined ? {} : { modePrices }),
             // The file exactly as writing it would produce it, so the page shows the real artifact
             // rather than a re-rendering that could disagree with it.
             ...(configText === undefined ? {} : { configText })
@@ -308,11 +505,41 @@ export const startWizardSession = async ({
     publish(buildState());
   };
 
+  /** Ask AWS who this machine is, again if asked: a failure to ask is a failure to answer. */
+  const resolveIdentity = async (): Promise<void> => {
+    if (awsIdentity === undefined) return;
+    try {
+      identity = await awsIdentity();
+    } catch {
+      identity = { available: false, reason: 'rejected', detail: 'Could not check AWS credentials.' };
+    }
+    publish(buildState());
+  };
+
+  const resolveAccount = async (): Promise<void> => {
+    if (stacktapeAccount === undefined) return;
+    try {
+      account = await stacktapeAccount();
+    } catch {
+      account = { signedIn: false, detail: 'Could not check the Stacktape account.' };
+    }
+    publish(buildState());
+  };
+
   const server = await startWizardServer({
     initialState: buildState(),
     ...(staticRoot === undefined ? {} : { staticRoot }),
     ...(watchStatic === undefined ? {} : { watchStatic }),
     hooks: {
+      onRecheck: async () => {
+        // Cleared first, so the page shows "checking…" rather than yesterday's answer while it waits.
+        identity = undefined;
+        account = undefined;
+        deployTarget = undefined;
+        publish(buildState());
+        await Promise.all([resolveIdentity(), resolveAccount()]);
+        return buildState();
+      },
       onStart: (requested) => {
         // Both ids are looked up in the lists this session published. Nothing typed in a browser
         // reaches an argument list; an unknown id is a rejected request, not a new option.
@@ -329,6 +556,9 @@ export const startWizardSession = async ({
           return;
         }
 
+        // A failed analysis is not the end of the session: the page offers to try again, possibly
+        // with a different agent, and a stale failure would keep the phase stuck on `failed`.
+        failure = undefined;
         running = true;
         choice = { agentId: requested.agentId, modelId: requested.modelId };
         if (requested.mode !== undefined) mode = requested.mode;
@@ -353,7 +583,7 @@ export const startWizardSession = async ({
           }
         );
       },
-      onDeploy: async ({ stage, region }) => {
+      onDeploy: async ({ stage, region, expected }) => {
         // Nothing to deploy until there is a file, and never two deploys at once — which includes
         // while a repair is thinking, or a second concurrent loop starts underneath the first one.
         // Both are answered by doing nothing rather than by an error: the page reflects the state
@@ -361,9 +591,85 @@ export const startWizardSession = async ({
         if (
           deploy === undefined ||
           configFile === undefined ||
+          checkingDeployTarget ||
           deployment?.status === 'running' ||
-          deployment?.status === 'repairing'
+          deployment?.status === 'repairing' ||
+          // A gap is a known missing input, not an invitation to spend money learning the same fact
+          // from CloudFormation. The page mirrors this, but this gate protects direct requests too.
+          composition?.deployable !== true ||
+          // The real wizard's target probe resolves the same connected account/profile as deploy.
+          // Embedders without it retain the older ambient identity gate.
+          (inspectDeployTarget === undefined && awsIdentity !== undefined && identity?.available !== true) ||
+          (stacktapeAccount !== undefined && account?.signedIn !== true) ||
+          // The agreed gate: a configuration the local try-out has proven broken never deploys
+          // until something changes or the user explicitly sets the result aside.
+          verificationBlocksDeploy()
         ) {
+          return;
+        }
+
+        const reviewedConfigFile = configFile;
+        const reviewedComposition = composition;
+        const previouslyReviewedTarget = deployTarget;
+        let targetExpectation: DeployTargetExpectation | undefined;
+        if (inspectDeployTarget !== undefined) {
+          checkingDeployTarget = true;
+          const observed = await inspectDeployTarget({ configFile: reviewedConfigFile, stage, region }).catch(
+            () => undefined
+          );
+          checkingDeployTarget = false;
+          // A target approval is for the configuration on screen when the check began. A concurrent
+          // mode/decision/write request invalidates it even if account and stack name stayed equal.
+          if (configFile !== reviewedConfigFile || composition !== reviewedComposition) {
+            deployTarget = undefined;
+            publish(buildState());
+            return;
+          }
+          if (observed === undefined) {
+            deployTarget = {
+              status: 'unverified',
+              stackName: getStackName(projectName, stage),
+              stage,
+              region,
+              detail: 'Stacktape could not verify this target with the credentials deploy would use.'
+            };
+            publish(buildState());
+            return;
+          }
+          deployTarget = observed;
+          publish(buildState());
+
+          // The first click is read-only. The next is consent bound to the fresh account/name/region
+          // and, for an update, the exact StackId. A changed observation simply returns to review.
+          if (expected.kind === 'check' || observed.status === 'blocked') return;
+          const sameReviewedIdentity =
+            previouslyReviewedTarget !== undefined &&
+            previouslyReviewedTarget.status !== 'unverified' &&
+            previouslyReviewedTarget.accountId === observed.accountId &&
+            previouslyReviewedTarget.stackName === observed.stackName &&
+            previouslyReviewedTarget.projectName === observed.projectName &&
+            previouslyReviewedTarget.stage === observed.stage &&
+            previouslyReviewedTarget.region === observed.region;
+          // The request body is not proof that the page actually displayed an observation. A
+          // direct create/update POST becomes a read-only check; only a later request can confirm
+          // the exact identity the session had already published.
+          if (!sameReviewedIdentity) return;
+          if (expected.kind === 'create') {
+            if (previouslyReviewedTarget.status !== 'absent' || observed.status !== 'absent') return;
+            targetExpectation = { ...observed, expected: 'create' };
+          } else {
+            if (expected.kind !== 'update') return;
+            if (
+              previouslyReviewedTarget.status !== 'updateable' ||
+              previouslyReviewedTarget.stackId !== expected.stackId ||
+              observed.status !== 'updateable' ||
+              observed.stackId !== expected.stackId
+            )
+              return;
+            targetExpectation = { ...observed, expected: 'update', stackId: observed.stackId };
+          }
+        } else if (expected.kind === 'check') {
+          // A check is never a synonym for deploy when an embedding omitted the checker.
           return;
         }
 
@@ -396,12 +702,27 @@ export const startWizardSession = async ({
               configFile: configFile!,
               stage,
               region,
-              // From the composition of this attempt: a repair may have changed what exists.
-              generatedSecrets: composition === undefined ? [] : generatedSecretNames(composition.config.resources),
+              ...(targetExpectation === undefined ? {} : { targetExpectation }),
+              urlResourceNames:
+                composition === undefined
+                  ? []
+                  : Object.entries(composition.config.resources)
+                      .filter(([, resource]) => PUBLIC_URL_RESOURCE_TYPES.has(resource.type))
+                      .map(([name]) => name),
               ...(keepPartialProgress ? { keepPartialProgress: true } : {}),
               onEvent: (event) => {
                 if (deployment === undefined) return;
-                deployment.events = record(deployment.events, event, MAX_DEPLOY_EVENTS);
+                // A successful deploy result can carry the complete detailed stack info. The page
+                // needs the status, never that large/sensitive payload; URLs are resolved through
+                // typed param:get calls instead of trusting output strings.
+                const browserEvent = (() => {
+                  if (typeof event !== 'object' || event === null || (event as { type?: unknown }).type !== 'result') {
+                    return event;
+                  }
+                  const { data: _data, ...withoutData } = event as Record<string, unknown>;
+                  return withoutData;
+                })();
+                deployment.events = record(deployment.events, browserEvent, MAX_DEPLOY_EVENTS);
                 publishSoon();
               },
               onLine: (line) => {
@@ -448,9 +769,18 @@ export const startWizardSession = async ({
         const runWithRepairs = async () => {
           let keepProgressNextAttempt = false;
           for (let attempt = 1; ; attempt += 1) {
+            // Remembered per attempt, because the failure report has to say what the *failed*
+            // attempt left behind — resources that exist are resources that bill.
+            const keptThisAttempt = keepProgressNextAttempt;
             const outcome = await attemptDeploy(keepProgressNextAttempt);
             if (outcome.ok || deployment === undefined) {
-              deployment = { ...deployment!, status: outcome.ok ? 'succeeded' : 'failed', outcome };
+              const { urls, ...publicOutcome } = outcome;
+              deployment = {
+                ...deployment!,
+                status: outcome.ok ? 'succeeded' : 'failed',
+                outcome: publicOutcome,
+                ...(urls === undefined ? {} : { urls })
+              };
               publish(buildState());
               return;
             }
@@ -477,7 +807,12 @@ export const startWizardSession = async ({
               choice?.agentId !== 'none';
 
             if (!canRetry) {
-              deployment = { ...deployment, status: 'failed', outcome };
+              deployment = {
+                ...deployment,
+                status: 'failed',
+                outcome,
+                ...(keptThisAttempt ? { keptPartialProgress: true } : {})
+              };
               publish(buildState());
               return;
             }
@@ -502,21 +837,29 @@ export const startWizardSession = async ({
                 ...deployment,
                 status: 'failed',
                 outcome,
-                repairs: [...(deployment.repairs ?? []), { attempt, applied: false }]
+                repairs: [...(deployment.repairs ?? []), { attempt, applied: false }],
+                ...(keptThisAttempt ? { keptPartialProgress: true } : {})
               };
               publish(buildState());
               return;
             }
 
+            // Named by diffing what was reviewed against what will deploy now, so the page can say
+            // where the configurations differ. Computed here, never taken from the agent's words.
+            const changedResources = changedResourceNames(composition, repaired.composition);
+            const previousConfigFile = configFile!;
             facts = repaired.facts;
             adoptComposition(repaired.composition);
-            const written = await write!({ composition, format: configFile!.format });
-            configFile = { ...configFile!, ...written };
+            const written = await write!({ composition, format: previousConfigFile.format });
+            configFile = { ...previousConfigFile, ...written };
 
             deployment = {
               ...deployment,
               status: 'running',
-              repairs: [...(deployment.repairs ?? []), { attempt, applied: true }],
+              repairs: [
+                ...(deployment.repairs ?? []),
+                { attempt, applied: true, ...(changedResources.length === 0 ? {} : { changedResources }) }
+              ],
               // A retry is a fresh attempt as far as the page is concerned; keeping the old stream
               // would make it look like one long failing deploy.
               events: [],
@@ -552,7 +895,17 @@ export const startWizardSession = async ({
         if (write === undefined || composition === undefined) return;
         const written = await write({ composition, format });
         configFile = { ...written, format };
+        deployTarget = undefined;
         publish(buildState());
+      },
+      onVerify: () => startVerification(true),
+      onVerifyDismiss: () => {
+        // Keeps the results on screen while removing their hold on the deploy button: the user has
+        // seen them, and setting them aside is their call to make.
+        if (verification !== undefined) {
+          verification = { ...verification, status: 'dismissed' };
+        }
+        return buildState();
       },
       onAnswer: (decisionId, value) => {
         // Nothing to change before the mission has produced anything.
@@ -574,32 +927,8 @@ export const startWizardSession = async ({
 
   // Resolved in the background: asking AWS who we are takes a round trip, and the first screen has
   // nothing to do with AWS. By the time anyone reaches the deploy step the answer is already here.
-  if (awsIdentity !== undefined) {
-    void awsIdentity().then(
-      (resolved) => {
-        identity = resolved;
-        publish(buildState());
-      },
-      () => {
-        // A failure to ask is the same as a failure to answer, and the deploy step says so.
-        identity = { available: false, reason: 'rejected', detail: 'Could not check AWS credentials.' };
-        publish(buildState());
-      }
-    );
-  }
-
-  if (stacktapeAccount !== undefined) {
-    void stacktapeAccount().then(
-      (resolved) => {
-        account = resolved;
-        publish(buildState());
-      },
-      () => {
-        account = { signedIn: false, detail: 'Could not check the Stacktape account.' };
-        publish(buildState());
-      }
-    );
-  }
+  void resolveIdentity();
+  void resolveAccount();
 
   // A session created with a finished result never goes through `onStart`, so its derived outputs —
   // the TypeScript text, the price — have to be kicked off here, now that `publish` can reach a page.
@@ -614,9 +943,15 @@ export const startWizardSession = async ({
   };
 };
 
-/** Turn an agent event into a timeline entry the page can render. */
+/**
+ * Turn an agent event into a timeline entry the page can render.
+ *
+ * Tool calls only. The agent's own prose is deliberately dropped: it is model output produced while
+ * reading untrusted files, and the rule this file opens with — an agent must never put words in
+ * front of the user — applies to a progress headline as much as to a decision. The file feed shows
+ * what is happening; the wording around it stays ours.
+ */
 export const toTimelineEntry = (event: AgentEvent): { kind: string; label: string } | undefined => {
   if (event.type === 'tool-call') return { kind: 'tool', label: `${event.name} ${event.summary}`.trim() };
-  if (event.type === 'text') return { kind: 'thought', label: event.text.slice(0, 200) };
   return undefined;
 };

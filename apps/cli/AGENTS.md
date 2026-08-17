@@ -65,9 +65,11 @@ behind explicit package entry points. Refactors remain behavior-focused rather t
   contract.
 - `scripts/` — build, code generation, release and publishing tooling, plus the committed platform binaries under
   `scripts/assets/` that release archives ship. The npm package manifest and JavaScript launcher are release inputs
-  under `scripts/release/npm-package`; they are not application runtime source. `scripts/real-aws/packaging-canary.ts`
-  is an explicitly opted-in deploy/no-op/update/delete diagnostic. It must run only against an exact verified disposable
-  account and externally supplied unique stack name; it is never part of ordinary tests or releases.
+  under `scripts/release/npm-package`; they are not application runtime source. The guarded runners under
+  `scripts/real-aws/` are explicitly opted-in diagnostics: `packaging-canary.ts` proves deploy/no-op/update/delete, and
+  `init-canary.ts` drives one config-generation fixture from the browser wizard through live health and cleanup. They
+  must run only against an exact verified disposable account and externally supplied unique stack name; neither runner
+  is part of ordinary tests or releases. Their non-mutating guardrail specs are part of `test:command-safety`.
   `scripts/publish-install-scripts.ts` publishes the seven installer assets directly through the release-only AWS
   identity, verifies S3 checksums, invalidates exact CloudFront paths, and verifies public bytes. It must not invoke
   Stacktape or accept a `STACKTAPE_API_KEY`.
