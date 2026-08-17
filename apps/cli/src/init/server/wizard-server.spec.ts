@@ -26,6 +26,15 @@ const start = async (overrides: Partial<Parameters<typeof startWizardServer>[0]>
     hooks: {
       onAnswer: (id, value) => ({ ...baseState, answers: { [id]: value } }),
       onMode: () => baseState,
+      onPreference: (change) => ({
+        ...baseState,
+        preferences: {
+          capacity: change.key === 'capacity' ? change.value : 'balanced',
+          availability: change.key === 'availability' ? change.value : 'single',
+          dataProtection: change.key === 'dataProtection' ? change.value : 'protected',
+          databaseAccess: change.key === 'databaseAccess' ? change.value : 'private'
+        }
+      }),
       onStart: (choice) => {
         started.push(choice);
       },
@@ -216,6 +225,36 @@ describe('answering a question', () => {
     });
 
     expect(response.status).toBe(400);
+  });
+});
+
+describe('changing an infrastructure preference', () => {
+  const change = async (payload: unknown, withCsrf = true) => {
+    const { origin, token } = await start();
+    const { cookie, body } = await handshake(origin, token);
+    return fetch(`${origin}/api/preferences`, {
+      method: 'POST',
+      headers: {
+        Origin: origin,
+        Cookie: cookie,
+        'Content-Type': 'application/json',
+        ...(withCsrf ? { 'x-csrf-token': body.csrfToken ?? '' } : {})
+      },
+      body: JSON.stringify(payload)
+    });
+  };
+
+  it('accepts only a closed preference key and value pair', async () => {
+    const response = await change({ key: 'databaseAccess', value: 'public' });
+
+    expect(response.status).toBe(200);
+    expect(((await response.json()) as WizardState).preferences?.databaseAccess).toBe('public');
+  });
+
+  it('rejects a missing CSRF token and mismatched or unknown values', async () => {
+    expect((await change({ key: 'capacity', value: 'performance' }, false)).status).toBe(403);
+    expect((await change({ key: 'capacity', value: 'private' })).status).toBe(400);
+    expect((await change({ key: 'notifications', value: 'everything' })).status).toBe(400);
   });
 });
 

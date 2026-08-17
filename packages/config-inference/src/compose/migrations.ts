@@ -6,9 +6,9 @@
  * to actually emit the hook, or the decision card describes machinery that does not exist and a
  * Rails or Django first deploy ships a schema-less database. The emission is the documented
  * canonical pattern: a `local-script` with `connectTo`, referenced from `hooks.afterDeploy`.
- * Today every composed database keeps the schema's default `internet` accessibility, so a local
- * script can reach it; the day a mode hardens databases to `vpc`, this must switch to
- * `local-script-with-bastion-tunneling`.
+ * A public database uses `local-script`. A VPC-only database uses
+ * `local-script-with-bastion-tunneling`, keeping the same reviewed command and environment while
+ * the CLI substitutes its remote database endpoints with local SSM tunnel endpoints.
  *
  * Two guards, both about running commands on the user's machine:
  *
@@ -82,7 +82,10 @@ const pascalCase = (value: string): string =>
     .replace(/[^a-zA-Z0-9]/g, '')
     .replace(/^(.)/, (character) => character.toUpperCase());
 
-type ComposedScript = { type: 'local-script'; properties: Record<string, unknown> };
+type ComposedScript = {
+  type: 'local-script' | 'local-script-with-bastion-tunneling';
+  properties: Record<string, unknown>;
+};
 
 export type ComposedMigrationHooks = {
   scripts: Record<string, ComposedScript>;
@@ -115,7 +118,9 @@ export const composeMigrationHooks = ({
   dependencies,
   composedDependencies,
   assumptions,
-  projectName
+  projectName,
+  privateDatabaseResourceNames = new Set<string>(),
+  bastionResourceName
 }: {
   migrations: readonly MigrationFact[];
   services: readonly ServiceFact[];
@@ -123,6 +128,8 @@ export const composeMigrationHooks = ({
   composedDependencies: ReadonlyMap<string, { kind: DependencyFact['kind']; resourceName: string }>;
   assumptions: readonly Assumption[];
   projectName: string | undefined;
+  privateDatabaseResourceNames?: ReadonlySet<string>;
+  bastionResourceName?: string;
 }): ComposedMigrationHooks => {
   const scripts: Record<string, ComposedScript> = {};
   const afterDeploy: Array<{ scriptName: string }> = [];
@@ -181,10 +188,22 @@ export const composeMigrationHooks = ({
     for (let suffix = 2; taken.has(scriptName); suffix += 1) scriptName = `${preferred}${suffix}`;
     taken.add(scriptName);
 
+    const usesPrivateDatabase = databases.some((entry) =>
+      privateDatabaseResourceNames.has(entry.composed.resourceName)
+    );
+    if (usesPrivateDatabase && bastionResourceName === undefined) {
+      gaps.push({
+        subject: `${migration.serviceName}.migrations`,
+        message: `The migration for ${migration.serviceName} needs a private database, but no bastion was composed. Add a bastion and a tunneled local script before deploying.`
+      });
+      continue;
+    }
+
     scripts[scriptName] = {
-      type: 'local-script',
+      type: usesPrivateDatabase ? 'local-script-with-bastion-tunneling' : 'local-script',
       properties: {
         executeCommand: migration.command,
+        ...(usesPrivateDatabase ? { bastionResource: bastionResourceName } : {}),
         ...(databases.length > 0 ? { connectTo: databases.map((entry) => entry.composed.resourceName) } : {}),
         ...(environment.length > 0 ? { environment } : {})
       }

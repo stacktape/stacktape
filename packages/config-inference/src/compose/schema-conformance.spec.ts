@@ -238,6 +238,73 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     );
   });
 
+  it('a Lambda function explicitly joined to a VPC-only database', () => {
+    const facts = projectFactsSchema.parse({
+      schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+      services: [
+        service({
+          name: 'handler',
+          exposesHttp: false,
+          startCommand: undefined,
+          executionModel: 'per-request',
+          functionEntrypoint: 'src/handler.ts',
+          environmentVariables: [
+            {
+              name: 'DATABASE_URL',
+              role: 'infra-dependency',
+              dependencyName: 'mainDatabase',
+              required: true,
+              evidence: []
+            }
+          ]
+        })
+      ],
+      dependencies: [
+        {
+          name: 'mainDatabase',
+          kind: 'postgres',
+          extensions: [],
+          consumedBy: ['handler'],
+          evidence: [],
+          source: 'probe'
+        }
+      ]
+    });
+
+    const config = composeConfig({
+      facts,
+      projectName: 'demo',
+      preferences: { databaseAccess: 'private' }
+    }).config;
+    expect(config.resources.handler?.properties.joinDefaultVpc).toBe(true);
+    expectValid(config);
+  });
+
+  it('an SSR Lambda explicitly joined to a VPC-only database', () => {
+    const facts = projectFactsSchema.parse({
+      schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+      services: [service({ name: 'web', framework: 'nextjs' })],
+      dependencies: [
+        {
+          name: 'mainDatabase',
+          kind: 'postgres',
+          extensions: [],
+          consumedBy: ['web'],
+          evidence: [],
+          source: 'probe'
+        }
+      ]
+    });
+
+    const config = composeConfig({
+      facts,
+      projectName: 'demo',
+      preferences: { databaseAccess: 'private' }
+    }).config;
+    expect(config.resources.web?.properties.serverLambda).toEqual({ joinDefaultVpc: true });
+    expectValid(config);
+  });
+
   it('a source entrypoint using the Stacktape container buildpack', () => {
     expectValid(
       composeFrom({

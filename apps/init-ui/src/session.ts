@@ -7,7 +7,10 @@
  * token is single-use anyway, so leaving it visible only invites confusion when it stops working.
  */
 
-export type InfrastructureMode = 'low-cost' | 'standard' | 'production';
+import type {
+  DeploymentPreferenceChange,
+  DeploymentPreferences
+} from '@stacktape/config-inference/compose/preferences';
 
 /** A decision taken on the user's behalf, with what else it could have been. */
 export type WizardDecision = {
@@ -75,7 +78,9 @@ export type WizardState = {
   agents?: WizardAgentOption[];
   choice?: { agentId: string; modelId: string };
   /** How much infrastructure this configuration is sized for. */
-  mode?: InfrastructureMode;
+  mode?: 'low-cost' | 'standard' | 'production';
+  preferences?: DeploymentPreferences;
+  recommendedPreferences?: DeploymentPreferences;
   /** Set once the configuration is on disk. `existingPath` means this is a file written beside one. */
   configFile?: { path: string; filename: string; format: 'yaml' | 'typescript'; existingPath?: string };
   /** Who this machine is to AWS. Absent until the check has answered. */
@@ -188,8 +193,6 @@ export type WizardState = {
      * without it rather than waiting for it.
      */
     price?: { monthly: string; byResource: Record<string, string>; region: string };
-    /** The real monthly figure per size, as each estimate lands, so the size cards can compare. */
-    modePrices?: Partial<Record<InfrastructureMode, string>>;
     /**
      * The configuration file exactly as saving it will write it.
      *
@@ -216,8 +219,8 @@ export type Session = {
   state: WizardState;
   /** Begin reading the project with the chosen agent. Nothing is read before this. */
   start: (agentId: string, modelId: string) => Promise<WizardState>;
-  /** Change how big the infrastructure should be. The configuration and price are rebuilt from it. */
-  setMode: (mode: InfrastructureMode) => Promise<WizardState>;
+  /** Change one explicit infrastructure choice. The configuration and price are rebuilt from it. */
+  setPreference: (change: DeploymentPreferenceChange) => Promise<WizardState>;
   /** Write the configuration to the repository, in the format chosen on the Review step. */
   write: (format: 'yaml' | 'typescript') => Promise<WizardState>;
   /** Deploy it. The only thing in this wizard that creates anything outside the repository. */
@@ -362,14 +365,14 @@ export const connect = async (): Promise<Session> => {
       publish((await written.json()) as WizardState);
       return current;
     },
-    setMode: async (mode) => {
-      const changed = await fetch('/api/mode', {
+    setPreference: async (change) => {
+      const changed = await fetch('/api/preferences', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'x-csrf-token': csrfToken },
-        body: JSON.stringify({ mode })
+        body: JSON.stringify(change)
       });
       if (!changed.ok) {
-        throw new SessionError('That size could not be applied.');
+        throw new SessionError('That infrastructure choice could not be applied.');
       }
       publish((await changed.json()) as WizardState);
       return current;

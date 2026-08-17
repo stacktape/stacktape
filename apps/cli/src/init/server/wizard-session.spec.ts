@@ -645,14 +645,16 @@ describe('startWizardSession', () => {
         body: JSON.stringify({ stage: 'dev', region: 'eu-west-1', expected: { kind: 'check' } })
       });
       await started;
-      await fetch(`${origin}/api/mode`, {
+      await fetch(`${origin}/api/preferences`, {
         method: 'POST',
         headers,
-        body: JSON.stringify({ mode: 'production' })
+        body: JSON.stringify({ key: 'capacity', value: 'performance' })
       });
       // Changing the composition also invalidates the previously written file. It must be reviewed
       // and written again before either a target check or a paid deploy is possible.
       expect(session.server.current().configFile).toBeUndefined();
+      expect(session.server.current().preferences?.capacity).toBe('performance');
+      expect(session.server.current().mode).toBeUndefined();
 
       finishInspection(absent);
       await check;
@@ -975,7 +977,7 @@ describe('the local try-out', () => {
     expect((await stateNow()).verification?.status).toBe('running');
 
     // Changing anything recomposes, and a different configuration is a different thing to prove.
-    await post('/api/answer', { id: 'some-decision', value: 'changed' });
+    await post('/api/preferences', { key: 'capacity', value: 'performance' });
     expect((await stateNow()).verification).toBeUndefined();
 
     // The old run finishing late must not resurrect its verdict against the new configuration.

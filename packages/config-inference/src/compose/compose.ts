@@ -24,7 +24,13 @@ import { resolveEngineVersion, type EngineVersionCatalogue } from './engine-vers
 import { generatedDatabasePasswordSecretReference, secretNameFor, wiringFor } from './env-wiring';
 import { composeMigrationHooks } from './migrations';
 import { monorepoPackaging } from './monorepo';
-import { DEFAULT_MODE, MODE_PROFILES, type InfrastructureMode, type ModeProfile } from './modes';
+import { MODE_PREFERENCES, MODE_PROFILES, type InfrastructureMode } from './modes';
+import {
+  defaultDeploymentPreferences,
+  profileForPreferences,
+  type DeploymentPreferences,
+  type InfrastructureProfile
+} from './preferences';
 
 /**
  * A resource entry as Stacktape reads it.
@@ -78,8 +84,12 @@ export type CompositionResult = {
    * the signal that it was worth interrupting someone for.
    */
   unresolved: Uncertainty[];
-  /** The sizing profile this configuration was built for. */
-  mode: InfrastructureMode;
+  /** The explicit cost, resilience, retention, and network choices used for this configuration. */
+  preferences: DeploymentPreferences;
+  /** The fact-aware defaults, kept stable while the user compares or changes a preference. */
+  recommendedPreferences: DeploymentPreferences;
+  /** @deprecated Present only when the caller used a legacy mode preset. */
+  mode?: InfrastructureMode;
   /** Service name → the resource name it composed into, for walking from facts to config. */
   serviceResources: Record<string, string>;
   /** False only when there is nothing to deploy at all. */
@@ -337,9 +347,10 @@ const environmentFor = (
 
 const composeDependency = (
   dependency: DependencyFact,
-  profile: ModeProfile,
+  profile: InfrastructureProfile,
   projectName: string | undefined,
-  engineVersions: EngineVersionCatalogue | undefined
+  engineVersions: EngineVersionCatalogue | undefined,
+  privateDatabase: boolean
 ): { resource: ComposedResource; reason: string } | { unsupported: string } => {
   const rdsEngine = RDS_ENGINE_TYPES[dependency.kind];
   if (rdsEngine !== undefined) {
@@ -370,8 +381,17 @@ const composeDependency = (
               version: resolved.version
             }
           },
-          ...(profile.database.deletionProtection ? { deletionProtection: true } : {}),
-          automatedBackupRetentionDays: profile.database.backupRetentionDays
+          deletionProtection: true,
+          automatedBackupRetentionDays: profile.database.backupRetentionDays,
+          ...(privateDatabase ? { accessibility: { accessibilityMode: 'vpc', forceDisablePublicIp: true } } : {}),
+          alarms: [
+            {
+              description: 'Database has less than 2 GiB of free storage',
+              trigger: { type: 'database-free-storage', properties: { thresholdMB: 2048 } },
+              evaluation: { period: 300, evaluationPeriods: 3, breachedPeriods: 2 },
+              includeInHistory: true
+            }
+          ]
         }
       },
       reason: `Your code connects to a ${dependencyLabel(dependency.kind)} database.${
@@ -485,14 +505,17 @@ const uniqueName = (preferred: string, taken: Set<string>): string => {
 export const composeConfig = ({
   facts: input,
   projectName,
-  mode = DEFAULT_MODE,
+  mode,
+  preferences: requestedPreferences,
   decisions = {},
   engineVersions
 }: {
   facts: ProjectFacts;
   projectName?: string;
-  /** How much infrastructure to ask for. The one thing no amount of reading the code can tell us. */
+  /** Deprecated headless preset. New callers should send the independent preferences below. */
   mode?: InfrastructureMode;
+  /** Explicit browser-wizard choices. These override a legacy mode when both are supplied. */
+  preferences?: Partial<DeploymentPreferences>;
   /**
    * Decisions the user changed, keyed by assumption id.
    *
@@ -506,10 +529,19 @@ export const composeConfig = ({
    */
   engineVersions?: EngineVersionCatalogue;
 }): CompositionResult => {
-  const profile = MODE_PROFILES[mode];
   // Every open question is answered here, before anything is composed. The result is a complete
   // configuration and a list of what was decided — not a half-configuration and a list of prompts.
   const { facts, assumptions } = resolveAssumptions(input, decisions);
+  const recommendedPreferences = defaultDeploymentPreferences(facts);
+  const preferences: DeploymentPreferences = {
+    ...(mode === undefined ? recommendedPreferences : MODE_PREFERENCES[mode]),
+    ...requestedPreferences
+  };
+  // A pure legacy preset retains its exact historical output (including production's 14-day
+  // backup retention). As soon as an explicit preference is present, the independent choices are
+  // the contract and derive the profile directly.
+  const profile =
+    mode !== undefined && requestedPreferences === undefined ? MODE_PROFILES[mode] : profileForPreferences(preferences);
 
   const resources: Record<string, ComposedResource> = {};
   const provenance: Record<string, Provenance> = {};
@@ -521,6 +553,8 @@ export const composeConfig = ({
   const composedDependencyNames = new Set<string>();
   /** The same set with the kind and resource name attached, for wiring variables to parameters. */
   const composedDependencies = new Map<string, { kind: DependencyFact['kind']; resourceName: string }>();
+  /** Newly composed RDS resources with no public address. External databases never enter this set. */
+  const privateDatabaseResourceNames = new Set<string>();
   /** Variables a service needs because we decided *not* to create what they address, by service name. */
   const externalVariables = new Map<string, Array<{ name: string; value: unknown }>>();
   for (const dependency of facts.dependencies) {
@@ -586,7 +620,8 @@ export const composeConfig = ({
       // They asked for their own: compose it as though it had never been hosted anywhere.
     }
 
-    const composed = composeDependency(dependency, profile, projectName, engineVersions);
+    const privateDatabase = preferences.databaseAccess === 'private' && RDS_ENGINE_TYPES[dependency.kind] !== undefined;
+    const composed = composeDependency(dependency, profile, projectName, engineVersions, privateDatabase);
     if ('unsupported' in composed) {
       gaps.push({ subject: dependency.name, message: composed.unsupported });
       if (dependency.kind === 'sqlite') {
@@ -606,6 +641,7 @@ export const composeConfig = ({
     dependencyResourceNames.set(dependency.name, name);
     composedDependencyNames.add(dependency.name);
     composedDependencies.set(dependency.name, { kind: dependency.kind, resourceName: name });
+    if (privateDatabase) privateDatabaseResourceNames.add(name);
     resources[name] = composed.resource;
     provenance[name] = {
       reason: composed.reason,
@@ -618,6 +654,28 @@ export const composeConfig = ({
           'Stacktape can create this MongoDB cluster, but MongoDB Atlas is a separate service. Before deploying, add your Atlas organization ID and API keys under providerConfig.mongoDbAtlas, and keep the private key in a Stacktape secret.'
       });
     }
+  }
+
+  // A private database still needs an operator path for generated migrations and local database
+  // tools. One keyless SSM bastion serves every private RDS resource in this stack.
+  const bastionResourceName =
+    privateDatabaseResourceNames.size === 0 ? undefined : uniqueName('databaseBastion', taken);
+  if (bastionResourceName !== undefined) {
+    resources[bastionResourceName] = {
+      type: 'bastion',
+      properties: { instanceSize: 't3.micro' }
+    };
+    provenance[bastionResourceName] = {
+      reason:
+        'Your database has no public address, so this small keyless jump box provides encrypted access for migrations and local tools.',
+      evidence: facts.dependencies
+        .filter((dependency) => {
+          const resourceName = dependencyResourceNames.get(dependency.name);
+          return resourceName !== undefined && privateDatabaseResourceNames.has(resourceName);
+        })
+        .flatMap((dependency) => dependency.evidence)
+        .slice(0, 3)
+    };
   }
 
   const httpTriggeredServices = facts.services.filter((service) =>
@@ -635,7 +693,8 @@ export const composeConfig = ({
     };
   }
 
-  // Detected migrations become the documented pattern: a local-script the deploy runs afterwards.
+  // Detected migrations become the documented local-script pattern the deploy runs afterwards.
+  // Private databases use its bastion-tunneling variant.
   // Without this, the migration decision card describes a hook that does not exist and the first
   // deploy ships a schema-less database. Computed before the services so their packaging can know
   // which migrations this deploy now owns.
@@ -645,7 +704,9 @@ export const composeConfig = ({
     dependencies: facts.dependencies,
     composedDependencies,
     assumptions,
-    projectName
+    projectName,
+    privateDatabaseResourceNames,
+    ...(bastionResourceName === undefined ? {} : { bastionResourceName })
   });
   gaps.push(...migrationHooks.gaps);
 
@@ -668,6 +729,13 @@ export const composeConfig = ({
       .filter((dependency) => dependency.consumedBy.includes(service.name))
       .map((dependency) => dependencyResourceNames.get(dependency.name))
       .filter((value): value is string => value !== undefined);
+    const requiresVpc = facts.dependencies.some((dependency) => {
+      if (!dependency.consumedBy.includes(service.name)) return false;
+      const resourceName = dependencyResourceNames.get(dependency.name);
+      return (
+        resourceName !== undefined && (privateDatabaseResourceNames.has(resourceName) || dependency.kind === 'redis')
+      );
+    });
 
     const environment = environmentFor(service, { serviceResourceNames, composedDependencies, projectName });
     // The agent path may already have written the same variable from the service's own facts, so the
@@ -737,7 +805,8 @@ export const composeConfig = ({
       // This deploy owns the migration, so the image build must not replay it. Nixpacks' Procfile
       // provider runs `release:` at build time, where the database this migration needs does not
       // exist — caught on the first real-AWS run of the validation lane.
-      suppressNixpacksRelease: migrationHooks.hookedServices.includes(service.name)
+      suppressNixpacksRelease: migrationHooks.hookedServices.includes(service.name),
+      requiresVpc
     });
     provenance[name] = {
       reason: classification.reason,
@@ -777,6 +846,16 @@ export const composeConfig = ({
       gaps.push({
         subject: service.name,
         message: `We found the ${service.name} handler but no event that invokes it. Add its HTTP, queue, topic, bucket or schedule trigger.`
+      });
+    }
+    if (
+      requiresVpc &&
+      (classification.resourceType === 'function' || classification.resourceType.endsWith('-web')) &&
+      service.environmentVariables.some((variable) => variable.role === 'third-party-secret')
+    ) {
+      gaps.push({
+        subject: `${service.name}.vpc-internet-access`,
+        message: `${service.name} joins the VPC to reach a private dependency. AWS functions in a VPC cannot call public APIs directly; choose internet-reachable database access or add outbound networking if this code calls a third-party service.`
       });
     }
   }
@@ -830,7 +909,9 @@ export const composeConfig = ({
     assumptions,
     // Anything `resolveAssumptions` could not decide. Normally none.
     unresolved: facts.uncertainties,
-    mode,
+    preferences,
+    recommendedPreferences,
+    ...(mode === undefined ? {} : { mode }),
     // Which resource each service became, for anything that has to walk from facts to config —
     // the preflight verifier being the first consumer.
     serviceResources: Object.fromEntries(serviceResourceNames),
@@ -848,7 +929,8 @@ const buildServiceResource = ({
   httpApiGatewayName,
   profile,
   packageManager,
-  suppressNixpacksRelease
+  suppressNixpacksRelease,
+  requiresVpc
 }: {
   resourceType: ServiceResourceType;
   service: ServiceFact;
@@ -856,9 +938,10 @@ const buildServiceResource = ({
   connectTo: readonly string[];
   dependencyResourceNames: ReadonlyMap<string, string>;
   httpApiGatewayName?: string;
-  profile: ModeProfile;
+  profile: InfrastructureProfile;
   packageManager: PackageManager | undefined;
   suppressNixpacksRelease: boolean;
+  requiresVpc: boolean;
 }): ComposedResource => {
   const shared = {
     ...(environment.length > 0 ? { environment } : {}),
@@ -951,6 +1034,15 @@ const buildServiceResource = ({
           properties: { entryfilePath: service.functionEntrypoint }
         },
         ...(events.length === 0 ? {} : { events }),
+        ...(requiresVpc ? { joinDefaultVpc: true } : {}),
+        alarms: [
+          {
+            description: 'Function errors stay above 10%',
+            trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },
+            evaluation: { period: 300, evaluationPeriods: 3, breachedPeriods: 2 },
+            includeInHistory: true
+          }
+        ],
         ...shared
       }
     };
@@ -960,7 +1052,11 @@ const buildServiceResource = ({
     // The framework resources take the application directory and handle their own build.
     return {
       type: resourceType,
-      properties: { appDirectory: service.path, ...shared }
+      properties: {
+        appDirectory: service.path,
+        ...(requiresVpc ? { serverLambda: { joinDefaultVpc: true } } : {}),
+        ...shared
+      }
     };
   }
 
@@ -1000,6 +1096,21 @@ const buildServiceResource = ({
         minInstances: profile.scaling.minInstances,
         maxInstances: profile.scaling.maxInstances
       },
+      ...(resourceType === 'web-service'
+        ? {
+            alarms: [
+              {
+                description: 'Web service p95 latency stays above 5 seconds',
+                trigger: {
+                  type: 'http-api-gateway-latency',
+                  properties: { thresholdMilliseconds: 5000, statistic: 'p95' }
+                },
+                evaluation: { period: 300, evaluationPeriods: 3, breachedPeriods: 2 },
+                includeInHistory: true
+              }
+            ]
+          }
+        : {}),
       ...shared
     }
   };

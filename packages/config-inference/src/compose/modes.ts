@@ -1,83 +1,56 @@
 /**
- * How much infrastructure to ask for.
+ * Compatibility presets for headless v4 callers.
  *
- * One choice, made once, that sets every size and safety setting in the composed configuration. It
- * exists because it is the only question whose answer we genuinely cannot infer — the same code
- * deployed by two people can legitimately want the cheapest possible environment or a redundant one,
- * and nothing in the repository says which.
- *
- * Everything else the wizard used to ask is inferred and then *shown*, because a wrong guess about
- * a start command is visible and fixable, while a wrong guess about spend is a surprise bill.
- *
- * The values are deliberately boring. They are the settings a careful person would pick, not the
- * ones that demo well: small instances, one copy of everything until traffic says otherwise, and
- * protection turned on the moment the environment is described as one people rely on.
+ * The browser no longer combines capacity, availability, retention, and networking under one
+ * ambiguous label. These mappings keep the old CLI vocabulary deterministic and, critically, keep
+ * its databases public rather than changing existing automation's connectivity contract.
  */
 
 export type InfrastructureMode = 'low-cost' | 'standard' | 'production';
 
-export type ModeProfile = {
-  /** Container sizing for every service we create. */
-  container: { cpu: number; memory: number };
-  scaling: { minInstances: number; maxInstances: number };
-  database: {
-    instanceSize: string;
-    /** A standby in a second availability zone. Doubles the database cost and survives an AZ outage. */
-    multiAz: boolean;
-    deletionProtection: boolean;
-    backupRetentionDays: number;
-  };
-  redis: { instanceSize: string };
-  bucket: { versioning: boolean };
-};
+import { profileForPreferences, type DeploymentPreferences, type InfrastructureProfile } from './preferences';
 
-export const MODE_PROFILES: Record<InfrastructureMode, ModeProfile> = {
+/** @deprecated Modes are legacy CLI presets. The browser wizard uses explicit preferences. */
+export type ModeProfile = InfrastructureProfile;
+
+export const MODE_PREFERENCES: Record<InfrastructureMode, DeploymentPreferences> = {
   'low-cost': {
-    container: { cpu: 0.25, memory: 512 },
-    scaling: { minInstances: 1, maxInstances: 1 },
-    database: {
-      instanceSize: 'db.t4g.micro',
-      multiAz: false,
-      deletionProtection: false,
-      // One day, because a throwaway environment that keeps two weeks of backups is paying for
-      // storage nobody will ever restore.
-      backupRetentionDays: 1
-    },
-    redis: { instanceSize: 'cache.t4g.micro' },
-    bucket: { versioning: false }
+    capacity: 'economical',
+    availability: 'single',
+    dataProtection: 'lean',
+    // Preserve the old mode's connectivity contract. Private networking is an explicit choice.
+    databaseAccess: 'public'
   },
   standard: {
-    container: { cpu: 0.5, memory: 1024 },
-    scaling: { minInstances: 1, maxInstances: 3 },
-    database: {
-      instanceSize: 'db.t4g.small',
-      multiAz: false,
-      // On the moment it stops being a toy: deleting a database by accident is the one mistake with
-      // no undo, and the protection costs nothing.
-      deletionProtection: true,
-      backupRetentionDays: 7
-    },
-    redis: { instanceSize: 'cache.t4g.micro' },
-    bucket: { versioning: true }
+    capacity: 'balanced',
+    availability: 'single',
+    dataProtection: 'protected',
+    databaseAccess: 'public'
   },
   production: {
-    container: { cpu: 1, memory: 2048 },
-    scaling: { minInstances: 2, maxInstances: 10 },
-    database: {
-      instanceSize: 'db.t4g.medium',
-      multiAz: true,
-      deletionProtection: true,
-      backupRetentionDays: 14
-    },
-    redis: { instanceSize: 'cache.t4g.small' },
-    bucket: { versioning: true }
+    capacity: 'performance',
+    availability: 'redundant',
+    dataProtection: 'protected',
+    databaseAccess: 'public'
   }
 };
 
+export const MODE_PROFILES: Record<InfrastructureMode, ModeProfile> = {
+  'low-cost': profileForPreferences(MODE_PREFERENCES['low-cost']),
+  standard: profileForPreferences(MODE_PREFERENCES.standard),
+  production: {
+    ...profileForPreferences(MODE_PREFERENCES.production),
+    // Preserve the historical production preset's two-week retention. Explicit preferences use
+    // the simpler one-day / one-week contract shown in the wizard.
+    database: { ...profileForPreferences(MODE_PREFERENCES.production).database, backupRetentionDays: 14 }
+  }
+};
+
+/** @deprecated New callers should omit a mode and use inferred preference recommendations. */
 export const DEFAULT_MODE: InfrastructureMode = 'standard';
 
 /**
- * What each mode means, for the one screen that offers the choice.
+ * Legacy display copy retained for API consumers that still render the compatibility presets.
  *
  * Written for someone whose last deployment was `git push heroku main`. No availability zones, no
  * instance classes — what it survives, and what to pick.
@@ -87,6 +60,7 @@ export const DEFAULT_MODE: InfrastructureMode = 'standard';
  * all. Real pricing lives in `packages/pricing`, which needs network access and a Stacktape-owned
  * table, and `init` is meant to work with neither. A relative hint is true; a made-up number is not.
  */
+/** @deprecated The Stacktape init UI renders independent preference copy. */
 export const MODE_DESCRIPTIONS: Record<InfrastructureMode, { title: string; description: string; meta: string }> = {
   'low-cost': {
     title: 'Cheapest',

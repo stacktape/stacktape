@@ -5,18 +5,179 @@ import { Alert } from '@stacktape/ui-react/alert';
 import { Button } from '@stacktape/ui-react/button';
 import { ConfigEditor, type ConfigEditorViewId } from '@stacktape/ui-react/config-editor';
 import '@stacktape/ui-react/config-editor.css';
-import { MODE_DESCRIPTIONS } from '@stacktape/config-inference/compose/modes';
+import type {
+  DeploymentPreferenceChange,
+  DeploymentPreferenceKey,
+  DeploymentPreferences
+} from '@stacktape/config-inference/compose/preferences';
 import { ResourceIcon } from '@stacktape/ui-react/resource-icon';
 import { SelectionCard, SelectionCardGroup } from '@stacktape/ui-react/selection-card';
 import { Spinner } from '@stacktape/ui-react/spinner';
-import type { InfrastructureMode, WizardState } from '../session';
+import type { WizardState } from '../session';
 import { DecisionRow } from '../components/DecisionRow';
 import { Evidence } from '../components/Evidence';
 
 /** Heavy on purpose, light on arrival: the diagram and its icon catalogue load after the page. */
 const Diagram = lazy(() => import('../components/Diagram'));
 
-const MODE_ORDER: InfrastructureMode[] = ['low-cost', 'standard', 'production'];
+type PreferenceOption<Key extends DeploymentPreferenceKey> = {
+  value: DeploymentPreferences[Key];
+  title: string;
+  description: string;
+  meta: string;
+};
+
+const PREFERENCE_COPY: {
+  [Key in DeploymentPreferenceKey]: {
+    title: string;
+    description: string;
+    options: PreferenceOption<Key>[];
+  };
+} = {
+  capacity: {
+    title: 'How much traffic should it be ready for?',
+    description: 'Sets starting sizes for always-on apps, databases, and caches. You can resize them later.',
+    options: [
+      {
+        value: 'economical',
+        title: 'Start small',
+        description: 'The smallest useful sizes. Best for a trial, side project, or development environment.',
+        meta: 'Lowest fixed cost'
+      },
+      {
+        value: 'balanced',
+        title: 'Ready for traffic',
+        description: 'Middle starting sizes, with space for always-on apps to add copies when they get busy.',
+        meta: 'Balanced'
+      },
+      {
+        value: 'performance',
+        title: 'More headroom',
+        description: 'Larger always-on app, database, and cache sizes for workloads expecting sustained traffic.',
+        meta: 'Highest fixed cost'
+      }
+    ]
+  },
+  availability: {
+    title: 'What should happen when one machine fails?',
+    description: 'Redundancy costs more because AWS keeps another copy ready.',
+    options: [
+      {
+        value: 'single',
+        title: 'Restart it',
+        description: 'One app copy and one database location. A failure can cause a short interruption.',
+        meta: 'Lower cost'
+      },
+      {
+        value: 'redundant',
+        title: 'Stay online',
+        description: 'Two copies of container apps and a standby SQL database in another location, when those exist.',
+        meta: 'Roughly doubles them'
+      }
+    ]
+  },
+  dataProtection: {
+    title: 'How much history should your data keep?',
+    description: 'Accidental database deletion is blocked either way. This controls backup and file-version history.',
+    options: [
+      {
+        value: 'lean',
+        title: 'Short history',
+        description: 'One day of database backups and no old file versions. Good for data you can recreate.',
+        meta: 'Less storage'
+      },
+      {
+        value: 'protected',
+        title: 'Keep recovery copies',
+        description: 'A week of database backups, and old versions of files in managed storage.',
+        meta: 'More recovery history'
+      }
+    ]
+  },
+  databaseAccess: {
+    title: 'Who should be able to reach the SQL database?',
+    description: 'Private access is the safer boundary, but Lambda-backed apps lose direct access to public APIs.',
+    options: [
+      {
+        value: 'private',
+        title: 'Only this private network',
+        description:
+          'No public address. Adds one small keyless jump box so local tools and generated migrations can tunnel in.',
+        meta: 'Adds one small instance'
+      },
+      {
+        value: 'public',
+        title: 'Internet reachable',
+        description:
+          'Anyone can attempt a connection, but the generated password is still required. Simplest for Lambda and SSR.',
+        meta: 'No jump box'
+      }
+    ]
+  }
+};
+
+function PreferenceCards<Key extends DeploymentPreferenceKey>({
+  preference,
+  value,
+  recommended,
+  isBusy,
+  onChange
+}: {
+  preference: Key;
+  value: DeploymentPreferences[Key];
+  recommended: DeploymentPreferences[Key];
+  isBusy: boolean;
+  onChange: (change: DeploymentPreferenceChange) => void;
+}) {
+  const copy = PREFERENCE_COPY[preference];
+  const values = copy.options.map((option) => option.value);
+  const choose = (next: string) => {
+    if (isBusy) return;
+    onChange({ key: preference, value: next as DeploymentPreferences[Key] } as DeploymentPreferenceChange);
+  };
+  return (
+    <div className="flex flex-col gap-2">
+      <div>
+        <h4 className="m-0 text-[0.95rem] font-semibold">{copy.title}</h4>
+        <p className="wizard-lede mt-1">{copy.description}</p>
+      </div>
+      <SelectionCardGroup ariaLabel={copy.title} direction="row" onValueChange={choose} value={value} values={values}>
+        {copy.options.map((option) => (
+          <SelectionCard
+            description={option.description}
+            isDisabled={isBusy}
+            isRecommended={option.value === recommended}
+            isSelected={option.value === value}
+            key={option.value}
+            meta={option.meta}
+            onSelect={choose}
+            title={option.title}
+            value={option.value}
+          />
+        ))}
+      </SelectionCardGroup>
+    </div>
+  );
+}
+
+/** The product rule: never ask about a setting that changes none of this app's resources. */
+export const deploymentPreferenceKeysFor = (types: Iterable<string>): DeploymentPreferenceKey[] => {
+  const resourceTypes = new Set(types);
+  return [
+    ...(['web-service', 'worker-service', 'private-service', 'batch-job', 'relational-database', 'redis-cluster'].some(
+      (type) => resourceTypes.has(type)
+    )
+      ? (['capacity'] as const)
+      : []),
+    ...(['web-service', 'worker-service', 'private-service', 'relational-database'].some((type) =>
+      resourceTypes.has(type)
+    )
+      ? (['availability'] as const)
+      : []),
+    ...(['relational-database', 'bucket'].some((type) => resourceTypes.has(type)) ? (['dataProtection'] as const) : []),
+    ...(resourceTypes.has('relational-database') ? (['databaseAccess'] as const) : [])
+  ];
+};
 
 const plainList = (items: readonly string[]): string =>
   items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
@@ -143,13 +304,13 @@ export function ReviewStep({
   state,
   onWrite,
   onChangeDecision,
-  onChangeMode,
+  onChangePreference,
   busy
 }: {
   state: WizardState;
   onWrite: (format: 'yaml' | 'typescript') => void;
   onChangeDecision: (id: string, value: string) => void;
-  onChangeMode: (mode: InfrastructureMode) => void;
+  onChangePreference: (change: DeploymentPreferenceChange) => void;
   /** Which action is in flight. Decisions use their own id, so only the row being changed spins. */
   busy: string | undefined;
 }) {
@@ -167,7 +328,13 @@ export function ReviewStep({
   const configText = state.composition?.configText;
   const filename = filenameFor(format, state.existingConfig !== undefined);
   const written = state.configFile !== undefined;
-  const mode = state.mode ?? 'standard';
+  const preferences = state.preferences;
+  const recommendedPreferences = state.recommendedPreferences ?? preferences;
+  const preferenceKeys = deploymentPreferenceKeysFor(resources.map(([, resource]) => resource.type));
+  const automaticAlarmCount = resources.reduce((count, [, resource]) => {
+    const alarms = resource.properties.alarms;
+    return count + (Array.isArray(alarms) ? alarms.length : 0);
+  }, 0);
 
   if (resources.length === 0) {
     return (
@@ -310,34 +477,37 @@ export function ReviewStep({
         </p>
       )}
 
-      <section>
-        <h3 className="wizard-section-heading">How big should it run?</h3>
-        <p className="wizard-lede mb-4">
-          The one thing your code cannot tell us. Switch freely — the file and the price above follow.
-        </p>
-        <SelectionCardGroup
-          ariaLabel="How much infrastructure to create"
-          direction="row"
-          onValueChange={(value) => onChangeMode(value as InfrastructureMode)}
-          value={mode}
-          values={MODE_ORDER}
-        >
-          {MODE_ORDER.map((id) => (
-            <SelectionCard
-              description={MODE_DESCRIPTIONS[id].description}
-              isRecommended={id === 'standard'}
-              isSelected={id === mode}
-              key={id}
-              // The real monthly figure once its estimate lands, so sizes can be compared without
-              // switching back and forth to watch one number change.
-              meta={state.composition?.modePrices?.[id] ?? MODE_DESCRIPTIONS[id].meta}
-              onSelect={(value) => onChangeMode(value as InfrastructureMode)}
-              title={MODE_DESCRIPTIONS[id].title}
-              value={id}
-            />
-          ))}
-        </SelectionCardGroup>
-      </section>
+      {preferences !== undefined && recommendedPreferences !== undefined && preferenceKeys.length > 0 && (
+        <section>
+          <h3 className="wizard-section-heading">Important choices</h3>
+          <p className="wizard-lede mb-5">
+            These are the consequences your code cannot decide. Only choices that affect this app are shown; the file
+            and price above update when you switch one.
+          </p>
+          <div className="flex flex-col gap-6">
+            {preferenceKeys.map((preference) => (
+              <PreferenceCards
+                isBusy={busy === `preference-${preference}`}
+                key={preference}
+                onChange={onChangePreference}
+                preference={preference}
+                recommended={recommendedPreferences[preference]}
+                value={preferences[preference]}
+              />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {automaticAlarmCount > 0 && (
+        <Alert tone="info" title="Monitoring is already included">
+          {automaticAlarmCount === 1
+            ? 'One alarm watches for a sustained production problem.'
+            : `${automaticAlarmCount} alarms watch for sustained production problems.`}{' '}
+          They appear in Stacktape monitoring history without waking you for one noisy sample. Notification delivery can
+          be connected separately.
+        </Alert>
+      )}
 
       {decisions.length > 0 && (
         <section>
@@ -397,7 +567,12 @@ export function ReviewStep({
             </Alert>
           )}
           <div className="flex items-center gap-4">
-            <Button isLoading={busy === 'write'} onClick={() => onWrite(format)} variant="primary">
+            <Button
+              disabled={busy !== undefined}
+              isLoading={busy === 'write'}
+              onClick={() => onWrite(format)}
+              variant="primary"
+            >
               Save {filename} &amp; continue
             </Button>
             <span className="text-[0.9rem] text-[var(--stp-text-subtle)]">

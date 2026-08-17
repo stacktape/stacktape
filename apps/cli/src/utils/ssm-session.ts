@@ -374,45 +374,68 @@ export const startPortForwardingSessions = async ({
   return tunnels;
 };
 
+export type TunneledEnvironmentVariableReference = {
+  envName: string;
+  targetStpName: string;
+  paramName: string;
+};
+
+/** Retain which unresolved application variable came from which tunneled resource parameter. */
+export const getTunneledEnvironmentVariableReferences = ({
+  tunnels,
+  env
+}: {
+  tunnels: SsmPortForwardingTunnel[];
+  env: EnvironmentVar[];
+}): TunneledEnvironmentVariableReference[] =>
+  env.flatMap((envVar) =>
+    tunnels.flatMap((tunnel) =>
+      tunnel.targetInfo.affectedReferencableParams
+        .filter((paramName) => envVar.value === `$ResourceParam('${tunnel.targetInfo.targetStpName}', '${paramName}')`)
+        .map((paramName) => ({
+          envName: envVar.name,
+          targetStpName: tunnel.targetInfo.targetStpName,
+          paramName
+        }))
+    )
+  );
+
 export const substituteTunneledEndpointsInEnvironmentVars = ({
   tunnels = [],
   env = [],
-  host = '127.0.0.1'
+  host = '127.0.0.1',
+  references = []
 }: {
   tunnels: SsmPortForwardingTunnel[];
   env: EnvironmentVar[];
   host?: string;
+  /** Origins retained from unresolved `$ResourceParam` values for application-named variables. */
+  references?: TunneledEnvironmentVariableReference[];
 }): EnvironmentVar[] => {
-  env.forEach((envVar) => {
-    tunnels.forEach((tunnel) => {
-      tunnel.targetInfo.affectedReferencableParams.forEach((paramName) => {
-        if (envVar.name === injectedParameterEnvVarName(tunnel.targetInfo.targetStpName, paramName)) {
-          envVar.value = `${envVar.value}`.replaceAll(
-            `${tunnel.remoteHost}:${tunnel.remotePort}`,
-            `${host}:${tunnel.localPort}`
-          );
-        }
-      });
-    });
+  return env.map((envVar) => {
+    let value = envVar.value;
+    for (const tunnel of tunnels) {
+      const original = `${value}`;
+      const injectedParam = tunnel.targetInfo.affectedReferencableParams.find(
+        (paramName) => envVar.name === injectedParameterEnvVarName(tunnel.targetInfo.targetStpName, paramName)
+      );
+      const explicitParam = references.find(
+        (reference) =>
+          reference.envName === envVar.name &&
+          reference.targetStpName === tunnel.targetInfo.targetStpName &&
+          tunnel.targetInfo.affectedReferencableParams.some((paramName) => paramName === reference.paramName)
+      )?.paramName;
+      const refersToTunnel =
+        injectedParam !== undefined || explicitParam !== undefined || original.includes(`${tunnel.remoteHost}`);
+      if (!refersToTunnel) continue;
+      if (original.includes(`${tunnel.remoteHost}`)) {
+        value = original
+          .replaceAll(`${tunnel.remoteHost}:${tunnel.remotePort}`, `${host}:${tunnel.localPort}`)
+          .replaceAll(`${tunnel.remoteHost}`, host);
+      } else if ((injectedParam === 'port' || explicitParam === 'port') && original === `${tunnel.remotePort}`) {
+        value = `${tunnel.localPort}`;
+      }
+    }
+    return { ...envVar, value };
   });
-  env.forEach((envVar) => {
-    tunnels.forEach((tunnel) => {
-      tunnel.targetInfo.affectedReferencableParams.forEach((paramName) => {
-        if (envVar.name === injectedParameterEnvVarName(tunnel.targetInfo.targetStpName, paramName)) {
-          envVar.value = `${envVar.value}`.replaceAll(`${tunnel.remoteHost}`, host);
-        }
-      });
-    });
-  });
-  env.forEach((envVar) => {
-    tunnels.forEach((tunnel) => {
-      tunnel.targetInfo.affectedReferencableParams.forEach((paramName) => {
-        if (envVar.name === injectedParameterEnvVarName(tunnel.targetInfo.targetStpName, paramName)) {
-          envVar.value = `${envVar.value}`.replaceAll(`${tunnel.remotePort}`, `${tunnel.localPort}`);
-        }
-      });
-    });
-  });
-
-  return env;
 };

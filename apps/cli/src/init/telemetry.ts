@@ -66,11 +66,23 @@ export const initTelemetryEvent = (
   const facts = (state.facts ?? {}) as StateFacts;
   const composition = (state.composition ?? {}) as StateComposition;
   const services = facts.services ?? [];
+  const preferences = state.preferences;
+  const recommendedPreferences = state.recommendedPreferences;
+  const preferencesChanged =
+    preferences === undefined || recommendedPreferences === undefined
+      ? 0
+      : (Object.keys(preferences) as Array<keyof typeof preferences>).filter(
+          (key) => preferences[key] !== recommendedPreferences[key]
+        ).length;
 
   return {
     presentation,
     agent: state.choice?.agentId ?? 'none',
-    mode: state.mode ?? 'standard',
+    mode: state.mode ?? 'custom',
+    capacity: preferences?.capacity ?? null,
+    availability: preferences?.availability ?? null,
+    data_protection: preferences?.dataProtection ?? null,
+    database_access: preferences?.databaseAccess ?? null,
     reached,
     // Labels the pipeline itself assigned — `rails`, `django` — never names from the repository.
     frameworks: [...new Set(services.map((service) => service.framework ?? service.language ?? 'unknown'))],
@@ -79,6 +91,7 @@ export const initTelemetryEvent = (
     service_count: services.length,
     decision_count: (facts.decisions ?? []).length,
     decisions_changed: Object.keys(state.answers ?? {}).length,
+    preferences_changed: preferencesChanged,
     gap_count: (composition.gaps ?? []).length,
     analysis_duration_ms: analysisDurationMs ?? null,
     deploy_duration_ms: deployDurationMs ?? null,

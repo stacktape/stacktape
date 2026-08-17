@@ -16,6 +16,10 @@ import { composeConfig, type CompositionResult } from '@stacktape/config-inferen
 import versionJson from '@generated/db-engine-versions/versions.json' with { type: 'json' };
 import type { Assumption } from '@stacktape/config-inference/compose/assumptions';
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
+import type {
+  DeploymentPreferenceChange,
+  DeploymentPreferences
+} from '@stacktape/config-inference/compose/preferences';
 import type { ProjectFacts } from '@stacktape/config-inference/facts';
 import type { AgentEvent } from '../agent/transport';
 import type { GreenfieldResult } from '../missions/greenfield';
@@ -66,9 +70,6 @@ const MAX_DEPLOY_LINES = 400;
  * another two minutes of watching.
  */
 const MAX_DEPLOY_ATTEMPTS = 3;
-
-/** Every size the wizard offers, for pricing the ones not currently chosen. */
-const ALL_MODES: InfrastructureMode[] = ['low-cost', 'standard', 'production'];
 
 /** Resource kinds whose typed `url` parameter is a public application entry point. */
 const PUBLIC_URL_RESOURCE_TYPES: ReadonlySet<string> = new Set([
@@ -123,7 +124,8 @@ export const startWizardSession = async ({
   stacktapeAccount,
   gitHost,
   writePipeline,
-  mode: initialMode = 'standard',
+  mode: initialMode,
+  preferences: initialPreferences,
   timeline = [],
   staticRoot,
   watchStatic
@@ -209,6 +211,7 @@ export const startWizardSession = async ({
   repair?: (input: {
     facts: ProjectFacts;
     decisions: Record<string, string>;
+    preferences: DeploymentPreferences;
     failure: DeployFailure;
     onProgress: (entry: { kind: string; label: string }) => void;
   }) => Promise<{ facts: ProjectFacts; composition: CompositionResult; changed: boolean }>;
@@ -220,6 +223,8 @@ export const startWizardSession = async ({
   gitHost?: 'github' | 'gitlab' | 'bitbucket';
   /** How much infrastructure to compose for. Chosen on the first screen, before anything is read. */
   mode?: InfrastructureMode;
+  /** Explicit preference overrides used by non-browser callers or a restored wizard session. */
+  preferences?: Partial<DeploymentPreferences>;
   /** Writes a deployment pipeline for that host, and reports what the user must set up on it. */
   writePipeline?: (input: {
     configFile: { filename: string };
@@ -250,40 +255,18 @@ export const startWizardSession = async ({
     const current = composition;
     if (current === undefined) return;
     price = undefined;
-    modePrices = undefined;
     void estimateMonthlyCost(renderYaml(current)).then((estimate) => {
       // Another recomposition may have happened while this was in flight. Its own call will publish.
       if (composition !== current) return;
       price = estimate;
-      if (estimate !== undefined) modePrices = { ...modePrices, [mode]: estimate.monthly };
       publish(buildState());
     });
-    // The other sizes are priced too, so each size card can carry its real monthly figure — comparing
-    // sizes must never mean switching back and forth to watch one number change. Recomposing is
-    // deterministic and free; only the price lookups cost a round trip.
-    const currentFacts = facts;
-    if (currentFacts === undefined) return;
-    for (const other of ALL_MODES) {
-      if (other === mode) continue;
-      const candidate = composeConfig({
-        facts: currentFacts,
-        projectName,
-        mode: other,
-        decisions: answers,
-        engineVersions: versionJson.rds
-      });
-      void estimateMonthlyCost(renderYaml(candidate)).then((estimate) => {
-        if (composition !== current || estimate === undefined) return;
-        modePrices = { ...modePrices, [other]: estimate.monthly };
-        publish(buildState());
-      });
-    }
   };
 
   /**
    * Adopt a new composition, and refresh everything derived from it.
    *
-   * The one door for composition changes — the first result, a changed decision, a changed size, a
+   * The one door for composition changes — the first result, a changed decision or preference, a
    * repair — so nothing showing a derivative of the configuration can be looking at a stale one.
    * YAML is rendered inline because it is a string join; the TypeScript rendering runs Prettier, so
    * it arrives a beat later, like the price.
@@ -298,6 +281,10 @@ export const startWizardSession = async ({
     deployTarget = undefined;
     configFile = undefined;
     configText = { yaml: renderYaml(next) };
+    // The request that caused this change gets the new state in its response, but other connected
+    // tabs only hear broadcasts. Publish the synchronous YAML state now rather than making them
+    // wait for pricing or TypeScript rendering to finish successfully.
+    publish(buildState());
     void renderTypeScript(next).then((text) => {
       if (composition !== next || configText === undefined) return;
       configText = { ...configText, typescript: text };
@@ -308,7 +295,6 @@ export const startWizardSession = async ({
   let failure: string | undefined;
   let choice: { agentId: string; modelId: string } | undefined;
   let running = false;
-  let modePrices: Partial<Record<InfrastructureMode, string>> | undefined;
   let configFile: WizardState['configFile'];
   let identity: WizardAwsIdentity | undefined;
   let account: { signedIn: boolean; detail: string } | undefined;
@@ -316,7 +302,7 @@ export const startWizardSession = async ({
   let deployTarget: WizardState['deployTarget'];
   let checkingDeployTarget = false;
   let pipeline: WizardState['pipeline'];
-  let mode: InfrastructureMode = initialMode;
+  let mode: InfrastructureMode | undefined = initialMode;
   let verification: WizardVerification | undefined;
   const answers: Record<string, string> = {};
 
@@ -403,6 +389,7 @@ export const startWizardSession = async ({
         const repaired = await repair!({
           facts: facts!,
           decisions: answers,
+          preferences: current.preferences,
           failure,
           onProgress: (entry) => {
             timeline.push(entry);
@@ -461,7 +448,13 @@ export const startWizardSession = async ({
     ...(deployTarget === undefined ? {} : { deployTarget }),
     ...(verification === undefined ? {} : { verification }),
     ...(gitHost === undefined ? {} : { gitHost }),
-    mode,
+    ...(mode === undefined ? {} : { mode }),
+    ...(composition === undefined
+      ? {}
+      : {
+          preferences: composition.preferences,
+          recommendedPreferences: composition.recommendedPreferences
+        }),
     ...(pipeline === undefined ? {} : { pipeline }),
     timeline,
     // Absent, rather than empty, while the mission runs: an empty facts object is indistinguishable
@@ -487,7 +480,6 @@ export const startWizardSession = async ({
             gaps: composition.gaps,
             deployable: composition.deployable,
             ...(price === undefined ? {} : { price }),
-            ...(modePrices === undefined ? {} : { modePrices }),
             // The file exactly as writing it would produce it, so the page shows the real artifact
             // rather than a re-rendering that could disagree with it.
             ...(configText === undefined ? {} : { configText })
@@ -572,7 +564,13 @@ export const startWizardSession = async ({
             // Recomposed here rather than taken as-is: the mission composes with defaults, and the
             // mode the user picked on the first screen is what this configuration must reflect.
             adoptComposition(
-              composeConfig({ facts: finished.facts, projectName, mode, engineVersions: versionJson.rds })
+              composeConfig({
+                facts: finished.facts,
+                projectName,
+                ...(mode === undefined ? {} : { mode }),
+                ...(initialPreferences === undefined ? {} : { preferences: initialPreferences }),
+                engineVersions: versionJson.rds
+              })
             );
             publish(buildState());
           },
@@ -824,6 +822,7 @@ export const startWizardSession = async ({
             const repaired = await repair!({
               facts: facts!,
               decisions: answers,
+              preferences: composition!.preferences,
               failure: failed!,
               onProgress: (entry) => {
                 timeline.push(entry);
@@ -890,6 +889,15 @@ export const startWizardSession = async ({
         }
         return buildState();
       },
+      onPreference: (change: DeploymentPreferenceChange) => {
+        if (facts === undefined || composition === undefined) return buildState();
+        mode = undefined;
+        const preferences = { ...composition.preferences, [change.key]: change.value } as DeploymentPreferences;
+        adoptComposition(
+          composeConfig({ facts, projectName, preferences, decisions: answers, engineVersions: versionJson.rds })
+        );
+        return buildState();
+      },
       onWrite: async (format) => {
         // Nothing composed means nothing to write. Not an error: a page that asks early is a page
         // that raced the run, and the state it gets back says plainly that there is no file.
@@ -917,7 +925,13 @@ export const startWizardSession = async ({
         // Recomposed from the original facts plus the user's decisions. Nothing is edited in place,
         // so changing a decision back really does restore what was there before.
         adoptComposition(
-          composeConfig({ facts, projectName, mode, decisions: answers, engineVersions: versionJson.rds })
+          composeConfig({
+            facts,
+            projectName,
+            ...(mode === undefined ? { preferences: composition.preferences } : { mode }),
+            decisions: answers,
+            engineVersions: versionJson.rds
+          })
         );
         return buildState();
       }

@@ -196,8 +196,12 @@ export function App() {
                 onChangeDecision={(id, value) =>
                   void run(id, () => session.answer(id, value), 'That change could not be applied.')
                 }
-                onChangeMode={(mode) =>
-                  void run('mode', () => session.setMode(mode), 'That size could not be applied.')
+                onChangePreference={(change) =>
+                  void run(
+                    `preference-${change.key}`,
+                    () => session.setPreference(change),
+                    'That infrastructure choice could not be applied.'
+                  )
                 }
                 onWrite={(format) => void run('write', () => session.write(format), 'The file could not be written.')}
                 state={state}

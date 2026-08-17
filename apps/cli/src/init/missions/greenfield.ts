@@ -40,6 +40,7 @@ import { verifyFacts, type VerificationFinding } from '@stacktape/config-inferen
 import { composeConfig, type CompositionResult } from '@stacktape/config-inference/compose';
 import versionJson from '@generated/db-engine-versions/versions.json' with { type: 'json' };
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
+import type { DeploymentPreferences } from '@stacktape/config-inference/compose/preferences';
 import { Workspace } from '../tools/workspace';
 import type { AgentEvent, SessionOutcome, SessionRunInput } from '../agent/transport';
 
@@ -200,6 +201,8 @@ export type RunGreenfieldOptions = {
   projectName?: string;
   /** How much infrastructure to compose for. Passed straight through to the composer. */
   mode?: InfrastructureMode;
+  /** Explicit choices override the corresponding legacy mode fields. */
+  preferences?: Partial<DeploymentPreferences>;
   /** Omit to run probes only, which is the no-agent path and the eval baseline. */
   runAgent?: AgentRunner;
   /**
@@ -272,6 +275,7 @@ export const runGreenfieldMission = async (options: RunGreenfieldOptions): Promi
     verification: verification.findings,
     composition: composeConfig({
       ...(options.mode === undefined ? {} : { mode: options.mode }),
+      ...(options.preferences === undefined ? {} : { preferences: options.preferences }),
       facts: verification.facts,
       ...(options.projectName === undefined ? {} : { projectName: options.projectName }),
       engineVersions: versionJson.rds

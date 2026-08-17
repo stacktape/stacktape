@@ -47,7 +47,11 @@ describe('runGreenfieldMission', () => {
     const result = await runGreenfieldMission({ repositoryRoot: repoRoot, projectName: 'shop' });
 
     expect(result.agent).toBeUndefined();
-    expect(Object.keys(result.composition.config.resources).sort()).toEqual(['mainDatabase', 'shop']);
+    expect(Object.keys(result.composition.config.resources).sort()).toEqual([
+      'databaseBastion',
+      'mainDatabase',
+      'shop'
+    ]);
     expect(result.composition.deployable).toBe(true);
   });
 

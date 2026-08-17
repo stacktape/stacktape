@@ -16,7 +16,18 @@ describe('init telemetry', () => {
       projectName: 'customer-project-name',
       timeline: [],
       answers: {},
-      mode: 'standard',
+      preferences: {
+        capacity: 'performance',
+        availability: 'single',
+        dataProtection: 'protected',
+        databaseAccess: 'private'
+      },
+      recommendedPreferences: {
+        capacity: 'balanced',
+        availability: 'single',
+        dataProtection: 'protected',
+        databaseAccess: 'private'
+      },
       configFile: { path: '/private/repository/stacktape.yml', filename: 'stacktape.yml', format: 'yaml' },
       facts: {
         services: [
@@ -72,7 +83,10 @@ describe('init telemetry', () => {
       verification_passed_services: 1,
       verification_skipped_services: 1,
       analysis_duration_ms: 1200,
-      deploy_duration_ms: 3400
+      deploy_duration_ms: 3400,
+      mode: 'custom',
+      capacity: 'performance',
+      preferences_changed: 1
     });
     expect(JSON.stringify(event)).not.toContain('customer-service-name');
     expect(JSON.stringify(event)).not.toContain('/private/repository');

@@ -25,6 +25,7 @@ import { verifyFacts, type VerificationFinding } from '@stacktape/config-inferen
 import { composeConfig, type CompositionResult } from '@stacktape/config-inference/compose';
 import versionJson from '@generated/db-engine-versions/versions.json' with { type: 'json' };
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
+import type { DeploymentPreferences } from '@stacktape/config-inference/compose/preferences';
 import { listRepositoryFiles } from '@stacktape/config-inference/scan/file-tree';
 import { Workspace } from '../tools/workspace';
 import type { AgentEvent } from '../agent/transport';
@@ -72,6 +73,8 @@ export type RunRepairOptions = {
   repositoryRoot: string;
   projectName?: string;
   mode?: InfrastructureMode;
+  /** User-owned infrastructure choices. Repair may correct facts, never these. */
+  preferences?: Partial<DeploymentPreferences>;
   /** What we believed when we composed the configuration that failed. */
   facts: ProjectFacts;
   /** Decisions the user has changed. Carried through so a repair cannot silently undo one. */
@@ -100,6 +103,7 @@ export const runRepairMission = async (options: RunRepairOptions): Promise<Repai
     composeConfig({
       facts,
       ...(options.mode === undefined ? {} : { mode: options.mode }),
+      ...(options.preferences === undefined ? {} : { preferences: options.preferences }),
       ...(options.projectName === undefined ? {} : { projectName: options.projectName }),
       ...(options.decisions === undefined ? {} : { decisions: options.decisions }),
       engineVersions: versionJson.rds

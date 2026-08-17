@@ -126,7 +126,7 @@ describe('composeConfig', () => {
           type: 'nixpacks',
           properties: { sourceDirectoryPath: '.', startCmd: 'npm run start' }
         },
-        // The default mode's sizing. `low-cost` would be half of this.
+        // The recommended capacity choice. `economical` would be half of this.
         resources: { cpu: 0.5, memory: 1024 },
         scaling: { minInstances: 1, maxInstances: 3 }
       }
@@ -171,6 +171,13 @@ describe('composeConfig', () => {
               path: '/users/{id}'
             }
           }
+        ],
+        alarms: [
+          {
+            trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },
+            evaluation: { period: 300, evaluationPeriods: 3, breachedPeriods: 2 },
+            includeInHistory: true
+          }
         ]
       }
     });
@@ -205,11 +212,10 @@ describe('composeConfig', () => {
     });
   });
 
-  it('sizes everything from the chosen mode', () => {
+  it('keeps legacy modes as deterministic headless presets', () => {
     const cheap = composeConfig({ facts: facts(), mode: 'low-cost' }).config.resources.web?.properties;
     const production = composeConfig({ facts: facts(), mode: 'production' }).config.resources.web?.properties;
 
-    // The one thing no amount of reading the repository can tell us, so it is the one thing chosen.
     expect(cheap).toMatchObject({
       resources: { cpu: 0.25, memory: 512 },
       scaling: { maxInstances: 1 }
@@ -220,7 +226,7 @@ describe('composeConfig', () => {
     });
   });
 
-  it('protects a production database and leaves a throwaway one unprotected', () => {
+  it('always protects databases from deletion while legacy modes retain their backup and HA behavior', () => {
     const withDatabase = (mode: 'low-cost' | 'production') =>
       composeConfig({
         facts: facts({
@@ -238,12 +244,199 @@ describe('composeConfig', () => {
         mode
       }).config.resources.mainDatabase?.properties as Record<string, unknown>;
 
-    expect(withDatabase('low-cost').deletionProtection).toBeUndefined();
+    expect(withDatabase('low-cost')).toMatchObject({
+      deletionProtection: true,
+      automatedBackupRetentionDays: 1
+    });
     expect(withDatabase('production')).toMatchObject({
       deletionProtection: true,
       automatedBackupRetentionDays: 14,
       engine: { properties: { primaryInstance: { multiAz: true } } }
     });
+  });
+
+  it('applies capacity, availability, and data protection as independent choices', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        dependencies: [
+          {
+            name: 'mainDatabase',
+            kind: 'postgres',
+            extensions: [],
+            consumedBy: ['web'],
+            evidence: [],
+            source: 'probe'
+          },
+          {
+            name: 'uploads',
+            kind: 'object-storage',
+            consumedBy: ['web'],
+            evidence: [],
+            source: 'probe'
+          }
+        ]
+      }),
+      preferences: {
+        capacity: 'performance',
+        availability: 'redundant',
+        dataProtection: 'lean',
+        databaseAccess: 'public'
+      }
+    });
+
+    expect(config.resources.web?.properties).toMatchObject({
+      resources: { cpu: 1, memory: 2048 },
+      scaling: { minInstances: 2, maxInstances: 10 }
+    });
+    expect(config.resources.mainDatabase?.properties).toMatchObject({
+      deletionProtection: true,
+      automatedBackupRetentionDays: 1,
+      engine: { properties: { primaryInstance: { instanceSize: 'db.t4g.medium', multiAz: true } } }
+    });
+    expect(config.resources.uploads?.properties).toEqual({});
+  });
+
+  it('defaults a container database to private access and adds one keyless operator path', () => {
+    const composed = composeConfig({
+      facts: facts({
+        dependencies: [
+          {
+            name: 'mainDatabase',
+            kind: 'postgres',
+            extensions: [],
+            consumedBy: ['web'],
+            evidence: [],
+            source: 'probe'
+          }
+        ]
+      })
+    });
+
+    expect(composed.recommendedPreferences.databaseAccess).toBe('private');
+    expect(composed.preferences.databaseAccess).toBe('private');
+    expect(composed.config.resources.mainDatabase?.properties).toMatchObject({
+      accessibility: { accessibilityMode: 'vpc', forceDisablePublicIp: true }
+    });
+    expect(composed.config.resources.databaseBastion).toEqual({
+      type: 'bastion',
+      properties: { instanceSize: 't3.micro' }
+    });
+  });
+
+  it('defaults a Lambda database to public access, but honors an explicit private-network choice', () => {
+    const input = facts({
+      services: [
+        service({
+          name: 'handler',
+          exposesHttp: false,
+          port: undefined,
+          startCommand: undefined,
+          executionModel: 'per-request',
+          functionEntrypoint: 'src/handler.ts',
+          environmentVariables: [
+            {
+              name: 'DATABASE_URL',
+              role: 'infra-dependency',
+              dependencyName: 'mainDatabase',
+              required: true,
+              evidence: []
+            },
+            { name: 'STRIPE_SECRET_KEY', role: 'third-party-secret', required: true, evidence: [] }
+          ]
+        })
+      ],
+      dependencies: [
+        {
+          name: 'mainDatabase',
+          kind: 'postgres',
+          extensions: [],
+          consumedBy: ['handler'],
+          evidence: [],
+          source: 'probe'
+        }
+      ]
+    });
+
+    const recommended = composeConfig({ facts: input });
+    expect(recommended.recommendedPreferences.databaseAccess).toBe('public');
+    expect(recommended.config.resources.databaseBastion).toBeUndefined();
+    expect(recommended.config.resources.handler?.properties.joinDefaultVpc).toBeUndefined();
+
+    const privateChoice = composeConfig({ facts: input, preferences: { databaseAccess: 'private' } });
+    expect(privateChoice.preferences.databaseAccess).toBe('private');
+    expect(privateChoice.config.resources.databaseBastion?.type).toBe('bastion');
+    expect(privateChoice.config.resources.handler?.properties.joinDefaultVpc).toBe(true);
+    expect(privateChoice.gaps.some((gap) => gap.subject === 'handler.vpc-internet-access')).toBe(true);
+  });
+
+  it('joins a Lambda to the VPC for a composed Redis cache without adding a database bastion', () => {
+    const composed = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            name: 'handler',
+            exposesHttp: false,
+            port: undefined,
+            startCommand: undefined,
+            executionModel: 'per-request',
+            functionEntrypoint: 'src/handler.ts',
+            environmentVariables: [
+              { name: 'REDIS_URL', role: 'infra-dependency', dependencyName: 'cache', required: true, evidence: [] }
+            ]
+          })
+        ],
+        dependencies: [
+          {
+            name: 'cache',
+            kind: 'redis',
+            extensions: [],
+            consumedBy: ['handler'],
+            evidence: [],
+            source: 'probe'
+          }
+        ]
+      })
+    });
+
+    expect(composed.config.resources.handler?.properties.joinDefaultVpc).toBe(true);
+    expect(composed.config.resources.databaseBastion).toBeUndefined();
+  });
+
+  it('adds only sustained-problem alarms to container and database resources', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        dependencies: [
+          {
+            name: 'mainDatabase',
+            kind: 'postgres',
+            extensions: [],
+            consumedBy: ['web'],
+            evidence: [],
+            source: 'probe'
+          }
+        ]
+      })
+    });
+
+    expect(config.resources.web?.properties.alarms).toEqual([
+      {
+        description: 'Web service p95 latency stays above 5 seconds',
+        trigger: {
+          type: 'http-api-gateway-latency',
+          properties: { thresholdMilliseconds: 5000, statistic: 'p95' }
+        },
+        evaluation: { period: 300, evaluationPeriods: 3, breachedPeriods: 2 },
+        includeInHistory: true
+      }
+    ]);
+    expect(config.resources.mainDatabase?.properties.alarms).toEqual([
+      {
+        description: 'Database has less than 2 GiB of free storage',
+        trigger: { type: 'database-free-storage', properties: { thresholdMB: 2048 } },
+        evaluation: { period: 300, evaluationPeriods: 3, breachedPeriods: 2 },
+        includeInHistory: true
+      }
+    ]);
   });
 
   it('prefers the user own Dockerfile when they have one', () => {
@@ -275,7 +468,7 @@ describe('composeConfig', () => {
 
     expect(config.resources.mainDatabase).toMatchObject({
       type: 'relational-database',
-      // Sized by the mode. `standard` is the default: small instance, backups kept, deletion protected.
+      // Sized by the balanced recommendation: small instance, backups kept, deletion protected.
       properties: {
         engine: {
           type: 'postgres',
@@ -834,7 +1027,7 @@ describe('composing detected migrations into deploy hooks', () => {
     ]
   });
 
-  it('turns an observed release phase into the documented script-plus-hook pattern', () => {
+  it('tunnels the documented script-plus-hook pattern into a private database', () => {
     const { config } = composeConfig({
       facts: facts({
         services: [webWithDatabaseUrl],
@@ -846,9 +1039,10 @@ describe('composing detected migrations into deploy hooks', () => {
     });
 
     expect(config.scripts?.migrateDatabase).toEqual({
-      type: 'local-script',
+      type: 'local-script-with-bastion-tunneling',
       properties: {
         executeCommand: 'npx prisma migrate deploy',
+        bastionResource: 'databaseBastion',
         connectTo: ['mainDatabase'],
         // The migration tool reads the same name the application does, wired the same way.
         environment: [{ name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" }]

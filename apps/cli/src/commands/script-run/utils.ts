@@ -10,6 +10,7 @@ import { deployedStackOverviewManager } from '@domain-services/deployed-stack-ov
 import { ExpectedError } from '@utils/errors';
 import { executeCommandHook, executeScriptHook, getScriptEnv } from '@utils/scripts';
 import {
+  getTunneledEnvironmentVariableReferences,
   runSsmShellScript,
   startPortForwardingSessions,
   substituteTunneledEndpointsInEnvironmentVars
@@ -164,6 +165,7 @@ const getLocalScriptExecutionFn = ({
         resolvedScriptDefinition.properties.connectTo
       )
     ).map(([name, value]) => ({ name, value }));
+    let userDefinedEnvVars: EnvironmentVar[] = resolvedScriptDefinition.properties.environment ?? [];
 
     let tunnels: SsmPortForwardingTunnel[] = [];
     if (resolvedScriptDefinition.type === 'local-script-with-bastion-tunneling') {
@@ -178,9 +180,19 @@ const getLocalScriptExecutionFn = ({
           .flat() || [];
       tunnels = await startPortForwardingSessions({ targets: allTunnelTargets });
 
+      const references = getTunneledEnvironmentVariableReferences({
+        tunnels,
+        env: scriptDefinition.properties.environment ?? []
+      });
+
       connectToEnvVars = substituteTunneledEndpointsInEnvironmentVars({
         tunnels,
         env: connectToEnvVars
+      });
+      userDefinedEnvVars = substituteTunneledEndpointsInEnvironmentVars({
+        tunnels,
+        env: userDefinedEnvVars,
+        references
       });
     }
 
@@ -224,7 +236,7 @@ const getLocalScriptExecutionFn = ({
 
       try {
         const env = getScriptEnv({
-          userDefinedEnv: resolvedScriptDefinition.properties.environment,
+          userDefinedEnv: userDefinedEnvVars,
           connectToEnv: connectToEnvVars,
           command: globalStateManager.command,
           fullHookTrigger: hookTrigger,

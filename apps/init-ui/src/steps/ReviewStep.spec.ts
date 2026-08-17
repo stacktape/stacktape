@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'bun:test';
 import type { WizardState } from '../session';
-import { summarise } from './ReviewStep';
+import { deploymentPreferenceKeysFor, summarise } from './ReviewStep';
 
 const state = ({
   services,
@@ -72,5 +72,19 @@ describe('the review summary', () => {
         })
       )
     ).toBe('2 serverless functions.');
+  });
+});
+
+describe('conditional infrastructure preferences', () => {
+  it('asks only about choices that affect the generated resource types', () => {
+    expect(deploymentPreferenceKeysFor(['hosting-bucket'])).toEqual([]);
+    expect(deploymentPreferenceKeysFor(['web-service'])).toEqual(['capacity', 'availability']);
+    expect(deploymentPreferenceKeysFor(['bucket'])).toEqual(['dataProtection']);
+    expect(deploymentPreferenceKeysFor(['function', 'relational-database', 'bastion'])).toEqual([
+      'capacity',
+      'availability',
+      'dataProtection',
+      'databaseAccess'
+    ]);
   });
 });

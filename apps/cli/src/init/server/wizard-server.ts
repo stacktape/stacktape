@@ -18,6 +18,11 @@ import { AddressInfo, type Socket } from 'node:net';
 import { extname, join, normalize } from 'node:path';
 import type { DeployTargetObservation } from '../deploy/stack-expectation';
 import {
+  isDeploymentPreferenceChange,
+  type DeploymentPreferenceChange,
+  type DeploymentPreferences
+} from '@stacktape/config-inference/compose/preferences';
+import {
   createSessionSecrets,
   isSameOrigin,
   readCookie,
@@ -128,6 +133,10 @@ export type WizardState = {
   choice?: { agentId: string; modelId: string };
   /** How much infrastructure this configuration is sized for. */
   mode?: 'low-cost' | 'standard' | 'production';
+  /** Explicit choices shown beside the configuration and its current price. */
+  preferences?: DeploymentPreferences;
+  /** Fact-aware defaults used to mark the recommended card without overriding a changed choice. */
+  recommendedPreferences?: DeploymentPreferences;
   /**
    * The configuration on disk, once the user has asked for it.
    *
@@ -187,14 +196,10 @@ export type WizardServerHooks = {
     modelId: string;
     mode?: 'low-cost' | 'standard' | 'production';
   }) => Promise<void> | void;
-  /**
-   * Called when the user changes how big the infrastructure should be.
-   *
-   * Available once a composition exists — the size choice lives on the Review step, next to the
-   * price it changes, because before seeing what exists there is nothing to size. Returns the state
-   * to broadcast, like `onAnswer`: recomposition is synchronous.
-   */
+  /** Legacy mode endpoint retained for headless clients. The browser uses `onPreference`. */
   onMode: (mode: 'low-cost' | 'standard' | 'production') => Promise<WizardState> | WizardState;
+  /** Called when one explicit infrastructure preference changes. */
+  onPreference: (change: DeploymentPreferenceChange) => Promise<WizardState> | WizardState;
   /** Called when the user asks for the configuration to be written, in the format they chose. */
   onWrite: (format: 'yaml' | 'typescript') => Promise<void> | void;
   /** Called when the user asks to deploy. Publishes for itself, like `onStart`. */
@@ -563,6 +568,24 @@ export const startWizardServer = async ({
             return;
           }
           json(response, 200, await hooks.onMode(body.mode));
+        } catch (error) {
+          json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
+        }
+        return;
+      }
+
+      if (url.pathname === '/api/preferences' && request.method === 'POST') {
+        if (!secretsMatch(request.headers['x-csrf-token']?.toString() ?? '', secrets.csrfToken)) {
+          json(response, 403, { error: 'Missing or invalid CSRF token.' });
+          return;
+        }
+        try {
+          const body: unknown = JSON.parse(await readBody(request));
+          if (!isDeploymentPreferenceChange(body)) {
+            json(response, 400, { error: 'That is not a supported infrastructure preference.' });
+            return;
+          }
+          json(response, 200, await hooks.onPreference(body));
         } catch (error) {
           json(response, 400, { error: error instanceof Error ? error.message : 'Bad request.' });
         }

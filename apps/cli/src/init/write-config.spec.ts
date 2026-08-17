@@ -123,7 +123,7 @@ describe('renderYaml', () => {
 /**
  * Run the emitted module and return the configuration it defines.
  *
- * The import line is replaced by parameters, which is the smallest thing that turns a module into
+ * The Stacktape import is replaced by parameters, which is the smallest thing that turns a module into
  * something callable without a bundler. Everything else — the classes, `defineConfig`, the
  * compilation they perform — is the real implementation the user's own file would use.
  */
@@ -132,7 +132,9 @@ const evaluateEmitted = (source: string): Record<string, unknown> => {
     'exports',
     'defineConfig',
     ...Object.keys(authoring).filter((name) => name !== 'defineConfig'),
-    source.replace(/^import .*$/m, '').replace('export default', 'exports.default =')
+    source
+      .replace(/^import\s*\{[\s\S]*?\}\s*from\s*['"]stacktape['"];?\s*/m, '')
+      .replace('export default', 'exports.default =')
   ) as (exports: { default?: unknown }, ...injected: unknown[]) => void;
 
   const module: { default?: (params: Record<string, unknown>) => { config: Record<string, unknown> } } = {};

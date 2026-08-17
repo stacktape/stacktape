@@ -107,7 +107,12 @@ export type ProductAnalyticsEventMap = {
     presentation: 'browser' | 'terminal';
     /** Which reader produced the facts. */
     agent: 'claude-code' | 'codex' | 'none' | (string & {});
-    mode: 'low-cost' | 'standard' | 'production';
+    /** Legacy preset when one was requested headlessly; browser choices are reported as custom. */
+    mode: 'low-cost' | 'standard' | 'production' | 'custom';
+    capacity: 'economical' | 'balanced' | 'performance' | null;
+    availability: 'single' | 'redundant' | null;
+    data_protection: 'lean' | 'protected' | null;
+    database_access: 'public' | 'private' | null;
     /** How far the session got before it ended. */
     reached: 'analysed' | 'reviewed' | 'written' | 'deploy_failed' | 'deployed';
     /** Category labels only, e.g. frameworks and dependency kinds the pipeline already names. */
@@ -118,6 +123,7 @@ export type ProductAnalyticsEventMap = {
     decision_count: number;
     /** Decisions the user changed away from the recommendation. */
     decisions_changed: number;
+    preferences_changed: number;
     gap_count: number;
     analysis_duration_ms: number | null;
     deploy_duration_ms: number | null;

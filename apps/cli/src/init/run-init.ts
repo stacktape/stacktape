@@ -34,6 +34,7 @@ import { runPreflight } from './preflight/preflight';
 import { createPreflightRunners } from './preflight/runners';
 import { runRepairMission } from './missions/repair';
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
+import type { DeploymentPreferences } from '@stacktape/config-inference/compose/preferences';
 import type { WizardAgentOption } from './server/wizard-server';
 import { startWizardSession, toTimelineEntry } from './server/wizard-session';
 import { estimateMonthlyCost } from './pricing';
@@ -67,6 +68,8 @@ export type InitOptions = {
    * legitimately want a $25 environment or a $200 one. Everything else is inferred.
    */
   mode?: InfrastructureMode;
+  /** Explicit infrastructure choices. Primarily used by restored/non-browser sessions. */
+  preferences?: Partial<DeploymentPreferences>;
   /** Directory holding the built wizard bundle. */
   wizardBundle?: string;
   /**
@@ -249,13 +252,14 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
             ...(model === undefined ? {} : { model })
           });
 
-  const mode = options.mode ?? 'standard';
+  const mode = options.mode;
 
   const runMission = (runAgent: AgentRunner | undefined, onEvent: (event: AgentEvent) => void) =>
     runGreenfieldMission({
       repositoryRoot,
       projectName,
-      mode,
+      ...(mode === undefined ? {} : { mode }),
+      ...(options.preferences === undefined ? {} : { preferences: options.preferences }),
       onEvent,
       // The container builder answers what the repository and the convention table could not; the
       // eval harness deliberately runs without it so the baseline never depends on a binary.
@@ -301,7 +305,9 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
         phase: 'reviewing',
         projectName,
         choice: { agentId: agent?.id ?? 'none', modelId: 'default' },
-        mode,
+        ...(mode === undefined ? {} : { mode }),
+        preferences: result.composition.preferences,
+        recommendedPreferences: result.composition.recommendedPreferences,
         configFile: { ...configFile, format: options.configFormat ?? 'yaml' },
         timeline: [],
         facts: {
@@ -353,7 +359,8 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
     repositoryPath: repositoryRoot,
     ...(existingConfig === undefined ? {} : { existingConfig }),
     agents: agentOptions(available, agent),
-    mode,
+    ...(mode === undefined ? {} : { mode }),
+    ...(options.preferences === undefined ? {} : { preferences: options.preferences }),
     timeline,
     start: async (choice, onProgress) => {
       const chosen = available.find((entry) => entry.id === choice.agentId);
@@ -398,7 +405,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
     ...(agent === undefined
       ? {}
       : {
-          repair: async ({ facts, decisions, failure, onProgress }) => {
+          repair: async ({ facts, decisions, preferences, failure, onProgress }) => {
             const repairAgent = activeChoice?.agent ?? agent;
             const repairModel =
               activeChoice?.modelId === undefined ? undefined : modelFlagFor(repairAgent.id, activeChoice.modelId);
@@ -408,8 +415,8 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
               projectName,
               facts,
               decisions,
+              preferences,
               failure,
-              ...(options.mode === undefined ? {} : { mode: options.mode }),
               runAgent: runnerFor(repairAgent, repairModel),
               onEvent: (event) => {
                 const entry = toTimelineEntry(event);
