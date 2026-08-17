@@ -78,7 +78,7 @@ describe('the Procfile probe', () => {
   it('does not turn one application into two when a manifest already described it', async () => {
     root = await makeRepo({
       'package.json': JSON.stringify({ name: 'api', scripts: { start: 'node index.js' } }),
-      Procfile: 'web: node index.js\n'
+      Procfile: 'web: node dist/server.js\n'
     });
 
     const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
@@ -87,6 +87,32 @@ describe('the Procfile probe', () => {
     // application twice and bill for both.
     expect(facts.services).toHaveLength(1);
     expect(facts.services[0]?.name).toBe('api');
+    expect(facts.services[0]?.startCommand).toBe('node dist/server.js');
+  });
+
+  it('isolates one safe migration from a release chain without retaining redirects or seeds', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'api',
+        scripts: { start: 'node dist/main.js', 'migration:run': 'typeorm migration:run' }
+      }),
+      Procfile: [
+        'web: npm run start',
+        "release: echo '' > .env && npm run migration:run && npm run seed:run:relational",
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    const { config, gaps } = composeConfig({ facts, projectName: 'demo' });
+
+    expect(facts.migrations).toEqual([
+      expect.objectContaining({ serviceName: 'api', command: 'npm run migration:run', runsAt: 'ci' })
+    ]);
+    expect(config.scripts?.migrateDatabase?.properties.executeCommand).toBe('npm run migration:run');
+    expect(config.hooks?.afterDeploy).toEqual([{ scriptName: 'migrateDatabase' }]);
+    expect(JSON.stringify({ facts, config, gaps })).not.toContain("echo '' > .env");
+    expect(JSON.stringify({ facts, config, gaps })).not.toContain('seed:run:relational');
   });
 
   it('ignores comments and blank lines rather than reading them as processes', async () => {
@@ -98,6 +124,25 @@ describe('the Procfile probe', () => {
     const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
 
     expect(facts.services.map((service) => service.name)).toEqual(['web']);
+  });
+
+  it('keeps inline environment names but never their values', async () => {
+    root = await makeRepo({
+      'requirements.txt': 'flask\n',
+      Procfile: 'web: SESSION_SECRET=do-not-store LOG_LEVEL=debug flask run\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+
+    expect(facts.services[0]).toMatchObject({
+      startCommand: 'flask run',
+      environmentVariables: [
+        expect.objectContaining({ name: 'SESSION_SECRET', role: 'third-party-secret', hasDeclaredValue: true }),
+        expect.objectContaining({ name: 'LOG_LEVEL', role: 'runtime-config', hasDeclaredValue: true })
+      ]
+    });
+    expect(JSON.stringify(facts)).not.toContain('do-not-store');
+    expect(JSON.stringify(facts)).not.toContain('debug');
   });
 
   it('keeps every cross-reference intact when two probes name the same service differently', async () => {

@@ -39,7 +39,12 @@ const baseService = {
     { file: 'src/index.ts', line: 3, quote: 'app.listen(4000)' },
     // Tagged, because the command lives in the manifest rather than wherever the server binds. The
     // untagged citation above supports the service generally; a high-stakes field wants its own.
-    { field: 'startCommand', file: 'package.json', line: 1, quote: '"start": "node dist/index.js"' }
+    {
+      field: 'startCommand',
+      file: 'package.json',
+      line: 1,
+      quote: '"start": "node dist/index.js"'
+    }
   ],
   source: 'probe' as const
 };
@@ -55,22 +60,34 @@ describe('matchQuote', () => {
   const lines = ['const a = 1;', '   const b = 2;   ', 'const c = 3;'];
 
   it('matches on the cited line ignoring indentation', () => {
-    expect(matchQuote(lines, 2, 'const b = 2;')).toEqual({ outcome: 'exact', line: 2 });
+    expect(matchQuote(lines, 2, 'const b = 2;')).toEqual({
+      outcome: 'exact',
+      line: 2
+    });
   });
 
   it('matches a line or two away and reports the distance', () => {
     // Models miscount lines constantly, especially across paged reads. This must not be a failure.
-    expect(matchQuote(lines, 1, 'const c = 3;')).toEqual({ outcome: 'nearby', line: 3, distance: 2 });
+    expect(matchQuote(lines, 1, 'const c = 3;')).toEqual({
+      outcome: 'nearby',
+      line: 3,
+      distance: 2
+    });
   });
 
   it('reports a match far from the citation as misplaced rather than absent', () => {
     const long = [...Array.from({ length: 60 }, () => 'filler'), 'const needle = true;'];
 
-    expect(matchQuote(long, 1, 'const needle = true;')).toEqual({ outcome: 'elsewhere', line: 61 });
+    expect(matchQuote(long, 1, 'const needle = true;')).toEqual({
+      outcome: 'elsewhere',
+      line: 61
+    });
   });
 
   it('reports genuinely absent text', () => {
-    expect(matchQuote(lines, 1, 'const nope = 9;')).toEqual({ outcome: 'absent' });
+    expect(matchQuote(lines, 1, 'const nope = 9;')).toEqual({
+      outcome: 'absent'
+    });
   });
 
   it('normalizes whitespace but preserves case', () => {
@@ -117,7 +134,13 @@ describe('verifyFacts', () => {
             kind: 'postgres',
             extensions: [],
             consumedBy: ['web'],
-            evidence: [{ file: 'prisma/schema.prisma', line: 2, quote: 'provider = "postgresql"' }],
+            evidence: [
+              {
+                file: 'prisma/schema.prisma',
+                line: 2,
+                quote: 'provider = "postgresql"'
+              }
+            ],
             source: 'agent'
           }
         ]
@@ -134,7 +157,14 @@ describe('verifyFacts', () => {
     const result = await verifyFacts({
       facts: build({
         dependencies: [
-          { name: 'cache', kind: 'redis', extensions: [], consumedBy: ['web'], evidence: [], source: 'agent' }
+          {
+            name: 'cache',
+            kind: 'redis',
+            extensions: [],
+            consumedBy: ['web'],
+            evidence: [],
+            source: 'agent'
+          }
         ]
       }),
       readFile
@@ -169,7 +199,10 @@ describe('verifyFacts', () => {
       readFile
     });
 
-    expect(result.facts.uncertainties[0]).toMatchObject({ reason: 'contradicted-by-probe', claimedValue: 'mongodb' });
+    expect(result.facts.uncertainties[0]).toMatchObject({
+      reason: 'contradicted-by-probe',
+      claimedValue: 'mongodb'
+    });
     expect(result.agentFeedback.join(' ')).toContain('dependency:docs');
   });
 
@@ -177,8 +210,22 @@ describe('verifyFacts', () => {
     const result = await verifyFacts({
       facts: build({
         dependencies: [
-          { name: 'probeCache', kind: 'redis', extensions: [], consumedBy: ['web'], evidence: [], source: 'probe' },
-          { name: 'agentCache', kind: 'redis', extensions: [], consumedBy: ['web'], evidence: [], source: 'agent' }
+          {
+            name: 'probeCache',
+            kind: 'redis',
+            extensions: [],
+            consumedBy: ['web'],
+            evidence: [],
+            source: 'probe'
+          },
+          {
+            name: 'agentCache',
+            kind: 'redis',
+            extensions: [],
+            consumedBy: ['web'],
+            evidence: [],
+            source: 'agent'
+          }
         ]
       }),
       readFile
@@ -195,7 +242,14 @@ describe('verifyFacts', () => {
     const result = await verifyFacts({
       facts: build({
         dependencies: [
-          { name: 'cache', kind: 'redis', extensions: [], consumedBy: ['web'], evidence: [], source: 'probe' }
+          {
+            name: 'cache',
+            kind: 'redis',
+            extensions: [],
+            consumedBy: ['web'],
+            evidence: [],
+            source: 'probe'
+          }
         ]
       }),
       readFile
@@ -216,10 +270,31 @@ describe('verifyFacts', () => {
 
   it('flags a start command that appears in no cited file', async () => {
     const result = await verifyFacts({
-      facts: build({ services: [{ ...baseService, startCommand: 'python manage.py runserver' }] }),
+      facts: build({
+        services: [{ ...baseService, startCommand: 'python manage.py runserver' }]
+      }),
       readFile
     });
 
     expect(result.findings.some((f) => f.field === 'startCommand' && f.outcome === 'anchor-failed')).toBe(true);
+  });
+
+  it('accepts the production Streamlit command derived from a declared app', async () => {
+    const result = await verifyFacts({
+      facts: build({
+        services: [
+          {
+            ...baseService,
+            language: 'python',
+            framework: 'streamlit',
+            startCommand: 'streamlit run app.py --server.address 0.0.0.0 --server.port 80',
+            evidence: [{ file: 'app.py', line: 1, quote: 'import streamlit as st' }]
+          }
+        ]
+      }),
+      readFile: async (path) => (path === 'app.py' ? 'import streamlit as st\nst.title("Demo")\n' : null)
+    });
+
+    expect(result.findings.some((f) => f.field === 'startCommand' && f.outcome === 'anchor-failed')).toBe(false);
   });
 });

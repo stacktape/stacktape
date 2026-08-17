@@ -69,6 +69,8 @@ const alternativesFor = (uncertainty: Uncertainty): string[] => {
       return ['runtime', 'build-time'];
     case 'migration-timing-unknown':
       return ['deploy-hook', 'service-startup', 'manual'];
+    case 'dockerfile-ownership':
+      return ['stacktape-packaging', 'keep-dockerfile'];
     case 'unconfirmed-claim':
       return ['accept', 'reject'];
     case 'conflicting-observation':

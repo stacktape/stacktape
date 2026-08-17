@@ -172,4 +172,43 @@ describe('nothing is left for the user to answer', () => {
     expect(createdProperties.environment).toBeUndefined();
     expect(createdProperties.connectTo).toEqual(['mainDatabase']);
   });
+
+  it('does not offer an existing event resource until it can preserve the external trigger identity', () => {
+    const eventFacts = factsWith({
+      services: [
+        {
+          ...service,
+          exposesHttp: false,
+          executionModel: 'per-request',
+          startCommand: undefined,
+          functionEntrypoint: 'src/worker.ts',
+          functionTriggers: [{ type: 'queue', dependencyName: 'jobQueue' }]
+        }
+      ],
+      dependencies: [
+        {
+          name: 'jobQueue',
+          kind: 'queue',
+          extensions: [],
+          consumedBy: ['api'],
+          currentlyHostedOn: 'aws',
+          hostingEvidence: 'deployment-manifest',
+          evidence: [],
+          source: 'probe'
+        }
+      ]
+    });
+
+    const composed = composeConfig({
+      facts: eventFacts,
+      // A stale or hand-written client answer must not make the queue event disappear.
+      decisions: { 'external-database:jobQueue': 'point-at-existing' }
+    });
+
+    expect(composed.assumptions[0]).toMatchObject({ chosen: 'create-new', alternatives: ['create-new'] });
+    expect(composed.config.resources.jobQueue?.type).toBe('sqs-queue');
+    expect(composed.config.resources.api?.properties.events).toEqual([
+      { type: 'sqs', properties: { sqsQueueName: 'jobQueue' } }
+    ]);
+  });
 });

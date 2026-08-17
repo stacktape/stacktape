@@ -16,7 +16,15 @@ describe('classifyFileAccess', () => {
   it('gives every environment file names-only access, example files included', () => {
     // The exception people reach for is `.env.example`. It is deliberately absent: example files
     // pick up real values by accident, and the names are the whole signal anyway.
-    for (const path of ['.env', '.env.local', '.env.production', '.env.example', 'apps/web/.env.sample']) {
+    for (const path of [
+      '.env',
+      '.env.local',
+      '.env.production',
+      '.env.example',
+      'apps/web/.env.sample',
+      'env-example-relational',
+      'config/env-template-production'
+    ]) {
       expect(classifyFileAccess(path)).toBe('names-only');
     }
   });

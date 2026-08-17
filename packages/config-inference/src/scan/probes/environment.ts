@@ -24,6 +24,7 @@ import {
 } from '../../facts/dependency';
 import type { Uncertainty } from '../../facts/uncertainty';
 import { extractEnvironmentVariableNames, isEnvironmentFileName } from '../../policy/file-access';
+import { readText } from '../probe';
 import type { Probe, ProbeContext, ProbeOutput } from '../probe';
 
 /** Connection-string schemes that name their engine outright. */
@@ -71,8 +72,14 @@ const hostingForHost = (host: string): DependencyHosting | undefined => {
   )?.hosting;
 };
 
-/** Variable names that promise a backing service even when the value is absent or a placeholder. */
-const NAME_TO_KIND: ReadonlyArray<{ pattern: RegExp; kind: DependencyKind }> = [
+/**
+ * Variable names that promise a backing service even when the value is absent or a placeholder.
+ *
+ * Exported for the assembler's environment-usage enrichment, which applies the same table to names
+ * read from source code. One table, because two copies of "what does `REDIS_` mean" is how the
+ * `.env` view and the source view drift into disagreeing.
+ */
+export const ENV_NAME_TO_KIND: ReadonlyArray<{ pattern: RegExp; kind: DependencyKind }> = [
   // `POSTGRES_*` and `PG_*` name the engine. `DATABASE_URL` deliberately does not appear here: it
   // is the canonical engine-agnostic name, and treating it as Postgres is the exact silent guess
   // this pipeline exists to avoid. It falls through to `AMBIGUOUS_DATABASE_NAMES` and becomes a
@@ -82,14 +89,28 @@ const NAME_TO_KIND: ReadonlyArray<{ pattern: RegExp; kind: DependencyKind }> = [
   { pattern: /^MONGO(DB)?_/i, kind: 'mongodb' },
   { pattern: /^REDIS_/i, kind: 'redis' },
   { pattern: /^(S3|BUCKET|AWS_BUCKET)_?/i, kind: 'object-storage' },
-  { pattern: /^(SMTP|MAIL(ER)?)_/i, kind: 'email' },
+  // SMTP/MAIL variables configure an application client; they are not a resource binding. A mail
+  // client dependency may still produce one focused capability gap, but these names must not mint
+  // a separate missing-infrastructure secret for every host/port/TLS setting.
   { pattern: /^(ELASTIC|OPENSEARCH|MEILI|TYPESENSE)_/i, kind: 'search' },
   { pattern: /^KAFKA_/i, kind: 'kafka' },
   { pattern: /^(SQS|QUEUE|RABBITMQ|AMQP)_/i, kind: 'queue' }
 ];
 
 /** Names generic enough that they promise a database without saying which. */
-const AMBIGUOUS_DATABASE_NAMES = /^(DATABASE|DB)_?(URL|URI|DSN|CONNECTION_STRING)$/i;
+export const AMBIGUOUS_DATABASE_NAMES = /^(DATABASE|DB)_?(URL|URI|DSN|CONNECTION_STRING)$/i;
+
+/**
+ * Which hosting claim wins when two environment files disagree.
+ *
+ * `.env` sorts before `.env.production`, and the laptop file says `localhost` while the production
+ * file says Supabase. First-wins would record `local` — and `local` is the one value that lets
+ * composition create a brand-new database, which silently bypasses the "never replace a live
+ * external database" guarantee for exactly the projects it exists to protect. A managed provider
+ * therefore always beats `local`; between two managed providers, the first file keeps the claim.
+ */
+const preferHosting = (existing: DependencyHosting | undefined, incoming: DependencyHosting): DependencyHosting =>
+  existing === undefined || (existing === 'local' && incoming !== 'local') ? incoming : existing;
 
 const hostOf = (value: string): string | undefined => {
   const trimmed = value.trim();
@@ -132,6 +153,49 @@ const classifyAssignment = (line: string): { kind?: DependencyKind; hosting?: De
   };
 };
 
+const assignmentValue = (line: string): string | undefined => {
+  const separator = line.indexOf('=');
+  if (separator <= 0) return undefined;
+  const value = line
+    .slice(separator + 1)
+    .trim()
+    .replace(/^["']|["']$/g, '')
+    .toLowerCase();
+  return value === '' ? undefined : value;
+};
+
+const DATABASE_SELECTOR_VALUES: Readonly<Record<string, DependencyKind>> = {
+  postgres: 'postgres',
+  postgresql: 'postgres',
+  mysql: 'mysql',
+  mariadb: 'mysql',
+  mssql: 'mssql',
+  sqlserver: 'mssql',
+  mongodb: 'mongodb',
+  mongo: 'mongodb',
+  sqlite: 'sqlite'
+};
+
+/**
+ * Prefer the one template the root application Dockerfile explicitly copies. Variant examples may
+ * sit side-by-side (`env-example-relational`, `env-example-document`); reading both describes every
+ * mode the code supports rather than the mode this build runs.
+ */
+const activeEnvironmentFiles = async (context: ProbeContext, envFiles: readonly string[]): Promise<string[]> => {
+  const actual = envFiles.filter(
+    (file) => !/(?:^|\/)(?:\.?)env[-.](?:example|sample|template|defaults?)(?:[-.].*)?$/i.test(file)
+  );
+  const templates = envFiles.filter((file) => !actual.includes(file));
+  if (templates.length < 2 || !context.files.includes('Dockerfile')) return [...envFiles];
+  const dockerfile = await readText(context, 'Dockerfile');
+  if (dockerfile === undefined) return [...envFiles];
+  const referenced = templates.filter((file) => {
+    const base = file.slice(file.lastIndexOf('/') + 1);
+    return dockerfile.includes(file) || dockerfile.includes(base);
+  });
+  return referenced.length === 1 ? [...actual, referenced[0]!] : [...envFiles];
+};
+
 /**
  * Cite a variable declaration without quoting its value.
  *
@@ -152,12 +216,17 @@ export const environmentProbe: Probe = {
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
     // The same predicate the policy uses. Keeping a second copy here is how the two drift: broaden
     // the policy to cover `.envrc` and this probe silently keeps ignoring it.
-    const envFiles = context.files.filter((file) => isEnvironmentFileName(file.slice(file.lastIndexOf('/') + 1)));
+    const discoveredEnvFiles = context.files.filter((file) =>
+      isEnvironmentFileName(file.slice(file.lastIndexOf('/') + 1))
+    );
+    const envFiles = await activeEnvironmentFiles(context, discoveredEnvFiles);
     if (envFiles.length === 0) return {};
 
     const byKind = new Map<DependencyKind, { evidence: Citation[]; hosting?: DependencyHosting; names: string[] }>();
     const uncertainties: Uncertainty[] = [];
     const ambiguous = new Map<string, Citation | undefined>();
+    const preferredDependencyKinds = new Set<DependencyKind>();
+    const disabledDependencyKinds = new Set<DependencyKind>();
 
     // Read together, then folded in file order: the accumulation below is order-sensitive (the first
     // file to mention a kind owns its citation), so the reads are parallel and the merge is not.
@@ -180,7 +249,16 @@ export const environmentProbe: Probe = {
               .startsWith(`${name}=`)
           ) ?? '';
         const { kind: valueKind, hosting } = classifyAssignment(declaration);
-        const nameKind = NAME_TO_KIND.find((entry) => entry.pattern.test(name))?.kind;
+        const value = assignmentValue(declaration);
+        if (/^(?:DATABASE|DB)_(?:TYPE|ENGINE|DIALECT)$/i.test(name) && value !== undefined) {
+          const selected = DATABASE_SELECTOR_VALUES[value];
+          if (selected !== undefined) preferredDependencyKinds.add(selected);
+        }
+        if (/^(?:FILE|STORAGE)_(?:DRIVER|BACKEND)$/i.test(name) && value !== undefined) {
+          if (/^(?:local|file|filesystem|disk)$/.test(value)) disabledDependencyKinds.add('object-storage');
+          if (/^(?:s3|object-storage|object_storage)$/.test(value)) preferredDependencyKinds.add('object-storage');
+        }
+        const nameKind = ENV_NAME_TO_KIND.find((entry) => entry.pattern.test(name))?.kind;
 
         // A scheme in the value beats a guess from the name: `DATABASE_URL=mysql://…` is a MySQL
         // database no matter what the variable is called.
@@ -193,7 +271,7 @@ export const environmentProbe: Probe = {
 
         const entry = byKind.get(kind) ?? { evidence: [], names: [] };
         if (citation && entry.evidence.length < 4) entry.evidence.push(citation);
-        if (hosting !== undefined && entry.hosting === undefined) entry.hosting = hosting;
+        if (hosting !== undefined) entry.hosting = preferHosting(entry.hosting, hosting);
         if (!entry.names.includes(name)) entry.names.push(name);
         byKind.set(kind, entry);
       }
@@ -225,10 +303,16 @@ export const environmentProbe: Probe = {
       consumedBy: [],
       addressedBy: entry.names,
       currentlyHostedOn: entry.hosting,
+      hostingEvidence: 'connection-string',
       evidence: entry.evidence,
       source: 'probe'
     }));
 
-    return { dependencies, uncertainties };
+    return {
+      dependencies,
+      uncertainties,
+      ...(preferredDependencyKinds.size === 0 ? {} : { preferredDependencyKinds: [...preferredDependencyKinds] }),
+      ...(disabledDependencyKinds.size === 0 ? {} : { disabledDependencyKinds: [...disabledDependencyKinds] })
+    };
   }
 };

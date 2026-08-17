@@ -123,7 +123,13 @@ export const isEnvironmentFileName = (name: string): boolean => {
   // Matched case-insensitively, and on both shapes people actually use. `.ENV` on a case-insensitive
   // filesystem is the same file as `.env`; `prod.env` and `.envrc` carry the same values under
   // different names. A guarantee about environment values that a rename defeats is not a guarantee.
-  return lower === '.env' || lower.startsWith('.env.') || lower === '.envrc' || lower.endsWith('.env');
+  return (
+    lower === '.env' ||
+    lower.startsWith('.env.') ||
+    lower === '.envrc' ||
+    lower.endsWith('.env') ||
+    /^(?:\.?)env[-.](?:example|sample|template|defaults?)(?:[-.].*)?$/.test(lower)
+  );
 };
 
 const hasCredentialExtension = (name: string): boolean => {

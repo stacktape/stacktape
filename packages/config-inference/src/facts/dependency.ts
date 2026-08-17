@@ -20,6 +20,8 @@ export const dependencyKindSchema = z.enum([
   'object-storage',
   'dynamodb',
   'queue',
+  'topic',
+  'amqp',
   'search',
   'email',
   'kafka'
@@ -28,12 +30,12 @@ export const dependencyKindSchema = z.enum([
 export type DependencyKind = z.infer<typeof dependencyKindSchema>;
 
 /**
- * Where the data lives today.
+ * Where a connection string proves the application points today.
  *
  * Derived by a probe from the *values* in environment files — a host ending in `supabase.co` is a
- * Supabase database — and the probe emits only this enum. The value itself never leaves the probe,
- * so the agent still never sees a connection string while we still capture the one thing that
- * matters about it: whether something is already running that we must not disturb.
+ * Supabase database — and the probe emits only this enum. A checked-in deployment manifest never
+ * supplies this field: it proves what somebody intended to create, not that the resource exists.
+ * The value itself never leaves the probe.
  */
 export const dependencyHostingSchema = z.enum([
   'supabase',
@@ -51,6 +53,10 @@ export const dependencyHostingSchema = z.enum([
 ]);
 
 export type DependencyHosting = z.infer<typeof dependencyHostingSchema>;
+
+/** What kind of evidence established the dependency declaration or hosting claim. */
+export const dependencyHostingEvidenceSchema = z.enum(['connection-string', 'deployment-manifest']);
+export type DependencyHostingEvidence = z.infer<typeof dependencyHostingEvidenceSchema>;
 
 /**
  * The name a dependency of this kind gets when nothing else names it.
@@ -70,6 +76,8 @@ export const defaultDependencyName = (kind: DependencyKind): string =>
     'object-storage': 'storageBucket',
     dynamodb: 'mainTable',
     queue: 'jobQueue',
+    topic: 'notificationsTopic',
+    amqp: 'messageBroker',
     search: 'searchIndex',
     email: 'mailer',
     kafka: 'eventStream'
@@ -109,6 +117,29 @@ export const dependencyFactSchema = z.object({
    */
   addressedBy: z.array(z.string().min(1)).default([]),
   currentlyHostedOn: dependencyHostingSchema.optional(),
+  /**
+   * A connection string proves where the application points today. An IaC/PaaS declaration only
+   * proves intent: it may be production, a preview, or a stack nobody has deployed yet. Static
+   * declarations carry this evidence grade without `currentlyHostedOn`, so they can contribute
+   * topology and sizing without making a false live-resource claim.
+   */
+  hostingEvidence: dependencyHostingEvidenceSchema.optional(),
+  /**
+   * Concrete sizing an existing infrastructure declaration states, carried as a hint.
+   *
+   * An imported Terraform `instance_class` or SST `instance` is the one sizing signal better than
+   * our mode profiles: it is what the user explicitly chose for that declared environment. The
+   * composer applies it only when the value fits the target field's own namespace (`db.*`,
+   * `cache.*`), so a foreign or mistyped value degrades to the profile default rather than a failed
+   * deploy.
+   */
+  sizeHint: z
+    .object({
+      /** Instance class in the provider's own vocabulary, e.g. `db.t4g.small` or `cache.m6g.large`. */
+      instance: z.string().min(1).optional(),
+      storageGb: z.number().int().positive().optional()
+    })
+    .optional(),
   evidence: z.array(citationSchema).default([]),
   source: factSourceSchema
 });

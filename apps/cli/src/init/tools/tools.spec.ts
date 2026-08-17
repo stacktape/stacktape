@@ -1,7 +1,7 @@
 import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
+import { afterAll, beforeAll, beforeEach, describe, expect, it } from 'bun:test';
 import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema } from '@stacktape/config-inference/facts';
 import type { AgentSubmission } from '@stacktape/config-inference/facts/agent-submission';
 import { createInitTools, type InitTool, type InitToolContext } from './index';
@@ -18,7 +18,7 @@ beforeAll(async () => {
   root = await mkdtemp(join(tmpdir(), 'stp-tools-'));
   await mkdir(join(root, 'src'), { recursive: true });
   await mkdir(join(root, 'apps', 'web'), { recursive: true });
-  await writeFile(join(root, 'package.json'), '{"name":"demo"}', 'utf8');
+  await writeFile(join(root, 'package.json'), '{"name":"demo","scripts":{"start":"node src/index.ts"}}', 'utf8');
   await writeFile(join(root, 'apps', 'web', 'package.json'), '{"name":"web"}', 'utf8');
   await writeFile(
     join(root, 'src', 'index.ts'),
@@ -49,6 +49,10 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await rm(root, { recursive: true, force: true });
+});
+
+beforeEach(() => {
+  submitted = [];
 });
 
 describe('read_file', () => {
@@ -125,13 +129,128 @@ describe('submit_facts', () => {
           exposesHttp: true,
           executionModel: 'long-running',
           startCommand: 'node src/index.ts',
-          evidence: [{ file: 'src/index.ts', line: 3, quote: 'app.listen(4000);' }]
+          evidence: [
+            { file: 'src/index.ts', line: 3, quote: 'app.listen(4000);' },
+            { file: 'package.json', line: 1, quote: '"start":"node src/index.ts"' }
+          ]
         }
       ]
     });
 
     expect(result).toEqual({ accepted: true });
     expect(submitted).toHaveLength(1);
+  });
+
+  it('rejects a cited static page claimed as an HTTP server while the agent can repair it', async () => {
+    await writeFile(join(root, 'index.html'), '<!doctype html><html><body>Hello</body></html>', 'utf8');
+    context.files = [...context.files, 'index.html'];
+
+    const result = await run('submit_facts', {
+      schemaVersion: 1,
+      services: [
+        {
+          name: 'site',
+          path: '.',
+          language: 'html',
+          exposesHttp: true,
+          executionModel: 'long-running',
+          evidence: [{ file: 'index.html', line: 1, quote: '<!doctype html><html><body>Hello</body></html>' }]
+        }
+      ]
+    });
+
+    expect(result).toMatchObject({ accepted: false });
+    expect(JSON.stringify(result)).toContain('exposesHttp');
+    expect(submitted).toHaveLength(0);
+  });
+
+  it('rejects a container entrypoint that does not implement its claimed HTTP service', async () => {
+    await writeFile(
+      join(root, 'src', 'context.ts'),
+      'import { NestFactory } from "@nestjs/core";\nawait NestFactory.createApplicationContext(class AppModule {});',
+      'utf8'
+    );
+    context.files = [...context.files, 'src/context.ts'];
+
+    const result = await run('submit_facts', {
+      schemaVersion: 1,
+      services: [
+        {
+          name: 'api',
+          path: '.',
+          language: 'typescript',
+          exposesHttp: true,
+          executionModel: 'long-running',
+          containerEntrypoint: 'src/context.ts',
+          evidence: [
+            {
+              file: 'src/context.ts',
+              line: 2,
+              quote: 'await NestFactory.createApplicationContext(class AppModule {});'
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(result).toMatchObject({ accepted: false });
+    expect(JSON.stringify(result)).toContain('entrypoint file itself');
+    expect(submitted).toHaveLength(0);
+  });
+
+  it('rejects an unsupported queue claim backed only by an SNS topic', async () => {
+    await writeFile(join(root, 'template.yml'), 'Notifications:\n  Type: AWS::SNS::Topic\n', 'utf8');
+    context.files = [...context.files, 'template.yml'];
+
+    const result = await run('submit_facts', {
+      schemaVersion: 1,
+      dependencies: [
+        {
+          name: 'notifications',
+          kind: 'queue',
+          evidence: [{ file: 'template.yml', line: 2, quote: 'Type: AWS::SNS::Topic' }]
+        }
+      ]
+    });
+
+    expect(result).toMatchObject({ accepted: false });
+    expect(JSON.stringify(result)).toContain('SQS client');
+    expect(submitted).toHaveLength(0);
+  });
+
+  it('rejects an invented Lambda route even when the handler type is real', async () => {
+    await writeFile(
+      join(root, 'src', 'handler.ts'),
+      'import type { APIGatewayProxyEvent } from "aws-lambda";\nexport const handler = async (_event: APIGatewayProxyEvent) => ({ statusCode: 200 });',
+      'utf8'
+    );
+    context.files = [...context.files, 'src/handler.ts'];
+
+    const result = await run('submit_facts', {
+      schemaVersion: 1,
+      services: [
+        {
+          name: 'handler',
+          path: 'src',
+          language: 'typescript',
+          exposesHttp: false,
+          executionModel: 'per-request',
+          functionEntrypoint: 'src/handler.ts',
+          functionTriggers: [{ type: 'http', method: 'GET', path: '/invented' }],
+          evidence: [
+            {
+              file: 'src/handler.ts',
+              line: 1,
+              quote: 'import type { APIGatewayProxyEvent } from "aws-lambda";'
+            }
+          ]
+        }
+      ]
+    });
+
+    expect(result).toMatchObject({ accepted: false });
+    expect(JSON.stringify(result)).toContain('/invented');
+    expect(submitted).toHaveLength(0);
   });
 
   it('rejects with specific problems while the model can still fix them', async () => {
@@ -157,7 +276,10 @@ describe('submit_facts', () => {
           exposesHttp: true,
           executionModel: 'long-running',
           startCommand: 'node src/index.ts',
-          evidence: [],
+          evidence: [
+            { file: 'src/index.ts', line: 3, quote: 'app.listen(4000);' },
+            { file: 'package.json', line: 1, quote: '"start":"node src/index.ts"' }
+          ],
           source: 'probe'
         }
       ]

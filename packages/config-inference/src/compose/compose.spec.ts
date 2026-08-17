@@ -34,7 +34,10 @@ describe('classifyService', () => {
   it('uses the dedicated framework resource when there is one', () => {
     expect(
       classifyService(
-        projectFactsSchema.parse({ schemaVersion: 1, services: [service({ framework: 'nextjs' })] }).services[0]!
+        projectFactsSchema.parse({
+          schemaVersion: 1,
+          services: [service({ framework: 'nextjs' })]
+        }).services[0]!
       ).resourceType
     ).toBe('nextjs-web');
   });
@@ -92,6 +95,23 @@ describe('classifyService', () => {
 
     expect(classifyService(parsed.services[0]!).resourceType).toBe('hosting-bucket');
   });
+
+  it('classifies an exported handler as a function rather than an always-on worker', () => {
+    const parsed = projectFactsSchema.parse({
+      schemaVersion: 1,
+      services: [
+        service({
+          exposesHttp: false,
+          port: undefined,
+          startCommand: undefined,
+          executionModel: 'per-request',
+          functionEntrypoint: 'src/handler.ts'
+        })
+      ]
+    });
+
+    expect(classifyService(parsed.services[0]!).resourceType).toBe('function');
+  });
 });
 
 describe('composeConfig', () => {
@@ -102,10 +122,85 @@ describe('composeConfig', () => {
     expect(config.resources.web).toMatchObject({
       type: 'web-service',
       properties: {
-        packaging: { type: 'nixpacks', properties: { sourceDirectoryPath: '.', startCmd: 'npm run start' } },
+        packaging: {
+          type: 'nixpacks',
+          properties: { sourceDirectoryPath: '.', startCmd: 'npm run start' }
+        },
         // The default mode's sizing. `low-cost` would be half of this.
         resources: { cpu: 0.5, memory: 1024 },
         scaling: { minInstances: 1, maxInstances: 3 }
+      }
+    });
+  });
+
+  it('composes function routes through one shared HTTP API gateway', () => {
+    const { config, gaps } = composeConfig({
+      projectName: 'serverless-api',
+      facts: facts({
+        services: [
+          service({
+            name: 'getUser',
+            exposesHttp: false,
+            port: undefined,
+            startCommand: undefined,
+            executionModel: 'per-request',
+            functionEntrypoint: 'src/get-user.ts',
+            functionTriggers: [{ type: 'http', method: 'GET', path: '/users/{id}' }]
+          })
+        ]
+      })
+    });
+
+    expect(config.resources.httpApiGateway).toEqual({
+      type: 'http-api-gateway',
+      properties: {}
+    });
+    expect(config.resources.getUser).toMatchObject({
+      type: 'function',
+      properties: {
+        packaging: {
+          type: 'stacktape-lambda-buildpack',
+          properties: { entryfilePath: 'src/get-user.ts' }
+        },
+        events: [
+          {
+            type: 'http-api-gateway',
+            properties: {
+              httpApiGatewayName: 'httpApiGateway',
+              method: 'GET',
+              path: '/users/{id}'
+            }
+          }
+        ]
+      }
+    });
+    expect(gaps).toEqual([]);
+  });
+
+  it('builds and uploads a single-page application with the native hosting resource', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            name: 'dashboard',
+            framework: 'react',
+            exposesHttp: false,
+            port: undefined,
+            startCommand: undefined,
+            buildCommand: 'npm run build',
+            servesStaticAssets: { path: 'apps/dashboard/dist' },
+            path: 'apps/dashboard'
+          })
+        ]
+      })
+    });
+
+    expect(config.resources.dashboard).toMatchObject({
+      type: 'hosting-bucket',
+      properties: {
+        uploadDirectoryPath: 'apps/dashboard/dist',
+        hostingContentType: 'single-page-app',
+        build: { command: 'npm run build', workingDirectory: 'apps/dashboard' }
       }
     });
   });
@@ -115,8 +210,14 @@ describe('composeConfig', () => {
     const production = composeConfig({ facts: facts(), mode: 'production' }).config.resources.web?.properties;
 
     // The one thing no amount of reading the repository can tell us, so it is the one thing chosen.
-    expect(cheap).toMatchObject({ resources: { cpu: 0.25, memory: 512 }, scaling: { maxInstances: 1 } });
-    expect(production).toMatchObject({ resources: { cpu: 1, memory: 2048 }, scaling: { minInstances: 2 } });
+    expect(cheap).toMatchObject({
+      resources: { cpu: 0.25, memory: 512 },
+      scaling: { maxInstances: 1 }
+    });
+    expect(production).toMatchObject({
+      resources: { cpu: 1, memory: 2048 },
+      scaling: { minInstances: 2 }
+    });
   });
 
   it('protects a production database and leaves a throwaway one unprotected', () => {
@@ -175,16 +276,65 @@ describe('composeConfig', () => {
     expect(config.resources.mainDatabase).toMatchObject({
       type: 'relational-database',
       // Sized by the mode. `standard` is the default: small instance, backups kept, deletion protected.
-      properties: { engine: { type: 'postgres', properties: { primaryInstance: { instanceSize: 'db.t4g.small' } } } }
+      properties: {
+        engine: {
+          type: 'postgres',
+          properties: { primaryInstance: { instanceSize: 'db.t4g.small' } }
+        }
+      }
     });
     expect(config.resources.web?.properties.connectTo).toEqual(['mainDatabase']);
+  });
+
+  it('states when a network dependency has no configurable address in the application', () => {
+    const { config, gaps } = composeConfig({
+      projectName: 'shop',
+      facts: facts({
+        dependencies: [
+          {
+            name: 'mainDatabase',
+            kind: 'mongodb',
+            extensions: [],
+            consumedBy: ['web'],
+            addressedBy: [],
+            evidence: [{ file: 'compose.yaml', line: 8, quote: 'image: mongo:8' }],
+            source: 'probe'
+          }
+        ]
+      })
+    });
+
+    expect(config.resources.web?.properties.connectTo).toEqual(['mainDatabase']);
+    expect(config.resources.mainDatabase).toEqual({
+      type: 'mongo-db-atlas-cluster',
+      properties: { clusterTier: 'M10' }
+    });
+    expect(gaps).toContainEqual(
+      expect.objectContaining({
+        subject: 'mainDatabase.address',
+        message: expect.stringContaining('does not read a configurable address')
+      })
+    );
+    expect(gaps).toContainEqual(
+      expect.objectContaining({
+        subject: 'mainDatabase.provider',
+        message: expect.stringContaining('providerConfig.mongoDbAtlas')
+      })
+    );
   });
 
   it('keeps the database password out of the configuration file', () => {
     const { config } = composeConfig({
       facts: facts({
         dependencies: [
-          { name: 'mainDatabase', kind: 'postgres', extensions: [], consumedBy: ['web'], evidence: [], source: 'probe' }
+          {
+            name: 'mainDatabase',
+            kind: 'postgres',
+            extensions: [],
+            consumedBy: ['web'],
+            evidence: [],
+            source: 'probe'
+          }
         ]
       })
     });
@@ -210,7 +360,10 @@ describe('composeConfig', () => {
     });
 
     expect(provenance.cache?.reason).toContain('Redis');
-    expect(provenance.cache?.evidence[0]).toMatchObject({ file: 'package.json', line: 7 });
+    expect(provenance.cache?.evidence[0]).toMatchObject({
+      file: 'package.json',
+      line: 7
+    });
     expect(provenance.web?.reason).toBeTruthy();
   });
 
@@ -220,14 +373,22 @@ describe('composeConfig', () => {
         services: [
           service({
             environmentVariables: [
-              { name: 'STRIPE_SECRET_KEY', role: 'third-party-secret', required: true, evidence: [] }
+              {
+                name: 'STRIPE_SECRET_KEY',
+                role: 'third-party-secret',
+                required: true,
+                evidence: []
+              }
             ]
           })
         ]
       })
     });
 
-    const environment = config.resources.web?.properties.environment as Array<{ name: string; value: string }>;
+    const environment = config.resources.web?.properties.environment as Array<{
+      name: string;
+      value: string;
+    }>;
     expect(environment).toEqual([{ name: 'STRIPE_SECRET_KEY', value: "$Secret('stripe_secret_key')" }]);
   });
 
@@ -238,7 +399,14 @@ describe('composeConfig', () => {
       facts: facts({
         services: [
           service({
-            environmentVariables: [{ name: 'NEXT_PUBLIC_API_URL', role: 'build-time', required: true, evidence: [] }]
+            environmentVariables: [
+              {
+                name: 'NEXT_PUBLIC_API_URL',
+                role: 'build-time',
+                required: true,
+                evidence: []
+              }
+            ]
           })
         ]
       })
@@ -246,6 +414,59 @@ describe('composeConfig', () => {
 
     expect(config.resources.web?.properties.environment).toBeUndefined();
     expect(gaps.some((gap) => gap.subject === 'web.NEXT_PUBLIC_API_URL')).toBe(true);
+  });
+
+  it('keeps a declared runtime value out of facts while leaving a fail-closed secret slot', () => {
+    const { config, gaps } = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            environmentVariables: [
+              {
+                name: 'LOG_LEVEL',
+                role: 'runtime-config',
+                hasDeclaredValue: true,
+                required: true,
+                evidence: []
+              }
+            ]
+          })
+        ]
+      })
+    });
+
+    expect(config.resources.web?.properties.environment).toEqual([
+      { name: 'LOG_LEVEL', value: "$Secret('log_level')" }
+    ]);
+    expect(gaps.find((gap) => gap.subject === 'web.LOG_LEVEL')?.message).toContain(
+      'set the log_level Stacktape secret'
+    );
+  });
+
+  it('groups deployment-file values into one understandable action', () => {
+    const { gaps } = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            environmentVariables: ['DOMAIN', 'LOG_LEVEL', 'PUBLIC_ORIGIN'].map((name) => ({
+              name,
+              role: 'runtime-config' as const,
+              hasDeclaredValue: true,
+              required: true,
+              evidence: []
+            }))
+          })
+        ]
+      })
+    });
+
+    expect(gaps.filter((gap) => gap.subject.startsWith('web.'))).toEqual([
+      {
+        subject: 'web.runtime-settings',
+        message: expect.stringContaining('DOMAIN, LOG_LEVEL, PUBLIC_ORIGIN')
+      }
+    ]);
+    expect(gaps[0]?.message).toContain('domain, log_level, public_origin');
   });
 
   it('resolves a cross-service reference to the other resource', () => {
@@ -273,11 +494,44 @@ describe('composeConfig', () => {
     expect(environment[0]?.value).toBe("$ResourceParam('api', 'url')");
   });
 
+  it('does not silently turn a requested service host into a complete URL', () => {
+    const { config, gaps } = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            name: 'frontend',
+            environmentVariables: [
+              {
+                name: 'API_HOST',
+                role: 'cross-service-reference',
+                targetServiceName: 'api',
+                targetServiceProperty: 'host',
+                required: true,
+                evidence: []
+              }
+            ]
+          }),
+          service({ name: 'api', path: 'api' })
+        ]
+      })
+    });
+
+    expect(config.resources.frontend?.properties.environment).toBeUndefined();
+    expect(gaps.find((gap) => gap.subject === 'frontend.API_HOST')?.message).toContain('expects a service host');
+  });
+
   it('states SQLite as a decision rather than creating nothing and saying nothing', () => {
     const { gaps, assumptions, config } = composeConfig({
       facts: facts({
         dependencies: [
-          { name: 'localDatabase', kind: 'sqlite', extensions: [], consumedBy: ['web'], evidence: [], source: 'probe' }
+          {
+            name: 'localDatabase',
+            kind: 'sqlite',
+            extensions: [],
+            consumedBy: ['web'],
+            evidence: [],
+            source: 'probe'
+          }
         ]
       })
     });
@@ -305,10 +559,428 @@ describe('composeConfig', () => {
   it('is deterministic', () => {
     const input = facts({
       dependencies: [
-        { name: 'mainDatabase', kind: 'postgres', extensions: [], consumedBy: ['web'], evidence: [], source: 'probe' }
+        {
+          name: 'mainDatabase',
+          kind: 'postgres',
+          extensions: [],
+          consumedBy: ['web'],
+          evidence: [],
+          source: 'probe'
+        }
       ]
     });
 
     expect(JSON.stringify(composeConfig({ facts: input }))).toBe(JSON.stringify(composeConfig({ facts: input })));
+  });
+});
+
+const environmentOf = (config: ReturnType<typeof composeConfig>['config']): Record<string, string> =>
+  Object.fromEntries(
+    ((config.resources.web?.properties.environment ?? []) as Array<{ name: string; value: string }>).map((entry) => [
+      entry.name,
+      entry.value
+    ])
+  );
+
+describe('wiring application variable names to created resources', () => {
+  // `connectTo` injects `STP_*`-prefixed values, but the application reads the names it was
+  // written with. These tests protect the bridge between the two: the app's own name gets an
+  // explicit `$ResourceParam`, using only parameter names the CLI's resolvers actually publish.
+  const wiredFacts = (environmentVariables: ServiceFactInput['environmentVariables']): ProjectFacts =>
+    facts({
+      services: [service({ environmentVariables })],
+      dependencies: [
+        {
+          name: 'mainDatabase',
+          kind: 'postgres',
+          extensions: [],
+          consumedBy: ['web'],
+          evidence: [],
+          source: 'probe'
+        },
+        { name: 'cache', kind: 'redis', extensions: [], consumedBy: ['web'], evidence: [], source: 'probe' },
+        {
+          name: 'storageBucket',
+          kind: 'object-storage',
+          extensions: [],
+          consumedBy: ['web'],
+          evidence: [],
+          source: 'probe'
+        }
+      ]
+    });
+
+  it('gives the application its own variable names, pointed at the created resources', () => {
+    const { config } = composeConfig({
+      facts: wiredFacts([
+        {
+          name: 'DATABASE_URL',
+          role: 'infra-dependency',
+          dependencyName: 'mainDatabase',
+          required: true,
+          evidence: []
+        },
+        { name: 'REDIS_HOST', role: 'infra-dependency', dependencyName: 'cache', required: true, evidence: [] },
+        { name: 'REDIS_PORT', role: 'infra-dependency', dependencyName: 'cache', required: true, evidence: [] },
+        { name: 'S3_BUCKET', role: 'infra-dependency', dependencyName: 'storageBucket', required: true, evidence: [] }
+      ])
+    });
+
+    expect(environmentOf(config)).toMatchObject({
+      DATABASE_URL: "$ResourceParam('mainDatabase', 'connectionString')",
+      REDIS_HOST: "$ResourceParam('cache', 'host')",
+      REDIS_PORT: "$ResourceParam('cache', 'port')",
+      S3_BUCKET: "$ResourceParam('storageBucket', 'name')"
+    });
+    // The access grant still rides along; the explicit values complement it rather than replace it.
+    expect(config.resources.web?.properties.connectTo).toEqual(['mainDatabase', 'cache', 'storageBucket']);
+  });
+
+  it('hands a password variable the same generated secret the database itself uses', () => {
+    const { config } = composeConfig({
+      projectName: 'shop',
+      facts: wiredFacts([
+        {
+          name: 'POSTGRES_PASSWORD',
+          role: 'infra-dependency',
+          dependencyName: 'mainDatabase',
+          required: true,
+          evidence: []
+        },
+        {
+          name: 'POSTGRES_USER',
+          role: 'infra-dependency',
+          dependencyName: 'mainDatabase',
+          required: true,
+          evidence: []
+        }
+      ])
+    });
+
+    const environment = environmentOf(config);
+    expect(environment.POSTGRES_PASSWORD).toBe("$Secret('shop-mainDatabase.password')");
+    // We do not know the master user name, and a wrong guess is a broken login: better unwired.
+    expect(environment.POSTGRES_USER).toBeUndefined();
+  });
+
+  it('never lets a hostile variable name break out of a secret directive', () => {
+    // Variable names can come from an agent that read untrusted repository content; the directive
+    // argument is the one place they are interpolated into syntax.
+    const { config } = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            environmentVariables: [
+              { name: "PAYMENT_KEY'),('injected", role: 'third-party-secret', required: true, evidence: [] }
+            ]
+          })
+        ]
+      })
+    });
+
+    const environment = (config.resources.web?.properties.environment ?? []) as Array<{ name: string; value: string }>;
+    expect(environment[0]?.value).toBe("$Secret('payment_keyinjected')");
+    expect(environment[0]?.value).not.toContain("')('");
+  });
+});
+
+describe('packaging a workspace member from the repository root', () => {
+  const workspaceService = (overrides: Partial<ServiceFactInput> = {}) =>
+    service({
+      name: 'web',
+      path: 'apps/web',
+      buildCommand: 'pnpm build',
+      startCommand: 'pnpm start',
+      workspace: { packageName: '@acme/web', internalDependencies: ['@acme/ui'], buildsFromRoot: false },
+      ...overrides
+    });
+
+  it('installs and builds at the root, filtered to the member, for pnpm', () => {
+    const { config } = composeConfig({
+      facts: facts({ packageManager: 'pnpm', services: [workspaceService()] })
+    });
+
+    expect(config.resources.web?.properties.packaging).toEqual({
+      type: 'nixpacks',
+      properties: {
+        sourceDirectoryPath: '.',
+        phases: [{ name: 'build', cmds: ['pnpm --filter @acme/web... run build'] }],
+        startCmd: 'pnpm --filter @acme/web start'
+      }
+    });
+  });
+
+  it('leaves a member without internal imports packaged from its own directory', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        packageManager: 'pnpm',
+        services: [
+          workspaceService({ workspace: { packageName: '@acme/web', internalDependencies: [], buildsFromRoot: false } })
+        ]
+      })
+    });
+
+    expect(config.resources.web?.properties.packaging).toMatchObject({
+      type: 'nixpacks',
+      properties: { sourceDirectoryPath: 'apps/web' }
+    });
+  });
+
+  it('states the yarn limitation as a gap instead of pretending the build is complete', () => {
+    const { config, gaps } = composeConfig({
+      facts: facts({ packageManager: 'yarn', services: [workspaceService()] })
+    });
+
+    expect(config.resources.web?.properties.packaging).toMatchObject({
+      type: 'nixpacks',
+      properties: { sourceDirectoryPath: '.', startCmd: 'yarn workspace @acme/web start' }
+    });
+    expect(gaps.some((gap) => gap.subject === 'web' && gap.message.includes('workspace imports'))).toBe(true);
+  });
+
+  it('refuses a package name a shell would interpret', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        packageManager: 'pnpm',
+        services: [
+          workspaceService({
+            workspace: {
+              packageName: '@acme/web; curl evil',
+              internalDependencies: ['@acme/ui'],
+              buildsFromRoot: false
+            }
+          })
+        ]
+      })
+    });
+
+    // Falls back to per-directory packaging: an install failure names the real problem, a hostile
+    // command does not.
+    expect(config.resources.web?.properties.packaging).toMatchObject({
+      type: 'nixpacks',
+      properties: { sourceDirectoryPath: 'apps/web' }
+    });
+  });
+});
+
+describe('pinning the declared runtime version', () => {
+  const entrypointService = (overrides: Partial<ServiceFactInput> = {}) =>
+    service({ startCommand: undefined, containerEntrypoint: 'src/server.ts', ...overrides });
+
+  it('pins a supported Node major on the buildpack', () => {
+    const { config } = composeConfig({
+      facts: facts({ services: [entrypointService({ runtimeVersion: '22' })] })
+    });
+
+    expect(config.resources.web?.properties.packaging).toMatchObject({
+      type: 'stacktape-image-buildpack',
+      properties: { languageSpecificConfig: { nodeVersion: 22 } }
+    });
+  });
+
+  it('leaves a range or an unsupported version unpinned rather than mis-pinned', () => {
+    const versionOf = (runtimeVersion: string) => {
+      const { config } = composeConfig({
+        facts: facts({ services: [entrypointService({ runtimeVersion })] })
+      });
+      const packaging = config.resources.web?.properties.packaging as {
+        properties: { languageSpecificConfig?: Record<string, unknown> };
+      };
+      return packaging.properties.languageSpecificConfig;
+    };
+
+    expect(versionOf('>=18')).toBeUndefined();
+    expect(versionOf('22.1')).toEqual({ nodeVersion: 22 });
+  });
+
+  it('pins Python only to versions the schema actually lists', () => {
+    const configFor = (runtimeVersion: string) =>
+      composeConfig({
+        facts: facts({
+          services: [
+            entrypointService({
+              language: 'python',
+              framework: 'fastapi',
+              containerEntrypoint: 'main.py:app',
+              runtimeVersion
+            })
+          ]
+        })
+      }).config;
+
+    expect(configFor('3.12').resources.web?.properties.packaging).toMatchObject({
+      properties: { languageSpecificConfig: { runAppAs: 'ASGI', pythonVersion: 3.12 } }
+    });
+    // 3.10 is absent from the schema's union; pinning it would fail validation downstream.
+    expect(configFor('3.10').resources.web?.properties.packaging).toMatchObject({
+      properties: { languageSpecificConfig: { runAppAs: 'ASGI' } }
+    });
+  });
+});
+
+describe('composing detected migrations into deploy hooks', () => {
+  const database = {
+    name: 'mainDatabase',
+    kind: 'postgres',
+    extensions: [],
+    consumedBy: ['web'],
+    evidence: [],
+    source: 'probe'
+  } satisfies NonNullable<ProjectFactsInput['dependencies']>[number];
+
+  const webWithDatabaseUrl = service({
+    environmentVariables: [
+      { name: 'DATABASE_URL', role: 'infra-dependency', dependencyName: 'mainDatabase', required: true, evidence: [] }
+    ]
+  });
+
+  it('turns an observed release phase into the documented script-plus-hook pattern', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        services: [webWithDatabaseUrl],
+        dependencies: [database],
+        migrations: [
+          { serviceName: 'web', tool: 'prisma', command: 'npx prisma migrate deploy', runsAt: 'ci', evidence: [] }
+        ]
+      })
+    });
+
+    expect(config.scripts?.migrateDatabase).toEqual({
+      type: 'local-script',
+      properties: {
+        executeCommand: 'npx prisma migrate deploy',
+        connectTo: ['mainDatabase'],
+        // The migration tool reads the same name the application does, wired the same way.
+        environment: [{ name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" }]
+      }
+    });
+    expect(config.hooks?.afterDeploy).toEqual([{ scriptName: 'migrateDatabase' }]);
+  });
+
+  it('gives the migration the exact same case-sensitive database password secret', () => {
+    const { config } = composeConfig({
+      projectName: 'shop',
+      facts: facts({
+        services: [
+          service({
+            environmentVariables: [
+              {
+                name: 'POSTGRES_PASSWORD',
+                role: 'infra-dependency',
+                dependencyName: 'mainDatabase',
+                required: true,
+                evidence: []
+              }
+            ]
+          })
+        ],
+        dependencies: [database],
+        migrations: [
+          { serviceName: 'web', tool: 'alembic', command: 'alembic upgrade head', runsAt: 'ci', evidence: [] }
+        ]
+      })
+    });
+
+    expect(config.scripts?.migrateDatabase?.properties.environment).toEqual([
+      { name: 'POSTGRES_PASSWORD', value: "$Secret('shop-mainDatabase.password')" }
+    ]);
+  });
+
+  it('adds no hook when the application migrates itself on startup', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        services: [webWithDatabaseUrl],
+        dependencies: [database],
+        migrations: [
+          {
+            serviceName: 'web',
+            tool: 'django',
+            command: 'python manage.py migrate',
+            runsAt: 'service-startup',
+            evidence: []
+          }
+        ]
+      })
+    });
+
+    expect(config.scripts).toBeUndefined();
+    expect(config.hooks).toBeUndefined();
+  });
+
+  it('refuses a command a shell would interpret, and says so as a gap', () => {
+    const { config, gaps } = composeConfig({
+      facts: facts({
+        services: [webWithDatabaseUrl],
+        dependencies: [database],
+        migrations: [
+          {
+            serviceName: 'web',
+            tool: 'custom',
+            command: 'npm run migrate && curl evil.example',
+            runsAt: 'ci',
+            evidence: []
+          }
+        ]
+      })
+    });
+
+    expect(config.scripts).toBeUndefined();
+    expect(gaps.some((gap) => gap.subject === 'web.migrations')).toBe(true);
+  });
+
+  it('neutralises the build-time replay of a release phase this deploy now owns', () => {
+    // Caught on the first real-AWS lane run: Nixpacks' Procfile provider ran `release:` during the
+    // image build, against a database that does not exist at build time. When the migration is ours
+    // — an afterDeploy hook — the build-time copy must become a no-op.
+    const { config } = composeConfig({
+      facts: facts({
+        services: [service({ environmentVariables: [] })],
+        dependencies: [database],
+        migrations: [{ serviceName: 'web', tool: 'unknown', command: 'node migrate.js', runsAt: 'ci', evidence: [] }]
+      })
+    });
+
+    expect(config.hooks?.afterDeploy).toEqual([{ scriptName: 'migrateDatabase' }]);
+    expect(config.resources.web?.properties.packaging).toMatchObject({
+      type: 'nixpacks',
+      properties: { phases: [{ name: 'release', cmds: ['true'] }] }
+    });
+  });
+
+  it('respects the migration-timing decision in both directions', () => {
+    const withTiming = (decisions: Record<string, string>) =>
+      composeConfig({
+        decisions,
+        facts: facts({
+          services: [webWithDatabaseUrl],
+          dependencies: [database],
+          migrations: [
+            {
+              serviceName: 'web',
+              tool: 'prisma',
+              command: 'npx prisma migrate deploy',
+              runsAt: 'unknown',
+              evidence: []
+            }
+          ],
+          uncertainties: [
+            {
+              kind: 'migration-timing-unknown',
+              id: 'migration-timing:web',
+              blocksDeploy: true,
+              evidence: [],
+              source: 'probe',
+              serviceName: 'web',
+              command: 'npx prisma migrate deploy',
+              recommended: 'deploy-hook'
+            }
+          ]
+        })
+      });
+
+    // The recommendation stands in for the user until they change it.
+    expect(withTiming({}).config.hooks?.afterDeploy).toEqual([{ scriptName: 'migrateDatabase' }]);
+    // A changed mind removes the hook entirely — the decision is real, not cosmetic.
+    expect(withTiming({ 'migration-timing:web': 'manual' }).config.scripts).toBeUndefined();
   });
 });

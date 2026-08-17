@@ -61,7 +61,8 @@ const CASES: EvalCase[] = [
       })
     },
     expect: {
-      dependencyKinds: ['queue', 'redis'],
+      // BullMQ uses Redis as its queue backend; it is not evidence for an AWS SQS queue.
+      dependencyKinds: ['redis'],
       resources: { web: 'nextjs-web', worker: 'worker-service' },
       deployable: true
     }
@@ -162,7 +163,12 @@ const CASES: EvalCase[] = [
       dependencyKinds: ['postgres', 'redis'],
       resources: { ordersApi: 'web-service' },
       deployable: true,
-      maxQuestions: 0
+      // Nothing in this repository states how the service starts — `main.go` proves no listen
+      // call, and Go projects write no start script. That used to be an invisible blocking
+      // completeness finding riding under a green result; the convention pack now resolves it as
+      // a visible decided-for-you card recommending `go run .`.
+      assumesKinds: ['command-unknown'],
+      maxQuestions: 1
     }
   },
   {
@@ -178,6 +184,104 @@ const CASES: EvalCase[] = [
     // Still composed, still deployable — but never silently. The existing stack is somebody's
     // production, and the gap saying so is checked by the probe's own spec.
     expect: { resources: { legacyApi: 'web-service' }, deployable: true, maxQuestions: 0 }
+  },
+  {
+    name: 'express reading its variables, wired to the resources they mean',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'orders',
+        scripts: { start: 'node src/index.js' },
+        dependencies: { express: '^5.0.0', pg: '^8.11.0' }
+      }),
+      'package-lock.json': '{}',
+      'src/index.js': [
+        'const databaseUrl = process.env.DATABASE_URL;',
+        'const stripeKey = process.env.STRIPE_SECRET_KEY;',
+        ''
+      ].join('\n'),
+      '.env': 'DATABASE_URL=postgres://localhost:5432/app\n'
+    },
+    expect: {
+      dependencyKinds: ['postgres'],
+      resources: { orders: 'web-service', mainDatabase: 'relational-database' },
+      // The application's own names, pointed at what supplies them — the difference between
+      // infrastructure that exists and an application that works.
+      serviceEnvironment: [
+        { resource: 'orders', name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" },
+        { resource: 'orders', name: 'STRIPE_SECRET_KEY', value: "$Secret('stripe_secret_key')" }
+      ],
+      deployable: true,
+      maxQuestions: 0
+    }
+  },
+  {
+    name: 'rails with a release-phase migration',
+    files: {
+      Gemfile: "source 'https://rubygems.org'\ngem 'rails'\ngem 'pg'\n",
+      Procfile: 'web: bundle exec puma -C config/puma.rb\nrelease: bundle exec rails db:migrate\n'
+    },
+    expect: {
+      dependencyKinds: ['postgres'],
+      // The release phase is the repository saying "run this on deploy", and the emitted script is
+      // the hook that actually does — the first-deploy failure class for Heroku-shaped apps.
+      scriptNames: ['migrateDatabase'],
+      deployable: true
+    }
+  },
+  {
+    name: 'spring boot with nothing written down but the convention',
+    files: {
+      'pom.xml': [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<project>',
+        '  <groupId>com.example</groupId>',
+        '  <artifactId>orders</artifactId>',
+        '  <dependencies>',
+        '    <dependency>',
+        '      <groupId>org.springframework.boot</groupId>',
+        '      <artifactId>spring-boot-starter-web</artifactId>',
+        '    </dependency>',
+        '  </dependencies>',
+        '</project>',
+        ''
+      ].join('\n'),
+      mvnw: '#!/bin/sh\n'
+    },
+    // The eval's blocked class, resolved: a decided-for-you card instead of a dead end.
+    expect: {
+      resources: { orders: 'web-service' },
+      assumesKinds: ['command-unknown'],
+      deployable: true
+    }
+  },
+  {
+    name: 'render manifest read as the deployment shape it declares',
+    files: {
+      'render.yaml': [
+        'services:',
+        '  - type: web',
+        '    name: storefront',
+        '    env: node',
+        '    startCommand: node dist/server.js',
+        '    envVars:',
+        '      - key: DATABASE_URL',
+        '        fromDatabase:',
+        '          name: main-db',
+        '          property: connectionString',
+        'databases:',
+        '  - name: main-db',
+        ''
+      ].join('\n')
+    },
+    expect: {
+      dependencyKinds: ['postgres'],
+      resources: { storefront: 'web-service', mainDatabase: 'relational-database' },
+      // A Blueprint is an intended deployment shape, not evidence that this database is live. It
+      // should import cleanly without asking the user to adjudicate a claim the repository cannot
+      // prove; environment/connection evidence remains the path that protects a real database.
+      maxQuestions: 0,
+      deployable: true
+    }
   }
 ];
 

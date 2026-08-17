@@ -151,9 +151,18 @@ const UNKNOWN_POLICY: Record<AgentUnknown['kind'], { blocksDeploy: boolean; reco
   'cross-service-target-unknown': { blocksDeploy: true },
   'schedule-unknown': { blocksDeploy: true },
   'service-deployment-intent': { blocksDeploy: false, recommended: 'deploy' },
-  'local-filesystem-writes': { blocksDeploy: true, recommended: 'object-storage' },
-  'sqlite-persistence': { blocksDeploy: true, recommended: 'migrate-to-managed-database' },
-  'migration-timing-unknown': { blocksDeploy: true, recommended: 'deploy-hook' }
+  'local-filesystem-writes': {
+    blocksDeploy: true,
+    recommended: 'object-storage'
+  },
+  'sqlite-persistence': {
+    blocksDeploy: true,
+    recommended: 'migrate-to-managed-database'
+  },
+  'migration-timing-unknown': {
+    blocksDeploy: true,
+    recommended: 'deploy-hook'
+  }
 };
 
 const toUncertainty = (unknown: AgentUnknown): Uncertainty => {
@@ -203,9 +212,19 @@ const toUncertainty = (unknown: AgentUnknown): Uncertainty => {
         candidateServiceNames: unknown.candidateServiceNames
       };
     case 'schedule-unknown':
-      return { ...base, kind: 'schedule-unknown', serviceName: unknown.serviceName, suggestions: [] };
+      return {
+        ...base,
+        kind: 'schedule-unknown',
+        serviceName: unknown.serviceName,
+        suggestions: []
+      };
     case 'service-deployment-intent':
-      return { ...base, kind: 'service-deployment-intent', serviceName: unknown.serviceName, recommended: 'deploy' };
+      return {
+        ...base,
+        kind: 'service-deployment-intent',
+        serviceName: unknown.serviceName,
+        recommended: 'deploy'
+      };
     case 'local-filesystem-writes':
       return {
         ...base,
@@ -311,6 +330,9 @@ export const mergeAgentSubmission = ({
       port: existing.port ?? submitted.port,
       buildCommand: existing.buildCommand ?? submitted.buildCommand,
       startCommand: existing.startCommand ?? submitted.startCommand,
+      containerEntrypoint: existing.containerEntrypoint ?? submitted.containerEntrypoint,
+      functionEntrypoint: existing.functionEntrypoint ?? submitted.functionEntrypoint,
+      functionTriggers: existing.functionTriggers.length > 0 ? existing.functionTriggers : submitted.functionTriggers,
       dockerfile: existing.dockerfile ?? submitted.dockerfile,
       healthCheckPath: existing.healthCheckPath ?? submitted.healthCheckPath,
       workspace: existing.workspace ?? submitted.workspace,

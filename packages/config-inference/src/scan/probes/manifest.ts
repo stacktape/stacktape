@@ -14,38 +14,56 @@ import type { Citation } from '../../facts/citation';
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import type { MigrationFact, PackageManager } from '../../facts/project-facts';
 import type { ServiceFactInput } from '../../facts/service';
-import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
 /**
  * Declared dependencies that imply a backing service.
  *
  * Matched against the exact package name, not a substring, so `redis-mock` and `eslint-plugin-n`
- * do not produce infrastructure. The right-hand side is what the package *proves* — `bullmq` proves
- * both a queue and the Redis it runs on, which is a distinction people get wrong by hand.
+ * do not produce infrastructure. The right-hand side is what the package *proves* — `bullmq`
+ * proves Redis, not SQS; replacing one queue protocol with another produces infrastructure the
+ * application cannot use.
  */
-const DEPENDENCY_SIGNALS: ReadonlyArray<{ packages: readonly string[]; kinds: readonly DependencyKind[] }> = [
-  { packages: ['pg', 'postgres', 'pg-promise', 'postgres.js', '@vercel/postgres'], kinds: ['postgres'] },
+const DEPENDENCY_SIGNALS: ReadonlyArray<{
+  packages: readonly string[];
+  kinds: readonly DependencyKind[];
+}> = [
+  {
+    packages: ['pg', 'postgres', 'pg-promise', 'postgres.js', '@vercel/postgres'],
+    kinds: ['postgres']
+  },
   { packages: ['mysql', 'mysql2', 'mariadb'], kinds: ['mysql'] },
   { packages: ['mssql', 'tedious'], kinds: ['mssql'] },
   { packages: ['mongoose', 'mongodb'], kinds: ['mongodb'] },
   { packages: ['better-sqlite3', 'sqlite3', 'node:sqlite'], kinds: ['sqlite'] },
   { packages: ['redis', 'ioredis', '@upstash/redis'], kinds: ['redis'] },
-  { packages: ['bullmq', 'bull', 'bee-queue'], kinds: ['queue', 'redis'] },
+  { packages: ['bullmq', 'bull', 'bee-queue'], kinds: ['redis'] },
   { packages: ['@aws-sdk/client-sqs'], kinds: ['queue'] },
-  { packages: ['@aws-sdk/client-s3', 'minio', 'aws-sdk'], kinds: ['object-storage'] },
-  { packages: ['@aws-sdk/client-dynamodb', '@aws-sdk/lib-dynamodb', 'dynamoose'], kinds: ['dynamodb'] },
+  { packages: ['@aws-sdk/client-sns'], kinds: ['topic'] },
+  {
+    packages: ['@aws-sdk/client-s3', 'minio', 'aws-sdk'],
+    kinds: ['object-storage']
+  },
+  {
+    packages: ['@aws-sdk/client-dynamodb', '@aws-sdk/lib-dynamodb', 'dynamoose'],
+    kinds: ['dynamodb']
+  },
   {
     packages: ['@elastic/elasticsearch', '@opensearch-project/opensearch', 'meilisearch', 'typesense'],
     kinds: ['search']
   },
-  { packages: ['nodemailer', 'resend', '@sendgrid/mail', '@aws-sdk/client-ses', 'postmark'], kinds: ['email'] },
+  {
+    packages: ['nodemailer', 'resend', '@sendgrid/mail', '@aws-sdk/client-ses', 'postmark'],
+    kinds: ['email']
+  },
   { packages: ['kafkajs', '@confluentinc/kafka-javascript'], kinds: ['kafka'] }
 ];
 
 /** Dependencies that prove the package serves HTTP. */
 const HTTP_FRAMEWORKS: ReadonlySet<string> = new Set([
   '@hapi/hapi',
-  '@nestjs/core',
+  '@nestjs/platform-express',
+  '@nestjs/platform-fastify',
   'astro',
   'express',
   'fastify',
@@ -59,7 +77,9 @@ const HTTP_FRAMEWORKS: ReadonlySet<string> = new Set([
   '@remix-run/node',
   'restify',
   'sveltekit',
-  '@sveltejs/kit'
+  '@sveltejs/kit',
+  '@solidjs/start',
+  '@tanstack/start'
 ]);
 
 /** Frameworks worth naming, because the composer has dedicated handling for several of them. */
@@ -69,6 +89,8 @@ const FRAMEWORK_NAMES: ReadonlyArray<{ package: string; name: string }> = [
   { package: '@sveltejs/kit', name: 'sveltekit' },
   { package: 'astro', name: 'astro' },
   { package: '@remix-run/node', name: 'remix' },
+  { package: '@solidjs/start', name: 'solid-start' },
+  { package: '@tanstack/start', name: 'tanstack-start' },
   { package: '@nestjs/core', name: 'nestjs' },
   { package: 'express', name: 'express' },
   { package: 'fastify', name: 'fastify' },
@@ -76,15 +98,57 @@ const FRAMEWORK_NAMES: ReadonlyArray<{ package: string; name: string }> = [
   { package: 'koa', name: 'koa' }
 ];
 
-const MIGRATION_TOOLS: ReadonlyArray<{ package: string; tool: string; command: string }> = [
+/** Build-only browser frameworks that produce a directory for `hosting-bucket`. */
+const staticSiteFor = (
+  manifest: ParsedManifest
+):
+  | {
+      framework: 'angular' | 'gatsby' | 'react' | 'vite' | 'vue';
+      outputDirectory: string;
+    }
+  | undefined => {
+  if (manifest.dependencies['@angular/core'] !== undefined) {
+    return {
+      framework: 'angular',
+      outputDirectory: `dist/${manifest.name?.replace(/^@[^/]+\//, '') ?? serviceNameFor(manifest)}`
+    };
+  }
+  if (manifest.dependencies.gatsby !== undefined) return { framework: 'gatsby', outputDirectory: 'public' };
+  if (manifest.dependencies['react-scripts'] !== undefined) return { framework: 'react', outputDirectory: 'build' };
+  if (manifest.dependencies.vite !== undefined) {
+    return {
+      framework:
+        manifest.dependencies.vue !== undefined ? 'vue' : manifest.dependencies.react !== undefined ? 'react' : 'vite',
+      outputDirectory: 'dist'
+    };
+  }
+  return undefined;
+};
+
+const MIGRATION_TOOLS: ReadonlyArray<{
+  package: string;
+  tool: string;
+  command: string;
+}> = [
   { package: 'prisma', tool: 'prisma', command: 'npx prisma migrate deploy' },
-  { package: 'drizzle-kit', tool: 'drizzle', command: 'npx drizzle-kit migrate' },
+  {
+    package: 'drizzle-kit',
+    tool: 'drizzle',
+    command: 'npx drizzle-kit migrate'
+  },
   { package: 'typeorm', tool: 'typeorm', command: 'npx typeorm migration:run' },
   { package: 'knex', tool: 'knex', command: 'npx knex migrate:latest' },
-  { package: 'sequelize-cli', tool: 'sequelize', command: 'npx sequelize-cli db:migrate' }
+  {
+    package: 'sequelize-cli',
+    tool: 'sequelize',
+    command: 'npx sequelize-cli db:migrate'
+  }
 ];
 
-const LOCK_FILE_TO_MANAGER: ReadonlyArray<{ file: string; manager: PackageManager }> = [
+const LOCK_FILE_TO_MANAGER: ReadonlyArray<{
+  file: string;
+  manager: PackageManager;
+}> = [
   { file: 'bun.lock', manager: 'bun' },
   { file: 'bun.lockb', manager: 'bun' },
   { file: 'pnpm-lock.yaml', manager: 'pnpm' },
@@ -183,7 +247,7 @@ const prismaDatasourceKind = async (
   }[provider ?? ''];
   if (kind === undefined) return undefined;
 
-  const citation = citeFirstMatch(schemaPath, contents, /provider\s*=/, 'dependencies.kind');
+  const citation = citeFirstMatchOnly(schemaPath, contents, /provider\s*=/, 'dependencies.kind');
   return citation === undefined ? undefined : { kind, citation };
 };
 
@@ -226,28 +290,61 @@ export const manifestProbe: Probe = {
       const hasBuild = typeof manifest.scripts.build === 'string';
       const frameworkEntry = FRAMEWORK_NAMES.find((entry) => manifest.dependencies[entry.package] !== undefined);
       const exposesHttp = Object.keys(manifest.dependencies).some((name) => HTTP_FRAMEWORKS.has(name));
+      // A Vite/CRA/Angular/Gatsby development server is not a production service. Its build output
+      // is uploaded to static hosting; treating `ng serve` or `gatsby develop` as a worker is both
+      // expensive and non-functional.
+      const staticSite = exposesHttp ? undefined : staticSiteFor(manifest);
+      const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
+      const hasHandlerLayout = context.files.some(
+        (file) =>
+          file.startsWith(manifestPrefix) &&
+          /(?:^|\/)(?:functions?|lambdas?|handlers?)(?:\/|$)/i.test(file.slice(manifestPrefix.length)) &&
+          /\.(?:[cm]?js|tsx?|py)$/.test(file)
+      );
+      const handlerOnlyPackage =
+        hasHandlerLayout &&
+        (!hasStart ||
+          manifest.dependencies.serverless !== undefined ||
+          manifest.dependencies['@types/aws-lambda'] !== undefined);
 
       // A workspace root that only orchestrates is not itself a deployable thing. Requiring some
       // positive signal keeps a monorepo from producing a phantom service at its root.
       const isWorkspaceRoot =
         (manifest.workspaces?.length ?? 0) > 0 || (manifest.directory === '.' && pnpmGlobs.length > 0);
-      const runnable = hasStart || exposesHttp;
-      if (runnable && !(isWorkspaceRoot && !hasStart)) {
+      const runnable = staticSite !== undefined || hasStart || exposesHttp;
+      // Root scripts such as `turbo run start` orchestrate child packages; they are not a third
+      // deployable service. A real root app still has its own framework signal and survives this.
+      const orchestrationOnlyRoot = isWorkspaceRoot && frameworkEntry === undefined && staticSite === undefined;
+      if (runnable && !orchestrationOnlyRoot && !handlerOnlyPackage) {
         const evidence: Citation[] = [];
-        const startCitation = citeFirstMatch(manifest.path, manifest.raw, /"start"\s*:/, 'startCommand');
+        const startCitation =
+          staticSite === undefined
+            ? citeFirstMatchOnly(manifest.path, manifest.raw, /"start"\s*:/, 'startCommand')
+            : undefined;
         if (startCitation) evidence.push(startCitation);
-        const buildCitation = citeFirstMatch(manifest.path, manifest.raw, /"build"\s*:/, 'buildCommand');
+        const buildCitation = citeFirstMatchOnly(manifest.path, manifest.raw, /"build"\s*:/, 'buildCommand');
         if (buildCitation) evidence.push(buildCitation);
-        if (frameworkEntry) {
-          const frameworkCitation = citeFirstMatch(
+        const evidencedFrameworkPackage =
+          frameworkEntry?.package ??
+          (staticSite?.framework === 'angular'
+            ? '@angular/core'
+            : staticSite?.framework === 'gatsby'
+              ? 'gatsby'
+              : staticSite?.framework === 'react' && manifest.dependencies['react-scripts'] !== undefined
+                ? 'react-scripts'
+                : staticSite === undefined
+                  ? undefined
+                  : 'vite');
+        if (evidencedFrameworkPackage !== undefined) {
+          const frameworkCitation = citeFirstMatchOnly(
             manifest.path,
             manifest.raw,
-            new RegExp(`"${frameworkEntry.package.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&')}"`)
+            new RegExp(`"${evidencedFrameworkPackage.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&')}"`)
           );
           if (frameworkCitation) evidence.push(frameworkCitation);
         }
         if (evidence.length === 0) {
-          const nameCitation = citeFirstMatch(manifest.path, manifest.raw, /"name"\s*:/);
+          const nameCitation = citeFirstMatchOnly(manifest.path, manifest.raw, /"name"\s*:/);
           if (nameCitation) evidence.push(nameCitation);
         }
 
@@ -258,13 +355,27 @@ export const manifestProbe: Probe = {
           path: manifest.directory,
           language: 'javascript',
           ...(nodeEngine ? { runtimeVersion: nodeEngine } : {}),
-          ...(frameworkEntry ? { framework: frameworkEntry.name } : {}),
-          exposesHttp,
+          ...(frameworkEntry
+            ? { framework: frameworkEntry.name }
+            : staticSite
+              ? { framework: staticSite.framework }
+              : {}),
+          exposesHttp: staticSite === undefined && exposesHttp,
           // Left to source signals and the container probe, which can see a bind call or an EXPOSE
           // directive. Guessing a port here would produce a health check that never passes.
           executionModel: 'long-running',
           ...(hasBuild ? { buildCommand: runCommand(packageManager, 'build') } : {}),
-          ...(hasStart ? { startCommand: runCommand(packageManager, 'start') } : {}),
+          ...(staticSite === undefined && hasStart ? { startCommand: runCommand(packageManager, 'start') } : {}),
+          ...(staticSite === undefined
+            ? {}
+            : {
+                servesStaticAssets: {
+                  path:
+                    manifest.directory === '.'
+                      ? staticSite.outputDirectory
+                      : `${manifest.directory}/${staticSite.outputDirectory}`
+                }
+              }),
           environmentVariables: [],
           evidence,
           source: 'probe'
@@ -275,13 +386,16 @@ export const manifestProbe: Probe = {
       for (const signal of DEPENDENCY_SIGNALS) {
         const matched = signal.packages.find((name) => manifest.dependencies[name] !== undefined);
         if (matched === undefined) continue;
-        const citation = citeFirstMatch(
+        const citation = citeFirstMatchOnly(
           manifest.path,
           manifest.raw,
           new RegExp(`"${matched.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&')}"`)
         );
         for (const kind of signal.kinds) {
-          const entry = dependencyConsumers.get(kind) ?? { consumers: new Set<string>(), evidence: [] };
+          const entry = dependencyConsumers.get(kind) ?? {
+            consumers: new Set<string>(),
+            evidence: []
+          };
           entry.consumers.add(consumerName);
           if (citation && entry.evidence.length < 4) entry.evidence.push(citation);
           dependencyConsumers.set(kind, entry);
@@ -290,7 +404,7 @@ export const manifestProbe: Probe = {
 
       for (const tool of MIGRATION_TOOLS) {
         if (manifest.dependencies[tool.package] === undefined) continue;
-        const citation = citeFirstMatch(manifest.path, manifest.raw, new RegExp(`"${tool.package}"`));
+        const citation = citeFirstMatchOnly(manifest.path, manifest.raw, new RegExp(`"${tool.package}"`));
         migrations.push({
           serviceName: consumerName,
           tool: tool.tool,
@@ -307,7 +421,10 @@ export const manifestProbe: Probe = {
     // as though a dependency signal had produced it.
     const prisma = await prismaDatasourceKind(context);
     if (prisma !== undefined) {
-      const entry = dependencyConsumers.get(prisma.kind) ?? { consumers: new Set<string>(), evidence: [] };
+      const entry = dependencyConsumers.get(prisma.kind) ?? {
+        consumers: new Set<string>(),
+        evidence: []
+      };
       for (const manifest of manifests) {
         if (manifest.dependencies['@prisma/client'] !== undefined || manifest.dependencies.prisma !== undefined) {
           entry.consumers.add(serviceNameFor(manifest));

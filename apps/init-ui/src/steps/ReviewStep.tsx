@@ -1,4 +1,5 @@
 import type { StacktapeConfig } from '@stacktape/config';
+import { DEPLOYMENT_TOOL_LABELS } from '@stacktape/config-inference/facts/existing-deployment';
 import { lazy, Suspense, useState } from 'react';
 import { Alert } from '@stacktape/ui-react/alert';
 import { Button } from '@stacktape/ui-react/button';
@@ -17,6 +18,9 @@ const Diagram = lazy(() => import('../components/Diagram'));
 
 const MODE_ORDER: InfrastructureMode[] = ['low-cost', 'standard', 'production'];
 
+const plainList = (items: readonly string[]): string =>
+  items.length <= 1 ? (items[0] ?? '') : `${items.slice(0, -1).join(', ')} and ${items.at(-1)}`;
+
 /** What the file will be called, given the format and whether the project already has one. */
 const filenameFor = (format: 'yaml' | 'typescript', hasExisting: boolean): string =>
   `stacktape${hasExisting ? '.generated' : ''}.${format === 'typescript' ? 'ts' : 'yml'}`;
@@ -27,24 +31,78 @@ const filenameFor = (format: 'yaml' | 'typescript', hasExisting: boolean): strin
  * This is the answer to the question the user actually arrived with — "what did it find?" — and it
  * has to survive being the only thing they read.
  */
-const named = (service: { framework?: string; language?: string } | undefined): string =>
-  `a ${service?.framework ?? service?.language ?? ''} app`.replace('a app', 'an app').replace('  ', ' ');
+const TECHNOLOGY_LABELS: Readonly<Record<string, string>> = {
+  fastapi: 'FastAPI',
+  nextjs: 'Next.js',
+  nestjs: 'NestJS',
+  express: 'Express',
+  react: 'React',
+  remix: 'Remix',
+  javascript: 'JavaScript',
+  typescript: 'TypeScript'
+};
 
-const summarise = (state: WizardState): string => {
+const technologyOf = (service: { framework?: string; language?: string } | undefined): string | undefined => {
+  const raw = service?.framework ?? service?.language;
+  return raw === undefined || raw === 'unknown' ? undefined : (TECHNOLOGY_LABELS[raw.toLowerCase()] ?? raw);
+};
+
+const named = (
+  service: { framework?: string; language?: string } | undefined,
+  noun: 'app' | 'site' = 'app'
+): string => {
+  const technology = technologyOf(service);
+  if (technology === undefined) return `an ${noun}`;
+  const article = /^[aeiou]/i.test(technology) ? 'an' : 'a';
+  return `${article} ${technology} ${noun}`;
+};
+
+/** Exported only so the sentence users rely on can be tested without mounting the diagram. */
+export const summarise = (state: WizardState): string => {
   const services = state.facts?.services ?? [];
   const dependencies = state.facts?.dependencies ?? [];
 
   const web = services.find((service) => service.exposesHttp);
-  const workers = services.filter((service) => !service.exposesHttp);
+  const nonWeb = services.filter((service) => !service.exposesHttp);
+  const staticSites = nonWeb.filter((service) => service.servesStaticAssets !== undefined);
+  const workers = nonWeb.filter(
+    (service) => service.servesStaticAssets === undefined && service.executionModel === 'long-running'
+  );
+  const functions = nonWeb.filter((service) => service.executionModel === 'per-request');
+  const scheduled = nonWeb.filter((service) => service.executionModel === 'scheduled');
+
+  const companionPhrases = [
+    ...(staticSites.length === 0
+      ? []
+      : [staticSites.length === 1 ? named(staticSites[0], 'site') : `${staticSites.length} static sites`]),
+    ...(workers.length === 0
+      ? []
+      : [workers.length === 1 ? 'a background worker' : `${workers.length} background workers`]),
+    ...(functions.length === 0
+      ? []
+      : [functions.length === 1 ? 'a serverless function' : `${functions.length} serverless functions`]),
+    ...(scheduled.length === 0
+      ? []
+      : [scheduled.length === 1 ? 'a scheduled job' : `${scheduled.length} scheduled jobs`])
+  ];
 
   const appPhrase =
     services.length === 0
       ? 'nothing that runs'
       : services.length === 1
-        ? named(services[0])
-        : web !== undefined && workers.length === services.length - 1
-          ? `${named(web)} with ${workers.length === 1 ? 'a background worker' : `${workers.length} background workers`}`
-          : `${services.length} services`;
+        ? staticSites.length === 1
+          ? named(services[0], 'site')
+          : functions.length === 1
+            ? 'a serverless function'
+            : scheduled.length === 1
+              ? 'a scheduled job'
+              : named(services[0])
+        : web !== undefined &&
+            nonWeb.length === staticSites.length + workers.length + functions.length + scheduled.length
+          ? `${named(web)} with ${plainList(companionPhrases)}`
+          : functions.length === services.length
+            ? `${functions.length} serverless functions`
+            : `${services.length} services`;
   const opening = appPhrase.charAt(0).toUpperCase() + appPhrase.slice(1);
 
   const DEPENDENCY_PHRASES: Record<string, string> = {
@@ -102,6 +160,7 @@ export function ReviewStep({
   const resources = Object.entries(state.composition?.resources ?? {});
   const gaps = state.composition?.gaps ?? [];
   const decisions = state.facts?.decisions ?? [];
+  const existingDeployments = state.facts?.existingDeployments ?? [];
   const notable = decisions.filter((decision) => decision.notable);
   const rest = decisions.filter((decision) => !decision.notable);
   const price = state.composition?.price;
@@ -134,6 +193,30 @@ export function ReviewStep({
           </>
         )}
       </p>
+
+      {existingDeployments.length > 0 && (
+        <Alert
+          tone="info"
+          title={`We found ${plainList(
+            existingDeployments.map(
+              ({ tool }) => (DEPLOYMENT_TOOL_LABELS as Readonly<Record<string, string>>)[tool] ?? tool
+            )
+          )} already in this project`}
+        >
+          {existingDeployments.some((deployment) => deployment.managesAws) ? (
+            <>
+              Those files may describe resources that are already running. This Stacktape configuration is separate: it
+              does not import, change or delete anything they own. Databases and other stored data declared there are
+              left alone by default; any new copy is shown under <strong>Decided for you</strong> before you save.
+            </>
+          ) : (
+            <>
+              Saving this file does not change that platform. If you deploy, Stacktape creates a separate copy of the
+              application on AWS; anything already running on the other platform stays untouched.
+            </>
+          )}
+        </Alert>
+      )}
 
       <div className="wizard-editor">
         <ConfigEditor
@@ -222,8 +305,8 @@ export function ReviewStep({
 
       {price !== undefined && (
         <p className="wizard-total-cost">
-          <strong>{price.monthly}</strong> per month in total, priced for {price.region} from AWS list prices. Your
-          actual usage moves it.
+          <strong>{price.monthly}</strong> in fixed monthly costs, at AWS list prices for {price.region}. Traffic,
+          storage and requests add usage on top — this is the floor, not a bill.
         </p>
       )}
 
@@ -245,7 +328,9 @@ export function ReviewStep({
               isRecommended={id === 'standard'}
               isSelected={id === mode}
               key={id}
-              meta={MODE_DESCRIPTIONS[id].meta}
+              // The real monthly figure once its estimate lands, so sizes can be compared without
+              // switching back and forth to watch one number change.
+              meta={state.composition?.modePrices?.[id] ?? MODE_DESCRIPTIONS[id].meta}
               onSelect={(value) => onChangeMode(value as InfrastructureMode)}
               title={MODE_DESCRIPTIONS[id].title}
               value={id}
@@ -319,6 +404,15 @@ export function ReviewStep({
               Puts the file in your project. Deploying stays optional.
             </span>
           </div>
+          {(state.awsIdentity !== undefined || state.stacktapeAccount !== undefined) && (
+            <p className="m-0 text-[0.82rem] text-[var(--stp-text-subtle)]">
+              Saving needs no account. Deploying later needs AWS credentials
+              {state.awsIdentity === undefined ? '' : state.awsIdentity.available ? ' ✓' : ' — none found yet'} and a
+              Stacktape sign-in
+              {state.stacktapeAccount === undefined ? '' : state.stacktapeAccount.signedIn ? ' ✓' : ' — needed'}. The
+              next step sorts both out.
+            </p>
+          )}
         </div>
       )}
     </div>

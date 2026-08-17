@@ -115,7 +115,7 @@ describe('renderYaml', () => {
     // `$Secret('...')` survives the round trip rather than becoming a broken scalar. The name is
     // project-scoped: Secrets Manager names are account-wide, and two projects must not share one.
     expect(parsed.resources.mainDatabase.properties.credentials.masterUserPassword).toBe(
-      "$Secret('orders.mainDatabase.password')"
+      "$Secret('orders-mainDatabase.password')"
     );
   });
 });

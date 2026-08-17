@@ -18,7 +18,10 @@ import type { ProjectFacts } from '../facts/project-facts';
 import type { Uncertainty } from '../facts/uncertainty';
 import {
   checkCommandAnchor,
+  checkContainerEntrypointAnchor,
   checkDependencyAnchor,
+  checkFunctionEntrypointAnchor,
+  checkFunctionTriggerAnchor,
   checkHttpAnchor,
   checkPortAnchor,
   checkScheduleAnchor,
@@ -60,7 +63,12 @@ const gatherEvidenceText = async (
   citations: readonly Citation[],
   readFile: FileReader,
   field?: string
-): Promise<{ text: string; located: boolean; misplaced: boolean; hasCitations: boolean }> => {
+): Promise<{
+  text: string;
+  located: boolean;
+  misplaced: boolean;
+  hasCitations: boolean;
+}> => {
   const relevant =
     field === undefined ? citations : citations.filter((c) => c.field === undefined || c.field === field);
   if (relevant.length === 0) {
@@ -175,7 +183,11 @@ export const verifyFacts = async ({
     // repeating the decision three times.
     const anchor = evidence.located ? checkDependencyAnchor(dependency.kind, evidence.text) : undefined;
     const problem = !evidence.hasCitations
-      ? { outcome: 'no-evidence' as const, reason: 'single-weak-source' as const, detail: 'No citation was given.' }
+      ? {
+          outcome: 'no-evidence' as const,
+          reason: 'single-weak-source' as const,
+          detail: 'No citation was given.'
+        }
       : !evidence.located
         ? {
             outcome: 'quote-not-found' as const,
@@ -225,15 +237,67 @@ export const verifyFacts = async ({
     const general = await gatherEvidenceText(service.evidence, readFile);
 
     if (!general.hasCitations) {
-      findings.push({ subject, outcome: 'no-evidence', detail: 'No citation was given.' });
+      findings.push({
+        subject,
+        outcome: 'no-evidence',
+        detail: 'No citation was given.'
+      });
     } else if (!general.located) {
-      findings.push({ subject, outcome: 'quote-not-found', detail: 'The cited text is not in the cited file.' });
+      findings.push({
+        subject,
+        outcome: 'quote-not-found',
+        detail: 'The cited text is not in the cited file.'
+      });
     } else {
-      findings.push({ subject, outcome: 'verified', detail: 'Evidence supports the service.' });
+      findings.push({
+        subject,
+        outcome: 'verified',
+        detail: 'Evidence supports the service.'
+      });
     }
 
     if (service.exposesHttp) {
       const finding = anchorFinding(subject, 'exposesHttp', checkHttpAnchor(general.text));
+      if (finding) findings.push(finding);
+    }
+
+    if (service.functionEntrypoint !== undefined) {
+      // The entrypoint is itself a repository path, so verify the exact file rather than merely a
+      // nearby citation that happens to mention a handler.
+      // oxlint-disable-next-line no-await-in-loop -- inside the per-service loop above.
+      const entrypointContents = await readFile(service.functionEntrypoint);
+      const finding = anchorFinding(
+        subject,
+        'functionEntrypoint',
+        entrypointContents === null
+          ? {
+              satisfied: false,
+              expectation: `the file ${service.functionEntrypoint} to exist`
+            }
+          : checkFunctionEntrypointAnchor(entrypointContents)
+      );
+      if (finding) findings.push(finding);
+    }
+
+    if (service.containerEntrypoint !== undefined) {
+      const entrypointFile = service.containerEntrypoint.split(':')[0]!;
+      // oxlint-disable-next-line no-await-in-loop -- inside the per-service loop above.
+      const entrypointContents = await readFile(entrypointFile);
+      const finding = anchorFinding(
+        subject,
+        'containerEntrypoint',
+        entrypointContents === null
+          ? {
+              satisfied: false,
+              expectation: `the file ${entrypointFile} to exist`
+            }
+          : checkContainerEntrypointAnchor(entrypointFile, entrypointContents, service.exposesHttp)
+      );
+      if (finding) findings.push(finding);
+    }
+
+    for (const trigger of service.functionTriggers) {
+      const finding = anchorFinding(subject, 'functionTriggers', checkFunctionTriggerAnchor(trigger, general.text));
       if (finding) findings.push(finding);
     }
 

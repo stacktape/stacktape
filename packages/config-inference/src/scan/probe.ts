@@ -13,12 +13,12 @@
  */
 
 import type { Citation } from '../facts/citation';
-import type { DependencyFact } from '../facts/dependency';
+import type { DependencyFact, DependencyKind } from '../facts/dependency';
 import type { ExistingDeploymentFact } from '../facts/existing-deployment';
 import type { MigrationFact, PackageManager } from '../facts/project-facts';
-import type { ServiceFactInput } from '../facts/service';
+import type { EnvironmentVariableUse, ServiceFactInput } from '../facts/service';
 import type { Uncertainty } from '../facts/uncertainty';
-import type { SourceRead } from './read-source';
+import type { ReadSourceFileOptions, SourceRead } from './read-source';
 
 export type ProbeContext = {
   /** Absolute path to the repository root. */
@@ -26,7 +26,7 @@ export type ProbeContext = {
   /** Every file the access policy permits, repository-relative and POSIX. */
   files: readonly string[];
   /** Policy-respecting read: environment files come back as names, credentials never come back. */
-  read: (repoRelativePath: string) => Promise<SourceRead>;
+  read: (repoRelativePath: string, options?: ReadSourceFileOptions) => Promise<SourceRead>;
   /**
    * Unfiltered read, including environment values.
    *
@@ -43,7 +43,25 @@ export type ProbeContext = {
 
 export type ProbeOutput = {
   services?: ServiceFactInput[];
+  /**
+   * Variables a repository-level deployment manifest applies to every process in one service root.
+   * Kept separate because `app.json` can declare config vars without declaring a runnable service;
+   * inventing a placeholder service just to carry them would make the composer deploy a duplicate.
+   */
+  serviceEnvironments?: Array<{
+    path: string;
+    processType?: string;
+    environmentVariables: EnvironmentVariableUse[];
+  }>;
   dependencies?: DependencyFact[];
+  /**
+   * Kinds selected by the runnable deployment shape (for example the one database in the default
+   * Compose application). These can suppress weaker, package-client-only alternatives during
+   * reconciliation; they never suppress a live connection or an IaC declaration.
+   */
+  preferredDependencyKinds?: DependencyKind[];
+  /** Explicitly disabled by the active application configuration, such as `FILE_DRIVER=local`. */
+  disabledDependencyKinds?: DependencyKind[];
   existingDeployments?: ExistingDeploymentFact[];
   migrations?: MigrationFact[];
   uncertainties?: Uncertainty[];
@@ -89,8 +107,41 @@ export const citeFirstMatch = (
   return index === -1 ? undefined : citeLine(file, lines, index, field);
 };
 
+/**
+ * Cite only the text a declaration pattern matched, not the rest of its line.
+ *
+ * Deployment code is often minified or written as a one-line object. A constructor declaration can
+ * therefore share a line with `environment: { TOKEN: "..." }`; citing the whole line would copy a
+ * value the importer never needed into the facts document. Use this for manifest/IaC identity
+ * evidence. Use `citeFirstMatch` where the whole matched line is itself the fact, such as a start
+ * command.
+ */
+export const citeFirstMatchOnly = (
+  file: string,
+  contents: string,
+  pattern: RegExp,
+  field?: string
+): Citation | undefined => {
+  const matcher = new RegExp(pattern.source, pattern.flags.replaceAll('g', '').replaceAll('y', ''));
+  const lines = contents.split(/\r?\n/);
+  for (const [index, line] of lines.entries()) {
+    const quote = matcher.exec(line)?.[0]?.trim().slice(0, 200);
+    if (quote !== undefined && quote !== '') {
+      return { ...(field === undefined ? {} : { field }), file, line: index + 1, quote };
+    }
+  }
+  return undefined;
+};
+
 /** Read a file's text through the policy-respecting reader, or undefined if it is not plain content. */
-export const readText = async (context: ProbeContext, path: string): Promise<string | undefined> => {
-  const result = await context.read(path);
+export const readText = async (
+  context: ProbeContext,
+  path: string,
+  options: { fullFile?: boolean } = {}
+): Promise<string | undefined> => {
+  const result = await context.read(
+    path,
+    options.fullFile ? { startLine: 1, endLine: Number.MAX_SAFE_INTEGER } : undefined
+  );
   return result.kind === 'contents' ? result.contents : undefined;
 };

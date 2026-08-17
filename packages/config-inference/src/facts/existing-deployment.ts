@@ -1,19 +1,17 @@
 /**
- * How this project is deployed today, if it is deployed at all.
+ * Which deployment configuration this project carries, whether or not it has been applied.
  *
- * A repository with `serverless.yml`, `*.tf` or `sst.config.ts` in it is not a greenfield project. It
- * has infrastructure, that infrastructure is probably running, and something else owns it. Writing a
- * Stacktape configuration for it is still the right thing to do — but doing so *silently*, as if the
- * repository had nothing in it, is how a tool ends up creating a second copy of production next to
- * the first one and letting the user find out from the bill.
+ * A repository with `serverless.yml`, `*.tf` or `sst.config.ts` may already have infrastructure
+ * managed elsewhere. The file cannot prove it was applied, but writing a separate Stacktape config
+ * silently is how a tool lets a user discover a second production copy from the bill.
  *
  * So this is recorded as a fact with evidence, exactly like a database or a service. Three things
  * downstream want it, in increasing order of ambition:
  *
  * 1. **Saying so.** The wizard tells the user what it found and that we do not touch it. Cheap, and
  *    it is the difference between a tool that noticed and a tool that did not.
- * 2. **Reading it.** A `Procfile` states the start command. A `fly.toml` states the port. These are
- *    statements about the deployment, not guesses about it, and they remove questions.
+ * 2. **Reading it.** A `Procfile` states the start command without proving any platform. A `fly.toml`
+ *    states Fly-specific deployment settings. Both remove questions without claiming runtime state.
  * 3. **Pointing at it.** The resources these tools manage are the ones an `adopt` flow would wire a
  *    new stack into rather than duplicate. That needs its own design; this is the input to it.
  *

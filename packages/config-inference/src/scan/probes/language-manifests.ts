@@ -25,7 +25,7 @@
 
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import { languageOf } from '../language';
-import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
 /**
  * Package name to what it proves.
@@ -33,7 +33,10 @@ import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutp
  * Matched case-insensitively against a normalised name, which for a namespaced ecosystem is the
  * last segment: `github.com/lib/pq` is `pq`, `org.postgresql:postgresql` is `postgresql`.
  */
-const PACKAGE_SIGNALS: ReadonlyArray<{ packages: readonly string[]; kinds: readonly DependencyKind[] }> = [
+const PACKAGE_SIGNALS: ReadonlyArray<{
+  packages: readonly string[];
+  kinds: readonly DependencyKind[];
+}> = [
   {
     packages: [
       // Python, Ruby, Go, Rust, Elixir, .NET, Java, PHP.
@@ -68,7 +71,10 @@ const PACKAGE_SIGNALS: ReadonlyArray<{ packages: readonly string[]; kinds: reado
       'mysql_async',
       'myxql',
       'mariadb',
-      'ext-pdo_mysql'
+      'ext-pdo_mysql',
+      // WordPress requires MySQL or MariaDB; its Composer package is therefore stronger evidence
+      // than a generic database abstraction library.
+      'wordpress'
     ],
     kinds: ['mysql']
   },
@@ -114,8 +120,8 @@ const PACKAGE_SIGNALS: ReadonlyArray<{ packages: readonly string[]; kinds: reado
   // costs money, it looks deliberate, and the application is broken either way.
   { packages: ['celery', 'sidekiq', 'resque'], kinds: ['redis'] },
   {
-    packages: ['pika', 'kombu', 'amqp', 'amqp091-go', 'bunny', 'rabbitmq-client', 'lapin'],
-    kinds: ['queue']
+    packages: ['pika', 'amqp', 'amqp091-go', 'bunny', 'rabbitmq-client', 'lapin'],
+    kinds: ['amqp']
   },
   {
     packages: [
@@ -157,13 +163,17 @@ const PACKAGE_SIGNALS: ReadonlyArray<{ packages: readonly string[]; kinds: reado
 ];
 
 /** Packages that prove the application serves HTTP, and what to call its framework. */
-const HTTP_FRAMEWORKS: ReadonlyArray<{ packages: readonly string[]; name: string }> = [
+const HTTP_FRAMEWORKS: ReadonlyArray<{
+  packages: readonly string[];
+  name: string;
+}> = [
   { packages: ['django'], name: 'django' },
   { packages: ['flask'], name: 'flask' },
   { packages: ['fastapi'], name: 'fastapi' },
   { packages: ['starlette'], name: 'starlette' },
   { packages: ['tornado'], name: 'tornado' },
   { packages: ['sanic'], name: 'sanic' },
+  { packages: ['streamlit'], name: 'streamlit' },
   { packages: ['rails', 'railties'], name: 'rails' },
   { packages: ['sinatra'], name: 'sinatra' },
   { packages: ['hanami'], name: 'hanami' },
@@ -175,10 +185,26 @@ const HTTP_FRAMEWORKS: ReadonlyArray<{ packages: readonly string[]; name: string
   { packages: ['laravel', 'framework'], name: 'laravel' },
   { packages: ['symfony', 'framework-bundle'], name: 'symfony' },
   { packages: ['slim'], name: 'slim' },
-  { packages: ['spring-boot-starter-web', 'spring-boot-starter-webflux'], name: 'spring-boot' },
-  { packages: ['quarkus-resteasy', 'quarkus-vertx-http'], name: 'quarkus' },
+  { packages: ['wordpress'], name: 'wordpress' },
+  {
+    packages: ['spring-boot-starter-web', 'spring-boot-starter-webflux'],
+    name: 'spring-boot'
+  },
+  {
+    packages: [
+      'quarkus-resteasy',
+      'quarkus-resteasy-reactive',
+      'quarkus-rest',
+      'quarkus-rest-jackson',
+      'quarkus-vertx-http'
+    ],
+    name: 'quarkus'
+  },
   { packages: ['micronaut-http-server-netty'], name: 'micronaut' },
-  { packages: ['microsoft.aspnetcore.app', 'microsoft.aspnetcore'], name: 'aspnet' },
+  {
+    packages: ['microsoft.aspnetcore.app', 'microsoft.aspnetcore'],
+    name: 'aspnet'
+  },
   { packages: ['axum'], name: 'axum' },
   { packages: ['actix-web'], name: 'actix' },
   { packages: ['rocket'], name: 'rocket' },
@@ -200,14 +226,30 @@ const HTTP_SERVERS: ReadonlySet<string> = new Set([
 ]);
 
 /** Migration tools, and the command that runs them. */
-const MIGRATION_TOOLS: ReadonlyArray<{ packages: readonly string[]; tool: string; command: string }> = [
+const MIGRATION_TOOLS: ReadonlyArray<{
+  packages: readonly string[];
+  tool: string;
+  command: string;
+}> = [
   { packages: ['alembic'], tool: 'alembic', command: 'alembic upgrade head' },
   { packages: ['django'], tool: 'django', command: 'python manage.py migrate' },
-  { packages: ['rails', 'railties'], tool: 'rails', command: 'bin/rails db:migrate' },
+  {
+    packages: ['rails', 'railties'],
+    tool: 'rails',
+    command: 'bin/rails db:migrate'
+  },
   { packages: ['flyway-core'], tool: 'flyway', command: 'flyway migrate' },
-  { packages: ['liquibase-core'], tool: 'liquibase', command: 'liquibase update' },
+  {
+    packages: ['liquibase-core'],
+    tool: 'liquibase',
+    command: 'liquibase update'
+  },
   { packages: ['ecto_sql'], tool: 'ecto', command: 'mix ecto.migrate' },
-  { packages: ['golang-migrate', 'migrate'], tool: 'golang-migrate', command: 'migrate up' }
+  {
+    packages: ['golang-migrate', 'migrate'],
+    tool: 'golang-migrate',
+    command: 'migrate up'
+  }
 ];
 
 /**
@@ -215,7 +257,10 @@ const MIGRATION_TOOLS: ReadonlyArray<{ packages: readonly string[]; tool: string
  *
  * Every extractor returns raw names; normalisation happens once, afterwards.
  */
-const MANIFESTS: ReadonlyArray<{ files: readonly string[]; extract: (raw: string) => string[] }> = [
+const MANIFESTS: ReadonlyArray<{
+  files: readonly string[];
+  extract: (raw: string) => string[];
+}> = [
   {
     // `package==1.2`, `package[extra]>=1`, `-e .`, comments. The name is what precedes any of the
     // version or extras punctuation.
@@ -299,7 +344,10 @@ const PROJECT_NAME_PATTERNS: ReadonlyArray<{
   /** Applied to the raw text before matching, for formats whose first match is the wrong one. */
   prepare?: (raw: string) => string;
 }> = [
-  { files: ['pyproject.toml', 'Cargo.toml'], pattern: /^\s*name\s*=\s*["']([^"']+)["']/m },
+  {
+    files: ['pyproject.toml', 'Cargo.toml'],
+    pattern: /^\s*name\s*=\s*["']([^"']+)["']/m
+  },
   // Composer names are `vendor/project`; only the second half is the project.
   { files: ['composer.json'], pattern: /"name"\s*:\s*"(?:[^"/]+\/)?([^"]+)"/ },
   { files: ['go.mod'], pattern: /^module\s+\S*?([\w.-]+)\s*$/m },
@@ -353,7 +401,12 @@ export const languageManifestProbe: Probe = {
     ];
     if (candidates.length === 0) return {};
 
-    const read = await Promise.all(candidates.map(async ({ path }) => ({ path, raw: await readText(context, path) })));
+    const read = await Promise.all(
+      candidates.map(async ({ path }) => ({
+        path,
+        raw: await readText(context, path)
+      }))
+    );
 
     /** Every package name found, with the file that named it, so citations point somewhere real. */
     const foundIn = new Map<string, string>();
@@ -371,7 +424,7 @@ export const languageManifestProbe: Probe = {
       const path = foundIn.get(packageName);
       const raw = path === undefined ? undefined : rawByPath.get(path);
       if (path === undefined || raw === undefined) return undefined;
-      return citeFirstMatch(path, raw, new RegExp(packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
+      return citeFirstMatchOnly(path, raw, new RegExp(packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
     };
 
     const dependencies = new Map<DependencyKind, DependencyFact>();
@@ -412,6 +465,13 @@ export const languageManifestProbe: Probe = {
     const server = [...HTTP_SERVERS].find((name) => foundIn.has(name));
     const exposesHttp = framework !== undefined || server !== undefined;
     const migration = MIGRATION_TOOLS.find((entry) => entry.packages.some((name) => foundIn.has(name)));
+    const streamlitEntrypoint =
+      framework?.name === 'streamlit' ? ['app.py', 'main.py'].find((path) => context.files.includes(path)) : undefined;
+    const streamlitRaw = streamlitEntrypoint === undefined ? undefined : await readText(context, streamlitEntrypoint);
+    const streamlitCitation =
+      streamlitEntrypoint === undefined || streamlitRaw === undefined
+        ? undefined
+        : citeFirstMatchOnly(streamlitEntrypoint, streamlitRaw, /import\s+streamlit|from\s+streamlit/);
 
     // A service, but only when something proves this is a running application rather than a library.
     // A dependency list alone does not: plenty of Python packages depend on `redis` and are not
@@ -425,7 +485,14 @@ export const languageManifestProbe: Probe = {
             ...(framework === undefined ? {} : { framework: framework.name }),
             exposesHttp: true,
             executionModel: 'long-running' as const,
-            evidence: [cite(framework?.packages[0] ?? server ?? '')].filter((citation) => citation !== undefined),
+            ...(streamlitEntrypoint === undefined
+              ? {}
+              : {
+                  startCommand: `streamlit run ${streamlitEntrypoint} --server.address 0.0.0.0 --server.port 80`
+                }),
+            evidence: [cite(framework?.packages[0] ?? server ?? ''), streamlitCitation].filter(
+              (citation) => citation !== undefined
+            ),
             source: 'probe' as const
           }
         ]

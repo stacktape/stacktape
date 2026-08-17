@@ -68,6 +68,7 @@ describe('runGreenfieldMission', () => {
               port: 4000,
               longLivedConnections: 'none',
               executionModel: 'long-running',
+              functionTriggers: [],
               environmentVariables: [{ name: 'STRIPE_KEY', role: 'third-party-secret', required: true, evidence: [] }],
               evidence: [{ file: 'src/index.ts', line: 3, quote: 'app.listen(4000);' }]
             }
@@ -153,5 +154,41 @@ describe('runGreenfieldMission', () => {
     });
 
     expect(briefServices).toBe(1);
+  });
+
+  it('spends zero tokens when the scan leaves nothing material open', async () => {
+    // A static site the probes fully resolve: no commands to find, no dependencies, no ports.
+    const repoRoot = await makeRepo({ 'index.html': '<!doctype html><html><body>hi</body></html>' });
+    let agentRuns = 0;
+
+    const result = await runGreenfieldMission({
+      repositoryRoot: repoRoot,
+      runAgent: async () => {
+        agentRuns += 1;
+        return { usage: { inputTokens: 1, outputTokens: 1 }, stopReason: 'complete' };
+      }
+    });
+
+    // The chosen agent was not run at all, and the result says so rather than staying silent.
+    expect(agentRuns).toBe(0);
+    expect(result.agentSkipped).toBe(true);
+    expect(result.agent).toBeUndefined();
+  });
+
+  it('points the agent at the open items instead of the whole repository', async () => {
+    const repoRoot = await makeRepo(EXPRESS_APP);
+    let userPrompt = '';
+
+    await runGreenfieldMission({
+      repositoryRoot: repoRoot,
+      runAgent: async (input) => {
+        userPrompt = input.userPrompt;
+        return { usage: { inputTokens: 1, outputTokens: 1 }, stopReason: 'complete' };
+      }
+    });
+
+    // The prompt is the gap list, not an invitation to re-review a draft the scan already settled.
+    expect(userPrompt).toContain('ONLY these open items');
+    expect(userPrompt).toContain('port');
   });
 });

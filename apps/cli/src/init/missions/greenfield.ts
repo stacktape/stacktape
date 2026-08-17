@@ -16,12 +16,24 @@
  */
 
 import { assembleCandidateFacts } from '@stacktape/config-inference/scan/assemble';
+import type { CommandPlanner } from '@stacktape/config-inference/scan/conventions';
 import { dockerComposeProbe } from '@stacktape/config-inference/scan/probes/docker-compose';
+import { dockerfileProbe } from '@stacktape/config-inference/scan/probes/dockerfile';
+import { denoProbe } from '@stacktape/config-inference/scan/probes/deno';
+import { awsSamProbe } from '@stacktape/config-inference/scan/probes/aws-sam';
 import { environmentProbe } from '@stacktape/config-inference/scan/probes/environment';
 import { existingDeploymentProbe } from '@stacktape/config-inference/scan/probes/existing-deployment';
 import { languageManifestProbe } from '@stacktape/config-inference/scan/probes/language-manifests';
+import { lambdaSourceProbe } from '@stacktape/config-inference/scan/probes/lambda-source';
+import { staticSiteProbe } from '@stacktape/config-inference/scan/probes/static-site';
 import { manifestProbe } from '@stacktape/config-inference/scan/probes/manifest';
+import { cdkProbe } from '@stacktape/config-inference/scan/probes/cdk';
+import { paasManifestsProbe } from '@stacktape/config-inference/scan/probes/paas-manifests';
 import { procfileProbe } from '@stacktape/config-inference/scan/probes/procfile';
+import { serverlessFrameworkProbe } from '@stacktape/config-inference/scan/probes/serverless-framework';
+import { sstProbe } from '@stacktape/config-inference/scan/probes/sst';
+import { terraformProbe } from '@stacktape/config-inference/scan/probes/terraform';
+import { serverEntrypointProbe } from '@stacktape/config-inference/scan/probes/server-entrypoint';
 import { mergeAgentSubmission } from '@stacktape/config-inference/facts/agent-submission';
 import { checkFactsCompleteness, type ProjectFacts } from '@stacktape/config-inference/facts';
 import { verifyFacts, type VerificationFinding } from '@stacktape/config-inference/verify';
@@ -35,7 +47,21 @@ import type { AgentEvent, SessionOutcome, SessionRunInput } from '../agent/trans
 // language; compose states the engine and its version; the environment file is the only one that
 // knows where the data lives today. Each fills what the ones before it left open.
 const PROBES = [
+  // First on purpose: a PaaS manifest is the user's own declared deployment shape, so where it and
+  // a package manifest both know a command, the platform's more specific command wins. SST and
+  // Terraform sit in the same tier: their declarations carry sizes and wiring nothing else states.
+  paasManifestsProbe,
+  sstProbe,
+  terraformProbe,
+  cdkProbe,
   manifestProbe,
+  denoProbe,
+  awsSamProbe,
+  serverlessFrameworkProbe,
+  lambdaSourceProbe,
+  serverEntrypointProbe,
+  dockerfileProbe,
+  staticSiteProbe,
   languageManifestProbe,
   procfileProbe,
   dockerComposeProbe,
@@ -77,6 +103,12 @@ Environment variables are the most valuable thing you can get right, and the dra
 
 Getting build-time wrong is invisible until production: the value bakes into the bundle as an empty string and the deploy still goes green.
 
+Static files do not expose HTTP by themselves. A plain HTML site or a Vite, React, Vue, Angular, or Gatsby build should use exposesHttp: false and servesStaticAssets.path for the directory that is uploaded. A development server such as vite, ng serve, or gatsby develop is not a production start command. Do not invent a no-op build or a server for static files.
+
+An exported Lambda handler is not a worker or an HTTP server. Report its source file as functionEntrypoint, keep exposesHttp false, use executionModel: per-request, and put repository-declared invocations in functionTriggers. Trigger shapes are {type: "http", method, path}, {type: "queue"|"topic"|"object-storage", dependencyName}, and {type: "schedule", rate}. Do not invent a route or trigger when the repository names none.
+
+When source code itself proves the executable entrypoint, report it as containerEntrypoint instead of inventing a shell command. Examples are src/server.ts containing a real listen call, main.py:app for an ASGI/WSGI application object, or public/index.php for a PHP front controller. Keep Dockerfiles as dockerfile. A dependency alone is not enough: an Express, FastAPI, Nest, or Spring package can exist in code that has no runnable server.
+
 When you cannot establish something, put it in "unknowns" rather than guessing. A guess that looks plausible is worse than an admission, because the admission becomes one question the user answers in seconds and the guess becomes infrastructure that does not work. There is an unknown kind for every gap you are likely to hit.
 
 Do not report anything you cannot point at. No inferring a Redis cache because the project "probably caches". No inventing a port. No assuming a framework from a directory name.
@@ -85,6 +117,60 @@ Finish by calling submit_facts. That call IS your answer — anything you write 
 
 export const GREENFIELD_USER_PROMPT = 'Analyse this repository and submit your findings. Call get_project_brief first.';
 
+/**
+ * The open items the deterministic half could not settle — the agent's entire job.
+ *
+ * This list is the difference between the measured seven-minute whole-repo review that changed
+ * nothing and a session that spends every turn where the eval said the value is. Empty means the
+ * agent is not needed at all, and the honest move is to spend zero of the user's tokens saying so.
+ */
+export const materialGaps = (facts: ProjectFacts): string[] => {
+  const gaps: string[] = [];
+  for (const issue of checkFactsCompleteness(facts)) {
+    if (issue.severity === 'blocking') gaps.push(issue.message);
+  }
+  for (const uncertainty of facts.uncertainties) {
+    if (uncertainty.kind === 'command-unknown' && uncertainty.suggestions.length === 0) {
+      gaps.push(
+        `Establish how the "${uncertainty.serviceName}" service is ${
+          uncertainty.command === 'build' ? 'built' : 'started'
+        } in production.`
+      );
+    }
+    if (uncertainty.kind === 'database-engine-ambiguous') {
+      gaps.push(`Determine which database engine ${uncertainty.environmentVariableName} points at.`);
+    }
+    if (uncertainty.kind === 'cross-service-target-unknown') {
+      gaps.push(`Find which service ${uncertainty.environmentVariableName} in "${uncertainty.serviceName}" addresses.`);
+    }
+    if (uncertainty.kind === 'schedule-unknown' && uncertainty.suggestions.length === 0) {
+      gaps.push(`Find how often the "${uncertainty.serviceName}" job runs.`);
+    }
+  }
+  for (const dependency of facts.dependencies) {
+    if (dependency.consumedBy.length === 0) {
+      gaps.push(
+        `Find which service actually uses the ${dependency.kind} dependency "${dependency.name}" — or report it unused.`
+      );
+    }
+  }
+  for (const service of facts.services) {
+    if (service.exposesHttp && service.port === undefined) {
+      gaps.push(`Find the port "${service.name}" listens on.`);
+    }
+  }
+  return gaps.slice(0, 8);
+};
+
+/** The user prompt for a targeted session: the gap list, and nothing else to wander into. */
+export const targetedUserPrompt = (gaps: readonly string[]): string =>
+  [
+    'Call get_project_brief first. The static scan has already resolved most of this repository — do not re-verify or restate what the draft already says.',
+    'Spend your turns on ONLY these open items:',
+    ...gaps.map((gap, index) => `${index + 1}. ${gap}`),
+    'Anything you cannot establish from the files goes in "unknowns". Finish by calling submit_facts.'
+  ].join('\n');
+
 export type GreenfieldResult = {
   /** The facts after merge and verification. */
   facts: ProjectFacts;
@@ -92,6 +178,13 @@ export type GreenfieldResult = {
   verification: VerificationFinding[];
   /** How the agent phase went, or undefined when it was skipped. */
   agent?: { stopReason: SessionOutcome['stopReason']; usage: SessionOutcome['usage']; errorMessage?: string };
+  /**
+   * The scan left nothing material open, so the offered agent was not run at all.
+   *
+   * A distinct outcome from "no agent available": the user chose one, and the honest report is
+   * that their tokens were not needed rather than that they were quietly spent confirming a draft.
+   */
+  agentSkipped?: boolean;
   /** Structural problems in the final document, if any survived. */
   completeness: ReturnType<typeof checkFactsCompleteness>;
 };
@@ -109,6 +202,11 @@ export type RunGreenfieldOptions = {
   mode?: InfrastructureMode;
   /** Omit to run probes only, which is the no-agent path and the eval baseline. */
   runAgent?: AgentRunner;
+  /**
+   * External build-planner consulted for services nothing textual or conventional could answer.
+   * Deliberately absent in the eval harness, so the baseline never depends on an installed binary.
+   */
+  planner?: CommandPlanner;
   onEvent?: (event: AgentEvent) => void;
   budget?: { maxTurns: number; wallClockMs: number };
 };
@@ -116,34 +214,47 @@ export type RunGreenfieldOptions = {
 const DEFAULT_BUDGET = { maxTurns: 30, wallClockMs: 10 * 60_000 };
 
 export const runGreenfieldMission = async (options: RunGreenfieldOptions): Promise<GreenfieldResult> => {
-  const { facts: draft, files } = await assembleCandidateFacts({ root: options.repositoryRoot, probes: PROBES });
+  const { facts: draft, files } = await assembleCandidateFacts({
+    root: options.repositoryRoot,
+    probes: PROBES,
+    ...(options.planner === undefined ? {} : { planner: options.planner })
+  });
 
   let facts = draft;
   let agent: GreenfieldResult['agent'];
+  let agentSkipped = false;
 
   if (options.runAgent !== undefined) {
-    const outcome = await options.runAgent(
-      {
-        repositoryRoot: options.repositoryRoot,
-        systemPrompt: GREENFIELD_SYSTEM_PROMPT,
-        userPrompt: GREENFIELD_USER_PROMPT,
-        files,
-        brief: draft,
-        budget: options.budget ?? DEFAULT_BUDGET
-      },
-      { onEvent: options.onEvent ?? (() => {}) }
-    );
+    // The measured failure mode of the always-on review: seven minutes and 841k tokens across six
+    // runs for zero resource-graph changes. The agent runs only when the scan names something it
+    // could actually resolve, and its prompt is that list.
+    const gaps = materialGaps(draft);
+    if (gaps.length === 0) {
+      agentSkipped = true;
+    } else {
+      const outcome = await options.runAgent(
+        {
+          repositoryRoot: options.repositoryRoot,
+          systemPrompt: GREENFIELD_SYSTEM_PROMPT,
+          userPrompt: targetedUserPrompt(gaps),
+          files,
+          brief: draft,
+          budget: options.budget ?? DEFAULT_BUDGET
+        },
+        { onEvent: options.onEvent ?? (() => {}) }
+      );
 
-    agent = {
-      stopReason: outcome.stopReason,
-      usage: outcome.usage,
-      ...(outcome.errorMessage === undefined ? {} : { errorMessage: outcome.errorMessage })
-    };
+      agent = {
+        stopReason: outcome.stopReason,
+        usage: outcome.usage,
+        ...(outcome.errorMessage === undefined ? {} : { errorMessage: outcome.errorMessage })
+      };
 
-    // A failed or empty session degrades to the draft rather than failing the run. The probes'
-    // answer is worse than a reviewed one and far better than nothing.
-    if (outcome.submission !== undefined) {
-      facts = mergeAgentSubmission({ baseline: draft, submission: outcome.submission });
+      // A failed or empty session degrades to the draft rather than failing the run. The probes'
+      // answer is worse than a reviewed one and far better than nothing.
+      if (outcome.submission !== undefined) {
+        facts = mergeAgentSubmission({ baseline: draft, submission: outcome.submission });
+      }
     }
   }
 
@@ -166,6 +277,7 @@ export const runGreenfieldMission = async (options: RunGreenfieldOptions): Promi
       engineVersions: versionJson.rds
     }),
     ...(agent === undefined ? {} : { agent }),
+    ...(agentSkipped ? { agentSkipped: true } : {}),
     completeness: checkFactsCompleteness(verification.facts)
   };
 };

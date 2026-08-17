@@ -72,12 +72,46 @@ conservative costs a few dollars a month; being wrong costs the user's first imp
   in `scan/assemble.ts` accumulates evidence rather than replacing it.
 - Cross-probe reconciliation belongs in the assembler, not in a probe. A probe cannot know what another one found.
 
+## Importers (2026-08-17)
+
+Importers are ordinary probes in `src/scan/probes/`: `paas-manifests` (render.yaml, fly.toml, app.json),
+`serverless-framework`, `sst`, `terraform`, `cdk`, plus the older `aws-sam`, `procfile`, `docker-compose`, `dockerfile`.
+Ordered in `apps/cli/src/init/missions/greenfield.ts` with importers first, so a platform-declared command wins the
+first-non-undefined merge in `scan/assemble.ts` (services keyed `path::processType`, dependencies `kind:name` with
+generic-name folding). They emit facts only — never composer decisions.
+
+Invariants a reviewer must not break:
+
+- **Programs are read as text, never executed** (`sst.config.ts`, CDK stacks, `serverless.ts` is skipped entirely).
+  Regex + balanced-brace body slices; variable-binding maps resolve `link:` / `addEventSource` / `LambdaRestApi` wiring.
+  Literal values only — computed values read as absent, never guessed.
+- **A declaration is not proof of a live deployment.** `hostingEvidence` distinguishes a connection string from an
+  IaC/PaaS declaration, and the review copy says so. Addressable dependencies default to leaving the existing endpoint
+  alone; event resources that cannot be pointed at default to a new copy. `sizeHint` travels to that copy, but the
+  composer honors it only inside the target namespace (`db.*`/`cache.*`).
+- **Function entry files must exist in `context.files`** or the function is skipped — no fabricated paths.
+  `lambda-source` yields to SAM/serverless/SST/CDK so handlers are never minted twice.
+- CDK is gated on `cdk.json` **and** a per-file `aws-cdk-lib` import; ambiguous class names
+  (`Function`/`Table`/`Domain`) additionally need a telling qualifier.
+- Catch-all HTTP trigger vocabulary is `method: '*'`, `path: '/{proxy+}'` (enum in `packages/config/src/events.ts`
+  ~2248). `compose/schema-conformance.spec.ts` validates composed output against the real schema — add a case for every
+  new emission shape; it has caught two real bugs already.
+
+The importer corpus in `apps/cli/src/init/eval/importers-e2e.spec.ts` exercises full scan → facts → decisions →
+composition paths for Fly, Docker Compose, Serverless Framework, SAM, SST, CDK and Terraform. Keep importer additions
+there as well as in their focused probe tests; a probe can be locally correct while its facts still merge or compose
+incorrectly.
+
 ## Known gaps
 
-- Probes cover the JavaScript/TypeScript ecosystem and environment files. Python, Go, Ruby, PHP and Java manifests,
-  `docker-compose.yml`, Dockerfiles, existing IaC manifests and source-level signals (port binds, health endpoints,
-  local filesystem writes) are not yet probed — the agent currently supplies all of it.
-- `mergeDependencies` keys on kind, so two Postgres instances collapse into one. The agent can split them; no probe
-  currently can.
-- Composed output is asserted structurally in tests. It is not yet validated against the real Stacktape config schema —
-  that belongs in an integration test in `apps/cli`, which may legally import the validator.
+- TypeScript IaC is intentionally parsed as bounded literal syntax, not executed. CDK references imported from another
+  stack file, computed SST component options, and `serverless.ts`/`.js` need an agent or a review item rather than a
+  guess.
+- Terraform imports literal AWS resource blocks in the repository root and conventional infrastructure directories. It
+  does not expand modules, `for_each`, dynamic blocks or arbitrary HCL expressions.
+- Render `fromService` can request a bare host, port or `host:port`, while Stacktape exposes a complete deployed URL.
+  Those non-equivalent shapes are deliberately omitted from the generated environment and surfaced as composition gaps
+  for the user to set explicitly.
+- Importers reproduce resources and relationships they can prove; they do not attempt state import, data migration, or
+  takeover of an existing deployment. The wizard must keep saying when a deploy will create a separate stack or a second
+  copy of an app.

@@ -102,7 +102,7 @@ export const MODE_DESCRIPTIONS: Record<InfrastructureMode, { title: string; desc
   production: {
     title: 'Production',
     description:
-      'Two copies of your app so a single failure changes nothing, and a standby database in another datacentre.',
+      'Two copies of your app and a standby database in a second datacentre, so one machine failing does not take you down.',
     meta: 'Costs the most'
   }
 };

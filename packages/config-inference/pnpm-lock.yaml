@@ -23,6 +23,9 @@ importers:
 
   .:
     dependencies:
+      smol-toml:
+        specifier: ^1.7.0
+        version: 1.8.0
       yaml:
         specifier: 1.10.2
         version: 1.10.2
@@ -73,6 +76,10 @@ packages:
     resolution: {integrity: sha512-vYt7UD1U9Wg6138shLtLOvdAu+8DsC/ilFtEVHcH+wydcSpNE20AfSOduf6MkRFahL5FY7X1oU7nKVZFtfq8Fg==}
     engines: {node: '>=6'}
 
+  smol-toml@1.8.0:
+    resolution: {integrity: sha512-kCZr2V3ch9i00x8zXRhjUNVcjG9ijES5dDudkXvUVCT5QlJNQWElSJdZqyPemffHoLNUYwOcou0Fy+ojN0uHSQ==}
+    engines: {node: '>= 18'}
+
   typescript@6.0.3:
     resolution: {integrity: sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==}
     engines: {node: '>=14.17'}
@@ -119,6 +126,8 @@ snapshots:
   json-schema-traverse@0.4.1: {}
 
   punycode@2.3.1: {}
+
+  smol-toml@1.8.0: {}
 
   typescript@6.0.3: {}
 

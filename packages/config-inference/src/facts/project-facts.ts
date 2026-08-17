@@ -126,27 +126,68 @@ const uncertaintyMentions = (facts: ProjectFacts, subject: string): boolean =>
  * a legitimate way out through `uncertainties`. A required field with no escape hatch is a
  * fabrication generator: a model that must supply a start command will invent one.
  */
+/**
+ * Frameworks whose dedicated resource owns the build and start, so a missing start command is not
+ * a gap. Shared with the convention raiser in `scan/conventions.ts`, which must skip exactly the
+ * same set — two copies of this list is how the two drift into disagreeing.
+ */
+export const SELF_PACKAGING_FRAMEWORKS: ReadonlySet<string> = new Set([
+  'nextjs',
+  'nuxt',
+  'sveltekit',
+  'astro',
+  'remix',
+  'solid-start',
+  'tanstack-start'
+]);
+
 export const checkFactsCompleteness = (facts: ProjectFacts): CompletenessIssue[] => {
   const issues: CompletenessIssue[] = [];
   const serviceNames = new Set(facts.services.map((service) => service.name));
   const dependencyNames = new Set(facts.dependencies.map((dependency) => dependency.name));
 
   if (facts.services.length !== serviceNames.size) {
-    issues.push({ path: 'services', message: 'Service names must be unique.', severity: 'blocking' });
+    issues.push({
+      path: 'services',
+      message: 'Service names must be unique.',
+      severity: 'blocking'
+    });
   }
   if (facts.dependencies.length !== dependencyNames.size) {
-    issues.push({ path: 'dependencies', message: 'Dependency names must be unique.', severity: 'blocking' });
+    issues.push({
+      path: 'dependencies',
+      message: 'Dependency names must be unique.',
+      severity: 'blocking'
+    });
   }
 
   facts.services.forEach((service, index) => {
     const at = `services[${index}]`;
+    const selfPackagingFramework = SELF_PACKAGING_FRAMEWORKS.has(service.framework ?? '');
 
     // Something has to tell us how to run this, unless it is purely a bundle of files to serve.
-    if (service.startCommand === undefined && service.dockerfile === undefined && !service.servesStaticAssets) {
+    if (
+      service.startCommand === undefined &&
+      service.dockerfile === undefined &&
+      service.containerEntrypoint === undefined &&
+      service.functionEntrypoint === undefined &&
+      !selfPackagingFramework &&
+      !service.servesStaticAssets
+    ) {
       if (!uncertaintyMentions(facts, service.name)) {
         issues.push({
           path: `${at}.startCommand`,
           message: `"${service.name}" has no start command, Dockerfile or static output. Supply one, or raise a \`command-unknown\` uncertainty.`,
+          severity: 'blocking'
+        });
+      }
+    }
+
+    for (const trigger of service.functionTriggers) {
+      if ('dependencyName' in trigger && !dependencyNames.has(trigger.dependencyName)) {
+        issues.push({
+          path: `${at}.functionTriggers`,
+          message: `The ${trigger.type} trigger names dependency "${trigger.dependencyName}", which is not declared.`,
           severity: 'blocking'
         });
       }

@@ -54,20 +54,50 @@ const providerName = (parameters: Record<string, unknown>): string => {
   return PROVIDER_LABELS[raw] ?? raw;
 };
 
+const dependencyName = (parameters: Record<string, unknown>): string => {
+  const kind = text(parameters, 'dependencyKind', 'database');
+  return (
+    {
+      postgres: 'database',
+      mysql: 'database',
+      mssql: 'database',
+      mongodb: 'database',
+      redis: 'cache',
+      'object-storage': 'storage bucket',
+      dynamodb: 'table',
+      queue: 'queue',
+      topic: 'topic',
+      amqp: 'message broker',
+      search: 'search index',
+      kafka: 'event stream'
+    }[kind] ?? kind
+  );
+};
+
 export const DECISION_COPY: Record<string, DecisionCopy> = {
   'external-database-disposition': {
     summary: (parameters, chosen) =>
       chosen === 'point-at-existing'
-        ? `Keeping the database you already have on ${providerName(parameters)}`
-        : `Creating a new database on AWS`,
+        ? text(parameters, 'basis') === 'deployment-manifest'
+          ? `Not creating a second ${dependencyName(parameters)} beside the one declared on ${providerName(parameters)}`
+          : `Keeping the ${dependencyName(parameters)} your app already points to on ${providerName(parameters)}`
+        : `Creating a new ${dependencyName(parameters)} on AWS`,
     detail: (parameters, chosen) =>
       chosen === 'point-at-existing'
-        ? `It has your data in it right now, so we left it alone and pointed your app at it. Nothing is created and nothing changes.`
-        : `Your ${providerName(parameters)} database keeps running and keeps its data — this is a separate, empty one. You would move the data across yourself.`,
+        ? text(parameters, 'basis') === 'deployment-manifest'
+          ? `Your project declares this ${dependencyName(parameters)}, but a file cannot tell us whether it was deployed or has data. We left it alone so a first Stacktape run cannot create a convincing empty replacement by accident.`
+          : `Your app already has its address, so we left that ${dependencyName(parameters)} alone. Nothing is created and nothing changes.`
+        : `This is a separate, empty ${dependencyName(parameters)}. Anything already running on ${providerName(parameters)} is untouched; move data or traffic across only if you need it.`,
     option: (value, parameters) =>
-      value === 'point-at-existing' ? `Keep using ${providerName(parameters)}` : 'Create a new one on AWS',
-    consequence: (value) =>
-      value === 'point-at-existing' ? 'Nothing new is created.' : 'A new database, starting empty.'
+      value === 'point-at-existing'
+        ? text(parameters, 'basis') === 'deployment-manifest'
+          ? `Use the ${dependencyName(parameters)} already declared on ${providerName(parameters)}`
+          : `Keep using ${providerName(parameters)}`
+        : 'Create a new one on AWS',
+    consequence: (value, parameters) =>
+      value === 'point-at-existing'
+        ? 'Nothing new is created.'
+        : `A separate, empty ${dependencyName(parameters)} is created on AWS.`
   },
 
   'sqlite-persistence': {
@@ -118,6 +148,16 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
       `Starting ${text(parameters, 'serviceName', 'your app')} with ${text({ chosen }, 'chosen', chosen)}`,
     detail: () => 'This is the command that runs your app. If you start it differently, change it here.',
     option: (value) => value
+  },
+
+  'dockerfile-ownership': {
+    summary: (parameters, chosen) =>
+      chosen === 'stacktape-packaging'
+        ? `Packaging ${text(parameters, 'serviceName', 'your app')} with Stacktape instead of the Dockerfile`
+        : `Using your Dockerfile for ${text(parameters, 'serviceName', 'your app')}`,
+    detail: () =>
+      'Your Dockerfile looks like a standard template, and Stacktape’s own packaging is tuned and kept up to date — so we use that. The Dockerfile stays in your repository untouched; switch back here anytime.',
+    option: (value) => (value === 'stacktape-packaging' ? 'Stacktape packaging' : 'Your Dockerfile')
   },
 
   'schedule-unknown': {

@@ -1,10 +1,10 @@
 /**
  * What already deploys this project.
  *
- * Every other probe answers "what does this application need". This one answers "who is already
- * running it", and the two lead somewhere different. A repository with `serverless.yml` in it is not
- * a blank slate: there is a stack in an AWS account somewhere, it has a database in it, and the
- * person running `stacktape init` knows that even if we pretend not to.
+ * Every other probe answers "what does this application need". This one answers "which deployment
+ * system has a declaration in the repository", and the two lead somewhere different. A manifest is
+ * not proof that anything is running, but it is enough to warn that Stacktape will create a separate
+ * stack and will not adopt or change whatever that declaration may manage.
  *
  * The detection is deliberately conservative. A file's presence is only evidence when that file
  * means one thing — `sst.config.ts` does, `template.yaml` and `app.yaml` do not, so the ambiguous
@@ -18,7 +18,8 @@ import {
   type DeploymentTool,
   type ExistingDeploymentFact
 } from '../../facts/existing-deployment';
-import { citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import type { Citation } from '../../facts/citation';
+import { readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
 /** Files whose presence, on its own, identifies the tool that owns this repository's deployment. */
 const UNAMBIGUOUS_FILES: ReadonlyArray<{ files: readonly string[]; tool: DeploymentTool }> = [
@@ -30,7 +31,6 @@ const UNAMBIGUOUS_FILES: ReadonlyArray<{ files: readonly string[]; tool: Deploym
   { files: ['cdk.json'], tool: 'aws-cdk' },
   { files: ['Pulumi.yaml', 'Pulumi.yml'], tool: 'pulumi' },
   { files: ['samconfig.toml', 'samconfig.yaml'], tool: 'aws-sam' },
-  { files: ['Procfile'], tool: 'heroku' },
   { files: ['render.yaml', 'render.yml'], tool: 'render' },
   { files: ['fly.toml'], tool: 'fly' },
   { files: ['vercel.json'], tool: 'vercel' },
@@ -38,6 +38,37 @@ const UNAMBIGUOUS_FILES: ReadonlyArray<{ files: readonly string[]; tool: Deploym
   { files: ['railway.json', 'railway.toml'], tool: 'railway' },
   { files: ['Chart.yaml', 'kustomization.yaml', 'kustomization.yml'], tool: 'kubernetes' }
 ];
+
+const IGNORED_NESTED_DIRECTORIES = new Set([
+  '__fixtures__',
+  'fixture',
+  'fixtures',
+  'example',
+  'examples',
+  'sample',
+  'samples',
+  'test',
+  'tests'
+]);
+
+/**
+ * Deployment manifests often live beside an app in a monorepo (`apps/api/fly.toml`). Consider a
+ * bounded nested location, but never turn a tutorial or test fixture into a claim about what runs
+ * in production. Four directory segments covers conventional workspace layouts without searching
+ * arbitrary vendored trees.
+ */
+const findManifest = (files: readonly string[], names: readonly string[]): string | undefined =>
+  files.find((path) => {
+    const segments = path.split('/');
+    const name = segments.at(-1);
+    const directories = segments.slice(0, -1);
+    return (
+      name !== undefined &&
+      names.includes(name) &&
+      directories.length <= 4 &&
+      !directories.some((segment) => IGNORED_NESTED_DIRECTORIES.has(segment.toLowerCase()))
+    );
+  });
 
 /**
  * Files that need their contents read before they count.
@@ -55,6 +86,13 @@ const CONFIRMED_BY_CONTENTS: ReadonlyArray<{
     files: ['template.yaml', 'template.yml'],
     pattern: /^(AWSTemplateFormatVersion|Transform:\s*AWS::Serverless)/m,
     tool: 'aws-sam'
+  },
+  {
+    // A Procfile is platform-neutral process metadata. Heroku's app manifest needs a field that is
+    // specific to its deployment schema before we name Heroku in front of the user.
+    files: ['app.json'],
+    pattern: /"(?:addons|formation|buildpacks|stack)"\s*:/,
+    tool: 'heroku'
   }
 ];
 
@@ -94,20 +132,45 @@ const anyMentionsAws = async (context: ProbeContext, candidates: readonly string
   return sampled.some((contents) => contents !== undefined && MENTIONS_AWS.test(contents));
 };
 
+/** Cite only a declaration key/token, never a whole one-line manifest that may also contain values. */
+const declarationCitation = (path: string, raw: string | undefined, confirm?: RegExp): Citation | undefined => {
+  if (raw === undefined) return undefined;
+  const lines = raw.split(/\r?\n/);
+  if (confirm !== undefined) {
+    for (const [index, line] of lines.entries()) {
+      const match = new RegExp(confirm.source, confirm.flags.replaceAll('g', '').replaceAll('y', '')).exec(line)?.[0];
+      if (match !== undefined) return { file: path, line: index + 1, quote: match.trim().slice(0, 200) };
+    }
+  }
+
+  const index = lines.findIndex((line) => {
+    const trimmed = line.trim();
+    return (
+      trimmed !== '' &&
+      !trimmed.startsWith('#') &&
+      !trimmed.startsWith('//') &&
+      !trimmed.startsWith('/*') &&
+      !trimmed.startsWith('*')
+    );
+  });
+  if (index === -1) return undefined;
+  const line = lines[index]!;
+  const token = /(?:["'][A-Za-z_$][A-Za-z0-9_$.-]*["']|[A-Za-z_$][A-Za-z0-9_$.-]*)\s*(?=[:=({])/.exec(line)?.[0];
+  return { file: path, line: index + 1, quote: (token?.trim() || line.trim().slice(0, 1)).slice(0, 200) };
+};
+
 export const existingDeploymentProbe: Probe = {
   name: 'existing-deployment',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
-    const has = (name: string): boolean => context.files.includes(name);
-
     // Which files to look at is decided first, and entirely from the file list, so the reads that
     // follow can all happen at once.
     const candidates: Array<{ tool: DeploymentTool; path: string; confirm?: RegExp }> = [];
     for (const { files, tool } of UNAMBIGUOUS_FILES) {
-      const path = files.find(has);
+      const path = findManifest(context.files, files);
       if (path !== undefined) candidates.push({ tool, path });
     }
     for (const { files, pattern, tool } of CONFIRMED_BY_CONTENTS) {
-      const path = files.find(has);
+      const path = findManifest(context.files, files);
       if (path !== undefined) candidates.push({ tool, path, confirm: pattern });
     }
 
@@ -142,13 +205,6 @@ export const existingDeploymentProbe: Probe = {
       if (found.has(tool)) continue;
       if (confirm !== undefined && (raw === undefined || !confirm.test(raw))) continue;
 
-      const lines = (raw ?? '').split(/\r?\n/);
-      // The first line that says something. A citation pointing at a blank line or a licence header
-      // is technically accurate and useless to the person reading it in the wizard.
-      const index = Math.max(
-        0,
-        lines.findIndex((line) => line.trim() !== '' && !line.trimStart().startsWith('#'))
-      );
       const managesAws =
         tool === 'terraform'
           ? terraformTargetsAws
@@ -156,7 +212,13 @@ export const existingDeploymentProbe: Probe = {
             ? pulumiTargetsAws
             : AWS_DEPLOYMENT_TOOLS.has(tool);
 
-      found.set(tool, { tool, managesAws, evidence: [citeLine(path, lines, index)], source: 'probe' });
+      const citation = declarationCitation(path, raw, confirm);
+      found.set(tool, {
+        tool,
+        managesAws,
+        evidence: citation === undefined ? [] : [citation],
+        source: 'probe'
+      });
     }
 
     return found.size === 0 ? {} : { existingDeployments: [...found.values()] };

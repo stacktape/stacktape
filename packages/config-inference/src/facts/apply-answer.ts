@@ -76,6 +76,19 @@ export const applyAnswer = ({
       );
       break;
     }
+    case 'dockerfile-ownership': {
+      // Choosing Stacktape's packaging removes the Dockerfile *fact*, never the file: the composer
+      // then packages through the proven entrypoint or start command, and the repository keeps its
+      // Dockerfile untouched for the day the user wants it back.
+      if (value === 'stacktape-packaging') {
+        services = services.map((service) => {
+          if (service.name !== uncertainty.serviceName) return service;
+          const { dockerfile: _dockerfile, ...withoutDockerfile } = service;
+          return withoutDockerfile;
+        });
+      }
+      break;
+    }
     case 'schedule-unknown': {
       services = services.map((service) =>
         service.name === uncertainty.serviceName ? { ...service, schedule: value } : service

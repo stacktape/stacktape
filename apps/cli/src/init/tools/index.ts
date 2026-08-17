@@ -13,9 +13,14 @@
  */
 
 import { z } from 'zod';
-import { agentSubmissionSchema, type AgentSubmission } from '@stacktape/config-inference/facts/agent-submission';
+import {
+  agentSubmissionSchema,
+  mergeAgentSubmission,
+  type AgentSubmission
+} from '@stacktape/config-inference/facts/agent-submission';
 import { renderFileTree } from '@stacktape/config-inference/scan/file-tree';
 import type { ProjectFacts } from '@stacktape/config-inference/facts';
+import { verifyFacts, type VerificationFinding } from '@stacktape/config-inference/verify';
 import type { Workspace } from './workspace';
 
 /** Caps, so one tool call cannot consume the user's token budget. */
@@ -24,6 +29,85 @@ const MAX_GREP_MATCHES = 60;
 const MAX_GREP_FILES_SCANNED = 3000;
 const MAX_GLOB_MATCHES = 300;
 const MAX_QUOTE_LENGTH = 200;
+
+const isUnverified = (finding: VerificationFinding): boolean =>
+  finding.outcome !== 'verified' && finding.outcome !== 'corroborated';
+
+/**
+ * Verify only claims the submission introduced, while the model is still present to repair them.
+ *
+ * Probe facts may have deliberately broad anchors and remain the baseline's responsibility. For an
+ * existing service, the agent is checked only for fields it filled or strengthened; a brand-new
+ * service/dependency must support the whole claim.
+ */
+const verifySubmission = async (
+  submission: AgentSubmission,
+  context: InitToolContext
+): Promise<Array<{ path: string; message: string }>> => {
+  const baselineServices = new Map(context.brief.services.map((service) => [service.path, service]));
+  const newServiceSubjects = new Set<string>();
+  const introducedServiceFields = new Set<string>();
+
+  for (const submitted of submission.services) {
+    const existing = baselineServices.get(submitted.path);
+    if (existing === undefined) {
+      newServiceSubjects.add(`service:${submitted.name}`);
+      continue;
+    }
+    const subject = `service:${existing.name}`;
+    if (submitted.exposesHttp && !existing.exposesHttp) introducedServiceFields.add(`${subject}:exposesHttp`);
+    if (submitted.port !== undefined && existing.port === undefined) introducedServiceFields.add(`${subject}:port`);
+    if (submitted.schedule !== undefined && existing.schedule === undefined) {
+      introducedServiceFields.add(`${subject}:schedule`);
+    }
+    if (submitted.startCommand !== undefined && existing.startCommand === undefined) {
+      introducedServiceFields.add(`${subject}:startCommand`);
+    }
+    if (submitted.buildCommand !== undefined && existing.buildCommand === undefined) {
+      introducedServiceFields.add(`${subject}:buildCommand`);
+    }
+    if (submitted.containerEntrypoint !== undefined && existing.containerEntrypoint === undefined) {
+      introducedServiceFields.add(`${subject}:containerEntrypoint`);
+    }
+    if (submitted.functionEntrypoint !== undefined && existing.functionEntrypoint === undefined) {
+      introducedServiceFields.add(`${subject}:functionEntrypoint`);
+    }
+    if (submitted.functionTriggers.length > 0 && existing.functionTriggers.length === 0) {
+      introducedServiceFields.add(`${subject}:functionTriggers`);
+    }
+  }
+
+  const baselineDependencies = new Set(
+    context.brief.dependencies.map((dependency) => `${dependency.kind}:${dependency.name}`)
+  );
+  const newDependencySubjects = new Set(
+    submission.dependencies
+      .filter((dependency) => !baselineDependencies.has(`${dependency.kind}:${dependency.name}`))
+      .map((dependency) => `dependency:${dependency.name}`)
+  );
+
+  const merged = mergeAgentSubmission({ baseline: context.brief, submission });
+  const verified = await verifyFacts({
+    facts: merged,
+    readFile: async (path) => {
+      const result = await context.workspace.read(path);
+      return 'contents' in result ? result.contents : null;
+    }
+  });
+
+  return verified.findings
+    .filter(isUnverified)
+    .filter(
+      (finding) =>
+        newServiceSubjects.has(finding.subject) ||
+        newDependencySubjects.has(finding.subject) ||
+        (finding.field !== undefined && introducedServiceFields.has(`${finding.subject}:${finding.field}`))
+    )
+    .map((finding) => ({
+      path: `${finding.subject}${finding.field === undefined ? '' : `.${finding.field}`}`,
+      message: finding.detail
+    }));
+};
 
 export type InitToolContext = {
   workspace: Workspace;
@@ -322,6 +406,8 @@ export const createInitTools = (): InitTool[] => [
           }))
         };
       }
+      const verificationProblems = await verifySubmission(parsed.data, context);
+      if (verificationProblems.length > 0) return { accepted: false, problems: verificationProblems };
       context.onSubmit(parsed.data);
       return { accepted: true };
     }

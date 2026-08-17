@@ -7,8 +7,8 @@
  *
  * Closing that gap normally means asking a second model, which costs money and introduces the same
  * class of error it is meant to catch. It is unnecessary here for one structural reason: **the
- * vocabulary is closed**. There are twelve dependency kinds, not infinitely many, so for each one
- * we can write down in advance what its evidence must mention. Thirty-odd regular expressions
+ * vocabulary is closed**. There are finitely many dependency kinds, so for each one we can write
+ * down in advance what its evidence must mention. A small set of regular expressions
  * replace a judgement call.
  *
  * These are deliberately generous. An anchor is a check against obvious misattribution, not a
@@ -17,6 +17,7 @@
  */
 
 import type { DependencyKind } from '../facts/dependency';
+import type { FunctionTrigger } from '../facts/service';
 
 export type AnchorRule = {
   /** Evidence must match at least one of these. */
@@ -59,8 +60,16 @@ export const DEPENDENCY_ANCHORS: Record<DependencyKind, AnchorRule> = {
     expectation: 'a DynamoDB client or table reference'
   },
   queue: {
-    patterns: [/\bsqs\b/i, /rabbitmq/i, /\bamqp\b/i, /bullmq/i, /celery/i, /sidekiq/i, /QUEUE_/i],
-    expectation: 'a queue client, broker URL, or QUEUE_* variable'
+    patterns: [/\bsqs\b/i, /@aws-sdk\/client-sqs/i, /SQS_QUEUE/i],
+    expectation: 'an SQS client, queue reference, or SQS_QUEUE* variable'
+  },
+  topic: {
+    patterns: [/\bsns\b/i, /@aws-sdk\/client-sns/i, /SNS_TOPIC/i, /AWS::SNS::Topic/i],
+    expectation: 'an SNS client or topic reference'
+  },
+  amqp: {
+    patterns: [/rabbitmq/i, /\bamqp\b/i, /\bpika\b/i, /\bbunny\b/i, /\blapin\b/i],
+    expectation: 'a RabbitMQ or AMQP client'
   },
   search: {
     patterns: [/elasticsearch/i, /opensearch/i, /meilisearch/i, /typesense/i, /\bsolr\b/i],
@@ -81,12 +90,30 @@ const HTTP_PATTERNS: readonly RegExp[] = [
   /\.listen\s*\(/,
   /createServer/,
   /app\.(get|post|put|patch|delete|use|route)\s*\(/i,
+  /"(?:express|fastify|next|nuxt|hono|koa|astro|@remix-run\/node|@sveltejs\/kit)"\s*:/i,
   /@(Get|Post|Controller|RestController|RequestMapping)\b/,
-  /FastAPI|Flask|Django|Sinatra|Rails|Gin|Echo|Fiber|Axum|Actix/i,
+  /FastAPI|Flask|Django|Streamlit|Sinatra|Rails|Gin|Echo|Fiber|Axum|Actix/i,
   /http\.Handle|ServeMux|net\/http/,
   /EXPOSE\s+\d+/i,
-  /uvicorn|gunicorn|hypercorn|puma|unicorn/i
+  /uvicorn|gunicorn|hypercorn|puma|unicorn/i,
+  /Type:\s*(?:Api|HttpApi)\b/i
 ];
+
+const FUNCTION_HANDLER_PATTERNS: readonly RegExp[] = [
+  /export\s+(?:const|let|var)\s+handler\b/,
+  /export\s+(?:async\s+)?function\s+handler\b/,
+  /def\s+(?:lambda_handler|handler|\w+_handler)\s*\(/,
+  /(?:module\.)?exports(?:\.handler)?\s*=/,
+  /public\s+.*\s+handleRequest\s*\(/
+];
+
+const TRIGGER_PATTERNS: Record<FunctionTrigger['type'], readonly RegExp[]> = {
+  http: [/Type:\s*(?:Api|HttpApi)\b/i, /APIGatewayProxyEvent|APIGatewayV2HTTPEvent/i],
+  queue: [/Type:\s*SQS\b/i, /SQSEvent|SQSHandler|Records.*body/i],
+  topic: [/Type:\s*SNS\b/i, /SNSEvent|SNSHandler/i],
+  'object-storage': [/Type:\s*S3\b/i, /S3Event|S3Handler|ObjectCreated/i],
+  schedule: [/Type:\s*Schedule\b/i, /ScheduledEvent|scheduleRate|\brate\s*\(|\bcron\s*\(/i]
+};
 
 export type AnchorOutcome = { satisfied: true } | { satisfied: false; expectation: string };
 
@@ -105,6 +132,36 @@ export const checkDependencyAnchor = (kind: DependencyKind, evidenceText: string
     : { satisfied: false, expectation: rule.expectation };
 };
 
+export const checkFunctionEntrypointAnchor = (fileContents: string): AnchorOutcome =>
+  anyMatch(FUNCTION_HANDLER_PATTERNS, fileContents)
+    ? { satisfied: true }
+    : {
+        satisfied: false,
+        expectation: 'an exported Lambda-compatible handler'
+      };
+
+export const checkFunctionTriggerAnchor = (trigger: FunctionTrigger, evidenceText: string): AnchorOutcome => {
+  if (!anyMatch(TRIGGER_PATTERNS[trigger.type], evidenceText)) {
+    return {
+      satisfied: false,
+      expectation: `a declared ${trigger.type} event`
+    };
+  }
+  if (trigger.type === 'http' && !evidenceText.includes(trigger.path)) {
+    return {
+      satisfied: false,
+      expectation: `the route ${trigger.path} in the declared HTTP event`
+    };
+  }
+  if (trigger.type === 'schedule' && !evidenceText.includes(trigger.rate)) {
+    return {
+      satisfied: false,
+      expectation: `the schedule ${trigger.rate} in the declared event`
+    };
+  }
+  return { satisfied: true };
+};
+
 /**
  * A claimed port must appear literally in its evidence.
  *
@@ -115,7 +172,10 @@ export const checkDependencyAnchor = (kind: DependencyKind, evidenceText: string
 export const checkPortAnchor = (port: number, evidenceText: string): AnchorOutcome =>
   new RegExp(`\\b${port}\\b`).test(evidenceText)
     ? { satisfied: true }
-    : { satisfied: false, expectation: `the number ${port} to appear in the cited line` };
+    : {
+        satisfied: false,
+        expectation: `the number ${port} to appear in the cited line`
+      };
 
 /**
  * A claimed command must appear in the file it was cited from.
@@ -130,6 +190,12 @@ export const checkCommandAnchor = (command: string, fileContents: string): Ancho
     return { satisfied: true };
   }
 
+  // The Streamlit manifest probe derives the production invocation from a declared Streamlit app;
+  // projects ordinarily contain the import and entry file, not this full CLI command verbatim.
+  if (/^streamlit run \S+/.test(normalizedCommand) && /\bstreamlit\b/i.test(normalizedFile)) {
+    return { satisfied: true };
+  }
+
   // A manifest often names a script (`"build": "next build"`) that the claim reports as the runner
   // invocation (`npm run build`). Both are true; only one is written down. Falling back to the
   // significant words keeps that from reading as a fabrication.
@@ -140,14 +206,40 @@ export const checkCommandAnchor = (command: string, fileContents: string): Ancho
     return { satisfied: true };
   }
 
-  return { satisfied: false, expectation: `"${command}" to appear in the cited file` };
+  return {
+    satisfied: false,
+    expectation: `"${command}" to appear in the cited file`
+  };
 };
 
 /** Whether evidence supports the claim that a service serves HTTP. */
 export const checkHttpAnchor = (evidenceText: string): AnchorOutcome =>
   anyMatch(HTTP_PATTERNS, evidenceText)
     ? { satisfied: true }
-    : { satisfied: false, expectation: 'a server bind, route registration, web framework, or EXPOSE directive' };
+    : {
+        satisfied: false,
+        expectation: 'a server bind, route registration, web framework, or EXPOSE directive'
+      };
+
+export const checkContainerEntrypointAnchor = (
+  entrypoint: string,
+  fileContents: string,
+  exposesHttp: boolean
+): AnchorOutcome => {
+  if (!exposesHttp) return { satisfied: true };
+  if (
+    checkHttpAnchor(fileContents).satisfied ||
+    /@SpringBootApplication|SpringApplication\.run\s*\(/.test(fileContents) ||
+    /@Path\s*\(/.test(fileContents) ||
+    (entrypoint.toLowerCase().endsWith('index.php') && /<\?php/.test(fileContents))
+  ) {
+    return { satisfied: true };
+  }
+  return {
+    satisfied: false,
+    expectation: 'the entrypoint file itself to create or expose an HTTP application'
+  };
+};
 
 /** Whether evidence contains the schedule expression it claims. */
 export const checkScheduleAnchor = (schedule: string, evidenceText: string): AnchorOutcome => {
@@ -159,5 +251,8 @@ export const checkScheduleAnchor = (schedule: string, evidenceText: string): Anc
   const fields = trimmed.split(/\s+/).filter((field) => field !== '*');
   return fields.length > 0 && fields.every((field) => evidenceText.includes(field))
     ? { satisfied: true }
-    : { satisfied: false, expectation: `the schedule "${schedule}" to appear in the cited line` };
+    : {
+        satisfied: false,
+        expectation: `the schedule "${schedule}" to appear in the cited line`
+      };
 };

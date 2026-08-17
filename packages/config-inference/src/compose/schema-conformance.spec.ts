@@ -44,7 +44,10 @@ const service = (overrides: Partial<ServiceFactInput>): ServiceFactInput => ({
 });
 
 const composeFrom = (input: Omit<ProjectFactsInput, 'schemaVersion'>) => {
-  const facts = projectFactsSchema.parse({ schemaVersion: PROJECT_FACTS_SCHEMA_VERSION, ...input });
+  const facts = projectFactsSchema.parse({
+    schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+    ...input
+  });
   return composeConfig({ facts, projectName: 'demo' }).config;
 };
 
@@ -65,7 +68,14 @@ describe('composed configuration conforms to the Stacktape schema', () => {
             name: 'api',
             port: 3000,
             framework: 'express',
-            environmentVariables: [{ name: 'STRIPE_KEY', role: 'third-party-secret', required: true, evidence: [] }]
+            environmentVariables: [
+              {
+                name: 'STRIPE_KEY',
+                role: 'third-party-secret',
+                required: true,
+                evidence: []
+              }
+            ]
           })
         ],
         dependencies: [
@@ -77,14 +87,25 @@ describe('composed configuration conforms to the Stacktape schema', () => {
             evidence: [],
             source: 'probe'
           },
-          { name: 'cache', kind: 'redis', extensions: [], consumedBy: ['api'], evidence: [], source: 'probe' }
+          {
+            name: 'cache',
+            kind: 'redis',
+            extensions: [],
+            consumedBy: ['api'],
+            evidence: [],
+            source: 'probe'
+          }
         ]
       })
     );
   });
 
   it('a Next.js application', () => {
-    expectValid(composeFrom({ services: [service({ name: 'web', framework: 'nextjs' })] }));
+    expectValid(
+      composeFrom({
+        services: [service({ name: 'web', framework: 'nextjs' })]
+      })
+    );
   });
 
   it('a worker with a queue and a bucket', () => {
@@ -92,7 +113,14 @@ describe('composed configuration conforms to the Stacktape schema', () => {
       composeFrom({
         services: [service({ name: 'worker', path: 'apps/worker', exposesHttp: false })],
         dependencies: [
-          { name: 'jobQueue', kind: 'queue', extensions: [], consumedBy: ['worker'], evidence: [], source: 'probe' },
+          {
+            name: 'jobQueue',
+            kind: 'queue',
+            extensions: [],
+            consumedBy: ['worker'],
+            evidence: [],
+            source: 'probe'
+          },
           {
             name: 'storageBucket',
             kind: 'object-storage',
@@ -126,7 +154,12 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     expectValid(
       composeFrom({
         services: [
-          service({ name: 'site', exposesHttp: false, startCommand: undefined, servesStaticAssets: { path: 'dist' } })
+          service({
+            name: 'site',
+            exposesHttp: false,
+            startCommand: undefined,
+            servesStaticAssets: { path: 'dist' }
+          })
         ]
       })
     );
@@ -136,7 +169,13 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     expectValid(
       composeFrom({
         services: [
-          service({ name: 'api', language: 'go', port: 8080, dockerfile: 'Dockerfile', startCommand: undefined })
+          service({
+            name: 'api',
+            language: 'go',
+            port: 8080,
+            dockerfile: 'Dockerfile',
+            startCommand: undefined
+          })
         ]
       })
     );
@@ -169,7 +208,136 @@ describe('composed configuration conforms to the Stacktape schema', () => {
       composeFrom({
         services: [service({ name: 'api' })],
         dependencies: [
-          { name: 'mainTable', kind: 'dynamodb', extensions: [], consumedBy: ['api'], evidence: [], source: 'probe' }
+          {
+            name: 'mainTable',
+            kind: 'dynamodb',
+            extensions: [],
+            consumedBy: ['api'],
+            evidence: [],
+            source: 'probe'
+          }
+        ]
+      })
+    );
+  });
+
+  it('a Lambda function behind an HTTP API gateway', () => {
+    expectValid(
+      composeFrom({
+        services: [
+          service({
+            name: 'handler',
+            exposesHttp: false,
+            startCommand: undefined,
+            executionModel: 'per-request',
+            functionEntrypoint: 'src/handler.ts',
+            functionTriggers: [{ type: 'http', method: 'POST', path: '/events' }]
+          })
+        ]
+      })
+    );
+  });
+
+  it('a source entrypoint using the Stacktape container buildpack', () => {
+    expectValid(
+      composeFrom({
+        services: [
+          service({
+            startCommand: undefined,
+            containerEntrypoint: 'src/server.ts'
+          })
+        ]
+      })
+    );
+  });
+
+  it('a workspace member built from the repository root', () => {
+    expectValid(
+      composeFrom({
+        packageManager: 'pnpm',
+        services: [
+          service({
+            name: 'web',
+            path: 'apps/web',
+            buildCommand: 'pnpm build',
+            startCommand: 'pnpm start',
+            environmentVariables: [],
+            workspace: { packageName: '@acme/web', internalDependencies: ['@acme/ui'], buildsFromRoot: false }
+          })
+        ]
+      })
+    );
+  });
+
+  it('a pinned buildpack runtime version', () => {
+    expectValid(
+      composeFrom({
+        services: [
+          service({
+            name: 'api',
+            startCommand: undefined,
+            containerEntrypoint: 'src/server.ts',
+            runtimeVersion: '22'
+          })
+        ]
+      })
+    );
+  });
+
+  it('a proxied catch-all function route, as the SST and CDK importers emit it', () => {
+    expectValid(
+      composeFrom({
+        services: [
+          service({
+            name: 'api',
+            exposesHttp: false,
+            startCommand: undefined,
+            executionModel: 'per-request',
+            functionEntrypoint: 'src/api.ts',
+            functionTriggers: [{ type: 'http', method: '*', path: '/{proxy+}' }]
+          })
+        ]
+      })
+    );
+  });
+
+  it('a database migration wired as a deploy hook', () => {
+    // The `scripts` + `hooks.afterDeploy` emission is new surface: a wrong shape here validates
+    // nowhere else and fails at deploy time, which is exactly what this suite exists to prevent.
+    expectValid(
+      composeFrom({
+        services: [
+          service({
+            name: 'api',
+            environmentVariables: [
+              {
+                name: 'DATABASE_URL',
+                role: 'infra-dependency',
+                dependencyName: 'mainDatabase',
+                required: true,
+                evidence: []
+              }
+            ]
+          })
+        ],
+        dependencies: [
+          {
+            name: 'mainDatabase',
+            kind: 'postgres',
+            extensions: [],
+            consumedBy: ['api'],
+            evidence: [],
+            source: 'probe'
+          }
+        ],
+        migrations: [
+          {
+            serviceName: 'api',
+            tool: 'prisma',
+            command: 'npx prisma migrate deploy',
+            runsAt: 'ci',
+            evidence: []
+          }
         ]
       })
     );

@@ -17,11 +17,36 @@
 
 import { languageOf } from '../language';
 import type { MigrationFact } from '../../facts/project-facts';
-import type { ServiceFactInput } from '../../facts/service';
+import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/service';
 import { citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
 /** `name: command`, where the name is a process type and everything after the colon is the command. */
 const PROCESS_LINE = /^([A-Za-z0-9_-]+):\s*(.+)$/;
+const LEADING_ENVIRONMENT_ASSIGNMENT =
+  /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s]+)\s*/;
+const SECRETISH_NAME = /(?:SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE|API_KEY|ACCESS_KEY|SIGNING_KEY|WEBHOOK_SECRET|_KEY$)/i;
+
+/** Remove shell-style values while retaining the command and the names the process expects. */
+const commandWithoutEnvironmentValues = (
+  command: string
+): { command: string; environmentVariables: EnvironmentVariableUse[] } => {
+  let remaining = command.trim();
+  const environmentVariables: EnvironmentVariableUse[] = [];
+  while (remaining !== '') {
+    const match = LEADING_ENVIRONMENT_ASSIGNMENT.exec(remaining);
+    if (match === null) break;
+    const name = match[1]!;
+    environmentVariables.push({
+      name,
+      role: SECRETISH_NAME.test(name) ? 'third-party-secret' : 'runtime-config',
+      hasDeclaredValue: true,
+      required: true,
+      evidence: []
+    });
+    remaining = remaining.slice(match[0].length).trimStart();
+  }
+  return { command: remaining, environmentVariables };
+};
 
 /**
  * Process types that are not services.
@@ -42,8 +67,69 @@ const MIGRATION_TOOLS: ReadonlyArray<{ pattern: RegExp; tool: string }> = [
   { pattern: /sequelize.*db:migrate/, tool: 'sequelize' },
   { pattern: /typeorm\s+migration:run/, tool: 'typeorm' },
   { pattern: /mix\s+ecto\.migrate/, tool: 'ecto' },
-  { pattern: /migrate/, tool: 'unknown' }
+  { pattern: /migrat/, tool: 'unknown' }
 ];
+
+/**
+ * Split the only shell composition we can reduce without executing a shell: top-level `&&`.
+ * Quotes are honoured; every other operator remains inside its clause and therefore fails the
+ * command-shape guard below if it is the migration candidate. Unbalanced quotes and command
+ * substitution fail closed.
+ */
+const splitTopLevelAnd = (command: string): string[] | undefined => {
+  const clauses: string[] = [];
+  let quote: '"' | "'" | undefined;
+  let escaped = false;
+  let start = 0;
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index]!;
+    if (escaped) {
+      escaped = false;
+      continue;
+    }
+    if (character === '\\' && quote !== "'") {
+      escaped = true;
+      continue;
+    }
+    if (quote !== undefined) {
+      if (character === quote) quote = undefined;
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      quote = character;
+      continue;
+    }
+    if (character === '$' && command[index + 1] === '(') return undefined;
+    if (character === '&' && command[index + 1] === '&') {
+      const clause = command.slice(start, index).trim();
+      if (clause === '') return undefined;
+      clauses.push(clause);
+      index += 1;
+      start = index + 1;
+    }
+  }
+  if (quote !== undefined || escaped) return undefined;
+  const tail = command.slice(start).trim();
+  if (tail === '') return undefined;
+  clauses.push(tail);
+  return clauses;
+};
+
+/** Plain argv-like syntax only. Redirects, pipes, expansion and shell control flow never survive. */
+const SAFE_MIGRATION_CLAUSE = /^[A-Za-z0-9_./-]+(?: [A-Za-z0-9_.:=@/-]+)*$/;
+const SEED_OR_FIXTURE = /(?:^|[\s:_-])(?:seed|fixture|faker|dummy)(?:$|[\s:_-])/i;
+
+export const safeMigrationClauseOf = (command: string): string | undefined => {
+  const clauses = splitTopLevelAnd(command);
+  if (clauses === undefined) return undefined;
+  const candidates = clauses.filter(
+    (clause) =>
+      !SEED_OR_FIXTURE.test(clause) &&
+      SAFE_MIGRATION_CLAUSE.test(clause) &&
+      MIGRATION_TOOLS.some((entry) => entry.pattern.test(clause))
+  );
+  return candidates.length === 1 ? candidates[0] : undefined;
+};
 
 export const procfileProbe: Probe = {
   name: 'procfile',
@@ -65,19 +151,43 @@ export const procfileProbe: Probe = {
 
       const match = PROCESS_LINE.exec(trimmed);
       if (match === null) continue;
-      const [, name, command] = match as unknown as [string, string, string];
+      const [, name, rawCommand] = match as unknown as [string, string, string];
+      const { command, environmentVariables } = commandWithoutEnvironmentValues(rawCommand);
+      // A line containing only assignments is not runnable. More importantly, retaining it would
+      // make the facts document a second store for those values.
+      if (command === '') continue;
+      const commandCitation = {
+        ...citeLine('Procfile', lines, index, 'startCommand'),
+        // The runnable suffix appears verbatim on the line; the discarded assignment values do not.
+        quote: command.slice(0, 200)
+      };
 
       if (name === RELEASE_PROCESS) {
+        const migrationCommand = safeMigrationClauseOf(command);
+        // A release process may only warm caches, seed demo data or perform other lifecycle work.
+        // It is not a migration unless a migration-shaped clause is actually present.
+        if (migrationCommand === undefined && !MIGRATION_TOOLS.some((entry) => entry.pattern.test(command))) {
+          continue;
+        }
         migrations.push({
           // Attributed to the web process, which is the one a release phase belongs to. When there
           // is no web process the first service named in the file is the next best owner, and
           // `checkFactsCompleteness` catches it if neither exists.
           serviceName: webService ?? services[0]?.name ?? 'web',
-          tool: MIGRATION_TOOLS.find((entry) => entry.pattern.test(command))?.tool ?? 'unknown',
-          command,
+          tool: MIGRATION_TOOLS.find((entry) => entry.pattern.test(migrationCommand ?? command))?.tool ?? 'unknown',
+          // A shell chain is never copied whole. When exactly one safe migration clause can be
+          // isolated, only that argv-like command reaches the deploy hook. Otherwise the original
+          // remains as evidence and composition raises a review gap instead of executing it.
+          command: migrationCommand ?? command,
           // Heroku runs this as part of the deploy, before the new release goes live.
           runsAt: 'ci',
-          evidence: [citeLine('Procfile', lines, index)]
+          evidence: [
+            {
+              ...commandCitation,
+              field: undefined,
+              quote: migrationCommand ?? commandCitation.quote
+            }
+          ]
         });
         continue;
       }
@@ -91,14 +201,15 @@ export const procfileProbe: Probe = {
         // The web process is the application itself, so it folds into whatever the manifest already
         // found in this directory rather than becoming a second copy of it. Every other process is
         // a genuinely separate deployable thing and says so.
-        ...(isWeb ? {} : { processType: name }),
+        ...(isWeb ? { processType: 'procfile:web' } : { processType: name }),
         // A Procfile says nothing about the language, so the marker files next to it answer that.
         // Without one there is no honest value to give, and the service is left for another probe.
         language: language ?? 'unknown',
         exposesHttp: isWeb,
         executionModel: 'long-running',
         startCommand: command,
-        evidence: [citeLine('Procfile', lines, index, 'startCommand')],
+        environmentVariables,
+        evidence: [commandCitation],
         source: 'probe'
       });
     }

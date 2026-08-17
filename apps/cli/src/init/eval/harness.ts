@@ -45,6 +45,15 @@ export type EvalExpectation = {
    * require it to fire.
    */
   raisesQuestionKinds?: readonly string[];
+  /** Deploy-time scripts the composition must emit, by name — the migration hook above all. */
+  scriptNames?: readonly string[];
+  /**
+   * Environment entries a composed resource must carry, value included.
+   *
+   * The wiring is the part a deploy cannot check — infrastructure that exists next to an app that
+   * cannot reach it deploys green — so the corpus has to assert the emitted values directly.
+   */
+  serviceEnvironment?: ReadonlyArray<{ resource: string; name: string; value: string }>;
 };
 
 export type EvalCase = {
@@ -107,6 +116,29 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
       } else if (actual.type !== type) {
         failures.push({ stage: 'composition', detail: `"${name}" is a ${actual.type}; expected a ${type}.` });
       }
+    }
+  }
+
+  for (const scriptName of expected.scriptNames ?? []) {
+    if (result.composition.config.scripts?.[scriptName] === undefined) {
+      failures.push({ stage: 'composition', detail: `Expected a script named "${scriptName}"; none was emitted.` });
+    }
+  }
+
+  for (const wiring of expected.serviceEnvironment ?? []) {
+    const resource = result.composition.config.resources[wiring.resource];
+    const environment = (resource?.properties.environment ?? []) as Array<{ name: string; value: unknown }>;
+    const entry = environment.find((variable) => variable.name === wiring.name);
+    if (entry === undefined) {
+      failures.push({
+        stage: 'composition',
+        detail: `Expected "${wiring.resource}" to carry the ${wiring.name} variable; it does not.`
+      });
+    } else if (entry.value !== wiring.value) {
+      failures.push({
+        stage: 'composition',
+        detail: `${wiring.name} on "${wiring.resource}" is ${String(entry.value)}; expected ${wiring.value}.`
+      });
     }
   }
 

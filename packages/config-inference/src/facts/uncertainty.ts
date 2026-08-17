@@ -54,16 +54,21 @@ export const uncertaintySchema = z.discriminatedUnion('kind', [
   }),
 
   /**
-   * The data already lives somewhere managed — Supabase, Neon, Railway, and friends.
+   * A dependency may already exist under another deployment.
    *
-   * The safe default is always to leave what is running alone. Copying the data across is a
-   * separate, later, explicit act.
+   * Connection-based stores can stay where they are because the application can receive their
+   * existing address as a secret. Event sources such as queues cannot be attached without a real
+   * deployed ARN, which source code does not provide; those default to a disclosed new copy while
+   * the existing deployment remains untouched.
    */
   z.object({
     ...uncertaintyBase,
     kind: z.literal('external-database-disposition'),
     dependencyName: z.string().min(1),
+    dependencyKind: dependencyKindSchema.optional(),
     provider: z.string().min(1),
+    /** Whether code proves a current endpoint or only declares infrastructure that may exist. */
+    basis: z.enum(['connection-string', 'deployment-manifest']).optional(),
     recommended: z.enum(['point-at-existing', 'create-new'])
   }),
 
@@ -154,6 +159,22 @@ export const uncertaintySchema = z.discriminatedUnion('kind', [
     serviceName: z.string().min(1),
     command: z.string().min(1),
     recommended: z.enum(['deploy-hook', 'service-startup', 'manual'])
+  }),
+
+  /**
+   * A Dockerfile exists, but it reads as a standard template rather than something hand-tuned.
+   *
+   * Copy-pasted Dockerfiles are common, and Stacktape's own packaging is the optimized, tested
+   * path — so when the file is recognizably boilerplate *and* another way to run the service is
+   * proven, the recommendation is to let Stacktape package it. The file itself is never touched;
+   * this only decides which packaging the configuration uses, and it is one click to flip.
+   */
+  z.object({
+    ...uncertaintyBase,
+    kind: z.literal('dockerfile-ownership'),
+    serviceName: z.string().min(1),
+    dockerfilePath: z.string().min(1),
+    recommended: z.enum(['stacktape-packaging', 'keep-dockerfile'])
   }),
 
   /**

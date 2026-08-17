@@ -51,6 +51,15 @@ describe('dependency lists in other languages', () => {
     ).toEqual(['postgres', 'redis']);
   });
 
+  it('does not mistake Celery using Kombu with Redis for a RabbitMQ requirement', async () => {
+    expect(
+      await kindsIn({
+        'requirements.txt': ['celery==5.4.0', 'kombu==5.3.5', 'redis==5.0.8'].join('\n'),
+        'celeryconfig.py': 'broker_url = "redis://localhost:6379/0"\n'
+      })
+    ).toEqual(['redis']);
+  });
+
   it('reads a Poetry project', async () => {
     expect(
       await kindsIn({
@@ -97,10 +106,28 @@ describe('dependency lists in other languages', () => {
     expect(
       await kindsIn({
         'composer.json': JSON.stringify({
-          require: { 'laravel/framework': '^11.0', 'ext-pdo_mysql': '*', 'predis/predis': '^2.0' }
+          require: {
+            'laravel/framework': '^11.0',
+            'ext-pdo_mysql': '*',
+            'predis/predis': '^2.0'
+          }
         })
       })
     ).toEqual(['mysql', 'redis']);
+  });
+
+  it('knows WordPress requires a MySQL-compatible database', async () => {
+    expect(
+      await kindsIn({
+        'composer.json': JSON.stringify({
+          name: 'agency/store',
+          require: {
+            'johnpbloch/wordpress': '^6.6',
+            'woocommerce/woocommerce': '^9.1'
+          }
+        })
+      })
+    ).toEqual(['mysql']);
   });
 
   it('reads a Maven pom', async () => {
@@ -117,6 +144,23 @@ describe('dependency lists in other languages', () => {
         ].join('\n')
       })
     ).toEqual(['postgres']);
+  });
+
+  it('recognises the current Quarkus REST artifact name', async () => {
+    root = await makeRepo({
+      'pom.xml': [
+        '<project>',
+        '<artifactId>quarkus-api</artifactId>',
+        '<dependency><artifactId>quarkus-resteasy-reactive</artifactId></dependency>',
+        '</project>'
+      ].join('\n')
+    });
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+
+    expect(facts.services[0]).toMatchObject({
+      framework: 'quarkus',
+      exposesHttp: true
+    });
   });
 
   it('reads a .csproj', async () => {
@@ -206,7 +250,11 @@ describe('dependency lists in other languages', () => {
   it('says nothing when the library does not name an engine', async () => {
     // SQLAlchemy drives Postgres, MySQL, SQLite and more. Picking one produces a database the
     // application cannot connect to, which is worse than producing none.
-    expect(await kindsIn({ 'requirements.txt': 'SQLAlchemy==2.0.29\nalembic==1.13\n' })).toEqual([]);
+    expect(
+      await kindsIn({
+        'requirements.txt': 'SQLAlchemy==2.0.29\nalembic==1.13\n'
+      })
+    ).toEqual([]);
   });
 
   it('finds the service and its framework, and the migration tool it declares', async () => {
@@ -216,13 +264,24 @@ describe('dependency lists in other languages', () => {
 
     const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
 
-    expect(facts.services[0]).toMatchObject({ language: 'python', framework: 'django', exposesHttp: true });
-    expect(facts.migrations[0]).toMatchObject({ tool: 'django', command: 'python manage.py migrate' });
+    expect(facts.services[0]).toMatchObject({
+      language: 'python',
+      framework: 'django',
+      exposesHttp: true
+    });
+    expect(facts.migrations[0]).toMatchObject({
+      tool: 'django',
+      command: 'python manage.py migrate'
+    });
   });
 
   it('leaves JavaScript to the probe that reads far more than a dependency list', async () => {
     root = await makeRepo({
-      'package.json': JSON.stringify({ name: 'api', scripts: { start: 'node index.js' }, dependencies: { pg: '^8' } })
+      'package.json': JSON.stringify({
+        name: 'api',
+        scripts: { start: 'node index.js' },
+        dependencies: { pg: '^8' }
+      })
     });
 
     const { facts } = await assembleCandidateFacts({ root, probes: PROBES });

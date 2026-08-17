@@ -22,13 +22,15 @@ export type ServiceResourceType =
   | 'worker-service'
   | 'private-service'
   | 'batch-job'
+  | 'function'
   | 'hosting-bucket'
   | 'nextjs-web'
   | 'nuxt-web'
   | 'sveltekit-web'
   | 'astro-web'
   | 'remix-web'
-  | 'solid-start-web';
+  | 'solidstart-web'
+  | 'tanstack-web';
 
 export type ServiceClassification = {
   resourceType: ServiceResourceType;
@@ -51,13 +53,22 @@ const FRAMEWORK_RESOURCES: Readonly<Record<string, ServiceResourceType>> = {
   sveltekit: 'sveltekit-web',
   astro: 'astro-web',
   remix: 'remix-web',
-  'solid-start': 'solid-start-web'
+  'solid-start': 'solidstart-web',
+  'tanstack-start': 'tanstack-web'
 };
 
 const evidenceFor = (service: ServiceFact, fields: readonly string[]): Citation[] =>
   service.evidence.filter((citation) => citation.field !== undefined && fields.includes(citation.field)).slice(0, 3);
 
 export const classifyService = (service: ServiceFact): ServiceClassification => {
+  if (service.functionEntrypoint !== undefined) {
+    return {
+      resourceType: 'function',
+      reason: 'This exports an invocation handler, so it runs on demand and costs nothing while idle.',
+      evidence: evidenceFor(service, ['functionEntrypoint'])
+    };
+  }
+
   const frameworkResource = service.framework === undefined ? undefined : FRAMEWORK_RESOURCES[service.framework];
   if (frameworkResource !== undefined) {
     return {
@@ -123,4 +134,7 @@ export const classifyService = (service: ServiceFact): ServiceClassification => 
 
 /** Whether a classification produces something with a public address. */
 export const isPubliclyAddressable = (resourceType: ServiceResourceType): boolean =>
-  resourceType !== 'worker-service' && resourceType !== 'batch-job' && resourceType !== 'private-service';
+  resourceType !== 'worker-service' &&
+  resourceType !== 'batch-job' &&
+  resourceType !== 'private-service' &&
+  resourceType !== 'function';

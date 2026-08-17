@@ -13,7 +13,9 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { composeConfig } from '../../compose/compose';
 import { assembleCandidateFacts } from '../assemble';
 import { existingDeploymentProbe } from './existing-deployment';
+import { environmentProbe } from './environment';
 import { manifestProbe } from './manifest';
+import { procfileProbe } from './procfile';
 
 const PROBES = [manifestProbe, existingDeploymentProbe];
 
@@ -38,7 +40,7 @@ const makeRepo = async (files: Record<string, string>): Promise<string> => {
 const APP_MANIFEST = JSON.stringify({ name: 'api', scripts: { start: 'node index.js' } });
 
 describe('the existing-deployment probe', () => {
-  it('finds the tool that deploys this repository today, and cites it', async () => {
+  it('finds an unambiguous deployment declaration and cites it', async () => {
     root = await makeRepo({
       'package.json': APP_MANIFEST,
       'serverless.yml': 'service: orders-api\nprovider:\n  name: aws\n'
@@ -87,6 +89,67 @@ describe('the existing-deployment probe', () => {
     expect(facts.existingDeployments).toHaveLength(0);
   });
 
+  it('does not call a platform-neutral Procfile a live Heroku deployment', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'api',
+        scripts: { start: 'node src/index.js' },
+        dependencies: { express: '^5.0.0', pg: '^8.0.0' }
+      }),
+      Procfile: 'web: node src/index.js\nrelease: node migrate.js\n',
+      '.env.example': 'DATABASE_URL=postgres://localhost/example\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [manifestProbe, procfileProbe, environmentProbe, existingDeploymentProbe]
+    });
+    const composed = composeConfig({ facts, projectName: 'api' });
+
+    expect(facts.existingDeployments).toEqual([]);
+    expect(composed.gaps.some((gap) => gap.subject === 'heroku')).toBe(false);
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'api',
+      exposesHttp: true,
+      executionModel: 'long-running',
+      // A Procfile's web command is the exact production declaration; a matching package script is
+      // only an alias and must not displace it.
+      startCommand: 'node src/index.js'
+    });
+    expect(facts.dependencies).toContainEqual(
+      expect.objectContaining({ kind: 'postgres', addressedBy: ['DATABASE_URL'] })
+    );
+    expect(facts.migrations[0]).toMatchObject({ command: 'node migrate.js', runsAt: 'ci' });
+    expect(composed.config.resources.api).toMatchObject({
+      type: 'web-service',
+      properties: {
+        packaging: { properties: { startCmd: 'node src/index.js' } },
+        connectTo: ['mainDatabase'],
+        environment: [{ name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" }]
+      }
+    });
+    expect(composed.config.scripts?.migrateDatabase).toMatchObject({
+      properties: { executeCommand: 'node migrate.js', connectTo: ['mainDatabase'] }
+    });
+  });
+
+  it('recognises a Heroku-specific app manifest without relying on a Procfile', async () => {
+    root = await makeRepo({
+      'package.json': APP_MANIFEST,
+      'app.json': JSON.stringify({
+        name: 'orders',
+        addons: ['heroku-postgresql:essential-0'],
+        env: { API_TOKEN: { value: 'existing-deployment-citation-must-not-copy-this' } }
+      })
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+
+    expect(facts.existingDeployments[0]).toMatchObject({ tool: 'heroku', managesAws: false });
+    expect(JSON.stringify(facts)).not.toContain('existing-deployment-citation-must-not-copy-this');
+  });
+
   it('recognises a platform deployment and says the right thing about it', async () => {
     root = await makeRepo({
       'package.json': APP_MANIFEST,
@@ -104,6 +167,29 @@ describe('the existing-deployment probe', () => {
     expect(message).toContain('Fly.io');
   });
 
+  it('recognises an app-local deployment manifest in a monorepo', async () => {
+    root = await makeRepo({
+      'package.json': APP_MANIFEST,
+      'apps/api/fly.toml': 'app = "orders-api"\n\n[http_service]\n  internal_port = 8080\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+
+    expect(facts.existingDeployments[0]).toMatchObject({ tool: 'fly', managesAws: false });
+    expect(facts.existingDeployments[0]?.evidence[0]).toMatchObject({ file: 'apps/api/fly.toml' });
+  });
+
+  it('does not call a deployment example the repository’s current platform', async () => {
+    root = await makeRepo({
+      'package.json': APP_MANIFEST,
+      'examples/fly.toml': 'app = "sample"\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+
+    expect(facts.existingDeployments).toHaveLength(0);
+  });
+
   it('tells an infrastructure-as-code user that we are not taking anything over', async () => {
     root = await makeRepo({
       'package.json': APP_MANIFEST,
@@ -114,7 +200,7 @@ describe('the existing-deployment probe', () => {
     const composed = composeConfig({ facts, projectName: 'orders' });
 
     expect(composed.gaps.find((gap) => gap.subject === 'terraform')?.message).toContain(
-      'does not read, change, or take over anything Terraform manages'
+      'does not read, change, or take over anything those files may manage'
     );
   });
 

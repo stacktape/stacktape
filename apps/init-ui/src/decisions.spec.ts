@@ -72,4 +72,25 @@ describe('the copy itself', () => {
       }
     }
   });
+
+  it('does not present an infrastructure declaration as proof of live data', () => {
+    const copy = DECISION_COPY['external-database-disposition']!;
+    const parameters = { provider: 'aws', basis: 'deployment-manifest', dependencyKind: 'postgres' };
+
+    expect(copy.summary(parameters, 'point-at-existing')).toContain('declared');
+    expect(copy.detail(parameters, 'point-at-existing')).toContain('cannot tell us whether it was deployed');
+    expect(copy.detail(parameters, 'point-at-existing')).not.toContain('has your data');
+  });
+
+  it('calls a newly created event resource separate and empty', () => {
+    const copy = DECISION_COPY['external-database-disposition']!;
+    const parameters = {
+      dependencyKind: 'queue',
+      provider: 'aws',
+      basis: 'deployment-manifest'
+    };
+
+    expect(copy.summary(parameters, 'create-new')).toBe('Creating a new queue on AWS');
+    expect(copy.consequence?.('create-new', parameters)).toBe('A separate, empty queue is created on AWS.');
+  });
 });

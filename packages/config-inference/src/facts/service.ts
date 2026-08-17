@@ -47,6 +47,16 @@ export const environmentVariableUseSchema = z.object({
   dependencyName: z.string().min(1).optional(),
   /** Which service it addresses, when the role is `cross-service-reference`. */
   targetServiceName: z.string().min(1).optional(),
+  /**
+   * Which part of that service's address the source manifest requests.
+   *
+   * Render distinguishes a hostname, port and `host:port`, while Stacktape's portable service
+   * reference is a complete URL. Keeping the observed shape lets the composer refuse a lossy
+   * conversion instead of quietly putting `https://...` where an application expects a bare host.
+   */
+  targetServiceProperty: z.enum(['url', 'host', 'port', 'hostport']).optional(),
+  /** A deployment manifest supplies a value, but init deliberately retained only its name. */
+  hasDeclaredValue: z.boolean().optional(),
   /** False when the code has a working fallback for its absence. */
   required: z.boolean().default(true),
   evidence: z.array(citationSchema).default([])
@@ -84,6 +94,8 @@ export const checkServiceConsistency = (
     executionModel: ExecutionModel;
     schedule?: string | undefined;
     exposesHttp: boolean;
+    functionEntrypoint?: string | undefined;
+    functionTriggers?: readonly FunctionTrigger[] | undefined;
     environmentVariables: readonly Pick<
       EnvironmentVariableUse,
       'name' | 'role' | 'dependencyName' | 'targetServiceName'
@@ -105,6 +117,13 @@ export const checkServiceConsistency = (
       code: 'custom',
       path: ['executionModel'],
       message: 'A service cannot both serve HTTP and run once to completion.'
+    });
+  }
+  if ((service.functionTriggers?.length ?? 0) > 0 && service.functionEntrypoint === undefined) {
+    ctx.addIssue({
+      code: 'custom',
+      path: ['functionTriggers'],
+      message: 'Function triggers require a `functionEntrypoint`.'
     });
   }
   for (const variable of service.environmentVariables) {
@@ -135,6 +154,42 @@ export const repositoryPathSchema = z
   // the probes work from, where `apps\web` and `a//b` are simply not names anything has.
   .refine((value) => !value.includes('\\'), 'must use forward slashes')
   .refine((value) => !value.includes('//'), 'must not contain an empty path segment');
+
+/**
+ * An event that invokes a handler-shaped service.
+ *
+ * These are observations from deployment descriptors such as AWS SAM, not infrastructure choices:
+ * the composer still decides which Stacktape integration represents each trigger.
+ */
+export const functionTriggerSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('http'),
+    method: z.string().min(1),
+    path: z.string().min(1)
+  }),
+  z.object({
+    type: z.literal('queue'),
+    dependencyName: z.string().min(1),
+    batchSize: z.number().int().positive().optional()
+  }),
+  z.object({ type: z.literal('topic'), dependencyName: z.string().min(1) }),
+  z.object({
+    type: z.literal('object-storage'),
+    dependencyName: z.string().min(1),
+    eventType: z.string().min(1).optional()
+  }),
+  z.object({ type: z.literal('schedule'), rate: z.string().min(1) })
+]);
+
+export type FunctionTrigger = z.infer<typeof functionTriggerSchema>;
+
+const containerEntrypointSchema = z
+  .string()
+  .min(1)
+  .refine((value) => {
+    const file = value.split(':')[0];
+    return file !== undefined && repositoryPathSchema.safeParse(file).success;
+  }, 'must begin with a repository-relative source file');
 
 /**
  * Everything a service is, apart from where the claim came from.
@@ -197,6 +252,19 @@ export const serviceShape = {
   // ── How it is built and started ──────────────────────────────────────────────────────────────
   buildCommand: z.string().min(1).optional(),
   startCommand: z.string().min(1).optional(),
+  /**
+   * Repository directory from which packaging/build commands run when it differs from the source
+   * directory that owns the service. Deployment manifests commonly build a child app from the
+   * monorepo root; keeping the two paths separate prevents root-level env files from being assigned
+   * to every app while preserving the declared Docker/build context.
+   */
+  buildRoot: repositoryPathSchema.optional(),
+  /** Source entrypoint for Stacktape's container buildpack, optionally followed by `:app` for Python. */
+  containerEntrypoint: containerEntrypointSchema.optional(),
+  /** Source file exporting a Lambda-compatible handler. Its presence proves this is per-invocation compute. */
+  functionEntrypoint: repositoryPathSchema.optional(),
+  /** Repository-declared events that invoke `functionEntrypoint`. */
+  functionTriggers: z.array(functionTriggerSchema).default([]),
   /** Repository-relative path to a Dockerfile, when the service ships one. */
   dockerfile: repositoryPathSchema.optional(),
   healthCheckPath: z.string().min(1).optional(),
