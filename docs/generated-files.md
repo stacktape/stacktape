@@ -57,6 +57,9 @@ provides CLI declaration generation and relies on the CLI's TypeScript program. 
 compiler merely to eliminate the cross-package write. Move it only when one compiler can own both uses and preserve the
 schema byte-for-byte.
 
+The VS Code extension build copies that canonical schema into `apps/vscode-extension/dist/config-schema.json`. The copy
+is ignored build output and gives the installed extension an offline fallback; it is not another schema owner.
+
 `apps/cli/.generated/monaco-declarations` is intentionally ignored materialization. Docs and Console request
 `@stacktape/cli#generate:monaco` through Turbo, then consume the four declarations. Console's copied public files and
 Prisma's generated client follow the same materialization rule.

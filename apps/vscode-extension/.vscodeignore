@@ -1,0 +1,15 @@
+.vscode/**
+.github/**
+examples/**
+node_modules/**
+scripts/**
+src/**
+.vscode-test/**
+**/*.map
+**/*.ts
+**/*.tsbuildinfo
+**/*.vsix
+**/*.tar.gz
+.gitignore
+pnpm-lock.yaml
+tsconfig.json

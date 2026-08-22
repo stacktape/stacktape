@@ -7,6 +7,7 @@ apps/
   cli/           CLI, synthesis, deployment orchestration, MCP and helper Lambdas
   docs/          Astro documentation site
   init-ui/       React UI embedded by `stacktape init`
+  vscode-extension/ Stacktape language support and CLI commands for VS Code
   website/       Astro marketing site
   console/       private submodule: API and UI
 packages/
@@ -52,6 +53,10 @@ invariants.
 
 Helper Lambdas remain under `apps/cli/helper-lambdas`. They are separately built deployment artifacts, not standalone
 products, and they currently depend on CLI-owned contracts.
+
+The VS Code extension embeds the canonical config schema produced by the CLI generator. It delegates ordinary YAML
+language behavior to the maintained `yaml-language-server` package and owns only Stacktape-specific references, schema
+selection, code lenses, and command integration. It does not carry a fork of the upstream YAML implementation.
 
 ## Console layout
 

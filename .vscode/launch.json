@@ -1,0 +1,34 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "VS Code extension: isolated examples",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "${workspaceFolder}/apps/vscode-extension/examples",
+        "--extensionDevelopmentPath=${workspaceFolder}/apps/vscode-extension",
+        "--disable-extensions"
+      ],
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/apps/vscode-extension/dist/**/*.cjs"],
+      "preLaunchTask": "Build VS Code extension",
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "name": "VS Code extension: examples with installed extensions",
+      "type": "extensionHost",
+      "request": "launch",
+      "runtimeExecutable": "${execPath}",
+      "args": [
+        "${workspaceFolder}/apps/vscode-extension/examples",
+        "--extensionDevelopmentPath=${workspaceFolder}/apps/vscode-extension"
+      ],
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/apps/vscode-extension/dist/**/*.cjs"],
+      "preLaunchTask": "Build VS Code extension",
+      "internalConsoleOptions": "neverOpen"
+    }
+  ]
+}

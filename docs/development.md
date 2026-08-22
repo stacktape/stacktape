@@ -29,12 +29,17 @@ pnpm dev:console       # Console API and UI through Stacktape dev mode
 pnpm dev:console:ui    # UI only at http://localhost:4000, using the deployed dev API
 pnpm dev:docs           # documentation at http://localhost:9001
 pnpm dev:website
+pnpm dev:vscode-extension # rebuild the VS Code extension on changes
 pnpm dev:wizard-ui      # rebuild the init wizard on changes
 ```
 
 `dev:cli` asks Turbo to materialize the helper Lambdas and init UI before Bun runs the command. Turbo reuses those
 outputs until their inputs change. The command runs with `apps/cli` as its working directory, so relative config paths
 start there.
+
+For extension work, run `pnpm dev:vscode-extension`, then launch an Extension Development Host from VS Code with
+`apps/vscode-extension` as the extension development path. `pnpm --filter vscode-stacktape test` exercises the bundled
+language server over LSP; `pnpm package:vscode-extension` creates an installable VSIX.
 
 Use `pnpm dev:console:ui` for visual work. Use `pnpm dev:console` when API types or behavior changed; it maintains the
 `console-app-devlocal` stack and therefore needs the credentials described in `apps/console/README.md`.

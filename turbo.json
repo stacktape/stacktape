@@ -125,6 +125,17 @@
       "cache": false,
       "persistent": true
     },
+    "vscode-stacktape#build": {
+      "description": "Bundle the VS Code extension and its language server with the canonical Stacktape schema",
+      "dependsOn": ["@stacktape/cli#generate"],
+      "outputs": ["dist/**"]
+    },
+    "vscode-stacktape#dev": {
+      "description": "Continuously bundle the VS Code extension after materializing the canonical schema",
+      "dependsOn": ["@stacktape/cli#generate"],
+      "cache": false,
+      "persistent": true
+    },
     "@stacktape/ui-react#dev": {
       "with": ["@stacktape/design-tokens#dev"],
       "cache": false,

@@ -1,0 +1,69 @@
+# ══════════════════════════════════════════════════════════════════════════════
+#  Stacktape extension — TEST FIXTURE
+#  The notes marked  ▶ TEST  tell you what to try and what you should see.
+#  "Unknown resource / Unknown variable" warnings come from THIS extension.
+#  (Other squiggles may come from JSON-schema validation — that's expected too.)
+# ══════════════════════════════════════════════════════════════════════════════
+
+variables:
+  appName: my-test-app
+
+resources:
+  apiGateway:
+    type: http-api-gateway
+    properties:
+      cors:
+        enabled: true
+
+  postsTable:
+    type: dynamo-db-table
+    properties:
+      primaryKey:
+        partitionKey:
+          name: id
+          type: string
+
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: ./src/index.ts
+
+      # ▶ TEST go-to-definition: click "postsTable" below, press F12 → jumps to its definition.
+      # ▶ TEST validation:       "ghostTable" should get a yellow "Unknown resource" squiggle.
+      connectTo:
+        - postsTable
+        - ghostTable
+
+      environment:
+        # ▶ TEST hover:      hover over "postsTable" in the directive below
+        #                    → "References resource postsTable of type dynamo-db-table".
+        # ▶ TEST go-to-def:  F12 (or Ctrl+Click) on "postsTable" → jumps to the definition.
+        - name: TABLE_ARN
+          value: $ResourceParam('postsTable', 'arn')
+
+        # ▶ TEST validation: "missingTable" should get an "Unknown resource" squiggle.
+        - name: BAD_TABLE
+          value: $ResourceParam('missingTable', 'arn')
+
+        # valid variable reference — should NOT warn.
+        - name: APP_NAME
+          value: $Var('appName')
+
+        # ▶ TEST validation: "nope" should get an "Unknown variable" squiggle.
+        - name: BAD_VAR
+          value: $Var('nope')
+
+        # ▶ TEST completion: put the cursor between the empty quotes ('') below and press
+        #                    Ctrl+Space → it should suggest postsTable, apiGateway, api.
+        - name: COMPLETE_ME
+          value: $ResourceParam('', 'arn')
+
+      events:
+        - type: http-api-gateway
+          properties:
+            httpApiGatewayName: apiGateway
+            path: /
+            method: '*'

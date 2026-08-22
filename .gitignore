@@ -7,6 +7,8 @@ coverage/
 dist/
 node_modules/
 *.tsbuildinfo
+*.vsix
+.vscode-test/
 
 # Local credentials and deployed-stack output (see DEVELOPMENT.md)
 .env*

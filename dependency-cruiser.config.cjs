@@ -73,6 +73,12 @@ module.exports = {
       severity: 'error',
       from: { path: '^apps/website/' },
       to: { path: '^apps/(?!website/)' }
+    },
+    {
+      name: 'vscode-extension-does-not-import-other-apps',
+      severity: 'error',
+      from: { path: '^apps/vscode-extension/' },
+      to: { path: '^apps/(?!vscode-extension/)' }
     }
   ],
   options: {
@@ -86,7 +92,7 @@ module.exports = {
        */
       path:
         '^apps/(cli/(@generated|generated|starter-projects|_test-stacks|__release|__release-npm|__stacktape-dist|__cli-dist|__dist|\\.stacktape)/|cli/starter-projects-metadata\\.json$' +
-        '|docs/dist/|init-ui/dist/|console/(api/(@generated|dist)|ui/(dist|public))/)'
+        '|docs/dist/|init-ui/dist/|vscode-extension/dist/|console/(api/(@generated|dist)|ui/(dist|public))/)'
     },
     includeOnly: '^(apps|packages)/',
     tsConfig: { fileName: 'tsconfig.base.json' }

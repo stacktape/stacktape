@@ -5,7 +5,7 @@
 This is the public Stacktape monorepo. `apps/console` is a private Git submodule containing the Console API and UI.
 Public clones must install, test, build, and produce release artifacts without that submodule.
 
-- `apps/*` are runnable products: CLI, documentation, init wizard, website, and the private Console.
+- `apps/*` are runnable products: CLI, documentation, init wizard, website, VS Code extension, and the private Console.
 - `packages/*` are capabilities with real consumers. Packages never import applications.
 - Public code never imports private Console source.
 - [`docs/architecture.md`](docs/architecture.md) describes package ownership and dependency direction.

@@ -30,6 +30,11 @@
       "project": ["src/**/*.{ts,tsx}", "vite.config.ts"],
       "ignore": ["dist/**"]
     },
+    "apps/vscode-extension": {
+      "entry": ["src/extension/index.ts", "src/language-server/server.ts", "scripts/*.ts", "src/**/*.test.ts"],
+      "project": ["src/**/*.ts", "scripts/*.ts"],
+      "ignore": ["dist/**"]
+    },
     "apps/console/api": {
       "entry": [
         "src/index.ts",

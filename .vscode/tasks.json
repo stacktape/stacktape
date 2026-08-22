@@ -1,0 +1,13 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "Build VS Code extension",
+      "type": "shell",
+      "command": "pnpm --filter vscode-stacktape build:dev",
+      "presentation": {
+        "reveal": "silent"
+      }
+    }
+  ]
+}

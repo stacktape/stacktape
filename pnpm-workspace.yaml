@@ -2,6 +2,7 @@ packages:
   - apps/cli
   - apps/docs
   - apps/init-ui
+  - apps/vscode-extension
   - apps/website
   # Named rather than globbed: the console also holds non-package folders (documents/), and a glob
   # would demand a package.json of every one of them. Both paths are simply absent in a public-only

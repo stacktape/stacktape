@@ -1,0 +1,221 @@
+{
+  "name": "vscode-stacktape",
+  "displayName": "Stacktape",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Validation, autocomplete & more for Stacktape configuration files.",
+  "categories": [
+    "Linters",
+    "Programming Languages"
+  ],
+  "keywords": [
+    "autocompletion",
+    "stacktape",
+    "validation",
+    "yaml"
+  ],
+  "bugs": "https://github.com/stacktape/stacktape/issues",
+  "license": "MIT",
+  "author": "Stacktape",
+  "contributors": [],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/stacktape/stacktape.git",
+    "directory": "apps/vscode-extension"
+  },
+  "publisher": "stacktape",
+  "type": "module",
+  "main": "./dist/extension/index.cjs",
+  "scripts": {
+    "build": "node scripts/build.ts",
+    "build:dev": "node scripts/build.ts --dev",
+    "dev": "node scripts/build.ts --dev --watch",
+    "lint": "oxlint src scripts --deny-warnings --report-unused-disable-directives",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test src && node scripts/smoke.ts",
+    "package": "pnpm build && vsce package --no-dependencies",
+    "publish:vscode": "pnpm build && vsce publish --no-dependencies",
+    "login:vscode": "vsce login stacktape"
+  },
+  "dependencies": {
+    "vscode-languageclient": "9.0.1",
+    "vscode-languageserver": "9.0.1",
+    "vscode-languageserver-textdocument": "1.0.12",
+    "vscode-uri": "3.1.0",
+    "yaml-language-server": "1.24.0"
+  },
+  "devDependencies": {
+    "@types/bun": "catalog:",
+    "@types/node": "catalog:",
+    "@types/vscode": "1.82.0",
+    "@vscode/vsce": "3.9.2",
+    "esbuild": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:"
+  },
+  "contributes": {
+    "languages": [
+      {
+        "id": "stacktape",
+        "aliases": [
+          "Stacktape"
+        ],
+        "filenamePatterns": [
+          "*stacktape.yml",
+          "*stp.yml",
+          "*stacktape.yaml",
+          "*stp.yaml",
+          "*stacktape.debug.yml",
+          "*stp.debug.yml",
+          "*stacktape.debug.yaml",
+          "*stp.debug.yaml"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "stacktape",
+        "scopeName": "source.yaml",
+        "path": "./syntaxes/yaml.tmLanguage.json"
+      }
+    ],
+    "configuration": {
+      "title": "Stacktape",
+      "properties": {
+        "stacktape.validate": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable validation of Stacktape configuration files."
+        },
+        "stacktape.hover": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable hover documentation for Stacktape configuration files."
+        },
+        "stacktape.completion": {
+          "type": "boolean",
+          "default": true,
+          "description": "Enable/disable autocompletion for Stacktape configuration files."
+        },
+        "stacktape.validateReferences": {
+          "type": "boolean",
+          "default": true,
+          "description": "Validate that $ResourceParam/$CfResourceParam/$Var directive arguments and connectTo entries reference a resource/variable defined in the file. Disable this if your resources or variables are split across multiple files."
+        },
+        "stacktape.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Traces the communication between VS Code and the Stacktape language server."
+        },
+        "stacktape.defaultStage": {
+          "type": "string",
+          "default": "",
+          "description": "Default stage prefilled when running Stacktape CLI commands (Deploy / Preview / Validate)."
+        },
+        "stacktape.defaultRegion": {
+          "type": "string",
+          "default": "",
+          "description": "Default AWS region prefilled when running Stacktape CLI commands."
+        },
+        "stacktape.profile": {
+          "type": "string",
+          "default": "",
+          "description": "AWS profile passed to Stacktape CLI commands (optional)."
+        }
+      }
+    },
+    "configurationDefaults": {
+      "[stacktape]": {
+        "editor.insertSpaces": true,
+        "editor.tabSize": 2,
+        "editor.quickSuggestions": {
+          "other": true,
+          "comments": false,
+          "strings": true
+        },
+        "editor.autoIndent": "keep"
+      }
+    },
+    "commands": [
+      {
+        "command": "stacktape.validate",
+        "title": "Validate config",
+        "category": "Stacktape",
+        "icon": "$(check)"
+      },
+      {
+        "command": "stacktape.preview",
+        "title": "Preview changes (diff)",
+        "category": "Stacktape",
+        "icon": "$(git-compare)"
+      },
+      {
+        "command": "stacktape.deploy",
+        "title": "Deploy stack",
+        "category": "Stacktape",
+        "icon": "$(rocket)"
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "stacktape.validate",
+          "when": "resourceFilename =~ /(stacktape|stp)(\\.debug|\\.config)?\\.(ya?ml|ts)$/"
+        },
+        {
+          "command": "stacktape.preview",
+          "when": "resourceFilename =~ /(stacktape|stp)(\\.debug|\\.config)?\\.(ya?ml|ts)$/"
+        },
+        {
+          "command": "stacktape.deploy",
+          "when": "resourceFilename =~ /(stacktape|stp)(\\.debug|\\.config)?\\.(ya?ml|ts)$/"
+        }
+      ],
+      "editor/title": [
+        {
+          "command": "stacktape.preview",
+          "when": "resourceFilename =~ /(stacktape|stp)(\\.debug|\\.config)?\\.(ya?ml|ts)$/",
+          "group": "navigation@1"
+        },
+        {
+          "command": "stacktape.deploy",
+          "when": "resourceFilename =~ /(stacktape|stp)(\\.debug|\\.config)?\\.(ya?ml|ts)$/",
+          "group": "navigation@2"
+        }
+      ],
+      "editor/context": [
+        {
+          "command": "stacktape.validate",
+          "when": "resourceFilename =~ /(stacktape|stp)(\\.debug|\\.config)?\\.(ya?ml|ts)$/",
+          "group": "stacktape@1"
+        },
+        {
+          "command": "stacktape.preview",
+          "when": "resourceFilename =~ /(stacktape|stp)(\\.debug|\\.config)?\\.(ya?ml|ts)$/",
+          "group": "stacktape@2"
+        },
+        {
+          "command": "stacktape.deploy",
+          "when": "resourceFilename =~ /(stacktape|stp)(\\.debug|\\.config)?\\.(ya?ml|ts)$/",
+          "group": "stacktape@3"
+        }
+      ]
+    }
+  },
+  "activationEvents": [
+    "onLanguage:stacktape",
+    "workspaceContains:**/*{stacktape,stp}*.{yml,yaml}"
+  ],
+  "icon": "static/stacktape-logo.png",
+  "preview": false,
+  "engines": {
+    "vscode": "^1.82.0"
+  },
+  "packageManager": "pnpm@11.17.0"
+}

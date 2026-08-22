@@ -15,6 +15,7 @@
     "**/package.json",
     "**/pnpm-lock.yaml",
     "apps/*/src/pages/index.astro",
+    "apps/vscode-extension/syntaxes/**",
     "apps/cli/**",
     "apps/console/api/infrastructure/console-connection/**",
     "apps/console/api/scripts/get-customer-tokens.ts",
