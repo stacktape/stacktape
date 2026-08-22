@@ -149,4 +149,61 @@ describe('the server entrypoint probe', () => {
     });
     expect(facts.dependencies[0]?.consumedBy).toEqual(['worker']);
   });
+
+  it('uses the worker package identity for a conventional src/index BullMQ entrypoint', async () => {
+    const repositoryRoot = await makeRepo({
+      'apps/worker/package.json': JSON.stringify({
+        name: '@acme/worker',
+        scripts: { start: 'node dist/index.js' },
+        dependencies: { bullmq: '5' }
+      }),
+      'apps/worker/src/index.ts': [
+        'import { Worker } from "bullmq";',
+        'new Worker("emails", async job => job.data);'
+      ].join('\n')
+    });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'worker',
+      path: 'apps/worker',
+      processType: 'worker',
+      containerEntrypoint: 'apps/worker/src/index.ts'
+    });
+  });
+
+  it('does not deploy server-shaped test files', async () => {
+    const repositoryRoot = await makeRepo({
+      'package.json': '{"name":"database-library"}',
+      'src/wait-for-database.test.ts': 'const server = net.createServer();\nserver.listen(5432);\n',
+      'src/http.spec.ts': 'const app = express();\napp.listen(3000);\n'
+    });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [serverEntrypointProbe]
+    });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('recognises a configured Go http.Server', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/api\n',
+      'main.go': 'package main\nfunc main() { server := &http.Server{}; server.ListenAndServe() }\n'
+    });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [serverEntrypointProbe]
+    });
+
+    expect(facts.services[0]).toMatchObject({
+      language: 'go',
+      exposesHttp: true,
+      containerEntrypoint: 'main.go'
+    });
+  });
 });

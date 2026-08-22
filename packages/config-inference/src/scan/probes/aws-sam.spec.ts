@@ -112,7 +112,10 @@ describe('the AWS SAM probe', () => {
       ].join('\n')
     });
 
-    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [awsSamProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [awsSamProbe]
+    });
 
     expect(facts.services[0]).toMatchObject({
       name: 'worker',
@@ -120,9 +123,20 @@ describe('the AWS SAM probe', () => {
       language: 'python',
       functionTriggers: [{ type: 'queue', dependencyName: 'jobsQueue', batchSize: 10 }],
       environmentVariables: [
-        expect.objectContaining({ name: 'LOG_LEVEL', role: 'runtime-config' }),
-        expect.objectContaining({ name: 'QUEUE_URL', role: 'infra-dependency', dependencyName: 'jobsQueue' }),
-        expect.objectContaining({ name: 'STRIPE_SECRET_KEY', role: 'third-party-secret' })
+        expect.objectContaining({
+          name: 'LOG_LEVEL',
+          role: 'runtime-config',
+          safeLiteralValue: 'info'
+        }),
+        expect.objectContaining({
+          name: 'QUEUE_URL',
+          role: 'infra-dependency',
+          dependencyName: 'jobsQueue'
+        }),
+        expect.objectContaining({
+          name: 'STRIPE_SECRET_KEY',
+          role: 'third-party-secret'
+        })
       ]
     });
     expect(facts.dependencies[0]).toMatchObject({
@@ -165,7 +179,10 @@ describe('the AWS SAM probe', () => {
       ].join('\n')
     });
 
-    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [awsSamProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [awsSamProbe]
+    });
 
     expect(facts.services[0]).toMatchObject({
       name: 'ticket',
@@ -173,6 +190,37 @@ describe('the AWS SAM probe', () => {
       functionEntrypoint: 'src/main/java/com/example/TicketFunction.java',
       functionTriggers: [{ type: 'http', method: 'POST', path: '/tickets' }]
     });
-    expect(facts.dependencies[0]).toMatchObject({ kind: 'dynamodb', consumedBy: ['ticket'] });
+    expect(facts.dependencies[0]).toMatchObject({
+      kind: 'dynamodb',
+      consumedBy: ['ticket']
+    });
+  });
+
+  it('imports EventBridge Scheduler ScheduleV2 events', async () => {
+    const repositoryRoot = await makeRepo({
+      'src/main.go': 'package main\nfunc main() {}\n',
+      'template.yaml': [
+        'Transform: AWS::Serverless-2016-10-31',
+        'Resources:',
+        '  SchedulerFunction:',
+        '    Type: AWS::Serverless::Function',
+        '    Properties:',
+        '      CodeUri: src/',
+        '      Handler: main',
+        '      Runtime: go1.x',
+        '      Events:',
+        '        Tick:',
+        '          Type: ScheduleV2',
+        '          Properties:',
+        "            ScheduleExpression: 'rate(5 minute)'"
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [awsSamProbe]
+    });
+
+    expect(facts.services[0]?.functionTriggers).toEqual([{ type: 'schedule', rate: 'rate(5 minute)' }]);
   });
 });

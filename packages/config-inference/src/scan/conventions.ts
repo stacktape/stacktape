@@ -61,8 +61,14 @@ const jvmCommands = (context: ConventionContext): ConventionalCommands | undefin
     // Quarkus' run-from-source mode is explicitly a dev mode, so the recommendation is the packaged
     // form its own build produces.
     return maven
-      ? { start: ['java -jar target/quarkus-app/quarkus-run.jar'], build: [`${mvn} -DskipTests package`] }
-      : { start: ['java -jar build/quarkus-app/quarkus-run.jar'], build: [`${gradlew} build -x test`] };
+      ? {
+          start: ['java -jar target/quarkus-app/quarkus-run.jar'],
+          build: [`${mvn} -DskipTests package`]
+        }
+      : {
+          start: ['java -jar build/quarkus-app/quarkus-run.jar'],
+          build: [`${gradlew} build -x test`]
+        };
   }
   if (context.framework === 'micronaut') {
     return maven ? { start: [`${mvn} mn:run`] } : { start: [`${gradlew} run`, 'java -jar build/libs/*-all.jar'] };
@@ -95,7 +101,9 @@ export const conventionalCommandsFor = (context: ConventionContext): Conventiona
     case 'rails':
       // `bin/rails` is generated into every Rails app; the server it starts (Puma) is the
       // production server, not a development stand-in.
-      return { start: [`${context.has('bin/rails') ? 'bin/rails' : 'bundle exec rails'} server -b 0.0.0.0`] };
+      return {
+        start: [`${context.has('bin/rails') ? 'bin/rails' : 'bundle exec rails'} server -b 0.0.0.0`]
+      };
     case 'phoenix':
       return { start: ['mix phx.server'] };
     case 'laravel':
@@ -121,6 +129,7 @@ export const conventionalCommandsFor = (context: ConventionContext): Conventiona
   }
 
   // Language-level conventions, for services whose framework the table does not name.
+  if (context.language === 'dotnet') return { start: ['dotnet run'] };
   if (context.language === 'go') return goCommands(context);
   return undefined;
 };

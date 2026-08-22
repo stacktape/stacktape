@@ -56,7 +56,7 @@ describe('classifyFileAccess', () => {
 
 describe('isSkippedDirectoryName', () => {
   it('skips dependency, build, and credential directories', () => {
-    for (const name of ['node_modules', 'dist', '.git', 'target', '.ssh', '.aws']) {
+    for (const name of ['node_modules', 'deps', '_build', 'dist', '.git', 'target', '.ssh', '.aws']) {
       expect(isSkippedDirectoryName(name)).toBe(true);
     }
   });

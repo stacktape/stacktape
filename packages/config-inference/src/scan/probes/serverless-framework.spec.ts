@@ -55,7 +55,10 @@ describe('the serverless framework probe', () => {
       'src/handlers/report.ts': 'export const main = async () => undefined;'
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [serverlessFrameworkProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [serverlessFrameworkProbe]
+    });
 
     const create = facts.services.find((entry) => entry.name === 'createOrder');
     expect(create).toMatchObject({
@@ -74,7 +77,10 @@ describe('the serverless framework probe', () => {
       'serverless.yml': ['service: orders', 'functions:', '  ghost:', '    handler: src/missing.main', ''].join('\n')
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [serverlessFrameworkProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [serverlessFrameworkProbe]
+    });
     expect(facts.services).toEqual([]);
   });
 
@@ -123,7 +129,10 @@ describe('the serverless framework probe', () => {
       'src/worker.ts': 'export const handler = async () => undefined;'
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [serverlessFrameworkProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [serverlessFrameworkProbe]
+    });
     const worker = facts.services.find((entry) => entry.name === 'worker');
     const byKind = Object.fromEntries(facts.dependencies.map((entry) => [entry.kind, entry]));
 
@@ -140,7 +149,10 @@ describe('the serverless framework probe', () => {
       hostingEvidence: 'deployment-manifest'
     });
     expect(byKind.queue?.currentlyHostedOn).toBeUndefined();
-    expect(byKind.dynamodb).toMatchObject({ consumedBy: ['worker'], addressedBy: ['TABLE_NAME'] });
+    expect(byKind.dynamodb).toMatchObject({
+      consumedBy: ['worker'],
+      addressedBy: ['TABLE_NAME']
+    });
     expect(JSON.stringify(facts)).not.toContain('/orders/stripe');
   });
 
@@ -166,7 +178,10 @@ describe('the serverless framework probe', () => {
       'todos/create.js': 'exports.handler = async () => ({ statusCode: 201 });'
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [serverlessFrameworkProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [serverlessFrameworkProbe]
+    });
     const create = facts.services.find((entry) => entry.name === 'create');
     const table = facts.dependencies.find((entry) => entry.kind === 'dynamodb');
 
@@ -177,6 +192,135 @@ describe('the serverless framework probe', () => {
         dependencyName: 'mainTable'
       })
     );
-    expect(table).toMatchObject({ consumedBy: ['create'], addressedBy: ['DYNAMODB_TABLE'] });
+    expect(table).toMatchObject({
+      consumedBy: ['create'],
+      addressedBy: ['DYNAMODB_TABLE']
+    });
+  });
+
+  it('resolves a custom-name expression shared by an environment variable and local resource', async () => {
+    root = await makeRepo({
+      'serverless.yml': [
+        'service: todos',
+        'custom:',
+        '  tableName: ${self:service}-${sls:stage}-todos',
+        'provider:',
+        '  name: aws',
+        '  environment:',
+        '    TODOS_TABLE: ${self:custom.tableName}',
+        'functions:',
+        '  create:',
+        '    handler: todos/create.handler',
+        'resources:',
+        '  Resources:',
+        '    TodosTable:',
+        '      Type: AWS::DynamoDB::Table',
+        '      Properties:',
+        '        TableName: ${self:custom.tableName}',
+        ''
+      ].join('\n'),
+      'todos/create.js': 'exports.handler = async () => ({ statusCode: 201 });'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [serverlessFrameworkProbe]
+    });
+    const create = facts.services.find((entry) => entry.name === 'create');
+
+    expect(create?.environmentVariables).toContainEqual(
+      expect.objectContaining({
+        name: 'TODOS_TABLE',
+        role: 'infra-dependency',
+        dependencyName: 'mainTable'
+      })
+    );
+    expect(facts.dependencies[0]).toMatchObject({
+      consumedBy: ['create'],
+      addressedBy: ['TODOS_TABLE']
+    });
+  });
+
+  it('preserves unsupported event declarations as explicit gaps instead of claiming there is no event', async () => {
+    root = await makeRepo({
+      'serverless.yml': [
+        'service: realtime',
+        'functions:',
+        '  connect:',
+        '    handler: handler.connect',
+        '    events:',
+        '      - websocket:',
+        '          route: $connect',
+        '  consume:',
+        '    handler: handler.consume',
+        '    events:',
+        '      - stream:',
+        '          type: kinesis',
+        '          arn: external-stream',
+        ''
+      ].join('\n'),
+      'handler.js': 'exports.connect = async () => {}; exports.consume = async () => {};'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [serverlessFrameworkProbe]
+    });
+
+    expect(facts.services.find((service) => service.name === 'connect')?.functionTriggers).toEqual([
+      { type: 'unmapped', sourceType: 'a WebSocket route' }
+    ]);
+    expect(facts.services.find((service) => service.name === 'consume')?.functionTriggers).toEqual([
+      { type: 'unmapped', sourceType: 'a Kinesis or DynamoDB stream event' }
+    ]);
+  });
+
+  it('imports Serverless Lift storage and queue constructs with their consumers', async () => {
+    root = await makeRepo({
+      'serverless.yml': [
+        'service: media',
+        'constructs:',
+        '  inputBucket:',
+        '    type: storage',
+        '  outputBucket:',
+        '    type: storage',
+        '  jobs:',
+        '    type: queue',
+        '    worker:',
+        '      handler: handler.consume',
+        'functions:',
+        '  replicate:',
+        '    handler: handler.replicate',
+        '    environment:',
+        '      OUTPUT_BUCKET: ${construct:outputBucket.bucketName}',
+        '    events:',
+        '      - s3:',
+        '          bucket: ${construct:inputBucket.bucketName}',
+        '          existing: true',
+        ''
+      ].join('\n'),
+      'handler.js': 'exports.replicate = async () => {}; exports.consume = async () => {};'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [serverlessFrameworkProbe]
+    });
+    const replicate = facts.services.find((service) => service.name === 'replicate');
+    const worker = facts.services.find((service) => service.name === 'jobsWorker');
+
+    expect(facts.dependencies.map((dependency) => dependency.name).toSorted()).toEqual([
+      'inputBucket',
+      'jobQueue',
+      'outputBucket'
+    ]);
+    expect(replicate?.functionTriggers).toEqual([{ type: 'object-storage', dependencyName: 'inputBucket' }]);
+    expect(replicate?.environmentVariables).toContainEqual(
+      expect.objectContaining({
+        name: 'OUTPUT_BUCKET',
+        dependencyName: 'outputBucket'
+      })
+    );
+    expect(worker?.functionTriggers).toEqual([{ type: 'queue', dependencyName: 'jobQueue' }]);
   });
 });

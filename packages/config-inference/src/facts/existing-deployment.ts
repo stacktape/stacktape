@@ -38,6 +38,7 @@ export const deploymentToolSchema = z.enum([
   'vercel',
   'netlify',
   'railway',
+  'cloudflare-workers',
   // Container orchestration, which may be anywhere.
   'kubernetes'
 ]);
@@ -84,5 +85,6 @@ export const DEPLOYMENT_TOOL_LABELS: Record<DeploymentTool, string> = {
   vercel: 'Vercel',
   netlify: 'Netlify',
   railway: 'Railway',
+  'cloudflare-workers': 'Cloudflare Workers',
   kubernetes: 'Kubernetes'
 };

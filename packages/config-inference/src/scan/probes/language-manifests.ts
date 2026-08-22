@@ -24,6 +24,7 @@
  */
 
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
+import type { ServiceFactInput } from '../../facts/service';
 import { languageOf } from '../language';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
@@ -51,6 +52,9 @@ const PACKAGE_SIGNALS: ReadonlyArray<{
       'tokio-postgres',
       'postgrex',
       'npgsql',
+      'aspire.npgsql',
+      'aspire.npgsql.entityframeworkcore.postgresql',
+      'npgsql.entityframeworkcore.postgresql',
       'postgresql',
       'ext-pdo_pgsql',
       'ext-pgsql'
@@ -109,6 +113,7 @@ const PACKAGE_SIGNALS: ReadonlyArray<{
       'jedis',
       'lettuce-core',
       'stackexchange.redis',
+      'aspire.stackexchange.redis',
       'redix'
     ],
     kinds: ['redis']
@@ -120,7 +125,16 @@ const PACKAGE_SIGNALS: ReadonlyArray<{
   // costs money, it looks deliberate, and the application is broken either way.
   { packages: ['celery', 'sidekiq', 'resque'], kinds: ['redis'] },
   {
-    packages: ['pika', 'amqp', 'amqp091-go', 'bunny', 'rabbitmq-client', 'lapin'],
+    packages: [
+      'pika',
+      'amqp',
+      'amqp091-go',
+      'bunny',
+      'rabbitmq-client',
+      'rabbitmq.client',
+      'aspire.rabbitmq.client',
+      'lapin'
+    ],
     kinds: ['amqp']
   },
   {
@@ -135,6 +149,10 @@ const PACKAGE_SIGNALS: ReadonlyArray<{
       'rdkafka'
     ],
     kinds: ['kafka']
+  },
+  {
+    packages: ['nats.go', 'async-nats', 'nats-py', 'nats.net'],
+    kinds: ['nats']
   },
   {
     packages: [
@@ -385,7 +403,22 @@ const normalise = (name: string): string => {
 export const languageManifestProbe: Probe = {
   name: 'language-manifests',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
-    const language = languageOf(context.files, '.');
+    const dotnetProjectPaths = context.files
+      .filter(
+        (file) =>
+          file.endsWith('.csproj') &&
+          !/(?:^|\/)(?:test|tests)(?:\/|$)|(?:^|\/)[^/]*(?:\.Tests?|Tests?)\//i.test(file) &&
+          !/(?:^|\/)(?:bin|obj)(?:\/|$)/i.test(file)
+      )
+      .slice(0, 100);
+    const rootLanguage = languageOf(context.files, '.');
+    // A JavaScript workspace root can orchestrate nested .NET services (Aspire is a common case).
+    // The JavaScript manifest probe still owns the JS apps; this probe must not let the root marker
+    // hide every csproj below it.
+    const language =
+      dotnetProjectPaths.length > 0 && (rootLanguage === undefined || rootLanguage === 'javascript')
+        ? 'dotnet'
+        : rootLanguage;
     // JavaScript has its own probe, which reads far more than a dependency list.
     if (language === undefined || language === 'javascript') return {};
 
@@ -394,10 +427,7 @@ export const languageManifestProbe: Probe = {
         const path = files.find((name) => context.files.includes(name));
         return path === undefined ? [] : [{ path, extract }];
       }),
-      ...context.files
-        .filter((file) => file.endsWith('.csproj') && !file.slice(0, -7).includes('/'))
-        .slice(0, 1)
-        .map((path) => ({ path, extract: CSPROJ_PACKAGES }))
+      ...dotnetProjectPaths.map((path) => ({ path, extract: CSPROJ_PACKAGES }))
     ];
     if (candidates.length === 0) return {};
 
@@ -417,8 +447,6 @@ export const languageManifestProbe: Probe = {
         if (key !== '' && !foundIn.has(key)) foundIn.set(key, path);
       }
     }
-    if (foundIn.size === 0) return {};
-
     const rawByPath = new Map(read.map(({ path, raw }) => [path, raw]));
     const cite = (packageName: string) => {
       const path = foundIn.get(packageName);
@@ -426,6 +454,45 @@ export const languageManifestProbe: Probe = {
       if (path === undefined || raw === undefined) return undefined;
       return citeFirstMatchOnly(path, raw, new RegExp(packageName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'i'));
     };
+
+    const dotnetServices: ServiceFactInput[] =
+      language !== 'dotnet'
+        ? []
+        : read.flatMap(({ path, raw }) => {
+            if (!path.endsWith('.csproj') || raw === undefined) return [];
+            const webSdk = /<Project\s+Sdk=["'][^"']*Microsoft\.NET\.Sdk\.Web/i.test(raw);
+            const executableAspNet =
+              /<OutputType>Exe<\/OutputType>/i.test(raw) &&
+              !/<UseMaui>true<\/UseMaui>/i.test(raw) &&
+              /<FrameworkReference\s+Include=["']Microsoft\.AspNetCore\.App["']/i.test(raw);
+            const web = webSdk || executableAspNet;
+            const worker = /<Project\s+Sdk=["'][^"']*Microsoft\.NET\.Sdk\.Worker/i.test(raw);
+            if (!web && !worker) return [];
+            const fileName = path.slice(path.lastIndexOf('/') + 1);
+            const name = fileName.replace(/\.csproj$/i, '');
+            const directory = path.slice(0, -(fileName.length + 1)) || '.';
+            const citation = citeFirstMatchOnly(
+              path,
+              raw,
+              web ? /Microsoft\.NET\.Sdk\.Web|Microsoft\.AspNetCore\.App/i : /Microsoft\.NET\.Sdk\.Worker/i,
+              'framework'
+            );
+            return [
+              {
+                name,
+                path: directory,
+                language: 'dotnet',
+                ...(web ? { framework: 'aspnet' } : {}),
+                exposesHttp: web,
+                executionModel: 'long-running' as const,
+                environmentVariables: [],
+                evidence: citation === undefined ? [] : [citation],
+                source: 'probe' as const
+              }
+            ];
+          });
+
+    if (foundIn.size === 0 && dotnetServices.length === 0) return {};
 
     const dependencies = new Map<DependencyKind, DependencyFact>();
     for (const signal of PACKAGE_SIGNALS) {
@@ -476,27 +543,30 @@ export const languageManifestProbe: Probe = {
     // A service, but only when something proves this is a running application rather than a library.
     // A dependency list alone does not: plenty of Python packages depend on `redis` and are not
     // deployed. HTTP or a start command is the proof, and the Procfile probe supplies the latter.
-    const services = exposesHttp
-      ? [
-          {
-            name: projectName ?? 'app',
-            path: '.',
-            language,
-            ...(framework === undefined ? {} : { framework: framework.name }),
-            exposesHttp: true,
-            executionModel: 'long-running' as const,
-            ...(streamlitEntrypoint === undefined
-              ? {}
-              : {
-                  startCommand: `streamlit run ${streamlitEntrypoint} --server.address 0.0.0.0 --server.port 80`
-                }),
-            evidence: [cite(framework?.packages[0] ?? server ?? ''), streamlitCitation].filter(
-              (citation) => citation !== undefined
-            ),
-            source: 'probe' as const
-          }
-        ]
-      : [];
+    const services =
+      dotnetServices.length > 0
+        ? dotnetServices
+        : exposesHttp
+          ? [
+              {
+                name: projectName ?? 'app',
+                path: '.',
+                language,
+                ...(framework === undefined ? {} : { framework: framework.name }),
+                exposesHttp: true,
+                executionModel: 'long-running' as const,
+                ...(streamlitEntrypoint === undefined
+                  ? {}
+                  : {
+                      startCommand: `streamlit run ${streamlitEntrypoint} --server.address 0.0.0.0 --server.port 80`
+                    }),
+                evidence: [cite(framework?.packages[0] ?? server ?? ''), streamlitCitation].filter(
+                  (citation) => citation !== undefined
+                ),
+                source: 'probe' as const
+              }
+            ]
+          : [];
 
     return {
       ...(services.length > 0 ? { services } : {}),

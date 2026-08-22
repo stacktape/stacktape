@@ -11,7 +11,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
-import { assembleCandidateFacts } from '../assemble';
+import { assembleCandidateFacts, createProbeContext } from '../assemble';
 import { environmentProbe } from './environment';
 
 let root: string;
@@ -41,7 +41,10 @@ describe('the environment probe hosting claim', () => {
       '.env.production': 'DATABASE_URL=postgres://db.abcdefgh.supabase.co:5432/postgres\n'
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [environmentProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [environmentProbe]
+    });
     const database = facts.dependencies.find((entry) => entry.kind === 'postgres');
 
     expect(database?.currentlyHostedOn).toBe('supabase');
@@ -53,9 +56,49 @@ describe('the environment probe hosting claim', () => {
       '.env.development': 'DATABASE_URL=postgres://localhost:5432/dev\n'
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [environmentProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [environmentProbe]
+    });
     const database = facts.dependencies.find((entry) => entry.kind === 'postgres');
 
     expect(database?.currentlyHostedOn).toBe('supabase');
+  });
+
+  it('uses template values to identify dependencies without claiming their example resources are live', async () => {
+    root = await makeRepo({
+      '.env.example': [
+        'DATABASE_URL=postgres://db.abcdefgh.supabase.co:5432/postgres',
+        'SQS_QUEUE_URL=https://sqs.us-east-1.amazonaws.com/123456789012/example-queue'
+      ].join('\n')
+    });
+
+    const output = await environmentProbe.run(createProbeContext(root, ['.env.example']));
+    const database = output.dependencies?.find((entry) => entry.kind === 'postgres');
+    const queue = output.dependencies?.find((entry) => entry.kind === 'queue');
+
+    expect(database).toMatchObject({
+      kind: 'postgres',
+      addressedBy: ['DATABASE_URL']
+    });
+    expect(queue).toMatchObject({
+      kind: 'queue',
+      addressedBy: ['SQS_QUEUE_URL']
+    });
+    expect(database?.currentlyHostedOn).toBeUndefined();
+    expect(database?.hostingEvidence).toBeUndefined();
+    expect(queue?.currentlyHostedOn).toBeUndefined();
+    expect(queue?.hostingEvidence).toBeUndefined();
+  });
+
+  it('keeps broker protocols distinct instead of translating RabbitMQ or NATS into SQS', async () => {
+    root = await makeRepo({
+      '.env.example': ['RABBITMQ_URL=amqp://rabbitmq:5672/orders', 'NATS_URL=nats://nats:4222'].join('\n')
+    });
+
+    const output = await environmentProbe.run(createProbeContext(root, ['.env.example']));
+
+    expect(output.dependencies?.map((entry) => entry.kind).toSorted()).toEqual(['amqp', 'nats']);
+    expect(output.dependencies?.some((entry) => entry.kind === 'queue')).toBe(false);
   });
 });

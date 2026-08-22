@@ -11,7 +11,12 @@ import { cp, mkdir, mkdtemp, readFile, rm } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join, resolve } from 'node:path';
-import { REAL_PROJECT_CORPUS, type RealProjectCorpusCase } from './init-real-project-corpus-cases';
+import {
+  REAL_PROJECT_APPLICATION_STRESS_CASES,
+  REAL_PROJECT_CORPUS,
+  REAL_PROJECT_PLATFORM_STRESS_CASES,
+  type RealProjectCorpusCase
+} from './init-real-project-corpus-cases';
 import { validateConfigYaml } from './code-generation/validate-config-string';
 
 type CorpusResult = {
@@ -32,6 +37,11 @@ type CorpusResult = {
     framework?: string;
     exposesHttp: boolean;
     executionModel: string;
+    processType?: string;
+    startCommand?: string;
+    containerEntrypoint?: string;
+    functionEntrypoint?: string;
+    dockerfile?: string;
   }>;
   dependencies: Array<{
     name: string;
@@ -66,6 +76,9 @@ const selected = new Set(
     .filter(Boolean)
 );
 const keepWorkdirs = args.has('--keep-workdirs');
+const stressMode = args.has('--stress');
+const allMode = args.has('--all');
+const discoveryMode = args.has('--discover') || stressMode || allMode;
 
 // This corpus is a release check, not a product session. It must never emit analytics.
 process.env.STP_DISABLE_TELEMETRY = '1';
@@ -93,7 +106,13 @@ const ensureCheckout = async (corpusRoot: string, corpusCase: RealProjectCorpusC
   const current = await run(['git', 'rev-parse', 'HEAD'], path).catch(() => '');
   if (current !== corpusCase.commit) {
     await run(['git', 'fetch', '--depth', '1', 'origin', corpusCase.commit], path);
-    await run(['git', 'checkout', '--detach', corpusCase.commit], path);
+  }
+  // A fresh --no-checkout clone still reports the remote default commit as HEAD even though its
+  // index and worktree are empty. Check the index as well so a new corpus entry cannot silently
+  // exercise an empty directory.
+  const trackedFiles = await run(['git', 'ls-files'], path).catch(() => '');
+  if (current !== corpusCase.commit || trackedFiles.length === 0) {
+    await run(['git', 'checkout', '--force', '--detach', corpusCase.commit], path);
   }
   const resolved = await run(['git', 'rev-parse', 'HEAD'], path);
   if (resolved !== corpusCase.commit) {
@@ -102,15 +121,21 @@ const ensureCheckout = async (corpusRoot: string, corpusCase: RealProjectCorpusC
   return path;
 };
 
-const copyProject = async (checkout: string, corpusCase: RealProjectCorpusCase): Promise<string> => {
-  const workRoot = await mkdtemp(join(tmpdir(), `stacktape-real-corpus-${corpusCase.id}-`));
+const copyProject = async (
+  checkout: string,
+  corpusCase: RealProjectCorpusCase
+): Promise<{ projectRoot: string; cleanupRoot: string }> => {
+  const cleanupRoot = await mkdtemp(join(tmpdir(), 'stacktape-real-corpus-'));
+  // Keep the repository basename deterministic. Several probes use it as the fallback service name,
+  // and random mkdtemp suffixes would make a release corpus pass or fail for the wrong reason.
+  const projectRoot = join(cleanupRoot, corpusCase.id);
   const source = corpusCase.subdirectory === undefined ? checkout : join(checkout, corpusCase.subdirectory);
   if (!existsSync(source)) throw new Error(`Upstream project directory does not exist: ${source}`);
-  await cp(source, workRoot, {
+  await cp(source, projectRoot, {
     recursive: true,
     filter: (path) => basename(path) !== '.git' && basename(path) !== 'node_modules'
   });
-  return workRoot;
+  return { projectRoot, cleanupRoot };
 };
 
 const countBy = <Item>(items: readonly Item[], keyOf: (item: Item) => string): Record<string, number> => {
@@ -235,8 +260,11 @@ const summarise = async (corpusCase: RealProjectCorpusCase, checkout: string): P
   const started = performance.now();
   const output: string[] = [];
   let workRoot: string | undefined;
+  let cleanupRoot: string | undefined;
   try {
-    workRoot = await copyProject(checkout, corpusCase);
+    const copied = await copyProject(checkout, corpusCase);
+    workRoot = copied.projectRoot;
+    cleanupRoot = copied.cleanupRoot;
     // Dynamic so STP_DISABLE_TELEMETRY is set before the CLI config module is evaluated.
     const { runInit } = await import('../src/init/run-init');
     const outcome = await runInit({
@@ -274,7 +302,12 @@ const summarise = async (corpusCase: RealProjectCorpusCase, checkout: string): P
         language: service.language,
         ...(service.framework === undefined ? {} : { framework: service.framework }),
         exposesHttp: service.exposesHttp,
-        executionModel: service.executionModel
+        executionModel: service.executionModel,
+        ...(service.processType === undefined ? {} : { processType: service.processType }),
+        ...(service.startCommand === undefined ? {} : { startCommand: service.startCommand }),
+        ...(service.containerEntrypoint === undefined ? {} : { containerEntrypoint: service.containerEntrypoint }),
+        ...(service.functionEntrypoint === undefined ? {} : { functionEntrypoint: service.functionEntrypoint }),
+        ...(service.dockerfile === undefined ? {} : { dockerfile: service.dockerfile })
       })),
       dependencies: result.facts.dependencies.map((dependency) => ({
         name: dependency.name,
@@ -297,7 +330,15 @@ const summarise = async (corpusCase: RealProjectCorpusCase, checkout: string): P
       resources,
       generatedConfig
     };
-    const semanticChecks = validateSemantics(corpusCase, summary);
+    const semanticChecks = discoveryMode
+      ? {
+          validConfig: true,
+          assertions: 1,
+          failures: result.facts.dependencies.some((dependency) => dependency.currentlyHostedOn !== undefined)
+            ? ['Static project files were treated as proof of live dependencies.']
+            : []
+        }
+      : validateSemantics(corpusCase, summary);
     return semanticChecks.failures.length === 0
       ? { ...summary, semanticChecks }
       : {
@@ -326,7 +367,7 @@ const summarise = async (corpusCase: RealProjectCorpusCase, checkout: string): P
       resources: []
     };
   } finally {
-    if (workRoot !== undefined && !keepWorkdirs) await rm(workRoot, { recursive: true, force: true });
+    if (cleanupRoot !== undefined && !keepWorkdirs) await rm(cleanupRoot, { recursive: true, force: true });
     if (workRoot !== undefined && keepWorkdirs) output.push(`Kept isolated project at ${workRoot}`);
   }
 };
@@ -336,8 +377,14 @@ const main = async (): Promise<void> => {
     suppliedCorpusRoot === undefined ? await mkdtemp(join(tmpdir(), 'stacktape-real-corpus-')) : undefined;
   const corpusRoot = resolve(suppliedCorpusRoot ?? temporaryCorpusRoot!);
   await mkdir(corpusRoot, { recursive: true });
-  const cases =
-    selected.size === 0 ? REAL_PROJECT_CORPUS : REAL_PROJECT_CORPUS.filter((entry) => selected.has(entry.id));
+  const stressCases = [...REAL_PROJECT_PLATFORM_STRESS_CASES, ...REAL_PROJECT_APPLICATION_STRESS_CASES];
+  const defaultCases = allMode
+    ? [...REAL_PROJECT_CORPUS, ...stressCases]
+    : stressMode
+      ? stressCases
+      : REAL_PROJECT_CORPUS;
+  const allKnownCases = [...REAL_PROJECT_CORPUS, ...stressCases];
+  const cases = selected.size === 0 ? defaultCases : allKnownCases.filter((entry) => selected.has(entry.id));
   if (cases.length === 0) throw new Error(`No corpus case matched --case=${[...selected].join(',')}.`);
   const unknownCases = [...selected].filter((id) => !cases.some((entry) => entry.id === id));
   if (unknownCases.length > 0) throw new Error(`Unknown corpus case(s): ${unknownCases.join(', ')}.`);
@@ -362,6 +409,8 @@ const main = async (): Promise<void> => {
   const report = `${JSON.stringify(
     {
       generatedAt: new Date().toISOString(),
+      mode: discoveryMode ? 'discovery' : 'release-contract',
+      tier: allMode ? 'all' : stressMode ? 'stress' : 'release',
       passed: results.filter((entry) => entry.passed).length,
       failed: results.filter((entry) => !entry.passed).length,
       results

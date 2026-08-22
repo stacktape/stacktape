@@ -29,6 +29,7 @@ import type { MigrationFact } from '../../facts/project-facts';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/service';
 import { languageOf } from '../language';
 import { isPlatformEnvironmentVariable } from '../platform-environment';
+import { safeDeclaredLiteral } from './declared-environment';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
 /** The names compose itself looks for, in the order it looks for them. */
@@ -88,6 +89,7 @@ const IMAGE_TO_KIND: ReadonlyArray<{
     images: ['confluentinc/cp-kafka', 'apache/kafka', 'bitnami/kafka', 'redpandadata/redpanda'],
     kind: 'kafka'
   },
+  { images: ['nats', 'bitnami/nats'], kind: 'nats' },
   { images: ['minio/minio', 'bitnami/minio'], kind: 'object-storage' },
   {
     images: ['mailhog/mailhog', 'axllent/mailpit', 'maildev/maildev'],
@@ -142,6 +144,7 @@ type ComposeService = {
   expose?: unknown;
   depends_on?: unknown;
   environment?: unknown;
+  labels?: unknown;
 };
 
 const DATABASE_KINDS: ReadonlySet<DependencyKind> = new Set(['postgres', 'mysql', 'mssql', 'mongodb', 'sqlite']);
@@ -171,7 +174,7 @@ const buildOf = (
   service: ComposeService,
   file: string,
   files: readonly string[]
-): { root: string; dockerfile?: string } | undefined => {
+): { root: string; dockerfile?: string; target?: string } | undefined => {
   const declaration = service.build;
   const context =
     typeof declaration === 'string' ? declaration : isRecord(declaration) ? declaration.context : undefined;
@@ -181,9 +184,11 @@ const buildOf = (
   const declaredDockerfile =
     isRecord(declaration) && typeof declaration.dockerfile === 'string' ? declaration.dockerfile : 'Dockerfile';
   const dockerfile = resolveFrom(root, declaredDockerfile);
+  const target = isRecord(declaration) && typeof declaration.target === 'string' ? declaration.target : undefined;
   return {
     root: root === '' ? '.' : root,
-    ...(dockerfile !== undefined && files.includes(dockerfile) ? { dockerfile } : {})
+    ...(dockerfile !== undefined && files.includes(dockerfile) ? { dockerfile } : {}),
+    ...(target === undefined ? {} : { target })
   };
 };
 
@@ -249,6 +254,29 @@ const containerPortOf = (service: ComposeService): number | undefined => {
   return undefined;
 };
 
+const labelEntries = (service: ComposeService): Array<[string, unknown]> => {
+  if (Array.isArray(service.labels)) {
+    return service.labels.flatMap((entry) => {
+      if (typeof entry !== 'string') return [];
+      const separator = entry.indexOf('=');
+      return separator === -1
+        ? [[entry, true] as [string, unknown]]
+        : [[entry.slice(0, separator), entry.slice(separator + 1)] as [string, unknown]];
+    });
+  }
+  return isRecord(service.labels) ? Object.entries(service.labels) : [];
+};
+
+/** A reverse proxy label is the public-listener declaration when Compose does not publish a port. */
+const proxyPortOf = (service: ComposeService): number | undefined => {
+  for (const [name, value] of labelEntries(service)) {
+    if (!/^traefik\.http\.services\..+\.loadbalancer\.server\.port$/i.test(name)) continue;
+    const port = Number.parseInt(String(value), 10);
+    if (Number.isInteger(port) && port > 0 && port <= 65_535) return port;
+  }
+  return undefined;
+};
+
 const dependsOn = (service: ComposeService): string[] =>
   Array.isArray(service.depends_on)
     ? service.depends_on.filter((entry): entry is string => typeof entry === 'string')
@@ -263,11 +291,59 @@ const completedDependencies = (service: ComposeService): string[] =>
         isRecord(declaration) && declaration.condition === 'service_completed_successfully' ? [name] : []
       );
 
+const BACKGROUND_PROCESS_NAME = /(?:^|[-_.])(?:worker|scheduler|cron|consumer|queue|jobs?)(?:$|[-_.])/i;
+
 const MIGRATION_COMMAND =
-  /(?:^|\s)(?:alembic\s+upgrade|(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?[^\s]*(?:migrat|db:)|npx\s+[^\s]*(?:migrat|prisma)|python3?\s+manage\.py\s+migrate|rails\s+db:|rake\s+db:|prisma\s+migrate|typeorm\s+[^\s]*migration|knex\s+migrate|sequelize(?:-cli)?\s+db:migrate|flyway|liquibase|dbmate)(?:\s|$)/i;
+  /(?:^|\s)(?:alembic\s+upgrade|(?:npm|pnpm|yarn|bun)\s+(?:--filter\s+\S+\s+)?(?:run\s+)?(?:\S*migrat\S*|\S*db:\S*)|npx\s+[^\s]*(?:migrat|prisma)|python3?\s+manage\.py\s+migrate|rails\s+db:|rake\s+db:|prisma\s+migrate|typeorm\s+[^\s]*migration|knex\s+migrate|sequelize(?:-cli)?\s+db:migrate|flyway|liquibase|dbmate)(?:\s|$)/i;
 
 const commandOf = (service: ComposeService): string | undefined =>
   typeof service.command === 'string' && service.command.trim() !== '' ? service.command.trim() : undefined;
+
+/** The fallback part of `${NAME:-value}` is what this Compose deployment actually uses by default. */
+const composeDefault = (value: string): string => value.replace(/\$\{[A-Za-z_][A-Za-z0-9_]*(?::-|-)([^}]*)\}/g, '$1');
+
+const variableNamesDependency = (name: string, kind: DependencyKind): boolean => {
+  const upper = name.toUpperCase();
+  switch (kind) {
+    case 'postgres':
+      return /(?:POSTGRES|POSTGRESQL|PG|DATABASE|DATASOURCE)/.test(upper);
+    case 'mysql':
+      return /(?:MYSQL|MARIADB|DATABASE|DATASOURCE)/.test(upper);
+    case 'mssql':
+      return /(?:MSSQL|SQLSERVER|DATABASE|DATASOURCE)/.test(upper);
+    case 'mongodb':
+      return /(?:MONGO|DATABASE)/.test(upper);
+    case 'redis':
+      return /(?:REDIS|CACHE)/.test(upper);
+    case 'object-storage':
+      return /(?:S3|BUCKET|OBJECT_STORAGE|MINIO)/.test(upper);
+    case 'amqp':
+      return /(?:AMQP|RABBIT)/.test(upper);
+    case 'kafka':
+      return /(?:KAFKA|BROKER)/.test(upper);
+    case 'nats':
+      return /(?:NATS|BROKER)/.test(upper);
+    case 'search':
+      return /(?:ELASTIC|OPENSEARCH|MEILI|TYPESENSE|SEARCH)/.test(upper);
+    case 'email':
+      return /(?:SMTP|MAIL)/.test(upper);
+    default:
+      return false;
+  }
+};
+
+const dockerfileDefaultCommand = (raw: string): string | undefined => {
+  const json = /^\s*CMD\s+(\[[^\r\n]+\])\s*$/im.exec(raw)?.[1];
+  if (json !== undefined) {
+    try {
+      const parsed: unknown = JSON.parse(json);
+      if (Array.isArray(parsed) && parsed.every((entry) => typeof entry === 'string')) return parsed.join(' ');
+    } catch {
+      // A malformed Dockerfile command contributes no lifecycle fact.
+    }
+  }
+  return /^\s*CMD\s+([^\r\n]+)$/im.exec(raw)?.[1]?.trim();
+};
 
 const environmentEntries = (service: ComposeService): Array<{ name: string; value?: unknown }> => {
   if (Array.isArray(service.environment)) {
@@ -276,12 +352,51 @@ const environmentEntries = (service: ComposeService): Array<{ name: string; valu
       const separator = entry.indexOf('=');
       return separator === -1
         ? [{ name: entry }]
-        : [{ name: entry.slice(0, separator), value: entry.slice(separator + 1) }];
+        : [
+            {
+              name: entry.slice(0, separator),
+              value: entry.slice(separator + 1)
+            }
+          ];
     });
   }
   return isRecord(service.environment)
-    ? Object.entries(service.environment).map(([name, value]) => ({ name, value }))
+    ? Object.entries(service.environment).map(([name, value]) => ({
+        name,
+        value
+      }))
     : [];
+};
+
+const isDevelopmentProcess = (service: ComposeService, build: { target?: string }): boolean => {
+  if (/^(?:dev|development)$/i.test(build.target ?? '')) return true;
+  if (typeof service.image === 'string' && /(?:^|:)development(?:$|[-.])/i.test(service.image)) return true;
+  if (/\b(?:vite|next|nuxt|astro|ng|gatsby)\s+(?:dev|develop)\b/i.test(commandOf(service) ?? '')) return true;
+  const buildArguments = isRecord(service.build)
+    ? isRecord(service.build.args)
+      ? Object.entries(service.build.args).map(([name, value]) => ({
+          name,
+          value
+        }))
+      : Array.isArray(service.build.args)
+        ? service.build.args.flatMap((entry) => {
+            if (typeof entry !== 'string') return [];
+            const separator = entry.indexOf('=');
+            return [
+              {
+                name: separator === -1 ? entry : entry.slice(0, separator),
+                value: separator === -1 ? undefined : entry.slice(separator + 1)
+              }
+            ];
+          })
+        : []
+    : [];
+  return [...environmentEntries(service), ...buildArguments].some(
+    ({ name, value }) =>
+      /^(?:NODE_ENV|RAILS_ENV|RACK_ENV|APP_ENV)$/i.test(name) &&
+      typeof value === 'string' &&
+      /^development$/i.test(value.trim())
+  );
 };
 
 export const dockerComposeProbe: Probe = {
@@ -364,6 +479,7 @@ export const dockerComposeProbe: Probe = {
     for (const { build } of appDeclarations) rootCounts.set(build.root, (rootCounts.get(build.root) ?? 0) + 1);
     const appNames = new Map(appDeclarations.map(({ composeName }) => [composeName, factName(composeName)]));
     const serviceFacts: ServiceFactInput[] = [];
+    const developmentProcesses = new Set<string>();
     const oneShotConsumers = new Map<string, string[]>();
     for (const [consumerName, service] of Object.entries(declaredServices)) {
       for (const dependencyName of completedDependencies(service)) {
@@ -373,15 +489,46 @@ export const dockerComposeProbe: Probe = {
       }
     }
     const migrations: MigrationFact[] = [];
+    const lifecycleDockerfiles = new Set<string>();
+
+    const longRunningDockerfiles = new Set(
+      appDeclarations.flatMap(({ composeName, build }) =>
+        oneShotConsumers.has(composeName) || build.dockerfile === undefined ? [] : [build.dockerfile]
+      )
+    );
+    for (const { composeName, build } of appDeclarations) {
+      if (
+        oneShotConsumers.has(composeName) &&
+        build.dockerfile !== undefined &&
+        !longRunningDockerfiles.has(build.dockerfile)
+      ) {
+        lifecycleDockerfiles.add(build.dockerfile);
+      }
+    }
 
     for (const declaration of appDeclarations) {
       const consumers = oneShotConsumers.get(declaration.composeName);
-      const declaredCommand = commandOf(declaration.service);
+      let declaredCommand = commandOf(declaration.service);
+      let commandFile = path;
+      let commandRaw = raw;
+      if (declaredCommand === undefined && declaration.build.dockerfile !== undefined) {
+        // oxlint-disable-next-line no-await-in-loop -- one lifecycle Dockerfile per finite Compose service.
+        const dockerfile = await readText(context, declaration.build.dockerfile);
+        if (dockerfile !== undefined) {
+          declaredCommand = dockerfileDefaultCommand(dockerfile);
+          commandFile = declaration.build.dockerfile;
+          commandRaw = dockerfile;
+        }
+      }
       if (consumers === undefined || declaredCommand === undefined) continue;
 
       const commands: Array<{ command: string; file: string; raw: string }> = [];
       if (MIGRATION_COMMAND.test(declaredCommand)) {
-        commands.push({ command: declaredCommand, file: path, raw });
+        commands.push({
+          command: declaredCommand,
+          file: commandFile,
+          raw: commandRaw
+        });
       } else {
         const script = /^(?:bash|sh)\s+([A-Za-z0-9_./-]+)$/.exec(declaredCommand)?.[1];
         if (script !== undefined) {
@@ -395,7 +542,11 @@ export const dockerComposeProbe: Probe = {
             if (scriptRaw !== undefined) {
               for (const line of scriptRaw.split(/\r?\n/).map((entry) => entry.trim())) {
                 if (line !== '' && !line.startsWith('#') && MIGRATION_COMMAND.test(line)) {
-                  commands.push({ command: line, file: candidates[0]!, raw: scriptRaw });
+                  commands.push({
+                    command: line,
+                    file: candidates[0]!,
+                    raw: scriptRaw
+                  });
                 }
               }
             }
@@ -403,7 +554,10 @@ export const dockerComposeProbe: Probe = {
         }
       }
 
-      for (const consumer of consumers) {
+      // A lifecycle service executes once even when several long-running processes wait for it.
+      // Attaching the same command to every consumer would run one schema migration N times after
+      // every deploy. The first declared consumer supplies the environment and dependency wiring.
+      for (const consumer of consumers.slice(0, 1)) {
         const serviceName = appNames.get(consumer);
         if (serviceName === undefined) continue;
         for (const command of commands) {
@@ -424,7 +578,14 @@ export const dockerComposeProbe: Probe = {
       // migration forever and charge the user for a service that is meant to exit once.
       if (oneShotConsumers.has(composeName)) continue;
       const name = appNames.get(composeName)!;
-      const port = containerPortOf(service);
+      if (isDevelopmentProcess(service, build)) {
+        developmentProcesses.add(`${build.root}::compose:${composeName}`);
+      }
+      const port = containerPortOf(service) ?? proxyPortOf(service);
+      // Workers often publish an Actuator/metrics port solely for orchestrator health checks. A
+      // Compose process name is a stronger statement of its role than the presence of that admin
+      // port; exposing it publicly as a web service would be both inaccurate and unsafe.
+      const exposesHttp = port !== undefined && !BACKGROUND_PROCESS_NAME.test(composeName);
       const consumedDependencies = new Set(
         dependsOn(service)
           .map((entry) => dependencyNames.get(entry))
@@ -433,7 +594,7 @@ export const dockerComposeProbe: Probe = {
       const variables: EnvironmentVariableUse[] = [];
       for (const entry of environmentEntries(service)) {
         if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(entry.name) || isPlatformEnvironmentVariable(entry.name)) continue;
-        const value = typeof entry.value === 'string' ? entry.value : '';
+        const value = typeof entry.value === 'string' ? composeDefault(entry.value) : '';
         const referencedDependency = [...dependencyNames.entries()].find(([hostname]) =>
           new RegExp(`(?:^|[^A-Za-z0-9_-])${escapeForPattern(hostname)}(?:[^A-Za-z0-9_-]|$)`).test(value)
         );
@@ -442,16 +603,28 @@ export const dockerComposeProbe: Probe = {
             hostname !== composeName &&
             new RegExp(`(?:^|[^A-Za-z0-9_-])${escapeForPattern(hostname)}(?:[^A-Za-z0-9_-]|$)`).test(value)
         );
+        const namedDependency = [...consumedDependencies]
+          .map((dependencyName) => dependencies.find((dependency) => dependency.name === dependencyName))
+          .find(
+            (dependency): dependency is DependencyFact =>
+              dependency !== undefined && variableNamesDependency(entry.name, dependency.kind)
+          );
         const citation = citeFirstMatchOnly(
           path,
           raw,
           new RegExp(`^\\s*(?:-\\s*)?${escapeForPattern(entry.name)}(?:\\s*:|=)`)
         );
         const evidence = citation === undefined ? [] : [{ ...citation, quote: `${entry.name}:` }];
-        if (referencedDependency !== undefined) {
-          const dependencyName = referencedDependency[1];
+        if (referencedDependency !== undefined || namedDependency !== undefined) {
+          const dependencyName = referencedDependency?.[1] ?? namedDependency!.name;
           consumedDependencies.add(dependencyName);
-          variables.push({ name: entry.name, role: 'infra-dependency', dependencyName, required: true, evidence });
+          variables.push({
+            name: entry.name,
+            role: 'infra-dependency',
+            dependencyName,
+            required: true,
+            evidence
+          });
         } else if (referencedService !== undefined) {
           variables.push({
             name: entry.name,
@@ -461,12 +634,14 @@ export const dockerComposeProbe: Probe = {
             evidence
           });
         } else {
+          const safeLiteralValue = safeDeclaredLiteral(entry.name, entry.value);
           variables.push({
             name: entry.name,
             role: /SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY|API_KEY|APIKEY|ACCESS_KEY|CREDENTIAL|_KEY$/.test(entry.name)
               ? 'third-party-secret'
               : 'runtime-config',
             hasDeclaredValue: entry.value !== undefined,
+            ...(safeLiteralValue === undefined ? {} : { safeLiteralValue }),
             required: true,
             evidence
           });
@@ -486,10 +661,14 @@ export const dockerComposeProbe: Probe = {
       serviceFacts.push({
         name,
         path: build.root,
-        ...((rootCounts.get(build.root) ?? 0) > 1 ? { processType: `compose:${composeName}` } : {}),
+        ...((rootCounts.get(build.root) ?? 0) > 1 ||
+        BACKGROUND_PROCESS_NAME.test(composeName) ||
+        build.target !== undefined
+          ? { processType: `compose:${composeName}` }
+          : {}),
         language: languageOf(context.files, build.root) ?? (build.dockerfile === undefined ? 'unknown' : 'container'),
-        exposesHttp: port !== undefined,
-        ...(port === undefined ? {} : { port }),
+        exposesHttp,
+        ...(!exposesHttp || port === undefined ? {} : { port }),
         executionModel: 'long-running',
         ...(typeof service.command === 'string' && service.command !== '' ? { startCommand: service.command } : {}),
         ...(build.dockerfile === undefined ? {} : { dockerfile: build.dockerfile }),
@@ -503,6 +682,19 @@ export const dockerComposeProbe: Probe = {
       ...(dependencies.length === 0 ? {} : { dependencies }),
       ...(serviceFacts.length === 0 ? {} : { services: serviceFacts }),
       ...(migrations.length === 0 ? {} : { migrations }),
+      ...(lifecycleDockerfiles.size === 0 ? {} : { lifecycleDockerfiles: [...lifecycleDockerfiles] }),
+      ...(developmentProcesses.size === 0 ? {} : { developmentProcesses: [...developmentProcesses] }),
+      ...(!appDeclarations.some(({ build }) => build.target !== undefined && build.dockerfile !== undefined)
+        ? {}
+        : {
+            descriptorTargetDockerfiles: [
+              ...new Set(
+                appDeclarations.flatMap(({ build }) =>
+                  build.target !== undefined && build.dockerfile !== undefined ? [build.dockerfile] : []
+                )
+              )
+            ]
+          }),
       ...(appDeclarations.length > 0 &&
       new Set(dependencies.filter((entry) => DATABASE_KINDS.has(entry.kind)).map((entry) => entry.kind)).size === 1
         ? {

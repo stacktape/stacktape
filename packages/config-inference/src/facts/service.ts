@@ -57,6 +57,14 @@ export const environmentVariableUseSchema = z.object({
   targetServiceProperty: z.enum(['url', 'host', 'port', 'hostport']).optional(),
   /** A deployment manifest supplies a value, but init deliberately retained only its name. */
   hasDeclaredValue: z.boolean().optional(),
+  /**
+   * A deliberately retained, non-sensitive scalar from a deployment manifest.
+   *
+   * Probe code may populate this only for narrowly allow-listed operational settings such as a
+   * log level, worker count or timeout. Keeping those literals avoids asking somebody to create a
+   * secret for `LOG_LEVEL=info`; credentials and arbitrary values remain names-only.
+   */
+  safeLiteralValue: z.string().max(200).optional(),
   /** False when the code has a working fallback for its absence. */
   required: z.boolean().default(true),
   evidence: z.array(citationSchema).default([])
@@ -178,7 +186,12 @@ export const functionTriggerSchema = z.discriminatedUnion('type', [
     dependencyName: z.string().min(1),
     eventType: z.string().min(1).optional()
   }),
-  z.object({ type: z.literal('schedule'), rate: z.string().min(1) })
+  z.object({ type: z.literal('schedule'), rate: z.string().min(1) }),
+  z.object({
+    type: z.literal('unmapped'),
+    /** Human-readable event kind read from a descriptor that composition cannot represent yet. */
+    sourceType: z.string().min(1)
+  })
 ]);
 
 export type FunctionTrigger = z.infer<typeof functionTriggerSchema>;

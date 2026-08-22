@@ -82,6 +82,10 @@ export const DEPENDENCY_ANCHORS: Record<DependencyKind, AnchorRule> = {
   kafka: {
     patterns: [/kafka/i, /confluent/i, /\bmsk\b/i],
     expectation: 'a Kafka client or broker list'
+  },
+  nats: {
+    patterns: [/\bnats\b/i, /nats\.go/i, /async-nats/i, /NATS_/],
+    expectation: 'a NATS client, server URL, or NATS_* variable'
   }
 };
 
@@ -112,7 +116,8 @@ const TRIGGER_PATTERNS: Record<FunctionTrigger['type'], readonly RegExp[]> = {
   queue: [/Type:\s*SQS\b/i, /SQSEvent|SQSHandler|Records.*body/i],
   topic: [/Type:\s*SNS\b/i, /SNSEvent|SNSHandler/i],
   'object-storage': [/Type:\s*S3\b/i, /S3Event|S3Handler|ObjectCreated/i],
-  schedule: [/Type:\s*Schedule\b/i, /ScheduledEvent|scheduleRate|\brate\s*\(|\bcron\s*\(/i]
+  schedule: [/Type:\s*Schedule\b/i, /ScheduledEvent|scheduleRate|\brate\s*\(|\bcron\s*\(/i],
+  unmapped: [/events?\s*:|addEventSource|authorizer|websocket|stream/i]
 };
 
 export type AnchorOutcome = { satisfied: true } | { satisfied: false; expectation: string };
@@ -157,6 +162,12 @@ export const checkFunctionTriggerAnchor = (trigger: FunctionTrigger, evidenceTex
     return {
       satisfied: false,
       expectation: `the schedule ${trigger.rate} in the declared event`
+    };
+  }
+  if (trigger.type === 'unmapped' && !evidenceText.toLowerCase().includes(trigger.sourceType.toLowerCase())) {
+    return {
+      satisfied: false,
+      expectation: `the declared ${trigger.sourceType} event`
     };
   }
   return { satisfied: true };

@@ -86,5 +86,11 @@ const stripShortIntrinsicTags = (contents: string): string => {
  * only the tag marker preserves the literal scalar/sequence we need for reference matching. No
  * intrinsic is evaluated and no external state is consulted.
  */
-export const parseCloudFormationYaml = (contents: string): unknown =>
-  yaml.parse(stripShortIntrinsicTags(contents)) as unknown;
+export const parseCloudFormationYaml = (contents: string): unknown => {
+  // `parse()` writes every unknown-tag warning to stderr. Even after stripping the ordinary forms,
+  // a future intrinsic or unusual quoting style should degrade to inert data without dumping a
+  // parser stack trace into the init wizard. `parseDocument()` returns the same warnings as data.
+  const document = yaml.parseDocument(stripShortIntrinsicTags(contents));
+  if (document.errors.length > 0) throw document.errors[0];
+  return document.toJSON() as unknown;
+};

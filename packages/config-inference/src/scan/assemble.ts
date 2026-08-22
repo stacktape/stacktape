@@ -19,7 +19,7 @@ import {
   type PackageManager,
   type ProjectFacts
 } from '../facts/project-facts';
-import type { ServiceFactInput } from '../facts/service';
+import type { EnvironmentVariableUse, ServiceFactInput } from '../facts/service';
 import type { Uncertainty } from '../facts/uncertainty';
 import { classifyFileAccess } from '../policy/file-access';
 import { raiseConventionalCommands, raisePlannedCommands, type CommandPlanner } from './conventions';
@@ -129,22 +129,36 @@ const mergeDependencies = (outputs: readonly ProbeOutput[]): DependencyFact[] =>
 const serviceKey = (service: ServiceFactInput): string =>
   service.processType === undefined ? service.path : `${service.path}::${service.processType}`;
 
+const normalizedServiceName = (service: Pick<ServiceFactInput, 'name'>): string =>
+  service.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+
 const mergeEnvironmentVariables = (
   existing: NonNullable<ServiceFactInput['environmentVariables']> = [],
   incoming: NonNullable<ServiceFactInput['environmentVariables']> = []
 ): NonNullable<ServiceFactInput['environmentVariables']> => {
+  const rolePriority: Readonly<Record<EnvironmentVariableUse['role'], number>> = {
+    'infra-dependency': 4,
+    'cross-service-reference': 3,
+    'third-party-secret': 2,
+    'runtime-config': 1,
+    'build-time': 0
+  };
   const variables = new Map(
     existing.map((variable) => [variable.name, { ...variable, evidence: [...(variable.evidence ?? [])] }])
   );
   for (const variable of incoming) {
     const current = variables.get(variable.name);
+    const preferred =
+      current === undefined || rolePriority[variable.role] > rolePriority[current.role] ? variable : current;
     variables.set(
       variable.name,
       current === undefined
         ? { ...variable, evidence: [...(variable.evidence ?? [])] }
         : {
-            ...current,
+            ...preferred,
             hasDeclaredValue: current.hasDeclaredValue || variable.hasDeclaredValue,
+            safeLiteralValue:
+              preferred.role === 'runtime-config' ? (current.safeLiteralValue ?? variable.safeLiteralValue) : undefined,
             targetServiceProperty: current.targetServiceProperty ?? variable.targetServiceProperty,
             evidence: mergeEvidence(current.evidence, variable.evidence ?? [])
           }
@@ -153,6 +167,8 @@ const mergeEnvironmentVariables = (
   return [...variables.values()];
 };
 
+const BACKGROUND_PROCESS_TYPE = /(?:^|:)(?:worker|scheduler|cron|consumer)$/;
+
 const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): ServiceFactInput => ({
   ...existing,
   // An importer can identify a container before the language manifest is read. Keep the concrete
@@ -160,10 +176,20 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
   // what the user writes.
   language:
     existing.language === 'unknown' || existing.language === 'container' ? incoming.language : existing.language,
-  // A later probe that can see a bind call or an EXPOSE directive knows more about HTTP than one
-  // reading a dependency list, so a positive finding is never overwritten by silence.
-  exposesHttp: existing.exposesHttp || incoming.exposesHttp,
-  port: existing.port ?? incoming.port,
+  // A declared background process can publish a metrics/health port without becoming a public web
+  // service. Outside that explicit role, a positive bind/EXPOSE finding remains stronger than
+  // silence from another probe.
+  exposesHttp: BACKGROUND_PROCESS_TYPE.test(existing.processType ?? incoming.processType ?? '')
+    ? false
+    : existing.servesStaticAssets !== undefined || incoming.servesStaticAssets !== undefined
+      ? false
+      : existing.exposesHttp || incoming.exposesHttp,
+  port: BACKGROUND_PROCESS_TYPE.test(existing.processType ?? incoming.processType ?? '')
+    ? undefined
+    : existing.servesStaticAssets !== undefined || incoming.servesStaticAssets !== undefined
+      ? undefined
+      : (existing.port ?? incoming.port),
+  processType: existing.processType ?? incoming.processType,
   framework: existing.framework ?? incoming.framework,
   runtimeVersion: existing.runtimeVersion ?? incoming.runtimeVersion,
   buildCommand: existing.buildCommand ?? incoming.buildCommand,
@@ -205,6 +231,19 @@ const genericMergeTarget = (
   incoming: ServiceFactInput
 ): [string, ServiceFactInput] | undefined => {
   const entries = [...services.entries()];
+  const exactCommandMatches = entries.filter(
+    ([, service]) =>
+      service.path === incoming.path &&
+      service.startCommand !== undefined &&
+      incoming.startCommand !== undefined &&
+      service.startCommand.trim() === incoming.startCommand.trim() &&
+      service.exposesHttp === incoming.exposesHttp
+  );
+  if (exactCommandMatches.length === 1) return exactCommandMatches[0];
+  const exactNameMatches = entries.filter(
+    ([, service]) => normalizedServiceName(service) === normalizedServiceName(incoming)
+  );
+  if (exactNameMatches.length === 1) return exactNameMatches[0];
   const candidates = entries.filter(
     ([, service]) => service.path === incoming.path && service.processType !== undefined
   );
@@ -220,9 +259,20 @@ const genericMergeTarget = (
       incomingDescriptor === undefined || existingDescriptor === undefined || existingDescriptor !== incomingDescriptor;
     if (
       comesFromAnotherDescription &&
+      service.path === incoming.path &&
+      service.startCommand !== undefined &&
+      incoming.startCommand !== undefined &&
+      service.startCommand.trim() === incoming.startCommand.trim() &&
+      service.exposesHttp === incoming.exposesHttp
+    ) {
+      return true;
+    }
+    if (
+      comesFromAnotherDescription &&
       service.dockerfile !== undefined &&
       incoming.dockerfile !== undefined &&
-      service.dockerfile === incoming.dockerfile
+      service.dockerfile === incoming.dockerfile &&
+      service.exposesHttp === incoming.exposesHttp
     ) {
       return true;
     }
@@ -240,8 +290,16 @@ const genericMergeTarget = (
     ) {
       return true;
     }
-    const existingName = service.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
-    const incomingName = incoming.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase();
+    const existingName = normalizedServiceName(service);
+    const incomingName = normalizedServiceName(incoming);
+    if (
+      comesFromAnotherDescription &&
+      existingName.length >= 3 &&
+      existingName === incomingName &&
+      (service.path === '.' || incoming.path === '.')
+    ) {
+      return true;
+    }
     return (
       Math.min(existingName.length, incomingName.length) >= 4 &&
       (service.servesStaticAssets !== undefined || incoming.servesStaticAssets !== undefined) &&
@@ -273,6 +331,10 @@ const mergeServices = (
   outputs: readonly ProbeOutput[]
 ): { services: ServiceFactInput[]; renames: Map<string, string> } => {
   const byPath = new Map<string, ServiceFactInput>();
+  const lifecycleDockerfiles = new Set(
+    outputs.flatMap((output) => [...(output.lifecycleDockerfiles ?? []), ...(output.descriptorTargetDockerfiles ?? [])])
+  );
+  const developmentProcesses = new Set(outputs.flatMap((output) => output.developmentProcesses ?? []));
   /**
    * Names that stopped existing because their service folded into another one.
    *
@@ -286,13 +348,51 @@ const mergeServices = (
   for (const output of outputs) {
     for (const service of output.services ?? []) {
       const key = serviceKey(service);
+      if (developmentProcesses.has(key)) {
+        const candidates = [...byPath.values()].filter(
+          (candidate) =>
+            candidate.path === service.path &&
+            candidate.processType?.startsWith('compose:') !== true &&
+            (candidate.exposesHttp === service.exposesHttp || candidate.servesStaticAssets !== undefined)
+        );
+        const target = candidates.length === 1 ? candidates[0] : undefined;
+        if (target !== undefined) {
+          if (target.name !== service.name) renames.set(service.name, target.name);
+          continue;
+        }
+      }
+      if (
+        service.dockerfile !== undefined &&
+        lifecycleDockerfiles.has(service.dockerfile) &&
+        service.processType === undefined &&
+        service.startCommand === undefined &&
+        service.containerEntrypoint === undefined
+      ) {
+        continue;
+      }
       const existing = byPath.get(key);
       if (existing === undefined) {
         const generic = service.processType === undefined ? undefined : byPath.get(service.path);
+        const matchingNameElsewhere = [...byPath.values()].some(
+          (candidate) => candidate !== generic && normalizedServiceName(candidate) === normalizedServiceName(service)
+        );
         if (
           generic !== undefined &&
           generic.processType === undefined &&
-          ((generic.exposesHttp && service.exposesHttp) || /(?:^|:)(?:app|web)$/.test(service.processType ?? ''))
+          (!matchingNameElsewhere || normalizedServiceName(generic) === normalizedServiceName(service)) &&
+          ((generic.exposesHttp && service.exposesHttp) ||
+            /(?:^|:)(?:app|web)$/.test(service.processType ?? '') ||
+            (generic.path !== '.' &&
+              service.dockerfile?.startsWith(`${generic.path}/`) === true &&
+              (generic.framework !== undefined ||
+                generic.containerEntrypoint !== undefined ||
+                generic.servesStaticAssets !== undefined)) ||
+            generic.name.replace(/[^a-zA-Z0-9]/g, '').toLowerCase() ===
+              service.processType
+                ?.split(':')
+                .at(-1)
+                ?.replace(/[^a-zA-Z0-9]/g, '')
+                .toLowerCase())
         ) {
           byPath.delete(service.path);
           const keepGenericName = service.processType?.startsWith('procfile:') === true;
@@ -325,7 +425,25 @@ const mergeServices = (
     }
   }
 
-  return { services: [...byPath.values()], renames };
+  const merged = [...byPath.values()];
+  const descriptorOwnedDockerfiles = new Set(
+    merged.flatMap((service) =>
+      service.processType !== undefined && service.dockerfile !== undefined ? [service.dockerfile] : []
+    )
+  );
+  const services = merged.filter(
+    (service) =>
+      !(
+        service.processType === undefined &&
+        service.dockerfile !== undefined &&
+        descriptorOwnedDockerfiles.has(service.dockerfile) &&
+        service.startCommand === undefined &&
+        service.containerEntrypoint === undefined &&
+        service.functionEntrypoint === undefined
+      )
+  );
+
+  return { services, renames };
 };
 
 /**
@@ -389,9 +507,7 @@ const attributeDependencies = (
       // A concrete descriptor resource already names its real consumers. Generic package evidence
       // may additionally point at a shared library package, which is not independently deployable.
       // Once at least one real service is known, retain only real services for that concrete resource.
-      const consumers =
-        dependency.name !== defaultDependencyName(dependency.kind) && known.length > 0 ? known : resolved;
-      return { ...dependency, consumedBy: [...new Set(consumers)] };
+      return { ...dependency, consumedBy: [...new Set(known)] };
     }
     if (services.length === 1) return { ...dependency, consumedBy: [services[0]!.name] };
     if (oneCodebase)
@@ -585,13 +701,51 @@ export const assembleCandidateFacts = async ({
     services,
     dependencies,
     files: listing.files,
-    read: (path) => readSourceFile(root, path, { startLine: 1, endLine: Number.MAX_SAFE_INTEGER })
+    read: (path) =>
+      readSourceFile(root, path, {
+        startLine: 1,
+        endLine: Number.MAX_SAFE_INTEGER
+      })
   });
 
   const preferredKinds = new Set(outputs.flatMap((output) => output.preferredDependencyKinds ?? []));
   const preferredDatabaseKinds = [...preferredKinds].filter((kind) => DATABASE_KINDS.has(kind));
-  const preferredDatabaseKind = preferredDatabaseKinds.length === 1 ? preferredDatabaseKinds[0] : undefined;
+  let selectedDatabaseKind = preferredDatabaseKinds.length === 1 ? preferredDatabaseKinds[0] : undefined;
   const disabledKinds = new Set(outputs.flatMap((output) => output.disabledDependencyKinds ?? []));
+  const reconciliationUncertainties: Uncertainty[] = [];
+  if (selectedDatabaseKind === undefined) {
+    const databaseDependencies = dependencies.filter((dependency) => DATABASE_KINDS.has(dependency.kind));
+    const strongDatabaseKinds = [
+      ...new Set(
+        databaseDependencies
+          .filter((dependency) => hasStrongDependencyEvidence(dependency, services))
+          .map((dependency) => dependency.kind)
+      )
+    ];
+    if (strongDatabaseKinds.length === 1) {
+      selectedDatabaseKind = strongDatabaseKinds[0];
+    } else {
+      const weakGenericDatabases = databaseDependencies.filter(
+        (dependency) =>
+          dependency.name === defaultDependencyName(dependency.kind) &&
+          !hasStrongDependencyEvidence(dependency, services)
+      );
+      const candidates = [...new Set(weakGenericDatabases.map((dependency) => dependency.kind))];
+      if (candidates.length > 1) {
+        selectedDatabaseKind = candidates.includes('postgres') ? 'postgres' : candidates[0]!;
+        reconciliationUncertainties.push({
+          kind: 'database-engine-ambiguous',
+          id: 'database-engine:manifest-drivers',
+          blocksDeploy: true,
+          evidence: weakGenericDatabases.flatMap((dependency) => dependency.evidence).slice(0, MAX_EVIDENCE_PER_FACT),
+          source: 'probe',
+          environmentVariableName: 'the application database configuration',
+          candidates,
+          recommended: selectedDatabaseKind
+        });
+      }
+    }
+  }
   const reconciledDependencies = dependencies.filter((dependency) => {
     if (
       hasOnlyExampleEnvironmentEvidence(dependency) &&
@@ -602,10 +756,11 @@ export const assembleCandidateFacts = async ({
     }
     const disabled = disabledKinds.has(dependency.kind);
     const nonPreferredDatabase =
-      preferredDatabaseKind !== undefined &&
+      selectedDatabaseKind !== undefined &&
       DATABASE_KINDS.has(dependency.kind) &&
-      dependency.kind !== preferredDatabaseKind;
-    return !(disabled || nonPreferredDatabase) || hasStrongDependencyEvidence(dependency, services);
+      dependency.kind !== selectedDatabaseKind;
+    if (disabled) return isExternalHosting(dependency) || dependency.hostingEvidence === 'deployment-manifest';
+    return !nonPreferredDatabase || hasStrongDependencyEvidence(dependency, services);
   });
 
   if (reconciledDependencies.length !== dependencies.length) {
@@ -623,7 +778,11 @@ export const assembleCandidateFacts = async ({
       services,
       dependencies,
       files: listing.files,
-      read: (path) => readSourceFile(root, path, { startLine: 1, endLine: Number.MAX_SAFE_INTEGER })
+      read: (path) =>
+        readSourceFile(root, path, {
+          startLine: 1,
+          endLine: Number.MAX_SAFE_INTEGER
+        })
     });
   }
 
@@ -635,12 +794,18 @@ export const assembleCandidateFacts = async ({
   }
   // Where nothing textual says how a service runs, the ecosystem's convention becomes the open
   // question's suggested answer — a dead end turned into a decided-for-you card.
-  for (const uncertainty of raiseConventionalCommands({ services, files: listing.files })) {
+  for (const uncertainty of raiseConventionalCommands({
+    services,
+    files: listing.files
+  })) {
     if (!uncertainties.has(uncertainty.id)) uncertainties.set(uncertainty.id, uncertainty);
   }
   // A Dockerfile that reads as a copied template gets the ownership decision: Stacktape's tuned
   // packaging by recommendation, the file untouched, one click to flip.
-  for (const uncertainty of await raiseDockerfileOwnership({ services, read: context.read })) {
+  for (const uncertainty of await raiseDockerfileOwnership({
+    services,
+    read: context.read
+  })) {
     if (!uncertainties.has(uncertainty.id)) uncertainties.set(uncertainty.id, uncertainty);
   }
   // For services neither the repository nor the curated table could answer, ask the container
@@ -658,6 +823,7 @@ export const assembleCandidateFacts = async ({
   for (const uncertainty of resolvedByOtherProbes(uncertainties.values(), dependencies)) {
     uncertainties.delete(uncertainty.id);
   }
+  for (const uncertainty of reconciliationUncertainties) uncertainties.set(uncertainty.id, uncertainty);
 
   // Folded through the rename map first: a migration the Procfile attributed to `web` belongs to
   // whatever service `web` merged into, and without the remap it references a name that no longer

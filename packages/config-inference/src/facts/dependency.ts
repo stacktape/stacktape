@@ -24,7 +24,8 @@ export const dependencyKindSchema = z.enum([
   'amqp',
   'search',
   'email',
-  'kafka'
+  'kafka',
+  'nats'
 ]);
 
 export type DependencyKind = z.infer<typeof dependencyKindSchema>;
@@ -80,7 +81,8 @@ export const defaultDependencyName = (kind: DependencyKind): string =>
     amqp: 'messageBroker',
     search: 'searchIndex',
     email: 'mailer',
-    kafka: 'eventStream'
+    kafka: 'eventStream',
+    nats: 'eventBroker'
   })[kind];
 
 export const dependencyFactSchema = z.object({

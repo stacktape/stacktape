@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { assembleCandidateFacts } from './assemble';
 import { environmentProbe } from './probes/environment';
+import { languageManifestProbe } from './probes/language-manifests';
 import { manifestProbe } from './probes/manifest';
 
 const PROBES = [manifestProbe, environmentProbe];
@@ -163,5 +164,24 @@ describe('environment-usage enrichment', () => {
     expect(variable).toBeDefined();
     expect(variable?.role).toBe('runtime-config');
     expect(variable?.dependencyName).toBeUndefined();
+  });
+
+  it('reads Rails ERB environment access from YAML configuration', async () => {
+    root = await makeRepo({
+      Gemfile: 'gem "rails"\ngem "pg"\ngem "redis"\n',
+      'config/database.yml': 'production:\n  url: <%= ENV["DATABASE_URL"] %>\n',
+      'config/cable.yml': 'production:\n  url: <%= ENV.fetch("REDIS_URL", "redis://localhost") %>\n'
+    });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe]
+    });
+
+    expect(facts.services[0]?.environmentVariables).toContainEqual(
+      expect.objectContaining({ name: 'DATABASE_URL', role: 'infra-dependency', required: true })
+    );
+    expect(facts.services[0]?.environmentVariables).toContainEqual(
+      expect.objectContaining({ name: 'REDIS_URL', role: 'infra-dependency', required: false })
+    );
   });
 });

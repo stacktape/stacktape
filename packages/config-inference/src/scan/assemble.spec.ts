@@ -152,6 +152,48 @@ describe('assembleCandidateFacts', () => {
     expect(facts.dependencies[0]?.addressedBy).toEqual(['DATABASE_URL']);
   });
 
+  it('uses localhost environment values as topology evidence, not live-hosting evidence', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'api', scripts: { start: 'node index.js' } }),
+      '.env': 'DATABASE_URL=postgres://postgres:postgres@localhost:5432/app\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.dependencies[0]).toMatchObject({ kind: 'postgres', addressedBy: ['DATABASE_URL'] });
+    expect(facts.dependencies[0]?.currentlyHostedOn).toBeUndefined();
+    expect(facts.dependencies[0]?.hostingEvidence).toBeUndefined();
+  });
+
+  it('does not provision optional Laravel-style backends from mode settings', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'app', scripts: { start: 'node index.js' } }),
+      '.env.example': [
+        'FILESYSTEM_DISK=local',
+        'QUEUE_CONNECTION=database',
+        'CACHE_STORE=database',
+        'REDIS_CLIENT=phpredis',
+        'REDIS_HOST=127.0.0.1',
+        'REDIS_CLUSTER=redis',
+        'REDIS_PREFIX=app_',
+        'SQS_PREFIX=https://sqs.example.test/account',
+        ''
+      ].join('\n'),
+      'index.js': [
+        'process.env.QUEUE_CONNECTION;',
+        'process.env.REDIS_CLIENT;',
+        'process.env.REDIS_HOST;',
+        'process.env.REDIS_CLUSTER;',
+        'process.env.REDIS_PREFIX;',
+        'process.env.SQS_PREFIX;'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.dependencies).toEqual([]);
+  });
+
   it('does not treat a lookalike hostname as a managed provider', async () => {
     // `supabase.co.evil.test` contains `supabase.co`. Reading it as a live Supabase database would
     // make composition refuse to create the database the user actually needs, on the say-so of
@@ -229,6 +271,31 @@ describe('assembleCandidateFacts', () => {
 
     expect(facts.uncertainties).toHaveLength(0);
     expect(facts.dependencies.map((dependency) => dependency.kind)).toEqual(['postgres']);
+  });
+
+  it('wires the datasource variable declared by Prisma without needing an env file', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'web',
+        scripts: { start: 'next start' },
+        dependencies: { next: '^15.0.0', '@prisma/client': '^6.0.0' }
+      }),
+      'prisma/schema.prisma': ['datasource db {', '  provider = "postgresql"', '  url = env("DATABASE_URL")', '}'].join(
+        '\n'
+      )
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+    const database = facts.dependencies.find((dependency) => dependency.kind === 'postgres');
+
+    expect(database?.addressedBy).toEqual(['DATABASE_URL']);
+    expect(facts.services[0]?.environmentVariables).toContainEqual(
+      expect.objectContaining({
+        name: 'DATABASE_URL',
+        role: 'infra-dependency',
+        dependencyName: 'mainDatabase'
+      })
+    );
   });
 
   it('does not replace a Redis-backed queue library with incompatible SQS', async () => {
@@ -312,6 +379,7 @@ describe('assembleCandidateFacts', () => {
         dependencies: { react: '^19.0.0' },
         devDependencies: { vite: '^7.0.0' }
       }),
+      'index.html': '<div id="root"></div>',
       'package-lock.json': '{}'
     });
 
@@ -328,6 +396,24 @@ describe('assembleCandidateFacts', () => {
       servesStaticAssets: { path: 'dist' }
     });
     expect(facts.services[0]?.startCommand).toBeUndefined();
+  });
+
+  it('does not turn a Vite-built workspace library into a static website', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['packages/*'] }),
+      'packages/database/package.json': JSON.stringify({
+        name: '@acme/database',
+        private: true,
+        scripts: { build: 'vite build' },
+        dependencies: { pg: '^8.0.0' },
+        devDependencies: { vite: '^7.0.0', 'vite-plugin-dts': '^4.0.0' }
+      })
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services).toEqual([]);
+    expect(facts.dependencies[0]?.consumedBy).toEqual([]);
   });
 
   it('does not turn a workspace root start orchestrator into a service', async () => {

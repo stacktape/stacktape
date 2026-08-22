@@ -22,7 +22,10 @@ import type { Citation } from '../../facts/citation';
 import { readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
 /** Files whose presence, on its own, identifies the tool that owns this repository's deployment. */
-const UNAMBIGUOUS_FILES: ReadonlyArray<{ files: readonly string[]; tool: DeploymentTool }> = [
+const UNAMBIGUOUS_FILES: ReadonlyArray<{
+  files: readonly string[];
+  tool: DeploymentTool;
+}> = [
   {
     files: ['serverless.yml', 'serverless.yaml', 'serverless.ts', 'serverless.js'],
     tool: 'serverless-framework'
@@ -36,7 +39,14 @@ const UNAMBIGUOUS_FILES: ReadonlyArray<{ files: readonly string[]; tool: Deploym
   { files: ['vercel.json'], tool: 'vercel' },
   { files: ['netlify.toml'], tool: 'netlify' },
   { files: ['railway.json', 'railway.toml'], tool: 'railway' },
-  { files: ['Chart.yaml', 'kustomization.yaml', 'kustomization.yml'], tool: 'kubernetes' }
+  {
+    files: ['wrangler.toml', 'wrangler.json', 'wrangler.jsonc'],
+    tool: 'cloudflare-workers'
+  },
+  {
+    files: ['Chart.yaml', 'kustomization.yaml', 'kustomization.yml'],
+    tool: 'kubernetes'
+  }
 ];
 
 const IGNORED_NESTED_DIRECTORIES = new Set([
@@ -139,7 +149,12 @@ const declarationCitation = (path: string, raw: string | undefined, confirm?: Re
   if (confirm !== undefined) {
     for (const [index, line] of lines.entries()) {
       const match = new RegExp(confirm.source, confirm.flags.replaceAll('g', '').replaceAll('y', '')).exec(line)?.[0];
-      if (match !== undefined) return { file: path, line: index + 1, quote: match.trim().slice(0, 200) };
+      if (match !== undefined)
+        return {
+          file: path,
+          line: index + 1,
+          quote: match.trim().slice(0, 200)
+        };
     }
   }
 
@@ -156,7 +171,11 @@ const declarationCitation = (path: string, raw: string | undefined, confirm?: Re
   if (index === -1) return undefined;
   const line = lines[index]!;
   const token = /(?:["'][A-Za-z_$][A-Za-z0-9_$.-]*["']|[A-Za-z_$][A-Za-z0-9_$.-]*)\s*(?=[:=({])/.exec(line)?.[0];
-  return { file: path, line: index + 1, quote: (token?.trim() || line.trim().slice(0, 1)).slice(0, 200) };
+  return {
+    file: path,
+    line: index + 1,
+    quote: (token?.trim() || line.trim().slice(0, 1)).slice(0, 200)
+  };
 };
 
 export const existingDeploymentProbe: Probe = {
@@ -164,7 +183,11 @@ export const existingDeploymentProbe: Probe = {
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
     // Which files to look at is decided first, and entirely from the file list, so the reads that
     // follow can all happen at once.
-    const candidates: Array<{ tool: DeploymentTool; path: string; confirm?: RegExp }> = [];
+    const candidates: Array<{
+      tool: DeploymentTool;
+      path: string;
+      confirm?: RegExp;
+    }> = [];
     for (const { files, tool } of UNAMBIGUOUS_FILES) {
       const path = findManifest(context.files, files);
       if (path !== undefined) candidates.push({ tool, path });
@@ -180,7 +203,10 @@ export const existingDeploymentProbe: Probe = {
     if (candidates.length === 0) return {};
 
     const read = await Promise.all(
-      candidates.map(async (candidate) => ({ ...candidate, raw: await readText(context, candidate.path) }))
+      candidates.map(async (candidate) => ({
+        ...candidate,
+        raw: await readText(context, candidate.path)
+      }))
     );
 
     // Terraform and Pulumi deploy to any cloud, so whether they manage AWS is a question about their

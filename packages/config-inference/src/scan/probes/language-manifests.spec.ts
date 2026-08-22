@@ -13,6 +13,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { assembleCandidateFacts } from '../assemble';
+import { applyAnswer } from '../../facts/apply-answer';
 import { languageManifestProbe } from './language-manifests';
 import { manifestProbe } from './manifest';
 
@@ -58,6 +59,14 @@ describe('dependency lists in other languages', () => {
         'celeryconfig.py': 'broker_url = "redis://localhost:6379/0"\n'
       })
     ).toEqual(['redis']);
+  });
+
+  it('recognizes NATS clients without pretending they can connect to an AWS-native queue', async () => {
+    expect(
+      await kindsIn({
+        'go.mod': ['module example.com/orders', 'go 1.22', 'require github.com/nats-io/nats.go v1.37.0', ''].join('\n')
+      })
+    ).toEqual(['nats']);
   });
 
   it('reads a Poetry project', async () => {
@@ -179,6 +188,43 @@ describe('dependency lists in other languages', () => {
     ).toEqual(['postgres', 'redis']);
   });
 
+  it('finds nested ASP.NET and Worker SDK projects without deploying libraries or tests', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({ private: true }),
+      'src/Catalog.API/Catalog.API.csproj': [
+        '<Project Sdk="Microsoft.NET.Sdk.Web">',
+        '  <PackageReference Include="Npgsql" />',
+        '</Project>'
+      ].join('\n'),
+      'src/OrderProcessor/OrderProcessor.csproj': [
+        '<Project Sdk="Microsoft.NET.Sdk.Worker">',
+        '  <PackageReference Include="RabbitMQ.Client" />',
+        '</Project>'
+      ].join('\n'),
+      'src/Shared/Shared.csproj': '<Project Sdk="Microsoft.NET.Sdk"></Project>\n',
+      'tests/Fake.API/Fake.API.csproj': '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+
+    expect(facts.services).toHaveLength(2);
+    expect(facts.services).toContainEqual(
+      expect.objectContaining({
+        name: 'Catalog.API',
+        path: 'src/Catalog.API',
+        exposesHttp: true
+      })
+    );
+    expect(facts.services).toContainEqual(
+      expect.objectContaining({
+        name: 'OrderProcessor',
+        path: 'src/OrderProcessor',
+        exposesHttp: false
+      })
+    );
+    expect(facts.dependencies.map((dependency) => dependency.kind).toSorted()).toEqual(['amqp', 'postgres']);
+  });
+
   it('reads Cargo.toml', async () => {
     expect(
       await kindsIn({
@@ -245,6 +291,38 @@ describe('dependency lists in other languages', () => {
     // The first artifactId in a Spring Boot pom is the parent's. A service called
     // "spring-boot-starter-parent" would be confidently, visibly wrong in the generated file.
     expect(facts.services[0]?.name).toBe('orders-api');
+  });
+
+  it('asks once instead of provisioning every database driver an application happens to support', async () => {
+    root = await makeRepo({
+      'pom.xml': [
+        '<project>',
+        '  <artifactId>portable-orders</artifactId>',
+        '  <dependencies>',
+        '    <dependency><artifactId>spring-boot-starter-web</artifactId></dependency>',
+        '    <dependency><artifactId>postgresql</artifactId></dependency>',
+        '    <dependency><artifactId>mysql-connector-j</artifactId></dependency>',
+        '  </dependencies>',
+        '</project>'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    const decision = facts.uncertainties.find((entry) => entry.id === 'database-engine:manifest-drivers');
+
+    expect(facts.dependencies.map((dependency) => dependency.kind)).toEqual(['postgres']);
+    expect(decision).toMatchObject({
+      kind: 'database-engine-ambiguous',
+      candidates: ['postgres', 'mysql'],
+      recommended: 'postgres'
+    });
+    expect(
+      applyAnswer({
+        facts,
+        uncertainty: decision!,
+        value: 'mysql'
+      }).dependencies.map((dependency) => dependency.kind)
+    ).toEqual(['mysql']);
   });
 
   it('says nothing when the library does not name an engine', async () => {

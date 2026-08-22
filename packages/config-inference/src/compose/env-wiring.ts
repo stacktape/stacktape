@@ -57,6 +57,11 @@ const PRIMARY_HANDLE: Partial<Record<DependencyKind, string>> = {
 export const wiringFor = (kind: DependencyKind, variableName: string): EnvironmentWiring => {
   const name = variableName.toUpperCase();
 
+  // Framework mode/configuration switches can contain the dependency name while asking for a
+  // literal such as `phpredis`, `default`, a prefix, or a retry count. They are never addresses.
+  if (/(?:CLIENT|CLUSTER|DRIVER|PREFIX|SUFFIX|RETRY|FAILED_DRIVER)$/.test(name)) return { kind: 'none' };
+  if (/(?:^|_)CONNECTION$/.test(name)) return { kind: 'none' };
+
   if (/PASSWORD|PASSWD/.test(name)) {
     // Only RDS databases get a generated password secret; everything else has no password of ours
     // to hand out, and a wrong guess here would put a connection string where a password belongs.

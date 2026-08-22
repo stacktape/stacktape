@@ -94,7 +94,8 @@ describe('the cdk probe, end to end', () => {
     '    const api = new lambdaNodejs.NodejsFunction(this, "Api", { entry: "src/api.ts" });',
     '    new apigw.LambdaRestApi(this, "Gateway", { handler: api });',
     '    const worker = new lambdaNodejs.NodejsFunction(this, "Worker", { entry: "src/worker.ts" });',
-    '    worker.addEventSource(new SqsEventSource(jobs));',
+    '    const workerSource = new SqsEventSource(jobs);',
+    '    worker.addEventSource(workerSource);',
     '  }',
     '}',
     ''

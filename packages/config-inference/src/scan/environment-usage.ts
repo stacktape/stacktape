@@ -70,6 +70,14 @@ const PATTERNS_BY_EXTENSION: ReadonlyArray<{ extensions: RegExp; patterns: reado
       { pattern: new RegExp(`ENV\\.fetch\\(\\s*['"]${NAME}['"]`, 'g'), fallback: 'call-argument' }
     ]
   },
+  {
+    // Rails configuration commonly embeds Ruby in database.yml/cable.yml rather than a .rb file.
+    extensions: /\.ya?ml$/,
+    patterns: [
+      { pattern: new RegExp(`ENV\\[\\s*['"]${NAME}['"]\\s*\\]`, 'g') },
+      { pattern: new RegExp(`ENV\\.fetch\\(\\s*['"]${NAME}['"]`, 'g'), fallback: 'call-argument' }
+    ]
+  },
   { extensions: /\.go$/, patterns: [{ pattern: new RegExp(`os\\.(?:Getenv|LookupEnv)\\(\\s*"${NAME}"`, 'g') }] },
   {
     extensions: /\.php$/,

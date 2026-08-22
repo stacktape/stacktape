@@ -64,6 +64,12 @@ export type ProbeOutput = {
   disabledDependencyKinds?: DependencyKind[];
   existingDeployments?: ExistingDeploymentFact[];
   migrations?: MigrationFact[];
+  /** Dockerfiles used exclusively by finite lifecycle hooks such as Compose migration services. */
+  lifecycleDockerfiles?: string[];
+  /** Multi-stage Dockerfiles whose explicit Compose targets own the runnable services. */
+  descriptorTargetDockerfiles?: string[];
+  /** Compose processes that explicitly select a development stage/runtime and must never deploy. */
+  developmentProcesses?: string[];
   uncertainties?: Uncertainty[];
   packageManager?: PackageManager;
   workspaceGlobs?: string[];
@@ -127,7 +133,12 @@ export const citeFirstMatchOnly = (
   for (const [index, line] of lines.entries()) {
     const quote = matcher.exec(line)?.[0]?.trim().slice(0, 200);
     if (quote !== undefined && quote !== '') {
-      return { ...(field === undefined ? {} : { field }), file, line: index + 1, quote };
+      return {
+        ...(field === undefined ? {} : { field }),
+        file,
+        line: index + 1,
+        quote
+      };
     }
   }
   return undefined;

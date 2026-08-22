@@ -37,7 +37,10 @@ const makeRepo = async (files: Record<string, string>): Promise<string> => {
   return directory;
 };
 
-const APP_MANIFEST = JSON.stringify({ name: 'api', scripts: { start: 'node index.js' } });
+const APP_MANIFEST = JSON.stringify({
+  name: 'api',
+  scripts: { start: 'node index.js' }
+});
 
 describe('the existing-deployment probe', () => {
   it('finds an unambiguous deployment declaration and cites it', async () => {
@@ -49,8 +52,14 @@ describe('the existing-deployment probe', () => {
     const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
 
     expect(facts.existingDeployments).toHaveLength(1);
-    expect(facts.existingDeployments[0]).toMatchObject({ tool: 'serverless-framework', managesAws: true });
-    expect(facts.existingDeployments[0]?.evidence[0]).toMatchObject({ file: 'serverless.yml', line: 1 });
+    expect(facts.existingDeployments[0]).toMatchObject({
+      tool: 'serverless-framework',
+      managesAws: true
+    });
+    expect(facts.existingDeployments[0]?.evidence[0]).toMatchObject({
+      file: 'serverless.yml',
+      line: 1
+    });
   });
 
   it('asks the Terraform files which cloud they are for', async () => {
@@ -63,7 +72,10 @@ describe('the existing-deployment probe', () => {
 
     // Terraform deploys anywhere. Reporting "you have AWS resources" for a Google project would send
     // a future takeover flow looking for things that are not there.
-    expect(facts.existingDeployments[0]).toMatchObject({ tool: 'terraform', managesAws: false });
+    expect(facts.existingDeployments[0]).toMatchObject({
+      tool: 'terraform',
+      managesAws: false
+    });
   });
 
   it('ignores a stray .tf file that is not somebody’s infrastructure', async () => {
@@ -118,19 +130,33 @@ describe('the existing-deployment probe', () => {
       startCommand: 'node src/index.js'
     });
     expect(facts.dependencies).toContainEqual(
-      expect.objectContaining({ kind: 'postgres', addressedBy: ['DATABASE_URL'] })
+      expect.objectContaining({
+        kind: 'postgres',
+        addressedBy: ['DATABASE_URL']
+      })
     );
-    expect(facts.migrations[0]).toMatchObject({ command: 'node migrate.js', runsAt: 'ci' });
+    expect(facts.migrations[0]).toMatchObject({
+      command: 'node migrate.js',
+      runsAt: 'ci'
+    });
     expect(composed.config.resources.api).toMatchObject({
       type: 'web-service',
       properties: {
         packaging: { properties: { startCmd: 'node src/index.js' } },
         connectTo: ['mainDatabase'],
-        environment: [{ name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" }]
+        environment: [
+          {
+            name: 'DATABASE_URL',
+            value: "$ResourceParam('mainDatabase', 'connectionString')"
+          }
+        ]
       }
     });
     expect(composed.config.scripts?.migrateDatabase).toMatchObject({
-      properties: { executeCommand: 'node migrate.js', connectTo: ['mainDatabase'] }
+      properties: {
+        executeCommand: 'node migrate.js',
+        connectTo: ['mainDatabase']
+      }
     });
   });
 
@@ -140,13 +166,20 @@ describe('the existing-deployment probe', () => {
       'app.json': JSON.stringify({
         name: 'orders',
         addons: ['heroku-postgresql:essential-0'],
-        env: { API_TOKEN: { value: 'existing-deployment-citation-must-not-copy-this' } }
+        env: {
+          API_TOKEN: {
+            value: 'existing-deployment-citation-must-not-copy-this'
+          }
+        }
       })
     });
 
     const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
 
-    expect(facts.existingDeployments[0]).toMatchObject({ tool: 'heroku', managesAws: false });
+    expect(facts.existingDeployments[0]).toMatchObject({
+      tool: 'heroku',
+      managesAws: false
+    });
     expect(JSON.stringify(facts)).not.toContain('existing-deployment-citation-must-not-copy-this');
   });
 
@@ -160,11 +193,39 @@ describe('the existing-deployment probe', () => {
     const composed = composeConfig({ facts, projectName: 'orders' });
     const message = composed.gaps.find((gap) => gap.subject === 'fly')?.message ?? '';
 
-    expect(facts.existingDeployments[0]).toMatchObject({ tool: 'fly', managesAws: false });
+    expect(facts.existingDeployments[0]).toMatchObject({
+      tool: 'fly',
+      managesAws: false
+    });
     // Somebody deploying this without realising they now have two copies running will blame us for
     // the bill, so the second copy has to be stated before the deploy, not discovered after it.
     expect(message).toContain('second copy on AWS');
     expect(message).toContain('Fly.io');
+  });
+
+  it('recognises Wrangler without pretending Cloudflare runtime bindings are portable', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'feedback-worker',
+        type: 'module'
+      }),
+      'wrangler.jsonc': '{ "name": "feedback", "main": "src/index.ts", "d1_databases": [] }',
+      'src/index.ts': 'export default { fetch() { return new Response("ok"); } };'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    const composed = composeConfig({ facts, projectName: 'feedback' });
+
+    expect(facts.existingDeployments).toContainEqual(
+      expect.objectContaining({
+        tool: 'cloudflare-workers',
+        managesAws: false
+      })
+    );
+    expect(composed.config.resources).toEqual({});
+    expect(composed.gaps.find((gap) => gap.subject === 'cloudflare-workers')?.message).toContain(
+      'cannot translate those APIs'
+    );
   });
 
   it('recognises an app-local deployment manifest in a monorepo', async () => {
@@ -175,8 +236,13 @@ describe('the existing-deployment probe', () => {
 
     const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
 
-    expect(facts.existingDeployments[0]).toMatchObject({ tool: 'fly', managesAws: false });
-    expect(facts.existingDeployments[0]?.evidence[0]).toMatchObject({ file: 'apps/api/fly.toml' });
+    expect(facts.existingDeployments[0]).toMatchObject({
+      tool: 'fly',
+      managesAws: false
+    });
+    expect(facts.existingDeployments[0]?.evidence[0]).toMatchObject({
+      file: 'apps/api/fly.toml'
+    });
   });
 
   it('does not call a deployment example the repository’s current platform', async () => {

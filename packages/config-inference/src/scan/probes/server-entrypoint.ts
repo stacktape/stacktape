@@ -28,6 +28,11 @@ type Detection = {
   processType?: string;
 };
 
+const workerProcessType = (path: string): string => {
+  const stem = posix.basename(path).replace(/\.[^.]+$/, '');
+  return /(?:^|\/)(?:worker|workers)(?:\/|$)/i.test(path) && /^(?:index|main|bootstrap)$/i.test(stem) ? 'worker' : stem;
+};
+
 const detectionFor = (path: string, raw: string): Detection | undefined => {
   if (/\.(?:[cm]?js|tsx?)$/.test(path)) {
     const queueWorker = /from\s+["'](?:bullmq|bull|bee-queue)["']/.test(raw) && /new\s+Worker\s*\(/.test(raw);
@@ -37,7 +42,7 @@ const detectionFor = (path: string, raw: string): Detection | undefined => {
         pattern: /new\s+Worker\s*\(/,
         language: /\.tsx?$/.test(path) ? 'typescript' : 'javascript',
         exposesHttp: false,
-        processType: posix.basename(path).replace(/\.[^.]+$/, '')
+        processType: workerProcessType(path)
       };
     }
     const honoApplication = /\b(?:const|let)\s+(\w+)\s*=\s*new\s+Hono\s*\(/.exec(raw);
@@ -87,7 +92,7 @@ const detectionFor = (path: string, raw: string): Detection | undefined => {
       : undefined;
   }
   if (path.endsWith('.go')) {
-    const pattern = /(?:http\.ListenAndServe|\.Run\s*\(|fiber\.New\s*\(|echo\.New\s*\()/;
+    const pattern = /(?:http\.ListenAndServe|\.ListenAndServe\s*\(|\.Run\s*\(|fiber\.New\s*\(|echo\.New\s*\()/;
     return /\bfunc\s+main\s*\(/.test(raw) && pattern.test(raw)
       ? { entrypoint: path, pattern, language: 'go' }
       : undefined;
@@ -112,7 +117,8 @@ export const serverEntrypointProbe: Probe = {
     const candidates = context.files.filter(
       (path) =>
         /\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/.test(path) &&
-        !/(?:^|\/)(?:test|tests|__tests__|spec|fixtures)(?:\/|$)/i.test(path)
+        !/(?:^|\/)(?:test|tests|__tests__|spec|fixtures)(?:\/|$)/i.test(path) &&
+        !/(?:^|\/)[^/]+\.(?:test|spec)\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/i.test(path)
     );
     const byRoot = new Map<string, ServiceFactInput>();
     for (const path of candidates) {

@@ -58,8 +58,15 @@ describe('the Procfile probe', () => {
       startCommand: 'gunicorn myapp.wsgi --bind 0.0.0.0:8000'
     });
     // Only `web` receives HTTP. A worker with a load balancer in front of it is money for nothing.
-    expect(facts.services[1]).toMatchObject({ exposesHttp: false, startCommand: 'celery -A myapp worker' });
-    expect(facts.migrations[0]).toMatchObject({ tool: 'django', command: 'python manage.py migrate', runsAt: 'ci' });
+    expect(facts.services[1]).toMatchObject({
+      exposesHttp: false,
+      startCommand: 'celery -A myapp worker'
+    });
+    expect(facts.migrations[0]).toMatchObject({
+      tool: 'django',
+      command: 'python manage.py migrate',
+      runsAt: 'ci'
+    });
   });
 
   it('composes the worker as a worker, not a second web service', async () => {
@@ -77,7 +84,10 @@ describe('the Procfile probe', () => {
 
   it('does not turn one application into two when a manifest already described it', async () => {
     root = await makeRepo({
-      'package.json': JSON.stringify({ name: 'api', scripts: { start: 'node index.js' } }),
+      'package.json': JSON.stringify({
+        name: 'api',
+        scripts: { start: 'node index.js' }
+      }),
       Procfile: 'web: node dist/server.js\n'
     });
 
@@ -94,7 +104,10 @@ describe('the Procfile probe', () => {
     root = await makeRepo({
       'package.json': JSON.stringify({
         name: 'api',
-        scripts: { start: 'node dist/main.js', 'migration:run': 'typeorm migration:run' }
+        scripts: {
+          start: 'node dist/main.js',
+          'migration:run': 'typeorm migration:run'
+        }
       }),
       Procfile: [
         'web: npm run start',
@@ -107,12 +120,38 @@ describe('the Procfile probe', () => {
     const { config, gaps } = composeConfig({ facts, projectName: 'demo' });
 
     expect(facts.migrations).toEqual([
-      expect.objectContaining({ serviceName: 'api', command: 'npm run migration:run', runsAt: 'ci' })
+      expect.objectContaining({
+        serviceName: 'api',
+        command: 'npm run migration:run',
+        runsAt: 'ci'
+      })
     ]);
     expect(config.scripts?.migrateDatabase?.properties.executeCommand).toBe('npm run migration:run');
     expect(config.hooks?.afterDeploy).toEqual([{ scriptName: 'migrateDatabase' }]);
     expect(JSON.stringify({ facts, config, gaps })).not.toContain("echo '' > .env");
     expect(JSON.stringify({ facts, config, gaps })).not.toContain('seed:run:relational');
+  });
+
+  it('treats a conventionally named migrate process as a lifecycle hook, not a paid worker', async () => {
+    root = await makeRepo({
+      'requirements.txt': 'fastapi==0.116\nalembic==1.16\n',
+      Procfile: 'web: uvicorn app.main:app\nworker: celery -A app worker\nmigrate: alembic upgrade head\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [procfileProbe]
+    });
+
+    expect(facts.services.map((service) => service.name)).toEqual(['web', 'worker']);
+    expect(facts.migrations).toContainEqual(
+      expect.objectContaining({
+        serviceName: 'web',
+        tool: 'alembic',
+        command: 'alembic upgrade head',
+        runsAt: 'ci'
+      })
+    );
   });
 
   it('ignores comments and blank lines rather than reading them as processes', async () => {
@@ -126,7 +165,7 @@ describe('the Procfile probe', () => {
     expect(facts.services.map((service) => service.name)).toEqual(['web']);
   });
 
-  it('keeps inline environment names but never their values', async () => {
+  it('keeps safe operational defaults but never inline secret values', async () => {
     root = await makeRepo({
       'requirements.txt': 'flask\n',
       Procfile: 'web: SESSION_SECRET=do-not-store LOG_LEVEL=debug flask run\n'
@@ -137,12 +176,20 @@ describe('the Procfile probe', () => {
     expect(facts.services[0]).toMatchObject({
       startCommand: 'flask run',
       environmentVariables: [
-        expect.objectContaining({ name: 'SESSION_SECRET', role: 'third-party-secret', hasDeclaredValue: true }),
-        expect.objectContaining({ name: 'LOG_LEVEL', role: 'runtime-config', hasDeclaredValue: true })
+        expect.objectContaining({
+          name: 'SESSION_SECRET',
+          role: 'third-party-secret',
+          hasDeclaredValue: true
+        }),
+        expect.objectContaining({
+          name: 'LOG_LEVEL',
+          role: 'runtime-config',
+          hasDeclaredValue: true,
+          safeLiteralValue: 'debug'
+        })
       ]
     });
     expect(JSON.stringify(facts)).not.toContain('do-not-store');
-    expect(JSON.stringify(facts)).not.toContain('debug');
   });
 
   it('keeps every cross-reference intact when two probes name the same service differently', async () => {
@@ -168,10 +215,17 @@ describe('the Procfile probe', () => {
     // One migration, not two: the language probe proved the tool exists, the Procfile showed when
     // it runs, and the observed timing wins over `unknown`.
     expect(facts.migrations).toHaveLength(1);
-    expect(facts.migrations[0]).toMatchObject({ serviceName: 'orders', runsAt: 'ci' });
+    expect(facts.migrations[0]).toMatchObject({
+      serviceName: 'orders',
+      runsAt: 'ci'
+    });
     // One codebase, two processes: the worker needs the database exactly as much as the web does.
-    const properties = config.resources.orders?.properties as { connectTo?: string[] };
-    const workerProperties = config.resources.worker?.properties as { connectTo?: string[] };
+    const properties = config.resources.orders?.properties as {
+      connectTo?: string[];
+    };
+    const workerProperties = config.resources.worker?.properties as {
+      connectTo?: string[];
+    };
     expect(properties.connectTo).toEqual(['mainDatabase']);
     expect(workerProperties.connectTo).toEqual(['mainDatabase']);
   });

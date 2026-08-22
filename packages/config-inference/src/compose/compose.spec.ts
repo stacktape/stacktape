@@ -174,8 +174,15 @@ describe('composeConfig', () => {
         ],
         alarms: [
           {
-            trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },
-            evaluation: { period: 300, evaluationPeriods: 3, breachedPeriods: 2 },
+            trigger: {
+              type: 'lambda-error-rate',
+              properties: { thresholdPercent: 10 }
+            },
+            evaluation: {
+              period: 300,
+              evaluationPeriods: 3,
+              breachedPeriods: 2
+            },
             includeInHistory: true
           }
         ]
@@ -291,7 +298,11 @@ describe('composeConfig', () => {
     expect(config.resources.mainDatabase?.properties).toMatchObject({
       deletionProtection: true,
       automatedBackupRetentionDays: 1,
-      engine: { properties: { primaryInstance: { instanceSize: 'db.t4g.medium', multiAz: true } } }
+      engine: {
+        properties: {
+          primaryInstance: { instanceSize: 'db.t4g.medium', multiAz: true }
+        }
+      }
     });
     expect(config.resources.uploads?.properties).toEqual({});
   });
@@ -341,7 +352,12 @@ describe('composeConfig', () => {
               required: true,
               evidence: []
             },
-            { name: 'STRIPE_SECRET_KEY', role: 'third-party-secret', required: true, evidence: [] }
+            {
+              name: 'STRIPE_SECRET_KEY',
+              role: 'third-party-secret',
+              required: true,
+              evidence: []
+            }
           ]
         })
       ],
@@ -362,7 +378,10 @@ describe('composeConfig', () => {
     expect(recommended.config.resources.databaseBastion).toBeUndefined();
     expect(recommended.config.resources.handler?.properties.joinDefaultVpc).toBeUndefined();
 
-    const privateChoice = composeConfig({ facts: input, preferences: { databaseAccess: 'private' } });
+    const privateChoice = composeConfig({
+      facts: input,
+      preferences: { databaseAccess: 'private' }
+    });
     expect(privateChoice.preferences.databaseAccess).toBe('private');
     expect(privateChoice.config.resources.databaseBastion?.type).toBe('bastion');
     expect(privateChoice.config.resources.handler?.properties.joinDefaultVpc).toBe(true);
@@ -381,7 +400,13 @@ describe('composeConfig', () => {
             executionModel: 'per-request',
             functionEntrypoint: 'src/handler.ts',
             environmentVariables: [
-              { name: 'REDIS_URL', role: 'infra-dependency', dependencyName: 'cache', required: true, evidence: [] }
+              {
+                name: 'REDIS_URL',
+                role: 'infra-dependency',
+                dependencyName: 'cache',
+                required: true,
+                evidence: []
+              }
             ]
           })
         ],
@@ -432,7 +457,10 @@ describe('composeConfig', () => {
     expect(config.resources.mainDatabase?.properties.alarms).toEqual([
       {
         description: 'Database has less than 2 GiB of free storage',
-        trigger: { type: 'database-free-storage', properties: { thresholdMB: 2048 } },
+        trigger: {
+          type: 'database-free-storage',
+          properties: { thresholdMB: 2048 }
+        },
         evaluation: { period: 300, evaluationPeriods: 3, breachedPeriods: 2 },
         includeInHistory: true
       }
@@ -585,6 +613,27 @@ describe('composeConfig', () => {
     expect(environment).toEqual([{ name: 'STRIPE_SECRET_KEY', value: "$Secret('stripe_secret_key')" }]);
   });
 
+  it('does not require optional secrets that the application can run without', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            environmentVariables: [
+              {
+                name: 'OPTIONAL_API_KEY',
+                role: 'third-party-secret',
+                required: false,
+                evidence: []
+              }
+            ]
+          })
+        ]
+      })
+    });
+
+    expect(config.resources.web?.properties.environment).toBeUndefined();
+  });
+
   it('reports a build-time variable as a gap instead of writing it as a runtime value', () => {
     // Writing it at runtime is the silent failure: the bundle ships with an empty string and the
     // deploy is green.
@@ -636,6 +685,60 @@ describe('composeConfig', () => {
     );
   });
 
+  it('writes a probe-approved operational literal without asking for a secret', () => {
+    const { config, gaps } = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            environmentVariables: [
+              {
+                name: 'LOG_LEVEL',
+                role: 'runtime-config',
+                hasDeclaredValue: true,
+                safeLiteralValue: 'info',
+                required: true,
+                evidence: []
+              }
+            ]
+          })
+        ]
+      })
+    });
+
+    expect(config.resources.web?.properties.environment).toEqual([{ name: 'LOG_LEVEL', value: 'info' }]);
+    expect(gaps.some((gap) => gap.subject.includes('LOG_LEVEL'))).toBe(false);
+  });
+
+  it('does not turn unconsumed SDK hints in an unresolved Pulumi app into orphaned infrastructure', () => {
+    const { config, gaps } = composeConfig({
+      facts: facts({
+        services: [],
+        dependencies: [
+          {
+            name: 'jobQueue',
+            kind: 'queue',
+            extensions: [],
+            consumedBy: [],
+            addressedBy: [],
+            evidence: [{ file: 'package.json', line: 4, quote: '"@aws-sdk/client-sqs"' }],
+            source: 'probe'
+          }
+        ],
+        existingDeployments: [
+          {
+            tool: 'pulumi',
+            managesAws: true,
+            evidence: [{ file: 'Pulumi.yaml', line: 1, quote: 'name:' }],
+            source: 'probe'
+          }
+        ]
+      })
+    });
+
+    expect(config.resources).toEqual({});
+    expect(gaps.find((gap) => gap.subject === 'pulumi')?.message).toContain('orphaned queues');
+  });
+
   it('groups deployment-file values into one understandable action', () => {
     const { gaps } = composeConfig({
       facts: facts({
@@ -660,6 +763,32 @@ describe('composeConfig', () => {
       }
     ]);
     expect(gaps[0]?.message).toContain('domain, log_level, public_origin');
+  });
+
+  it('turns a declared application URL into the service own generated URL', () => {
+    const { config, gaps } = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            framework: 'nextjs',
+            environmentVariables: [
+              {
+                name: 'APP_URL',
+                role: 'runtime-config',
+                hasDeclaredValue: true,
+                required: true,
+                evidence: []
+              }
+            ]
+          })
+        ]
+      })
+    });
+
+    expect(config.resources.web?.properties.environment).toEqual([
+      { name: 'APP_URL', value: "$ResourceParam('web', 'url')" }
+    ]);
+    expect(gaps.some((gap) => gap.subject.includes('APP_URL'))).toBe(false);
   });
 
   it('resolves a cross-service reference to the other resource', () => {
@@ -769,10 +898,12 @@ describe('composeConfig', () => {
 
 const environmentOf = (config: ReturnType<typeof composeConfig>['config']): Record<string, string> =>
   Object.fromEntries(
-    ((config.resources.web?.properties.environment ?? []) as Array<{ name: string; value: string }>).map((entry) => [
-      entry.name,
-      entry.value
-    ])
+    (
+      (config.resources.web?.properties.environment ?? []) as Array<{
+        name: string;
+        value: string;
+      }>
+    ).map((entry) => [entry.name, entry.value])
   );
 
 describe('wiring application variable names to created resources', () => {
@@ -791,7 +922,14 @@ describe('wiring application variable names to created resources', () => {
           evidence: [],
           source: 'probe'
         },
-        { name: 'cache', kind: 'redis', extensions: [], consumedBy: ['web'], evidence: [], source: 'probe' },
+        {
+          name: 'cache',
+          kind: 'redis',
+          extensions: [],
+          consumedBy: ['web'],
+          evidence: [],
+          source: 'probe'
+        },
         {
           name: 'storageBucket',
           kind: 'object-storage',
@@ -813,9 +951,27 @@ describe('wiring application variable names to created resources', () => {
           required: true,
           evidence: []
         },
-        { name: 'REDIS_HOST', role: 'infra-dependency', dependencyName: 'cache', required: true, evidence: [] },
-        { name: 'REDIS_PORT', role: 'infra-dependency', dependencyName: 'cache', required: true, evidence: [] },
-        { name: 'S3_BUCKET', role: 'infra-dependency', dependencyName: 'storageBucket', required: true, evidence: [] }
+        {
+          name: 'REDIS_HOST',
+          role: 'infra-dependency',
+          dependencyName: 'cache',
+          required: true,
+          evidence: []
+        },
+        {
+          name: 'REDIS_PORT',
+          role: 'infra-dependency',
+          dependencyName: 'cache',
+          required: true,
+          evidence: []
+        },
+        {
+          name: 'S3_BUCKET',
+          role: 'infra-dependency',
+          dependencyName: 'storageBucket',
+          required: true,
+          evidence: []
+        }
       ])
     });
 
@@ -864,7 +1020,12 @@ describe('wiring application variable names to created resources', () => {
         services: [
           service({
             environmentVariables: [
-              { name: "PAYMENT_KEY'),('injected", role: 'third-party-secret', required: true, evidence: [] }
+              {
+                name: "PAYMENT_KEY'),('injected",
+                role: 'third-party-secret',
+                required: true,
+                evidence: []
+              }
             ]
           })
         ]
@@ -884,7 +1045,11 @@ describe('packaging a workspace member from the repository root', () => {
       path: 'apps/web',
       buildCommand: 'pnpm build',
       startCommand: 'pnpm start',
-      workspace: { packageName: '@acme/web', internalDependencies: ['@acme/ui'], buildsFromRoot: false },
+      workspace: {
+        packageName: '@acme/web',
+        internalDependencies: ['@acme/ui'],
+        buildsFromRoot: false
+      },
       ...overrides
     });
 
@@ -908,7 +1073,13 @@ describe('packaging a workspace member from the repository root', () => {
       facts: facts({
         packageManager: 'pnpm',
         services: [
-          workspaceService({ workspace: { packageName: '@acme/web', internalDependencies: [], buildsFromRoot: false } })
+          workspaceService({
+            workspace: {
+              packageName: '@acme/web',
+              internalDependencies: [],
+              buildsFromRoot: false
+            }
+          })
         ]
       })
     });
@@ -926,7 +1097,10 @@ describe('packaging a workspace member from the repository root', () => {
 
     expect(config.resources.web?.properties.packaging).toMatchObject({
       type: 'nixpacks',
-      properties: { sourceDirectoryPath: '.', startCmd: 'yarn workspace @acme/web start' }
+      properties: {
+        sourceDirectoryPath: '.',
+        startCmd: 'yarn workspace @acme/web start'
+      }
     });
     expect(gaps.some((gap) => gap.subject === 'web' && gap.message.includes('workspace imports'))).toBe(true);
   });
@@ -958,7 +1132,11 @@ describe('packaging a workspace member from the repository root', () => {
 
 describe('pinning the declared runtime version', () => {
   const entrypointService = (overrides: Partial<ServiceFactInput> = {}) =>
-    service({ startCommand: undefined, containerEntrypoint: 'src/server.ts', ...overrides });
+    service({
+      startCommand: undefined,
+      containerEntrypoint: 'src/server.ts',
+      ...overrides
+    });
 
   it('pins a supported Node major on the buildpack', () => {
     const { config } = composeConfig({
@@ -1002,7 +1180,9 @@ describe('pinning the declared runtime version', () => {
       }).config;
 
     expect(configFor('3.12').resources.web?.properties.packaging).toMatchObject({
-      properties: { languageSpecificConfig: { runAppAs: 'ASGI', pythonVersion: 3.12 } }
+      properties: {
+        languageSpecificConfig: { runAppAs: 'ASGI', pythonVersion: 3.12 }
+      }
     });
     // 3.10 is absent from the schema's union; pinning it would fail validation downstream.
     expect(configFor('3.10').resources.web?.properties.packaging).toMatchObject({
@@ -1023,7 +1203,13 @@ describe('composing detected migrations into deploy hooks', () => {
 
   const webWithDatabaseUrl = service({
     environmentVariables: [
-      { name: 'DATABASE_URL', role: 'infra-dependency', dependencyName: 'mainDatabase', required: true, evidence: [] }
+      {
+        name: 'DATABASE_URL',
+        role: 'infra-dependency',
+        dependencyName: 'mainDatabase',
+        required: true,
+        evidence: []
+      }
     ]
   });
 
@@ -1033,7 +1219,13 @@ describe('composing detected migrations into deploy hooks', () => {
         services: [webWithDatabaseUrl],
         dependencies: [database],
         migrations: [
-          { serviceName: 'web', tool: 'prisma', command: 'npx prisma migrate deploy', runsAt: 'ci', evidence: [] }
+          {
+            serviceName: 'web',
+            tool: 'prisma',
+            command: 'npx prisma migrate deploy',
+            runsAt: 'ci',
+            evidence: []
+          }
         ]
       })
     });
@@ -1045,7 +1237,12 @@ describe('composing detected migrations into deploy hooks', () => {
         bastionResource: 'databaseBastion',
         connectTo: ['mainDatabase'],
         // The migration tool reads the same name the application does, wired the same way.
-        environment: [{ name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" }]
+        environment: [
+          {
+            name: 'DATABASE_URL',
+            value: "$ResourceParam('mainDatabase', 'connectionString')"
+          }
+        ]
       }
     });
     expect(config.hooks?.afterDeploy).toEqual([{ scriptName: 'migrateDatabase' }]);
@@ -1070,13 +1267,22 @@ describe('composing detected migrations into deploy hooks', () => {
         ],
         dependencies: [database],
         migrations: [
-          { serviceName: 'web', tool: 'alembic', command: 'alembic upgrade head', runsAt: 'ci', evidence: [] }
+          {
+            serviceName: 'web',
+            tool: 'alembic',
+            command: 'alembic upgrade head',
+            runsAt: 'ci',
+            evidence: []
+          }
         ]
       })
     });
 
     expect(config.scripts?.migrateDatabase?.properties.environment).toEqual([
-      { name: 'POSTGRES_PASSWORD', value: "$Secret('shop-mainDatabase.password')" }
+      {
+        name: 'POSTGRES_PASSWORD',
+        value: "$Secret('shop-mainDatabase.password')"
+      }
     ]);
   });
 
@@ -1130,7 +1336,15 @@ describe('composing detected migrations into deploy hooks', () => {
       facts: facts({
         services: [service({ environmentVariables: [] })],
         dependencies: [database],
-        migrations: [{ serviceName: 'web', tool: 'unknown', command: 'node migrate.js', runsAt: 'ci', evidence: [] }]
+        migrations: [
+          {
+            serviceName: 'web',
+            tool: 'unknown',
+            command: 'node migrate.js',
+            runsAt: 'ci',
+            evidence: []
+          }
+        ]
       })
     });
 

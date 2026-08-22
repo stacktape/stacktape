@@ -18,14 +18,13 @@ import type { EnvironmentVariableUse, FunctionTrigger, ServiceFactInput } from '
 import { parseCloudFormationYaml } from '../cloudformation-yaml';
 import { citeFirstMatchOnly, readText } from '../probe';
 import type { Probe, ProbeContext, ProbeOutput } from '../probe';
+import { declaredEnvironmentVariable } from './declared-environment';
 
 type RecordValue = Record<string, unknown>;
 const isRecord = (value: unknown): value is RecordValue =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
 
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-
-const SECRETISH_NAME = /SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY|API_KEY|APIKEY|ACCESS_KEY|CREDENTIAL|_KEY$/;
 
 const RESOURCE_KINDS: Readonly<Record<string, DependencyKind>> = {
   'AWS::DynamoDB::Table': 'dynamodb',
@@ -46,6 +45,21 @@ const factName = (value: string): string => {
   result = result.replace(/^(.)/, (character) => character.toLowerCase());
   return result || 'resource';
 };
+
+const manifestDependencyFact = (
+  name: string,
+  kind: DependencyKind,
+  citation: ReturnType<typeof citeFirstMatchOnly>
+): DependencyFact => ({
+  name,
+  kind,
+  extensions: [],
+  consumedBy: [],
+  addressedBy: [],
+  hostingEvidence: 'deployment-manifest',
+  evidence: citation === undefined ? [] : [citation],
+  source: 'probe'
+});
 
 const languageForRuntime = (runtime: string | undefined, entrypoint: string): string => {
   if (entrypoint.endsWith('.py')) return 'python';
@@ -74,6 +88,8 @@ const entrypointFor = (files: readonly string[], manifestDirectory: string, hand
 
 const referencedLogicalId = (value: unknown, known: ReadonlySet<string>): string | undefined => {
   if (typeof value === 'string') {
+    const construct = /^\$\{construct:([A-Za-z_][A-Za-z0-9_-]*)\./.exec(value)?.[1];
+    if (construct !== undefined && known.has(construct)) return construct;
     const prefix = value.split('.')[0] ?? value;
     return known.has(prefix) ? prefix : undefined;
   }
@@ -94,11 +110,16 @@ const referencedLogicalId = (value: unknown, known: ReadonlySet<string>): string
  */
 const environmentDependencyNamesFor = (
   resourceEntries: readonly [string, RecordValue][],
-  dependencyNames: ReadonlyMap<string, string>
+  dependencyNames: ReadonlyMap<string, string>,
+  providerEnvironment: RecordValue
 ): ReadonlyMap<string, string> => {
   const targets = new Map<string, Set<string>>();
+  const literalTargets = new Map<string, Set<string>>();
   const visit = (value: unknown, dependencyName: string): void => {
     if (typeof value === 'string') {
+      const literalNames = literalTargets.get(value) ?? new Set<string>();
+      literalNames.add(dependencyName);
+      literalTargets.set(value, literalNames);
       for (const match of value.matchAll(/\$\{self:provider\.environment\.([A-Za-z_][A-Za-z0-9_]*)\}/g)) {
         const names = targets.get(match[1]!) ?? new Set<string>();
         names.add(dependencyName);
@@ -119,6 +140,18 @@ const environmentDependencyNamesFor = (
     const dependencyName = dependencyNames.get(logicalId);
     if (dependencyName !== undefined) visit(resource, dependencyName);
   }
+  // The inverse shape is equally common: both a resource and an environment variable refer to the
+  // same custom name (`TableName: ${self:custom.jobsTable}` and
+  // `JOBS_TABLE: ${self:custom.jobsTable}`). Equality of the complete expression is strong evidence
+  // and avoids asking the user to put a table name we just created into a secret.
+  for (const [variableName, value] of Object.entries(providerEnvironment)) {
+    if (typeof value !== 'string') continue;
+    const dependencyTargets = literalTargets.get(value);
+    if (dependencyTargets === undefined) continue;
+    const names = targets.get(variableName) ?? new Set<string>();
+    for (const dependencyName of dependencyTargets) names.add(dependencyName);
+    targets.set(variableName, names);
+  }
   return new Map(
     [...targets.entries()].flatMap(([variableName, dependencyTargets]) =>
       dependencyTargets.size === 1 ? [[variableName, [...dependencyTargets][0]!] as const] : []
@@ -132,6 +165,7 @@ const triggersFor = (events: unknown, dependencyNames: ReadonlyMap<string, strin
   const known = new Set(dependencyNames.keys());
   for (const event of events) {
     if (!isRecord(event)) continue;
+    const triggerCountBefore = triggers.length;
 
     const http = event.http ?? event.httpApi;
     if (typeof http === 'string') {
@@ -141,14 +175,23 @@ const triggersFor = (events: unknown, dependencyNames: ReadonlyMap<string, strin
         continue;
       }
       const match = /^([A-Za-z*]+)\s+(\/\S*)$/.exec(http.trim());
-      if (match !== null) triggers.push({ type: 'http', method: match[1]!.toUpperCase(), path: match[2]! });
+      if (match !== null)
+        triggers.push({
+          type: 'http',
+          method: match[1]!.toUpperCase(),
+          path: match[2]!
+        });
       continue;
     }
     if (isRecord(http)) {
       const method = typeof http.method === 'string' ? http.method : undefined;
       const path = typeof http.path === 'string' ? http.path : undefined;
       if (method !== undefined && path !== undefined) {
-        triggers.push({ type: 'http', method: method.toUpperCase(), path: path.startsWith('/') ? path : `/${path}` });
+        triggers.push({
+          type: 'http',
+          method: method.toUpperCase(),
+          path: path.startsWith('/') ? path : `/${path}`
+        });
       }
       continue;
     }
@@ -170,7 +213,11 @@ const triggersFor = (events: unknown, dependencyNames: ReadonlyMap<string, strin
     if (queueName !== undefined) {
       const batchSize =
         isRecord(event.sqs) && typeof event.sqs.batchSize === 'number' ? event.sqs.batchSize : undefined;
-      triggers.push({ type: 'queue', dependencyName: queueName, ...(batchSize === undefined ? {} : { batchSize }) });
+      triggers.push({
+        type: 'queue',
+        dependencyName: queueName,
+        ...(batchSize === undefined ? {} : { batchSize })
+      });
     }
 
     const sns = isRecord(event.sns) ? event.sns.arn : event.sns;
@@ -188,6 +235,21 @@ const triggersFor = (events: unknown, dependencyNames: ReadonlyMap<string, strin
         dependencyName: bucketName,
         ...(eventType === undefined ? {} : { eventType })
       });
+    }
+    if (triggers.length === triggerCountBefore) {
+      const sourceType =
+        event.websocket !== undefined
+          ? 'a WebSocket route'
+          : event.stream !== undefined
+            ? 'a Kinesis or DynamoDB stream event'
+            : event.s3 !== undefined
+              ? 'an S3 event whose bucket is external or plugin-managed'
+              : event.sqs !== undefined
+                ? 'an SQS event whose queue reference could not be resolved'
+                : event.sns !== undefined
+                  ? 'an SNS event whose topic reference could not be resolved'
+                  : undefined;
+      if (sourceType !== undefined) triggers.push({ type: 'unmapped', sourceType });
     }
   }
   return triggers;
@@ -216,12 +278,7 @@ const environmentVariablesFor = ({
     // An environment value may be an SSM path or, unfortunately, plaintext. The fact needs only
     // the name; keep its citation useful without copying the value into the facts document.
     const evidence = citation === undefined ? [] : [{ ...citation, quote: `${name}:` }];
-    const base = { name, required: true, hasDeclaredValue: true, evidence };
-    if (dependencyName !== undefined) {
-      variables.push({ ...base, role: 'infra-dependency', dependencyName });
-    } else {
-      variables.push({ ...base, role: SECRETISH_NAME.test(name) ? 'third-party-secret' : 'runtime-config' });
-    }
+    variables.push(declaredEnvironmentVariable({ name, dependencyName, evidence, value }));
   }
   return variables;
 };
@@ -270,20 +327,48 @@ export const serverlessFrameworkProbe: Probe = {
         const name = (kindCounts.get(kind) ?? 0) === 1 ? defaultDependencyName(kind) : factName(logicalId);
         dependencyNames.set(logicalId, name);
         const citation = citeFirstMatchOnly(file, raw, new RegExp(`^\\s*${escapeRegExp(logicalId)}:`));
-        manifestDependencies.push({
-          name,
-          kind,
-          extensions: [],
-          consumedBy: [],
-          addressedBy: [],
-          hostingEvidence: 'deployment-manifest',
-          evidence: citation === undefined ? [] : [citation],
-          source: 'probe'
-        });
+        manifestDependencies.push(manifestDependencyFact(name, kind, citation));
       }
-      const environmentDependencyNames = environmentDependencyNamesFor(resourceEntries, dependencyNames);
+      const constructs = isRecord(parsed.constructs) ? parsed.constructs : {};
+      const constructEntries = Object.entries(constructs).filter(
+        (entry): entry is [string, RecordValue] =>
+          isRecord(entry[1]) && (entry[1].type === 'storage' || entry[1].type === 'queue')
+      );
+      const constructKindCounts = new Map<DependencyKind, number>();
+      for (const [, construct] of constructEntries) {
+        const kind: DependencyKind = construct.type === 'storage' ? 'object-storage' : 'queue';
+        constructKindCounts.set(kind, (constructKindCounts.get(kind) ?? 0) + 1);
+      }
+      for (const [constructName, construct] of constructEntries) {
+        const kind: DependencyKind = construct.type === 'storage' ? 'object-storage' : 'queue';
+        const name = (constructKindCounts.get(kind) ?? 0) === 1 ? defaultDependencyName(kind) : factName(constructName);
+        dependencyNames.set(constructName, name);
+        const citation = citeFirstMatchOnly(file, raw, new RegExp(`^\\s*${escapeRegExp(constructName)}:`));
+        manifestDependencies.push(manifestDependencyFact(name, kind, citation));
+      }
+      const environmentDependencyNames = environmentDependencyNamesFor(
+        resourceEntries,
+        dependencyNames,
+        providerEnvironment
+      );
 
-      for (const [functionName, declaration] of Object.entries(parsed.functions)) {
+      const functionDeclarations: Array<[string, RecordValue]> = Object.entries(parsed.functions).filter(
+        (entry): entry is [string, RecordValue] => isRecord(entry[1])
+      );
+      for (const [constructName, construct] of constructEntries) {
+        if (construct.type !== 'queue' || !isRecord(construct.worker) || typeof construct.worker.handler !== 'string') {
+          continue;
+        }
+        functionDeclarations.push([
+          `${constructName}Worker`,
+          {
+            ...construct.worker,
+            events: [{ sqs: `\${construct:${constructName}.queueArn}` }]
+          }
+        ]);
+      }
+
+      for (const [functionName, declaration] of functionDeclarations) {
         if (!isRecord(declaration) || typeof declaration.handler !== 'string') continue;
         const entrypoint = entrypointFor(context.files, directory, declaration.handler);
         if (entrypoint === undefined) continue;
@@ -311,7 +396,7 @@ export const serverlessFrameworkProbe: Probe = {
           if (variable.role !== 'infra-dependency' || variable.dependencyName === undefined) continue;
           const dependency = manifestDependencies.find((entry) => entry.name === variable.dependencyName);
           if (dependency === undefined) continue;
-          dependency.addressedBy.push(variable.name);
+          if (!dependency.addressedBy.includes(variable.name)) dependency.addressedBy.push(variable.name);
           dependency.consumedBy.push(serviceName);
         }
         for (const trigger of functionTriggers) {

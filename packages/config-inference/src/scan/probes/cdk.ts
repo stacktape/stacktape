@@ -358,6 +358,25 @@ export const cdkProbe: Probe = {
                 : { type: 'object-storage', dependencyName }
           );
         }
+        // The CDK examples commonly name the event source before attaching it:
+        // `const source = new SqsEventSource(queue); fn.addEventSource(source)`.
+        for (const attachment of raw.matchAll(new RegExp(`${variable}\\.addEventSource\\(\\s*([\\w$]+)\\s*\\)`, 'g'))) {
+          const sourceVariable = attachment[1]!;
+          const declaration = new RegExp(
+            `(?:const|let|var)\\s+${sourceVariable}\\s*=\\s*new\\s+(?:[\\w$]+\\.)?(SqsEventSource|SnsEventSource|S3EventSource)\\(\\s*([\\w$]+)`
+          ).exec(raw);
+          if (declaration === null) continue;
+          const dependencyId = bindings.get(declaration[2]!);
+          const dependencyName = dependencyId === undefined ? undefined : assignedNames.get(dependencyId);
+          if (dependencyName === undefined) continue;
+          triggers.push(
+            declaration[1] === 'SqsEventSource'
+              ? { type: 'queue', dependencyName }
+              : declaration[1] === 'SnsEventSource'
+                ? { type: 'topic', dependencyName }
+                : { type: 'object-storage', dependencyName }
+          );
+        }
       }
 
       const citation = citeFirstMatchOnly(

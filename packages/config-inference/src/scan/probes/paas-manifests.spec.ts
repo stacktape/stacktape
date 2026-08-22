@@ -70,7 +70,10 @@ describe('the render.yaml importer', () => {
       ].join('\n')
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [paasManifestsProbe, manifestProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [paasManifestsProbe, manifestProbe]
+    });
 
     const service = facts.services.find((entry) => entry.name === 'ordersApi');
     expect(service).toMatchObject({
@@ -82,9 +85,15 @@ describe('the render.yaml importer', () => {
     });
 
     const byName = Object.fromEntries((service?.environmentVariables ?? []).map((entry) => [entry.name, entry]));
-    expect(byName.DATABASE_URL).toMatchObject({ role: 'infra-dependency', dependencyName: 'mainDatabase' });
+    expect(byName.DATABASE_URL).toMatchObject({
+      role: 'infra-dependency',
+      dependencyName: 'mainDatabase'
+    });
     expect(byName.SESSION_SECRET?.role).toBe('third-party-secret');
-    expect(byName.LOG_LEVEL?.role).toBe('runtime-config');
+    expect(byName.LOG_LEVEL).toMatchObject({
+      role: 'runtime-config',
+      safeLiteralValue: 'info'
+    });
     // Stacktape supplies this itself; a Render default must not become a secret or a setup chore.
     expect(byName.NODE_ENV).toBeUndefined();
     expect(byName.WORKER_HOST).toMatchObject({
@@ -149,7 +158,10 @@ describe('the render.yaml importer', () => {
       ].join('\n')
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [paasManifestsProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [paasManifestsProbe]
+    });
 
     expect(facts.services.map((entry) => entry.name).toSorted()).toEqual(['shopApi', 'shopFrontend']);
     expect(facts.services.find((entry) => entry.name === 'shopApi')).toMatchObject({
@@ -199,7 +211,10 @@ describe('the render.yaml importer', () => {
       ].join('\n')
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [paasManifestsProbe, manifestProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [paasManifestsProbe, manifestProbe]
+    });
 
     expect(facts.services.map((entry) => entry.name).toSorted()).toEqual(['app', 'jobs', 'site']);
     expect(facts.services.find((entry) => entry.name === 'jobs')).toMatchObject({
@@ -229,19 +244,115 @@ describe('the render.yaml importer', () => {
       ].join('\n')
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [paasManifestsProbe, manifestProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [paasManifestsProbe, manifestProbe]
+    });
 
     const service = facts.services.find((entry) => entry.name === 'orders');
     expect(service?.startCommand).toBe('node dist/server.js');
     // The package manifest still contributes what the platform manifest does not state.
     expect(service?.framework).toBe('express');
   });
+
+  it('merges Render and Compose processes that declare the exact same production commands', async () => {
+    root = await makeRepo({
+      'requirements.txt': 'Django==5\ncelery==5\n',
+      Dockerfile: 'FROM python:3.13\n',
+      'render.yaml': [
+        'services:',
+        '  - type: web',
+        '    name: orders-web',
+        '    runtime: python',
+        '    startCommand: gunicorn config.wsgi:application',
+        '    envVars:',
+        '      - key: REDIS_URL',
+        '        value: redis://cache:6379/0',
+        '  - type: worker',
+        '    name: orders-jobs',
+        '    runtime: python',
+        '    startCommand: celery -A config worker --loglevel=info',
+        ''
+      ].join('\n'),
+      'docker-compose.yml': [
+        'services:',
+        '  web:',
+        '    build: .',
+        '    command: gunicorn config.wsgi:application',
+        '    ports: ["8000:8000"]',
+        '    environment:',
+        '      REDIS_URL: redis://cache:6379/0',
+        '  worker:',
+        '    build: .',
+        '    command: celery -A config worker --loglevel=info',
+        '  cache:',
+        '    image: redis:7',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [paasManifestsProbe, dockerComposeProbe]
+    });
+
+    expect(facts.services).toHaveLength(2);
+    expect(facts.services.map((service) => service.startCommand).toSorted()).toEqual([
+      'celery -A config worker --loglevel=info',
+      'gunicorn config.wsgi:application'
+    ]);
+    expect(facts.services.find((service) => service.exposesHttp)?.environmentVariables).toContainEqual(
+      expect.objectContaining({
+        name: 'REDIS_URL',
+        role: 'infra-dependency',
+        dependencyName: 'cache'
+      })
+    );
+  });
+
+  it('keeps an explicitly static Render service static when local Compose fronts it with Traefik', async () => {
+    root = await makeRepo({
+      'frontend/Dockerfile': 'FROM nginx:alpine\nCOPY dist /usr/share/nginx/html\n',
+      'render.yaml': [
+        'services:',
+        '  - type: web',
+        '    name: frontend',
+        '    runtime: static',
+        '    staticPublishPath: frontend/dist',
+        ''
+      ].join('\n'),
+      'compose.yml': [
+        'services:',
+        '  frontend:',
+        '    build:',
+        '      context: .',
+        '      dockerfile: frontend/Dockerfile',
+        '    labels:',
+        '      - traefik.http.services.frontend.loadbalancer.server.port=80',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [paasManifestsProbe, dockerComposeProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      exposesHttp: false,
+      servesStaticAssets: { path: 'frontend/dist' }
+    });
+  });
 });
 
 describe('the fly.toml importer', () => {
   it('reads the port, the processes, and the non-secret environment names', async () => {
     root = await makeRepo({
-      'package.json': JSON.stringify({ name: 'app', dependencies: { fastify: '^4.0.0' } }),
+      'package.json': JSON.stringify({
+        name: 'app',
+        dependencies: { fastify: '^4.0.0' }
+      }),
       'fly.toml': [
         'app = "orders-api"',
         '',
@@ -259,20 +370,33 @@ describe('the fly.toml importer', () => {
       ].join('\n')
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [paasManifestsProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [paasManifestsProbe]
+    });
 
     const web = facts.services.find((entry) => entry.name === 'ordersApi');
-    expect(web).toMatchObject({ exposesHttp: true, port: 8080, startCommand: 'node dist/server.js' });
+    expect(web).toMatchObject({
+      exposesHttp: true,
+      port: 8080,
+      startCommand: 'node dist/server.js'
+    });
     expect(web?.environmentVariables.map((entry) => entry.name)).toContain('LOG_FORMAT');
     expect(web?.environmentVariables.map((entry) => entry.name)).not.toContain('PORT');
 
     const worker = facts.services.find((entry) => entry.processType === 'fly:worker');
-    expect(worker).toMatchObject({ exposesHttp: false, startCommand: 'node dist/worker.js' });
+    expect(worker).toMatchObject({
+      exposesHttp: false,
+      startCommand: 'node dist/worker.js'
+    });
   });
 
   it('uses real TOML sections, accepts ordinary env keys, and scopes a nested app to its directory', async () => {
     root = await makeRepo({
-      'apps/api/package.json': JSON.stringify({ name: 'api', dependencies: { fastify: '^5.0.0' } }),
+      'apps/api/package.json': JSON.stringify({
+        name: 'api',
+        dependencies: { fastify: '^5.0.0' }
+      }),
       'apps/api/Dockerfile.prod': 'FROM node:24\nEXPOSE 3000\n',
       'apps/api/fly.toml': [
         'app = "orders-api"',
@@ -298,7 +422,10 @@ describe('the fly.toml importer', () => {
       ].join('\n')
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [paasManifestsProbe, manifestProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [paasManifestsProbe, manifestProbe]
+    });
     const web = facts.services.find((entry) => entry.name === 'ordersApi');
 
     expect(web).toMatchObject({
@@ -318,7 +445,10 @@ describe('the fly.toml importer', () => {
 
   it('does not deploy the same web and worker twice when Compose and Fly describe both', async () => {
     root = await makeRepo({
-      'package.json': JSON.stringify({ name: 'orders', dependencies: { express: '^5.0.0' } }),
+      'package.json': JSON.stringify({
+        name: 'orders',
+        dependencies: { express: '^5.0.0' }
+      }),
       Dockerfile: 'FROM node:24\n',
       'fly.toml': [
         'app = "orders"',
@@ -342,7 +472,10 @@ describe('the fly.toml importer', () => {
       ].join('\n')
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [paasManifestsProbe, dockerComposeProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [paasManifestsProbe, dockerComposeProbe]
+    });
 
     expect(facts.services).toHaveLength(2);
     expect(facts.services.map((service) => service.startCommand).toSorted()).toEqual([
@@ -362,11 +495,18 @@ describe('the app.json importer', () => {
       })
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [paasManifestsProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [paasManifestsProbe]
+    });
 
     const kinds = Object.fromEntries(facts.dependencies.map((entry) => [entry.kind, entry]));
-    expect(kinds.postgres).toMatchObject({ hostingEvidence: 'deployment-manifest' });
-    expect(kinds.redis).toMatchObject({ hostingEvidence: 'deployment-manifest' });
+    expect(kinds.postgres).toMatchObject({
+      hostingEvidence: 'deployment-manifest'
+    });
+    expect(kinds.redis).toMatchObject({
+      hostingEvidence: 'deployment-manifest'
+    });
     expect(kinds.postgres?.currentlyHostedOn).toBeUndefined();
     expect(kinds.redis?.currentlyHostedOn).toBeUndefined();
   });
@@ -386,7 +526,10 @@ describe('the app.json importer', () => {
       'package.json': JSON.stringify({ name: 'orders' })
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [paasManifestsProbe, procfileProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [paasManifestsProbe, procfileProbe]
+    });
 
     expect(facts.services).toHaveLength(2);
     for (const service of facts.services) {
@@ -397,6 +540,7 @@ describe('the app.json importer', () => {
       expect(service.environmentVariables.find((entry) => entry.name === 'STRIPE_SECRET_KEY')?.role).toBe(
         'third-party-secret'
       );
+      expect(service.environmentVariables.find((entry) => entry.name === 'LOG_LEVEL')?.safeLiteralValue).toBe('info');
     }
     expect(JSON.stringify(facts)).not.toContain('should-never-appear');
   });

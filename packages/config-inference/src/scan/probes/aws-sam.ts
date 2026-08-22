@@ -5,6 +5,7 @@ import type { DependencyFact, DependencyKind } from '../../facts/dependency';
 import type { EnvironmentVariableUse, FunctionTrigger, ServiceFactInput } from '../../facts/service';
 import { parseCloudFormationYaml } from '../cloudformation-yaml';
 import { citeFirstMatchOnly, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { declaredEnvironmentVariable } from './declared-environment';
 
 type RecordValue = Record<string, unknown>;
 type SamResource = { Type?: unknown; Properties?: RecordValue };
@@ -22,8 +23,6 @@ const resourceTypeToKind: Readonly<Record<string, DependencyKind>> = {
 const lowerFirst = (value: string): string => value.slice(0, 1).toLowerCase() + value.slice(1);
 const escapeRegExp = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const normalize = (value: string): string => value.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '');
-const SECRETISH_NAME = /(?:SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE|API_KEY|ACCESS_KEY|SIGNING_KEY|WEBHOOK_SECRET)/i;
-
 const blockFor = (raw: string, logicalId: string): { lines: string[]; start: number; end: number } | undefined => {
   const lines = raw.split(/\r?\n/);
   const start = lines.findIndex((line) => new RegExp(`^  ${escapeRegExp(logicalId)}:\\s*$`).test(line));
@@ -61,7 +60,8 @@ const entrypointFor = (
   const codeUri = normalize(
     templateDirectory === '.' ? declaredCodeUri : posix.join(templateDirectory, declaredCodeUri)
   );
-  const modulePath = normalize(handlerValue.slice(0, handlerValue.lastIndexOf('.')) || handlerValue);
+  const handlerSeparator = handlerValue.lastIndexOf('.');
+  const modulePath = normalize(handlerSeparator > 0 ? handlerValue.slice(0, handlerSeparator) : handlerValue);
   const runtime = typeof runtimeValue === 'string' ? runtimeValue : '';
   if (runtime.startsWith('java') || handlerValue.includes('::')) {
     const className = handlerValue.split('::')[0]?.trim();
@@ -154,16 +154,12 @@ const environmentVariablesFor = ({
       citeInBlock(file, raw, logicalId, new RegExp(`^\\s*${escapeRegExp(name)}\\s*:`)) ??
       citeFirstMatchOnly(file, raw, new RegExp(`^\\s*${escapeRegExp(name)}\\s*:`));
     const evidence = citation === undefined ? [] : [{ ...citation, quote: `${name}:` }];
-    if (dependencyName !== undefined) {
-      return { name, role: 'infra-dependency', dependencyName, hasDeclaredValue: true, required: true, evidence };
-    }
-    return {
+    return declaredEnvironmentVariable({
       name,
-      role: SECRETISH_NAME.test(name) ? 'third-party-secret' : 'runtime-config',
-      hasDeclaredValue: true,
-      required: true,
-      evidence
-    };
+      dependencyName,
+      evidence,
+      value
+    });
   });
 };
 
@@ -181,14 +177,21 @@ const triggersFor = (eventsValue: unknown, dependencyNames: ReadonlyMap<string, 
       });
       continue;
     }
-    if (event.Type === 'Schedule' && typeof properties.Schedule === 'string') {
-      triggers.push({ type: 'schedule', rate: properties.Schedule });
+    const schedule = properties.Schedule ?? properties.ScheduleExpression;
+    if ((event.Type === 'Schedule' || event.Type === 'ScheduleV2') && typeof schedule === 'string') {
+      triggers.push({ type: 'schedule', rate: schedule });
       continue;
     }
     const referenceField = event.Type === 'SQS' ? 'Queue' : event.Type === 'SNS' ? 'Topic' : 'Bucket';
     const logicalId = referencedLogicalId(properties[referenceField], new Set(dependencyNames.keys()));
     const dependencyName = logicalId === undefined ? undefined : dependencyNames.get(logicalId);
-    if (dependencyName === undefined) continue;
+    if (dependencyName === undefined) {
+      triggers.push({
+        type: 'unmapped',
+        sourceType: `a ${event.Type} event whose resource could not be resolved`
+      });
+      continue;
+    }
     if (event.Type === 'SQS') {
       triggers.push({
         type: 'queue',
@@ -203,6 +206,8 @@ const triggersFor = (eventsValue: unknown, dependencyNames: ReadonlyMap<string, 
         dependencyName,
         ...(typeof properties.Events === 'string' ? { eventType: properties.Events } : {})
       });
+    } else {
+      triggers.push({ type: 'unmapped', sourceType: `a ${event.Type} event` });
     }
   }
   return triggers;

@@ -21,6 +21,8 @@ beforeAll(async () => {
   await write('src/index.ts');
   await write('src/db.ts');
   await write('node_modules/left-pad/index.js');
+  await write('deps/phoenix/priv/templates/phx.gen.release/Dockerfile.eex');
+  await write('_build/prod/lib/customer_notifications/ebin/app.beam');
   await write('apps/web/.next/build.js');
   await write('apps/web/app.tsx');
 });
@@ -38,6 +40,8 @@ describe('listRepositoryFiles', () => {
     expect(files).toContain('src/db.ts');
     expect(files).toContain('apps/web/app.tsx');
     expect(files).not.toContain('node_modules/left-pad/index.js');
+    expect(files).not.toContain('deps/phoenix/priv/templates/phx.gen.release/Dockerfile.eex');
+    expect(files).not.toContain('_build/prod/lib/customer_notifications/ebin/app.beam');
     expect(files).not.toContain('apps/web/.next/build.js');
   });
 

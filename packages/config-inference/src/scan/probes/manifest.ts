@@ -56,7 +56,8 @@ const DEPENDENCY_SIGNALS: ReadonlyArray<{
     packages: ['nodemailer', 'resend', '@sendgrid/mail', '@aws-sdk/client-ses', 'postmark'],
     kinds: ['email']
   },
-  { packages: ['kafkajs', '@confluentinc/kafka-javascript'], kinds: ['kafka'] }
+  { packages: ['kafkajs', '@confluentinc/kafka-javascript'], kinds: ['kafka'] },
+  { packages: ['nats', '@nats-io/transport-node'], kinds: ['nats'] }
 ];
 
 /** Dependencies that prove the package serves HTTP. */
@@ -100,7 +101,8 @@ const FRAMEWORK_NAMES: ReadonlyArray<{ package: string; name: string }> = [
 
 /** Build-only browser frameworks that produce a directory for `hosting-bucket`. */
 const staticSiteFor = (
-  manifest: ParsedManifest
+  manifest: ParsedManifest,
+  files: readonly string[]
 ):
   | {
       framework: 'angular' | 'gatsby' | 'react' | 'vite' | 'vue';
@@ -115,7 +117,10 @@ const staticSiteFor = (
   }
   if (manifest.dependencies.gatsby !== undefined) return { framework: 'gatsby', outputDirectory: 'public' };
   if (manifest.dependencies['react-scripts'] !== undefined) return { framework: 'react', outputDirectory: 'build' };
-  if (manifest.dependencies.vite !== undefined) {
+  const viteEntrypoints = (
+    manifest.directory === '.' ? ['index.html', 'src/index.html'] : ['index.html', 'src/index.html']
+  ).map((path) => (manifest.directory === '.' ? path : `${manifest.directory}/${path}`));
+  if (manifest.dependencies.vite !== undefined && viteEntrypoints.some((path) => files.includes(path))) {
     return {
       framework:
         manifest.dependencies.vue !== undefined ? 'vue' : manifest.dependencies.react !== undefined ? 'react' : 'vite',
@@ -228,7 +233,14 @@ const runCommand = (manager: PackageManager | undefined, script: string): string
  */
 const prismaDatasourceKind = async (
   context: ProbeContext
-): Promise<{ kind: DependencyKind; citation: Citation } | undefined> => {
+): Promise<
+  | {
+      kind: DependencyKind;
+      citation: Citation;
+      address?: { name: string; citation: Citation };
+    }
+  | undefined
+> => {
   const schemaPath = context.files.find((file) => file.endsWith('prisma/schema.prisma') || file === 'schema.prisma');
   if (schemaPath === undefined) return undefined;
 
@@ -248,7 +260,16 @@ const prismaDatasourceKind = async (
   if (kind === undefined) return undefined;
 
   const citation = citeFirstMatchOnly(schemaPath, contents, /provider\s*=/, 'dependencies.kind');
-  return citation === undefined ? undefined : { kind, citation };
+  if (citation === undefined) return undefined;
+  const addressMatch = /\burl\s*=\s*env\(\s*["']([A-Za-z_][A-Za-z0-9_]*)["']\s*\)/.exec(contents);
+  const addressCitation = citeFirstMatchOnly(schemaPath, contents, /\burl\s*=\s*env\(/, 'environmentVariables');
+  return {
+    kind,
+    citation,
+    ...(addressMatch?.[1] === undefined || addressCitation === undefined
+      ? {}
+      : { address: { name: addressMatch[1], citation: addressCitation } })
+  };
 };
 
 export const manifestProbe: Probe = {
@@ -282,7 +303,10 @@ export const manifestProbe: Probe = {
         : [...pnpmWorkspace.matchAll(/^\s*-\s*['"]?([^'"\n]+)['"]?\s*$/gm)].map((match) => match[1]!.trim());
 
     const services: ServiceFactInput[] = [];
-    const dependencyConsumers = new Map<DependencyKind, { consumers: Set<string>; evidence: Citation[] }>();
+    const dependencyConsumers = new Map<
+      DependencyKind,
+      { consumers: Set<string>; addressedBy: Set<string>; evidence: Citation[] }
+    >();
     const migrations: MigrationFact[] = [];
 
     for (const manifest of manifests) {
@@ -293,7 +317,7 @@ export const manifestProbe: Probe = {
       // A Vite/CRA/Angular/Gatsby development server is not a production service. Its build output
       // is uploaded to static hosting; treating `ng serve` or `gatsby develop` as a worker is both
       // expensive and non-functional.
-      const staticSite = exposesHttp ? undefined : staticSiteFor(manifest);
+      const staticSite = exposesHttp || !hasBuild ? undefined : staticSiteFor(manifest, context.files);
       const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
       const hasHandlerLayout = context.files.some(
         (file) =>
@@ -394,6 +418,7 @@ export const manifestProbe: Probe = {
         for (const kind of signal.kinds) {
           const entry = dependencyConsumers.get(kind) ?? {
             consumers: new Set<string>(),
+            addressedBy: new Set<string>(),
             evidence: []
           };
           entry.consumers.add(consumerName);
@@ -423,6 +448,7 @@ export const manifestProbe: Probe = {
     if (prisma !== undefined) {
       const entry = dependencyConsumers.get(prisma.kind) ?? {
         consumers: new Set<string>(),
+        addressedBy: new Set<string>(),
         evidence: []
       };
       for (const manifest of manifests) {
@@ -431,6 +457,23 @@ export const manifestProbe: Probe = {
         }
       }
       entry.evidence.unshift(prisma.citation);
+      if (prisma.address !== undefined) {
+        entry.addressedBy.add(prisma.address.name);
+        entry.evidence.unshift(prisma.address.citation);
+        for (const service of services) {
+          if (!entry.consumers.has(service.name)) continue;
+          service.environmentVariables = [
+            ...(service.environmentVariables ?? []),
+            {
+              name: prisma.address.name,
+              role: 'infra-dependency',
+              dependencyName: defaultDependencyName(prisma.kind),
+              required: true,
+              evidence: [prisma.address.citation]
+            }
+          ];
+        }
+      }
       dependencyConsumers.set(prisma.kind, entry);
     }
 
@@ -439,9 +482,7 @@ export const manifestProbe: Probe = {
       kind,
       extensions: [],
       consumedBy: [...entry.consumers],
-      // A manifest names the client library, never the variable that carries the address; that is
-      // the environment probe's contribution, and the merge unions the two.
-      addressedBy: [],
+      addressedBy: [...entry.addressedBy],
       evidence: entry.evidence,
       source: 'probe'
     }));

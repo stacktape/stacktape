@@ -19,7 +19,7 @@
 import { z } from 'zod';
 import { citationSchema } from './citation';
 import { dependencyKindSchema } from './dependency';
-import { checkServiceConsistency, serviceShape } from './service';
+import { checkServiceConsistency, environmentVariableUseSchema, serviceShape } from './service';
 import {
   migrationFactSchema,
   PROJECT_FACTS_SCHEMA_VERSION,
@@ -29,22 +29,31 @@ import {
 } from './project-facts';
 import type { Uncertainty } from './uncertainty';
 
-/** The service shape the facts document uses, minus `source`, which only we may set. */
-const agentServiceSchema = z.object(serviceShape).superRefine((service, ctx) => {
-  checkServiceConsistency(service, ctx);
-  // Stricter than the facts schema on purpose. A probe-built document may leave a cross-service
-  // target open, and `checkFactsCompleteness` turns that into a decision; the agent is the one
-  // reader that can go and look, so it has to either name the service or say it could not.
-  for (const variable of service.environmentVariables) {
-    if (variable.role === 'cross-service-reference' && variable.targetServiceName === undefined) {
-      ctx.addIssue({
-        code: 'custom',
-        path: ['environmentVariables'],
-        message: `"${variable.name}" points at another service, so it must name that service — or report a \`cross-service-target-unknown\` unknown instead.`
-      });
+/**
+ * The service shape the facts document uses, minus probe-only retained literals and `source`.
+ * An agent may classify a variable, but prompt-injected repository text must not choose a value
+ * that reaches the generated deployment configuration.
+ */
+const agentServiceSchema = z
+  .object({
+    ...serviceShape,
+    environmentVariables: z.array(environmentVariableUseSchema.omit({ safeLiteralValue: true })).default([])
+  })
+  .superRefine((service, ctx) => {
+    checkServiceConsistency(service, ctx);
+    // Stricter than the facts schema on purpose. A probe-built document may leave a cross-service
+    // target open, and `checkFactsCompleteness` turns that into a decision; the agent is the one
+    // reader that can go and look, so it has to either name the service or say it could not.
+    for (const variable of service.environmentVariables) {
+      if (variable.role === 'cross-service-reference' && variable.targetServiceName === undefined) {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['environmentVariables'],
+          message: `"${variable.name}" points at another service, so it must name that service — or report a \`cross-service-target-unknown\` unknown instead.`
+        });
+      }
     }
-  }
-});
+  });
 
 /**
  * Note the absence of `currentlyHostedOn`.

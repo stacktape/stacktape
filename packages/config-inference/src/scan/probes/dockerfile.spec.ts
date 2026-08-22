@@ -72,4 +72,18 @@ describe('the standalone Dockerfile probe', () => {
       dockerfile: 'Dockerfile'
     });
   });
+
+  it('ignores development and CI environment Dockerfiles', async () => {
+    const repositoryRoot = await makeRepo({
+      '.devcontainer/Dockerfile': 'FROM node:24\nEXPOSE 3000\n',
+      '.github/actions/test/Dockerfile': 'FROM node:24\n',
+      'package.json': '{"name":"library"}'
+    });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [dockerfileProbe]
+    });
+
+    expect(facts.services).toEqual([]);
+  });
 });

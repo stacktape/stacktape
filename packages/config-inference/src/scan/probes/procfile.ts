@@ -19,13 +19,12 @@ import { languageOf } from '../language';
 import type { MigrationFact } from '../../facts/project-facts';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/service';
 import { citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { declaredEnvironmentVariable } from './declared-environment';
 
 /** `name: command`, where the name is a process type and everything after the colon is the command. */
 const PROCESS_LINE = /^([A-Za-z0-9_-]+):\s*(.+)$/;
 const LEADING_ENVIRONMENT_ASSIGNMENT =
   /^(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)=(?:"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s]+)\s*/;
-const SECRETISH_NAME = /(?:SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE|API_KEY|ACCESS_KEY|SIGNING_KEY|WEBHOOK_SECRET|_KEY$)/i;
-
 /** Remove shell-style values while retaining the command and the names the process expects. */
 const commandWithoutEnvironmentValues = (
   command: string
@@ -36,13 +35,17 @@ const commandWithoutEnvironmentValues = (
     const match = LEADING_ENVIRONMENT_ASSIGNMENT.exec(remaining);
     if (match === null) break;
     const name = match[1]!;
-    environmentVariables.push({
-      name,
-      role: SECRETISH_NAME.test(name) ? 'third-party-secret' : 'runtime-config',
-      hasDeclaredValue: true,
-      required: true,
-      evidence: []
-    });
+    const assignment = match[0].trim();
+    const rawValue = assignment.slice(assignment.indexOf('=') + 1).trim();
+    const value = rawValue.replace(/^(?:"([\s\S]*)"|'([\s\S]*)')$/, '$1$2');
+    environmentVariables.push(
+      declaredEnvironmentVariable({
+        name,
+        dependencyName: undefined,
+        evidence: [],
+        value
+      })
+    );
     remaining = remaining.slice(match[0].length).trimStart();
   }
   return { command: remaining, environmentVariables };
@@ -54,7 +57,7 @@ const commandWithoutEnvironmentValues = (
  * `release` is Heroku's pre-deploy hook, which is where almost every Heroku project runs its
  * database migrations. It becomes a migration fact, not something we deploy a container for.
  */
-const RELEASE_PROCESS = 'release';
+const LIFECYCLE_PROCESS = /^(?:release|migrate|migration|db-migrate|predeploy)$/;
 
 /** Migration tools worth naming, recognised from the release command itself. */
 const MIGRATION_TOOLS: ReadonlyArray<{ pattern: RegExp; tool: string }> = [
@@ -162,7 +165,7 @@ export const procfileProbe: Probe = {
         quote: command.slice(0, 200)
       };
 
-      if (name === RELEASE_PROCESS) {
+      if (LIFECYCLE_PROCESS.test(name)) {
         const migrationCommand = safeMigrationClauseOf(command);
         // A release process may only warm caches, seed demo data or perform other lifecycle work.
         // It is not a migration unless a migration-shaped clause is actually present.
@@ -179,7 +182,7 @@ export const procfileProbe: Probe = {
           // isolated, only that argv-like command reaches the deploy hook. Otherwise the original
           // remains as evidence and composition raises a review gap instead of executing it.
           command: migrationCommand ?? command,
-          // Heroku runs this as part of the deploy, before the new release goes live.
+          // Release/migration process declarations run as part of deployment, not forever.
           runsAt: 'ci',
           evidence: [
             {

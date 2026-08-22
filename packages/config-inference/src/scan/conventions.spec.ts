@@ -42,7 +42,12 @@ describe('conventionalCommandsFor', () => {
       'mvn spring-boot:run'
     );
     expect(
-      conventionalCommandsFor(context({ framework: 'spring-boot', files: ['build.gradle.kts', 'gradlew'] }))?.start[0]
+      conventionalCommandsFor(
+        context({
+          framework: 'spring-boot',
+          files: ['build.gradle.kts', 'gradlew']
+        })
+      )?.start[0]
     ).toBe('./gradlew bootRun');
   });
 
@@ -62,7 +67,10 @@ describe('conventionalCommandsFor', () => {
     // Two commands: picking one would be a coin toss with the user's traffic.
     expect(
       conventionalCommandsFor(
-        context({ language: 'go', files: ['go.mod', 'cmd/server/main.go', 'cmd/worker/main.go'] })
+        context({
+          language: 'go',
+          files: ['go.mod', 'cmd/server/main.go', 'cmd/worker/main.go']
+        })
       )
     ).toBeUndefined();
   });
@@ -78,6 +86,9 @@ describe('conventionalCommandsFor', () => {
       'php artisan serve --host 0.0.0.0 --port 8000'
     );
     expect(conventionalCommandsFor(context({ framework: 'aspnet', language: 'csharp' }))?.start[0]).toBe('dotnet run');
+    expect(conventionalCommandsFor(context({ language: 'dotnet', files: ['OrderProcessor.csproj'] }))?.start[0]).toBe(
+      'dotnet run'
+    );
   });
 
   it('says nothing where the convention would be a guess', () => {
@@ -126,7 +137,10 @@ describe('a conventions-following repository, end to end', () => {
     // it starts, and generation used to stop here.
     root = await makeRepo({ 'pom.xml': SPRING_POM, mvnw: '#!/bin/sh\n' });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [languageManifestProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe]
+    });
 
     const question = facts.uncertainties.find((entry) => entry.kind === 'command-unknown');
     expect(question).toMatchObject({ serviceName: 'orders', command: 'start' });
@@ -152,7 +166,10 @@ describe('a conventions-following repository, end to end', () => {
       'requirements.txt': 'django==5.0\n'
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [languageManifestProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe]
+    });
 
     expect(facts.uncertainties.filter((entry) => entry.kind === 'command-unknown')).toEqual([]);
     expect(checkFactsCompleteness(facts).some((issue) => issue.severity === 'blocking')).toBe(true);

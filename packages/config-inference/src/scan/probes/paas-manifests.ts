@@ -24,6 +24,7 @@ import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/servi
 import { languageOf } from '../language';
 import { isPlatformEnvironmentVariable } from '../platform-environment';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { safeDeclaredLiteral } from './declared-environment';
 
 type RecordValue = Record<string, unknown>;
 const isRecord = (value: unknown): value is RecordValue =>
@@ -105,7 +106,11 @@ type RenderEnvVar = {
 
 const renderDeclarations = (
   parsed: RecordValue
-): { services: RecordValue[]; databases: RecordValue[]; variableGroups: ReadonlyMap<string, RecordValue[]> } => {
+): {
+  services: RecordValue[];
+  databases: RecordValue[];
+  variableGroups: ReadonlyMap<string, RecordValue[]>;
+} => {
   const services = Array.isArray(parsed.services) ? parsed.services.filter(isRecord) : [];
   const databases = Array.isArray(parsed.databases) ? parsed.databases.filter(isRecord) : [];
 
@@ -139,7 +144,12 @@ const renderVariable = (
 ): EnvironmentVariableUse | undefined => {
   const key = asString(entry.key);
   if (key === undefined || isPlatformEnvironmentVariable(key)) return undefined;
-  const base = { name: key, required: true, hasDeclaredValue: entry.value !== undefined, evidence };
+  const base = {
+    name: key,
+    required: true,
+    hasDeclaredValue: entry.value !== undefined,
+    evidence
+  };
 
   if (isRecord(entry.fromDatabase)) {
     const database = asString(entry.fromDatabase.name);
@@ -168,7 +178,12 @@ const renderVariable = (
   if (entry.generateValue === true || entry.sync === false || SECRETISH_NAME.test(key)) {
     return { ...base, role: 'third-party-secret' };
   }
-  return { ...base, role: 'runtime-config' };
+  const safeLiteralValue = safeDeclaredLiteral(key, entry.value);
+  return {
+    ...base,
+    role: 'runtime-config',
+    ...(safeLiteralValue === undefined ? {} : { safeLiteralValue })
+  };
 };
 
 const readRenderManifest = (
@@ -286,13 +301,21 @@ const readRenderManifest = (
       exposesHttp: type === 'web' && !isStatic,
       executionModel: type === 'cron' ? 'scheduled' : 'long-running',
       ...(type === 'cron' && asString(service.schedule) !== undefined ? { schedule: asString(service.schedule) } : {}),
-      ...(isStatic ? { servesStaticAssets: { path: staticPath === undefined ? path : renderPath(staticPath) } } : {}),
+      ...(isStatic
+        ? {
+            servesStaticAssets: {
+              path: staticPath === undefined ? path : renderPath(staticPath)
+            }
+          }
+        : {}),
       ...(asString(service.buildCommand) === undefined ? {} : { buildCommand: asString(service.buildCommand) }),
       // The command Render runs in production today — the exact thing every other probe can only
       // approximate.
       ...(asString(service.startCommand) === undefined && asString(service.dockerCommand) === undefined
         ? {}
-        : { startCommand: asString(service.startCommand) ?? asString(service.dockerCommand) }),
+        : {
+            startCommand: asString(service.startCommand) ?? asString(service.dockerCommand)
+          }),
       ...(dockerfile === undefined ? {} : { dockerfile: renderPath(dockerfile) }),
       ...(asString(service.healthCheckPath) === undefined
         ? {}
@@ -385,11 +408,13 @@ const readFlyManifest = (
       // port the load balancer expects.
       if (name === 'PORT' && internalPort !== undefined && declaredPort === internalPort) continue;
       const citation = citeFirstMatchOnly(file, raw, new RegExp(`^\\s*${escapeRegExp(name)}\\s*=`));
+      const safeLiteralValue = safeDeclaredLiteral(name, env[name]);
       environmentVariables.push({
         name,
         // `[env]` on Fly is non-secret by the platform's own contract; secrets live elsewhere.
         role: 'runtime-config',
         hasDeclaredValue: true,
+        ...(safeLiteralValue === undefined ? {} : { safeLiteralValue }),
         required: true,
         evidence: citation === undefined ? [] : [{ ...citation, quote: `${name} =` }]
       });
@@ -448,7 +473,12 @@ const readFlyManifest = (
 const readHerokuAppManifest = (
   file: string,
   raw: string
-): { dependencies: DependencyFact[]; environmentVariables: EnvironmentVariableUse[] } | undefined => {
+):
+  | {
+      dependencies: DependencyFact[];
+      environmentVariables: EnvironmentVariableUse[];
+    }
+  | undefined => {
   let parsed: unknown;
   try {
     parsed = JSON.parse(raw);
@@ -481,10 +511,13 @@ const readHerokuAppManifest = (
     for (const name of Object.keys(parsed.env)) {
       if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(name) || isPlatformEnvironmentVariable(name)) continue;
       const citation = citeFirstMatchOnly(file, raw, new RegExp(`["']${escapeRegExp(name)}["']\\s*:`));
+      const declaredValue = isRecord(parsed.env[name]) ? parsed.env[name].value : undefined;
+      const safeLiteralValue = safeDeclaredLiteral(name, declaredValue);
       environmentVariables.push({
         name,
         role: SECRETISH_NAME.test(name) ? 'third-party-secret' : 'runtime-config',
-        hasDeclaredValue: isRecord(parsed.env[name]) && parsed.env[name].value !== undefined,
+        hasDeclaredValue: declaredValue !== undefined,
+        ...(safeLiteralValue === undefined || SECRETISH_NAME.test(name) ? {} : { safeLiteralValue }),
         required: true,
         evidence: citation === undefined ? [] : [{ ...citation, quote: `"${name}":` }]
       });
@@ -530,7 +563,10 @@ export const paasManifestsProbe: Probe = {
         if (manifest !== undefined) {
           dependencies.push(...manifest.dependencies);
           if (manifest.environmentVariables.length > 0) {
-            serviceEnvironments.push({ path: '.', environmentVariables: manifest.environmentVariables });
+            serviceEnvironments.push({
+              path: '.',
+              environmentVariables: manifest.environmentVariables
+            });
           }
         }
       }

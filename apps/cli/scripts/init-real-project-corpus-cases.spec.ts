@@ -1,9 +1,13 @@
 import { describe, expect, it } from 'bun:test';
-import { REAL_PROJECT_CORPUS } from './init-real-project-corpus-cases';
+import {
+  REAL_PROJECT_APPLICATION_STRESS_CASES,
+  REAL_PROJECT_CORPUS,
+  REAL_PROJECT_PLATFORM_STRESS_CASES
+} from './init-real-project-corpus-cases';
 
 describe('the pinned real-project init corpus', () => {
   it('uses immutable, uniquely identified GitHub inputs', () => {
-    expect(REAL_PROJECT_CORPUS.length).toBeGreaterThanOrEqual(19);
+    expect(REAL_PROJECT_CORPUS.length).toBeGreaterThanOrEqual(73);
     expect(new Set(REAL_PROJECT_CORPUS.map((entry) => entry.id)).size).toBe(REAL_PROJECT_CORPUS.length);
     expect(
       new Set(REAL_PROJECT_CORPUS.map((entry) => `${entry.repository}#${entry.commit}:${entry.subdirectory ?? '.'}`))
@@ -15,6 +19,13 @@ describe('the pinned real-project init corpus', () => {
       expect(corpusCase.commit).toMatch(/^[0-9a-f]{40}$/);
       expect(corpusCase.exercises.length).toBeGreaterThan(0);
     }
+  });
+
+  it('retains a separate stress tier without weakening release expectations', () => {
+    const stress = [...REAL_PROJECT_PLATFORM_STRESS_CASES, ...REAL_PROJECT_APPLICATION_STRESS_CASES];
+    expect(stress.length).toBeGreaterThanOrEqual(20);
+    const releaseIds = new Set(REAL_PROJECT_CORPUS.map((entry) => entry.id));
+    expect(stress.every((entry) => !releaseIds.has(entry.id))).toBe(true);
   });
 
   it('defines a meaningful semantic release contract for every project', () => {

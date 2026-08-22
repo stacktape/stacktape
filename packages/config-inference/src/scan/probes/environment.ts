@@ -35,7 +35,8 @@ const SCHEME_TO_KIND: ReadonlyArray<{ pattern: RegExp; kind: DependencyKind }> =
   { pattern: /^rediss?:\/\//i, kind: 'redis' },
   { pattern: /^sqlserver:\/\/|^mssql:\/\//i, kind: 'mssql' },
   { pattern: /^file:.*\.(db|sqlite3?)|^sqlite:/i, kind: 'sqlite' },
-  { pattern: /^amqps?:\/\//i, kind: 'queue' },
+  { pattern: /^amqps?:\/\//i, kind: 'amqp' },
+  { pattern: /^nats:\/\//i, kind: 'nats' },
   { pattern: /^smtps?:\/\//i, kind: 'email' }
 ];
 
@@ -47,11 +48,20 @@ const SCHEME_TO_KIND: ReadonlyArray<{ pattern: RegExp; kind: DependencyKind }> =
  * and treating it as a live Supabase database would make composition refuse to create the database
  * the user actually needs, on the say-so of whoever wrote that hostname.
  */
-const PROVIDER_DOMAINS: ReadonlyArray<{ domains: readonly string[]; hosting: DependencyHosting }> = [
-  { domains: ['supabase.co', 'supabase.com', 'supabase.net'], hosting: 'supabase' },
+const PROVIDER_DOMAINS: ReadonlyArray<{
+  domains: readonly string[];
+  hosting: DependencyHosting;
+}> = [
+  {
+    domains: ['supabase.co', 'supabase.com', 'supabase.net'],
+    hosting: 'supabase'
+  },
   { domains: ['neon.tech', 'neon.build'], hosting: 'neon' },
   { domains: ['psdb.cloud', 'planetscale.com'], hosting: 'planetscale' },
-  { domains: ['railway.app', 'railway.internal', 'rlwy.net'], hosting: 'railway' },
+  {
+    domains: ['railway.app', 'railway.internal', 'rlwy.net'],
+    hosting: 'railway'
+  },
   { domains: ['render.com'], hosting: 'render' },
   { domains: ['herokuapp.com', 'heroku.com'], hosting: 'heroku' },
   { domains: ['upstash.io'], hosting: 'upstash' },
@@ -79,22 +89,39 @@ const hostingForHost = (host: string): DependencyHosting | undefined => {
  * read from source code. One table, because two copies of "what does `REDIS_` mean" is how the
  * `.env` view and the source view drift into disagreeing.
  */
-export const ENV_NAME_TO_KIND: ReadonlyArray<{ pattern: RegExp; kind: DependencyKind }> = [
+export const ENV_NAME_TO_KIND: ReadonlyArray<{
+  pattern: RegExp;
+  kind: DependencyKind;
+}> = [
   // `POSTGRES_*` and `PG_*` name the engine. `DATABASE_URL` deliberately does not appear here: it
   // is the canonical engine-agnostic name, and treating it as Postgres is the exact silent guess
   // this pipeline exists to avoid. It falls through to `AMBIGUOUS_DATABASE_NAMES` and becomes a
   // question — unless some other probe has already settled the engine.
-  { pattern: /^(POSTGRES|PG)_?(URL|URI|DSN|HOST|USER|PASSWORD|DB|DATABASE)?$/i, kind: 'postgres' },
+  {
+    pattern: /^(POSTGRES|PG)_?(URL|URI|DSN|HOST|USER|PASSWORD|DB|DATABASE)?$/i,
+    kind: 'postgres'
+  },
   { pattern: /^MYSQL_/i, kind: 'mysql' },
   { pattern: /^MONGO(DB)?_/i, kind: 'mongodb' },
-  { pattern: /^REDIS_/i, kind: 'redis' },
-  { pattern: /^(S3|BUCKET|AWS_BUCKET)_?/i, kind: 'object-storage' },
+  {
+    pattern: /^REDIS_(?:URL|URI|DSN|CONNECTION_?STRING|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|DB(?:_INDEX)?)$/i,
+    kind: 'redis'
+  },
+  {
+    pattern: /^(?:S3_BUCKET(?:_NAME)?|AWS_(?:STORAGE_)?BUCKET(?:_NAME)?|BUCKET_NAME)$/i,
+    kind: 'object-storage'
+  },
   // SMTP/MAIL variables configure an application client; they are not a resource binding. A mail
   // client dependency may still produce one focused capability gap, but these names must not mint
   // a separate missing-infrastructure secret for every host/port/TLS setting.
   { pattern: /^(ELASTIC|OPENSEARCH|MEILI|TYPESENSE)_/i, kind: 'search' },
-  { pattern: /^KAFKA_/i, kind: 'kafka' },
-  { pattern: /^(SQS|QUEUE|RABBITMQ|AMQP)_/i, kind: 'queue' }
+  { pattern: /^KAFKA_(?:URL|URI|BROKERS?|BOOTSTRAP_SERVERS)$/i, kind: 'kafka' },
+  { pattern: /^NATS_(?:URL|URI|SERVERS?|HOST|PORT)$/i, kind: 'nats' },
+  {
+    pattern: /^(?:SQS_(?:QUEUE_)?(?:URL|ARN|NAME)|QUEUE_(?:URL|ARN))$/i,
+    kind: 'queue'
+  },
+  { pattern: /^(?:RABBITMQ|AMQP)_(?:URL|URI|DSN|HOST|PORT)$/i, kind: 'amqp' }
 ];
 
 /** Names generic enough that they promise a database without saying which. */
@@ -176,15 +203,15 @@ const DATABASE_SELECTOR_VALUES: Readonly<Record<string, DependencyKind>> = {
   sqlite: 'sqlite'
 };
 
+const ENVIRONMENT_TEMPLATE_PATTERN = /(?:^|\/)(?:\.?)env[-.](?:example|sample|template|defaults?)(?:[-.].*)?$/i;
+
 /**
  * Prefer the one template the root application Dockerfile explicitly copies. Variant examples may
  * sit side-by-side (`env-example-relational`, `env-example-document`); reading both describes every
  * mode the code supports rather than the mode this build runs.
  */
 const activeEnvironmentFiles = async (context: ProbeContext, envFiles: readonly string[]): Promise<string[]> => {
-  const actual = envFiles.filter(
-    (file) => !/(?:^|\/)(?:\.?)env[-.](?:example|sample|template|defaults?)(?:[-.].*)?$/i.test(file)
-  );
+  const actual = envFiles.filter((file) => !ENVIRONMENT_TEMPLATE_PATTERN.test(file));
   const templates = envFiles.filter((file) => !actual.includes(file));
   if (templates.length < 2 || !context.files.includes('Dockerfile')) return [...envFiles];
   const dockerfile = await readText(context, 'Dockerfile');
@@ -231,11 +258,18 @@ export const environmentProbe: Probe = {
     // Read together, then folded in file order: the accumulation below is order-sensitive (the first
     // file to mention a kind owns its citation), so the reads are parallel and the merge is not.
     const contents = await Promise.all(
-      envFiles.map(async (file) => ({ file, raw: await context.readPrivileged(file) }))
+      envFiles.map(async (file) => ({
+        file,
+        raw: await context.readPrivileged(file)
+      }))
     );
 
     for (const { file, raw } of contents) {
       if (raw === null) continue;
+      // Example/template values describe the required shape and frequently contain realistic
+      // provider URLs or account IDs. They can identify a dependency, but they cannot prove that
+      // the example resource exists or belongs to this project.
+      const permitsHostingClaim = !ENVIRONMENT_TEMPLATE_PATTERN.test(file);
       const lines = raw.split(/\r?\n/);
       const names = extractEnvironmentVariableNames(raw);
 
@@ -258,6 +292,18 @@ export const environmentProbe: Probe = {
           if (/^(?:local|file|filesystem|disk)$/.test(value)) disabledDependencyKinds.add('object-storage');
           if (/^(?:s3|object-storage|object_storage)$/.test(value)) preferredDependencyKinds.add('object-storage');
         }
+        if (/^FILESYSTEM_DISK$/i.test(name) && value !== undefined) {
+          if (/^(?:local|public)$/.test(value)) disabledDependencyKinds.add('object-storage');
+          if (value === 's3') preferredDependencyKinds.add('object-storage');
+        }
+        if (/^QUEUE_CONNECTION$/i.test(name) && value !== undefined) {
+          if (/^(?:sync|database|redis|null)$/.test(value)) disabledDependencyKinds.add('queue');
+          if (value === 'sqs') preferredDependencyKinds.add('queue');
+        }
+        if (/^CACHE_STORE$/i.test(name) && value !== undefined) {
+          if (/^(?:array|database|file|null)$/.test(value)) disabledDependencyKinds.add('redis');
+          if (value === 'redis') preferredDependencyKinds.add('redis');
+        }
         const nameKind = ENV_NAME_TO_KIND.find((entry) => entry.pattern.test(name))?.kind;
 
         // A scheme in the value beats a guess from the name: `DATABASE_URL=mysql://…` is a MySQL
@@ -271,7 +317,7 @@ export const environmentProbe: Probe = {
 
         const entry = byKind.get(kind) ?? { evidence: [], names: [] };
         if (citation && entry.evidence.length < 4) entry.evidence.push(citation);
-        if (hosting !== undefined) entry.hosting = preferHosting(entry.hosting, hosting);
+        if (permitsHostingClaim && hosting !== undefined) entry.hosting = preferHosting(entry.hosting, hosting);
         if (!entry.names.includes(name)) entry.names.push(name);
         byKind.set(kind, entry);
       }
@@ -296,17 +342,26 @@ export const environmentProbe: Probe = {
       });
     }
 
-    const dependencies: DependencyFact[] = [...byKind.entries()].map(([kind, entry]) => ({
-      name: defaultDependencyName(kind),
-      kind,
-      extensions: [],
-      consumedBy: [],
-      addressedBy: entry.names,
-      currentlyHostedOn: entry.hosting,
-      hostingEvidence: 'connection-string',
-      evidence: entry.evidence,
-      source: 'probe'
-    }));
+    const dependencies: DependencyFact[] = [...byKind.entries()].map(([kind, entry]) => {
+      // localhost proves topology and the variable name, but not a live hosting provider. Treating
+      // a checked-in developer setup as a migration source can suppress the managed dependency the
+      // user actually needs.
+      const hosting = entry.hosting;
+      const dependency: DependencyFact = {
+        name: defaultDependencyName(kind),
+        kind,
+        extensions: [],
+        consumedBy: [],
+        addressedBy: entry.names,
+        evidence: entry.evidence,
+        source: 'probe'
+      };
+      if (hosting !== undefined && hosting !== 'local' && hosting !== 'unknown') {
+        dependency.currentlyHostedOn = hosting;
+        dependency.hostingEvidence = 'connection-string';
+      }
+      return dependency;
+    });
 
     return {
       dependencies,

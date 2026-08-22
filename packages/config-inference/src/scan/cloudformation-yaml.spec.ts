@@ -25,4 +25,16 @@ describe('parseCloudFormationYaml', () => {
       Message: 'the text !Ref stays text'
     });
   });
+
+  it('does not print parser warnings for unsupported CloudFormation tags', () => {
+    const originalWarn = console.warn;
+    const warnings: unknown[] = [];
+    console.warn = (...values: unknown[]) => warnings.push(...values);
+    try {
+      expect(parseCloudFormationYaml('Value: !FutureIntrinsic something\n')).toEqual({ Value: 'something' });
+    } finally {
+      console.warn = originalWarn;
+    }
+    expect(warnings).toEqual([]);
+  });
 });

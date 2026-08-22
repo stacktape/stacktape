@@ -124,7 +124,8 @@ const POINTABLE_EXTERNAL_KINDS: ReadonlySet<DependencyFact['kind']> = new Set([
   'redis',
   'amqp',
   'search',
-  'kafka'
+  'kafka',
+  'nats'
 ]);
 
 /** Network services whose consumers must read an address, unlike IAM-only buckets/tables/queues. */
@@ -136,7 +137,8 @@ const ADDRESS_REQUIRED_KINDS: ReadonlySet<DependencyFact['kind']> = new Set([
   'redis',
   'amqp',
   'search',
-  'kafka'
+  'kafka',
+  'nats'
 ]);
 
 const DEPENDENCY_LABELS: Partial<Record<DependencyFact['kind'], string>> = {
@@ -147,7 +149,8 @@ const DEPENDENCY_LABELS: Partial<Record<DependencyFact['kind'], string>> = {
   redis: 'Redis',
   amqp: 'the message broker',
   search: 'the search service',
-  kafka: 'Kafka'
+  kafka: 'Kafka',
+  nats: 'NATS'
 };
 
 const dependencyLabel = (kind: DependencyFact['kind']): string => DEPENDENCY_LABELS[kind] ?? kind;
@@ -249,7 +252,10 @@ const packagingFor = (
     // migration needs does not exist yet. The deploy owns that migration as an `afterDeploy` hook,
     // so the build-time copy is neutralised with a no-op phase.
     const phases = (nixpacks.properties.phases as Array<{ name: string; cmds: string[] }> | undefined) ?? [];
-    nixpacks.properties = { ...nixpacks.properties, phases: [...phases, { name: 'release', cmds: ['true'] }] };
+    nixpacks.properties = {
+      ...nixpacks.properties,
+      phases: [...phases, { name: 'release', cmds: ['true'] }]
+    };
   }
   return nixpacks;
 };
@@ -287,7 +293,10 @@ const environmentFor = (
       if (composed === undefined) {
         const secretName = secretNameFor(variable.name);
         if (secretName !== undefined) {
-          variables.push({ name: variable.name, value: `$Secret('${secretName}')` });
+          variables.push({
+            name: variable.name,
+            value: `$Secret('${secretName}')`
+          });
         }
         continue;
       }
@@ -300,21 +309,52 @@ const environmentFor = (
           value: `$ResourceParam('${composed.resourceName}', '${wiring.param}')`
         });
       } else if (wiring.kind === 'password-secret') {
-        variables.push({ name: variable.name, value: secretReference(projectName, composed.resourceName) });
+        variables.push({
+          name: variable.name,
+          value: secretReference(projectName, composed.resourceName)
+        });
       }
       continue;
     }
     if (variable.role === 'third-party-secret') {
+      if (!variable.required) continue;
       const secretName = secretNameFor(variable.name);
       if (secretName !== undefined) {
-        variables.push({ name: variable.name, value: `$Secret('${secretName}')` });
+        variables.push({
+          name: variable.name,
+          value: `$Secret('${secretName}')`
+        });
       }
       continue;
     }
+    if (
+      variable.role === 'runtime-config' &&
+      service.exposesHttp &&
+      /^(?:APP|APPLICATION|SITE|NEXTAUTH)_URL$/i.test(variable.name)
+    ) {
+      const self = serviceResourceNames.get(service.name);
+      if (self !== undefined)
+        variables.push({
+          name: variable.name,
+          value: `$ResourceParam('${self}', 'url')`
+        });
+      continue;
+    }
     if (variable.role === 'runtime-config' && variable.hasDeclaredValue) {
+      if (!variable.required) continue;
+      if (variable.safeLiteralValue !== undefined) {
+        variables.push({
+          name: variable.name,
+          value: variable.safeLiteralValue
+        });
+        continue;
+      }
       const secretName = secretNameFor(variable.name);
       if (secretName !== undefined) {
-        variables.push({ name: variable.name, value: `$Secret('${secretName}')` });
+        variables.push({
+          name: variable.name,
+          value: `$Secret('${secretName}')`
+        });
       }
       continue;
     }
@@ -383,12 +423,26 @@ const composeDependency = (
           },
           deletionProtection: true,
           automatedBackupRetentionDays: profile.database.backupRetentionDays,
-          ...(privateDatabase ? { accessibility: { accessibilityMode: 'vpc', forceDisablePublicIp: true } } : {}),
+          ...(privateDatabase
+            ? {
+                accessibility: {
+                  accessibilityMode: 'vpc',
+                  forceDisablePublicIp: true
+                }
+              }
+            : {}),
           alarms: [
             {
               description: 'Database has less than 2 GiB of free storage',
-              trigger: { type: 'database-free-storage', properties: { thresholdMB: 2048 } },
-              evaluation: { period: 300, evaluationPeriods: 3, breachedPeriods: 2 },
+              trigger: {
+                type: 'database-free-storage',
+                properties: { thresholdMB: 2048 }
+              },
+              evaluation: {
+                period: 300,
+                evaluationPeriods: 3,
+                breachedPeriods: 2
+              },
               includeInHistory: true
             }
           ]
@@ -463,6 +517,10 @@ const composeDependency = (
       return {
         unsupported: 'Managed Kafka is not something Stacktape creates for you yet.'
       };
+    case 'nats':
+      return {
+        unsupported: 'This application requires a NATS-compatible broker; substituting SQS would not be compatible.'
+      };
     case 'amqp':
       return {
         unsupported:
@@ -473,7 +531,10 @@ const composeDependency = (
         // Atlas requires an explicit tier. M10 is its smallest dedicated tier and the conservative
         // default used throughout Stacktape's own MongoDB documentation; omitting it produces YAML
         // that the real config schema rejects before deployment starts.
-        resource: { type: 'mongo-db-atlas-cluster', properties: { clusterTier: 'M10' } },
+        resource: {
+          type: 'mongo-db-atlas-cluster',
+          properties: { clusterTier: 'M10' }
+        },
         reason: 'Your code connects to MongoDB.'
       };
     default:
@@ -557,7 +618,16 @@ export const composeConfig = ({
   const privateDatabaseResourceNames = new Set<string>();
   /** Variables a service needs because we decided *not* to create what they address, by service name. */
   const externalVariables = new Map<string, Array<{ name: string; value: unknown }>>();
+  const unresolvedPulumiCompute =
+    facts.services.length === 0 && facts.existingDeployments.some((deployment) => deployment.tool === 'pulumi');
   for (const dependency of facts.dependencies) {
+    // SDK clients in a Pulumi program can identify S3/SQS/etc. without identifying the functions
+    // that use them. Creating those weak, unconsumed findings alone leaves orphaned infrastructure
+    // and a dangerously convincing success. Concrete Pulumi resource declarations carry
+    // deployment-manifest evidence and remain importable.
+    if (unresolvedPulumiCompute && dependency.consumedBy.length === 0 && dependency.hostingEvidence === undefined) {
+      continue;
+    }
     // A current endpoint or an existing infrastructure declaration may already own this data.
     // Creating a replacement is the one outcome the user was promised would not happen silently.
     if (dependency.currentlyHostedOn !== undefined && EXTERNALLY_HOSTED.has(dependency.currentlyHostedOn)) {
@@ -640,7 +710,10 @@ export const composeConfig = ({
     const name = uniqueName(dependency.name, taken);
     dependencyResourceNames.set(dependency.name, name);
     composedDependencyNames.add(dependency.name);
-    composedDependencies.set(dependency.name, { kind: dependency.kind, resourceName: name });
+    composedDependencies.set(dependency.name, {
+      kind: dependency.kind,
+      resourceName: name
+    });
     if (privateDatabase) privateDatabaseResourceNames.add(name);
     resources[name] = composed.resource;
     provenance[name] = {
@@ -737,7 +810,11 @@ export const composeConfig = ({
       );
     });
 
-    const environment = environmentFor(service, { serviceResourceNames, composedDependencies, projectName });
+    const environment = environmentFor(service, {
+      serviceResourceNames,
+      composedDependencies,
+      projectName
+    });
     // The agent path may already have written the same variable from the service's own facts, so the
     // first entry for a name wins rather than the file carrying it twice.
     for (const extra of externalVariables.get(service.name) ?? []) {
@@ -745,8 +822,18 @@ export const composeConfig = ({
     }
 
     const declaredRuntimeSettings = service.environmentVariables
-      .filter((variable) => variable.role === 'runtime-config' && variable.hasDeclaredValue)
-      .map((variable) => ({ name: variable.name, secretName: secretNameFor(variable.name) }))
+      .filter(
+        (variable) =>
+          variable.role === 'runtime-config' &&
+          variable.hasDeclaredValue &&
+          variable.safeLiteralValue === undefined &&
+          variable.required &&
+          !(service.exposesHttp && /^(?:APP|APPLICATION|SITE|NEXTAUTH)_URL$/i.test(variable.name))
+      )
+      .map((variable) => ({
+        name: variable.name,
+        secretName: secretNameFor(variable.name)
+      }))
       .filter((variable): variable is { name: string; secretName: string } => variable.secretName !== undefined)
       .toSorted((left, right) => left.name.localeCompare(right.name));
 
@@ -858,6 +945,13 @@ export const composeConfig = ({
         message: `${service.name} joins the VPC to reach a private dependency. AWS functions in a VPC cannot call public APIs directly; choose internet-reachable database access or add outbound networking if this code calls a third-party service.`
       });
     }
+    for (const trigger of service.functionTriggers) {
+      if (trigger.type !== 'unmapped') continue;
+      gaps.push({
+        subject: service.name,
+        message: `${service.name} is invoked by ${trigger.sourceType} in the existing deployment files. Init cannot translate that trigger yet. Add its Stacktape equivalent before deploying.`
+      });
+    }
   }
 
   for (const dependency of facts.dependencies) {
@@ -884,9 +978,14 @@ export const composeConfig = ({
     const label = DEPLOYMENT_TOOL_LABELS[deployment.tool];
     gaps.push({
       subject: deployment.tool,
-      message: AWS_DEPLOYMENT_TOOLS.has(deployment.tool)
-        ? `This project has ${label} deployment files. What we wrote is a separate stack: it does not read, change, or take over anything those files may manage.`
-        : `This project has ${label} deployment config. If an app is already running there, deploying this creates a second copy on AWS and leaves the current one untouched.`
+      message:
+        deployment.tool === 'cloudflare-workers'
+          ? 'This project uses Cloudflare Workers runtime APIs and bindings. Init cannot translate those APIs into runnable AWS handlers safely, so it generated no AWS resources for them. Adapt the handlers and D1, R2, Queue, Durable Object, and service bindings before deploying with Stacktape.'
+          : deployment.tool === 'pulumi' && unresolvedPulumiCompute
+            ? 'This Pulumi program declares AWS compute, but init could not safely connect its handlers to their events. It left weak, unconsumed SDK hints out instead of creating orphaned queues, tables, topics, or buckets. Add the functions and triggers explicitly before deploying.'
+            : AWS_DEPLOYMENT_TOOLS.has(deployment.tool)
+              ? `This project has ${label} deployment files. What we wrote is a separate stack: it does not read, change, or take over anything those files may manage.`
+              : `This project has ${label} deployment config. If an app is already running there, deploying this creates a second copy on AWS and leaves the current one untouched.`
     });
   }
 
@@ -902,7 +1001,10 @@ export const composeConfig = ({
       resources,
       ...(Object.keys(migrationHooks.scripts).length === 0
         ? {}
-        : { scripts: migrationHooks.scripts, hooks: { afterDeploy: migrationHooks.afterDeploy } })
+        : {
+            scripts: migrationHooks.scripts,
+            hooks: { afterDeploy: migrationHooks.afterDeploy }
+          })
     },
     provenance,
     gaps: uniqueGaps,
@@ -979,6 +1081,7 @@ const buildServiceResource = ({
   if (resourceType === 'function') {
     const events: Array<{ type: string; properties: Record<string, unknown> }> = [];
     for (const trigger of service.functionTriggers) {
+      if (trigger.type === 'unmapped') continue;
       if (trigger.type === 'http') {
         if (httpApiGatewayName !== undefined) {
           events.push({
@@ -1038,8 +1141,15 @@ const buildServiceResource = ({
         alarms: [
           {
             description: 'Function errors stay above 10%',
-            trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },
-            evaluation: { period: 300, evaluationPeriods: 3, breachedPeriods: 2 },
+            trigger: {
+              type: 'lambda-error-rate',
+              properties: { thresholdPercent: 10 }
+            },
+            evaluation: {
+              period: 300,
+              evaluationPeriods: 3,
+              breachedPeriods: 2
+            },
             includeInHistory: true
           }
         ],
@@ -1064,7 +1174,9 @@ const buildServiceResource = ({
     return {
       type: 'batch-job',
       properties: {
-        container: { packaging: packagingFor(service, packageManager, suppressNixpacksRelease) },
+        container: {
+          packaging: packagingFor(service, packageManager, suppressNixpacksRelease)
+        },
         resources: { ...profile.container },
         ...(service.schedule === undefined
           ? {}
@@ -1105,7 +1217,11 @@ const buildServiceResource = ({
                   type: 'http-api-gateway-latency',
                   properties: { thresholdMilliseconds: 5000, statistic: 'p95' }
                 },
-                evaluation: { period: 300, evaluationPeriods: 3, breachedPeriods: 2 },
+                evaluation: {
+                  period: 300,
+                  evaluationPeriods: 3,
+                  breachedPeriods: 2
+                },
                 includeInHistory: true
               }
             ]
