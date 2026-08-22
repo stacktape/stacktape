@@ -399,11 +399,10 @@ export const buildEsCode = async ({
           const moduleName = getModuleNameFromPath(args.path);
           if (isNodeBuiltinImport(args.path)) return undefined;
 
-          // Use combined resolution: fast path first, then walk-up from importer
-          // Skip deep search for performance - it's rarely needed and expensive
-          const modulePath = findModulePath(moduleName, args.importer);
-          if (!modulePath) return undefined;
-
+          // On Windows this normalization must run before any early return: an import this handler
+          // declines is resolved by Bun natively, which can hand its bundler a backslash path that
+          // panics Bun 1.3.14 while formatting source maps. Every resolvable bare import therefore
+          // goes through the forward-slash real path, whether or not the loose resolver knows it.
           if (process.platform === 'win32') {
             try {
               const importerDirectory =
@@ -419,12 +418,22 @@ export const buildEsCode = async ({
             }
           }
 
+          // Use combined resolution: fast path first, then walk-up from importer
+          // Skip deep search for performance - it's rarely needed and expensive
+          const modulePath = findModulePath(moduleName, args.importer);
+          if (!modulePath) return undefined;
+
           const isNestedModule = moduleResolver.isNestedLocation(modulePath, moduleName);
-          if (!isNestedModule) {
+          // On Windows the manual resolution below also covers top-level modules. Declining them
+          // hands the import to Bun's native resolver, which redirects specifiers it shims at
+          // runtime (node-fetch and friends) to the real package via a backslash path — and Bun
+          // 1.3.14 panics while pretty-printing that path. `Bun.resolveSync` above returns the bare
+          // specifier for those shims, so this branch is their only forward-slash resolution.
+          if (!isNestedModule && process.platform !== 'win32') {
             return undefined;
           }
 
-          // Module is in nested node_modules - resolve entry point manually
+          // Module is in nested node_modules (or any module on Windows) - resolve entry point manually
           try {
             const pkgJsonPath = join(modulePath, 'package.json');
             const pkgJson = JSON.parse(readFileSync(pkgJsonPath, 'utf-8'));

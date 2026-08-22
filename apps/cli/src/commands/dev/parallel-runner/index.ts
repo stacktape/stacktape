@@ -667,7 +667,11 @@ const startContainerWorkload = async (
       command,
       environment,
       portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port + hostPortOffset })),
-      volumeMounts: imageResult.distFolderPath ? [{ hostPath: imageResult.distFolderPath, containerPath: '/app' }] : [],
+      // /app/dist rather than /app: the dev base image installs docker-required dependencies into
+      // /app/node_modules, and a mount over /app would shadow them (the image CMD runs dist/index.js).
+      volumeMounts: imageResult.distFolderPath
+        ? [{ hostPath: imageResult.distFolderPath, containerPath: '/app/dist' }]
+        : [],
       onStart: () => {
         started = true;
         if (useDevTui) {
@@ -766,7 +770,9 @@ const startContainerWorkload = async (
         command,
         environment: rebuiltEnvironment,
         portMappings: ports.map((port: number) => ({ containerPort: port, hostPort: port + hostPortOffset })),
-        volumeMounts: newImage.distFolderPath ? [{ hostPath: newImage.distFolderPath, containerPath: '/app' }] : [],
+        volumeMounts: newImage.distFolderPath
+          ? [{ hostPath: newImage.distFolderPath, containerPath: '/app/dist' }]
+          : [],
         onStart: () => {
           if (!inRebuildPhase) {
             if (useDevTui) {

@@ -18,7 +18,7 @@ const writeDevEnvFile = async ({
   workingDirectory: string;
   injectEnvironment?: EnvironmentVar[];
   localWorkloadEnvVars?: Record<string, string>;
-}): Promise<void> => {
+}): Promise<Record<string, string>> => {
   const envVars: Record<string, string> = {};
 
   // Resolve injectEnvironment directives
@@ -39,7 +39,7 @@ const writeDevEnvFile = async ({
   }
 
   if (Object.keys(envVars).length === 0) {
-    return;
+    return envVars;
   }
 
   // Write .env.local file (commonly used by Vite, Next.js, CRA, etc.)
@@ -50,6 +50,7 @@ const writeDevEnvFile = async ({
   const envFilePath = join(workingDirectory, '.env.local');
   await writeFile(envFilePath, envContent);
   tuiManager.info(`[${name}] Wrote ${Object.keys(envVars).length} env vars to .env.local`);
+  return envVars;
 };
 
 const getWorkingDirectory = (dev: { workingDirectory?: string }): string => {
@@ -79,8 +80,10 @@ export const startHostingBucketDevServer = async ({
 
   const workingDirectory = getWorkingDirectory(bucket.dev);
 
-  // Write .env.local with injectEnvironment values and local workload addresses
-  await writeDevEnvFile({
+  // Write .env.local for discoverability, and hand the same values to the dev-server process as
+  // real environment variables: mode-specific env files (Vite's `.env.<mode>`) outrank `.env.local`,
+  // while the actual process environment outranks every file.
+  const injectedEnvironment = await writeDevEnvFile({
     name,
     workingDirectory,
     injectEnvironment: bucket.injectEnvironment,
@@ -91,7 +94,7 @@ export const startHostingBucketDevServer = async ({
 
   return startDevServer({
     name,
-    config: bucket.dev,
+    config: { ...bucket.dev, environment: injectedEnvironment },
     callbacks: {
       onStateChange: (newState) => {
         const status = formatDevServerStatus(newState);

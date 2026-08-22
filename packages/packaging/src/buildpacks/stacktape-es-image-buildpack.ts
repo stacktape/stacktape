@@ -185,12 +185,15 @@ const buildDevBaseImage = async ({
   const dependencies = languageSpecificBundleOutput.es?.dependenciesToInstallInDocker || [];
   const packageManager = languageSpecificBundleOutput.es?.packageManager ?? 'npm';
 
-  // Create hash for dev base image caching based on deps + config
+  // Create hash for dev base image caching based on deps + config. `layout` names the generated
+  // Dockerfile's filesystem contract (2 = dependencies at /, below the /app bind mount); bump it
+  // whenever that contract changes so cached base images from the old layout are not reused.
   const devImageHash = objectHash({
     dependencies: dependencies.map((d) => ({ name: d.name, version: d.version })),
     packageManager,
     requiresGlibcBinaries,
-    nodeVersion
+    nodeVersion,
+    layout: 2
   }).slice(0, 12);
 
   const devBaseImageTag = `stp-dev-base:${devImageHash}`;

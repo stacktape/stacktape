@@ -412,7 +412,7 @@ export const substituteTunneledEndpointsInEnvironmentVars = ({
   /** Origins retained from unresolved `$ResourceParam` values for application-named variables. */
   references?: TunneledEnvironmentVariableReference[];
 }): EnvironmentVar[] => {
-  return env.map((envVar) => {
+  const substituted = env.map((envVar) => {
     let value = envVar.value;
     for (const tunnel of tunnels) {
       const original = `${value}`;
@@ -438,4 +438,19 @@ export const substituteTunneledEndpointsInEnvironmentVars = ({
     }
     return { ...envVar, value };
   });
+
+  // A tunneled connection still presents the target's real TLS certificate, so a client verifying
+  // TLS against the substituted tunnel host fails the hostname check. Publishing the original host
+  // under the established `STP_<RESOURCE>_TLS_SERVER_NAME` contract lets clients keep strict
+  // verification (SNI + altname) while dialing the tunnel. Values the caller set for these names
+  // were host-substituted above like everything else, so the authoritative entries are appended
+  // last and win the merge into the final environment object.
+  const tlsServerNameVars = tunnels.map((tunnel) => ({
+    name: injectedParameterEnvVarName(tunnel.targetInfo.targetStpName, 'tlsServerName'),
+    value: tunnel.remoteHost
+  }));
+  return [
+    ...substituted.filter((envVar) => !tlsServerNameVars.some(({ name }) => name === envVar.name)),
+    ...tlsServerNameVars
+  ];
 };

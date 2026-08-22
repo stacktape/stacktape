@@ -299,6 +299,8 @@ const getSelectedResources = async (
  * 5. Start local workloads (containers, frontends)
  * 6. Deploy and stream logs for functions
  */
+let agentReadyHeartbeatStopper: (() => void) | null = null;
+
 export const commandDev = async () => {
   const initialArgs = captureCommandArgs();
   const agentPortArg = initialArgs.agentPort;
@@ -430,6 +432,18 @@ export const commandDev = async () => {
     registerAgentCleanupHook();
     setRebuildFunctions(rebuildWorkload, rebuildAllWorkloads);
     await startAgentServer(agentPort, localStatePaths.devAgentDirectory({ workingDirectory: stackContext.workingDir }));
+
+    // A first run deploys the dev stack, which can far outlast any fixed readiness deadline. The
+    // daemon therefore emits a liveness heartbeat until AGENT_READY, and the parent treats its
+    // timeout as an inactivity limit: a silent CloudFormation wait keeps the daemon alive, while a
+    // genuinely hung child still gets reaped.
+    if (isAgentChild) {
+      const heartbeat = setInterval(() => {
+        process.stdout.write(`AGENT_STARTING ${JSON.stringify({ ts: new Date().toISOString() })}\n`);
+      }, 20_000);
+      heartbeat.unref();
+      agentReadyHeartbeatStopper = () => clearInterval(heartbeat);
+    }
   }
 
   const devHeader = {
@@ -637,6 +651,8 @@ export const commandDev = async () => {
 
           // Print AGENT_READY for daemon parent to detect
           // This MUST be printed for the daemon spawning to work
+          agentReadyHeartbeatStopper?.();
+          agentReadyHeartbeatStopper = null;
           process.stdout.write(
             `${buildAgentReadyMessage({
               port: port!,

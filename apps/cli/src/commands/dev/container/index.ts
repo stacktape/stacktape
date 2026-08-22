@@ -274,7 +274,9 @@ const runDockerContainer = async (
     command,
     environment,
     portMappings: ports.map((port) => ({ containerPort: port, hostPort: port })),
-    volumeMounts: distFolderPath ? [{ hostPath: distFolderPath, containerPath: '/app' }] : [],
+    // /app/dist rather than /app: the dev base image installs docker-required dependencies into
+    // /app/node_modules, and a mount over /app would shadow them (the image CMD runs dist/index.js).
+    volumeMounts: distFolderPath ? [{ hostPath: distFolderPath, containerPath: '/app/dist' }] : [],
     transformStderrPut: transformContainerWorkloadStdout,
     transformStdoutPut: transformContainerWorkloadStdout,
     onStart: () => {

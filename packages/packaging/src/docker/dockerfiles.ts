@@ -33,6 +33,9 @@ export const buildEsDevDockerfile = ({
     ? `public.ecr.aws/docker/library/node:${nodeVersion}${dependencies.length ? '-bookworm' : '-bookworm-slim'}`
     : `public.ecr.aws/docker/library/node:${nodeVersion}-alpine`;
 
+  // Dev mode bind-mounts the freshly bundled code at /app/dist, so dependencies installed into
+  // /app/node_modules stay visible: Node's resolution (CJS and ESM alike) walks up from
+  // /app/dist/index.js into /app. Mounting over /app itself would shadow the install layer.
   if (requiresGlibcBinaries) {
     return `FROM ${baseImage}
 
@@ -44,7 +47,7 @@ ENTRYPOINT ["tini", "--"]
 WORKDIR /app
 ${installPackageManagerCommand}${installDepsCommand}
 
-CMD ["node", "--max-old-space-size=16384", "index.js"]`;
+CMD ["node", "--max-old-space-size=16384", "dist/index.js"]`;
   }
 
   // Alpine version - no deps
@@ -57,10 +60,11 @@ ENTRYPOINT ["/sbin/tini", "--"]
 
 WORKDIR /app
 
-CMD ["node", "--max-old-space-size=16384", "index.js"]`;
+CMD ["node", "--max-old-space-size=16384", "dist/index.js"]`;
   }
 
-  // Alpine version - with deps (need build tools for native modules)
+  // Alpine version - with deps (need build tools for native modules). Same root-level install as
+  // the glibc branch: /app is shadowed by the dev bind mount.
   return `FROM ${baseImage}
 
 RUN apk add --no-cache tini curl openssl python3 make g++
@@ -70,7 +74,7 @@ ENTRYPOINT ["/sbin/tini", "--"]
 WORKDIR /app
 ${installPackageManagerCommand}${installDepsCommand}
 
-CMD ["node", "--max-old-space-size=16384", "index.js"]`;
+CMD ["node", "--max-old-space-size=16384", "dist/index.js"]`;
 };
 
 export const buildEsDockerfile = ({

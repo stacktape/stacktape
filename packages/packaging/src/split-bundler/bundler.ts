@@ -14,8 +14,8 @@ import type {
   SplitBundleResult
 } from './types';
 import type { PackageJsonDepsInfo } from '../es/bundler-helpers';
-import { existsSync, statSync } from 'node:fs';
-import { basename, isAbsolute, join, posix, resolve } from 'node:path';
+import { existsSync, readFileSync, realpathSync, statSync } from 'node:fs';
+import { basename, dirname, isAbsolute, join, posix, resolve } from 'node:path';
 import { rewriteChunkImports } from './chunk-rewriter';
 import { copy, emptyDir, ensureDir, outputJSON, readFile, writeFile } from 'fs-extra';
 import { DEPENDENCIES_TO_EXCLUDE_FROM_BUNDLE, IGNORED_MODULES, NODE_BUILTIN_MODULES } from '../es/config';
@@ -238,7 +238,12 @@ const executeBunBuild = async ({
         __dirname: '__stp_dirname',
         __filename: '__stp_filename'
       },
-      plugins: [bunFfiShimPlugin, analyzePlugin, nativeModulesPlugin],
+      plugins: [
+        bunFfiShimPlugin,
+        analyzePlugin,
+        nativeModulesPlugin,
+        createWindowsPathNormalizationPlugin({ cwd, monorepoRoot })
+      ],
       root: buildRoot,
       ...(sourceMapBannerType === 'pre-compiled' && banner ? { banner } : {}),
       ...(tsConfigPath ? { tsconfig: tsConfigPath } : {}),
@@ -398,6 +403,110 @@ const createAnalyzePlugin = ({
     }
   };
 };
+
+/**
+ * Windows-only path normalization, mirroring the es bundler's workaround. An import no other plugin
+ * claims is resolved by Bun natively, and on Windows that resolution can hand the bundler a
+ * backslash path that panics Bun 1.3.14 while formatting source maps. This plugin runs last, so
+ * externalization decisions keep precedence; everything still bundled resolves through a
+ * forward-slash real path.
+ */
+const createWindowsPathNormalizationPlugin = ({
+  cwd,
+  monorepoRoot
+}: {
+  cwd: string;
+  monorepoRoot: string | null;
+}): BunPlugin => ({
+  name: 'stp-windows-path-normalization',
+  setup(build) {
+    if (process.platform !== 'win32') return;
+    const moduleResolver = createModuleResolver({ cwd, monorepoRoot });
+
+    /**
+     * `Bun.resolveSync` answers specifiers Bun shims at runtime (node-fetch and friends) with the
+     * bare specifier instead of a file path, while its bundler still resolves them to the real
+     * package. This manual entry resolution is those modules' only forward-slash route.
+     */
+    const resolveEntryManually = (specifier: string, moduleName: string, importer: string | undefined) => {
+      const moduleDirectory = moduleResolver.findModulePath(moduleName, importer);
+      if (!moduleDirectory) return undefined;
+      try {
+        const subpath = specifier.slice(moduleName.length).replace(/^\//, '');
+        if (subpath) {
+          for (const extension of ['', '.js', '.mjs', '.cjs', '.ts', '.json']) {
+            const candidate = join(moduleDirectory, subpath) + extension;
+            if (existsSync(candidate) && statSync(candidate).isFile()) {
+              return { path: realpathSync(candidate).replace(/\\/g, '/') };
+            }
+          }
+          return undefined;
+        }
+        const packageJson = JSON.parse(readFileSync(join(moduleDirectory, 'package.json'), 'utf-8')) as {
+          exports?: unknown;
+          module?: string;
+          main?: string;
+        };
+        const dotExport = (() => {
+          const exportsField = packageJson.exports;
+          if (typeof exportsField === 'string') return exportsField;
+          if (exportsField && typeof exportsField === 'object') {
+            const dot = (exportsField as Record<string, unknown>)['.'];
+            if (typeof dot === 'string') return dot;
+            if (dot && typeof dot === 'object') {
+              const conditions = dot as Record<string, unknown>;
+              for (const condition of ['import', 'require', 'default']) {
+                const value = conditions[condition];
+                if (typeof value === 'string') return value;
+                if (value && typeof value === 'object') {
+                  const nested = (value as Record<string, unknown>).default;
+                  if (typeof nested === 'string') return nested;
+                }
+              }
+            }
+          }
+          return undefined;
+        })();
+        for (const entry of [dotExport, packageJson.module, packageJson.main, 'index.js']) {
+          if (!entry) continue;
+          const candidate = join(moduleDirectory, entry);
+          if (existsSync(candidate) && statSync(candidate).isFile()) {
+            return { path: realpathSync(candidate).replace(/\\/g, '/') };
+          }
+        }
+      } catch {
+        // Fall through to Bun's own diagnostics.
+      }
+      return undefined;
+    };
+
+    const normalize = (specifier: string, importer: string | undefined, resolveDir: string | undefined) => {
+      try {
+        const importerDirectory = resolveDir || (importer && isAbsolute(importer) ? dirname(importer) : cwd);
+        const resolved = Bun.resolveSync(specifier, importerDirectory);
+        if (isAbsolute(resolved)) {
+          return { path: realpathSync(resolved).replace(/\\/g, '/') };
+        }
+      } catch {
+        // Let Bun surface the unresolved import through its normal build diagnostics.
+      }
+      return undefined;
+    };
+    build.onResolve({ filter: /^[^./]/ }, (args) => {
+      if (isAbsolute(args.path) || args.path.startsWith('node:') || args.path === 'bun:ffi') return undefined;
+      const moduleName = getModuleName(args.path);
+      if (NODE_BUILTIN_MODULES.includes(moduleName)) return undefined;
+      return (
+        normalize(args.path, args.importer, args.resolveDir) ??
+        resolveEntryManually(args.path, moduleName, args.importer)
+      );
+    });
+    build.onResolve({ filter: /^\.\.?[\\/]/ }, (args) => {
+      if (!args.importer) return undefined;
+      return normalize(args.path, args.importer, args.resolveDir);
+    });
+  }
+});
 
 /** Create plugin for handling native .node modules */
 const createNativeModulesPlugin = (): BunPlugin => ({

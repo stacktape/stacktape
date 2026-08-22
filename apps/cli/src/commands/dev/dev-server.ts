@@ -22,6 +22,12 @@ type DevServerConfig = {
   framework?: FrameworkType;
   /** Port to use (will be passed via PORT env var) */
   port?: number;
+  /**
+   * Injected variables handed to the dev-server process as real environment variables. A written
+   * `.env.local` is not enough: mode-specific env files (Vite's `.env.<mode>`) outrank it, while
+   * actual process environment outranks every file in all the supported frameworks.
+   */
+  environment?: Record<string, string>;
 };
 
 export type DevServerState = {
@@ -275,6 +281,7 @@ export const startDevServer = async ({
   // Build environment with PORT for frameworks that support it
   const env: Record<string, string> = {
     ...serialize(process.env),
+    ...(config.environment || {}),
     FORCE_COLOR: '1'
   };
 

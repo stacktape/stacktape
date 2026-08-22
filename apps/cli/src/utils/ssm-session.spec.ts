@@ -46,8 +46,21 @@ describe('bastion tunnel environment substitution', () => {
       { name: 'DATABASE_PORT', value: '15432' },
       { name: 'STP_MAIN_DATABASE_PORT', value: '15432' },
       { name: 'STP_MAIN_DATABASE_HOST', value: '127.0.0.1' },
-      { name: 'UNRELATED_PORT', value: '5432' }
+      { name: 'UNRELATED_PORT', value: '5432' },
+      { name: 'STP_MAIN_DATABASE_TLS_SERVER_NAME', value: 'private-db.example.internal' }
     ]);
     expect(environment[0]?.value).toBe('postgres://placeholder@private-db.example.internal:5432/app');
+  });
+
+  it('publishes the original host for TLS verification, overriding a substituted caller value', () => {
+    // A caller wiring the TLS server name from the resource's host parameter gets the tunnel host
+    // substituted like every other reference; the appended authoritative entry must win, or strict
+    // TLS verification dials the tunnel endpoint's name instead of the certificate's.
+    const substituted = substituteTunneledEndpointsInEnvironmentVars({
+      tunnels: [tunnel],
+      env: [{ name: 'STP_MAIN_DATABASE_TLS_SERVER_NAME', value: 'private-db.example.internal' }]
+    });
+
+    expect(substituted).toEqual([{ name: 'STP_MAIN_DATABASE_TLS_SERVER_NAME', value: 'private-db.example.internal' }]);
   });
 });

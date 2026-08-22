@@ -320,12 +320,26 @@ export const spawnAgentDaemon = async (args: {
   // Note: process.execPath is the actual executable path (not argv[0] which is "bun" for compiled binaries)
   const spawnArgs = isCompiledBinary() ? childArgs : [process.argv[1], ...childArgs];
 
+  // The development wrapper (`bun run scripts/dev.ts`) rebuilds the CLI from its process cwd, so a
+  // wrapper-spawned child must start inside the CLI package and receive the project directory as an
+  // argument instead. A compiled binary has no such constraint and keeps the plain cwd contract.
+  let childCwd = workingDir;
+  if (!isCompiledBinary()) {
+    childCwd = dirname(dirname(process.argv[1]));
+    const hasExplicitWorkingDir = originalArgs.some(
+      (arg) => arg === '--currentWorkingDirectory' || arg === '--cwd' || arg.startsWith('--currentWorkingDirectory=')
+    );
+    if (!hasExplicitWorkingDir) {
+      childArgs.push('--currentWorkingDirectory', workingDir);
+    }
+  }
+
   return new Promise((resolve) => {
     const child: ChildProcess = spawn(process.execPath, spawnArgs, {
       detached: true,
       stdio: ['ignore', 'pipe', 'pipe'],
       env: { ...process.env, STACKTAPE_AGENT_DAEMON: '1', STP_DISABLE_CONSOLE_INTERCEPT: 'true' },
-      cwd: workingDir
+      cwd: childCwd
     });
 
     if (!child.pid) {
@@ -348,7 +362,10 @@ export const spawnAgentDaemon = async (args: {
       child.unref();
     };
 
-    const timeout = setTimeout(() => {
+    // An inactivity limit rather than a total deadline: a first run legitimately spends a long
+    // time deploying the dev stack, and the daemon emits AGENT_STARTING heartbeats while it works.
+    // Only a child that has gone completely silent for `timeoutMs` is treated as hung and reaped.
+    const onTimeout = () => {
       if (!resolved) {
         resolved = true;
         cleanup();
@@ -360,10 +377,16 @@ export const spawnAgentDaemon = async (args: {
         }
         resolve({
           success: false,
-          error: `Daemon did not become ready within ${timeoutMs / 1000}s`
+          error: `Daemon produced no output for ${timeoutMs / 1000}s and was treated as hung`
         });
       }
-    }, timeoutMs);
+    };
+    let timeout = setTimeout(onTimeout, timeoutMs);
+    const resetInactivityTimeout = () => {
+      if (resolved) return;
+      clearTimeout(timeout);
+      timeout = setTimeout(onTimeout, timeoutMs);
+    };
 
     child.on('error', (err) => {
       if (!resolved) {
@@ -385,6 +408,7 @@ export const spawnAgentDaemon = async (args: {
     });
 
     child.stdout?.on('data', (data: Buffer) => {
+      resetInactivityTimeout();
       stdoutBuffer += data.toString();
 
       // Check each line for AGENT_READY and print progress
@@ -425,6 +449,7 @@ export const spawnAgentDaemon = async (args: {
     });
 
     child.stderr?.on('data', (data: Buffer) => {
+      resetInactivityTimeout();
       const text = data.toString();
       stderrBuffer += text;
       for (const line of text.split(/\r?\n/)) {
