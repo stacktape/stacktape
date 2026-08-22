@@ -82,11 +82,20 @@ There is deliberately no root `pnpm dev`: the workspace does not have one meanin
 the CLI's source runner requires a command. Start the application you actually need:
 
 ```powershell
-pnpm dev:console       # Console UI at http://localhost:4000
+pnpm dev:console       # whole Console (API + UI) through Stacktape dev mode; clears leftovers first
+pnpm dev:console:ui    # Console UI only at http://localhost:4000, against the deployed dev-stage API
 pnpm dev:docs          # documentation at http://localhost:9001
 pnpm dev:website       # marketing website
 pnpm dev:cli version   # build and run one CLI command from source
 ```
+
+`pnpm dev:console:ui` serves only the UI against the deployed dev-stage API — enough for purely visual work. When a
+change spans the Console API and UI (a new tRPC procedure, a changed response shape), the deployed API does not have it
+yet — use `pnpm dev:console`, which first clears leftovers from earlier runs (stranded dev-agent daemons, orphaned Vite
+dev servers) and then runs the API container and the Vite UI together locally through Stacktape dev mode on the
+dedicated `devlocal` stage. It opens a Stacktape session against real AWS (it maintains a `console-app-devlocal` dev
+stack); prerequisites and the stage's parameter contract are documented in `apps/console/README.md`. Extra arguments
+pass through to `stacktape dev` (for example `pnpm dev:console --watch`).
 
 The first three commands start local web development servers. `dev:cli` forwards everything after its name to the
 development-built Stacktape CLI described below. Console API development is intentionally separate because it opens a

@@ -114,6 +114,35 @@ reviewable.
 - Keep feature-specific AWS operations beside their sole UI feature. Use `ui/src/aws` only for operations shared by
   several screens or for the common access/client boundary.
 
+## Local development
+
+`pnpm dev:console:ui` from the public parent serves only the UI, against the deployed dev-stage API. That is enough for
+purely visual work, but any change that spans the API and the UI — a new tRPC procedure, a changed response shape — does
+not exist on the deployed API yet. Run the Console through Stacktape dev mode instead, which clears leftovers from
+earlier runs (stranded dev-agent daemons, orphaned Vite dev servers) and then runs the API container and the Vite UI
+together on your machine:
+
+```sh
+pnpm dev:console
+```
+
+Dev mode deploys a dedicated `console-app-devlocal` dev stack on first run (Cognito, database, lambdas, gateway) and
+then runs `apiServer` in local Docker and `webBucket` through Vite, with environment and AWS credentials injected. Add
+`--agent --agentPort 9900` for the HTTP control server (status, logs, rebuilds) when an agent drives the loop.
+
+The running Console attaches to the live dev-stage data plane, because that is where the real accounts, organizations
+and projects live: `pnpm dev:console` maintains a bastion tunnel to the `console-app-dev` Postgres on local port 15433,
+the config resolves runtime secrets from `/stacktape/console/dev/*` and points the UI at the dev Cognito user pool, so
+you sign in with your real dev account. Writes from the local API land in the real shared dev database — treat it
+accordingly, and never run destructive migrations or scripts against it from a local session.
+
+- Never point dev mode at the `dev` stage: `console-app-dev` is a full deployment serving the shared dev environment,
+  and dev mode correctly refuses it. `devlocal` is the dedicated dev-mode stage; its own database and Cognito pool are
+  deployed but unused at runtime.
+- The stage's SecureString parameters (`/stacktape/console/devlocal/*`) must exist for the devlocal stack's
+  infrastructure; dev mode prompts for missing ones interactively. They are personal-stage placeholders, not copies of
+  shared-stage secrets.
+
 ## Validation
 
 From the integrated public parent:

@@ -4,7 +4,7 @@
     {
       "name": "console-ui",
       "runtimeExecutable": "pnpm",
-      "runtimeArgs": ["dev:console"],
+      "runtimeArgs": ["dev:console:ui"],
       "port": 4000
     }
   ]
