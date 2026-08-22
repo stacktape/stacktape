@@ -32,10 +32,11 @@
     },
     "apps/console/api": {
       "entry": [
-        "server/index.ts",
-        "server/lambdas/**/index.ts",
-        "server/lambdas/*.ts",
-        "server/api/external-contract.ts",
+        "src/index.ts",
+        "src/lambdas/**/index.ts",
+        "src/lambdas/*.ts",
+        "src/api/external-contract.ts",
+        "prisma/prisma.config.ts",
         "scripts/**/*.ts",
         "stacktape.ts",
         "**/*.test.ts"
@@ -44,7 +45,7 @@
       "ignore": ["@generated/**", "dist/**"]
     },
     "apps/console/ui": {
-      "entry": ["src/main.tsx", "src/**/*.tsx", "vite.config.ts", "scripts/**/*.ts"],
+      "entry": ["src/main.tsx", "src/**/*.test.{ts,tsx}", "vite.config.ts", "scripts/**/*.ts"],
       "project": ["**/*.{ts,tsx}"],
       "ignore": ["dist/**", "public/**"]
     },

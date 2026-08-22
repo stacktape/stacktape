@@ -43,4 +43,5 @@ pnpm --filter @stacktape/ui-react run test
 pnpm --filter @stacktape/ui-react run build
 ```
 
-For the diagram's semantic and visual invariants, read `src/isometric-diagram/AGENTS.md`.
+For non-obvious editor synchronization rules, read `src/config-editor/AGENTS.md`. For the diagram's semantic and visual
+invariants, read `src/isometric-diagram/AGENTS.md`.

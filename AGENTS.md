@@ -1,163 +1,96 @@
 # Stacktape agent guide
 
-## Goal and repository model
+## Repository model
 
-This is the public Stacktape v4 monorepo. It must remain fully installable, testable, buildable, and capable of
-producing and validating release artifacts when the private `apps/console` Git submodule is absent. Manually selected
-preview and stable releases build identical artifacts; protected jobs publish npm/GitHub and the matching installer
-endpoint with separate short-lived OIDC identities.
+This is the public Stacktape monorepo. `apps/console` is a private Git submodule containing the Console API and UI.
+Public clones must install, test, build, and produce release artifacts without that submodule.
 
-- Public apps: `apps/cli`, `apps/docs`, `apps/website`.
-- Private Git boundary: `apps/console`, containing `api` and `ui`.
-- Reusable capabilities with current consumers: `packages/*`.
-- Active architecture decisions: `architecture/v4/DECISIONS.md`.
+- `apps/*` are runnable products: CLI, documentation, init wizard, website, and the private Console.
+- `packages/*` are capabilities with real consumers. Packages never import applications.
+- Public code never imports private Console source.
+- [`docs/architecture.md`](docs/architecture.md) describes package ownership and dependency direction.
 
-Never make public code depend on private source. A missing private submodule is a normal public-contributor state, not
-an error to work around.
+Do not create a package, abstraction, compatibility layer, or generic `shared`/`utils` area without a concrete current
+need. Prefer the simplest complete implementation. Stacktape v4 may make deliberate breaking changes; do not preserve
+obsolete v3 behavior by default.
 
 ## Before changing code
 
-1. Read the nearest `AGENTS.md` and the relevant package manifest.
-2. Check Git status in the public repository and, when present, in `apps/console`.
-3. Preserve unrelated changes.
-4. Read the focused architecture guide for the area you are changing. In particular, generated-file work starts at
-   `architecture/GENERATION.md`; the completed v4 migration records under `architecture/v4` are context, not a live
-   implementation plan.
-5. Identify generated outputs and behavioral baselines affected by the change.
+1. Read the nearest `AGENTS.md` and package manifest.
+2. Check Git status here and, when initialized, in `apps/console`. Preserve unrelated changes.
+3. Identify generated files, package boundaries, and behavior that the change can affect.
+4. Run focused checks while working and the relevant repository gate before handoff.
 
-## Workspace commands
-
-Use pnpm for installation/workspace orchestration and Bun where package scripts intentionally use it.
+Use pnpm for workspace orchestration and Bun where package scripts already use it.
 
 ```sh
 pnpm install --frozen-lockfile
-pnpm check                 # complete checks available in this checkout
-pnpm check:public          # must work without apps/console
-pnpm check:integrated      # requires apps/console
+pnpm check:public       # works without apps/console
+pnpm check:integrated   # includes the private submodule
 pnpm fmt
-pnpm fmt:check
 pnpm lint
 pnpm typecheck
 pnpm test
 ```
 
-Use package/Turbo filters for focused work. Run the narrowest relevant checks during implementation and the documented
-gate before handoff. Do not replace a failing check with a broad exclusion.
+[`docs/development.md`](docs/development.md) covers local apps and the source-built CLI. Real AWS tests are opt-in and
+documented in [`apps/cli/scripts/real-aws/README.md`](apps/cli/scripts/real-aws/README.md).
 
-`DEVELOPMENT.md` is the practical companion to this guide: credentials, the development-built CLI, semi-local `dev`
-mode, and the guarded real-AWS validation lane including the reusable packaging smoke stack.
+## Architecture and code
 
-## Architecture rules
+- Keep applications as composition roots. Extract only stable, reusable capabilities into packages.
+- Use explicit package subpath exports. Do not add re-export-only barrel modules.
+- Avoid hidden work at module import time.
+- Validate I/O at the boundary and use narrow types across boundaries. Do not use `any` to bridge them.
+- Preserve CloudFormation logical IDs, physical names, artifact hashes, IAM scope, and replacement-sensitive properties
+  unless the task intentionally changes them.
+- Keep anonymous, API-key, AWS-identity, and Console-session tRPC surfaces separately typed and enforced at runtime.
+- Public tRPC schemas live in `packages/console-api`; private Console routers may infer types directly inside the
+  submodule.
+- Shared UI belongs in `packages/ui-react` only when it has a real second consumer. Components stay router-neutral and
+  use explicit subpath exports. Shared visual values belong in `packages/design-tokens`.
 
-- Applications may import packages; packages never import applications.
-- The existing CLI implementation is the v4 starting point. Do not build a parallel runtime or compatibility shell.
-- Create a package only for a concrete present-day responsibility or consumer. Empty and speculative packages are not
-  architecture.
-- V4 may redesign customer-facing configuration and CLI behavior. Do not add v3 compatibility shims or maintain a
-  general compatibility-removal ledger. Discuss broad product changes, then test the chosen v4 contract directly.
-- Structural refactors must still avoid accidental infrastructure replacement, data loss, security-scope changes, or
-  packaging/release drift. Change those behaviors only as an explicit product decision.
-- Do not create generic `utils`, `common`, or `shared` dumping-ground packages.
-- Do not create re-export-only barrel modules. Define explicit package subpath exports.
-- Avoid hidden side effects at module import time.
-- Prefer narrow types and explicit validation at I/O boundaries. Do not use `any` or unsafe assertions to bridge a
-  package boundary.
-- The duplicate-code gate excludes the imported pricing implementation, structurally repetitive stack-info contracts,
-  and the declarative config-authoring child-resource matrix. Treat those as explicit data/legacy baselines; do not
-  broaden the exclusions, and do not introduce abstractions solely to satisfy the metric.
-
-## Engineering judgment
-
-- Choose the simplest complete implementation for the actual requirement.
-- Add an abstraction, dependency, or package only when its present benefit outweighs the extra concept. Check the
-  project's existing capabilities first.
-
-## tRPC and privacy
-
-- Public external schemas/DTOs/client surfaces live in `packages/console-api`.
-- Public artifacts never import private routers or Prisma models.
-- Private external routers reuse the public Zod schemas and prove conformance.
-- Direct router inference is allowed only inside the private Console repository.
-- Keep anonymous, API-key, AWS-identity, and private Console authorization surfaces separately typed and separately
-  enforced at runtime.
-
-## UI
-
-- Do not add styled-components or styled-component APIs.
-- Console may use Emotion object styles and the `css` prop.
-- Docs and website use native Astro/CSS/Tailwind; do not require Emotion for Astro shells.
-- Shared tokens come from `packages/design-tokens`: brand, semantic surfaces/text/borders/interaction/status, AWS
-  category colours, radii, focus and motion. Promote a value only once a second consumer uses that exact value.
-- `packages/ui-react` components are presentational and router-neutral. Extract a primitive when it removes real
-  duplication or has a concrete second product consumer; do not invent abstractions only to populate the package.
-- Every public `ui-react` component owns a top-level source folder and an explicit subpath export. Product-wide
-  resource/framework icon meaning is shared too; the diagram may add a lazy heavy renderer, not a second mapping.
-- `packages/ui-react` ships compiled output because consumers must not recompile its JSX with their own pragma. Its
-  appearance is one explicitly imported stylesheet in the `stacktape-ui` cascade layer, so a consumer can override it
-  without `!important`; consumers declare where that layer sorts.
+The dependency and cycle rules run through `pnpm check:architecture`. Do not silence a new violation by refreshing the
+known-violations file.
 
 ## Generated files
 
-The executable ownership model and output classes are documented in `architecture/GENERATION.md`. Turbo tasks own
-dependencies for deterministic generators used by ordinary build/typecheck/test work. Humans and agents should not need
-to remember a separate generation step for those outputs. The CLI config-schema generator is part of its ordinary
-`generate` task; only live-upstream generators remain deliberate manual operations documented in `apps/cli/AGENTS.md`.
+[`docs/generated-files.md`](docs/generated-files.md) defines ownership and output classes.
 
 - Never hand-edit generated output.
-- Run the owning package's non-mutating `generate:check` after changing canonical inputs.
-- Do not commit `*.tsbuildinfo`, caches, release folders, or generated Prisma clients unless the documented policy
-  explicitly changes.
-- Review generated diffs; do not accept opaque regeneration merely to make CI green.
+- Run the owner's non-mutating `generate:check` after changing canonical input.
+- Review generated diffs instead of accepting regeneration only to make CI pass.
+- Do not commit caches, `*.tsbuildinfo`, release directories, or ignored materializations.
 
-## Testing and compatibility
+## Tests and external systems
 
-Classify behavior changes as `must-preserve`, `intentional-v4-break`, `known-v3-bug`, or `implementation-detail`.
+Prefer tests that prove user-visible behavior or a risky contract. Use semantic assertions instead of large snapshots.
+Tests must fail closed rather than contact AWS. Do not deploy, publish, rotate credentials, or run costed cloud tests
+unless the task explicitly authorizes it.
 
-- Protect CloudFormation logical IDs, resource names, replacement-sensitive properties, security scoping, and artifact
-  hashing unless an intentional change is approved.
-- Prefer semantic assertions and normalized fixtures over large brittle snapshots.
-- Cover ordinary failures and cleanup where the changed behavior owns them; do not invent a framework merely to make
-  every internal operation injectable.
-- An emulator `CREATE_COMPLETE` is not proof of AWS correctness.
-- Tests must fail closed rather than contact real AWS unless a trusted real-AWS lane was explicitly requested.
-- Do not deploy or run costed AWS tests without explicit authorization.
+Never print, copy, commit, or document secret values. Prisma production changes use migrations and
+`prisma migrate deploy`; do not use destructive schema push options.
 
-## Git and the private submodule
+## Git and Console
 
-Public-only changes produce a public commit.
+For work spanning both repositories:
 
-For changes spanning Console and public code:
+1. Commit and push Console changes inside `apps/console`.
+2. Run `pnpm console:pointer:verify` from the public root.
+3. Commit the public changes and updated submodule pointer separately.
 
-1. Commit private changes inside `apps/console`.
-2. Commit public source changes separately.
-3. Push the reviewed private branch and run `pnpm console:pointer:verify` from the public root.
-4. Let the orchestrator integrate the private commit first.
-5. Record the final private commit with a public submodule-pointer commit.
+Use worktrees provided by Codex or Claude Code. Do not add repository-specific worktree lifecycle scripts. Never treat a
+submodule pointer as generated noise, and do not rewrite shared history without explicit approval.
 
-Do not force-push, update default branches, or rewrite history unless the orchestrator explicitly requests it. Never
-treat a submodule pointer update as an unimportant generated diff.
+## Communication
 
-Use the worktree lifecycle built into Codex or Claude Code; this repository does not create or remove harness worktrees.
-Parallel writing sessions need distinct harness-managed worktrees. Codex subagents within one task share that task's
-checkout, so give only one of them write ownership; Claude writing subagents use worktree isolation. Review agents
-remain read-only unless assigned a fix. Migration dossiers and `v4/slice/*` branch names are historical.
+- Write for a mid-level or senior software engineer with working AWS knowledge. Explain project-specific context and do
+  not assume the reader remembers a long session.
+- Make the message easy and pleasant to follow. Use plain speech, active voice, and name the actor.
+- Remove filler, unnecessary jargon, sycophancy, and chatbot phrases such as “Certainly” or “Found the smoking gun.”
+- Split dense sentences. If a reader must backtrack to parse one, shorten it.
+- Give sections a clear purpose and order. Do not turn a response into unrelated headings or a wall of text.
+- Group questions together, preferably at the end.
 
-## Security
-
-- Never print, copy, commit, or document secret values.
-- Instruction files must not contain secret paths or credentials.
-- Use one-time/scoped credentials and preserve organization/project/account/invocation authorization boundaries.
-- Temporary credentials require cleanup on success, failure, timeout, and non-start.
-- Prisma production changes use migrations and `prisma migrate deploy`; never restore `db push --accept-data-loss`.
-
-## Handoff
-
-Report:
-
-- behavior changed and why;
-- files/commits changed in each repository;
-- tests and artifact gates run;
-- intentional compatibility differences;
-- unresolved risks or follow-up work;
-- concepts or abstractions introduced and their present-day justification;
-- whether public-only and integrated checks were exercised.
+In the handoff, state what behavior changed, which checks ran, and what remains uncertain. Mention new concepts only
+when they help the reader understand or maintain the result.

@@ -1,14 +1,5 @@
 # init
 
----
-title: 'init'
-order: 161
-seoTitle: 'stacktape init — Turn an existing project into infrastructure | Stacktape CLI'
-seoDescription: 'Read your project with your own coding agent and get a Stacktape configuration you can deploy, without sending source code to Stacktape.'
----
-
-# init
-
 `stacktape init` reads the project you already have and writes a Stacktape configuration for it.
 
 It opens a wizard in your browser and reads your code **on your machine** using a coding agent you
@@ -166,9 +157,7 @@ stacktape init --templateId your-template-id
 Where a starter project's files are placed.
 
 
-
 > **Warning:** If the directory is not empty, its contents are deleted first. Point it at a new or empty directory.
-
 
 
 ## Your existing configuration is never overwritten

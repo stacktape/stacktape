@@ -21,8 +21,8 @@ ignores:
   - 'apps/cli/**'
   # The same applies to these five modules of the imported Console. They are listed one by one so that new
   # Console code still has to satisfy the rule.
-  - 'apps/console/api/server/services/config-gen/ai-flows/get-project-details/response-schemas/ai-inferred-project-details-schema.ts'
-  - 'apps/console/api/server/services/remote-deploy/index.ts'
-  - 'apps/console/api/server/services/remote-deploy/ec2/index.ts'
+  - 'apps/console/api/src/services/config-gen/ai-flows/get-project-details/response-schemas/ai-inferred-project-details-schema.ts'
+  - 'apps/console/api/src/services/remote-deploy/index.ts'
+  - 'apps/console/api/src/services/remote-deploy/ec2/index.ts'
   - 'apps/console/ui/src/styles/variables.ts'
   - 'apps/console/ui/src/utils/permissions.ts'

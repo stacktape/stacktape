@@ -99,7 +99,10 @@
       "types": "./dist/select/Select.d.ts",
       "default": "./dist/select/Select.js"
     },
-    "./selection-card": "./src/selection-card/SelectionCard.tsx",
+    "./selection-card": {
+      "types": "./dist/selection-card/SelectionCard.d.ts",
+      "default": "./dist/selection-card/SelectionCard.js"
+    },
     "./spinner": {
       "types": "./dist/spinner/Spinner.d.ts",
       "default": "./dist/spinner/Spinner.js"

@@ -413,27 +413,6 @@
   },
   {
     "type": "cycle",
-    "from": "apps/console/ui/src/components/ConfigEditor/hooks.ts",
-    "to": "apps/console/ui/src/components/ConfigEditor/Misc.tsx",
-    "unresolvedTo": "./Misc",
-    "dependencyTypes": ["local", "require"],
-    "rule": {
-      "severity": "error",
-      "name": "no-cycles"
-    },
-    "cycle": [
-      {
-        "name": "apps/console/ui/src/components/ConfigEditor/Misc.tsx",
-        "dependencyTypes": ["local", "require"]
-      },
-      {
-        "name": "apps/console/ui/src/components/ConfigEditor/hooks.ts",
-        "dependencyTypes": ["local", "require"]
-      }
-    ]
-  },
-  {
-    "type": "cycle",
     "from": "apps/console/ui/src/components/ConfigEditor/property-adjustments.tsx",
     "to": "apps/console/ui/src/components/ConfigEditor/property-adjustments/Environment.tsx",
     "unresolvedTo": "./property-adjustments/Environment",

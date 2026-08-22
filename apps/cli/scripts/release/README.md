@@ -3,7 +3,7 @@
 The root `pnpm release <version>` and `pnpm release:preview <version>` commands call `trigger-release.ts`, a local
 dispatcher for `.github/workflows/release.yml`. The workflow owns all builds and publication. `preview` and `stable` use
 identical candidate bytes; channel-specific jobs change the npm tag, GitHub release classification, and installer
-endpoint. See the root [`RELEASING.md`](../../../../RELEASING.md) for the operator contract.
+endpoint. See [`docs/releasing.md`](../../../../docs/releasing.md) for the operator contract.
 
 Current release primitives:
 

@@ -1,127 +1,51 @@
-# Stacktape documentation
+# Documentation site
 
-The public Astro documentation site: `https://docs.stacktape.com`. Static output, no server, no runtime dependency on
-`apps/console`.
+This is the static Astro site at `docs.stacktape.com`. It has no runtime dependency on Console or CLI code.
 
-## Canonical documentation data
+## Canonical content
 
-- `content/**/*.mdx` contains the 194 canonical narrative/reference pages migrated from v3.
-- `.resources.json` contains the resource metadata used to render referenceable parameters.
-- These files are also inputs to the CLI's shipped LLM documentation corpus.
-- `content/**` is intentionally excluded from Oxfmt. MDX pages contain template-string code examples whose whitespace is
-  meaningful, and the formatter can rewrite that embedded source. Preserve authored formatting and make deliberate edits
-  only.
+`content/**/*.mdx` is product documentation and also feeds the CLI's shipped MCP/LLM corpus. Preserve authored
+formatting: content is excluded from oxfmt because code-example whitespace can be meaningful.
 
-The CLI owns the single LLM-docs generator because it is the only code consumer. It reads this application as data;
-`apps/docs` does not import CLI implementation. Do not edit `apps/cli/@generated/llm-docs` directly or create a
-page-specific patcher. Update the canonical MDX/resource data and run the ordinary Turbo generation path.
+Change canonical MDX or resource data, then run the CLI generator. Never patch `apps/cli/@generated/llm-docs` directly.
+`aws:call` documentation must match the exact allowlist in
+`apps/cli/src/domain/debug-services/aws-read-only-operations.ts`.
 
-`aws:call` documentation must match the runtime allowlist in
-`apps/cli/src/domain/debug-services/aws-read-only-operations.ts`: exact service/operation pairs, required deployed
-stack, debug-role preference with caller-credential fallback, and stack defaults as the only reason project/stage may be
-omitted.
+## Routes and generated inputs
 
-## Routes and MDX components
+`src/pages/[...slug].astro` renders the content collection. `src/utils/route-slugs.ts` owns file-to-URL mapping and
+`tests/expected-routes.txt` is the reviewed public URL contract. Update the manifest deliberately when a route changes.
 
-`src/pages/[...slug].astro` renders every collection entry; `src/utils/route-slugs.ts` owns the file → URL mapping and
-is shared with the validator and the tests so all three agree.
+Turbo materializes the current checkout's CLI-generated inputs before docs tasks run:
 
-`tests/expected-routes.txt` is the compatibility baseline: the reviewed, sorted list of every public URL. Derivation and
-the built-site validator prove the build matches the corpus; only that manifest says which URLs customers were promised.
-Renaming, adding, or removing a page fails `tests/routes.test.ts` until the manifest is updated in the same change —
-which is the point.
+- API reference data and LLM text from CLI `generate`;
+- Monaco/Twoslash declarations from `generate:monaco`;
+- starter metadata from CLI `generate`;
+- the config schema exported by `@stacktape/config`.
 
-`src/components/mdx-react-components.tsx` maps the static components; the page adds the `.astro` island wrappers for the
-interactive ones (`CodeBlock`, `Tabs`, `ApiReference`, `StarterProjectGallery`). MDX already fails the build on a
-component it cannot resolve; `tests/mdx-components.test.ts` additionally asserts the opposite direction, so a
-registration the corpus stopped using does not linger. Add a component only together with the content that uses it.
+Missing inputs must fail with the producing command. Do not fall back to a CDN or published package. The docs site reads
+finished API-reference data; it does not own another schema extractor. YAML/TypeScript examples use
+`@stacktape/config-authoring/converter` rather than a copied conversion table.
 
-## Generated inputs and the no-network invariant
+The rendered Twoslash component hides diagnostics from readers, so `tests/twoslash-types.test.ts` is the actual type
+correctness gate. The served LLM text must remain byte-identical to the CLI corpus.
 
-`src/build/cli-generated-inputs.ts` names every artifact this application consumes from `apps/cli`. Turbo supplies them:
-see the `@stacktape/docs#build`, `#typecheck`, `#test`, and `#dev` entries in the root `turbo.json`. Every docs task
-that reads a CLI artifact explicitly depends on the CLI's `generate` and `generate:monaco` tasks. A missing artifact
-fails with the exact command to run; it never falls back to a published package or a CDN.
+## UI and assets
 
-| Input                                                 | Produced by       | Used for                                          |
-| ----------------------------------------------------- | ----------------- | ------------------------------------------------- |
-| `apps/cli/@generated/schemas/api-reference-data.json` | CLI `generate`    | The `<ApiReference />` dataset                    |
-| `apps/cli/@generated/llm-docs/llms*.txt`              | CLI `generate`    | Served verbatim at the site root                  |
-| `apps/cli/.generated/monaco-declarations/*.d.ts`      | `generate:monaco` | In-browser Twoslash types, served at `/stacktape` |
-| `apps/cli/starter-projects-metadata.json`             | `generate`        | The starter-project gallery                       |
-| `@stacktape/config/config-schema.json`                | CLI `generate`    | YAML hover descriptions in code blocks            |
+Shared values come from `@stacktape/design-tokens`; shared controls come from `@stacktape/ui-react`. Site-specific
+typography, spacing and layout stay here. Keep the cascade-layer declaration first in `global.css` so Tailwind utilities
+can override shared component styles.
 
-Three invariants follow, and all three are enforced:
-
-- **Documented types are this checkout's types.** Code samples type-check against the declarations `generate:monaco`
-  produces and the workspace's own TypeScript standard library, both copied into the output by
-  `src/build/generated-runtime-assets.ts`. There is no automatic type acquisition and no jsDelivr/playground fallback,
-  so a sample can never silently describe a released npm version. Production renders Twoslash with
-  `noErrorValidation: true` so a reader never sees a red block — that suppression is cosmetic and proves nothing, so
-  `tests/twoslash-types.test.ts` re-runs the same loader with validation ON. Treat that test, not the site, as the
-  evidence that imports resolve.
-- **The served LLM corpus equals the shipped one.** `llms.txt`, `llms-full.txt`, and `llms-api-reference.txt` are copied
-  byte-for-byte, and the validator compares them against their source. Do not transform them on the way out.
-- **The API reference is data, not an algorithm this app owns.** `apps/cli`'s `generate` performs the schema
-  normalization and emits the finished result; the same data is what it renders into the corpus. This app has DTOs
-  (`src/utils/api-reference-dto.ts`) and a reader (`src/build/api-reference-data.ts`), and nothing else. It previously
-  carried its own copy of the extractor, which drifted — it stopped decoding HTML entities and shipped `&#39;` to
-  readers. Do not reintroduce `enhance-config-schema`, `generate-api-reference`, or `generate-llm-docs` here.
-  `src/utils/api-reference-text.ts` decodes at the presentation boundary as a second line of defence.
-- **Configuration conversion has one implementation.** Interactive YAML/TypeScript tabs use
-  `@stacktape/config-authoring/converter`, the same implementation as the CLI and Console editor. This application only
-  catches incomplete documentation fragments and falls back to the authored language; do not copy class maps or
-  conversion logic into Docs.
-
-## Styling
-
-`packages/design-tokens` owns the values every Stacktape frontend agrees on: the brand green, the semantic surfaces,
-text, borders, interaction and status colours, the AWS category colours, and the shared radii, focus affordance and
-motion timings. `global.css` imports the generated token CSS and the `@theme` block aliases this site's Tailwind names
-to those `--stp-*` variables rather than restating their values; `src/styles/variables.ts` does the same for JS-side
-styles. Everything below the "this site's own theme" comment in either file is a value no other frontend shares —
-typography, spacing, and the backgrounds and hovers that deliberately differ from Console's. Promote a value only after
-checking that a second consumer really uses the same one.
-
-Buttons come from `@stacktape/ui-react`; `global.css` imports its stylesheet, and `.stp-doc-button` keeps only the
-narrower horizontal padding this site uses. The rest of the `stp-*` component classes belong to this site.
-
-The first line of `global.css` declares the cascade-layer order. `stacktape-ui` sits between Tailwind's `base` and
-`components`, so shared-control styles beat the element resets and still lose to this site's classes and to every
-utility a call site passes through `className`. Keep that statement first, before the `@import`s, or the shared package
-will start winning over utilities.
-
-## Static assets
-
-`public/` is the one app-owned static tree: favicons, `robots.txt`, the OpenGraph image, the starter icons the metadata
-actually references, and the screenshots the corpus actually references. It is committed as-is and never written to
-during a build. Everything generated goes to `dist/` through the build hook instead.
+`public` is committed app-owned static content. Generated assets go to `dist` during build; builds must not rewrite
+`public`.
 
 ## Checks
 
-`scripts/validate-built-site.ts` is the gate on the built output, and `run build` runs it. It derives the expected route
-set from `content/` rather than trusting the build, then checks per-page metadata, JSON-LD, a single H1, indexability
-(the 404 is noindex with no canonical; every other page is the reverse), the exact canonical URL for each output path,
-internal links, fragments, local assets, image alt text, the sitemap, `robots.txt`, and the byte-identity of the LLM
-discovery corpus. `run validate:site` re-runs it against an existing `dist/`.
-
-Run `typecheck`, then `test` (routes, MDX components, API-reference data, Twoslash types), then `build` (which ends by
-validating the built site):
-
 ```sh
-pnpm --filter @stacktape/docs run typecheck && pnpm --filter @stacktape/docs run test
+pnpm --filter @stacktape/docs run typecheck
+pnpm --filter @stacktape/docs run test
 pnpm --filter @stacktape/docs run build
 ```
 
-After changing canonical content, regenerate the CLI's corpus with `pnpm --filter @stacktape/cli run generate` and
-re-run `pnpm --filter @stacktape/cli run test:llm-docs`.
-
-## Deliberate differences from the v3 site
-
-- The glossary tooltip (`<Jargon>` over markdown emphasis) is not ported. Its `jargon.yml` data was not part of the
-  migrated corpus, and the tooltip needed client JS that the server-only component map never provided — it rendered a
-  `?` marker that did nothing. Restoring it means adding the data file and hydrating the component, not just copying the
-  old code.
-- `<ConsoleScreenshot>` renders statically. Its only reason to hydrate was a placeholder for a missing capture, which
-  the validator now turns into a build failure instead.
-- Deployment, publishing, and live-upstream generation scripts were not imported.
+The build validates routes, metadata, canonical URLs, links, fragments, local assets, accessibility basics, sitemap,
+robots policy and LLM-corpus identity. After content changes, also run the CLI's `generate` and `test:llm-docs` tasks.
