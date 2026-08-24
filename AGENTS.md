@@ -75,6 +75,11 @@ unless the task explicitly authorizes it.
 Never print, copy, commit, or document secret values. Prisma production changes use migrations and
 `prisma migrate deploy`; do not use destructive schema push options.
 
+For a Console schema change, commit an append-only migration under `apps/console/api/prisma/migrations`, update the
+adoption ledger in `apps/console/api/scripts/migrate-db.ts`, and run the migration-history tests. Apply it to the shared
+dev database with `pnpm migrate:console:dev`. Run `pnpm migrate:console` only with explicit production authorization;
+normal Console deployments already run that migration path automatically.
+
 ## Git and Console
 
 For work spanning both repositories:

@@ -55,6 +55,16 @@ pnpm deploy:console     # deploy console-app-production
 
 Both commands can change real AWS resources. The production command explicitly selects the `stacktape-dev` account.
 
+Apply committed Console migrations through the same source-built CLI and bastion path:
+
+```sh
+pnpm migrate:console:dev # shared dev database
+pnpm migrate:console     # production database
+```
+
+Run the dev command first. The production command is an explicit production operation; normal Console deployments run
+the migration automatically.
+
 ## Credentials and local state
 
 Run `pnpm dev:cli login` for a human Stacktape session. Use `STACKTAPE_API_KEY` only for automation that cannot log in.

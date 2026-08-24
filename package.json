@@ -33,6 +33,8 @@
     "generate:check": "turbo run generate:check",
     "lint": "oxlint . --deny-warnings --report-unused-disable-directives",
     "lint:fix": "oxlint . --fix --deny-warnings --report-unused-disable-directives",
+    "migrate:console": "pnpm dev:cli script:run --scriptName migrateDb --region eu-west-1 --stage production --configPath ../console/api/stacktape.ts --projectName console-app --awsAccount stacktape-dev",
+    "migrate:console:dev": "pnpm dev:cli script:run --scriptName migrateDbDev --region eu-west-1 --stage dev --configPath ../console/api/stacktape.ts --projectName console-app",
     "parameters:check:console:dev": "pnpm --filter @stacktape/console-api-app run parameters:check --stage dev",
     "package:vscode-extension": "pnpm --filter vscode-stacktape run package",
     "prepare": "node scripts/workspace/configure-hooks.ts",
