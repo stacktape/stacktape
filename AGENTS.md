@@ -36,6 +36,10 @@ pnpm test
 [`docs/development.md`](docs/development.md) covers local apps and the source-built CLI. Real AWS tests are opt-in and
 documented in [`apps/cli/scripts/real-aws/README.md`](apps/cli/scripts/real-aws/README.md).
 
+For Console work, `pnpm dev:console:ui` is only for UI changes that can use the deployed dev API. Use `pnpm dev:console`
+for every API change, API/UI contract change, or behavioral API test. It runs the UI and API locally against the shared
+dev data plane while deployed dev Lambdas continue to handle webhooks and background work.
+
 ## Architecture and code
 
 - Keep applications as composition roots. Extract only stable, reusable capabilities into packages.

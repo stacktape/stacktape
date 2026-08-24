@@ -41,8 +41,19 @@ For extension work, run `pnpm dev:vscode-extension`, then launch an Extension De
 `apps/vscode-extension` as the extension development path. `pnpm --filter vscode-stacktape test` exercises the bundled
 language server over LSP; `pnpm package:vscode-extension` creates an installable VSIX.
 
-Use `pnpm dev:console:ui` for visual work. Use `pnpm dev:console` when API types or behavior changed; it maintains the
-`console-app-devlocal` stack and therefore needs the credentials described in `apps/console/README.md`.
+Use `pnpm dev:console:ui` for UI work against the deployed dev API. Use `pnpm dev:console` for API work or an API/UI
+change: it runs both locally, connects the API to the shared dev database and services, and leaves the deployed dev
+Lambdas handling external webhooks and background work. The command maintains the `console-app-devlocal` support stack
+and therefore needs the credentials described in `apps/console/README.md`.
+
+Console deployments also use the source-built workspace CLI:
+
+```sh
+pnpm deploy:console:dev # deploy console-app-dev
+pnpm deploy:console     # deploy console-app-production
+```
+
+Both commands can change real AWS resources. The production command explicitly selects the `stacktape-dev` account.
 
 ## Credentials and local state
 
