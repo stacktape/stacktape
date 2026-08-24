@@ -540,6 +540,28 @@ importers:
       unzipper:
         specifier: ^0.12.3
         version: 0.12.3
+    optionalDependencies:
+      '@opentui/core-darwin-arm64':
+        specifier: 0.4.5
+        version: 0.4.5
+      '@opentui/core-darwin-x64':
+        specifier: 0.4.5
+        version: 0.4.5
+      '@opentui/core-linux-arm64':
+        specifier: 0.4.5
+        version: 0.4.5
+      '@opentui/core-linux-arm64-musl':
+        specifier: 0.4.5
+        version: 0.4.5
+      '@opentui/core-linux-x64':
+        specifier: 0.4.5
+        version: 0.4.5
+      '@opentui/core-linux-x64-musl':
+        specifier: 0.4.5
+        version: 0.4.5
+      '@opentui/core-win32-x64':
+        specifier: 0.4.5
+        version: 0.4.5
 
 packages:
 

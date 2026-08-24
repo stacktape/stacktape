@@ -168,7 +168,10 @@ const ensureOpenTuiPlatformPackage = async (platformId: string) => {
   // because pnpm keeps a package's dependencies next to the package itself rather than at the project root.
   const installedPath = join(await realpath(corePackageDir), '..', scopedName);
   if (await pathExists(join(installedPath, 'package.json'))) {
-    await copy(installedPath, packageDir);
+    // pnpm represents this dependency as a relative symlink inside its virtual store. Copying the symlink to the
+    // workspace root preserves a target that is only valid at the old depth, so copy the resolved package contents.
+    await remove(packageDir);
+    await copy(await realpath(installedPath), packageDir, { dereference: true });
     return;
   }
 
@@ -188,6 +191,7 @@ const ensureOpenTuiPlatformPackage = async (platformId: string) => {
   const { createGunzip } = await import('node:zlib');
   const tar = await import('tar');
 
+  await remove(packageDir);
   await ensureDir(packageDir);
 
   await new Promise<void>((resolve, reject) => {

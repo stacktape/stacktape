@@ -247,6 +247,15 @@
     "typescript-json-schema": "0.58.1",
     "unzipper": "^0.12.3"
   },
+  "optionalDependencies": {
+    "@opentui/core-darwin-arm64": "0.4.5",
+    "@opentui/core-darwin-x64": "0.4.5",
+    "@opentui/core-linux-arm64": "0.4.5",
+    "@opentui/core-linux-arm64-musl": "0.4.5",
+    "@opentui/core-linux-x64": "0.4.5",
+    "@opentui/core-linux-x64-musl": "0.4.5",
+    "@opentui/core-win32-x64": "0.4.5"
+  },
   "engines": {
     "node": ">=24"
   }

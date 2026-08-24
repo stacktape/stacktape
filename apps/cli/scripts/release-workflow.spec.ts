@@ -16,6 +16,12 @@ const readReleaseWorkflow = () =>
 
 const readCiWorkflow = () => readFile(join(process.cwd(), '..', '..', '.github', 'workflows', 'ci.yml'), 'utf8');
 
+const readCliManifest = async () => {
+  const manifest: unknown = JSON.parse(await readFile(join(process.cwd(), 'package.json'), 'utf8'));
+  if (!isRecord(manifest)) throw new Error('CLI package.json must be an object.');
+  return manifest;
+};
+
 const readWorkspaceBunVersion = async () => {
   const manifest: unknown = JSON.parse(await readFile(join(process.cwd(), '..', '..', 'package.json'), 'utf8'));
   if (!isRecord(manifest) || !isRecord(manifest.engines) || typeof manifest.engines.bun !== 'string') {
@@ -43,6 +49,19 @@ describe('release candidate workflow', () => {
     expect(OPENTUI_PLATFORM_IDENTIFIERS['linux-arm']).toEqual(['linux-arm64', 'linux-arm64-musl']);
     expect(BUN_COMPILE_TARGETS.alpine).toBe('bun-linux-x64-baseline-musl');
     expect(NIXPACKS_BINARY_FILE_NAMES.alpine).toBe('nixpacks-linux-alpine');
+  });
+
+  test('installs every supported OpenTUI native package as a direct optional dependency', async () => {
+    const manifest = await readCliManifest();
+    expect(isRecord(manifest.dependencies)).toBe(true);
+    expect(isRecord(manifest.optionalDependencies)).toBe(true);
+    if (!isRecord(manifest.dependencies) || !isRecord(manifest.optionalDependencies)) return;
+
+    const coreVersion = manifest.dependencies['@opentui/core'];
+    const platformIds = new Set(Object.values(OPENTUI_PLATFORM_IDENTIFIERS).flat());
+    for (const platformId of platformIds) {
+      expect(manifest.optionalDependencies[`@opentui/core-${platformId}`]).toBe(coreVersion);
+    }
   });
 
   test('requires the complete archive set with no unexpected platform archive', async () => {
