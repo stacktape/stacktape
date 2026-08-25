@@ -6,6 +6,8 @@ import { localBuildTsConfigPath } from '@utils/misc';
 import { createStacktapeOpenTuiBuildPlugin } from '@scripts/support/opentui-loader';
 import packageJson from '../package.json';
 import { config } from 'dotenv';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
 
 const skipLoadingEnv = Boolean(process.env.SKIP_LOADING_ENV);
@@ -28,7 +30,11 @@ const isMachineMode =
   process.argv.includes('-ap') ||
   requestedJsonlOutput;
 const isMcpMode = process.argv.includes('mcp');
-const devBuildLockPath = `${DEV_TMP_FOLDER_PATH}.lock`;
+// The qualification runner intentionally keeps the committed product tree read-only. Its isolated TMPDIR is the
+// correct home for the source-built CLI artifact; ordinary development keeps the existing node_modules cache path.
+const devTmpFolderPath =
+  process.env.STACKTAPE_QUALIFICATION_SANDBOX === '1' ? join(tmpdir(), 'stacktape-cli-dev-tmp') : DEV_TMP_FOLDER_PATH;
+const devBuildLockPath = `${devTmpFolderPath}.lock`;
 const devBuildLockStaleAfterMs = 10 * 60 * 1000;
 
 const drainStream = async (stream: NodeJS.WriteStream) => {
@@ -127,7 +133,7 @@ const buildSource = async () => {
   const openTuiBuildPlugin = createStacktapeOpenTuiBuildPlugin();
   const result = await Bun.build({
     entrypoints: [CLI_SOURCE_PATH],
-    outdir: DEV_TMP_FOLDER_PATH,
+    outdir: devTmpFolderPath,
     target: 'bun',
     minify: false,
     sourcemap: 'inline',
