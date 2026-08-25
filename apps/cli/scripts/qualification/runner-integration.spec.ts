@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { qualificationReportSchema } from './contracts';
+import { MAX_QUALIFICATION_REPORT_BYTES, qualificationReportSchema } from './contracts';
 import { assertProcessSucceeded, runProcess } from './process';
 
 const temporaryRoots: string[] = [];
@@ -139,6 +139,35 @@ describe('qualification runner', () => {
     expect(`${result.stdout}\n${result.stderr}`).toContain(
       'No project cases remain after applying selection, shard, and maximum-case filters.'
     );
+  });
+
+  test('rejects an explicitly empty lane selection', async () => {
+    const result = await runQualificationRaw(['--lanes=']);
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain('Qualification requires at least one lane.');
+  });
+
+  test('rejects project selection for a global-only lane before executing it', async () => {
+    const result = await runQualificationRaw(['--case=heroku-node-getting-started', '--lanes=runtime']);
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain(
+      'Project selection and resume options require the import or package lane.'
+    );
+  });
+
+  test('rejects an oversized resume report before reading it', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stacktape-qualification-large-report-'));
+    temporaryRoots.push(root);
+    const reportPath = join(root, 'qualification-report.json');
+    await writeFile(reportPath, '{}\n');
+    await truncate(reportPath, MAX_QUALIFICATION_REPORT_BYTES + 1);
+    const result = await runQualificationRaw([
+      '--case=heroku-node-getting-started',
+      '--lanes=import',
+      `--resume-from=${reportPath}`
+    ]);
+    expect(result.exitCode).not.toBe(0);
+    expect(`${result.stdout}\n${result.stderr}`).toContain('Resume qualification report must be a file no larger than');
   });
 
   test('records every case after fail-fast as a deterministic structured skip', async () => {

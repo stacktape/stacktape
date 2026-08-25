@@ -2,6 +2,7 @@ import { isAbsolute, win32 } from 'node:path';
 import { z } from 'zod';
 
 export const QUALIFICATION_REPORT_VERSION = 3 as const;
+export const MAX_QUALIFICATION_REPORT_BYTES = 32 * 1024 ** 2;
 
 export const qualificationLaneSchema = z.enum(['import', 'package', 'runtime', 'aws']);
 export type QualificationLane = z.infer<typeof qualificationLaneSchema>;
@@ -137,10 +138,20 @@ export const qualificationCaseResultSchema = z
     steps: z.array(qualificationStepSchema),
     generatedConfigPath: z.string().optional(),
     keptWorkdir: z.string().optional(),
-    resumedFrom: z.object({ reportPath: z.string(), runId: z.string() }).strict().optional()
+    resumedFrom: z
+      .object({ reportPath: z.string().min(1), runId: z.string().min(1) })
+      .strict()
+      .optional()
   })
   .strict()
   .superRefine((result, context) => {
+    if ((result.execution === 'reused') !== (result.resumedFrom !== undefined)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['resumedFrom'],
+        message: 'Reused project evidence must identify its source report, and executed evidence must not.'
+      });
+    }
     if (result.steps.length === 0) {
       context.addIssue({
         code: 'custom',
@@ -225,6 +236,13 @@ export const qualificationCaseResultSchema = z
         message: 'Packaging must be skipped when importing was skipped.'
       });
     }
+    if (importStep?.status === 'skipped' && acquireStep?.status !== 'skipped') {
+      context.addIssue({
+        code: 'custom',
+        path: ['steps'],
+        message: 'Importer evidence can only be skipped when the whole project is a fail-fast skip.'
+      });
+    }
     const expectedStatus = result.steps.some((step) => step.status === 'failed')
       ? 'failed'
       : result.steps.every((step) => step.status === 'skipped')
@@ -264,7 +282,7 @@ export const qualificationReportSchema = z
     productCommit: z.string(),
     productFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
     manifests: z.array(z.string()).optional(),
-    lanes: z.array(qualificationLaneSchema),
+    lanes: z.array(qualificationLaneSchema).min(1, 'A qualification report must contain at least one lane.'),
     awsScenarios: z.array(safeIdSchema),
     environment: z
       .object({
@@ -347,6 +365,13 @@ export const qualificationReportSchema = z
       });
     }
     for (const [index, step] of report.globalSteps.entries()) {
+      if (step.status === 'skipped') {
+        context.addIssue({
+          code: 'custom',
+          path: ['globalSteps', index, 'status'],
+          message: 'A requested global lane must execute and cannot be reported as skipped.'
+        });
+      }
       if (step.status === 'failed' && step.failure === undefined) {
         context.addIssue({
           code: 'custom',
@@ -383,6 +408,26 @@ export const qualificationReportSchema = z
       });
     }
     for (const [caseIndex, result] of report.cases.entries()) {
+      if (result.status === 'skipped') {
+        const stoppedAfterValues = result.steps.map((step) => step.details?.stoppedAfter);
+        const stoppedAfter = stoppedAfterValues[0];
+        const precedingFailureIndex =
+          typeof stoppedAfter === 'string'
+            ? report.cases.findIndex((candidate) => candidate.id === stoppedAfter && candidate.status === 'failed')
+            : -1;
+        if (
+          typeof stoppedAfter !== 'string' ||
+          stoppedAfterValues.some((value) => value !== stoppedAfter) ||
+          precedingFailureIndex < 0 ||
+          precedingFailureIndex >= caseIndex
+        ) {
+          context.addIssue({
+            code: 'custom',
+            path: ['cases', caseIndex, 'steps'],
+            message: 'A skipped project must identify the same earlier failed case in every step as stoppedAfter.'
+          });
+        }
+      }
       if (!hasProjectLanes || result.steps.some((step) => step.name === 'harness')) continue;
       const acquireStep = result.steps.find((step) => step.name === 'acquire');
       const importStep = result.steps.find((step) => step.name === 'import');
