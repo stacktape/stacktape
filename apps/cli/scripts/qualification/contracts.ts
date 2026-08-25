@@ -57,10 +57,25 @@ const expectationSchema = z
     forbiddenConfig: z.array(z.string()).optional(),
     requiredGapPatterns: z.array(z.string()).optional(),
     forbiddenGapPatterns: z.array(z.string()).optional(),
-    forbidCurrentlyHostedDependencies: z.boolean().optional()
+    forbidCurrentlyHostedDependencies: z.boolean().optional(),
+    // Some platform-specific projects are valuable negative contracts: the correct result is an
+    // explicit unsupported-runtime gap and no fabricated AWS resource.
+    allowNoResources: z.boolean().optional()
   })
   .strict()
   .superRefine((expectation, context) => {
+    if (
+      expectation.allowNoResources === true &&
+      (expectation.serviceCount !== 0 ||
+        expectation.httpServiceCount !== 0 ||
+        Object.values(expectation.resourceTypes).some((count) => count !== 0))
+    ) {
+      context.addIssue({
+        code: 'custom',
+        path: ['allowNoResources'],
+        message: 'allowNoResources requires zero expected services and resources.'
+      });
+    }
     const seen = new Set<string>();
     for (const [index, service] of (expectation.services ?? []).entries()) {
       if (seen.has(service.name)) {

@@ -20,6 +20,51 @@ live-deployment checklist below is satisfied.
    add three to eight meaningfully different cases. With a large unused budget, use ten or more cases or shards, but
    still inspect failures as they appear instead of producing an unreadable pile at the end.
 
+## Operate without asking the user to judge routine choices
+
+When the user delegates a remaining model or subscription budget, the coordinating agent owns the campaign. Do not ask
+the user to choose projects, decide whether an observed result is correct, rank fixes, or arbitrate normal merge
+conflicts. Ask only when work needs authority that was not granted, especially live AWS mutation, publishing, or access
+to a private system.
+
+Treat research and generation agents as fast, untrusted workers. They can search broadly, create applications, run
+native builds in isolated scratch directories, and propose patches. They do not decide that their own output is correct.
+The coordinating agent reviews the exact files and reports, reproduces important claims, and owns every product change.
+For risky or wide product changes, assign a separate reviewer the clean commit hash and require a clear `ACCEPT` or
+`BLOCK` verdict with failing fixtures. A review of a moving dirty worktree is not evidence.
+
+Use this control loop until the delegated budget is nearly exhausted or the selected coverage area stops producing new
+information:
+
+1. Read the current corpus and latest reports. Name one missing customer behavior before searching.
+2. Give research workers different source categories or technology areas so they do not return the same popular lists.
+3. Verify the chosen source independently: exact commit, license, subdirectory, native instructions, maintenance state,
+   and whether it is really an application rather than a library or desktop/mobile project.
+4. Run import first. Inspect the generated topology, commands, dependency wiring, questions, gaps, and claims about
+   existing hosting. Add exact expectations only after this inspection.
+5. Review the pinned source before executing it. Package it inside the qualification sandbox, or use a disposable
+   secret-free VM for an unknown source. Run the documented native build when a packaging failure could be upstream.
+6. Classify each failure. Fix Stacktape only when the evidence points to Stacktape, add a focused regression, and rerun
+   the original case plus neighboring cases.
+7. Give an independent reviewer the clean proposed commit. Resolve every blocker and repeat review on the new commit.
+8. Promote the case and retain the small manifest/expectation change. Store the full report as an artifact, not in Git.
+9. Select the next missing behavior from the updated coverage, rather than asking another worker for an unconstrained
+   list of fashionable repositories.
+
+A worker handoff is incomplete unless it contains all of the following:
+
+- exact Stacktape commit and case source commit;
+- project provenance and why a likely Stacktape customer would deploy it;
+- native build/test command and result;
+- qualification command, JSON report path, and reproduction command;
+- generated resource topology and any user-visible questions or gaps reviewed;
+- failure classification with concrete evidence;
+- files changed, focused regressions, and checks run;
+- remaining uncertainty, including source trust or license uncertainty.
+
+This separation saves coordinator tokens without lowering the bar: workers spend time searching and iterating, while the
+coordinator spends attention on source selection, evidence, architecture, and the final diff.
+
 ## Find a meaningful next project
 
 Select an underserved combination of application shape, language/framework, packaging path, dependency, and previous

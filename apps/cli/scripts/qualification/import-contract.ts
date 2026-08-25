@@ -46,6 +46,9 @@ const assertExactCounts = ({
   }
 };
 
+export const acceptsResourceCount = (entry: QualificationCaseManifest, resourceCount: number): boolean =>
+  resourceCount > 0 || entry.expect?.allowNoResources === true;
+
 export const runImportQualification = async ({
   entry,
   projectRoot,
@@ -113,7 +116,8 @@ export const runImportQualification = async ({
   }));
 
   const failures: string[] = [];
-  if (resources.length === 0) failures.push('Init completed but generated no resources.');
+  const acceptedResourceCount = acceptsResourceCount(entry, resources.length);
+  if (!acceptedResourceCount) failures.push('Init completed but generated no resources.');
 
   const claimedLiveDependencies = dependencies.filter((dependency) => dependency.currentlyHostedOn !== undefined);
   if (claimedLiveDependencies.length > 0) {
@@ -194,7 +198,7 @@ export const runImportQualification = async ({
   return {
     configPath,
     generatedConfig,
-    validConfig: configValidation.valid && resources.length > 0,
+    validConfig: configValidation.valid && acceptedResourceCount,
     failures,
     details: {
       services,

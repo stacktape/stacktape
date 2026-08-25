@@ -151,6 +151,34 @@ describe('qualification manifests', () => {
     ).toThrow('Duplicate expected service name app');
   });
 
+  test('allows an explicit no-resource contract only for a zero-resource result', () => {
+    const noResourceCase = {
+      ...validCase,
+      lanes: ['import'] as const,
+      expect: {
+        resourceTypes: {},
+        serviceCount: 0,
+        httpServiceCount: 0,
+        allowNoResources: true,
+        requiredGapPatterns: ['unsupported runtime']
+      }
+    };
+    const parsed = qualificationManifestSchema.parse({ schemaVersion: 1, cases: [noResourceCase] });
+    expect(parsed.cases[0]?.expect?.allowNoResources).toBeTrue();
+
+    expect(() =>
+      qualificationManifestSchema.parse({
+        schemaVersion: 1,
+        cases: [
+          {
+            ...noResourceCase,
+            expect: { ...noResourceCase.expect, resourceTypes: { 'web-service': 1 } }
+          }
+        ]
+      })
+    ).toThrow('zero expected services and resources');
+  });
+
   test('describes import-only and package-qualified projects accurately', () => {
     const importOnly = BUILT_IN_CASES.find((entry) => entry.id === 'react-router-default');
     const packaged = BUILT_IN_CASES.find((entry) => entry.id === 'fly-epic-stack');

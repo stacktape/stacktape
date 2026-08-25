@@ -189,6 +189,35 @@ Store full run reports as CI artifacts or in versioned object storage, not Git. 
 to those immutable reports in the release record. This stays workable at hundreds of projects without making every
 Stacktape clone enormous.
 
+A corpus repository can stay simple at first and grow into this layout:
+
+```text
+manifest.json                  all promoted cases, or a generated index of the shard manifests below
+manifests/
+  node-frameworks.json         optional human-sized shards once one file becomes unwieldy
+  backend-services.json
+  prior-platforms.json
+projects/
+  <synthetic-case-id>/         complete synthetic source, including lockfile and native tests
+coverage.md                    short gaps/coverage summary; no run output
+```
+
+Do not copy public repositories under `projects/`; pin them in a manifest. Do not split manifests merely because there
+are many cases—the runner already shards deterministically. Split when ownership or review becomes easier, then pass the
+relevant manifests together. Every case ID must remain globally unique.
+
+Use a small promotion state outside the release manifest while a case is being developed: `proposed`, `source-verified`,
+`import-reviewed`, `package-reviewed`, and `promoted`. Only `promoted` cases belong in release presets. A passing
+process exit is not enough for promotion: import output must have exact semantic expectations, and a package case must
+have a complete accepted report from the intended isolation tier. CI or campaign tooling may keep this state in issues
+or a small JSON index; the qualification report remains the source of truth for an individual run.
+
+At hundreds of projects, schedule broad import qualification frequently because it is cheap and does not execute project
+code. Run package qualification in parallel shards with persistent download caches on disposable runners. Deploy a small
+archetype matrix, not hundreds of applications. This makes the expensive evidence answer a distinct question—whether the
+generated artifacts and infrastructure really work on AWS—instead of repeatedly provisioning the same ALB, database, or
+CDN shape.
+
 ## Choosing projects
 
 The corpus should resemble the teams described in `apps/console/documents/business`: early startups and agencies,
