@@ -129,10 +129,12 @@ original report, and carries its configuration/template evidence forward.
 
 The sandbox first copies output into a new temporary host directory, rejects special files, unexpected paths, excessive
 output, and every link outside retained workdirs. Links inside retained workdirs must be portable relative links whose
-targets stay inside that workdir. It validates report semantics and only then renames the temporary directory to the
-requested destination. The host-created metadata hashes the accepted files and records the actual runner image ID.
-Project code still shares the runner UID with the harness and can edit its report before collection, so these files are
-review evidence—not cryptographic attestation against a malicious worker.
+targets stay inside that workdir. Retained workdirs omit generated `node_modules` trees: their lockfiles remain, while
+pruning package-manager caches avoids non-portable hard links and multi-gigabyte diagnostic copies. It validates report
+semantics and only then renames the temporary directory to the requested destination. The host-created metadata hashes
+the accepted files and records the actual runner image ID. Project code still shares the runner UID with the harness and
+can edit its report before collection, so these files are review evidence—not cryptographic attestation against a
+malicious worker.
 
 ## External and synthetic corpora
 

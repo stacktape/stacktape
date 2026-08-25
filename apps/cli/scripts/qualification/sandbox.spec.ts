@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, test } from 'bun:test';
 import { createHash } from 'node:crypto';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { BUILT_IN_CASES } from './catalog';
@@ -500,17 +500,17 @@ describe('sandboxed qualification planning & command composition', () => {
     const workdir = join(root, 'workdirs', 'node-case-Ab12Cd');
     mkdirSync(join(workdir, 'packages', 'target'), { recursive: true });
     writeFileSync(join(workdir, 'packages', 'target', 'package.json'), '{}\n');
-    mkdirSync(join(workdir, 'node_modules'));
-    symlinkSync('../packages/target', join(workdir, 'node_modules', 'target'), 'dir');
+    mkdirSync(join(workdir, 'links'));
+    symlinkSync('../packages/target', join(workdir, 'links', 'target'), 'dir');
     const accepted = await validateAndHashOutputTree(root, true);
-    const containedLink = accepted.find((entry) => entry.path === 'workdirs/node-case-Ab12Cd/node_modules/target');
+    const containedLink = accepted.find((entry) => entry.path === 'workdirs/node-case-Ab12Cd/links/target');
     expect(containedLink?.type).toBe('symlink');
     expect(containedLink?.linkTarget?.replaceAll('\\', '/')).toBe('../packages/target');
 
     const outside = join(dirname(root), `${basename(root)}-escape`);
     mkdirSync(outside);
     temporaryDirectories.push(outside);
-    symlinkSync(outside, join(workdir, 'node_modules', 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
+    symlinkSync(outside, join(workdir, 'links', 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
     await expect(validateAndHashOutputTree(root, true)).rejects.toThrow(/absolute link|escaping link/);
   });
 
@@ -529,10 +529,32 @@ describe('sandboxed qualification planning & command composition', () => {
     symlinkSync(outside, join(workdir, 'links', 'unsafe'), process.platform === 'win32' ? 'junction' : 'dir');
 
     const result = await makeRetainedWorkdirPortable(workdir);
-    expect(result).toEqual({ convertedAbsoluteLinks: 1, removedUnsafeLinks: 1 });
+    expect(result).toEqual({
+      convertedAbsoluteLinks: 1,
+      removedUnsafeLinks: 1,
+      prunedDependencyDirectories: 0
+    });
     const accepted = await validateAndHashOutputTree(root, true);
     expect(accepted.find((entry) => entry.path.endsWith('/links/contained'))?.type).toBe('symlink');
     expect(accepted.find((entry) => entry.path.endsWith('/links/unsafe'))?.type).toBe('file');
+  });
+
+  test('prunes installed Node dependencies before retaining a portable workdir', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'qualification-pruned-dependencies-'));
+    temporaryDirectories.push(root);
+    const workdir = join(root, 'workdirs', 'node-case-Ab12Cd');
+    const dependencies = join(workdir, 'project', 'node_modules');
+    mkdirSync(dependencies, { recursive: true });
+    writeFileSync(join(workdir, 'project', 'package.json'), '{}\n');
+    writeFileSync(join(dependencies, 'installed.js'), 'export {};\n');
+
+    const result = await makeRetainedWorkdirPortable(workdir);
+
+    expect(result.prunedDependencyDirectories).toBe(1);
+    expect(existsSync(dependencies)).toBeFalse();
+    expect(existsSync(join(workdir, 'project', 'package.json'))).toBeTrue();
+    const accepted = await validateAndHashOutputTree(root, true);
+    expect(accepted.some((entry) => entry.path.endsWith('/project/package.json'))).toBeTrue();
   });
 
   test('hashes copied artifacts incrementally with the same SHA-256 result', async () => {

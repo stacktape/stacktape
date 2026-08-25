@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createReadStream } from 'node:fs';
-import { lstat, readdir, readlink, realpath, symlink, unlink, writeFile } from 'node:fs/promises';
+import { lstat, readdir, readlink, realpath, rm, symlink, unlink, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 
 const safeCaseId = '[a-z0-9](?:[a-z0-9-]*[a-z0-9])?';
@@ -57,6 +57,7 @@ export const makeRetainedWorkdirPortable = async (workdir: string) => {
   const workdirRoot = await realpath(workdir);
   const absoluteLinks: Array<{ path: string; target: string; targetIsDirectory: boolean }> = [];
   const unsafeLinks: string[] = [];
+  let prunedDependencyDirectories = 0;
   let entries = 0;
   const visit = async (current: string): Promise<void> => {
     for (const entry of await readdir(current, { withFileTypes: true })) {
@@ -65,6 +66,14 @@ export const makeRetainedWorkdirPortable = async (workdir: string) => {
       const path = join(current, entry.name);
       const metadata = await lstat(path);
       if (metadata.isDirectory()) {
+        // Installed Node dependency trees are reproducible from the retained lockfile, routinely
+        // contain hard links to package-manager stores, and can turn a small diagnostic into many
+        // gigabytes. Keep source/build output but prune these non-portable caches before collection.
+        if (entry.name === 'node_modules') {
+          await rm(path, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+          prunedDependencyDirectories++;
+          continue;
+        }
         await visit(path);
         continue;
       }
@@ -97,7 +106,11 @@ export const makeRetainedWorkdirPortable = async (workdir: string) => {
     await unlink(path);
     await writeFile(path, 'Unsafe or broken symlink removed by the Stacktape qualification sandbox.\n', 'utf8');
   }
-  return { convertedAbsoluteLinks: absoluteLinks.length, removedUnsafeLinks: unsafeLinks.length };
+  return {
+    convertedAbsoluteLinks: absoluteLinks.length,
+    removedUnsafeLinks: unsafeLinks.length,
+    prunedDependencyDirectories
+  };
 };
 
 export const inspectOutputTree = async (
