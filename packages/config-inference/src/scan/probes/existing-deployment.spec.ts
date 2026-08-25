@@ -224,8 +224,201 @@ describe('the existing-deployment probe', () => {
     );
     expect(composed.config.resources).toEqual({});
     expect(composed.gaps.find((gap) => gap.subject === 'cloudflare-workers')?.message).toContain(
-      'cannot translate those APIs'
+      'cannot translate those runtime semantics'
     );
+  });
+
+  it('keeps the durable-chat runtime as cited evidence without inventing an AWS service', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'durable-chat-template',
+        dependencies: { react: '19.2.1', partyserver: '0.0.75' },
+        devDependencies: { wrangler: '4.123.0' },
+        scripts: { dev: 'wrangler dev', deploy: 'wrangler deploy' }
+      }),
+      'wrangler.json': JSON.stringify({
+        main: 'src/server/index.ts',
+        assets: { directory: './public' },
+        durable_objects: { bindings: [{ name: 'Chat', class_name: 'Chat' }] }
+      }),
+      'src/server/index.ts': 'export default { fetch() { return new Response("ok"); } };'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    const composed = composeConfig({ facts, projectName: 'durable-chat' });
+    const cloudflare = facts.existingDeployments.find((deployment) => deployment.tool === 'cloudflare-workers');
+
+    expect(cloudflare?.runtimeConstraints).toEqual([
+      expect.objectContaining({
+        platform: 'cloudflare-worker',
+        scope: '.',
+        entrypoint: 'src/server/index.ts',
+        bindings: ['durable-object']
+      })
+    ]);
+    expect(composed.config.resources).toEqual({});
+    expect(composed.deployable).toBe(false);
+    expect(composed.gaps.find((gap) => gap.subject === 'cloudflare-workers')?.message).toContain(
+      'generated no AWS resources'
+    );
+  });
+
+  it('does not leave a database and generic server behind for a Cloudflare React Router Worker', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'react-router-postgres-ssr-template',
+        dependencies: { react: '19.2.1', 'react-router': '7.9.6' },
+        devDependencies: { '@react-router/dev': '7.9.6', postgres: '3.4.7', wrangler: '4.123.0' },
+        scripts: {
+          build: 'react-router build',
+          start: 'wrangler dev'
+        }
+      }),
+      'wrangler.jsonc': `{
+        "main": "./api/index.js",
+        "services": [{ "binding": "BOOKS_SERVICE", "service": "books", "entrypoint": "BooksService" }]
+      }`,
+      'api/index.js': 'export default { fetch() { return new Response("ok"); } };'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    const composed = composeConfig({ facts, projectName: 'books' });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.dependencies).toEqual([expect.objectContaining({ kind: 'postgres' })]);
+    expect(composed.config.resources).toEqual({});
+    expect(composed.serviceResources).toEqual({});
+    expect(composed.deployable).toBe(false);
+    const message = composed.gaps.find((gap) => gap.subject === 'cloudflare-workers')?.message ?? '';
+    expect(message).toContain('service bindings');
+    expect(message).toContain('generated no AWS resources');
+  });
+
+  it('does not turn an unowned package hint into an orphan resource beside an unrecognized Worker', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'edge-only',
+        dependencies: { postgres: '3.4.7' },
+        devDependencies: { wrangler: '4.123.0' },
+        scripts: { dev: 'wrangler dev' }
+      }),
+      'wrangler.json': '{ "main": "worker/index.ts" }',
+      'worker/index.ts': 'export default { fetch() { return new Response("ok"); } };'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    const composed = composeConfig({ facts, projectName: 'edge-only' });
+
+    expect(facts.services).toEqual([]);
+    expect(facts.dependencies).toEqual([expect.objectContaining({ kind: 'postgres' })]);
+    expect(composed.config.resources).toEqual({});
+    expect(composed.deployable).toBe(false);
+  });
+
+  it('does not publish only the frontend of a Cloudflare Workflow application', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'workflows-starter-template',
+        dependencies: { react: '19.2.1' },
+        devDependencies: { vite: '7.0.0', wrangler: '4.123.0' },
+        scripts: { build: 'vite build', dev: 'vite' }
+      }),
+      'index.html': '<!doctype html><div id="root"></div>',
+      'src/main.tsx': 'document.querySelector("#root")',
+      'wrangler.jsonc': `{
+        "main": "worker/index.ts",
+        "workflows": [{ "name": "my-workflow", "binding": "MY_WORKFLOW", "class_name": "MyWorkflow" }],
+        "durable_objects": { "bindings": [{ "name": "STATUS", "class_name": "Status" }] }
+      }`,
+      'worker/index.ts': 'export default { fetch() { return new Response("ok"); } };'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    const composed = composeConfig({ facts, projectName: 'workflows' });
+
+    expect(facts.services).toEqual([
+      expect.objectContaining({ framework: 'react', servesStaticAssets: { path: 'dist' } })
+    ]);
+    expect(composed.config.resources).toEqual({});
+    expect(composed.deployable).toBe(false);
+    const message = composed.gaps.find((gap) => gap.subject === 'cloudflare-workers')?.message ?? '';
+    expect(message).toContain('Workflows');
+    expect(message).toContain('Durable Objects');
+    expect(message).toContain('generated no AWS resources');
+  });
+
+  it('does not let incidental Wrangler metadata suppress a platform-neutral service', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'orders',
+        dependencies: { express: '5.1.0' },
+        scripts: { start: 'node index.js' }
+      }),
+      'wrangler.toml': 'name = "local-tooling"\ncompatibility_date = "2026-01-01"\nd1_databases = []\n',
+      'index.js': 'require("express")().listen(3000);'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    const composed = composeConfig({ facts, projectName: 'orders' });
+
+    expect(facts.existingDeployments[0]?.runtimeConstraints).toEqual([]);
+    expect(composed.config.resources.orders?.type).toBe('web-service');
+    expect(composed.deployable).toBe(true);
+    const message = composed.gaps.find((gap) => gap.subject === 'cloudflare-workers')?.message ?? '';
+    expect(message).toContain('left the detected platform-neutral services unchanged');
+    expect(message).not.toContain('generated no AWS resources');
+  });
+
+  it('suppresses only an app-local Worker and keeps a sibling service visible for review', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({ name: 'workspace', private: true, workspaces: ['apps/*'] }),
+      'apps/edge/package.json': JSON.stringify({
+        name: 'edge',
+        dependencies: { hono: '4.11.1', postgres: '3.4.7' },
+        scripts: { start: 'wrangler dev' }
+      }),
+      'apps/edge/wrangler.toml': `main = "src/index.ts"
+        [[d1_databases]]
+        binding = "DB"
+        database_name = "edge"
+        database_id = "redacted"`,
+      'apps/edge/src/index.ts': 'export default { fetch() { return new Response("ok"); } };',
+      'apps/api/package.json': JSON.stringify({
+        name: 'api',
+        dependencies: { express: '5.1.0' },
+        scripts: { start: 'node index.js' }
+      }),
+      'apps/api/index.js': 'require("express")().listen(3000);'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    const composed = composeConfig({ facts, projectName: 'workspace' });
+
+    expect(facts.services.map((service) => service.name).toSorted()).toEqual(['api', 'edge']);
+    expect(composed.config.resources).toEqual({
+      api: expect.objectContaining({ type: 'web-service' })
+    });
+    expect(composed.serviceResources).toEqual({ api: 'api' });
+    expect(composed.deployable).toBe(false);
+    const message = composed.gaps.find((gap) => gap.subject === 'cloudflare-workers')?.message ?? '';
+    expect(message).toContain('only for the platform-neutral parts');
+    expect(message).toContain('not a deployable configuration for the complete app');
+    expect(message).not.toContain('generated no AWS resources');
+  });
+
+  it('ignores Wrangler files in examples and test fixtures even when they declare Worker code', async () => {
+    root = await makeRepo({
+      'package.json': APP_MANIFEST,
+      'examples/worker/wrangler.json': '{ "main": "src/index.ts", "durable_objects": { "bindings": [] } }',
+      'tests/wrangler.toml': 'main = "worker.ts"\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    const composed = composeConfig({ facts, projectName: 'api' });
+
+    expect(facts.existingDeployments).toEqual([]);
+    expect(composed.config.resources.api).toBeDefined();
+    expect(composed.deployable).toBe(true);
   });
 
   it('recognises an app-local deployment manifest in a monorepo', async () => {

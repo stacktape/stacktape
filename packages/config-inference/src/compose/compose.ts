@@ -14,6 +14,7 @@
 import type { Citation } from '../facts/citation';
 import type { DependencyFact } from '../facts/dependency';
 import { AWS_DEPLOYMENT_TOOLS, DEPLOYMENT_TOOL_LABELS } from '../facts/existing-deployment';
+import type { DeploymentRuntimeConstraint } from '../facts/existing-deployment';
 import type { PackageManager, ProjectFacts } from '../facts/project-facts';
 import { posix } from 'node:path';
 import type { ServiceFact } from '../facts/service';
@@ -92,7 +93,7 @@ export type CompositionResult = {
   mode?: InfrastructureMode;
   /** Service name → the resource name it composed into, for walking from facts to config. */
   serviceResources: Record<string, string>;
-  /** False only when there is nothing to deploy at all. */
+  /** False when there is nothing to deploy, or when the config is knowingly only part of the app. */
   deployable: boolean;
 };
 
@@ -127,6 +128,53 @@ const POINTABLE_EXTERNAL_KINDS: ReadonlySet<DependencyFact['kind']> = new Set([
   'kafka',
   'nats'
 ]);
+
+const pathIsInside = (path: string, directory: string): boolean =>
+  directory === '.' || path === directory || path.startsWith(`${directory}/`);
+
+const mostSpecificServicesOwningPath = (services: readonly ServiceFact[], path: string): ServiceFact[] => {
+  const owners = services.filter((service) => service.path === '.' || pathIsInside(path, service.path));
+  const deepest = Math.max(-1, ...owners.map((service) => (service.path === '.' ? 0 : service.path.split('/').length)));
+  return owners.filter((service) => (service.path === '.' ? 0 : service.path.split('/').length) === deepest);
+};
+
+/**
+ * Resolve a runtime entrypoint to the most specific service directory that owns it.
+ *
+ * A root service is an owner of every path, but a workspace app is a better owner of
+ * `apps/edge/src/index.ts`. Keeping only the deepest match prevents one app-local Wrangler file
+ * from suppressing platform-neutral siblings in the same monorepo.
+ */
+const servicesOwnedByRuntime = (
+  services: readonly ServiceFact[],
+  constraint: DeploymentRuntimeConstraint
+): ServiceFact[] => {
+  const inScope = services.filter((service) => pathIsInside(service.path, constraint.scope));
+  if (constraint.entrypoint === undefined) {
+    return inScope.filter((service) => service.path === constraint.scope);
+  }
+
+  return mostSpecificServicesOwningPath(inScope, constraint.entrypoint);
+};
+
+const CLOUDFLARE_BINDING_LABELS: Readonly<Record<string, string>> = {
+  ai: 'AI',
+  'analytics-engine': 'Analytics Engine',
+  browser: 'Browser Rendering',
+  d1: 'D1',
+  'dispatch-namespace': 'dispatch namespaces',
+  'durable-object': 'Durable Objects',
+  hyperdrive: 'Hyperdrive',
+  images: 'Images',
+  kv: 'KV',
+  'mtls-certificate': 'mTLS certificates',
+  pipeline: 'Pipelines',
+  queue: 'Queues',
+  r2: 'R2',
+  service: 'service bindings',
+  vectorize: 'Vectorize',
+  workflow: 'Workflows'
+};
 
 /** Network services whose consumers must read an address, unlike IAM-only buckets/tables/queues. */
 const ADDRESS_REQUIRED_KINDS: ReadonlySet<DependencyFact['kind']> = new Set([
@@ -593,6 +641,34 @@ export const composeConfig = ({
   // Every open question is answered here, before anything is composed. The result is a complete
   // configuration and a list of what was decided — not a half-configuration and a list of prompts.
   const { facts, assumptions } = resolveAssumptions(input, decisions);
+  const cloudflareRuntimeConstraints = facts.existingDeployments
+    .filter((deployment) => deployment.tool === 'cloudflare-workers')
+    .flatMap((deployment) => deployment.runtimeConstraints);
+  const cloudflareOwnedServiceNames = new Set(
+    cloudflareRuntimeConstraints.flatMap((constraint) =>
+      servicesOwnedByRuntime(facts.services, constraint).map((service) => service.name)
+    )
+  );
+  const services = facts.services.filter((service) => !cloudflareOwnedServiceNames.has(service.name));
+  const serviceNames = new Set(services.map((service) => service.name));
+  // A dependency used solely by a suppressed Worker service is part of the same non-portable app.
+  // Do not leave behind a convincing but orphaned database, queue, or bucket.
+  const dependencies = facts.dependencies.filter((dependency) => {
+    if (cloudflareRuntimeConstraints.length === 0) return true;
+    if (dependency.consumedBy.length > 0) {
+      return dependency.consumedBy.some((consumer) => serviceNames.has(consumer));
+    }
+    const evidenceOwners = dependency.evidence.flatMap((citation) =>
+      mostSpecificServicesOwningPath(facts.services, citation.file)
+    );
+    if (evidenceOwners.length > 0) {
+      return evidenceOwners.some((service) => serviceNames.has(service.name));
+    }
+    // With no deployable service and no ownership evidence, emitting an orphan resource is the
+    // dangerous guess. In a mixed monorepo, retain it for review rather than suppressing a possibly
+    // platform-neutral declaration.
+    return services.length > 0;
+  });
   const recommendedPreferences = defaultDeploymentPreferences(facts);
   const preferences: DeploymentPreferences = {
     ...(mode === undefined ? recommendedPreferences : MODE_PREFERENCES[mode]),
@@ -620,7 +696,7 @@ export const composeConfig = ({
   const externalVariables = new Map<string, Array<{ name: string; value: unknown }>>();
   const unresolvedPulumiCompute =
     facts.services.length === 0 && facts.existingDeployments.some((deployment) => deployment.tool === 'pulumi');
-  for (const dependency of facts.dependencies) {
+  for (const dependency of dependencies) {
     // SDK clients in a Pulumi program can identify S3/SQS/etc. without identifying the functions
     // that use them. Creating those weak, unconsumed findings alone leaves orphaned infrastructure
     // and a dangerously convincing success. Concrete Pulumi resource declarations carry
@@ -741,7 +817,7 @@ export const composeConfig = ({
     provenance[bastionResourceName] = {
       reason:
         'Your database has no public address, so this small keyless jump box provides encrypted access for migrations and local tools.',
-      evidence: facts.dependencies
+      evidence: dependencies
         .filter((dependency) => {
           const resourceName = dependencyResourceNames.get(dependency.name);
           return resourceName !== undefined && privateDatabaseResourceNames.has(resourceName);
@@ -751,7 +827,7 @@ export const composeConfig = ({
     };
   }
 
-  const httpTriggeredServices = facts.services.filter((service) =>
+  const httpTriggeredServices = services.filter((service) =>
     service.functionTriggers.some((trigger) => trigger.type === 'http')
   );
   const httpApiGatewayName = httpTriggeredServices.length === 0 ? undefined : uniqueName('httpApiGateway', taken);
@@ -772,9 +848,9 @@ export const composeConfig = ({
   // deploy ships a schema-less database. Computed before the services so their packaging can know
   // which migrations this deploy now owns.
   const migrationHooks = composeMigrationHooks({
-    migrations: facts.migrations,
-    services: facts.services,
-    dependencies: facts.dependencies,
+    migrations: facts.migrations.filter((migration) => serviceNames.has(migration.serviceName)),
+    services,
+    dependencies,
     composedDependencies,
     assumptions,
     projectName,
@@ -787,22 +863,22 @@ export const composeConfig = ({
   // equivalent and is not: two services called `app` would collapse onto one key and one of them
   // would vanish from the configuration entirely. `checkFactsCompleteness` rejects duplicates
   // upstream, but losing a service is too quiet a failure to leave to an upstream guarantee.
-  const resourceNames = facts.services.map((service) => uniqueName(service.name, taken));
+  const resourceNames = services.map((service) => uniqueName(service.name, taken));
   const serviceResourceNames = new Map<string, string>();
-  facts.services.forEach((service, index) => {
+  services.forEach((service, index) => {
     if (!serviceResourceNames.has(service.name)) {
       serviceResourceNames.set(service.name, resourceNames[index]!);
     }
   });
 
-  for (const [index, service] of facts.services.entries()) {
+  for (const [index, service] of services.entries()) {
     const name = resourceNames[index]!;
     const classification = classifyService(service);
-    const connectTo = facts.dependencies
+    const connectTo = dependencies
       .filter((dependency) => dependency.consumedBy.includes(service.name))
       .map((dependency) => dependencyResourceNames.get(dependency.name))
       .filter((value): value is string => value !== undefined);
-    const requiresVpc = facts.dependencies.some((dependency) => {
+    const requiresVpc = dependencies.some((dependency) => {
       if (!dependency.consumedBy.includes(service.name)) return false;
       const resourceName = dependencyResourceNames.get(dependency.name);
       return (
@@ -954,10 +1030,10 @@ export const composeConfig = ({
     }
   }
 
-  for (const dependency of facts.dependencies) {
+  for (const dependency of dependencies) {
     if (!ADDRESS_REQUIRED_KINDS.has(dependency.kind) || !composedDependencyNames.has(dependency.name)) continue;
     const consumersWithoutAddress = dependency.consumedBy.filter((serviceName) => {
-      const service = facts.services.find((candidate) => candidate.name === serviceName);
+      const service = services.find((candidate) => candidate.name === serviceName);
       return (
         service !== undefined &&
         !service.environmentVariables.some(
@@ -976,11 +1052,28 @@ export const composeConfig = ({
   // applied, so the wording stays conditional while still making the possible second copy visible.
   for (const deployment of facts.existingDeployments) {
     const label = DEPLOYMENT_TOOL_LABELS[deployment.tool];
+    const runtimeBindings = [
+      ...new Set(
+        deployment.runtimeConstraints
+          .flatMap((constraint) => constraint.bindings)
+          .map((binding) => CLOUDFLARE_BINDING_LABELS[binding] ?? binding)
+      )
+    ];
+    const runtimeDetail =
+      runtimeBindings.length === 0
+        ? 'Cloudflare Worker code'
+        : `Cloudflare Worker code plus these runtime bindings: ${runtimeBindings.join(', ')}`;
+    const cloudflareRuntimeMessage =
+      Object.keys(resources).length === 0
+        ? `This app depends on ${runtimeDetail}. Init cannot translate those runtime semantics safely, so it generated no AWS resources. Adapt the Cloudflare-owned code and bindings before deploying with Stacktape.`
+        : `Init generated AWS resources only for the platform-neutral parts of this repository. Its ${runtimeDetail} cannot be translated safely, so the Cloudflare-owned part was left out. This is not a deployable configuration for the complete app; adapt that code and its bindings first.`;
     gaps.push({
       subject: deployment.tool,
       message:
         deployment.tool === 'cloudflare-workers'
-          ? 'This project uses Cloudflare Workers runtime APIs and bindings. Init cannot translate those APIs into runnable AWS handlers safely, so it generated no AWS resources for them. Adapt the handlers and D1, R2, Queue, Durable Object, and service bindings before deploying with Stacktape.'
+          ? deployment.runtimeConstraints.length > 0
+            ? cloudflareRuntimeMessage
+            : 'This project has Cloudflare Workers deployment config, but it does not declare a Worker entrypoint or runtime binding that init can associate with an application service. Init left the detected platform-neutral services unchanged.'
           : deployment.tool === 'pulumi' && unresolvedPulumiCompute
             ? 'This Pulumi program declares AWS compute, but init could not safely connect its handlers to their events. It left weak, unconsumed SDK hints out instead of creating orphaned queues, tables, topics, or buckets. Add the functions and triggers explicitly before deploying.'
             : AWS_DEPLOYMENT_TOOLS.has(deployment.tool)
@@ -1017,8 +1110,9 @@ export const composeConfig = ({
     // Which resource each service became, for anything that has to walk from facts to config —
     // the preflight verifier being the first consumer.
     serviceResources: Object.fromEntries(serviceResourceNames),
-    // The only thing that makes a configuration undeployable is having nothing in it.
-    deployable: Object.keys(resources).length > 0
+    // A partial monorepo result remains useful for review, but must not unlock deployment as though
+    // it represented the complete application.
+    deployable: Object.keys(resources).length > 0 && cloudflareRuntimeConstraints.length === 0
   };
 };
 

@@ -25,6 +25,8 @@ import { runGreenfieldMission, type AgentRunner, type GreenfieldResult } from '.
 export type EvalExpectation = {
   /** Resource names and their Stacktape type, as the composer should emit them. */
   resources?: Record<string, string>;
+  /** Exact resource count, including zero for deliberately unsupported application shapes. */
+  resourceCount?: number;
   /** Dependency kinds the analysis must find, in any order. */
   dependencyKinds?: readonly string[];
   /** Dependency kinds it must NOT invent. */
@@ -54,6 +56,8 @@ export type EvalExpectation = {
    * cannot reach it deploys green — so the corpus has to assert the emitted values directly.
    */
   serviceEnvironment?: ReadonlyArray<{ resource: string; name: string; value: string }>;
+  /** User-visible composition gaps that must explain why a result is incomplete. */
+  requiredGapPatterns?: readonly string[];
 };
 
 export type EvalCase = {
@@ -116,6 +120,22 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
       } else if (actual.type !== type) {
         failures.push({ stage: 'composition', detail: `"${name}" is a ${actual.type}; expected a ${type}.` });
       }
+    }
+  }
+  if (
+    expected.resourceCount !== undefined &&
+    Object.keys(result.composition.config.resources).length !== expected.resourceCount
+  ) {
+    failures.push({
+      stage: 'composition',
+      detail: `Composed ${Object.keys(result.composition.config.resources).length} resources; expected exactly ${expected.resourceCount}.`
+    });
+  }
+
+  const gapText = result.composition.gaps.map((gap) => `${gap.subject}: ${gap.message}`);
+  for (const pattern of expected.requiredGapPatterns ?? []) {
+    if (!gapText.some((gap) => new RegExp(pattern, 'i').test(gap))) {
+      failures.push({ stage: 'composition', detail: `No user-visible gap matches /${pattern}/i.` });
     }
   }
 

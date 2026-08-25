@@ -15,10 +15,15 @@
 
 import {
   AWS_DEPLOYMENT_TOOLS,
+  type CloudflareRuntimeBinding,
+  type DeploymentRuntimeConstraint,
   type DeploymentTool,
   type ExistingDeploymentFact
 } from '../../facts/existing-deployment';
 import type { Citation } from '../../facts/citation';
+import { posix } from 'node:path';
+import { parse as parseToml } from 'smol-toml';
+import * as ts from 'typescript';
 import { readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
 /** Files whose presence, on its own, identifies the tool that owns this repository's deployment. */
@@ -67,8 +72,8 @@ const IGNORED_NESTED_DIRECTORIES = new Set([
  * in production. Four directory segments covers conventional workspace layouts without searching
  * arbitrary vendored trees.
  */
-const findManifest = (files: readonly string[], names: readonly string[]): string | undefined =>
-  files.find((path) => {
+const findManifests = (files: readonly string[], names: readonly string[]): string[] =>
+  files.filter((path) => {
     const segments = path.split('/');
     const name = segments.at(-1);
     const directories = segments.slice(0, -1);
@@ -79,6 +84,9 @@ const findManifest = (files: readonly string[], names: readonly string[]): strin
       !directories.some((segment) => IGNORED_NESTED_DIRECTORIES.has(segment.toLowerCase()))
     );
   });
+
+const findManifest = (files: readonly string[], names: readonly string[]): string | undefined =>
+  findManifests(files, names)[0];
 
 /**
  * Files that need their contents read before they count.
@@ -178,6 +186,120 @@ const declarationCitation = (path: string, raw: string | undefined, confirm?: Re
   };
 };
 
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  value !== null && typeof value === 'object' && !Array.isArray(value);
+
+const CLOUDFLARE_BINDING_KEYS: Readonly<Record<string, CloudflareRuntimeBinding>> = {
+  ai: 'ai',
+  analytics_engine_datasets: 'analytics-engine',
+  browser: 'browser',
+  d1_databases: 'd1',
+  dispatch_namespaces: 'dispatch-namespace',
+  durable_objects: 'durable-object',
+  hyperdrive: 'hyperdrive',
+  images: 'images',
+  kv_namespaces: 'kv',
+  mtls_certificates: 'mtls-certificate',
+  pipelines: 'pipeline',
+  queues: 'queue',
+  r2_buckets: 'r2',
+  services: 'service',
+  vectorize: 'vectorize',
+  workflows: 'workflow'
+};
+
+/** Parse Wrangler's data formats without loading or executing a repository module. */
+const parseWrangler = (path: string, raw: string): Record<string, unknown> | undefined => {
+  try {
+    let parsed: unknown;
+    if (path.endsWith('.toml')) {
+      parsed = parseToml(raw);
+    } else {
+      const result = ts.parseConfigFileTextToJson(path, raw);
+      if (result.error !== undefined) return undefined;
+      parsed = result.config;
+    }
+    return isRecord(parsed) ? parsed : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+/** Cite only a runtime key. A binding declaration may share its line with IDs or credentials. */
+const cloudflareKeyCitation = (path: string, raw: string, key: string): Citation | undefined => {
+  const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  const matcher = new RegExp(`^\\s*(?:["']?${escaped}["']?\\s*[:=]|\\[+\\s*${escaped}\\s*\\]+)`);
+  for (const [index, line] of raw.split(/\r?\n/).entries()) {
+    if (!matcher.test(line)) continue;
+    return { file: path, line: index + 1, quote: key };
+  }
+  return undefined;
+};
+
+const safeRepositoryPath = (value: string): string | undefined => {
+  const normalized = posix.normalize(value.replaceAll('\\', '/')).replace(/^\.\//, '');
+  if (
+    normalized === '' ||
+    normalized === '.' ||
+    normalized === '..' ||
+    normalized.startsWith('../') ||
+    normalized.startsWith('/') ||
+    /^[A-Za-z]:/.test(normalized)
+  ) {
+    return undefined;
+  }
+  return normalized;
+};
+
+const hasConfiguredValue = (value: unknown, depth = 0): boolean => {
+  // Wrangler binding declarations are shallow. Treat a contrived deeper structure as configured
+  // instead of recursing through attacker-controlled JSON without a bound.
+  if (depth >= 6) return true;
+  if (Array.isArray(value)) return value.some((entry) => hasConfiguredValue(entry, depth + 1));
+  if (isRecord(value)) return Object.values(value).some((entry) => hasConfiguredValue(entry, depth + 1));
+  if (typeof value === 'string') return value.trim() !== '';
+  return value !== undefined && value !== null && value !== false;
+};
+
+/**
+ * A Wrangler file is deployment evidence by presence, but only literal Worker entrypoint/binding
+ * keys prove that an application service depends on Cloudflare runtime semantics.
+ */
+const cloudflareRuntimeConstraint = ({
+  path,
+  raw
+}: {
+  path: string;
+  raw: string | undefined;
+}): DeploymentRuntimeConstraint | undefined => {
+  if (raw === undefined) return undefined;
+  const parsed = parseWrangler(path, raw);
+  if (parsed === undefined) return undefined;
+
+  const rawEntrypoint = typeof parsed.main === 'string' && parsed.main.trim() !== '' ? parsed.main : undefined;
+  const bindingEntries = Object.entries(CLOUDFLARE_BINDING_KEYS).filter(([key]) => hasConfiguredValue(parsed[key]));
+  if (rawEntrypoint === undefined && bindingEntries.length === 0) return undefined;
+
+  const manifestDirectory = posix.dirname(path);
+  const scope = manifestDirectory === '.' ? '.' : manifestDirectory;
+  const entrypoint =
+    rawEntrypoint === undefined
+      ? undefined
+      : safeRepositoryPath(scope === '.' ? rawEntrypoint : posix.join(scope, rawEntrypoint));
+  const evidence = [
+    ...(rawEntrypoint === undefined ? [] : [cloudflareKeyCitation(path, raw, 'main')]),
+    ...bindingEntries.map(([key]) => cloudflareKeyCitation(path, raw, key))
+  ].filter((citation): citation is Citation => citation !== undefined);
+
+  return {
+    platform: 'cloudflare-worker',
+    scope,
+    ...(entrypoint === undefined ? {} : { entrypoint }),
+    bindings: [...new Set(bindingEntries.map(([, binding]) => binding))],
+    evidence: evidence.slice(0, 6)
+  };
+};
+
 export const existingDeploymentProbe: Probe = {
   name: 'existing-deployment',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -189,8 +311,13 @@ export const existingDeploymentProbe: Probe = {
       confirm?: RegExp;
     }> = [];
     for (const { files, tool } of UNAMBIGUOUS_FILES) {
-      const path = findManifest(context.files, files);
-      if (path !== undefined) candidates.push({ tool, path });
+      const paths =
+        tool === 'cloudflare-workers'
+          ? findManifests(context.files, files).slice(0, 32)
+          : [findManifest(context.files, files)];
+      for (const path of paths) {
+        if (path !== undefined) candidates.push({ tool, path });
+      }
     }
     for (const { files, pattern, tool } of CONFIRMED_BY_CONTENTS) {
       const path = findManifest(context.files, files);
@@ -205,7 +332,7 @@ export const existingDeploymentProbe: Probe = {
     const read = await Promise.all(
       candidates.map(async (candidate) => ({
         ...candidate,
-        raw: await readText(context, candidate.path)
+        raw: await readText(context, candidate.path, candidate.tool === 'cloudflare-workers' ? { fullFile: true } : {})
       }))
     );
 
@@ -228,7 +355,6 @@ export const existingDeploymentProbe: Probe = {
 
     const found = new Map<DeploymentTool, ExistingDeploymentFact>();
     for (const { tool, path, confirm, raw } of read) {
-      if (found.has(tool)) continue;
       if (confirm !== undefined && (raw === undefined || !confirm.test(raw))) continue;
 
       const managesAws =
@@ -239,9 +365,27 @@ export const existingDeploymentProbe: Probe = {
             : AWS_DEPLOYMENT_TOOLS.has(tool);
 
       const citation = declarationCitation(path, raw, confirm);
+      const runtimeConstraint = tool === 'cloudflare-workers' ? cloudflareRuntimeConstraint({ path, raw }) : undefined;
+      const existing = found.get(tool);
+      if (existing !== undefined) {
+        if (citation !== undefined && !existing.evidence.some((item) => item.file === citation.file)) {
+          existing.evidence.push(citation);
+        }
+        if (
+          runtimeConstraint !== undefined &&
+          !existing.runtimeConstraints.some(
+            (constraint) =>
+              constraint.platform === runtimeConstraint.platform && constraint.scope === runtimeConstraint.scope
+          )
+        ) {
+          existing.runtimeConstraints.push(runtimeConstraint);
+        }
+        continue;
+      }
       found.set(tool, {
         tool,
         managesAws,
+        runtimeConstraints: runtimeConstraint === undefined ? [] : [runtimeConstraint],
         evidence: citation === undefined ? [] : [citation],
         source: 'probe'
       });

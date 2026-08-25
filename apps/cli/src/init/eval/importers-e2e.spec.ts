@@ -175,6 +175,80 @@ const CASES: EvalCase[] = [
     }
   },
   {
+    name: 'Cloudflare Durable Object worker remains explicitly unsupported',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'durable-chat',
+        dependencies: { react: '^19.0.0', partyserver: '^0.0.75' },
+        devDependencies: { wrangler: '^4.0.0' },
+        scripts: { dev: 'wrangler dev', deploy: 'wrangler deploy' }
+      }),
+      'wrangler.json': JSON.stringify({
+        main: 'src/server/index.ts',
+        assets: { directory: './public' },
+        durable_objects: { bindings: [{ name: 'CHAT', class_name: 'Chat' }] }
+      }),
+      'src/server/index.ts': 'export default { fetch() { return new Response("ok"); } };'
+    },
+    expect: {
+      resources: {},
+      resourceCount: 0,
+      deployable: false,
+      maxQuestions: 0,
+      requiredGapPatterns: ['Durable Objects', 'generated no AWS resources']
+    }
+  },
+  {
+    name: 'Cloudflare React Router worker does not leave an orphan database or server',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'books',
+        dependencies: { react: '^19.0.0', 'react-router': '^7.0.0' },
+        devDependencies: { '@react-router/dev': '^7.0.0', postgres: '^3.4.0', wrangler: '^4.0.0' },
+        scripts: { build: 'react-router build', start: 'wrangler dev' }
+      }),
+      'wrangler.jsonc': `{
+        "main": "api/index.js",
+        "services": [{ "binding": "BOOKS", "service": "books", "entrypoint": "BooksService" }]
+      }`,
+      'api/index.js': 'export default { fetch() { return new Response("ok"); } };'
+    },
+    expect: {
+      dependencyKinds: ['postgres'],
+      resources: {},
+      resourceCount: 0,
+      deployable: false,
+      maxQuestions: 0,
+      requiredGapPatterns: ['service bindings', 'generated no AWS resources']
+    }
+  },
+  {
+    name: 'Cloudflare Workflow frontend is not emitted without its backend',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'workflow-ui',
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^7.0.0', wrangler: '^4.0.0' },
+        scripts: { build: 'vite build', dev: 'vite' }
+      }),
+      'index.html': '<!doctype html><div id="root"></div>',
+      'src/main.tsx': 'document.querySelector("#root")',
+      'wrangler.jsonc': `{
+        "main": "worker/index.ts",
+        "workflows": [{ "binding": "FLOW", "name": "flow", "class_name": "Flow" }],
+        "durable_objects": { "bindings": [{ "name": "STATUS", "class_name": "Status" }] }
+      }`,
+      'worker/index.ts': 'export default { fetch() { return new Response("ok"); } };'
+    },
+    expect: {
+      resources: {},
+      resourceCount: 0,
+      deployable: false,
+      maxQuestions: 0,
+      requiredGapPatterns: ['Workflows', 'Durable Objects', 'generated no AWS resources']
+    }
+  },
+  {
     name: 'Terraform literal variables plus a declared database',
     files: {
       'package.json': JSON.stringify({

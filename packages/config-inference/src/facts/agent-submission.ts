@@ -405,6 +405,9 @@ export const mergeAgentSubmission = ({
     workspaceGlobs: baseline.workspaceGlobs,
     services,
     dependencies,
+    // Deployment declarations and runtime constraints are probe-only. The agent cannot add,
+    // remove, or weaken them while enriching the rest of the draft.
+    existingDeployments: baseline.existingDeployments,
     migrations,
     uncertainties,
     // `notes` stays a probe-and-verifier field. Free prose from something that reads untrusted files
