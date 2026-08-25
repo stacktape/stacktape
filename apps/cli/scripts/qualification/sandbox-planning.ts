@@ -26,6 +26,11 @@ export const PINNED_BUN_SHA256 = {
 } as const;
 
 export const PINNED_PNPM_VERSION = '11.17.0';
+export const PINNED_BUILDX_VERSION = '0.36.1';
+export const PINNED_BUILDX_SHA256 = {
+  x64: '48af8a397ebd60178778bf63611dbcebe5f5e7a9be90eb9147b24b9587455778',
+  aarch64: '5d0cafd9d16afe1a0f0d9529885344ace2cc99efdd531b6c783c5455a6001569'
+} as const;
 
 export const DEFAULT_SANDBOX_MEMORY = '8g';
 export const DEFAULT_SANDBOX_CPUS = '4';

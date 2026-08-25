@@ -35,6 +35,8 @@ describe('sandboxed qualification planning & command composition', () => {
       'ENTRYPOINT ["bun", "apps/cli/scripts/qualification/run-project-qualification.ts"]'
     );
     expect(QUALIFICATION_RUNNER_DOCKERFILE).toContain('git config --system --add safe.directory /workspace');
+    expect(QUALIFICATION_RUNNER_DOCKERFILE).toContain('docker buildx version');
+    expect(QUALIFICATION_RUNNER_DOCKERFILE).toContain('buildx-v0.36.1.linux-');
     expect(QUALIFICATION_RUNNER_DOCKERFILE).not.toContain('chmod -R 755 /workspace');
 
     const planned = planSandboxExecution({
