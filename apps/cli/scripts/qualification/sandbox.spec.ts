@@ -1,14 +1,18 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, truncateSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
+import { BUILT_IN_CASES } from './catalog';
 import { QUALIFICATION_RUNNER_DOCKERFILE } from './sandbox-dockerfile';
+import type { ProcessResult } from './process';
 import {
   describeSandboxFailure,
   processResultExitCode,
+  stopRunnerAfterDetachedAttach,
   validateAndHashOutputTree
 } from './run-sandboxed-qualification';
-import { makeRetainedWorkdirPortable } from './sandbox-output';
+import { hashFileSha256, makeRetainedWorkdirPortable } from './sandbox-output';
 import {
   assertPlannedSecurity,
   BLOCKED_HOST_GATEWAYS,
@@ -24,6 +28,19 @@ import {
 const mockRoot = resolve(import.meta.dir, '..', '..', '..', '..');
 const mockCommit = '9e04530f68c40f3bb5d3f1ef589d481cb0925bda';
 const temporaryDirectories: string[] = [];
+
+const dockerResult = (stdout: string, exitCode = 0, stderr = ''): ProcessResult => ({
+  command: 'docker mock',
+  exitCode,
+  signal: null,
+  durationMs: 1,
+  stdout,
+  stderr,
+  stdoutTruncated: false,
+  stderrTruncated: false,
+  timedOut: false,
+  forceTerminationRequested: false
+});
 
 afterEach(() => {
   for (const directory of temporaryDirectories.splice(0)) rmSync(directory, { recursive: true, force: true });
@@ -59,8 +76,32 @@ describe('sandboxed qualification planning & command composition', () => {
     expect(trailingArgs).not.toContain('bun');
     expect(trailingArgs).not.toContain('run-project-qualification.ts');
     expect(trailingArgs).toContain('--output-dir=/qualification/output');
+    expect(trailingArgs).toContain(`--run-id=${planned.runId}`);
     expect(trailingArgs).toContain('--preset=smoke');
     expect(trailingArgs).toContain('--lanes=import,package');
+  });
+
+  test('preserves self-test semantics in the host replay command', () => {
+    const manifest = resolve(
+      mockRoot,
+      'apps/cli/scripts/qualification/fixtures/self-test-docker-project/manifest.json'
+    );
+    const planned = planSandboxExecution({
+      productCommit: mockCommit,
+      rawArgs: [
+        `--manifest=${manifest}`,
+        '--case=qualification-self-test-docker',
+        '--lanes=import,package',
+        '--memory=6g'
+      ],
+      hostReplayArgs: ['--self-test', '--memory=6g', '--rebuild-image'],
+      invocationDirectory: mockRoot,
+      rootDirectory: mockRoot,
+      runIdSuffix: 'selftest',
+      isSelfTest: true
+    });
+
+    expect(planned.hostReplay.args).toEqual(['qualify:projects:sandboxed', '--', '--self-test', '--memory=6g']);
   });
 
   test('enforces zero host bind mounts and configures non-root read-only execution with named volumes and tmpfs', () => {
@@ -122,20 +163,31 @@ describe('sandboxed qualification planning & command composition', () => {
     };
     writeFileSync(join(resumeCaseDirectory, 'result.json'), `${JSON.stringify(resumedResult)}\n`);
     writeFileSync(join(resumeCaseDirectory, 'stacktape.yml'), 'resources: {}\n');
+    const unselectedResult = {
+      ...resumedResult,
+      id: 'unselected-resume',
+      title: 'Unselected resume evidence',
+      fingerprint: 'd'.repeat(64)
+    };
+    const unselectedCaseDirectory = join(resumeRoot, 'cases', unselectedResult.id);
+    mkdirSync(unselectedCaseDirectory, { recursive: true });
+    writeFileSync(join(unselectedCaseDirectory, 'result.json'), `${JSON.stringify(unselectedResult)}\n`);
+    writeFileSync(join(unselectedCaseDirectory, 'stacktape.yml'), 'resources: {}\n');
     const resumeReportPath = join(resumeRoot, 'qualification-report.json');
     writeFileSync(
       resumeReportPath,
       `${JSON.stringify({
-        schemaVersion: 2,
+        schemaVersion: 3,
         runId: 'qualification-resume-fixture',
         generatedAt: '2026-08-25T00:00:00.000Z',
         productCommit: mockCommit,
         productFingerprint: 'c'.repeat(64),
         lanes: ['import'],
+        awsScenarios: [],
         environment: { platform: process.platform, architecture: process.arch, bun: '1.3.14', node: '24.0.0' },
-        summary: { passed: 1, failed: 0, skipped: 0, durationMs: 1 },
+        summary: { passed: 2, failed: 0, skipped: 0, durationMs: 1 },
         globalSteps: [],
-        cases: [resumedResult]
+        cases: [resumedResult, unselectedResult]
       })}\n`
     );
     const planned = planSandboxExecution({
@@ -161,10 +213,72 @@ describe('sandboxed qualification planning & command composition', () => {
     expect(planned.stagedInputs[1].content).toContain('"path": "manifest-0-source-0-qualification-self-test-docker"');
     expect(planned.stagedInputs[2].containerRelativePath).toBe('inputs/resume-report.json');
     expect(planned.stagedInputs[3].containerRelativePath).toBe('inputs/cases/qualification-self-test-docker');
+    expect(planned.stagedInputs.some((input) => input.label === 'resume-case-unselected-resume')).toBeFalse();
 
     expect(planned.innerCommandArgs).toContain('--manifest=/qualification/inputs/manifest-0.json');
     expect(planned.innerCommandArgs).toContain('--resume-from=/qualification/inputs/resume-report.json');
     expect(planned.expectedCaseIds).toEqual(['qualification-self-test-docker']);
+  });
+
+  test('bounds the selected resume campaign rather than staging unbounded passing artifacts', () => {
+    const resumeRoot = mkdtempSync(join(tmpdir(), 'qualification-resume-bound-'));
+    temporaryDirectories.push(resumeRoot);
+    const entries = BUILT_IN_CASES.slice(0, 2);
+    const results = entries.map((entry, index) => {
+      const result = {
+        id: entry.id,
+        title: entry.title,
+        fingerprint: String(index + 1).repeat(64),
+        sourceFingerprint: String(index + 3).repeat(64),
+        execution: 'executed' as const,
+        status: 'passed' as const,
+        durationMs: 1,
+        source: entry.source,
+        tags: entry.tags,
+        steps: [
+          { name: 'acquire' as const, status: 'passed' as const, durationMs: 0, summary: 'Acquired.' },
+          { name: 'import' as const, status: 'passed' as const, durationMs: 1, summary: 'Imported.' }
+        ]
+      };
+      const caseDirectory = join(resumeRoot, 'cases', entry.id);
+      mkdirSync(caseDirectory, { recursive: true });
+      writeFileSync(join(caseDirectory, 'result.json'), `${JSON.stringify(result)}\n`);
+      const configPath = join(caseDirectory, 'stacktape.yml');
+      writeFileSync(configPath, 'resources: {}\n');
+      truncateSync(configPath, 300 * 1024 ** 2);
+      return result;
+    });
+    const reportPath = join(resumeRoot, 'qualification-report.json');
+    writeFileSync(
+      reportPath,
+      `${JSON.stringify({
+        schemaVersion: 3,
+        runId: 'qualification-large-resume',
+        generatedAt: '2026-08-25T00:00:00.000Z',
+        productCommit: mockCommit,
+        productFingerprint: 'f'.repeat(64),
+        lanes: ['import'],
+        awsScenarios: [],
+        environment: { platform: process.platform, architecture: process.arch, bun: '1.3.14', node: '24.0.0' },
+        summary: { passed: 2, failed: 0, skipped: 0, durationMs: 2 },
+        globalSteps: [],
+        cases: results
+      })}\n`
+    );
+
+    expect(() =>
+      planSandboxExecution({
+        productCommit: mockCommit,
+        rawArgs: [
+          `--case=${entries.map((entry) => entry.id).join(',')}`,
+          '--lanes=import',
+          `--resume-from=${reportPath}`
+        ],
+        invocationDirectory: mockRoot,
+        rootDirectory: mockRoot,
+        runIdSuffix: 'resumebound'
+      })
+    ).toThrow('campaign staging limit');
   });
 
   test('stages only selected local sources, deduplicates them, and supports spaces in paths', () => {
@@ -381,19 +495,40 @@ describe('sandboxed qualification planning & command composition', () => {
     expect(accepted.find((entry) => entry.path.endsWith('/links/contained'))?.type).toBe('symlink');
     expect(accepted.find((entry) => entry.path.endsWith('/links/unsafe'))?.type).toBe('file');
   });
+
+  test('hashes copied artifacts incrementally with the same SHA-256 result', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'qualification-stream-hash-'));
+    temporaryDirectories.push(root);
+    const content = Buffer.alloc(512 * 1024 + 17, 0x5a);
+    const path = join(root, 'artifact.bin');
+    writeFileSync(path, content);
+    expect(await hashFileSha256(path)).toBe(createHash('sha256').update(content).digest('hex'));
+  });
 });
 
 describe('sandboxed qualification resource & lane validation', () => {
   test('prioritizes timeout and interruption over a misleading zero exit code', () => {
     expect(processResultExitCode({ exitCode: 0, timedOut: true })).toBe(124);
     expect(processResultExitCode({ exitCode: 0, timedOut: false, interruptedSignal: 'SIGINT' })).toBe(130);
+    expect(processResultExitCode({ exitCode: 0, timedOut: true, interruptedSignal: 'SIGINT' })).toBe(130);
     expect(processResultExitCode({ exitCode: 0, timedOut: false })).toBe(0);
   });
 
   test('preserves the primary runner failure alongside report validation diagnostics', () => {
     expect(describeSandboxFailure(new Error('missing report'), { exitCode: 1, timedOut: true }, 10_000)).toEqual({
       failureKind: 'runner-timeout',
-      failure: 'Qualification runner timed out after 10000ms; its partial output did not contain a verifiable report.',
+      failure: 'Qualification runner timed out after 10000ms.',
+      reportValidationFailure: expect.stringContaining('missing report')
+    });
+    expect(
+      describeSandboxFailure(
+        new Error('missing report'),
+        { exitCode: 1, timedOut: true, interruptedSignal: 'SIGINT' },
+        10_000
+      )
+    ).toEqual({
+      failureKind: 'runner-interrupted',
+      failure: 'Qualification runner was interrupted by SIGINT.',
       reportValidationFailure: expect.stringContaining('missing report')
     });
     expect(
@@ -404,8 +539,7 @@ describe('sandboxed qualification resource & lane validation', () => {
       )
     ).toEqual({
       failureKind: 'runner-interrupted',
-      failure:
-        'Qualification runner was interrupted by SIGINT; its partial output did not contain a verifiable report.',
+      failure: 'Qualification runner was interrupted by SIGINT.',
       reportValidationFailure: expect.stringContaining('missing report')
     });
     expect(describeSandboxFailure(new Error('invalid JSON'), { exitCode: 0, timedOut: false }, 10_000)).toEqual({
@@ -413,6 +547,27 @@ describe('sandboxed qualification resource & lane validation', () => {
       failure: 'Qualification output did not contain a verifiable report.',
       reportValidationFailure: expect.stringContaining('invalid JSON')
     });
+  });
+
+  test('accepts a runner that exits between inspection and kill', async () => {
+    const results = [dockerResult('true'), dockerResult('', 1, 'container is not running'), dockerResult('false')];
+    const result = await stopRunnerAfterDetachedAttach(
+      { runnerContainerName: 'stp-qual-runner-test' } as PlannedSandboxExecution,
+      async () => results.shift()!
+    );
+    expect(result).toEqual({ stopped: true });
+    expect(results).toHaveLength(0);
+  });
+
+  test('fails closed when runner termination cannot be verified', async () => {
+    const result = await stopRunnerAfterDetachedAttach(
+      { runnerContainerName: 'stp-qual-runner-test' } as PlannedSandboxExecution,
+      async () => {
+        throw new Error('Docker process could not be started.');
+      }
+    );
+    expect(result.stopped).toBeFalse();
+    if (result.stopped === false) expect(result.failure).toContain('Could not inspect runner state');
   });
 
   test('validates resource bound inputs correctly', () => {

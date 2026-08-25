@@ -1,5 +1,6 @@
 import { createHash } from 'node:crypto';
-import { lstat, readFile, readdir, readlink, realpath, symlink, unlink, writeFile } from 'node:fs/promises';
+import { createReadStream } from 'node:fs';
+import { lstat, readdir, readlink, realpath, symlink, unlink, writeFile } from 'node:fs/promises';
 import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 
 const safeCaseId = '[a-z0-9](?:[a-z0-9-]*[a-z0-9])?';
@@ -44,6 +45,12 @@ export type OutputInspection = {
   symlinks: number;
   totalBytes: number;
   limits: ReturnType<typeof limitsFor>;
+};
+
+export const hashFileSha256 = async (path: string) => {
+  const hash = createHash('sha256');
+  for await (const chunk of createReadStream(path)) hash.update(chunk);
+  return hash.digest('hex');
 };
 
 export const makeRetainedWorkdirPortable = async (workdir: string) => {
@@ -174,9 +181,7 @@ export const inspectOutputTree = async (
         path: relativePath,
         size: metadata.size,
         sha256: hashArtifacts
-          ? createHash('sha256')
-              .update(await readFile(absolutePath))
-              .digest('hex')
+          ? await hashFileSha256(absolutePath)
           : createHash('sha256').update(`${relativePath}:${metadata.size}`).digest('hex'),
         type: 'file'
       });

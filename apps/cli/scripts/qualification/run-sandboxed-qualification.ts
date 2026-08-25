@@ -40,17 +40,17 @@ export const describeSandboxFailure = (
   timeoutMs: number
 ) => {
   const reportValidationFailure = errorText(reportError);
-  if (runnerTermination?.timedOut) {
-    return {
-      failureKind: 'runner-timeout' as const,
-      failure: `Qualification runner timed out after ${timeoutMs}ms; its partial output did not contain a verifiable report.`,
-      reportValidationFailure
-    };
-  }
   if (runnerTermination?.interruptedSignal !== undefined) {
     return {
       failureKind: 'runner-interrupted' as const,
-      failure: `Qualification runner was interrupted by ${runnerTermination.interruptedSignal}; its partial output did not contain a verifiable report.`,
+      failure: `Qualification runner was interrupted by ${runnerTermination.interruptedSignal}.`,
+      reportValidationFailure
+    };
+  }
+  if (runnerTermination?.timedOut) {
+    return {
+      failureKind: 'runner-timeout' as const,
+      failure: `Qualification runner timed out after ${timeoutMs}ms.`,
       reportValidationFailure
     };
   }
@@ -61,7 +61,7 @@ export const describeSandboxFailure = (
   ) {
     return {
       failureKind: 'runner-failed' as const,
-      failure: `Qualification runner exited with code ${runnerTermination.exitCode}; its output did not contain a verifiable report.`,
+      failure: `Qualification runner exited with code ${runnerTermination.exitCode}.`,
       reportValidationFailure
     };
   }
@@ -626,30 +626,66 @@ const inspectOutputVolumeBeforeCopy = async (
   return parsed as OutputInspection;
 };
 
-const stopRunnerAfterDetachedAttach = async (planned: PlannedSandboxExecution) => {
-  const inspect = await runProcess({
-    command: 'docker',
-    args: ['container', 'inspect', '--format={{.State.Running}}', planned.runnerContainerName],
-    cwd: rootDirectory,
-    timeoutMs: 15_000
-  });
-  assertProcessSucceeded(inspect);
-  if (inspect.stdout.trim() !== 'true') return;
-  const kill = await runProcess({
-    command: 'docker',
-    args: ['kill', planned.runnerContainerName],
-    cwd: rootDirectory,
-    timeoutMs: 15_000
-  });
-  assertProcessSucceeded(kill);
-  const wait = await runProcess({
-    command: 'docker',
-    args: ['wait', planned.runnerContainerName],
-    cwd: rootDirectory,
-    timeoutMs: 15_000
-  });
-  assertProcessSucceeded(wait);
+type RunnerStopResult = { stopped: true } | { stopped: false; failure: string };
+
+export const stopRunnerAfterDetachedAttach = async (
+  planned: PlannedSandboxExecution,
+  runDocker: (args: string[]) => ReturnType<typeof runProcess> = (args) =>
+    runProcess({ command: 'docker', args, cwd: rootDirectory, timeoutMs: 15_000 })
+): Promise<RunnerStopResult> => {
+  const failures: string[] = [];
+  const succeeded = (result: Awaited<ReturnType<typeof runProcess>> | undefined) =>
+    result !== undefined && result.exitCode === 0 && !result.timedOut && result.interruptedSignal === undefined;
+  const recordFailure = (action: string, result: Awaited<ReturnType<typeof runProcess>>) => {
+    failures.push(`${action}: ${errorText(new Error(`${result.command} failed.\n${result.stderr || result.stdout}`))}`);
+  };
+  const attempt = async (action: string, args: string[]) => {
+    try {
+      return await runDocker(args);
+    } catch (error) {
+      failures.push(`${action}: ${errorText(error)}`);
+      return undefined;
+    }
+  };
+  const inspectState = async (): Promise<'running' | 'stopped' | 'unknown'> => {
+    const result = await attempt('Could not inspect runner state', [
+      'container',
+      'inspect',
+      '--format={{.State.Running}}',
+      planned.runnerContainerName
+    ]);
+    if (result === undefined) return 'unknown';
+    if (!succeeded(result)) {
+      recordFailure('Could not inspect runner state', result);
+      return 'unknown';
+    }
+    if (result.stdout.trim() === 'true') return 'running';
+    if (result.stdout.trim() === 'false') return 'stopped';
+    failures.push(`Docker returned an invalid runner state: ${JSON.stringify(result.stdout.trim())}.`);
+    return 'unknown';
+  };
+
+  let state = await inspectState();
+  if (state === 'unknown') state = await inspectState();
+  if (state === 'stopped') return { stopped: true };
+  if (state === 'unknown') return { stopped: false, failure: failures.join('\n') };
+
+  const kill = await attempt('Could not kill runner', ['kill', planned.runnerContainerName]);
+  if (kill !== undefined && !succeeded(kill)) recordFailure('Could not kill runner', kill);
+  if (succeeded(kill)) {
+    const wait = await attempt('Could not wait for runner termination', ['wait', planned.runnerContainerName]);
+    if (wait !== undefined && !succeeded(wait)) recordFailure('Could not wait for runner termination', wait);
+  }
+
+  state = await inspectState();
+  if (state === 'stopped') return { stopped: true };
+  return {
+    stopped: false,
+    failure: [...failures, `Runner state after the stop attempt was ${state}.`].join('\n')
+  };
 };
+
+class RunnerStopError extends Error {}
 
 export const executeSandboxedQualification = async (
   rawArgs: string[] = process.argv.slice(2)
@@ -726,7 +762,8 @@ export const executeSandboxedQualification = async (
     rawArgs: effectiveArgs,
     invocationDirectory,
     rootDirectory,
-    isSelfTest: Boolean(parsed.selfTest)
+    isSelfTest: Boolean(parsed.selfTest),
+    hostReplayArgs: rawArgs
   });
 
   assertPlannedSecurity(planned);
@@ -936,7 +973,12 @@ export const executeSandboxedQualification = async (
       );
       // Killing a detached `docker start -a` client does not stop its container. Stop it before inspecting the
       // output volume so a timed-out project cannot race the trusted scanner or the host copy.
-      await stopRunnerAfterDetachedAttach(planned);
+      const stopResult = await stopRunnerAfterDetachedAttach(planned);
+      if (stopResult.stopped === false) {
+        throw new RunnerStopError(
+          `Qualification output collection was skipped because the runner could not be proven stopped.\n${stopResult.failure}`
+        );
+      }
     }
 
     // 7. Inspect the stopped runner's output volume before allowing any copy to the host.
@@ -966,6 +1008,11 @@ export const executeSandboxedQualification = async (
       copiedArtifactHashes = artifactHashes;
       const reportJsonText = await readFile(reportPath, 'utf8');
       const parsedReport = qualificationReportSchema.parse(JSON.parse(reportJsonText));
+      if (parsedReport.runId !== planned.runId) {
+        throw new Error(
+          `Qualification report run ID ${parsedReport.runId} does not match sandbox run ${planned.runId}.`
+        );
+      }
       if (parsedReport.productCommit !== planned.productCommit) {
         throw new Error(
           `Qualification report commit ${parsedReport.productCommit} does not match sandbox commit ${planned.productCommit}.`
@@ -1104,6 +1151,43 @@ export const executeSandboxedQualification = async (
     executionResult = { exitCode: runnerExitCode, planned };
   } catch (error) {
     primaryFailure = error;
+    if (error instanceof RunnerStopError && runnerTermination !== undefined) {
+      const { failureKind, failure } = describeSandboxFailure(
+        error,
+        runnerTermination,
+        planned.resourceLimits.timeoutMs
+      );
+      await writeFile(
+        join(hostMaterializationDirectory, 'sandbox-failure.json'),
+        `${JSON.stringify(
+          {
+            schemaVersion: 1,
+            runId: planned.runId,
+            generatedAt: new Date().toISOString(),
+            productCommit: planned.productCommit,
+            qualificationReportVerified: false,
+            failureKind,
+            failure,
+            runnerStopFailure: errorText(error),
+            outputCollectionSkipped: true,
+            runnerTermination,
+            runnerImage,
+            hostReplay: planned.hostReplay,
+            manifestMappings: planned.manifestMappings,
+            artifacts: []
+          },
+          null,
+          2
+        )}\n`,
+        'utf8'
+      );
+      await rename(hostMaterializationDirectory, planned.hostOutputDirectory);
+      outputMaterialized = true;
+      executionResult = { exitCode: runnerExitCode, planned };
+      process.stderr.write(
+        `Runner stop could not be verified; host-only failure evidence preserved at ${planned.hostOutputDirectory}.\n`
+      );
+    }
   } finally {
     process.stderr.write('Cleaning up disposable sandbox resources...\n');
     cleanupErrors = await cleanupSandboxResources(planned);
@@ -1122,7 +1206,7 @@ export const executeSandboxedQualification = async (
         `\nCleanup failures:\n${cleanupErrors.join('\n')}\nRecovery command:\n${recoveryCommand}`
     );
   }
-  if (primaryFailure !== undefined) throw primaryFailure;
+  if (primaryFailure !== undefined && !(primaryFailure instanceof RunnerStopError)) throw primaryFailure;
   if (executionResult === undefined) throw new Error(`Sandbox run ${planned.runId} produced no execution result.`);
   return executionResult;
 };
