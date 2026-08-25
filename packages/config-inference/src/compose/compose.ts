@@ -919,6 +919,28 @@ export const composeConfig = ({
       });
       continue;
     }
+    if (requirement.kind === 'framework-runtime-bindings') {
+      const bindingLabels = requirement.bindings.map((binding) =>
+        binding === 'database' ? 'database' : binding === 'blob' ? 'blob storage' : `${binding} storage`
+      );
+      const databaseDetail =
+        requirement.bindings.includes('database') && requirement.databaseEngine === 'sqlite'
+          ? " The app selects SQLite, but the generated Stacktape service has no NuxtHub database binding or durable SQLite database. Stacktape cannot safely create a managed AWS database as a substitute because the code uses NuxtHub's `hub:db` API instead of a normal PostgreSQL or MySQL connection."
+          : '';
+      gaps.push({
+        subject: `${requirement.serviceName}.nuxthub-bindings`,
+        message: `${requirement.serviceName} uses NuxtHub ${bindingLabels.join(', ')} through framework-provided bindings, but Stacktape's Nuxt resource does not provide those bindings.${databaseDetail} Before deploying, either configure a NuxtHub-compatible hosted database such as Turso/libSQL, or change the app to use a database Stacktape supports. Stacktape will not move existing data.`,
+        severity: 'blocking'
+      });
+      if (requirement.migrationPaths.length > 0) {
+        gaps.push({
+          subject: `${requirement.serviceName}.nuxthub-migrations`,
+          message: `${requirement.serviceName} includes NuxtHub database migrations under ${requirement.migrationPaths.join(', ')}. NuxtHub normally runs them when it deploys. Stacktape does not run NuxtHub's deploy command, so these migrations will not run. After choosing the production database, add and test an explicit migration command before deploying.`,
+          severity: 'blocking'
+        });
+      }
+      continue;
+    }
     gaps.push({
       subject: `${requirement.producerServiceName}.bootstrap`,
       message: `${requirement.producerServiceName} generates persistent bootstrap configuration or cryptographic keysets consumed by ${requirement.consumerServiceNames.join(', ')} at ${requirement.paths.join(', ')}. Init cannot preserve those shared artifacts durably or sequence their bootstrap safely, so this partial configuration must stay review-only.`,

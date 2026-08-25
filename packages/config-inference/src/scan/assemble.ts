@@ -1063,18 +1063,22 @@ export const assembleCandidateFacts = async ({
   const deploymentRequirementsByKey = new Map<string, DeploymentRequirement>();
   for (const output of outputs) {
     for (const requirement of output.deploymentRequirements ?? []) {
-      const remapped =
-        requirement.kind === 'public-grpc'
-          ? { ...requirement, serviceName: renames.get(requirement.serviceName) ?? requirement.serviceName }
-          : {
-              ...requirement,
-              producerServiceName: renames.get(requirement.producerServiceName) ?? requirement.producerServiceName,
-              consumerServiceNames: requirement.consumerServiceNames.map((name) => renames.get(name) ?? name)
-            };
+      const remapped = (() => {
+        if (requirement.kind === 'public-grpc' || requirement.kind === 'framework-runtime-bindings') {
+          return { ...requirement, serviceName: renames.get(requirement.serviceName) ?? requirement.serviceName };
+        }
+        return {
+          ...requirement,
+          producerServiceName: renames.get(requirement.producerServiceName) ?? requirement.producerServiceName,
+          consumerServiceNames: requirement.consumerServiceNames.map((name) => renames.get(name) ?? name)
+        };
+      })();
       const key =
         remapped.kind === 'public-grpc'
           ? `${remapped.kind}:${remapped.serviceName}:${remapped.port}`
-          : `${remapped.kind}:${remapped.producerServiceName}:${remapped.paths.join(',')}`;
+          : remapped.kind === 'framework-runtime-bindings'
+            ? `${remapped.kind}:${remapped.provider}:${remapped.serviceName}:${remapped.bindings.join(',')}`
+            : `${remapped.kind}:${remapped.producerServiceName}:${remapped.paths.join(',')}`;
       if (!deploymentRequirementsByKey.has(key)) deploymentRequirementsByKey.set(key, remapped);
     }
   }

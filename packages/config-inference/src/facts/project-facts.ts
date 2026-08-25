@@ -16,7 +16,7 @@ import { z } from 'zod';
 import { citationSchema } from './citation';
 import { dependencyFactSchema } from './dependency';
 import { existingDeploymentSchema } from './existing-deployment';
-import { serviceFactSchema } from './service';
+import { repositoryPathSchema, serviceFactSchema } from './service';
 import { uncertaintySchema } from './uncertainty';
 
 export const packageManagerSchema = z.enum([
@@ -72,6 +72,18 @@ export const deploymentRequirementSchema = z.discriminatedUnion('kind', [
     producerServiceName: z.string().min(1),
     consumerServiceNames: z.array(z.string().min(1)).min(1),
     paths: z.array(z.string().min(1)).min(1),
+    evidence: z.array(citationSchema).default([])
+  }),
+  z.object({
+    kind: z.literal('framework-runtime-bindings'),
+    serviceName: z.string().min(1),
+    /** Closed because this value selects user-facing copy and deployment policy. */
+    provider: z.literal('nuxthub'),
+    bindings: z.array(z.enum(['database', 'blob', 'kv', 'cache'])).min(1),
+    /** The literal engine selected by the framework config, when source states one. */
+    databaseEngine: z.enum(['sqlite', 'unknown']).optional(),
+    /** Committed migrations the framework deployment normally applies on the application's behalf. */
+    migrationPaths: z.array(repositoryPathSchema).default([]),
     evidence: z.array(citationSchema).default([])
   })
 ]);

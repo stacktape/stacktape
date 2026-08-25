@@ -38,6 +38,7 @@
     "./scan/probes/language-manifests": "./src/scan/probes/language-manifests.ts",
     "./scan/probes/lambda-source": "./src/scan/probes/lambda-source.ts",
     "./scan/probes/manifest": "./src/scan/probes/manifest.ts",
+    "./scan/probes/nuxthub": "./src/scan/probes/nuxthub.ts",
     "./scan/probes/procfile": "./src/scan/probes/procfile.ts",
     "./scan/probes/server-entrypoint": "./src/scan/probes/server-entrypoint.ts",
     "./scan/probes/static-site": "./src/scan/probes/static-site.ts",

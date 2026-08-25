@@ -1122,6 +1122,94 @@ const CASES: EvalCase[] = [
       deployable: true,
       maxQuestions: 0
     }
+  },
+  {
+    name: 'NuxtHub SQLite and authentication stay review-only without provider bindings',
+    files: {
+      'package.json': JSON.stringify({
+        private: true,
+        scripts: { build: 'nuxi build', preview: 'npx nuxthub preview' },
+        dependencies: {
+          nuxt: '^4.3.0',
+          '@nuxthub/core': '^0.10.0',
+          'nuxt-auth-utils': '^0.5.0',
+          'drizzle-orm': '^0.45.0'
+        }
+      }),
+      'nuxt.config.ts': [
+        'export default defineNuxtConfig({',
+        "  modules: ['@nuxthub/core', 'nuxt-auth-utils'],",
+        "  hub: { db: 'sqlite' }",
+        '})',
+        ''
+      ].join('\n'),
+      '.env.example': [
+        'NUXT_OAUTH_GITHUB_CLIENT_ID=',
+        'NUXT_OAUTH_GITHUB_CLIENT_SECRET=',
+        'NUXT_SESSION_PASSWORD=',
+        ''
+      ].join('\n'),
+      'server/api/todos.get.ts': "import { db } from 'hub:db'\nexport default defineEventHandler(() => db.select())\n",
+      'server/api/auth/github.get.ts': [
+        'export default defineOAuthGitHubEventHandler({',
+        '  async onSuccess(event, { user }) {',
+        '    await setUserSession(event, { user })',
+        '  }',
+        '})',
+        ''
+      ].join('\n'),
+      'server/db/migrations/sqlite/0001_todos.sql': 'CREATE TABLE todos (id integer primary key);\n'
+    },
+    expect: {
+      serviceCount: 1,
+      resources: { app: 'nuxt-web' },
+      absentDependencyKinds: ['sqlite', 'postgres'],
+      serviceEnvironment: [
+        {
+          resource: 'app',
+          name: 'NUXT_SESSION_PASSWORD',
+          value: "$Secret('eval-app.generatedNuxtSessionPassword')"
+        },
+        {
+          resource: 'app',
+          name: 'NUXT_OAUTH_GITHUB_CLIENT_ID',
+          value: "$Secret('nuxt_oauth_github_client_id')"
+        },
+        {
+          resource: 'app',
+          name: 'NUXT_OAUTH_GITHUB_CLIENT_SECRET',
+          value: "$Secret('nuxt_oauth_github_client_secret')"
+        }
+      ],
+      requiredGapPatterns: [
+        'NuxtHub database binding or durable SQLite',
+        'Stacktape does not run NuxtHub.*migrations will not run.*explicit migration command',
+        'Stacktape will not move existing data'
+      ],
+      deployable: false,
+      maxQuestions: 0
+    }
+  },
+  {
+    name: 'Plain Nuxt 4 app remains a simple deployable control',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'nuxt-app',
+        private: true,
+        scripts: { build: 'nuxt build', preview: 'nuxt preview' },
+        dependencies: { nuxt: '^4.5.0' }
+      }),
+      'nuxt.config.ts': "export default defineNuxtConfig({ compatibilityDate: '2025-07-15' })\n",
+      'app/app.vue': '<template><p>Hello</p></template>\n'
+    },
+    expect: {
+      serviceCount: 1,
+      resources: { nuxtApp: 'nuxt-web' },
+      resourceCount: 1,
+      deployable: true,
+      maxQuestions: 0,
+      forbiddenGapPatterns: ['NuxtHub', 'SQLite', 'migration']
+    }
   }
 ];
 
