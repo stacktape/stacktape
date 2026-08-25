@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import { validateConfigYaml } from '../code-generation/validate-config-string';
 import type { QualificationCaseManifest } from './contracts';
 import { redactOutput } from './process';
+import { validateServiceExpectations } from './service-expectations';
 
 type Countable = { type?: string; kind?: string };
 
@@ -157,46 +158,7 @@ export const runImportQualification = async ({
     }
 
     if (expected.services !== undefined) {
-      for (const expectedService of expected.services) {
-        const matched = services.find((s) => {
-          if (expectedService.name !== undefined && s.name !== expectedService.name) return false;
-          if (expectedService.path !== undefined && s.path !== expectedService.path) return false;
-          return true;
-        });
-
-        if (matched === undefined) {
-          failures.push(
-            `expected service ${JSON.stringify(expectedService.name ?? expectedService.path ?? '<unnamed>')} was not found among inferred services: ${JSON.stringify(services.map((s) => ({ name: s.name, path: s.path })))}.`
-          );
-          continue;
-        }
-
-        if (expectedService.framework !== undefined && matched.framework !== expectedService.framework) {
-          failures.push(
-            `service ${matched.name} framework: expected ${JSON.stringify(expectedService.framework)}; got ${JSON.stringify(matched.framework)}.`
-          );
-        }
-        if (expectedService.exposesHttp !== undefined && matched.exposesHttp !== expectedService.exposesHttp) {
-          failures.push(
-            `service ${matched.name} exposesHttp: expected ${expectedService.exposesHttp}; got ${matched.exposesHttp}.`
-          );
-        }
-        if (expectedService.startCommand !== undefined && matched.startCommand !== expectedService.startCommand) {
-          failures.push(
-            `service ${matched.name} startCommand: expected ${JSON.stringify(expectedService.startCommand)}; got ${JSON.stringify(matched.startCommand)}.`
-          );
-        }
-        if (expectedService.buildCommand !== undefined && matched.buildCommand !== expectedService.buildCommand) {
-          failures.push(
-            `service ${matched.name} buildCommand: expected ${JSON.stringify(expectedService.buildCommand)}; got ${JSON.stringify(matched.buildCommand)}.`
-          );
-        }
-        if (expectedService.dockerfile !== undefined && matched.dockerfile !== expectedService.dockerfile) {
-          failures.push(
-            `service ${matched.name} dockerfile: expected ${JSON.stringify(expectedService.dockerfile)}; got ${JSON.stringify(matched.dockerfile)}.`
-          );
-        }
-      }
+      failures.push(...validateServiceExpectations(expected.services, services).failures);
     }
 
     const expectedDeploymentTools = [...(expected.existingDeployments ?? [])].sort();

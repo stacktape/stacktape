@@ -114,6 +114,51 @@ describe('qualification manifests', () => {
       dockerfile: 'Dockerfile'
     });
   });
+
+  test('requires unique service names for order-independent expectations', () => {
+    const expectedBase = {
+      resourceTypes: { 'web-service': 2 },
+      serviceCount: 2,
+      httpServiceCount: 2
+    };
+    expect(() =>
+      qualificationManifestSchema.parse({
+        schemaVersion: 1,
+        cases: [
+          {
+            ...validCase,
+            expect: { ...expectedBase, services: [{ framework: 'react-router' }] }
+          }
+        ]
+      })
+    ).toThrow();
+    expect(() =>
+      qualificationManifestSchema.parse({
+        schemaVersion: 1,
+        cases: [
+          {
+            ...validCase,
+            expect: {
+              ...expectedBase,
+              services: [
+                { name: 'app', framework: 'react-router' },
+                { name: 'app', framework: 'express' }
+              ]
+            }
+          }
+        ]
+      })
+    ).toThrow('Duplicate expected service name app');
+  });
+
+  test('describes import-only and package-qualified projects accurately', () => {
+    const importOnly = BUILT_IN_CASES.find((entry) => entry.id === 'react-router-default');
+    const packaged = BUILT_IN_CASES.find((entry) => entry.id === 'fly-epic-stack');
+    expect(importOnly?.lanes).toEqual(['import']);
+    expect(importOnly?.deployment?.reason).toContain('import only');
+    expect(packaged?.lanes).toContain('package');
+    expect(packaged?.deployment?.reason).toContain('import and packaging');
+  });
 });
 
 describe('qualification reports', () => {

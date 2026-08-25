@@ -100,7 +100,10 @@ describe('assembleCandidateFacts', () => {
       })
     });
 
-    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: PROBES
+    });
 
     expect(JSON.stringify(facts)).not.toContain('one-line-value-must-not-travel');
     expect(facts.services[0]?.evidence.some((citation) => citation.quote === '"start":')).toBe(true);
@@ -156,20 +159,32 @@ describe('assembleCandidateFacts', () => {
 
   it('uses localhost environment values as topology evidence, not live-hosting evidence', async () => {
     const repoRoot = await makeRepo({
-      'package.json': JSON.stringify({ name: 'api', scripts: { start: 'node index.js' } }),
+      'package.json': JSON.stringify({
+        name: 'api',
+        scripts: { start: 'node index.js' }
+      }),
       '.env': 'DATABASE_URL=postgres://postgres:postgres@localhost:5432/app\n'
     });
 
-    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: PROBES
+    });
 
-    expect(facts.dependencies[0]).toMatchObject({ kind: 'postgres', addressedBy: ['DATABASE_URL'] });
+    expect(facts.dependencies[0]).toMatchObject({
+      kind: 'postgres',
+      addressedBy: ['DATABASE_URL']
+    });
     expect(facts.dependencies[0]?.currentlyHostedOn).toBeUndefined();
     expect(facts.dependencies[0]?.hostingEvidence).toBeUndefined();
   });
 
   it('does not provision optional Laravel-style backends from mode settings', async () => {
     const repoRoot = await makeRepo({
-      'package.json': JSON.stringify({ name: 'app', scripts: { start: 'node index.js' } }),
+      'package.json': JSON.stringify({
+        name: 'app',
+        scripts: { start: 'node index.js' }
+      }),
       '.env.example': [
         'FILESYSTEM_DISK=local',
         'QUEUE_CONNECTION=database',
@@ -191,7 +206,10 @@ describe('assembleCandidateFacts', () => {
       ].join('\n')
     });
 
-    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: PROBES
+    });
 
     expect(facts.dependencies).toEqual([]);
   });
@@ -287,7 +305,10 @@ describe('assembleCandidateFacts', () => {
       )
     });
 
-    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: PROBES
+    });
     const database = facts.dependencies.find((dependency) => dependency.kind === 'postgres');
 
     expect(database?.addressedBy).toEqual(['DATABASE_URL']);
@@ -402,7 +423,11 @@ describe('assembleCandidateFacts', () => {
 
   it('does not turn a Vite-built workspace library into a static website', async () => {
     const repoRoot = await makeRepo({
-      'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['packages/*'] }),
+      'package.json': JSON.stringify({
+        name: 'monorepo',
+        private: true,
+        workspaces: ['packages/*']
+      }),
       'packages/database/package.json': JSON.stringify({
         name: '@acme/database',
         private: true,
@@ -412,7 +437,10 @@ describe('assembleCandidateFacts', () => {
       })
     });
 
-    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: PROBES
+    });
 
     expect(facts.services).toEqual([]);
     expect(facts.dependencies[0]?.consumedBy).toEqual([]);
@@ -599,6 +627,107 @@ describe('assembleCandidateFacts', () => {
     expect(facts.services[0]?.startCommand).toBeUndefined();
   });
 
+  it('reads quoted React Router SPA properties and honors a safe custom build directory', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'custom-output-spa',
+        scripts: { build: 'react-router build' },
+        dependencies: { 'react-router': '^8.0.0' },
+        devDependencies: { '@react-router/dev': '^8.0.0' }
+      }),
+      'react-router.config.ts': [
+        'export default {',
+        '  "ssr": false,',
+        "  'buildDirectory': './dist/router',",
+        '} satisfies Config;'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      framework: 'react-router',
+      exposesHttp: false,
+      buildCommand: 'npm run build',
+      servesStaticAssets: { path: 'dist/router/client' }
+    });
+    expect(facts.services[0]?.evidence.some((citation) => citation.file === 'react-router.config.ts')).toBe(true);
+  });
+
+  it('ignores ssr: false text in comments and strings', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'server-rendered-app',
+        scripts: {
+          build: 'react-router build',
+          start: 'react-router-serve ./build/server/index.js'
+        },
+        dependencies: {
+          '@react-router/node': '^8.0.0',
+          '@react-router/serve': '^8.0.0',
+          'react-router': '^8.0.0'
+        },
+        devDependencies: { '@react-router/dev': '^8.0.0' }
+      }),
+      'react-router.config.ts': [
+        'const documentation = "ssr: false";',
+        'export default {',
+        '  // ssr: false',
+        '  example: /ignore, ssr: false/,',
+        '  ssr: true,',
+        '};'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      framework: 'react-router',
+      exposesHttp: true,
+      startCommand: 'npm run start'
+    });
+    expect(facts.services[0]?.servesStaticAssets).toBeUndefined();
+  });
+
+  it('stays silent when React Router config values are indirect instead of literal', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'computed-config-app',
+        scripts: {
+          build: 'react-router build',
+          start: 'react-router-serve ./build/server/index.js'
+        },
+        dependencies: {
+          '@react-router/serve': '^8.0.0',
+          'react-router': '^8.0.0'
+        },
+        devDependencies: { '@react-router/dev': '^8.0.0' }
+      }),
+      'react-router.config.ts': [
+        'const config = { ssr: false };',
+        'export default config;',
+        'const example = { pattern: /ignore, ssr: false/ };'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({ framework: 'react-router', exposesHttp: true });
+    expect(facts.services[0]?.servesStaticAssets).toBeUndefined();
+  });
+
   it('allows an independently proven custom server to override React Router ssr: false SPA mode', async () => {
     const repoRoot = await makeRepo({
       'package.json': JSON.stringify({
@@ -632,7 +761,66 @@ describe('assembleCandidateFacts', () => {
       path: '.',
       framework: 'react-router',
       exposesHttp: true,
-      containerEntrypoint: 'server.js'
+      containerEntrypoint: 'server.js',
+      startCommand: 'node server.js'
+    });
+  });
+
+  it('does not promote a React Router SPA for an unused server source', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'spa-with-example-server',
+        scripts: {
+          build: 'react-router build',
+          start: 'node main.js'
+        },
+        dependencies: {
+          '@react-router/express': '^8.0.0',
+          express: '^5.0.0',
+          'react-router': '^8.0.0'
+        },
+        devDependencies: { '@react-router/dev': '^8.0.0' }
+      }),
+      'react-router.config.ts': 'export default { ssr: false };\n',
+      'main.js': 'console.log("static assets are served by the platform");\n',
+      'examples/server.js': 'import express from "express"; express().listen(3000);\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      framework: 'react-router',
+      exposesHttp: false,
+      servesStaticAssets: { path: 'build/client' }
+    });
+    expect(facts.services[0]?.containerEntrypoint).toBe('examples/server.js');
+  });
+
+  it('does not promote a non-React-Router static site for a colocated server source', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'vite-site',
+        scripts: { build: 'vite build', start: 'node server.js' },
+        dependencies: { react: '^19.0.0', vite: '^8.0.0' }
+      }),
+      'index.html': '<div id="root"></div>\n',
+      'server.js': 'import express from "express"; express().listen(3000);\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      framework: 'react',
+      exposesHttp: false,
+      servesStaticAssets: { path: 'dist' }
     });
   });
 
@@ -671,6 +859,22 @@ describe('assembleCandidateFacts', () => {
     const { facts } = await assembleCandidateFacts({
       root: repoRoot,
       probes: [manifestProbe, environmentProbe, dockerfileProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('does not treat a client-only @remix-run/react dependency as a server', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'remix-ui-library',
+        dependencies: { '@remix-run/react': '^2.17.0' }
+      })
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
     });
 
     expect(facts.services).toEqual([]);
@@ -798,6 +1002,33 @@ describe('assembleCandidateFacts', () => {
     expect(facts.services).toHaveLength(1);
     expect(facts.services[0]).toMatchObject({
       name: 'express-service',
+      framework: 'express',
+      exposesHttp: true,
+      containerEntrypoint: 'server.js'
+    });
+  });
+
+  it('limits framework script evidence to build, dev, and start', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'express-with-router-tooling',
+        scripts: {
+          start: 'node server.js',
+          test: 'react-router typegen && vitest'
+        },
+        dependencies: { express: '^5.0.0' },
+        devDependencies: { '@react-router/dev': '^8.0.0' }
+      }),
+      'server.js': 'import express from "express"; const app = express(); app.listen(3000);\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
       framework: 'express',
       exposesHttp: true,
       containerEntrypoint: 'server.js'

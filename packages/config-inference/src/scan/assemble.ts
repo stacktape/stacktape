@@ -169,11 +169,40 @@ const mergeEnvironmentVariables = (
 
 const BACKGROUND_PROCESS_TYPE = /(?:^|:)(?:worker|scheduler|cron|consumer)$/;
 
+const startCommandRunsEntrypoint = (service: ServiceFactInput): boolean => {
+  if (service.startCommand === undefined || service.containerEntrypoint === undefined) return false;
+  const sourceFile = service.containerEntrypoint.split(':')[0]!;
+  const relativeSource =
+    service.path === '.'
+      ? sourceFile
+      : sourceFile.startsWith(`${service.path}/`)
+        ? sourceFile.slice(service.path.length + 1)
+        : undefined;
+  if (relativeSource === undefined) return false;
+  const normalizedSource = relativeSource.replace(/^\.\//, '');
+  const tokens = service.startCommand.match(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s]+/g) ?? [];
+  return tokens.some(
+    (token) =>
+      token
+        .replace(/^(?:"|')|(?:"|')$/g, '')
+        .replaceAll('\\', '/')
+        .replace(/^\.\//, '') === normalizedSource
+  );
+};
+
 const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): ServiceFactInput => {
+  const staticService =
+    existing.servesStaticAssets !== undefined
+      ? existing
+      : incoming.servesStaticAssets !== undefined
+        ? incoming
+        : undefined;
+  const serverService = staticService === existing ? incoming : staticService === incoming ? existing : undefined;
   const customServerProven =
     !BACKGROUND_PROCESS_TYPE.test(existing.processType ?? incoming.processType ?? '') &&
-    ((existing.containerEntrypoint !== undefined && existing.exposesHttp) ||
-      (incoming.containerEntrypoint !== undefined && incoming.exposesHttp));
+    staticService?.framework === 'react-router' &&
+    serverService?.exposesHttp === true &&
+    startCommandRunsEntrypoint(serverService);
 
   const servesStaticAssets = customServerProven
     ? undefined

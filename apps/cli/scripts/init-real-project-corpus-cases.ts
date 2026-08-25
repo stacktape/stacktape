@@ -1,7 +1,9 @@
 import { REAL_PROJECT_APPLICATION_CASES } from './init-real-project-corpus-application-cases';
 import { REAL_PROJECT_PLATFORM_CASES } from './init-real-project-corpus-platform-cases';
+import type { ExpectedService } from './qualification/contracts';
 export { REAL_PROJECT_APPLICATION_STRESS_CASES } from './init-real-project-corpus-application-cases';
 export { REAL_PROJECT_PLATFORM_STRESS_CASES } from './init-real-project-corpus-platform-cases';
+export type { ExpectedService } from './qualification/contracts';
 
 /**
  * Public repositories used by the release-grade `stacktape init` importer corpus.
@@ -11,16 +13,6 @@ export { REAL_PROJECT_PLATFORM_STRESS_CASES } from './init-real-project-corpus-p
  * terminal init entry point. Pinning commits makes a failure attributable to Stacktape rather than
  * to an upstream repository changing underneath a release check.
  */
-
-export type ExpectedService = {
-  name?: string;
-  path?: string;
-  framework?: string;
-  exposesHttp?: boolean;
-  startCommand?: string;
-  buildCommand?: string;
-  dockerfile?: string;
-};
 
 export type RealProjectCorpusExpectation = {
   /** Exact generated resource counts by Stacktape resource type. */
@@ -118,9 +110,10 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     source: 'official-example',
     exercises: ['fly', 'legacy-services', 'remix', 'web-service'],
     expect: {
-      resourceTypes: { 'web-service': 1 },
+      resourceTypes: { 'remix-web': 1 },
       serviceCount: 1,
       httpServiceCount: 1,
+      services: [{ name: 'helloRemix', framework: 'remix' }],
       existingDeployments: ['fly'],
       forbiddenConfig: ['name: PORT'],
       requiredGapPatterns: ['Fly\\.io deployment config'],

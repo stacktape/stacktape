@@ -39,6 +39,9 @@ describe('the pinned real-project init corpus', () => {
       expect(Number.isInteger(expectation.httpServiceCount) && expectation.httpServiceCount >= 0).toBe(true);
       expect(expectation.httpServiceCount).toBeLessThanOrEqual(expectation.serviceCount);
       expect(expectation.forbidCurrentlyHostedDependencies).toBe(true);
+      expect(new Set((expectation.services ?? []).map((service) => service.name)).size).toBe(
+        expectation.services?.length ?? 0
+      );
 
       for (const pattern of [...(expectation.requiredGapPatterns ?? []), ...(expectation.forbiddenGapPatterns ?? [])]) {
         expect(() => new RegExp(pattern, 'i')).not.toThrow();
@@ -47,5 +50,12 @@ describe('the pinned real-project init corpus', () => {
         expect(expectation.forbiddenConfig ?? []).not.toContain(required);
       }
     }
+  });
+
+  it('tracks the pinned Epic Stack as React Router with an explicit service contract', () => {
+    const epicStack = REAL_PROJECT_CORPUS.find((entry) => entry.id === 'fly-epic-stack');
+    expect(epicStack?.exercises).toContain('react-router');
+    expect(epicStack?.exercises).not.toContain('remix');
+    expect(epicStack?.expect.services).toEqual([{ name: 'epicStackTemplate', framework: 'react-router' }]);
   });
 });

@@ -14,7 +14,7 @@ import type { Citation } from '../../facts/citation';
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import type { MigrationFact, PackageManager } from '../../facts/project-facts';
 import type { ServiceFactInput } from '../../facts/service';
-import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { citeFirstMatchOnly, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
 /**
  * Declared dependencies that imply a backing service.
@@ -76,6 +76,7 @@ const HTTP_FRAMEWORKS: ReadonlySet<string> = new Set([
   'polka',
   'remix',
   '@remix-run/node',
+  '@remix-run/serve',
   'restify',
   'sveltekit',
   '@sveltejs/kit',
@@ -96,7 +97,10 @@ type InferredFramework = {
 const detectFramework = (manifest: ParsedManifest, context: ProbeContext): InferredFramework | undefined => {
   const dirPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
   const scripts = manifest.scripts;
-  const scriptsStr = Object.values(scripts).join(' ');
+  const activeScripts = [scripts.build, scripts.dev, scripts.start].filter(
+    (script): script is string => typeof script === 'string'
+  );
+  const scriptsStr = activeScripts.join(' ');
   const deps = manifest.dependencies;
 
   // Framework config files in the package directory
@@ -146,7 +150,10 @@ const detectFramework = (manifest: ParsedManifest, context: ProbeContext): Infer
     deps['@remix-run/dev'] !== undefined ||
     deps['@remix-run/node'] !== undefined ||
     deps['@remix-run/react'] !== undefined ||
+    deps['@remix-run/serve'] !== undefined ||
     deps.remix !== undefined;
+  const hasRemixServerDep =
+    deps['@remix-run/node'] !== undefined || deps['@remix-run/serve'] !== undefined || deps.remix !== undefined;
 
   const hasNextScripts = /\bnext\s+(?:dev|build|start)\b/.test(scriptsStr);
   const hasNextDep = deps.next !== undefined;
@@ -191,7 +198,10 @@ const detectFramework = (manifest: ParsedManifest, context: ProbeContext): Infer
               : deps['react-router'] !== undefined
                 ? 'react-router'
                 : undefined;
-    return { name: 'react-router', ...(matchedPkg !== undefined ? { package: matchedPkg } : {}) };
+    return {
+      name: 'react-router',
+      ...(matchedPkg !== undefined ? { package: matchedPkg } : {})
+    };
   }
 
   // Remix: config file OR (remix scripts AND remix dependencies)
@@ -199,22 +209,36 @@ const detectFramework = (manifest: ParsedManifest, context: ProbeContext): Infer
     const matchedPkg =
       deps['@remix-run/node'] !== undefined
         ? '@remix-run/node'
-        : deps['@remix-run/dev'] !== undefined
-          ? '@remix-run/dev'
-          : deps.remix !== undefined
-            ? 'remix'
-            : undefined;
-    return { name: 'remix', exposesHttp: true, ...(matchedPkg !== undefined ? { package: matchedPkg } : {}) };
+        : deps['@remix-run/serve'] !== undefined
+          ? '@remix-run/serve'
+          : deps['@remix-run/dev'] !== undefined
+            ? '@remix-run/dev'
+            : deps.remix !== undefined
+              ? 'remix'
+              : undefined;
+    return {
+      name: 'remix',
+      exposesHttp: true,
+      ...(matchedPkg !== undefined ? { package: matchedPkg } : {})
+    };
   }
 
   // SolidStart
   if (deps['@solidjs/start'] !== undefined) {
-    return { name: 'solid-start', package: '@solidjs/start', exposesHttp: true };
+    return {
+      name: 'solid-start',
+      package: '@solidjs/start',
+      exposesHttp: true
+    };
   }
 
   // TanStack Start
   if (deps['@tanstack/start'] !== undefined) {
-    return { name: 'tanstack-start', package: '@tanstack/start', exposesHttp: true };
+    return {
+      name: 'tanstack-start',
+      package: '@tanstack/start',
+      exposesHttp: true
+    };
   }
 
   // NestJS
@@ -241,7 +265,18 @@ const detectFramework = (manifest: ParsedManifest, context: ProbeContext): Infer
   if (hasNuxtDep) return { name: 'nuxt', package: 'nuxt', exposesHttp: true };
   if (hasAstroDep) return { name: 'astro', package: 'astro', exposesHttp: true };
   if (hasSvelteDep) return { name: 'sveltekit', package: '@sveltejs/kit', exposesHttp: true };
-  if (hasRemixDeps) return { name: 'remix', package: '@remix-run/node', exposesHttp: true };
+  if (hasRemixServerDep) {
+    return {
+      name: 'remix',
+      package:
+        deps['@remix-run/node'] !== undefined
+          ? '@remix-run/node'
+          : deps['@remix-run/serve'] !== undefined
+            ? '@remix-run/serve'
+            : 'remix',
+      exposesHttp: true
+    };
+  }
   if (
     deps['@react-router/serve'] !== undefined &&
     typeof scripts.start === 'string' &&
@@ -253,6 +288,177 @@ const detectFramework = (manifest: ParsedManifest, context: ProbeContext): Infer
   return undefined;
 };
 
+type ConfigToken = {
+  kind: 'identifier' | 'string' | 'punctuation';
+  value: string;
+  start: number;
+};
+
+/**
+ * Tokenize only the literal surface needed from a React Router config.
+ *
+ * This deliberately is not a JavaScript evaluator. Comments and template literals are discarded,
+ * quoted strings remain single tokens, and no identifiers or calls are resolved. The parser below
+ * accepts properties written directly on `export default { ... }` and stays silent for computed
+ * configuration rather than executing repository code or guessing its value.
+ */
+const configTokens = (source: string): ConfigToken[] => {
+  const tokens: ConfigToken[] = [];
+  let index = 0;
+  while (index < source.length) {
+    const character = source[index]!;
+    if (/\s/.test(character)) {
+      index += 1;
+      continue;
+    }
+    if (character === '/' && source[index + 1] === '/') {
+      index += 2;
+      while (index < source.length && source[index] !== '\n') index += 1;
+      continue;
+    }
+    if (character === '/' && source[index + 1] === '*') {
+      index += 2;
+      while (index < source.length && !(source[index] === '*' && source[index + 1] === '/')) index += 1;
+      index = Math.min(index + 2, source.length);
+      continue;
+    }
+    if (character === '/' && tokens.at(-1)?.value === ':') {
+      // A regex literal is a dynamic value for our purposes. Skip it as one unit so commas or
+      // property-looking text inside the expression cannot become top-level config evidence.
+      index += 1;
+      let inCharacterClass = false;
+      while (index < source.length) {
+        if (source[index] === '\\') {
+          index += 2;
+          continue;
+        }
+        if (source[index] === '[') inCharacterClass = true;
+        if (source[index] === ']') inCharacterClass = false;
+        if (source[index] === '/' && !inCharacterClass) {
+          index += 1;
+          while (index < source.length && /[A-Za-z]/.test(source[index]!)) index += 1;
+          break;
+        }
+        index += 1;
+      }
+      continue;
+    }
+    if (character === '`') {
+      index += 1;
+      while (index < source.length) {
+        if (source[index] === '\\') {
+          index += 2;
+          continue;
+        }
+        if (source[index] === '`') {
+          index += 1;
+          break;
+        }
+        index += 1;
+      }
+      continue;
+    }
+    if (character === '"' || character === "'") {
+      const quote = character;
+      const start = index;
+      let value = '';
+      index += 1;
+      while (index < source.length) {
+        const current = source[index]!;
+        if (current === '\\') {
+          const escaped = source[index + 1];
+          if (escaped === undefined) break;
+          value += escaped;
+          index += 2;
+          continue;
+        }
+        if (current === quote) {
+          index += 1;
+          break;
+        }
+        value += current;
+        index += 1;
+      }
+      tokens.push({ kind: 'string', value, start });
+      continue;
+    }
+    if (/[A-Za-z_$]/.test(character)) {
+      const start = index;
+      index += 1;
+      while (index < source.length && /[A-Za-z0-9_$]/.test(source[index]!)) index += 1;
+      tokens.push({
+        kind: 'identifier',
+        value: source.slice(start, index),
+        start
+      });
+      continue;
+    }
+    if ('{}:,'.includes(character)) tokens.push({ kind: 'punctuation', value: character, start: index });
+    index += 1;
+  }
+  return tokens;
+};
+
+type LiteralProperty = { value: ConfigToken; key: ConfigToken };
+
+const exportedObjectProperties = (source: string): ReadonlyMap<string, LiteralProperty> => {
+  const tokens = configTokens(source);
+  const exportIndex = tokens.findIndex(
+    (token, index) => token.kind === 'identifier' && token.value === 'export' && tokens[index + 1]?.value === 'default'
+  );
+  if (exportIndex === -1 || tokens[exportIndex + 2]?.value !== '{') return new Map();
+  const objectStart = exportIndex + 2;
+
+  const properties = new Map<string, LiteralProperty>();
+  let depth = 0;
+  let expectsProperty = false;
+  for (let index = objectStart; index < tokens.length; index += 1) {
+    const token = tokens[index]!;
+    if (token.value === '{') {
+      depth += 1;
+      if (depth === 1) expectsProperty = true;
+      continue;
+    }
+    if (token.value === '}') {
+      depth -= 1;
+      if (depth === 0) break;
+      continue;
+    }
+    if (depth !== 1) continue;
+    if (token.value === ',') {
+      expectsProperty = true;
+      continue;
+    }
+    if (!expectsProperty || (token.kind !== 'identifier' && token.kind !== 'string')) continue;
+    if (tokens[index + 1]?.value !== ':' || tokens[index + 2] === undefined) continue;
+    properties.set(token.value, { key: token, value: tokens[index + 2]! });
+    expectsProperty = false;
+  }
+  return properties;
+};
+
+const configCitation = (file: string, source: string, property: LiteralProperty): Citation => {
+  const lines = source.split(/\r?\n/);
+  const line = source.slice(0, property.key.start).split(/\r?\n/).length - 1;
+  return citeLine(file, lines, line, 'servesStaticAssets');
+};
+
+const safeBuildDirectory = (value: string): string | undefined => {
+  const normalized = value.replace(/^\.\//, '').replace(/\/+$/, '');
+  if (
+    normalized === '' ||
+    normalized.startsWith('/') ||
+    /^[A-Za-z]:/.test(normalized) ||
+    normalized.includes('\\') ||
+    normalized.includes('//') ||
+    normalized.split('/').includes('..')
+  ) {
+    return undefined;
+  }
+  const segments = normalized.split('/').filter((segment) => segment !== '' && segment !== '.');
+  return segments.join('/') || '.';
+};
+
 /** Build-only browser frameworks that produce a directory for `hosting-bucket`. */
 const staticSiteFor = async (
   manifest: ParsedManifest,
@@ -261,6 +467,7 @@ const staticSiteFor = async (
   | {
       framework: 'angular' | 'gatsby' | 'react' | 'vite' | 'vue' | 'react-router';
       outputDirectory: string;
+      evidence?: Citation[];
     }
   | undefined
 > => {
@@ -276,8 +483,29 @@ const staticSiteFor = async (
   );
   if (rrConfigFile !== undefined) {
     const configText = await readText(context, rrConfigFile);
-    if (configText !== undefined && /\bssr:\s*false\b/.test(configText)) {
-      return { framework: 'react-router', outputDirectory: 'build/client' };
+    if (configText !== undefined) {
+      const properties = exportedObjectProperties(configText);
+      const ssr = properties.get('ssr');
+      if (ssr?.value.kind === 'identifier' && ssr.value.value === 'false') {
+        const configuredBuildDirectory = properties.get('buildDirectory');
+        const buildDirectory =
+          configuredBuildDirectory === undefined
+            ? 'build'
+            : configuredBuildDirectory.value.kind === 'string'
+              ? safeBuildDirectory(configuredBuildDirectory.value.value)
+              : undefined;
+        if (buildDirectory === undefined) return undefined;
+        return {
+          framework: 'react-router',
+          outputDirectory: buildDirectory === '.' ? 'client' : `${buildDirectory}/client`,
+          evidence: [
+            configCitation(rrConfigFile, configText, ssr),
+            ...(configuredBuildDirectory === undefined
+              ? []
+              : [configCitation(rrConfigFile, configText, configuredBuildDirectory)])
+          ]
+        };
+      }
     }
   }
 
@@ -537,6 +765,7 @@ export const manifestProbe: Probe = {
         if (startCitation) evidence.push(startCitation);
         const buildCitation = citeFirstMatchOnly(manifest.path, manifest.raw, /"build"\s*:/, 'buildCommand');
         if (buildCitation) evidence.push(buildCitation);
+        evidence.push(...(staticSite?.evidence ?? []));
         const evidencedFrameworkPackage =
           frameworkInfo?.package ??
           (staticSite?.framework === 'angular'

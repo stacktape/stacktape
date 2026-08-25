@@ -95,6 +95,7 @@ const HTTP_PATTERNS: readonly RegExp[] = [
   /createServer/,
   /app\.(get|post|put|patch|delete|use|route)\s*\(/i,
   /"(?:express|fastify|next|nuxt|hono|koa|astro|@remix-run\/node|@sveltejs\/kit)"\s*:/i,
+  /\breact-router-serve\b|"@react-router\/serve"\s*:/i,
   /@(Get|Post|Controller|RestController|RequestMapping)\b/,
   /FastAPI|Flask|Django|Streamlit|Sinatra|Rails|Gin|Echo|Fiber|Axum|Actix/i,
   /http\.Handle|ServeMux|net\/http/,

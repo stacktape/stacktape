@@ -2,7 +2,14 @@
 
 import { posix } from 'node:path';
 import type { ServiceFactInput } from '../../facts/service';
-import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import {
+  citeFirstMatch,
+  citeFirstMatchOnly,
+  readText,
+  type Probe,
+  type ProbeContext,
+  type ProbeOutput
+} from '../probe';
 import { nearestManifestRoot } from '../service-root';
 
 const javaServiceExposesHttp = async (root: string, context: ProbeContext): Promise<boolean> => {
@@ -111,6 +118,56 @@ const detectionFor = (path: string, raw: string): Detection | undefined => {
   return undefined;
 };
 
+const commandReferencesEntrypoint = (command: string, root: string, entrypoint: string): boolean => {
+  const sourceFile = entrypoint.split(':')[0]!;
+  const relativeEntrypoint =
+    root === '.' ? sourceFile : sourceFile.startsWith(`${root}/`) ? sourceFile.slice(root.length + 1) : sourceFile;
+  if (relativeEntrypoint === sourceFile && root !== '.') return false;
+  const normalizedEntrypoint = relativeEntrypoint.replace(/^\.\//, '');
+  const tokens = command.match(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s]+/g) ?? [];
+  return tokens.some((token) => {
+    const unquoted = token
+      .replace(/^(?:"|')|(?:"|')$/g, '')
+      .replaceAll('\\', '/')
+      .replace(/^\.\//, '');
+    return unquoted === normalizedEntrypoint;
+  });
+};
+
+const declaredStartFor = async (
+  root: string,
+  entrypoint: string,
+  context: ProbeContext
+): Promise<
+  | {
+      command: string;
+      evidence: NonNullable<ServiceFactInput['evidence']>[number];
+    }
+  | undefined
+> => {
+  const manifestPath = root === '.' ? 'package.json' : `${root}/package.json`;
+  if (!context.files.includes(manifestPath)) return undefined;
+  const raw = await readText(context, manifestPath);
+  if (raw === undefined) return undefined;
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(raw);
+  } catch {
+    return undefined;
+  }
+  const scripts =
+    typeof parsed === 'object' && parsed !== null && 'scripts' in parsed && typeof parsed.scripts === 'object'
+      ? parsed.scripts
+      : undefined;
+  const command =
+    scripts !== null && scripts !== undefined && 'start' in scripts && typeof scripts.start === 'string'
+      ? scripts.start
+      : undefined;
+  if (command === undefined || !commandReferencesEntrypoint(command, root, entrypoint)) return undefined;
+  const evidence = citeFirstMatchOnly(manifestPath, raw, /"start"\s*:/, 'startCommand');
+  return evidence === undefined ? undefined : { command, evidence };
+};
+
 export const serverEntrypointProbe: Probe = {
   name: 'server-entrypoint',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -136,6 +193,11 @@ export const serverEntrypointProbe: Probe = {
         exposesHttp = await javaServiceExposesHttp(root, context);
       }
       const citation = citeFirstMatch(path, raw, detection.pattern, 'containerEntrypoint');
+      // A source bind proves that this file can serve HTTP. Promotion over an explicit static-site
+      // configuration additionally requires the package's runnable start script to name this exact
+      // file; an unused example server elsewhere in the package is not the deployed application.
+      // oxlint-disable-next-line no-await-in-loop -- stopped after one detected entrypoint per service root.
+      const declaredStart = await declaredStartFor(root, detection.entrypoint, context);
       byRoot.set(key, {
         name:
           detection.processType ??
@@ -149,8 +211,12 @@ export const serverEntrypointProbe: Probe = {
         exposesHttp,
         executionModel: 'long-running',
         containerEntrypoint: detection.entrypoint,
+        ...(declaredStart === undefined ? {} : { startCommand: declaredStart.command }),
         environmentVariables: [],
-        evidence: citation === undefined ? [] : [citation],
+        evidence: [
+          ...(citation === undefined ? [] : [citation]),
+          ...(declaredStart === undefined ? [] : [declaredStart.evidence])
+        ],
         source: 'probe'
       });
     }

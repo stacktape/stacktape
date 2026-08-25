@@ -31,13 +31,15 @@ const relativeProjectPathSchema = z
 
 const expectedServiceSchema = z
   .object({
-    name: z.string().optional(),
-    path: z.string().optional(),
-    framework: z.string().optional(),
+    // Project facts require globally unique service names, so this is the only selector that can
+    // make an order-independent expectation unambiguous. Every other field is an assertion.
+    name: z.string().min(1),
+    path: z.string().min(1).optional(),
+    framework: z.string().min(1).optional(),
     exposesHttp: z.boolean().optional(),
-    startCommand: z.string().optional(),
-    buildCommand: z.string().optional(),
-    dockerfile: z.string().optional()
+    startCommand: z.string().min(1).optional(),
+    buildCommand: z.string().min(1).optional(),
+    dockerfile: z.string().min(1).optional()
   })
   .strict();
 
@@ -57,7 +59,20 @@ const expectationSchema = z
     forbiddenGapPatterns: z.array(z.string()).optional(),
     forbidCurrentlyHostedDependencies: z.boolean().optional()
   })
-  .strict();
+  .strict()
+  .superRefine((expectation, context) => {
+    const seen = new Set<string>();
+    for (const [index, service] of (expectation.services ?? []).entries()) {
+      if (seen.has(service.name)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['services', index, 'name'],
+          message: `Duplicate expected service name ${service.name}.`
+        });
+      }
+      seen.add(service.name);
+    }
+  });
 
 const publicGitSourceSchema = z
   .object({
