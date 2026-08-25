@@ -3,6 +3,7 @@ import { lstat, readFile, readdir, readlink, realpath } from 'node:fs/promises';
 import { isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 
 const safeCaseId = '[a-z0-9](?:[a-z0-9-]*[a-z0-9])?';
+const retainedWorkdirName = `${safeCaseId}-[A-Za-z0-9]{6}`;
 
 const isInside = (parent: string, child: string) => {
   const childRelative = relative(parent, child);
@@ -16,12 +17,12 @@ const allowedFile = (path: string, keepWorkdirs: boolean) =>
   path === 'qualification-report.json' ||
   path === 'qualification-report.md' ||
   new RegExp(`^cases/${safeCaseId}/(?:result\\.json|stacktape\\.yml|compiled-template\\.yml)$`).test(path) ||
-  (keepWorkdirs && new RegExp(`^workdirs/${safeCaseId}/.+`).test(path));
+  (keepWorkdirs && new RegExp(`^workdirs/${retainedWorkdirName}/.+`).test(path));
 
 const allowedDirectory = (path: string, keepWorkdirs: boolean) =>
   path === 'cases' ||
   new RegExp(`^cases/${safeCaseId}$`).test(path) ||
-  (keepWorkdirs && (path === 'workdirs' || new RegExp(`^workdirs/${safeCaseId}(?:/.*)?$`).test(path)));
+  (keepWorkdirs && (path === 'workdirs' || new RegExp(`^workdirs/${retainedWorkdirName}(?:/.*)?$`).test(path)));
 
 const limitsFor = (keepWorkdirs: boolean) => ({
   maxEntries: keepWorkdirs ? 200_000 : 10_000,
@@ -83,7 +84,7 @@ export const inspectOutputTree = async (
         continue;
       }
       if (metadata.isSymbolicLink()) {
-        if (!keepWorkdirs || !new RegExp(`^workdirs/${safeCaseId}/.+`).test(relativePath)) {
+        if (!keepWorkdirs || !new RegExp(`^workdirs/${retainedWorkdirName}/.+`).test(relativePath)) {
           throw new Error(`Qualification output contains a link outside a retained workdir: ${relativePath}`);
         }
         const linkTarget = await readlink(absolutePath);
