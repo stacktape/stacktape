@@ -91,7 +91,10 @@ describe('qualification reports', () => {
     durationMs: 10,
     source: validCase.source,
     tags: validCase.tags,
-    steps: [{ name: 'import' as const, status: 'passed' as const, durationMs: 10, summary: 'Imported.' }]
+    steps: [
+      { name: 'acquire' as const, status: 'passed' as const, durationMs: 1, summary: 'Acquired.' },
+      { name: 'import' as const, status: 'passed' as const, durationMs: 9, summary: 'Imported.' }
+    ]
   };
   const report = {
     schemaVersion: 2,
@@ -119,5 +122,111 @@ describe('qualification reports', () => {
     expect(() => qualificationReportSchema.parse({ ...report, cases: [validResult, validResult] })).toThrow(
       'Duplicate case id'
     );
+  });
+
+  test('counts run-wide steps in the report summary', () => {
+    expect(
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['runtime'],
+        cases: [],
+        globalSteps: [{ name: 'runtime', status: 'passed', durationMs: 10, summary: 'Runtime passed.' }]
+      }).summary
+    ).toEqual({ passed: 1, failed: 0, skipped: 0, durationMs: 10 });
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['runtime'],
+        cases: [],
+        globalSteps: [{ name: 'runtime', status: 'passed', durationMs: 10, summary: 'Runtime passed.' }],
+        summary: { ...report.summary, passed: 0 }
+      })
+    ).toThrow('Summary passed count must equal 1');
+  });
+
+  test('requires non-empty evidence for project lanes', () => {
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        cases: [],
+        summary: { ...report.summary, passed: 0 }
+      })
+    ).toThrow('at least one selected project case');
+  });
+
+  test('requires unique ordered requested project steps', () => {
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        cases: [
+          {
+            ...validResult,
+            steps: [...validResult.steps, { ...validResult.steps[1] }]
+          }
+        ]
+      })
+    ).toThrow('may only be recorded once');
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        cases: [{ ...validResult, steps: [validResult.steps[1], validResult.steps[0]] }]
+      })
+    ).toThrow('out of order');
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        cases: [{ ...validResult, steps: [validResult.steps[0]] }]
+      })
+    ).toThrow('missing its requested import step');
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['import', 'package'],
+        cases: [validResult]
+      })
+    ).toThrow('missing its requested package step');
+  });
+
+  test('accepts terminal acquisition failures and fully structured fail-fast skips', () => {
+    const acquisitionFailure = {
+      ...validResult,
+      status: 'failed' as const,
+      steps: [
+        {
+          name: 'acquire' as const,
+          status: 'failed' as const,
+          durationMs: 1,
+          summary: 'Acquisition failed.',
+          failure: { code: 'ACQUIRE_FAILED', message: 'Missing source.' }
+        }
+      ]
+    };
+    expect(
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['import', 'package'],
+        summary: { ...report.summary, passed: 0, failed: 1 },
+        cases: [acquisitionFailure]
+      }).cases[0]?.status
+    ).toBe('failed');
+
+    const failFastSkip = {
+      ...validResult,
+      status: 'skipped' as const,
+      steps: (['acquire', 'import', 'package'] as const).map((name) => ({
+        name,
+        status: 'skipped' as const,
+        durationMs: 0,
+        summary: 'Stopped by fail-fast.'
+      }))
+    };
+    expect(
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['import', 'package'],
+        summary: { ...report.summary, passed: 0, skipped: 1 },
+        cases: [failFastSkip]
+      }).cases[0]?.status
+    ).toBe('skipped');
   });
 });
