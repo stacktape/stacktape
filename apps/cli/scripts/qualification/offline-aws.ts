@@ -248,6 +248,8 @@ export const buildOfflineQualificationEnvironment = ({
     SKIP_LOADING_ENV: '1',
     STP_CUSTOM_TRPC_API_ENDPOINT: `${endpoint}/stacktape-api`,
     STP_DISABLE_TELEMETRY: '1',
-    STP_INVOCATION_ID: invocationId
+    STP_INVOCATION_ID: invocationId,
+    ...(inheritedEnvironment.STACKTAPE_QUALIFICATION_SANDBOX === '1' ? { STACKTAPE_QUALIFICATION_SANDBOX: '1' } : {}),
+    ...(inheritedEnvironment.DOCKER_HOST?.startsWith('tcp://') ? { DOCKER_HOST: inheritedEnvironment.DOCKER_HOST } : {})
   };
 };

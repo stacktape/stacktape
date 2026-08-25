@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "cases": [
+    {
+      "id": "qualification-self-test-docker",
+      "title": "Qualification Self Test Docker",
+      "why": "Verifies the disposable DinD qualification sandbox boundary packages a container workload through nested Docker without host socket or AWS access.",
+      "source": {
+        "kind": "local",
+        "path": "apps/cli/scripts/qualification/fixtures/self-test-docker-project",
+        "license": "Stacktape fixture"
+      },
+      "origin": "synthetic",
+      "tags": ["self-test", "docker", "node"],
+      "lanes": ["import", "package"],
+      "expect": {
+        "serviceCount": 1,
+        "httpServiceCount": 1,
+        "resourceTypes": {
+          "web-service": 1
+        }
+      }
+    }
+  ]
+}

@@ -140,4 +140,28 @@ describe('offline AWS qualification guard', () => {
     expect(environment.AWS_ENDPOINT_URL_STS).toBe('http://127.0.0.1:12345');
     expect(environment.STP_CUSTOM_TRPC_API_ENDPOINT).toStartWith('http://127.0.0.1:12345');
   });
+
+  test('preserves tcp DOCKER_HOST in sandbox mode while scrubbing local socket DOCKER_HOST', () => {
+    const sandboxedEnv = buildOfflineQualificationEnvironment({
+      endpoint: 'http://127.0.0.1:12345',
+      invocationId: 'qualification-test',
+      homeDirectory: 'C:\\qualification\\home',
+      inheritedEnvironment: {
+        STACKTAPE_QUALIFICATION_SANDBOX: '1',
+        DOCKER_HOST: 'tcp://stp-qual-dind-test:2375'
+      }
+    });
+    expect(sandboxedEnv.STACKTAPE_QUALIFICATION_SANDBOX).toBe('1');
+    expect(sandboxedEnv.DOCKER_HOST).toBe('tcp://stp-qual-dind-test:2375');
+
+    const ordinaryEnv = buildOfflineQualificationEnvironment({
+      endpoint: 'http://127.0.0.1:12345',
+      invocationId: 'qualification-test',
+      homeDirectory: 'C:\\qualification\\home',
+      inheritedEnvironment: {
+        DOCKER_HOST: 'unix:///var/run/docker.sock'
+      }
+    });
+    expect(ordinaryEnv.DOCKER_HOST).toBeUndefined();
+  });
 });
