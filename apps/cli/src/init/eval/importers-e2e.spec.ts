@@ -216,7 +216,7 @@ const CASES: EvalCase[] = [
           'react-dom': '^19.0.0'
         },
         devDependencies: {
-          '@vitejs/plugin-react': '^4.3.4',
+          '@vitejs/plugin-react': '^6.0.1',
           nitro: '^3.0.260311-beta',
           vite: '^8.0.14'
         }
@@ -228,7 +228,7 @@ const CASES: EvalCase[] = [
         "import { nitro } from 'nitro/vite';",
         '',
         'export default defineConfig({',
-        '  plugins: [tanstackStart(), nitro(), viteReact()]',
+        '  plugins: [tanstackStart(), viteReact(), nitro()]',
         '});'
       ].join('\n'),
       'src/routes/__root.tsx': [

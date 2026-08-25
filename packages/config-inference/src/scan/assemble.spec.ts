@@ -520,7 +520,7 @@ describe('assembleCandidateFacts', () => {
         name: 'tanstack-solid-app',
         scripts: { build: 'vite build', start: 'node .output/server/index.mjs' },
         dependencies: {
-          '@tanstack/solid-start': '^1.168.49',
+          '@tanstack/solid-start': '^1.168.26',
           '@tanstack/solid-router': '^1.170.32',
           'solid-js': '^1.9.0'
         }
@@ -547,7 +547,7 @@ describe('assembleCandidateFacts', () => {
         name: 'tanstack-vue-app',
         scripts: { build: 'vite build', start: 'node .output/server/index.mjs' },
         dependencies: {
-          '@tanstack/vue-start': '^1.168.49',
+          '@tanstack/vue-start': '^1.168.46',
           '@tanstack/vue-router': '^1.170.32',
           vue: '^3.5.0'
         }
@@ -584,6 +584,71 @@ describe('assembleCandidateFacts', () => {
     const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
 
     expect(facts.services).toEqual([]);
+  });
+
+  it('does not turn a Vite-built TypeScript library using Start APIs into an SSR application', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['packages/*'] }),
+      'packages/start-helpers/package.json': JSON.stringify({
+        name: '@acme/start-helpers',
+        private: true,
+        scripts: {
+          build: 'vite build && tsc --emitDeclarationOnly',
+          dev: 'vite build --watch'
+        },
+        dependencies: {
+          '@tanstack/react-start': '^1.168.49',
+          react: '^19.0.0'
+        },
+        devDependencies: {
+          typescript: '^6.0.0',
+          vite: '^8.0.14',
+          'vite-plugin-dts': '^4.5.4'
+        }
+      }),
+      'packages/start-helpers/vite.config.ts': [
+        "import { defineConfig } from 'vite';",
+        "import dts from 'vite-plugin-dts';",
+        "export default defineConfig({ plugins: [dts()], build: { lib: { entry: 'src/index.ts' } } });"
+      ].join('\n'),
+      'packages/start-helpers/src/index.ts': [
+        "import type { AnyStartInstance } from '@tanstack/react-start';",
+        'export type StartPluginOptions = { start?: AnyStartInstance };'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('keeps a build-only Start deployment when its Vite config proves the framework plugin', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'tanstack-serverless-app',
+        scripts: { build: 'vite build', dev: 'vite dev' },
+        dependencies: {
+          '@tanstack/react-start': '^1.168.49',
+          '@tanstack/react-router': '^1.170.32',
+          react: '^19.0.0'
+        }
+      }),
+      'vite.config.ts': [
+        "import { defineConfig } from 'vite';",
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'export default defineConfig({ plugins: [tanstackStart()] });'
+      ].join('\n'),
+      'src/routes/index.tsx': 'export const Route = {};'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services[0]).toMatchObject({
+      name: 'tanstack-serverless-app',
+      framework: 'tanstack-start',
+      buildCommand: 'npm run build'
+    });
+    expect(facts.services[0]?.startCommand).toBeUndefined();
   });
 
   it('resolves framework ambiguity between @solidjs/start and @tanstack/solid-start via config plugins', async () => {
