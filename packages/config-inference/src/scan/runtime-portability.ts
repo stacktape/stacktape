@@ -75,7 +75,7 @@ const isObjectStorageConstraint = (constraint: { kind: string }): boolean =>
   constraint.kind === 'object-storage-explicit-credentials-and-endpoint' ||
   constraint.kind === 'object-storage-explicit-settings-unverified';
 
-/** Remove comments and literals while preserving newlines and source-token positions. */
+/** Mask comments and literal values, retaining literal presence, newlines and token positions. */
 const codeOnly = (contents: string): string => {
   let result = '';
   let state: 'code' | 'line-comment' | 'block-comment' | 'string' | 'template' | 'char' | 'verbatim' | 'raw' = 'code';
@@ -151,30 +151,30 @@ const codeOnly = (contents: string): string => {
     }
     const quoteCount = character === '"' ? (contents.slice(index).match(/^"+/)?.[0].length ?? 0) : 0;
     if (quoteCount >= 3) {
-      result += ' '.repeat(quoteCount);
+      result += '~' + ' '.repeat(quoteCount - 1);
       index += quoteCount - 1;
       rawDelimiterLength = quoteCount;
       state = 'raw';
       continue;
     }
     if (character === '@' && next === '"') {
-      result += '  ';
+      result += '~ ';
       index += 1;
       state = 'verbatim';
       continue;
     }
     if (character === '"') {
-      result += ' ';
+      result += '~';
       state = 'string';
       continue;
     }
     if (character === '`') {
-      result += ' ';
+      result += '~';
       state = 'template';
       continue;
     }
     if (character === "'") {
-      result += ' ';
+      result += '~';
       state = 'char';
       continue;
     }
@@ -189,6 +189,96 @@ const citationFor = (file: string, source: string, pattern: RegExp): Citation | 
     if (match !== null) return { file, line: index + 1, quote: match[0] };
   }
   return undefined;
+};
+
+const citationAt = (file: string, source: string, index: number, quote: string): Citation => ({
+  file,
+  line: source.slice(0, index).split('\n').length,
+  quote: quote.replace(/\s+/g, ' ').trim().slice(0, 200)
+});
+
+const escapePattern = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const callArgumentsAreEmpty = (source: string, openingParenthesis: number, allowEmptyObject: boolean): boolean => {
+  let depth = 0;
+  for (let index = openingParenthesis; index < source.length; index += 1) {
+    const character = source[index];
+    if (character === '(') depth += 1;
+    if (character !== ')') continue;
+    depth -= 1;
+    if (depth !== 0) continue;
+    const argumentsSource = source.slice(openingParenthesis + 1, index).trim();
+    return argumentsSource === '' || (allowEmptyObject && /^\{\s*\}$/.test(argumentsSource));
+  }
+  // An unclosed call is malformed or outside the bounded read. Neither proves portability.
+  return false;
+};
+
+const recordConstructorCalls = ({
+  file,
+  source,
+  names,
+  prefix,
+  namesArePatterns = false,
+  allowEmptyObject,
+  record
+}: {
+  file: string;
+  source: string;
+  names: ReadonlySet<string>;
+  prefix: string;
+  namesArePatterns?: boolean;
+  allowEmptyObject: boolean;
+  record: (key: keyof FamilySignals, citation: Citation | undefined) => void;
+}): void => {
+  if (names.size === 0) return;
+  const calls = new RegExp(
+    `${prefix}(?:${[...names].map((name) => (namesArePatterns ? name : escapePattern(name))).join('|')})\\s*\\(`,
+    'g'
+  );
+  for (const match of source.matchAll(calls)) {
+    const index = match.index;
+    if (index === undefined) continue;
+    const openingParenthesis = index + match[0].lastIndexOf('(');
+    const citation = citationAt(file, source, index, match[0]);
+    record('client', citation);
+    record(
+      callArgumentsAreEmpty(source, openingParenthesis, allowEmptyObject) ? 'portableClient' : 'configuredClient',
+      citation
+    );
+  }
+};
+
+const nodeS3ClientNames = (source: string): Set<string> => {
+  const names = new Set(['S3Client']);
+  for (const match of source.matchAll(/\bS3Client\s+as\s+([A-Za-z_$][\w$]*)/g)) {
+    if (match[1] !== undefined) names.add(match[1]);
+  }
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const match of source.matchAll(
+      /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)[^\S\r\n]*(?=;|\r?$)/gm
+    )) {
+      const alias = match[1];
+      const target = match[2];
+      if (alias !== undefined && target !== undefined && names.has(target) && !names.has(alias)) {
+        names.add(alias);
+        changed = true;
+      }
+    }
+  }
+  return names;
+};
+
+const cSharpS3ClientNames = (source: string): Set<string> => {
+  const names = new Set(['AmazonS3Client', 'Amazon.S3.AmazonS3Client']);
+  for (const match of source.matchAll(
+    /\busing\s+([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(?:global::)?(?:Amazon\.S3\.)?AmazonS3Client\s*;/g
+  )) {
+    if (match[1] !== undefined) names.add(match[1]);
+  }
+  return names;
 };
 
 const sourceFamily = (file: string): SourceFamily | undefined => {
@@ -208,21 +298,34 @@ const collectSignals = (file: string, contents: string, families: Map<SourceFami
     if (signals[key] === undefined && citation !== undefined) signals[key] = citation;
   };
   if (family === 'csharp') {
-    record('client', citationFor(file, source, /\b(?:new\s+AmazonS3Client|AddAWSService\s*<\s*IAmazonS3\s*>)/));
-    record(
-      'portableClient',
-      citationFor(file, source, /\b(?:new\s+AmazonS3Client\s*\(\s*\)|AddAWSService\s*<\s*IAmazonS3\s*>\s*\(\s*\))/)
-    );
-    record(
-      'configuredClient',
-      citationFor(file, source, /\b(?:new\s+AmazonS3Client|AddAWSService\s*<\s*IAmazonS3\s*>)\s*\(\s*(?!\))/)
-    );
+    recordConstructorCalls({
+      file,
+      source,
+      names: cSharpS3ClientNames(source),
+      prefix: '\\bnew\\s+',
+      allowEmptyObject: false,
+      record
+    });
+    recordConstructorCalls({
+      file,
+      source,
+      names: new Set(['AddAWSService\\s*<\\s*IAmazonS3\\s*>']),
+      prefix: '\\b',
+      namesArePatterns: true,
+      allowEmptyObject: false,
+      record
+    });
     record('credentials', citationFor(file, source, /\bnew\s+(?:Amazon\.Runtime\.)?BasicAWSCredentials\s*\(/));
     record('endpoint', citationFor(file, source, /\bServiceURL\s*=/));
   } else if (family === 'node') {
-    record('client', citationFor(file, source, /\bnew\s+S3Client\s*\(/));
-    record('portableClient', citationFor(file, source, /\bnew\s+S3Client\s*\(\s*(?:\{\s*\})?\s*\)/));
-    record('configuredClient', citationFor(file, source, /\bnew\s+S3Client\s*\(\s*(?!\)|\{\s*\}\s*\))/));
+    recordConstructorCalls({
+      file,
+      source,
+      names: nodeS3ClientNames(source),
+      prefix: '\\bnew\\s+',
+      allowEmptyObject: true,
+      record
+    });
     record('endpoint', citationFor(file, source, /\bendpoint\s*:/));
     record('accessKey', citationFor(file, source, /\baccessKeyId\s*:/));
     record('secretKey', citationFor(file, source, /\bsecretAccessKey\s*:/));
@@ -341,6 +444,14 @@ const explicitObjectStorageSettings = (
   };
 };
 
+const hasOnlyPortableClients = (signals: FamilySignals): boolean =>
+  signals.portableClient !== undefined &&
+  signals.configuredClient === undefined &&
+  signals.endpoint === undefined &&
+  signals.credentials === undefined &&
+  signals.accessKey === undefined &&
+  signals.secretKey === undefined;
+
 const sourceAssessment = (
   families: ReadonlyMap<SourceFamily, FamilySignals>
 ): { kind: 'explicit'; evidence: Citation[] } | { kind: 'portable' } | { kind: 'unknown' } => {
@@ -363,16 +474,10 @@ const sourceAssessment = (
       };
     }
   }
+  const allSignals = [...families.values()];
   if (
-    [...families.values()].some(
-      (signals) =>
-        signals.portableClient !== undefined &&
-        signals.configuredClient === undefined &&
-        signals.endpoint === undefined &&
-        signals.credentials === undefined &&
-        signals.accessKey === undefined &&
-        signals.secretKey === undefined
-    )
+    allSignals.some(hasOnlyPortableClients) &&
+    allSignals.every((signals) => signals.client === undefined || hasOnlyPortableClients(signals))
   ) {
     return { kind: 'portable' };
   }

@@ -45,6 +45,55 @@ const APP_MANIFEST = JSON.stringify({
   scripts: { start: 'node index.js' }
 });
 
+const nodeStorageRepo = (source: string): Record<string, string> => ({
+  'package.json': JSON.stringify({
+    name: 'uploads',
+    scripts: { start: 'node server.js' },
+    dependencies: { '@aws-sdk/client-s3': '3.895.0', express: '5' }
+  }),
+  'server.js': source,
+  'compose.yaml': [
+    'services:',
+    '  uploads:',
+    '    build: .',
+    '    ports: ["3000:3000"]',
+    '    depends_on: [minio]',
+    '    environment:',
+    '      S3_BUCKET: uploads',
+    '      S3_ENDPOINT: http://minio:9000',
+    '      S3_ACCESS_KEY_ID: local-access',
+    '      S3_SECRET_ACCESS_KEY: local-secret',
+    '  minio:',
+    '    image: minio/minio:latest',
+    ''
+  ].join('\n')
+});
+
+const cSharpStorageRepo = (source: string): Record<string, string> => ({
+  'src/Api/Api.csproj': [
+    '<Project Sdk="Microsoft.NET.Sdk.Web">',
+    '  <ItemGroup><PackageReference Include="AWSSDK.S3" Version="3.7.0" /></ItemGroup>',
+    '</Project>',
+    ''
+  ].join('\n'),
+  'src/Api/StorageClient.cs': source,
+  'compose.yaml': [
+    'services:',
+    '  api:',
+    '    build: src/Api',
+    '    ports: ["8080:8080"]',
+    '    depends_on: [minio]',
+    '    environment:',
+    '      Storage__BucketName: uploads',
+    '      Storage__ServiceUrl: http://minio:9000',
+    '      Storage__AccessKey: local-access',
+    '      Storage__SecretKey: local-secret',
+    '  minio:',
+    '    image: minio/minio:latest',
+    ''
+  ].join('\n')
+});
+
 describe('the compose probe', () => {
   it('recognizes only context-free single-tool Dockerfiles as local utilities', () => {
     expect(
@@ -1091,6 +1140,133 @@ describe('the compose probe', () => {
         expect.objectContaining({ name })
       );
     }
+  });
+
+  it.each([
+    ['simple alias', 'const ActualClient = S3Client;'],
+    ['semicolon-free alias chain', 'const FirstClient = S3Client\nconst ActualClient = FirstClient'],
+    ['named import alias', 'import { S3Client as ActualClient } from "@aws-sdk/client-s3";']
+  ])('tracks a Node S3 %s before accepting an unused default client', async (_kind, declaration) => {
+    root = await makeRepo(
+      nodeStorageRepo(
+        [
+          'const { S3Client } = require("@aws-sdk/client-s3");',
+          declaration,
+          'const endpoint = process.env.S3_ENDPOINT;',
+          'const credentials = {',
+          '  accessKeyId: process.env.S3_ACCESS_KEY_ID,',
+          '  secretAccessKey: process.env.S3_SECRET_ACCESS_KEY',
+          '};',
+          'const primary = new ActualClient({ endpoint, credentials });',
+          'const unused = new S3Client();',
+          'require("express")().listen(3000);',
+          ''
+        ].join('\n')
+      )
+    );
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [manifestProbe, serverEntrypointProbe, dockerComposeProbe]
+    });
+    expect(facts.services[0]?.runtimePortabilityConstraints).toContainEqual(
+      expect.objectContaining({ kind: 'object-storage-explicit-settings-unverified' })
+    );
+    expect(composeConfig({ facts, projectName: 'node-storage-alias' }).deployable).toBe(false);
+  });
+
+  it('tracks a C# S3 constructor alias before accepting an unused default client', async () => {
+    root = await makeRepo(
+      cSharpStorageRepo(
+        [
+          'using StorageClient = Amazon.S3.AmazonS3Client;',
+          'var primary = new StorageClient(BuildLocalOptions());',
+          'var unused = new AmazonS3Client();',
+          ''
+        ].join('\n')
+      )
+    );
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe, dockerComposeProbe]
+    });
+    expect(facts.services[0]?.runtimePortabilityConstraints).toContainEqual(
+      expect.objectContaining({ kind: 'object-storage-explicit-settings-unverified' })
+    );
+    expect(composeConfig({ facts, projectName: 'csharp-storage-alias' }).deployable).toBe(false);
+  });
+
+  it('recognizes a multiline empty Node S3 constructor as using AWS defaults', async () => {
+    root = await makeRepo(
+      nodeStorageRepo(
+        [
+          'const { S3Client } = require("@aws-sdk/client-s3");',
+          'const client = new S3Client(',
+          ');',
+          'require("express")().listen(3000);',
+          ''
+        ].join('\n')
+      )
+    );
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [manifestProbe, serverEntrypointProbe, dockerComposeProbe]
+    });
+    expect(facts.services[0]?.runtimePortabilityConstraints).toEqual([]);
+    expect(composeConfig({ facts, projectName: 'node-storage-multiline' }).deployable).toBe(true);
+  });
+
+  it('recognizes multiline empty C# constructor and DI calls as using AWS defaults', async () => {
+    root = await makeRepo(
+      cSharpStorageRepo(
+        ['var client = new AmazonS3Client(', ');', 'services.AddAWSService<IAmazonS3>(', ');', ''].join('\n')
+      )
+    );
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe, dockerComposeProbe]
+    });
+    expect(facts.services[0]?.runtimePortabilityConstraints).toEqual([]);
+    expect(composeConfig({ facts, projectName: 'csharp-storage-multiline' }).deployable).toBe(true);
+  });
+
+  it.each(['"local-region"', '@"local-region"', '"""local-region"""'])(
+    'does not classify a masked C# literal argument %s as an empty constructor',
+    async (argument) => {
+      root = await makeRepo(cSharpStorageRepo(`var client = new AmazonS3Client(${argument});\n`));
+      const { facts } = await assembleCandidateFacts({
+        root,
+        probes: [languageManifestProbe, dockerComposeProbe]
+      });
+      expect(facts.services[0]?.runtimePortabilityConstraints).toContainEqual(
+        expect.objectContaining({ kind: 'object-storage-explicit-settings-unverified' })
+      );
+      expect(composeConfig({ facts, projectName: 'csharp-storage-literal' }).deployable).toBe(false);
+    }
+  );
+
+  it('requires every S3 client in a polyglot service to be positively portable', async () => {
+    root = await makeRepo({
+      ...cSharpStorageRepo('var client = new AmazonS3Client();\n'),
+      'src/Api/storage.js': [
+        'const endpoint = process.env.S3_ENDPOINT;',
+        'const credentials = loadCredentials();',
+        'const client = new S3Client({ endpoint, credentials });',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe, dockerComposeProbe]
+    });
+    expect(facts.services[0]?.runtimePortabilityConstraints).toContainEqual(
+      expect.objectContaining({ kind: 'object-storage-explicit-settings-unverified' })
+    );
+    expect(composeConfig({ facts, projectName: 'polyglot-storage' }).deployable).toBe(false);
   });
 
   it('does not assign an incidental tools client to a portable application', async () => {
