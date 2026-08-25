@@ -3,7 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { composeConfig } from '../../compose/compose';
-import { assembleCandidateFacts } from '../assemble';
+import { assembleCandidateFacts, createProbeContext } from '../assemble';
+import { listRepositoryFiles } from '../file-tree';
 import { environmentProbe } from './environment';
 import { dockerfileProbe } from './dockerfile';
 import { languageManifestProbe } from './language-manifests';
@@ -25,6 +26,17 @@ const makeRepo = async (files: Record<string, string>): Promise<string> => {
     })
   );
   return root;
+};
+
+const dockerfileFactsAtLimit = async (repositoryRoot: string) => {
+  const listing = await listRepositoryFiles(repositoryRoot, { maxFiles: 1 });
+  const context = createProbeContext(
+    repositoryRoot,
+    listing.files,
+    listing.descriptorDockerfiles,
+    listing.dockerfileSymlinks
+  );
+  return { listing, output: await dockerfileProbe.run(context) };
 };
 
 describe('the standalone Dockerfile probe', () => {
@@ -365,6 +377,31 @@ describe('the standalone Dockerfile probe', () => {
 
     expect(linked.facts.services).toEqual(materialized.facts.services);
     expect(composeConfig({ facts: linked.facts }).config).toEqual(composeConfig({ facts: materialized.facts }).config);
+  });
+
+  it('does not read an unlisted Dockerfile target through either symlink representation', async () => {
+    root = await mkdtemp(join(tmpdir(), 'stp-dockerfile-truncated-equivalence-'));
+    const materializedRoot = join(root, 'materialized');
+    const linkedRoot = join(root, 'linked');
+    await Promise.all(
+      [materializedRoot, linkedRoot].map(async (repositoryRoot) => {
+        await mkdir(join(repositoryRoot, 'docker'), { recursive: true });
+        await writeFile(join(repositoryRoot, 'docker/Dockerfile.production'), 'FROM node:24\nEXPOSE 8080\n', 'utf8');
+      })
+    );
+    await writeFile(join(materializedRoot, 'Dockerfile'), 'docker/Dockerfile.production\n', 'utf8');
+    await symlink('docker/Dockerfile.production', join(linkedRoot, 'Dockerfile'), 'file');
+
+    const [materialized, linked] = await Promise.all([
+      dockerfileFactsAtLimit(materializedRoot),
+      dockerfileFactsAtLimit(linkedRoot)
+    ]);
+
+    expect(materialized.listing.files).not.toContain('docker/Dockerfile.production');
+    expect(linked.listing.files).not.toContain('docker/Dockerfile.production');
+    expect(linked.listing.dockerfileSymlinks).toEqual([]);
+    expect(linked.output.services ?? []).toEqual(materialized.output.services ?? []);
+    expect(linked.output.services ?? []).toEqual([]);
   });
 
   it('ignores nested test harness Dockerfiles, manifests, and environment values', async () => {

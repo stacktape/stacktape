@@ -4,6 +4,7 @@ import { posix } from 'node:path';
 import type { Citation } from '../../facts/citation';
 import type { ServiceFactInput } from '../../facts/service';
 import { isNonProductionFixturePath } from '../deployment-relevance';
+import { readDockerfileDefinition } from '../dockerfile-definition';
 import { activeWorkspaceDirectories, isIncidentalPath } from '../incidental-directories';
 import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { goFileMatchesBuildTarget, goImports } from '../go-source';
@@ -15,35 +16,6 @@ const serviceRootFor = (dockerfile: string, files: readonly string[]): string =>
 
 const DEVELOPMENT_ONLY_DIRECTORY = /(?:^|\/)(?:\.devcontainer|\.github|\.gitlab|\.circleci)(?:\/|$)/i;
 const DEVELOPMENT_ONLY_DOCKERFILE = /^Dockerfile[.-](?:dev|development|test|local|ci)(?:[.-].*)?$/i;
-
-const dockerfilePointerTarget = (path: string, raw: string, files: readonly string[]): string | undefined => {
-  const declaration = raw.trim().replaceAll('\\', '/');
-  if (!/^(?:[^/]+\/)*Dockerfile(?:\.[^/]+)?$/i.test(declaration)) return undefined;
-  const directory = posix.dirname(path);
-  const resolved = posix.normalize(directory === '.' ? declaration : posix.join(directory, declaration));
-  if (resolved === '..' || resolved.startsWith('../') || !files.includes(resolved)) return undefined;
-  return resolved;
-};
-
-/**
- * Read the Dockerfile bytes that a repository path denotes.
- *
- * Git checkouts without symlink support materialize a Dockerfile symlink as its one-line target.
- * Other probes need the same selected image contract, so resolving that narrow shape lives here
- * instead of being reimplemented with subtly different traversal rules.
- */
-export const readDockerfileDefinition = async (
-  context: ProbeContext,
-  path: string
-): Promise<{ path: string; raw: string } | undefined> => {
-  const candidateRaw = await readText(context, path);
-  if (candidateRaw === undefined) return undefined;
-  const pointerTarget =
-    context.dockerfileSymlinkTargets.get(path) ?? dockerfilePointerTarget(path, candidateRaw, context.files);
-  const dockerfile = pointerTarget ?? path;
-  const raw = pointerTarget === undefined ? candidateRaw : await readText(context, pointerTarget);
-  return raw === undefined ? undefined : { path: dockerfile, raw };
-};
 
 const serviceNameFor = (root: string, repositoryRoot: string): string =>
   root === '.' ? (repositoryRoot.split(/[/\\]/).findLast((segment) => segment !== '') ?? 'app') : posix.basename(root);

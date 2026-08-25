@@ -25,13 +25,14 @@
 import { posix } from 'node:path';
 import yaml from 'yaml';
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
+import type { Citation } from '../../facts/citation';
 import type { MigrationFact } from '../../facts/project-facts';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/service';
+import { readDockerfileDefinition } from '../dockerfile-definition';
 import { languageOf } from '../language';
 import { isPlatformEnvironmentVariable } from '../platform-environment';
-import { isSecretishDeclaredName, safeDeclaredLiteral } from './declared-environment';
-import type { Citation } from '../../facts/citation';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { isSecretishDeclaredName, safeDeclaredLiteral } from './declared-environment';
 
 /** The names compose itself looks for, in the order it looks for them. */
 const COMPOSE_FILENAMES = ['compose.yaml', 'compose.yml', 'docker-compose.yaml', 'docker-compose.yml'] as const;
@@ -200,20 +201,25 @@ type ResolvedBuild = {
   evidence?: Citation[];
 };
 
-const buildOf = (service: ComposeService, file: string, files: readonly string[]): ResolvedBuild | undefined => {
+const buildOf = async (
+  service: ComposeService,
+  file: string,
+  context: ProbeContext
+): Promise<ResolvedBuild | undefined> => {
   const declaration = service.build;
-  const context =
+  const buildContext =
     typeof declaration === 'string' ? declaration : isRecord(declaration) ? declaration.context : undefined;
-  if (typeof context !== 'string' || context === '') return undefined;
-  const root = resolveFrom(composeDirectory(file), context);
+  if (typeof buildContext !== 'string' || buildContext === '') return undefined;
+  const root = resolveFrom(composeDirectory(file), buildContext);
   if (root === undefined) return undefined;
   const declaredDockerfile =
     isRecord(declaration) && typeof declaration.dockerfile === 'string' ? declaration.dockerfile : 'Dockerfile';
   const dockerfile = resolveFrom(root, declaredDockerfile);
+  const definition = dockerfile === undefined ? undefined : await readDockerfileDefinition(context, dockerfile);
   const target = isRecord(declaration) && typeof declaration.target === 'string' ? declaration.target : undefined;
   return {
     root: root === '' ? '.' : root,
-    ...(dockerfile !== undefined && files.includes(dockerfile) ? { dockerfile } : {}),
+    ...(definition === undefined ? {} : { dockerfile: definition.path }),
     ...(target === undefined ? {} : { target })
   };
 };
@@ -276,20 +282,22 @@ const sourceBuildOf = async (
   service: ComposeService,
   context: ProbeContext,
   dockerfilePaths: readonly string[],
-  dockerfileCache: Map<string, string | undefined>
+  dockerfileCache: Map<string, { path: string; raw: string } | undefined>
 ): Promise<SourceBuild | undefined> => {
   if (typeof service.image !== 'string') return undefined;
   const target = targetValueFor(composeName, service.image);
   if (target === undefined) return undefined;
 
   for (const dockerfile of dockerfilePaths) {
-    let raw = dockerfileCache.get(dockerfile);
+    let definition = dockerfileCache.get(dockerfile);
     if (!dockerfileCache.has(dockerfile)) {
       // oxlint-disable-next-line no-await-in-loop -- bounded release Dockerfile candidates are cached.
-      raw = await readText(context, dockerfile, { fullFile: true });
-      dockerfileCache.set(dockerfile, raw);
+      definition = await readDockerfileDefinition(context, dockerfile, { fullFile: true });
+      dockerfileCache.set(dockerfile, definition);
     }
-    if (raw === undefined || !new RegExp(`["']${escapeForPattern(target)}["']`, 'i').test(raw)) continue;
+    if (definition === undefined) continue;
+    const raw = definition.raw;
+    if (!new RegExp(`["']${escapeForPattern(target)}["']`, 'i').test(raw)) continue;
     const argNames = [...raw.matchAll(/^\s*ARG\s+([A-Za-z_][A-Za-z0-9_]*)(?:=.*)?$/gim)].map((match) => match[1]!);
     const argName = argNames.find((name) =>
       new RegExp(`^.*\\$\\{?${escapeForPattern(name)}\\}?.*["']${escapeForPattern(target)}["'].*$`, 'im').test(raw!)
@@ -299,16 +307,17 @@ const sourceBuildOf = async (
     const copiedRootEntry = [...raw.matchAll(/^\s*(?:COPY|ADD)\s+(?:--[^\s]+\s+)*\/?([^\s/]+)(?:\/|\s)/gim)]
       .map((match) => match[1]!)
       .find((entry) => context.files.some((path) => path.startsWith(`${entry}/`)));
-    const directory = posix.dirname(dockerfile);
+    const canonicalDockerfile = definition.path;
+    const directory = posix.dirname(canonicalDockerfile);
     const argCitation = citeFirstMatchOnly(
-      dockerfile,
+      canonicalDockerfile,
       raw,
       new RegExp(`^\\s*ARG\\s+${escapeForPattern(argName)}(?:=.*)?$`, 'im'),
       'dockerfileBuildArgs'
     );
     return {
       root: copiedRootEntry === undefined ? (directory === '.' ? '.' : directory) : '.',
-      dockerfile,
+      dockerfile: canonicalDockerfile,
       buildArgs: [{ argName, value: target }],
       evidence: argCitation === undefined ? [] : [argCitation]
     };
@@ -850,10 +859,14 @@ export const dockerComposeProbe: Probe = {
         const rightProduction = /(?:^|\/)build\/package\//i.test(right) ? 0 : 1;
         return leftProduction - rightProduction || left.localeCompare(right);
       });
-    const dockerfileCache = new Map<string, string | undefined>();
+    const dockerfileCache = new Map<string, { path: string; raw: string } | undefined>();
+    const declaredBuilds = new Map<string, ResolvedBuild>();
     const sourceBuilds = new Map<string, SourceBuild>();
     for (const document of documents) {
       for (const [composeName, service] of Object.entries(document.services)) {
+        // oxlint-disable-next-line no-await-in-loop -- one bounded Dockerfile resolution per declared Compose build.
+        const declaredBuild = await buildOf(service, document.path, context);
+        if (declaredBuild !== undefined) declaredBuilds.set(`${document.path}:${composeName}`, declaredBuild);
         // oxlint-disable-next-line no-await-in-loop -- bounded Compose/Dockerfile cross-reference with a cache.
         const sourceBuild = await sourceBuildOf(composeName, service, context, dockerfilePaths, dockerfileCache);
         if (sourceBuild !== undefined) sourceBuilds.set(`${document.path}:${composeName}`, sourceBuild);
@@ -862,9 +875,8 @@ export const dockerComposeProbe: Probe = {
 
     const applicationScore = (document: ComposeDocument): number => {
       const applications = Object.entries(document.services).filter(
-        ([composeName, service]) =>
-          buildOf(service, document.path, context.files) !== undefined ||
-          sourceBuilds.has(`${document.path}:${composeName}`)
+        ([composeName]) =>
+          declaredBuilds.has(`${document.path}:${composeName}`) || sourceBuilds.has(`${document.path}:${composeName}`)
       ).length;
       if (applications === 0) return Number.NEGATIVE_INFINITY;
       return (
@@ -959,7 +971,8 @@ export const dockerComposeProbe: Probe = {
     const builtDeclarations = Object.entries(declaredServices).flatMap(([composeName, service]) => {
       if (dependencyNames.has(composeName)) return [];
       const build =
-        buildOf(service, path, context.files) ?? sourceBuilds.get(`${applicationDocument.path}:${composeName}`);
+        declaredBuilds.get(`${applicationDocument.path}:${composeName}`) ??
+        sourceBuilds.get(`${applicationDocument.path}:${composeName}`);
       return build === undefined ? [] : [{ composeName, service, build }];
     });
     const utilityBuilds = new Set<string>();

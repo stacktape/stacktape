@@ -30,7 +30,8 @@ import { goCodeWithoutComments } from '../go-source';
 import { isNonProductionFixturePath } from '../deployment-relevance';
 import { languageOf } from '../language';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
-import { declaredDockerfileVolumes, readDockerfileDefinition } from './dockerfile';
+import { readDockerfileDefinition } from '../dockerfile-definition';
+import { declaredDockerfileVolumes } from './dockerfile';
 
 /**
  * Package name to what it proves.

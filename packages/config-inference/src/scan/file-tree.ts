@@ -248,11 +248,18 @@ export const listRepositoryFiles = async (
     files.push(dockerfile);
   }
 
+  const admittedDockerfileSymlinks = dockerfileSymlinks.filter(({ target }) => files.includes(target));
+  const admittedDockerfileAliases = new Set(admittedDockerfileSymlinks.map(({ path }) => path));
+  const unadmittedDockerfileAliases = new Set(
+    dockerfileSymlinks.filter(({ path }) => !admittedDockerfileAliases.has(path)).map(({ path }) => path)
+  );
+  const admittedFiles = files.filter((file) => !unadmittedDockerfileAliases.has(file));
+
   return {
-    files: files.toSorted(),
+    files: admittedFiles.toSorted(),
     truncated,
-    descriptorDockerfiles: referencedDockerfiles,
-    dockerfileSymlinks: dockerfileSymlinks.toSorted((left, right) => left.path.localeCompare(right.path))
+    descriptorDockerfiles: referencedDockerfiles.filter((file) => admittedFiles.includes(file)),
+    dockerfileSymlinks: admittedDockerfileSymlinks.toSorted((left, right) => left.path.localeCompare(right.path))
   };
 };
 
