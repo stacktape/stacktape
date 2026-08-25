@@ -433,10 +433,10 @@ const packageProject = async ({
     parsed = parseCliJsonl(processResult.stdout, 'validate --withPackage');
   } catch (error) {
     throw new Error(
-      `Source CLI packaging exited with ${String(processResult.exitCode)} without a valid result contract.\n${errorText(error)}\n${outputTail(
+      `Source CLI packaging exited with ${String(processResult.exitCode)} without a valid result contract.\nOutput tail:\n${outputTail(
         `${processResult.stdout}\n${processResult.stderr}`,
         12_000
-      )}`
+      )}\nJSONL contract error:\n${errorText(error)}`
     );
   }
   if (processResult.exitCode !== 0 || !parsed.result.ok || parsed.result.code !== 'OK') {
