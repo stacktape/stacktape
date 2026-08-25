@@ -12,6 +12,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { assembleCandidateFacts, createProbeContext } from '../assemble';
+import { safeDeclaredLiteral } from './declared-environment';
 import { environmentProbe } from './environment';
 
 let root: string;
@@ -48,6 +49,31 @@ describe('the environment probe hosting claim', () => {
     const database = facts.dependencies.find((entry) => entry.kind === 'postgres');
 
     expect(database?.currentlyHostedOn).toBe('supabase');
+  });
+
+  it('retains safe deployment-template overrides without copying numeric credential-like values', async () => {
+    root = await makeRepo({
+      '.env.docker.example': [
+        'CACHE_DRIVER=redis',
+        'QUEUE_DRIVER=redis',
+        'PHP_OPCACHE_ENABLE=1',
+        'APP_DOMAIN=yourdomain.example',
+        'ADMIN_PIN=1234',
+        'OTP_CODE=000000'
+      ].join('\n')
+    });
+
+    const output = await environmentProbe.run(createProbeContext(root, ['.env.docker.example']));
+    const variables = new Map(
+      (output.serviceEnvironments?.[0]?.environmentVariables ?? []).map((variable) => [variable.name, variable])
+    );
+
+    expect(variables.get('CACHE_DRIVER')).toMatchObject({ safeLiteralValue: 'redis', required: true });
+    expect(variables.get('QUEUE_DRIVER')).toMatchObject({ safeLiteralValue: 'redis', required: true });
+    expect(variables.has('PHP_OPCACHE_ENABLE')).toBe(false);
+    expect(variables.has('APP_DOMAIN')).toBe(false);
+    expect(variables.has('ADMIN_PIN')).toBe(false);
+    expect(variables.has('OTP_CODE')).toBe(false);
   });
 
   it('keeps the managed provider when a later file names localhost', async () => {
@@ -100,5 +126,14 @@ describe('the environment probe hosting claim', () => {
 
     expect(output.dependencies?.map((entry) => entry.kind).toSorted()).toEqual(['amqp', 'nats']);
     expect(output.dependencies?.some((entry) => entry.kind === 'queue')).toBe(false);
+  });
+});
+
+describe('safe declared environment literals', () => {
+  it('requires an operational name even when the value looks boolean or numeric', () => {
+    expect(safeDeclaredLiteral('PHP_OPCACHE_ENABLE', '1')).toBe('1');
+    expect(safeDeclaredLiteral('AUTORUN_LARAVEL_MIGRATION', true)).toBe('true');
+    expect(safeDeclaredLiteral('ADMIN_PIN', 1234)).toBeUndefined();
+    expect(safeDeclaredLiteral('OTP_CODE', '000000')).toBeUndefined();
   });
 });

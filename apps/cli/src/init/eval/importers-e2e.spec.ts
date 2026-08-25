@@ -97,6 +97,8 @@ const CASES: EvalCase[] = [
         '];',
         ''
       ].join('\n'),
+      'config/cache.php': "<?php return ['default' => env('CACHE_DRIVER', 'file')];\n",
+      'config/queue.php': "<?php return ['default' => env('QUEUE_DRIVER', 'sync')];\n",
       '.env.example': [
         'APP_KEY=',
         'DB_CONNECTION=mysql',
@@ -111,6 +113,9 @@ const CASES: EvalCase[] = [
         'FILESYSTEM_DISK=local',
         ''
       ].join('\n'),
+      '.env.docker.example': ['CACHE_DRIVER=redis', 'QUEUE_DRIVER=redis', 'ADMIN_PIN=1234', 'OTP_CODE=000000', ''].join(
+        '\n'
+      ),
       '.env.testing': 'DB_CONNECTION=sqlite\nDB_DATABASE=tests/database.sqlite\n',
       'docker-compose.yml': [
         'services:',
@@ -190,12 +195,22 @@ const CASES: EvalCase[] = [
         { resource: 'pixelfed', name: 'REDIS_PORT', value: "$ResourceParam('cache', 'port')" },
         { resource: 'pixelfed', name: 'PHP_OPCACHE_ENABLE', value: '1' },
         { resource: 'pixelfed', name: 'AUTORUN_LARAVEL_EVENT_CACHE', value: 'true' },
-        { resource: 'horizon', name: 'AUTORUN_LARAVEL_MIGRATION', value: 'false' }
+        { resource: 'horizon', name: 'AUTORUN_LARAVEL_MIGRATION', value: 'false' },
+        { resource: 'pixelfed', name: 'CACHE_DRIVER', value: 'redis' },
+        { resource: 'pixelfed', name: 'QUEUE_DRIVER', value: 'redis' },
+        { resource: 'horizon', name: 'CACHE_DRIVER', value: 'redis' },
+        { resource: 'horizon', name: 'QUEUE_DRIVER', value: 'redis' },
+        { resource: 'scheduler', name: 'CACHE_DRIVER', value: 'redis' },
+        { resource: 'scheduler', name: 'QUEUE_DRIVER', value: 'redis' }
       ],
       absentServiceEnvironment: [
         { resource: 'pixelfed', name: 'DB_CONNECTION' },
         { resource: 'pixelfed', name: 'AWS_BUCKET' },
-        { resource: 'pixelfed', name: 'MYSQL_ATTR_SSL_CA' }
+        { resource: 'pixelfed', name: 'MYSQL_ATTR_SSL_CA' },
+        { resource: 'pixelfed', name: 'ADMIN_PIN' },
+        { resource: 'pixelfed', name: 'OTP_CODE' },
+        { resource: 'horizon', name: 'ADMIN_PIN' },
+        { resource: 'horizon', name: 'OTP_CODE' }
       ],
       requiredGapPatterns: ['database migrations during service startup', 'media.*ephemeral|ephemeral.*media'],
       forbiddenGapPatterns: ['does not read a configurable address'],

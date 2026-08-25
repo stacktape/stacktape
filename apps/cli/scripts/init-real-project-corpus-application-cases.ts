@@ -346,6 +346,8 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
         'php artisan schedule:work',
         'name: PHP_OPCACHE_ENABLE\n          value: "1"',
         'name: AUTORUN_LARAVEL_MIGRATION\n          value: "true"',
+        'name: CACHE_DRIVER\n          value: redis',
+        'name: QUEUE_DRIVER\n          value: redis',
         'name: DB_HOST',
         "$ResourceParam('mainDatabase', 'host')",
         'name: DB_DATABASE',

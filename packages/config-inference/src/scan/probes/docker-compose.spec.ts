@@ -404,6 +404,8 @@ describe('the compose probe', () => {
         '];',
         ''
       ].join('\n'),
+      'config/cache.php': "<?php return ['default' => env('CACHE_DRIVER', 'file')];\n",
+      'config/queue.php': "<?php return ['default' => env('QUEUE_DRIVER', 'sync')];\n",
       '.env.example': [
         'APP_KEY=',
         'DB_CONNECTION=mysql',
@@ -418,6 +420,9 @@ describe('the compose probe', () => {
         'FILESYSTEM_DISK=local',
         ''
       ].join('\n'),
+      '.env.docker.example': ['CACHE_DRIVER=redis', 'QUEUE_DRIVER=redis', 'ADMIN_PIN=1234', 'OTP_CODE=000000', ''].join(
+        '\n'
+      ),
       // Test topology must not override the production MySQL selector above.
       '.env.testing': 'DB_CONNECTION=sqlite\nDB_DATABASE=tests/database.sqlite\n',
       'docker-compose.yml': [
@@ -484,6 +489,14 @@ describe('the compose probe', () => {
     }
     expect(webVariables.get('DB_CONNECTION')).toMatchObject({ role: 'runtime-config' });
     expect(webVariables.get('MYSQL_ATTR_SSL_CA')).toMatchObject({ role: 'runtime-config' });
+
+    for (const process of [web, horizon, scheduler]) {
+      const variables = new Map(process.environmentVariables.map((variable) => [variable.name, variable]));
+      expect(variables.get('CACHE_DRIVER')).toMatchObject({ role: 'runtime-config', safeLiteralValue: 'redis' });
+      expect(variables.get('QUEUE_DRIVER')).toMatchObject({ role: 'runtime-config', safeLiteralValue: 'redis' });
+      expect(variables.has('ADMIN_PIN')).toBe(false);
+      expect(variables.has('OTP_CODE')).toBe(false);
+    }
 
     for (const [name, value] of [
       ['PHP_OPCACHE_ENABLE', '1'],
