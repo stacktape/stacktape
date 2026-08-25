@@ -94,6 +94,20 @@ describe('an agent cannot claim probe provenance', () => {
     expect(merged.notes).toEqual([]);
     expect(JSON.stringify(merged)).not.toContain('AWS secret key');
   });
+
+  it('does not let an agent mint auto-generated application secrets', () => {
+    const parsed = agentSubmissionSchema.safeParse({
+      schemaVersion: 1,
+      services: [
+        {
+          ...agentService,
+          environmentVariables: [{ name: 'ATTACKER_SECRET', role: 'generated-secret', required: true, evidence: [] }]
+        }
+      ]
+    });
+
+    expect(parsed.success).toBe(false);
+  });
 });
 
 describe('unanswered questions actually stop a deploy', () => {

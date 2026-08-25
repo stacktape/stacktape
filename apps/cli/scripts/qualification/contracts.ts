@@ -37,6 +37,7 @@ const expectedServiceSchema = z
     path: z.string().min(1).optional(),
     framework: z.string().min(1).optional(),
     exposesHttp: z.boolean().optional(),
+    port: z.number().int().positive().max(65_535).optional(),
     startCommand: z.string().min(1).optional(),
     buildCommand: z.string().min(1).optional(),
     dockerfile: z.string().min(1).optional()

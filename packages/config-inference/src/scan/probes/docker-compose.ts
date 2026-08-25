@@ -30,6 +30,7 @@ import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/servi
 import { languageOf } from '../language';
 import { isPlatformEnvironmentVariable } from '../platform-environment';
 import { isSecretishDeclaredName, safeDeclaredLiteral } from './declared-environment';
+import type { Citation } from '../../facts/citation';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
 /** The names compose itself looks for, in the order it looks for them. */
@@ -294,7 +295,7 @@ const completedDependencies = (service: ComposeService): string[] =>
 const BACKGROUND_PROCESS_NAME = /(?:^|[-_.])(?:worker|scheduler|cron|consumer|queue|jobs?)(?:$|[-_.])/i;
 
 const MIGRATION_COMMAND =
-  /(?:^|\s)(?:alembic\s+upgrade|(?:npm|pnpm|yarn|bun)\s+(?:--filter\s+\S+\s+)?(?:run\s+)?(?:\S*migrat\S*|\S*db:\S*)|npx\s+[^\s]*(?:migrat|prisma)|python3?\s+manage\.py\s+migrate|rails\s+db:|rake\s+db:|prisma\s+migrate|typeorm\s+[^\s]*migration|knex\s+migrate|sequelize(?:-cli)?\s+db:migrate|flyway|liquibase|dbmate)(?:\s|$)/i;
+  /(?:^|[\s:=])(?:alembic\s+upgrade|(?:npm|pnpm|yarn|bun)\s+(?:--filter\s+\S+\s+)?(?:run\s+)?(?:\S*migrat\S*|\S*db:\S*)|npx\s+[^\s]*(?:migrat|prisma)|(?:python3?\s+)?(?:\.\/)?manage\.py\s+migrate|rails\s+db:|rake\s+db:|prisma\s+migrate|typeorm\s+[^\s]*migration|knex\s+migrate|sequelize(?:-cli)?\s+db:migrate|flyway|liquibase|dbmate)(?:\s|$)/i;
 
 const commandOf = (service: ComposeService): string | undefined =>
   typeof service.command === 'string' && service.command.trim() !== '' ? service.command.trim() : undefined;
@@ -351,6 +352,76 @@ const dockerfileDefaultCommand = (raw: string): string | undefined => {
     }
   }
   return /^\s*CMD\s+([^\r\n]+)$/im.exec(raw)?.[1]?.trim();
+};
+
+const BUNDLED_BACKGROUND_PROCESS = /^\s*(?:attach-daemon\s*=|\[program:[^\]]+\]|program\s*:)/im;
+
+/**
+ * Inspect files the selected container command names directly.
+ *
+ * Process managers often hide important lifecycle work one level behind the Dockerfile command:
+ * uWSGI, Supervisor and similar tools can start migrations and background loops in every replica.
+ * Following only literal repository-file references keeps this bounded and evidence-driven; no
+ * repository program is executed and a dynamic config path contributes no claim.
+ */
+const bundledLifecycleOf = async ({
+  context,
+  service,
+  build
+}: {
+  context: ProbeContext;
+  service: ComposeService;
+  build: { root: string; dockerfile?: string };
+}): Promise<{
+  lifecycle?: NonNullable<ServiceFactInput['bundledLifecycle']>;
+  evidence: Citation[];
+}> => {
+  const commands = [commandOf(service)];
+  if (build.dockerfile !== undefined) {
+    const dockerfile = await readText(context, build.dockerfile);
+    commands.push(dockerfile === undefined ? undefined : dockerfileDefaultCommand(dockerfile));
+  }
+  const commandText = commands
+    .filter((command): command is string => command !== undefined)
+    .join('\n')
+    .replaceAll('\\', '/');
+  if (commandText === '') return { evidence: [] };
+
+  const referencedFiles = context.files
+    .filter((file) => {
+      const relativeToBuildRoot =
+        build.root === '.' ? file : file.startsWith(`${build.root}/`) ? file.slice(build.root.length + 1) : undefined;
+      return (
+        commandText.includes(file) ||
+        commandText.includes(`/${file}`) ||
+        (relativeToBuildRoot !== undefined && commandText.includes(relativeToBuildRoot))
+      );
+    })
+    .slice(0, 8);
+  if (referencedFiles.length === 0) return { evidence: [] };
+
+  let databaseMigrations = false;
+  let backgroundProcesses = false;
+  const evidence: Citation[] = [];
+  for (const file of referencedFiles) {
+    // oxlint-disable-next-line no-await-in-loop -- bounded by eight literal command references.
+    const raw = await readText(context, file, { fullFile: true });
+    if (raw === undefined) continue;
+    if (!databaseMigrations && MIGRATION_COMMAND.test(raw)) {
+      databaseMigrations = true;
+      const citation = citeFirstMatchOnly(file, raw, MIGRATION_COMMAND, 'bundledLifecycle');
+      if (citation !== undefined) evidence.push(citation);
+    }
+    if (!backgroundProcesses && BUNDLED_BACKGROUND_PROCESS.test(raw)) {
+      backgroundProcesses = true;
+      const citation = citeFirstMatchOnly(file, raw, BUNDLED_BACKGROUND_PROCESS, 'bundledLifecycle');
+      if (citation !== undefined) evidence.push(citation);
+    }
+  }
+  return {
+    ...(databaseMigrations || backgroundProcesses ? { lifecycle: { databaseMigrations, backgroundProcesses } } : {}),
+    evidence
+  };
 };
 
 const environmentEntries = (service: ComposeService): Array<{ name: string; value?: unknown }> => {
@@ -586,6 +657,8 @@ export const dockerComposeProbe: Probe = {
       // migration forever and charge the user for a service that is meant to exit once.
       if (oneShotConsumers.has(composeName)) continue;
       const name = appNames.get(composeName)!;
+      // oxlint-disable-next-line no-await-in-loop -- one bounded literal config traversal per app service.
+      const bundledLifecycle = await bundledLifecycleOf({ context, service, build });
       if (isDevelopmentProcess(service, build)) {
         developmentProcesses.add(`${build.root}::compose:${composeName}`);
       }
@@ -684,8 +757,9 @@ export const dockerComposeProbe: Probe = {
         executionModel: 'long-running',
         ...(typeof service.command === 'string' && service.command !== '' ? { startCommand: service.command } : {}),
         ...(build.dockerfile === undefined ? {} : { dockerfile: build.dockerfile }),
+        ...(bundledLifecycle.lifecycle === undefined ? {} : { bundledLifecycle: bundledLifecycle.lifecycle }),
         environmentVariables: variables,
-        evidence: citation === undefined ? [] : [citation],
+        evidence: [...(citation === undefined ? [] : [citation]), ...bundledLifecycle.evidence],
         source: 'probe'
       });
     }

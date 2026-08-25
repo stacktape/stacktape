@@ -104,6 +104,65 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     }
   },
   {
+    id: 'real-healthchecks',
+    repository: 'https://github.com/healthchecks/healthchecks.git',
+    commit: '29b5ec251059034b79e0120e2ff0c3e35d7bd9f8',
+    license: 'BSD-3-Clause',
+    source: 'real-application',
+    exercises: ['django', 'docker-compose', 'custom-port', 'postgres', 'smtp', 'bundled-lifecycle'],
+    expect: {
+      resourceTypes: { bastion: 1, 'relational-database': 1, 'web-service': 1 },
+      dependencyKinds: { email: 1, postgres: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      services: [
+        {
+          name: 'real-healthchecks',
+          path: '.',
+          exposesHttp: true,
+          port: 8000,
+          dockerfile: 'docker/Dockerfile'
+        }
+      ],
+      existingDeployments: [],
+      requiredConfig: [
+        'containerPort: 8000',
+        'dockerfilePath: docker/Dockerfile',
+        'maxInstances: 1',
+        'name: DB',
+        'value: postgres',
+        'name: DB_HOST',
+        "$ResourceParam('mainDatabase', 'host')",
+        'name: DB_NAME',
+        "$ResourceParam('mainDatabase', 'dbName')",
+        'name: DB_PASSWORD',
+        "$Secret('real-healthchecks-mainDatabase.password')",
+        'name: DB_PORT',
+        "$ResourceParam('mainDatabase', 'port')",
+        'name: DB_USER',
+        'value: stacktape',
+        'name: DEBUG',
+        'value: "False"',
+        'name: SECRET_KEY',
+        "$Secret('real-healthchecks-realHealthchecks.generatedSecretKey')",
+        'name: SITE_ROOT',
+        "$ResourceParam('realHealthchecks', 'url')"
+      ],
+      forbiddenConfig: [
+        'type: bucket',
+        'name: S3_',
+        'name: METRICS_KEY',
+        'name: DISCORD_CLIENT_ID',
+        'name: GITHUB_CLIENT_ID',
+        'name: PUSHBULLET_CLIENT_ID',
+        'name: SLACK_CLIENT_ID'
+      ],
+      requiredGapPatterns: ['SMTP host.*port.*username.*password', 'keeps it at one instance'],
+      forbiddenGapPatterns: ['does not read a configurable address', 'EMAIL_HOST points at'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
     id: 'fly-remix',
     repository: 'https://github.com/fly-apps/hello-remix.git',
     commit: 'b12a6b1fb5522478360dd7a7e93cbe1643cd48d6',

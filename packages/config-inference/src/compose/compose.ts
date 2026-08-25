@@ -21,7 +21,12 @@ import type { Uncertainty } from '../facts/uncertainty';
 import { resolveAssumptions, type Assumption } from './assumptions';
 import { classifyService, type ServiceResourceType } from './classify';
 import { resolveEngineVersion, type EngineVersionCatalogue } from './engine-versions';
-import { generatedDatabasePasswordSecretReference, secretNameFor, wiringFor } from './env-wiring';
+import {
+  generatedApplicationSecretReference,
+  generatedDatabasePasswordSecretReference,
+  secretNameFor,
+  wiringFor
+} from './env-wiring';
 import { composeMigrationHooks } from './migrations';
 import { monorepoPackaging } from './monorepo';
 import { MODE_PREFERENCES, MODE_PROFILES, type InfrastructureMode } from './modes';
@@ -320,6 +325,20 @@ const environmentFor = (
           name: variable.name,
           value: secretReference(projectName, composed.resourceName)
         });
+      } else if (wiring.kind === 'database-engine') {
+        variables.push({ name: variable.name, value: composed.kind });
+      } else if (wiring.kind === 'database-username') {
+        variables.push({ name: variable.name, value: 'stacktape' });
+      }
+      continue;
+    }
+    if (variable.role === 'generated-secret') {
+      const self = serviceResourceNames.get(service.name);
+      if (self !== undefined) {
+        variables.push({
+          name: variable.name,
+          value: generatedApplicationSecretReference(projectName, self, variable.name)
+        });
       }
       continue;
     }
@@ -337,7 +356,7 @@ const environmentFor = (
     if (
       variable.role === 'runtime-config' &&
       service.exposesHttp &&
-      /^(?:APP|APPLICATION|SITE|NEXTAUTH)_URL$/i.test(variable.name)
+      /^(?:APP|APPLICATION|SITE|NEXTAUTH)_(?:URL|ROOT|ORIGIN)$/i.test(variable.name)
     ) {
       const self = serviceResourceNames.get(service.name);
       if (self !== undefined)
@@ -363,6 +382,14 @@ const environmentFor = (
           value: `$Secret('${secretName}')`
         });
       }
+      continue;
+    }
+    if (
+      variable.role === 'runtime-config' &&
+      service.framework === 'django' &&
+      /^(?:DEBUG|DJANGO_DEBUG)$/i.test(variable.name)
+    ) {
+      variables.push({ name: variable.name, value: 'False' });
       continue;
     }
     if (variable.role === 'cross-service-reference' && variable.targetServiceName !== undefined) {
@@ -518,7 +545,8 @@ const composeDependency = (
       };
     case 'email':
       return {
-        unsupported: 'Sending email uses SES, which is configured on your domain rather than created as a resource.'
+        unsupported:
+          'This application can send email through SMTP, but the repository does not provide production mail credentials. Before using email features, set the SMTP host, port, username, password, sender address, and TLS settings. AWS SES can supply SMTP credentials if you choose it.'
       };
     case 'kafka':
       return {
@@ -835,7 +863,7 @@ export const composeConfig = ({
           variable.hasDeclaredValue &&
           variable.safeLiteralValue === undefined &&
           variable.required &&
-          !(service.exposesHttp && /^(?:APP|APPLICATION|SITE|NEXTAUTH)_URL$/i.test(variable.name))
+          !(service.exposesHttp && /^(?:APP|APPLICATION|SITE|NEXTAUTH)_(?:URL|ROOT|ORIGIN)$/i.test(variable.name))
       )
       .map((variable) => ({
         name: variable.name,
@@ -906,6 +934,13 @@ export const composeConfig = ({
       reason: classification.reason,
       evidence: classification.evidence
     };
+    if (service.bundledLifecycle !== undefined) {
+      gaps.push({
+        subject: `${service.name}.scaling`,
+        message:
+          'This container starts database migrations or background loops inside the main service process. Init keeps it at one instance so those jobs do not run concurrently. Separate that lifecycle work before enabling horizontal scaling.'
+      });
+    }
 
     // Root-context builds can carry a stated limitation; the packaging itself is emitted inside
     // `buildServiceResource`, and the caveat belongs next to the other honest omissions. Only the
@@ -1211,10 +1246,16 @@ const buildServiceResource = ({
     properties: {
       packaging: packagingFor(service, packageManager, suppressNixpacksRelease),
       resources: { ...profile.container },
+      ...(resourceType === 'web-service' && service.port !== undefined && service.port !== 3000
+        ? { containerPort: service.port }
+        : {}),
       // Scaling is only meaningful for something that stays up. A batch job is sized, not scaled.
       scaling: {
-        minInstances: profile.scaling.minInstances,
-        maxInstances: profile.scaling.maxInstances
+        minInstances: service.bundledLifecycle === undefined ? profile.scaling.minInstances : 1,
+        maxInstances:
+          service.bundledLifecycle === undefined
+            ? profile.scaling.maxInstances
+            : Math.min(profile.scaling.maxInstances, 1)
       },
       ...(resourceType === 'web-service'
         ? {

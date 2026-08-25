@@ -45,6 +45,13 @@ const agentServiceSchema = z
     // target open, and `checkFactsCompleteness` turns that into a decision; the agent is the one
     // reader that can go and look, so it has to either name the service or say it could not.
     for (const variable of service.environmentVariables) {
+      if (variable.role === 'generated-secret') {
+        ctx.addIssue({
+          code: 'custom',
+          path: ['environmentVariables'],
+          message: `"${variable.name}" cannot be classified as a generated secret by an agent; that security-sensitive role requires deterministic source evidence.`
+        });
+      }
       if (variable.role === 'cross-service-reference' && variable.targetServiceName === undefined) {
         ctx.addIssue({
           code: 'custom',
@@ -347,6 +354,7 @@ export const mergeAgentSubmission = ({
       workspace: existing.workspace ?? submitted.workspace,
       servesStaticAssets: existing.servesStaticAssets ?? submitted.servesStaticAssets,
       writesLocalFilesystem: existing.writesLocalFilesystem ?? submitted.writesLocalFilesystem,
+      bundledLifecycle: existing.bundledLifecycle,
       longLivedConnections:
         existing.longLivedConnections === 'none' ? submitted.longLivedConnections : existing.longLivedConnections,
       exposesHttp: existing.exposesHttp || submitted.exposesHttp,

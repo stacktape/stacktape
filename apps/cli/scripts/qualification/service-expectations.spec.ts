@@ -7,6 +7,7 @@ const services = [
     path: 'apps/web',
     framework: 'react-router',
     exposesHttp: true,
+    port: 8000,
     buildCommand: 'npm run build',
     startCommand: 'npm run start',
     dockerfile: 'apps/web/Dockerfile'
@@ -29,6 +30,7 @@ describe('service expectation matching', () => {
             path: 'apps/web',
             framework: 'react-router',
             exposesHttp: true,
+            port: 8000,
             buildCommand: 'npm run build',
             startCommand: 'npm run start',
             dockerfile: 'apps/web/Dockerfile'
@@ -36,7 +38,7 @@ describe('service expectation matching', () => {
         ],
         services
       )
-    ).toEqual({ assertions: 9, failures: [] });
+    ).toEqual({ assertions: 10, failures: [] });
   });
 
   test('does not fall back to the first service when a named service is absent', () => {
@@ -58,5 +60,10 @@ describe('service expectation matching', () => {
   test('reports build-command drift', () => {
     const result = validateServiceExpectations([{ name: 'web', buildCommand: 'pnpm build' }], services);
     expect(result.failures).toEqual(['service web buildCommand: expected "pnpm build"; got "npm run build".']);
+  });
+
+  test('reports container-port drift', () => {
+    const result = validateServiceExpectations([{ name: 'web', port: 3000 }], services);
+    expect(result.failures).toEqual(['service web port: expected 3000; got 8000.']);
   });
 });

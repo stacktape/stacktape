@@ -21,6 +21,10 @@ export type EnvironmentWiring =
   | { kind: 'param'; param: string }
   /** The generated database password secret — the same one the database resource itself uses. */
   | { kind: 'password-secret' }
+  /** The selected managed database engine, for settings such as `DB=postgres`. */
+  | { kind: 'database-engine' }
+  /** The composer-owned RDS master username. */
+  | { kind: 'database-username' }
   /** Recognized, and deliberately left unwired: the platform default is the honest answer. */
   | { kind: 'none' };
 
@@ -62,12 +66,18 @@ export const wiringFor = (kind: DependencyKind, variableName: string): Environme
   if (/(?:CLIENT|CLUSTER|DRIVER|PREFIX|SUFFIX|RETRY|FAILED_DRIVER)$/.test(name)) return { kind: 'none' };
   if (/(?:^|_)CONNECTION$/.test(name)) return { kind: 'none' };
 
+  if (/^(?:(?:DATABASE|DB)_(?:TYPE|ENGINE|DIALECT)|DB)$/.test(name)) {
+    return RDS_KINDS.has(kind) ? { kind: 'database-engine' } : { kind: 'none' };
+  }
+
   if (/PASSWORD|PASSWD/.test(name)) {
     // Only RDS databases get a generated password secret; everything else has no password of ours
     // to hand out, and a wrong guess here would put a connection string where a password belongs.
     return RDS_KINDS.has(kind) ? { kind: 'password-secret' } : { kind: 'none' };
   }
-  if (/USER(NAME)?$/.test(name)) return { kind: 'none' };
+  if (/(?:^|_)(?:USER|USERNAME)$/.test(name)) {
+    return RDS_KINDS.has(kind) ? { kind: 'database-username' } : { kind: 'none' };
+  }
   if (/JDBC/.test(name))
     return RDS_KINDS.has(kind) ? { kind: 'param', param: 'jdbcConnectionString' } : { kind: 'none' };
   if (/(URL|URI|DSN|CONNECTION_?STRING)$/.test(name)) {
@@ -131,3 +141,23 @@ export const generatedDatabasePasswordSecretReference = (
   projectName: string | undefined,
   resourceName: string
 ): string => `$Secret('${projectName === undefined ? resourceName : `${projectName}-${resourceName}`}.password')`;
+
+const generatedSecretKeyFor = (variableName: string): string => {
+  const normalized = variableName
+    .toLowerCase()
+    .split(/[^a-z0-9]+/)
+    .filter(Boolean)
+    .map((part, index) => (index === 0 ? part : `${part[0]?.toUpperCase() ?? ''}${part.slice(1)}`))
+    .join('');
+  return `generated${normalized[0]?.toUpperCase() ?? ''}${normalized.slice(1)}`;
+};
+
+/** Project-scoped random application material recognized by secret preflight as auto-generable. */
+export const generatedApplicationSecretReference = (
+  projectName: string | undefined,
+  resourceName: string,
+  variableName: string
+): string => {
+  const secretName = projectName === undefined ? resourceName : `${projectName}-${resourceName}`;
+  return `$Secret('${secretName}.${generatedSecretKeyFor(variableName)}')`;
+};

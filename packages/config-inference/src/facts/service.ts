@@ -28,11 +28,14 @@ import { citationSchema, factSourceSchema } from './citation';
  * - `infra-dependency` values come from something we are provisioning.
  * - `third-party-secret` values we cannot know and must never guess; the user supplies them and
  *   they go straight to secret storage.
+ * - `generated-secret` values are application-owned signing/session material. They must be random,
+ *   but no third party supplies them, so deployment can generate them safely.
  * - `runtime-config` is the ordinary remainder: log levels, feature flags, ports.
  */
 export const environmentVariableRoleSchema = z.enum([
   'infra-dependency',
   'third-party-secret',
+  'generated-secret',
   'build-time',
   'runtime-config',
   'cross-service-reference'
@@ -305,7 +308,23 @@ export const serviceShape = {
 } as const;
 
 export const serviceFactSchema = z
-  .object({ ...serviceShape, source: factSourceSchema })
+  .object({
+    ...serviceShape,
+    /**
+     * Lifecycle work the selected container command starts inside every service replica.
+     *
+     * Probe-only: it is derived from a referenced process-manager or entrypoint file. It does not
+     * live in `serviceShape`, so repository-controlled agent output cannot manufacture a scaling
+     * constraint.
+     */
+    bundledLifecycle: z
+      .object({
+        databaseMigrations: z.boolean(),
+        backgroundProcesses: z.boolean()
+      })
+      .optional(),
+    source: factSourceSchema
+  })
   .superRefine(checkServiceConsistency);
 
 export type ServiceFact = z.infer<typeof serviceFactSchema>;

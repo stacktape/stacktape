@@ -95,6 +95,7 @@ describe('qualification manifests', () => {
             name: 'app',
             framework: 'react-router',
             exposesHttp: true,
+            port: 8000,
             startCommand: 'npm run start',
             buildCommand: 'npm run build',
             dockerfile: 'Dockerfile'
@@ -109,6 +110,7 @@ describe('qualification manifests', () => {
       name: 'app',
       framework: 'react-router',
       exposesHttp: true,
+      port: 8000,
       startCommand: 'npm run start',
       buildCommand: 'npm run build',
       dockerfile: 'Dockerfile'

@@ -796,6 +796,49 @@ describe('the compose probe', () => {
     );
   });
 
+  it('preserves a custom port and detects lifecycle work bundled behind the Dockerfile command', async () => {
+    root = await makeRepo({
+      'docker-compose.yml': [
+        'services:',
+        '  web:',
+        '    build:',
+        '      context: .',
+        '      dockerfile: docker/Dockerfile',
+        '    ports: ["8000:8000"]',
+        '    depends_on: [db]',
+        '  db:',
+        '    image: postgres:17',
+        ''
+      ].join('\n'),
+      'docker/Dockerfile': [
+        'FROM python:3.14-slim',
+        'COPY . /opt/app',
+        'CMD ["uwsgi", "/opt/app/docker/uwsgi.ini"]',
+        ''
+      ].join('\n'),
+      'docker/uwsgi.ini': [
+        '[uwsgi]',
+        'http-socket = :8000',
+        'hook-pre-app = exec:./manage.py migrate',
+        'attach-daemon = ./manage.py sendalerts',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [dockerComposeProbe] });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'web',
+      port: 8000,
+      dockerfile: 'docker/Dockerfile',
+      bundledLifecycle: { databaseMigrations: true, backgroundProcesses: true }
+    });
+    expect(facts.services[0]?.evidence).toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: 'docker/uwsgi.ini', field: 'bundledLifecycle' })])
+    );
+  });
+
   it('forwards a Compose consumer through the language manifest service name', async () => {
     root = await makeRepo({
       'flask/requirements.txt': 'flask\npymongo\n',

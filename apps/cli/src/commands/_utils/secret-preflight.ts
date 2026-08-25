@@ -84,7 +84,8 @@ const promptAndCreateUserInputSecrets = async (secrets: [string, Set<string>][])
  *
  * Missing secrets are split into two categories:
  * - **Auto-generable**: used in known database password fields (relational-database masterUserPassword,
- *   redis-cluster defaultUserPassword, mongo-db-atlas-cluster adminUserCredentials.password).
+ *   redis-cluster defaultUserPassword, mongo-db-atlas-cluster adminUserCredentials.password), or
+ *   emitted by config inference as application-owned signing/session material.
  *   These are auto-generated with secure random values (with confirmation in interactive mode).
  * - **User-input**: used elsewhere (API tokens, third-party credentials, etc.).
  *   The user is prompted to enter the value interactively. In non-interactive mode,
@@ -142,7 +143,7 @@ export const ensureMissingSecretsCreated = async ({
       })
       .join('\n');
     tuiManager.info(
-      `Auto-generating ${autoGenerable.length} database secret(s) in ${tuiManager.makeBold(globalStateManager.region)}:\n${secretList}`
+      `Auto-generating ${autoGenerable.length} secret(s) in ${tuiManager.makeBold(globalStateManager.region)}:\n${secretList}`
     );
 
     const args = globalStateManager.args as StacktapeCliArgs;

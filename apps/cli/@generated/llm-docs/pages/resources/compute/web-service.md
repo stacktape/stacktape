@@ -523,6 +523,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `alarms` | no | `Array<ApplicationLoadBalancerAlarm \| HttpApiGatewayAlarm>` | - |
 | `cdn` | no | `CdnConfiguration` | - |
 | `connectTo` | no | `Array<string>` | - |
+| `containerPort` | no | `number` | `3000` |
 | `cors` | no | `HttpApiCorsConfig` | - |
 | `customDomains` | no | `Array<DomainConfiguration>` | - |
 | `deployment` | no | `ContainerWorkloadDeploymentConfig` | - |

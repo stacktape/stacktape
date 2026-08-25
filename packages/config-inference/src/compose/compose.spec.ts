@@ -1057,8 +1057,8 @@ describe('wiring application variable names to created resources', () => {
 
     const environment = environmentOf(config);
     expect(environment.POSTGRES_PASSWORD).toBe("$Secret('shop-mainDatabase.password')");
-    // We do not know the master user name, and a wrong guess is a broken login: better unwired.
-    expect(environment.POSTGRES_USER).toBeUndefined();
+    // The composer owns the matching RDS resource and therefore knows its configured master user.
+    expect(environment.POSTGRES_USER).toBe('stacktape');
   });
 
   it('never lets a hostile variable name break out of a secret directive', () => {
@@ -1237,6 +1237,98 @@ describe('pinning the declared runtime version', () => {
     expect(configFor('3.10').resources.web?.properties.packaging).toMatchObject({
       properties: { languageSpecificConfig: { runAppAs: 'ASGI' } }
     });
+  });
+});
+
+describe('composing a custom-port Django container with split database settings', () => {
+  it('preserves its image lifecycle, wires exact settings, and keeps unsafe bundled work single-replica', () => {
+    const environmentVariables: ServiceFactInput['environmentVariables'] = [
+      ...['DB', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'].map((name) => ({
+        name,
+        role: 'infra-dependency' as const,
+        dependencyName: 'mainDatabase',
+        required: true,
+        evidence: []
+      })),
+      { name: 'DEBUG', role: 'runtime-config', required: false, evidence: [] },
+      { name: 'SECRET_KEY', role: 'generated-secret', required: false, evidence: [] },
+      { name: 'SITE_ROOT', role: 'runtime-config', required: false, evidence: [] },
+      { name: 'S3_SECRET_KEY', role: 'third-party-secret', required: false, evidence: [] },
+      { name: 'GITHUB_CLIENT_ID', role: 'third-party-secret', required: false, evidence: [] }
+    ];
+    const { config, gaps } = composeConfig({
+      projectName: 'monitoring',
+      facts: facts({
+        services: [
+          service({
+            name: 'healthchecks',
+            language: 'python',
+            framework: 'django',
+            port: 8000,
+            startCommand: undefined,
+            dockerfile: 'docker/Dockerfile',
+            bundledLifecycle: { databaseMigrations: true, backgroundProcesses: true },
+            environmentVariables
+          })
+        ],
+        dependencies: [
+          {
+            name: 'mainDatabase',
+            kind: 'postgres',
+            extensions: [],
+            consumedBy: ['healthchecks'],
+            addressedBy: ['DB', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'],
+            evidence: [],
+            source: 'probe'
+          },
+          {
+            name: 'mailer',
+            kind: 'email',
+            extensions: [],
+            consumedBy: ['healthchecks'],
+            addressedBy: [],
+            evidence: [],
+            source: 'probe'
+          }
+        ]
+      })
+    });
+
+    const web = config.resources.healthchecks;
+    expect(web).toMatchObject({
+      type: 'web-service',
+      properties: {
+        containerPort: 8000,
+        packaging: {
+          type: 'custom-dockerfile',
+          properties: { dockerfilePath: 'docker/Dockerfile' }
+        },
+        scaling: { minInstances: 1, maxInstances: 1 },
+        environment: [
+          { name: 'DB', value: 'postgres' },
+          { name: 'DB_HOST', value: "$ResourceParam('mainDatabase', 'host')" },
+          { name: 'DB_PORT', value: "$ResourceParam('mainDatabase', 'port')" },
+          { name: 'DB_NAME', value: "$ResourceParam('mainDatabase', 'dbName')" },
+          { name: 'DB_USER', value: 'stacktape' },
+          { name: 'DB_PASSWORD', value: "$Secret('monitoring-mainDatabase.password')" },
+          { name: 'DEBUG', value: 'False' },
+          { name: 'SECRET_KEY', value: "$Secret('monitoring-healthchecks.generatedSecretKey')" },
+          { name: 'SITE_ROOT', value: "$ResourceParam('healthchecks', 'url')" }
+        ]
+      }
+    });
+    expect(JSON.stringify(web)).not.toContain('S3_SECRET_KEY');
+    expect(JSON.stringify(web)).not.toContain('GITHUB_CLIENT_ID');
+    expect(gaps).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          subject: 'mailer',
+          message: expect.stringMatching(/SMTP.*host.*port.*username.*password/i)
+        }),
+        expect.objectContaining({ subject: 'healthchecks.scaling', message: expect.stringContaining('one instance') })
+      ])
+    );
+    expect(gaps.some((gap) => gap.message.includes('does not read a configurable address'))).toBe(false);
   });
 });
 

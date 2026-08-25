@@ -139,6 +139,7 @@ const mergeEnvironmentVariables = (
   const rolePriority: Readonly<Record<EnvironmentVariableUse['role'], number>> = {
     'infra-dependency': 4,
     'cross-service-reference': 3,
+    'generated-secret': 3,
     'third-party-secret': 2,
     'runtime-config': 1,
     'build-time': 0
@@ -249,6 +250,7 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
     dockerfile: existing.dockerfile ?? incoming.dockerfile,
     healthCheckPath: existing.healthCheckPath ?? incoming.healthCheckPath,
     writesLocalFilesystem: existing.writesLocalFilesystem ?? incoming.writesLocalFilesystem,
+    bundledLifecycle: existing.bundledLifecycle ?? incoming.bundledLifecycle,
     servesStaticAssets,
     environmentVariables: mergeEnvironmentVariables(
       existing.environmentVariables ?? [],
@@ -599,11 +601,12 @@ const hasOnlyExampleEnvironmentEvidence = (dependency: DependencyFact): boolean 
   dependency.evidence.length > 0 &&
   dependency.evidence.every((citation) => EXAMPLE_ENVIRONMENT_FILE.test(citation.file));
 
-const hasSourceUsage = (dependency: DependencyFact, services: readonly ServiceFactInput[]): boolean =>
+const hasRequiredSourceUsage = (dependency: DependencyFact, services: readonly ServiceFactInput[]): boolean =>
   services.some((service) =>
     (service.environmentVariables ?? []).some(
       (variable) =>
         variable.dependencyName === dependency.name &&
+        variable.required !== false &&
         (variable.evidence ?? []).some((citation) => !EXAMPLE_ENVIRONMENT_FILE.test(citation.file))
     )
   );
@@ -823,7 +826,8 @@ export const assembleCandidateFacts = async ({
     if (
       hasOnlyExampleEnvironmentEvidence(dependency) &&
       !isExternalHosting(dependency) &&
-      !hasSourceUsage(dependency, services)
+      dependency.kind !== 'email' &&
+      !hasRequiredSourceUsage(dependency, services)
     ) {
       return false;
     }

@@ -114,6 +114,7 @@ export const ENV_NAME_TO_KIND: ReadonlyArray<{
   // SMTP/MAIL variables configure an application client; they are not a resource binding. A mail
   // client dependency may still produce one focused capability gap, but these names must not mint
   // a separate missing-infrastructure secret for every host/port/TLS setting.
+  { pattern: /^(?:EMAIL|SMTP)_(?:HOST|URL|URI|DSN)$/i, kind: 'email' },
   { pattern: /^(ELASTIC|OPENSEARCH|MEILI|TYPESENSE)_/i, kind: 'search' },
   { pattern: /^KAFKA_(?:URL|URI|BROKERS?|BOOTSTRAP_SERVERS)$/i, kind: 'kafka' },
   { pattern: /^NATS_(?:URL|URI|SERVERS?|HOST|PORT)$/i, kind: 'nats' },
@@ -126,6 +127,9 @@ export const ENV_NAME_TO_KIND: ReadonlyArray<{
 
 /** Names generic enough that they promise a database without saying which. */
 export const AMBIGUOUS_DATABASE_NAMES = /^(DATABASE|DB)_?(URL|URI|DSN|CONNECTION_STRING)$/i;
+
+/** Split database settings name a database but not its engine until another fact settles it. */
+export const AMBIGUOUS_DATABASE_SETTING_NAMES = /^(?:DB|DATABASE)_(?:HOST|PORT|NAME|USER|USERNAME|PASSWORD|PASSWD)$/i;
 
 /**
  * Which hosting claim wins when two environment files disagree.
@@ -252,6 +256,7 @@ export const environmentProbe: Probe = {
     const byKind = new Map<DependencyKind, { evidence: Citation[]; hosting?: DependencyHosting; names: string[] }>();
     const uncertainties: Uncertainty[] = [];
     const ambiguous = new Map<string, Citation | undefined>();
+    const ambiguousSettings = new Map<string, Citation | undefined>();
     const preferredDependencyKinds = new Set<DependencyKind>();
     const disabledDependencyKinds = new Set<DependencyKind>();
 
@@ -284,10 +289,11 @@ export const environmentProbe: Probe = {
           ) ?? '';
         const { kind: valueKind, hosting } = classifyAssignment(declaration);
         const value = assignmentValue(declaration);
-        if (/^(?:DATABASE|DB)_(?:TYPE|ENGINE|DIALECT)$/i.test(name) && value !== undefined) {
-          const selected = DATABASE_SELECTOR_VALUES[value];
-          if (selected !== undefined) preferredDependencyKinds.add(selected);
-        }
+        const selectedDatabaseKind =
+          /^(?:(?:DATABASE|DB)_(?:TYPE|ENGINE|DIALECT)|DB)$/i.test(name) && value !== undefined
+            ? DATABASE_SELECTOR_VALUES[value]
+            : undefined;
+        if (selectedDatabaseKind !== undefined) preferredDependencyKinds.add(selectedDatabaseKind);
         if (/^(?:FILE|STORAGE)_(?:DRIVER|BACKEND)$/i.test(name) && value !== undefined) {
           if (/^(?:local|file|filesystem|disk)$/.test(value)) disabledDependencyKinds.add('object-storage');
           if (/^(?:s3|object-storage|object_storage)$/.test(value)) preferredDependencyKinds.add('object-storage');
@@ -308,22 +314,36 @@ export const environmentProbe: Probe = {
 
         // A scheme in the value beats a guess from the name: `DATABASE_URL=mysql://…` is a MySQL
         // database no matter what the variable is called.
-        const kind = valueKind ?? nameKind;
+        const kind = valueKind ?? selectedDatabaseKind ?? nameKind;
 
         if (kind === undefined) {
           if (AMBIGUOUS_DATABASE_NAMES.test(name)) ambiguous.set(name, citation);
+          if (AMBIGUOUS_DATABASE_SETTING_NAMES.test(name)) ambiguousSettings.set(name, citation);
           continue;
         }
 
         const entry = byKind.get(kind) ?? { evidence: [], names: [] };
         if (citation && entry.evidence.length < 4) entry.evidence.push(citation);
         if (permitsHostingClaim && hosting !== undefined) entry.hosting = preferHosting(entry.hosting, hosting);
-        if (!entry.names.includes(name)) entry.names.push(name);
+        // Mail settings prove one optional capability, but each host/port/credential is not an
+        // infrastructure address Stacktape can inject. Keep them out of `addressedBy` so one SMTP
+        // setup gap replaces a page of misleading secret placeholders.
+        if (kind !== 'email' && !entry.names.includes(name)) entry.names.push(name);
         byKind.set(kind, entry);
       }
     }
 
     const DATABASE_KINDS: ReadonlySet<DependencyKind> = new Set(['postgres', 'mysql', 'mssql', 'mongodb', 'sqlite']);
+    const databaseEntries = [...byKind.entries()].filter(([kind]) => DATABASE_KINDS.has(kind));
+    if (databaseEntries.length === 1) {
+      const [, database] = databaseEntries[0]!;
+      for (const [name, citation] of ambiguousSettings) {
+        if (!database.names.includes(name)) database.names.push(name);
+        if (citation !== undefined && database.evidence.length < 4) database.evidence.push(citation);
+      }
+    } else {
+      for (const [name, citation] of ambiguousSettings) ambiguous.set(name, citation);
+    }
 
     for (const [name, citation] of ambiguous) {
       // Only when nothing has settled the *engine*. This used to check whether any dependency at all
