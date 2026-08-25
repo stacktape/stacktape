@@ -364,7 +364,7 @@ const configCitation = (file: string, source: string, property: LiteralProperty)
 };
 
 const safeBuildDirectory = (value: string): string | undefined => {
-  const normalized = value.replace(/^\.\//, '').replace(/\/+$/, '');
+  const normalized = value === './' ? '.' : value.replace(/^\.\//, '').replace(/\/+$/, '');
   const segments = normalized.split('/');
   const containsInvalidCharacter = [...normalized].some((character) => {
     const codePoint = character.codePointAt(0)!;

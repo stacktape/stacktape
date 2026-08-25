@@ -659,6 +659,25 @@ describe('assembleCandidateFacts', () => {
     expect(facts.services[0]?.evidence.some((citation) => citation.file === 'react-router.config.ts')).toBe(true);
   });
 
+  it('normalizes a root-relative React Router build directory to the root client output', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'root-output-spa',
+        scripts: { build: 'react-router build' },
+        dependencies: { 'react-router': '^8.0.0' },
+        devDependencies: { '@react-router/dev': '^8.0.0' }
+      }),
+      'react-router.config.ts': "export default { ssr: false, buildDirectory: './' };\n"
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+    expect(facts.services[0]).toMatchObject({
+      framework: 'react-router',
+      exposesHttp: false,
+      servesStaticAssets: { path: 'client' }
+    });
+  });
+
   it('allows documented prerender methods and unrelated shorthand in a React Router SPA config', async () => {
     const repoRoot = await makeRepo({
       'package.json': JSON.stringify({
