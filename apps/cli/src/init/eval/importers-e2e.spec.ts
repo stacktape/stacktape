@@ -201,6 +201,26 @@ const CASES: EvalCase[] = [
       ],
       deployable: true
     }
+  },
+  {
+    name: 'TanStack Start SSR web app',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'tanstack-start-app',
+        scripts: { build: 'vite build', start: 'node .output/server/index.mjs' },
+        dependencies: {
+          '@tanstack/react-start': '^1.168.49',
+          '@tanstack/react-router': '^1.170.32',
+          react: '^19.0.0'
+        }
+      }),
+      'vite.config.ts': 'import { tanstackStart } from "@tanstack/react-start/plugin/vite";\nexport default {};'
+    },
+    expect: {
+      resources: { tanstackStartApp: 'tanstack-web' },
+      deployable: true,
+      maxQuestions: 0
+    }
   }
 ];
 

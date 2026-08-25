@@ -40,6 +40,15 @@ describe('classifyService', () => {
         }).services[0]!
       ).resourceType
     ).toBe('nextjs-web');
+
+    expect(
+      classifyService(
+        projectFactsSchema.parse({
+          schemaVersion: 1,
+          services: [service({ framework: 'tanstack-start' })]
+        }).services[0]!
+      ).resourceType
+    ).toBe('tanstack-web');
   });
 
   it('puts a websocket server in a container, never a per-request function', () => {
