@@ -88,6 +88,7 @@ export const runImportQualification = async ({
     language: service.language,
     ...(service.framework === undefined ? {} : { framework: service.framework }),
     exposesHttp: service.exposesHttp,
+    ...(service.port === undefined ? {} : { port: service.port }),
     executionModel: service.executionModel,
     ...(service.processType === undefined ? {} : { processType: service.processType }),
     ...(service.buildCommand === undefined ? {} : { buildCommand: service.buildCommand }),

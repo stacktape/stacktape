@@ -22,6 +22,18 @@ export interface WebService {
 
 export interface WebServiceProps extends SimpleServiceContainer {
   /**
+   * #### Port the application listens on inside its container.
+   *
+   * ---
+   *
+   * Stacktape routes public HTTP traffic to this port and sets the `PORT` environment variable to
+   * the same value. Keep the default for applications that listen on `3000`; set this when an
+   * existing image has a different fixed listener.
+   *
+   * @default 3000
+   */
+  containerPort?: number;
+  /**
    * #### CORS settings. Overrides any CORS headers from your application.
    *
    * ---

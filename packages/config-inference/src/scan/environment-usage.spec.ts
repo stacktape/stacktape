@@ -184,4 +184,81 @@ describe('environment-usage enrichment', () => {
       expect.objectContaining({ name: 'REDIS_URL', role: 'infra-dependency', required: false })
     );
   });
+
+  it('keeps critical Django settings while treating optional envsecret integrations as optional', async () => {
+    const optionalIntegrations = Array.from(
+      { length: 48 },
+      (_, index) => `INTEGRATION_${String(index).padStart(2, '0')}_CLIENT_SECRET`
+    );
+    root = await makeRepo({
+      'requirements.txt': 'django\npsycopg[c]\n',
+      '.env.example': [
+        'DB=postgres',
+        'DB_HOST=localhost',
+        'DB_PORT=5432',
+        'DB_NAME=postgres',
+        'DB_USER=postgres',
+        'DB_PASSWORD=',
+        'DEBUG=False',
+        'SECRET_KEY=---',
+        'SITE_ROOT=http://localhost:8000',
+        'EMAIL_HOST=',
+        'S3_BUCKET=',
+        'S3_SECRET_KEY=',
+        ...optionalIntegrations.map((name) => `${name}=`),
+        ''
+      ].join('\n'),
+      'app/settings.py': [
+        'import os',
+        'def envsecret(name, default=None): return os.getenv(name, default)',
+        'DB = os.getenv("DB", "sqlite")',
+        'DB_HOST = os.getenv("DB_HOST", "localhost")',
+        'DB_PORT = os.getenv("DB_PORT", "5432")',
+        'DB_NAME = os.getenv("DB_NAME", "postgres")',
+        'DB_USER = os.getenv("DB_USER", "postgres")',
+        'DB_PASSWORD = envsecret("DB_PASSWORD", "")',
+        'DEBUG = os.getenv("DEBUG", "True")',
+        'SECRET_KEY = envsecret("SECRET_KEY", "---")',
+        'SITE_ROOT = os.getenv("SITE_ROOT", "http://localhost:8000")',
+        'EMAIL_HOST = os.getenv("EMAIL_HOST", "")',
+        'S3_BUCKET = os.getenv("S3_BUCKET", "")',
+        'S3_SECRET_KEY = envsecret("S3_SECRET_KEY")',
+        ...optionalIntegrations.map((name) => `${name} = envsecret("${name}")`),
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe, environmentProbe]
+    });
+    const variables = new Map(facts.services[0]?.environmentVariables.map((variable) => [variable.name, variable]));
+
+    expect(variables.get('SECRET_KEY')).toMatchObject({ role: 'generated-secret', required: false });
+    expect(variables.get('SITE_ROOT')).toMatchObject({ role: 'runtime-config', required: false });
+    expect(variables.get(optionalIntegrations[0]!)).toMatchObject({ role: 'third-party-secret', required: false });
+    expect(variables.get(optionalIntegrations.at(-1)!)).toMatchObject({ role: 'third-party-secret', required: false });
+    expect(variables.get('EMAIL_HOST')).toMatchObject({ role: 'runtime-config', required: false });
+    expect(facts.dependencies.map((dependency) => dependency.kind)).toEqual(['postgres', 'email']);
+    expect(facts.dependencies.find((dependency) => dependency.kind === 'postgres')?.addressedBy).toEqual(
+      expect.arrayContaining(['DB', 'DB_HOST', 'DB_PORT', 'DB_NAME', 'DB_USER', 'DB_PASSWORD'])
+    );
+  });
+
+  it('does not assume an envsecret helper is optional when its definition has no default', async () => {
+    root = await makeRepo({
+      'requirements.txt': 'django\n',
+      'app/settings.py': [
+        'import os',
+        'def envsecret(name): return os.environ[name]',
+        'PAYMENTS_API_KEY = envsecret("PAYMENTS_API_KEY")',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [languageManifestProbe] });
+    expect(facts.services[0]?.environmentVariables).toContainEqual(
+      expect.objectContaining({ name: 'PAYMENTS_API_KEY', role: 'third-party-secret', required: true })
+    );
+  });
 });

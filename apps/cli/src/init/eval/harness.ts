@@ -56,6 +56,18 @@ export type EvalExpectation = {
    * cannot reach it deploys green — so the corpus has to assert the emitted values directly.
    */
   serviceEnvironment?: ReadonlyArray<{ resource: string; name: string; value: string }>;
+  /** Environment entries that optional capabilities must not force into the generated service. */
+  absentServiceEnvironment?: ReadonlyArray<{ resource: string; name: string }>;
+  /** Routing and scaling semantics that are otherwise invisible behind a valid resource type. */
+  serviceProperties?: ReadonlyArray<{
+    resource: string;
+    containerPort?: number;
+    minInstances?: number;
+    maxInstances?: number;
+  }>;
+  /** User-visible setup guidance emitted by composition. */
+  requiredGapPatterns?: readonly string[];
+  forbiddenGapPatterns?: readonly string[];
   /** Packaging contracts that must survive the complete probe, verification, and composition path. */
   resourcePackaging?: ReadonlyArray<{
     resource: string;
@@ -72,6 +84,8 @@ export type EvalCase = {
   name: string;
   /** A fixture repository, written to a temporary directory for the run. */
   files: Record<string, string>;
+  /** Stable repository basename for cases whose inferred service name comes from the directory. */
+  directoryName?: string;
   expect: EvalExpectation;
 };
 
@@ -93,14 +107,19 @@ export type EvalScore = {
   dependenciesFound: number;
 };
 
-const writeFixture = async (files: Record<string, string>): Promise<string> => {
-  const root = await mkdtemp(join(tmpdir(), 'stacktape-eval-'));
+const writeFixture = async (
+  files: Record<string, string>,
+  directoryName?: string
+): Promise<{ root: string; cleanupRoot: string }> => {
+  const cleanupRoot = await mkdtemp(join(tmpdir(), 'stacktape-eval-'));
+  const root = directoryName === undefined ? cleanupRoot : join(cleanupRoot, directoryName);
+  if (directoryName !== undefined) await mkdir(root, { recursive: true });
   for (const [path, contents] of Object.entries(files)) {
     const absolute = join(root, path);
     await mkdir(join(absolute, '..'), { recursive: true });
     await writeFile(absolute, contents, 'utf8');
   }
-  return root;
+  return { root, cleanupRoot };
 };
 
 export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalScore => {
@@ -124,7 +143,10 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
     for (const [name, type] of Object.entries(expected.resources)) {
       const actual = composed[name];
       if (actual === undefined) {
-        failures.push({ stage: 'composition', detail: `Expected a resource named "${name}".` });
+        failures.push({
+          stage: 'composition',
+          detail: `Expected a resource named "${name}". Found: ${Object.keys(composed).join(', ') || 'none'}.`
+        });
       } else if (actual.type !== type) {
         failures.push({ stage: 'composition', detail: `"${name}" is a ${actual.type}; expected a ${type}.` });
       }
@@ -138,13 +160,6 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
       stage: 'composition',
       detail: `Composed ${Object.keys(result.composition.config.resources).length} resources; expected exactly ${expected.resourceCount}.`
     });
-  }
-
-  const gapText = result.composition.gaps.map((gap) => `${gap.subject}: ${gap.message}`);
-  for (const pattern of expected.requiredGapPatterns ?? []) {
-    if (!gapText.some((gap) => new RegExp(pattern, 'i').test(gap))) {
-      failures.push({ stage: 'composition', detail: `No user-visible gap matches /${pattern}/i.` });
-    }
   }
 
   for (const scriptName of expected.scriptNames ?? []) {
@@ -167,6 +182,48 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
         stage: 'composition',
         detail: `${wiring.name} on "${wiring.resource}" is ${String(entry.value)}; expected ${wiring.value}.`
       });
+    }
+  }
+
+  for (const absent of expected.absentServiceEnvironment ?? []) {
+    const resource = result.composition.config.resources[absent.resource];
+    const environment = (resource?.properties.environment ?? []) as Array<{ name: string; value: unknown }>;
+    if (environment.some((variable) => variable.name === absent.name)) {
+      failures.push({
+        stage: 'composition',
+        detail: `Expected "${absent.resource}" to omit optional ${absent.name}; it was emitted.`
+      });
+    }
+  }
+
+  for (const expectedProperties of expected.serviceProperties ?? []) {
+    const properties = result.composition.config.resources[expectedProperties.resource]?.properties;
+    const scaling = properties?.scaling as { minInstances?: number; maxInstances?: number } | undefined;
+    for (const [field, actual] of [
+      ['containerPort', properties?.containerPort],
+      ['minInstances', scaling?.minInstances],
+      ['maxInstances', scaling?.maxInstances]
+    ] as const) {
+      const wanted = expectedProperties[field];
+      if (wanted !== undefined && actual !== wanted) {
+        failures.push({
+          stage: 'composition',
+          detail: `${field} on "${expectedProperties.resource}" is ${String(actual)}; expected ${wanted}.`
+        });
+      }
+    }
+  }
+
+  const gapText = result.composition.gaps.map((gap) => `${gap.subject}: ${gap.message}`);
+  for (const pattern of expected.requiredGapPatterns ?? []) {
+    if (!gapText.some((gap) => new RegExp(pattern, 'i').test(gap))) {
+      failures.push({ stage: 'composition', detail: `Expected a composition gap matching /${pattern}/i.` });
+    }
+  }
+  for (const pattern of expected.forbiddenGapPatterns ?? []) {
+    const match = gapText.find((gap) => new RegExp(pattern, 'i').test(gap));
+    if (match !== undefined) {
+      failures.push({ stage: 'composition', detail: `Unexpected composition gap matching /${pattern}/i: ${match}` });
     }
   }
 
@@ -260,7 +317,7 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
  * the same harness scores both without a second code path.
  */
 export const runEvalCase = async (evalCase: EvalCase, runAgent?: AgentRunner): Promise<EvalScore> => {
-  const root = await writeFixture(evalCase.files);
+  const { root, cleanupRoot } = await writeFixture(evalCase.files, evalCase.directoryName);
   try {
     const result = await runGreenfieldMission({
       repositoryRoot: root,
@@ -269,7 +326,7 @@ export const runEvalCase = async (evalCase: EvalCase, runAgent?: AgentRunner): P
     });
     return scoreResult(evalCase, result);
   } finally {
-    await rm(root, { recursive: true, force: true });
+    await rm(cleanupRoot, { recursive: true, force: true });
   }
 };
 

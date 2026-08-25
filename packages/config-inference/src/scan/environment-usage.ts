@@ -31,7 +31,10 @@ import { isPlatformEnvironmentVariable } from './platform-environment';
 /** Whole-repo and per-service ceilings, so one pathological repository cannot stall the scan. */
 const MAX_FILES_SCANNED = 800;
 const MAX_FILES_PER_SERVICE = 300;
-const MAX_VARIABLES_PER_SERVICE = 32;
+// Large applications commonly expose dozens of optional integrations from one settings module.
+// Keep the scan bounded, but leave enough room for deployment-critical settings that sort after
+// those integrations (for example `SITE_ROOT` in a Django application).
+const MAX_VARIABLES_PER_SERVICE = 96;
 const MAX_EVIDENCE_PER_VARIABLE = 2;
 
 /** A name has to look like configuration. Two characters catches `DB`; one catches noise. */
@@ -43,6 +46,10 @@ type ReadPattern = {
   buildTime?: boolean;
   /** How a fallback value appears immediately after this read, when the language has one. */
   fallback?: 'js-or' | 'call-argument';
+  /** The language API itself returns an absent value instead of failing when the name is unset. */
+  optionalRead?: boolean;
+  /** A project-local Python helper is optional only when its own definition proves a default. */
+  optionalWhenHelperHasDefault?: boolean;
 };
 
 const JS_PATTERNS: readonly ReadPattern[] = [
@@ -59,8 +66,28 @@ const PATTERNS_BY_EXTENSION: ReadonlyArray<{ extensions: RegExp; patterns: reado
     extensions: /\.py$/,
     patterns: [
       { pattern: new RegExp(`os\\.environ\\[\\s*['"]${NAME}['"]\\s*\\]`, 'g') },
-      { pattern: new RegExp(`os\\.environ\\.get\\(\\s*['"]${NAME}['"]`, 'g'), fallback: 'call-argument' },
-      { pattern: new RegExp(`os\\.getenv\\(\\s*['"]${NAME}['"]`, 'g'), fallback: 'call-argument' }
+      {
+        pattern: new RegExp(`os\\.environ\\.get\\(\\s*['"]${NAME}['"]`, 'g'),
+        fallback: 'call-argument',
+        optionalRead: true
+      },
+      {
+        pattern: new RegExp(`os\\.getenv\\(\\s*['"]${NAME}['"]`, 'g'),
+        fallback: 'call-argument',
+        optionalRead: true
+      },
+      {
+        // `envsecret` is a conventional optional secret reader: without a value it returns the
+        // supplied default (or `None`). Treating every no-default call as mandatory creates secret
+        // prompts for every disabled OAuth/integration supported by a settings module.
+        pattern: new RegExp(`\\benvsecret\\(\\s*['"]${NAME}['"]`, 'g'),
+        fallback: 'call-argument',
+        optionalWhenHelperHasDefault: true
+      },
+      {
+        pattern: new RegExp(`\\benv(?:bool|int|float|str)\\(\\s*['"]${NAME}['"]`, 'g'),
+        fallback: 'call-argument'
+      }
     ]
   },
   {
@@ -104,6 +131,9 @@ const BUILD_TIME_PREFIX = /^(?:NEXT_PUBLIC_|VITE_|REACT_APP_|GATSBY_|NUXT_PUBLIC
 const SECRET_NAME =
   /SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY|API_KEY|APIKEY|ACCESS_KEY|CLIENT_ID|CLIENT_SECRET|AUTH|CREDENTIAL|SIGNING|DSN|LICENSE_KEY|_KEY$/;
 
+const GENERATED_APPLICATION_SECRET_NAME =
+  /^(?:SECRET_KEY|SESSION_SECRET|COOKIE_SECRET|CSRF_SECRET|AUTH_SECRET|JWT_SECRET|SIGNING_SECRET)$/;
+
 /** Directories whose env reads describe tooling or test rigs, not the deployed process. */
 const EXCLUDED_PATH = new RegExp(
   '(^|/)(' +
@@ -139,12 +169,15 @@ const EXCLUDED_PATH = new RegExp(
 
 const EXCLUDED_FILE = /\.(?:test|spec|stories)\.[^.]+$|\.d\.ts$/i;
 
+const OPTIONAL_ENVSECRET_DEFINITION = /\bdef\s+envsecret\s*\([^)]*\bdefault(?:\s*:[^=,)]+)?\s*=\s*(?:None|["']{2})/;
+
 const ROLE_ORDER: Record<EnvironmentVariableRole, number> = {
   'build-time': 0,
   'infra-dependency': 1,
-  'third-party-secret': 2,
-  'cross-service-reference': 3,
-  'runtime-config': 4
+  'generated-secret': 2,
+  'third-party-secret': 3,
+  'cross-service-reference': 4,
+  'runtime-config': 5
 };
 
 type Occurrence = {
@@ -167,7 +200,7 @@ const collectFromFile = (path: string, contents: string, occurrences: Map<string
 
   const lines = contents.split(/\r?\n/);
   for (const [index, line] of lines.entries()) {
-    for (const { pattern, buildTime, fallback } of group.patterns) {
+    for (const { pattern, buildTime, fallback, optionalRead, optionalWhenHelperHasDefault } of group.patterns) {
       pattern.lastIndex = 0;
       for (const match of line.matchAll(pattern)) {
         const name = match[1];
@@ -179,7 +212,10 @@ const collectFromFile = (path: string, contents: string, occurrences: Map<string
         }
         entry.buildTimeRead = entry.buildTimeRead || buildTime === true;
         entry.alwaysHasFallback =
-          entry.alwaysHasFallback && hasFallback(line, (match.index ?? 0) + match[0].length, fallback);
+          entry.alwaysHasFallback &&
+          (optionalRead === true ||
+            (optionalWhenHelperHasDefault === true && OPTIONAL_ENVSECRET_DEFINITION.test(contents)) ||
+            hasFallback(line, (match.index ?? 0) + match[0].length, fallback));
         occurrences.set(name, entry);
       }
     }
@@ -202,6 +238,10 @@ const resolveDependency = (name: string, dependencies: readonly DependencyFact[]
 
   const kind = ENV_NAME_TO_KIND.find((entry) => entry.pattern.test(name))?.kind;
   if (kind !== undefined) {
+    // SMTP variables configure a client rather than identify infrastructure Stacktape can bind.
+    // The environment probe retains one email capability fact so composition can explain setup;
+    // source reads must not turn EMAIL_HOST into a misleading resource-secret placeholder.
+    if (kind === 'email') return undefined;
     const ofKind = dependencies.filter((dependency) => dependency.kind === kind);
     return ofKind.length === 1 ? ofKind[0] : undefined;
   }
@@ -224,6 +264,7 @@ const classify = (
   if (occurrence.buildTimeRead || BUILD_TIME_PREFIX.test(name)) return { role: 'build-time' };
   const dependency = resolveDependency(name, dependencies);
   if (dependency !== undefined) return { role: 'infra-dependency', dependencyName: dependency.name };
+  if (GENERATED_APPLICATION_SECRET_NAME.test(name)) return { role: 'generated-secret' };
   if (SECRET_NAME.test(name)) return { role: 'third-party-secret' };
   return { role: 'runtime-config' };
 };
@@ -299,7 +340,12 @@ export const enrichEnvironmentUsage = async ({
       });
     }
     const uses = classified
-      .toSorted((a, b) => ROLE_ORDER[a.role] - ROLE_ORDER[b.role] || a.name.localeCompare(b.name))
+      .toSorted(
+        (a, b) =>
+          Number(b.required) - Number(a.required) ||
+          ROLE_ORDER[a.role] - ROLE_ORDER[b.role] ||
+          a.name.localeCompare(b.name)
+      )
       .slice(0, MAX_VARIABLES_PER_SERVICE);
 
     for (const service of byPath.get(path) ?? []) {

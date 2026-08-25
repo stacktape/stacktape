@@ -65,6 +65,108 @@ const CASES: EvalCase[] = [
     }
   },
   {
+    name: 'Django Compose image with custom port, split Postgres settings, and bundled lifecycle',
+    directoryName: 'healthchecks',
+    files: {
+      'pyproject.toml': '[project]\nname = "healthchecks"\ndependencies = ["django", "psycopg[c]"]\n',
+      'requirements.txt': 'django\npsycopg[c]\n',
+      '.env.example': [
+        'DB=postgres',
+        'DB_HOST=localhost',
+        'DB_PORT=5432',
+        'DB_NAME=postgres',
+        'DB_USER=postgres',
+        'DB_PASSWORD=',
+        'DEBUG=False',
+        'SECRET_KEY=---',
+        'SITE_ROOT=http://localhost:8000',
+        'EMAIL_HOST=',
+        'S3_BUCKET=',
+        'S3_SECRET_KEY=',
+        'GITHUB_CLIENT_ID=',
+        'GITHUB_CLIENT_SECRET=',
+        'METRICS_KEY=',
+        ''
+      ].join('\n'),
+      'hc/settings.py': [
+        'import os',
+        'def envsecret(name, default=None): return os.getenv(name, default)',
+        'DB = os.getenv("DB", "sqlite")',
+        'DB_HOST = os.getenv("DB_HOST", "localhost")',
+        'DB_PORT = os.getenv("DB_PORT", "5432")',
+        'DB_NAME = os.getenv("DB_NAME", "postgres")',
+        'DB_USER = os.getenv("DB_USER", "postgres")',
+        'DB_PASSWORD = envsecret("DB_PASSWORD", "")',
+        'DEBUG = os.getenv("DEBUG", "True")',
+        'SECRET_KEY = envsecret("SECRET_KEY", "---")',
+        'SITE_ROOT = os.getenv("SITE_ROOT", "http://localhost:8000")',
+        'EMAIL_HOST = os.getenv("EMAIL_HOST", "")',
+        'S3_BUCKET = os.getenv("S3_BUCKET", "")',
+        'S3_SECRET_KEY = envsecret("S3_SECRET_KEY")',
+        'GITHUB_CLIENT_ID = os.getenv("GITHUB_CLIENT_ID")',
+        'GITHUB_CLIENT_SECRET = envsecret("GITHUB_CLIENT_SECRET")',
+        'METRICS_KEY = os.getenv("METRICS_KEY")',
+        ''
+      ].join('\n'),
+      'docker/Dockerfile': [
+        'FROM python:3.14-slim',
+        'COPY . /opt/healthchecks',
+        'WORKDIR /opt/healthchecks',
+        'CMD ["uwsgi", "/opt/healthchecks/docker/uwsgi.ini"]',
+        ''
+      ].join('\n'),
+      'docker/uwsgi.ini': [
+        '[uwsgi]',
+        'http-socket = :8000',
+        'hook-pre-app = exec:./manage.py migrate',
+        'attach-daemon = ./manage.py sendalerts',
+        'attach-daemon = ./manage.py sendreports --loop',
+        ''
+      ].join('\n'),
+      'docker/docker-compose.yml': [
+        'services:',
+        '  web:',
+        '    build:',
+        '      context: ..',
+        '      dockerfile: docker/Dockerfile',
+        '    ports: ["8000:8000"]',
+        '    depends_on: [db]',
+        '  db:',
+        '    image: postgres:17',
+        ''
+      ].join('\n')
+    },
+    expect: {
+      dependencyKinds: ['postgres', 'email'],
+      absentDependencyKinds: ['object-storage'],
+      resources: { healthchecks: 'web-service', mainDatabase: 'relational-database' },
+      serviceProperties: [{ resource: 'healthchecks', containerPort: 8000, minInstances: 1, maxInstances: 1 }],
+      resourcePackaging: [{ resource: 'healthchecks', type: 'custom-dockerfile', dockerfilePath: 'docker/Dockerfile' }],
+      serviceEnvironment: [
+        { resource: 'healthchecks', name: 'DB', value: 'postgres' },
+        { resource: 'healthchecks', name: 'DB_HOST', value: "$ResourceParam('mainDatabase', 'host')" },
+        { resource: 'healthchecks', name: 'DB_PORT', value: "$ResourceParam('mainDatabase', 'port')" },
+        { resource: 'healthchecks', name: 'DB_NAME', value: "$ResourceParam('mainDatabase', 'dbName')" },
+        { resource: 'healthchecks', name: 'DB_USER', value: 'stacktape' },
+        { resource: 'healthchecks', name: 'DB_PASSWORD', value: "$Secret('eval-mainDatabase.password')" },
+        { resource: 'healthchecks', name: 'DEBUG', value: 'False' },
+        { resource: 'healthchecks', name: 'SECRET_KEY', value: "$Secret('eval-healthchecks.generatedSecretKey')" },
+        { resource: 'healthchecks', name: 'SITE_ROOT', value: "$ResourceParam('healthchecks', 'url')" }
+      ],
+      absentServiceEnvironment: [
+        { resource: 'healthchecks', name: 'S3_SECRET_KEY' },
+        { resource: 'healthchecks', name: 'GITHUB_CLIENT_ID' },
+        { resource: 'healthchecks', name: 'GITHUB_CLIENT_SECRET' },
+        { resource: 'healthchecks', name: 'METRICS_KEY' },
+        { resource: 'healthchecks', name: 'EMAIL_HOST' }
+      ],
+      requiredGapPatterns: ['SMTP.*host.*port.*username.*password', 'keeps it at one instance'],
+      forbiddenGapPatterns: ['does not read a configurable address', 'EMAIL_HOST points at'],
+      deployable: true,
+      maxQuestions: 0
+    }
+  },
+  {
     name: 'Procfile web and worker sharing one application Dockerfile',
     files: {
       'package.json': JSON.stringify({

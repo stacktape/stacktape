@@ -6,9 +6,10 @@ describe('composer-generated secret ownership', () => {
     expect(
       generatedSecretNames({
         database: { properties: { password: "$Secret('canary-project-mainDatabase.password')" } },
-        cache: { properties: { password: "$Secret('canary-project-cache.password')" } }
+        cache: { properties: { password: "$Secret('canary-project-cache.password')" } },
+        app: { properties: { environment: [{ value: "$Secret('canary-project-app.generatedSecretKey')" }] } }
       })
-    ).toEqual(['canary-project-mainDatabase', 'canary-project-cache']);
+    ).toEqual(['canary-project-mainDatabase', 'canary-project-cache', 'canary-project-app']);
   });
 
   it('binds cleanup ownership to the project-scoped generated-name prefix', () => {

@@ -18,6 +18,8 @@ type WebServiceProps = {
   cdn?: CdnConfiguration;
   /** Give this resource access to other resources in your stack. */
   connectTo?: Array<string>;
+  /** Port the application listens on inside its container. */
+  containerPort?: number;
   /** CORS settings. Overrides any CORS headers from your application. */
   cors?: HttpApiCorsConfig;
   /** Custom domains (e.g., `api.example.com`). Stacktape auto-creates DNS records and TLS certificates. */
@@ -399,6 +401,18 @@ export default defineConfig(() => {
   return { resources: { api, mainDb, uploads } };
 });
 ```
+
+## Property: `containerPort`
+
+- Required: no
+- Type: `number`
+- Default: `3000`
+
+Port the application listens on inside its container.
+
+Stacktape routes public HTTP traffic to this port and sets the `PORT` environment variable to
+the same value. Keep the default for applications that listen on `3000`; set this when an
+existing image has a different fixed listener.
 
 ## Property: `cors`
 

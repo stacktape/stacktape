@@ -918,6 +918,7 @@ export class ConfigManager {
         alarms,
         disabledGlobalAlarms,
         loadBalancing,
+        containerPort = 3000,
         deployment,
         useFirewall,
         configParentResourceType: _configParentResourceType,
@@ -961,7 +962,9 @@ export class ConfigManager {
                 packaging,
                 environment: (environment || [])
                   .concat([
-                    ...(loadBalancing?.type === 'network-load-balancer' ? [] : [{ name: 'PORT', value: 3000 }]),
+                    ...(loadBalancing?.type === 'network-load-balancer'
+                      ? []
+                      : [{ name: 'PORT', value: containerPort }]),
                     { name: 'HOST', value: '0.0.0.0' }
                   ])
                   .concat(deployment ? [{ name: 'DEPLOYMENT_TEST_PORT', value: DEFAULT_TEST_LISTENER_PORT }] : []),
@@ -984,7 +987,7 @@ export class ConfigManager {
                         type: 'application-load-balancer',
                         properties: {
                           priority: 3,
-                          containerPort: 3000,
+                          containerPort,
                           loadBalancerName: `${[...nameChain, loadBalancerIdentifier].join('.')}`,
                           listenerPort: 443,
                           paths: ['*']
@@ -1002,7 +1005,7 @@ export class ConfigManager {
                       : {
                           type: 'http-api-gateway',
                           properties: {
-                            containerPort: 3000,
+                            containerPort,
                             httpApiGatewayName: `${[...nameChain, httpApiGatewayIdentifier].join('.')}`,
                             method: '*',
                             path: '/{proxy+}'
@@ -1881,6 +1884,12 @@ export class ConfigManager {
     for (const mongo of this.atlasMongoClusters) {
       const name = extractSecretName(mongo.adminUserCredentials?.password);
       if (name) names.add(name);
+    }
+    // Config inference marks application-owned signing/session material with a reserved JSON-key
+    // prefix. Unlike API tokens, nobody outside the deployment supplies these values; generating
+    // them is both safer and less work than prompting somebody to invent a SECRET_KEY.
+    for (const [name, jsonKeys] of this.allSecretReferencesUsedInConfig) {
+      if (jsonKeys.size > 0 && [...jsonKeys].every((key) => /^generated[A-Z0-9]/.test(key))) names.add(name);
     }
     // Convex auto-generates secrets for its synthesized backing Postgres (`dbPassword`)
     // and for its `INSTANCE_SECRET` boot token.

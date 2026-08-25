@@ -5,6 +5,7 @@ export type InferredServiceSummary = {
   path: string;
   framework?: string;
   exposesHttp: boolean;
+  port?: number;
   startCommand?: string;
   buildCommand?: string;
   dockerfile?: string;
@@ -60,6 +61,7 @@ export const validateServiceExpectations = (
     compare('path');
     compare('framework');
     compare('exposesHttp');
+    compare('port');
     compare('startCommand');
     compare('buildCommand');
     compare('dockerfile');

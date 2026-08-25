@@ -30,7 +30,7 @@ describe('wiringFor', () => {
   });
 
   it('leaves unwirable shapes honestly unwired', () => {
-    expect(wiringFor('postgres', 'POSTGRES_USER')).toEqual({ kind: 'none' });
+    expect(wiringFor('mongodb', 'MONGO_USER')).toEqual({ kind: 'none' });
     // A Redis database index is a number the app owns, not a value we can supply.
     expect(wiringFor('redis', 'REDIS_DB')).toEqual({ kind: 'none' });
     expect(wiringFor('redis', 'REDIS_PASSWORD')).toEqual({ kind: 'none' });
