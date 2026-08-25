@@ -77,7 +77,10 @@ const stressCases = [...REAL_PROJECT_PLATFORM_STRESS_CASES, ...REAL_PROJECT_APPL
 const importOnlyCaseIds = new Set([
   // This pinned Vercel starter still exercises importer evidence, but Next 14 is outside the
   // supported @opennextjs/aws 3.10 packaging range.
-  'vercel-next-postgres-auth'
+  'vercel-next-postgres-auth',
+  // The raw monorepo example subdirectory has no standalone lockfile and is not reproducible
+  // package input. Qualified on import only until a generated standalone project is added.
+  'tanstack-start-basic'
 ]);
 
 const fromBuiltInCase = (entry: RealProjectCorpusCase): QualificationCaseManifest => ({

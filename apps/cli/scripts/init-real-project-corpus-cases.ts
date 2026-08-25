@@ -564,7 +564,7 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       serviceCount: 1,
       httpServiceCount: 1,
       existingDeployments: [],
-      requiredConfig: ['type: tanstack-web', 'appDirectory: .'],
+      requiredConfig: ['type: tanstack-web', 'appDirectory: .', 'buildCommand: npm run build'],
       forbiddenConfig: ['type: worker-service', 'type: hosting-bucket', 'type: nixpacks'],
       forbidCurrentlyHostedDependencies: true
     }

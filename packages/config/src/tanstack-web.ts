@@ -55,7 +55,7 @@ export interface TanStackWebProps extends ResourceAccessProps {
    */
   appDirectory?: string;
   /**
-   * #### Override the default `vinxi build` command.
+   * #### Override the default `vite build` command.
    *
    * ---
    *
@@ -281,7 +281,7 @@ export interface TanStackWebProps extends ResourceAccessProps {
    */
   useFirewall?: string;
   /**
-   * #### Dev server config for `stacktape dev`. Defaults to `vinxi dev`.
+   * #### Dev server config for `stacktape dev`. Defaults to `vite dev`.
    *
    * ---
    *

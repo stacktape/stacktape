@@ -1400,4 +1400,60 @@ describe('composing detected migrations into deploy hooks', () => {
     // A changed mind removes the hook entirely — the decision is real, not cosmetic.
     expect(withTiming({ 'migration-timing:web': 'manual' }).config.scripts).toBeUndefined();
   });
+
+  it('preserves detected build command on dedicated web resources', () => {
+    const composition = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            name: 'tanstack-app',
+            framework: 'tanstack-start',
+            buildCommand: 'npm run build'
+          }),
+          service({
+            name: 'next-app',
+            framework: 'nextjs',
+            buildCommand: 'pnpm run build'
+          })
+        ]
+      })
+    });
+
+    expect(composition.config.resources.tanstackApp).toEqual({
+      type: 'tanstack-web',
+      properties: {
+        appDirectory: '.',
+        buildCommand: 'npm run build'
+      }
+    });
+
+    expect(composition.config.resources.nextApp).toEqual({
+      type: 'nextjs-web',
+      properties: {
+        appDirectory: '.',
+        buildCommand: 'pnpm run build'
+      }
+    });
+  });
+
+  it('omits buildCommand on dedicated web resources when none was detected', () => {
+    const composition = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            name: 'tanstack-app',
+            framework: 'tanstack-start',
+            buildCommand: undefined
+          })
+        ]
+      })
+    });
+
+    expect(composition.config.resources.tanstackApp).toEqual({
+      type: 'tanstack-web',
+      properties: {
+        appDirectory: '.'
+      }
+    });
+  });
 });
