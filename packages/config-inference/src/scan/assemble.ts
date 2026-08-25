@@ -351,6 +351,14 @@ const genericMergeTarget = (
     ) {
       return true;
     }
+    if (
+      service.processType === undefined &&
+      service.path !== '.' &&
+      incoming.dockerfile !== undefined &&
+      posix.dirname(incoming.dockerfile) === service.path
+    ) {
+      return true;
+    }
     const existingName = normalizedServiceName(service);
     const incomingName = normalizedServiceName(incoming);
     if (

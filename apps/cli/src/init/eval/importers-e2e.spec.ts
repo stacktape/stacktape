@@ -350,16 +350,25 @@ const CASES: EvalCase[] = [
     }
   },
   {
-    name: 'Compose root context with a nested ASP.NET Dockerfile',
+    name: 'Compose root context with nested ASP.NET API and worker Dockerfiles',
     files: {
       'Directory.Build.props': '<Project></Project>\n',
       'src/Orders.Api/Orders.Api.csproj': '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n',
+      'src/Orders.Worker/Orders.Worker.csproj': '<Project Sdk="Microsoft.NET.Sdk.Worker"></Project>\n',
       'src/Orders.Api/Dockerfile': [
         'FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build',
         'WORKDIR /src',
         'COPY ["Directory.Build.props", "./"]',
         'COPY ["src/Orders.Api/Orders.Api.csproj", "src/Orders.Api/"]',
         'RUN dotnet publish "src/Orders.Api/Orders.Api.csproj" -o /app/publish',
+        ''
+      ].join('\n'),
+      'src/Orders.Worker/Dockerfile': [
+        'FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build',
+        'WORKDIR /src',
+        'COPY ["Directory.Build.props", "./"]',
+        'COPY ["src/Orders.Worker/Orders.Worker.csproj", "src/Orders.Worker/"]',
+        'RUN dotnet publish "src/Orders.Worker/Orders.Worker.csproj" -o /app/publish',
         ''
       ].join('\n'),
       'compose.yaml': [
@@ -369,29 +378,61 @@ const CASES: EvalCase[] = [
         '      context: .',
         '      dockerfile: src/Orders.Api/Dockerfile',
         '    ports: ["8080:8080"]',
+        '    depends_on: [minio]',
         '    environment:',
         '      ASPNETCORE_ENVIRONMENT: Production',
         '      Api__DefaultPort: 8080',
+        '      Storage__BucketName: ${STORAGE_BUCKET_NAME:-orders}',
         '      Storage__ForcePathStyle: true',
         '      Storage__AccessKey: local-development-key',
+        '  worker:',
+        '    build:',
+        '      context: .',
+        '      dockerfile: src/Orders.Worker/Dockerfile',
+        '    depends_on: [minio]',
+        '    environment:',
+        '      DOTNET_ENVIRONMENT: Production',
+        '      Storage__BucketName: ${STORAGE_BUCKET_NAME:-orders}',
+        '  minio:',
+        '    image: minio/minio:latest',
         ''
       ].join('\n')
     },
     expect: {
-      resources: { OrdersApi: 'web-service' },
+      serviceCount: 2,
+      dependencyKinds: ['object-storage'],
+      resources: { OrdersApi: 'web-service', OrdersWorker: 'worker-service', storageBucket: 'bucket' },
+      resourceCount: 3,
       resourcePackaging: [
         {
           resource: 'OrdersApi',
           type: 'custom-dockerfile',
           buildContextPath: '.',
           dockerfilePath: 'src/Orders.Api/Dockerfile'
+        },
+        {
+          resource: 'OrdersWorker',
+          type: 'custom-dockerfile',
+          buildContextPath: '.',
+          dockerfilePath: 'src/Orders.Worker/Dockerfile'
         }
       ],
       serviceEnvironment: [
         { resource: 'OrdersApi', name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' },
         { resource: 'OrdersApi', name: 'Api__DefaultPort', value: '8080' },
+        {
+          resource: 'OrdersApi',
+          name: 'Storage__BucketName',
+          value: "$ResourceParam('storageBucket', 'name')"
+        },
         { resource: 'OrdersApi', name: 'Storage__ForcePathStyle', value: 'true' },
-        { resource: 'OrdersApi', name: 'Storage__AccessKey', value: "$Secret('storage__accesskey')" }
+        { resource: 'OrdersApi', name: 'Storage__AccessKey', value: "$Secret('storage__accesskey')" },
+        { resource: 'OrdersWorker', name: 'DOTNET_ENVIRONMENT', value: 'Production' },
+        {
+          resource: 'OrdersWorker',
+          name: 'Storage__BucketName',
+          value: "$ResourceParam('storageBucket', 'name')"
+        }
       ],
       deployable: true,
       maxQuestions: 0

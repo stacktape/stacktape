@@ -1,6 +1,6 @@
 import type { EnvironmentVariableUse } from '../../facts/service';
 
-const normalizedSettingName = (name: string): string =>
+export const normalizedSettingName = (name: string): string =>
   name
     .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
     .replace(/([a-z0-9])([A-Z])/g, '$1_$2')

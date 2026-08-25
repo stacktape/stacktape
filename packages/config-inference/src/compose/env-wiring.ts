@@ -65,6 +65,12 @@ export const wiringFor = (kind: DependencyKind, variableName: string): Environme
   // literal such as `phpredis`, `default`, a prefix, or a retry count. They are never addresses.
   if (/(?:CLIENT|CLUSTER|DRIVER|PREFIX|SUFFIX|RETRY|FAILED_DRIVER)$/.test(name)) return { kind: 'none' };
   if (/(?:^|_)CONNECTION$/.test(name)) return { kind: 'none' };
+  // `connectTo` supplies AWS identity and the deployment region. A bucket has no resolver
+  // parameter for access keys, region, or a custom S3-compatible endpoint; falling back to its
+  // name for any of those settings would produce a valid-looking but unusable deployment.
+  if (kind === 'object-storage' && /(?:ACCESS_?KEY|SECRET_?KEY|CREDENTIAL|REGION|ENDPOINT|SERVICE_?URL)$/.test(name)) {
+    return { kind: 'none' };
+  }
 
   if (/^(?:(?:DATABASE|DB)_(?:TYPE|ENGINE|DIALECT)|DB)$/.test(name)) {
     return RDS_KINDS.has(kind) ? { kind: 'database-engine' } : { kind: 'none' };

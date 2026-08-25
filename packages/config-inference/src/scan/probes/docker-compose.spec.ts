@@ -672,16 +672,25 @@ describe('the compose probe', () => {
     );
   });
 
-  it('preserves a root build context when a nested language project owns the Dockerfile', async () => {
+  it('merges multiple root Compose builds into their nested .NET projects and wires hierarchical bucket names', async () => {
     root = await makeRepo({
       'Directory.Build.props': '<Project></Project>\n',
       'src/Orders.Api/Orders.Api.csproj': '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n',
+      'src/Orders.Worker/Orders.Worker.csproj': '<Project Sdk="Microsoft.NET.Sdk.Worker"></Project>\n',
       'src/Orders.Api/Dockerfile': [
         'FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build',
         'WORKDIR /src',
         'COPY ["Directory.Build.props", "./"]',
         'COPY ["src/Orders.Api/Orders.Api.csproj", "src/Orders.Api/"]',
         'RUN dotnet publish "src/Orders.Api/Orders.Api.csproj" -o /app/publish',
+        ''
+      ].join('\n'),
+      'src/Orders.Worker/Dockerfile': [
+        'FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build',
+        'WORKDIR /src',
+        'COPY ["Directory.Build.props", "./"]',
+        'COPY ["src/Orders.Worker/Orders.Worker.csproj", "src/Orders.Worker/"]',
+        'RUN dotnet publish "src/Orders.Worker/Orders.Worker.csproj" -o /app/publish',
         ''
       ].join('\n'),
       'compose.yaml': [
@@ -691,6 +700,19 @@ describe('the compose probe', () => {
         '      context: .',
         '      dockerfile: src/Orders.Api/Dockerfile',
         '    ports: ["8080:8080"]',
+        '    depends_on: [minio]',
+        '    environment:',
+        '      Storage__BucketName: ${STORAGE_BUCKET_NAME:-orders}',
+        '      Storage__AccessKey: ${MINIO_ROOT_USER:-minioadmin}',
+        '  worker:',
+        '    build:',
+        '      context: .',
+        '      dockerfile: src/Orders.Worker/Dockerfile',
+        '    depends_on: [minio]',
+        '    environment:',
+        '      Storage__BucketName: ${STORAGE_BUCKET_NAME:-orders}',
+        '  minio:',
+        '    image: minio/minio:latest',
         ''
       ].join('\n')
     });
@@ -700,13 +722,49 @@ describe('the compose probe', () => {
       probes: [dockerfileProbe, languageManifestProbe, dockerComposeProbe]
     });
 
-    expect(facts.services).toHaveLength(1);
-    expect(facts.services[0]).toMatchObject({
+    expect(facts.services).toHaveLength(2);
+    expect(facts.services.find((service) => service.name === 'Orders.Api')).toMatchObject({
       name: 'Orders.Api',
       path: 'src/Orders.Api',
       buildRoot: '.',
       dockerfile: 'src/Orders.Api/Dockerfile',
       exposesHttp: true
+    });
+    expect(facts.services.find((service) => service.name === 'Orders.Worker')).toMatchObject({
+      name: 'Orders.Worker',
+      path: 'src/Orders.Worker',
+      buildRoot: '.',
+      dockerfile: 'src/Orders.Worker/Dockerfile',
+      exposesHttp: false
+    });
+    expect(facts.dependencies).toContainEqual(
+      expect.objectContaining({
+        name: 'storageBucket',
+        kind: 'object-storage',
+        consumedBy: ['Orders.Api', 'Orders.Worker'],
+        addressedBy: ['Storage__BucketName']
+      })
+    );
+    expect(
+      facts.services
+        .find((service) => service.name === 'Orders.Api')
+        ?.environmentVariables.find((variable) => variable.name === 'Storage__AccessKey')
+    ).toMatchObject({ role: 'third-party-secret' });
+
+    const composed = composeConfig({ facts, projectName: 'orders' });
+    expect(composed.config.resources.OrdersApi?.properties).toMatchObject({
+      packaging: {
+        type: 'custom-dockerfile',
+        properties: { buildContextPath: '.', dockerfilePath: 'src/Orders.Api/Dockerfile' }
+      },
+      environment: expect.arrayContaining([
+        { name: 'Storage__BucketName', value: "$ResourceParam('storageBucket', 'name')" },
+        { name: 'Storage__AccessKey', value: "$Secret('storage__accesskey')" }
+      ])
+    });
+    expect(composed.config.resources.OrdersWorker?.properties.packaging).toEqual({
+      type: 'custom-dockerfile',
+      properties: { buildContextPath: '.', dockerfilePath: 'src/Orders.Worker/Dockerfile' }
     });
   });
 

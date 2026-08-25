@@ -29,7 +29,7 @@ import type { MigrationFact } from '../../facts/project-facts';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/service';
 import { languageOf } from '../language';
 import { isPlatformEnvironmentVariable } from '../platform-environment';
-import { isSecretishDeclaredName, safeDeclaredLiteral } from './declared-environment';
+import { isSecretishDeclaredName, normalizedSettingName, safeDeclaredLiteral } from './declared-environment';
 import type { Citation } from '../../facts/citation';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
@@ -358,7 +358,11 @@ const declaredLifecycleOf = (
 const composeDefault = (value: string): string => value.replace(/\$\{[A-Za-z_][A-Za-z0-9_]*(?::-|-)([^}]*)\}/g, '$1');
 
 const variableNamesDependency = (name: string, kind: DependencyKind): boolean => {
-  const upper = name.toUpperCase();
+  // Frameworks expose hierarchical settings through environment-variable conventions such as
+  // ASP.NET Core's `Storage__BucketName`. Match the normalized setting shape so a concrete bucket
+  // identifier does not become an unrelated secret merely because its framework uses camel case
+  // and doubled separators.
+  const upper = normalizedSettingName(name);
   switch (kind) {
     case 'postgres':
       return (
@@ -404,9 +408,7 @@ const variableNamesDependency = (name: string, kind: DependencyKind): boolean =>
       );
     case 'object-storage':
       return (
-        /^(?:S3|BUCKET|OBJECT_STORAGE|AWS_S3|AWS_STORAGE)_(?:BUCKET|BUCKET_NAME|NAME|URL|ENDPOINT|REGION|ACCESS_KEY|SECRET_KEY|SECRET_ACCESS_KEY|ACCESS_KEY_ID)$/i.test(
-          upper
-        ) ||
+        /^(?:S3|BUCKET|STORAGE|OBJECT_STORAGE|AWS_S3|AWS_STORAGE)_(?:BUCKET|BUCKET_NAME|NAME|ARN)$/i.test(upper) ||
         upper === 'S3_BUCKET' ||
         upper === 'BUCKET_NAME' ||
         upper === 'AWS_BUCKET'

@@ -21,6 +21,7 @@ describe('wiringFor', () => {
     expect(wiringFor('topic', 'SNS_TOPIC_ARN')).toEqual({ kind: 'param', param: 'arn' });
     expect(wiringFor('dynamodb', 'USERS_TABLE')).toEqual({ kind: 'param', param: 'name' });
     expect(wiringFor('object-storage', 'UPLOADS_BUCKET')).toEqual({ kind: 'param', param: 'name' });
+    expect(wiringFor('object-storage', 'Storage__BucketName')).toEqual({ kind: 'param', param: 'name' });
     expect(wiringFor('search', 'OPENSEARCH_ENDPOINT')).toEqual({ kind: 'param', param: 'domainEndpoint' });
     expect(wiringFor('postgres', 'LISTMONK_db__host')).toEqual({ kind: 'param', param: 'host' });
     expect(wiringFor('postgres', 'LISTMONK_db__port')).toEqual({ kind: 'param', param: 'port' });
@@ -41,6 +42,8 @@ describe('wiringFor', () => {
     expect(wiringFor('redis', 'REDIS_PREFIX')).toEqual({ kind: 'none' });
     expect(wiringFor('queue', 'QUEUE_CONNECTION')).toEqual({ kind: 'none' });
     expect(wiringFor('queue', 'SQS_SUFFIX')).toEqual({ kind: 'none' });
+    expect(wiringFor('object-storage', 'Storage__AccessKey')).toEqual({ kind: 'none' });
+    expect(wiringFor('object-storage', 'Storage__ServiceUrl')).toEqual({ kind: 'none' });
   });
 
   it('routes password shapes to the generated database/redis secret', () => {
