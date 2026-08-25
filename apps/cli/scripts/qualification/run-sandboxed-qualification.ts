@@ -28,6 +28,50 @@ const errorText = (error: unknown) =>
     12_000
   );
 
+type RunnerTermination = {
+  exitCode: number | null;
+  timedOut: boolean;
+  interruptedSignal?: NodeJS.Signals;
+};
+
+export const describeSandboxFailure = (
+  reportError: unknown,
+  runnerTermination: RunnerTermination | undefined,
+  timeoutMs: number
+) => {
+  const reportValidationFailure = errorText(reportError);
+  if (runnerTermination?.timedOut) {
+    return {
+      failureKind: 'runner-timeout' as const,
+      failure: `Qualification runner timed out after ${timeoutMs}ms; its partial output did not contain a verifiable report.`,
+      reportValidationFailure
+    };
+  }
+  if (runnerTermination?.interruptedSignal !== undefined) {
+    return {
+      failureKind: 'runner-interrupted' as const,
+      failure: `Qualification runner was interrupted by ${runnerTermination.interruptedSignal}; its partial output did not contain a verifiable report.`,
+      reportValidationFailure
+    };
+  }
+  if (
+    runnerTermination?.exitCode !== undefined &&
+    runnerTermination.exitCode !== null &&
+    runnerTermination.exitCode !== 0
+  ) {
+    return {
+      failureKind: 'runner-failed' as const,
+      failure: `Qualification runner exited with code ${runnerTermination.exitCode}; its output did not contain a verifiable report.`,
+      reportValidationFailure
+    };
+  }
+  return {
+    failureKind: 'report-validation' as const,
+    failure: 'Qualification output did not contain a verifiable report.',
+    reportValidationFailure
+  };
+};
+
 const pathExists = async (path: string) => {
   try {
     await lstat(path);
@@ -732,7 +776,7 @@ export const executeSandboxedQualification = async (
   let runnerExitCode = 1;
   let runnerImage: Awaited<ReturnType<typeof inspectRunnerImage>> | undefined;
   let outputInspection: OutputInspection | undefined;
-  let runnerTermination: { exitCode: number | null; timedOut: boolean; interruptedSignal?: NodeJS.Signals } | undefined;
+  let runnerTermination: RunnerTermination | undefined;
   let primaryFailure: unknown;
   let cleanupErrors: string[] = [];
   let executionResult: { exitCode: number; planned: PlannedSandboxExecution } | undefined;
@@ -1028,6 +1072,7 @@ export const executeSandboxedQualification = async (
       process.stderr.write(`Qualification report validation failed: ${String(reportError)}\n`);
       runnerExitCode = runnerExitCode === 0 ? 1 : runnerExitCode;
       if (copiedArtifactHashes !== undefined) {
+        const failureDetails = describeSandboxFailure(reportError, runnerTermination, planned.resourceLimits.timeoutMs);
         await writeFile(
           join(hostMaterializationDirectory, 'sandbox-failure.json'),
           `${JSON.stringify(
@@ -1037,7 +1082,7 @@ export const executeSandboxedQualification = async (
               generatedAt: new Date().toISOString(),
               productCommit: planned.productCommit,
               qualificationReportVerified: false,
-              failure: errorText(reportError),
+              ...failureDetails,
               runnerTermination,
               runnerImage,
               outputInspection,
