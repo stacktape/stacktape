@@ -708,6 +708,9 @@ export const dockerComposeProbe: Probe = {
         continue;
       }
       const containerCommand = containerCommandOf(service);
+      const startupCommand = containerCommand?.join(' ') ?? '';
+      const ownsRequiredStartupLifecycle =
+        /(?:^|\s)--install(?:\s|$)/.test(startupCommand) && /(?:^|\s)--upgrade(?:\s|$)/.test(startupCommand);
       if (containerCommand !== undefined) {
         const citation = citeFirstMatchOnly(
           path,
@@ -719,6 +722,7 @@ export const dockerComposeProbe: Probe = {
           path: composeDirectory(path),
           serviceName: factName(composeName),
           containerCommand,
+          ...(ownsRequiredStartupLifecycle ? { authoritative: true } : {}),
           evidence: citation === undefined ? [] : [citation]
         });
       }
@@ -734,6 +738,7 @@ export const dockerComposeProbe: Probe = {
           path: composeDirectory(path),
           serviceName: factName(composeName),
           prebuiltImage,
+          ...(ownsRequiredStartupLifecycle ? { authoritative: true } : {}),
           evidence: citation === undefined ? [] : [citation]
         });
       }

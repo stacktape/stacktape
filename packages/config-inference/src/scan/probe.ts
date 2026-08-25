@@ -58,6 +58,7 @@ export type ProbeOutput = {
     path: string;
     serviceName: string;
     containerCommand: string[];
+    authoritative?: boolean;
     evidence: Citation[];
   }>;
   /** Literal published images for matching source services; never creates an image-only service. */
@@ -65,6 +66,8 @@ export type ProbeOutput = {
     path: string;
     serviceName: string;
     prebuiltImage: string;
+    /** True when its declared command performs required lifecycle before starting the service. */
+    authoritative?: boolean;
     evidence: Citation[];
   }>;
   dependencies?: DependencyFact[];

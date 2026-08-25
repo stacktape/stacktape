@@ -862,6 +862,64 @@ describe('the compose probe', () => {
     });
   });
 
+  it('keeps a published image when its exact startup command owns fresh-database install and upgrade', async () => {
+    root = await makeRepo({
+      'go.mod': 'module example.com/list-manager\nrequire github.com/labstack/echo/v4 v4.12.0\n',
+      'cmd/main.go': [
+        'package main',
+        'import "github.com/labstack/echo/v4"',
+        'func main() { server := echo.New(); server.Start(":9000") }',
+        ''
+      ].join('\n'),
+      'docker-compose.yml': [
+        'services:',
+        '  app:',
+        '    image: example/list-manager:latest',
+        '    command:',
+        '      - sh',
+        '      - -c',
+        '      - ./list-manager --install --idempotent --yes && ./list-manager --upgrade --yes && ./list-manager',
+        '    ports: ["9000:9000"]',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [serverEntrypointProbe, dockerComposeProbe]
+    });
+    const composition = composeConfig({ facts });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'list-manager',
+      prebuiltImage: 'example/list-manager:latest',
+      prebuiltImageAuthoritative: true,
+      containerCommand: [
+        'sh',
+        '-c',
+        './list-manager --install --idempotent --yes && ./list-manager --upgrade --yes && ./list-manager'
+      ]
+    });
+    expect(composition.config.resources.listManager?.properties.packaging).toEqual({
+      type: 'prebuilt-image',
+      properties: {
+        image: 'example/list-manager:latest',
+        command: [
+          'sh',
+          '-c',
+          './list-manager --install --idempotent --yes && ./list-manager --upgrade --yes && ./list-manager'
+        ]
+      }
+    });
+    expect(composition.gaps).toContainEqual(
+      expect.objectContaining({
+        subject: 'list-manager.packaging',
+        message: expect.stringMatching(/fresh database.*does not include changes.*no immutable tag or digest/)
+      })
+    );
+  });
+
   it('uses a declared image only when missing embedded assets make source packaging unusable', async () => {
     root = await makeRepo({
       'go.mod': 'module example.com/notifier\n',

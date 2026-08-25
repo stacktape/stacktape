@@ -198,7 +198,7 @@ const runtimeVersionConfig = (service: ServiceFact): Record<string, unknown> => 
 const usesPublishedImageFallback = (service: ServiceFact): boolean =>
   service.dockerfile === undefined &&
   service.prebuiltImage !== undefined &&
-  (service.missingEmbeddedAssets?.length ?? 0) > 0;
+  ((service.missingEmbeddedAssets?.length ?? 0) > 0 || service.prebuiltImageAuthoritative === true);
 
 const packagingFor = (
   service: ServiceFact,
@@ -866,7 +866,7 @@ export const composeConfig = ({
           message: `${variable.name} points at something we are not creating, so put its value in the ${variable.name.toLowerCase()} secret before deploying.`
         });
       }
-      if (variable.role === 'build-time') {
+      if (variable.role === 'build-time' && !usesPublishedImageFallback(service)) {
         gaps.push({
           subject: `${service.name}.${variable.name}`,
           message: `${variable.name} is needed while your app builds, not while it runs. Set it as a build argument.`
@@ -918,10 +918,15 @@ export const composeConfig = ({
 
     if (usesPublishedImageFallback(service)) {
       const imageTail = service.prebuiltImage!.slice(service.prebuiltImage!.lastIndexOf('/') + 1);
-      const mutableImage = !service.prebuiltImage!.includes('@') && !imageTail.includes(':');
+      const mutableImage =
+        !service.prebuiltImage!.includes('@') &&
+        (!imageTail.includes(':') || imageTail.toLowerCase().endsWith(':latest'));
       gaps.push({
         subject: `${service.name}.packaging`,
-        message: `A clean checkout is missing files required by go:embed (${service.missingEmbeddedAssets!.join(', ')}), and no checked-in source Dockerfile can build this revision. We used the image declared in Docker Compose (${service.prebuiltImage!}) so the generated service can run, but that image does not include changes from this checkout${mutableImage ? ' and has no immutable tag or digest' : ''}. Repair or choose source packaging before relying on local source changes.`
+        message:
+          service.prebuiltImageAuthoritative === true
+            ? `The Docker Compose service starts by installing and upgrading its database before launching the application. Stacktape's source buildpack cannot preserve that image-specific startup lifecycle, so we used the declared image and exact command (${service.prebuiltImage!}). This is deployable on a fresh database, but the image does not include changes from this checkout${mutableImage ? ' and has no immutable tag or digest' : ''}. Pin or replace the image before relying on local source changes.`
+            : `A clean checkout is missing files required by go:embed (${service.missingEmbeddedAssets!.join(', ')}), and no checked-in source Dockerfile can build this revision. We used the image declared in Docker Compose (${service.prebuiltImage!}) so the generated service can run, but that image does not include changes from this checkout${mutableImage ? ' and has no immutable tag or digest' : ''}. Repair or choose source packaging before relying on local source changes.`
       });
     }
 

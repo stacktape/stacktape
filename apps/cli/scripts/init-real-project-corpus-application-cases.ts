@@ -166,7 +166,11 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       services: [{ name: 'listmonk', path: '.', exposesHttp: true }],
       requiredConfig: [
         'type: web-service',
-        'entryfilePath: cmd/main.go',
+        'type: prebuilt-image',
+        'image: listmonk/listmonk:latest',
+        '--install',
+        '--idempotent',
+        '--upgrade',
         'name: LISTMONK_db__host',
         "$ResourceParam('mainDatabase', 'host')",
         'name: LISTMONK_db__port',
@@ -181,9 +185,11 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       forbiddenConfig: [
         'type: hosting-bucket',
         'uploadDirectoryPath: frontend/',
+        'entryfilePath: cmd/main.go',
         'type: custom-dockerfile',
         'dockerfilePath: Dockerfile'
       ],
+      requiredGapPatterns: ['fresh database.*does not include changes from this checkout.*no immutable tag or digest'],
       forbiddenGapPatterns: ['does not read a configurable address'],
       forbidCurrentlyHostedDependencies: true
     }

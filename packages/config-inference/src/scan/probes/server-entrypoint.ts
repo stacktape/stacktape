@@ -11,7 +11,8 @@ import {
   type ProbeOutput
 } from '../probe';
 import { nearestManifestRoot } from '../service-root';
-import { goCodeWithoutComments, goExecutableCode } from '../go-source';
+import { goExecutableCode, goFileMatchesBuildTarget, goHasMainFunction, goImports, goPathMatches } from '../go-source';
+import { dockerfileCanBuildContext, dockerfileGoBuildDirectories } from './dockerfile';
 
 const javaServiceExposesHttp = async (root: string, context: ProbeContext): Promise<boolean> => {
   const manifestNames = ['pom.xml', 'build.gradle', 'build.gradle.kts'];
@@ -43,14 +44,9 @@ type GoHttpEvidence = { framework?: string; pattern: RegExp };
 const escapeForPattern = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const goImportQualifier = (raw: string, moduleName: string, conventionalName: string): string | undefined => {
-  const escapedModule = escapeForPattern(moduleName);
-  const match = new RegExp(
-    `^\\s*(?:import\\s+)?(?:(\\.|_|[A-Za-z_][A-Za-z0-9_]*)\\s+)?["\\']${escapedModule}["\\']`,
-    'm'
-  ).exec(raw);
-  if (match === null) return undefined;
-  if (match[1] === '.' || match[1] === '_') return undefined;
-  return match[1] ?? conventionalName;
+  const imported = goImports(raw).find((candidate) => candidate.path === moduleName);
+  if (imported === undefined || imported.qualifier === '.' || imported.qualifier === '_') return undefined;
+  return imported.qualifier || conventionalName;
 };
 
 const receiverCallPattern = ({
@@ -78,9 +74,8 @@ const receiverCallPattern = ({
  * lexical proof rather than pretending to type-check an arbitrary module.
  */
 const goHttpEvidence = (raw: string): GoHttpEvidence | undefined => {
-  const importSource = goCodeWithoutComments(raw);
   const executableSource = goExecutableCode(raw);
-  const netHttp = goImportQualifier(importSource, 'net/http', 'http');
+  const netHttp = goImportQualifier(raw, 'net/http', 'http');
   if (netHttp !== undefined) {
     const direct = new RegExp(
       `\\b${escapeForPattern(netHttp)}\\s*\\.\\s*(?:ListenAndServe|ListenAndServeTLS|Serve)\\s*\\(`
@@ -98,8 +93,8 @@ const goHttpEvidence = (raw: string): GoHttpEvidence | undefined => {
   }
 
   const echo =
-    goImportQualifier(importSource, 'github.com/labstack/echo/v4', 'echo') ??
-    goImportQualifier(importSource, 'github.com/labstack/echo', 'echo');
+    goImportQualifier(raw, 'github.com/labstack/echo/v4', 'echo') ??
+    goImportQualifier(raw, 'github.com/labstack/echo', 'echo');
   if (echo !== undefined) {
     const receiver = receiverCallPattern({
       raw: executableSource,
@@ -113,9 +108,9 @@ const goHttpEvidence = (raw: string): GoHttpEvidence | undefined => {
   }
 
   const fiber =
-    goImportQualifier(importSource, 'github.com/gofiber/fiber/v3', 'fiber') ??
-    goImportQualifier(importSource, 'github.com/gofiber/fiber/v2', 'fiber') ??
-    goImportQualifier(importSource, 'github.com/gofiber/fiber', 'fiber');
+    goImportQualifier(raw, 'github.com/gofiber/fiber/v3', 'fiber') ??
+    goImportQualifier(raw, 'github.com/gofiber/fiber/v2', 'fiber') ??
+    goImportQualifier(raw, 'github.com/gofiber/fiber', 'fiber');
   if (fiber !== undefined) {
     const receiver = receiverCallPattern({
       raw: executableSource,
@@ -128,7 +123,7 @@ const goHttpEvidence = (raw: string): GoHttpEvidence | undefined => {
     if (receiver !== undefined) return { framework: 'fiber', pattern: receiver };
   }
 
-  const gin = goImportQualifier(importSource, 'github.com/gin-gonic/gin', 'gin');
+  const gin = goImportQualifier(raw, 'github.com/gin-gonic/gin', 'gin');
   if (gin !== undefined) {
     const receiver = receiverCallPattern({
       raw: executableSource,
@@ -141,7 +136,7 @@ const goHttpEvidence = (raw: string): GoHttpEvidence | undefined => {
     if (receiver !== undefined) return { framework: 'gin', pattern: receiver };
   }
 
-  const fastHttp = goImportQualifier(importSource, 'github.com/valyala/fasthttp', 'fasthttp');
+  const fastHttp = goImportQualifier(raw, 'github.com/valyala/fasthttp', 'fasthttp');
   if (fastHttp !== undefined) {
     const direct = new RegExp(
       `\\b${escapeForPattern(fastHttp)}\\s*\\.\\s*(?:ListenAndServe|ListenAndServeTLS|Serve)\\s*\\(`
@@ -160,16 +155,6 @@ const goModuleName = (raw: string): string | undefined => {
   while (segments.length > 1 && /^v\d+$/.test(segments.at(-1)!)) segments.pop();
   return segments.at(-1);
 };
-
-const embedGlob = (value: string): RegExp =>
-  new RegExp(
-    `^${value
-      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
-      .replaceAll('**', '\u0000')
-      .replaceAll('*', '[^/]*')
-      .replaceAll('\u0000', '.*')
-      .replaceAll('?', '[^/]')}$`
-  );
 
 /** Missing go:embed inputs make a clean source checkout uncompilable until its asset build runs. */
 const missingGoEmbeddedAssets = (
@@ -198,8 +183,8 @@ const missingGoEmbeddedAssets = (
     reachable.add(directory);
     if (modulePath === undefined) continue;
     for (const { raw } of sourcesByDirectory.get(directory) ?? []) {
-      for (const match of goCodeWithoutComments(raw).matchAll(/["']([^"']+)["']/g)) {
-        const imported = match[1];
+      for (const candidate of goImports(raw)) {
+        const imported = candidate.path;
         if (imported === undefined || (imported !== modulePath && !imported.startsWith(`${modulePath}/`))) continue;
         const relative = imported === modulePath ? '.' : imported.slice(modulePath.length + 1);
         const importedDirectory = root === '.' ? relative : posix.join(root, relative);
@@ -217,7 +202,7 @@ const missingGoEmbeddedAssets = (
           if (resolved.startsWith('../') || posix.isAbsolute(resolved)) continue;
           const hasGlob = resolved.includes('*') || resolved.includes('?') || resolved.includes('[');
           const exists = hasGlob
-            ? files.some((file) => embedGlob(resolved).test(file))
+            ? files.some((file) => goPathMatches(resolved, file))
             : files.some((file) => file === resolved || file.startsWith(`${resolved}/`));
           if (!exists) missing.add(resolved);
         }
@@ -292,7 +277,7 @@ const detectionFor = (path: string, raw: string): Detection | undefined => {
   }
   if (path.endsWith('.go')) {
     const evidence = goHttpEvidence(raw);
-    return /\bfunc\s+main\s*\(/.test(raw) && evidence !== undefined
+    return goHasMainFunction(raw) && evidence !== undefined
       ? { entrypoint: path, ...evidence, language: 'go' }
       : undefined;
   }
@@ -377,7 +362,7 @@ export const serverEntrypointProbe: Probe = {
       const raw = await readText(context, path, path.endsWith('.go') ? { fullFile: true } : undefined);
       if (raw === undefined) continue;
       if (path.endsWith('.go')) {
-        if (!GO_NON_APPLICATION_DIRECTORY.test(path)) goSources.set(path, raw);
+        if (!GO_NON_APPLICATION_DIRECTORY.test(path) && goFileMatchesBuildTarget(path, raw)) goSources.set(path, raw);
         // Go main packages are joined below so two real binaries in one module cannot overwrite
         // each other under the old `${root}::main` identity.
         continue;
@@ -434,7 +419,9 @@ export const serverEntrypointProbe: Probe = {
     // when the listener lives behind a CLI subcommand in another package (ntfy is a real example).
     const goMainFiles = [...goSources.entries()].filter(
       ([path, raw]) =>
-        !GO_NON_APPLICATION_DIRECTORY.test(path) && /^\s*package\s+main\b/m.test(raw) && /\bfunc\s+main\s*\(/.test(raw)
+        !GO_NON_APPLICATION_DIRECTORY.test(path) &&
+        /^\s*package\s+main\b/m.test(goExecutableCode(raw)) &&
+        goHasMainFunction(raw)
     );
     const mainDirectories = new Map<string, Array<{ path: string; raw: string }>>();
     for (const [path, raw] of goMainFiles) {
@@ -468,17 +455,28 @@ export const serverEntrypointProbe: Probe = {
         .map(([path, raw]) => ({ path, raw, evidence: goHttpEvidence(raw) }))
         .find((candidate) => candidate.evidence !== undefined);
 
+      const relativeDirectory = root === '.' ? directory : posix.relative(root, directory);
       const dockerfile = root === '.' ? 'Dockerfile' : `${root}/Dockerfile`;
       let exposedDockerfile: { raw: string; port: number } | undefined;
+      let selectedDockerfile: string | undefined;
       // EXPOSE identifies the module as a network application, but it cannot disambiguate two
       // independent binaries in the same Go module. In that layout require source-level listener
       // evidence for the selected package instead of choosing whichever main file was scanned first.
-      if (mainDirectoryCountByRoot.get(root) === 1 && context.files.includes(dockerfile)) {
+      if (context.files.includes(dockerfile)) {
         // oxlint-disable-next-line no-await-in-loop -- one Dockerfile for the candidate Go application.
         const raw = await readText(context, dockerfile, { fullFile: true });
+        const selectsThisPackage = raw !== undefined && dockerfileGoBuildDirectories(raw).includes(relativeDirectory);
+        const singleMainPackage = mainDirectoryCountByRoot.get(root) === 1;
         const rawPort = raw === undefined ? undefined : /^\s*EXPOSE\s+(\d{2,5})(?:\/tcp)?\s*$/im.exec(raw)?.[1];
         const port = rawPort === undefined ? undefined : Number.parseInt(rawPort, 10);
-        if (raw !== undefined && port !== undefined && port > 0 && port <= 65_535) {
+        const ownsCandidate = singleMainPackage || selectsThisPackage;
+        // Associating a Dockerfile also makes it authoritative in the composer, so require the same
+        // clean-context validation as the Dockerfile probe before attaching it to a source service.
+        // oxlint-disable-next-line no-await-in-loop -- bounded validation for one root Dockerfile.
+        if (raw !== undefined && ownsCandidate && (await dockerfileCanBuildContext({ raw, root, context }))) {
+          selectedDockerfile = dockerfile;
+        }
+        if (raw !== undefined && ownsCandidate && port !== undefined && port > 0 && port <= 65_535) {
           exposedDockerfile = { raw, port };
         }
       }
@@ -487,7 +485,12 @@ export const serverEntrypointProbe: Probe = {
       const goMod = root === '.' ? 'go.mod' : `${root}/go.mod`;
       // oxlint-disable-next-line no-await-in-loop -- one short module manifest per candidate.
       const goModRaw = context.files.includes(goMod) ? await readText(context, goMod, { fullFile: true }) : undefined;
-      const mainCitation = citeFirstMatch(entrypoint.path, entrypoint.raw, /\bfunc\s+main\s*\(/, 'containerEntrypoint');
+      const mainCitation = citeFirstMatch(
+        entrypoint.path,
+        entrypoint.raw,
+        /^\s*func\s+main\s*\(/m,
+        'containerEntrypoint'
+      );
       const listenerCitation =
         listener === undefined
           ? citeFirstMatch(dockerfile, exposedDockerfile!.raw, /^\s*EXPOSE\s+\d{2,5}/im, 'port')
@@ -500,7 +503,6 @@ export const serverEntrypointProbe: Probe = {
         goSources,
         context.files
       );
-      const relativeDirectory = root === '.' ? directory : posix.relative(root, directory);
       const directoryBasename = posix.basename(directory);
       const packageName =
         directory === root
@@ -525,6 +527,7 @@ export const serverEntrypointProbe: Probe = {
         ...(exposedDockerfile === undefined ? {} : { port: exposedDockerfile.port }),
         executionModel: 'long-running',
         containerEntrypoint: entrypoint.path,
+        ...(selectedDockerfile === undefined ? {} : { dockerfile: selectedDockerfile }),
         ...(missingEmbeddedAssets.length === 0 ? {} : { missingEmbeddedAssets }),
         environmentVariables: [],
         evidence: [mainCitation, listenerCitation].filter((citation) => citation !== undefined),

@@ -166,4 +166,68 @@ describe('the standalone Dockerfile probe', () => {
     expect(facts.services).toHaveLength(1);
     expect(facts.services[0]).toMatchObject({ dockerfile: 'Dockerfile', port: 8080 });
   });
+
+  it('rejects a Go Dockerfile when dockerignore removes a reachable imported package', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/api\n',
+      '.dockerignore': 'internal/private\n',
+      Dockerfile: 'FROM golang:1.25\nCOPY . .\nRUN go build -o /api .\nEXPOSE 8080\n',
+      'main.go': 'package main\nimport _ "example.com/api/internal/private"\nfunc main() {}\n',
+      'internal/private/private.go': 'package private\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('rejects an implicit root Go build when a recursive dockerignore pattern removes its target', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/api\n',
+      '.dockerignore': '**/main.go\n',
+      Dockerfile: 'FROM golang:1.25\nCOPY . .\nRUN go build -o /api\nEXPOSE 8080\n',
+      'main.go': 'package main\nfunc main() {}\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('validates exact imported Go package directories instead of their shared top-level parent', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/api\n',
+      Dockerfile: [
+        'FROM golang:1.25',
+        'COPY go.mod main.go ./',
+        'COPY internal/foo ./internal/foo',
+        'RUN go build -o /api .',
+        'EXPOSE 8080',
+        ''
+      ].join('\n'),
+      'main.go': 'package main\nimport _ "example.com/api/internal/bar"\nfunc main() {}\n',
+      'internal/foo/foo.go': 'package foo\n',
+      'internal/bar/bar.go': 'package bar\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('does not reject a Dockerfile for an omitted package reachable only from another binary', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/control-plane\n',
+      '.dockerignore': 'internal/tooldep\n',
+      Dockerfile: 'FROM golang:1.25\nCOPY . .\nRUN go build -o /api ./cmd/api\nEXPOSE 8080\n',
+      'cmd/api/main.go': 'package main\nfunc main() {}\n',
+      'cmd/tool/main.go': 'package main\nimport _ "example.com/control-plane/internal/tooldep"\nfunc main() {}\n',
+      'internal/tooldep/tooldep.go': 'package tooldep\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]?.dockerfile).toBe('Dockerfile');
+  });
 });

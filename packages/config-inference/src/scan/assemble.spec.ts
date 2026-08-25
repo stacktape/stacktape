@@ -490,6 +490,50 @@ describe('assembleCandidateFacts', () => {
     expect(facts.services).toEqual([]);
   });
 
+  it('honors a Vite build-script outDir instead of inventing dist', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'script-output',
+        scripts: { build: 'vite build --outDir public-build' },
+        dependencies: { react: '^19.0.0', vite: '^8.0.0' }
+      }),
+      'index.html': '<div id="root"></div>'
+    });
+    const result = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+    expect(result.facts.services[0]?.servesStaticAssets).toEqual({ path: 'public-build' });
+  });
+
+  it('follows an explicit local Vite config import without executing it', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'imported-output',
+        scripts: { build: 'vite build --config config/vite.production.ts' },
+        dependencies: { react: '^19.0.0', vite: '^8.0.0' }
+      }),
+      'index.html': '<div id="root"></div>',
+      'config/vite.production.ts': 'import shared from "./shared";\nexport default shared;\n',
+      'config/shared.ts': 'export default { build: { outDir: "release-assets" } };\n'
+    });
+    const result = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+    expect(result.facts.services[0]?.servesStaticAssets).toEqual({ path: 'release-assets' });
+  });
+
+  it('treats an unresolved exported Vite config as unknown rather than default dist', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'dynamic-output',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0', vite: '^8.0.0' }
+      }),
+      'index.html': '<div id="root"></div>',
+      'vite.config.ts': 'export default runtimeConfig;\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
   it('keeps Go-owned frontend helpers internal while preserving an independently deployable nested admin', async () => {
     const repoRoot = await makeRepo({
       'go.mod': 'module example.com/list-manager\n',
@@ -555,7 +599,7 @@ describe('assembleCandidateFacts', () => {
   it('follows a literal Makefile move into a Go embed target', async () => {
     const repoRoot = await makeRepo({
       'go.mod': 'module example.com/notify/v2\n',
-      'main.go': 'package main\nfunc main() { app.Run(os.Args) }\n',
+      'main.go': 'package main\nimport _ "example.com/notify/v2/server"\nfunc main() { app.Run(os.Args) }\n',
       Dockerfile: 'FROM scratch\nCOPY notify /notify\nEXPOSE 80\nENTRYPOINT ["/notify"]\n',
       Makefile: ['web-build:', '\tcd web \\', '\t\t&& npm run build \\', '\t\t&& mv build ../server/site', ''].join(
         '\n'
@@ -591,7 +635,13 @@ describe('assembleCandidateFacts', () => {
   it('tracks Makefile working directories per shell when a root-relative move follows a web build', async () => {
     const repoRoot = await makeRepo({
       'go.mod': 'module example.com/notify\n',
-      'main.go': 'package main\nimport "net/http"\nfunc main() { http.ListenAndServe(":8080", nil) }\n',
+      'main.go': [
+        'package main',
+        'import "net/http"',
+        'import _ "example.com/notify/server"',
+        'func main() { http.ListenAndServe(":8080", nil) }',
+        ''
+      ].join('\n'),
       Makefile: ['web-build:', '\tcd web && npm run build', '\tmv web/build server/site', ''].join('\n'),
       'server/assets.go': 'package server\nimport "embed"\n//go:embed site\nvar web embed.FS\n',
       'web/package.json': JSON.stringify({
@@ -602,6 +652,35 @@ describe('assembleCandidateFacts', () => {
       }),
       'web/index.html': '<div id="root"></div>',
       'web/vite.config.js': 'export default { build: { outDir: "build" } };\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({ name: 'notify', path: '.', exposesHttp: true });
+  });
+
+  it('keeps Makefile working directory across recipe lines only when ONESHELL is declared', async () => {
+    const repoRoot = await makeRepo({
+      'go.mod': 'module example.com/notify\n',
+      'main.go': [
+        'package main',
+        'import "net/http"',
+        'import _ "example.com/notify/server"',
+        'func main() { http.ListenAndServe(":8080", nil) }',
+        ''
+      ].join('\n'),
+      Makefile: ['.ONESHELL:', 'web-build:', '\tcd web', '\tnpm run build', '\tmv dist ../server/site', ''].join('\n'),
+      'server/assets.go': 'package server\nimport "embed"\n//go:embed site\nvar web embed.FS\n',
+      'web/package.json': JSON.stringify({
+        name: 'notify-web',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0', vite: '^8.0.0' }
+      }),
+      'web/index.html': '<div id="root"></div>'
     });
 
     const { facts } = await assembleCandidateFacts({
@@ -673,6 +752,30 @@ describe('assembleCandidateFacts', () => {
     expect(facts.services.find((service) => service.name === 'dashboard')).toMatchObject({
       exposesHttp: false,
       servesStaticAssets: { path: 'dashboard/dist' }
+    });
+  });
+
+  it('does not let an unreachable Go package claim ownership of a frontend by quoting its output', async () => {
+    const repoRoot = await makeRepo({
+      'go.mod': 'module example.com/orders\n',
+      'cmd/main.go': 'package main\nimport "net/http"\nfunc main() { http.ListenAndServe(":8080", nil) }\n',
+      'internal/docs/docs.go': 'package docs\nvar separatelyDeployed = "dashboard/dist"\n',
+      'dashboard/package.json': JSON.stringify({
+        name: 'dashboard',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0', vite: '^8.0.0' }
+      }),
+      'dashboard/index.html': '<div id="root"></div>'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(2);
+    expect(facts.services.find((service) => service.name === 'dashboard')?.servesStaticAssets).toEqual({
+      path: 'dashboard/dist'
     });
   });
 

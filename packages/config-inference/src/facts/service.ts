@@ -269,6 +269,8 @@ export const serviceShape = {
   containerCommand: z.array(z.string().min(1)).min(1).optional(),
   /** Published image retained from a deterministic deployment descriptor as a last-resort package. */
   prebuiltImage: z.string().min(1).optional(),
+  /** The descriptor's image command owns required startup lifecycle that source packaging cannot preserve. */
+  prebuiltImageAuthoritative: z.boolean().optional(),
   /** Repository-relative go:embed inputs that a clean checkout does not contain. */
   missingEmbeddedAssets: z.array(repositoryPathSchema).min(1).optional(),
   /**

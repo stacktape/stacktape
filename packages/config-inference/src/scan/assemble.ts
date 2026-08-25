@@ -236,6 +236,7 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
     startCommand: existing.startCommand ?? incoming.startCommand,
     containerCommand: existing.containerCommand ?? incoming.containerCommand,
     prebuiltImage: existing.prebuiltImage ?? incoming.prebuiltImage,
+    prebuiltImageAuthoritative: existing.prebuiltImageAuthoritative ?? incoming.prebuiltImageAuthoritative,
     ...((existing.missingEmbeddedAssets?.length ?? 0) + (incoming.missingEmbeddedAssets?.length ?? 0) === 0
       ? {}
       : {
@@ -703,26 +704,25 @@ export const assembleCandidateFacts = async ({
     }
   }
   for (const command of outputs.flatMap((output) => output.serviceCommands ?? [])) {
-    for (const service of services) {
-      if (
-        service.path !== command.path ||
-        normalizedServiceName(service) !== normalizedServiceName({ name: command.serviceName })
-      ) {
-        continue;
-      }
+    const atPath = services.filter((service) => service.path === command.path);
+    const exact = atPath.filter(
+      (service) => normalizedServiceName(service) === normalizedServiceName({ name: command.serviceName })
+    );
+    const targets = exact.length > 0 ? exact : command.authoritative && atPath.length === 1 ? atPath : [];
+    for (const service of targets) {
       service.containerCommand ??= [...command.containerCommand];
       service.evidence = mergeEvidence(service.evidence ?? [], command.evidence);
     }
   }
   for (const image of outputs.flatMap((output) => output.serviceImages ?? [])) {
-    for (const service of services) {
-      if (
-        service.path !== image.path ||
-        normalizedServiceName(service) !== normalizedServiceName({ name: image.serviceName })
-      ) {
-        continue;
-      }
+    const atPath = services.filter((service) => service.path === image.path);
+    const exact = atPath.filter(
+      (service) => normalizedServiceName(service) === normalizedServiceName({ name: image.serviceName })
+    );
+    const targets = exact.length > 0 ? exact : image.authoritative && atPath.length === 1 ? atPath : [];
+    for (const service of targets) {
       service.prebuiltImage ??= image.prebuiltImage;
+      if (image.authoritative) service.prebuiltImageAuthoritative = true;
       service.evidence = mergeEvidence(service.evidence ?? [], image.evidence);
     }
   }

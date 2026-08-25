@@ -3,6 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { assembleCandidateFacts } from '../assemble';
+import { dockerfileProbe } from './dockerfile';
 import { manifestProbe } from './manifest';
 import { serverEntrypointProbe } from './server-entrypoint';
 
@@ -420,5 +421,86 @@ describe('the server entrypoint probe', () => {
 
     expect(facts.services).toHaveLength(1);
     expect(facts.services[0]?.missingEmbeddedAssets).toEqual(['server/docs']);
+  });
+
+  it('requires syntactic Go imports and main declarations instead of comment or string lookalikes', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/decoy\n',
+      'main.go': [
+        'package main',
+        'var docs = "net/http"',
+        '// func main() { http.ListenAndServe(":8080", nil) }',
+        'type httpClient struct{}',
+        'func (httpClient) ListenAndServe() {}',
+        'func run() { http.ListenAndServe() }',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [serverEntrypointProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('associates a root Dockerfile with its exact Go build target without minting a third service', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/control-plane\n',
+      Dockerfile: [
+        'FROM golang:1.25 AS build',
+        'WORKDIR /src',
+        'COPY go.mod ./',
+        'COPY cmd/api ./cmd/api',
+        'RUN CGO_ENABLED=0 GOOS=linux go build -trimpath -o /api ./cmd/api',
+        'FROM scratch',
+        'COPY --from=build /api /api',
+        'EXPOSE 8080',
+        'ENTRYPOINT ["/api"]',
+        ''
+      ].join('\n'),
+      'cmd/api/main.go': 'package main\nimport "net/http"\nfunc main() { http.ListenAndServe(":8080", nil) }\n',
+      'cmd/admin/main.go': 'package main\nimport "net/http"\nfunc main() { http.ListenAndServe(":8081", nil) }\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [serverEntrypointProbe, dockerfileProbe]
+    });
+
+    expect(facts.services).toHaveLength(2);
+    expect(facts.services.find((service) => service.name === 'api')).toMatchObject({
+      path: 'cmd/api',
+      buildRoot: '.',
+      dockerfile: 'Dockerfile',
+      containerEntrypoint: 'cmd/api/main.go'
+    });
+    expect(facts.services.find((service) => service.name === 'admin')).toMatchObject({
+      path: 'cmd/admin',
+      containerEntrypoint: 'cmd/admin/main.go'
+    });
+    expect(facts.services.find((service) => service.name === 'admin')?.dockerfile).toBeUndefined();
+  });
+
+  it('uses target-compatible reachable Go files and Go character classes for embed checks', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/targeted\n',
+      'cmd/api/main.go': [
+        'package main',
+        'import "net/http"',
+        'import _ "example.com/targeted/internal/assets"',
+        'var decoy = "example.com/targeted/internal/unreachable"',
+        'func main() { http.ListenAndServe(":8080", nil) }',
+        ''
+      ].join('\n'),
+      'internal/assets/assets_linux.go': 'package assets\nimport "embed"\n//go:embed site/[ab].html\nvar fs embed.FS\n',
+      'internal/assets/assets_windows.go':
+        '//go:build windows\n\npackage assets\nimport "embed"\n//go:embed windows-missing\nvar windows embed.FS\n',
+      'internal/assets/site/a.html': '<main>ready</main>',
+      'internal/unreachable/assets.go': 'package unreachable\nimport "embed"\n//go:embed missing\nvar fs embed.FS\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [serverEntrypointProbe] });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]?.missingEmbeddedAssets).toBeUndefined();
   });
 });

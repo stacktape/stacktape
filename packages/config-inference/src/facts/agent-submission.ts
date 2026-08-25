@@ -37,6 +37,7 @@ import type { Uncertainty } from './uncertainty';
 const {
   containerCommand: _probeContainerCommand,
   prebuiltImage: _probePrebuiltImage,
+  prebuiltImageAuthoritative: _probePrebuiltImageAuthoritative,
   missingEmbeddedAssets: _probeMissingEmbeddedAssets,
   ...agentVisibleServiceShape
 } = serviceShape;

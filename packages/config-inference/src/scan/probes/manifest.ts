@@ -16,7 +16,13 @@ import type { Citation } from '../../facts/citation';
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import type { MigrationFact, PackageManager } from '../../facts/project-facts';
 import type { ServiceFactInput } from '../../facts/service';
-import { goCodeWithoutComments } from '../go-source';
+import {
+  goCodeWithoutComments,
+  goExecutableCode,
+  goFileMatchesBuildTarget,
+  goHasMainFunction,
+  goImports
+} from '../go-source';
 import { citeFirstMatchOnly, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
 /**
@@ -400,65 +406,175 @@ const propertyName = (property: ts.ObjectLiteralElementLike): string | undefined
   return name !== undefined && (ts.isIdentifier(name) || ts.isStringLiteral(name)) ? name.text : undefined;
 };
 
-const viteConfigObject = (sourceFile: ts.SourceFile): ts.ObjectLiteralExpression | undefined => {
-  const exports = sourceFile.statements.filter(
-    (statement): statement is ts.ExportAssignment => ts.isExportAssignment(statement) && !statement.isExportEquals
-  );
-  if (exports.length !== 1) return undefined;
-  let expression = unwrapConfigObject(exports[0]!.expression);
-  if (
-    ts.isCallExpression(expression) &&
-    ts.isIdentifier(expression.expression) &&
-    expression.expression.text === 'defineConfig' &&
-    expression.arguments.length === 1
-  ) {
-    expression = unwrapConfigObject(expression.arguments[0]!);
-  }
-  if (ts.isArrowFunction(expression)) {
-    if (ts.isBlock(expression.body)) {
-      const returns = expression.body.statements.filter(ts.isReturnStatement);
-      if (returns.length !== 1 || returns[0]!.expression === undefined) return undefined;
-      expression = unwrapConfigObject(returns[0]!.expression);
-    } else {
-      expression = unwrapConfigObject(expression.body);
-    }
-  }
-  return ts.isObjectLiteralExpression(expression) ? expression : undefined;
+type ResolvedViteConfig = {
+  file: string;
+  source: string;
+  sourceFile: ts.SourceFile;
+  config: ts.ObjectLiteralExpression;
 };
 
-/** Read Vite's literal output directory without executing its configuration module. */
-const viteBuildDirectory = async (manifestDirectory: string, context: ProbeContext): Promise<ViteBuildDirectory> => {
-  const prefix = manifestDirectory === '.' ? '' : `${manifestDirectory}/`;
-  const file = [
-    'vite.config.ts',
-    'vite.config.js',
-    'vite.config.mts',
-    'vite.config.mjs',
-    'vite.config.cts',
-    'vite.config.cjs'
-  ]
-    .map((name) => `${prefix}${name}`)
-    .find((candidate) => context.files.includes(candidate));
-  if (file === undefined) return { kind: 'default' };
+const configScriptKind = (file: string): ts.ScriptKind =>
+  file.endsWith('.js') || file.endsWith('.mjs') || file.endsWith('.cjs') ? ts.ScriptKind.JS : ts.ScriptKind.TS;
+
+const localConfigFile = (from: string, specifier: string, files: readonly string[]): string | undefined => {
+  if (!specifier.startsWith('.')) return undefined;
+  const base = posix.normalize(posix.join(posix.dirname(from), specifier));
+  if (base === '..' || base.startsWith('../')) return undefined;
+  const candidates = [
+    base,
+    ...['.ts', '.js', '.mts', '.mjs', '.cts', '.cjs'].map((extension) => `${base}${extension}`),
+    ...['.ts', '.js', '.mts', '.mjs', '.cts', '.cjs'].map((extension) => `${base}/index${extension}`)
+  ];
+  return candidates.find((candidate) => files.includes(candidate));
+};
+
+const viteConfigObject = async ({
+  file,
+  context,
+  exportName = 'default',
+  visited = new Set<string>()
+}: {
+  file: string;
+  context: ProbeContext;
+  exportName?: string;
+  visited?: Set<string>;
+}): Promise<ResolvedViteConfig | undefined> => {
+  const visitKey = `${file}:${exportName}`;
+  if (visited.has(visitKey) || visited.size >= 12) return undefined;
+  visited.add(visitKey);
   const source = await readText(context, file, { fullFile: true });
-  if (source === undefined) return { kind: 'unknown' };
-  const scriptKind =
-    file.endsWith('.js') || file.endsWith('.mjs') || file.endsWith('.cjs') ? ts.ScriptKind.JS : ts.ScriptKind.TS;
-  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind);
+  if (source === undefined) return undefined;
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, configScriptKind(file));
   const parseDiagnostics = (sourceFile as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] })
     .parseDiagnostics;
-  if (parseDiagnostics.length > 0) return { kind: 'unknown' };
+  if (parseDiagnostics.length > 0) return undefined;
 
-  const config = viteConfigObject(sourceFile);
-  if (config === undefined) {
-    let mentionsOutputDirectory = false;
-    const visit = (node: ts.Node) => {
-      if (ts.isPropertyAssignment(node) && propertyName(node) === 'outDir') mentionsOutputDirectory = true;
-      ts.forEachChild(node, visit);
-    };
-    visit(sourceFile);
-    return mentionsOutputDirectory ? { kind: 'unknown' } : { kind: 'default' };
+  let expression: ts.Expression | undefined;
+  if (exportName === 'default') {
+    const exports = sourceFile.statements.filter(
+      (statement): statement is ts.ExportAssignment => ts.isExportAssignment(statement) && !statement.isExportEquals
+    );
+    if (exports.length !== 1) return undefined;
+    expression = exports[0]!.expression;
+  } else {
+    const declarations = sourceFile.statements
+      .filter(ts.isVariableStatement)
+      .filter((statement) => statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword))
+      .flatMap((statement) => statement.declarationList.declarations)
+      .filter(
+        (declaration) =>
+          ts.isIdentifier(declaration.name) && declaration.name.text === exportName && declaration.initializer
+      );
+    if (declarations.length !== 1) return undefined;
+    expression = declarations[0]!.initializer;
   }
+
+  const resolveExpression = async (candidate: ts.Expression): Promise<ResolvedViteConfig | undefined> => {
+    let resolved = unwrapConfigObject(candidate);
+    if (
+      ts.isCallExpression(resolved) &&
+      ts.isIdentifier(resolved.expression) &&
+      resolved.expression.text === 'defineConfig' &&
+      resolved.arguments.length === 1
+    ) {
+      resolved = unwrapConfigObject(resolved.arguments[0]!);
+    }
+    if (ts.isArrowFunction(resolved)) {
+      if (ts.isBlock(resolved.body)) {
+        const returns = resolved.body.statements.filter(ts.isReturnStatement);
+        if (returns.length !== 1 || returns[0]!.expression === undefined) return undefined;
+        resolved = unwrapConfigObject(returns[0]!.expression);
+      } else {
+        resolved = unwrapConfigObject(resolved.body);
+      }
+    }
+    if (ts.isObjectLiteralExpression(resolved)) return { file, source, sourceFile, config: resolved };
+    if (!ts.isIdentifier(resolved)) return undefined;
+
+    const localDeclarations = sourceFile.statements
+      .filter(ts.isVariableStatement)
+      .flatMap((statement) => statement.declarationList.declarations)
+      .filter(
+        (declaration) =>
+          ts.isIdentifier(declaration.name) && declaration.name.text === resolved.text && declaration.initializer
+      );
+    if (localDeclarations.length === 1) return resolveExpression(localDeclarations[0]!.initializer!);
+
+    for (const declaration of sourceFile.statements.filter(ts.isImportDeclaration)) {
+      if (!ts.isStringLiteral(declaration.moduleSpecifier) || declaration.importClause === undefined) continue;
+      const target = localConfigFile(file, declaration.moduleSpecifier.text, context.files);
+      if (target === undefined) continue;
+      if (declaration.importClause.name?.text === resolved.text) {
+        return viteConfigObject({ file: target, context, visited, exportName: 'default' });
+      }
+      const bindings = declaration.importClause.namedBindings;
+      if (bindings !== undefined && ts.isNamedImports(bindings)) {
+        const imported = bindings.elements.find((element) => element.name.text === resolved.text);
+        if (imported !== undefined) {
+          return viteConfigObject({
+            file: target,
+            context,
+            visited,
+            exportName: imported.propertyName?.text ?? imported.name.text
+          });
+        }
+      }
+    }
+    return undefined;
+  };
+  return expression === undefined ? undefined : resolveExpression(expression);
+};
+
+const viteBuildOptions = (
+  manifest: ParsedManifest
+): { outDir?: string; config?: string; invalid?: boolean; evidence?: Citation } => {
+  const command = manifest.scripts.build;
+  if (typeof command !== 'string') return {};
+  const tokens = command.match(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s]+/g) ?? [];
+  const vite = tokens.findIndex((token, index) => /^(?:vite|vite\.cmd)$/.test(token) && tokens[index + 1] === 'build');
+  if (vite < 0) return {};
+  const result: { outDir?: string; config?: string; invalid?: boolean; evidence?: Citation } = {};
+  for (let index = vite + 2; index < tokens.length; index += 1) {
+    const token = tokens[index]!.replace(/^(?:"|')|(?:"|')$/g, '');
+    const assignment = /^--(outDir|config)=(.+)$/.exec(token);
+    const option = assignment?.[1] ?? (/^--(?:outDir|config)$/.test(token) ? token.slice(2) : undefined);
+    if (option === undefined) continue;
+    const value = assignment?.[2] ?? tokens[++index]?.replace(/^(?:"|')|(?:"|')$/g, '');
+    if (value === undefined || value === '' || value.includes('$') || /[;&|]/.test(value)) return { invalid: true };
+    if (option === 'outDir') result.outDir = value;
+    else result.config = value;
+  }
+  const evidence = citeFirstMatchOnly(manifest.path, manifest.raw, /"build"\s*:/, 'servesStaticAssets');
+  return { ...result, ...(evidence === undefined ? {} : { evidence }) };
+};
+/** Read Vite's literal output directory without executing its configuration module. */
+const viteBuildDirectory = async (manifest: ParsedManifest, context: ProbeContext): Promise<ViteBuildDirectory> => {
+  const options = viteBuildOptions(manifest);
+  if (options.invalid) return { kind: 'unknown' };
+  if (options.outDir !== undefined) {
+    const outputDirectory = safeBuildDirectory(options.outDir);
+    return outputDirectory === undefined
+      ? { kind: 'unknown' }
+      : { kind: 'known', outputDirectory, evidence: options.evidence === undefined ? [] : [options.evidence] };
+  }
+  const manifestDirectory = manifest.directory;
+  const prefix = manifestDirectory === '.' ? '' : `${manifestDirectory}/`;
+  const explicitConfig =
+    options.config === undefined
+      ? undefined
+      : resolveRepositoryPath(manifestDirectory, options.config.replace(/^\.\//, ''));
+  if (options.config !== undefined && (explicitConfig === undefined || !context.files.includes(explicitConfig))) {
+    return { kind: 'unknown' };
+  }
+  const file =
+    explicitConfig ??
+    ['vite.config.ts', 'vite.config.js', 'vite.config.mts', 'vite.config.mjs', 'vite.config.cts', 'vite.config.cjs']
+      .map((name) => `${prefix}${name}`)
+      .find((candidate) => context.files.includes(candidate));
+  if (file === undefined) return { kind: 'default' };
+  const resolved = await viteConfigObject({ file, context });
+  if (resolved === undefined) return { kind: 'unknown' };
+  const { config, source, sourceFile } = resolved;
   const buildProperties = config.properties.filter((property) => propertyName(property) === 'build');
   if (buildProperties.length === 0) {
     // A spread can supply `build.outDir`; calling that the default `dist` would be invented output.
@@ -497,7 +613,7 @@ const viteBuildDirectory = async (manifestDirectory: string, context: ProbeConte
     kind: 'known',
     outputDirectory,
     evidence: [
-      configCitation(file, source, {
+      configCitation(resolved.file, source, {
         value: output,
         keyStart: outputProperties[0]!.name!.getStart(sourceFile)
       })
@@ -567,7 +683,7 @@ const staticSiteFor = async (
     manifest.directory === '.' ? ['index.html', 'src/index.html'] : ['index.html', 'src/index.html']
   ).map((path) => (manifest.directory === '.' ? path : `${manifest.directory}/${path}`));
   if (manifest.dependencies.vite !== undefined && viteEntrypoints.some((path) => context.files.includes(path))) {
-    const configuredOutput = await viteBuildDirectory(manifest.directory, context);
+    const configuredOutput = await viteBuildDirectory(manifest, context);
     if (configuredOutput.kind === 'unknown') return undefined;
     return {
       framework:
@@ -769,14 +885,45 @@ const readGoStaticConsumer = async (root: string, context: ProbeContext): Promis
         !/(?:^|\/)(?:vendor|examples?|tools?|test|tests|fixtures)(?:\/|$)/i.test(path)
     )
     .slice(0, 500);
-  const sources = (
+  const allSources = (
     await Promise.all(
       paths.map(async (path) => {
         const raw = await readText(context, path, { fullFile: true });
-        return raw === undefined ? undefined : { path, raw };
+        return raw === undefined || !goFileMatchesBuildTarget(path, raw) ? undefined : { path, raw };
       })
     )
   ).filter((source): source is { path: string; raw: string } => source !== undefined);
+  const goModPath = root === '.' ? 'go.mod' : `${root}/go.mod`;
+  const goMod = context.files.includes(goModPath) ? await readText(context, goModPath, { fullFile: true }) : undefined;
+  const modulePath = goMod === undefined ? undefined : /^\s*module\s+(\S+)\s*$/m.exec(goMod)?.[1];
+  const byDirectory = new Map<string, Array<{ path: string; raw: string }>>();
+  for (const source of allSources) {
+    const directory = posix.dirname(source.path);
+    const entries = byDirectory.get(directory) ?? [];
+    entries.push(source);
+    byDirectory.set(directory, entries);
+  }
+  const pending = [...byDirectory.entries()]
+    .filter(([, entries]) =>
+      entries.some(({ raw }) => /^\s*package\s+main\b/m.test(goExecutableCode(raw)) && goHasMainFunction(raw))
+    )
+    .map(([directory]) => directory);
+  const reachable = new Set<string>();
+  while (pending.length > 0) {
+    const directory = pending.shift()!;
+    if (reachable.has(directory)) continue;
+    reachable.add(directory);
+    if (modulePath === undefined) continue;
+    for (const { raw } of byDirectory.get(directory) ?? []) {
+      for (const imported of goImports(raw)) {
+        if (imported.path !== modulePath && !imported.path.startsWith(`${modulePath}/`)) continue;
+        const relative = imported.path === modulePath ? '.' : imported.path.slice(modulePath.length + 1);
+        const target = root === '.' ? relative : posix.join(root, relative);
+        if (byDirectory.has(target) && !reachable.has(target)) pending.push(target);
+      }
+    }
+  }
+  const sources = allSources.filter((source) => reachable.has(posix.dirname(source.path)));
   const embeddedPaths = new Set<string>();
   for (const { path, raw } of sources) {
     for (const match of raw.matchAll(/^\s*\/\/go:embed\s+([^\r\n]+)$/gm)) {
@@ -804,14 +951,16 @@ const makefileMovesOutputInto = ({
   consumedPaths: ReadonlySet<string>;
 }): boolean => {
   const variables = makefileVariables(raw);
+  const oneShell = /^\s*\.ONESHELL\s*:/m.test(raw);
   // A target and one physical recipe shell are the useful boundaries. `cd web && build` affects
   // that chain, but Make starts the next recipe line at the repository root. Reading the commands
   // in order also prevents a later `cd legacy` from retroactively owning an earlier root-relative
   // `mv web/dist server/site`.
   const blocks = raw.split(/(?=^[^\s#][^\r\n]*:(?![=]))/gm);
   for (const block of blocks) {
+    let persistentCwd = '.';
     for (const recipe of makeRecipeCommands(block)) {
-      let cwd = '.';
+      let cwd = oneShell ? persistentCwd : '.';
       for (const command of shellChain(recipe)) {
         const cd = /^cd\s+([^\s]+)\s*$/.exec(command);
         if (cd !== null) {
@@ -826,6 +975,7 @@ const makefileMovesOutputInto = ({
           return true;
         }
       }
+      if (oneShell) persistentCwd = cwd;
     }
   }
   return false;
