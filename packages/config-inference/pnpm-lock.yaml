@@ -26,6 +26,9 @@ importers:
       smol-toml:
         specifier: ^1.7.0
         version: 1.8.0
+      typescript:
+        specifier: 'catalog:'
+        version: 6.0.3
       yaml:
         specifier: 1.10.2
         version: 1.10.2
@@ -45,9 +48,6 @@ importers:
       ajv:
         specifier: ^6.12.6
         version: 6.15.0
-      typescript:
-        specifier: 'catalog:'
-        version: 6.0.3
 
 packages:
 

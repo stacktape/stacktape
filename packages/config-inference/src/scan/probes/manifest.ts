@@ -10,6 +10,7 @@
  * not evidence of anything; a dependency on `express` is.
  */
 
+import * as ts from 'typescript';
 import type { Citation } from '../../facts/citation';
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import type { MigrationFact, PackageManager } from '../../facts/project-facts';
@@ -288,172 +289,54 @@ const detectFramework = (manifest: ParsedManifest, context: ProbeContext): Infer
   return undefined;
 };
 
-type ConfigToken = {
-  kind: 'identifier' | 'string' | 'punctuation';
-  value: string;
-  start: number;
+type LiteralProperty = { value: ts.Expression; keyStart: number };
+
+const unwrapConfigObject = (expression: ts.Expression): ts.Expression => {
+  if (
+    ts.isParenthesizedExpression(expression) ||
+    ts.isSatisfiesExpression(expression) ||
+    ts.isAsExpression(expression)
+  ) {
+    return unwrapConfigObject(expression.expression);
+  }
+  return expression;
 };
 
 /**
- * Tokenize only the literal surface needed from a React Router config.
+ * Read only direct literal properties from a parse-clean React Router config.
  *
- * This deliberately is not a JavaScript evaluator. Comments and template literals are discarded,
- * quoted strings remain single tokens, and no identifiers or calls are resolved. The parser below
- * accepts properties written directly on `export default { ... }` and stays silent for computed
- * configuration rather than executing repository code or guessing its value.
+ * The TypeScript parser supplies the lexical boundaries, escape decoding, and object structure.
+ * This keeps repository code inert and deliberately fails closed for identifiers, calls, spreads,
+ * shorthand/computed properties, and other dynamic configuration.
  */
-const configTokens = (source: string): ConfigToken[] => {
-  const tokens: ConfigToken[] = [];
-  const regexPrefixTokens = new Set(['=', ':', '(', ',', '[', '{', ';', '!', '?', '&', '|']);
-  const regexPrefixKeywords = new Set(['return', 'throw', 'case', 'yield', 'await']);
-  let index = 0;
-  while (index < source.length) {
-    const character = source[index]!;
-    if (/\s/.test(character)) {
-      index += 1;
-      continue;
-    }
-    if (character === '/' && source[index + 1] === '/') {
-      index += 2;
-      while (index < source.length && source[index] !== '\n') index += 1;
-      continue;
-    }
-    if (character === '/' && source[index + 1] === '*') {
-      index += 2;
-      while (index < source.length && !(source[index] === '*' && source[index + 1] === '/')) index += 1;
-      index = Math.min(index + 2, source.length);
-      continue;
-    }
-    const previousToken = tokens.at(-1);
-    if (
-      character === '/' &&
-      (previousToken === undefined ||
-        regexPrefixTokens.has(previousToken.value) ||
-        (previousToken.kind === 'identifier' && regexPrefixKeywords.has(previousToken.value)))
-    ) {
-      // A regex literal is a dynamic value for our purposes. Skip it as one unit so commas or
-      // property-looking text inside the expression cannot become top-level config evidence.
-      index += 1;
-      let inCharacterClass = false;
-      while (index < source.length) {
-        if (source[index] === '\\') {
-          index += 2;
-          continue;
-        }
-        if (source[index] === '[') inCharacterClass = true;
-        if (source[index] === ']') inCharacterClass = false;
-        if (source[index] === '/' && !inCharacterClass) {
-          index += 1;
-          while (index < source.length && /[A-Za-z]/.test(source[index]!)) index += 1;
-          break;
-        }
-        index += 1;
-      }
-      continue;
-    }
-    if (character === '`') {
-      index += 1;
-      while (index < source.length) {
-        if (source[index] === '\\') {
-          index += 2;
-          continue;
-        }
-        if (source[index] === '`') {
-          index += 1;
-          break;
-        }
-        index += 1;
-      }
-      continue;
-    }
-    if (character === '"' || character === "'") {
-      const quote = character;
-      const start = index;
-      let value = '';
-      index += 1;
-      while (index < source.length) {
-        const current = source[index]!;
-        if (current === '\\') {
-          const escaped = source[index + 1];
-          if (escaped === undefined) break;
-          value += escaped;
-          index += 2;
-          continue;
-        }
-        if (current === quote) {
-          index += 1;
-          break;
-        }
-        value += current;
-        index += 1;
-      }
-      tokens.push({ kind: 'string', value, start });
-      continue;
-    }
-    if (/[A-Za-z_$]/.test(character)) {
-      const start = index;
-      index += 1;
-      while (index < source.length && /[A-Za-z0-9_$]/.test(source[index]!)) index += 1;
-      tokens.push({
-        kind: 'identifier',
-        value: source.slice(start, index),
-        start
-      });
-      continue;
-    }
-    if ('{}:,=;([!?&|'.includes(character)) tokens.push({ kind: 'punctuation', value: character, start: index });
-    index += 1;
-  }
-  return tokens;
-};
+const exportedObjectProperties = (file: string, source: string): ReadonlyMap<string, LiteralProperty> => {
+  const scriptKind =
+    file.endsWith('.js') || file.endsWith('.mjs') || file.endsWith('.cjs') ? ts.ScriptKind.JS : ts.ScriptKind.TS;
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, scriptKind);
+  const parseDiagnostics = (sourceFile as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] })
+    .parseDiagnostics;
+  if (parseDiagnostics.length > 0) return new Map();
 
-type LiteralProperty = { value: ConfigToken; key: ConfigToken; exact: boolean };
-
-const exportedObjectProperties = (source: string): ReadonlyMap<string, LiteralProperty> => {
-  const tokens = configTokens(source);
-  const exportIndex = tokens.findIndex(
-    (token, index) => token.kind === 'identifier' && token.value === 'export' && tokens[index + 1]?.value === 'default'
+  const exports = sourceFile.statements.filter(
+    (statement): statement is ts.ExportAssignment => ts.isExportAssignment(statement) && !statement.isExportEquals
   );
-  if (exportIndex === -1 || tokens[exportIndex + 2]?.value !== '{') return new Map();
-  const objectStart = exportIndex + 2;
+  if (exports.length !== 1) return new Map();
+  const config = unwrapConfigObject(exports[0]!.expression);
+  if (!ts.isObjectLiteralExpression(config)) return new Map();
 
   const properties = new Map<string, LiteralProperty>();
-  let depth = 0;
-  let expectsProperty = false;
-  for (let index = objectStart; index < tokens.length; index += 1) {
-    const token = tokens[index]!;
-    if (token.value === '{') {
-      depth += 1;
-      if (depth === 1) expectsProperty = true;
-      continue;
-    }
-    if (token.value === '}') {
-      depth -= 1;
-      if (depth === 0) break;
-      continue;
-    }
-    if (depth !== 1) continue;
-    if (token.value === ',') {
-      expectsProperty = true;
-      continue;
-    }
-    if (!expectsProperty || (token.kind !== 'identifier' && token.kind !== 'string')) continue;
-    if (tokens[index + 1]?.value !== ':' || tokens[index + 2] === undefined) continue;
-    const value = tokens[index + 2]!;
-    const terminator = tokens[index + 3];
-    properties.set(token.value, {
-      key: token,
-      value,
-      exact: terminator?.value === ',' || terminator?.value === '}'
-    });
-    expectsProperty = false;
+  for (const property of config.properties) {
+    if (!ts.isPropertyAssignment(property)) return new Map();
+    const name = property.name;
+    if (!ts.isIdentifier(name) && !ts.isStringLiteral(name)) return new Map();
+    properties.set(name.text, { value: property.initializer, keyStart: name.getStart(sourceFile) });
   }
   return properties;
 };
 
 const configCitation = (file: string, source: string, property: LiteralProperty): Citation => {
   const lines = source.split(/\r?\n/);
-  const line = source.slice(0, property.key.start).split(/\r?\n/).length - 1;
+  const line = source.slice(0, property.keyStart).split(/\r?\n/).length - 1;
   return citeLine(file, lines, line, 'servesStaticAssets');
 };
 
@@ -498,15 +381,15 @@ const staticSiteFor = async (
   if (rrConfigFile !== undefined) {
     const configText = await readText(context, rrConfigFile);
     if (configText !== undefined) {
-      const properties = exportedObjectProperties(configText);
+      const properties = exportedObjectProperties(rrConfigFile, configText);
       const ssr = properties.get('ssr');
-      if (ssr?.exact === true && ssr.value.kind === 'identifier' && ssr.value.value === 'false') {
+      if (ssr !== undefined && ssr.value.kind === ts.SyntaxKind.FalseKeyword) {
         const configuredBuildDirectory = properties.get('buildDirectory');
         const buildDirectory =
           configuredBuildDirectory === undefined
             ? 'build'
-            : configuredBuildDirectory.exact && configuredBuildDirectory.value.kind === 'string'
-              ? safeBuildDirectory(configuredBuildDirectory.value.value)
+            : ts.isStringLiteral(configuredBuildDirectory.value)
+              ? safeBuildDirectory(configuredBuildDirectory.value.text)
               : undefined;
         if (buildDirectory === undefined) return undefined;
         return {
