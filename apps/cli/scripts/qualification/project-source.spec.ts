@@ -90,6 +90,42 @@ describe('qualification project sources', () => {
     expect((await readdir(cacheRoot)).some((name) => name.includes('.quarantined-'))).toBeTrue();
   });
 
+  test('preserves exact commit metadata only when a Dockerfile executes git', async () => {
+    const source = await createRepository();
+    await writeFile(
+      join(source.repository, 'Dockerfile'),
+      'FROM alpine\nCOPY . /app\nWORKDIR /app\nRUN git rev-parse HEAD > /app/.git_sha\n',
+      'utf8'
+    );
+    await git(source.repository, 'add', 'Dockerfile');
+    await git(source.repository, 'commit', '-m', 'docker build reads commit');
+    const dockerCommit = await git(source.repository, 'rev-parse', 'HEAD');
+    const cacheRoot = await createRoot();
+    const workRoot = await createRoot();
+
+    const acquired = await acquireProject({
+      entry: entryFor({ id: 'git-aware-image', repository: source.repositoryUrl, commit: dockerCommit }),
+      manifestDirectory: source.repository,
+      cacheRoot,
+      workRoot
+    });
+
+    expect(await Bun.file(join(acquired.projectRoot, '.git', 'HEAD')).exists()).toBeTrue();
+    expect(await git(acquired.projectRoot, 'rev-parse', 'HEAD')).toBe(dockerCommit);
+  });
+
+  test('does not copy repository history into an ordinary project', async () => {
+    const source = await createRepository();
+    const acquired = await acquireProject({
+      entry: entryFor({ id: 'ordinary-image', repository: source.repositoryUrl, commit: source.secondCommit }),
+      manifestDirectory: source.repository,
+      cacheRoot: await createRoot(),
+      workRoot: await createRoot()
+    });
+
+    expect(await Bun.file(join(acquired.projectRoot, '.git')).exists()).toBeFalse();
+  });
+
   test('changes the local-source fingerprint when project content changes', async () => {
     const manifestRoot = await createRoot();
     const projectRoot = join(manifestRoot, 'project');

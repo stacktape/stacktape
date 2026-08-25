@@ -35,6 +35,26 @@ const pathExists = async (path: string) => {
 
 const excludedSourceNames = new Set(['.git', 'node_modules', '.stacktape']);
 
+const dockerfileNeedsGitMetadata = async (sourceRoot: string): Promise<boolean> => {
+  const visit = async (directory: string): Promise<boolean> => {
+    for (const entry of await readdir(directory, { withFileTypes: true })) {
+      if (excludedSourceNames.has(entry.name)) continue;
+      const absolute = join(directory, entry.name);
+      if (entry.isDirectory()) {
+        if (await visit(absolute)) return true;
+        continue;
+      }
+      if (!entry.isFile() || !/(?:^Dockerfile$|\.Dockerfile$|Dockerfile\.)/i.test(entry.name)) continue;
+      const contents = await readFile(absolute, 'utf8');
+      if (/\bgit\s+(?:rev-parse|describe|log|show)\b|(?:^|[\s"'])\.git(?:[/\\]|[\s"']|$)/im.test(contents)) {
+        return true;
+      }
+    }
+    return false;
+  };
+  return visit(sourceRoot);
+};
+
 const assertInside = (parent: string, child: string, label: string) => {
   const childRelative = relative(parent, child);
   if (childRelative === '..' || childRelative.startsWith(`..${sep}`) || resolve(childRelative) === childRelative) {
@@ -147,7 +167,17 @@ const prepareGitCheckout = async ({
   return { checkout, cacheHit };
 };
 
-const copyProject = async ({ sourceRoot, workRoot, id }: { sourceRoot: string; workRoot: string; id: string }) => {
+const copyProject = async ({
+  sourceRoot,
+  workRoot,
+  id,
+  gitMetadataRoot
+}: {
+  sourceRoot: string;
+  workRoot: string;
+  id: string;
+  gitMetadataRoot?: string;
+}) => {
   const projectRoot = join(workRoot, id);
   await cp(sourceRoot, projectRoot, {
     recursive: true,
@@ -157,6 +187,14 @@ const copyProject = async ({ sourceRoot, workRoot, id }: { sourceRoot: string; w
       return !excludedSourceNames.has(name);
     }
   });
+  // Most qualification copies intentionally omit repository history. A small class of real
+  // custom Dockerfiles, including Chatwoot's production image, explicitly runs `git rev-parse`
+  // after `COPY .`. A customer's ordinary clone supplies that metadata, so stripping it here
+  // creates a harness-only package failure. Preserve the clean pinned checkout metadata only when
+  // a Dockerfile proves it is part of the build contract; local/synthetic sources remain unchanged.
+  if (gitMetadataRoot !== undefined && (await dockerfileNeedsGitMetadata(sourceRoot))) {
+    await cp(join(gitMetadataRoot, '.git'), join(projectRoot, '.git'), { recursive: true, dereference: false });
+  }
   const makeWritable = async (path: string): Promise<void> => {
     const metadata = await lstat(path);
     if (metadata.isSymbolicLink()) return;
@@ -206,7 +244,12 @@ export const acquireProject = async ({
     entry.source.subdirectory === undefined ? checkout : join(checkout, entry.source.subdirectory)
   );
   assertInside(checkoutRoot, sourceRoot, `Git source for ${entry.id}`);
-  const projectRoot = await copyProject({ sourceRoot, workRoot: caseWorkRoot, id: entry.id });
+  const projectRoot = await copyProject({
+    sourceRoot,
+    workRoot: caseWorkRoot,
+    id: entry.id,
+    gitMetadataRoot: checkout
+  });
   return {
     projectRoot,
     workRoot: caseWorkRoot,
