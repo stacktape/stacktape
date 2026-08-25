@@ -339,13 +339,13 @@ describe('sandboxed qualification planning & command composition', () => {
   test('allows only contained relative symlinks inside retained workdirs', async () => {
     const root = mkdtempSync(join(tmpdir(), 'qualification-workdir-links-'));
     temporaryDirectories.push(root);
-    const workdir = join(root, 'workdirs', 'node-case');
+    const workdir = join(root, 'workdirs', 'node-case-Ab12Cd');
     mkdirSync(join(workdir, 'packages', 'target'), { recursive: true });
     writeFileSync(join(workdir, 'packages', 'target', 'package.json'), '{}\n');
     mkdirSync(join(workdir, 'node_modules'));
     symlinkSync('../packages/target', join(workdir, 'node_modules', 'target'), 'dir');
     const accepted = await validateAndHashOutputTree(root, true);
-    const containedLink = accepted.find((entry) => entry.path === 'workdirs/node-case/node_modules/target');
+    const containedLink = accepted.find((entry) => entry.path === 'workdirs/node-case-Ab12Cd/node_modules/target');
     expect(containedLink?.type).toBe('symlink');
     expect(containedLink?.linkTarget?.replaceAll('\\', '/')).toBe('../packages/target');
 
