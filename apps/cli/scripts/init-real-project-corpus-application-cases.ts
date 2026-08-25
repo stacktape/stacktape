@@ -179,8 +179,8 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     source: 'real-application',
     exercises: ['rust', 'rocket', 'sqlite', 'persistent-storage', 'docker', 'email'],
     expect: {
-      resourceTypes: { 'efs-filesystem': 1, 'web-service': 1 },
-      dependencyKinds: { email: 1 },
+      resourceTypes: { bastion: 1, 'efs-filesystem': 1, 'relational-database': 1, 'web-service': 1 },
+      dependencyKinds: { email: 1, postgres: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
       services: [
@@ -197,15 +197,20 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       requiredConfig: [
         'type: efs-filesystem',
         'backupEnabled: true',
+        'type: relational-database',
         'dockerfilePath: docker/Dockerfile.debian',
         'containerPort: 80',
         'maxInstances: 1',
         'efsFilesystemName: vaultwardenData',
-        'mountPath: /data'
+        'mountPath: /data',
+        'name: DATABASE_URL',
+        "$ResourceParam('mainDatabase', 'connectionString')",
+        'name: DOMAIN',
+        "$ResourceParam('vaultwarden', 'url')"
       ],
-      forbiddenConfig: ['type: relational-database', 'type: worker-service', 'playwright', 'command:'],
+      forbiddenConfig: ['engine: mysql', 'type: worker-service', 'playwright', 'command:'],
       requiredGapPatterns: ['SMTP.*host.*port.*username.*password'],
-      forbiddenGapPatterns: ['lost when the runtime restarts'],
+      forbiddenGapPatterns: ['lost when the runtime restarts', 'SQLite WAL'],
       forbidCurrentlyHostedDependencies: true,
       deployable: true
     }

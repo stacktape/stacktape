@@ -262,6 +262,7 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
     writesLocalFilesystem: existing.writesLocalFilesystem ?? incoming.writesLocalFilesystem,
     bundledLifecycle: existing.bundledLifecycle ?? incoming.bundledLifecycle,
     declaredContainerVolumes: existing.declaredContainerVolumes ?? incoming.declaredContainerVolumes,
+    defaultLocalDatabase: existing.defaultLocalDatabase ?? incoming.defaultLocalDatabase,
     servesStaticAssets,
     environmentVariables: mergeEnvironmentVariables(
       existing.environmentVariables ?? [],

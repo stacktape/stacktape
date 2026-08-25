@@ -72,7 +72,10 @@ const CASES: EvalCase[] = [
         '[package]',
         'name = "vaultwarden"',
         'version = "1.0.0"',
+        '[features]',
+        'postgresql = ["diesel/postgres"]',
         '[dependencies]',
+        'diesel = "2"',
         'rocket = "0.5"',
         'lettre = "0.11"',
         ''
@@ -80,10 +83,28 @@ const CASES: EvalCase[] = [
       Dockerfile: 'docker/Dockerfile.debian\n',
       'docker/Dockerfile.debian': [
         'FROM debian:13',
+        'ARG DB=sqlite,mysql,postgresql',
         'ENV ROCKET_PORT=80',
+        'WORKDIR /',
         'VOLUME /data',
         'EXPOSE 80',
         'ENTRYPOINT ["/start.sh"]',
+        ''
+      ].join('\n'),
+      'src/config.rs': [
+        'macro_rules! make_config {',
+        '  ($name:ident) => { stringify!([<$name:upper>]) };',
+        '}',
+        'make_config! {',
+        '  /// Data folder |> Main data folder',
+        '  data_folder: String, false, def, "data".to_owned();',
+        '  /// Database URL',
+        '  database_url: String, false, auto, |c| format!("sqlite://{}/db.sqlite3", c.data_folder);',
+        '  /// Domain URL |> This needs to be set to the URL used to access the server, including http[s]://',
+        '  domain: String, true, def, "http://localhost".to_owned();',
+        '  /// Enable DB WAL',
+        '  enable_db_wal: bool, false, def, true;',
+        '}',
         ''
       ].join('\n'),
       'playwright/package.json': JSON.stringify({
@@ -102,10 +123,15 @@ const CASES: EvalCase[] = [
       'playwright/compose/keycloak/Dockerfile': 'FROM quay.io/keycloak/keycloak:26\n'
     },
     expect: {
-      dependencyKinds: ['email'],
-      absentDependencyKinds: ['postgres', 'mysql'],
-      resources: { vaultwarden: 'web-service', vaultwardenData: 'efs-filesystem' },
-      resourceCount: 2,
+      dependencyKinds: ['email', 'postgres'],
+      absentDependencyKinds: ['mysql'],
+      resources: {
+        mainDatabase: 'relational-database',
+        databaseBastion: 'bastion',
+        vaultwarden: 'web-service',
+        vaultwardenData: 'efs-filesystem'
+      },
+      resourceCount: 4,
       resourcePackaging: [
         {
           resource: 'vaultwarden',
@@ -116,6 +142,10 @@ const CASES: EvalCase[] = [
         }
       ],
       serviceProperties: [{ resource: 'vaultwarden', containerPort: 80, minInstances: 1, maxInstances: 1 }],
+      serviceEnvironment: [
+        { resource: 'vaultwarden', name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" },
+        { resource: 'vaultwarden', name: 'DOMAIN', value: "$ResourceParam('vaultwarden', 'url')" }
+      ],
       serviceVolumeMounts: [
         { resource: 'vaultwarden', type: 'efs', efsFilesystemName: 'vaultwardenData', mountPath: '/data' }
       ],

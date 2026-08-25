@@ -1014,6 +1014,32 @@ export const composeConfig = ({
       continue;
     }
 
+    const localDatabase = service.defaultLocalDatabase;
+    if (localDatabase !== undefined) {
+      const hasManagedDatabaseReplacement = dependencies.some(
+        (dependency) =>
+          RDS_ENGINE_TYPES[dependency.kind] !== undefined &&
+          dependencyConsumers.get(dependency)?.has(service) === true &&
+          composedDependenciesByFact.has(dependency) &&
+          service.environmentVariables.some(
+            (variable) =>
+              variable.name === localDatabase.connectionVariable &&
+              variable.role === 'infra-dependency' &&
+              variable.dependencyName === dependency.name
+          )
+      );
+      const databaseIsInsideMountedVolume = declaredVolumePaths.some(
+        (mountPath) => localDatabase.path === mountPath || localDatabase.path.startsWith(`${mountPath}/`)
+      );
+      if (databaseIsInsideMountedVolume && !hasManagedDatabaseReplacement) {
+        hasUnresolvedPersistence = true;
+        gaps.push({
+          subject: `${service.name}.database-persistence`,
+          message: `${service.name} defaults to SQLite at ${localDatabase.path}. SQLite WAL is unsupported on network filesystems, and an EFS file backup is not an application-consistent database backup. Configure ${localDatabase.connectionVariable} to a managed database before deploying; disabling WAL alone does not make filesystem backups safe.`
+        });
+      }
+    }
+
     const volumes = declaredVolumePaths.map((mountPath) => {
       const leaf = mountPath.split('/').findLast((segment) => segment.length > 0) ?? 'data';
       const preferredName =

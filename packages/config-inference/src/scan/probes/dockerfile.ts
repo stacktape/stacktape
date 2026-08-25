@@ -22,6 +22,25 @@ const dockerfilePointerTarget = (path: string, raw: string, files: readonly stri
   return resolved;
 };
 
+/**
+ * Read the Dockerfile bytes that a repository path denotes.
+ *
+ * Git checkouts without symlink support materialize a Dockerfile symlink as its one-line target.
+ * Other probes need the same selected image contract, so resolving that narrow shape lives here
+ * instead of being reimplemented with subtly different traversal rules.
+ */
+export const readDockerfileDefinition = async (
+  context: ProbeContext,
+  path: string
+): Promise<{ path: string; raw: string } | undefined> => {
+  const candidateRaw = await readText(context, path);
+  if (candidateRaw === undefined) return undefined;
+  const pointerTarget = dockerfilePointerTarget(path, candidateRaw, context.files);
+  const dockerfile = pointerTarget ?? path;
+  const raw = pointerTarget === undefined ? candidateRaw : await readText(context, pointerTarget);
+  return raw === undefined ? undefined : { path: dockerfile, raw };
+};
+
 const serviceNameFor = (root: string, repositoryRoot: string): string =>
   root === '.' ? (repositoryRoot.split(/[/\\]/).findLast((segment) => segment !== '') ?? 'app') : posix.basename(root);
 
@@ -37,7 +56,7 @@ const exposedPort = (path: string, raw: string): { port?: number; citation?: Cit
   };
 };
 
-const declaredVolumes = (path: string, raw: string): { paths: string[]; citation?: Citation } => {
+export const declaredDockerfileVolumes = (path: string, raw: string): { paths: string[]; citation?: Citation } => {
   const paths: string[] = [];
   for (const match of raw.matchAll(/^\s*VOLUME\s+(.+)$/gim)) {
     const declaration = match[1]!.trim();
@@ -80,18 +99,14 @@ export const dockerfileProbe: Probe = {
     for (const path of candidates) {
       const root = serviceRootFor(path, context.files);
       if (services.has(root)) continue;
-      // oxlint-disable-next-line no-await-in-loop -- one short, policy-controlled file per service root.
-      const candidateRaw = await readText(context, path);
-      if (candidateRaw === undefined) continue;
-      const pointerTarget = dockerfilePointerTarget(path, candidateRaw, context.files);
-      const dockerfile = pointerTarget ?? path;
       // A checked-out symbolic link can be materialized as a one-line target path on platforms
       // where Git symlinks are disabled. Follow only an exact repository-local Dockerfile pointer.
       // oxlint-disable-next-line no-await-in-loop -- at most one bounded pointer target per candidate.
-      const raw = pointerTarget === undefined ? candidateRaw : await readText(context, pointerTarget);
-      if (raw === undefined || !/^\s*FROM\s+\S+/im.test(raw)) continue;
+      const definition = await readDockerfileDefinition(context, path);
+      if (definition === undefined || !/^\s*FROM\s+\S+/im.test(definition.raw)) continue;
+      const { path: dockerfile, raw } = definition;
       const { port, citation: portCitation } = exposedPort(dockerfile, raw);
-      const { paths: volumePaths, citation: volumeCitation } = declaredVolumes(dockerfile, raw);
+      const { paths: volumePaths, citation: volumeCitation } = declaredDockerfileVolumes(dockerfile, raw);
       const dockerfileCitation = citeFirstMatch(dockerfile, raw, /^\s*FROM\s+\S+/im, 'dockerfile');
 
       services.set(root, {

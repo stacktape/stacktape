@@ -947,6 +947,35 @@ describe('composeConfig', () => {
     );
   });
 
+  it('does not treat SQLite on EFS as application-consistent database persistence', () => {
+    const composed = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            writesLocalFilesystem: { paths: ['/data'], purpose: 'sqlite' },
+            declaredContainerVolumes: { paths: ['/data'] },
+            defaultLocalDatabase: {
+              kind: 'sqlite',
+              path: '/data/db.sqlite3',
+              connectionVariable: 'DATABASE_URL'
+            }
+          })
+        ]
+      })
+    });
+
+    expect(composed.config.resources.webData?.type).toBe('efs-filesystem');
+    expect(composed.deployable).toBe(false);
+    expect(composed.gaps).toContainEqual(
+      expect.objectContaining({
+        subject: 'web.database-persistence',
+        message: expect.stringMatching(
+          /SQLite WAL.*network filesystems.*application-consistent.*managed database.*disabling WAL/i
+        )
+      })
+    );
+  });
+
   it('gives colliding names distinct resource keys', () => {
     const { config } = composeConfig({
       facts: facts({

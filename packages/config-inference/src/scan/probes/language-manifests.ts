@@ -23,10 +23,14 @@
  * avoid.
  */
 
+import { posix } from 'node:path';
+import type { Citation } from '../../facts/citation';
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
-import type { ServiceFactInput } from '../../facts/service';
+import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/service';
+import { isNonProductionFixturePath } from '../deployment-relevance';
 import { languageOf } from '../language';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { declaredDockerfileVolumes, readDockerfileDefinition } from './dockerfile';
 
 /**
  * Package name to what it proves.
@@ -400,6 +404,143 @@ const normalise = (name: string): string => {
   return segments.at(-1) ?? '';
 };
 
+type RustContainerConfiguration = {
+  variables: EnvironmentVariableUse[];
+  defaultLocalDatabase?: NonNullable<ServiceFactInput['defaultLocalDatabase']>;
+  postgresEvidence: Citation[];
+};
+
+/**
+ * Read a Rust configuration macro that derives environment names by uppercasing its declared
+ * fields. This is a reusable source convention, not a package-name heuristic: the macro expansion
+ * itself proves that `database_url` and `domain` become `DATABASE_URL` and `DOMAIN`.
+ */
+const rustContainerConfiguration = async (
+  context: ProbeContext,
+  serviceName: string
+): Promise<RustContainerConfiguration | undefined> => {
+  if (!context.files.includes('Dockerfile')) return undefined;
+  const dockerfile = await readDockerfileDefinition(context, 'Dockerfile');
+  if (dockerfile === undefined) return undefined;
+
+  const sourcePaths = context.files
+    .filter(
+      (path) =>
+        /(?:^|\/)(?:config|configuration|environment|settings)[^/]*\.rs$/i.test(path) &&
+        !isNonProductionFixturePath(path)
+    )
+    .slice(0, 32);
+  const sources = await Promise.all(
+    sourcePaths.map(async (path) => ({ path, raw: await readText(context, path, { fullFile: true }) }))
+  );
+  const source = sources.find(
+    ({ raw }) =>
+      raw !== undefined &&
+      /stringify!\(\s*\[<\$name:upper>]\s*\)/.test(raw) &&
+      /^\s*(?:database_url|domain)\s*:/m.test(raw)
+  );
+  if (source?.raw === undefined) return undefined;
+
+  const variables: EnvironmentVariableUse[] = [];
+  const domainLines = source.raw.split(/\r?\n/);
+  const domainIndex = domainLines.findIndex((line) => /^\s*domain\s*:/.test(line));
+  const domainDocumentation =
+    domainIndex < 0 ? '' : domainLines.slice(Math.max(0, domainIndex - 3), domainIndex).join(' ');
+  const domainCitation = citeFirstMatchOnly(source.path, source.raw, /^\s*domain\s*:[^;]+;/m, 'environmentVariables');
+  if (
+    domainCitation !== undefined &&
+    /Domain URL/i.test(domainDocumentation) &&
+    /needs? to be set/i.test(domainDocumentation) &&
+    /http(?:s|\[s])?:\/\/|protocol/i.test(domainDocumentation)
+  ) {
+    variables.push({
+      name: 'DOMAIN',
+      role: 'cross-service-reference',
+      targetServiceName: serviceName,
+      targetServiceProperty: 'url',
+      required: true,
+      evidence: [domainCitation]
+    });
+  }
+
+  const databaseDeclaration = /^\s*database_url\s*:[^;\n]*sqlite:\/\/[^;\n]*\b([\w.-]+\.sqlite3?)\b[^;\n]*;/m.exec(
+    source.raw
+  );
+  const databaseCitation =
+    databaseDeclaration === null
+      ? undefined
+      : citeFirstMatchOnly(
+          source.path,
+          source.raw,
+          /^\s*database_url\s*:[^;\n]*sqlite:\/\/[^;\n]*\b[\w.-]+\.sqlite3?\b[^;\n]*;/m,
+          'environmentVariables'
+        );
+  const dataFolder = /^\s*data_folder\s*:[^;]*\bdef\s*,\s*["']([^"']+)["']/m.exec(source.raw)?.[1];
+  const workdir = [...dockerfile.raw.matchAll(/^\s*WORKDIR\s+([^\s#]+)/gim)].at(-1)?.[1];
+  const databaseFilename = databaseDeclaration?.[1];
+  const localDatabasePath =
+    databaseCitation === undefined ||
+    dataFolder === undefined ||
+    workdir === undefined ||
+    databaseFilename === undefined
+      ? undefined
+      : posix.resolve(workdir, dataFolder, databaseFilename);
+  const volumePaths = declaredDockerfileVolumes(dockerfile.path, dockerfile.raw).paths;
+  const databaseIsInsideVolume =
+    localDatabasePath !== undefined &&
+    volumePaths.some(
+      (volumePath) => localDatabasePath === volumePath || localDatabasePath.startsWith(`${volumePath}/`)
+    );
+
+  const cargo = await readText(context, 'Cargo.toml', { fullFile: true });
+  const cargoPostgres =
+    cargo === undefined
+      ? undefined
+      : citeFirstMatchOnly(
+          'Cargo.toml',
+          cargo,
+          /^\s*postgresql\s*=\s*\[[^\n]*diesel\/postgres[^\n]*]/m,
+          'dependencies.kind'
+        );
+  const dockerPostgres = citeFirstMatchOnly(
+    dockerfile.path,
+    dockerfile.raw,
+    /^\s*ARG\s+DB\s*=\s*[^\n#]*\bpostgresql\b[^\n#]*/im,
+    'dependencies.kind'
+  );
+  if (
+    databaseIsInsideVolume &&
+    databaseCitation !== undefined &&
+    cargoPostgres !== undefined &&
+    dockerPostgres !== undefined
+  ) {
+    variables.push({
+      name: 'DATABASE_URL',
+      role: 'infra-dependency',
+      dependencyName: defaultDependencyName('postgres'),
+      required: true,
+      evidence: [databaseCitation]
+    });
+  }
+
+  return {
+    variables,
+    ...(databaseIsInsideVolume && localDatabasePath !== undefined
+      ? {
+          defaultLocalDatabase: {
+            kind: 'sqlite' as const,
+            path: localDatabasePath,
+            connectionVariable: 'DATABASE_URL'
+          }
+        }
+      : {}),
+    postgresEvidence:
+      databaseIsInsideVolume && cargoPostgres !== undefined && dockerPostgres !== undefined
+        ? [cargoPostgres, dockerPostgres]
+        : []
+  };
+};
+
 export const languageManifestProbe: Probe = {
   name: 'language-manifests',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -527,6 +668,21 @@ export const languageManifestProbe: Probe = {
       return pattern.exec(prepare === undefined ? raw : prepare(raw))?.[1] ?? undefined;
     }).find((name) => name !== undefined);
     const projectName = declaredName ?? context.root.split(/[/\\]/).findLast((segment) => segment !== '');
+    const rustConfiguration =
+      language === 'rust' && projectName !== undefined
+        ? await rustContainerConfiguration(context, projectName)
+        : undefined;
+    if (rustConfiguration !== undefined && rustConfiguration.postgresEvidence.length > 0) {
+      dependencies.set('postgres', {
+        name: defaultDependencyName('postgres'),
+        kind: 'postgres',
+        extensions: [],
+        consumedBy: [projectName ?? 'app'],
+        addressedBy: ['DATABASE_URL'],
+        evidence: rustConfiguration.postgresEvidence,
+        source: 'probe'
+      });
+    }
 
     const framework = HTTP_FRAMEWORKS.find((entry) => entry.packages.some((name) => foundIn.has(name)));
     const server = [...HTTP_SERVERS].find((name) => foundIn.has(name));
@@ -560,6 +716,10 @@ export const languageManifestProbe: Probe = {
                   : {
                       startCommand: `streamlit run ${streamlitEntrypoint} --server.address 0.0.0.0 --server.port 80`
                     }),
+                ...(rustConfiguration?.defaultLocalDatabase === undefined
+                  ? {}
+                  : { defaultLocalDatabase: rustConfiguration.defaultLocalDatabase }),
+                environmentVariables: rustConfiguration?.variables ?? [],
                 evidence: [cite(framework?.packages[0] ?? server ?? ''), streamlitCitation].filter(
                   (citation) => citation !== undefined
                 ),

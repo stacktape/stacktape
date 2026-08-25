@@ -6,6 +6,7 @@ import { composeConfig } from '../../compose/compose';
 import { assembleCandidateFacts } from '../assemble';
 import { environmentProbe } from './environment';
 import { dockerfileProbe } from './dockerfile';
+import { languageManifestProbe } from './language-manifests';
 import { manifestProbe } from './manifest';
 
 let root: string;
@@ -168,6 +169,94 @@ describe('the standalone Dockerfile probe', () => {
 
     expect(facts.services.map((service) => service.name)).toEqual(['api']);
     expect(facts.dependencies).toEqual([]);
+  });
+
+  it('moves a source-proven default SQLite database off the declared network volume', async () => {
+    const repositoryRoot = await makeRepo({
+      'Cargo.toml': [
+        '[package]',
+        'name = "password-vault"',
+        '[features]',
+        'postgresql = ["diesel/postgres"]',
+        '[dependencies]',
+        'diesel = "2"',
+        'rocket = "0.5"',
+        ''
+      ].join('\n'),
+      Dockerfile: 'docker/Dockerfile.production\n',
+      'docker/Dockerfile.production': [
+        'FROM rust:1 AS build',
+        'ARG DB=sqlite,mysql,postgresql',
+        'FROM debian:13',
+        'WORKDIR /',
+        'VOLUME /data',
+        'EXPOSE 80',
+        'CMD ["/start.sh"]',
+        ''
+      ].join('\n'),
+      'src/config.rs': [
+        'macro_rules! make_config {',
+        '  ($name:ident) => { stringify!([<$name:upper>]) };',
+        '}',
+        'make_config! {',
+        '  /// Data folder |> Main data folder',
+        '  data_folder: String, false, def, "data".to_owned();',
+        '  /// Database URL',
+        '  database_url: String, false, auto, |c| format!("sqlite://{}/db.sqlite3", c.data_folder);',
+        '  /// Domain URL |> This needs to be set to the URL used to access the server, including http[s]://',
+        '  domain: String, true, def, "http://localhost".to_owned();',
+        '  /// Enable DB WAL',
+        '  enable_db_wal: bool, false, def, true;',
+        '}',
+        ''
+      ].join('\n')
+    });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [dockerfileProbe, languageManifestProbe]
+    });
+    const composed = composeConfig({ facts });
+
+    expect(facts.dependencies).toContainEqual(
+      expect.objectContaining({
+        name: 'mainDatabase',
+        kind: 'postgres',
+        consumedBy: ['password-vault'],
+        addressedBy: ['DATABASE_URL']
+      })
+    );
+    expect(facts.services[0]).toMatchObject({
+      defaultLocalDatabase: {
+        kind: 'sqlite',
+        path: '/data/db.sqlite3',
+        connectionVariable: 'DATABASE_URL'
+      }
+    });
+    expect(facts.services[0]?.environmentVariables).toContainEqual(
+      expect.objectContaining({
+        name: 'DATABASE_URL',
+        role: 'infra-dependency',
+        dependencyName: 'mainDatabase'
+      })
+    );
+    expect(facts.services[0]?.environmentVariables).toContainEqual(
+      expect.objectContaining({
+        name: 'DOMAIN',
+        role: 'cross-service-reference',
+        targetServiceName: 'password-vault',
+        targetServiceProperty: 'url'
+      })
+    );
+
+    expect(composed.config.resources.mainDatabase?.type).toBe('relational-database');
+    expect(composed.config.resources.passwordVault?.properties.environment).toEqual(
+      expect.arrayContaining([
+        { name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" },
+        { name: 'DOMAIN', value: "$ResourceParam('passwordVault', 'url')" }
+      ])
+    );
+    expect(composed.gaps.some((gap) => gap.subject === 'password-vault.database-persistence')).toBe(false);
+    expect(composed.deployable).toBe(true);
   });
 
   it('retains legitimate services declared by an ordinary multi-service workspace', async () => {

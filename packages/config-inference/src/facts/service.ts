@@ -331,6 +331,20 @@ export const serviceFactSchema = z
      * input from upgrading an arbitrary local write into deployable persistent infrastructure.
      */
     declaredContainerVolumes: z.object({ paths: z.array(z.string().startsWith('/')).min(1) }).optional(),
+    /**
+     * A local database the application selects when no external connection variable is supplied.
+     *
+     * Probe-only: this records a source-derived default, not a recommendation. Composition uses it
+     * to reject network-filesystem persistence unless an exact managed-database connection replaces
+     * the default.
+     */
+    defaultLocalDatabase: z
+      .object({
+        kind: z.literal('sqlite'),
+        path: z.string().startsWith('/'),
+        connectionVariable: z.string().regex(/^[A-Z][A-Z0-9_]+$/)
+      })
+      .optional(),
     source: factSourceSchema
   })
   .superRefine(checkServiceConsistency);
