@@ -994,6 +994,86 @@ describe('the existing-deployment probe', () => {
     expect(composed.deployable).toBe(false);
   });
 
+  it('uses the identity-scoped consumer graph for database network policy', () => {
+    const facts = projectFactsSchema.parse({
+      schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+      services: [
+        {
+          name: 'edge',
+          path: 'apps/edge',
+          language: 'javascript',
+          exposesHttp: true,
+          executionModel: 'long-running',
+          startCommand: 'wrangler dev',
+          evidence: [{ file: 'apps/edge/package.json', line: 1, quote: 'edge' }],
+          source: 'probe'
+        },
+        {
+          name: 'api',
+          path: 'apps/lambda',
+          language: 'javascript',
+          exposesHttp: false,
+          executionModel: 'per-request',
+          functionEntrypoint: 'apps/lambda/handler.ts',
+          evidence: [{ file: 'apps/lambda/package.json', line: 1, quote: 'api' }],
+          source: 'probe'
+        },
+        {
+          name: 'api',
+          path: 'apps/container',
+          language: 'javascript',
+          exposesHttp: true,
+          executionModel: 'long-running',
+          startCommand: 'node index.js',
+          evidence: [{ file: 'apps/container/package.json', line: 1, quote: 'api' }],
+          source: 'probe'
+        }
+      ],
+      dependencies: [
+        {
+          name: 'mainDatabase',
+          kind: 'postgres',
+          consumedBy: ['api'],
+          evidence: [{ file: 'apps/container/package.json', line: 1, quote: 'postgres' }],
+          source: 'probe'
+        }
+      ],
+      existingDeployments: [
+        {
+          tool: 'cloudflare-workers',
+          managesAws: false,
+          runtimeConstraints: [
+            {
+              platform: 'cloudflare-worker',
+              scope: 'apps/edge',
+              entrypoint: 'apps/edge/src/index.ts',
+              evidence: [{ file: 'apps/edge/wrangler.json', line: 1, quote: 'main' }]
+            }
+          ],
+          evidence: [{ file: 'apps/edge/wrangler.json', line: 1, quote: 'main' }],
+          source: 'probe'
+        }
+      ]
+    });
+
+    const composed = composeConfig({ facts, projectName: 'workspace' });
+
+    expect(composed.config.resources.api).toMatchObject({ type: 'function' });
+    expect(composed.config.resources.api?.properties.connectTo).toBeUndefined();
+    expect(composed.config.resources.api?.properties.joinDefaultVpc).toBeUndefined();
+    expect(composed.config.resources.api2).toMatchObject({
+      type: 'web-service',
+      properties: { connectTo: ['mainDatabase'] }
+    });
+    expect(composed.recommendedPreferences.databaseAccess).toBe('private');
+    expect(composed.preferences.databaseAccess).toBe('private');
+    expect(composed.config.resources.mainDatabase?.properties).toMatchObject({
+      accessibility: { accessibilityMode: 'vpc', forceDisablePublicIp: true }
+    });
+    expect(composed.config.resources.databaseBastion?.type).toBe('bastion');
+    expect(composed.deployable).toBe(false);
+  });
+
   it('ignores supporting-material Wrangler apps whose package is not active from the repository root', async () => {
     root = await makeRepo({
       'package.json': APP_MANIFEST,
@@ -1084,6 +1164,25 @@ describe('the existing-deployment probe', () => {
     expect(elapsedMilliseconds).toBeLessThan(2_000);
     expect(facts.existingDeployments[0]?.runtimeConstraints).toEqual([
       expect.objectContaining({ scope: 'examples/alpha', entrypoint: 'examples/alpha/src/index.ts' })
+    ]);
+  });
+
+  it('matches non-BMP workspace names as complete Unicode characters', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'workspace',
+        private: true,
+        workspaces: ['examples/😀']
+      }),
+      'examples/😀/package.json': JSON.stringify({ name: 'emoji-worker' }),
+      'examples/😀/wrangler.json': '{ "main": "src/index.ts" }',
+      'examples/😀/src/index.ts': 'export default { fetch() { return new Response("ok"); } };'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+
+    expect(facts.existingDeployments[0]?.runtimeConstraints).toEqual([
+      expect.objectContaining({ scope: 'examples/😀', entrypoint: 'examples/😀/src/index.ts' })
     ]);
   });
 

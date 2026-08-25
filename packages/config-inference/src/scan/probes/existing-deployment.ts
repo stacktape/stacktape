@@ -115,19 +115,23 @@ const workspaceSegmentMatches = (pattern: string, value: string): boolean => {
   // untrusted repository input, so a harmless-looking run of stars can otherwise make init spend
   // seconds backtracking. Dynamic programming keeps the same segment-local `*`/`?` semantics with
   // work bounded by the pattern and path lengths.
-  let previous = Array.from({ length: value.length + 1 }, (_, index) => index === 0);
+  // `for...of` walks Unicode code points, while string indexing walks UTF-16 code units. Keep both
+  // operands in the same representation so a workspace with a non-BMP character in its name is
+  // not treated as incidental merely because its literal occupies two code units in JavaScript.
+  const valueCharacters = [...value];
+  let previous = Array.from({ length: valueCharacters.length + 1 }, (_, index) => index === 0);
   for (const character of pattern) {
-    const current = Array.from({ length: value.length + 1 }, () => false);
+    const current = Array.from({ length: valueCharacters.length + 1 }, () => false);
     current[0] = character === '*' && previous[0]!;
-    for (let valueIndex = 1; valueIndex <= value.length; valueIndex += 1) {
+    for (let valueIndex = 1; valueIndex <= valueCharacters.length; valueIndex += 1) {
       current[valueIndex] =
         character === '*'
           ? previous[valueIndex]! || current[valueIndex - 1]!
-          : (character === '?' || character === value[valueIndex - 1]) && previous[valueIndex - 1]!;
+          : (character === '?' || character === valueCharacters[valueIndex - 1]) && previous[valueIndex - 1]!;
     }
     previous = current;
   }
-  return previous[value.length]!;
+  return previous[valueCharacters.length]!;
 };
 
 const workspacePatternMatches = (pattern: string, directory: string): boolean => {

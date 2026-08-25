@@ -734,7 +734,14 @@ export const composeConfig = ({
   const omittedCloudflareDependencies = dependencySelections.flatMap(({ original, selected }) =>
     selected === undefined ? [original] : []
   );
-  const recommendedPreferences = defaultDeploymentPreferences(facts);
+  // Database network policy must use the same identity-resolved graph as resource wiring. Falling
+  // back to fact-level names here lets an unrelated same-name Lambda turn a container's database
+  // public even though that Lambda is not a consumer.
+  const recommendedPreferences = defaultDeploymentPreferences(facts, {
+    services,
+    dependencies,
+    dependencyConsumers
+  });
   const preferences: DeploymentPreferences = {
     ...(mode === undefined ? recommendedPreferences : MODE_PREFERENCES[mode]),
     ...requestedPreferences
