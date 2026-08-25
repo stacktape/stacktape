@@ -26,6 +26,8 @@ import { parse as parseToml } from 'smol-toml';
 import * as ts from 'typescript';
 import { readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
+const CLOUDFLARE_MANIFEST_NAMES = ['wrangler.toml', 'wrangler.json', 'wrangler.jsonc'] as const;
+
 /** Files whose presence, on its own, identifies the tool that owns this repository's deployment. */
 const UNAMBIGUOUS_FILES: ReadonlyArray<{
   files: readonly string[];
@@ -45,7 +47,7 @@ const UNAMBIGUOUS_FILES: ReadonlyArray<{
   { files: ['netlify.toml'], tool: 'netlify' },
   { files: ['railway.json', 'railway.toml'], tool: 'railway' },
   {
-    files: ['wrangler.toml', 'wrangler.json', 'wrangler.jsonc'],
+    files: CLOUDFLARE_MANIFEST_NAMES,
     tool: 'cloudflare-workers'
   },
   {
@@ -84,15 +86,151 @@ const APPLICATION_MANIFEST_NAMES = [
   'go.mod'
 ] as const;
 
+const LOCAL_PACKAGE_LOCK_NAMES = ['bun.lock', 'bun.lockb', 'package-lock.json', 'pnpm-lock.yaml', 'yarn.lock'] as const;
+
 /**
- * A conventional supporting-material directory is incidental only without an application manifest
- * beside the deployment file. This ignores `docs/cloudflare/wrangler.json` in a Node API while
- * retaining a real `docs/wrangler.json` or `apps/docs/wrangler.json` application.
+ * A package beside an example is common supporting material, not proof that the root repository
+ * deploys it. Cloudflare candidates use the stronger active-directory set assembled from the root
+ * workspace declaration or a standalone package boundary with an explicit production Wrangler
+ * command. Other deployment tools retain the older application-manifest exception until they have
+ * equally specific activation evidence.
  */
-const isIncidentalManifest = (files: readonly string[], directories: readonly string[]): boolean => {
+const isIncidentalManifest = (
+  files: readonly string[],
+  directories: readonly string[],
+  activeDirectories?: ReadonlySet<string>
+): boolean => {
   if (!directories.some((segment) => INCIDENTAL_DIRECTORY_NAMES.has(segment.toLowerCase()))) return false;
   const directory = directories.join('/');
+  if (activeDirectories !== undefined) return !activeDirectories.has(directory);
   return !APPLICATION_MANIFEST_NAMES.some((name) => files.includes(`${directory}/${name}`));
+};
+
+const normalizeWorkspacePattern = (value: string): string =>
+  value.trim().replaceAll('\\', '/').replace(/^\.\//, '').replace(/\/$/, '');
+
+const workspaceSegmentMatches = (pattern: string, value: string): boolean => {
+  let source = '^';
+  for (const character of pattern) {
+    if (character === '*') source += '[^/]*';
+    else if (character === '?') source += '[^/]';
+    else source += character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  }
+  return new RegExp(`${source}$`).test(value);
+};
+
+const workspacePatternMatches = (pattern: string, directory: string): boolean => {
+  const patternSegments = normalizeWorkspacePattern(pattern).split('/');
+  const directorySegments = normalizeWorkspacePattern(directory).split('/');
+
+  const matches = (patternIndex: number, directoryIndex: number): boolean => {
+    if (patternIndex === patternSegments.length) return directoryIndex === directorySegments.length;
+    const segment = patternSegments[patternIndex]!;
+    if (segment === '**') {
+      return (
+        matches(patternIndex + 1, directoryIndex) ||
+        (directoryIndex < directorySegments.length && matches(patternIndex, directoryIndex + 1))
+      );
+    }
+    return (
+      directoryIndex < directorySegments.length &&
+      workspaceSegmentMatches(segment, directorySegments[directoryIndex]!) &&
+      matches(patternIndex + 1, directoryIndex + 1)
+    );
+  };
+
+  return matches(0, 0);
+};
+
+const isWorkspaceMember = (directory: string, patterns: readonly string[]): boolean => {
+  let included = false;
+  for (const originalPattern of patterns) {
+    const normalized = normalizeWorkspacePattern(originalPattern);
+    const excluded = normalized.startsWith('!');
+    const pattern = excluded ? normalized.slice(1) : normalized;
+    if (pattern !== '' && workspacePatternMatches(pattern, directory)) included = !excluded;
+  }
+  return included;
+};
+
+const packageWorkspacePatterns = (raw: string | null | undefined): string[] => {
+  if (raw === null || raw === undefined) return [];
+  try {
+    const parsed = JSON.parse(raw) as { workspaces?: unknown };
+    if (Array.isArray(parsed.workspaces)) {
+      return parsed.workspaces.filter((entry): entry is string => typeof entry === 'string');
+    }
+    const packages = (parsed.workspaces as { packages?: unknown } | undefined)?.packages;
+    return Array.isArray(packages) ? packages.filter((entry): entry is string => typeof entry === 'string') : [];
+  } catch {
+    return [];
+  }
+};
+
+const DIRECT_WRANGLER_DEPLOY =
+  /^(?:(?:npx|bunx)\s+|bun\s+x\s+|npm\s+(?:exec|x)\s+|pnpm(?:\s+(?:exec|dlx))?\s+|yarn(?:\s+run)?\s+)?wrangler\s+(?:deploy|versions\s+(?:deploy|upload))(?:\s|$)/;
+
+const hasDirectWranglerDeploymentScript = (raw: string | null | undefined): boolean => {
+  if (raw === null || raw === undefined) return false;
+  try {
+    const parsed = JSON.parse(raw) as { scripts?: unknown };
+    if (parsed.scripts === null || typeof parsed.scripts !== 'object' || Array.isArray(parsed.scripts)) return false;
+    return Object.entries(parsed.scripts).some(
+      ([name, command]) =>
+        ['deploy', 'publish'].includes(name) &&
+        typeof command === 'string' &&
+        DIRECT_WRANGLER_DEPLOY.test(command.trim())
+    );
+  } catch {
+    return false;
+  }
+};
+
+/** Resolve only the incidental directories the repository itself identifies as deployable apps. */
+const activeCloudflareApplicationDirectories = async (context: ProbeContext): Promise<Set<string>> => {
+  const directories = [
+    ...new Set(
+      context.files
+        .filter((path) => CLOUDFLARE_MANIFEST_NAMES.some((name) => path.endsWith(`/${name}`)))
+        .map((path) => posix.dirname(path))
+        .filter((directory) =>
+          directory.split('/').some((segment) => INCIDENTAL_DIRECTORY_NAMES.has(segment.toLowerCase()))
+        )
+    )
+  ]
+    .filter((directory) => directory.split('/').length <= 4)
+    .slice(0, 32);
+  if (directories.length === 0) return new Set();
+
+  const [rootPackage, pnpmWorkspace, ...localPackages] = await Promise.all([
+    context.files.includes('package.json') ? context.readPrivileged('package.json') : Promise.resolve(null),
+    readText(context, 'pnpm-workspace.yaml'),
+    ...directories.map((directory) =>
+      context.files.includes(`${directory}/package.json`)
+        ? context.readPrivileged(`${directory}/package.json`)
+        : Promise.resolve(null)
+    )
+  ]);
+  const workspacePatterns = [
+    ...packageWorkspacePatterns(rootPackage),
+    ...(pnpmWorkspace === undefined
+      ? []
+      : [...pnpmWorkspace.matchAll(/^\s*-\s*['"]?([^'"\n]+)['"]?\s*$/gm)].map((match) => match[1]!.trim()))
+  ];
+
+  return new Set(
+    directories.filter((directory, index) => {
+      const hasApplicationManifest = APPLICATION_MANIFEST_NAMES.some((name) =>
+        context.files.includes(`${directory}/${name}`)
+      );
+      return (
+        hasApplicationManifest &&
+        (isWorkspaceMember(directory, workspacePatterns) ||
+          (LOCAL_PACKAGE_LOCK_NAMES.some((name) => context.files.includes(`${directory}/${name}`)) &&
+            hasDirectWranglerDeploymentScript(localPackages[index]!)))
+      );
+    })
+  );
 };
 
 /**
@@ -101,13 +239,20 @@ const isIncidentalManifest = (files: readonly string[], directories: readonly st
  * in production. Four directory segments covers conventional workspace layouts without searching
  * arbitrary vendored trees.
  */
-const findManifests = (files: readonly string[], names: readonly string[]): string[] =>
+const findManifests = (
+  files: readonly string[],
+  names: readonly string[],
+  activeDirectories?: ReadonlySet<string>
+): string[] =>
   files.filter((path) => {
     const segments = path.split('/');
     const name = segments.at(-1);
     const directories = segments.slice(0, -1);
     return (
-      name !== undefined && names.includes(name) && directories.length <= 4 && !isIncidentalManifest(files, directories)
+      name !== undefined &&
+      names.includes(name) &&
+      directories.length <= 4 &&
+      !isIncidentalManifest(files, directories, activeDirectories)
     );
   });
 
@@ -350,6 +495,7 @@ const cloudflareRuntimeConstraint = ({
 export const existingDeploymentProbe: Probe = {
   name: 'existing-deployment',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
+    const activeCloudflareDirectories = await activeCloudflareApplicationDirectories(context);
     // Which files to look at is decided first, and entirely from the file list, so the reads that
     // follow can all happen at once.
     const candidates: Array<{
@@ -360,7 +506,7 @@ export const existingDeploymentProbe: Probe = {
     for (const { files, tool } of UNAMBIGUOUS_FILES) {
       const paths =
         tool === 'cloudflare-workers'
-          ? findManifests(context.files, files).slice(0, 32)
+          ? findManifests(context.files, files, activeCloudflareDirectories).slice(0, 32)
           : [findManifest(context.files, files)];
       for (const path of paths) {
         if (path !== undefined) candidates.push({ tool, path });

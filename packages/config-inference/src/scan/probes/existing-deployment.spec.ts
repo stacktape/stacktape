@@ -13,6 +13,7 @@ import { afterEach, describe, expect, it } from 'bun:test';
 import { composeConfig } from '../../compose/compose';
 import { PROJECT_FACTS_SCHEMA_VERSION, projectFactsSchema } from '../../facts/project-facts';
 import { assembleCandidateFacts } from '../assemble';
+import { dockerComposeProbe } from './docker-compose';
 import { existingDeploymentProbe } from './existing-deployment';
 import { environmentProbe } from './environment';
 import { manifestProbe } from './manifest';
@@ -432,6 +433,96 @@ describe('the existing-deployment probe', () => {
     expect(message).not.toContain('generated no AWS resources');
   });
 
+  it('keeps a retained nested API database discovered through a shared root environment file', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'dashboard',
+        private: true,
+        workspaces: ['apps/*'],
+        dependencies: { react: '19.2.1' },
+        devDependencies: { vite: '7.0.0', wrangler: '4.123.0' },
+        scripts: { build: 'vite build' }
+      }),
+      'index.html': '<!doctype html><div id="root"></div>',
+      'src/main.tsx': 'document.querySelector("#root")',
+      'wrangler.json': '{ "main": "worker/index.ts", "workflows": [{ "binding": "FLOW" }] }',
+      'worker/index.ts': 'export default { fetch() { return new Response("ok"); } };',
+      '.env.example': 'DATABASE_URL=postgres://localhost/app\n',
+      'apps/api/package.json': JSON.stringify({
+        name: 'api',
+        dependencies: { express: '5.1.0' },
+        scripts: { start: 'node index.js' }
+      }),
+      'apps/api/index.js':
+        'const express = require("express"); console.log(process.env.DATABASE_URL); express().listen(3000);'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [manifestProbe, environmentProbe, existingDeploymentProbe]
+    });
+    const composed = composeConfig({ facts, projectName: 'workspace' });
+
+    expect(facts.dependencies).toContainEqual(
+      expect.objectContaining({
+        kind: 'postgres',
+        consumedBy: ['api'],
+        evidence: [expect.objectContaining({ file: '.env.example', line: 1 })]
+      })
+    );
+    expect(composed.config.resources.api?.type).toBe('web-service');
+    expect(composed.config.resources.mainDatabase?.type).toBe('relational-database');
+    expect(composed.config.resources.dashboard).toBeUndefined();
+    expect(composed.deployable).toBe(false);
+    expect(composed.gaps.find((gap) => gap.subject === 'cloudflare-workers')?.message).not.toContain(
+      'left the detected Postgres dependency out'
+    );
+  });
+
+  it('keeps a retained nested API database declared by root Compose', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({ name: 'workspace', private: true, workspaces: ['apps/*'] }),
+      'compose.yaml': `services:
+        api:
+          build:
+            context: ./apps/api
+          command: node index.js
+          ports: ["3000:3000"]
+          depends_on: [db]
+        db:
+          image: postgres:16`,
+      'apps/api/package.json': JSON.stringify({
+        name: 'api',
+        dependencies: { express: '5.1.0' },
+        scripts: { start: 'node index.js' }
+      }),
+      'apps/api/index.js': 'require("express")().listen(3000);',
+      'apps/edge/package.json': JSON.stringify({ name: 'edge', devDependencies: { wrangler: '4.123.0' } }),
+      'apps/edge/wrangler.json': '{ "main": "src/index.ts", "durable_objects": { "bindings": [{ "name": "ROOM" }] } }',
+      'apps/edge/src/index.ts': 'export default { fetch() { return new Response("ok"); } };'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [manifestProbe, dockerComposeProbe, existingDeploymentProbe]
+    });
+    const composed = composeConfig({ facts, projectName: 'workspace' });
+
+    expect(facts.dependencies).toContainEqual(
+      expect.objectContaining({
+        kind: 'postgres',
+        consumedBy: ['api'],
+        evidence: [expect.objectContaining({ file: 'compose.yaml' })]
+      })
+    );
+    expect(composed.config.resources.api?.type).toBe('web-service');
+    expect(composed.config.resources.mainDatabase?.type).toBe('relational-database');
+    expect(composed.deployable).toBe(false);
+    expect(composed.gaps.find((gap) => gap.subject === 'cloudflare-workers')?.message).not.toContain(
+      'left the detected Postgres dependency out'
+    );
+  });
+
   it('does not assign one root Worker entrypoint to every unrelated Procfile process', async () => {
     root = await makeRepo({
       'package.json': JSON.stringify({ name: 'mixed-root', dependencies: { express: '5.1.0' } }),
@@ -611,14 +702,108 @@ describe('the existing-deployment probe', () => {
     expect(composed.deployable).toBe(false);
   });
 
-  it('ignores Wrangler files in supporting-material directories without application evidence', async () => {
+  it('does not assign a shared-root dependency across a retained and suppressed same-name collision', () => {
+    const facts = projectFactsSchema.parse({
+      schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+      services: [
+        {
+          name: 'api',
+          path: 'apps/edge',
+          language: 'javascript',
+          exposesHttp: true,
+          executionModel: 'long-running',
+          startCommand: 'wrangler dev',
+          evidence: [{ file: 'apps/edge/package.json', line: 1, quote: '"name"' }],
+          source: 'probe'
+        },
+        {
+          name: 'api',
+          path: 'apps/node',
+          language: 'javascript',
+          exposesHttp: true,
+          executionModel: 'long-running',
+          startCommand: 'node index.js',
+          evidence: [{ file: 'apps/node/package.json', line: 1, quote: '"name"' }],
+          source: 'probe'
+        }
+      ],
+      dependencies: [
+        {
+          name: 'sharedDatabase',
+          kind: 'postgres',
+          consumedBy: ['api'],
+          evidence: [{ file: '.env.example', line: 1, quote: 'DATABASE_URL' }],
+          source: 'probe'
+        },
+        {
+          name: 'nodeCache',
+          kind: 'redis',
+          consumedBy: ['api'],
+          evidence: [{ file: 'apps/node/package.json', line: 1, quote: 'redis' }],
+          source: 'probe'
+        }
+      ],
+      existingDeployments: [
+        {
+          tool: 'cloudflare-workers',
+          managesAws: false,
+          runtimeConstraints: [
+            {
+              platform: 'cloudflare-worker',
+              scope: 'apps/edge',
+              entrypoint: 'apps/edge/src/index.ts',
+              evidence: [{ file: 'apps/edge/wrangler.json', line: 1, quote: 'main' }]
+            }
+          ],
+          evidence: [{ file: 'apps/edge/wrangler.json', line: 1, quote: 'main' }],
+          source: 'probe'
+        }
+      ]
+    });
+    const composed = composeConfig({ facts, projectName: 'workspace' });
+
+    expect(composed.config.resources.api?.type).toBe('web-service');
+    expect(composed.config.resources.nodeCache?.type).toBe('redis-cluster');
+    expect(composed.config.resources.sharedDatabase).toBeUndefined();
+    expect(composed.gaps.find((gap) => gap.subject === 'cloudflare-workers')?.message).toContain(
+      'detected Postgres dependency out'
+    );
+    expect(composed.deployable).toBe(false);
+  });
+
+  it('ignores supporting-material Wrangler apps whose package is not active from the repository root', async () => {
     root = await makeRepo({
       'package.json': APP_MANIFEST,
+      'examples/worker/package.json': JSON.stringify({
+        name: 'example-worker',
+        scripts: { dev: 'wrangler dev' },
+        devDependencies: { wrangler: '4.123.0' }
+      }),
+      'examples/worker/package-lock.json': '{}',
       'examples/worker/wrangler.json': '{ "main": "src/index.ts", "durable_objects": { "bindings": [] } }',
+      'examples/worker/src/index.ts': 'export default { fetch() { return new Response("example"); } };',
+      'tests/package.json': JSON.stringify({ name: 'worker-test' }),
       'tests/wrangler.toml': 'main = "worker.ts"\n',
+      'tests/worker.ts': 'export default { fetch() { return new Response("test"); } };',
+      'demos/cloudflare/package.json': JSON.stringify({
+        name: 'demo-worker',
+        scripts: { deploy: 'echo wrangler deploy' }
+      }),
+      'demos/cloudflare/package-lock.json': '{}',
       'demos/cloudflare/wrangler.json': '{ "main": "worker.ts" }',
+      'demos/cloudflare/worker.ts': 'export default { fetch() { return new Response("demo"); } };',
+      'templates/cloudflare/package.json': JSON.stringify({
+        name: 'worker-template',
+        scripts: { deploy: 'wrangler deploy' }
+      }),
       'templates/cloudflare/wrangler.json': '{ "main": "worker.ts" }',
-      'playgrounds/cloudflare/wrangler.json': '{ "main": "worker.ts" }'
+      'templates/cloudflare/worker.ts': 'export default { fetch() { return new Response("template"); } };',
+      'playgrounds/cloudflare/package.json': JSON.stringify({ name: 'worker-playground' }),
+      'playgrounds/cloudflare/wrangler.json': '{ "main": "worker.ts" }',
+      'playgrounds/cloudflare/worker.ts': 'export default { fetch() { return new Response("playground"); } };',
+      'docs/cloudflare/package.json': JSON.stringify({ name: 'worker-docs' }),
+      'docs/cloudflare/wrangler.json': '{ "main": "worker.ts" }',
+      'docs/cloudflare/worker.ts': 'export default { fetch() { return new Response("docs"); } };'
     });
 
     const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
@@ -627,6 +812,45 @@ describe('the existing-deployment probe', () => {
     expect(facts.existingDeployments).toEqual([]);
     expect(composed.config.resources.api).toBeDefined();
     expect(composed.deployable).toBe(true);
+  });
+
+  it('recognizes an incidental directory selected by the root pnpm workspace', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({ name: 'workspace', private: true }),
+      'pnpm-workspace.yaml': 'packages:\n  - examples/*\n',
+      'examples/worker/package.json': JSON.stringify({ name: 'worker' }),
+      'examples/worker/wrangler.json': '{ "main": "src/index.ts" }',
+      'examples/worker/src/index.ts': 'export default { fetch() { return new Response("ok"); } };'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+
+    expect(facts.existingDeployments[0]?.runtimeConstraints).toContainEqual(
+      expect.objectContaining({ scope: 'examples/worker', entrypoint: 'examples/worker/src/index.ts' })
+    );
+  });
+
+  it('recognizes a bounded standalone Wrangler deployment signal outside a root workspace', async () => {
+    root = await makeRepo({
+      'package.json': APP_MANIFEST,
+      'examples/deployed-worker/package.json': JSON.stringify({
+        name: 'deployed-worker',
+        scripts: { dev: 'wrangler dev', deploy: 'wrangler deploy --env production' },
+        devDependencies: { wrangler: '4.123.0' }
+      }),
+      'examples/deployed-worker/package-lock.json': '{}',
+      'examples/deployed-worker/wrangler.json': '{ "main": "src/index.ts" }',
+      'examples/deployed-worker/src/index.ts': 'export default { fetch() { return new Response("ok"); } };'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+
+    expect(facts.existingDeployments[0]?.runtimeConstraints).toContainEqual(
+      expect.objectContaining({
+        scope: 'examples/deployed-worker',
+        entrypoint: 'examples/deployed-worker/src/index.ts'
+      })
+    );
   });
 
   it('keeps legitimately named demo, template, and playground applications', async () => {

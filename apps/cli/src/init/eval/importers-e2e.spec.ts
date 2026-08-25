@@ -249,6 +249,41 @@ const CASES: EvalCase[] = [
     }
   },
   {
+    name: 'Cloudflare frontend does not hide a retained sibling API database',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'dashboard',
+        private: true,
+        workspaces: ['apps/*'],
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^7.0.0', wrangler: '^4.0.0' },
+        scripts: { build: 'vite build' }
+      }),
+      'index.html': '<!doctype html><div id="root"></div>',
+      'src/main.tsx': 'document.querySelector("#root")',
+      'wrangler.json': JSON.stringify({ main: 'worker/index.ts', workflows: [{ binding: 'FLOW' }] }),
+      'worker/index.ts': 'export default { fetch() { return new Response("ok"); } };',
+      '.env.example': 'DATABASE_URL=postgres://localhost/app\n',
+      'apps/api/package.json': JSON.stringify({
+        name: 'api',
+        dependencies: { express: '^5.0.0' },
+        scripts: { start: 'node index.js' }
+      }),
+      'apps/api/index.js':
+        'const express = require("express"); console.log(process.env.DATABASE_URL); express().listen(3000);'
+    },
+    expect: {
+      dependencyKinds: ['postgres'],
+      resources: { api: 'web-service', mainDatabase: 'relational-database' },
+      serviceEnvironment: [
+        { resource: 'api', name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" }
+      ],
+      deployable: false,
+      maxQuestions: 0,
+      requiredGapPatterns: ['only for the platform-neutral parts']
+    }
+  },
+  {
     name: 'Terraform literal variables plus a declared database',
     files: {
       'package.json': JSON.stringify({

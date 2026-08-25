@@ -663,15 +663,24 @@ export const composeConfig = ({
   // not turn an SDK package hint into a convincing orphan database, queue, or bucket.
   const dependencies = facts.dependencies.filter((dependency) => {
     if (cloudflareRuntimeConstraints.length === 0) return true;
-    if (dependency.consumedBy.length > 0) {
-      const evidenceOwners = dependency.evidence.flatMap((citation) =>
+    if (dependency.consumedBy.length === 0) return false;
+
+    let evidenceOwners: ServiceFact[] | undefined;
+    return dependency.consumedBy.some((consumerName) => {
+      const matchingServices = facts.services.filter((service) => service.name === consumerName);
+      if (matchingServices.length === 0) return false;
+
+      const retainedMatches = matchingServices.filter((service) => services.includes(service));
+      if (retainedMatches.length === matchingServices.length) return true;
+      if (retainedMatches.length === 0) return false;
+
+      // Names are normally unique, and the consumer identity is enough. Only consult citation paths
+      // when a retained service and a Cloudflare-owned service genuinely share that identity.
+      evidenceOwners ??= dependency.evidence.flatMap((citation) =>
         mostSpecificServicesOwningPath(facts.services, citation.file)
       );
-      return evidenceOwners.some(
-        (service) => dependency.consumedBy.includes(service.name) && services.includes(service)
-      );
-    }
-    return false;
+      return evidenceOwners.some((owner) => owner.name === consumerName && retainedMatches.includes(owner));
+    });
   });
   const omittedCloudflareDependencies = facts.dependencies.filter((dependency) => !dependencies.includes(dependency));
   const recommendedPreferences = defaultDeploymentPreferences(facts);
@@ -1077,7 +1086,7 @@ export const composeConfig = ({
     const omittedDependencyMessage =
       omittedDependencyKinds.length === 0
         ? ''
-        : ` Init also left the detected ${omittedDependencyKinds.join(', ')} ${omittedDependencyKinds.length === 1 ? 'dependency' : 'dependencies'} out because no retained platform-neutral service uses ${omittedDependencyKinds.length === 1 ? 'it' : 'them'}; creating ${omittedDependencyKinds.length === 1 ? 'it' : 'them'} would leave orphan AWS resources.`;
+        : ` Init also left the detected ${omittedDependencyKinds.join(', ')} ${omittedDependencyKinds.length === 1 ? 'dependency' : 'dependencies'} out because it could not safely associate ${omittedDependencyKinds.length === 1 ? 'it' : 'them'} with a retained platform-neutral service; creating ${omittedDependencyKinds.length === 1 ? 'it' : 'them'} could leave orphan AWS resources.`;
     const cloudflareRuntimeMessage =
       ownedRuntimeConstraints.length === 0
         ? Object.keys(resources).length === 0
