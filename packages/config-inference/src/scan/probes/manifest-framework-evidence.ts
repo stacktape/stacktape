@@ -6,12 +6,18 @@ export type FrameworkConfigEvidence = {
 };
 
 type CallableBinding =
-  | { kind: 'identifier'; localName: string; framework: keyof FrameworkConfigEvidence }
+  | {
+      kind: 'identifier';
+      symbol: ts.Symbol;
+      framework: keyof FrameworkConfigEvidence;
+      role: 'config' | 'plugin';
+    }
   | {
       kind: 'namespace-member';
-      localName: string;
+      symbol: ts.Symbol;
       memberName: string;
       framework: keyof FrameworkConfigEvidence;
+      role: 'config' | 'plugin';
     };
 
 const CURRENT_TANSTACK_START_PLUGIN_MODULES = new Set([
@@ -25,45 +31,107 @@ const CURRENT_TANSTACK_START_PLUGIN_MODULES = new Set([
 
 const callableImportFor = (
   moduleName: string
-): { exportName: string; framework: keyof FrameworkConfigEvidence } | undefined => {
+): { exportName: string; framework: keyof FrameworkConfigEvidence; role: 'config' | 'plugin' } | undefined => {
   if (CURRENT_TANSTACK_START_PLUGIN_MODULES.has(moduleName)) {
-    return { exportName: 'tanstackStart', framework: 'tanstackStart' };
+    return { exportName: 'tanstackStart', framework: 'tanstackStart', role: 'plugin' };
   }
   if (moduleName === '@tanstack/start/config') {
-    return { exportName: 'defineConfig', framework: 'tanstackStart' };
+    return { exportName: 'defineConfig', framework: 'tanstackStart', role: 'config' };
   }
   if (moduleName === '@solidjs/start/config') {
-    return { exportName: 'defineConfig', framework: 'solidStart' };
+    return { exportName: 'defineConfig', framework: 'solidStart', role: 'config' };
   }
   return undefined;
 };
 
 const calledBinding = (
   expression: ts.LeftHandSideExpression,
-  bindings: CallableBinding[]
+  bindings: CallableBinding[],
+  checker: ts.TypeChecker
 ): CallableBinding | undefined =>
   bindings.find((binding) => {
     if (binding.kind === 'identifier') {
-      return ts.isIdentifier(expression) && expression.text === binding.localName;
+      return ts.isIdentifier(expression) && checker.getSymbolAtLocation(expression) === binding.symbol;
     }
     if (ts.isPropertyAccessExpression(expression)) {
       return (
         ts.isIdentifier(expression.expression) &&
-        expression.expression.text === binding.localName &&
+        checker.getSymbolAtLocation(expression.expression) === binding.symbol &&
         expression.name.text === binding.memberName
       );
     }
     return (
       ts.isElementAccessExpression(expression) &&
       ts.isIdentifier(expression.expression) &&
-      expression.expression.text === binding.localName &&
+      checker.getSymbolAtLocation(expression.expression) === binding.symbol &&
       ts.isStringLiteralLike(expression.argumentExpression) &&
       expression.argumentExpression.text === binding.memberName
     );
   });
 
+const createSingleFileProgram = (path: string, sourceFile: ts.SourceFile): ts.Program => {
+  const options: ts.CompilerOptions = {
+    allowJs: true,
+    noLib: true,
+    noResolve: true,
+    target: ts.ScriptTarget.Latest
+  };
+  const host: ts.CompilerHost = {
+    fileExists: (fileName) => fileName === path,
+    getCanonicalFileName: (fileName) => fileName,
+    getCurrentDirectory: () => '',
+    getDefaultLibFileName: () => 'lib.d.ts',
+    getNewLine: () => '\n',
+    getSourceFile: (fileName) => (fileName === path ? sourceFile : undefined),
+    readFile: (fileName) => (fileName === path ? sourceFile.text : undefined),
+    useCaseSensitiveFileNames: () => true,
+    writeFile: () => {}
+  };
+  return ts.createProgram([path], options, host);
+};
+
+const propertyName = (name: ts.PropertyName | undefined): string | undefined => {
+  if (name === undefined) return undefined;
+  if (ts.isIdentifier(name) || ts.isStringLiteralLike(name) || ts.isNumericLiteral(name)) return name.text;
+  return undefined;
+};
+
+const unwrapExpression = (expression: ts.Expression): ts.Expression => {
+  let current = expression;
+  while (
+    ts.isParenthesizedExpression(current) ||
+    ts.isAsExpression(current) ||
+    ts.isTypeAssertionExpression(current) ||
+    ts.isNonNullExpression(current) ||
+    ts.isSatisfiesExpression(current)
+  ) {
+    current = current.expression;
+  }
+  return current;
+};
+
+const constantBoolean = (expression: ts.Expression): boolean | undefined => {
+  const current = unwrapExpression(expression);
+  if (current.kind === ts.SyntaxKind.TrueKeyword) return true;
+  if (current.kind === ts.SyntaxKind.FalseKeyword) return false;
+  if (ts.isPrefixUnaryExpression(current) && current.operator === ts.SyntaxKind.ExclamationToken) {
+    const operand = constantBoolean(current.operand);
+    return operand === undefined ? undefined : !operand;
+  }
+  return undefined;
+};
+
 export const inspectFrameworkConfig = (path: string, contents: string): FrameworkConfigEvidence => {
   const sourceFile = ts.createSourceFile(path, contents, ts.ScriptTarget.Latest, true);
+  const program = createSingleFileProgram(path, sourceFile);
+  if (
+    program
+      .getSyntacticDiagnostics(sourceFile)
+      .some((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error)
+  ) {
+    return { solidStart: false, tanstackStart: false };
+  }
+  const checker = program.getTypeChecker();
   const bindings: CallableBinding[] = [];
 
   for (const statement of sourceFile.statements) {
@@ -80,11 +148,14 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     const namedBindings = statement.importClause.namedBindings;
     if (namedBindings === undefined) continue;
     if (ts.isNamespaceImport(namedBindings)) {
+      const symbol = checker.getSymbolAtLocation(namedBindings.name);
+      if (symbol === undefined) continue;
       bindings.push({
         kind: 'namespace-member',
-        localName: namedBindings.name.text,
+        symbol,
         memberName: callableImport.exportName,
-        framework: callableImport.framework
+        framework: callableImport.framework,
+        role: callableImport.role
       });
       continue;
     }
@@ -92,27 +163,173 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
       if (specifier.isTypeOnly) continue;
       const importedName = specifier.propertyName?.text ?? specifier.name.text;
       if (importedName !== callableImport.exportName) continue;
+      const symbol = checker.getSymbolAtLocation(specifier.name);
+      if (symbol === undefined) continue;
       bindings.push({
         kind: 'identifier',
-        localName: specifier.name.text,
-        framework: callableImport.framework
+        symbol,
+        framework: callableImport.framework,
+        role: callableImport.role
       });
     }
   }
 
   const evidence: FrameworkConfigEvidence = { solidStart: false, tanstackStart: false };
-  const visit = (node: ts.Node): void => {
-    if (ts.isCallExpression(node)) {
-      const binding = calledBinding(node.expression, bindings);
-      if (binding !== undefined) evidence[binding.framework] = true;
-    }
-    ts.forEachChild(node, visit);
+  type ReachabilityMode = 'config' | 'plugin';
+  const visited = new Map<ts.Node, Set<ReachabilityMode>>();
+
+  const enter = (node: ts.Node, mode: ReachabilityMode): boolean => {
+    const modes = visited.get(node) ?? new Set<ReachabilityMode>();
+    if (modes.has(mode)) return false;
+    modes.add(mode);
+    visited.set(node, modes);
+    return true;
   };
-  visit(sourceFile);
+
+  function inspectFunctionBody(body: ts.ConciseBody, mode: ReachabilityMode): void {
+    if (!ts.isBlock(body)) {
+      inspectExpression(body, mode);
+      return;
+    }
+    const inspectStatement = (statement: ts.Statement): void => {
+      if (ts.isReturnStatement(statement) && statement.expression !== undefined) {
+        inspectExpression(statement.expression, mode);
+      } else if (ts.isBlock(statement)) {
+        for (const child of statement.statements) inspectStatement(child);
+      } else if (ts.isIfStatement(statement)) {
+        const condition = constantBoolean(statement.expression);
+        if (condition !== false) inspectStatement(statement.thenStatement);
+        if (condition !== true && statement.elseStatement !== undefined) inspectStatement(statement.elseStatement);
+      }
+    };
+    for (const statement of body.statements) inspectStatement(statement);
+  }
+
+  function inspectSymbolValue(symbol: ts.Symbol, mode: ReachabilityMode, invoked: boolean): void {
+    for (const declaration of symbol.declarations ?? []) {
+      if (ts.isVariableDeclaration(declaration) && declaration.initializer !== undefined) {
+        const initializer = unwrapExpression(declaration.initializer);
+        if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) {
+          if (invoked || mode === 'config') inspectFunctionBody(initializer.body, mode);
+        } else {
+          inspectExpression(initializer, mode);
+        }
+      } else if (ts.isFunctionDeclaration(declaration) && declaration.body !== undefined && invoked) {
+        inspectFunctionBody(declaration.body, mode);
+      } else if (ts.isPropertyAssignment(declaration)) {
+        inspectExpression(declaration.initializer, mode);
+      } else if (ts.isShorthandPropertyAssignment(declaration)) {
+        const valueSymbol = checker.getShorthandAssignmentValueSymbol(declaration);
+        if (valueSymbol !== undefined) inspectSymbolValue(valueSymbol, mode, invoked);
+      }
+    }
+  }
+
+  function inspectExpression(rawExpression: ts.Expression, mode: ReachabilityMode): void {
+    const expression = unwrapExpression(rawExpression);
+    if (!enter(expression, mode)) return;
+
+    if (ts.isCallExpression(expression)) {
+      const binding = calledBinding(expression.expression, bindings, checker);
+      if (binding !== undefined && binding.role === mode) evidence[binding.framework] = true;
+
+      const callee = unwrapExpression(expression.expression);
+      if (ts.isIdentifier(callee)) {
+        const symbol = checker.getSymbolAtLocation(callee);
+        if (symbol !== undefined) inspectSymbolValue(symbol, mode, true);
+      } else if (ts.isArrowFunction(callee) || ts.isFunctionExpression(callee)) {
+        inspectFunctionBody(callee.body, mode);
+      }
+      for (const argument of expression.arguments) inspectExpression(argument, mode);
+      return;
+    }
+
+    if (ts.isIdentifier(expression)) {
+      const symbol = checker.getSymbolAtLocation(expression);
+      if (symbol !== undefined) inspectSymbolValue(symbol, mode, false);
+      return;
+    }
+
+    if (ts.isObjectLiteralExpression(expression)) {
+      for (const property of expression.properties) {
+        if (ts.isSpreadAssignment(property)) {
+          inspectExpression(property.expression, mode);
+        } else if (mode === 'config' && propertyName(property.name) === 'plugins') {
+          if (ts.isPropertyAssignment(property)) inspectExpression(property.initializer, 'plugin');
+          if (ts.isShorthandPropertyAssignment(property)) inspectExpression(property.name, 'plugin');
+        }
+      }
+      return;
+    }
+
+    if (ts.isArrayLiteralExpression(expression)) {
+      for (const element of expression.elements) {
+        inspectExpression(ts.isSpreadElement(element) ? element.expression : element, mode);
+      }
+      return;
+    }
+
+    if (ts.isArrowFunction(expression) || ts.isFunctionExpression(expression)) {
+      if (mode === 'config') inspectFunctionBody(expression.body, mode);
+      return;
+    }
+
+    if (ts.isConditionalExpression(expression)) {
+      const condition = constantBoolean(expression.condition);
+      if (condition !== false) inspectExpression(expression.whenTrue, mode);
+      if (condition !== true) inspectExpression(expression.whenFalse, mode);
+      return;
+    }
+
+    if (ts.isBinaryExpression(expression)) {
+      const condition = constantBoolean(expression.left);
+      if (expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
+        if (condition !== false) inspectExpression(expression.right, mode);
+      } else if (expression.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
+        if (condition !== true) inspectExpression(expression.right, mode);
+      } else if (expression.operatorToken.kind === ts.SyntaxKind.CommaToken) {
+        inspectExpression(expression.right, mode);
+      } else if (expression.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
+        inspectExpression(expression.left, mode);
+        inspectExpression(expression.right, mode);
+      }
+      return;
+    }
+
+    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+      const symbol = checker.getSymbolAtLocation(
+        ts.isPropertyAccessExpression(expression) ? expression.name : expression.argumentExpression
+      );
+      if (symbol !== undefined) inspectSymbolValue(symbol, mode, false);
+    }
+  }
+
+  for (const statement of sourceFile.statements) {
+    if (ts.isExportAssignment(statement) && !statement.isExportEquals) {
+      inspectExpression(statement.expression, 'config');
+      continue;
+    }
+    if (
+      ts.isFunctionDeclaration(statement) &&
+      statement.body !== undefined &&
+      ts.getModifiers(statement)?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword)
+    ) {
+      inspectFunctionBody(statement.body, 'config');
+    }
+  }
   return evidence;
 };
 
 type CommandInvocation = { args: string[]; executable: string };
+
+const NODE_OPTIONS_WITH_VALUES = new Set([
+  '-r',
+  '--require',
+  '--import',
+  '--loader',
+  '--experimental-loader',
+  '--conditions'
+]);
 
 const splitShellSegments = (command: string): string[] => {
   const segments: string[] = [];
@@ -203,6 +420,9 @@ const unwrapInvocation = (tokens: string[]): CommandInvocation | undefined => {
     remaining = remaining.slice(2);
     while (remaining[0]?.startsWith('-')) remaining = remaining.slice(1);
     executable = executableName(remaining[0] ?? '');
+  } else if (executable === 'yarn' && remaining[1] !== undefined && remaining[1] !== 'run') {
+    remaining = remaining.slice(1);
+    executable = executableName(remaining[0] ?? '');
   }
   if (executable === '') return undefined;
   return { executable, args: remaining.slice(1) };
@@ -266,10 +486,22 @@ export const hasStartFrameworkProductionCommand = (command: string | undefined):
   }
   return lifecycleCommandInvocations(command).some((invocation) => {
     if (invocation.executable !== 'node' || invocation.args.length === 0) return false;
-    const entrypoint = invocation.args
-      .find((argument) => !argument.startsWith('-'))
-      ?.replace(/\\/g, '/')
-      .replace(/^\.\//, '');
+    let entrypoint: string | undefined;
+    for (let index = 0; index < invocation.args.length; index += 1) {
+      const argument = invocation.args[index]!;
+      if (argument === '--') {
+        entrypoint = invocation.args[index + 1];
+        break;
+      }
+      if (NODE_OPTIONS_WITH_VALUES.has(argument)) {
+        index += 1;
+        continue;
+      }
+      if (argument.startsWith('-')) continue;
+      entrypoint = argument;
+      break;
+    }
+    entrypoint = entrypoint?.replace(/\\/g, '/').replace(/^\.\//, '');
     return (
       entrypoint === '.output/server/index.mjs' ||
       entrypoint === 'dist/server/server.js' ||

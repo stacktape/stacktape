@@ -9,6 +9,13 @@ import { staticSiteProbe } from './probes/static-site';
 
 const PROBES = [manifestProbe, environmentProbe];
 
+const startLibraryManifest = (name: string) =>
+  JSON.stringify({
+    name,
+    scripts: { build: 'vite build && tsc --emitDeclarationOnly' },
+    dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+  });
+
 let root: string;
 
 const makeRepo = async (files: Record<string, string>): Promise<string> => {
@@ -868,6 +875,44 @@ describe('assembleCandidateFacts', () => {
     expect(facts.services).toEqual([]);
   });
 
+  it('requires a parse-clean imported plugin call reachable from the exported config plugin graph', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['packages/*'] }),
+      'packages/helper-only/package.json': startLibraryManifest('helper-only'),
+      'packages/helper-only/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'export const createStartPlugin = () => tanstackStart();',
+        'export default { build: { lib: { entry: "src/index.ts" } }, plugins: [] };'
+      ].join('\n'),
+      'packages/false-branch/package.json': startLibraryManifest('false-branch'),
+      'packages/false-branch/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'export default { plugins: [false && tanstackStart()], build: { lib: { entry: "src/index.ts" } } };'
+      ].join('\n'),
+      'packages/shadowed/package.json': startLibraryManifest('shadowed'),
+      'packages/shadowed/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'const createPlugin = (tanstackStart: () => unknown) => tanstackStart();',
+        'export default { plugins: [createPlugin(() => ({}))] };'
+      ].join('\n'),
+      'packages/malformed/package.json': startLibraryManifest('malformed'),
+      'packages/malformed/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'export default { plugins: [tanstackStart(] };'
+      ].join('\n'),
+      'packages/namespace-helper/package.json': startLibraryManifest('namespace-helper'),
+      'packages/namespace-helper/vite.config.ts': [
+        "import * as startPlugin from '@tanstack/react-start/plugin/vite';",
+        'export const createStartPlugin = () => startPlugin.tanstackStart();',
+        'export default { build: { lib: { entry: "src/index.ts" } }, plugins: [] };'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services).toEqual([]);
+  });
+
   it('recognizes called namespace imports for current React, Solid, and Vue Start plugins', async () => {
     const repoRoot = await makeRepo({
       'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['apps/*'] }),
@@ -907,6 +952,37 @@ describe('assembleCandidateFacts', () => {
       ['solid-start', 'tanstack-start'],
       ['vue-start', 'tanstack-start']
     ]);
+  });
+
+  it('follows local config, plugin-list, and helper bindings from the default export', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['apps/*'] }),
+      'apps/named/package.json': JSON.stringify({
+        name: 'named-binding-start',
+        scripts: { build: 'vite build' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'apps/named/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'const plugins = [tanstackStart()];',
+        'const config = () => ({ plugins });',
+        'export default config;'
+      ].join('\n'),
+      'apps/namespace/package.json': JSON.stringify({
+        name: 'namespace-helper-start',
+        scripts: { build: 'vite build' },
+        dependencies: { '@tanstack/vue-start': '^1.168.49', vue: '^3.5.0' }
+      }),
+      'apps/namespace/vite.config.ts': [
+        "import * as startPlugin from '@tanstack/vue-start/plugin/vite';",
+        'const createStartPlugin = () => startPlugin.tanstackStart();',
+        'export default { plugins: [createStartPlugin()] };'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services.map((service) => service.name)).toEqual(['named-binding-start', 'namespace-helper-start']);
   });
 
   it('recognizes a called legacy namespace config import', async () => {
@@ -968,12 +1044,42 @@ describe('assembleCandidateFacts', () => {
         name: 'real-server',
         scripts: { build: 'vite build', start: 'node ./dist/server/server.js' },
         dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/require-hook/package.json': JSON.stringify({
+        name: 'require-hook',
+        scripts: { build: 'vite build', start: 'node -r dotenv/config ./dist/server/server.js' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/import-hook/package.json': JSON.stringify({
+        name: 'import-hook',
+        scripts: { build: 'vite build', start: 'node --import ./register.mjs ./dist/server/server.js' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/yarn-vinxi/package.json': JSON.stringify({
+        name: 'yarn-vinxi',
+        scripts: { build: 'vite build', start: 'yarn vinxi start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/echo-node/package.json': JSON.stringify({
+        name: 'echo-node',
+        scripts: { build: 'vite build', start: 'echo node -r dotenv/config ./dist/server/server.js' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/yarn-echo/package.json': JSON.stringify({
+        name: 'yarn-echo',
+        scripts: { build: 'vite build', start: 'yarn echo vinxi start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
       })
     });
 
     const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
 
-    expect(facts.services.map((service) => service.name)).toEqual(['real-server']);
+    expect(facts.services.map((service) => service.name)).toEqual([
+      'import-hook',
+      'real-server',
+      'require-hook',
+      'yarn-vinxi'
+    ]);
   });
 
   it('prefers active config/build evidence over stale or decoy Next.js lifecycle text', async () => {
