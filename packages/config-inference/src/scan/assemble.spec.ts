@@ -745,6 +745,89 @@ describe('assembleCandidateFacts', () => {
     expect(facts.services[0]?.servesStaticAssets).toBeUndefined();
   });
 
+  it('ignores export-shaped regex decoys after control-flow conditions', async () => {
+    const packageJson = JSON.stringify({
+      name: 'control-flow-regex-decoy',
+      scripts: { build: 'react-router build', start: 'react-router-serve ./build/server/index.js' },
+      dependencies: { '@react-router/serve': '^8.0.0', 'react-router': '^8.0.0' },
+      devDependencies: { '@react-router/dev': '^8.0.0' }
+    });
+    const configs = [
+      'if (enabled) /export default { ssr: false }/.test(text);\nexport default { ssr: true };\n',
+      'if (enabled) run(); else /export default { ssr: false }/.test(text);\nexport default { ssr: true };\n'
+    ];
+
+    await Promise.all(
+      configs.map(async (config) => {
+        const repoRoot = await makeRepo({
+          'package.json': packageJson,
+          'react-router.config.ts': config
+        });
+        const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+        expect(facts.services[0]).toMatchObject({ framework: 'react-router', exposesHttp: true });
+        expect(facts.services[0]?.servesStaticAssets).toBeUndefined();
+      })
+    );
+  });
+
+  it('does not treat a computed React Router config key as literal ssr evidence', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'computed-key-app',
+        scripts: { build: 'react-router build', start: 'react-router-serve ./build/server/index.js' },
+        dependencies: { '@react-router/serve': '^8.0.0', 'react-router': '^8.0.0' },
+        devDependencies: { '@react-router/dev': '^8.0.0' }
+      }),
+      'react-router.config.ts': "const ssr = 'unrelated'; export default { [ssr]: false };\n"
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+    expect(facts.services[0]).toMatchObject({ framework: 'react-router', exposesHttp: true });
+    expect(facts.services[0]?.servesStaticAssets).toBeUndefined();
+  });
+
+  it('rejects dynamic React Router config members that could override literal ssr evidence', async () => {
+    const packageJson = JSON.stringify({
+      name: 'dynamic-member-app',
+      scripts: { build: 'react-router build', start: 'react-router-serve ./build/server/index.js' },
+      dependencies: { '@react-router/serve': '^8.0.0', 'react-router': '^8.0.0' },
+      devDependencies: { '@react-router/dev': '^8.0.0' }
+    });
+    const configs = [
+      "const name = 'ssr'; export default { ssr: false, [name]: true };\n",
+      'const dynamic = { ssr: true }; export default { ssr: false, ...dynamic };\n'
+    ];
+
+    await Promise.all(
+      configs.map(async (config) => {
+        const repoRoot = await makeRepo({
+          'package.json': packageJson,
+          'react-router.config.ts': config
+        });
+        const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+        expect(facts.services[0]).toMatchObject({ framework: 'react-router', exposesHttp: true });
+        expect(facts.services[0]?.servesStaticAssets).toBeUndefined();
+      })
+    );
+  });
+
+  it('ignores an export-shaped React Router SPA decoy in a nested template interpolation', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'template-decoy-app',
+        scripts: { build: 'react-router build', start: 'react-router-serve ./build/server/index.js' },
+        dependencies: { '@react-router/serve': '^8.0.0', 'react-router': '^8.0.0' },
+        devDependencies: { '@react-router/dev': '^8.0.0' }
+      }),
+      'react-router.config.ts':
+        'const docs = `outer ${`export default { ssr: false }`}`;\nexport default { ssr: true };\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+    expect(facts.services[0]).toMatchObject({ framework: 'react-router', exposesHttp: true });
+    expect(facts.services[0]?.servesStaticAssets).toBeUndefined();
+  });
+
   it('does not treat a false-prefixed expression as definite React Router SPA mode', async () => {
     const repoRoot = await makeRepo({
       'package.json': JSON.stringify({
@@ -770,6 +853,46 @@ describe('assembleCandidateFacts', () => {
         devDependencies: { '@react-router/dev': '^8.0.0' }
       }),
       'react-router.config.ts': "export default { ssr: false, buildDirectory: 'dist' + suffix };\n"
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+    expect(facts.services[0]).toMatchObject({ framework: 'react-router', exposesHttp: true });
+    expect(facts.services[0]?.servesStaticAssets).toBeUndefined();
+  });
+
+  it('decodes escaped separators in a literal React Router build directory', async () => {
+    const packageJson = JSON.stringify({
+      name: 'escaped-output-spa',
+      scripts: { build: 'react-router build' },
+      dependencies: { 'react-router': '^8.0.0' },
+      devDependencies: { '@react-router/dev': '^8.0.0' }
+    });
+
+    await Promise.all(
+      ["'dist\\u002frouter'", "'dist\\x2frouter'"].map(async (buildDirectory) => {
+        const repoRoot = await makeRepo({
+          'package.json': packageJson,
+          'react-router.config.ts': `export default { ssr: false, buildDirectory: ${buildDirectory} };\n`
+        });
+        const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+        expect(facts.services[0]).toMatchObject({
+          framework: 'react-router',
+          exposesHttp: false,
+          servesStaticAssets: { path: 'dist/router/client' }
+        });
+      })
+    );
+  });
+
+  it('rejects encoded traversal in a literal React Router build directory', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'escaped-traversal-spa',
+        scripts: { build: 'react-router build', start: 'react-router-serve ./build/server/index.js' },
+        dependencies: { '@react-router/serve': '^8.0.0', 'react-router': '^8.0.0' },
+        devDependencies: { '@react-router/dev': '^8.0.0' }
+      }),
+      'react-router.config.ts': "export default { ssr: false, buildDirectory: '..\\u002foutside' };\n"
     });
 
     const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
