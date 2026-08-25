@@ -172,6 +172,45 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     }
   },
   {
+    id: 'real-vaultwarden',
+    repository: 'https://github.com/dani-garcia/vaultwarden.git',
+    commit: 'fa2566d14fc745937ce104011475eca9e6c7a6f6',
+    license: 'AGPL-3.0-only',
+    source: 'real-application',
+    exercises: ['rust', 'rocket', 'sqlite', 'persistent-storage', 'docker', 'email'],
+    expect: {
+      resourceTypes: { 'efs-filesystem': 1, 'web-service': 1 },
+      dependencyKinds: { email: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      services: [
+        {
+          name: 'vaultwarden',
+          path: '.',
+          framework: 'rocket',
+          exposesHttp: true,
+          port: 80,
+          dockerfile: 'docker/Dockerfile.debian'
+        }
+      ],
+      existingDeployments: [],
+      requiredConfig: [
+        'type: efs-filesystem',
+        'backupEnabled: true',
+        'dockerfilePath: docker/Dockerfile.debian',
+        'containerPort: 80',
+        'maxInstances: 1',
+        'efsFilesystemName: vaultwardenData',
+        'mountPath: /data'
+      ],
+      forbiddenConfig: ['type: relational-database', 'type: worker-service', 'playwright', 'command:'],
+      requiredGapPatterns: ['SMTP.*host.*port.*username.*password'],
+      forbiddenGapPatterns: ['lost when the runtime restarts'],
+      forbidCurrentlyHostedDependencies: true,
+      deployable: true
+    }
+  },
+  {
     id: 'real-cal-com',
     repository: 'https://github.com/calcom/cal.com.git',
     commit: '176037d0afbe572f870a3c702985e7cd83fe6c0c',

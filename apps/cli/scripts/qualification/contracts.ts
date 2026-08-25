@@ -62,6 +62,7 @@ const expectationSchema = z
     requiredGapPatterns: z.array(z.string()).optional(),
     forbiddenGapPatterns: z.array(z.string()).optional(),
     forbidCurrentlyHostedDependencies: z.boolean().optional(),
+    deployable: z.boolean().optional(),
     // Some platform-specific projects are valuable negative contracts: the correct result is an
     // explicit unsupported-runtime gap and no fabricated AWS resource.
     allowNoResources: z.boolean().optional()

@@ -194,6 +194,9 @@ export const runImportQualification = async ({
       const matching = gapText.find((gap) => expression.test(gap));
       if (matching !== undefined) failures.push(`gap unexpectedly matches /${pattern}/i: ${matching}`);
     }
+    if (expected.deployable !== undefined && result.composition.deployable !== expected.deployable) {
+      failures.push(`deployable: expected ${expected.deployable}; got ${result.composition.deployable}.`);
+    }
   }
 
   return {

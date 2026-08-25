@@ -175,7 +175,7 @@ const PACKAGE_SIGNALS: ReadonlyArray<{
     kinds: ['dynamodb']
   },
   {
-    packages: ['boto3-ses', 'aws-sdk-ses', 'sendgrid', 'mailgun', 'resend', 'swiftmailer', 'symfony-mailer'],
+    packages: ['boto3-ses', 'aws-sdk-ses', 'lettre', 'sendgrid', 'mailgun', 'resend', 'swiftmailer', 'symfony-mailer'],
     kinds: ['email']
   }
 ];

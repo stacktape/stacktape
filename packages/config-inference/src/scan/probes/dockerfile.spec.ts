@@ -4,7 +4,9 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { composeConfig } from '../../compose/compose';
 import { assembleCandidateFacts } from '../assemble';
+import { environmentProbe } from './environment';
 import { dockerfileProbe } from './dockerfile';
+import { manifestProbe } from './manifest';
 
 let root: string;
 
@@ -85,5 +87,119 @@ describe('the standalone Dockerfile probe', () => {
     });
 
     expect(facts.services).toEqual([]);
+  });
+
+  it('follows a repository-local root Dockerfile pointer and persists declared volumes', async () => {
+    const repositoryRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'password-vault', dependencies: { express: '5' } }),
+      Dockerfile: 'docker/Dockerfile.production\n',
+      'docker/Dockerfile.production': [
+        'FROM node:24',
+        'EXPOSE 80',
+        'VOLUME ["/data"]',
+        'ENTRYPOINT ["/app/start.sh"]',
+        ''
+      ].join('\n')
+    });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [manifestProbe, dockerfileProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'password-vault',
+      path: '.',
+      port: 80,
+      dockerfile: 'docker/Dockerfile.production',
+      writesLocalFilesystem: { paths: ['/data'], purpose: 'unknown' },
+      declaredContainerVolumes: { paths: ['/data'] }
+    });
+
+    const composed = composeConfig({ facts });
+    expect(composed.config.resources.passwordVault).toMatchObject({
+      type: 'web-service',
+      properties: {
+        containerPort: 80,
+        packaging: {
+          type: 'custom-dockerfile',
+          properties: {
+            buildContextPath: '.',
+            dockerfilePath: 'docker/Dockerfile.production'
+          }
+        },
+        scaling: { minInstances: 1, maxInstances: 1 },
+        volumeMounts: [{ type: 'efs', properties: { efsFilesystemName: 'passwordVaultData', mountPath: '/data' } }]
+      }
+    });
+    expect(composed.config.resources.passwordVaultData).toMatchObject({
+      type: 'efs-filesystem',
+      properties: { backupEnabled: true }
+    });
+    expect(
+      (composed.config.resources.passwordVault?.properties.packaging as { properties?: unknown } | undefined)
+        ?.properties
+    ).not.toHaveProperty('command');
+    expect(composed.deployable).toBe(true);
+  });
+
+  it('ignores nested test harness Dockerfiles, manifests, and environment values', async () => {
+    const repositoryRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'api', dependencies: { express: '5' } }),
+      Dockerfile: 'FROM node:24\nEXPOSE 8080\n',
+      'playwright/package.json': JSON.stringify({
+        name: 'browser-tests',
+        dependencies: { mysql2: '3', pg: '8' }
+      }),
+      'playwright/test.env': [
+        'POSTGRES_USER=test',
+        'POSTGRES_PASSWORD=test',
+        'MYSQL_USER=test',
+        'MYSQL_PASSWORD=test',
+        ''
+      ].join('\n'),
+      'playwright/docker-compose.yml': 'services:\n  postgres:\n    image: postgres:18\n',
+      'playwright/compose/keycloak/Dockerfile': 'FROM quay.io/keycloak/keycloak:26\n'
+    });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [manifestProbe, environmentProbe, dockerfileProbe]
+    });
+
+    expect(facts.services.map((service) => service.name)).toEqual(['api']);
+    expect(facts.dependencies).toEqual([]);
+  });
+
+  it('retains legitimate services declared by an ordinary multi-service workspace', async () => {
+    const repositoryRoot = await makeRepo({
+      'package.json': JSON.stringify({ private: true, workspaces: ['apps/*'] }),
+      'apps/api/package.json': JSON.stringify({
+        name: 'api',
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '5' }
+      }),
+      'apps/api/Dockerfile': 'FROM node:24\nEXPOSE 3000\n',
+      'apps/worker/package.json': JSON.stringify({
+        name: 'worker',
+        scripts: { start: 'node worker.js' }
+      }),
+      'apps/worker/Dockerfile': 'FROM node:24\nCMD ["node", "worker.js"]\n'
+    });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [manifestProbe, dockerfileProbe]
+    });
+
+    expect(facts.services.map((service) => service.name).toSorted()).toEqual(['api', 'worker']);
+    expect(facts.services.find((service) => service.name === 'api')).toMatchObject({
+      path: 'apps/api',
+      dockerfile: 'apps/api/Dockerfile',
+      exposesHttp: true
+    });
+    expect(facts.services.find((service) => service.name === 'worker')).toMatchObject({
+      path: 'apps/worker',
+      dockerfile: 'apps/worker/Dockerfile',
+      exposesHttp: false
+    });
   });
 });

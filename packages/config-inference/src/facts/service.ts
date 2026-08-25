@@ -323,6 +323,14 @@ export const serviceFactSchema = z
         backgroundProcesses: z.boolean()
       })
       .optional(),
+    /**
+     * Persistent paths explicitly declared by the selected container image through `VOLUME`.
+     *
+     * Probe-only: source writes alone do not prove that mounting a filesystem over the path is the
+     * image author's intended storage contract. Keeping this outside `serviceShape` prevents agent
+     * input from upgrading an arbitrary local write into deployable persistent infrastructure.
+     */
+    declaredContainerVolumes: z.object({ paths: z.array(z.string().startsWith('/')).min(1) }).optional(),
     source: factSourceSchema
   })
   .superRefine(checkServiceConsistency);

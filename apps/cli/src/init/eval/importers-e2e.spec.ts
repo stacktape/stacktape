@@ -65,6 +65,67 @@ const CASES: EvalCase[] = [
     }
   },
   {
+    name: 'Root production Dockerfile with persistent state beside nested browser-test fixtures',
+    directoryName: 'vaultwarden',
+    files: {
+      'Cargo.toml': [
+        '[package]',
+        'name = "vaultwarden"',
+        'version = "1.0.0"',
+        '[dependencies]',
+        'rocket = "0.5"',
+        'lettre = "0.11"',
+        ''
+      ].join('\n'),
+      Dockerfile: 'docker/Dockerfile.debian\n',
+      'docker/Dockerfile.debian': [
+        'FROM debian:13',
+        'ENV ROCKET_PORT=80',
+        'VOLUME /data',
+        'EXPOSE 80',
+        'ENTRYPOINT ["/start.sh"]',
+        ''
+      ].join('\n'),
+      'playwright/package.json': JSON.stringify({
+        name: 'scenarios',
+        dependencies: { mysql2: '3', pg: '8' }
+      }),
+      'playwright/test.env': 'POSTGRES_USER=test\nMYSQL_USER=test\nSMTP_HOST=127.0.0.1\n',
+      'playwright/docker-compose.yml': [
+        'services:',
+        '  postgres:',
+        '    image: postgres:18',
+        '  mysql:',
+        '    image: mysql:9',
+        ''
+      ].join('\n'),
+      'playwright/compose/keycloak/Dockerfile': 'FROM quay.io/keycloak/keycloak:26\n'
+    },
+    expect: {
+      dependencyKinds: ['email'],
+      absentDependencyKinds: ['postgres', 'mysql'],
+      resources: { vaultwarden: 'web-service', vaultwardenData: 'efs-filesystem' },
+      resourceCount: 2,
+      resourcePackaging: [
+        {
+          resource: 'vaultwarden',
+          type: 'custom-dockerfile',
+          command: null,
+          buildContextPath: '.',
+          dockerfilePath: 'docker/Dockerfile.debian'
+        }
+      ],
+      serviceProperties: [{ resource: 'vaultwarden', containerPort: 80, minInstances: 1, maxInstances: 1 }],
+      serviceVolumeMounts: [
+        { resource: 'vaultwarden', type: 'efs', efsFilesystemName: 'vaultwardenData', mountPath: '/data' }
+      ],
+      requiredGapPatterns: ['SMTP.*host.*port.*username.*password'],
+      forbiddenGapPatterns: ['lost when the runtime restarts'],
+      deployable: true,
+      maxQuestions: 0
+    }
+  },
+  {
     name: 'Django Compose image with custom port, split Postgres settings, and bundled lifecycle',
     directoryName: 'healthchecks',
     files: {

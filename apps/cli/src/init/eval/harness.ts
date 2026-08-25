@@ -72,12 +72,18 @@ export type EvalExpectation = {
   resourcePackaging?: ReadonlyArray<{
     resource: string;
     type: string;
-    command?: readonly string[];
+    /** `null` asserts that the image's own CMD/ENTRYPOINT remains authoritative. */
+    command?: readonly string[] | null;
     buildContextPath?: string;
     dockerfilePath?: string;
   }>;
-  /** User-visible composition gaps that must explain why a result is incomplete. */
-  requiredGapPatterns?: readonly string[];
+  /** Persistent service mounts whose resource binding and in-container path must survive composition. */
+  serviceVolumeMounts?: ReadonlyArray<{
+    resource: string;
+    type: string;
+    efsFilesystemName: string;
+    mountPath: string;
+  }>;
 };
 
 export type EvalCase = {
@@ -240,8 +246,14 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
         stage: 'composition',
         detail: `Expected "${packagingExpectation.resource}" packaging to be ${packagingExpectation.type}; found ${packaging?.type ?? 'nothing'}.`
       });
+    } else if (packagingExpectation.command === null && packaging.properties?.command !== undefined) {
+      failures.push({
+        stage: 'composition',
+        detail: `Expected "${packagingExpectation.resource}" to preserve its image command; found ${JSON.stringify(packaging.properties.command)}.`
+      });
     } else if (
       packagingExpectation.command !== undefined &&
+      packagingExpectation.command !== null &&
       JSON.stringify(packaging.properties?.command) !== JSON.stringify(packagingExpectation.command)
     ) {
       failures.push({
@@ -263,6 +275,26 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
       failures.push({
         stage: 'composition',
         detail: `Expected "${packagingExpectation.resource}" to use Dockerfile ${packagingExpectation.dockerfilePath}; found ${packaging.properties?.dockerfilePath ?? 'nothing'}.`
+      });
+    }
+  }
+
+  for (const mountExpectation of expected.serviceVolumeMounts ?? []) {
+    const resource = result.composition.config.resources[mountExpectation.resource];
+    const mounts = (resource?.properties.volumeMounts ?? []) as Array<{
+      type?: string;
+      properties?: { efsFilesystemName?: string; mountPath?: string };
+    }>;
+    const matching = mounts.find(
+      (mount) =>
+        mount.type === mountExpectation.type &&
+        mount.properties?.efsFilesystemName === mountExpectation.efsFilesystemName &&
+        mount.properties.mountPath === mountExpectation.mountPath
+    );
+    if (matching === undefined) {
+      failures.push({
+        stage: 'composition',
+        detail: `Expected "${mountExpectation.resource}" to mount ${mountExpectation.efsFilesystemName} at ${mountExpectation.mountPath}; found ${JSON.stringify(mounts)}.`
       });
     }
   }

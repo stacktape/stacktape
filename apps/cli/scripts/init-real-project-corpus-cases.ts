@@ -32,6 +32,8 @@ export type RealProjectCorpusExpectation = {
   forbiddenGapPatterns?: readonly string[];
   /** Static manifests in this corpus must never be reported as evidence that a dependency is live. */
   forbidCurrentlyHostedDependencies?: boolean;
+  /** Whether the complete inferred application is safe to present as deployment-ready. */
+  deployable?: boolean;
 };
 
 export type RealProjectCorpusCase = {

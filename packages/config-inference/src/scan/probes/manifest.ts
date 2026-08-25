@@ -15,6 +15,7 @@ import type { Citation } from '../../facts/citation';
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import type { MigrationFact, PackageManager } from '../../facts/project-facts';
 import type { ServiceFactInput } from '../../facts/service';
+import { isNonProductionFixturePath } from '../deployment-relevance';
 import { citeFirstMatchOnly, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import {
   frameworkBuildCommand,
@@ -617,7 +618,9 @@ const resolveFramework = async (
 export const manifestProbe: Probe = {
   name: 'manifest',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
-    const manifestPaths = context.files.filter((file) => file === 'package.json' || file.endsWith('/package.json'));
+    const manifestPaths = context.files.filter(
+      (file) => (file === 'package.json' || file.endsWith('/package.json')) && !isNonProductionFixturePath(file)
+    );
     if (manifestPaths.length === 0) {
       return {};
     }

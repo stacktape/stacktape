@@ -224,6 +224,16 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
 
   return {
     ...existing,
+    // A standalone Dockerfile can only name a root service after the checkout directory. A later
+    // language manifest carries the application's own declared name, which is stable across clones
+    // and therefore owns identity when the Dockerfile had only `container` to contribute.
+    name:
+      (existing.language === 'unknown' || existing.language === 'container') &&
+      existing.processType === undefined &&
+      incoming.language !== 'unknown' &&
+      incoming.language !== 'container'
+        ? incoming.name
+        : existing.name,
     // An importer can identify a container before the language manifest is read. Keep the concrete
     // application language once another probe establishes it; `container` describes packaging, not
     // what the user writes.
@@ -251,6 +261,7 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
     healthCheckPath: existing.healthCheckPath ?? incoming.healthCheckPath,
     writesLocalFilesystem: existing.writesLocalFilesystem ?? incoming.writesLocalFilesystem,
     bundledLifecycle: existing.bundledLifecycle ?? incoming.bundledLifecycle,
+    declaredContainerVolumes: existing.declaredContainerVolumes ?? incoming.declaredContainerVolumes,
     servesStaticAssets,
     environmentVariables: mergeEnvironmentVariables(
       existing.environmentVariables ?? [],
@@ -478,8 +489,12 @@ const mergeServices = (
         });
         continue;
       }
-      if (service.name !== existing.name) renames.set(service.name, existing.name);
-      byPath.set(key, mergeService(existing, service));
+      const mergedService = mergeService(existing, service);
+      if (service.name !== existing.name) {
+        const discardedName = mergedService.name === service.name ? existing.name : service.name;
+        renames.set(discardedName, mergedService.name);
+      }
+      byPath.set(key, mergedService);
     }
   }
 

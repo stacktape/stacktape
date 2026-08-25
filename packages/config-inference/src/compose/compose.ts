@@ -994,6 +994,46 @@ export const composeConfig = ({
     }
   });
 
+  const persistentVolumes = new Map<ServiceFact, Array<{ resourceName: string; mountPath: string }>>();
+  let hasUnresolvedPersistence = false;
+  for (const service of services) {
+    const writes = service.writesLocalFilesystem;
+    if (writes === undefined) continue;
+    const declaredVolumePaths = service.declaredContainerVolumes?.paths;
+    const classification = classifyService(service);
+    const supportsEfs =
+      classification.resourceType === 'web-service' ||
+      classification.resourceType === 'worker-service' ||
+      classification.resourceType === 'private-service';
+    if (!supportsEfs || declaredVolumePaths === undefined) {
+      hasUnresolvedPersistence = true;
+      gaps.push({
+        subject: `${service.name}.persistent-storage`,
+        message: `${service.name} writes passwords, keys, SQLite data, or other application state to ${writes.paths.join(', ')}. That data would be lost when the runtime restarts because init could not attach persistent storage to this resource type. Configure a persistent volume before deploying.`
+      });
+      continue;
+    }
+
+    const volumes = declaredVolumePaths.map((mountPath) => {
+      const leaf = mountPath.split('/').findLast((segment) => segment.length > 0) ?? 'data';
+      const preferredName =
+        declaredVolumePaths.length === 1
+          ? `${service.name}Data`
+          : `${service.name}${leaf.replace(/[^a-zA-Z0-9]+(.)/g, (_, character: string) => character.toUpperCase())}Data`;
+      const resourceName = uniqueName(preferredName, taken);
+      resources[resourceName] = {
+        type: 'efs-filesystem',
+        properties: { backupEnabled: true, throughputMode: 'elastic' }
+      };
+      provenance[resourceName] = {
+        reason: `${service.name} declares persistent container data at ${mountPath}, so an encrypted, backed-up filesystem keeps it across restarts.`,
+        evidence: service.evidence.filter((citation) => citation.field === 'writesLocalFilesystem').slice(0, 3)
+      };
+      return { resourceName, mountPath };
+    });
+    persistentVolumes.set(service, volumes);
+  }
+
   for (const [index, service] of services.entries()) {
     const name = resourceNames[index]!;
     const classification = classifyService(service);
@@ -1101,7 +1141,8 @@ export const composeConfig = ({
       // provider runs `release:` at build time, where the database this migration needs does not
       // exist — caught on the first real-AWS run of the validation lane.
       suppressNixpacksRelease: migrationHooks.hookedServices.includes(service.name),
-      requiresVpc
+      requiresVpc,
+      persistentVolumes: persistentVolumes.get(service) ?? []
     });
     provenance[name] = {
       reason: classification.reason,
@@ -1262,7 +1303,8 @@ export const composeConfig = ({
     serviceResources: Object.fromEntries(serviceResourceNames),
     // A partial monorepo result remains useful for review, but must not unlock deployment as though
     // it represented the complete application.
-    deployable: Object.keys(resources).length > 0 && cloudflareRuntimeConstraints.length === 0
+    deployable:
+      Object.keys(resources).length > 0 && cloudflareRuntimeConstraints.length === 0 && !hasUnresolvedPersistence
   };
 };
 
@@ -1276,7 +1318,8 @@ const buildServiceResource = ({
   profile,
   packageManager,
   suppressNixpacksRelease,
-  requiresVpc
+  requiresVpc,
+  persistentVolumes
 }: {
   resourceType: ServiceResourceType;
   service: ServiceFact;
@@ -1288,6 +1331,7 @@ const buildServiceResource = ({
   packageManager: PackageManager | undefined;
   suppressNixpacksRelease: boolean;
   requiresVpc: boolean;
+  persistentVolumes: ReadonlyArray<{ resourceName: string; mountPath: string }>;
 }): ComposedResource => {
   const shared = {
     ...(environment.length > 0 ? { environment } : {}),
@@ -1453,12 +1497,24 @@ const buildServiceResource = ({
         : {}),
       // Scaling is only meaningful for something that stays up. A batch job is sized, not scaled.
       scaling: {
-        minInstances: service.bundledLifecycle === undefined ? profile.scaling.minInstances : 1,
+        minInstances:
+          service.bundledLifecycle === undefined && persistentVolumes.length === 0 ? profile.scaling.minInstances : 1,
         maxInstances:
-          service.bundledLifecycle === undefined
+          service.bundledLifecycle === undefined && persistentVolumes.length === 0
             ? profile.scaling.maxInstances
             : Math.min(profile.scaling.maxInstances, 1)
       },
+      ...(persistentVolumes.length === 0
+        ? {}
+        : {
+            volumeMounts: persistentVolumes.map((volume) => ({
+              type: 'efs',
+              properties: {
+                efsFilesystemName: volume.resourceName,
+                mountPath: volume.mountPath
+              }
+            }))
+          }),
       ...(resourceType === 'web-service'
         ? {
             alarms: [

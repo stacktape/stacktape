@@ -926,6 +926,27 @@ describe('composeConfig', () => {
     });
   });
 
+  it('does not claim deployment readiness for local state without an image volume contract', () => {
+    const composed = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            writesLocalFilesystem: { paths: ['/data'], purpose: 'sqlite' }
+          })
+        ]
+      })
+    });
+
+    expect(composed.deployable).toBe(false);
+    expect(composed.config.resources.webData).toBeUndefined();
+    expect(composed.gaps).toContainEqual(
+      expect.objectContaining({
+        subject: 'web.persistent-storage',
+        message: expect.stringMatching(/passwords, keys, SQLite data.*lost when the runtime restarts/i)
+      })
+    );
+  });
+
   it('gives colliding names distinct resource keys', () => {
     const { config } = composeConfig({
       facts: facts({

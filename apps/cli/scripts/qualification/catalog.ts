@@ -123,7 +123,8 @@ const fromBuiltInCase = (entry: RealProjectCorpusCase): QualificationCaseManifes
       : { forbiddenGapPatterns: [...entry.expect.forbiddenGapPatterns] }),
     ...(entry.expect.forbidCurrentlyHostedDependencies === undefined
       ? {}
-      : { forbidCurrentlyHostedDependencies: entry.expect.forbidCurrentlyHostedDependencies })
+      : { forbidCurrentlyHostedDependencies: entry.expect.forbidCurrentlyHostedDependencies }),
+    ...(entry.expect.deployable === undefined ? {} : { deployable: entry.expect.deployable })
   },
   deployment: {
     policy: 'never',

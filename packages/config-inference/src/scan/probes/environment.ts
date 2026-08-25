@@ -24,6 +24,7 @@ import {
 } from '../../facts/dependency';
 import type { Uncertainty } from '../../facts/uncertainty';
 import { extractEnvironmentVariableNames, isEnvironmentFileName } from '../../policy/file-access';
+import { isNonProductionFixturePath } from '../deployment-relevance';
 import { readText } from '../probe';
 import type { Probe, ProbeContext, ProbeOutput } from '../probe';
 
@@ -247,8 +248,8 @@ export const environmentProbe: Probe = {
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
     // The same predicate the policy uses. Keeping a second copy here is how the two drift: broaden
     // the policy to cover `.envrc` and this probe silently keeps ignoring it.
-    const discoveredEnvFiles = context.files.filter((file) =>
-      isEnvironmentFileName(file.slice(file.lastIndexOf('/') + 1))
+    const discoveredEnvFiles = context.files.filter(
+      (file) => !isNonProductionFixturePath(file) && isEnvironmentFileName(file.slice(file.lastIndexOf('/') + 1))
     );
     const envFiles = await activeEnvironmentFiles(context, discoveredEnvFiles);
     if (envFiles.length === 0) return {};

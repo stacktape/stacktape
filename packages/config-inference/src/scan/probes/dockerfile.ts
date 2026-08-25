@@ -3,6 +3,7 @@
 import { posix } from 'node:path';
 import type { Citation } from '../../facts/citation';
 import type { ServiceFactInput } from '../../facts/service';
+import { isNonProductionFixturePath } from '../deployment-relevance';
 import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { nearestManifestRoot } from '../service-root';
 
@@ -11,6 +12,15 @@ const serviceRootFor = (dockerfile: string, files: readonly string[]): string =>
 };
 
 const DEVELOPMENT_ONLY_DIRECTORY = /(?:^|\/)(?:\.devcontainer|\.github|\.gitlab|\.circleci)(?:\/|$)/i;
+
+const dockerfilePointerTarget = (path: string, raw: string, files: readonly string[]): string | undefined => {
+  const declaration = raw.trim().replaceAll('\\', '/');
+  if (!/^(?:[^/]+\/)*Dockerfile(?:\.[^/]+)?$/i.test(declaration)) return undefined;
+  const directory = posix.dirname(path);
+  const resolved = posix.normalize(directory === '.' ? declaration : posix.join(directory, declaration));
+  if (resolved === '..' || resolved.startsWith('../') || !files.includes(resolved)) return undefined;
+  return resolved;
+};
 
 const serviceNameFor = (root: string, repositoryRoot: string): string =>
   root === '.' ? (repositoryRoot.split(/[/\\]/).findLast((segment) => segment !== '') ?? 'app') : posix.basename(root);
@@ -27,12 +37,38 @@ const exposedPort = (path: string, raw: string): { port?: number; citation?: Cit
   };
 };
 
+const declaredVolumes = (path: string, raw: string): { paths: string[]; citation?: Citation } => {
+  const paths: string[] = [];
+  for (const match of raw.matchAll(/^\s*VOLUME\s+(.+)$/gim)) {
+    const declaration = match[1]!.trim();
+    let entries: string[];
+    if (declaration.startsWith('[')) {
+      try {
+        const parsed = JSON.parse(declaration) as unknown;
+        entries = Array.isArray(parsed) && parsed.every((entry) => typeof entry === 'string') ? parsed : [];
+      } catch {
+        entries = [];
+      }
+    } else {
+      entries = declaration.split(/\s+/);
+    }
+    for (const entry of entries) {
+      if (entry.startsWith('/') && !paths.includes(entry)) paths.push(entry);
+    }
+  }
+  const citation = citeFirstMatch(path, raw, /^\s*VOLUME\s+/im, 'writesLocalFilesystem');
+  return { paths, ...(citation === undefined ? {} : { citation }) };
+};
+
 export const dockerfileProbe: Probe = {
   name: 'dockerfile',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
     const candidates = context.files
       .filter(
-        (path) => /^Dockerfile(?:\.[^/]+)?$/i.test(posix.basename(path)) && !DEVELOPMENT_ONLY_DIRECTORY.test(path)
+        (path) =>
+          /^Dockerfile(?:\.[^/]+)?$/i.test(posix.basename(path)) &&
+          !DEVELOPMENT_ONLY_DIRECTORY.test(path) &&
+          !isNonProductionFixturePath(path)
       )
       .toSorted((left, right) => {
         const leftExact = posix.basename(left).toLowerCase() === 'dockerfile';
@@ -45,10 +81,18 @@ export const dockerfileProbe: Probe = {
       const root = serviceRootFor(path, context.files);
       if (services.has(root)) continue;
       // oxlint-disable-next-line no-await-in-loop -- one short, policy-controlled file per service root.
-      const raw = await readText(context, path);
+      const candidateRaw = await readText(context, path);
+      if (candidateRaw === undefined) continue;
+      const pointerTarget = dockerfilePointerTarget(path, candidateRaw, context.files);
+      const dockerfile = pointerTarget ?? path;
+      // A checked-out symbolic link can be materialized as a one-line target path on platforms
+      // where Git symlinks are disabled. Follow only an exact repository-local Dockerfile pointer.
+      // oxlint-disable-next-line no-await-in-loop -- at most one bounded pointer target per candidate.
+      const raw = pointerTarget === undefined ? candidateRaw : await readText(context, pointerTarget);
       if (raw === undefined || !/^\s*FROM\s+\S+/im.test(raw)) continue;
-      const { port, citation: portCitation } = exposedPort(path, raw);
-      const dockerfileCitation = citeFirstMatch(path, raw, /^\s*FROM\s+\S+/im, 'dockerfile');
+      const { port, citation: portCitation } = exposedPort(dockerfile, raw);
+      const { paths: volumePaths, citation: volumeCitation } = declaredVolumes(dockerfile, raw);
+      const dockerfileCitation = citeFirstMatch(dockerfile, raw, /^\s*FROM\s+\S+/im, 'dockerfile');
 
       services.set(root, {
         name: serviceNameFor(root, context.root),
@@ -57,9 +101,17 @@ export const dockerfileProbe: Probe = {
         exposesHttp: port !== undefined,
         ...(port === undefined ? {} : { port }),
         executionModel: 'long-running',
-        dockerfile: path,
+        dockerfile,
+        ...(volumePaths.length === 0
+          ? {}
+          : {
+              writesLocalFilesystem: { paths: volumePaths, purpose: 'unknown' as const },
+              declaredContainerVolumes: { paths: volumePaths }
+            }),
         environmentVariables: [],
-        evidence: [dockerfileCitation, portCitation].filter((citation): citation is Citation => citation !== undefined),
+        evidence: [dockerfileCitation, portCitation, volumeCitation].filter(
+          (citation): citation is Citation => citation !== undefined
+        ),
         source: 'probe'
       });
     }
