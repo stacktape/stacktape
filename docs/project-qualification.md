@@ -82,6 +82,9 @@ pnpm qualify:projects:sandboxed -- --preset=smoke --lanes=import,package
 # Single project packaging inside the disposable DinD sandbox.
 pnpm qualify:projects:sandboxed -- --case=docker-fastapi --lanes=import,package
 
+# On a long-lived development machine, keep only the three newest harness-owned runner images.
+pnpm qualify:projects:sandboxed -- --prune-images --keep-images=3
+
 # Sandboxed qualification with a custom output directory. Its checkout cache lasts for this run only.
 pnpm qualify:projects:sandboxed -- --preset=release --lanes=import,package --output-dir=.stacktape/qualification/release-run
 
@@ -109,6 +112,12 @@ Use `--max-cases=<count>` to bound an exploratory run. Use `--fail-fast` when on
 `--output-dir` and direct-host `--cache-root` paths are resolved from the directory in which the user invoked pnpm,
 including on Windows. The sandbox rejects `--cache-root`: writing a project-controlled cache back onto the host would
 weaken its boundary. All projects within one sandbox run still share the same disposable cache volume.
+
+The sandbox runner image is keyed by the exact committed Stacktape tree, so repeated fix-and-rerun work can leave many
+obsolete runner tags on a long-lived Docker host. `--prune-images` inspects the harness ownership label and removes only
+older managed runner images. It intentionally leaves Docker's global build cache and every volume alone. Prefer
+ephemeral CI/VM workers for large campaigns; use `docker system df` as a diagnostic rather than letting an agent delete
+unrelated Docker state.
 
 Each run writes:
 

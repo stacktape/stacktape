@@ -132,6 +132,17 @@ its disposable cache; separate sandbox workers do not share a host cache:
 pnpm qualify:projects:sandboxed -- --manifest=<manifest.json> --lanes=import,package --shard=1/8
 ```
 
+Repeated fixes create one committed-product runner image per Stacktape commit. Between campaign phases, retain only the
+newest reusable runners so a long-lived Docker Desktop machine does not fill its disk:
+
+```sh
+pnpm qualify:projects:sandboxed -- --prune-images --keep-images=3
+```
+
+This command removes only images carrying the qualification harness ownership label. It does not touch project data,
+volumes, unrelated images, or Docker's global build cache. On a disposable qualification VM, inspect `docker system df`
+and recycle the VM when cache pressure grows; do not make a lesser-capability worker prune unrelated host assets.
+
 For reviewed pinned projects running directly on the host:
 
 ```sh
