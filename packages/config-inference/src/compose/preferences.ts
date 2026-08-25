@@ -7,7 +7,9 @@
  * repair agent can never rewrite them while correcting a repository fact.
  */
 
+import type { DependencyFact } from '../facts/dependency';
 import type { ProjectFacts } from '../facts/project-facts';
+import type { ServiceFact } from '../facts/service';
 import { classifyService } from './classify';
 
 export type CapacityPreference = 'economical' | 'balanced' | 'performance';
@@ -71,34 +73,64 @@ export const DEFAULT_DEPLOYMENT_PREFERENCES: DeploymentPreferences = {
 const RELATIONAL_DATABASE_KINDS = new Set(['postgres', 'mysql', 'mssql']);
 
 /**
+ * The exact deployable graph after composition has removed unsupported or ambiguous services.
+ *
+ * Fact schemas use service names for their portable on-disk relationship. Composition can retain
+ * two facts with the same name long enough to produce an honest review result, so policy decisions
+ * made during composition need the already-resolved object identities instead.
+ */
+export type DeploymentPreferenceTopology = {
+  services: readonly ServiceFact[];
+  dependencies: readonly DependencyFact[];
+  dependencyConsumers: ReadonlyMap<DependencyFact, ReadonlySet<ServiceFact>>;
+};
+
+const consumerServicesForDependency = (
+  facts: ProjectFacts,
+  dependency: DependencyFact,
+  topology?: DeploymentPreferenceTopology
+): ReadonlySet<ServiceFact> => {
+  if (topology !== undefined) return topology.dependencyConsumers.get(dependency) ?? new Set<ServiceFact>();
+  return new Set(facts.services.filter((service) => dependency.consumedBy.includes(service.name)));
+};
+
+/**
  * Whether a private database is a safe first-deploy default for this repository graph.
  *
  * Containers and batch jobs already run in Stacktape's VPC. Lambda-backed resources must join the
  * VPC to reach a private database, which removes their direct internet access. We still let the
  * user choose that trade-off explicitly, but we do not make it the default for a serverless graph.
  */
-export const privateDatabaseIsSafeDefault = (facts: ProjectFacts): boolean => {
-  const relationalConsumers = new Set(
-    facts.dependencies
-      .filter((dependency) => RELATIONAL_DATABASE_KINDS.has(dependency.kind))
-      .flatMap((dependency) => dependency.consumedBy)
-  );
-  return !facts.services.some((service) => {
-    if (!relationalConsumers.has(service.name)) return false;
+export const privateDatabaseIsSafeDefault = (facts: ProjectFacts, topology?: DeploymentPreferenceTopology): boolean => {
+  const services = topology?.services ?? facts.services;
+  const dependencies = topology?.dependencies ?? facts.dependencies;
+  const relationalConsumers = new Set<ServiceFact>();
+  for (const dependency of dependencies) {
+    if (!RELATIONAL_DATABASE_KINDS.has(dependency.kind)) continue;
+    for (const consumer of consumerServicesForDependency(facts, dependency, topology)) {
+      relationalConsumers.add(consumer);
+    }
+  }
+  return !services.some((service) => {
+    if (!relationalConsumers.has(service)) return false;
     const resourceType = classifyService(service).resourceType;
     if (resourceType !== 'function' && !resourceType.endsWith('-web')) return false;
     // Redis is always VPC-only, so this serverless workload already has to join the VPC. Making its
     // SQL database private does not remove internet access it would otherwise retain.
-    const alreadyRequiresVpc = facts.dependencies.some(
-      (dependency) => dependency.kind === 'redis' && dependency.consumedBy.includes(service.name)
+    const alreadyRequiresVpc = dependencies.some(
+      (dependency) =>
+        dependency.kind === 'redis' && consumerServicesForDependency(facts, dependency, topology).has(service)
     );
     return !alreadyRequiresVpc;
   });
 };
 
-export const defaultDeploymentPreferences = (facts: ProjectFacts): DeploymentPreferences => ({
+export const defaultDeploymentPreferences = (
+  facts: ProjectFacts,
+  topology?: DeploymentPreferenceTopology
+): DeploymentPreferences => ({
   ...DEFAULT_DEPLOYMENT_PREFERENCES,
-  databaseAccess: privateDatabaseIsSafeDefault(facts) ? 'private' : 'public'
+  databaseAccess: privateDatabaseIsSafeDefault(facts, topology) ? 'private' : 'public'
 });
 
 export const profileForPreferences = (preferences: DeploymentPreferences): InfrastructureProfile => {

@@ -58,6 +58,40 @@ describe('an agent cannot claim probe provenance', () => {
     expect(merged.services[0]?.source).toBe('probe');
   });
 
+  it('cannot remove a probe-owned deployment runtime constraint', () => {
+    const baseline = projectFactsSchema.parse({
+      schemaVersion: 1,
+      services: [{ ...agentService, source: 'probe' }],
+      existingDeployments: [
+        {
+          tool: 'cloudflare-workers',
+          managesAws: false,
+          runtimeConstraints: [
+            {
+              platform: 'cloudflare-worker',
+              scope: '.',
+              entrypoint: 'src/index.ts',
+              bindings: ['durable-object'],
+              evidence: [{ file: 'wrangler.json', line: 2, quote: 'main' }]
+            }
+          ],
+          evidence: [{ file: 'wrangler.json', line: 1, quote: 'name' }],
+          source: 'probe'
+        }
+      ]
+    });
+    const submission = agentSubmissionSchema.parse({
+      schemaVersion: 1,
+      services: [{ ...agentService, framework: 'express' }]
+    });
+
+    const merged = mergeAgentSubmission({ baseline, submission });
+
+    expect(merged.existingDeployments).toEqual(baseline.existingDeployments);
+    expect(composeConfig({ facts: merged }).deployable).toBe(false);
+    expect(composeConfig({ facts: merged }).config.resources).toEqual({});
+  });
+
   it('rejects paths that would escape the repository', () => {
     for (const path of ['../../etc', '/etc/passwd', 'C:/Windows', 'apps\\web', 'a//b']) {
       expect(agentSubmissionSchema.safeParse({ schemaVersion: 1, services: [{ ...agentService, path }] }).success).toBe(

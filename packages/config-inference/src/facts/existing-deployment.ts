@@ -55,6 +55,57 @@ export const AWS_DEPLOYMENT_TOOLS: ReadonlySet<DeploymentTool> = new Set([
   'pulumi'
 ]);
 
+/**
+ * Cloudflare bindings whose semantics are part of the Workers runtime rather than a portable
+ * process or static build. The probe records only the binding kind, never its identifiers or
+ * configuration values.
+ */
+export const cloudflareRuntimeBindingSchema = z.enum([
+  'ai',
+  'analytics-engine',
+  'browser',
+  'd1',
+  'dispatch-namespace',
+  'durable-object',
+  'hyperdrive',
+  'images',
+  'kv',
+  'mtls-certificate',
+  'pipeline',
+  'queue',
+  'r2',
+  'service',
+  'vectorize',
+  'workflow'
+]);
+
+export type CloudflareRuntimeBinding = z.infer<typeof cloudflareRuntimeBindingSchema>;
+
+const repositoryLocationSchema = z
+  .string()
+  .min(1)
+  .refine((value) => !value.startsWith('/') && !/^[A-Za-z]:/.test(value), 'must be repository-relative')
+  .refine((value) => !value.split('/').includes('..'), 'must not contain ".."')
+  .refine((value) => !value.includes('\\'), 'must use forward slashes')
+  .refine((value) => !value.includes('//'), 'must not contain an empty path segment');
+
+/**
+ * A source-proven runtime boundary inside a deployment declaration.
+ *
+ * This stays probe-only: an agent cannot mark a service as platform-owned and thereby suppress it.
+ * `scope` is the directory containing the Wrangler file; `entrypoint`, when safe and literal, is
+ * resolved to a repository-relative path so composition can select one app in a monorepo.
+ */
+export const deploymentRuntimeConstraintSchema = z.object({
+  platform: z.literal('cloudflare-worker'),
+  scope: repositoryLocationSchema,
+  entrypoint: repositoryLocationSchema.optional(),
+  bindings: z.array(cloudflareRuntimeBindingSchema).default([]),
+  evidence: z.array(citationSchema).default([])
+});
+
+export type DeploymentRuntimeConstraint = z.infer<typeof deploymentRuntimeConstraintSchema>;
+
 export const existingDeploymentSchema = z.object({
   tool: deploymentToolSchema,
   /**
@@ -65,6 +116,8 @@ export const existingDeploymentSchema = z.object({
    * that can see the provider block should say so; one that cannot may fall back to the set above.
    */
   managesAws: z.boolean(),
+  /** Runtime requirements that make an otherwise ordinary-looking service non-portable. */
+  runtimeConstraints: z.array(deploymentRuntimeConstraintSchema).default([]),
   evidence: z.array(citationSchema).default([]),
   source: factSourceSchema
 });

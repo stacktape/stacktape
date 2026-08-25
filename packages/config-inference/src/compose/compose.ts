@@ -14,6 +14,7 @@
 import type { Citation } from '../facts/citation';
 import type { DependencyFact } from '../facts/dependency';
 import { AWS_DEPLOYMENT_TOOLS, DEPLOYMENT_TOOL_LABELS } from '../facts/existing-deployment';
+import type { DeploymentRuntimeConstraint } from '../facts/existing-deployment';
 import type { PackageManager, ProjectFacts } from '../facts/project-facts';
 import { posix } from 'node:path';
 import type { ServiceFact } from '../facts/service';
@@ -92,7 +93,7 @@ export type CompositionResult = {
   mode?: InfrastructureMode;
   /** Service name → the resource name it composed into, for walking from facts to config. */
   serviceResources: Record<string, string>;
-  /** False only when there is nothing to deploy at all. */
+  /** False when there is nothing to deploy, or when the config is knowingly only part of the app. */
   deployable: boolean;
 };
 
@@ -127,6 +128,70 @@ const POINTABLE_EXTERNAL_KINDS: ReadonlySet<DependencyFact['kind']> = new Set([
   'kafka',
   'nats'
 ]);
+
+const pathIsInside = (path: string, directory: string): boolean =>
+  directory === '.' || path === directory || path.startsWith(`${directory}/`);
+
+const mostSpecificServicesOwningPath = (services: readonly ServiceFact[], path: string): ServiceFact[] => {
+  const owners = services.filter((service) => service.path === '.' || pathIsInside(path, service.path));
+  const deepest = Math.max(-1, ...owners.map((service) => (service.path === '.' ? 0 : service.path.split('/').length)));
+  return owners.filter((service) => (service.path === '.' ? 0 : service.path.split('/').length) === deepest);
+};
+
+const isSharedDependencyEvidence = (path: string): boolean => {
+  const name = posix.basename(path);
+  return (
+    /^(?:(?:\.docker|deploy|dev|docker|infra)\/)?(?:docker-)?compose\.ya?ml$/i.test(path) ||
+    (!path.includes('/') &&
+      /^(?:\.env(?:[.-].*)?|env[.-](?:example|sample|template|defaults?)(?:[.-].*)?)$/i.test(name))
+  );
+};
+
+/**
+ * Resolve a runtime entrypoint to a service only when the ownership is unambiguous.
+ *
+ * An exact function/container entrypoint is identity evidence. A single service inside an app-local
+ * scope is also safe: the package and Wrangler declaration describe one deployable unit. Several
+ * Procfile processes at the same root are not safe to associate merely because every source path is
+ * technically below `.`.
+ */
+const servicesOwnedByRuntime = (
+  services: readonly ServiceFact[],
+  constraint: DeploymentRuntimeConstraint
+): ServiceFact[] => {
+  const inScope = services.filter((service) => pathIsInside(service.path, constraint.scope));
+  if (constraint.entrypoint !== undefined) {
+    const exactEntrypointOwners = inScope.filter((service) => {
+      const containerEntrypoint = service.containerEntrypoint?.split(':')[0];
+      return service.functionEntrypoint === constraint.entrypoint || containerEntrypoint === constraint.entrypoint;
+    });
+    if (exactEntrypointOwners.length > 0) return exactEntrypointOwners;
+
+    const locationOwners = mostSpecificServicesOwningPath(inScope, constraint.entrypoint);
+    return locationOwners.length === 1 ? locationOwners : [];
+  }
+  const exactScopeServices = inScope.filter((service) => service.path === constraint.scope);
+  return exactScopeServices.length === 1 ? exactScopeServices : [];
+};
+
+const CLOUDFLARE_BINDING_LABELS: Readonly<Record<string, string>> = {
+  ai: 'AI',
+  'analytics-engine': 'Analytics Engine',
+  browser: 'Browser Rendering',
+  d1: 'D1',
+  'dispatch-namespace': 'dispatch namespaces',
+  'durable-object': 'Durable Objects',
+  hyperdrive: 'Hyperdrive',
+  images: 'Images',
+  kv: 'KV',
+  'mtls-certificate': 'mTLS certificates',
+  pipeline: 'Pipelines',
+  queue: 'Queues',
+  r2: 'R2',
+  service: 'service bindings',
+  vectorize: 'Vectorize',
+  workflow: 'Workflows'
+};
 
 /** Network services whose consumers must read an address, unlike IAM-only buckets/tables/queues. */
 const ADDRESS_REQUIRED_KINDS: ReadonlySet<DependencyFact['kind']> = new Set([
@@ -285,18 +350,28 @@ const environmentFor = (
   service: ServiceFact,
   context: {
     serviceResourceNames: ReadonlyMap<string, string>;
-    /** Dependencies we are creating: fact name → its kind and the resource name it composed into. */
-    composedDependencies: ReadonlyMap<string, { kind: DependencyFact['kind']; resourceName: string }>;
+    dependencies: readonly DependencyFact[];
+    dependencyConsumers: ReadonlyMap<DependencyFact, ReadonlySet<ServiceFact>>;
+    /** Dependencies we are creating, keyed by exact fact identity rather than its display name. */
+    composedDependencies: ReadonlyMap<DependencyFact, { kind: DependencyFact['kind']; resourceName: string }>;
     projectName: string | undefined;
   }
 ): Array<{ name: string; value: unknown }> => {
-  const { serviceResourceNames, composedDependencies, projectName } = context;
+  const { serviceResourceNames, dependencies, dependencyConsumers, composedDependencies, projectName } = context;
   const variables: Array<{ name: string; value: unknown }> = [];
 
   for (const variable of service.environmentVariables) {
     if (variable.role === 'infra-dependency') {
       if (variable.dependencyName === undefined) continue;
-      const composed = composedDependencies.get(variable.dependencyName);
+      const ownedDependencies = dependencies.filter(
+        (dependency) =>
+          dependency.name === variable.dependencyName && dependencyConsumers.get(dependency)?.has(service) === true
+      );
+      // Duplicate display names are tolerated for an honest, non-deployable review result. A
+      // variable is safe to wire only when the source-evidence graph identifies one exact consumer
+      // and one exact dependency; name equality alone can otherwise inject another app's database.
+      if (ownedDependencies.length !== 1) continue;
+      const composed = composedDependencies.get(ownedDependencies[0]!);
       if (composed === undefined) {
         const secretName = secretNameFor(variable.name);
         if (secretName !== undefined) {
@@ -600,7 +675,90 @@ export const composeConfig = ({
   // Every open question is answered here, before anything is composed. The result is a complete
   // configuration and a list of what was decided — not a half-configuration and a list of prompts.
   const { facts, assumptions } = resolveAssumptions(input, decisions);
-  const recommendedPreferences = defaultDeploymentPreferences(facts);
+  const cloudflareRuntimeConstraints = facts.existingDeployments
+    .filter((deployment) => deployment.tool === 'cloudflare-workers')
+    .flatMap((deployment) => deployment.runtimeConstraints);
+  const cloudflareRuntimeOwnership = new Map(
+    cloudflareRuntimeConstraints.map((constraint) => [constraint, servicesOwnedByRuntime(facts.services, constraint)])
+  );
+  const cloudflareOwnedServices = new Set([...cloudflareRuntimeOwnership.values()].flat());
+  const services = facts.services.filter((service) => !cloudflareOwnedServices.has(service));
+  const serviceNames = new Set(services.map((service) => service.name));
+  // A dependency used solely by a Worker, or not connected to any recognized service at all, is
+  // part of the same unresolved topology. Keep dependencies required by a retained sibling, but do
+  // not turn an SDK package hint into a convincing orphan database, queue, or bucket.
+  const dependencySelections: Array<{
+    original: DependencyFact;
+    selected?: DependencyFact;
+    consumers: Set<ServiceFact>;
+  }> = facts.dependencies.map((dependency) => {
+    if (cloudflareRuntimeConstraints.length === 0) {
+      return {
+        original: dependency,
+        selected: dependency,
+        consumers: new Set(services.filter((service) => dependency.consumedBy.includes(service.name)))
+      };
+    }
+    if (dependency.consumedBy.length === 0) return { original: dependency, consumers: new Set() };
+
+    const sharedEvidence = dependency.evidence.filter((citation) => isSharedDependencyEvidence(citation.file));
+    const scopedEvidenceOwners = dependency.evidence
+      .filter((citation) => !isSharedDependencyEvidence(citation.file))
+      .flatMap((citation) => mostSpecificServicesOwningPath(facts.services, citation.file));
+    const hasSharedEvidence = sharedEvidence.length > 0;
+    const consumers = new Set<ServiceFact>();
+    for (const consumerName of new Set(dependency.consumedBy)) {
+      const matchingServices = facts.services.filter((service) => service.name === consumerName);
+      if (matchingServices.length === 0) continue;
+
+      const retainedMatches = matchingServices.filter((service) => services.includes(service));
+      if (retainedMatches.length === 0) continue;
+      const namedEvidenceOwners = [...new Set(scopedEvidenceOwners.filter((owner) => owner.name === consumerName))];
+
+      // App-local evidence identifies a service object, not merely its display name. This matters
+      // before completeness validation and after sanitization: two retained facts may have the same
+      // name, while only one owns the file that proves it consumes this dependency.
+      if (namedEvidenceOwners.length > 0) {
+        if (namedEvidenceOwners.length === 1 && retainedMatches.includes(namedEvidenceOwners[0]!)) {
+          consumers.add(namedEvidenceOwners[0]!);
+        }
+        continue;
+      }
+
+      // A shared descriptor has no app-local identity. It is safe only when the consumer name maps
+      // to exactly one service in the unsanitized topology; otherwise it could belong to a Worker
+      // we removed or to either of two same-name retained siblings.
+      if (hasSharedEvidence && matchingServices.length === 1) consumers.add(retainedMatches[0]!);
+    }
+    const retainedConsumerNames = dependency.consumedBy.filter((consumerName) =>
+      [...consumers].some((service) => service.name === consumerName)
+    );
+    if (retainedConsumerNames.length === 0) return { original: dependency, consumers };
+    return {
+      original: dependency,
+      selected:
+        retainedConsumerNames.length === dependency.consumedBy.length
+          ? dependency
+          : { ...dependency, consumedBy: retainedConsumerNames },
+      consumers
+    };
+  });
+  const dependencies = dependencySelections.flatMap(({ selected }) => (selected === undefined ? [] : [selected]));
+  const dependencyConsumers = new Map<DependencyFact, Set<ServiceFact>>();
+  for (const { selected, consumers } of dependencySelections) {
+    if (selected !== undefined) dependencyConsumers.set(selected, consumers);
+  }
+  const omittedCloudflareDependencies = dependencySelections.flatMap(({ original, selected }) =>
+    selected === undefined ? [original] : []
+  );
+  // Database network policy must use the same identity-resolved graph as resource wiring. Falling
+  // back to fact-level names here lets an unrelated same-name Lambda turn a container's database
+  // public even though that Lambda is not a consumer.
+  const recommendedPreferences = defaultDeploymentPreferences(facts, {
+    services,
+    dependencies,
+    dependencyConsumers
+  });
   const preferences: DeploymentPreferences = {
     ...(mode === undefined ? recommendedPreferences : MODE_PREFERENCES[mode]),
     ...requestedPreferences
@@ -621,13 +779,15 @@ export const composeConfig = ({
   const composedDependencyNames = new Set<string>();
   /** The same set with the kind and resource name attached, for wiring variables to parameters. */
   const composedDependencies = new Map<string, { kind: DependencyFact['kind']; resourceName: string }>();
+  /** Identity-keyed view used where duplicate service names make a name-only relationship unsafe. */
+  const composedDependenciesByFact = new Map<DependencyFact, { kind: DependencyFact['kind']; resourceName: string }>();
   /** Newly composed RDS resources with no public address. External databases never enter this set. */
   const privateDatabaseResourceNames = new Set<string>();
-  /** Variables a service needs because we decided *not* to create what they address, by service name. */
-  const externalVariables = new Map<string, Array<{ name: string; value: unknown }>>();
+  /** Variables a service needs because we decided *not* to create what they address, by service identity. */
+  const externalVariables = new Map<ServiceFact, Array<{ name: string; value: unknown }>>();
   const unresolvedPulumiCompute =
     facts.services.length === 0 && facts.existingDeployments.some((deployment) => deployment.tool === 'pulumi');
-  for (const dependency of facts.dependencies) {
+  for (const dependency of dependencies) {
     // SDK clients in a Pulumi program can identify S3/SQS/etc. without identifying the functions
     // that use them. Creating those weak, unconsumed findings alone leaves orphaned infrastructure
     // and a dangerously convincing success. Concrete Pulumi resource declarations carry
@@ -676,8 +836,8 @@ export const composeConfig = ({
         // `connectTo` has nothing to name — and a container deployed without `DATABASE_URL` starts,
         // crashes, and looks like our bug. The variable goes in as a secret reference: the user
         // already has the connection string, we have never read it, and the file stays coherent.
-        for (const serviceName of dependency.consumedBy) {
-          const forService = externalVariables.get(serviceName) ?? [];
+        for (const service of dependencyConsumers.get(dependency) ?? []) {
+          const forService = externalVariables.get(service) ?? [];
           for (const variableName of dependency.addressedBy) {
             const secretName = secretNameFor(variableName);
             if (secretName === undefined) continue;
@@ -686,11 +846,11 @@ export const composeConfig = ({
               value: `$Secret('${secretName}')`
             });
             gaps.push({
-              subject: `${serviceName}.${variableName}`,
+              subject: `${service.name}.${variableName}`,
               message: `${variableName} points at the database you already have, which we are leaving alone. Put its value in the ${secretName} secret before deploying.`
             });
           }
-          externalVariables.set(serviceName, forService);
+          externalVariables.set(service, forService);
         }
         continue;
       }
@@ -721,6 +881,10 @@ export const composeConfig = ({
       kind: dependency.kind,
       resourceName: name
     });
+    composedDependenciesByFact.set(dependency, {
+      kind: dependency.kind,
+      resourceName: name
+    });
     if (privateDatabase) privateDatabaseResourceNames.add(name);
     resources[name] = composed.resource;
     provenance[name] = {
@@ -748,7 +912,7 @@ export const composeConfig = ({
     provenance[bastionResourceName] = {
       reason:
         'Your database has no public address, so this small keyless jump box provides encrypted access for migrations and local tools.',
-      evidence: facts.dependencies
+      evidence: dependencies
         .filter((dependency) => {
           const resourceName = dependencyResourceNames.get(dependency.name);
           return resourceName !== undefined && privateDatabaseResourceNames.has(resourceName);
@@ -758,7 +922,7 @@ export const composeConfig = ({
     };
   }
 
-  const httpTriggeredServices = facts.services.filter((service) =>
+  const httpTriggeredServices = services.filter((service) =>
     service.functionTriggers.some((trigger) => trigger.type === 'http')
   );
   const httpApiGatewayName = httpTriggeredServices.length === 0 ? undefined : uniqueName('httpApiGateway', taken);
@@ -779,9 +943,9 @@ export const composeConfig = ({
   // deploy ships a schema-less database. Computed before the services so their packaging can know
   // which migrations this deploy now owns.
   const migrationHooks = composeMigrationHooks({
-    migrations: facts.migrations,
-    services: facts.services,
-    dependencies: facts.dependencies,
+    migrations: facts.migrations.filter((migration) => serviceNames.has(migration.serviceName)),
+    services,
+    dependencies,
     composedDependencies,
     assumptions,
     projectName,
@@ -794,23 +958,23 @@ export const composeConfig = ({
   // equivalent and is not: two services called `app` would collapse onto one key and one of them
   // would vanish from the configuration entirely. `checkFactsCompleteness` rejects duplicates
   // upstream, but losing a service is too quiet a failure to leave to an upstream guarantee.
-  const resourceNames = facts.services.map((service) => uniqueName(service.name, taken));
+  const resourceNames = services.map((service) => uniqueName(service.name, taken));
   const serviceResourceNames = new Map<string, string>();
-  facts.services.forEach((service, index) => {
+  services.forEach((service, index) => {
     if (!serviceResourceNames.has(service.name)) {
       serviceResourceNames.set(service.name, resourceNames[index]!);
     }
   });
 
-  for (const [index, service] of facts.services.entries()) {
+  for (const [index, service] of services.entries()) {
     const name = resourceNames[index]!;
     const classification = classifyService(service);
-    const connectTo = facts.dependencies
-      .filter((dependency) => dependency.consumedBy.includes(service.name))
+    const connectTo = dependencies
+      .filter((dependency) => dependencyConsumers.get(dependency)?.has(service))
       .map((dependency) => dependencyResourceNames.get(dependency.name))
       .filter((value): value is string => value !== undefined);
-    const requiresVpc = facts.dependencies.some((dependency) => {
-      if (!dependency.consumedBy.includes(service.name)) return false;
+    const requiresVpc = dependencies.some((dependency) => {
+      if (!dependencyConsumers.get(dependency)?.has(service)) return false;
       const resourceName = dependencyResourceNames.get(dependency.name);
       return (
         resourceName !== undefined && (privateDatabaseResourceNames.has(resourceName) || dependency.kind === 'redis')
@@ -819,12 +983,14 @@ export const composeConfig = ({
 
     const environment = environmentFor(service, {
       serviceResourceNames,
-      composedDependencies,
+      dependencies,
+      dependencyConsumers,
+      composedDependencies: composedDependenciesByFact,
       projectName
     });
     // The agent path may already have written the same variable from the service's own facts, so the
     // first entry for a name wins rather than the file carrying it twice.
-    for (const extra of externalVariables.get(service.name) ?? []) {
+    for (const extra of externalVariables.get(service) ?? []) {
       if (!environment.some((entry) => entry.name === extra.name)) environment.push(extra);
     }
 
@@ -845,9 +1011,16 @@ export const composeConfig = ({
       .toSorted((left, right) => left.name.localeCompare(right.name));
 
     for (const variable of service.environmentVariables) {
+      const ownsDependency =
+        variable.dependencyName !== undefined &&
+        dependencies.some(
+          (dependency) =>
+            dependency.name === variable.dependencyName && dependencyConsumers.get(dependency)?.has(service) === true
+        );
       if (
         variable.role === 'infra-dependency' &&
         variable.dependencyName !== undefined &&
+        ownsDependency &&
         !composedDependencyNames.has(variable.dependencyName) &&
         // The kept-external branch above says this better, naming the provider it is leaving alone.
         !gaps.some((gap) => gap.subject === `${service.name}.${variable.name}`)
@@ -961,21 +1134,18 @@ export const composeConfig = ({
     }
   }
 
-  for (const dependency of facts.dependencies) {
+  for (const dependency of dependencies) {
     if (!ADDRESS_REQUIRED_KINDS.has(dependency.kind) || !composedDependencyNames.has(dependency.name)) continue;
-    const consumersWithoutAddress = dependency.consumedBy.filter((serviceName) => {
-      const service = facts.services.find((candidate) => candidate.name === serviceName);
-      return (
-        service !== undefined &&
+    const consumersWithoutAddress = [...(dependencyConsumers.get(dependency) ?? [])].filter(
+      (service) =>
         !service.environmentVariables.some(
           (variable) => variable.role === 'infra-dependency' && variable.dependencyName === dependency.name
         )
-      );
-    });
+    );
     if (consumersWithoutAddress.length === 0) continue;
     gaps.push({
       subject: `${dependency.name}.address`,
-      message: `${consumersWithoutAddress.join(', ')} uses ${dependencyLabel(dependency.kind)}, but the code does not read a configurable address for it. Stacktape will create it and grant access; update the app to read the connection details injected by connectTo before deploying.`
+      message: `${consumersWithoutAddress.map((service) => service.name).join(', ')} uses ${dependencyLabel(dependency.kind)}, but the code does not read a configurable address for it. Stacktape will create it and grant access; update the app to read the connection details injected by connectTo before deploying.`
     });
   }
 
@@ -983,11 +1153,42 @@ export const composeConfig = ({
   // applied, so the wording stays conditional while still making the possible second copy visible.
   for (const deployment of facts.existingDeployments) {
     const label = DEPLOYMENT_TOOL_LABELS[deployment.tool];
+    const ownedRuntimeConstraints = deployment.runtimeConstraints.filter(
+      (constraint) => (cloudflareRuntimeOwnership.get(constraint)?.length ?? 0) > 0
+    );
+    const runtimeBindings = [
+      ...new Set(
+        deployment.runtimeConstraints
+          .flatMap((constraint) => constraint.bindings)
+          .map((binding) => CLOUDFLARE_BINDING_LABELS[binding] ?? binding)
+      )
+    ];
+    const runtimeDetail =
+      runtimeBindings.length === 0
+        ? 'Cloudflare Worker code'
+        : `Cloudflare Worker code plus these runtime bindings: ${runtimeBindings.join(', ')}`;
+    const omittedDependencyKinds = [
+      ...new Set(omittedCloudflareDependencies.map((dependency) => dependencyLabel(dependency.kind)))
+    ];
+    const omittedDependencyMessage =
+      omittedDependencyKinds.length === 0
+        ? ''
+        : ` Init also left the detected ${omittedDependencyKinds.join(', ')} ${omittedDependencyKinds.length === 1 ? 'dependency' : 'dependencies'} out because it could not safely associate ${omittedDependencyKinds.length === 1 ? 'it' : 'them'} with a retained platform-neutral service; creating ${omittedDependencyKinds.length === 1 ? 'it' : 'them'} could leave orphan AWS resources.`;
+    const cloudflareRuntimeMessage =
+      ownedRuntimeConstraints.length === 0
+        ? Object.keys(resources).length === 0
+          ? `This project declares ${runtimeDetail}, but init could not associate that runtime with a recognized application service. It generated no AWS resources; review the Worker as a separate application before deploying it with Stacktape.${omittedDependencyMessage}`
+          : `This project also declares ${runtimeDetail}, but init could not associate that runtime with any recognized application service. It retained the detected platform-neutral services only for review. This is not a deployable configuration for the complete project; review the Worker separately.${omittedDependencyMessage}`
+        : Object.keys(resources).length === 0
+          ? `This app depends on ${runtimeDetail}. Init cannot translate those runtime semantics safely, so it generated no AWS resources. Adapt the Cloudflare-owned code and bindings before deploying with Stacktape.${omittedDependencyMessage}`
+          : `Init generated AWS resources only for the platform-neutral parts of this repository. Its ${runtimeDetail} cannot be translated safely, so the Cloudflare-owned part was left out. This is not a deployable configuration for the complete app; adapt that code and its bindings first.${omittedDependencyMessage}`;
     gaps.push({
       subject: deployment.tool,
       message:
         deployment.tool === 'cloudflare-workers'
-          ? 'This project uses Cloudflare Workers runtime APIs and bindings. Init cannot translate those APIs into runnable AWS handlers safely, so it generated no AWS resources for them. Adapt the handlers and D1, R2, Queue, Durable Object, and service bindings before deploying with Stacktape.'
+          ? deployment.runtimeConstraints.length > 0
+            ? cloudflareRuntimeMessage
+            : 'This project has Cloudflare Workers deployment config, but it does not declare a Worker entrypoint or runtime binding that init can associate with an application service. Init left the detected platform-neutral services unchanged.'
           : deployment.tool === 'pulumi' && unresolvedPulumiCompute
             ? 'This Pulumi program declares AWS compute, but init could not safely connect its handlers to their events. It left weak, unconsumed SDK hints out instead of creating orphaned queues, tables, topics, or buckets. Add the functions and triggers explicitly before deploying.'
             : AWS_DEPLOYMENT_TOOLS.has(deployment.tool)
@@ -1024,8 +1225,9 @@ export const composeConfig = ({
     // Which resource each service became, for anything that has to walk from facts to config —
     // the preflight verifier being the first consumer.
     serviceResources: Object.fromEntries(serviceResourceNames),
-    // The only thing that makes a configuration undeployable is having nothing in it.
-    deployable: Object.keys(resources).length > 0
+    // A partial monorepo result remains useful for review, but must not unlock deployment as though
+    // it represented the complete application.
+    deployable: Object.keys(resources).length > 0 && cloudflareRuntimeConstraints.length === 0
   };
 };
 
