@@ -11,6 +11,7 @@ import {
   type ProbeOutput
 } from '../probe';
 import { nearestManifestRoot } from '../service-root';
+import { goCodeWithoutComments, goExecutableCode } from '../go-source';
 
 const javaServiceExposesHttp = async (root: string, context: ProbeContext): Promise<boolean> => {
   const manifestNames = ['pom.xml', 'build.gradle', 'build.gradle.kts'];
@@ -35,10 +36,120 @@ type Detection = {
   processType?: string;
 };
 
-const GO_HTTP_SERVER_PATTERN =
-  /(?:http\.ListenAndServe|\.ListenAndServe\s*\(|\.ListenAndServeTLS\s*\(|\.Serve\s*\(|\.Start\s*\(|\.Listen\s*\()/;
-
 const GO_NON_APPLICATION_DIRECTORY = /(?:^|\/)(?:examples?|tools?|scripts?|test|tests|fixtures)(?:\/|$)/i;
+
+type GoHttpEvidence = { framework?: string; pattern: RegExp };
+
+const escapeForPattern = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+const goImportQualifier = (raw: string, moduleName: string, conventionalName: string): string | undefined => {
+  const escapedModule = escapeForPattern(moduleName);
+  const match = new RegExp(
+    `^\\s*(?:import\\s+)?(?:(\\.|_|[A-Za-z_][A-Za-z0-9_]*)\\s+)?["\\']${escapedModule}["\\']`,
+    'm'
+  ).exec(raw);
+  if (match === null) return undefined;
+  if (match[1] === '.' || match[1] === '_') return undefined;
+  return match[1] ?? conventionalName;
+};
+
+const receiverCallPattern = ({
+  raw,
+  factory,
+  methods
+}: {
+  raw: string;
+  factory: RegExp;
+  methods: readonly string[];
+}): RegExp | undefined => {
+  const receivers = [...raw.matchAll(factory)]
+    .map((match) => match[1])
+    .filter((value): value is string => value !== undefined);
+  for (const receiver of receivers) {
+    const pattern = new RegExp(`\\b${escapeForPattern(receiver)}\\s*\\.\\s*(?:${methods.join('|')})\\s*\\(`);
+    if (pattern.test(raw)) return pattern;
+  }
+  return undefined;
+};
+
+/**
+ * A Go method named Start/Listen/Serve is ordinary application API, not HTTP evidence. Tie method
+ * calls to a receiver constructed by a known web package, or to net/http itself. This stays a
+ * lexical proof rather than pretending to type-check an arbitrary module.
+ */
+const goHttpEvidence = (raw: string): GoHttpEvidence | undefined => {
+  const importSource = goCodeWithoutComments(raw);
+  const executableSource = goExecutableCode(raw);
+  const netHttp = goImportQualifier(importSource, 'net/http', 'http');
+  if (netHttp !== undefined) {
+    const direct = new RegExp(
+      `\\b${escapeForPattern(netHttp)}\\s*\\.\\s*(?:ListenAndServe|ListenAndServeTLS|Serve)\\s*\\(`
+    );
+    if (direct.test(executableSource)) return { pattern: direct };
+    const receiver = receiverCallPattern({
+      raw: executableSource,
+      factory: new RegExp(
+        `(?:^\\s*|[;{]\\s*|\\bvar\\s+)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)*)\\s*(?::=|=)\\s*&?${escapeForPattern(netHttp)}\\s*\\.\\s*Server\\s*\\{`,
+        'gm'
+      ),
+      methods: ['ListenAndServe', 'ListenAndServeTLS', 'Serve']
+    });
+    if (receiver !== undefined) return { pattern: receiver };
+  }
+
+  const echo =
+    goImportQualifier(importSource, 'github.com/labstack/echo/v4', 'echo') ??
+    goImportQualifier(importSource, 'github.com/labstack/echo', 'echo');
+  if (echo !== undefined) {
+    const receiver = receiverCallPattern({
+      raw: executableSource,
+      factory: new RegExp(
+        `\\b(?:var\\s+)?([A-Za-z_][A-Za-z0-9_]*)\\s*(?::=|=)\\s*${escapeForPattern(echo)}\\s*\\.\\s*New\\s*\\(`,
+        'g'
+      ),
+      methods: ['Start', 'StartTLS', 'StartAutoTLS']
+    });
+    if (receiver !== undefined) return { framework: 'echo', pattern: receiver };
+  }
+
+  const fiber =
+    goImportQualifier(importSource, 'github.com/gofiber/fiber/v3', 'fiber') ??
+    goImportQualifier(importSource, 'github.com/gofiber/fiber/v2', 'fiber') ??
+    goImportQualifier(importSource, 'github.com/gofiber/fiber', 'fiber');
+  if (fiber !== undefined) {
+    const receiver = receiverCallPattern({
+      raw: executableSource,
+      factory: new RegExp(
+        `\\b(?:var\\s+)?([A-Za-z_][A-Za-z0-9_]*)\\s*(?::=|=)\\s*${escapeForPattern(fiber)}\\s*\\.\\s*New\\s*\\(`,
+        'g'
+      ),
+      methods: ['Listen', 'ListenTLS', 'ListenMutualTLS']
+    });
+    if (receiver !== undefined) return { framework: 'fiber', pattern: receiver };
+  }
+
+  const gin = goImportQualifier(importSource, 'github.com/gin-gonic/gin', 'gin');
+  if (gin !== undefined) {
+    const receiver = receiverCallPattern({
+      raw: executableSource,
+      factory: new RegExp(
+        `\\b(?:var\\s+)?([A-Za-z_][A-Za-z0-9_]*)\\s*(?::=|=)\\s*${escapeForPattern(gin)}\\s*\\.\\s*(?:Default|New)\\s*\\(`,
+        'g'
+      ),
+      methods: ['Run', 'RunTLS', 'RunUnix']
+    });
+    if (receiver !== undefined) return { framework: 'gin', pattern: receiver };
+  }
+
+  const fastHttp = goImportQualifier(importSource, 'github.com/valyala/fasthttp', 'fasthttp');
+  if (fastHttp !== undefined) {
+    const direct = new RegExp(
+      `\\b${escapeForPattern(fastHttp)}\\s*\\.\\s*(?:ListenAndServe|ListenAndServeTLS|Serve)\\s*\\(`
+    );
+    if (direct.test(executableSource)) return { framework: 'fasthttp', pattern: direct };
+  }
+  return undefined;
+};
 
 const goModuleName = (raw: string): string | undefined => {
   const modulePath = /^\s*module\s+(\S+)\s*$/m.exec(raw)?.[1];
@@ -112,9 +223,9 @@ const detectionFor = (path: string, raw: string): Detection | undefined => {
       : undefined;
   }
   if (path.endsWith('.go')) {
-    const pattern = GO_HTTP_SERVER_PATTERN;
-    return /\bfunc\s+main\s*\(/.test(raw) && pattern.test(raw)
-      ? { entrypoint: path, pattern, language: 'go' }
+    const evidence = goHttpEvidence(raw);
+    return /\bfunc\s+main\s*\(/.test(raw) && evidence !== undefined
+      ? { entrypoint: path, ...evidence, language: 'go' }
       : undefined;
   }
   if (path.endsWith('.java') || path.endsWith('.kt')) {
@@ -187,6 +298,7 @@ export const serverEntrypointProbe: Probe = {
     const candidates = context.files.filter(
       (path) =>
         /\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/.test(path) &&
+        !path.endsWith('_test.go') &&
         !/(?:^|\/)(?:test|tests|__tests__|spec|fixtures)(?:\/|$)/i.test(path) &&
         !/(?:^|\/)[^/]+\.(?:test|spec)\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/i.test(path)
     );
@@ -194,10 +306,14 @@ export const serverEntrypointProbe: Probe = {
     const goSources = new Map<string, string>();
     for (const path of candidates) {
       // oxlint-disable-next-line no-await-in-loop -- policy-controlled reads, stopped after one entrypoint per service root.
-      const raw = await readText(context, path);
+      const raw = await readText(context, path, path.endsWith('.go') ? { fullFile: true } : undefined);
       if (raw === undefined) continue;
-      if (path.endsWith('.go')) goSources.set(path, raw);
-      if (path.endsWith('.go') && GO_NON_APPLICATION_DIRECTORY.test(path)) continue;
+      if (path.endsWith('.go')) {
+        if (!GO_NON_APPLICATION_DIRECTORY.test(path)) goSources.set(path, raw);
+        // Go main packages are joined below so two real binaries in one module cannot overwrite
+        // each other under the old `${root}::main` identity.
+        continue;
+      }
       const detection = detectionFor(path, raw);
       if (detection === undefined) continue;
       const root = nearestManifestRoot(path, context.files) ?? '.';
@@ -259,34 +375,30 @@ export const serverEntrypointProbe: Probe = {
       entries.push({ path, raw });
       mainDirectories.set(directory, entries);
     }
+    const mainPackages = [...mainDirectories.entries()].map(([directory, mains]) => ({
+      directory,
+      mains,
+      root: nearestManifestRoot(mains[0]!.path, context.files) ?? '.'
+    }));
     const mainDirectoryCountByRoot = new Map<string, number>();
-    for (const [, mains] of mainDirectories) {
-      const root = nearestManifestRoot(mains[0]!.path, context.files) ?? '.';
-      mainDirectoryCountByRoot.set(root, (mainDirectoryCountByRoot.get(root) ?? 0) + 1);
+    const basenameCountByRoot = new Map<string, Map<string, number>>();
+    for (const candidate of mainPackages) {
+      mainDirectoryCountByRoot.set(candidate.root, (mainDirectoryCountByRoot.get(candidate.root) ?? 0) + 1);
+      const basename = posix.basename(candidate.directory);
+      const counts = basenameCountByRoot.get(candidate.root) ?? new Map<string, number>();
+      counts.set(basename, (counts.get(basename) ?? 0) + 1);
+      basenameCountByRoot.set(candidate.root, counts);
     }
 
-    for (const [directory, mains] of mainDirectories) {
+    for (const { directory, mains, root } of mainPackages) {
       const entrypoint = mains.find(({ path }) => posix.basename(path) === 'main.go') ?? mains[0]!;
-      const root = nearestManifestRoot(entrypoint.path, context.files) ?? '.';
-      const key = `${root}::main`;
+      const key = `${root}::go-main:${directory}`;
       if (byRoot.has(key)) continue;
 
-      const packageFiles = context.files.filter(
-        (path) =>
-          path.endsWith('.go') &&
-          posix.dirname(path) === directory &&
-          !path.endsWith('_test.go') &&
-          !GO_NON_APPLICATION_DIRECTORY.test(path)
-      );
-      let listener: { path: string; raw: string } | undefined;
-      for (const path of packageFiles) {
-        // oxlint-disable-next-line no-await-in-loop -- package-level source is needed to join main and listener evidence.
-        const raw = await readText(context, path, { fullFile: true });
-        if (raw !== undefined && GO_HTTP_SERVER_PATTERN.test(raw)) {
-          listener = { path, raw };
-          break;
-        }
-      }
+      const listener = [...goSources.entries()]
+        .filter(([path]) => posix.dirname(path) === directory)
+        .map(([path, raw]) => ({ path, raw, evidence: goHttpEvidence(raw) }))
+        .find((candidate) => candidate.evidence !== undefined);
 
       const dockerfile = root === '.' ? 'Dockerfile' : `${root}/Dockerfile`;
       let exposedDockerfile: { raw: string; port: number } | undefined;
@@ -311,15 +423,29 @@ export const serverEntrypointProbe: Probe = {
       const listenerCitation =
         listener === undefined
           ? citeFirstMatch(dockerfile, exposedDockerfile!.raw, /^\s*EXPOSE\s+\d{2,5}/im, 'port')
-          : citeFirstMatch(listener.path, listener.raw, GO_HTTP_SERVER_PATTERN, 'containerEntrypoint');
+          : citeFirstMatch(listener.path, listener.raw, listener.evidence!.pattern, 'containerEntrypoint');
+      const multipleMainPackages = (mainDirectoryCountByRoot.get(root) ?? 0) > 1;
+      const relativeDirectory = root === '.' ? directory : posix.relative(root, directory);
+      const directoryBasename = posix.basename(directory);
+      const packageName =
+        directory === root
+          ? goModRaw === undefined
+            ? 'app'
+            : goModuleName(goModRaw)
+          : (basenameCountByRoot.get(root)?.get(directoryBasename) ?? 0) === 1
+            ? directoryBasename
+            : relativeDirectory.replaceAll('/', '-');
       byRoot.set(key, {
         name:
+          (multipleMainPackages ? packageName : undefined) ??
           (goModRaw === undefined ? undefined : goModuleName(goModRaw)) ??
           (root === '.'
             ? (context.root.split(/[/\\]/).findLast((segment) => segment !== '') ?? 'app')
             : posix.basename(root)),
-        path: root,
+        path: multipleMainPackages ? directory : root,
+        ...(multipleMainPackages && directory !== root ? { buildRoot: root } : {}),
         language: 'go',
+        ...(listener?.evidence?.framework === undefined ? {} : { framework: listener.evidence.framework }),
         exposesHttp: true,
         ...(exposedDockerfile === undefined ? {} : { port: exposedDockerfile.port }),
         executionModel: 'long-running',

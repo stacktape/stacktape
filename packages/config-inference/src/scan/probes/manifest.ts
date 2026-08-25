@@ -16,6 +16,7 @@ import type { Citation } from '../../facts/citation';
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import type { MigrationFact, PackageManager } from '../../facts/project-facts';
 import type { ServiceFactInput } from '../../facts/service';
+import { goCodeWithoutComments } from '../go-source';
 import { citeFirstMatchOnly, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
 /**
@@ -459,8 +460,30 @@ const viteBuildDirectory = async (manifestDirectory: string, context: ProbeConte
     return mentionsOutputDirectory ? { kind: 'unknown' } : { kind: 'default' };
   }
   const buildProperties = config.properties.filter((property) => propertyName(property) === 'build');
-  if (buildProperties.length === 0) return { kind: 'default' };
+  if (buildProperties.length === 0) {
+    // A spread can supply `build.outDir`; calling that the default `dist` would be invented output.
+    return config.properties.some(
+      (property) =>
+        ts.isSpreadAssignment(property) || (property.name !== undefined && propertyName(property) === undefined)
+    )
+      ? { kind: 'unknown' }
+      : { kind: 'default' };
+  }
   if (buildProperties.length !== 1 || !ts.isPropertyAssignment(buildProperties[0]!)) return { kind: 'unknown' };
+  const buildIndex = config.properties.indexOf(buildProperties[0]!);
+  // Object spread is ordered. `{ build: { outDir: "known" }, ...runtime }` can replace the entire
+  // build object, while a spread before the explicit build property cannot. Dynamic computed keys
+  // after it are equally capable of being `build`, so fail closed for those too.
+  if (
+    config.properties
+      .slice(buildIndex + 1)
+      .some(
+        (property) =>
+          ts.isSpreadAssignment(property) || (property.name !== undefined && propertyName(property) === undefined)
+      )
+  ) {
+    return { kind: 'unknown' };
+  }
   const build = unwrapConfigObject(buildProperties[0]!.initializer);
   if (!ts.isObjectLiteralExpression(build) || build.properties.some(ts.isSpreadAssignment)) return { kind: 'unknown' };
   const outputProperties = build.properties.filter((property) => propertyName(property) === 'outDir');
@@ -639,59 +662,6 @@ type GoStaticConsumer = {
   makefile?: string;
 };
 
-const goCodeWithoutComments = (source: string): string => {
-  let result = '';
-  let state: 'code' | 'line' | 'block' | 'double' | 'raw' | 'rune' = 'code';
-  const isEscaped = (index: number): boolean => {
-    let backslashes = 0;
-    for (let cursor = index - 1; cursor >= 0 && source[cursor] === '\\'; cursor -= 1) backslashes += 1;
-    return backslashes % 2 === 1;
-  };
-  for (let index = 0; index < source.length; index += 1) {
-    const character = source[index]!;
-    const next = source[index + 1];
-    if (state === 'line') {
-      if (character === '\n') {
-        state = 'code';
-        result += character;
-      } else {
-        result += ' ';
-      }
-      continue;
-    }
-    if (state === 'block') {
-      if (character === '*' && next === '/') {
-        result += '  ';
-        index += 1;
-        state = 'code';
-      } else {
-        result += character === '\n' ? '\n' : ' ';
-      }
-      continue;
-    }
-    if (state === 'code' && character === '/' && next === '/') {
-      result += '  ';
-      index += 1;
-      state = 'line';
-      continue;
-    }
-    if (state === 'code' && character === '/' && next === '*') {
-      result += '  ';
-      index += 1;
-      state = 'block';
-      continue;
-    }
-    if (state === 'code' && character === '"') state = 'double';
-    else if (state === 'code' && character === '`') state = 'raw';
-    else if (state === 'code' && character === "'") state = 'rune';
-    else if (state === 'double' && character === '"' && !isEscaped(index)) state = 'code';
-    else if (state === 'raw' && character === '`') state = 'code';
-    else if (state === 'rune' && character === "'" && !isEscaped(index)) state = 'code';
-    result += character;
-  }
-  return result;
-};
-
 const pathWithin = (path: string, root: string): boolean =>
   root === '.' || path === root || path.startsWith(`${root}/`);
 
@@ -700,6 +670,94 @@ const resolveRepositoryPath = (base: string, value: string): string | undefined 
   const resolved = posix.normalize(posix.join(base, value));
   return resolved === '..' || resolved.startsWith('../') ? undefined : resolved;
 };
+
+const makefileVariables = (raw: string): ReadonlyMap<string, string> => {
+  const variables = new Map<string, string>();
+  const unfolded = raw.replace(/\\\r?\n/g, ' ');
+  for (const match of unfolded.matchAll(/^([A-Za-z_][A-Za-z0-9_]*)\s*(?::|\?|\+)?=\s*([^\r\n#]*)/gm)) {
+    variables.set(match[1]!, match[2]!.trim());
+  }
+  return variables;
+};
+
+const expandMakeValue = (value: string, variables: ReadonlyMap<string, string>): string | undefined => {
+  let expanded = value;
+  for (let depth = 0; depth < 12; depth += 1) {
+    let replaced = false;
+    expanded = expanded.replace(/\$\(([A-Za-z_][A-Za-z0-9_]*)\)|\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, round, brace) => {
+      const replacement = variables.get((round ?? brace) as string);
+      if (replacement === undefined) return `$(${round ?? brace})`;
+      replaced = true;
+      return replacement;
+    });
+    if (!replaced) break;
+  }
+  return expanded.includes('$') ? undefined : expanded.trim();
+};
+
+const makeRecipeCommands = (block: string): string[] => {
+  const commands: string[] = [];
+  let current = '';
+  for (const line of block.split(/\r?\n/).slice(1)) {
+    if (!line.startsWith('\t')) continue;
+    const fragment = line.replace(/^\t[-@+]?\s*/, '');
+    current = current === '' ? fragment : `${current} ${fragment}`;
+    if (/\\\s*$/.test(current)) {
+      current = current.replace(/\\\s*$/, '');
+      continue;
+    }
+    if (current.trim() !== '') commands.push(current.trim());
+    current = '';
+  }
+  if (current.trim() !== '') commands.push(current.trim());
+  return commands;
+};
+
+const shellChain = (command: string): string[] => {
+  const segments: string[] = [];
+  let current = '';
+  let quote: "'" | '"' | undefined;
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index]!;
+    if (quote !== undefined) {
+      current += character;
+      if (character === quote && command[index - 1] !== '\\') quote = undefined;
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      current += character;
+      continue;
+    }
+    if (character === '|') return [];
+    const pair = command.slice(index, index + 2);
+    if (character === ';' || pair === '&&' || pair === '||') {
+      if (current.trim() !== '') segments.push(current.trim());
+      current = '';
+      if (pair === '&&' || pair === '||') index += 1;
+      continue;
+    }
+    current += character;
+  }
+  if (current.trim() !== '') segments.push(current.trim());
+  return segments;
+};
+
+const makePath = ({
+  cwd,
+  raw,
+  variables
+}: {
+  cwd: string;
+  raw: string;
+  variables: ReadonlyMap<string, string>;
+}): string | undefined => {
+  const expanded = expandMakeValue(raw.replace(/^(?:"|')|(?:"|')$/g, ''), variables)?.replace(/\/\*+$/, '');
+  return expanded === undefined ? undefined : resolveRepositoryPath(cwd, expanded);
+};
+
+const pathIsConsumed = (path: string, consumedPaths: ReadonlySet<string>): boolean =>
+  [...consumedPaths].some((consumed) => path === consumed || path.startsWith(`${consumed}/`));
 
 const readGoStaticConsumer = async (root: string, context: ProbeContext): Promise<GoStaticConsumer> => {
   const paths = context.files
@@ -738,28 +796,36 @@ const readGoStaticConsumer = async (root: string, context: ProbeContext): Promis
 
 const makefileMovesOutputInto = ({
   raw,
-  packageDirectory,
   outputPath,
   consumedPaths
 }: {
   raw: string;
-  packageDirectory: string;
   outputPath: string;
   consumedPaths: ReadonlySet<string>;
 }): boolean => {
-  // A target is the useful boundary here: a `cd frontend` from one recipe must not lend its
-  // working directory to an unrelated `mv dist ...` in another recipe.
+  const variables = makefileVariables(raw);
+  // A target and one physical recipe shell are the useful boundaries. `cd web && build` affects
+  // that chain, but Make starts the next recipe line at the repository root. Reading the commands
+  // in order also prevents a later `cd legacy` from retroactively owning an earlier root-relative
+  // `mv web/dist server/site`.
   const blocks = raw.split(/(?=^[^\s#][^\r\n]*:(?![=]))/gm);
   for (const block of blocks) {
-    const logical = block.replace(/\\\r?\n/g, ' ');
-    const cwd = [...logical.matchAll(/(?:^|[;&]\s*|\s)cd\s+([A-Za-z0-9_./-]+)/g)]
-      .map((match) => resolveRepositoryPath('.', match[1]!))
-      .find((path) => path === packageDirectory);
-    if (cwd === undefined) continue;
-    for (const match of logical.matchAll(/\b(?:mv|cp)(?:\s+-[A-Za-z]+)*\s+([A-Za-z0-9_./-]+)\s+([A-Za-z0-9_./-]+)/g)) {
-      const source = resolveRepositoryPath(cwd, match[1]!);
-      const destination = resolveRepositoryPath(cwd, match[2]!);
-      if (source === outputPath && destination !== undefined && consumedPaths.has(destination)) return true;
+    for (const recipe of makeRecipeCommands(block)) {
+      let cwd = '.';
+      for (const command of shellChain(recipe)) {
+        const cd = /^cd\s+([^\s]+)\s*$/.exec(command);
+        if (cd !== null) {
+          cwd = makePath({ cwd, raw: cd[1]!, variables }) ?? cwd;
+          continue;
+        }
+        const move = /\b(?:mv|cp)(?:\s+-[A-Za-z]+)*\s+([^\s]+)\s+([^\s]+)/.exec(command);
+        if (move === null) continue;
+        const source = makePath({ cwd, raw: move[1]!, variables });
+        const destination = makePath({ cwd, raw: move[2]!, variables });
+        if (source === outputPath && destination !== undefined && pathIsConsumed(destination, consumedPaths)) {
+          return true;
+        }
+      }
     }
   }
   return false;
@@ -802,7 +868,6 @@ const staticBuildIsOwnedByGoApplication = async ({
   if (consumer.makefile === undefined) return false;
   return makefileMovesOutputInto({
     raw: consumer.makefile,
-    packageDirectory: manifest.directory,
     outputPath,
     consumedPaths: consumer.embeddedPaths
   });
@@ -934,15 +999,51 @@ export const manifestProbe: Probe = {
         )
       ).filter((directory): directory is string => directory !== undefined)
     );
-    const ownedStaticPackages = new Set(
-      manifests.flatMap((manifest) =>
-        [...directlyOwnedStaticPackages].some(
-          (owner) => manifest.directory === owner || (owner !== '.' && manifest.directory.startsWith(`${owner}/`))
-        )
-          ? [manifest.directory]
-          : []
-      )
-    );
+    const ownedStaticPackages = new Set(directlyOwnedStaticPackages);
+    // A nested package is not owned merely because its directory is below an owned frontend. It
+    // needs its own build-flow edge. Vite copies `<package>/public` into that package's output, so a
+    // Makefile move from a nested build into an already-owned package's public directory is concrete
+    // evidence; an independently deployed `frontend/admin` with no such edge remains a service.
+    let foundOwnedPackage = true;
+    while (foundOwnedPackage) {
+      foundOwnedPackage = false;
+      for (let index = 0; index < manifests.length; index += 1) {
+        const manifest = manifests[index]!;
+        const staticSite = staticSites[index];
+        if (staticSite === undefined || ownedStaticPackages.has(manifest.directory)) continue;
+        const goRoot = context.files
+          .filter((path) => posix.basename(path) === 'go.mod')
+          .map((path) => posix.dirname(path))
+          .filter((root) => pathWithin(manifest.directory, root))
+          .toSorted((left, right) => right.length - left.length)[0];
+        if (goRoot === undefined) continue;
+        let pending = goStaticConsumers.get(goRoot);
+        if (pending === undefined) {
+          pending = readGoStaticConsumer(goRoot, context);
+          goStaticConsumers.set(goRoot, pending);
+        }
+        // oxlint-disable-next-line no-await-in-loop -- cached once per Go root; package ownership is iterative.
+        const consumer = await pending;
+        if (consumer.makefile === undefined) continue;
+        const outputPath =
+          manifest.directory === '.'
+            ? staticSite.outputDirectory
+            : posix.join(manifest.directory, staticSite.outputDirectory);
+        const ownedPublicDirectories = new Set(
+          [...ownedStaticPackages].map((directory) => (directory === '.' ? 'public' : `${directory}/public`))
+        );
+        if (
+          makefileMovesOutputInto({
+            raw: consumer.makefile,
+            outputPath,
+            consumedPaths: ownedPublicDirectories
+          })
+        ) {
+          ownedStaticPackages.add(manifest.directory);
+          foundOwnedPackage = true;
+        }
+      }
+    }
 
     for (let index = 0; index < manifests.length; index += 1) {
       const manifest = manifests[index]!;

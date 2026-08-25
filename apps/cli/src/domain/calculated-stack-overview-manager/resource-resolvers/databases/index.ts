@@ -20,6 +20,7 @@ import {
   getDatabaseConnectionString,
   getDatabaseDeletionProtectionCustomResource,
   getDatabaseName,
+  getDbMasterUserName,
   getDbInstanceParameterGroup,
   getDbLogGroup,
   getDbOptionGroup,
@@ -452,6 +453,12 @@ export const resolveDatabases = async () => {
     calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
       paramName: 'port',
       paramValue: resolveDatabasePort({ definition }),
+      nameChain,
+      showDuringPrint: false
+    });
+    calculatedStackOverviewManager.addStacktapeResourceReferenceableParam({
+      paramName: 'username',
+      paramValue: getDbMasterUserName({ resource: definition }),
       nameChain,
       showDuringPrint: false
     });

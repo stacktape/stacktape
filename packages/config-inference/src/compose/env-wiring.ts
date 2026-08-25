@@ -67,7 +67,7 @@ export const wiringFor = (kind: DependencyKind, variableName: string): Environme
     // to hand out, and a wrong guess here would put a connection string where a password belongs.
     return RDS_KINDS.has(kind) ? { kind: 'password-secret' } : { kind: 'none' };
   }
-  if (/USER(NAME)?$/.test(name)) return { kind: 'none' };
+  if (/USER(NAME)?$/.test(name)) return RDS_KINDS.has(kind) ? { kind: 'param', param: 'username' } : { kind: 'none' };
   if (/JDBC/.test(name))
     return RDS_KINDS.has(kind) ? { kind: 'param', param: 'jdbcConnectionString' } : { kind: 'none' };
   if (/(URL|URI|DSN|CONNECTION_?STRING)$/.test(name)) {

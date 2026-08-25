@@ -96,6 +96,7 @@ describe('dependency lists in other languages', () => {
   it('reads go.mod and ignores indirect requirements', async () => {
     expect(
       await kindsIn({
+        'requirements.txt': 'mkdocs==1.6.0\n',
         'go.mod': [
           'module example.com/api',
           'go 1.22',
@@ -109,6 +110,103 @@ describe('dependency lists in other languages', () => {
       })
       // Redis is only there transitively, which is not a statement that this application uses it.
     ).toEqual(['postgres']);
+  });
+
+  it('does not provision optional Postgres for a Go application that defaults to its bundled SQLite backend', async () => {
+    expect(
+      await kindsIn({
+        'go.mod': [
+          'module example.com/notification-server',
+          'require (',
+          '\tgithub.com/jackc/pgx/v5 v5.10.0',
+          '\tgithub.com/mattn/go-sqlite3 v1.14.49',
+          ')',
+          ''
+        ].join('\n'),
+        'cmd/serve.go': [
+          'package cmd',
+          'func serve(c Context) {',
+          '  databaseURL := c.String("database-url")',
+          '  if databaseURL != "" {',
+          '    database := pg.Open(databaseURL)',
+          '    _ = database',
+          '  }',
+          '}',
+          ''
+        ].join('\n')
+      })
+    ).toEqual([]);
+  });
+
+  it('does not hide an independently required Python Postgres driver in a polyglot repository', async () => {
+    expect(
+      await kindsIn({
+        'requirements.txt': 'psycopg2==2.9.10\n',
+        'go.mod': [
+          'module example.com/notification-server',
+          'require (',
+          '\tgithub.com/jackc/pgx/v5 v5.10.0',
+          '\tgithub.com/mattn/go-sqlite3 v1.14.49',
+          ')',
+          ''
+        ].join('\n'),
+        'server/server.go': [
+          'package server',
+          'func New(conf Config) {',
+          '  if conf.DatabaseURL != "" { _, _ = pg.Open(conf.DatabaseURL) }',
+          '}',
+          ''
+        ].join('\n')
+      })
+    ).toEqual(['postgres']);
+  });
+
+  it('keeps required Postgres when a Go application also uses SQLite for a separate purpose', async () => {
+    expect(
+      await kindsIn({
+        'go.mod': [
+          'module example.com/reporting',
+          'require (',
+          '\tgithub.com/jackc/pgx/v5 v5.10.0',
+          '\tgithub.com/mattn/go-sqlite3 v1.14.49',
+          ')',
+          ''
+        ].join('\n'),
+        'database.go': [
+          'package reporting',
+          '/* Example for optional installations:',
+          'if conf.DatabaseURL != "" { pg.Open(conf.DatabaseURL) }',
+          '*/',
+          'func connect() { pgx.Connect(context.Background(), os.Getenv("DATABASE_URL")) }',
+          ''
+        ].join('\n')
+      })
+    ).toEqual(['postgres']);
+  });
+
+  it('recognises an optional Postgres config field after command parsing has moved it into server configuration', async () => {
+    expect(
+      await kindsIn({
+        'go.mod': [
+          'module example.com/notification-server',
+          'require (',
+          '\tgithub.com/jackc/pgx/v5 v5.10.0',
+          '\tgithub.com/mattn/go-sqlite3 v1.14.49',
+          ')',
+          ''
+        ].join('\n'),
+        'server/server.go': [
+          'package server',
+          'func New(conf Config) {',
+          '  if conf.DatabaseURL != "" {',
+          '    primary, err := pg.Open(conf.DatabaseURL)',
+          '    _, _ = primary, err',
+          '  }',
+          '}',
+          ''
+        ].join('\n')
+      })
+    ).toEqual([]);
   });
 
   it('reads composer.json, including the PDO extension that names the engine', async () => {

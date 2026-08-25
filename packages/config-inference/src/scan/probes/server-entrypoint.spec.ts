@@ -24,6 +24,9 @@ const makeRepo = async (files: Record<string, string>): Promise<string> => {
   return root;
 };
 
+const goHttpMain = (port: number): string =>
+  ['package main', 'import "net/http"', `func main() { http.ListenAndServe(":${port}", nil) }`, ''].join('\n');
+
 describe('the server entrypoint probe', () => {
   it('gives a scriptless TypeScript API to the zero-config container buildpack', async () => {
     const repositoryRoot = await makeRepo({
@@ -193,7 +196,7 @@ describe('the server entrypoint probe', () => {
   it('recognises a configured Go http.Server', async () => {
     const repositoryRoot = await makeRepo({
       'go.mod': 'module example.com/api\n',
-      'main.go': 'package main\nfunc main() { server := &http.Server{}; server.ListenAndServe() }\n'
+      'main.go': 'package main\nimport "net/http"\nfunc main() { server := &http.Server{}; server.ListenAndServe() }\n'
     });
     const { facts } = await assembleCandidateFacts({
       root: repositoryRoot,
@@ -213,6 +216,7 @@ describe('the server entrypoint probe', () => {
       'cmd/main.go': 'package main\nfunc main() { startApplication() }\n',
       'cmd/http.go': [
         'package main',
+        'import "github.com/labstack/echo/v4"',
         'func startApplication() {',
         '  server := echo.New()',
         '  server.Start(":9000")',
@@ -240,8 +244,9 @@ describe('the server entrypoint probe', () => {
       'go.mod': 'module example.com/notify/v2\n',
       'main.go': 'package main\nfunc main() { app.Run(os.Args) }\n',
       Dockerfile: 'FROM scratch\nCOPY notify /notify\nEXPOSE 8080\nENTRYPOINT ["/notify"]\n',
-      'server/server.go': 'package server\nfunc serve() { http.ListenAndServe(":8080", handler) }\n',
-      'examples/demo/main.go': 'package main\nfunc main() { http.ListenAndServe(":9090", handler) }\n'
+      'server/server.go': 'package server\nimport "net/http"\nfunc serve() { http.ListenAndServe(":8080", handler) }\n',
+      'examples/demo/main.go':
+        'package main\nimport "net/http"\nfunc main() { http.ListenAndServe(":9090", handler) }\n'
     });
     const { facts } = await assembleCandidateFacts({
       root: repositoryRoot,
@@ -264,7 +269,8 @@ describe('the server entrypoint probe', () => {
       'go.mod': 'module example.com/toolbox\n',
       'main.go': 'package main\nfunc main() { app.Run(os.Args) }\n',
       Dockerfile: 'FROM scratch\nCOPY toolbox /toolbox\nENTRYPOINT ["/toolbox"]\n',
-      'examples/demo/main.go': 'package main\nfunc main() { http.ListenAndServe(":9090", handler) }\n'
+      'examples/demo/main.go':
+        'package main\nimport "net/http"\nfunc main() { http.ListenAndServe(":9090", handler) }\n'
     });
     const { facts } = await assembleCandidateFacts({
       root: repositoryRoot,
@@ -287,5 +293,104 @@ describe('the server entrypoint probe', () => {
     });
 
     expect(facts.services).toEqual([]);
+  });
+
+  it('does not treat ordinary Start, Listen, or Serve methods as proof that a Go CLI serves HTTP', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/task-runner\n',
+      'main.go': [
+        'package main',
+        'type daemon struct{}',
+        'func (daemon) Start() {}',
+        'func (daemon) Listen() {}',
+        'func (daemon) Serve() {}',
+        'func main() { var command daemon; command.Start(); command.Listen(); command.Serve() }',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [serverEntrypointProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('does not accept known-framework listener text that exists only in comments or strings', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/task-runner\n',
+      'main.go': [
+        'package main',
+        'import "github.com/labstack/echo/v4"',
+        'func main() {',
+        '  server := echo.New()',
+        '  // server.Start(":8080")',
+        '  _ = `server.Start(":8080")`',
+        '  _ = server',
+        '}',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [serverEntrypointProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('completely excludes Go test files even when they contain a main function and a real HTTP listener', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/library\n',
+      'main.go': 'package main\nfunc main() { runCommand() }\n',
+      'server_test.go': [
+        'package main',
+        'import "net/http"',
+        'func main() { http.ListenAndServe(":8080", nil) }',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [serverEntrypointProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('recognises an aliased standard-library HTTP import', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/api\n',
+      'main.go': ['package main', 'import web "net/http"', 'func main() { web.ListenAndServe(":8080", nil) }', ''].join(
+        '\n'
+      )
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [serverEntrypointProbe] });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({ name: 'api', path: '.', containerEntrypoint: 'main.go' });
+  });
+
+  it('keeps every real HTTP main package in one Go module under a stable distinct identity', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/control-plane\n',
+      'cmd/api/main.go': goHttpMain(8080),
+      'cmd/admin/main.go': goHttpMain(8081)
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [serverEntrypointProbe] });
+
+    expect(facts.services).toHaveLength(2);
+    expect(facts.services).toContainEqual(
+      expect.objectContaining({
+        name: 'api',
+        path: 'cmd/api',
+        buildRoot: '.',
+        containerEntrypoint: 'cmd/api/main.go'
+      })
+    );
+    expect(facts.services).toContainEqual(
+      expect.objectContaining({
+        name: 'admin',
+        path: 'cmd/admin',
+        buildRoot: '.',
+        containerEntrypoint: 'cmd/admin/main.go'
+      })
+    );
   });
 });

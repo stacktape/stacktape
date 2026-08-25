@@ -27,6 +27,71 @@ const exposedPort = (path: string, raw: string): { port?: number; citation?: Cit
   };
 };
 
+const dockerfileInstructions = (raw: string): string[] =>
+  raw
+    .replace(/\\\r?\n/g, ' ')
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => line !== '' && !line.startsWith('#'));
+
+const localCopySources = (instruction: string): string[] => {
+  const match = /^(?:COPY|ADD)\s+(.+)$/i.exec(instruction);
+  if (match === null || /^--from(?:=|\s)/i.test(match[1]!)) return [];
+  const declaration = match[1]!.replace(/^(?:--[A-Za-z-]+(?:=\S+|\s+\S+)\s+)*/g, '').trim();
+  if (declaration.startsWith('[')) {
+    try {
+      const values = JSON.parse(declaration) as unknown;
+      return Array.isArray(values) && values.every((value) => typeof value === 'string') ? values.slice(0, -1) : [];
+    } catch {
+      return [];
+    }
+  }
+  const tokens = declaration.match(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\S+/g) ?? [];
+  return tokens.slice(0, -1).map((token) => token.replace(/^(?:"|')|(?:"|')$/g, ''));
+};
+
+const globPattern = (value: string): RegExp =>
+  new RegExp(
+    `^${value
+      .replaceAll('\\', '/')
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replaceAll('**', '\u0000')
+      .replaceAll('*', '[^/]*')
+      .replaceAll('\u0000', '.*')
+      .replaceAll('?', '[^/]')}(?:/|$)`
+  );
+
+/** A clean Docker build cannot COPY a local artifact that is absent from its build context. */
+export const missingDockerfileCopySources = ({
+  raw,
+  root,
+  files
+}: {
+  raw: string;
+  root: string;
+  files: readonly string[];
+}): string[] => {
+  const relativeFiles = files
+    .filter((file) => root === '.' || file.startsWith(`${root}/`))
+    .map((file) => (root === '.' ? file : file.slice(root.length + 1)));
+  const missing = new Set<string>();
+  for (const source of dockerfileInstructions(raw).flatMap(localCopySources)) {
+    const normalized = source.replaceAll('\\', '/').replace(/^\.\//, '').replace(/\/$/, '');
+    if (
+      normalized === '' ||
+      normalized === '.' ||
+      normalized.startsWith('/') ||
+      normalized.includes('$') ||
+      /^(?:https?|git):\/\//i.test(normalized)
+    ) {
+      continue;
+    }
+    const pattern = globPattern(normalized);
+    if (!relativeFiles.some((file) => pattern.test(file))) missing.add(source);
+  }
+  return [...missing];
+};
+
 export const dockerfileProbe: Probe = {
   name: 'dockerfile',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -47,6 +112,10 @@ export const dockerfileProbe: Probe = {
       // oxlint-disable-next-line no-await-in-loop -- one short, policy-controlled file per service root.
       const raw = await readText(context, path);
       if (raw === undefined || !/^\s*FROM\s+\S+/im.test(raw)) continue;
+      // Some release-image Dockerfiles expect `make`/GoReleaser to place a binary in the checkout
+      // before Docker runs. Init packages a clean checkout, so selecting such a file guarantees a
+      // COPY failure. Another source probe can still keep the application using a native buildpack.
+      if (missingDockerfileCopySources({ raw, root, files: context.files }).length > 0) continue;
       const { port, citation: portCitation } = exposedPort(path, raw);
       const dockerfileCitation = citeFirstMatch(path, raw, /^\s*FROM\s+\S+/im, 'dockerfile');
 

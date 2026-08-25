@@ -10,6 +10,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
+import { composeConfig } from '../../compose/compose';
 import { assembleCandidateFacts } from '../assemble';
 import { dockerComposeProbe, isThirdPartyUtilityDockerfile } from './docker-compose';
 import { dockerfileProbe } from './dockerfile';
@@ -733,6 +734,79 @@ describe('the compose probe', () => {
     expect(facts.dependencies[0]).toMatchObject({
       kind: 'mongodb',
       consumedBy: ['flask']
+    });
+  });
+
+  it('transfers a published-image Compose database contract onto the source Go service without selecting its release Dockerfile', async () => {
+    root = await makeRepo({
+      'go.mod': [
+        'module example.com/list-manager',
+        'require (',
+        '\tgithub.com/jackc/pgx/v5 v5.10.0',
+        '\tgithub.com/labstack/echo/v4 v4.12.0',
+        ')',
+        ''
+      ].join('\n'),
+      'cmd/main.go': 'package main\nfunc main() { startServer() }\n',
+      'cmd/init.go': [
+        'package main',
+        'import "github.com/labstack/echo/v4"',
+        'func startServer() { server := echo.New(); server.Start(":9000") }',
+        ''
+      ].join('\n'),
+      Dockerfile: 'FROM alpine:3.20\nCOPY list-manager /app/list-manager\nEXPOSE 9000\n',
+      'docker-compose.yml': [
+        'services:',
+        '  app:',
+        '    image: example/list-manager:latest',
+        '    depends_on: [db]',
+        '    environment:',
+        '      LISTMONK_db__host: db',
+        '      LISTMONK_db__port: 5432',
+        '      LISTMONK_db__user: listmonk',
+        '      LISTMONK_db__password: listmonk',
+        '      LISTMONK_db__database: listmonk',
+        '  db:',
+        '    image: postgres:16',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe, serverEntrypointProbe, dockerComposeProbe, dockerfileProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'list-manager',
+      path: '.',
+      containerEntrypoint: 'cmd/main.go',
+      dockerfile: undefined
+    });
+    expect(facts.services[0]?.environmentVariables.map((variable) => variable.name).toSorted()).toEqual([
+      'LISTMONK_db__database',
+      'LISTMONK_db__host',
+      'LISTMONK_db__password',
+      'LISTMONK_db__port',
+      'LISTMONK_db__user'
+    ]);
+
+    const composed = composeConfig({ facts });
+    expect(composed.config.resources.listManager).toMatchObject({
+      properties: {
+        packaging: {
+          type: 'stacktape-image-buildpack',
+          properties: { entryfilePath: 'cmd/main.go' }
+        },
+        environment: [
+          { name: 'LISTMONK_db__host', value: "$ResourceParam('mainDatabase', 'host')" },
+          { name: 'LISTMONK_db__port', value: "$ResourceParam('mainDatabase', 'port')" },
+          { name: 'LISTMONK_db__user', value: "$ResourceParam('mainDatabase', 'username')" },
+          { name: 'LISTMONK_db__password', value: "$Secret('mainDatabase.password')" },
+          { name: 'LISTMONK_db__database', value: "$ResourceParam('mainDatabase', 'dbName')" }
+        ]
+      }
     });
   });
 });

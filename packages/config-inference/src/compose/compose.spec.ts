@@ -1008,8 +1008,7 @@ describe('wiring application variable names to created resources', () => {
 
     const environment = environmentOf(config);
     expect(environment.POSTGRES_PASSWORD).toBe("$Secret('shop-mainDatabase.password')");
-    // We do not know the master user name, and a wrong guess is a broken login: better unwired.
-    expect(environment.POSTGRES_USER).toBeUndefined();
+    expect(environment.POSTGRES_USER).toBe("$ResourceParam('mainDatabase', 'username')");
   });
 
   it('never lets a hostile variable name break out of a secret directive', () => {

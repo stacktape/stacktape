@@ -86,4 +86,39 @@ describe('the standalone Dockerfile probe', () => {
 
     expect(facts.services).toEqual([]);
   });
+
+  it('rejects a release-image Dockerfile whose required prebuilt binary is absent from a clean checkout', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/list-manager\n',
+      'cmd/main.go': 'package main\nfunc main() {}\n',
+      Dockerfile: 'FROM alpine:3.20\nCOPY list-manager /app/list-manager\nEXPOSE 8080\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('accepts local directories, globs, and JSON COPY sources that exist in the build context', async () => {
+    const repositoryRoot = await makeRepo({
+      'package.json': '{"name":"api"}',
+      'src/index.js': 'console.log("ready");\n',
+      'config/app.json': '{}\n',
+      Dockerfile: [
+        'FROM node:24 AS builder',
+        'COPY ["package.json", "/app/"]',
+        'COPY src /app/src',
+        'COPY config/*.json /app/config/',
+        'FROM node:24',
+        'COPY --from=builder /app /app',
+        'EXPOSE 8080',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({ dockerfile: 'Dockerfile', port: 8080 });
+  });
 });

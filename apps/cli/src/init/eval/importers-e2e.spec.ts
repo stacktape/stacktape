@@ -70,8 +70,17 @@ const CASES: EvalCase[] = [
       'go.mod': 'module example.com/notification-server\n',
       'cmd/main.go': [
         'package main',
+        'import "github.com/labstack/echo/v4"',
         'var frontendDir = "frontend/dist"',
         'func main() { server := echo.New(); server.Start(":9000") }',
+        ''
+      ].join('\n'),
+      Makefile: [
+        'EDITOR_DIR = frontend/editor',
+        'EDITOR_DIST = $(EDITOR_DIR)/dist',
+        'EDITOR_FINAL = frontend/public/editor',
+        'editor:',
+        '\tcp -r $(EDITOR_DIST)/* $(EDITOR_FINAL)',
         ''
       ].join('\n'),
       'frontend/package.json': JSON.stringify({

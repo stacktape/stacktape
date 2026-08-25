@@ -163,9 +163,28 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       dependencyKinds: { postgres: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
-      services: [{ name: 'listmonk', path: '.', exposesHttp: true, dockerfile: 'Dockerfile' }],
-      requiredConfig: ['type: web-service', 'dockerfilePath: Dockerfile'],
-      forbiddenConfig: ['type: hosting-bucket', 'uploadDirectoryPath: frontend/'],
+      services: [{ name: 'listmonk', path: '.', exposesHttp: true }],
+      requiredConfig: [
+        'type: web-service',
+        'entryfilePath: cmd/main.go',
+        'name: LISTMONK_db__host',
+        "$ResourceParam('mainDatabase', 'host')",
+        'name: LISTMONK_db__port',
+        "$ResourceParam('mainDatabase', 'port')",
+        'name: LISTMONK_db__user',
+        "$ResourceParam('mainDatabase', 'username')",
+        'name: LISTMONK_db__password',
+        "$Secret('real-listmonk-mainDatabase.password')",
+        'name: LISTMONK_db__database',
+        "$ResourceParam('mainDatabase', 'dbName')"
+      ],
+      forbiddenConfig: [
+        'type: hosting-bucket',
+        'uploadDirectoryPath: frontend/',
+        'type: custom-dockerfile',
+        'dockerfilePath: Dockerfile'
+      ],
+      forbiddenGapPatterns: ['does not read a configurable address'],
       forbidCurrentlyHostedDependencies: true
     }
   },
@@ -177,13 +196,20 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     source: 'real-application',
     exercises: ['go', 'react', 'websocket', 'sqlite', 'postgres', 'object-storage', 'docker'],
     expect: {
-      resourceTypes: { bastion: 1, 'relational-database': 1, 'web-service': 1 },
-      dependencyKinds: { postgres: 1 },
+      resourceTypes: { 'web-service': 1 },
+      dependencyKinds: {},
       serviceCount: 1,
       httpServiceCount: 1,
-      services: [{ name: 'ntfy', path: '.', exposesHttp: true, dockerfile: 'Dockerfile' }],
+      services: [{ name: 'ntfy', path: '.', exposesHttp: true }],
       requiredConfig: ['type: web-service', 'entryfilePath: main.go'],
-      forbiddenConfig: ['type: hosting-bucket', 'uploadDirectoryPath: web/'],
+      forbiddenConfig: [
+        'type: hosting-bucket',
+        'uploadDirectoryPath: web/',
+        'type: relational-database',
+        'mainDatabase',
+        'NTFY_DATABASE_URL',
+        'type: custom-dockerfile'
+      ],
       forbidCurrentlyHostedDependencies: true
     }
   },
@@ -496,6 +522,8 @@ const RELEASE_CASE_IDS = new Set([
   'real-outline',
   'real-mastodon',
   'real-forem',
+  'real-listmonk',
+  'real-ntfy',
   'go-clean-template',
   'zero-to-production-rust',
   'real-lemmy',

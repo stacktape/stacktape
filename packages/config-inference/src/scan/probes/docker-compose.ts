@@ -306,7 +306,10 @@ const variableNamesDependency = (name: string, kind: DependencyKind): boolean =>
   const upper = name.toUpperCase();
   switch (kind) {
     case 'postgres':
-      return /(?:POSTGRES|POSTGRESQL|PG|DATABASE|DATASOURCE)/.test(upper);
+      return (
+        /(?:POSTGRES|POSTGRESQL|PG|DATABASE|DATASOURCE)/.test(upper) ||
+        /(?:^|_)DB_{1,2}(?:HOST|PORT|USER|USERNAME|PASSWORD|PASSWD|DATABASE|DB_NAME)$/.test(upper)
+      );
     case 'mysql':
       return /(?:MYSQL|MARIADB|DATABASE|DATASOURCE)/.test(upper);
     case 'mssql':
@@ -678,9 +681,54 @@ export const dockerComposeProbe: Probe = {
       });
     }
 
+    // Production repositories sometimes keep source next to a Compose example that runs the
+    // published image rather than `build: .` (Listmonk is representative). Do not invent another
+    // service for that image, but retain its exact database variable names for the source service
+    // at the same root. Restrict this to variables that address an explicit `depends_on` resource;
+    // arbitrary settings from an unrelated third-party image must not leak onto local code.
+    const serviceEnvironments: NonNullable<ProbeOutput['serviceEnvironments']> = [];
+    for (const [composeName, service] of Object.entries(declaredServices)) {
+      if (dependencyNames.has(composeName) || builtDeclarations.some((entry) => entry.composeName === composeName)) {
+        continue;
+      }
+      const consumedDependencies = dependsOn(service)
+        .map((entry) => dependencyNames.get(entry))
+        .filter((entry): entry is string => entry !== undefined);
+      if (consumedDependencies.length === 0) continue;
+      const variables: EnvironmentVariableUse[] = [];
+      for (const entry of environmentEntries(service)) {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(entry.name) || isPlatformEnvironmentVariable(entry.name)) continue;
+        const dependency = consumedDependencies
+          .map((name) => dependencies.find((candidate) => candidate.name === name))
+          .find(
+            (candidate): candidate is DependencyFact =>
+              candidate !== undefined && variableNamesDependency(entry.name, candidate.kind)
+          );
+        if (dependency === undefined) continue;
+        const citation = citeFirstMatchOnly(
+          path,
+          raw,
+          new RegExp(`^\\s*(?:-\\s*)?${escapeForPattern(entry.name)}(?:\\s*:|=)`)
+        );
+        const evidence = citation === undefined ? [] : [{ ...citation, quote: `${entry.name}:` }];
+        variables.push({
+          name: entry.name,
+          role: 'infra-dependency',
+          dependencyName: dependency.name,
+          required: true,
+          evidence
+        });
+        if (!dependency.addressedBy.includes(entry.name)) dependency.addressedBy.push(entry.name);
+      }
+      if (variables.length > 0) {
+        serviceEnvironments.push({ path: composeDirectory(path), environmentVariables: variables });
+      }
+    }
+
     return {
       ...(dependencies.length === 0 ? {} : { dependencies }),
       ...(serviceFacts.length === 0 ? {} : { services: serviceFacts }),
+      ...(serviceEnvironments.length === 0 ? {} : { serviceEnvironments }),
       ...(migrations.length === 0 ? {} : { migrations }),
       ...(lifecycleDockerfiles.size === 0 ? {} : { lifecycleDockerfiles: [...lifecycleDockerfiles] }),
       ...(developmentProcesses.size === 0 ? {} : { developmentProcesses: [...developmentProcesses] }),

@@ -14,6 +14,7 @@ export type RelationalDatabaseReferencableParam =
   | 'jdbcConnectionString'
   | 'port'
   | 'dbName'
+  | 'username'
   | 'readerHost'
   | 'readerPort'
   | 'readerConnectionString'
