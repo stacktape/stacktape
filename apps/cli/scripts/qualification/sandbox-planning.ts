@@ -1,11 +1,23 @@
 import { randomBytes } from 'node:crypto';
-import { dirname, join, normalize, resolve } from 'node:path';
+import { isAbsolute, join, normalize, resolve, win32 } from 'node:path';
 import { parseArgs } from 'node:util';
 
-export const QUALIFICATION_SANDBOX_REPORT_VERSION = 1 as const;
+export const QUALIFICATION_SANDBOX_REPORT_VERSION = 2 as const;
 
-export const SANDBOX_DIND_IMAGE = 'docker:27-dind';
+export const SANDBOX_BASE_NODE_IMAGE =
+  'node:24-bookworm-slim@sha256:3638d9a6fe4030bd716be989438248074489337ba3275657f93595428be4fc03';
+export const SANDBOX_DIND_IMAGE =
+  'docker:27-dind@sha256:aa3df78ecf320f5fafdce71c659f1629e96e9de0968305fe1de670e0ca9176ce';
 export const SANDBOX_RUNNER_IMAGE_PREFIX = 'stacktape-qualification-runner';
+
+export const PINNED_BUN_VERSION = '1.3.14';
+export const PINNED_BUN_SHA256 = {
+  x64: '951ee2aee855f08595aeec6225226a298d3fea83a3dcd6465c09cbccdf7e848f',
+  aarch64: 'a27ffb63a8310375836e0d6f668ae17fa8d8d18b88c37c821c65331973a19a3b'
+} as const;
+
+export const PINNED_PNPM_VERSION = '11.17.0';
+
 export const DEFAULT_SANDBOX_MEMORY = '8g';
 export const DEFAULT_SANDBOX_CPUS = '4';
 export const DEFAULT_SANDBOX_PIDS_LIMIT = 2048;
@@ -34,28 +46,32 @@ export const SENSITIVE_HOST_ENV_PATTERNS = [
   /API[_-]?KEY/i
 ];
 
-export type PlannedVolumeMount = {
+export type StagedInput = {
   hostPath: string;
-  containerPath: string;
-  mode: 'ro' | 'rw';
+  containerRelativePath: string;
+  isDirectory: boolean;
   label: string;
 };
 
 export type PlannedSandboxExecution = {
   runId: string;
+  createdAt: string;
   networkName: string;
   dindContainerName: string;
   runnerContainerName: string;
+  outputVolumeName: string;
+  cacheVolumeName: string;
   imageTag: string;
   productCommit: string;
+  labels: Record<string, string>;
   dindArgs: string[];
   runnerArgs: string[];
   innerCommandArgs: string[];
-  mounts: PlannedVolumeMount[];
+  stagedInputs: StagedInput[];
   environment: Record<string, string>;
   hostOverrides: readonly string[];
-  outputDirectory: string;
-  cacheRoot: string;
+  hostOutputDirectory: string;
+  hostCacheRoot?: string;
   resumeFrom?: string;
   manifests: string[];
   resourceLimits: {
@@ -64,6 +80,7 @@ export type PlannedSandboxExecution = {
     pidsLimit: number;
     timeoutMs: number;
   };
+  isSelfTest: boolean;
 };
 
 export type SandboxedQualificationParsedOptions = {
@@ -88,6 +105,8 @@ export type SandboxedQualificationParsedOptions = {
   dryRun?: boolean;
   selfTest?: boolean;
   list?: boolean;
+  listOrphans?: boolean;
+  cleanOrphans?: boolean;
   help?: boolean;
   rawForwardedArgs: string[];
 };
@@ -97,18 +116,54 @@ export const buildRunnerImageTag = (productCommit: string) => {
   return `${SANDBOX_RUNNER_IMAGE_PREFIX}:${shortCommit}`;
 };
 
-const normalizeSlash = (path: string) => path.replaceAll('\\', '/');
-
-const isWindowsDriveRoot = (path: string) => /^[a-zA-Z]:[\\/]?$/.test(path);
-
-const isSystemRootOrHome = (targetPath: string, homeDirectory?: string) => {
-  const normalizedTarget = normalize(resolve(targetPath)).toLowerCase();
-  if (normalizedTarget === '/' || isWindowsDriveRoot(normalizedTarget)) return true;
-  if (homeDirectory !== undefined) {
-    const normalizedHome = normalize(resolve(homeDirectory)).toLowerCase();
-    if (normalizedTarget === normalizedHome) return true;
+export const validateMemoryString = (mem: string): string => {
+  const match = /^(\d+(?:\.\d+)?)\s*([kmg])b?$/i.exec(mem.trim());
+  if (!match) {
+    throw new Error(`Invalid memory limit "${mem}". Expected format like "8g", "4096m", or "512m".`);
   }
-  return false;
+  const value = Number(match[1]);
+  const unit = match[2].toLowerCase();
+  let megabytes = value;
+  if (unit === 'g') megabytes = value * 1024;
+  else if (unit === 'k') megabytes = value / 1024;
+
+  if (megabytes < 512 || megabytes > 64 * 1024) {
+    throw new Error(`Memory limit must be between 512m and 64g, got "${mem}".`);
+  }
+  return mem.trim().toLowerCase();
+};
+
+export const validateCpusString = (cpus: string): string => {
+  const value = Number(cpus.trim());
+  if (!Number.isFinite(value) || value < 0.5 || value > 64) {
+    throw new Error(`CPU limit must be a positive number between 0.5 and 64, got "${cpus}".`);
+  }
+  return String(value);
+};
+
+export const validatePidsLimit = (pids: string | number): number => {
+  const value = Number(pids);
+  if (!Number.isInteger(value) || value < 64 || value > 32768) {
+    throw new Error(`PIDs limit must be an integer between 64 and 32768, got "${pids}".`);
+  }
+  return value;
+};
+
+export const validateTimeoutMs = (timeout: string | number): number => {
+  const value = Number(timeout);
+  if (!Number.isInteger(value) || value < 10_000 || value > 24 * 60 * 60_000) {
+    throw new Error(`Timeout must be between 10000ms and 86400000ms (24h), got "${timeout}".`);
+  }
+  return value;
+};
+
+export const validateCanonicalPath = (userPath: string, invocationDirectory: string): string => {
+  const resolved = resolve(invocationDirectory, userPath);
+  const normalized = normalize(resolved);
+  if (normalized.includes('\0')) {
+    throw new Error(`Path contains null byte: "${userPath}".`);
+  }
+  return normalized;
 };
 
 export const parseSandboxedOptions = (argv: string[]): SandboxedQualificationParsedOptions => {
@@ -136,6 +191,8 @@ export const parseSandboxedOptions = (argv: string[]): SandboxedQualificationPar
       'dry-run': { type: 'boolean' },
       'self-test': { type: 'boolean' },
       list: { type: 'boolean' },
+      'list-orphans': { type: 'boolean' },
+      'clean-orphans': { type: 'boolean' },
       help: { type: 'boolean' }
     },
     strict: true,
@@ -179,6 +236,8 @@ export const parseSandboxedOptions = (argv: string[]): SandboxedQualificationPar
     dryRun: values['dry-run'],
     selfTest: values['self-test'],
     list: values.list,
+    listOrphans: values['list-orphans'],
+    cleanOrphans: values['clean-orphans'],
     help: values.help,
     rawForwardedArgs
   };
@@ -189,14 +248,12 @@ export const planSandboxExecution = ({
   rawArgs,
   invocationDirectory = process.cwd(),
   rootDirectory,
-  hostHomeDirectory = process.env.USERPROFILE ?? process.env.HOME,
   runIdSuffix
 }: {
   productCommit: string;
   rawArgs: string[];
   invocationDirectory?: string;
   rootDirectory: string;
-  hostHomeDirectory?: string;
   runIdSuffix?: string;
 }): PlannedSandboxExecution => {
   const parsed = parseSandboxedOptions(rawArgs);
@@ -205,34 +262,40 @@ export const planSandboxExecution = ({
     throw new Error('Product commit is required to plan sandboxed qualification execution.');
   }
 
+  if (
+    parsed.lanes !== undefined &&
+    parsed.lanes
+      .split(',')
+      .map((l) => l.trim())
+      .includes('aws')
+  ) {
+    throw new Error(
+      'The aws lane cannot be executed in the qualification sandbox. AWS scenarios require real AWS credentials and run in disposable AWS accounts. Use the import, package, and runtime lanes in the sandbox.'
+    );
+  }
+
   const suffix = runIdSuffix ?? randomBytes(3).toString('hex');
-  const runId = `qualification-${new Date().toISOString().replace(/[:.]/g, '-')}-${suffix}`;
+  const now = new Date();
+  const createdAt = now.toISOString();
+  const runId = `qual-${now.toISOString().replace(/[:.]/g, '-').slice(0, 19)}-${suffix}`;
   const networkName = `stp-qual-net-${suffix}`;
   const dindContainerName = `stp-qual-dind-${suffix}`;
   const runnerContainerName = `stp-qual-runner-${suffix}`;
+  const outputVolumeName = `stp-qual-out-${suffix}`;
+  const cacheVolumeName = `stp-qual-cache-${suffix}`;
   const imageTag = buildRunnerImageTag(commit);
 
+  const labels: Record<string, string> = {
+    'stacktape.qualification.managed': 'true',
+    'stacktape.qualification.run-id': runId,
+    'stacktape.qualification.created-at': createdAt,
+    'stacktape.qualification.commit': commit
+  };
+
   const defaultOutputDir = join(rootDirectory, '.stacktape', 'qualification', runId);
-  const defaultCacheRoot = join(rootDirectory, '.stacktape', 'project-cache');
+  const hostOutputDir = validateCanonicalPath(parsed.outputDir ?? defaultOutputDir, invocationDirectory);
 
-  const hostOutputDir = resolve(invocationDirectory, parsed.outputDir ?? defaultOutputDir);
-  const hostCacheRoot = resolve(invocationDirectory, parsed.cacheRoot ?? defaultCacheRoot);
-
-  const mounts: PlannedVolumeMount[] = [
-    {
-      hostPath: hostOutputDir,
-      containerPath: '/qualification/output',
-      mode: 'rw',
-      label: 'qualification-output'
-    },
-    {
-      hostPath: hostCacheRoot,
-      containerPath: '/qualification/cache',
-      mode: 'rw',
-      label: 'qualification-cache'
-    }
-  ];
-
+  const stagedInputs: StagedInput[] = [];
   const innerCommandArgs: string[] = ['--output-dir=/qualification/output', '--cache-root=/qualification/cache'];
 
   if (parsed.preset !== undefined) innerCommandArgs.push(`--preset=${parsed.preset}`);
@@ -251,47 +314,43 @@ export const planSandboxExecution = ({
   const resolvedManifestPaths: string[] = [];
   if (parsed.manifests !== undefined && parsed.manifests.length > 0) {
     for (const [index, manifestRelPath] of parsed.manifests.entries()) {
-      const absoluteManifestPath = resolve(invocationDirectory, manifestRelPath);
-      const manifestDir = dirname(absoluteManifestPath);
-      const manifestBasename = absoluteManifestPath.split(/[\\/]/).at(-1)!;
-      const containerManifestDir = `/qualification/manifests/${index}`;
-      const containerManifestPath = `${containerManifestDir}/${manifestBasename}`;
+      const canonicalManifest = validateCanonicalPath(manifestRelPath, invocationDirectory);
+      const manifestBasename = canonicalManifest.split(/[\\/]/).at(-1)!;
+      const containerManifestPath = `/qualification/inputs/manifests/${index}/${manifestBasename}`;
 
-      mounts.push({
-        hostPath: manifestDir,
-        containerPath: containerManifestDir,
-        mode: 'ro',
+      stagedInputs.push({
+        hostPath: canonicalManifest,
+        containerRelativePath: `inputs/manifests/${index}/${manifestBasename}`,
+        isDirectory: false,
         label: `manifest-${index}`
       });
 
       innerCommandArgs.push(`--manifest=${containerManifestPath}`);
-      resolvedManifestPaths.push(absoluteManifestPath);
+      resolvedManifestPaths.push(canonicalManifest);
     }
   }
 
   let resolvedResumePath: string | undefined;
   if (parsed.resumeFrom !== undefined) {
-    const absoluteResumePath = resolve(invocationDirectory, parsed.resumeFrom);
-    const resumeDir = dirname(absoluteResumePath);
-    const resumeBasename = absoluteResumePath.split(/[\\/]/).at(-1)!;
-    const containerResumeDir = '/qualification/resume';
-    const containerResumePath = `${containerResumeDir}/${resumeBasename}`;
+    const canonicalResume = validateCanonicalPath(parsed.resumeFrom, invocationDirectory);
+    const resumeBasename = canonicalResume.split(/[\\/]/).at(-1)!;
+    const containerResumePath = `/qualification/inputs/resume/${resumeBasename}`;
 
-    mounts.push({
-      hostPath: resumeDir,
-      containerPath: containerResumeDir,
-      mode: 'ro',
+    stagedInputs.push({
+      hostPath: canonicalResume,
+      containerRelativePath: `inputs/resume/${resumeBasename}`,
+      isDirectory: false,
       label: 'resume-report'
     });
 
     innerCommandArgs.push(`--resume-from=${containerResumePath}`);
-    resolvedResumePath = absoluteResumePath;
+    resolvedResumePath = canonicalResume;
   }
 
-  const memory = parsed.memory ?? DEFAULT_SANDBOX_MEMORY;
-  const cpus = parsed.cpus ?? DEFAULT_SANDBOX_CPUS;
-  const pidsLimit = parsed.pidsLimit ? Number(parsed.pidsLimit) : DEFAULT_SANDBOX_PIDS_LIMIT;
-  const timeoutMs = parsed.timeoutMs ? Number(parsed.timeoutMs) : DEFAULT_SANDBOX_TIMEOUT_MS;
+  const memory = validateMemoryString(parsed.memory ?? DEFAULT_SANDBOX_MEMORY);
+  const cpus = validateCpusString(parsed.cpus ?? DEFAULT_SANDBOX_CPUS);
+  const pidsLimit = validatePidsLimit(parsed.pidsLimit ?? DEFAULT_SANDBOX_PIDS_LIMIT);
+  const timeoutMs = validateTimeoutMs(parsed.timeoutMs ?? DEFAULT_SANDBOX_TIMEOUT_MS);
 
   const dindArgs = [
     'run',
@@ -301,12 +360,20 @@ export const planSandboxExecution = ({
     '--network',
     networkName,
     '--privileged',
-    '-e',
-    'DOCKER_TLS_CERTDIR=',
+    '--pids-limit',
+    String(pidsLimit),
     '--memory',
     memory,
     '--cpus',
     cpus,
+    '-e',
+    'DOCKER_TLS_CERTDIR=',
+    '--label',
+    'stacktape.qualification.managed=true',
+    '--label',
+    `stacktape.qualification.run-id=${runId}`,
+    '--label',
+    `stacktape.qualification.commit=${commit}`,
     SANDBOX_DIND_IMAGE,
     'dockerd',
     '--tls=false',
@@ -327,7 +394,7 @@ export const planSandboxExecution = ({
     AWS_EC2_METADATA_DISABLED: 'true',
     AWS_SDK_LOAD_CONFIG: '0',
     STACKTAPE_API_KEY: 'offline-qualification-do-not-use',
-    HOME: '/root'
+    HOME: '/home/node'
   };
 
   const runnerArgs = [
@@ -336,12 +403,33 @@ export const planSandboxExecution = ({
     runnerContainerName,
     '--network',
     networkName,
+    '--user',
+    '1000:1000',
+    '--read-only',
+    '--cap-drop=ALL',
+    '--security-opt=no-new-privileges:true',
     '--memory',
     memory,
     '--cpus',
     cpus,
     '--pids-limit',
-    String(pidsLimit)
+    String(pidsLimit),
+    '--tmpfs',
+    '/tmp:rw,exec,nosuid,size=4g',
+    '--tmpfs',
+    '/run:rw,noexec,nosuid,size=64m',
+    '--tmpfs',
+    '/home/node:rw,exec,nosuid,size=1g',
+    '-v',
+    `${outputVolumeName}:/qualification/output:rw`,
+    '-v',
+    `${cacheVolumeName}:/qualification/cache:rw`,
+    '--label',
+    'stacktape.qualification.managed=true',
+    '--label',
+    `stacktape.qualification.run-id=${runId}`,
+    '--label',
+    `stacktape.qualification.commit=${commit}`
   ];
 
   for (const override of BLOCKED_HOST_GATEWAYS) {
@@ -352,28 +440,29 @@ export const planSandboxExecution = ({
     runnerArgs.push('-e', `${key}=${value}`);
   }
 
-  for (const mount of mounts) {
-    const formattedHostPath = normalizeSlash(mount.hostPath);
-    runnerArgs.push('-v', `${formattedHostPath}:${mount.containerPath}:${mount.mode}`);
-  }
-
-  runnerArgs.push(imageTag, 'bun', 'apps/cli/scripts/qualification/run-project-qualification.ts', ...innerCommandArgs);
+  runnerArgs.push(imageTag, ...innerCommandArgs);
 
   const planned: PlannedSandboxExecution = {
     runId,
+    createdAt,
     networkName,
     dindContainerName,
     runnerContainerName,
+    outputVolumeName,
+    cacheVolumeName,
     imageTag,
     productCommit: commit,
+    labels,
     dindArgs,
     runnerArgs,
     innerCommandArgs,
-    mounts,
+    stagedInputs,
     environment,
     hostOverrides: BLOCKED_HOST_GATEWAYS,
-    outputDirectory: hostOutputDir,
-    cacheRoot: hostCacheRoot,
+    hostOutputDirectory: hostOutputDir,
+    ...(parsed.cacheRoot !== undefined
+      ? { hostCacheRoot: validateCanonicalPath(parsed.cacheRoot, invocationDirectory) }
+      : {}),
     ...(resolvedResumePath === undefined ? {} : { resumeFrom: resolvedResumePath }),
     manifests: resolvedManifestPaths,
     resourceLimits: {
@@ -381,18 +470,16 @@ export const planSandboxExecution = ({
       cpus,
       pidsLimit,
       timeoutMs
-    }
+    },
+    isSelfTest: Boolean(parsed.selfTest)
   };
 
-  assertPlannedSecurity(planned, hostHomeDirectory);
+  assertPlannedSecurity(planned);
 
   return planned;
 };
 
-export const assertPlannedSecurity = (
-  planned: PlannedSandboxExecution,
-  hostHomeDirectory = process.env.USERPROFILE ?? process.env.HOME
-) => {
+export const assertPlannedSecurity = (planned: PlannedSandboxExecution) => {
   if (planned.environment.STACKTAPE_QUALIFICATION_SANDBOX !== '1') {
     throw new Error('Sandbox plan violation: STACKTAPE_QUALIFICATION_SANDBOX must be explicitly set to 1.');
   }
@@ -403,25 +490,50 @@ export const assertPlannedSecurity = (
     );
   }
 
-  for (const mount of planned.mounts) {
-    const normalizedHost = normalize(mount.hostPath).toLowerCase();
-    const normalizedContainer = normalize(mount.containerPath).toLowerCase();
-
-    if (
-      normalizedHost.includes('docker.sock') ||
-      normalizedContainer.includes('docker.sock') ||
-      normalizedHost.includes('pipe/docker_engine')
-    ) {
-      throw new Error(
-        `Sandbox plan violation: host Docker socket must never be mounted into the qualification sandbox (${mount.hostPath} -> ${mount.containerPath}).`
-      );
+  for (const arg of planned.runnerArgs) {
+    if (arg.includes('docker.sock') || arg.includes('pipe/docker_engine')) {
+      throw new Error(`Sandbox plan violation: host Docker socket detected in runner arguments: ${arg}`);
     }
+  }
 
-    if (isSystemRootOrHome(mount.hostPath, hostHomeDirectory)) {
-      throw new Error(
-        `Sandbox plan violation: host system root or user home directory must not be mounted (${mount.hostPath}).`
-      );
+  for (let i = 0; i < planned.runnerArgs.length; i++) {
+    const arg = planned.runnerArgs[i];
+    if (arg === '-v' || arg === '--volume') {
+      const vol = planned.runnerArgs[i + 1] ?? '';
+      let source = vol;
+      if (/^[a-zA-Z]:[\\/]/.test(vol)) {
+        const colonIndex = vol.indexOf(':', 2);
+        source = colonIndex > 0 ? vol.slice(0, colonIndex) : vol;
+      } else {
+        const colonIndex = vol.indexOf(':');
+        source = colonIndex > 0 ? vol.slice(0, colonIndex) : vol;
+      }
+      if (
+        /^[a-zA-Z]:/i.test(source) ||
+        isAbsolute(source) ||
+        win32.isAbsolute(source) ||
+        source.includes('/') ||
+        source.includes('\\') ||
+        source.startsWith('.') ||
+        source.startsWith('~')
+      ) {
+        throw new Error(
+          `Sandbox plan violation: host bind mounts are prohibited in qualification sandbox. Volume source must be a named volume, got: ${source}`
+        );
+      }
     }
+  }
+
+  if (!planned.runnerArgs.includes('--read-only')) {
+    throw new Error('Sandbox plan violation: runner container must enforce --read-only root filesystem.');
+  }
+
+  if (!planned.runnerArgs.includes('--cap-drop=ALL')) {
+    throw new Error('Sandbox plan violation: runner container must enforce --cap-drop=ALL.');
+  }
+
+  if (!planned.runnerArgs.includes('--security-opt=no-new-privileges:true')) {
+    throw new Error('Sandbox plan violation: runner container must enforce --security-opt=no-new-privileges:true.');
   }
 
   for (const [key, value] of Object.entries(planned.environment)) {
