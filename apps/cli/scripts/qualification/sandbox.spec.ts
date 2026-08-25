@@ -75,6 +75,9 @@ describe('sandboxed qualification planning & command composition', () => {
     expect(planned.runnerArgs).toContain('/tmp:rw,exec,nosuid,size=4g');
     expect(planned.runnerArgs).toContain('/run:rw,noexec,nosuid,size=64m');
     expect(planned.runnerArgs).toContain('/home/node:rw,exec,nosuid,size=1g');
+    expect(planned.runnerArgs).toContain(
+      '/workspace/apps/cli/.stacktape:rw,exec,nosuid,size=4g,uid=1000,gid=1000,mode=0700'
+    );
 
     expect(planned.runnerArgs).toContain(`${planned.inputVolumeName}:/qualification/inputs:ro`);
     expect(planned.runnerArgs).toContain(`${planned.outputVolumeName}:/qualification/output:rw`);
@@ -414,6 +417,8 @@ describe('sandboxed qualification security boundary enforcement', () => {
       '--read-only',
       '--cap-drop=ALL',
       '--security-opt=no-new-privileges:true',
+      '--tmpfs',
+      '/workspace/apps/cli/.stacktape:rw,exec,nosuid,size=4g,uid=1000,gid=1000,mode=0700',
       '-v',
       'stp-qual-input-test:/qualification/inputs:ro',
       '-v',

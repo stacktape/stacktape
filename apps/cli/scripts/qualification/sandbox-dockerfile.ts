@@ -61,8 +61,9 @@ RUN pnpm install --frozen-lockfile
 # Build dev artifacts needed for CLI execution
 RUN pnpm --filter @stacktape/cli run build:dev-artifacts
 
-# Prepare dedicated writable volume mount points owned by node user (UID 1000)
-RUN mkdir -p /qualification/output /qualification/cache /qualification/inputs /home/node && \\
+# Prepare dedicated writable volume mount points owned by node user (UID 1000). The CLI project-state directory is
+# a target for a disposable tmpfs; the committed product files around it remain read-only at runtime.
+RUN mkdir -p /qualification/output /qualification/cache /qualification/inputs /home/node /workspace/apps/cli/.stacktape && \\
     chown -R 1000:1000 /qualification /home/node
 
 ENV STACKTAPE_QUALIFICATION_SANDBOX=1 \\
