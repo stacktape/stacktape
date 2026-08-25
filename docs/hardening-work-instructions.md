@@ -65,14 +65,22 @@ pnpm qualify:projects -- --manifest=<manifest.json> --case=<id> --lanes=import -
 
 Treat newly downloaded project code as untrusted. Packaging can execute lifecycle scripts, framework builds,
 Dockerfiles, and arbitrary commands. A lesser-capability worker must not add `--allow-host-project-code` itself. The
-campaign orchestrator either runs packaging in the disposable qualification environment or reviews the exact pinned
-source and explicitly accepts host execution. Available credentials do not count as acceptance.
+campaign orchestrator runs packaging in the disposable qualification sandbox (`pnpm qualify:projects:sandboxed`), which
+isolates untrusted builds using a nested Docker-in-Docker (DinD) daemon without mounting the host socket or host home.
+Use `--allow-host-project-code` only when reviewing and accepting exact pinned source on the host. Available credentials
+do not count as acceptance.
 
 Review the generated `stacktape.yml`; do not judge success only by exit code. Check the inferred services, process
 types, commands, environment wiring, dependencies, gaps, and resource safety defaults. After the discovery result is
 understood, add exact `expect` counts and required/forbidden configuration or gap patterns to the manifest.
 
-If a batch is large, use deterministic shards and a persistent cache:
+If a batch is large, use deterministic shards, persistent cache, and the qualification sandbox:
+
+```sh
+pnpm qualify:projects:sandboxed -- --manifest=<manifest.json> --lanes=import,package --cache-root=.stacktape/project-cache --shard=1/8
+```
+
+For reviewed pinned projects running directly on the host:
 
 ```sh
 pnpm qualify:projects -- --manifest=<manifest.json> --lanes=import,package --cache-root=.stacktape/project-cache --shard=1/8 --allow-host-project-code

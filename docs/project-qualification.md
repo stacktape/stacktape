@@ -22,10 +22,37 @@ outside that narrow contract. It is not a security sandbox for project code: pac
 Dockerfiles, Nixpacks, buildpacks, and framework builders can execute code and use the public network.
 
 For that reason, the package lane refuses to run on an ordinary host unless the operator explicitly adds
-`--allow-host-project-code`. Use that flag only for a pinned project whose execution risk has been reviewed and
-accepted. Newly discovered internet projects start with the import lane and should package in the disposable
-qualification environment. A Git worktree and a scrubbed child environment improve isolation but do not make arbitrary
-code safe on the host.
+`--allow-host-project-code` or runs inside the disposable qualification sandbox via `pnpm qualify:projects:sandboxed`
+(or `--sandboxed`). Use `--allow-host-project-code` only for a pinned project whose execution risk has been reviewed and
+accepted. Newly discovered internet projects should package inside the disposable qualification sandbox.
+
+### Sandbox Architecture & Residual Security Limitations
+
+The qualification sandbox (`pnpm qualify:projects:sandboxed`) constructs a disposable execution boundary:
+
+- **Disposable Nested Docker Daemon (DinD):** A sidecar `docker:27-dind` container runs on a dedicated Docker bridge
+  network (`stp-qual-net-*`). The qualification runner connects exclusively over TCP (`DOCKER_HOST=tcp://...:2375`). The
+  host Docker socket (`/var/run/docker.sock` or `//./pipe/docker_engine`) is **never mounted**.
+- **Committed Product Build:** Built strictly from a clean committed Stacktape tree at `HEAD` with pinned Node 24, Bun
+  1.3.14, and pnpm 11.17.0, keyed by product commit.
+- **Explicit Inputs/Outputs Only:** Mounts strictly `--output-dir` (read-write), `--cache-root` (read-write), and
+  declared manifest directories (read-only). The host `$HOME` directory, AWS credential files, SSH keys, Stacktape API
+  keys, and environment tokens are **never passed**.
+- **Metadata & Host Gateway Sinkhole:** Cloud metadata (`169.254.169.254`, `metadata.google.internal`) and Docker host
+  gateways (`host.docker.internal`, `gateway.docker.internal`) are mapped to `127.0.0.1`.
+- **Resource & Process Limits:** Enforces container memory (default 8 GB), CPU (default 4 cores), and PID limits
+  (default 2048).
+
+**Residual Security Limitations:**
+
+1. **Privileged DinD:** The nested Docker daemon container requires `--privileged` for nested overlayfs and cgroups.
+   While the runner container itself is unprivileged, an escape from the nested Docker daemon could reach the underlying
+   VM/host kernel.
+2. **Network / LAN Egress:** Outbound internet access remains enabled so package managers (npm, pip, maven, cargo) and
+   Docker can download dependencies and base images. While cloud metadata is blocked, unsegmented local LAN endpoints
+   and arbitrary public IPs remain reachable from inside the container unless blocked by an external network firewall.
+3. **Shared Linux Kernel:** Container isolation relies on Linux kernel namespaces and cgroups (within Docker Desktop's
+   WSL2 VM or host Linux kernel). It is not a hardware-isolated microVM (such as Firecracker).
 
 Packaging is not deployment qualification by itself. A successful package proves that Stacktape can turn the project
 into deployment artifacts and a template. It does not prove that an ALB health check passes, a migration succeeds
@@ -42,6 +69,15 @@ pnpm qualify:projects -- --list
 
 # Default representative import set (does not execute project build scripts).
 pnpm qualify:projects -- --preset=smoke --lanes=import
+
+# Sandboxed qualification for untrusted project code (recommended for package lane).
+pnpm qualify:projects:sandboxed -- --preset=smoke --lanes=import,package
+
+# Single project packaging inside the disposable DinD sandbox.
+pnpm qualify:projects:sandboxed -- --case=docker-fastapi --lanes=import,package
+
+# Sandboxed qualification with custom output directory and cache root.
+pnpm qualify:projects:sandboxed -- --preset=release --lanes=import,package --output-dir=.stacktape/qualification/release-run --cache-root=.stacktape/project-cache
 
 # Full source packaging for reviewed pinned projects on this host.
 pnpm qualify:projects -- --preset=smoke --lanes=import,package --allow-host-project-code

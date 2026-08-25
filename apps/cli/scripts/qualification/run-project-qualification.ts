@@ -100,11 +100,12 @@ Options:
   --keep-workdirs                    Retain isolated project copies for diagnosis
   --fail-fast                        Stop project execution after the first failed case
   --allow-host-project-code          Explicitly accept running reviewed project install/build scripts on this host
+  --sandboxed                        Execute in the disposable DinD qualification sandbox
   --list                             List built-in projects and AWS scenarios
   --help                             Show this help
 `;
 
-const parseOptions = async (): Promise<ParsedOptions | 'list' | 'help'> => {
+const parseOptions = async (): Promise<ParsedOptions | 'list' | 'help' | 'sandboxed'> => {
   const { values } = parseArgs({
     args: process.argv.slice(2),
     options: {
@@ -121,6 +122,7 @@ const parseOptions = async (): Promise<ParsedOptions | 'list' | 'help'> => {
       'keep-workdirs': { type: 'boolean' },
       'fail-fast': { type: 'boolean' },
       'allow-host-project-code': { type: 'boolean' },
+      sandboxed: { type: 'boolean' },
       list: { type: 'boolean' },
       help: { type: 'boolean' }
     },
@@ -129,6 +131,7 @@ const parseOptions = async (): Promise<ParsedOptions | 'list' | 'help'> => {
   });
   if (values.help) return 'help';
   if (values.list) return 'list';
+  if (values.sandboxed) return 'sandboxed';
 
   const manifestPaths = values.manifest?.map((path) => resolve(invocationDirectory, path)) ?? [];
   const externalManifests = await Promise.all(manifestPaths.map(readManifest));
@@ -865,6 +868,14 @@ const main = async () => {
   }
   if (parsed === 'list') {
     listCatalog();
+    return;
+  }
+  if (parsed === 'sandboxed') {
+    const { executeSandboxedQualification } = await import('./run-sandboxed-qualification');
+    const result = await executeSandboxedQualification(
+      process.argv.slice(2).filter((arg) => arg !== '--sandboxed' && !arg.startsWith('--sandboxed='))
+    );
+    if (result.exitCode !== 0) process.exitCode = result.exitCode;
     return;
   }
   const options = parsed;
