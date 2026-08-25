@@ -582,6 +582,31 @@ const inspectOutputVolumeBeforeCopy = async (
   return parsed as OutputInspection;
 };
 
+const stopRunnerAfterDetachedAttach = async (planned: PlannedSandboxExecution) => {
+  const inspect = await runProcess({
+    command: 'docker',
+    args: ['container', 'inspect', '--format={{.State.Running}}', planned.runnerContainerName],
+    cwd: rootDirectory,
+    timeoutMs: 15_000
+  });
+  assertProcessSucceeded(inspect);
+  if (inspect.stdout.trim() !== 'true') return;
+  const kill = await runProcess({
+    command: 'docker',
+    args: ['kill', planned.runnerContainerName],
+    cwd: rootDirectory,
+    timeoutMs: 15_000
+  });
+  assertProcessSucceeded(kill);
+  const wait = await runProcess({
+    command: 'docker',
+    args: ['wait', planned.runnerContainerName],
+    cwd: rootDirectory,
+    timeoutMs: 15_000
+  });
+  assertProcessSucceeded(wait);
+};
+
 export const executeSandboxedQualification = async (
   rawArgs: string[] = process.argv.slice(2)
 ): Promise<{ exitCode: number; planned: PlannedSandboxExecution }> => {
@@ -853,6 +878,11 @@ export const executeSandboxedQualification = async (
     if (runResult.stderr) process.stderr.write(runResult.stderr);
 
     runnerExitCode = processResultExitCode(runResult);
+    if (runResult.timedOut || runResult.interruptedSignal !== undefined) {
+      // Killing a detached `docker start -a` client does not stop its container. Stop it before inspecting the
+      // output volume so a timed-out project cannot race the trusted scanner or the host copy.
+      await stopRunnerAfterDetachedAttach(planned);
+    }
 
     // 7. Inspect the stopped runner's output volume before allowing any copy to the host.
     outputInspection = await inspectOutputVolumeBeforeCopy(planned, runnerImage.id, parsed.keepWorkdirs === true);
