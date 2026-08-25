@@ -746,7 +746,8 @@ describe('assembleCandidateFacts', () => {
           'solid-js': '^1.9.0'
         }
       }),
-      'vite.config.ts': "import { tanstackStart } from '@tanstack/solid-start/plugin/vite';\nexport default {};"
+      'vite.config.ts':
+        "import { tanstackStart } from '@tanstack/solid-start/plugin/vite';\nexport default { plugins: [tanstackStart()] };"
     });
 
     const { facts: tanstackFacts } = await assembleCandidateFacts({ root: tanstackRepo, probes: PROBES });
@@ -825,5 +826,283 @@ describe('assembleCandidateFacts', () => {
       framework: 'tanstack-start',
       buildCommand: 'npm run build'
     });
+  });
+
+  it('ignores Start plugin text in comments, strings, and inline type-only imports', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['packages/*'] }),
+      'packages/comment-decoy/package.json': JSON.stringify({
+        name: 'comment-decoy',
+        scripts: { build: 'vite build' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/comment-decoy/vite.config.ts': [
+        "// import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'const example = "tanstackStart()";',
+        'export default { example };'
+      ].join('\n'),
+      'packages/type-decoy/package.json': JSON.stringify({
+        name: 'type-decoy',
+        scripts: { build: 'vite build && tsc --emitDeclarationOnly' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/type-decoy/vite.config.ts': [
+        "import { type tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'export type PluginFactory = typeof tanstackStart;',
+        'export default { build: { lib: { entry: "src/index.ts" } } };'
+      ].join('\n'),
+      'packages/uncalled-import/package.json': JSON.stringify({
+        name: 'uncalled-import',
+        scripts: { build: 'vite build && tsc --emitDeclarationOnly' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/uncalled-import/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'export { tanstackStart };',
+        'export default { build: { lib: { entry: "src/index.ts" } } };'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('recognizes called namespace imports for current React, Solid, and Vue Start plugins', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['apps/*'] }),
+      'apps/react/package.json': JSON.stringify({
+        name: 'react-start',
+        scripts: { build: 'vite build' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'apps/react/vite.config.ts': [
+        "import * as startPlugin from '@tanstack/react-start/plugin/vite';",
+        'export default { plugins: [startPlugin.tanstackStart()] };'
+      ].join('\n'),
+      'apps/solid/package.json': JSON.stringify({
+        name: 'solid-start',
+        scripts: { build: 'vite build' },
+        dependencies: { '@tanstack/solid-start': '^1.168.49', 'solid-js': '^1.9.0' }
+      }),
+      'apps/solid/vite.config.ts': [
+        "import * as startPlugin from '@tanstack/solid-start/plugin/vite';",
+        "export default { plugins: [startPlugin['tanstackStart']()] };"
+      ].join('\n'),
+      'apps/vue/package.json': JSON.stringify({
+        name: 'vue-start',
+        scripts: { build: 'vite build' },
+        dependencies: { '@tanstack/vue-start': '^1.168.49', vue: '^3.5.0' }
+      }),
+      'apps/vue/vite.config.ts': [
+        "import { tanstackStart as createStartPlugin } from '@tanstack/vue-start/plugin/vite';",
+        'export default { plugins: [createStartPlugin()] };'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services.map((service) => [service.name, service.framework]).toSorted()).toEqual([
+      ['react-start', 'tanstack-start'],
+      ['solid-start', 'tanstack-start'],
+      ['vue-start', 'tanstack-start']
+    ]);
+  });
+
+  it('recognizes a called legacy namespace config import', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'legacy-start',
+        scripts: { build: 'vinxi build' },
+        dependencies: { '@tanstack/start': '^1.120.20', react: '^19.0.0' }
+      }),
+      'app.config.ts': [
+        "import * as startConfig from '@tanstack/start/config';",
+        'export default startConfig.defineConfig({});'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services[0]?.framework).toBe('tanstack-start');
+  });
+
+  it('does not let type-only TanStack evidence override an active SolidStart config', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'solid-app',
+        scripts: { build: 'vinxi build', start: 'vinxi start' },
+        dependencies: {
+          '@solidjs/start': '^1.0.0',
+          '@tanstack/solid-start': '^1.168.49',
+          'solid-js': '^1.9.0'
+        }
+      }),
+      'app.config.ts': [
+        "import { type tanstackStart } from '@tanstack/solid-start/plugin/vite';",
+        "import { defineConfig as defineSolidConfig } from '@solidjs/start/config';",
+        'export type Decoy = typeof tanstackStart;',
+        'export default defineSolidConfig({});'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services[0]?.framework).toBe('solid-start');
+  });
+
+  it('parses Start production commands as invocations instead of matching echo arguments', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['packages/*'] }),
+      'packages/echo-vinxi/package.json': JSON.stringify({
+        name: 'echo-vinxi',
+        scripts: { build: 'vite build', start: 'echo vinxi start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/echo-tanstack/package.json': JSON.stringify({
+        name: 'echo-tanstack',
+        scripts: { build: 'vite build', start: 'echo tanstack start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/real-server/package.json': JSON.stringify({
+        name: 'real-server',
+        scripts: { build: 'vite build', start: 'node ./dist/server/server.js' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      })
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services.map((service) => service.name)).toEqual(['real-server']);
+  });
+
+  it('prefers active config/build evidence over stale or decoy Next.js lifecycle text', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['apps/*'] }),
+      'apps/stale-lifecycle/package.json': JSON.stringify({
+        name: 'stale-lifecycle',
+        scripts: { build: 'vite build', dev: 'next dev', start: 'next start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', next: '^15.0.0', react: '^19.0.0' }
+      }),
+      'apps/stale-lifecycle/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'export default { plugins: [tanstackStart()] };'
+      ].join('\n'),
+      'apps/echo-build/package.json': JSON.stringify({
+        name: 'echo-build',
+        scripts: { build: 'echo next build && vite build', start: 'next start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', next: '^15.0.0', react: '^19.0.0' }
+      }),
+      'apps/echo-build/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'export default { plugins: [tanstackStart()] };'
+      ].join('\n'),
+      'apps/active-next/package.json': JSON.stringify({
+        name: 'active-next',
+        scripts: { build: 'cross-env NODE_ENV=production next build', start: 'next start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', next: '^15.0.0', react: '^19.0.0' }
+      }),
+      'apps/active-next/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'export default { plugins: [tanstackStart()] };'
+      ].join('\n'),
+      'apps/start-only-next/package.json': JSON.stringify({
+        name: 'start-only-next',
+        scripts: { start: 'npx --yes next start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', next: '^15.0.0', react: '^19.0.0' }
+      }),
+      'apps/start-only-next/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'export default { plugins: [tanstackStart()] };'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+    const frameworks = Object.fromEntries(facts.services.map((service) => [service.name, service.framework]));
+
+    expect(frameworks).toEqual({
+      'active-next': 'nextjs',
+      'echo-build': 'tanstack-start',
+      'stale-lifecycle': 'tanstack-start',
+      'start-only-next': 'nextjs'
+    });
+  });
+
+  it('recognizes current React, Solid, and Vue TanStack Start Rsbuild configs', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['apps/*'] }),
+      'apps/react/package.json': JSON.stringify({
+        name: 'react-rsbuild',
+        scripts: { build: 'rsbuild build', start: 'rsbuild start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'apps/react/rsbuild.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/rsbuild';",
+        'export default { plugins: [tanstackStart()] };'
+      ].join('\n'),
+      'apps/solid/package.json': JSON.stringify({
+        name: 'solid-rsbuild',
+        scripts: { build: 'rsbuild build' },
+        dependencies: { '@tanstack/solid-start': '^1.168.49', 'solid-js': '^1.9.0' }
+      }),
+      'apps/solid/rsbuild.config.ts': [
+        "import * as startPlugin from '@tanstack/solid-start/plugin/rsbuild';",
+        'export default { plugins: [startPlugin.tanstackStart()] };'
+      ].join('\n'),
+      'apps/vue/package.json': JSON.stringify({
+        name: 'vue-rsbuild',
+        scripts: { build: 'rsbuild build', start: 'node ./dist/server/index.js' },
+        dependencies: { '@tanstack/vue-start': '^1.168.49', vue: '^3.5.0' }
+      }),
+      'apps/vue/rsbuild.config.ts': [
+        "import { tanstackStart as createStart } from '@tanstack/vue-start/plugin/rsbuild';",
+        'export default { plugins: [createStart()] };'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services.map((service) => [service.name, service.framework]).toSorted()).toEqual([
+      ['react-rsbuild', 'tanstack-start'],
+      ['solid-rsbuild', 'tanstack-start'],
+      ['vue-rsbuild', 'tanstack-start']
+    ]);
+  });
+
+  it('does not treat Rsbuild plugin comments or type-only imports as Start applications', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['packages/*'] }),
+      'packages/comment/package.json': JSON.stringify({
+        name: 'comment-rsbuild',
+        scripts: { build: 'rsbuild build' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/comment/rsbuild.config.ts':
+        "// import { tanstackStart } from '@tanstack/react-start/plugin/rsbuild';\nexport default {};",
+      'packages/type-only/package.json': JSON.stringify({
+        name: 'type-rsbuild',
+        scripts: { build: 'rsbuild build' },
+        dependencies: { '@tanstack/vue-start': '^1.168.49', vue: '^3.5.0' }
+      }),
+      'packages/type-only/rsbuild.config.ts': [
+        "import type * as startPlugin from '@tanstack/vue-start/plugin/rsbuild';",
+        'export type Factory = typeof startPlugin.tanstackStart;',
+        'export default {};'
+      ].join('\n'),
+      'packages/uncalled/package.json': JSON.stringify({
+        name: 'uncalled-rsbuild',
+        scripts: { build: 'rsbuild build' },
+        dependencies: { '@tanstack/solid-start': '^1.168.49', 'solid-js': '^1.9.0' }
+      }),
+      'packages/uncalled/rsbuild.config.ts': [
+        "import { tanstackStart } from '@tanstack/solid-start/plugin/rsbuild';",
+        'export { tanstackStart };',
+        'export default {};'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services).toEqual([]);
   });
 });

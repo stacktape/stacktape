@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import {
+  createSsrWebArtifacts,
   createServerWrapper,
   getMissingRequiredAdapterPackages,
   reorganizeBuildOutput,
@@ -270,6 +271,63 @@ describe('SSR build output organization', () => {
     });
   });
 
+  test('does not select a directory whose name matches the required handler', async () => {
+    const root = await createRoot();
+    await mkdir(join(root, 'dist', 'server', 'server.js'), { recursive: true });
+    await mkdir(join(root, '.output', 'server'), { recursive: true });
+    await writeFile(join(root, '.output', 'server', 'index.mjs'), 'export const handler = () => {};');
+
+    const resolved = await resolveSsrWebOutputVariant({
+      buildCommand: 'unused',
+      workingDir: root,
+      serverOutputPath: 'dist/server',
+      staticOutputPath: 'dist/client',
+      handlerFileName: 'server.js',
+      staticAssetPrefix: 'assets',
+      wrapperType: 'tanstack-fetch',
+      fallbackOutputVariants: [
+        {
+          serverOutputPath: '.output/server',
+          staticOutputPath: '.output/public',
+          handlerFileName: 'index.mjs',
+          staticAssetPrefix: '_build',
+          wrapperType: 'passthrough'
+        }
+      ]
+    });
+
+    expect(resolved.handlerFileName).toBe('index.mjs');
+  });
+
+  test('requires the handler filename to use the exact wrapper import casing', async () => {
+    const root = await createRoot();
+    await mkdir(join(root, 'dist', 'server'), { recursive: true });
+    await writeFile(join(root, 'dist', 'server', 'Server.js'), 'export default { fetch() {} };');
+    await mkdir(join(root, '.output', 'server'), { recursive: true });
+    await writeFile(join(root, '.output', 'server', 'index.mjs'), 'export const handler = () => {};');
+
+    const resolved = await resolveSsrWebOutputVariant({
+      buildCommand: 'unused',
+      workingDir: root,
+      serverOutputPath: 'dist/server',
+      staticOutputPath: 'dist/client',
+      handlerFileName: 'server.js',
+      staticAssetPrefix: 'assets',
+      wrapperType: 'tanstack-fetch',
+      fallbackOutputVariants: [
+        {
+          serverOutputPath: '.output/server',
+          staticOutputPath: '.output/public',
+          handlerFileName: 'index.mjs',
+          staticAssetPrefix: '_build',
+          wrapperType: 'passthrough'
+        }
+      ]
+    });
+
+    expect(resolved.handlerFileName).toBe('index.mjs');
+  });
+
   test('rejects output directories that do not contain a supported handler', async () => {
     const root = await createRoot();
     await mkdir(join(root, 'dist', 'server'), { recursive: true });
@@ -354,6 +412,93 @@ describe('SSR build output organization', () => {
     expect(await readFile(join(root, 'server-function', 'server', 'entry.mjs'), 'utf8')).toContain('handler');
     expect(await readFile(join(root, 'bucket-content', 'asset.txt'), 'utf8')).toBe('public');
     expect(await readFile(join(root, 'server-function', 'client', 'asset.txt'), 'utf8')).toBe('public');
+  });
+
+  test('packages the Rsbuild handler under the exact fetch-wrapper import name', async () => {
+    const root = await createRoot();
+    const applicationRoot = join(root, 'application');
+    const artifactRoot = join(root, 'artifacts');
+    await mkdir(applicationRoot, { recursive: true });
+    await writeFile(join(applicationRoot, 'package.json'), JSON.stringify({ name: 'rsbuild-start', type: 'module' }));
+    let inspectedArchive = false;
+
+    const outputs = await createSsrWebArtifacts({
+      resourceName: 'rsbuild-start',
+      resourceType: 'tanstack-web',
+      serverFunctionName: 'rsbuild-start-server',
+      distFolderPath: artifactRoot,
+      cwd: root,
+      progressLogger: {
+        eventContext: { instanceId: 'rsbuild-start' },
+        startEvent: () => {},
+        updateEvent: () => {},
+        finishEvent: () => {}
+      },
+      createProgressLogger: () => ({
+        eventContext: { instanceId: 'rsbuild-start.archive' },
+        startEvent: () => {},
+        updateEvent: () => {},
+        finishEvent: () => {}
+      }),
+      buildConfig: {
+        buildCommand: 'rsbuild build',
+        workingDir: applicationRoot,
+        serverOutputPath: 'dist/server',
+        staticOutputPath: 'dist/client',
+        handlerFileName: 'server.js',
+        staticAssetPrefix: 'assets',
+        wrapperType: 'tanstack-fetch',
+        fallbackOutputVariants: [
+          {
+            serverOutputPath: 'dist/server',
+            staticOutputPath: 'dist/client',
+            handlerFileName: 'index.js',
+            staticAssetPrefix: 'assets',
+            wrapperType: 'tanstack-fetch'
+          }
+        ]
+      },
+      environmentVars: [],
+      archiveItem: async ({ absoluteSourcePath, absoluteDestDirPath }) => {
+        expect(await Bun.file(join(absoluteSourcePath, 'index.js')).exists()).toBe(true);
+        expect(await Bun.file(join(absoluteSourcePath, 'server.js')).exists()).toBe(false);
+        expect(await readFile(join(absoluteSourcePath, 'index-wrap.mjs'), 'utf8')).toContain('import("./index.js")');
+        const { handler } = await import(
+          `${pathToFileURL(join(absoluteSourcePath, 'index-wrap.mjs')).href}?test=${Date.now()}`
+        );
+        const response = await handler({
+          version: '2.0',
+          requestContext: { http: { method: 'GET' } },
+          rawPath: '/',
+          rawQueryString: '',
+          headers: {}
+        });
+        expect(response.statusCode).toBe(200);
+        expect(response.isBase64Encoded).toBe(true);
+        expect(Buffer.from(response.body, 'base64').toString('utf8')).toBe('ok');
+        inspectedArchive = true;
+        if (absoluteDestDirPath === undefined) throw new Error('Expected an archive destination.');
+        await mkdir(absoluteDestDirPath, { recursive: true });
+        const archivePath = join(absoluteDestDirPath, 'rsbuild-start.zip');
+        await writeFile(archivePath, 'zip');
+        return archivePath;
+      },
+      createPackagingError: ({ message, cause }) => new Error(message, { cause }),
+      executeProcess: async () => {
+        await mkdir(join(applicationRoot, 'dist', 'server'), { recursive: true });
+        await mkdir(join(applicationRoot, 'dist', 'client'), { recursive: true });
+        await writeFile(
+          join(applicationRoot, 'dist', 'server', 'index.js'),
+          'export default { async fetch() { return new Response("ok"); } };'
+        );
+        await writeFile(join(applicationRoot, 'dist', 'client', 'asset.txt'), 'public');
+        return { stdout: '', stderr: '', exitCode: 0 };
+      }
+    });
+
+    expect(inspectedArchive).toBe(true);
+    expect(outputs).toHaveLength(1);
+    expect(outputs[0]?.outcome).toBe('bundled');
   });
 });
 

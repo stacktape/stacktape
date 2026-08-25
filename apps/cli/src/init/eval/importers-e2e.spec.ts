@@ -260,6 +260,33 @@ const CASES: EvalCase[] = [
       deployable: true,
       maxQuestions: 0
     }
+  },
+  {
+    name: 'TanStack Start Rsbuild SSR web app',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'tanstack-rsbuild-app',
+        type: 'module',
+        scripts: { build: 'rsbuild build', start: 'node ./dist/server/index.js' },
+        dependencies: {
+          '@tanstack/react-start': '^1.168.49',
+          '@tanstack/react-router': '^1.170.32',
+          react: '^19.0.0',
+          'react-dom': '^19.0.0'
+        },
+        devDependencies: { '@rsbuild/core': '^1.5.0' }
+      }),
+      'rsbuild.config.ts': [
+        "import * as startPlugin from '@tanstack/react-start/plugin/rsbuild';",
+        'export default { plugins: [startPlugin.tanstackStart()] };'
+      ].join('\n'),
+      'src/routes/index.tsx': 'export const Route = {};'
+    },
+    expect: {
+      resources: { tanstackRsbuildApp: 'tanstack-web' },
+      deployable: true,
+      maxQuestions: 0
+    }
   }
 ];
 

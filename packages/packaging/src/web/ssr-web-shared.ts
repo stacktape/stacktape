@@ -4,7 +4,8 @@ import type {
   ExecuteProcess,
   PackagingProgressLogger as ProgressLogger
 } from '../runtime-contracts';
-import { basename, join } from 'node:path';
+import { basename, dirname, join } from 'node:path';
+import { readdir, stat } from 'node:fs/promises';
 import { serializeEnvironment } from '../runtime-helpers';
 import { copy, emptyDir, ensureDir, outputFile, pathExists, readFile, remove, writeFile } from 'fs-extra';
 import { buildUsingCustomArtifact } from '../artifact/custom-artifact';
@@ -87,6 +88,18 @@ type ApplicationManifest = {
   peerDependencies?: Record<string, string> | undefined;
 };
 
+const isExactCaseRegularFile = async (filePath: string): Promise<boolean> => {
+  try {
+    const parentEntries = await readdir(dirname(filePath));
+    if (!parentEntries.includes(basename(filePath))) return false;
+    // stat follows a symlink. A symlink to a regular file is valid because output copying
+    // dereferences it, while a directory or a symlink to a directory is not a Lambda handler.
+    return (await stat(filePath)).isFile();
+  } catch {
+    return false;
+  }
+};
+
 export const getMissingRequiredAdapterPackages = async ({
   requiredAdapterPackages = [],
   workingDir
@@ -118,7 +131,7 @@ export const resolveSsrWebOutputVariant = async (buildConfig: SsrWebBuildConfig)
   ];
   const availability = await Promise.all(
     outputVariants.map(({ serverOutputPath, handlerFileName }) =>
-      pathExists(join(buildConfig.workingDir, serverOutputPath, handlerFileName))
+      isExactCaseRegularFile(join(buildConfig.workingDir, serverOutputPath, handlerFileName))
     )
   );
   const selectedIndex = availability.findIndex(Boolean);
@@ -526,6 +539,16 @@ export const reorganizeBuildOutput = async ({
     if (await pathExists(staticSourcePath)) {
       await copy(staticSourcePath, join(serverFunctionPath, buildConfig.copyStaticAssetsToServerDirectory), copyOpts);
     }
+  }
+
+  const copiedHandlerPath = buildConfig.preserveServerOutputDirectory
+    ? join(serverFunctionPath, basename(normalizedServer), buildConfig.handlerFileName)
+    : join(serverFunctionPath, buildConfig.handlerFileName);
+  if (!(await isExactCaseRegularFile(copiedHandlerPath))) {
+    throw new Error(
+      `The packaged server handler is missing at the exact wrapper import path ${copiedHandlerPath}. ` +
+        'Ensure the framework output contains a regular file with the expected letter casing.'
+    );
   }
 };
 

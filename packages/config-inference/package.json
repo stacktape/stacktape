@@ -52,6 +52,7 @@
   },
   "dependencies": {
     "smol-toml": "^1.7.0",
+    "typescript": "catalog:",
     "yaml": "1.10.2",
     "zod": "catalog:"
   },
@@ -59,8 +60,7 @@
     "@stacktape/config": "workspace:*",
     "@types/bun": "catalog:",
     "@types/node": "catalog:",
-    "ajv": "^6.12.6",
-    "typescript": "catalog:"
+    "ajv": "^6.12.6"
   },
   "engines": {
     "node": ">=24"

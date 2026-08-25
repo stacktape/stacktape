@@ -15,6 +15,14 @@ import { defaultDependencyName, type DependencyFact, type DependencyKind } from 
 import type { MigrationFact, PackageManager } from '../../facts/project-facts';
 import type { ServiceFactInput } from '../../facts/service';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import {
+  frameworkBuildCommand,
+  frameworkDevCommand,
+  frameworkStartCommand,
+  hasStartFrameworkProductionCommand,
+  inspectFrameworkConfig,
+  type FrameworkConfigEvidence
+} from './manifest-framework-evidence';
 
 /**
  * Declared dependencies that imply a backing service.
@@ -289,30 +297,35 @@ const DEDICATED_WEB_FRAMEWORKS = new Set([
   'nestjs'
 ]);
 
-// A base Start-package import can be a type or helper used by a library. Deployment evidence is
-// narrower: current applications install the framework's Vite plugin, while the legacy package
-// configured applications through its dedicated config entrypoint.
-const TANSTACK_START_CONFIG_IMPORT =
-  /import\s*\{[^}]*\btanstackStart\b[^}]*\}\s*from\s*['"]@tanstack\/(?:react|solid|vue)-start\/plugin\/vite['"]|import\s*\{[^}]*\bdefineConfig\b[^}]*\}\s*from\s*['"]@tanstack\/start\/config['"]/;
-const SOLID_START_CONFIG_IMPORT = /import\s*\{[^}]*\bdefineConfig\b[^}]*\}\s*from\s*['"]@solidjs\/start\/config['"]/;
-const START_FRAMEWORK_PRODUCTION_COMMAND =
-  /(?:^|[\s;&|])(?:vinxi\s+(?:start|serve)|node(?:\.exe)?\s+(?:\.\/)?\.output[\\/]server[\\/]index\.mjs|tanstack\s+start)(?:\s|$)/i;
-
-const readFrameworkConfigContents = async (manifest: ParsedManifest, context: ProbeContext): Promise<string> => {
+const readFrameworkConfigEvidence = async (
+  manifest: ParsedManifest,
+  context: ProbeContext
+): Promise<FrameworkConfigEvidence> => {
   const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
   const configPaths = context.files.filter((file) => {
     if (!file.startsWith(manifestPrefix)) return false;
     const relativePath = file.slice(manifestPrefix.length);
-    return /^(?:vite\.config|app\.config)\.[cm]?[jt]sx?$/i.test(relativePath);
+    return /^(?:vite\.config|rsbuild\.config|app\.config)\.[cm]?[jt]sx?$/i.test(relativePath);
   });
   const contents = await Promise.all(configPaths.map((path) => readText(context, path)));
-  return contents.filter((content): content is string => content !== undefined).join('\n');
+  return configPaths.reduce<FrameworkConfigEvidence>(
+    (evidence, path, index) => {
+      const content = contents[index];
+      if (content === undefined) return evidence;
+      const inspected = inspectFrameworkConfig(path, content);
+      return {
+        solidStart: evidence.solidStart || inspected.solidStart,
+        tanstackStart: evidence.tanstackStart || inspected.tanstackStart
+      };
+    },
+    { solidStart: false, tanstackStart: false }
+  );
 };
 
 const resolveFramework = async (
   manifest: ParsedManifest,
   context: ProbeContext,
-  frameworkConfigContents: string
+  frameworkConfigEvidence: FrameworkConfigEvidence
 ): Promise<{ package: string; name: string } | undefined> => {
   const matches = FRAMEWORK_NAMES.filter((entry) => manifest.dependencies[entry.package] !== undefined);
   if (matches.length === 0) return undefined;
@@ -324,41 +337,31 @@ const resolveFramework = async (
   if (candidateList.length === 1) return candidateList[0];
 
   const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
-  const scripts = [manifest.scripts.build, manifest.scripts.start, manifest.scripts.dev]
-    .filter((script): script is string => typeof script === 'string')
-    .join(' ');
+  const candidateFor = (name: string) => candidateList.find((candidate) => candidate.name === name);
 
-  // 1. Script signals
-  if (/\bnext(?:\s|$)/.test(scripts) && candidateList.some((c) => c.name === 'nextjs')) {
-    return candidateList.find((c) => c.name === 'nextjs');
-  }
-  if (/\bremix(?:\s|$)/.test(scripts) && candidateList.some((c) => c.name === 'remix')) {
-    return candidateList.find((c) => c.name === 'remix');
-  }
-  if (/\bnuxt(?:\s|$)/.test(scripts) && candidateList.some((c) => c.name === 'nuxt')) {
-    return candidateList.find((c) => c.name === 'nuxt');
-  }
-  if (/\bastro(?:\s|$)/.test(scripts) && candidateList.some((c) => c.name === 'astro')) {
-    return candidateList.find((c) => c.name === 'astro');
-  }
-  if (/\bsvelte-kit\b|\bsveltekit\b/.test(scripts) && candidateList.some((c) => c.name === 'sveltekit')) {
-    return candidateList.find((c) => c.name === 'sveltekit');
+  // A framework-specific build is the strongest lifecycle evidence because it determines the
+  // artifact we will package. Stale dev/start scripts are common after migrations.
+  const buildFramework = frameworkBuildCommand(manifest.scripts.build);
+  if (buildFramework !== undefined && candidateFor(buildFramework) !== undefined) return candidateFor(buildFramework);
+
+  // Without any build script, a concrete production server command is the active lifecycle.
+  // When a build exists, exact config evidence below outranks a stale start script.
+  if (manifest.scripts.build === undefined) {
+    const startFramework = frameworkStartCommand(manifest.scripts.start);
+    if (startFramework !== undefined && candidateFor(startFramework) !== undefined) return candidateFor(startFramework);
   }
 
   // 2. Exact framework configuration imports. These are stronger than a conventional config
   // filename, which is often left behind during a framework migration.
-  if (
-    TANSTACK_START_CONFIG_IMPORT.test(frameworkConfigContents) &&
-    candidateList.some((candidate) => candidate.name === 'tanstack-start')
-  ) {
+  if (frameworkConfigEvidence.tanstackStart && candidateList.some((candidate) => candidate.name === 'tanstack-start')) {
     return candidateList.find((candidate) => candidate.name === 'tanstack-start');
   }
-  if (
-    SOLID_START_CONFIG_IMPORT.test(frameworkConfigContents) &&
-    candidateList.some((candidate) => candidate.name === 'solid-start')
-  ) {
+  if (frameworkConfigEvidence.solidStart && candidateList.some((candidate) => candidate.name === 'solid-start')) {
     return candidateList.find((candidate) => candidate.name === 'solid-start');
   }
+
+  const startFramework = frameworkStartCommand(manifest.scripts.start);
+  if (startFramework !== undefined && candidateFor(startFramework) !== undefined) return candidateFor(startFramework);
 
   // 3. Conventional config files
   const dirFiles = context.files
@@ -383,6 +386,9 @@ const resolveFramework = async (
   if (dirFiles.some((f) => /^astro\.config\.[cm]?[jt]sx?$/i.test(f)) && candidateList.some((c) => c.name === 'astro')) {
     return candidateList.find((c) => c.name === 'astro');
   }
+
+  const devFramework = frameworkDevCommand(manifest.scripts.dev);
+  if (devFramework !== undefined && candidateFor(devFramework) !== undefined) return candidateFor(devFramework);
 
   return candidateList[0];
 };
@@ -425,16 +431,16 @@ export const manifestProbe: Probe = {
     const migrations: MigrationFact[] = [];
     const resolvedManifests = await Promise.all(
       manifests.map(async (manifest) => {
-        const frameworkConfigContents = await readFrameworkConfigContents(manifest, context);
+        const frameworkConfigEvidence = await readFrameworkConfigEvidence(manifest, context);
         return {
           manifest,
-          frameworkConfigContents,
-          frameworkEntry: await resolveFramework(manifest, context, frameworkConfigContents)
+          frameworkConfigEvidence,
+          frameworkEntry: await resolveFramework(manifest, context, frameworkConfigEvidence)
         };
       })
     );
 
-    for (const { manifest, frameworkConfigContents, frameworkEntry } of resolvedManifests) {
+    for (const { manifest, frameworkConfigEvidence, frameworkEntry } of resolvedManifests) {
       const hasStart = typeof manifest.scripts.start === 'string';
       const hasBuild = typeof manifest.scripts.build === 'string';
       const exposesHttp = Object.keys(manifest.dependencies).some((name) => HTTP_FRAMEWORKS.has(name));
@@ -463,14 +469,11 @@ export const manifestProbe: Probe = {
       const isStartFramework = frameworkEntry?.name === 'tanstack-start' || frameworkEntry?.name === 'solid-start';
       const hasMatchingStartConfig =
         frameworkEntry?.name === 'tanstack-start'
-          ? TANSTACK_START_CONFIG_IMPORT.test(frameworkConfigContents)
+          ? frameworkConfigEvidence.tanstackStart
           : frameworkEntry?.name === 'solid-start'
-            ? SOLID_START_CONFIG_IMPORT.test(frameworkConfigContents)
+            ? frameworkConfigEvidence.solidStart
             : false;
-      const hasMatchingStartCommand =
-        isStartFramework &&
-        typeof manifest.scripts.start === 'string' &&
-        START_FRAMEWORK_PRODUCTION_COMMAND.test(manifest.scripts.start);
+      const hasMatchingStartCommand = isStartFramework && hasStartFrameworkProductionCommand(manifest.scripts.start);
       // Start packages also expose APIs used by shared libraries. A generic Vite/tsc build or dev
       // script does not prove that package is an SSR application. Require either a recognized
       // framework server command or the framework's exact config import before emitting a paid web resource.

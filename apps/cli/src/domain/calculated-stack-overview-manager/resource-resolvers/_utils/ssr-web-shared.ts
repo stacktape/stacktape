@@ -243,6 +243,13 @@ export const SSR_WEB_FRAMEWORK_CONFIGS: Record<SsrWebResourceType, SsrWebFramewo
     wrapperType: 'tanstack-fetch',
     fallbackOutputVariants: [
       {
+        serverOutputPath: 'dist/server',
+        staticOutputPath: 'dist/client',
+        staticAssetPrefix: 'assets',
+        handlerFileName: 'index.js',
+        wrapperType: 'tanstack-fetch'
+      },
+      {
         serverOutputPath: '.output/server',
         staticOutputPath: '.output/public',
         staticAssetPrefix: '_build',

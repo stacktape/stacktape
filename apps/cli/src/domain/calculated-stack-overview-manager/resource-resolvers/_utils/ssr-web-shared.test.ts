@@ -28,7 +28,7 @@ describe('SSR static asset cache paths', () => {
 });
 
 describe('SSR web framework defaults', () => {
-  test('tanstack-web packages the current Vite server and client outputs', () => {
+  test('tanstack-web packages current Vite, Rsbuild, and legacy Nitro outputs', () => {
     const config = SSR_WEB_FRAMEWORK_CONFIGS['tanstack-web'];
     expect(config).toEqual({
       displayName: 'TanStack Start',
@@ -42,6 +42,13 @@ describe('SSR web framework defaults', () => {
       presetValue: 'aws-lambda',
       wrapperType: 'tanstack-fetch',
       fallbackOutputVariants: [
+        {
+          serverOutputPath: 'dist/server',
+          staticOutputPath: 'dist/client',
+          staticAssetPrefix: 'assets',
+          handlerFileName: 'index.js',
+          wrapperType: 'tanstack-fetch'
+        },
         {
           serverOutputPath: '.output/server',
           staticOutputPath: '.output/public',
