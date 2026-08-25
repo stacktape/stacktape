@@ -3,7 +3,12 @@ import { mkdtemp, readFile, rm, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { NIXPACKS_BINARY_FILE_NAMES } from 'src/config/constants';
-import { BUN_COMPILE_TARGETS, OPENTUI_PLATFORM_IDENTIFIERS } from './release/build-cli-sources';
+import {
+  BUN_COMPILE_TARGETS,
+  bundledTypeScriptRuntimePath,
+  createTypeScriptRuntimeDedupePlugin,
+  OPENTUI_PLATFORM_IDENTIFIERS
+} from './release/build-cli-sources';
 import {
   EXPECTED_RELEASE_ARCHIVES,
   MAX_RELEASE_ARCHIVE_BYTES,
@@ -43,6 +48,14 @@ const readReleaseWorkflowModel = async () => {
 };
 
 describe('release candidate workflow', () => {
+  test('deduplicates workspace consumers onto one catalog-pinned TypeScript runtime', () => {
+    const plugin = createTypeScriptRuntimeDedupePlugin();
+    expect(plugin.name).toBe('stacktape-typescript-runtime-dedupe');
+    expect(bundledTypeScriptRuntimePath().replaceAll('\\', '/')).toEndWith(
+      '/node_modules/typescript/lib/typescript.js'
+    );
+  });
+
   test('bundles both Linux libc variants for cross-compiled candidates', () => {
     expect(OPENTUI_PLATFORM_IDENTIFIERS.linux).toEqual(['linux-x64', 'linux-x64-musl']);
     expect(OPENTUI_PLATFORM_IDENTIFIERS.alpine).toEqual(['linux-x64', 'linux-x64-musl']);

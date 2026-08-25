@@ -1,4 +1,5 @@
 import type { SupportedPlatform } from '@utils/platform';
+import type { BunPlugin } from 'bun';
 import { arch } from 'node:os';
 import { basename, join } from 'node:path';
 import {
@@ -153,6 +154,23 @@ export const BUN_COMPILE_TARGETS: { [_platform in SupportedPlatform]: Bun.Build.
 };
 
 /**
+ * Workspace packages have independent lockfiles and node_modules trees. Both packaging and config
+ * inference use the catalog-pinned TypeScript compiler at runtime, so resolving from each package
+ * would otherwise embed the same compiler twice in every release executable.
+ */
+export const bundledTypeScriptRuntimePath = (): string =>
+  join(import.meta.dir, '..', '..', '..', '..', 'node_modules', 'typescript', 'lib', 'typescript.js');
+
+export const createTypeScriptRuntimeDedupePlugin = (): BunPlugin => {
+  return {
+    name: 'stacktape-typescript-runtime-dedupe',
+    setup(build) {
+      build.onResolve({ filter: /^typescript$/ }, () => ({ path: bundledTypeScriptRuntimePath() }));
+    }
+  };
+};
+
+/**
  * The bundler resolves @opentui/core's native package from node_modules/@opentui. When cross-compiling, the
  * target platform's package is not installed at all (installers skip packages filtered by os/cpu), so it is
  * downloaded from npm. Building for the current platform reuses what is already installed.
@@ -251,6 +269,7 @@ export const buildBinaryFile = async ({
   const outputFileName = platform === 'win' ? 'stacktape.exe' : 'stacktape';
   const outputPath = join(outputFolderPath, outputFileName);
   const openTuiBuildPlugin = createStacktapeOpenTuiBuildPlugin();
+  const typeScriptRuntimeDedupePlugin = createTypeScriptRuntimeDedupePlugin();
 
   const result = await Bun.build({
     entrypoints: [entrypoint],
@@ -266,7 +285,7 @@ export const buildBinaryFile = async ({
     // Production executables do not ship their >70 MB source map. Minify syntax and whitespace while retaining
     // identifiers so PostHog exception grouping and stack traces still contain useful function/class names.
     minify: debug ? false : { whitespace: true, syntax: true, identifiers: false },
-    plugins: [openTuiBuildPlugin],
+    plugins: [openTuiBuildPlugin, typeScriptRuntimeDedupePlugin],
     tsconfig: localBuildTsConfigPath,
     define: { STACKTAPE_VERSION: JSON.stringify(version || 'dev') },
     throw: false

@@ -306,8 +306,8 @@ const unwrapConfigObject = (expression: ts.Expression): ts.Expression => {
  * Read only direct literal properties from a parse-clean React Router config.
  *
  * The TypeScript parser supplies the lexical boundaries, escape decoding, and object structure.
- * This keeps repository code inert and deliberately fails closed for identifiers, calls, spreads,
- * shorthand/computed properties, and other dynamic configuration.
+ * This keeps repository code inert and deliberately fails closed when a dynamic member could
+ * override relevant evidence. Unrelated named methods and shorthand properties are safe to ignore.
  */
 const exportedObjectProperties = (file: string, source: string): ReadonlyMap<string, LiteralProperty> => {
   const scriptKind =
@@ -326,9 +326,32 @@ const exportedObjectProperties = (file: string, source: string): ReadonlyMap<str
 
   const properties = new Map<string, LiteralProperty>();
   for (const property of config.properties) {
-    if (!ts.isPropertyAssignment(property)) return new Map();
+    if (ts.isSpreadAssignment(property)) return new Map();
     const name = property.name;
-    if (!ts.isIdentifier(name) && !ts.isStringLiteral(name)) return new Map();
+    if (ts.isComputedPropertyName(name)) return new Map();
+    if (!ts.isIdentifier(name) && !ts.isStringLiteral(name)) continue;
+
+    if (name.text === 'buildEnd') return new Map();
+    if (name.text === 'presets') {
+      if (
+        ts.isPropertyAssignment(property) &&
+        ts.isArrayLiteralExpression(property.initializer) &&
+        property.initializer.elements.length === 0
+      ) {
+        continue;
+      }
+      return new Map();
+    }
+    if (name.text !== 'ssr' && name.text !== 'buildDirectory') continue;
+    if (!ts.isPropertyAssignment(property)) return new Map();
+    if (
+      (name.text === 'ssr' &&
+        property.initializer.kind !== ts.SyntaxKind.FalseKeyword &&
+        property.initializer.kind !== ts.SyntaxKind.TrueKeyword) ||
+      (name.text === 'buildDirectory' && !ts.isStringLiteral(property.initializer))
+    ) {
+      return new Map();
+    }
     properties.set(name.text, { value: property.initializer, keyStart: name.getStart(sourceFile) });
   }
   return properties;
@@ -342,18 +365,27 @@ const configCitation = (file: string, source: string, property: LiteralProperty)
 
 const safeBuildDirectory = (value: string): string | undefined => {
   const normalized = value.replace(/^\.\//, '').replace(/\/+$/, '');
+  const segments = normalized.split('/');
+  const containsInvalidCharacter = [...normalized].some((character) => {
+    const codePoint = character.codePointAt(0)!;
+    return codePoint <= 0x1f || codePoint === 0x7f || '<>:"|?*'.includes(character);
+  });
   if (
     normalized === '' ||
     normalized.startsWith('/') ||
-    /^[A-Za-z]:/.test(normalized) ||
     normalized.includes('\\') ||
     normalized.includes('//') ||
-    normalized.split('/').includes('..')
+    containsInvalidCharacter ||
+    segments.includes('..') ||
+    segments.some(
+      (segment) =>
+        (segment !== '.' && /[ .]$/.test(segment)) || /^(?:con|prn|aux|nul|com[1-9]|lpt[1-9])(?:\.|$)/i.test(segment)
+    )
   ) {
     return undefined;
   }
-  const segments = normalized.split('/').filter((segment) => segment !== '' && segment !== '.');
-  return segments.join('/') || '.';
+  const meaningfulSegments = segments.filter((segment) => segment !== '' && segment !== '.');
+  return meaningfulSegments.join('/') || '.';
 };
 
 /** Build-only browser frameworks that produce a directory for `hosting-bucket`. */
