@@ -217,7 +217,14 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
       } else if (ts.isFunctionDeclaration(declaration) && declaration.body !== undefined && invoked) {
         inspectFunctionBody(declaration.body, mode);
       } else if (ts.isPropertyAssignment(declaration)) {
-        inspectExpression(declaration.initializer, mode);
+        const initializer = unwrapExpression(declaration.initializer);
+        if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) {
+          if (invoked || mode === 'config') inspectFunctionBody(initializer.body, mode);
+        } else {
+          inspectExpression(initializer, mode);
+        }
+      } else if (ts.isMethodDeclaration(declaration) && declaration.body !== undefined && invoked) {
+        inspectFunctionBody(declaration.body, mode);
       } else if (ts.isShorthandPropertyAssignment(declaration)) {
         const valueSymbol = checker.getShorthandAssignmentValueSymbol(declaration);
         if (valueSymbol !== undefined) inspectSymbolValue(valueSymbol, mode, invoked);
@@ -236,6 +243,11 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
       const callee = unwrapExpression(expression.expression);
       if (ts.isIdentifier(callee)) {
         const symbol = checker.getSymbolAtLocation(callee);
+        if (symbol !== undefined) inspectSymbolValue(symbol, mode, true);
+      } else if (ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee)) {
+        const symbol = checker.getSymbolAtLocation(
+          ts.isPropertyAccessExpression(callee) ? callee.name : callee.argumentExpression
+        );
         if (symbol !== undefined) inspectSymbolValue(symbol, mode, true);
       } else if (ts.isArrowFunction(callee) || ts.isFunctionExpression(callee)) {
         inspectFunctionBody(callee.body, mode);
@@ -326,6 +338,8 @@ const NODE_OPTIONS_WITH_VALUES = new Set([
   '-r',
   '--require',
   '--import',
+  '--env-file',
+  '--env-file-if-exists',
   '--loader',
   '--experimental-loader',
   '--conditions'
@@ -395,6 +409,17 @@ const executableName = (token: string): string => {
   return (normalized.split('/').at(-1) ?? normalized).replace(/\.(?:cmd|exe)$/i, '').toLowerCase();
 };
 
+const YARN_OPTIONS_WITH_VALUES = new Set(['--cwd', '--mutex', '--network-timeout', '--use-yarnrc']);
+
+const skipYarnOptions = (tokens: string[]): string[] => {
+  let remaining = tokens;
+  while (remaining[0]?.startsWith('-')) {
+    const option = remaining[0]!;
+    remaining = remaining.slice(!option.includes('=') && YARN_OPTIONS_WITH_VALUES.has(option.toLowerCase()) ? 2 : 1);
+  }
+  return remaining;
+};
+
 const unwrapInvocation = (tokens: string[]): CommandInvocation | undefined => {
   let remaining = [...tokens];
   while (remaining[0] !== undefined && isEnvironmentAssignment(remaining[0])) remaining = remaining.slice(1);
@@ -420,8 +445,9 @@ const unwrapInvocation = (tokens: string[]): CommandInvocation | undefined => {
     remaining = remaining.slice(2);
     while (remaining[0]?.startsWith('-')) remaining = remaining.slice(1);
     executable = executableName(remaining[0] ?? '');
-  } else if (executable === 'yarn' && remaining[1] !== undefined && remaining[1] !== 'run') {
-    remaining = remaining.slice(1);
+  } else if (executable === 'yarn') {
+    remaining = skipYarnOptions(remaining.slice(1));
+    if (remaining[0]?.toLowerCase() === 'run') remaining = skipYarnOptions(remaining.slice(1));
     executable = executableName(remaining[0] ?? '');
   }
   if (executable === '') return undefined;

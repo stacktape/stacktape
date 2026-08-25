@@ -905,6 +905,19 @@ describe('assembleCandidateFacts', () => {
         "import * as startPlugin from '@tanstack/react-start/plugin/vite';",
         'export const createStartPlugin = () => startPlugin.tanstackStart();',
         'export default { build: { lib: { entry: "src/index.ts" } }, plugins: [] };'
+      ].join('\n'),
+      'packages/uncalled-object-helper/package.json': startLibraryManifest('uncalled-object-helper'),
+      'packages/uncalled-object-helper/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'const helpers = { make: () => tanstackStart() };',
+        'export default { build: { lib: { entry: "src/index.ts" } }, plugins: [helpers.make] };'
+      ].join('\n'),
+      'packages/shadowed-object-helper/package.json': startLibraryManifest('shadowed-object-helper'),
+      'packages/shadowed-object-helper/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'const helpers = { make: () => tanstackStart() };',
+        'const createConfig = (helpers = { make: () => ({}) }) => ({ plugins: [helpers.make()] });',
+        'export default createConfig();'
       ].join('\n')
     });
 
@@ -977,12 +990,37 @@ describe('assembleCandidateFacts', () => {
         "import * as startPlugin from '@tanstack/vue-start/plugin/vite';",
         'const createStartPlugin = () => startPlugin.tanstackStart();',
         'export default { plugins: [createStartPlugin()] };'
+      ].join('\n'),
+      'apps/object-property/package.json': JSON.stringify({
+        name: 'object-property-start',
+        scripts: { build: 'vite build' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'apps/object-property/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'const helpers = { make: () => tanstackStart() };',
+        'export default { plugins: [helpers.make()] };'
+      ].join('\n'),
+      'apps/object-element/package.json': JSON.stringify({
+        name: 'object-element-start',
+        scripts: { build: 'vite build' },
+        dependencies: { '@tanstack/solid-start': '^1.168.49', 'solid-js': '^1.9.0' }
+      }),
+      'apps/object-element/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/solid-start/plugin/vite';",
+        'const helpers = { make() { return tanstackStart(); } };',
+        "export default { plugins: [helpers['make']()] };"
       ].join('\n')
     });
 
     const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
 
-    expect(facts.services.map((service) => service.name)).toEqual(['named-binding-start', 'namespace-helper-start']);
+    expect(facts.services.map((service) => service.name)).toEqual([
+      'named-binding-start',
+      'namespace-helper-start',
+      'object-element-start',
+      'object-property-start'
+    ]);
   });
 
   it('recognizes a called legacy namespace config import', async () => {
@@ -1055,9 +1093,24 @@ describe('assembleCandidateFacts', () => {
         scripts: { build: 'vite build', start: 'node --import ./register.mjs ./dist/server/server.js' },
         dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
       }),
+      'packages/env-file/package.json': JSON.stringify({
+        name: 'env-file',
+        scripts: { build: 'vite build', start: 'node --env-file .env ./dist/server/server.js' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
       'packages/yarn-vinxi/package.json': JSON.stringify({
         name: 'yarn-vinxi',
         scripts: { build: 'vite build', start: 'yarn vinxi start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/yarn-run-vinxi/package.json': JSON.stringify({
+        name: 'yarn-run-vinxi',
+        scripts: { build: 'vite build', start: 'yarn run vinxi start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/yarn-silent-vinxi/package.json': JSON.stringify({
+        name: 'yarn-silent-vinxi',
+        scripts: { build: 'vite build', start: 'yarn --silent vinxi start' },
         dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
       }),
       'packages/echo-node/package.json': JSON.stringify({
@@ -1069,15 +1122,28 @@ describe('assembleCandidateFacts', () => {
         name: 'yarn-echo',
         scripts: { build: 'vite build', start: 'yarn echo vinxi start' },
         dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/yarn-run-echo/package.json': JSON.stringify({
+        name: 'yarn-run-echo',
+        scripts: { build: 'vite build', start: 'yarn run echo vinxi start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/node-argument-decoy/package.json': JSON.stringify({
+        name: 'node-argument-decoy',
+        scripts: { build: 'vite build', start: 'node --env-file .env ./scripts/log.js ./dist/server/server.js' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
       })
     });
 
     const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
 
     expect(facts.services.map((service) => service.name)).toEqual([
+      'env-file',
       'import-hook',
       'real-server',
       'require-hook',
+      'yarn-run-vinxi',
+      'yarn-silent-vinxi',
       'yarn-vinxi'
     ]);
   });
