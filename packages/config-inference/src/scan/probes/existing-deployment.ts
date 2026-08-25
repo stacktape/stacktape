@@ -111,33 +111,54 @@ const normalizeWorkspacePattern = (value: string): string =>
   value.trim().replaceAll('\\', '/').replace(/^\.\//, '').replace(/\/$/, '');
 
 const workspaceSegmentMatches = (pattern: string, value: string): boolean => {
-  let source = '^';
+  // A regex translation makes adjacent `*` tokens adjacent greedy groups. A workspace pattern is
+  // untrusted repository input, so a harmless-looking run of stars can otherwise make init spend
+  // seconds backtracking. Dynamic programming keeps the same segment-local `*`/`?` semantics with
+  // work bounded by the pattern and path lengths.
+  let previous = Array.from({ length: value.length + 1 }, (_, index) => index === 0);
   for (const character of pattern) {
-    if (character === '*') source += '[^/]*';
-    else if (character === '?') source += '[^/]';
-    else source += character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const current = Array.from({ length: value.length + 1 }, () => false);
+    current[0] = character === '*' && previous[0]!;
+    for (let valueIndex = 1; valueIndex <= value.length; valueIndex += 1) {
+      current[valueIndex] =
+        character === '*'
+          ? previous[valueIndex]! || current[valueIndex - 1]!
+          : (character === '?' || character === value[valueIndex - 1]) && previous[valueIndex - 1]!;
+    }
+    previous = current;
   }
-  return new RegExp(`${source}$`).test(value);
+  return previous[value.length]!;
 };
 
 const workspacePatternMatches = (pattern: string, directory: string): boolean => {
   const patternSegments = normalizeWorkspacePattern(pattern).split('/');
   const directorySegments = normalizeWorkspacePattern(directory).split('/');
+  const memo = new Map<string, boolean>();
 
   const matches = (patternIndex: number, directoryIndex: number): boolean => {
-    if (patternIndex === patternSegments.length) return directoryIndex === directorySegments.length;
+    const key = `${patternIndex}:${directoryIndex}`;
+    const cached = memo.get(key);
+    if (cached !== undefined) return cached;
+
+    let result: boolean;
+    if (patternIndex === patternSegments.length) {
+      result = directoryIndex === directorySegments.length;
+      memo.set(key, result);
+      return result;
+    }
     const segment = patternSegments[patternIndex]!;
     if (segment === '**') {
-      return (
+      result =
         matches(patternIndex + 1, directoryIndex) ||
-        (directoryIndex < directorySegments.length && matches(patternIndex, directoryIndex + 1))
-      );
+        (directoryIndex < directorySegments.length && matches(patternIndex, directoryIndex + 1));
+    } else {
+      result =
+        directoryIndex < directorySegments.length &&
+        workspaceSegmentMatches(segment, directorySegments[directoryIndex]!) &&
+        matches(patternIndex + 1, directoryIndex + 1);
     }
-    return (
-      directoryIndex < directorySegments.length &&
-      workspaceSegmentMatches(segment, directorySegments[directoryIndex]!) &&
-      matches(patternIndex + 1, directoryIndex + 1)
-    );
+    memo.set(key, result);
+    return result;
   };
 
   return matches(0, 0);

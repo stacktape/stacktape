@@ -141,8 +141,8 @@ const mostSpecificServicesOwningPath = (services: readonly ServiceFact[], path: 
 const isSharedDependencyEvidence = (path: string): boolean => {
   const name = posix.basename(path);
   return (
-    !path.includes('/') &&
-    (/^(?:docker-)?compose\.ya?ml$/i.test(name) ||
+    /^(?:(?:\.docker|deploy|dev|docker|infra)\/)?(?:docker-)?compose\.ya?ml$/i.test(path) ||
+    (!path.includes('/') &&
       /^(?:\.env(?:[.-].*)?|env[.-](?:example|sample|template|defaults?)(?:[.-].*)?)$/i.test(name))
   );
 };
@@ -670,41 +670,67 @@ export const composeConfig = ({
   // A dependency used solely by a Worker, or not connected to any recognized service at all, is
   // part of the same unresolved topology. Keep dependencies required by a retained sibling, but do
   // not turn an SDK package hint into a convincing orphan database, queue, or bucket.
-  const dependencySelections = facts.dependencies.map((dependency) => {
-    if (cloudflareRuntimeConstraints.length === 0) return { original: dependency, selected: dependency };
-    if (dependency.consumedBy.length === 0) return { original: dependency };
+  const dependencySelections: Array<{
+    original: DependencyFact;
+    selected?: DependencyFact;
+    consumers: Set<ServiceFact>;
+  }> = facts.dependencies.map((dependency) => {
+    if (cloudflareRuntimeConstraints.length === 0) {
+      return {
+        original: dependency,
+        selected: dependency,
+        consumers: new Set(services.filter((service) => dependency.consumedBy.includes(service.name)))
+      };
+    }
+    if (dependency.consumedBy.length === 0) return { original: dependency, consumers: new Set() };
 
     const sharedEvidence = dependency.evidence.filter((citation) => isSharedDependencyEvidence(citation.file));
     const scopedEvidenceOwners = dependency.evidence
       .filter((citation) => !isSharedDependencyEvidence(citation.file))
       .flatMap((citation) => mostSpecificServicesOwningPath(facts.services, citation.file));
     const hasSharedEvidence = sharedEvidence.length > 0;
-    const retainedConsumerNames = dependency.consumedBy.filter((consumerName) => {
+    const consumers = new Set<ServiceFact>();
+    for (const consumerName of new Set(dependency.consumedBy)) {
       const matchingServices = facts.services.filter((service) => service.name === consumerName);
-      if (matchingServices.length === 0) return false;
+      if (matchingServices.length === 0) continue;
 
       const retainedMatches = matchingServices.filter((service) => services.includes(service));
-      if (retainedMatches.length === 0) return false;
-      const retainedEvidenceOwner = scopedEvidenceOwners.some(
-        (owner) => owner.name === consumerName && retainedMatches.includes(owner)
-      );
-      if (retainedMatches.length !== matchingServices.length) return retainedEvidenceOwner;
+      if (retainedMatches.length === 0) continue;
+      const namedEvidenceOwners = [...new Set(scopedEvidenceOwners.filter((owner) => owner.name === consumerName))];
 
-      // A root/shared descriptor can establish a unique consumer by name. Evidence scoped inside a
-      // different nested service cannot: keeping that name would later wire the dependency across
-      // application boundaries merely because two facts happened to mention it.
-      return hasSharedEvidence || retainedEvidenceOwner;
-    });
-    if (retainedConsumerNames.length === 0) return { original: dependency };
+      // App-local evidence identifies a service object, not merely its display name. This matters
+      // before completeness validation and after sanitization: two retained facts may have the same
+      // name, while only one owns the file that proves it consumes this dependency.
+      if (namedEvidenceOwners.length > 0) {
+        if (namedEvidenceOwners.length === 1 && retainedMatches.includes(namedEvidenceOwners[0]!)) {
+          consumers.add(namedEvidenceOwners[0]!);
+        }
+        continue;
+      }
+
+      // A shared descriptor has no app-local identity. It is safe only when the consumer name maps
+      // to exactly one service in the unsanitized topology; otherwise it could belong to a Worker
+      // we removed or to either of two same-name retained siblings.
+      if (hasSharedEvidence && matchingServices.length === 1) consumers.add(retainedMatches[0]!);
+    }
+    const retainedConsumerNames = dependency.consumedBy.filter((consumerName) =>
+      [...consumers].some((service) => service.name === consumerName)
+    );
+    if (retainedConsumerNames.length === 0) return { original: dependency, consumers };
     return {
       original: dependency,
       selected:
         retainedConsumerNames.length === dependency.consumedBy.length
           ? dependency
-          : { ...dependency, consumedBy: retainedConsumerNames }
+          : { ...dependency, consumedBy: retainedConsumerNames },
+      consumers
     };
   });
   const dependencies = dependencySelections.flatMap(({ selected }) => (selected === undefined ? [] : [selected]));
+  const dependencyConsumers = new Map<DependencyFact, Set<ServiceFact>>();
+  for (const { selected, consumers } of dependencySelections) {
+    if (selected !== undefined) dependencyConsumers.set(selected, consumers);
+  }
   const omittedCloudflareDependencies = dependencySelections.flatMap(({ original, selected }) =>
     selected === undefined ? [original] : []
   );
@@ -731,8 +757,8 @@ export const composeConfig = ({
   const composedDependencies = new Map<string, { kind: DependencyFact['kind']; resourceName: string }>();
   /** Newly composed RDS resources with no public address. External databases never enter this set. */
   const privateDatabaseResourceNames = new Set<string>();
-  /** Variables a service needs because we decided *not* to create what they address, by service name. */
-  const externalVariables = new Map<string, Array<{ name: string; value: unknown }>>();
+  /** Variables a service needs because we decided *not* to create what they address, by service identity. */
+  const externalVariables = new Map<ServiceFact, Array<{ name: string; value: unknown }>>();
   const unresolvedPulumiCompute =
     facts.services.length === 0 && facts.existingDeployments.some((deployment) => deployment.tool === 'pulumi');
   for (const dependency of dependencies) {
@@ -784,8 +810,8 @@ export const composeConfig = ({
         // `connectTo` has nothing to name — and a container deployed without `DATABASE_URL` starts,
         // crashes, and looks like our bug. The variable goes in as a secret reference: the user
         // already has the connection string, we have never read it, and the file stays coherent.
-        for (const serviceName of dependency.consumedBy) {
-          const forService = externalVariables.get(serviceName) ?? [];
+        for (const service of dependencyConsumers.get(dependency) ?? []) {
+          const forService = externalVariables.get(service) ?? [];
           for (const variableName of dependency.addressedBy) {
             const secretName = secretNameFor(variableName);
             if (secretName === undefined) continue;
@@ -794,11 +820,11 @@ export const composeConfig = ({
               value: `$Secret('${secretName}')`
             });
             gaps.push({
-              subject: `${serviceName}.${variableName}`,
+              subject: `${service.name}.${variableName}`,
               message: `${variableName} points at the database you already have, which we are leaving alone. Put its value in the ${secretName} secret before deploying.`
             });
           }
-          externalVariables.set(serviceName, forService);
+          externalVariables.set(service, forService);
         }
         continue;
       }
@@ -914,11 +940,11 @@ export const composeConfig = ({
     const name = resourceNames[index]!;
     const classification = classifyService(service);
     const connectTo = dependencies
-      .filter((dependency) => dependency.consumedBy.includes(service.name))
+      .filter((dependency) => dependencyConsumers.get(dependency)?.has(service))
       .map((dependency) => dependencyResourceNames.get(dependency.name))
       .filter((value): value is string => value !== undefined);
     const requiresVpc = dependencies.some((dependency) => {
-      if (!dependency.consumedBy.includes(service.name)) return false;
+      if (!dependencyConsumers.get(dependency)?.has(service)) return false;
       const resourceName = dependencyResourceNames.get(dependency.name);
       return (
         resourceName !== undefined && (privateDatabaseResourceNames.has(resourceName) || dependency.kind === 'redis')
@@ -932,7 +958,7 @@ export const composeConfig = ({
     });
     // The agent path may already have written the same variable from the service's own facts, so the
     // first entry for a name wins rather than the file carrying it twice.
-    for (const extra of externalVariables.get(service.name) ?? []) {
+    for (const extra of externalVariables.get(service) ?? []) {
       if (!environment.some((entry) => entry.name === extra.name)) environment.push(extra);
     }
 
