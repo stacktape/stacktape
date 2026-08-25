@@ -31,6 +31,7 @@ type SelectedCase = {
 };
 
 type ParsedOptions = {
+  runId: string;
   cases: SelectedCase[];
   lanes: QualificationLane[];
   awsScenarios: string[];
@@ -94,6 +95,7 @@ Options:
   --lanes=import,package,runtime,aws Requested lanes (package automatically includes import)
   --aws-scenario=<id>                Explicit AWS archetype; required for the aws lane; repeatable
   --output-dir=<path>                Durable JSON/Markdown results (default: .stacktape/qualification/<run>)
+  --run-id=<id>                      Explicit report identity (normally assigned by the sandbox or CI orchestrator)
   --cache-root=<path>                Persistent checkout cache
   --resume-from=<report.json>        Skip matching cases that already passed
   --shard=<index>/<total>            Deterministically run one shard, for example 2/10
@@ -116,6 +118,7 @@ const parseOptions = async (): Promise<ParsedOptions | 'list' | 'help' | 'sandbo
       lanes: { type: 'string' },
       'aws-scenario': { type: 'string', multiple: true },
       'output-dir': { type: 'string' },
+      'run-id': { type: 'string' },
       'cache-root': { type: 'string' },
       'resume-from': { type: 'string' },
       shard: { type: 'string' },
@@ -198,8 +201,15 @@ const parseOptions = async (): Promise<ParsedOptions | 'list' | 'help' | 'sandbo
     (id) => !AWS_QUALIFICATION_SCENARIOS.some((scenario) => scenario.id === id)
   );
   if (unknownScenarios.length > 0) throw new Error(`Unknown AWS scenarios: ${unknownScenarios.join(', ')}.`);
+  if (new Set(awsScenarios).size !== awsScenarios.length) {
+    throw new Error('AWS scenarios must be unique within one qualification run.');
+  }
 
   const runId = `qualification-${new Date().toISOString().replace(/[:.]/g, '-')}-${randomBytes(3).toString('hex')}`;
+  const reportRunId = values['run-id'] ?? runId;
+  if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(reportRunId)) {
+    throw new Error('--run-id must contain 1-128 letters, numbers, dots, underscores, or dashes.');
+  }
   const outputDirectory = resolve(
     invocationDirectory,
     values['output-dir'] ?? join(rootDirectory, '.stacktape', 'qualification', runId)
@@ -214,6 +224,7 @@ const parseOptions = async (): Promise<ParsedOptions | 'list' | 'help' | 'sandbo
       ? join(outputDirectory, 'workdirs')
       : join(tmpdir(), 'stacktape-project-qualification-work', runId);
   return {
+    runId: reportRunId,
     cases: !lanes.some((lane) => lane === 'import' || lane === 'package') && selectedIds.size === 0 ? [] : candidates,
     lanes,
     awsScenarios,
@@ -1048,12 +1059,13 @@ const main = async () => {
     globalSteps.filter((step) => step.status === 'skipped').length;
   const report: QualificationReport = {
     schemaVersion: QUALIFICATION_REPORT_VERSION,
-    runId: options.outputDirectory.split(/[\\/]/).at(-1) ?? 'qualification',
+    runId: options.runId,
     generatedAt: new Date().toISOString(),
     productCommit,
     productFingerprint,
     ...(options.manifests.length === 0 ? {} : { manifests: options.manifests }),
     lanes: options.lanes,
+    awsScenarios: options.awsScenarios,
     environment,
     summary: { passed, failed, skipped, durationMs: Date.now() - runStartedAt },
     globalSteps,

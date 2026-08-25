@@ -5,12 +5,13 @@ import { renderQualificationReport } from './report';
 describe('qualification report', () => {
   test('puts the failure, output tail, and exact reproduction command in the human report', () => {
     const report: QualificationReport = {
-      schemaVersion: 2,
+      schemaVersion: 3,
       runId: 'qualification-test',
       generatedAt: '2026-08-24T12:00:00.000Z',
       productCommit: 'abc123',
       productFingerprint: 'tree-fingerprint',
-      lanes: ['import', 'package'],
+      lanes: ['import', 'package', 'runtime'],
+      awsScenarios: [],
       environment: { platform: 'win32', architecture: 'x64', bun: '1.3.14', node: '24.0.0' },
       summary: { passed: 0, failed: 1, skipped: 0, durationMs: 1234 },
       globalSteps: [

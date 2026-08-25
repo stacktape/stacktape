@@ -36,6 +36,8 @@ export const DEFAULT_SANDBOX_MEMORY = '8g';
 export const DEFAULT_SANDBOX_CPUS = '4';
 export const DEFAULT_SANDBOX_PIDS_LIMIT = 2048;
 export const DEFAULT_SANDBOX_TIMEOUT_MS = 2 * 60 * 60_000;
+export const MAX_RESUME_STAGING_ENTRIES = 10_000;
+export const MAX_RESUME_STAGING_BYTES = 512 * 1024 ** 2;
 
 export const BLOCKED_HOST_GATEWAYS = [
   '169.254.169.254:127.0.0.1',
@@ -215,12 +217,7 @@ const replayArgsFor = (rawArgs: string[]) => {
       index++;
       continue;
     }
-    if (
-      argument.startsWith('--output-dir=') ||
-      argument === '--dry-run' ||
-      argument === '--rebuild-image' ||
-      argument === '--self-test'
-    ) {
+    if (argument.startsWith('--output-dir=') || argument === '--dry-run' || argument === '--rebuild-image') {
       continue;
     }
     replayArgs.push(argument);
@@ -239,7 +236,8 @@ const validateResumeCaseDirectory = (reportDirectory: string, result: Qualificat
     required.add('compiled-template.yml');
   }
   let totalBytes = 0;
-  for (const entry of readdirSync(caseDirectory, { withFileTypes: true })) {
+  const directoryEntries = readdirSync(caseDirectory, { withFileTypes: true });
+  for (const entry of directoryEntries) {
     if (!entry.isFile() || !allowed.has(entry.name)) {
       throw new Error(`Resume artifacts for ${result.id} contain an unexpected entry: ${entry.name}.`);
     }
@@ -264,7 +262,7 @@ const validateResumeCaseDirectory = (reportDirectory: string, result: Qualificat
   if (totalBytes > 512 * 1024 ** 2) {
     throw new Error(`Resume artifacts for ${result.id} exceed the 512 MiB staging limit.`);
   }
-  return caseDirectory;
+  return { caseDirectory, entries: directoryEntries.length, totalBytes };
 };
 
 export const parseSandboxedOptions = (argv: string[]): SandboxedQualificationParsedOptions => {
@@ -356,7 +354,8 @@ export const planSandboxExecution = ({
   invocationDirectory = process.cwd(),
   rootDirectory,
   runIdSuffix,
-  isSelfTest = false
+  isSelfTest = false,
+  hostReplayArgs
 }: {
   productCommit: string;
   rawArgs: string[];
@@ -364,6 +363,7 @@ export const planSandboxExecution = ({
   rootDirectory: string;
   runIdSuffix?: string;
   isSelfTest?: boolean;
+  hostReplayArgs?: string[];
 }): PlannedSandboxExecution => {
   const parsed = parseSandboxedOptions(rawArgs);
   const commit = productCommit.trim();
@@ -410,7 +410,11 @@ export const planSandboxExecution = ({
   const hostOutputDir = validateCanonicalPath(parsed.outputDir ?? defaultOutputDir, invocationDirectory);
 
   const stagedInputs: StagedInput[] = [];
-  const innerCommandArgs: string[] = ['--output-dir=/qualification/output', '--cache-root=/qualification/cache'];
+  const innerCommandArgs: string[] = [
+    '--output-dir=/qualification/output',
+    '--cache-root=/qualification/cache',
+    `--run-id=${runId}`
+  ];
 
   if (parsed.preset !== undefined) innerCommandArgs.push(`--preset=${parsed.preset}`);
   if (parsed.cases !== undefined) {
@@ -555,11 +559,24 @@ export const planSandboxExecution = ({
       isDirectory: false,
       label: 'resume-report'
     });
+    let resumeStagingEntries = 1;
+    let resumeStagingBytes = Buffer.byteLength(resumeText);
+    if (resumeStagingBytes > MAX_RESUME_STAGING_BYTES) {
+      throw new Error(`Resume report exceeds the ${MAX_RESUME_STAGING_BYTES}-byte campaign staging limit.`);
+    }
+    const selectedIds = new Set(expectedCaseIds);
     for (const result of resumeReport.cases) {
-      if (result.status !== 'passed') continue;
-      const caseDirectory = validateResumeCaseDirectory(reportDirectory, result);
+      if (result.status !== 'passed' || !selectedIds.has(result.id)) continue;
+      const validated = validateResumeCaseDirectory(reportDirectory, result);
+      resumeStagingEntries += validated.entries;
+      resumeStagingBytes += validated.totalBytes;
+      if (resumeStagingEntries > MAX_RESUME_STAGING_ENTRIES || resumeStagingBytes > MAX_RESUME_STAGING_BYTES) {
+        throw new Error(
+          `Selected resume artifacts exceed the ${MAX_RESUME_STAGING_ENTRIES}-entry or ${MAX_RESUME_STAGING_BYTES}-byte campaign staging limit.`
+        );
+      }
       stagedInputs.push({
-        hostPath: caseDirectory,
+        hostPath: validated.caseDirectory,
         containerRelativePath: `inputs/cases/${result.id}`,
         isDirectory: true,
         label: `resume-case-${result.id}`
@@ -697,7 +714,7 @@ export const planSandboxExecution = ({
     expectedCaseIds,
     hostReplay: {
       command: 'pnpm',
-      args: ['qualify:projects:sandboxed', '--', ...replayArgsFor(rawArgs)],
+      args: ['qualify:projects:sandboxed', '--', ...replayArgsFor(hostReplayArgs ?? rawArgs)],
       cwd: invocationDirectory
     },
     manifestMappings,

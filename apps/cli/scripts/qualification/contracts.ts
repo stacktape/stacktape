@@ -1,7 +1,7 @@
 import { isAbsolute, win32 } from 'node:path';
 import { z } from 'zod';
 
-export const QUALIFICATION_REPORT_VERSION = 2 as const;
+export const QUALIFICATION_REPORT_VERSION = 3 as const;
 
 export const qualificationLaneSchema = z.enum(['import', 'package', 'runtime', 'aws']);
 export type QualificationLane = z.infer<typeof qualificationLaneSchema>;
@@ -265,6 +265,7 @@ export const qualificationReportSchema = z
     productFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
     manifests: z.array(z.string()).optional(),
     lanes: z.array(qualificationLaneSchema),
+    awsScenarios: z.array(safeIdSchema),
     environment: z
       .object({
         platform: z.custom<NodeJS.Platform>((value) => typeof value === 'string'),
@@ -321,6 +322,56 @@ export const qualificationReportSchema = z
         path: ['lanes'],
         message: 'The package lane requires the import lane in the same report.'
       });
+    }
+
+    const expectedGlobalStepNames = [
+      ...(report.lanes.includes('runtime') ? (['runtime'] as const) : []),
+      ...report.awsScenarios.map(() => 'aws' as const)
+    ];
+    const actualGlobalStepNames = report.globalSteps.map((step) => step.name);
+    if (JSON.stringify(actualGlobalStepNames) !== JSON.stringify(expectedGlobalStepNames)) {
+      context.addIssue({
+        code: 'custom',
+        path: ['globalSteps'],
+        message: `Global steps must exactly match requested global lanes: ${expectedGlobalStepNames.join(', ') || 'none'}.`
+      });
+    }
+    if (new Set(report.awsScenarios).size !== report.awsScenarios.length) {
+      context.addIssue({ code: 'custom', path: ['awsScenarios'], message: 'AWS scenarios must be unique.' });
+    }
+    if (report.lanes.includes('aws') !== report.awsScenarios.length > 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['awsScenarios'],
+        message: 'The aws lane and its explicit scenarios must be declared together.'
+      });
+    }
+    for (const [index, step] of report.globalSteps.entries()) {
+      if (step.status === 'failed' && step.failure === undefined) {
+        context.addIssue({
+          code: 'custom',
+          path: ['globalSteps', index, 'failure'],
+          message: 'A failed global step must include structured failure evidence.'
+        });
+      }
+      if (step.status !== 'failed' && step.failure !== undefined) {
+        context.addIssue({
+          code: 'custom',
+          path: ['globalSteps', index, 'failure'],
+          message: 'Only a failed global step may include failure evidence.'
+        });
+      }
+      if (step.name === 'aws') {
+        const scenario = step.details?.scenario;
+        const expectedScenario = report.awsScenarios[index - (report.lanes.includes('runtime') ? 1 : 0)];
+        if (scenario !== expectedScenario) {
+          context.addIssue({
+            code: 'custom',
+            path: ['globalSteps', index, 'details', 'scenario'],
+            message: `AWS step must identify its requested scenario ${expectedScenario ?? '(missing)'}.`
+          });
+        }
+      }
     }
 
     const hasProjectLanes = report.lanes.includes('import') || report.lanes.includes('package');
