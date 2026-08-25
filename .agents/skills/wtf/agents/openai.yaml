@@ -1,0 +1,7 @@
+interface:
+  display_name: 'WTF'
+  short_description: 'Make agent messages clear and easy to follow'
+  default_prompt: 'Use $wtf for all user-facing writing in this task.'
+
+policy:
+  allow_implicit_invocation: true

@@ -93,15 +93,6 @@ submodule pointer as generated noise, and do not rewrite shared history without 
 
 ## Communication
 
-- Write for a mid-level or senior software engineer with working AWS knowledge. Explain project-specific context and do
-  not assume the reader remembers a long session.
-- Make the message easy and pleasant to follow. Use plain speech, active voice, and name the actor.
-- Prefer conventional subject-verb-object sentences. Avoid rhetorical flourishes and detached trailing fragments such as
-  “..., extracted”; state the action in a complete sentence instead.
-- Remove filler, unnecessary jargon, sycophancy, and chatbot phrases such as “Certainly” or “Found the smoking gun.”
-- Split dense sentences. If a reader must backtrack to parse one, shorten it.
-- Give sections a clear purpose and order. Do not turn a response into unrelated headings or a wall of text.
-- Group questions together, preferably at the end.
-
-In the handoff, state what behavior changed, which checks ran, and what remains uncertain. Mention new concepts only
-when they help the reader understand or maintain the result.
+At the start of every agent session, before the first user-facing update or response, read `.agents/skills/wtf/SKILL.md`
+completely and apply it to all user-facing writing. This requirement applies automatically; `$wtf` in Codex or `/wtf` in
+Claude Code can reapply the guide explicitly.
