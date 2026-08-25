@@ -1015,6 +1015,15 @@ describe('the existing-deployment probe', () => {
           exposesHttp: false,
           executionModel: 'per-request',
           functionEntrypoint: 'apps/lambda/handler.ts',
+          environmentVariables: [
+            {
+              name: 'DATABASE_URL',
+              role: 'infra-dependency',
+              dependencyName: 'mainDatabase',
+              required: true,
+              evidence: [{ file: 'apps/lambda/handler.ts', line: 1, quote: 'DATABASE_URL' }]
+            }
+          ],
           evidence: [{ file: 'apps/lambda/package.json', line: 1, quote: 'api' }],
           source: 'probe'
         },
@@ -1061,16 +1070,24 @@ describe('the existing-deployment probe', () => {
     expect(composed.config.resources.api).toMatchObject({ type: 'function' });
     expect(composed.config.resources.api?.properties.connectTo).toBeUndefined();
     expect(composed.config.resources.api?.properties.joinDefaultVpc).toBeUndefined();
+    expect(composed.config.resources.api?.properties.environment).toBeUndefined();
     expect(composed.config.resources.api2).toMatchObject({
       type: 'web-service',
       properties: { connectTo: ['mainDatabase'] }
     });
+    expect(composed.config.resources.api2?.properties.environment).toBeUndefined();
     expect(composed.recommendedPreferences.databaseAccess).toBe('private');
     expect(composed.preferences.databaseAccess).toBe('private');
     expect(composed.config.resources.mainDatabase?.properties).toMatchObject({
       accessibility: { accessibilityMode: 'vpc', forceDisablePublicIp: true }
     });
     expect(composed.config.resources.databaseBastion?.type).toBe('bastion');
+    expect(composed.gaps).toContainEqual(
+      expect.objectContaining({
+        subject: 'mainDatabase.address',
+        message: expect.stringContaining('code does not read a configurable address')
+      })
+    );
     expect(composed.deployable).toBe(false);
   });
 

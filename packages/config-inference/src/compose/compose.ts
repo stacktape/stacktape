@@ -343,18 +343,28 @@ const environmentFor = (
   service: ServiceFact,
   context: {
     serviceResourceNames: ReadonlyMap<string, string>;
-    /** Dependencies we are creating: fact name → its kind and the resource name it composed into. */
-    composedDependencies: ReadonlyMap<string, { kind: DependencyFact['kind']; resourceName: string }>;
+    dependencies: readonly DependencyFact[];
+    dependencyConsumers: ReadonlyMap<DependencyFact, ReadonlySet<ServiceFact>>;
+    /** Dependencies we are creating, keyed by exact fact identity rather than its display name. */
+    composedDependencies: ReadonlyMap<DependencyFact, { kind: DependencyFact['kind']; resourceName: string }>;
     projectName: string | undefined;
   }
 ): Array<{ name: string; value: unknown }> => {
-  const { serviceResourceNames, composedDependencies, projectName } = context;
+  const { serviceResourceNames, dependencies, dependencyConsumers, composedDependencies, projectName } = context;
   const variables: Array<{ name: string; value: unknown }> = [];
 
   for (const variable of service.environmentVariables) {
     if (variable.role === 'infra-dependency') {
       if (variable.dependencyName === undefined) continue;
-      const composed = composedDependencies.get(variable.dependencyName);
+      const ownedDependencies = dependencies.filter(
+        (dependency) =>
+          dependency.name === variable.dependencyName && dependencyConsumers.get(dependency)?.has(service) === true
+      );
+      // Duplicate display names are tolerated for an honest, non-deployable review result. A
+      // variable is safe to wire only when the source-evidence graph identifies one exact consumer
+      // and one exact dependency; name equality alone can otherwise inject another app's database.
+      if (ownedDependencies.length !== 1) continue;
+      const composed = composedDependencies.get(ownedDependencies[0]!);
       if (composed === undefined) {
         const secretName = secretNameFor(variable.name);
         if (secretName !== undefined) {
@@ -762,6 +772,8 @@ export const composeConfig = ({
   const composedDependencyNames = new Set<string>();
   /** The same set with the kind and resource name attached, for wiring variables to parameters. */
   const composedDependencies = new Map<string, { kind: DependencyFact['kind']; resourceName: string }>();
+  /** Identity-keyed view used where duplicate service names make a name-only relationship unsafe. */
+  const composedDependenciesByFact = new Map<DependencyFact, { kind: DependencyFact['kind']; resourceName: string }>();
   /** Newly composed RDS resources with no public address. External databases never enter this set. */
   const privateDatabaseResourceNames = new Set<string>();
   /** Variables a service needs because we decided *not* to create what they address, by service identity. */
@@ -859,6 +871,10 @@ export const composeConfig = ({
     dependencyResourceNames.set(dependency.name, name);
     composedDependencyNames.add(dependency.name);
     composedDependencies.set(dependency.name, {
+      kind: dependency.kind,
+      resourceName: name
+    });
+    composedDependenciesByFact.set(dependency, {
       kind: dependency.kind,
       resourceName: name
     });
@@ -960,7 +976,9 @@ export const composeConfig = ({
 
     const environment = environmentFor(service, {
       serviceResourceNames,
-      composedDependencies,
+      dependencies,
+      dependencyConsumers,
+      composedDependencies: composedDependenciesByFact,
       projectName
     });
     // The agent path may already have written the same variable from the service's own facts, so the
@@ -986,9 +1004,16 @@ export const composeConfig = ({
       .toSorted((left, right) => left.name.localeCompare(right.name));
 
     for (const variable of service.environmentVariables) {
+      const ownsDependency =
+        variable.dependencyName !== undefined &&
+        dependencies.some(
+          (dependency) =>
+            dependency.name === variable.dependencyName && dependencyConsumers.get(dependency)?.has(service) === true
+        );
       if (
         variable.role === 'infra-dependency' &&
         variable.dependencyName !== undefined &&
+        ownsDependency &&
         !composedDependencyNames.has(variable.dependencyName) &&
         // The kept-external branch above says this better, naming the provider it is leaving alone.
         !gaps.some((gap) => gap.subject === `${service.name}.${variable.name}`)
@@ -1104,19 +1129,16 @@ export const composeConfig = ({
 
   for (const dependency of dependencies) {
     if (!ADDRESS_REQUIRED_KINDS.has(dependency.kind) || !composedDependencyNames.has(dependency.name)) continue;
-    const consumersWithoutAddress = dependency.consumedBy.filter((serviceName) => {
-      const service = services.find((candidate) => candidate.name === serviceName);
-      return (
-        service !== undefined &&
+    const consumersWithoutAddress = [...(dependencyConsumers.get(dependency) ?? [])].filter(
+      (service) =>
         !service.environmentVariables.some(
           (variable) => variable.role === 'infra-dependency' && variable.dependencyName === dependency.name
         )
-      );
-    });
+    );
     if (consumersWithoutAddress.length === 0) continue;
     gaps.push({
       subject: `${dependency.name}.address`,
-      message: `${consumersWithoutAddress.join(', ')} uses ${dependencyLabel(dependency.kind)}, but the code does not read a configurable address for it. Stacktape will create it and grant access; update the app to read the connection details injected by connectTo before deploying.`
+      message: `${consumersWithoutAddress.map((service) => service.name).join(', ')} uses ${dependencyLabel(dependency.kind)}, but the code does not read a configurable address for it. Stacktape will create it and grant access; update the app to read the connection details injected by connectTo before deploying.`
     });
   }
 
