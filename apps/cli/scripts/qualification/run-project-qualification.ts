@@ -1,11 +1,12 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { chmod, copyFile, cp, mkdir, readFile, rm } from 'node:fs/promises';
+import { chmod, copyFile, cp, mkdir, readFile, rm, stat } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
 import { parseCliJsonl } from '../verify-source-cli-aws-readonly';
 import { AWS_QUALIFICATION_SCENARIOS, BUILT_IN_CASES, casesForPreset } from './catalog';
 import {
+  MAX_QUALIFICATION_REPORT_BYTES,
   QUALIFICATION_REPORT_VERSION,
   qualificationLaneSchema,
   qualificationManifestSchema,
@@ -69,7 +70,9 @@ const normalizeLanes = (raw: string | undefined): QualificationLane[] => {
     .filter(Boolean)
     .map((lane) => qualificationLaneSchema.parse(lane));
   if (requested.includes('package') && !requested.includes('import')) requested.unshift('import');
-  return [...new Set(requested)];
+  const lanes = [...new Set(requested)];
+  if (lanes.length === 0) throw new Error('Qualification requires at least one lane.');
+  return lanes;
 };
 
 const readManifest = async (path: string) => {
@@ -180,6 +183,20 @@ const parseOptions = async (): Promise<ParsedOptions | 'list' | 'help' | 'sandbo
   }
 
   const lanes = normalizeLanes(values.lanes);
+  const hasProjectLanes = lanes.some((lane) => lane === 'import' || lane === 'package');
+  if (
+    !hasProjectLanes &&
+    (selectedIds.size > 0 ||
+      manifestPaths.length > 0 ||
+      preset !== undefined ||
+      values.shard !== undefined ||
+      values['max-cases'] !== undefined ||
+      values['resume-from'] !== undefined ||
+      values['keep-workdirs'] ||
+      values['fail-fast'])
+  ) {
+    throw new Error('Project selection and resume options require the import or package lane.');
+  }
   if (candidates.length === 0 && lanes.some((lane) => lane === 'import' || lane === 'package')) {
     throw new Error('No project cases remain after applying selection, shard, and maximum-case filters.');
   }
@@ -225,7 +242,7 @@ const parseOptions = async (): Promise<ParsedOptions | 'list' | 'help' | 'sandbo
       : join(tmpdir(), 'stacktape-project-qualification-work', runId);
   return {
     runId: reportRunId,
-    cases: !lanes.some((lane) => lane === 'import' || lane === 'package') && selectedIds.size === 0 ? [] : candidates,
+    cases: hasProjectLanes ? candidates : [],
     lanes,
     awsScenarios,
     outputDirectory,
@@ -282,6 +299,12 @@ const loadResumableCases = async (path: string | undefined) => {
     { result: QualificationCaseResult; reportPath: string; reportDirectory: string; runId: string }
   >();
   if (path === undefined) return cases;
+  const metadata = await stat(path);
+  if (!metadata.isFile() || metadata.size > MAX_QUALIFICATION_REPORT_BYTES) {
+    throw new Error(
+      `Resume qualification report must be a file no larger than ${MAX_QUALIFICATION_REPORT_BYTES} bytes.`
+    );
+  }
   const parsed = qualificationReportSchema.parse(JSON.parse(await readFile(path, 'utf8')));
   for (const candidate of parsed.cases) {
     if (candidate.status === 'passed') {
