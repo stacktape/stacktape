@@ -638,6 +638,8 @@ export const planSandboxExecution = ({
     '/run:rw,noexec,nosuid,size=64m',
     '--tmpfs',
     '/home/node:rw,exec,nosuid,size=1g',
+    '--tmpfs',
+    '/workspace/apps/cli/.stacktape:rw,exec,nosuid,size=4g,uid=1000,gid=1000,mode=0700',
     '-v',
     `${inputVolumeName}:/qualification/inputs:ro`,
     '-v',
@@ -773,6 +775,12 @@ export const assertPlannedSecurity = (planned: PlannedSandboxExecution) => {
 
   if (!planned.runnerArgs.includes('--security-opt=no-new-privileges:true')) {
     throw new Error('Sandbox plan violation: runner container must enforce --security-opt=no-new-privileges:true.');
+  }
+
+  if (
+    !planned.runnerArgs.includes('/workspace/apps/cli/.stacktape:rw,exec,nosuid,size=4g,uid=1000,gid=1000,mode=0700')
+  ) {
+    throw new Error('Sandbox plan violation: CLI project state must use its dedicated disposable tmpfs.');
   }
 
   if (!planned.runnerArgs.includes(`${planned.inputVolumeName}:/qualification/inputs:ro`)) {
