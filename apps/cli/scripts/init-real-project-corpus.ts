@@ -37,6 +37,7 @@ type CorpusResult = {
     language: string;
     framework?: string;
     exposesHttp: boolean;
+    port?: number;
     executionModel: string;
     processType?: string;
     buildCommand?: string;
@@ -310,6 +311,7 @@ const summarise = async (corpusCase: RealProjectCorpusCase, checkout: string): P
         language: service.language,
         ...(service.framework === undefined ? {} : { framework: service.framework }),
         exposesHttp: service.exposesHttp,
+        ...(service.port === undefined ? {} : { port: service.port }),
         executionModel: service.executionModel,
         ...(service.processType === undefined ? {} : { processType: service.processType }),
         ...(service.buildCommand === undefined ? {} : { buildCommand: service.buildCommand }),
