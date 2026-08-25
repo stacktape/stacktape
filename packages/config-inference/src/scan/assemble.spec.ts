@@ -622,6 +622,63 @@ describe('assembleCandidateFacts', () => {
     expect(facts.services).toEqual([]);
   });
 
+  it('does not treat a type-only Start import in a library Vite config as deployment evidence', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'start-adapter-library',
+        private: true,
+        scripts: { build: 'vite build && tsc --emitDeclarationOnly' },
+        dependencies: {
+          '@tanstack/react-start': '^1.168.49',
+          react: '^19.0.0'
+        },
+        devDependencies: {
+          typescript: '^6.0.0',
+          vite: '^8.0.14',
+          'vite-plugin-dts': '^4.5.4'
+        }
+      }),
+      'vite.config.ts': [
+        "import type { AnyStartInstance } from '@tanstack/react-start';",
+        "import dts from 'vite-plugin-dts';",
+        "export default { plugins: [dts()], build: { lib: { entry: 'src/index.ts' } } };"
+      ].join('\n'),
+      'src/index.ts': 'export type AdapterOptions = { start?: AnyStartInstance };'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('does not treat an unrelated start script as proof of a TanStack Start server', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'component-library',
+        private: true,
+        scripts: {
+          build: 'vite build && tsc --emitDeclarationOnly',
+          start: 'storybook dev -p 6006'
+        },
+        dependencies: {
+          '@tanstack/react-start': '^1.168.49',
+          react: '^19.0.0'
+        },
+        devDependencies: {
+          storybook: '^10.0.0',
+          typescript: '^6.0.0',
+          vite: '^8.0.14'
+        }
+      }),
+      'vite.config.ts': "export default { build: { lib: { entry: 'src/index.ts' } } };",
+      'src/index.ts': 'export const component = true;'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services).toEqual([]);
+  });
+
   it('keeps a build-only Start deployment when its Vite config proves the framework plugin', async () => {
     const repoRoot = await makeRepo({
       'package.json': JSON.stringify({
@@ -649,6 +706,33 @@ describe('assembleCandidateFacts', () => {
       buildCommand: 'npm run build'
     });
     expect(facts.services[0]?.startCommand).toBeUndefined();
+  });
+
+  it('keeps a legacy build-only Start deployment configured through @tanstack/start/config', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'legacy-tanstack-app',
+        scripts: { build: 'vinxi build', dev: 'vinxi dev' },
+        dependencies: {
+          '@tanstack/start': '^1.120.20',
+          '@tanstack/react-router': '^1.120.20',
+          react: '^19.0.0'
+        }
+      }),
+      'app.config.ts': [
+        "import { defineConfig } from '@tanstack/start/config';",
+        'export default defineConfig({});'
+      ].join('\n'),
+      'src/routes/index.tsx': 'export const Route = {};'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services[0]).toMatchObject({
+      name: 'legacy-tanstack-app',
+      framework: 'tanstack-start',
+      buildCommand: 'npm run build'
+    });
   });
 
   it('resolves framework ambiguity between @solidjs/start and @tanstack/solid-start via config plugins', async () => {
@@ -713,5 +797,33 @@ describe('assembleCandidateFacts', () => {
 
     const { facts: nextFacts } = await assembleCandidateFacts({ root: nextRepo, probes: PROBES });
     expect(nextFacts.services[0]?.framework).toBe('nextjs');
+  });
+
+  it('prefers an active TanStack Vite plugin over a stale Next.js config', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'migrated-app',
+        scripts: { build: 'vite build', dev: 'vite dev' },
+        dependencies: {
+          '@tanstack/react-start': '^1.168.49',
+          next: '^15.0.0',
+          react: '^19.0.0'
+        }
+      }),
+      'next.config.js': 'module.exports = {};',
+      'vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'export default { plugins: [tanstackStart()] };'
+      ].join('\n'),
+      'src/routes/index.tsx': 'export const Route = {};'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services[0]).toMatchObject({
+      name: 'migrated-app',
+      framework: 'tanstack-start',
+      buildCommand: 'npm run build'
+    });
   });
 });

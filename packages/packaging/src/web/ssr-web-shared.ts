@@ -117,12 +117,14 @@ export const resolveSsrWebOutputVariant = async (buildConfig: SsrWebBuildConfig)
     ...(buildConfig.fallbackOutputVariants ?? [])
   ];
   const availability = await Promise.all(
-    outputVariants.map(({ serverOutputPath }) => pathExists(join(buildConfig.workingDir, serverOutputPath)))
+    outputVariants.map(({ serverOutputPath, handlerFileName }) =>
+      pathExists(join(buildConfig.workingDir, serverOutputPath, handlerFileName))
+    )
   );
   const selectedIndex = availability.findIndex(Boolean);
   if (selectedIndex === -1) {
     throw new Error(
-      `The build completed without creating any supported server output (${outputVariants.map(({ serverOutputPath }) => serverOutputPath).join(', ')}).${buildConfig.adapterConfigurationHint ? ` ${buildConfig.adapterConfigurationHint}` : ''}`
+      `The build completed without creating any supported server handler (${outputVariants.map(({ serverOutputPath, handlerFileName }) => `${serverOutputPath.replace(/[\\/]$/, '')}/${handlerFileName}`).join(', ')}).${buildConfig.adapterConfigurationHint ? ` ${buildConfig.adapterConfigurationHint}` : ''}`
     );
   }
   return { ...buildConfig, ...outputVariants[selectedIndex] };

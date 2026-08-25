@@ -203,9 +203,12 @@ describe('SSR Lambda wrappers', () => {
 });
 
 describe('SSR build output organization', () => {
-  test('falls back to a supported legacy output only when the primary output is absent', async () => {
+  test('falls back when a stale primary directory does not contain its required handler', async () => {
     const root = await createRoot();
+    await mkdir(join(root, 'dist', 'server'), { recursive: true });
+    await writeFile(join(root, 'dist', 'server', 'stale.txt'), 'stale');
     await mkdir(join(root, '.output', 'server'), { recursive: true });
+    await writeFile(join(root, '.output', 'server', 'index.mjs'), 'export const handler = () => {};');
     const buildConfig: SsrWebBuildConfig = {
       buildCommand: 'unused',
       workingDir: root,
@@ -232,6 +235,67 @@ describe('SSR build output organization', () => {
       staticAssetPrefix: '_build',
       wrapperType: 'passthrough'
     });
+  });
+
+  test('prefers the current output when both current and legacy handlers exist', async () => {
+    const root = await createRoot();
+    await mkdir(join(root, 'dist', 'server'), { recursive: true });
+    await writeFile(join(root, 'dist', 'server', 'server.js'), 'export default { fetch() {} };');
+    await mkdir(join(root, '.output', 'server'), { recursive: true });
+    await writeFile(join(root, '.output', 'server', 'index.mjs'), 'export const handler = () => {};');
+
+    const buildConfig: SsrWebBuildConfig = {
+      buildCommand: 'unused',
+      workingDir: root,
+      serverOutputPath: 'dist/server',
+      staticOutputPath: 'dist/client',
+      handlerFileName: 'server.js',
+      staticAssetPrefix: 'assets',
+      wrapperType: 'tanstack-fetch',
+      fallbackOutputVariants: [
+        {
+          serverOutputPath: '.output/server',
+          staticOutputPath: '.output/public',
+          handlerFileName: 'index.mjs',
+          staticAssetPrefix: '_build',
+          wrapperType: 'passthrough'
+        }
+      ]
+    };
+
+    expect(await resolveSsrWebOutputVariant(buildConfig)).toMatchObject({
+      serverOutputPath: 'dist/server',
+      handlerFileName: 'server.js',
+      wrapperType: 'tanstack-fetch'
+    });
+  });
+
+  test('rejects output directories that do not contain a supported handler', async () => {
+    const root = await createRoot();
+    await mkdir(join(root, 'dist', 'server'), { recursive: true });
+    await mkdir(join(root, '.output', 'server'), { recursive: true });
+    const buildConfig: SsrWebBuildConfig = {
+      buildCommand: 'unused',
+      workingDir: root,
+      serverOutputPath: 'dist/server',
+      staticOutputPath: 'dist/client',
+      handlerFileName: 'server.js',
+      staticAssetPrefix: 'assets',
+      wrapperType: 'tanstack-fetch',
+      fallbackOutputVariants: [
+        {
+          serverOutputPath: '.output/server',
+          staticOutputPath: '.output/public',
+          handlerFileName: 'index.mjs',
+          staticAssetPrefix: '_build',
+          wrapperType: 'passthrough'
+        }
+      ]
+    };
+
+    await expect(resolveSsrWebOutputVariant(buildConfig)).rejects.toThrow(
+      'dist/server/server.js, .output/server/index.mjs'
+    );
   });
 
   test('separates a server directory nested inside the static output', async () => {

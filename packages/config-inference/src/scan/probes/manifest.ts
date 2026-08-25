@@ -289,8 +289,14 @@ const DEDICATED_WEB_FRAMEWORKS = new Set([
   'nestjs'
 ]);
 
-const TANSTACK_START_CONFIG_IMPORT = /['"]@tanstack\/(?:(?:react|solid|vue)-start|start)(?:\/[^'"]*)?['"]/;
-const SOLID_START_CONFIG_IMPORT = /['"]@solidjs\/start(?:\/[^'"]*)?['"]/;
+// A base Start-package import can be a type or helper used by a library. Deployment evidence is
+// narrower: current applications install the framework's Vite plugin, while the legacy package
+// configured applications through its dedicated config entrypoint.
+const TANSTACK_START_CONFIG_IMPORT =
+  /import\s*\{[^}]*\btanstackStart\b[^}]*\}\s*from\s*['"]@tanstack\/(?:react|solid|vue)-start\/plugin\/vite['"]|import\s*\{[^}]*\bdefineConfig\b[^}]*\}\s*from\s*['"]@tanstack\/start\/config['"]/;
+const SOLID_START_CONFIG_IMPORT = /import\s*\{[^}]*\bdefineConfig\b[^}]*\}\s*from\s*['"]@solidjs\/start\/config['"]/;
+const START_FRAMEWORK_PRODUCTION_COMMAND =
+  /(?:^|[\s;&|])(?:vinxi\s+(?:start|serve)|node(?:\.exe)?\s+(?:\.\/)?\.output[\\/]server[\\/]index\.mjs|tanstack\s+start)(?:\s|$)/i;
 
 const readFrameworkConfigContents = async (manifest: ParsedManifest, context: ProbeContext): Promise<string> => {
   const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
@@ -318,7 +324,9 @@ const resolveFramework = async (
   if (candidateList.length === 1) return candidateList[0];
 
   const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
-  const scripts = Object.values(manifest.scripts).join(' ');
+  const scripts = [manifest.scripts.build, manifest.scripts.start, manifest.scripts.dev]
+    .filter((script): script is string => typeof script === 'string')
+    .join(' ');
 
   // 1. Script signals
   if (/\bnext(?:\s|$)/.test(scripts) && candidateList.some((c) => c.name === 'nextjs')) {
@@ -337,7 +345,22 @@ const resolveFramework = async (
     return candidateList.find((c) => c.name === 'sveltekit');
   }
 
-  // 2. Config files
+  // 2. Exact framework configuration imports. These are stronger than a conventional config
+  // filename, which is often left behind during a framework migration.
+  if (
+    TANSTACK_START_CONFIG_IMPORT.test(frameworkConfigContents) &&
+    candidateList.some((candidate) => candidate.name === 'tanstack-start')
+  ) {
+    return candidateList.find((candidate) => candidate.name === 'tanstack-start');
+  }
+  if (
+    SOLID_START_CONFIG_IMPORT.test(frameworkConfigContents) &&
+    candidateList.some((candidate) => candidate.name === 'solid-start')
+  ) {
+    return candidateList.find((candidate) => candidate.name === 'solid-start');
+  }
+
+  // 3. Conventional config files
   const dirFiles = context.files
     .filter((file) => file.startsWith(manifestPrefix))
     .map((file) => file.slice(manifestPrefix.length));
@@ -359,21 +382,6 @@ const resolveFramework = async (
   }
   if (dirFiles.some((f) => /^astro\.config\.[cm]?[jt]sx?$/i.test(f)) && candidateList.some((c) => c.name === 'astro')) {
     return candidateList.find((c) => c.name === 'astro');
-  }
-
-  // 3. Inspect every local framework config for exact package imports. Reading all of them avoids
-  // choosing a stale app.config over the Vite config that actually owns a migrated application.
-  if (
-    TANSTACK_START_CONFIG_IMPORT.test(frameworkConfigContents) &&
-    candidateList.some((candidate) => candidate.name === 'tanstack-start')
-  ) {
-    return candidateList.find((candidate) => candidate.name === 'tanstack-start');
-  }
-  if (
-    SOLID_START_CONFIG_IMPORT.test(frameworkConfigContents) &&
-    candidateList.some((candidate) => candidate.name === 'solid-start')
-  ) {
-    return candidateList.find((candidate) => candidate.name === 'solid-start');
   }
 
   return candidateList[0];
@@ -459,10 +467,14 @@ export const manifestProbe: Probe = {
           : frameworkEntry?.name === 'solid-start'
             ? SOLID_START_CONFIG_IMPORT.test(frameworkConfigContents)
             : false;
+      const hasMatchingStartCommand =
+        isStartFramework &&
+        typeof manifest.scripts.start === 'string' &&
+        START_FRAMEWORK_PRODUCTION_COMMAND.test(manifest.scripts.start);
       // Start packages also expose APIs used by shared libraries. A generic Vite/tsc build or dev
-      // script does not prove that package is an SSR application. Require either the production
-      // start command or the framework's exact config import before emitting a paid web resource.
-      const startPackageWithoutEvidence = isStartFramework && !hasStart && !hasMatchingStartConfig;
+      // script does not prove that package is an SSR application. Require either a recognized
+      // framework server command or the framework's exact config import before emitting a paid web resource.
+      const startPackageWithoutEvidence = isStartFramework && !hasMatchingStartCommand && !hasMatchingStartConfig;
       const runnable = (staticSite !== undefined || hasStart || exposesHttp) && !startPackageWithoutEvidence;
       // Root scripts such as `turbo run start` orchestrate child packages; they are not a third
       // deployable service. A real root app still has its own framework signal and survives this.
