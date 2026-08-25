@@ -314,7 +314,7 @@ export const mergeAgentSubmission = ({
   for (const submitted of submission.services) {
     const existingIndex = servicesByPath.get(submitted.path);
     if (existingIndex === undefined) {
-      services.push({ ...submitted, source: 'agent' });
+      services.push({ ...submitted, runtimePortabilityConstraints: [], source: 'agent' });
       servicesByPath.set(submitted.path, services.length - 1);
       continue;
     }
@@ -363,6 +363,9 @@ export const mergeAgentSubmission = ({
       servesStaticAssets: existing.servesStaticAssets ?? submitted.servesStaticAssets,
       writesLocalFilesystem: existing.writesLocalFilesystem ?? submitted.writesLocalFilesystem,
       bundledLifecycle: existing.bundledLifecycle,
+      // Runtime portability constraints are source-proven and probe-only. Agent enrichment cannot
+      // remove, weaken, or manufacture them.
+      runtimePortabilityConstraints: existing.runtimePortabilityConstraints,
       longLivedConnections:
         existing.longLivedConnections === 'none' ? submitted.longLivedConnections : existing.longLivedConnections,
       exposesHttp: existing.exposesHttp || submitted.exposesHttp,

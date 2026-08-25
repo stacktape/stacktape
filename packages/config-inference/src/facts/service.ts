@@ -15,6 +15,15 @@
 import { z } from 'zod';
 import { citationSchema, factSourceSchema } from './citation';
 
+/** Normalize framework-specific hierarchical and camel-case setting names for semantic matching. */
+export const normalizedEnvironmentVariableName = (name: string): string =>
+  name
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toUpperCase();
+
 /**
  * What a variable is *for*, which decides where its value has to come from and when.
  *
@@ -74,6 +83,23 @@ export const environmentVariableUseSchema = z.object({
 });
 
 export type EnvironmentVariableUse = z.infer<typeof environmentVariableUseSchema>;
+
+/**
+ * Source-proven runtime assumptions that a managed AWS replacement does not satisfy automatically.
+ *
+ * These are probe-only facts. An agent cannot add them through `serviceShape`, because a repository
+ * must not be able to manufacture a blocking warning through agent-authored output. The composer
+ * uses them to keep a useful partial configuration while preventing a misleading ready-to-deploy
+ * result.
+ */
+export const runtimePortabilityConstraintSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('object-storage-explicit-credentials-and-endpoint'),
+    evidence: z.array(citationSchema).default([])
+  })
+]);
+
+export type RuntimePortabilityConstraint = z.infer<typeof runtimePortabilityConstraintSchema>;
 
 /**
  * How often and for how long the process runs.
@@ -331,6 +357,8 @@ export const serviceFactSchema = z
         backgroundProcesses: z.boolean()
       })
       .optional(),
+    /** Source-proven assumptions that need code changes before the generated AWS resources work. */
+    runtimePortabilityConstraints: z.array(runtimePortabilityConstraintSchema).default([]),
     source: factSourceSchema
   })
   .superRefine(checkServiceConsistency);

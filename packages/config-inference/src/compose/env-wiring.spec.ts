@@ -22,6 +22,7 @@ describe('wiringFor', () => {
     expect(wiringFor('dynamodb', 'USERS_TABLE')).toEqual({ kind: 'param', param: 'name' });
     expect(wiringFor('object-storage', 'UPLOADS_BUCKET')).toEqual({ kind: 'param', param: 'name' });
     expect(wiringFor('object-storage', 'Storage__BucketName')).toEqual({ kind: 'param', param: 'name' });
+    expect(wiringFor('object-storage', 'Storage__BucketArn')).toEqual({ kind: 'param', param: 'arn' });
     expect(wiringFor('search', 'OPENSEARCH_ENDPOINT')).toEqual({ kind: 'param', param: 'domainEndpoint' });
     expect(wiringFor('postgres', 'LISTMONK_db__host')).toEqual({ kind: 'param', param: 'host' });
     expect(wiringFor('postgres', 'LISTMONK_db__port')).toEqual({ kind: 'param', param: 'port' });
@@ -44,6 +45,7 @@ describe('wiringFor', () => {
     expect(wiringFor('queue', 'SQS_SUFFIX')).toEqual({ kind: 'none' });
     expect(wiringFor('object-storage', 'Storage__AccessKey')).toEqual({ kind: 'none' });
     expect(wiringFor('object-storage', 'Storage__ServiceUrl')).toEqual({ kind: 'none' });
+    expect(wiringFor('object-storage', 'Storage__Region')).toEqual({ kind: 'none' });
   });
 
   it('routes password shapes to the generated database/redis secret', () => {

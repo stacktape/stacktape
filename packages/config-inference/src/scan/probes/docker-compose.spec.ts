@@ -703,6 +703,8 @@ describe('the compose probe', () => {
         '    depends_on: [minio]',
         '    environment:',
         '      Storage__BucketName: ${STORAGE_BUCKET_NAME:-orders}',
+        '      Storage__BucketArn: arn:aws:s3:::local-orders',
+        '      Storage__Region: us-east-1',
         '      Storage__AccessKey: ${MINIO_ROOT_USER:-minioadmin}',
         '  worker:',
         '    build:',
@@ -742,14 +744,19 @@ describe('the compose probe', () => {
         name: 'storageBucket',
         kind: 'object-storage',
         consumedBy: ['Orders.Api', 'Orders.Worker'],
-        addressedBy: ['Storage__BucketName']
+        addressedBy: expect.arrayContaining([
+          'Storage__BucketName',
+          'Storage__BucketArn',
+          'Storage__Region',
+          'Storage__AccessKey'
+        ])
       })
     );
     expect(
       facts.services
         .find((service) => service.name === 'Orders.Api')
         ?.environmentVariables.find((variable) => variable.name === 'Storage__AccessKey')
-    ).toMatchObject({ role: 'third-party-secret' });
+    ).toMatchObject({ role: 'infra-dependency', dependencyName: 'storageBucket' });
 
     const composed = composeConfig({ facts, projectName: 'orders' });
     expect(composed.config.resources.OrdersApi?.properties).toMatchObject({
@@ -759,13 +766,162 @@ describe('the compose probe', () => {
       },
       environment: expect.arrayContaining([
         { name: 'Storage__BucketName', value: "$ResourceParam('storageBucket', 'name')" },
-        { name: 'Storage__AccessKey', value: "$Secret('storage__accesskey')" }
+        { name: 'Storage__BucketArn', value: "$ResourceParam('storageBucket', 'arn')" }
       ])
     });
+    expect(composed.config.resources.OrdersApi?.properties.environment).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Storage__Region' }),
+        expect.objectContaining({ name: 'Storage__AccessKey' })
+      ])
+    );
     expect(composed.config.resources.OrdersWorker?.properties.packaging).toEqual({
       type: 'custom-dockerfile',
       properties: { buildContextPath: '.', dockerfilePath: 'src/Orders.Worker/Dockerfile' }
     });
+  });
+
+  it('does not merge same-name .NET projects that have different source and Dockerfile ownership', async () => {
+    root = await makeRepo({
+      'apps/one/Api.csproj': '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n',
+      'apps/two/Dockerfile': 'FROM mcr.microsoft.com/dotnet/aspnet:8.0\n',
+      'compose.yaml': [
+        'services:',
+        '  api:',
+        '    build:',
+        '      context: .',
+        '      dockerfile: apps/two/Dockerfile',
+        '    ports: ["8080:8080"]',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe, dockerComposeProbe]
+    });
+
+    expect(facts.services).toHaveLength(2);
+    expect(
+      facts.services
+        .map(({ name, path, dockerfile }) => ({ name, path, dockerfile }))
+        .toSorted((a, b) => a.path.localeCompare(b.path))
+    ).toEqual([
+      { name: 'api', path: '.', dockerfile: 'apps/two/Dockerfile' },
+      { name: 'Api', path: 'apps/one', dockerfile: undefined }
+    ]);
+  });
+
+  it('keeps process-neutral same-name .NET workers in separate application directories', async () => {
+    root = await makeRepo({
+      'apps/one/Worker.csproj': '<Project Sdk="Microsoft.NET.Sdk.Worker"></Project>\n',
+      'apps/two/Worker.csproj': '<Project Sdk="Microsoft.NET.Sdk.Worker"></Project>\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [languageManifestProbe] });
+
+    expect(facts.services).toHaveLength(2);
+    expect(facts.services.map((service) => service.path).toSorted()).toEqual(['apps/one', 'apps/two']);
+  });
+
+  it('blocks managed S3 replacement when source requires static credentials and a custom endpoint', async () => {
+    root = await makeRepo({
+      'src/Api/Api.csproj': [
+        '<Project Sdk="Microsoft.NET.Sdk.Web">',
+        '  <ItemGroup><PackageReference Include="AWSSDK.S3" Version="3.7.0" /></ItemGroup>',
+        '</Project>',
+        ''
+      ].join('\n'),
+      'src/Api/Dockerfile': 'FROM mcr.microsoft.com/dotnet/aspnet:8.0\n',
+      'src/Core/StorageClient.cs': [
+        'var credentials = new BasicAWSCredentials(options.AccessKey, options.SecretKey);',
+        'var config = new AmazonS3Config { ServiceURL = options.ServiceUrl };',
+        ''
+      ].join('\n'),
+      'compose.yaml': [
+        'services:',
+        '  api:',
+        '    build:',
+        '      context: .',
+        '      dockerfile: src/Api/Dockerfile',
+        '    ports: ["8080:8080"]',
+        '    depends_on: [minio]',
+        '    environment:',
+        '      Storage__BucketName: local-bucket',
+        '      Storage__ServiceUrl: http://minio:9000',
+        '      Storage__AccessKey: local-access',
+        '      Storage__SecretKey: local-secret',
+        '  minio:',
+        '    image: minio/minio:latest',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe, dockerComposeProbe]
+    });
+    const api = facts.services.find((service) => service.name === 'Api');
+    expect(api?.runtimePortabilityConstraints).toContainEqual(
+      expect.objectContaining({ kind: 'object-storage-explicit-credentials-and-endpoint' })
+    );
+
+    const composed = composeConfig({ facts, projectName: 'storage-app' });
+    expect(composed.deployable).toBe(false);
+    expect(composed.gaps).toContainEqual(
+      expect.objectContaining({
+        subject: 'Api.object-storage-client',
+        message: expect.stringContaining('AWS default credential chain')
+      })
+    );
+    expect(composed.config.resources.Api?.properties.environment).not.toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ name: 'Storage__ServiceUrl' }),
+        expect.objectContaining({ name: 'Storage__AccessKey' }),
+        expect.objectContaining({ name: 'Storage__SecretKey' })
+      ])
+    );
+  });
+
+  it('does not infer an S3 portability constraint from comments or string examples', async () => {
+    root = await makeRepo({
+      'src/Api/Api.csproj': [
+        '<Project Sdk="Microsoft.NET.Sdk.Web">',
+        '  <ItemGroup><PackageReference Include="AWSSDK.S3" Version="3.7.0" /></ItemGroup>',
+        '</Project>',
+        ''
+      ].join('\n'),
+      'src/Core/StorageExample.cs': [
+        '// new BasicAWSCredentials(options.AccessKey, options.SecretKey);',
+        'var documentation = "ServiceURL = options.ServiceUrl";',
+        '/* new BasicAWSCredentials(example.AccessKey, example.SecretKey);',
+        '   ServiceURL = example.ServiceUrl; */',
+        ''
+      ].join('\n'),
+      'compose.yaml': [
+        'services:',
+        '  api:',
+        '    build: src/Api',
+        '    ports: ["8080:8080"]',
+        '    depends_on: [minio]',
+        '    environment:',
+        '      Storage__BucketName: local-bucket',
+        '      Storage__ServiceUrl: http://minio:9000',
+        '      Storage__AccessKey: local-access',
+        '      Storage__SecretKey: local-secret',
+        '  minio:',
+        '    image: minio/minio:latest',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe, dockerComposeProbe]
+    });
+
+    expect(facts.services[0]?.runtimePortabilityConstraints).toEqual([]);
+    expect(composeConfig({ facts, projectName: 'storage-example' }).deployable).toBe(true);
   });
 
   it('keeps a named worker private when its published port is only for health checks', async () => {

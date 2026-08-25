@@ -16,6 +16,7 @@
  */
 
 import type { DependencyKind } from '../facts/dependency';
+import { normalizedEnvironmentVariableName } from '../facts/service';
 
 export type EnvironmentWiring =
   | { kind: 'param'; param: string }
@@ -59,7 +60,7 @@ const PRIMARY_HANDLE: Partial<Record<DependencyKind, string>> = {
  * parameter it means.
  */
 export const wiringFor = (kind: DependencyKind, variableName: string): EnvironmentWiring => {
-  const name = variableName.toUpperCase();
+  const name = normalizedEnvironmentVariableName(variableName);
 
   // Framework mode/configuration switches can contain the dependency name while asking for a
   // literal such as `phpredis`, `default`, a prefix, or a retry count. They are never addresses.

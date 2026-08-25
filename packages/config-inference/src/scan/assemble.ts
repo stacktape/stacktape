@@ -24,7 +24,7 @@ import type { Uncertainty } from '../facts/uncertainty';
 import { classifyFileAccess } from '../policy/file-access';
 import { raiseConventionalCommands, raisePlannedCommands, type CommandPlanner } from './conventions';
 import { raiseDockerfileOwnership } from './dockerfile-ownership';
-import { enrichEnvironmentUsage } from './environment-usage';
+import { enrichEnvironmentUsage, enrichRuntimePortability } from './environment-usage';
 import { listRepositoryFiles } from './file-tree';
 import type { Probe, ProbeContext, ProbeOutput } from './probe';
 import { ENV_NAME_TO_KIND } from './probes/environment';
@@ -261,6 +261,13 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
     healthCheckPath: existing.healthCheckPath ?? incoming.healthCheckPath,
     writesLocalFilesystem: existing.writesLocalFilesystem ?? incoming.writesLocalFilesystem,
     bundledLifecycle: existing.bundledLifecycle ?? incoming.bundledLifecycle,
+    runtimePortabilityConstraints: [
+      ...new Map(
+        [...(existing.runtimePortabilityConstraints ?? []), ...(incoming.runtimePortabilityConstraints ?? [])].map(
+          (constraint) => [constraint.kind, constraint]
+        )
+      ).values()
+    ],
     servesStaticAssets,
     environmentVariables: mergeEnvironmentVariables(
       existing.environmentVariables ?? [],
@@ -294,9 +301,33 @@ const genericMergeTarget = (
       service.exposesHttp === incoming.exposesHttp
   );
   if (exactCommandMatches.length === 1) return exactCommandMatches[0];
-  const exactNameMatches = entries.filter(
-    ([, service]) => normalizedServiceName(service) === normalizedServiceName(incoming)
-  );
+  const exactNameMatches = entries.filter(([, service]) => {
+    if (normalizedServiceName(service) !== normalizedServiceName(incoming)) return false;
+    if (service.path === incoming.path) return true;
+    if (
+      service.dockerfile !== undefined &&
+      incoming.dockerfile !== undefined &&
+      service.dockerfile === incoming.dockerfile
+    ) {
+      return true;
+    }
+    // A root-context descriptor can own a child application, but its display name alone is not
+    // evidence of that ownership. Require its Dockerfile to live under the child's source path.
+    const rootDescriptor = service.path === '.' ? service : incoming.path === '.' ? incoming : undefined;
+    const child = rootDescriptor === service ? incoming : rootDescriptor === incoming ? service : undefined;
+    return (
+      rootDescriptor?.dockerfile !== undefined &&
+      child !== undefined &&
+      child.path !== '.' &&
+      (rootDescriptor.dockerfile === `${child.path}/Dockerfile` ||
+        rootDescriptor.dockerfile.startsWith(`${child.path}/`) ||
+        // A repository-root multi-stage Dockerfile commonly names each target after its workspace
+        // application. The root-owned file cannot point at a child path, so the exact process/name
+        // pair is its ownership evidence. A Dockerfile under some *other* child never qualifies.
+        (posix.dirname(rootDescriptor.dockerfile) === '.' &&
+          normalizedServiceName(rootDescriptor) === normalizedServiceName(child)))
+    );
+  });
   if (exactNameMatches.length === 1) return exactNameMatches[0];
   const candidates = entries.filter(
     ([, service]) => service.path === incoming.path && service.processType !== undefined
@@ -361,14 +392,6 @@ const genericMergeTarget = (
     }
     const existingName = normalizedServiceName(service);
     const incomingName = normalizedServiceName(incoming);
-    if (
-      comesFromAnotherDescription &&
-      existingName.length >= 3 &&
-      existingName === incomingName &&
-      (service.path === '.' || incoming.path === '.')
-    ) {
-      return true;
-    }
     return (
       Math.min(existingName.length, incomingName.length) >= 4 &&
       (service.servesStaticAssets !== undefined || incoming.servesStaticAssets !== undefined) &&
@@ -921,6 +944,20 @@ export const assembleCandidateFacts = async ({
         })
     });
   }
+
+  // Managed resources can match a dependency's API without matching a client's credential and
+  // endpoint assumptions. Source evidence turns those cases into an explicit deployment block
+  // instead of a configuration that packages successfully but cannot talk to its AWS dependency.
+  await enrichRuntimePortability({
+    services,
+    dependencies,
+    files: listing.files,
+    read: (path) =>
+      readSourceFile(root, path, {
+        startLine: 1,
+        endLine: Number.MAX_SAFE_INTEGER
+      })
+  });
 
   const uncertainties = new Map<string, Uncertainty>();
   for (const output of outputs) {

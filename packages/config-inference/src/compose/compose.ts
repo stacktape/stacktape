@@ -732,6 +732,9 @@ export const composeConfig = ({
   );
   const cloudflareOwnedServices = new Set([...cloudflareRuntimeOwnership.values()].flat());
   const services = facts.services.filter((service) => !cloudflareOwnedServices.has(service));
+  const runtimePortabilityConstraints = services.flatMap((service) =>
+    service.runtimePortabilityConstraints.map((constraint) => ({ service, constraint }))
+  );
   const serviceNames = new Set(services.map((service) => service.name));
   // A dependency used solely by a Worker, or not connected to any recognized service at all, is
   // part of the same unresolved topology. Keep dependencies required by a retained sibling, but do
@@ -1140,6 +1143,14 @@ export const composeConfig = ({
       });
     }
 
+    for (const constraint of service.runtimePortabilityConstraints) {
+      if (constraint.kind !== 'object-storage-explicit-credentials-and-endpoint') continue;
+      gaps.push({
+        subject: `${service.name}.object-storage-client`,
+        message: `${service.name} constructs its S3 client with explicit access-key credentials and a custom endpoint. Stacktape created an AWS bucket and granted this service IAM access, but this client bypasses that AWS identity and still expects the local S3-compatible endpoint. Update it to use the AWS default credential chain and regional endpoint before deploying.`
+      });
+    }
+
     if (usesPublishedImageFallback(service)) {
       const imageTail = service.prebuiltImage!.slice(service.prebuiltImage!.lastIndexOf('/') + 1);
       const mutableImage =
@@ -1322,7 +1333,10 @@ export const composeConfig = ({
     serviceResources: Object.fromEntries(serviceResourceNames),
     // A partial monorepo result remains useful for review, but must not unlock deployment as though
     // it represented the complete application.
-    deployable: Object.keys(resources).length > 0 && cloudflareRuntimeConstraints.length === 0
+    deployable:
+      Object.keys(resources).length > 0 &&
+      cloudflareRuntimeConstraints.length === 0 &&
+      runtimePortabilityConstraints.length === 0
   };
 };
 

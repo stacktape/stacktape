@@ -1,12 +1,6 @@
-import type { EnvironmentVariableUse } from '../../facts/service';
+import { normalizedEnvironmentVariableName, type EnvironmentVariableUse } from '../../facts/service';
 
-export const normalizedSettingName = (name: string): string =>
-  name
-    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
-    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
-    .replace(/[^A-Za-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .toUpperCase();
+export const normalizedSettingName = normalizedEnvironmentVariableName;
 
 const SECRETISH_NAME = /SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY|API_KEY|APIKEY|ACCESS_KEY|CREDENTIAL|(?:^|_)KEY$/;
 

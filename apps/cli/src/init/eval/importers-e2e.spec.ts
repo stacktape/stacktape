@@ -355,6 +355,11 @@ const CASES: EvalCase[] = [
       'Directory.Build.props': '<Project></Project>\n',
       'src/Orders.Api/Orders.Api.csproj': '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n',
       'src/Orders.Worker/Orders.Worker.csproj': '<Project Sdk="Microsoft.NET.Sdk.Worker"></Project>\n',
+      'src/Orders.Core/StorageClient.cs': [
+        'var credentials = new BasicAWSCredentials(options.AccessKey, options.SecretKey);',
+        'var config = new AmazonS3Config { ServiceURL = options.ServiceUrl };',
+        ''
+      ].join('\n'),
       'src/Orders.Api/Dockerfile': [
         'FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build',
         'WORKDIR /src',
@@ -383,8 +388,12 @@ const CASES: EvalCase[] = [
         '      ASPNETCORE_ENVIRONMENT: Production',
         '      Api__DefaultPort: 8080',
         '      Storage__BucketName: ${STORAGE_BUCKET_NAME:-orders}',
+        '      Storage__BucketArn: arn:aws:s3:::local-orders',
+        '      Storage__Region: us-east-1',
+        '      Storage__ServiceUrl: http://minio:9000',
         '      Storage__ForcePathStyle: true',
         '      Storage__AccessKey: local-development-key',
+        '      Storage__SecretKey: local-development-secret',
         '  worker:',
         '    build:',
         '      context: .',
@@ -393,6 +402,9 @@ const CASES: EvalCase[] = [
         '    environment:',
         '      DOTNET_ENVIRONMENT: Production',
         '      Storage__BucketName: ${STORAGE_BUCKET_NAME:-orders}',
+        '      Storage__ServiceUrl: http://minio:9000',
+        '      Storage__AccessKey: local-development-key',
+        '      Storage__SecretKey: local-development-secret',
         '  minio:',
         '    image: minio/minio:latest',
         ''
@@ -425,8 +437,12 @@ const CASES: EvalCase[] = [
           name: 'Storage__BucketName',
           value: "$ResourceParam('storageBucket', 'name')"
         },
+        {
+          resource: 'OrdersApi',
+          name: 'Storage__BucketArn',
+          value: "$ResourceParam('storageBucket', 'arn')"
+        },
         { resource: 'OrdersApi', name: 'Storage__ForcePathStyle', value: 'true' },
-        { resource: 'OrdersApi', name: 'Storage__AccessKey', value: "$Secret('storage__accesskey')" },
         { resource: 'OrdersWorker', name: 'DOTNET_ENVIRONMENT', value: 'Production' },
         {
           resource: 'OrdersWorker',
@@ -434,7 +450,17 @@ const CASES: EvalCase[] = [
           value: "$ResourceParam('storageBucket', 'name')"
         }
       ],
-      deployable: true,
+      absentServiceEnvironment: [
+        { resource: 'OrdersApi', name: 'Storage__Region' },
+        { resource: 'OrdersApi', name: 'Storage__ServiceUrl' },
+        { resource: 'OrdersApi', name: 'Storage__AccessKey' },
+        { resource: 'OrdersApi', name: 'Storage__SecretKey' },
+        { resource: 'OrdersWorker', name: 'Storage__ServiceUrl' },
+        { resource: 'OrdersWorker', name: 'Storage__AccessKey' },
+        { resource: 'OrdersWorker', name: 'Storage__SecretKey' }
+      ],
+      requiredGapPatterns: ['AWS default credential chain and regional endpoint'],
+      deployable: false,
       maxQuestions: 0
     }
   },

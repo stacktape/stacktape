@@ -408,7 +408,9 @@ const variableNamesDependency = (name: string, kind: DependencyKind): boolean =>
       );
     case 'object-storage':
       return (
-        /^(?:S3|BUCKET|STORAGE|OBJECT_STORAGE|AWS_S3|AWS_STORAGE)_(?:BUCKET|BUCKET_NAME|NAME|ARN)$/i.test(upper) ||
+        /^(?:S3|BUCKET|STORAGE|OBJECT_STORAGE|AWS_S3|AWS_STORAGE)_(?:BUCKET|BUCKET_NAME|BUCKET_ARN|NAME|ARN|REGION|ENDPOINT|SERVICE_URL|ACCESS_KEY|ACCESS_KEY_ID|SECRET_KEY|SECRET_ACCESS_KEY)$/i.test(
+          upper
+        ) ||
         upper === 'S3_BUCKET' ||
         upper === 'BUCKET_NAME' ||
         upper === 'AWS_BUCKET'
