@@ -58,6 +58,7 @@ export const makeRetainedWorkdirPortable = async (workdir: string) => {
   const absoluteLinks: Array<{ path: string; target: string; targetIsDirectory: boolean }> = [];
   const unsafeLinks: string[] = [];
   let prunedDependencyDirectories = 0;
+  let prunedIsolatedHomes = 0;
   let entries = 0;
   const visit = async (current: string): Promise<void> => {
     for (const entry of await readdir(current, { withFileTypes: true })) {
@@ -66,6 +67,13 @@ export const makeRetainedWorkdirPortable = async (workdir: string) => {
       const path = join(current, entry.name);
       const metadata = await lstat(path);
       if (metadata.isDirectory()) {
+        // The per-case home contains only disposable CLI/package-manager caches and logs already
+        // represented in bounded report output. Copying it can add nearly a gigabyte to one failure.
+        if (current === workdirRoot && entry.name === 'isolated-home') {
+          await rm(path, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+          prunedIsolatedHomes++;
+          continue;
+        }
         // Installed Node dependency trees are reproducible from the retained lockfile, routinely
         // contain hard links to package-manager stores, and can turn a small diagnostic into many
         // gigabytes. Keep source/build output but prune these non-portable caches before collection.
@@ -109,7 +117,8 @@ export const makeRetainedWorkdirPortable = async (workdir: string) => {
   return {
     convertedAbsoluteLinks: absoluteLinks.length,
     removedUnsafeLinks: unsafeLinks.length,
-    prunedDependencyDirectories
+    prunedDependencyDirectories,
+    prunedIsolatedHomes
   };
 };
 

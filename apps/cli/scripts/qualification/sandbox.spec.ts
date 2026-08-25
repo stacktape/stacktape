@@ -532,7 +532,8 @@ describe('sandboxed qualification planning & command composition', () => {
     expect(result).toEqual({
       convertedAbsoluteLinks: 1,
       removedUnsafeLinks: 1,
-      prunedDependencyDirectories: 0
+      prunedDependencyDirectories: 0,
+      prunedIsolatedHomes: 0
     });
     const accepted = await validateAndHashOutputTree(root, true);
     expect(accepted.find((entry) => entry.path.endsWith('/links/contained'))?.type).toBe('symlink');
@@ -544,14 +545,19 @@ describe('sandboxed qualification planning & command composition', () => {
     temporaryDirectories.push(root);
     const workdir = join(root, 'workdirs', 'node-case-Ab12Cd');
     const dependencies = join(workdir, 'project', 'node_modules');
+    const isolatedHome = join(workdir, 'isolated-home');
     mkdirSync(dependencies, { recursive: true });
+    mkdirSync(join(isolatedHome, '.cache'), { recursive: true });
     writeFileSync(join(workdir, 'project', 'package.json'), '{}\n');
     writeFileSync(join(dependencies, 'installed.js'), 'export {};\n');
+    writeFileSync(join(isolatedHome, '.cache', 'download'), 'disposable cache\n');
 
     const result = await makeRetainedWorkdirPortable(workdir);
 
     expect(result.prunedDependencyDirectories).toBe(1);
+    expect(result.prunedIsolatedHomes).toBe(1);
     expect(existsSync(dependencies)).toBeFalse();
+    expect(existsSync(isolatedHome)).toBeFalse();
     expect(existsSync(join(workdir, 'project', 'package.json'))).toBeTrue();
     const accepted = await validateAndHashOutputTree(root, true);
     expect(accepted.some((entry) => entry.path.endsWith('/project/package.json'))).toBeTrue();
