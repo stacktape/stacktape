@@ -3,6 +3,7 @@
 import { posix } from 'node:path';
 import type { Citation } from '../../facts/citation';
 import type { ServiceFactInput } from '../../facts/service';
+import { activeWorkspaceDirectories, isIncidentalPath } from '../incidental-directories';
 import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { nearestManifestRoot } from '../service-root';
 
@@ -30,9 +31,13 @@ const exposedPort = (path: string, raw: string): { port?: number; citation?: Cit
 export const dockerfileProbe: Probe = {
   name: 'dockerfile',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
+    const activeDirectories = await activeWorkspaceDirectories(context);
     const candidates = context.files
       .filter(
-        (path) => /^Dockerfile(?:\.[^/]+)?$/i.test(posix.basename(path)) && !DEVELOPMENT_ONLY_DIRECTORY.test(path)
+        (path) =>
+          /^Dockerfile(?:\.[^/]+)?$/i.test(posix.basename(path)) &&
+          !DEVELOPMENT_ONLY_DIRECTORY.test(path) &&
+          !isIncidentalPath(path, activeDirectories)
       )
       .toSorted((left, right) => {
         const leftExact = posix.basename(left).toLowerCase() === 'dockerfile';
@@ -43,6 +48,7 @@ export const dockerfileProbe: Probe = {
 
     for (const path of candidates) {
       const root = serviceRootFor(path, context.files);
+      if (root !== '.' && isIncidentalPath(root, activeDirectories)) continue;
       if (services.has(root)) continue;
       // oxlint-disable-next-line no-await-in-loop -- one short, policy-controlled file per service root.
       const raw = await readText(context, path);

@@ -21,6 +21,8 @@ export type RealProjectCorpusExpectation = {
   dependencyKinds?: Readonly<Record<string, number>>;
   serviceCount: number;
   httpServiceCount: number;
+  /** Whether the result represents the complete application closely enough to unlock deployment. */
+  deployable?: boolean;
   /** Order-independent per-service semantic expectations. */
   services?: readonly ExpectedService[];
   /** Exact set of deployment tools declared by the project. A declaration is not proof of a live deployment. */

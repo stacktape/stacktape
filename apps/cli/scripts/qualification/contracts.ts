@@ -55,6 +55,8 @@ const expectationSchema = z
     dependencyKinds: z.record(z.string(), z.number().int().nonnegative()).optional(),
     serviceCount: z.number().int().nonnegative(),
     httpServiceCount: z.number().int().nonnegative(),
+    /** Whether init may present the generated configuration as ready to deploy. */
+    deployable: z.boolean().optional(),
     services: z.array(expectedServiceSchema).optional(),
     existingDeployments: z.array(z.string()).optional(),
     requiredConfig: z.array(z.string()).optional(),

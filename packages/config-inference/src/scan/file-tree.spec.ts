@@ -25,6 +25,9 @@ beforeAll(async () => {
   await write('_build/prod/lib/customer_notifications/ebin/app.beam');
   await write('apps/web/.next/build.js');
   await write('apps/web/app.tsx');
+  await write('build/package/servers.dockerfile');
+  await write('build/output/server.js');
+  await write('apps/api/build/package/server.js');
 });
 
 afterAll(async () => {
@@ -43,6 +46,9 @@ describe('listRepositoryFiles', () => {
     expect(files).not.toContain('deps/phoenix/priv/templates/phx.gen.release/Dockerfile.eex');
     expect(files).not.toContain('_build/prod/lib/customer_notifications/ebin/app.beam');
     expect(files).not.toContain('apps/web/.next/build.js');
+    expect(files).toContain('build/package/servers.dockerfile');
+    expect(files).not.toContain('build/output/server.js');
+    expect(files).not.toContain('apps/api/build/package/server.js');
   });
 
   it('omits blocked credential files but keeps environment files listed', async () => {

@@ -796,6 +796,119 @@ describe('the compose probe', () => {
     );
   });
 
+  it('uses release services over an infra-only default and links parameterized source builds safely', async () => {
+    root = await makeRepo({
+      'docker-compose.yml': [
+        'services:',
+        '  postgres:',
+        '    image: postgres:15.6',
+        '  rabbitmq:',
+        '    image: rabbitmq:3-management',
+        '  nats:',
+        '    image: nats:2',
+        ''
+      ].join('\n'),
+      'docker-compose.release.yml': [
+        'services:',
+        '  postgres:',
+        '    image: postgres:15.6',
+        '  platform-migrate:',
+        '    image: ghcr.io/acme/platform-migrate:${LATEST_TAG}',
+        '    environment:',
+        '      DATABASE_URL: postgresql://postgres:5432/app',
+        '  platform-admin:',
+        '    image: ghcr.io/acme/platform-admin:${LATEST_TAG}',
+        '    environment:',
+        '      DATABASE_URL: postgresql://postgres:5432/app',
+        '      SERVER_MSGQUEUE_KIND: postgres',
+        '    volumes: ["./generated:/platform/generated"]',
+        '  platform-engine:',
+        '    image: ghcr.io/acme/platform-engine:${LATEST_TAG}',
+        '    ports: ["7077:7077"]',
+        '    environment:',
+        '      DATABASE_URL: postgresql://postgres:5432/app',
+        '      SERVER_GRPC_PORT: "7077"',
+        '      SERVER_MSGQUEUE_KIND: postgres',
+        '    volumes: ["./generated:/platform/generated"]',
+        '  platform-api:',
+        '    image: ghcr.io/acme/platform-api:${LATEST_TAG}',
+        '    ports: ["8080:8080"]',
+        '    environment:',
+        '      DATABASE_URL: postgresql://postgres:5432/app',
+        '      SERVER_PORT: "8080"',
+        '      SERVER_MSGQUEUE_KIND: postgres',
+        '      INTERNAL_GRPC_ADDRESS: platform-engine:7077',
+        '    volumes: ["./generated:/platform/generated"]',
+        ''
+      ].join('\n'),
+      'build/package/servers.dockerfile': [
+        'FROM golang:1.26 AS build',
+        'ARG VERSION=v1.0.0',
+        'ARG SERVER_TARGET',
+        'RUN if [ "$SERVER_TARGET" != "api" ] && [ "$SERVER_TARGET" != "engine" ] && [ "$SERVER_TARGET" != "admin" ] && [ "$SERVER_TARGET" != "migrate" ]; then exit 1; fi',
+        'COPY /cmd ./cmd',
+        'RUN go build -ldflags="-X main.Version=${VERSION}" -o /bin/platform-${SERVER_TARGET} ./cmd/platform-${SERVER_TARGET}',
+        'FROM alpine',
+        'ARG SERVER_TARGET=engine',
+        'COPY --from=build /bin/platform-${SERVER_TARGET} /platform/',
+        'CMD ["/bin/sh", "-c", "/platform/platform-${SERVER_TARGET}"]',
+        ''
+      ].join('\n'),
+      'cmd/platform-migrate/main.go': 'package main\n// migrations run through goose\nfunc main() {}\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [dockerComposeProbe] });
+
+    expect(facts.services.map((service) => service.name)).toEqual([
+      'platformMigrate',
+      'platformAdmin',
+      'platformEngine',
+      'platformApi'
+    ]);
+    expect(facts.services).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          name: 'platformApi',
+          exposesHttp: true,
+          port: 8080,
+          dockerfile: 'build/package/servers.dockerfile',
+          dockerfileBuildArgs: [{ argName: 'SERVER_TARGET', value: 'api' }]
+        }),
+        expect.objectContaining({
+          name: 'platformEngine',
+          exposesHttp: false,
+          port: 7077,
+          dockerfileBuildArgs: [{ argName: 'SERVER_TARGET', value: 'engine' }]
+        }),
+        expect.objectContaining({ name: 'platformAdmin', executionModel: 'one-shot' }),
+        expect.objectContaining({ name: 'platformMigrate', executionModel: 'one-shot' })
+      ])
+    );
+    expect(facts.services.some((service) => 'dockerfileTarget' in service)).toBe(false);
+    expect(facts.dependencies).toEqual([
+      expect.objectContaining({ kind: 'postgres', engineVersion: '15.6', hostingEvidence: 'deployment-manifest' })
+    ]);
+    expect(
+      facts.services
+        .find((service) => service.name === 'platformApi')
+        ?.environmentVariables.find((variable) => variable.name === 'SERVER_MSGQUEUE_KIND')
+    ).toMatchObject({ role: 'runtime-config', safeLiteralValue: 'postgres' });
+    expect(facts.migrations).toEqual([
+      expect.objectContaining({ serviceName: 'platformApi', tool: 'goose', command: 'go run ./cmd/platform-migrate' })
+    ]);
+    expect(facts.deploymentRequirements).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ kind: 'public-grpc', serviceName: 'platformEngine', port: 7077 }),
+        expect.objectContaining({
+          kind: 'persistent-bootstrap-artifacts',
+          producerServiceName: 'platformAdmin',
+          consumerServiceNames: ['platformEngine', 'platformApi'],
+          paths: ['/platform/generated']
+        })
+      ])
+    );
+  });
+
   it('preserves a custom port and detects lifecycle work bundled behind the Dockerfile command', async () => {
     root = await makeRepo({
       'docker-compose.yml': [

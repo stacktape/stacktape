@@ -75,9 +75,8 @@ export type EvalExpectation = {
     command?: readonly string[];
     buildContextPath?: string;
     dockerfilePath?: string;
+    buildArgs?: ReadonlyArray<{ argName: string; value: string }>;
   }>;
-  /** User-visible composition gaps that must explain why a result is incomplete. */
-  requiredGapPatterns?: readonly string[];
 };
 
 export type EvalCase = {
@@ -170,7 +169,13 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
 
   for (const wiring of expected.serviceEnvironment ?? []) {
     const resource = result.composition.config.resources[wiring.resource];
-    const environment = (resource?.properties.environment ?? []) as Array<{ name: string; value: unknown }>;
+    const container = resource?.properties.container as
+      | { environment?: Array<{ name: string; value: unknown }> }
+      | undefined;
+    const environment = (resource?.properties.environment ?? container?.environment ?? []) as Array<{
+      name: string;
+      value: unknown;
+    }>;
     const entry = environment.find((variable) => variable.name === wiring.name);
     if (entry === undefined) {
       failures.push({
@@ -187,7 +192,13 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
 
   for (const absent of expected.absentServiceEnvironment ?? []) {
     const resource = result.composition.config.resources[absent.resource];
-    const environment = (resource?.properties.environment ?? []) as Array<{ name: string; value: unknown }>;
+    const container = resource?.properties.container as
+      | { environment?: Array<{ name: string; value: unknown }> }
+      | undefined;
+    const environment = (resource?.properties.environment ?? container?.environment ?? []) as Array<{
+      name: string;
+      value: unknown;
+    }>;
     if (environment.some((variable) => variable.name === absent.name)) {
       failures.push({
         stage: 'composition',
@@ -229,10 +240,16 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
 
   for (const packagingExpectation of expected.resourcePackaging ?? []) {
     const resource = result.composition.config.resources[packagingExpectation.resource];
-    const packaging = resource?.properties.packaging as
+    const container = resource?.properties.container as { packaging?: unknown } | undefined;
+    const packaging = (resource?.properties.packaging ?? container?.packaging) as
       | {
           type?: string;
-          properties?: { command?: readonly string[]; buildContextPath?: string; dockerfilePath?: string };
+          properties?: {
+            command?: readonly string[];
+            buildContextPath?: string;
+            dockerfilePath?: string;
+            buildArgs?: ReadonlyArray<{ argName: string; value: string }>;
+          };
         }
       | undefined;
     if (packaging?.type !== packagingExpectation.type) {
@@ -263,6 +280,14 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
       failures.push({
         stage: 'composition',
         detail: `Expected "${packagingExpectation.resource}" to use Dockerfile ${packagingExpectation.dockerfilePath}; found ${packaging.properties?.dockerfilePath ?? 'nothing'}.`
+      });
+    } else if (
+      packagingExpectation.buildArgs !== undefined &&
+      JSON.stringify(packaging.properties?.buildArgs) !== JSON.stringify(packagingExpectation.buildArgs)
+    ) {
+      failures.push({
+        stage: 'composition',
+        detail: `Expected "${packagingExpectation.resource}" build arguments ${JSON.stringify(packagingExpectation.buildArgs)}; found ${JSON.stringify(packaging.properties?.buildArgs)}.`
       });
     }
   }

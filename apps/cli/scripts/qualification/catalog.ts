@@ -85,7 +85,11 @@ const importOnlyCaseIds = new Set([
   'react-router-node-custom-server',
   // The raw monorepo example subdirectory has no standalone lockfile and is not reproducible
   // package input. Qualified on import only until a generated standalone project is added.
-  'tanstack-start-basic'
+  'tanstack-start-basic',
+  // Hatchet needs simultaneous public HTTP and gRPC/HTTP2 ingress plus a persistent bootstrap
+  // keyset shared by one-shot admin and long-running servers. Keep its honest partial topology in
+  // the import lane until Stacktape can represent both deployment contracts safely.
+  'real-hatchet'
 ]);
 
 const fromBuiltInCase = (entry: RealProjectCorpusCase): QualificationCaseManifest => ({
@@ -109,6 +113,7 @@ const fromBuiltInCase = (entry: RealProjectCorpusCase): QualificationCaseManifes
     ...(entry.expect.dependencyKinds === undefined ? {} : { dependencyKinds: { ...entry.expect.dependencyKinds } }),
     serviceCount: entry.expect.serviceCount,
     httpServiceCount: entry.expect.httpServiceCount,
+    ...(entry.expect.deployable === undefined ? {} : { deployable: entry.expect.deployable }),
     ...(entry.expect.services === undefined ? {} : { services: [...entry.expect.services] }),
     ...(entry.expect.existingDeployments === undefined
       ? {}

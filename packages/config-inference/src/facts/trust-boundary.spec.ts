@@ -100,6 +100,29 @@ describe('an agent cannot claim probe provenance', () => {
     }
   });
 
+  it('does not let an agent remove probe-owned protocol and bootstrap requirements', () => {
+    const baseline = projectFactsSchema.parse({
+      schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+      services: [{ ...agentService, source: 'probe' }],
+      deploymentRequirements: [
+        {
+          kind: 'public-grpc',
+          serviceName: 'api',
+          port: 7077,
+          evidence: [{ file: 'compose.release.yml', line: 8, quote: '7077:7077' }]
+        }
+      ]
+    });
+    const submission = agentSubmissionSchema.parse({ schemaVersion: 1, deploymentRequirements: [] });
+
+    const merged = mergeAgentSubmission({ baseline, submission });
+    const composed = composeConfig({ facts: merged });
+
+    expect(merged.deploymentRequirements).toEqual(baseline.deploymentRequirements);
+    expect(composed.deployable).toBe(false);
+    expect(composed.gaps).toContainEqual(expect.objectContaining({ severity: 'blocking' }));
+  });
+
   it('gives the agent no way to set blocking policy, recommendations or prose', () => {
     const submission = agentSubmissionSchema.parse({
       schemaVersion: 1,

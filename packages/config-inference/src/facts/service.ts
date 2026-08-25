@@ -283,6 +283,8 @@ export const serviceShape = {
   functionTriggers: z.array(functionTriggerSchema).default([]),
   /** Repository-relative path to a Dockerfile, when the service ships one. */
   dockerfile: repositoryPathSchema.optional(),
+  /** Build arguments passed to custom-dockerfile packaging. */
+  dockerfileBuildArgs: z.array(z.object({ argName: z.string().min(1), value: z.string() })).optional(),
   healthCheckPath: z.string().min(1).optional(),
 
   /**

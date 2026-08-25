@@ -15,6 +15,7 @@ import type { ExistingDeploymentFact } from '../facts/existing-deployment';
 import {
   PROJECT_FACTS_SCHEMA_VERSION,
   projectFactsSchema,
+  type DeploymentRequirement,
   type MigrationFact,
   type PackageManager,
   type ProjectFacts
@@ -26,6 +27,7 @@ import { raiseConventionalCommands, raisePlannedCommands, type CommandPlanner } 
 import { raiseDockerfileOwnership } from './dockerfile-ownership';
 import { enrichEnvironmentUsage } from './environment-usage';
 import { listRepositoryFiles } from './file-tree';
+import { activeWorkspaceDirectories, isIncidentalDirectory } from './incidental-directories';
 import type { Probe, ProbeContext, ProbeOutput } from './probe';
 import { ENV_NAME_TO_KIND } from './probes/environment';
 import { readSourceFile } from './read-source';
@@ -248,6 +250,7 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
       ).values()
     ],
     dockerfile: existing.dockerfile ?? incoming.dockerfile,
+    dockerfileBuildArgs: existing.dockerfileBuildArgs ?? incoming.dockerfileBuildArgs,
     healthCheckPath: existing.healthCheckPath ?? incoming.healthCheckPath,
     writesLocalFilesystem: existing.writesLocalFilesystem ?? incoming.writesLocalFilesystem,
     bundledLifecycle: existing.bundledLifecycle ?? incoming.bundledLifecycle,
@@ -717,6 +720,19 @@ export const assembleCandidateFacts = async ({
     })
   );
 
+  // Documentation, examples, SDKs, clients, tests and development helpers frequently contain
+  // runnable samples. They are not production workloads unless an authoritative workspace or
+  // release descriptor selects their directory explicitly.
+  const activeWorkspacePaths = await activeWorkspaceDirectories(context);
+  const declaredApplicationPaths = new Set(outputs.flatMap((output) => output.declaredApplicationPaths ?? []));
+  for (const output of outputs) {
+    if (output.services === undefined) continue;
+    output.services = output.services.filter(
+      (service) =>
+        declaredApplicationPaths.has(service.path) || !isIncidentalDirectory(service.path, activeWorkspacePaths)
+    );
+  }
+
   const { services, renames } = mergeServices(outputs);
   for (const environment of outputs.flatMap((output) => output.serviceEnvironments ?? [])) {
     for (const service of services) {
@@ -788,6 +804,7 @@ export const assembleCandidateFacts = async ({
   const preferredDatabaseKinds = [...preferredKinds].filter((kind) => DATABASE_KINDS.has(kind));
   let selectedDatabaseKind = preferredDatabaseKinds.length === 1 ? preferredDatabaseKinds[0] : undefined;
   const disabledKinds = new Set(outputs.flatMap((output) => output.disabledDependencyKinds ?? []));
+  const authoritativeKinds = new Set(outputs.flatMap((output) => output.authoritativeDependencyKinds ?? []));
   const reconciliationUncertainties: Uncertainty[] = [];
   if (selectedDatabaseKind === undefined) {
     const databaseDependencies = dependencies.filter((dependency) => DATABASE_KINDS.has(dependency.kind));
@@ -832,12 +849,17 @@ export const assembleCandidateFacts = async ({
       return false;
     }
     const disabled = disabledKinds.has(dependency.kind);
+    const outsideAuthoritativeRelease =
+      authoritativeKinds.size > 0 &&
+      !authoritativeKinds.has(dependency.kind) &&
+      !isExternalHosting(dependency) &&
+      dependency.hostingEvidence !== 'deployment-manifest';
     const nonPreferredDatabase =
       selectedDatabaseKind !== undefined &&
       DATABASE_KINDS.has(dependency.kind) &&
       dependency.kind !== selectedDatabaseKind;
     if (disabled) return isExternalHosting(dependency) || dependency.hostingEvidence === 'deployment-manifest';
-    return !nonPreferredDatabase || hasStrongDependencyEvidence(dependency, services);
+    return !outsideAuthoritativeRelease && (!nonPreferredDatabase || hasStrongDependencyEvidence(dependency, services));
   });
 
   if (reconciledDependencies.length !== dependencies.length) {
@@ -921,6 +943,26 @@ export const assembleCandidateFacts = async ({
   }
   const migrations = [...migrationsByKey.values()];
 
+  const deploymentRequirementsByKey = new Map<string, DeploymentRequirement>();
+  for (const output of outputs) {
+    for (const requirement of output.deploymentRequirements ?? []) {
+      const remapped =
+        requirement.kind === 'public-grpc'
+          ? { ...requirement, serviceName: renames.get(requirement.serviceName) ?? requirement.serviceName }
+          : {
+              ...requirement,
+              producerServiceName: renames.get(requirement.producerServiceName) ?? requirement.producerServiceName,
+              consumerServiceNames: requirement.consumerServiceNames.map((name) => renames.get(name) ?? name)
+            };
+      const key =
+        remapped.kind === 'public-grpc'
+          ? `${remapped.kind}:${remapped.serviceName}:${remapped.port}`
+          : `${remapped.kind}:${remapped.producerServiceName}:${remapped.paths.join(',')}`;
+      if (!deploymentRequirementsByKey.has(key)) deploymentRequirementsByKey.set(key, remapped);
+    }
+  }
+  const deploymentRequirements = [...deploymentRequirementsByKey.values()];
+
   const packageManager = outputs.find((output) => output.packageManager !== undefined)?.packageManager as
     | PackageManager
     | undefined;
@@ -947,6 +989,7 @@ export const assembleCandidateFacts = async ({
     dependencies,
     existingDeployments,
     migrations,
+    deploymentRequirements,
     uncertainties: [...uncertainties.values()],
     notes
   });

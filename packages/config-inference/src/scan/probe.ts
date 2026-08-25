@@ -15,7 +15,7 @@
 import type { Citation } from '../facts/citation';
 import type { DependencyFact, DependencyKind } from '../facts/dependency';
 import type { ExistingDeploymentFact } from '../facts/existing-deployment';
-import type { MigrationFact, PackageManager } from '../facts/project-facts';
+import type { DeploymentRequirement, MigrationFact, PackageManager } from '../facts/project-facts';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../facts/service';
 import type { Uncertainty } from '../facts/uncertainty';
 import type { ReadSourceFileOptions, SourceRead } from './read-source';
@@ -64,6 +64,12 @@ export type ProbeOutput = {
   disabledDependencyKinds?: DependencyKind[];
   existingDeployments?: ExistingDeploymentFact[];
   migrations?: MigrationFact[];
+  /** Source-proven runtime contracts that the current Stacktape schema cannot safely preserve. */
+  deploymentRequirements?: DeploymentRequirement[];
+  /** Service roots explicitly selected by an authoritative application/release descriptor. */
+  declaredApplicationPaths?: string[];
+  /** Complete active dependency set selected by an authoritative release descriptor. */
+  authoritativeDependencyKinds?: DependencyKind[];
   /** Dockerfiles used exclusively by finite lifecycle hooks such as Compose migration services. */
   lifecycleDockerfiles?: string[];
   /** Multi-stage Dockerfiles whose explicit Compose targets own the runnable services. */

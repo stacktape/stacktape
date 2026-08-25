@@ -161,7 +161,12 @@ export const isSkippedDirectoryName = (name: string): boolean =>
  */
 export const classifyFileAccess = (repoRelativePath: string): FileAccess => {
   const segments = repoRelativePath.split('/');
-  if (segments.slice(0, -1).some((segment) => isSkippedDirectoryName(segment))) {
+  const sourceBuildPackage = segments[0]?.toLowerCase() === 'build' && segments[1]?.toLowerCase() === 'package';
+  if (
+    segments
+      .slice(0, -1)
+      .some((segment, index) => isSkippedDirectoryName(segment) && !(sourceBuildPackage && index === 0))
+  ) {
     return 'blocked';
   }
 

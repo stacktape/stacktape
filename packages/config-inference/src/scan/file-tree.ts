@@ -29,6 +29,7 @@ export type ListRepositoryFilesOptions = {
 };
 
 const DEFAULT_MAX_FILES = 20_000;
+const SOURCE_BUILD_PACKAGE_DIRECTORY = 'build/package';
 
 /**
  * List every file the policy permits, breadth-first.
@@ -73,7 +74,10 @@ export const listRepositoryFiles = async (
         const relativePath = relativeDirectory === '' ? entry.name : `${relativeDirectory}/${entry.name}`;
 
         if (entry.isDirectory()) {
-          if (!isSkippedDirectoryName(entry.name)) {
+          const sourceBuildPackagePrefix =
+            relativePath.toLowerCase() === SOURCE_BUILD_PACKAGE_DIRECTORY ||
+            SOURCE_BUILD_PACKAGE_DIRECTORY.startsWith(`${relativePath.toLowerCase()}/`);
+          if (!isSkippedDirectoryName(entry.name) || sourceBuildPackagePrefix) {
             nextQueue.push(relativePath);
           }
           continue;

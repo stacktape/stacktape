@@ -52,6 +52,13 @@ describe('classifyFileAccess', () => {
     expect(classifyFileAccess('node_modules/left-pad/index.js')).toBe('blocked');
     expect(classifyFileAccess('apps/web/.next/server/page.js')).toBe('blocked');
   });
+
+  it('reads repository-owned source packaging while keeping other build output blocked', () => {
+    expect(classifyFileAccess('build/package/servers.dockerfile')).toBe('read');
+    expect(classifyFileAccess('build/package/scripts/entrypoint.sh')).toBe('read');
+    expect(classifyFileAccess('build/output/server.js')).toBe('blocked');
+    expect(classifyFileAccess('apps/api/build/package/server.js')).toBe('blocked');
+  });
 });
 
 describe('isSkippedDirectoryName', () => {
