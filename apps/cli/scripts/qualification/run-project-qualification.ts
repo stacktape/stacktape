@@ -1,5 +1,5 @@
 import { createHash, randomBytes } from 'node:crypto';
-import { copyFile, cp, mkdir, readFile, rm } from 'node:fs/promises';
+import { chmod, copyFile, cp, mkdir, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
@@ -523,6 +523,9 @@ const runCase = async ({
     const previousCaseDirectory = join(resumed.reportDirectory, 'cases', entry.id);
     if (resolve(previousCaseDirectory) !== resolve(caseArtifactDirectory)) {
       await cp(previousCaseDirectory, caseArtifactDirectory, { recursive: true, force: true });
+      // Sandboxed resume inputs are intentionally staged read-only. Their copied destination belongs to this
+      // runner, so restore directory write permission before atomically replacing result.json.
+      await chmod(caseArtifactDirectory, 0o700);
     }
     return {
       ...resumed.result,
