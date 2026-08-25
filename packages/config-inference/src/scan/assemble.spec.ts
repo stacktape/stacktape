@@ -513,4 +513,140 @@ describe('assembleCandidateFacts', () => {
       exposesHttp: true
     });
   });
+
+  it('identifies TanStack Start from @tanstack/solid-start and infers tanstack-start framework', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'tanstack-solid-app',
+        scripts: { build: 'vite build', start: 'node .output/server/index.mjs' },
+        dependencies: {
+          '@tanstack/solid-start': '^1.168.49',
+          '@tanstack/solid-router': '^1.170.32',
+          'solid-js': '^1.9.0'
+        }
+      }),
+      'pnpm-lock.yaml': ''
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: PROBES
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'tanstack-solid-app',
+      framework: 'tanstack-start',
+      exposesHttp: true
+    });
+  });
+
+  it('identifies TanStack Start from @tanstack/vue-start and infers tanstack-start framework', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'tanstack-vue-app',
+        scripts: { build: 'vite build', start: 'node .output/server/index.mjs' },
+        dependencies: {
+          '@tanstack/vue-start': '^1.168.49',
+          '@tanstack/vue-router': '^1.170.32',
+          vue: '^3.5.0'
+        }
+      }),
+      'pnpm-lock.yaml': ''
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: PROBES
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'tanstack-vue-app',
+      framework: 'tanstack-start',
+      exposesHttp: true
+    });
+  });
+
+  it('does not turn a workspace library with Start dependencies into a service without start, build, or config', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({ name: 'monorepo', private: true, workspaces: ['packages/*'] }),
+      'packages/ui-kit/package.json': JSON.stringify({
+        name: '@acme/ui-kit',
+        private: true,
+        dependencies: {
+          '@tanstack/react-start': '^1.168.49',
+          react: '^19.0.0'
+        }
+      })
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('resolves framework ambiguity between @solidjs/start and @tanstack/solid-start via config plugins', async () => {
+    const tanstackRepo = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'solid-hybrid-app',
+        scripts: { build: 'vite build', start: 'node .output/server/index.mjs' },
+        dependencies: {
+          '@solidjs/start': '^1.0.0',
+          '@tanstack/solid-start': '^1.168.49',
+          'solid-js': '^1.9.0'
+        }
+      }),
+      'vite.config.ts': "import { tanstackStart } from '@tanstack/solid-start/plugin/vite';\nexport default {};"
+    });
+
+    const { facts: tanstackFacts } = await assembleCandidateFacts({ root: tanstackRepo, probes: PROBES });
+    expect(tanstackFacts.services[0]?.framework).toBe('tanstack-start');
+
+    const solidRepo = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'solid-start-app',
+        scripts: { build: 'vinxi build', start: 'vinxi start' },
+        dependencies: {
+          '@solidjs/start': '^1.0.0',
+          '@tanstack/solid-start': '^1.168.49',
+          'solid-js': '^1.9.0'
+        }
+      }),
+      'app.config.ts': "import { defineConfig } from '@solidjs/start/config';\nexport default defineConfig({});"
+    });
+
+    const { facts: solidFacts } = await assembleCandidateFacts({ root: solidRepo, probes: PROBES });
+    expect(solidFacts.services[0]?.framework).toBe('solid-start');
+  });
+
+  it('resolves framework ambiguity between Next.js and Remix via build script or config', async () => {
+    const remixRepo = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'competing-app',
+        scripts: { build: 'remix vite:build', start: 'remix-serve build/server/index.js' },
+        dependencies: {
+          next: '^15.0.0',
+          '@remix-run/node': '^2.15.0'
+        }
+      })
+    });
+
+    const { facts: remixFacts } = await assembleCandidateFacts({ root: remixRepo, probes: PROBES });
+    expect(remixFacts.services[0]?.framework).toBe('remix');
+
+    const nextRepo = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'competing-app',
+        scripts: { build: 'next build', start: 'next start' },
+        dependencies: {
+          next: '^15.0.0',
+          '@remix-run/node': '^2.15.0'
+        }
+      })
+    });
+
+    const { facts: nextFacts } = await assembleCandidateFacts({ root: nextRepo, probes: PROBES });
+    expect(nextFacts.services[0]?.framework).toBe('nextjs');
+  });
 });

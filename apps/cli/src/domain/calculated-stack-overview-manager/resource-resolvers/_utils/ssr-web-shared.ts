@@ -223,8 +223,8 @@ export const SSR_WEB_FRAMEWORK_CONFIGS: Record<SsrWebResourceType, SsrWebFramewo
   },
   'tanstack-web': {
     displayName: 'TanStack Start',
-    defaultDevCommand: 'vinxi dev',
-    defaultBuildCommand: 'vinxi build',
+    defaultDevCommand: 'vite dev',
+    defaultBuildCommand: 'vite build',
     serverOutputPath: '.output/server',
     staticOutputPath: '.output/public',
     staticAssetPrefix: '_build',

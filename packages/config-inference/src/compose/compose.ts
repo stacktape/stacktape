@@ -1164,6 +1164,7 @@ const buildServiceResource = ({
       type: resourceType,
       properties: {
         appDirectory: service.path,
+        ...(service.buildCommand === undefined ? {} : { buildCommand: service.buildCommand }),
         ...(requiresVpc ? { serverLambda: { joinDefaultVpc: true } } : {}),
         ...shared
       }

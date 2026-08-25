@@ -82,7 +82,8 @@ const HTTP_FRAMEWORKS: ReadonlySet<string> = new Set([
   '@solidjs/start',
   '@tanstack/start',
   '@tanstack/react-start',
-  '@tanstack/solid-start'
+  '@tanstack/solid-start',
+  '@tanstack/vue-start'
 ]);
 
 /** Frameworks worth naming, because the composer has dedicated handling for several of them. */
@@ -95,6 +96,7 @@ const FRAMEWORK_NAMES: ReadonlyArray<{ package: string; name: string }> = [
   { package: '@solidjs/start', name: 'solid-start' },
   { package: '@tanstack/react-start', name: 'tanstack-start' },
   { package: '@tanstack/solid-start', name: 'tanstack-start' },
+  { package: '@tanstack/vue-start', name: 'tanstack-start' },
   { package: '@tanstack/start', name: 'tanstack-start' },
   { package: '@nestjs/core', name: 'nestjs' },
   { package: 'express', name: 'express' },
@@ -276,6 +278,95 @@ const prismaDatasourceKind = async (
   };
 };
 
+const DEDICATED_WEB_FRAMEWORKS = new Set([
+  'nextjs',
+  'nuxt',
+  'sveltekit',
+  'astro',
+  'remix',
+  'tanstack-start',
+  'solid-start',
+  'nestjs'
+]);
+
+const resolveFramework = async (
+  manifest: ParsedManifest,
+  context: ProbeContext
+): Promise<{ package: string; name: string } | undefined> => {
+  const matches = FRAMEWORK_NAMES.filter((entry) => manifest.dependencies[entry.package] !== undefined);
+  if (matches.length === 0) return undefined;
+  if (matches.length === 1) return matches[0];
+
+  // Prefer meta-frameworks over generic low-level server libraries (e.g. Next.js over internal Express)
+  const metaFrameworks = matches.filter((entry) => DEDICATED_WEB_FRAMEWORKS.has(entry.name));
+  const candidateList = metaFrameworks.length > 0 ? metaFrameworks : matches;
+  if (candidateList.length === 1) return candidateList[0];
+
+  const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
+  const scripts = Object.values(manifest.scripts).join(' ');
+
+  // 1. Script signals
+  if (/\bnext(?:\s|$)/.test(scripts) && candidateList.some((c) => c.name === 'nextjs')) {
+    return candidateList.find((c) => c.name === 'nextjs');
+  }
+  if (/\bremix(?:\s|$)/.test(scripts) && candidateList.some((c) => c.name === 'remix')) {
+    return candidateList.find((c) => c.name === 'remix');
+  }
+  if (/\bnuxt(?:\s|$)/.test(scripts) && candidateList.some((c) => c.name === 'nuxt')) {
+    return candidateList.find((c) => c.name === 'nuxt');
+  }
+  if (/\bastro(?:\s|$)/.test(scripts) && candidateList.some((c) => c.name === 'astro')) {
+    return candidateList.find((c) => c.name === 'astro');
+  }
+  if (/\bsvelte-kit\b|\bsveltekit\b/.test(scripts) && candidateList.some((c) => c.name === 'sveltekit')) {
+    return candidateList.find((c) => c.name === 'sveltekit');
+  }
+
+  // 2. Config files
+  const dirFiles = context.files
+    .filter((file) => file.startsWith(manifestPrefix))
+    .map((file) => file.slice(manifestPrefix.length));
+
+  if (dirFiles.some((f) => /^next\.config\.[cm]?[jt]sx?$/i.test(f)) && candidateList.some((c) => c.name === 'nextjs')) {
+    return candidateList.find((c) => c.name === 'nextjs');
+  }
+  if (dirFiles.some((f) => /^remix\.config\.[cm]?[jt]sx?$/i.test(f)) && candidateList.some((c) => c.name === 'remix')) {
+    return candidateList.find((c) => c.name === 'remix');
+  }
+  if (dirFiles.some((f) => /^nuxt\.config\.[cm]?[jt]sx?$/i.test(f)) && candidateList.some((c) => c.name === 'nuxt')) {
+    return candidateList.find((c) => c.name === 'nuxt');
+  }
+  if (
+    dirFiles.some((f) => /^svelte\.config\.[cm]?[jt]sx?$/i.test(f)) &&
+    candidateList.some((c) => c.name === 'sveltekit')
+  ) {
+    return candidateList.find((c) => c.name === 'sveltekit');
+  }
+  if (dirFiles.some((f) => /^astro\.config\.[cm]?[jt]sx?$/i.test(f)) && candidateList.some((c) => c.name === 'astro')) {
+    return candidateList.find((c) => c.name === 'astro');
+  }
+
+  // 3. Inspect vite.config or app.config for TanStack vs SolidStart plugin imports
+  const viteOrAppConfig = dirFiles.find((f) => /^(?:vite\.config|app\.config)\.[cm]?[jt]sx?$/i.test(f));
+  if (viteOrAppConfig !== undefined) {
+    const configPath = manifest.directory === '.' ? viteOrAppConfig : `${manifest.directory}/${viteOrAppConfig}`;
+    const configContent = await readText(context, configPath);
+    if (configContent !== undefined) {
+      if (
+        /@tanstack\/(?:react|solid|vue)?-?start|tanstackStart\b/.test(configContent) &&
+        candidateList.some((c) => c.name === 'tanstack-start')
+      ) {
+        return candidateList.find((c) => c.name === 'tanstack-start');
+      }
+      if (/@solidjs\/start|solidStart\b/.test(configContent) && candidateList.some((c) => c.name === 'solid-start')) {
+        return candidateList.find((c) => c.name === 'solid-start');
+      }
+    }
+  }
+
+  return candidateList[0];
+};
+
 export const manifestProbe: Probe = {
   name: 'manifest',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -312,22 +403,28 @@ export const manifestProbe: Probe = {
       { consumers: Set<string>; addressedBy: Set<string>; evidence: Citation[] }
     >();
     const migrations: MigrationFact[] = [];
+    const resolvedManifests = await Promise.all(
+      manifests.map(async (manifest) => ({
+        manifest,
+        frameworkEntry: await resolveFramework(manifest, context)
+      }))
+    );
 
-    for (const manifest of manifests) {
+    for (const { manifest, frameworkEntry } of resolvedManifests) {
       const hasStart = typeof manifest.scripts.start === 'string';
       const hasBuild = typeof manifest.scripts.build === 'string';
-      const frameworkEntry = FRAMEWORK_NAMES.find((entry) => manifest.dependencies[entry.package] !== undefined);
+      const hasDev = typeof manifest.scripts.dev === 'string';
       const exposesHttp = Object.keys(manifest.dependencies).some((name) => HTTP_FRAMEWORKS.has(name));
       // A Vite/CRA/Angular/Gatsby development server is not a production service. Its build output
       // is uploaded to static hosting; treating `ng serve` or `gatsby develop` as a worker is both
       // expensive and non-functional.
       const staticSite = exposesHttp || !hasBuild ? undefined : staticSiteFor(manifest, context.files);
       const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
-      const hasHandlerLayout = context.files.some(
-        (file) =>
-          file.startsWith(manifestPrefix) &&
-          /(?:^|\/)(?:functions?|lambdas?|handlers?)(?:\/|$)/i.test(file.slice(manifestPrefix.length)) &&
-          /\.(?:[cm]?js|tsx?|py)$/.test(file)
+      const dirFiles = context.files
+        .filter((file) => file.startsWith(manifestPrefix))
+        .map((file) => file.slice(manifestPrefix.length));
+      const hasHandlerLayout = dirFiles.some(
+        (file) => /(?:^|\/)(?:functions?|lambdas?|handlers?)(?:\/|$)/i.test(file) && /\.(?:[cm]?js|tsx?|py)$/.test(file)
       );
       const handlerOnlyPackage =
         hasHandlerLayout &&
@@ -339,7 +436,35 @@ export const manifestProbe: Probe = {
       // positive signal keeps a monorepo from producing a phantom service at its root.
       const isWorkspaceRoot =
         (manifest.workspaces?.length ?? 0) > 0 || (manifest.directory === '.' && pnpmGlobs.length > 0);
-      const runnable = staticSite !== undefined || hasStart || exposesHttp;
+
+      const hasFrameworkConfig = dirFiles.some((file) =>
+        /^(?:vite\.config|app\.config|next\.config|nuxt\.config|svelte\.config|astro\.config|remix\.config)\.[cm]?[jt]sx?$/i.test(
+          file
+        )
+      );
+      const hasServerEntrypoint = dirFiles.some((file) =>
+        /^(?:server\.[cm]?[jt]sx?|src\/server\.[cm]?[jt]sx?|src\/index\.[cm]?[jt]sx?|src\/main\.[cm]?[jt]sx?|src\/routes(?:\/|$)|app\/routes(?:\/|$)|pages(?:\/|$))/i.test(
+          file
+        )
+      );
+      const hasRoutesDir = dirFiles.some((file) => /^(?:src\/routes|app\/routes|routes)(?:\/|$)/i.test(file));
+      const hasPaasOrContainerConfig = dirFiles.some((file) =>
+        /^(?:fly\.toml|render\.yaml|Procfile|Dockerfile.*|docker-compose.*)\b/i.test(file)
+      );
+
+      const isStartFramework = frameworkEntry?.name === 'tanstack-start' || frameworkEntry?.name === 'solid-start';
+      const hasStartEvidence =
+        hasStart ||
+        hasBuild ||
+        hasDev ||
+        hasFrameworkConfig ||
+        hasServerEntrypoint ||
+        hasRoutesDir ||
+        hasPaasOrContainerConfig ||
+        staticSite !== undefined;
+
+      const startPackageWithoutEvidence = isStartFramework && !hasStartEvidence;
+      const runnable = (staticSite !== undefined || hasStart || exposesHttp) && !startPackageWithoutEvidence;
       // Root scripts such as `turbo run start` orchestrate child packages; they are not a third
       // deployable service. A real root app still has its own framework signal and survives this.
       const orchestrationOnlyRoot = isWorkspaceRoot && frameworkEntry === undefined && staticSite === undefined;

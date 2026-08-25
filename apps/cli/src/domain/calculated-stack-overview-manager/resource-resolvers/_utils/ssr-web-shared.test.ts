@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { getStaticAssetCachePathPatterns } from './ssr-web-shared';
+import { getStaticAssetCachePathPatterns, SSR_WEB_FRAMEWORK_CONFIGS } from './ssr-web-shared';
 
 const temporaryDirectories: string[] = [];
 
@@ -24,5 +24,23 @@ describe('SSR static asset cache paths', () => {
       'm-styles.css',
       'z-runtime.js'
     ]);
+  });
+});
+
+describe('SSR web framework defaults', () => {
+  test('tanstack-web defaults to Vite dev and build commands with Nitro aws-lambda preset', () => {
+    const config = SSR_WEB_FRAMEWORK_CONFIGS['tanstack-web'];
+    expect(config).toEqual({
+      displayName: 'TanStack Start',
+      defaultDevCommand: 'vite dev',
+      defaultBuildCommand: 'vite build',
+      serverOutputPath: '.output/server',
+      staticOutputPath: '.output/public',
+      staticAssetPrefix: '_build',
+      handlerPath: 'index.mjs',
+      presetEnvVar: 'NITRO_PRESET',
+      presetValue: 'aws-lambda',
+      wrapperType: 'passthrough'
+    });
   });
 });
