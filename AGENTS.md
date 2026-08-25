@@ -96,6 +96,8 @@ submodule pointer as generated noise, and do not rewrite shared history without 
 - Write for a mid-level or senior software engineer with working AWS knowledge. Explain project-specific context and do
   not assume the reader remembers a long session.
 - Make the message easy and pleasant to follow. Use plain speech, active voice, and name the actor.
+- Prefer conventional subject-verb-object sentences. Avoid rhetorical flourishes and detached trailing fragments such as
+  “..., extracted”; state the action in a complete sentence instead.
 - Remove filler, unnecessary jargon, sycophancy, and chatbot phrases such as “Certainly” or “Found the smoking gun.”
 - Split dense sentences. If a reader must backtrack to parse one, shorten it.
 - Give sections a clear purpose and order. Do not turn a response into unrelated headings or a wall of text.
