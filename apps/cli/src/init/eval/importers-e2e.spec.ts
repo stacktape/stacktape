@@ -68,6 +68,8 @@ const CASES: EvalCase[] = [
     name: 'Release Compose overrides infra-only Compose with parameterized server binaries',
     files: {
       'go.mod': 'module example.com/platform\n\ngo 1.26\n',
+      '.github/workflows/release.yml':
+        'steps:\n  - run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api\n',
       'docker-compose.yml': [
         'services:',
         '  postgres:',
@@ -127,8 +129,10 @@ const CASES: EvalCase[] = [
       ].join('\n'),
       'cmd/platform-api/main.go': 'package main\nfunc main() {}\n',
       'cmd/platform-engine/main.go': 'package main\nfunc main() {}\n',
-      'cmd/platform-admin/main.go': 'package main\nfunc main() {}\n',
-      'cmd/platform-migrate/main.go': 'package main\n// migrations run through goose\nfunc main() {}\n',
+      'cmd/platform-admin/main.go':
+        'package main\nvar root = &cobra.Command{}\nfunc main() { keys := GenerateLocalKeys(); os.WriteFile("generated/master.key", keys, 0600); root.Execute() }\n',
+      'cmd/platform-migrate/main.go':
+        'package main\n// migrations run through goose\nfunc main() { migrate.RunMigrations() }\n',
       'frontend/dashboard/package.json': JSON.stringify({
         name: 'dashboard',
         private: true,
@@ -206,6 +210,41 @@ const CASES: EvalCase[] = [
       forbiddenGapPatterns: ['RabbitMQ-compatible', 'NATS-compatible'],
       deployable: false,
       maxQuestions: 0
+    }
+  },
+  {
+    name: 'Ordinary Compose admin web service sharing uploads with its API',
+    files: {
+      Dockerfile: 'FROM node:24 AS admin\nCOPY . /app\nFROM node:24 AS api\nCOPY . /app\n',
+      'compose.yaml': [
+        'services:',
+        '  admin:',
+        '    build:',
+        '      context: .',
+        '      target: admin',
+        '    command: node admin.js',
+        '    ports: ["8080:8080"]',
+        '    volumes: ["uploads:/app/uploads"]',
+        '  api:',
+        '    build:',
+        '      context: .',
+        '      target: api',
+        '    command: node api.js',
+        '    ports: ["3000:3000"]',
+        '    volumes: ["uploads:/app/uploads"]',
+        'volumes:',
+        '  uploads:',
+        ''
+      ].join('\n'),
+      'admin.js': 'require("http").createServer(() => {}).listen(8080);\n',
+      'api.js': 'require("http").createServer(() => {}).listen(3000);\n'
+    },
+    expect: {
+      resources: { admin: 'web-service', api: 'web-service' },
+      resourceCount: 2,
+      forbiddenGapPatterns: ['persistent bootstrap', 'keysets'],
+      deployable: true,
+      maxQuestions: 2
     }
   },
   {

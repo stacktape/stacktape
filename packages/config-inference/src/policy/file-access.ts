@@ -111,6 +111,10 @@ const CREDENTIAL_DIRECTORY_NAMES: ReadonlySet<string> = new Set(['.aws', '.docke
  */
 export type FileAccess = 'read' | 'names-only' | 'blocked';
 
+/** A repository-owned container build descriptor, wherever a release definition keeps it. */
+export const isDockerfilePath = (repoRelativePath: string): boolean =>
+  /^(?:Dockerfile(?:\.[^/]+)?|[^/]+\.dockerfile)$/i.test(posix.basename(repoRelativePath));
+
 /**
  * Environment files are `names-only` with no exceptions, including `.env.example`.
  *
@@ -159,14 +163,22 @@ export const isSkippedDirectoryName = (name: string): boolean =>
  * doing it in two places would let the two drift. This answers only "given that this path is inside
  * the repository, how may it be used".
  */
-export const classifyFileAccess = (repoRelativePath: string): FileAccess => {
+export const classifyFileAccess = (
+  repoRelativePath: string,
+  options: { allowDescriptorReferencedDockerfile?: boolean } = {}
+): FileAccess => {
   const segments = repoRelativePath.split('/');
-  const sourceBuildPackage = segments[0]?.toLowerCase() === 'build' && segments[1]?.toLowerCase() === 'package';
-  if (
-    segments
-      .slice(0, -1)
-      .some((segment, index) => isSkippedDirectoryName(segment) && !(sourceBuildPackage && index === 0))
-  ) {
+  const skippedSegments = segments.slice(0, -1).filter((segment) => isSkippedDirectoryName(segment));
+  const descriptorOwnedBuild =
+    options.allowDescriptorReferencedDockerfile === true &&
+    isDockerfilePath(repoRelativePath) &&
+    skippedSegments.length > 0 &&
+    skippedSegments.every(
+      (segment) =>
+        SKIPPED_DIRECTORY_NAMES.has(segment) &&
+        !['node_modules', 'bower_components', 'deps', 'vendor', 'venv', '.venv'].includes(segment)
+    );
+  if (skippedSegments.length > 0 && !descriptorOwnedBuild) {
     return 'blocked';
   }
 

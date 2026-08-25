@@ -798,6 +798,8 @@ describe('the compose probe', () => {
 
   it('uses release services over an infra-only default and links parameterized source builds safely', async () => {
     root = await makeRepo({
+      '.github/workflows/release.yml':
+        'steps:\n  - run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api\n',
       'docker-compose.yml': [
         'services:',
         '  postgres:',
@@ -854,7 +856,10 @@ describe('the compose probe', () => {
         'CMD ["/bin/sh", "-c", "/platform/platform-${SERVER_TARGET}"]',
         ''
       ].join('\n'),
-      'cmd/platform-migrate/main.go': 'package main\n// migrations run through goose\nfunc main() {}\n',
+      'cmd/platform-migrate/main.go':
+        'package main\n// migrations run through goose\nfunc main() { migrate.RunMigrations() }\n',
+      'cmd/platform-admin/main.go':
+        'package main\nvar root = &cobra.Command{}\nfunc main() { keys := GenerateLocalKeys(); os.WriteFile("generated/master.key", keys, 0600); root.Execute() }\n',
       'cmd/platform-engine/main.go':
         'package main\nimport "net/http"\nfunc main() { http.ListenAndServe(":7077", nil) }\n'
     });
@@ -906,10 +911,48 @@ describe('the compose probe', () => {
           kind: 'persistent-bootstrap-artifacts',
           producerServiceName: 'platformAdmin',
           consumerServiceNames: ['platformEngine', 'platformApi'],
-          paths: ['/platform/generated']
+          paths: ['/platform/generated'],
+          evidence: expect.arrayContaining([expect.objectContaining({ file: 'cmd/platform-admin/main.go' })])
         })
       ])
     );
+  });
+
+  it('keeps an ordinary admin HTTP service long-running and does not call a shared uploads volume bootstrap', async () => {
+    root = await makeRepo({
+      Dockerfile: 'FROM node:24 AS admin\nCOPY . /app\nFROM node:24 AS api\nCOPY . /app\n',
+      'compose.yaml': [
+        'services:',
+        '  admin:',
+        '    build:',
+        '      context: .',
+        '      target: admin',
+        '    command: node admin.js',
+        '    ports: ["8080:8080"]',
+        '    volumes: ["uploads:/app/uploads"]',
+        '  api:',
+        '    build:',
+        '      context: .',
+        '      target: api',
+        '    command: node api.js',
+        '    ports: ["3000:3000"]',
+        '    volumes: ["uploads:/app/uploads"]',
+        'volumes:',
+        '  uploads:',
+        ''
+      ].join('\n'),
+      'admin.js': 'require("http").createServer(() => {}).listen(8080);\n',
+      'api.js': 'require("http").createServer(() => {}).listen(3000);\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [dockerComposeProbe] });
+
+    expect(facts.services.find((service) => service.name === 'admin')).toMatchObject({
+      exposesHttp: true,
+      executionModel: 'long-running',
+      port: 8080
+    });
+    expect(facts.deploymentRequirements).toEqual([]);
   });
 
   it('preserves a custom port and detects lifecycle work bundled behind the Dockerfile command', async () => {

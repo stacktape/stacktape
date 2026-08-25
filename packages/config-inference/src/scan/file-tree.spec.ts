@@ -25,7 +25,20 @@ beforeAll(async () => {
   await write('_build/prod/lib/customer_notifications/ebin/app.beam');
   await write('apps/web/.next/build.js');
   await write('apps/web/app.tsx');
+  await write(
+    '.github/workflows/release.yml',
+    [
+      'steps:',
+      '  - run: docker build -f ./build/package/servers.dockerfile .',
+      '  - uses: docker/build-push-action@v6',
+      '    with:',
+      '      file: dist/release/custom.dockerfile',
+      ''
+    ].join('\n')
+  );
   await write('build/package/servers.dockerfile');
+  await write('dist/release/custom.dockerfile');
+  await write('build/output/copied.dockerfile');
   await write('build/output/server.js');
   await write('apps/api/build/package/server.js');
 });
@@ -36,7 +49,7 @@ afterAll(async () => {
 
 describe('listRepositoryFiles', () => {
   it('lists source files and skips dependency and build directories', async () => {
-    const { files, truncated } = await listRepositoryFiles(root);
+    const { files, truncated, descriptorDockerfiles } = await listRepositoryFiles(root);
 
     expect(truncated).toBe(false);
     expect(files).toContain('package.json');
@@ -47,6 +60,9 @@ describe('listRepositoryFiles', () => {
     expect(files).not.toContain('_build/prod/lib/customer_notifications/ebin/app.beam');
     expect(files).not.toContain('apps/web/.next/build.js');
     expect(files).toContain('build/package/servers.dockerfile');
+    expect(files).toContain('dist/release/custom.dockerfile');
+    expect(descriptorDockerfiles).toEqual(['build/package/servers.dockerfile', 'dist/release/custom.dockerfile']);
+    expect(files).not.toContain('build/output/copied.dockerfile');
     expect(files).not.toContain('build/output/server.js');
     expect(files).not.toContain('apps/api/build/package/server.js');
   });

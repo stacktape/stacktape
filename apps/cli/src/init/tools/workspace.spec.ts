@@ -20,6 +20,9 @@ beforeAll(async () => {
     'utf8'
   );
   await writeFile(join(repo, 'deploy.pem'), 'PRIVATE KEY', 'utf8');
+  await mkdir(join(repo, 'build', 'release'), { recursive: true });
+  await writeFile(join(repo, 'build', 'release', 'server.dockerfile'), 'FROM node:24', 'utf8');
+  await writeFile(join(repo, 'build', 'release', 'generated.dockerfile'), 'FROM scratch', 'utf8');
   await writeFile(join(container, 'outside-secret.txt'), 'not yours', 'utf8');
 
   try {
@@ -86,6 +89,19 @@ describe('Workspace containment', () => {
 
     expect(result).toMatchObject({ ok: false, reason: 'blocked-by-policy' });
     expect(JSON.stringify(result)).not.toContain('PRIVATE KEY');
+  });
+
+  it('reads only the skipped-directory Dockerfile admitted by the policy listing', async () => {
+    const descriptorWorkspace = new Workspace(repo, ['build/release/server.dockerfile']);
+
+    expect(await descriptorWorkspace.read('build/release/server.dockerfile')).toMatchObject({
+      ok: true,
+      contents: 'FROM node:24'
+    });
+    expect(await descriptorWorkspace.read('build/release/generated.dockerfile')).toMatchObject({
+      ok: false,
+      reason: 'blocked-by-policy'
+    });
   });
 
   it('reports a missing file distinctly from a refusal', async () => {

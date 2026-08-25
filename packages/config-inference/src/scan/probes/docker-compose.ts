@@ -591,7 +591,93 @@ const volumeEntries = (service: ComposeService): Array<{ source?: string; target
       });
 
 const FINITE_MIGRATION_PROCESS = /(?:^|[-_.])migrat(?:e|ion|ions)?(?:$|[-_.])/i;
-const BOOTSTRAP_PROCESS = /(?:^|[-_.])(?:admin|bootstrap|init|setup)(?:$|[-_.])/i;
+const FINITE_LIFECYCLE_COMMAND = /(?:^|\s)(?:bootstrap|quickstart|generate-(?:keys?|certs?)|init|setup|seed)(?:\s|$)/i;
+const MIGRATION_SOURCE =
+  /\b(?:(?:[A-Za-z_][A-Za-z0-9_]*\.)?(?:Run(?:Down)?Migrations?|Migrate(?:Up|Down)?|ApplyMigrations?)|goose\.(?:Up|Down|UpTo|DownTo))\s*\(/i;
+const BOOTSTRAP_KEY_SOURCE =
+  /\b(?:GenerateLocalKeys|GenerateJWTKeysets?|Generate[A-Za-z0-9_]*(?:Keys?|Certs?)|keysets?|master[_ .-]?key|private[_ .-]?(?:jwt[_ .-]?)?key)\b/i;
+const BOOTSTRAP_WRITE_SOURCE = /\b(?:WriteFile|writeFile(?:Sync)?|write_text|File\.write|MkdirAll)\b/;
+const LIFECYCLE_CLI_SOURCE = /\b(?:cobra\.Command|rootCmd\.Execute|cli\.Execute|argparse|click\.command)\b/i;
+const BUILD_SELECTOR_ARGUMENT = /(?:TARGET|SERVICE|PROCESS|APP|BINARY)/i;
+const TARGET_SOURCE_PARENT = /^(?:cmd|apps?|services?|packages?|src|bin)$/i;
+
+const finiteProcessEvidenceOf = async ({
+  service,
+  build,
+  context,
+  completedConsumer
+}: {
+  service: ComposeService;
+  build: {
+    root: string;
+    dockerfile?: string;
+    target?: string | undefined;
+    buildArgs?: Array<{ argName: string; value: string }>;
+  };
+  context: ProbeContext;
+  completedConsumer: boolean;
+}): Promise<{ finite: boolean; bootstrap: boolean; evidence: Citation[] }> => {
+  if (completedConsumer) return { finite: true, bootstrap: false, evidence: [] };
+  const command = commandOf(service);
+  const commandMigration = command !== undefined && MIGRATION_COMMAND.test(command);
+  const commandBootstrap = command !== undefined && FINITE_LIFECYCLE_COMMAND.test(command);
+
+  const selectedTargets = [
+    ...(build.target === undefined ? [] : [build.target]),
+    ...(build.buildArgs ?? []).filter(({ argName }) => BUILD_SELECTOR_ARGUMENT.test(argName)).map(({ value }) => value)
+  ].filter((target) => /^[A-Za-z0-9_.-]+$/.test(target));
+  if (selectedTargets.length === 0) {
+    return { finite: commandMigration || commandBootstrap, bootstrap: commandBootstrap, evidence: [] };
+  }
+
+  const normalizedTargets = selectedTargets.map((target) => factName(target).toLowerCase());
+  const sourceFiles = context.files
+    .filter((file) => {
+      const relative =
+        build.root === '.' ? file : file.startsWith(`${build.root}/`) ? file.slice(build.root.length + 1) : undefined;
+      if (relative === undefined || !/\.(?:[cm]?js|tsx?|py|go|rb|rs|java|kt|cs|php|exs?)$/i.test(relative)) {
+        return false;
+      }
+      if (
+        /(?:^|\/)(?:test|tests|__tests__|spec|fixtures)(?:\/|$)/i.test(relative) ||
+        /(?:^|\/)[^/]+\.(?:test|spec)\.(?:[cm]?js|tsx?|py|go|rb|rs|java|kt|cs|php|exs?)$/i.test(relative)
+      ) {
+        return false;
+      }
+      const segments = relative.split('/');
+      return segments.some(
+        (segment, index) =>
+          index > 0 &&
+          TARGET_SOURCE_PARENT.test(segments[index - 1] ?? '') &&
+          normalizedTargets.some((target) => factName(segment).toLowerCase().includes(target))
+      );
+    })
+    .slice(0, 60);
+  let migrationCitation: Citation | undefined;
+  let bootstrapKeyCitation: Citation | undefined;
+  let bootstrapWriteCitation: Citation | undefined;
+  let cliCitation: Citation | undefined;
+  for (const file of sourceFiles) {
+    // oxlint-disable-next-line no-await-in-loop -- bounded source proof for one selected build target.
+    const raw = await readText(context, file);
+    if (raw === undefined) continue;
+    migrationCitation ??= citeFirstMatchOnly(file, raw, MIGRATION_SOURCE, 'executionModel');
+    bootstrapKeyCitation ??= citeFirstMatchOnly(file, raw, BOOTSTRAP_KEY_SOURCE, 'executionModel');
+    bootstrapWriteCitation ??= citeFirstMatchOnly(file, raw, BOOTSTRAP_WRITE_SOURCE, 'executionModel');
+    cliCitation ??= citeFirstMatchOnly(file, raw, LIFECYCLE_CLI_SOURCE, 'executionModel');
+  }
+  const sourceMigration = migrationCitation !== undefined;
+  const sourceBootstrap =
+    bootstrapKeyCitation !== undefined && bootstrapWriteCitation !== undefined && cliCitation !== undefined;
+  return {
+    finite: commandMigration || commandBootstrap || sourceMigration || sourceBootstrap,
+    bootstrap: commandBootstrap || sourceBootstrap,
+    evidence: [
+      ...(sourceMigration ? [migrationCitation] : []),
+      ...(sourceBootstrap ? [bootstrapKeyCitation, bootstrapWriteCitation, cliCitation] : [])
+    ].filter((citation): citation is Citation => citation !== undefined)
+  };
+};
 
 const grpcPortOf = (service: ComposeService, publishedPort: number | undefined): number | undefined => {
   if (publishedPort === undefined) return undefined;
@@ -785,11 +871,6 @@ export const dockerComposeProbe: Probe = {
     const rootCounts = new Map<string, number>();
     for (const { build } of appDeclarations) rootCounts.set(build.root, (rootCounts.get(build.root) ?? 0) + 1);
     const appNames = new Map(appDeclarations.map(({ composeName }) => [composeName, factName(composeName)]));
-    const finiteProcesses = new Set(
-      appDeclarations
-        .filter(({ composeName }) => FINITE_MIGRATION_PROCESS.test(composeName) || BOOTSTRAP_PROCESS.test(composeName))
-        .map(({ composeName }) => composeName)
-    );
     const serviceFacts: ServiceFactInput[] = [];
     const developmentProcesses = new Set<string>();
     const oneShotConsumers = new Map<string, string[]>();
@@ -800,6 +881,28 @@ export const dockerComposeProbe: Probe = {
         oneShotConsumers.set(dependencyName, consumers);
       }
     }
+    const processEvidence = new Map(
+      await Promise.all(
+        appDeclarations.map(
+          async ({ composeName, service, build }) =>
+            [
+              composeName,
+              await finiteProcessEvidenceOf({
+                service,
+                build,
+                context,
+                completedConsumer: oneShotConsumers.has(composeName)
+              })
+            ] as const
+        )
+      )
+    );
+    const finiteProcesses = new Set(
+      [...processEvidence.entries()].filter(([, evidence]) => evidence.finite).map(([composeName]) => composeName)
+    );
+    const bootstrapProcesses = new Set(
+      [...processEvidence.entries()].filter(([, evidence]) => evidence.bootstrap).map(([composeName]) => composeName)
+    );
     const migrations: MigrationFact[] = [];
     const lifecycleDockerfiles = new Set<string>();
 
@@ -1006,6 +1109,7 @@ export const dockerComposeProbe: Probe = {
         evidence: [
           ...(citation === undefined ? [] : [citation]),
           ...(build.evidence ?? []),
+          ...(processEvidence.get(composeName)?.evidence ?? []),
           ...bundledLifecycle.evidence
         ],
         source: 'probe'
@@ -1060,7 +1164,7 @@ export const dockerComposeProbe: Probe = {
     }
 
     for (const [producerName, producerService] of Object.entries(declaredServices)) {
-      if (!finiteProcesses.has(producerName) || !BOOTSTRAP_PROCESS.test(producerName)) continue;
+      if (!finiteProcesses.has(producerName) || !bootstrapProcesses.has(producerName)) continue;
       const producerVolumes = volumeEntries(producerService);
       const consumers = Object.entries(declaredServices).filter(
         ([candidateName, candidate]) =>
@@ -1097,7 +1201,10 @@ export const dockerComposeProbe: Probe = {
         producerServiceName: appNames.get(producerName)!,
         consumerServiceNames: consumers.map(([name]) => appNames.get(name)!),
         paths,
-        evidence: citation === undefined ? [] : [citation]
+        evidence: [
+          ...(citation === undefined ? [] : [citation]),
+          ...(processEvidence.get(producerName)?.evidence ?? [])
+        ]
       });
     }
 

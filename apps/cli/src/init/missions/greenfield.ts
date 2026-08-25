@@ -261,7 +261,7 @@ export const runGreenfieldMission = async (options: RunGreenfieldOptions): Promi
     }
   }
 
-  const workspace = new Workspace(options.repositoryRoot);
+  const workspace = new Workspace(options.repositoryRoot, files);
   const verification = await verifyFacts({
     facts,
     readFile: async (path) => {

@@ -6,15 +6,17 @@
  * full costs a fortune and communicates less than one that says there are four hundred.
  */
 
-import { readdir } from 'node:fs/promises';
-import { join } from 'node:path';
-import { classifyFileAccess, isSkippedDirectoryName } from '../policy/file-access';
+import { lstat, readFile, readdir, realpath } from 'node:fs/promises';
+import { isAbsolute, join, posix, relative } from 'node:path';
+import { classifyFileAccess, isDockerfilePath, isSkippedDirectoryName } from '../policy/file-access';
 
 export type RepositoryListing = {
   /** Repository-relative POSIX paths, sorted, excluding anything the policy blocks. */
   files: string[];
   /** True when the walk stopped at `maxFiles`; the listing is a prefix, not the whole repository. */
   truncated: boolean;
+  /** Dockerfiles inside normally-generated directories, admitted by an explicit release descriptor. */
+  descriptorDockerfiles: string[];
 };
 
 export type ListRepositoryFilesOptions = {
@@ -29,7 +31,85 @@ export type ListRepositoryFilesOptions = {
 };
 
 const DEFAULT_MAX_FILES = 20_000;
-const SOURCE_BUILD_PACKAGE_DIRECTORY = 'build/package';
+const RELEASE_DESCRIPTOR =
+  /^(?:\.github\/workflows\/[^/]+\.ya?ml|\.github\/actions\/[^/]+\/action\.ya?ml|\.gitlab-ci\.ya?ml|Makefile|Taskfile\.ya?ml|justfile)$/i;
+const MAX_RELEASE_DESCRIPTORS = 64;
+const MAX_DESCRIPTOR_BYTES = 1_000_000;
+
+const normalizeDockerfileReference = (value: string): string | undefined => {
+  const normalized = posix.normalize(value.replaceAll('\\', '/').replace(/^\.\//, ''));
+  if (
+    normalized === '' ||
+    normalized === '.' ||
+    normalized === '..' ||
+    normalized.startsWith('../') ||
+    normalized.startsWith('/') ||
+    /^[A-Za-z]:/.test(normalized) ||
+    /[$*?{}[\]]/.test(normalized) ||
+    !isDockerfilePath(normalized)
+  ) {
+    return undefined;
+  }
+  return normalized;
+};
+
+const descriptorDockerfiles = async (root: string, listedFiles: readonly string[]): Promise<string[]> => {
+  const references = new Set<string>();
+  for (const descriptor of listedFiles
+    .filter((file) => RELEASE_DESCRIPTOR.test(file))
+    .slice(0, MAX_RELEASE_DESCRIPTORS)) {
+    let raw: string;
+    try {
+      // Descriptor discovery is bounded separately from ordinary source reads because it runs before
+      // the probe context exists. Oversized CI files contribute no exception to the generated-tree policy.
+      // oxlint-disable-next-line no-await-in-loop -- deliberately bounded descriptor discovery.
+      const descriptorStat = await lstat(join(root, descriptor));
+      if (!descriptorStat.isFile() || descriptorStat.size > MAX_DESCRIPTOR_BYTES) continue;
+      // oxlint-disable-next-line no-await-in-loop -- deliberately bounded descriptor discovery.
+      raw = await readFile(join(root, descriptor), 'utf8');
+    } catch {
+      continue;
+    }
+    const patterns = [
+      /(?:^|\s)(?:--file(?:=|\s+)|-f\s+)(["']?)([A-Za-z0-9_./\\-]+)\1/g,
+      /^\s*(?:file|dockerfile)\s*:\s*(["']?)([A-Za-z0-9_./\\-]+)\1\s*$/gim
+    ];
+    for (const pattern of patterns) {
+      for (const match of raw.matchAll(pattern)) {
+        const normalized = normalizeDockerfileReference(match[2] ?? '');
+        if (normalized !== undefined) references.add(normalized);
+      }
+    }
+  }
+
+  const existing: string[] = [];
+  let resolvedRoot: string;
+  try {
+    resolvedRoot = await realpath(root);
+  } catch {
+    return [];
+  }
+  for (const reference of [...references].toSorted()) {
+    try {
+      const absolute = join(root, reference);
+      // oxlint-disable-next-line no-await-in-loop -- at most the bounded reference set above.
+      const finalEntry = await lstat(absolute);
+      if (!finalEntry.isFile() || finalEntry.isSymbolicLink()) continue;
+      // oxlint-disable-next-line no-await-in-loop -- checks parent-directory symlink escapes.
+      const resolved = await realpath(absolute);
+      const fromRoot = relative(resolvedRoot, resolved);
+      if (fromRoot === '..' || fromRoot.startsWith(`..\\`) || fromRoot.startsWith('../') || isAbsolute(fromRoot)) {
+        continue;
+      }
+      // Resolve every parent too: a plain file reached through a symlinked directory must not let a
+      // release descriptor escape the repository boundary.
+      existing.push(reference);
+    } catch {
+      // A stale release reference contributes no readable path.
+    }
+  }
+  return existing;
+};
 
 /**
  * List every file the policy permits, breadth-first.
@@ -74,10 +154,7 @@ export const listRepositoryFiles = async (
         const relativePath = relativeDirectory === '' ? entry.name : `${relativeDirectory}/${entry.name}`;
 
         if (entry.isDirectory()) {
-          const sourceBuildPackagePrefix =
-            relativePath.toLowerCase() === SOURCE_BUILD_PACKAGE_DIRECTORY ||
-            SOURCE_BUILD_PACKAGE_DIRECTORY.startsWith(`${relativePath.toLowerCase()}/`);
-          if (!isSkippedDirectoryName(entry.name) || sourceBuildPackagePrefix) {
+          if (!isSkippedDirectoryName(entry.name)) {
             nextQueue.push(relativePath);
           }
           continue;
@@ -103,7 +180,17 @@ export const listRepositoryFiles = async (
     queue = nextQueue.toSorted();
   }
 
-  return { files: files.toSorted(), truncated };
+  const referencedDockerfiles = await descriptorDockerfiles(root, files);
+  for (const dockerfile of referencedDockerfiles) {
+    if (files.includes(dockerfile)) continue;
+    if (files.length >= maxFiles) {
+      truncated = true;
+      break;
+    }
+    files.push(dockerfile);
+  }
+
+  return { files: files.toSorted(), truncated, descriptorDockerfiles: referencedDockerfiles };
 };
 
 export type RenderFileTreeOptions = {

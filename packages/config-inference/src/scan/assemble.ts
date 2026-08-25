@@ -677,21 +677,28 @@ export type CandidateFactsResult = {
 };
 
 /** Build the probe context for a repository root. */
-export const createProbeContext = (root: string, files: readonly string[]): ProbeContext => ({
-  root,
-  files,
-  read: (repoRelativePath, options) => readSourceFile(root, repoRelativePath, options),
-  readPrivileged: async (repoRelativePath) => {
-    // Even the privileged reader refuses credential material. A probe has no business opening a
-    // private key, so the exception it holds is narrow by construction: environment values only.
-    if (classifyFileAccess(repoRelativePath) === 'blocked') return null;
-    try {
-      return await readFile(join(root, repoRelativePath), 'utf8');
-    } catch {
-      return null;
+export const createProbeContext = (
+  root: string,
+  files: readonly string[],
+  descriptorDockerfiles: readonly string[] = []
+): ProbeContext => {
+  const descriptorDockerfileSet = new Set(descriptorDockerfiles);
+  return {
+    root,
+    files,
+    read: (repoRelativePath, options) => readSourceFile(root, repoRelativePath, options, descriptorDockerfileSet),
+    readPrivileged: async (repoRelativePath) => {
+      // Even the privileged reader refuses credential material. A probe has no business opening a
+      // private key, so the exception it holds is narrow by construction: environment values only.
+      if (classifyFileAccess(repoRelativePath) === 'blocked') return null;
+      try {
+        return await readFile(join(root, repoRelativePath), 'utf8');
+      } catch {
+        return null;
+      }
     }
-  }
-});
+  };
+};
 
 /**
  * Produce the candidate facts document a repository yields without any AI at all.
@@ -715,8 +722,11 @@ export const assembleCandidateFacts = async ({
    */
   planner?: CommandPlanner;
 }): Promise<CandidateFactsResult> => {
-  const listing = files === undefined ? await listRepositoryFiles(root) : { files: [...files], truncated: false };
-  const context = createProbeContext(root, listing.files);
+  const listing =
+    files === undefined
+      ? await listRepositoryFiles(root)
+      : { files: [...files], truncated: false, descriptorDockerfiles: [] };
+  const context = createProbeContext(root, listing.files, listing.descriptorDockerfiles);
 
   // Probes are independent and every one of them is I/O, so they run together. Order is preserved
   // because the merge below resolves conflicts by probe order, and a scan whose result depends on
