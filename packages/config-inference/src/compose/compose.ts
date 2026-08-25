@@ -159,9 +159,10 @@ const servicesOwnedByRuntime = (
     if (exactEntrypointOwners.length > 0) return exactEntrypointOwners;
 
     const locationOwners = mostSpecificServicesOwningPath(inScope, constraint.entrypoint);
-    if (locationOwners.length === 1 && locationOwners[0]?.path !== constraint.scope) return locationOwners;
+    return locationOwners.length === 1 ? locationOwners : [];
   }
-  return inScope.length === 1 ? inScope : [];
+  const exactScopeServices = inScope.filter((service) => service.path === constraint.scope);
+  return exactScopeServices.length === 1 ? exactScopeServices : [];
 };
 
 const CLOUDFLARE_BINDING_LABELS: Readonly<Record<string, string>> = {
@@ -655,30 +656,24 @@ export const composeConfig = ({
     cloudflareRuntimeConstraints.map((constraint) => [constraint, servicesOwnedByRuntime(facts.services, constraint)])
   );
   const cloudflareOwnedServices = new Set([...cloudflareRuntimeOwnership.values()].flat());
-  const ownedCloudflareRuntimeConstraints = cloudflareRuntimeConstraints.filter(
-    (constraint) => (cloudflareRuntimeOwnership.get(constraint)?.length ?? 0) > 0
-  );
   const services = facts.services.filter((service) => !cloudflareOwnedServices.has(service));
-  const serviceSet = new Set(services);
   const serviceNames = new Set(services.map((service) => service.name));
-  // A dependency used solely by a suppressed Worker service is part of the same non-portable app.
-  // Do not leave behind a convincing but orphaned database, queue, or bucket.
+  // A dependency used solely by a Worker, or not connected to any recognized service at all, is
+  // part of the same unresolved topology. Keep dependencies required by a retained sibling, but do
+  // not turn an SDK package hint into a convincing orphan database, queue, or bucket.
   const dependencies = facts.dependencies.filter((dependency) => {
-    if (ownedCloudflareRuntimeConstraints.length === 0) return true;
+    if (cloudflareRuntimeConstraints.length === 0) return true;
     if (dependency.consumedBy.length > 0) {
-      return dependency.consumedBy.some((consumer) => serviceNames.has(consumer));
+      const evidenceOwners = dependency.evidence.flatMap((citation) =>
+        mostSpecificServicesOwningPath(facts.services, citation.file)
+      );
+      return evidenceOwners.some(
+        (service) => dependency.consumedBy.includes(service.name) && services.includes(service)
+      );
     }
-    const evidenceOwners = dependency.evidence.flatMap((citation) =>
-      mostSpecificServicesOwningPath(facts.services, citation.file)
-    );
-    if (evidenceOwners.length > 0) {
-      return evidenceOwners.some((service) => serviceSet.has(service));
-    }
-    // With no deployable service and no ownership evidence, emitting an orphan resource is the
-    // dangerous guess. In a mixed monorepo, retain it for review rather than suppressing a possibly
-    // platform-neutral declaration.
-    return services.length > 0;
+    return false;
   });
+  const omittedCloudflareDependencies = facts.dependencies.filter((dependency) => !dependencies.includes(dependency));
   const recommendedPreferences = defaultDeploymentPreferences(facts);
   const preferences: DeploymentPreferences = {
     ...(mode === undefined ? recommendedPreferences : MODE_PREFERENCES[mode]),
@@ -1076,14 +1071,21 @@ export const composeConfig = ({
       runtimeBindings.length === 0
         ? 'Cloudflare Worker code'
         : `Cloudflare Worker code plus these runtime bindings: ${runtimeBindings.join(', ')}`;
+    const omittedDependencyKinds = [
+      ...new Set(omittedCloudflareDependencies.map((dependency) => dependencyLabel(dependency.kind)))
+    ];
+    const omittedDependencyMessage =
+      omittedDependencyKinds.length === 0
+        ? ''
+        : ` Init also left the detected ${omittedDependencyKinds.join(', ')} ${omittedDependencyKinds.length === 1 ? 'dependency' : 'dependencies'} out because no retained platform-neutral service uses ${omittedDependencyKinds.length === 1 ? 'it' : 'them'}; creating ${omittedDependencyKinds.length === 1 ? 'it' : 'them'} would leave orphan AWS resources.`;
     const cloudflareRuntimeMessage =
       ownedRuntimeConstraints.length === 0
         ? Object.keys(resources).length === 0
-          ? `This project declares ${runtimeDetail}, but init could not associate that runtime with a recognized application service. It generated no AWS resources; review the Worker as a separate application before deploying it with Stacktape.`
-          : `This project also declares ${runtimeDetail}, but init could not associate that runtime with any recognized application service. It left the detected platform-neutral services unchanged; review the Worker separately.`
+          ? `This project declares ${runtimeDetail}, but init could not associate that runtime with a recognized application service. It generated no AWS resources; review the Worker as a separate application before deploying it with Stacktape.${omittedDependencyMessage}`
+          : `This project also declares ${runtimeDetail}, but init could not associate that runtime with any recognized application service. It retained the detected platform-neutral services only for review. This is not a deployable configuration for the complete project; review the Worker separately.${omittedDependencyMessage}`
         : Object.keys(resources).length === 0
-          ? `This app depends on ${runtimeDetail}. Init cannot translate those runtime semantics safely, so it generated no AWS resources. Adapt the Cloudflare-owned code and bindings before deploying with Stacktape.`
-          : `Init generated AWS resources only for the platform-neutral parts of this repository. Its ${runtimeDetail} cannot be translated safely, so the Cloudflare-owned part was left out. This is not a deployable configuration for the complete app; adapt that code and its bindings first.`;
+          ? `This app depends on ${runtimeDetail}. Init cannot translate those runtime semantics safely, so it generated no AWS resources. Adapt the Cloudflare-owned code and bindings before deploying with Stacktape.${omittedDependencyMessage}`
+          : `Init generated AWS resources only for the platform-neutral parts of this repository. Its ${runtimeDetail} cannot be translated safely, so the Cloudflare-owned part was left out. This is not a deployable configuration for the complete app; adapt that code and its bindings first.${omittedDependencyMessage}`;
     gaps.push({
       subject: deployment.tool,
       message:
@@ -1129,7 +1131,7 @@ export const composeConfig = ({
     serviceResources: Object.fromEntries(serviceResourceNames),
     // A partial monorepo result remains useful for review, but must not unlock deployment as though
     // it represented the complete application.
-    deployable: Object.keys(resources).length > 0 && ownedCloudflareRuntimeConstraints.length === 0
+    deployable: Object.keys(resources).length > 0 && cloudflareRuntimeConstraints.length === 0
   };
 };
 

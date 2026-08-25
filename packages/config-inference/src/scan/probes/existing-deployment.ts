@@ -54,20 +54,46 @@ const UNAMBIGUOUS_FILES: ReadonlyArray<{
   }
 ];
 
-const IGNORED_NESTED_DIRECTORIES = new Set([
+const INCIDENTAL_DIRECTORY_NAMES = new Set([
   '__fixtures__',
+  'demo',
+  'demos',
   'fixture',
   'fixtures',
   'example',
   'examples',
+  'docs',
+  'documentation',
+  'playground',
+  'playgrounds',
   'sample',
   'samples',
+  'template',
+  'templates',
   'test',
   'tests'
 ]);
 
-/** Root documentation trees are supporting material; `apps/docs` can still be a real deployed app. */
-const IGNORED_ROOT_DIRECTORIES = new Set(['docs', 'documentation']);
+const APPLICATION_MANIFEST_NAMES = [
+  'package.json',
+  'deno.json',
+  'deno.jsonc',
+  'Cargo.toml',
+  'pyproject.toml',
+  'requirements.txt',
+  'go.mod'
+] as const;
+
+/**
+ * A conventional supporting-material directory is incidental only without an application manifest
+ * beside the deployment file. This ignores `docs/cloudflare/wrangler.json` in a Node API while
+ * retaining a real `docs/wrangler.json` or `apps/docs/wrangler.json` application.
+ */
+const isIncidentalManifest = (files: readonly string[], directories: readonly string[]): boolean => {
+  if (!directories.some((segment) => INCIDENTAL_DIRECTORY_NAMES.has(segment.toLowerCase()))) return false;
+  const directory = directories.join('/');
+  return !APPLICATION_MANIFEST_NAMES.some((name) => files.includes(`${directory}/${name}`));
+};
 
 /**
  * Deployment manifests often live beside an app in a monorepo (`apps/api/fly.toml`). Consider a
@@ -81,11 +107,7 @@ const findManifests = (files: readonly string[], names: readonly string[]): stri
     const name = segments.at(-1);
     const directories = segments.slice(0, -1);
     return (
-      name !== undefined &&
-      names.includes(name) &&
-      directories.length <= 4 &&
-      !IGNORED_ROOT_DIRECTORIES.has(directories[0]?.toLowerCase() ?? '') &&
-      !directories.some((segment) => IGNORED_NESTED_DIRECTORIES.has(segment.toLowerCase()))
+      name !== undefined && names.includes(name) && directories.length <= 4 && !isIncidentalManifest(files, directories)
     );
   });
 
@@ -231,6 +253,27 @@ const parseWrangler = (path: string, raw: string): Record<string, unknown> | und
 
 /** Cite only a runtime key. A binding declaration may share its line with IDs or credentials. */
 const cloudflareKeyCitation = (path: string, raw: string, key: string): Citation | undefined => {
+  if (!path.endsWith('.toml')) {
+    const source = ts.parseJsonText(path, raw);
+    const expression = source.statements[0]?.expression;
+    if (expression !== undefined && ts.isObjectLiteralExpression(expression)) {
+      const property = expression.properties.find((candidate): candidate is ts.PropertyAssignment => {
+        if (!ts.isPropertyAssignment(candidate)) return false;
+        return (
+          (ts.isStringLiteralLike(candidate.name) || ts.isIdentifier(candidate.name)) && candidate.name.text === key
+        );
+      });
+      if (property !== undefined) {
+        return {
+          file: path,
+          line: source.getLineAndCharacterOfPosition(property.name.getStart(source)).line + 1,
+          quote: key
+        };
+      }
+    }
+    return undefined;
+  }
+
   const escaped = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const matcher = new RegExp(`^\\s*(?:["']?${escaped}["']?\\s*[:=]|\\[+\\s*${escaped}\\s*\\]+)`);
   for (const [index, line] of raw.split(/\r?\n/).entries()) {
