@@ -17,6 +17,8 @@ export type RepositoryListing = {
   truncated: boolean;
   /** Dockerfiles inside normally-generated directories, admitted by an explicit release descriptor. */
   descriptorDockerfiles: string[];
+  /** Contained Dockerfile symlinks and their canonical repository-local targets. */
+  dockerfileSymlinks: Array<{ path: string; target: string }>;
 };
 
 export type ListRepositoryFilesOptions = {
@@ -36,6 +38,34 @@ const RELEASE_DESCRIPTOR =
 const MAX_RELEASE_DESCRIPTORS = 64;
 const MAX_DESCRIPTOR_BYTES = 1_000_000;
 const MAX_DESCRIPTOR_DOCKERFILES = 32;
+
+const containedDockerfileSymlinkTarget = async (
+  root: string,
+  resolvedRoot: string,
+  relativePath: string
+): Promise<string | undefined> => {
+  if (!isDockerfilePath(relativePath)) return undefined;
+  try {
+    const resolvedTarget = await realpath(join(root, relativePath));
+    const relativeTarget = relative(resolvedRoot, resolvedTarget);
+    if (
+      relativeTarget === '' ||
+      relativeTarget === '..' ||
+      relativeTarget.startsWith(`..\\`) ||
+      relativeTarget.startsWith('../') ||
+      isAbsolute(relativeTarget)
+    ) {
+      return undefined;
+    }
+    const normalizedTarget = relativeTarget.replaceAll('\\', '/');
+    if (!isDockerfilePath(normalizedTarget) || classifyFileAccess(normalizedTarget) === 'blocked') return undefined;
+    const targetEntry = await lstat(resolvedTarget);
+    return targetEntry.isFile() ? normalizedTarget : undefined;
+  } catch {
+    // Broken links and links whose final target cannot be inspected contribute no repository fact.
+    return undefined;
+  }
+};
 
 const normalizeDockerfileReference = (value: string): string | undefined => {
   const normalized = posix.normalize(value.replaceAll('\\', '/').replace(/^\.\//, ''));
@@ -131,8 +161,15 @@ export const listRepositoryFiles = async (
 ): Promise<RepositoryListing> => {
   const maxFiles = options.maxFiles ?? DEFAULT_MAX_FILES;
   const files: string[] = [];
+  const dockerfileSymlinks: Array<{ path: string; target: string }> = [];
   let queue: string[] = [''];
   let truncated = false;
+  let resolvedRoot: string | undefined;
+  try {
+    resolvedRoot = await realpath(root);
+  } catch {
+    // The ordinary walk can still report readable entries. It simply cannot prove symlink containment.
+  }
 
   while (queue.length > 0 && !truncated) {
     const nextQueue: string[] = [];
@@ -163,6 +200,21 @@ export const listRepositoryFiles = async (
           if (!isSkippedDirectoryName(entry.name)) {
             nextQueue.push(relativePath);
           }
+          continue;
+        }
+        if (entry.isSymbolicLink()) {
+          if (resolvedRoot === undefined) continue;
+          // Only Dockerfile aliases affect deployment selection. Follow their final target after
+          // proving it is a regular Dockerfile inside this repository; never traverse linked directories.
+          // oxlint-disable-next-line no-await-in-loop -- one bounded lookup per top-level file alias.
+          const target = await containedDockerfileSymlinkTarget(root, resolvedRoot, relativePath);
+          if (target === undefined || classifyFileAccess(relativePath) === 'blocked') continue;
+          if (files.length >= maxFiles) {
+            truncated = true;
+            break;
+          }
+          files.push(relativePath);
+          dockerfileSymlinks.push({ path: relativePath, target });
           continue;
         }
         if (!entry.isFile()) {
@@ -196,7 +248,12 @@ export const listRepositoryFiles = async (
     files.push(dockerfile);
   }
 
-  return { files: files.toSorted(), truncated, descriptorDockerfiles: referencedDockerfiles };
+  return {
+    files: files.toSorted(),
+    truncated,
+    descriptorDockerfiles: referencedDockerfiles,
+    dockerfileSymlinks: dockerfileSymlinks.toSorted((left, right) => left.path.localeCompare(right.path))
+  };
 };
 
 export type RenderFileTreeOptions = {

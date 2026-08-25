@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'bun:test';
@@ -81,6 +81,43 @@ describe('listRepositoryFiles', () => {
 
     expect(truncated).toBe(true);
     expect(files).toHaveLength(2);
+  });
+
+  it('records a contained Dockerfile symlink with its canonical target', async () => {
+    const linkedRoot = await mkdtemp(join(tmpdir(), 'config-inference-tree-linked-'));
+    try {
+      await mkdir(join(linkedRoot, 'docker'), { recursive: true });
+      await writeFile(join(linkedRoot, 'docker/Dockerfile.production'), 'FROM node:24\n', 'utf8');
+      await symlink('docker/Dockerfile.production', join(linkedRoot, 'Dockerfile'), 'file');
+
+      const listing = await listRepositoryFiles(linkedRoot);
+
+      expect(listing.files).toContain('Dockerfile');
+      expect(listing.files).toContain('docker/Dockerfile.production');
+      expect(listing.dockerfileSymlinks).toEqual([{ path: 'Dockerfile', target: 'docker/Dockerfile.production' }]);
+    } finally {
+      await rm(linkedRoot, { recursive: true, force: true });
+    }
+  });
+
+  it('does not admit escaped or broken Dockerfile symlinks', async () => {
+    const linkedRoot = await mkdtemp(join(tmpdir(), 'config-inference-tree-linked-'));
+    const outsideRoot = await mkdtemp(join(tmpdir(), 'config-inference-tree-outside-'));
+    try {
+      const outsideDockerfile = join(outsideRoot, 'Dockerfile.production');
+      await writeFile(outsideDockerfile, 'FROM malicious:latest\n', 'utf8');
+      await symlink(outsideDockerfile, join(linkedRoot, 'Dockerfile.escaped'), 'file');
+      await symlink('docker/Dockerfile.missing', join(linkedRoot, 'Dockerfile.broken'), 'file');
+
+      const listing = await listRepositoryFiles(linkedRoot);
+
+      expect(listing.files).not.toContain('Dockerfile.escaped');
+      expect(listing.files).not.toContain('Dockerfile.broken');
+      expect(listing.dockerfileSymlinks).toEqual([]);
+    } finally {
+      await rm(linkedRoot, { recursive: true, force: true });
+      await rm(outsideRoot, { recursive: true, force: true });
+    }
   });
 
   it('bounds descriptor-named Dockerfiles before filesystem inspection', async () => {

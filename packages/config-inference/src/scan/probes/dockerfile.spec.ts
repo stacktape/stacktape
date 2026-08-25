@@ -1,4 +1,4 @@
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -33,10 +33,7 @@ describe('the standalone Dockerfile probe', () => {
       'apps/api/package.json': '{"name":"api","dependencies":{"express":"5"}}',
       'apps/api/Dockerfile': 'FROM node:24\nEXPOSE 8080\nCMD ["node", "server.js"]\n'
     });
-    const { facts } = await assembleCandidateFacts({
-      root: repositoryRoot,
-      probes: [dockerfileProbe]
-    });
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
 
     expect(facts.services[0]).toMatchObject({
       path: 'apps/api',
@@ -64,10 +61,7 @@ describe('the standalone Dockerfile probe', () => {
       'requirements.txt': 'celery==5\nredis==5\n',
       Dockerfile: 'FROM python:3.12\nCMD ["python", "worker.py"]\n'
     });
-    const { facts } = await assembleCandidateFacts({
-      root: repositoryRoot,
-      probes: [dockerfileProbe]
-    });
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
 
     expect(facts.services[0]).toMatchObject({
       path: '.',
@@ -97,7 +91,10 @@ describe('the standalone Dockerfile probe', () => {
       Dockerfile: 'FROM alpine:3.20\nCOPY list-manager /app/list-manager\nEXPOSE 8080\n'
     });
 
-    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [dockerfileProbe]
+    });
 
     expect(facts.services).toEqual([]);
   });
@@ -118,7 +115,10 @@ describe('the standalone Dockerfile probe', () => {
       ].join('\n')
     });
 
-    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [dockerfileProbe]
+    });
 
     expect(facts.services).toHaveLength(1);
     expect(facts.services[0]).toMatchObject({ dockerfile: 'Dockerfile-build', port: 80 });
@@ -328,6 +328,45 @@ describe('the standalone Dockerfile probe', () => {
     expect(composed.deployable).toBe(true);
   });
 
+  it('produces the same Dockerfile facts for a contained symlink and its materialized pointer', async () => {
+    root = await mkdtemp(join(tmpdir(), 'stp-dockerfile-equivalence-'));
+    const materializedRoot = join(root, 'materialized');
+    const linkedRoot = join(root, 'linked');
+    const dockerfile = ['FROM node:24', 'EXPOSE 80', 'VOLUME ["/data"]', 'ENTRYPOINT ["/app/start.sh"]', ''].join('\n');
+    await Promise.all(
+      [materializedRoot, linkedRoot].map(async (repositoryRoot) => {
+        await mkdir(join(repositoryRoot, 'docker'), { recursive: true });
+        await Promise.all([
+          writeFile(
+            join(repositoryRoot, 'package.json'),
+            JSON.stringify({
+              name: 'password-vault',
+              dependencies: { express: '5' }
+            }),
+            'utf8'
+          ),
+          writeFile(join(repositoryRoot, 'docker/Dockerfile.production'), dockerfile, 'utf8')
+        ]);
+      })
+    );
+    await writeFile(join(materializedRoot, 'Dockerfile'), 'docker/Dockerfile.production\n', 'utf8');
+    await symlink('docker/Dockerfile.production', join(linkedRoot, 'Dockerfile'), 'file');
+
+    const [materialized, linked] = await Promise.all([
+      assembleCandidateFacts({
+        root: materializedRoot,
+        probes: [manifestProbe, dockerfileProbe]
+      }),
+      assembleCandidateFacts({
+        root: linkedRoot,
+        probes: [manifestProbe, dockerfileProbe]
+      })
+    ]);
+
+    expect(linked.facts.services).toEqual(materialized.facts.services);
+    expect(composeConfig({ facts: linked.facts }).config).toEqual(composeConfig({ facts: materialized.facts }).config);
+  });
+
   it('ignores nested test harness Dockerfiles, manifests, and environment values', async () => {
     const repositoryRoot = await makeRepo({
       'package.json': JSON.stringify({ name: 'api', dependencies: { express: '5' } }),
@@ -367,7 +406,6 @@ describe('the standalone Dockerfile probe', () => {
         'rocket = "0.5"',
         ''
       ].join('\n'),
-      Dockerfile: 'docker/Dockerfile.production\n',
       'docker/Dockerfile.production': [
         'FROM rust:1 AS build',
         'ARG DB=sqlite,mysql,postgresql',
@@ -378,6 +416,7 @@ describe('the standalone Dockerfile probe', () => {
         'CMD ["/start.sh"]',
         ''
       ].join('\n'),
+      'docker/Dockerfile.alpine': 'FROM alpine:3.22\nEXPOSE 80\nVOLUME /data\n',
       'src/config.rs': [
         'macro_rules! make_config {',
         '  ($name:ident) => { stringify!([<$name:upper>]) };',
@@ -395,6 +434,7 @@ describe('the standalone Dockerfile probe', () => {
         ''
       ].join('\n')
     });
+    await symlink('docker/Dockerfile.production', join(repositoryRoot, 'Dockerfile'), 'file');
     const { facts } = await assembleCandidateFacts({
       root: repositoryRoot,
       probes: [dockerfileProbe, languageManifestProbe]
@@ -403,6 +443,7 @@ describe('the standalone Dockerfile probe', () => {
 
     expect(facts.dependencies).toEqual([]);
     expect(facts.services[0]).toMatchObject({
+      dockerfile: 'docker/Dockerfile.production',
       defaultLocalDatabase: {
         kind: 'sqlite',
         path: '/data/db.sqlite3',

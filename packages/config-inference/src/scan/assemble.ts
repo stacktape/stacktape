@@ -729,12 +729,14 @@ export type CandidateFactsResult = {
 export const createProbeContext = (
   root: string,
   files: readonly string[],
-  descriptorDockerfiles: readonly string[] = []
+  descriptorDockerfiles: readonly string[] = [],
+  dockerfileSymlinks: ReadonlyArray<{ path: string; target: string }> = []
 ): ProbeContext => {
   const descriptorDockerfileSet = new Set(descriptorDockerfiles);
   return {
     root,
     files,
+    dockerfileSymlinkTargets: new Map(dockerfileSymlinks.map(({ path, target }) => [path, target])),
     read: (repoRelativePath, options) => readSourceFile(root, repoRelativePath, options, descriptorDockerfileSet),
     readPrivileged: async (repoRelativePath) => {
       // Even the privileged reader refuses credential material. A probe has no business opening a
@@ -774,8 +776,8 @@ export const assembleCandidateFacts = async ({
   const listing =
     files === undefined
       ? await listRepositoryFiles(root)
-      : { files: [...files], truncated: false, descriptorDockerfiles: [] };
-  const context = createProbeContext(root, listing.files, listing.descriptorDockerfiles);
+      : { files: [...files], truncated: false, descriptorDockerfiles: [], dockerfileSymlinks: [] };
+  const context = createProbeContext(root, listing.files, listing.descriptorDockerfiles, listing.dockerfileSymlinks);
 
   // Probes are independent and every one of them is I/O, so they run together. Order is preserved
   // because the merge below resolves conflicts by probe order, and a scan whose result depends on

@@ -38,7 +38,8 @@ export const readDockerfileDefinition = async (
 ): Promise<{ path: string; raw: string } | undefined> => {
   const candidateRaw = await readText(context, path);
   if (candidateRaw === undefined) return undefined;
-  const pointerTarget = dockerfilePointerTarget(path, candidateRaw, context.files);
+  const pointerTarget =
+    context.dockerfileSymlinkTargets.get(path) ?? dockerfilePointerTarget(path, candidateRaw, context.files);
   const dockerfile = pointerTarget ?? path;
   const raw = pointerTarget === undefined ? candidateRaw : await readText(context, pointerTarget);
   return raw === undefined ? undefined : { path: dockerfile, raw };
