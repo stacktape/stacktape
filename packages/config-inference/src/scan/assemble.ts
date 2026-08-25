@@ -236,6 +236,16 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
     runtimeVersion: existing.runtimeVersion ?? incoming.runtimeVersion,
     buildCommand: existing.buildCommand ?? incoming.buildCommand,
     startCommand: existing.startCommand ?? incoming.startCommand,
+    containerCommand: existing.containerCommand ?? incoming.containerCommand,
+    prebuiltImage: existing.prebuiltImage ?? incoming.prebuiltImage,
+    prebuiltImageAuthoritative: existing.prebuiltImageAuthoritative ?? incoming.prebuiltImageAuthoritative,
+    ...((existing.missingEmbeddedAssets?.length ?? 0) + (incoming.missingEmbeddedAssets?.length ?? 0) === 0
+      ? {}
+      : {
+          missingEmbeddedAssets: [
+            ...new Set([...(existing.missingEmbeddedAssets ?? []), ...(incoming.missingEmbeddedAssets ?? [])])
+          ]
+        }),
     buildRoot: existing.buildRoot ?? incoming.buildRoot,
     containerEntrypoint: existing.containerEntrypoint ?? incoming.containerEntrypoint,
     functionEntrypoint: existing.functionEntrypoint ?? incoming.functionEntrypoint,
@@ -331,6 +341,13 @@ const genericMergeTarget = (
       incoming.processType === undefined &&
       incoming.path !== '.' &&
       service.dockerfile?.startsWith(`${incoming.path}/`)
+    ) {
+      return true;
+    }
+    if (
+      incoming.processType === undefined &&
+      service.path !== '.' &&
+      incoming.dockerfile?.startsWith(`${service.path}/`)
     ) {
       return true;
     }
@@ -726,6 +743,40 @@ export const assembleCandidateFacts = async ({
         service.environmentVariables ?? [],
         environment.environmentVariables
       );
+    }
+  }
+  for (const command of outputs.flatMap((output) => output.serviceCommands ?? [])) {
+    const atPath = services.filter((service) => service.path === command.path);
+    const exact = atPath.filter(
+      (service) => normalizedServiceName(service) === normalizedServiceName({ name: command.serviceName })
+    );
+    const targets = exact.length > 0 ? exact : command.authoritative && atPath.length === 1 ? atPath : [];
+    for (const service of targets) {
+      service.containerCommand ??= [...command.containerCommand];
+      service.evidence = mergeEvidence(service.evidence ?? [], command.evidence);
+    }
+  }
+  for (const image of outputs.flatMap((output) => output.serviceImages ?? [])) {
+    const atPath = services.filter((service) => service.path === image.path);
+    const exact = atPath.filter(
+      (service) => normalizedServiceName(service) === normalizedServiceName({ name: image.serviceName })
+    );
+    const targets = exact.length > 0 ? exact : image.authoritative && atPath.length === 1 ? atPath : [];
+    for (const service of targets) {
+      service.prebuiltImage ??= image.prebuiltImage;
+      if (image.authoritative) service.prebuiltImageAuthoritative = true;
+      service.evidence = mergeEvidence(service.evidence ?? [], image.evidence);
+    }
+  }
+  for (const portInfo of outputs.flatMap((output) => output.servicePorts ?? [])) {
+    const atPath = services.filter((service) => service.path === portInfo.path);
+    const exact = atPath.filter(
+      (service) => normalizedServiceName(service) === normalizedServiceName({ name: portInfo.serviceName })
+    );
+    const targets = exact.length > 0 ? exact : portInfo.authoritative && atPath.length === 1 ? atPath : [];
+    for (const service of targets) {
+      service.port ??= portInfo.port;
+      service.evidence = mergeEvidence(service.evidence ?? [], portInfo.evidence);
     }
   }
   // Forward descriptor-local names before attribution decides whether a consumer exists. Waiting

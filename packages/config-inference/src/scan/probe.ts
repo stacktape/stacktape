@@ -53,6 +53,31 @@ export type ProbeOutput = {
     processType?: string;
     environmentVariables: EnvironmentVariableUse[];
   }>;
+  /** Exact Compose command overrides for source services described through a published image. */
+  serviceCommands?: Array<{
+    path: string;
+    serviceName: string;
+    containerCommand: string[];
+    authoritative?: boolean;
+    evidence: Citation[];
+  }>;
+  /** Literal published images for matching source services; never creates an image-only service. */
+  serviceImages?: Array<{
+    path: string;
+    serviceName: string;
+    prebuiltImage: string;
+    /** True when its declared command performs required lifecycle before starting the service. */
+    authoritative?: boolean;
+    evidence: Citation[];
+  }>;
+  /** Verified container ports for matching source services. */
+  servicePorts?: Array<{
+    path: string;
+    serviceName: string;
+    port: number;
+    authoritative?: boolean;
+    evidence: Citation[];
+  }>;
   dependencies?: DependencyFact[];
   /**
    * Kinds selected by the runnable deployment shape (for example the one database in the default

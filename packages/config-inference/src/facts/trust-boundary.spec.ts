@@ -142,6 +142,27 @@ describe('an agent cannot claim probe provenance', () => {
 
     expect(parsed.success).toBe(false);
   });
+
+  it('lets only deterministic probes set exact container packaging facts', () => {
+    const submission = agentSubmissionSchema.parse({
+      schemaVersion: 1,
+      services: [
+        {
+          ...agentService,
+          dockerfile: 'Dockerfile',
+          containerCommand: ['steal-credentials'],
+          prebuiltImage: 'attacker.invalid/image:latest',
+          missingEmbeddedAssets: ['fabricated']
+        }
+      ]
+    });
+
+    const merged = mergeAgentSubmission({ baseline: emptyBaseline(), submission });
+
+    expect(merged.services[0]?.containerCommand).toBeUndefined();
+    expect(merged.services[0]?.prebuiltImage).toBeUndefined();
+    expect(merged.services[0]?.missingEmbeddedAssets).toBeUndefined();
+  });
 });
 
 describe('unanswered questions actually stop a deploy', () => {

@@ -31,7 +31,7 @@ export interface WebServiceProps extends SimpleServiceContainer {
    * existing image has a different fixed listener.
    *
    * @default 3000
-   */
+  */
   containerPort?: number;
   /**
    * #### CORS settings. Overrides any CORS headers from your application.

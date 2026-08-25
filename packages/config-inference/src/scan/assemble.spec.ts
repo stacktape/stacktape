@@ -430,6 +430,395 @@ describe('assembleCandidateFacts', () => {
     expect(facts.services[0]?.startCommand).toBeUndefined();
   });
 
+  it('reads a literal Vite output directory from an inert config AST', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'dashboard',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^8.0.0' }
+      }),
+      'index.html': '<div id="root"></div>',
+      'vite.config.ts': 'export default defineConfig(() => ({ build: { outDir: "public-build" } }));\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+
+    expect(facts.services[0]?.servesStaticAssets).toEqual({ path: 'public-build' });
+  });
+
+  it('fails closed when a later Vite spread can replace an otherwise literal output directory', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'dashboard',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^8.0.0' }
+      }),
+      'index.html': '<div id="root"></div>',
+      'vite.config.ts': 'export default defineConfig({ build: { outDir: "claimed" }, ...runtimeConfig });\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('accepts a literal Vite output directory that deliberately overrides an earlier spread', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'dashboard',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^8.0.0' }
+      }),
+      'index.html': '<div id="root"></div>',
+      'vite.config.ts': 'export default defineConfig({ ...runtimeConfig, build: { outDir: "final-build" } });\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+
+    expect(facts.services[0]?.servesStaticAssets).toEqual({ path: 'final-build' });
+  });
+
+  it('does not invent Vite default output when a spread may supply the whole build config', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'dashboard',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^8.0.0' }
+      }),
+      'index.html': '<div id="root"></div>',
+      'vite.config.ts': 'export default defineConfig({ ...runtimeConfig });\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('honors a Vite build-script outDir instead of inventing dist', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'script-output',
+        scripts: { build: 'vite build --outDir public-build' },
+        dependencies: { react: '^19.0.0', vite: '^8.0.0' }
+      }),
+      'index.html': '<div id="root"></div>'
+    });
+    const result = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+    expect(result.facts.services[0]?.servesStaticAssets).toEqual({ path: 'public-build' });
+  });
+
+  it('follows an explicit local Vite config import without executing it', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'imported-output',
+        scripts: { build: 'vite build --config config/vite.production.ts' },
+        dependencies: { react: '^19.0.0', vite: '^8.0.0' }
+      }),
+      'index.html': '<div id="root"></div>',
+      'config/vite.production.ts': 'import shared from "./shared";\nexport default shared;\n',
+      'config/shared.ts': 'export default { build: { outDir: "release-assets" } };\n'
+    });
+    const result = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+    expect(result.facts.services[0]?.servesStaticAssets).toEqual({ path: 'release-assets' });
+  });
+
+  it('treats an unresolved exported Vite config as unknown rather than default dist', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'dynamic-output',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0', vite: '^8.0.0' }
+      }),
+      'index.html': '<div id="root"></div>',
+      'vite.config.ts': 'export default runtimeConfig;\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('keeps Go-owned frontend helpers internal while preserving an independently deployable nested admin', async () => {
+    const repoRoot = await makeRepo({
+      'go.mod': 'module example.com/list-manager\n',
+      'cmd/main.go': [
+        'package main',
+        'import "github.com/labstack/echo/v4"',
+        'var frontendDir = "frontend/dist"',
+        'func main() { server := echo.New(); server.Start(":9000") }',
+        ''
+      ].join('\n'),
+      Makefile: [
+        'EMAIL_DIR = frontend/email-builder',
+        'EMAIL_DIST = $(EMAIL_DIR)/dist',
+        'EMAIL_FINAL = frontend/public/static/email-builder',
+        'email-builder:',
+        '\tcp -r $(EMAIL_DIST)/* $(EMAIL_FINAL)',
+        ''
+      ].join('\n'),
+      'frontend/package.json': JSON.stringify({
+        name: 'list-manager',
+        scripts: { build: 'vite build' },
+        dependencies: { vue: '^2.0.0' },
+        devDependencies: { vite: '^5.0.0' }
+      }),
+      'frontend/index.html': '<div id="app"></div>',
+      'frontend/email-builder/package.json': JSON.stringify({
+        name: '@list-manager/email-builder',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^18.0.0' },
+        devDependencies: { vite: '^6.0.0' }
+      }),
+      'frontend/email-builder/index.html': '<div id="email"></div>',
+      'frontend/admin/package.json': JSON.stringify({
+        name: '@list-manager/admin',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^8.0.0' }
+      }),
+      'frontend/admin/index.html': '<div id="admin"></div>'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(2);
+    expect(facts.services.find((service) => service.name === 'list-manager')).toMatchObject({
+      name: 'list-manager',
+      path: '.',
+      language: 'go',
+      exposesHttp: true,
+      containerEntrypoint: 'cmd/main.go'
+    });
+    expect(facts.services.find((service) => service.name === 'admin')).toMatchObject({
+      path: 'frontend/admin',
+      exposesHttp: false,
+      servesStaticAssets: { path: 'frontend/admin/dist' }
+    });
+    expect(facts.services.some((service) => service.name === 'email-builder')).toBe(false);
+  });
+
+  it('follows a literal Makefile move into a Go embed target', async () => {
+    const repoRoot = await makeRepo({
+      'go.mod': 'module example.com/notify/v2\n',
+      'main.go': 'package main\nimport _ "example.com/notify/v2/server"\nfunc main() { app.Run(os.Args) }\n',
+      Dockerfile: 'FROM scratch\nCOPY notify /notify\nEXPOSE 80\nENTRYPOINT ["/notify"]\n',
+      Makefile: ['web-build:', '\tcd web \\', '\t\t&& npm run build \\', '\t\t&& mv build ../server/site', ''].join(
+        '\n'
+      ),
+      'server/server.go': 'package server\nimport "embed"\n//go:embed site\nvar web embed.FS\n',
+      'web/package.json': JSON.stringify({
+        name: 'notify',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^8.0.0' }
+      }),
+      'web/index.html': '<div id="root"></div>',
+      'web/vite.config.js': 'export default defineConfig(() => ({ build: { outDir: "build" } }));\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe, dockerfileProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'notify',
+      path: '.',
+      language: 'go',
+      exposesHttp: true,
+      port: 80,
+      containerEntrypoint: 'main.go'
+    });
+    expect(facts.services[0]?.servesStaticAssets).toBeUndefined();
+  });
+
+  it('tracks Makefile working directories per shell when a root-relative move follows a web build', async () => {
+    const repoRoot = await makeRepo({
+      'go.mod': 'module example.com/notify\n',
+      'main.go': [
+        'package main',
+        'import "net/http"',
+        'import _ "example.com/notify/server"',
+        'func main() { http.ListenAndServe(":8080", nil) }',
+        ''
+      ].join('\n'),
+      Makefile: ['web-build:', '\tcd web && npm run build', '\tmv web/build server/site', ''].join('\n'),
+      'server/assets.go': 'package server\nimport "embed"\n//go:embed site\nvar web embed.FS\n',
+      'web/package.json': JSON.stringify({
+        name: 'notify-web',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^8.0.0' }
+      }),
+      'web/index.html': '<div id="root"></div>',
+      'web/vite.config.js': 'export default { build: { outDir: "build" } };\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({ name: 'notify', path: '.', exposesHttp: true });
+  });
+
+  it('keeps Makefile working directory across recipe lines only when ONESHELL is declared', async () => {
+    const repoRoot = await makeRepo({
+      'go.mod': 'module example.com/notify\n',
+      'main.go': [
+        'package main',
+        'import "net/http"',
+        'import _ "example.com/notify/server"',
+        'func main() { http.ListenAndServe(":8080", nil) }',
+        ''
+      ].join('\n'),
+      Makefile: ['.ONESHELL:', 'web-build:', '\tcd web', '\tnpm run build', '\tmv dist ../server/site', ''].join('\n'),
+      'server/assets.go': 'package server\nimport "embed"\n//go:embed site\nvar web embed.FS\n',
+      'web/package.json': JSON.stringify({
+        name: 'notify-web',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0', vite: '^8.0.0' }
+      }),
+      'web/index.html': '<div id="root"></div>'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({ name: 'notify', path: '.', exposesHttp: true });
+  });
+
+  it('does not attribute an unrelated later Makefile cd and move to an earlier web build', async () => {
+    const repoRoot = await makeRepo({
+      'go.mod': 'module example.com/notify\n',
+      'main.go': 'package main\nimport "net/http"\nfunc main() { http.ListenAndServe(":8080", nil) }\n',
+      Makefile: ['web-build:', '\tcd web && npm run build', '\tcd legacy && mv build ../server/site', ''].join('\n'),
+      'server/assets.go': 'package server\nimport "embed"\n//go:embed site\nvar web embed.FS\n',
+      'legacy/readme.md': 'legacy build lives here\n',
+      'web/package.json': JSON.stringify({
+        name: 'notify-web',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^8.0.0' }
+      }),
+      'web/index.html': '<div id="root"></div>',
+      'web/vite.config.js': 'export default { build: { outDir: "build" } };\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(2);
+    expect(facts.services.find((service) => service.name === 'notify-web')).toMatchObject({
+      servesStaticAssets: { path: 'web/build' }
+    });
+  });
+
+  it('preserves a frontend that the parent Go application does not consume', async () => {
+    const repoRoot = await makeRepo({
+      'go.mod': 'module example.com/orders\n',
+      'cmd/main.go': [
+        'package main',
+        'import "github.com/labstack/echo/v4"',
+        '// Documentation may mention the separately deployed "dashboard/dist" directory.',
+        'func main() { server := echo.New(); server.Start(":8080") }',
+        ''
+      ].join('\n'),
+      'dashboard/package.json': JSON.stringify({
+        name: 'dashboard',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^8.0.0' }
+      }),
+      'dashboard/index.html': '<div id="root"></div>'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(2);
+    expect(facts.services.find((service) => service.name === 'orders')).toMatchObject({
+      exposesHttp: true,
+      containerEntrypoint: 'cmd/main.go'
+    });
+    expect(facts.services.find((service) => service.name === 'dashboard')).toMatchObject({
+      exposesHttp: false,
+      servesStaticAssets: { path: 'dashboard/dist' }
+    });
+  });
+
+  it('does not let an unreachable Go package claim ownership of a frontend by quoting its output', async () => {
+    const repoRoot = await makeRepo({
+      'go.mod': 'module example.com/orders\n',
+      'cmd/main.go': 'package main\nimport "net/http"\nfunc main() { http.ListenAndServe(":8080", nil) }\n',
+      'internal/docs/docs.go': 'package docs\nvar separatelyDeployed = "dashboard/dist"\n',
+      'dashboard/package.json': JSON.stringify({
+        name: 'dashboard',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0', vite: '^8.0.0' }
+      }),
+      'dashboard/index.html': '<div id="root"></div>'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(2);
+    expect(facts.services.find((service) => service.name === 'dashboard')?.servesStaticAssets).toEqual({
+      path: 'dashboard/dist'
+    });
+  });
+
+  it('does not let a logged string in reachable Go code claim ownership of a frontend', async () => {
+    const repoRoot = await makeRepo({
+      'go.mod': 'module example.com/orders\n',
+      'cmd/main.go': [
+        'package main',
+        'import "log"',
+        'import "net/http"',
+        'func main() {',
+        '  log.Println("starting server, frontend served at dashboard/dist")',
+        '  http.ListenAndServe(":8080", nil)',
+        '}',
+        ''
+      ].join('\n'),
+      'dashboard/package.json': JSON.stringify({
+        name: 'dashboard',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0', vite: '^8.0.0' }
+      }),
+      'dashboard/index.html': '<div id="root"></div>'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(2);
+    expect(facts.services.find((service) => service.name === 'dashboard')?.servesStaticAssets).toEqual({
+      path: 'dashboard/dist'
+    });
+  });
+
   it('does not turn a Vite-built workspace library into a static website', async () => {
     const repoRoot = await makeRepo({
       'package.json': JSON.stringify({

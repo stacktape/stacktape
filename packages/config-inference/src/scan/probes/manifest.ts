@@ -10,11 +10,19 @@
  * not evidence of anything; a dependency on `express` is.
  */
 
+import { posix } from 'node:path';
 import * as ts from 'typescript';
 import type { Citation } from '../../facts/citation';
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import type { MigrationFact, PackageManager } from '../../facts/project-facts';
 import type { ServiceFactInput } from '../../facts/service';
+import {
+  goCodeWithoutComments,
+  goExecutableCode,
+  goFileMatchesBuildTarget,
+  goHasMainFunction,
+  goImports
+} from '../go-source';
 import { citeFirstMatchOnly, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import {
   frameworkBuildCommand,
@@ -220,6 +228,230 @@ const FRAMEWORK_NAMES: ReadonlyArray<{ package: string; name: string }> = [
   { package: 'hono', name: 'hono' },
   { package: 'koa', name: 'koa' }
 ];
+type ViteBuildDirectory =
+  | { kind: 'known'; outputDirectory: string; evidence: Citation[] }
+  | { kind: 'default' }
+  | { kind: 'unknown' };
+
+const propertyName = (property: ts.ObjectLiteralElementLike): string | undefined => {
+  const name = property.name;
+  return name !== undefined && (ts.isIdentifier(name) || ts.isStringLiteral(name)) ? name.text : undefined;
+};
+
+type ResolvedViteConfig = {
+  file: string;
+  source: string;
+  sourceFile: ts.SourceFile;
+  config: ts.ObjectLiteralExpression;
+};
+
+const configScriptKind = (file: string): ts.ScriptKind =>
+  file.endsWith('.js') || file.endsWith('.mjs') || file.endsWith('.cjs') ? ts.ScriptKind.JS : ts.ScriptKind.TS;
+
+const localConfigFile = (from: string, specifier: string, files: readonly string[]): string | undefined => {
+  if (!specifier.startsWith('.')) return undefined;
+  const base = posix.normalize(posix.join(posix.dirname(from), specifier));
+  if (base === '..' || base.startsWith('../')) return undefined;
+  const candidates = [
+    base,
+    ...['.ts', '.js', '.mts', '.mjs', '.cts', '.cjs'].map((extension) => `${base}${extension}`),
+    ...['.ts', '.js', '.mts', '.mjs', '.cts', '.cjs'].map((extension) => `${base}/index${extension}`)
+  ];
+  return candidates.find((candidate) => files.includes(candidate));
+};
+
+const viteConfigObject = async ({
+  file,
+  context,
+  exportName = 'default',
+  visited = new Set<string>()
+}: {
+  file: string;
+  context: ProbeContext;
+  exportName?: string;
+  visited?: Set<string>;
+}): Promise<ResolvedViteConfig | undefined> => {
+  const visitKey = `${file}:${exportName}`;
+  if (visited.has(visitKey) || visited.size >= 12) return undefined;
+  visited.add(visitKey);
+  const source = await readText(context, file, { fullFile: true });
+  if (source === undefined) return undefined;
+  const sourceFile = ts.createSourceFile(file, source, ts.ScriptTarget.Latest, true, configScriptKind(file));
+  const parseDiagnostics = (sourceFile as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] })
+    .parseDiagnostics;
+  if (parseDiagnostics.length > 0) return undefined;
+
+  let expression: ts.Expression | undefined;
+  if (exportName === 'default') {
+    const exports = sourceFile.statements.filter(
+      (statement): statement is ts.ExportAssignment => ts.isExportAssignment(statement) && !statement.isExportEquals
+    );
+    if (exports.length !== 1) return undefined;
+    expression = exports[0]!.expression;
+  } else {
+    const declarations = sourceFile.statements
+      .filter(ts.isVariableStatement)
+      .filter((statement) => statement.modifiers?.some((modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword))
+      .flatMap((statement) => statement.declarationList.declarations)
+      .filter(
+        (declaration) =>
+          ts.isIdentifier(declaration.name) && declaration.name.text === exportName && declaration.initializer
+      );
+    if (declarations.length !== 1) return undefined;
+    expression = declarations[0]!.initializer;
+  }
+
+  const resolveExpression = async (candidate: ts.Expression): Promise<ResolvedViteConfig | undefined> => {
+    let resolved = unwrapConfigObject(candidate);
+    if (
+      ts.isCallExpression(resolved) &&
+      ts.isIdentifier(resolved.expression) &&
+      resolved.expression.text === 'defineConfig' &&
+      resolved.arguments.length === 1
+    ) {
+      resolved = unwrapConfigObject(resolved.arguments[0]!);
+    }
+    if (ts.isArrowFunction(resolved)) {
+      if (ts.isBlock(resolved.body)) {
+        const returns = resolved.body.statements.filter(ts.isReturnStatement);
+        if (returns.length !== 1 || returns[0]!.expression === undefined) return undefined;
+        resolved = unwrapConfigObject(returns[0]!.expression);
+      } else {
+        resolved = unwrapConfigObject(resolved.body);
+      }
+    }
+    if (ts.isObjectLiteralExpression(resolved)) return { file, source, sourceFile, config: resolved };
+    if (!ts.isIdentifier(resolved)) return undefined;
+
+    const localDeclarations = sourceFile.statements
+      .filter(ts.isVariableStatement)
+      .flatMap((statement) => statement.declarationList.declarations)
+      .filter(
+        (declaration) =>
+          ts.isIdentifier(declaration.name) && declaration.name.text === resolved.text && declaration.initializer
+      );
+    if (localDeclarations.length === 1) return resolveExpression(localDeclarations[0]!.initializer!);
+
+    for (const declaration of sourceFile.statements.filter(ts.isImportDeclaration)) {
+      if (!ts.isStringLiteral(declaration.moduleSpecifier) || declaration.importClause === undefined) continue;
+      const target = localConfigFile(file, declaration.moduleSpecifier.text, context.files);
+      if (target === undefined) continue;
+      if (declaration.importClause.name?.text === resolved.text) {
+        return viteConfigObject({ file: target, context, visited, exportName: 'default' });
+      }
+      const bindings = declaration.importClause.namedBindings;
+      if (bindings !== undefined && ts.isNamedImports(bindings)) {
+        const imported = bindings.elements.find((element) => element.name.text === resolved.text);
+        if (imported !== undefined) {
+          return viteConfigObject({
+            file: target,
+            context,
+            visited,
+            exportName: imported.propertyName?.text ?? imported.name.text
+          });
+        }
+      }
+    }
+    return undefined;
+  };
+  return expression === undefined ? undefined : resolveExpression(expression);
+};
+
+const viteBuildOptions = (
+  manifest: ParsedManifest
+): { outDir?: string; config?: string; invalid?: boolean; evidence?: Citation } => {
+  const command = manifest.scripts.build;
+  if (typeof command !== 'string') return {};
+  const tokens = command.match(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|[^\s]+/g) ?? [];
+  const vite = tokens.findIndex((token, index) => /^(?:vite|vite\.cmd)$/.test(token) && tokens[index + 1] === 'build');
+  if (vite < 0) return {};
+  const result: { outDir?: string; config?: string; invalid?: boolean; evidence?: Citation } = {};
+  for (let index = vite + 2; index < tokens.length; index += 1) {
+    const token = tokens[index]!.replace(/^(?:"|')|(?:"|')$/g, '');
+    const assignment = /^--(outDir|config)=(.+)$/.exec(token);
+    const option = assignment?.[1] ?? (/^--(?:outDir|config)$/.test(token) ? token.slice(2) : undefined);
+    if (option === undefined) continue;
+    const value = assignment?.[2] ?? tokens[++index]?.replace(/^(?:"|')|(?:"|')$/g, '');
+    if (value === undefined || value === '' || value.includes('$') || /[;&|]/.test(value)) return { invalid: true };
+    if (option === 'outDir') result.outDir = value;
+    else result.config = value;
+  }
+  const evidence = citeFirstMatchOnly(manifest.path, manifest.raw, /"build"\s*:/, 'servesStaticAssets');
+  return { ...result, ...(evidence === undefined ? {} : { evidence }) };
+};
+/** Read Vite's literal output directory without executing its configuration module. */
+const viteBuildDirectory = async (manifest: ParsedManifest, context: ProbeContext): Promise<ViteBuildDirectory> => {
+  const options = viteBuildOptions(manifest);
+  if (options.invalid) return { kind: 'unknown' };
+  if (options.outDir !== undefined) {
+    const outputDirectory = safeBuildDirectory(options.outDir);
+    return outputDirectory === undefined
+      ? { kind: 'unknown' }
+      : { kind: 'known', outputDirectory, evidence: options.evidence === undefined ? [] : [options.evidence] };
+  }
+  const manifestDirectory = manifest.directory;
+  const prefix = manifestDirectory === '.' ? '' : `${manifestDirectory}/`;
+  const explicitConfig =
+    options.config === undefined
+      ? undefined
+      : resolveRepositoryPath(manifestDirectory, options.config.replace(/^\.\//, ''));
+  if (options.config !== undefined && (explicitConfig === undefined || !context.files.includes(explicitConfig))) {
+    return { kind: 'unknown' };
+  }
+  const file =
+    explicitConfig ??
+    ['vite.config.ts', 'vite.config.js', 'vite.config.mts', 'vite.config.mjs', 'vite.config.cts', 'vite.config.cjs']
+      .map((name) => `${prefix}${name}`)
+      .find((candidate) => context.files.includes(candidate));
+  if (file === undefined) return { kind: 'default' };
+  const resolved = await viteConfigObject({ file, context });
+  if (resolved === undefined) return { kind: 'unknown' };
+  const { config, source, sourceFile } = resolved;
+  const buildProperties = config.properties.filter((property) => propertyName(property) === 'build');
+  if (buildProperties.length === 0) {
+    // A spread can supply `build.outDir`; calling that the default `dist` would be invented output.
+    return config.properties.some(
+      (property) =>
+        ts.isSpreadAssignment(property) || (property.name !== undefined && propertyName(property) === undefined)
+    )
+      ? { kind: 'unknown' }
+      : { kind: 'default' };
+  }
+  if (buildProperties.length !== 1 || !ts.isPropertyAssignment(buildProperties[0]!)) return { kind: 'unknown' };
+  const buildIndex = config.properties.indexOf(buildProperties[0]!);
+  // Object spread is ordered. `{ build: { outDir: "known" }, ...runtime }` can replace the entire
+  // build object, while a spread before the explicit build property cannot. Dynamic computed keys
+  // after it are equally capable of being `build`, so fail closed for those too.
+  if (
+    config.properties
+      .slice(buildIndex + 1)
+      .some(
+        (property) =>
+          ts.isSpreadAssignment(property) || (property.name !== undefined && propertyName(property) === undefined)
+      )
+  ) {
+    return { kind: 'unknown' };
+  }
+  const build = unwrapConfigObject(buildProperties[0]!.initializer);
+  if (!ts.isObjectLiteralExpression(build) || build.properties.some(ts.isSpreadAssignment)) return { kind: 'unknown' };
+  const outputProperties = build.properties.filter((property) => propertyName(property) === 'outDir');
+  if (outputProperties.length === 0) return { kind: 'default' };
+  if (outputProperties.length !== 1 || !ts.isPropertyAssignment(outputProperties[0]!)) return { kind: 'unknown' };
+  const output = unwrapConfigObject(outputProperties[0]!.initializer);
+  if (!ts.isStringLiteral(output)) return { kind: 'unknown' };
+  const outputDirectory = safeBuildDirectory(output.text);
+  if (outputDirectory === undefined) return { kind: 'unknown' };
+  return {
+    kind: 'known',
+    outputDirectory,
+    evidence: [
+      configCitation(resolved.file, source, {
+        value: output,
+        keyStart: outputProperties[0]!.name!.getStart(sourceFile)
+      })
+    ]
+  };
+};
 
 /** Build-only browser frameworks that produce a directory for `hosting-bucket`. */
 const staticSiteFor = async (
@@ -283,10 +515,13 @@ const staticSiteFor = async (
     manifest.directory === '.' ? ['index.html', 'src/index.html'] : ['index.html', 'src/index.html']
   ).map((path) => (manifest.directory === '.' ? path : `${manifest.directory}/${path}`));
   if (manifest.dependencies.vite !== undefined && viteEntrypoints.some((path) => context.files.includes(path))) {
+    const configuredOutput = await viteBuildDirectory(manifest, context);
+    if (configuredOutput.kind === 'unknown') return undefined;
     return {
       framework:
         manifest.dependencies.vue !== undefined ? 'vue' : manifest.dependencies.react !== undefined ? 'react' : 'vite',
-      outputDirectory: 'dist'
+      outputDirectory: configuredOutput.kind === 'known' ? configuredOutput.outputDirectory : 'dist',
+      ...(configuredOutput.kind === 'known' ? { evidence: configuredOutput.evidence } : {})
     };
   }
   return undefined;
@@ -401,6 +636,286 @@ const parseManifest = (path: string, raw: string): ParsedManifest | undefined =>
     ...(parsed.engines === undefined ? {} : { engines: parsed.engines as Record<string, string> }),
     ...(typeof parsed.private === 'boolean' ? { private: parsed.private } : {})
   };
+};
+
+type GoStaticConsumer = {
+  sources: Array<{ path: string; raw: string }>;
+  embeddedPaths: Set<string>;
+  makefile?: string;
+};
+
+const pathWithin = (path: string, root: string): boolean =>
+  root === '.' || path === root || path.startsWith(`${root}/`);
+
+const resolveRepositoryPath = (base: string, value: string): string | undefined => {
+  if (value.startsWith('/') || value.includes('$') || value.includes('*')) return undefined;
+  const resolved = posix.normalize(posix.join(base, value));
+  return resolved === '..' || resolved.startsWith('../') ? undefined : resolved;
+};
+
+const makefileVariables = (raw: string): ReadonlyMap<string, string> => {
+  const variables = new Map<string, string>();
+  const unfolded = raw.replace(/\\\r?\n/g, ' ');
+  for (const match of unfolded.matchAll(/^([A-Za-z_][A-Za-z0-9_]*)\s*(?::|\?|\+)?=\s*([^\r\n#]*)/gm)) {
+    variables.set(match[1]!, match[2]!.trim());
+  }
+  return variables;
+};
+
+const expandMakeValue = (value: string, variables: ReadonlyMap<string, string>): string | undefined => {
+  let expanded = value;
+  for (let depth = 0; depth < 12; depth += 1) {
+    let replaced = false;
+    expanded = expanded.replace(/\$\(([A-Za-z_][A-Za-z0-9_]*)\)|\$\{([A-Za-z_][A-Za-z0-9_]*)\}/g, (_, round, brace) => {
+      const replacement = variables.get((round ?? brace) as string);
+      if (replacement === undefined) return `$(${round ?? brace})`;
+      replaced = true;
+      return replacement;
+    });
+    if (!replaced) break;
+  }
+  return expanded.includes('$') ? undefined : expanded.trim();
+};
+
+const makeRecipeCommands = (block: string): string[] => {
+  const commands: string[] = [];
+  let current = '';
+  for (const line of block.split(/\r?\n/).slice(1)) {
+    if (!line.startsWith('\t')) continue;
+    const fragment = line.replace(/^\t[-@+]?\s*/, '');
+    current = current === '' ? fragment : `${current} ${fragment}`;
+    if (/\\\s*$/.test(current)) {
+      current = current.replace(/\\\s*$/, '');
+      continue;
+    }
+    if (current.trim() !== '') commands.push(current.trim());
+    current = '';
+  }
+  if (current.trim() !== '') commands.push(current.trim());
+  return commands;
+};
+
+const shellChain = (command: string): string[] => {
+  const segments: string[] = [];
+  let current = '';
+  let quote: "'" | '"' | undefined;
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index]!;
+    if (quote !== undefined) {
+      current += character;
+      if (character === quote && command[index - 1] !== '\\') quote = undefined;
+      continue;
+    }
+    if (character === "'" || character === '"') {
+      quote = character;
+      current += character;
+      continue;
+    }
+    if (character === '|') return [];
+    const pair = command.slice(index, index + 2);
+    if (character === ';' || pair === '&&' || pair === '||') {
+      if (current.trim() !== '') segments.push(current.trim());
+      current = '';
+      if (pair === '&&' || pair === '||') index += 1;
+      continue;
+    }
+    current += character;
+  }
+  if (current.trim() !== '') segments.push(current.trim());
+  return segments;
+};
+
+const makePath = ({
+  cwd,
+  raw,
+  variables
+}: {
+  cwd: string;
+  raw: string;
+  variables: ReadonlyMap<string, string>;
+}): string | undefined => {
+  const expanded = expandMakeValue(raw.replace(/^(?:"|')|(?:"|')$/g, ''), variables)?.replace(/\/\*+$/, '');
+  return expanded === undefined ? undefined : resolveRepositoryPath(cwd, expanded);
+};
+
+const pathIsConsumed = (path: string, consumedPaths: ReadonlySet<string>): boolean =>
+  [...consumedPaths].some((consumed) => path === consumed || path.startsWith(`${consumed}/`));
+
+const readGoStaticConsumer = async (root: string, context: ProbeContext): Promise<GoStaticConsumer> => {
+  const paths = context.files
+    .filter(
+      (path) =>
+        path.endsWith('.go') &&
+        pathWithin(path, root) &&
+        !path.endsWith('_test.go') &&
+        !/(?:^|\/)(?:vendor|examples?|tools?|test|tests|fixtures)(?:\/|$)/i.test(path)
+    )
+    .slice(0, 500);
+  const allSources = (
+    await Promise.all(
+      paths.map(async (path) => {
+        const raw = await readText(context, path, { fullFile: true });
+        return raw === undefined || !goFileMatchesBuildTarget(path, raw) ? undefined : { path, raw };
+      })
+    )
+  ).filter((source): source is { path: string; raw: string } => source !== undefined);
+  const goModPath = root === '.' ? 'go.mod' : `${root}/go.mod`;
+  const goMod = context.files.includes(goModPath) ? await readText(context, goModPath, { fullFile: true }) : undefined;
+  const modulePath = goMod === undefined ? undefined : /^\s*module\s+(\S+)\s*$/m.exec(goMod)?.[1];
+  const byDirectory = new Map<string, Array<{ path: string; raw: string }>>();
+  for (const source of allSources) {
+    const directory = posix.dirname(source.path);
+    const entries = byDirectory.get(directory) ?? [];
+    entries.push(source);
+    byDirectory.set(directory, entries);
+  }
+  const pending = [...byDirectory.entries()]
+    .filter(([, entries]) =>
+      entries.some(({ raw }) => /^\s*package\s+main\b/m.test(goExecutableCode(raw)) && goHasMainFunction(raw))
+    )
+    .map(([directory]) => directory);
+  const reachable = new Set<string>();
+  while (pending.length > 0) {
+    const directory = pending.shift()!;
+    if (reachable.has(directory)) continue;
+    reachable.add(directory);
+    if (modulePath === undefined) continue;
+    for (const { raw } of byDirectory.get(directory) ?? []) {
+      for (const imported of goImports(raw)) {
+        if (imported.path !== modulePath && !imported.path.startsWith(`${modulePath}/`)) continue;
+        const relative = imported.path === modulePath ? '.' : imported.path.slice(modulePath.length + 1);
+        const target = root === '.' ? relative : posix.join(root, relative);
+        if (byDirectory.has(target) && !reachable.has(target)) pending.push(target);
+      }
+    }
+  }
+  const sources = allSources.filter((source) => reachable.has(posix.dirname(source.path)));
+  const embeddedPaths = new Set<string>();
+  for (const { path, raw } of sources) {
+    for (const match of raw.matchAll(/^\s*\/\/go:embed\s+([^\r\n]+)$/gm)) {
+      for (const token of (match[1] ?? '').match(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\S+/g) ?? []) {
+        const unquoted = token.replace(/^(?:"|')|(?:"|')$/g, '').replace(/^all:/, '');
+        const resolved = resolveRepositoryPath(posix.dirname(path), unquoted);
+        if (resolved !== undefined) embeddedPaths.add(resolved);
+      }
+    }
+  }
+  const makefilePath = root === '.' ? 'Makefile' : `${root}/Makefile`;
+  const makefile = context.files.includes(makefilePath)
+    ? await readText(context, makefilePath, { fullFile: true })
+    : undefined;
+  return { sources, embeddedPaths, ...(makefile === undefined ? {} : { makefile }) };
+};
+
+const makefileMovesOutputInto = ({
+  raw,
+  outputPath,
+  consumedPaths
+}: {
+  raw: string;
+  outputPath: string;
+  consumedPaths: ReadonlySet<string>;
+}): boolean => {
+  const variables = makefileVariables(raw);
+  const oneShell = /^\s*\.ONESHELL\s*:/m.test(raw);
+  // A target and one physical recipe shell are the useful boundaries. `cd web && build` affects
+  // that chain, but Make starts the next recipe line at the repository root. Reading the commands
+  // in order also prevents a later `cd legacy` from retroactively owning an earlier root-relative
+  // `mv web/dist server/site`.
+  const blocks = raw.split(/(?=^[^\s#][^\r\n]*:(?![=]))/gm);
+  for (const block of blocks) {
+    let persistentCwd = '.';
+    for (const recipe of makeRecipeCommands(block)) {
+      let cwd = oneShell ? persistentCwd : '.';
+      for (const command of shellChain(recipe)) {
+        const cd = /^cd\s+([^\s]+)\s*$/.exec(command);
+        if (cd !== null) {
+          cwd = makePath({ cwd, raw: cd[1]!, variables }) ?? cwd;
+          continue;
+        }
+        const move = /\b(?:mv|cp)(?:\s+-[A-Za-z]+)*\s+([^\s]+)\s+([^\s]+)/.exec(command);
+        if (move === null) continue;
+        const source = makePath({ cwd, raw: move[1]!, variables });
+        const destination = makePath({ cwd, raw: move[2]!, variables });
+        if (source === outputPath && destination !== undefined && pathIsConsumed(destination, consumedPaths)) {
+          return true;
+        }
+      }
+      if (oneShell) persistentCwd = cwd;
+    }
+  }
+  return false;
+};
+
+const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * A nested browser build is not a second application when the parent Go binary demonstrably reads
+ * or embeds its output. This is deliberately path-based: a sibling frontend with no such link stays
+ * independently deployable and remains a hosting-bucket candidate.
+ */
+const staticBuildIsOwnedByGoApplication = async ({
+  manifest,
+  outputDirectory,
+  context,
+  consumers
+}: {
+  manifest: ParsedManifest;
+  outputDirectory: string;
+  context: ProbeContext;
+  consumers: Map<string, Promise<GoStaticConsumer>>;
+}): Promise<boolean> => {
+  const goRoot = context.files
+    .filter((path) => posix.basename(path) === 'go.mod')
+    .map((path) => posix.dirname(path))
+    .filter((root) => pathWithin(manifest.directory, root))
+    .toSorted((left, right) => right.length - left.length)[0];
+  if (goRoot === undefined) return false;
+  const outputPath = manifest.directory === '.' ? outputDirectory : posix.join(manifest.directory, outputDirectory);
+  let pending = consumers.get(goRoot);
+  if (pending === undefined) {
+    pending = readGoStaticConsumer(goRoot, context);
+    consumers.set(goRoot, pending);
+  }
+  const consumer = await pending;
+  const relativeOutput = goRoot === '.' ? outputPath : outputPath.slice(goRoot.length + 1);
+
+  if (
+    consumer.embeddedPaths.has(outputPath) ||
+    consumer.embeddedPaths.has(relativeOutput) ||
+    pathIsConsumed(outputPath, consumer.embeddedPaths) ||
+    pathIsConsumed(relativeOutput, consumer.embeddedPaths) ||
+    [...consumer.embeddedPaths].some(
+      (embedded) => outputPath.startsWith(`${embedded}/`) || relativeOutput.startsWith(`${embedded}/`)
+    )
+  ) {
+    return true;
+  }
+
+  const escapedRelative = escapeRegex(relativeOutput);
+  const assetServerPattern = new RegExp(
+    `(?:\\b(?:http\\.Dir|os\\.DirFS|pkger\\.Include|statik|rice\\.FindBox|stuffbin\\.\\w+|initFS)\\s*\\(|\\b(?:var\\s+|const\\s+)?\\w*(?:frontend|static|assets?|dist|public|ui|web|admin|site|docs)\\w*\\s*(?::=|=|\\s+string\\s*=)\\s*)(?:"|\`)${escapedRelative}(?:/[^"\`]*)?(?:"|\`)`
+  );
+  if (consumer.sources.some(({ raw }) => assetServerPattern.test(goCodeWithoutComments(raw)))) {
+    return true;
+  }
+
+  if (consumer.makefile === undefined) return false;
+  const makefileAssetPattern = new RegExp(
+    `\\b(?:stuffbin|pkger|statik|go-bindata|fileb0x|STATIC|ASSETS?)\\b[^\r\n]*\\b${escapedRelative}\\b`
+  );
+  if (makefileAssetPattern.test(consumer.makefile)) return true;
+
+  return makefileMovesOutputInto({
+    raw: consumer.makefile,
+    outputPath,
+    consumedPaths: new Set([
+      ...consumer.embeddedPaths,
+      ...(manifest.directory === '.' ? [] : [manifest.directory, `${manifest.directory}/public`]),
+      'frontend',
+      'frontend/public'
+    ])
+  });
 };
 
 const serviceNameFor = (manifest: ParsedManifest): string => {
@@ -664,6 +1179,67 @@ export const manifestProbe: Probe = {
         };
       })
     );
+    const goStaticConsumers = new Map<string, Promise<GoStaticConsumer>>();
+    const directlyOwnedStaticPackages = new Set(
+      (
+        await Promise.all(
+          resolvedManifests.map(async ({ manifest, staticSite }) => {
+            if (staticSite === undefined) return undefined;
+            return (await staticBuildIsOwnedByGoApplication({
+              manifest,
+              outputDirectory: staticSite.outputDirectory,
+              context,
+              consumers: goStaticConsumers
+            }))
+              ? manifest.directory
+              : undefined;
+          })
+        )
+      ).filter((directory): directory is string => directory !== undefined)
+    );
+    const ownedStaticPackages = new Set(directlyOwnedStaticPackages);
+    // A nested package is not owned merely because its directory is below an owned frontend. It
+    // needs its own build-flow edge. Vite copies `<package>/public` into that package's output, so a
+    // Makefile move from a nested build into an already-owned package's public directory is concrete
+    // evidence; an independently deployed `frontend/admin` with no such edge remains a service.
+    let foundOwnedPackage = true;
+    while (foundOwnedPackage) {
+      foundOwnedPackage = false;
+      for (const { manifest, staticSite } of resolvedManifests) {
+        if (staticSite === undefined || ownedStaticPackages.has(manifest.directory)) continue;
+        const goRoot = context.files
+          .filter((path) => posix.basename(path) === 'go.mod')
+          .map((path) => posix.dirname(path))
+          .filter((root) => pathWithin(manifest.directory, root))
+          .toSorted((left, right) => right.length - left.length)[0];
+        if (goRoot === undefined) continue;
+        let pending = goStaticConsumers.get(goRoot);
+        if (pending === undefined) {
+          pending = readGoStaticConsumer(goRoot, context);
+          goStaticConsumers.set(goRoot, pending);
+        }
+        // oxlint-disable-next-line no-await-in-loop -- cached once per Go root; package ownership is iterative.
+        const consumer = await pending;
+        if (consumer.makefile === undefined) continue;
+        const outputPath =
+          manifest.directory === '.'
+            ? staticSite.outputDirectory
+            : posix.join(manifest.directory, staticSite.outputDirectory);
+        const ownedPublicDirectories = new Set(
+          [...ownedStaticPackages].map((directory) => (directory === '.' ? 'public' : `${directory}/public`))
+        );
+        if (
+          makefileMovesOutputInto({
+            raw: consumer.makefile,
+            outputPath,
+            consumedPaths: ownedPublicDirectories
+          })
+        ) {
+          ownedStaticPackages.add(manifest.directory);
+          foundOwnedPackage = true;
+        }
+      }
+    }
 
     for (const { manifest, frameworkConfigEvidence, frameworkEntry, staticSite } of resolvedManifests) {
       const hasStart = typeof manifest.scripts.start === 'string';
@@ -715,7 +1291,7 @@ export const manifestProbe: Probe = {
       // Root scripts such as `turbo run start` orchestrate child packages; they are not a third
       // deployable service. A real root app still has its own framework signal and survives this.
       const orchestrationOnlyRoot = isWorkspaceRoot && frameworkEntry === undefined && staticSite === undefined;
-      if (runnable && !orchestrationOnlyRoot && !handlerOnlyPackage) {
+      if (runnable && !orchestrationOnlyRoot && !handlerOnlyPackage && !ownedStaticPackages.has(manifest.directory)) {
         const evidence: Citation[] = [];
         const startCitation =
           staticSite === undefined

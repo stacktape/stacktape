@@ -10,6 +10,7 @@ import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
+import { composeConfig } from '../../compose/compose';
 import { assembleCandidateFacts } from '../assemble';
 import { dockerComposeProbe, isThirdPartyUtilityDockerfile } from './docker-compose';
 import { dockerfileProbe } from './dockerfile';
@@ -871,5 +872,233 @@ describe('the compose probe', () => {
       kind: 'mongodb',
       consumedBy: ['flask']
     });
+  });
+
+  it('transfers a published-image Compose database contract onto the source Go service without selecting its release Dockerfile', async () => {
+    root = await makeRepo({
+      'go.mod': [
+        'module example.com/list-manager',
+        'require (',
+        '\tgithub.com/jackc/pgx/v5 v5.10.0',
+        '\tgithub.com/labstack/echo/v4 v4.12.0',
+        ')',
+        ''
+      ].join('\n'),
+      'cmd/main.go': 'package main\nfunc main() { startServer() }\n',
+      'cmd/init.go': [
+        'package main',
+        'import "github.com/labstack/echo/v4"',
+        'func startServer() { server := echo.New(); server.Start(":9000") }',
+        ''
+      ].join('\n'),
+      Dockerfile: 'FROM alpine:3.20\nCOPY list-manager /app/list-manager\nEXPOSE 9000\n',
+      'docker-compose.yml': [
+        'services:',
+        '  app:',
+        '    image: example/list-manager:latest',
+        '    depends_on: [db]',
+        '    environment:',
+        '      LISTMONK_db__host: db',
+        '      LISTMONK_db__port: 5432',
+        '      LISTMONK_db__user: listmonk',
+        '      LISTMONK_db__password: listmonk',
+        '      LISTMONK_db__database: listmonk',
+        '  db:',
+        '    image: postgres:16',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe, serverEntrypointProbe, dockerComposeProbe, dockerfileProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'list-manager',
+      path: '.',
+      containerEntrypoint: 'cmd/main.go',
+      dockerfile: undefined
+    });
+    expect(facts.services[0]?.environmentVariables.map((variable) => variable.name).toSorted()).toEqual([
+      'LISTMONK_db__database',
+      'LISTMONK_db__host',
+      'LISTMONK_db__password',
+      'LISTMONK_db__port',
+      'LISTMONK_db__user'
+    ]);
+
+    const composed = composeConfig({ facts });
+    expect(composed.config.resources.listManager).toMatchObject({
+      properties: {
+        packaging: {
+          type: 'stacktape-image-buildpack',
+          properties: { entryfilePath: 'cmd/main.go' }
+        },
+        environment: [
+          { name: 'LISTMONK_db__host', value: "$ResourceParam('mainDatabase', 'host')" },
+          { name: 'LISTMONK_db__port', value: "$ResourceParam('mainDatabase', 'port')" },
+          { name: 'LISTMONK_db__user', value: 'stacktape' },
+          { name: 'LISTMONK_db__password', value: "$Secret('mainDatabase.password')" },
+          { name: 'LISTMONK_db__database', value: "$ResourceParam('mainDatabase', 'dbName')" }
+        ]
+      }
+    });
+  });
+
+  it('preserves an exact published-image command for a matching source-built container', async () => {
+    root = await makeRepo({
+      'go.mod': 'module example.com/notifier\nrequire github.com/labstack/echo/v4 v4.12.0\n',
+      'main.go': [
+        'package main',
+        'import "github.com/labstack/echo/v4"',
+        'func main() { server := echo.New(); server.Start(":80") }',
+        ''
+      ].join('\n'),
+      Dockerfile: 'FROM alpine:3.20\nCOPY notifier /usr/bin/notifier\nEXPOSE 80\n',
+      'Dockerfile-build': [
+        'FROM golang:1.25 AS builder',
+        'RUN apk add --no-cache build-base',
+        'COPY go.mod main.go /src/',
+        'RUN cd /src && go build -o /notifier .',
+        'FROM alpine:3.20',
+        'COPY --from=builder /notifier /usr/bin/notifier',
+        'EXPOSE 80',
+        'ENTRYPOINT ["notifier"]',
+        ''
+      ].join('\n'),
+      'docker-compose.yml': [
+        'services:',
+        '  notifier:',
+        '    image: example/notifier:latest',
+        '    command: ["serve", "--listen-http", ":80"]',
+        '    ports: ["80:80"]',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [serverEntrypointProbe, dockerComposeProbe, dockerfileProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'notifier',
+      dockerfile: 'Dockerfile-build',
+      containerCommand: ['serve', '--listen-http', ':80']
+    });
+    expect(composeConfig({ facts }).config.resources.notifier?.properties.packaging).toEqual({
+      type: 'custom-dockerfile',
+      properties: {
+        buildContextPath: '.',
+        dockerfilePath: 'Dockerfile-build',
+        command: ['serve', '--listen-http', ':80']
+      }
+    });
+  });
+
+  it('keeps a published image when its exact startup command owns fresh-database install and upgrade', async () => {
+    root = await makeRepo({
+      'go.mod': 'module example.com/list-manager\nrequire github.com/labstack/echo/v4 v4.12.0\n',
+      'cmd/main.go': [
+        'package main',
+        'import "github.com/labstack/echo/v4"',
+        'func main() { server := echo.New(); server.Start(":9000") }',
+        ''
+      ].join('\n'),
+      'docker-compose.yml': [
+        'services:',
+        '  app:',
+        '    image: example/list-manager:latest',
+        '    command:',
+        '      - sh',
+        '      - -c',
+        '      - ./list-manager --install --idempotent --yes && ./list-manager --upgrade --yes && ./list-manager',
+        '    ports: ["9000:9000"]',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [serverEntrypointProbe, dockerComposeProbe]
+    });
+    const composition = composeConfig({ facts });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'list-manager',
+      prebuiltImage: 'example/list-manager:latest',
+      prebuiltImageAuthoritative: true,
+      containerCommand: [
+        'sh',
+        '-c',
+        './list-manager --install --idempotent --yes && ./list-manager --upgrade --yes && ./list-manager'
+      ]
+    });
+    expect(composition.config.resources.listManager?.properties.packaging).toEqual({
+      type: 'prebuilt-image',
+      properties: {
+        image: 'example/list-manager:latest',
+        command: [
+          'sh',
+          '-c',
+          './list-manager --install --idempotent --yes && ./list-manager --upgrade --yes && ./list-manager'
+        ]
+      }
+    });
+    expect(composition.gaps).toContainEqual(
+      expect.objectContaining({
+        subject: 'list-manager.packaging',
+        message: expect.stringMatching(/fresh database.*does not include changes.*no immutable tag or digest/)
+      })
+    );
+  });
+
+  it('uses a declared image only when missing embedded assets make source packaging unusable', async () => {
+    root = await makeRepo({
+      'go.mod': 'module example.com/notifier\n',
+      'main.go': [
+        'package main',
+        'import "net/http"',
+        'import _ "example.com/notifier/server"',
+        'func main() { http.ListenAndServe(":80", nil) }',
+        ''
+      ].join('\n'),
+      'server/assets.go': 'package server\nimport "embed"\n//go:embed site\nvar assets embed.FS\n',
+      Dockerfile: 'FROM alpine:3.20\nCOPY notifier /usr/bin/notifier\nEXPOSE 80\n',
+      'docker-compose.yml': [
+        'services:',
+        '  notifier:',
+        '    image: example/notifier',
+        '    command: ["serve"]',
+        '    ports: ["80:80"]',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [serverEntrypointProbe, dockerComposeProbe, dockerfileProbe]
+    });
+    const composition = composeConfig({ facts });
+
+    expect(facts.services[0]).toMatchObject({
+      prebuiltImage: 'example/notifier',
+      missingEmbeddedAssets: ['server/site'],
+      containerCommand: ['serve']
+    });
+    expect(composition.config.resources.notifier?.properties.packaging).toEqual({
+      type: 'prebuilt-image',
+      properties: { image: 'example/notifier', command: ['serve'] }
+    });
+    expect(composition.gaps).toContainEqual(
+      expect.objectContaining({
+        subject: 'notifier.packaging',
+        message: expect.stringMatching(/does not include changes from this checkout.*no immutable tag or digest/)
+      })
+    );
   });
 });

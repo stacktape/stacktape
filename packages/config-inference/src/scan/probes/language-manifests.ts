@@ -25,6 +25,7 @@
 
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import type { ServiceFactInput } from '../../facts/service';
+import { goCodeWithoutComments } from '../go-source';
 import { languageOf } from '../language';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
@@ -400,6 +401,58 @@ const normalise = (name: string): string => {
   return segments.at(-1) ?? '';
 };
 
+const optionalGoPostgresBackend = async (
+  foundPackages: ReadonlyMap<string, string>,
+  context: ProbeContext
+): Promise<boolean> => {
+  // A project carrying both SQLite and Postgres can still require both. Suppress the costly remote
+  // database only when source also proves the Postgres connection is behind an empty-by-default
+  // option. A deployment manifest or environment probe can independently restore Postgres when the
+  // repository actually selects it.
+  if (
+    !foundPackages.has('pgx') ||
+    (!foundPackages.has('go-sqlite3') && !foundPackages.has('sqlite3') && !foundPackages.has('sqlite'))
+  ) {
+    return false;
+  }
+  const candidates = context.files
+    .filter(
+      (path) =>
+        path.endsWith('.go') &&
+        !path.endsWith('_test.go') &&
+        !/(?:^|\/)(?:vendor|examples?|tools?|test|tests|fixtures)(?:\/|$)/i.test(path)
+    )
+    .slice(0, 500);
+  for (const path of candidates) {
+    // oxlint-disable-next-line no-await-in-loop -- stop at the first source-proven optional backend.
+    const raw = await readText(context, path, { fullFile: true });
+    if (raw === undefined) continue;
+    const source = goCodeWithoutComments(raw);
+    for (const match of source.matchAll(
+      /^\s*if\s+([A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*!=\s*""\s*\{/gm
+    )) {
+      const value = match[1]!;
+      if (!/(?:^|\.)DatabaseURL$/.test(value)) continue;
+      const escaped = value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const guardedConnection = new RegExp(
+        `\\bif\\s+${escaped}\\s*!=\\s*""\\s*\\{[\\s\\S]{0,2500}?\\b(?:pg|postgres|pgx)[A-Za-z0-9_.]*\\s*\\.\\s*(?:Open|Connect)\\s*\\(\\s*${escaped}\\b`
+      );
+      if (guardedConnection.test(source)) return true;
+    }
+    for (const match of source.matchAll(
+      /\b([A-Za-z_][A-Za-z0-9_]*)\s*:=\s*[^\r\n]*(?:database-url|DATABASE_URL)[^\r\n]*/g
+    )) {
+      const variable = match[1]!;
+      const escaped = variable.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      const optionalBlock = new RegExp(
+        `\\bif\\s+${escaped}\\s*!=\\s*""\\s*\\{[\\s\\S]{0,2500}?\\b(?:pg|postgres|pgx)[A-Za-z0-9_.]*\\s*\\.\\s*(?:Open|Connect)\\s*\\(\\s*${escaped}\\b`
+      );
+      if (optionalBlock.test(source)) return true;
+    }
+  }
+  return false;
+};
+
 export const languageManifestProbe: Probe = {
   name: 'language-manifests',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -495,11 +548,18 @@ export const languageManifestProbe: Probe = {
     if (foundIn.size === 0 && dotnetServices.length === 0) return {};
 
     const dependencies = new Map<DependencyKind, DependencyFact>();
+    // Marker precedence can classify a Go repository as Python when it also has a documentation
+    // requirements.txt (ntfy does). The package pair and Go source guards above are the actual
+    // evidence, so do not gate this on the single root-language label.
+    const goPostgresIsOptional = await optionalGoPostgresBackend(foundIn, context);
     for (const signal of PACKAGE_SIGNALS) {
       const match = signal.packages.find((name) => foundIn.has(name));
       if (match === undefined) continue;
       const citation = cite(match);
       for (const kind of signal.kinds) {
+        // Suppress only the optional Go driver. A polyglot repository can independently include a
+        // required Python/Ruby Postgres driver, which must still create the dependency.
+        if (kind === 'postgres' && match === 'pgx' && goPostgresIsOptional) continue;
         if (dependencies.has(kind)) continue;
         dependencies.set(kind, {
           name: defaultDependencyName(kind),

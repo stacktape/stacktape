@@ -298,7 +298,20 @@ const MIGRATION_COMMAND =
   /(?:^|[\s:=])(?:alembic\s+upgrade|(?:npm|pnpm|yarn|bun)\s+(?:--filter\s+\S+\s+)?(?:run\s+)?(?:\S*migrat\S*|\S*db:\S*)|npx\s+[^\s]*(?:migrat|prisma)|(?:python3?\s+)?(?:\.\/)?manage\.py\s+migrate|rails\s+db:|rake\s+db:|prisma\s+migrate|typeorm\s+[^\s]*migration|knex\s+migrate|sequelize(?:-cli)?\s+db:migrate|flyway|liquibase|dbmate)(?:\s|$)/i;
 
 const commandOf = (service: ComposeService): string | undefined =>
-  typeof service.command === 'string' && service.command.trim() !== '' ? service.command.trim() : undefined;
+  typeof service.command === 'string' && service.command.trim() !== ''
+    ? service.command.trim()
+    : Array.isArray(service.command) &&
+        service.command.length > 0 &&
+        service.command.every((entry) => typeof entry === 'string' && entry !== '')
+      ? service.command.join(' ')
+      : undefined;
+
+const containerCommandOf = (service: ComposeService): string[] | undefined =>
+  Array.isArray(service.command) &&
+  service.command.length > 0 &&
+  service.command.every((entry) => typeof entry === 'string' && entry !== '')
+    ? service.command
+    : undefined;
 
 /** The fallback part of `${NAME:-value}` is what this Compose deployment actually uses by default. */
 const composeDefault = (value: string): string => value.replace(/\$\{[A-Za-z_][A-Za-z0-9_]*(?::-|-)([^}]*)\}/g, '$1');
@@ -307,7 +320,10 @@ const variableNamesDependency = (name: string, kind: DependencyKind): boolean =>
   const upper = name.toUpperCase();
   switch (kind) {
     case 'postgres':
-      return /(?:POSTGRES|POSTGRESQL|PG|DATABASE|DATASOURCE)/.test(upper);
+      return (
+        /(?:POSTGRES|POSTGRESQL|PG|DATABASE|DATASOURCE)/.test(upper) ||
+        /(?:^|_)DB_{1,2}(?:HOST|PORT|USER|USERNAME|PASSWORD|PASSWD|DATABASE|DB_NAME)$/.test(upper)
+      );
     case 'mysql':
       return /(?:MYSQL|MARIADB|DATABASE|DATASOURCE)/.test(upper);
     case 'mssql':
@@ -756,6 +772,7 @@ export const dockerComposeProbe: Probe = {
         ...(!exposesHttp || port === undefined ? {} : { port }),
         executionModel: 'long-running',
         ...(typeof service.command === 'string' && service.command !== '' ? { startCommand: service.command } : {}),
+        ...(containerCommandOf(service) === undefined ? {} : { containerCommand: containerCommandOf(service) }),
         ...(build.dockerfile === undefined ? {} : { dockerfile: build.dockerfile }),
         ...(bundledLifecycle.lifecycle === undefined ? {} : { bundledLifecycle: bundledLifecycle.lifecycle }),
         environmentVariables: variables,
@@ -764,9 +781,108 @@ export const dockerComposeProbe: Probe = {
       });
     }
 
+    // Production repositories sometimes keep source next to a Compose example that runs the
+    // published image rather than `build: .` (Listmonk is representative). Do not invent another
+    // service for that image, but retain its exact database variable names for the source service
+    // at the same root. Restrict this to variables that address an explicit `depends_on` resource;
+    // arbitrary settings from an unrelated third-party image must not leak onto local code.
+    const serviceEnvironments: NonNullable<ProbeOutput['serviceEnvironments']> = [];
+    const serviceCommands: NonNullable<ProbeOutput['serviceCommands']> = [];
+    const serviceImages: NonNullable<ProbeOutput['serviceImages']> = [];
+    const servicePorts: NonNullable<ProbeOutput['servicePorts']> = [];
+    for (const [composeName, service] of Object.entries(declaredServices)) {
+      if (dependencyNames.has(composeName) || builtDeclarations.some((entry) => entry.composeName === composeName)) {
+        continue;
+      }
+      const containerCommand = containerCommandOf(service);
+      const startupCommand = containerCommand?.join(' ') ?? '';
+      const ownsRequiredStartupLifecycle =
+        /(?:^|\s)--install(?:\s|$)/.test(startupCommand) && /(?:^|\s)--upgrade(?:\s|$)/.test(startupCommand);
+      if (containerCommand !== undefined) {
+        const citation = citeFirstMatchOnly(
+          path,
+          raw,
+          new RegExp(escapeForPattern(containerCommand[0]!)),
+          'containerCommand'
+        );
+        serviceCommands.push({
+          path: composeDirectory(path),
+          serviceName: factName(composeName),
+          containerCommand,
+          ...(ownsRequiredStartupLifecycle ? { authoritative: true } : {}),
+          evidence: citation === undefined ? [] : [citation]
+        });
+      }
+      if (typeof service.image === 'string' && service.image.trim() !== '' && !service.image.includes('$')) {
+        const prebuiltImage = service.image.trim();
+        const citation = citeFirstMatchOnly(
+          path,
+          raw,
+          new RegExp(`image:\\s*["']?${escapeForPattern(prebuiltImage)}`),
+          'prebuiltImage'
+        );
+        serviceImages.push({
+          path: composeDirectory(path),
+          serviceName: factName(composeName),
+          prebuiltImage,
+          ...(ownsRequiredStartupLifecycle ? { authoritative: true } : {}),
+          evidence: citation === undefined ? [] : [citation]
+        });
+      }
+      const port = containerPortOf(service) ?? proxyPortOf(service);
+      if (port !== undefined) {
+        const citation =
+          citeFirstMatchOnly(path, raw, new RegExp(`(?:ports|expose):[\\s\\S]*?${port}`), 'port') ??
+          citeFirstMatchOnly(path, raw, new RegExp(`^\\s*${escapeForPattern(composeName)}:`), 'port');
+        servicePorts.push({
+          path: composeDirectory(path),
+          serviceName: factName(composeName),
+          port,
+          ...(ownsRequiredStartupLifecycle ? { authoritative: true } : {}),
+          evidence: citation === undefined ? [] : [citation]
+        });
+      }
+      const consumedDependencies = dependsOn(service)
+        .map((entry) => dependencyNames.get(entry))
+        .filter((entry): entry is string => entry !== undefined);
+      if (consumedDependencies.length === 0) continue;
+      const variables: EnvironmentVariableUse[] = [];
+      for (const entry of environmentEntries(service)) {
+        if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(entry.name) || isPlatformEnvironmentVariable(entry.name)) continue;
+        const dependency = consumedDependencies
+          .map((name) => dependencies.find((candidate) => candidate.name === name))
+          .find(
+            (candidate): candidate is DependencyFact =>
+              candidate !== undefined && variableNamesDependency(entry.name, candidate.kind)
+          );
+        if (dependency === undefined) continue;
+        const citation = citeFirstMatchOnly(
+          path,
+          raw,
+          new RegExp(`^\\s*(?:-\\s*)?${escapeForPattern(entry.name)}(?:\\s*:|=)`)
+        );
+        const evidence = citation === undefined ? [] : [{ ...citation, quote: `${entry.name}:` }];
+        variables.push({
+          name: entry.name,
+          role: 'infra-dependency',
+          dependencyName: dependency.name,
+          required: true,
+          evidence
+        });
+        if (!dependency.addressedBy.includes(entry.name)) dependency.addressedBy.push(entry.name);
+      }
+      if (variables.length > 0) {
+        serviceEnvironments.push({ path: composeDirectory(path), environmentVariables: variables });
+      }
+    }
+
     return {
       ...(dependencies.length === 0 ? {} : { dependencies }),
       ...(serviceFacts.length === 0 ? {} : { services: serviceFacts }),
+      ...(serviceEnvironments.length === 0 ? {} : { serviceEnvironments }),
+      ...(serviceCommands.length === 0 ? {} : { serviceCommands }),
+      ...(serviceImages.length === 0 ? {} : { serviceImages }),
+      ...(servicePorts.length === 0 ? {} : { servicePorts }),
       ...(migrations.length === 0 ? {} : { migrations }),
       ...(lifecycleDockerfiles.size === 0 ? {} : { lifecycleDockerfiles: [...lifecycleDockerfiles] }),
       ...(developmentProcesses.size === 0 ? {} : { developmentProcesses: [...developmentProcesses] }),

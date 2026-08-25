@@ -22,6 +22,10 @@ describe('wiringFor', () => {
     expect(wiringFor('dynamodb', 'USERS_TABLE')).toEqual({ kind: 'param', param: 'name' });
     expect(wiringFor('object-storage', 'UPLOADS_BUCKET')).toEqual({ kind: 'param', param: 'name' });
     expect(wiringFor('search', 'OPENSEARCH_ENDPOINT')).toEqual({ kind: 'param', param: 'domainEndpoint' });
+    expect(wiringFor('postgres', 'LISTMONK_db__host')).toEqual({ kind: 'param', param: 'host' });
+    expect(wiringFor('postgres', 'LISTMONK_db__port')).toEqual({ kind: 'param', param: 'port' });
+    expect(wiringFor('postgres', 'LISTMONK_db__user')).toEqual({ kind: 'database-username' });
+    expect(wiringFor('postgres', 'LISTMONK_db__database')).toEqual({ kind: 'param', param: 'dbName' });
   });
 
   it('falls back to the primary handle for a shapeless name that provably addresses the dependency', () => {

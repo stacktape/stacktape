@@ -994,12 +994,12 @@ export class ConfigManager {
                         }
                       }
                     : loadBalancing?.type === 'network-load-balancer'
-                      ? loadBalancing.properties.ports.map(({ port, containerPort }) => ({
+                      ? loadBalancing.properties.ports.map(({ port: nlbPort, containerPort: nlbContainerPort }) => ({
                           type: 'network-load-balancer',
                           properties: {
-                            containerPort: containerPort || port,
+                            containerPort: nlbContainerPort || nlbPort,
                             loadBalancerName: `${[...nameChain, networkLoadBalancerIdentifier].join('.')}`,
-                            listenerPort: port
+                            listenerPort: nlbPort
                           }
                         }))
                       : {

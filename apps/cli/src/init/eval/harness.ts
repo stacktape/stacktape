@@ -27,6 +27,8 @@ export type EvalExpectation = {
   resources?: Record<string, string>;
   /** Exact resource count, including zero for deliberately unsupported application shapes. */
   resourceCount?: number;
+  /** Exact deployable process count, used where phantom package detection is part of the contract. */
+  serviceCount?: number;
   /** Dependency kinds the analysis must find, in any order. */
   dependencyKinds?: readonly string[];
   /** Dependency kinds it must NOT invent. */
@@ -76,8 +78,6 @@ export type EvalExpectation = {
     buildContextPath?: string;
     dockerfilePath?: string;
   }>;
-  /** User-visible composition gaps that must explain why a result is incomplete. */
-  requiredGapPatterns?: readonly string[];
 };
 
 export type EvalCase = {
@@ -127,6 +127,12 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
   const { expect: expected } = evalCase;
 
   const foundKinds = new Set(result.facts.dependencies.map((dependency) => dependency.kind));
+  if (expected.serviceCount !== undefined && result.facts.services.length !== expected.serviceCount) {
+    failures.push({
+      stage: 'facts',
+      detail: `Expected ${expected.serviceCount} service(s); found ${result.facts.services.length}.`
+    });
+  }
   for (const kind of expected.dependencyKinds ?? []) {
     if (!foundKinds.has(kind as never)) {
       failures.push({ stage: 'facts', detail: `Expected a ${kind} dependency; none was found.` });

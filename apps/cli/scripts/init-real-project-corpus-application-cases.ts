@@ -165,9 +165,73 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     source: 'real-application',
     exercises: ['go', 'postgres', 'docker', 'email'],
     expect: {
-      resourceTypes: { 'web-service': 1 },
+      resourceTypes: { bastion: 1, 'relational-database': 1, 'web-service': 1 },
+      dependencyKinds: { postgres: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
+      services: [{ name: 'listmonk', path: '.', exposesHttp: true }],
+      requiredConfig: [
+        'type: web-service',
+        'containerPort: 9000',
+        'type: prebuilt-image',
+        'image: listmonk/listmonk:latest',
+        '--install',
+        '--idempotent',
+        '--upgrade',
+        'name: LISTMONK_db__host',
+        "$ResourceParam('mainDatabase', 'host')",
+        'name: LISTMONK_db__port',
+        "$ResourceParam('mainDatabase', 'port')",
+        'name: LISTMONK_db__user',
+        'value: stacktape',
+        'name: LISTMONK_db__password',
+        "$Secret('real-listmonk-mainDatabase.password')",
+        'name: LISTMONK_db__database',
+        "$ResourceParam('mainDatabase', 'dbName')"
+      ],
+      forbiddenConfig: [
+        'type: hosting-bucket',
+        'uploadDirectoryPath: frontend/',
+        'entryfilePath: cmd/main.go',
+        'type: custom-dockerfile',
+        'dockerfilePath: Dockerfile'
+      ],
+      requiredGapPatterns: ['fresh database.*does not include changes from this checkout.*no immutable tag or digest'],
+      forbiddenGapPatterns: ['does not read a configurable address'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'real-ntfy',
+    repository: 'https://github.com/binwiederhier/ntfy.git',
+    commit: 'f1bdb6bfe180fd2912ba9dbcd471b12d81428c84',
+    license: 'Apache-2.0 AND GPL-2.0',
+    source: 'real-application',
+    exercises: ['go', 'react', 'websocket', 'sqlite', 'postgres', 'object-storage', 'docker'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      dependencyKinds: {},
+      serviceCount: 1,
+      httpServiceCount: 1,
+      services: [{ name: 'ntfy', path: '.', exposesHttp: true }],
+      requiredConfig: [
+        'type: web-service',
+        'containerPort: 80',
+        'type: prebuilt-image',
+        'image: binwiederhier/ntfy',
+        '- serve'
+      ],
+      forbiddenConfig: [
+        'type: hosting-bucket',
+        'uploadDirectoryPath: web/',
+        'type: relational-database',
+        'mainDatabase',
+        'NTFY_DATABASE_URL',
+        'entryfilePath: main.go',
+        'type: custom-dockerfile',
+        'dockerfilePath: Dockerfile-build'
+      ],
+      requiredGapPatterns: ['missing files required by go:embed.*does not include changes from this checkout'],
       forbidCurrentlyHostedDependencies: true
     }
   },
@@ -480,6 +544,8 @@ const RELEASE_CASE_IDS = new Set([
   'real-outline',
   'real-mastodon',
   'real-forem',
+  'real-listmonk',
+  'real-ntfy',
   'go-clean-template',
   'zero-to-production-rust',
   'real-lemmy',

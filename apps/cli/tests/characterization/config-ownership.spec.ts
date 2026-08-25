@@ -157,7 +157,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
 
     expect(schema.properties.projectName.description).toContain('#### Project name');
     expect(schema.definitions.LambdaFunction.description).toContain('serverless compute resource');
-    expect(countDescriptions(schema)).toBe(1493);
+    expect(countDescriptions(schema)).toBe(1494);
     // Examples are the documented product content the schema, docs and editor hovers all render.
     const descriptions = JSON.stringify(schema);
     expect(descriptions.split('**Example (YAML):**').length - 1).toBeGreaterThan(900);
