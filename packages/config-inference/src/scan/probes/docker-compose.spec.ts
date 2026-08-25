@@ -69,6 +69,62 @@ const nodeStorageRepo = (source: string): Record<string, string> => ({
   ].join('\n')
 });
 
+const NODE_S3_IMPORT_FORMS = [
+  ['ES named import', 'import { S3Client } from "@aws-sdk/client-s3";', 'S3Client'],
+  ['ES aliased import', 'import { S3Client, S3Client as ActualClient } from "@aws-sdk/client-s3";', 'ActualClient'],
+  [
+    'ES namespace import',
+    'import { S3Client } from "@aws-sdk/client-s3";\nimport * as storage from "@aws-sdk/client-s3";',
+    'storage.S3Client'
+  ],
+  ['CommonJS destructured import', 'const { S3Client } = require("@aws-sdk/client-s3");', 'S3Client'],
+  [
+    'CommonJS destructured alias',
+    'const { S3Client } = require("@aws-sdk/client-s3");\nconst { S3Client: ActualClient } = require("@aws-sdk/client-s3");',
+    'ActualClient'
+  ],
+  [
+    'CommonJS namespace import',
+    'const { S3Client } = require("@aws-sdk/client-s3");\nconst storage = require("@aws-sdk/client-s3");',
+    'storage.S3Client'
+  ],
+  [
+    'CommonJS member import',
+    'const { S3Client } = require("@aws-sdk/client-s3");\nconst ActualClient = require("@aws-sdk/client-s3").S3Client;',
+    'ActualClient'
+  ],
+  [
+    'CommonJS literal member import',
+    'const { S3Client } = require("@aws-sdk/client-s3");\nconst ActualClient = require("@aws-sdk/client-s3")["S3Client"];',
+    'ActualClient'
+  ],
+  [
+    'simple constructor assignment',
+    'const { S3Client } = require("@aws-sdk/client-s3");\nconst ActualClient = S3Client;',
+    'ActualClient'
+  ],
+  [
+    'semicolon-free alias chain',
+    'const { S3Client } = require("@aws-sdk/client-s3")\nconst FirstClient = S3Client\nconst ActualClient = FirstClient',
+    'ActualClient'
+  ],
+  [
+    'later constructor assignment',
+    'const { S3Client } = require("@aws-sdk/client-s3");\nlet ActualClient;\nActualClient = S3Client;',
+    'ActualClient'
+  ],
+  [
+    'namespace assignment and destructuring',
+    [
+      'const { S3Client } = require("@aws-sdk/client-s3");',
+      'const storage = require("@aws-sdk/client-s3");',
+      'const namespaceAlias = storage;',
+      'const { S3Client: ActualClient } = namespaceAlias;'
+    ].join('\n'),
+    'ActualClient'
+  ]
+];
+
 const cSharpStorageRepo = (source: string): Record<string, string> => ({
   'src/Api/Api.csproj': [
     '<Project Sdk="Microsoft.NET.Sdk.Web">',
@@ -1100,10 +1156,9 @@ describe('the compose probe', () => {
       'server.js': [
         'const { S3Client } = require("@aws-sdk/client-s3");',
         'const endpoint = process.env.S3_ENDPOINT;',
-        'const credentials = {',
-        '  accessKeyId: process.env.S3_ACCESS_KEY_ID,',
-        '  secretAccessKey: process.env.S3_SECRET_ACCESS_KEY',
-        '};',
+        'const accessKeyId = process.env.S3_ACCESS_KEY_ID;',
+        'const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY;',
+        'const credentials = { accessKeyId, secretAccessKey };',
         'const client = new S3Client({ endpoint, credentials });',
         'const unused = new S3Client();',
         'require("express")().listen(3000);',
@@ -1142,38 +1197,54 @@ describe('the compose probe', () => {
     }
   });
 
-  it.each([
-    ['simple alias', 'const ActualClient = S3Client;'],
-    ['semicolon-free alias chain', 'const FirstClient = S3Client\nconst ActualClient = FirstClient'],
-    ['named import alias', 'import { S3Client as ActualClient } from "@aws-sdk/client-s3";']
-  ])('tracks a Node S3 %s before accepting an unused default client', async (_kind, declaration) => {
-    root = await makeRepo(
-      nodeStorageRepo(
-        [
-          'const { S3Client } = require("@aws-sdk/client-s3");',
-          declaration,
-          'const endpoint = process.env.S3_ENDPOINT;',
-          'const credentials = {',
-          '  accessKeyId: process.env.S3_ACCESS_KEY_ID,',
-          '  secretAccessKey: process.env.S3_SECRET_ACCESS_KEY',
-          '};',
-          'const primary = new ActualClient({ endpoint, credentials });',
-          'const unused = new S3Client();',
-          'require("express")().listen(3000);',
-          ''
-        ].join('\n')
-      )
-    );
+  it.each(NODE_S3_IMPORT_FORMS)(
+    'tracks a Node S3 %s before accepting an unused default client',
+    async (_kind, declaration, constructor) => {
+      root = await makeRepo(
+        nodeStorageRepo(
+          [
+            declaration,
+            'const endpoint = process.env.S3_ENDPOINT;',
+            'const accessKeyId = process.env.S3_ACCESS_KEY_ID;',
+            'const secretAccessKey = process.env.S3_SECRET_ACCESS_KEY;',
+            'const credentials = { accessKeyId, secretAccessKey };',
+            `const primary = new ${constructor}({ endpoint, credentials });`,
+            'const unused = new S3Client();',
+            'require("express")().listen(3000);',
+            ''
+          ].join('\n')
+        )
+      );
 
-    const { facts } = await assembleCandidateFacts({
-      root,
-      probes: [manifestProbe, serverEntrypointProbe, dockerComposeProbe]
-    });
-    expect(facts.services[0]?.runtimePortabilityConstraints).toContainEqual(
-      expect.objectContaining({ kind: 'object-storage-explicit-settings-unverified' })
-    );
-    expect(composeConfig({ facts, projectName: 'node-storage-alias' }).deployable).toBe(false);
-  });
+      const { facts } = await assembleCandidateFacts({
+        root,
+        probes: [manifestProbe, serverEntrypointProbe, dockerComposeProbe]
+      });
+      expect(facts.services[0]?.runtimePortabilityConstraints).toContainEqual(
+        expect.objectContaining({ kind: 'object-storage-explicit-settings-unverified' })
+      );
+      expect(composeConfig({ facts, projectName: 'node-storage-alias' }).deployable).toBe(false);
+    }
+  );
+
+  it.each(NODE_S3_IMPORT_FORMS)(
+    'recognizes a Node S3 %s with multiline empty options as using AWS defaults',
+    async (_kind, declaration, constructor) => {
+      root = await makeRepo(
+        nodeStorageRepo(
+          [declaration, `const client = new ${constructor}(`, '  {}', ');', 'require("express")().listen(3000);'].join(
+            '\n'
+          )
+        )
+      );
+      const { facts } = await assembleCandidateFacts({
+        root,
+        probes: [manifestProbe, serverEntrypointProbe, dockerComposeProbe]
+      });
+      expect(facts.services[0]?.runtimePortabilityConstraints).toEqual([]);
+      expect(composeConfig({ facts, projectName: 'node-storage-portable-alias' }).deployable).toBe(true);
+    }
+  );
 
   it('tracks a C# S3 constructor alias before accepting an unused default client', async () => {
     root = await makeRepo(

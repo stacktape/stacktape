@@ -8,6 +8,7 @@
  */
 
 import { posix } from 'node:path';
+import * as ts from 'typescript';
 import type { Citation } from '../facts/citation';
 import type { DependencyFact } from '../facts/dependency';
 import { normalizedEnvironmentVariableName, type ServiceFactInput } from '../facts/service';
@@ -249,26 +250,147 @@ const recordConstructorCalls = ({
   }
 };
 
-const nodeS3ClientNames = (source: string): Set<string> => {
-  const names = new Set(['S3Client']);
-  for (const match of source.matchAll(/\bS3Client\s+as\s+([A-Za-z_$][\w$]*)/g)) {
-    if (match[1] !== undefined) names.add(match[1]);
+type NodeS3Binding = 'client' | 'namespace';
+
+const unwrapNodeExpression = (expression: ts.Expression): ts.Expression => {
+  if (
+    ts.isParenthesizedExpression(expression) ||
+    ts.isAsExpression(expression) ||
+    ts.isTypeAssertionExpression(expression) ||
+    ts.isSatisfiesExpression(expression) ||
+    ts.isNonNullExpression(expression)
+  ) {
+    return unwrapNodeExpression(expression.expression);
   }
-  let changed = true;
-  while (changed) {
-    changed = false;
-    for (const match of source.matchAll(
-      /\b(?:const|let|var)\s+([A-Za-z_$][\w$]*)\s*=\s*([A-Za-z_$][\w$]*)[^\S\r\n]*(?=;|\r?$)/gm
-    )) {
-      const alias = match[1];
-      const target = match[2];
-      if (alias !== undefined && target !== undefined && names.has(target) && !names.has(alias)) {
-        names.add(alias);
-        changed = true;
-      }
+  return expression;
+};
+
+const nodeS3Binding = (
+  expression: ts.Expression,
+  clients: ReadonlySet<string>,
+  namespaces: ReadonlySet<string>
+): NodeS3Binding | undefined => {
+  const value = unwrapNodeExpression(expression);
+  if (ts.isIdentifier(value)) {
+    if (clients.has(value.text)) return 'client';
+    if (namespaces.has(value.text)) return 'namespace';
+  }
+  if (
+    ts.isCallExpression(value) &&
+    ts.isIdentifier(value.expression) &&
+    value.expression.text === 'require' &&
+    value.arguments.length === 1 &&
+    ts.isStringLiteral(value.arguments[0]!) &&
+    value.arguments[0].text === '@aws-sdk/client-s3'
+  ) {
+    return 'namespace';
+  }
+  if (ts.isPropertyAccessExpression(value) || ts.isElementAccessExpression(value)) {
+    const property = ts.isPropertyAccessExpression(value)
+      ? value.name.text
+      : ts.isStringLiteral(value.argumentExpression)
+        ? value.argumentExpression.text
+        : undefined;
+    if (property === 'S3Client' && nodeS3Binding(value.expression, clients, namespaces) === 'namespace') {
+      return 'client';
     }
   }
-  return names;
+  return undefined;
+};
+
+/**
+ * Resolve the standard static SDK import/require forms and their local assignment aliases.
+ * This is not JavaScript execution or general data-flow analysis. Any recognized constructor
+ * with opaque/configured arguments blocks, even when another constructor uses AWS defaults.
+ */
+const recordNodeS3Constructors = (
+  file: string,
+  contents: string,
+  record: (key: keyof FamilySignals, citation: Citation | undefined) => void
+): void => {
+  const scriptKind = /\.tsx$/i.test(file)
+    ? ts.ScriptKind.TSX
+    : /\.jsx$/i.test(file)
+      ? ts.ScriptKind.JSX
+      : ts.ScriptKind.TS;
+  const sourceFile = ts.createSourceFile(file, contents, ts.ScriptTarget.Latest, true, scriptKind);
+  const clients = new Set(['S3Client']);
+  const namespaces = new Set<string>();
+  const aliases: { name: ts.BindingName; value: ts.Expression }[] = [];
+  const constructors: ts.NewExpression[] = [];
+  const visit = (node: ts.Node): void => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteral(node.moduleSpecifier) &&
+      node.moduleSpecifier.text === '@aws-sdk/client-s3' &&
+      node.importClause?.isTypeOnly === false
+    ) {
+      const bindings = node.importClause.namedBindings;
+      if (bindings !== undefined && ts.isNamespaceImport(bindings)) namespaces.add(bindings.name.text);
+      if (bindings !== undefined && ts.isNamedImports(bindings)) {
+        for (const binding of bindings.elements) {
+          if (!binding.isTypeOnly && (binding.propertyName ?? binding.name).text === 'S3Client') {
+            clients.add(binding.name.text);
+          }
+        }
+      }
+    }
+    if (ts.isVariableDeclaration(node) && node.initializer !== undefined) {
+      aliases.push({ name: node.name, value: node.initializer });
+    }
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind === ts.SyntaxKind.EqualsToken &&
+      ts.isIdentifier(node.left)
+    ) {
+      aliases.push({ name: node.left, value: node.right });
+    }
+    if (ts.isNewExpression(node)) constructors.push(node);
+    ts.forEachChild(node, visit);
+  };
+  visit(sourceFile);
+
+  let changed = true;
+  while (changed) {
+    const previousSize = clients.size + namespaces.size;
+    for (const { name, value } of aliases) {
+      const binding = nodeS3Binding(value, clients, namespaces);
+      if (binding === undefined) continue;
+      if (ts.isIdentifier(name)) {
+        (binding === 'client' ? clients : namespaces).add(name.text);
+      } else if (binding === 'namespace' && ts.isObjectBindingPattern(name)) {
+        for (const element of name.elements) {
+          const property = element.propertyName ?? element.name;
+          if (
+            element.dotDotDotToken === undefined &&
+            ts.isIdentifier(element.name) &&
+            (ts.isIdentifier(property) || ts.isStringLiteral(property)) &&
+            property.text === 'S3Client'
+          ) {
+            clients.add(element.name.text);
+          }
+        }
+      }
+    }
+    changed = clients.size + namespaces.size > previousSize;
+  }
+
+  const parseDiagnostics = (sourceFile as ts.SourceFile & { parseDiagnostics: readonly ts.Diagnostic[] })
+    .parseDiagnostics;
+  for (const constructor of constructors) {
+    if (nodeS3Binding(constructor.expression, clients, namespaces) !== 'client') continue;
+    const start = constructor.getStart(sourceFile);
+    const citation = citationAt(file, contents, start, contents.slice(start, constructor.expression.end));
+    const args = constructor.arguments ?? [];
+    const onlyArgument = args.length === 1 ? unwrapNodeExpression(args[0]!) : undefined;
+    const empty =
+      args.length === 0 ||
+      (onlyArgument !== undefined &&
+        ts.isObjectLiteralExpression(onlyArgument) &&
+        onlyArgument.properties.length === 0);
+    record('client', citation);
+    record(empty && parseDiagnostics.length === 0 ? 'portableClient' : 'configuredClient', citation);
+  }
 };
 
 const cSharpS3ClientNames = (source: string): Set<string> => {
@@ -318,14 +440,7 @@ const collectSignals = (file: string, contents: string, families: Map<SourceFami
     record('credentials', citationFor(file, source, /\bnew\s+(?:Amazon\.Runtime\.)?BasicAWSCredentials\s*\(/));
     record('endpoint', citationFor(file, source, /\bServiceURL\s*=/));
   } else if (family === 'node') {
-    recordConstructorCalls({
-      file,
-      source,
-      names: nodeS3ClientNames(source),
-      prefix: '\\bnew\\s+',
-      allowEmptyObject: true,
-      record
-    });
+    recordNodeS3Constructors(file, contents, record);
     record('endpoint', citationFor(file, source, /\bendpoint\s*:/));
     record('accessKey', citationFor(file, source, /\baccessKeyId\s*:/));
     record('secretKey', citationFor(file, source, /\bsecretAccessKey\s*:/));
