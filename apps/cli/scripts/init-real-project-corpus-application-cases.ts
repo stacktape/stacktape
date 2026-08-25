@@ -33,8 +33,14 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       serviceCount: 2,
       httpServiceCount: 1,
       existingDeployments: ['heroku'],
-      requiredConfig: ['type: web-service', 'type: worker-service'],
-      forbiddenConfig: ['bin/vite dev', 'chatwoot-vite:development'],
+      requiredConfig: [
+        'type: web-service',
+        'type: worker-service',
+        'dockerfilePath: docker/Dockerfile',
+        'command:',
+        'bundle exec sidekiq -C'
+      ],
+      forbiddenConfig: ['bin/vite dev', 'chatwoot-vite:development', 'type: nixpacks'],
       requiredGapPatterns: ['Sending email uses SES', 'Heroku deployment config'],
       forbidCurrentlyHostedDependencies: true
     }

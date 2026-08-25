@@ -168,6 +168,7 @@ const mergeEnvironmentVariables = (
 };
 
 const BACKGROUND_PROCESS_TYPE = /(?:^|:)(?:worker|scheduler|cron|consumer)$/;
+const SHARED_APPLICATION_IMAGE_PROCESS_TYPE = /^procfile:/;
 
 const startCommandRunsEntrypoint = (service: ServiceFactInput): boolean => {
   if (service.startCommand === undefined || service.containerEntrypoint === undefined) return false;
@@ -376,6 +377,20 @@ const mergeServices = (
     outputs.flatMap((output) => [...(output.lifecycleDockerfiles ?? []), ...(output.descriptorTargetDockerfiles ?? [])])
   );
   const developmentProcesses = new Set(outputs.flatMap((output) => output.developmentProcesses ?? []));
+  const unscopedDockerfiles = new Map<string, Set<string>>();
+  for (const service of outputs.flatMap((output) => output.services ?? [])) {
+    if (
+      service.processType !== undefined ||
+      service.dockerfile === undefined ||
+      service.startCommand !== undefined ||
+      service.containerEntrypoint !== undefined
+    ) {
+      continue;
+    }
+    const paths = unscopedDockerfiles.get(service.path) ?? new Set<string>();
+    paths.add(service.dockerfile);
+    unscopedDockerfiles.set(service.path, paths);
+  }
   /**
    * Names that stopped existing because their service folded into another one.
    *
@@ -467,6 +482,23 @@ const mergeServices = (
   }
 
   const merged = [...byPath.values()];
+  for (const service of merged) {
+    const dockerfiles = unscopedDockerfiles.get(service.path);
+    const sharedDockerfile = dockerfiles?.size === 1 ? [...dockerfiles][0] : undefined;
+    // A Procfile defines several processes over one application image. The standalone Dockerfile
+    // probe is necessarily process-neutral, so after the generic application has folded into the
+    // web process, carry that one image contract to its explicit Procfile siblings as well. Other
+    // deployment files choose packaging per service and source-code worker detectors do not prove
+    // a shared image, so neither receives this treatment.
+    if (
+      service.dockerfile === undefined &&
+      service.startCommand !== undefined &&
+      SHARED_APPLICATION_IMAGE_PROCESS_TYPE.test(service.processType ?? '') &&
+      sharedDockerfile !== undefined
+    ) {
+      service.dockerfile = sharedDockerfile;
+    }
+  }
   const descriptorOwnedDockerfiles = new Set(
     merged.flatMap((service) =>
       service.processType !== undefined && service.dockerfile !== undefined ? [service.dockerfile] : []

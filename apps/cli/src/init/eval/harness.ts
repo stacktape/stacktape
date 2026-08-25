@@ -54,6 +54,8 @@ export type EvalExpectation = {
    * cannot reach it deploys green — so the corpus has to assert the emitted values directly.
    */
   serviceEnvironment?: ReadonlyArray<{ resource: string; name: string; value: string }>;
+  /** Packaging contracts that must survive the complete probe, verification, and composition path. */
+  resourcePackaging?: ReadonlyArray<{ resource: string; type: string; command?: readonly string[] }>;
 };
 
 export type EvalCase = {
@@ -138,6 +140,27 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
       failures.push({
         stage: 'composition',
         detail: `${wiring.name} on "${wiring.resource}" is ${String(entry.value)}; expected ${wiring.value}.`
+      });
+    }
+  }
+
+  for (const packagingExpectation of expected.resourcePackaging ?? []) {
+    const resource = result.composition.config.resources[packagingExpectation.resource];
+    const packaging = resource?.properties.packaging as
+      | { type?: string; properties?: { command?: readonly string[] } }
+      | undefined;
+    if (packaging?.type !== packagingExpectation.type) {
+      failures.push({
+        stage: 'composition',
+        detail: `Expected "${packagingExpectation.resource}" packaging to be ${packagingExpectation.type}; found ${packaging?.type ?? 'nothing'}.`
+      });
+    } else if (
+      packagingExpectation.command !== undefined &&
+      JSON.stringify(packaging.properties?.command) !== JSON.stringify(packagingExpectation.command)
+    ) {
+      failures.push({
+        stage: 'composition',
+        detail: `Expected "${packagingExpectation.resource}" to run ${JSON.stringify(packagingExpectation.command)}; found ${JSON.stringify(packaging.properties?.command)}.`
       });
     }
   }

@@ -65,6 +65,35 @@ const CASES: EvalCase[] = [
     }
   },
   {
+    name: 'Procfile web and worker sharing one application Dockerfile',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'support',
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '^5.0.0' }
+      }),
+      Procfile: ['web: node server.js', 'worker: node worker.js'].join('\n'),
+      Dockerfile: [
+        'FROM node:24-alpine',
+        'RUN apk add --no-cache imagemagick',
+        'COPY . /app',
+        'WORKDIR /app',
+        'CMD ["node", "server.js"]'
+      ].join('\n'),
+      'server.js': 'require("express")().listen(process.env.PORT || 3000);',
+      'worker.js': 'setInterval(() => undefined, 1000);'
+    },
+    expect: {
+      resources: { support: 'web-service', worker: 'worker-service' },
+      resourcePackaging: [
+        { resource: 'support', type: 'custom-dockerfile', command: ['/bin/sh', '-c', 'node server.js'] },
+        { resource: 'worker', type: 'custom-dockerfile', command: ['/bin/sh', '-c', 'node worker.js'] }
+      ],
+      deployable: true,
+      maxQuestions: 0
+    }
+  },
+  {
     name: 'Render web app plus key-value service',
     files: {
       'package.json': JSON.stringify({

@@ -204,7 +204,7 @@ export const procfileProbe: Probe = {
         // The web process is the application itself, so it folds into whatever the manifest already
         // found in this directory rather than becoming a second copy of it. Every other process is
         // a genuinely separate deployable thing and says so.
-        ...(isWeb ? { processType: 'procfile:web' } : { processType: name }),
+        processType: `procfile:${name}`,
         // A Procfile says nothing about the language, so the marker files next to it answer that.
         // Without one there is no honest value to give, and the service is left for another probe.
         language: language ?? 'unknown',

@@ -209,7 +209,14 @@ const packagingFor = (
         buildContextPath: buildRoot,
         // Facts keep repository-relative evidence paths; Stacktape expects this one relative to the
         // build context.
-        dockerfilePath: buildRoot === '.' ? service.dockerfile : posix.relative(buildRoot, service.dockerfile)
+        dockerfilePath: buildRoot === '.' ? service.dockerfile : posix.relative(buildRoot, service.dockerfile),
+        // Deployment descriptors such as Procfiles declare the command for each process that is
+        // built from the shared application image. Override Docker CMD while preserving ENTRYPOINT
+        // so image initialization still runs and shell-shaped source commands (`&&`, variables,
+        // quoting) keep their authored meaning.
+        ...(!/^(?:compose|fly|procfile|render):/.test(service.processType ?? '') || service.startCommand === undefined
+          ? {}
+          : { command: ['/bin/sh', '-c', service.startCommand] })
       }
     };
   }

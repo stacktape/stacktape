@@ -491,6 +491,42 @@ describe('composeConfig', () => {
     });
   });
 
+  it('uses each deployment process command with a shared custom Dockerfile', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            name: 'worker',
+            exposesHttp: false,
+            processType: 'procfile:worker',
+            dockerfile: 'Dockerfile',
+            startCommand: 'bundle exec sidekiq -C config/sidekiq.yml'
+          })
+        ]
+      })
+    });
+
+    expect(config.resources.worker?.properties.packaging).toMatchObject({
+      type: 'custom-dockerfile',
+      properties: {
+        buildContextPath: '.',
+        dockerfilePath: 'Dockerfile',
+        command: ['/bin/sh', '-c', 'bundle exec sidekiq -C config/sidekiq.yml']
+      }
+    });
+  });
+
+  it('does not override a Dockerfile command from a package-script approximation', () => {
+    const { config } = composeConfig({
+      facts: facts({ services: [service({ dockerfile: 'Dockerfile', startCommand: 'npm run start' })] })
+    });
+
+    expect(config.resources.web?.properties.packaging).toEqual({
+      type: 'custom-dockerfile',
+      properties: { buildContextPath: '.', dockerfilePath: 'Dockerfile' }
+    });
+  });
+
   it('wires a database through connectTo rather than restating a connection string', () => {
     const { config } = composeConfig({
       facts: facts({

@@ -6,6 +6,7 @@ import { assembleCandidateFacts } from './assemble';
 import { dockerfileProbe } from './probes/dockerfile';
 import { environmentProbe } from './probes/environment';
 import { manifestProbe } from './probes/manifest';
+import { procfileProbe } from './probes/procfile';
 import { serverEntrypointProbe } from './probes/server-entrypoint';
 import { staticSiteProbe } from './probes/static-site';
 
@@ -557,6 +558,27 @@ describe('assembleCandidateFacts', () => {
 
     expect(facts.services[0]?.buildCommand).toBe('npm run build');
     expect(facts.migrations[0]).toMatchObject({ command: 'npx prisma migrate deploy', runsAt: 'unknown' });
+  });
+
+  it('shares one application Dockerfile across explicit Procfile web and worker processes', async () => {
+    const repoRoot = await makeRepo({
+      Gemfile: "source 'https://rubygems.org'\ngem 'rails'\ngem 'sidekiq'\n",
+      Procfile: ['web: bundle exec rails server -b 0.0.0.0', 'worker: bundle exec sidekiq -C config/sidekiq.yml'].join(
+        '\n'
+      ),
+      Dockerfile: ['FROM ruby:3.4', 'COPY . /app', 'WORKDIR /app', 'CMD ["bundle", "exec", "rails", "server"]'].join(
+        '\n'
+      )
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [dockerfileProbe, procfileProbe] });
+
+    expect(facts.services).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({ processType: 'procfile:web', dockerfile: 'Dockerfile', exposesHttp: true }),
+        expect.objectContaining({ processType: 'procfile:worker', dockerfile: 'Dockerfile', exposesHttp: false })
+      ])
+    );
   });
 
   it('recognizes a React Router Framework default template as an HTTP web service even without EXPOSE in Dockerfile', async () => {

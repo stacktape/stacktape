@@ -59,6 +59,7 @@ describe('the Procfile probe', () => {
     });
     // Only `web` receives HTTP. A worker with a load balancer in front of it is money for nothing.
     expect(facts.services[1]).toMatchObject({
+      processType: 'procfile:worker',
       exposesHttp: false,
       startCommand: 'celery -A myapp worker'
     });
