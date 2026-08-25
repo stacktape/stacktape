@@ -728,6 +728,23 @@ describe('assembleCandidateFacts', () => {
     expect(facts.services[0]?.servesStaticAssets).toBeUndefined();
   });
 
+  it('ignores an export-shaped React Router SPA decoy inside a top-level regex literal', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'regex-decoy-app',
+        scripts: { build: 'react-router build', start: 'react-router-serve ./build/server/index.js' },
+        dependencies: { '@react-router/serve': '^8.0.0', 'react-router': '^8.0.0' },
+        devDependencies: { '@react-router/dev': '^8.0.0' }
+      }),
+      'react-router.config.ts':
+        'const docs = /export default { ssr: false }/; const config = { ssr: true }; export default config;\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: [manifestProbe] });
+    expect(facts.services[0]).toMatchObject({ framework: 'react-router', exposesHttp: true });
+    expect(facts.services[0]?.servesStaticAssets).toBeUndefined();
+  });
+
   it('does not treat a false-prefixed expression as definite React Router SPA mode', async () => {
     const repoRoot = await makeRepo({
       'package.json': JSON.stringify({
