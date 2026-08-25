@@ -152,6 +152,64 @@ const ALL_REAL_PROJECT_PLATFORM_CASES = [
     }
   },
   {
+    id: 'react-router-default',
+    repository: 'https://github.com/remix-run/react-router-templates.git',
+    commit: 'b68be71489a22315c7a734a86a18347745b393d2',
+    subdirectory: 'default',
+    // The upstream templates repository lacks a root/subdirectory license file at the pinned commit.
+    license: 'NOASSERTION',
+    source: 'official-starter',
+    exercises: ['react-router', 'node', 'web-service', 'dockerfile'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      services: [
+        {
+          name: 'app',
+          framework: 'react-router',
+          exposesHttp: true,
+          buildCommand: 'npm run build',
+          startCommand: 'npm run start',
+          dockerfile: 'Dockerfile'
+        }
+      ],
+      existingDeployments: [],
+      requiredConfig: ['type: custom-dockerfile'],
+      forbiddenConfig: ['type: worker-service', 'type: hosting-bucket'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'react-router-node-custom-server',
+    repository: 'https://github.com/remix-run/react-router-templates.git',
+    commit: 'b68be71489a22315c7a734a86a18347745b393d2',
+    subdirectory: 'node-custom-server',
+    // The upstream templates repository lacks a root/subdirectory license file at the pinned commit.
+    license: 'NOASSERTION',
+    source: 'official-starter',
+    exercises: ['react-router', 'express', 'node', 'custom-server', 'web-service'],
+    expect: {
+      resourceTypes: { 'web-service': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      services: [
+        {
+          name: 'app',
+          framework: 'react-router',
+          exposesHttp: true,
+          buildCommand: 'npm run build',
+          startCommand: 'npm run start',
+          dockerfile: 'Dockerfile'
+        }
+      ],
+      existingDeployments: [],
+      requiredConfig: ['type: custom-dockerfile'],
+      forbiddenConfig: ['type: worker-service', 'type: hosting-bucket'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
     id: 'railway-ghost',
     repository: 'https://github.com/railwayapp-templates/ghost.git',
     commit: '67a63633b8824b5a0c888eb262bfb024c1466848',

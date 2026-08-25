@@ -3,8 +3,10 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { assembleCandidateFacts } from './assemble';
+import { dockerfileProbe } from './probes/dockerfile';
 import { environmentProbe } from './probes/environment';
 import { manifestProbe } from './probes/manifest';
+import { serverEntrypointProbe } from './probes/server-entrypoint';
 import { staticSiteProbe } from './probes/static-site';
 
 const PROBES = [manifestProbe, environmentProbe];
@@ -472,6 +474,333 @@ describe('assembleCandidateFacts', () => {
     expect(facts.migrations[0]).toMatchObject({
       tool: 'prisma',
       runsAt: 'unknown'
+    });
+  });
+
+  it('recognizes a React Router Framework default template as an HTTP web service even without EXPOSE in Dockerfile', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'my-react-router-app',
+        scripts: {
+          build: 'react-router build',
+          dev: 'react-router dev',
+          start: 'react-router-serve ./build/server/index.js'
+        },
+        dependencies: {
+          '@react-router/node': '^8.0.0',
+          '@react-router/serve': '^8.0.0',
+          react: '^19.0.0',
+          'react-dom': '^19.0.0',
+          'react-router': '^8.0.0'
+        },
+        devDependencies: {
+          '@react-router/dev': '^8.0.0'
+        }
+      }),
+      'react-router.config.ts': 'export default { ssr: true };\n',
+      Dockerfile: ['FROM node:24-alpine', 'COPY . /app', 'WORKDIR /app', 'CMD ["npm", "run", "start"]'].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, environmentProbe, dockerfileProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'my-react-router-app',
+      path: '.',
+      framework: 'react-router',
+      exposesHttp: true,
+      executionModel: 'long-running',
+      buildCommand: 'npm run build',
+      startCommand: 'npm run start',
+      dockerfile: 'Dockerfile'
+    });
+  });
+
+  it('recognizes a React Router Node custom-server template with Express entrypoint', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'custom-server-app',
+        scripts: {
+          build: 'react-router build',
+          start: 'node server.js'
+        },
+        dependencies: {
+          '@react-router/express': '^8.0.0',
+          '@react-router/node': '^8.0.0',
+          express: '^5.0.0',
+          react: '^19.0.0',
+          'react-router': '^8.0.0'
+        },
+        devDependencies: {
+          '@react-router/dev': '^8.0.0'
+        }
+      }),
+      'server.js': [
+        'import express from "express";',
+        'const app = express();',
+        'const PORT = process.env.PORT || 3000;',
+        'app.listen(PORT, () => console.log(`Listening on ${PORT}`));'
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, environmentProbe, dockerfileProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'custom-server-app',
+      path: '.',
+      framework: 'react-router',
+      exposesHttp: true,
+      containerEntrypoint: 'server.js',
+      startCommand: 'npm run start'
+    });
+  });
+
+  it('treats a React Router SPA with ssr: false as a static hosting site for build/client', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'spa-app',
+        scripts: {
+          build: 'react-router build'
+        },
+        dependencies: {
+          '@react-router/node': '^8.0.0',
+          react: '^19.0.0',
+          'react-router': '^8.0.0'
+        },
+        devDependencies: {
+          '@react-router/dev': '^8.0.0',
+          vite: '^8.0.0'
+        }
+      }),
+      'react-router.config.ts': 'export default { ssr: false };\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, environmentProbe, dockerfileProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'spa-app',
+      path: '.',
+      framework: 'react-router',
+      exposesHttp: false,
+      servesStaticAssets: { path: 'build/client' },
+      buildCommand: 'npm run build'
+    });
+    expect(facts.services[0]?.startCommand).toBeUndefined();
+  });
+
+  it('allows an independently proven custom server to override React Router ssr: false SPA mode', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'spa-custom-server',
+        scripts: {
+          build: 'react-router build',
+          start: 'node server.js'
+        },
+        dependencies: {
+          '@react-router/express': '^8.0.0',
+          express: '^5.0.0',
+          react: '^19.0.0',
+          'react-router': '^8.0.0'
+        },
+        devDependencies: {
+          '@react-router/dev': '^8.0.0'
+        }
+      }),
+      'react-router.config.ts': 'export default { ssr: false };\n',
+      'server.js': ['import express from "express";', 'const app = express();', 'app.listen(3000);'].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, environmentProbe, dockerfileProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'spa-custom-server',
+      path: '.',
+      framework: 'react-router',
+      exposesHttp: true,
+      containerEntrypoint: 'server.js'
+    });
+  });
+
+  it('does not mint a phantom service when @react-router/dev is present with no runnable scripts or config', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'tooling-package',
+        devDependencies: {
+          '@react-router/dev': '^8.0.0'
+        }
+      })
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, environmentProbe, dockerfileProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('does not mint a phantom service when @react-router/dev is present with only a library tsc build script', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'shared-utils',
+        scripts: {
+          build: 'tsc -p tsconfig.json'
+        },
+        devDependencies: {
+          '@react-router/dev': '^8.0.0',
+          typescript: '^5.9.0'
+        }
+      })
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, environmentProbe, dockerfileProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('prefers React Router over a leftover @remix-run/node dependency when React Router config/scripts are present', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'migrated-app',
+        scripts: {
+          build: 'react-router build',
+          start: 'react-router-serve ./build/server/index.js'
+        },
+        dependencies: {
+          '@remix-run/node': '^2.15.0',
+          '@react-router/node': '^8.0.0',
+          '@react-router/serve': '^8.0.0',
+          'react-router': '^8.0.0'
+        },
+        devDependencies: {
+          '@react-router/dev': '^8.0.0'
+        }
+      }),
+      'react-router.config.ts': 'export default { ssr: true };\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, environmentProbe, dockerfileProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'migrated-app',
+      framework: 'react-router',
+      exposesHttp: true
+    });
+  });
+
+  it('retains Remix classification when actual Remix build/dev scripts are present', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'remix-app',
+        scripts: {
+          build: 'remix build',
+          dev: 'remix dev'
+        },
+        dependencies: {
+          '@remix-run/node': '^2.15.0',
+          '@remix-run/react': '^2.15.0',
+          'react-router': '^8.0.0'
+        },
+        devDependencies: {
+          '@remix-run/dev': '^2.15.0'
+        }
+      }),
+      'remix.config.js': 'module.exports = { appDirectory: "app" };\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, environmentProbe, dockerfileProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'remix-app',
+      framework: 'remix',
+      exposesHttp: true
+    });
+  });
+
+  it('retains Next.js classification when incidental React Router dependencies are present', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'next-app',
+        scripts: {
+          build: 'next build',
+          dev: 'next dev'
+        },
+        dependencies: {
+          next: '^15.0.0',
+          'react-router': '^8.0.0',
+          '@react-router/node': '^8.0.0'
+        }
+      }),
+      'next.config.js': 'module.exports = {};\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, environmentProbe, dockerfileProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'next-app',
+      framework: 'nextjs',
+      exposesHttp: true
+    });
+  });
+
+  it('retains Express classification when an unused @react-router/dev dependency is present', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'express-service',
+        scripts: {
+          start: 'node server.js'
+        },
+        dependencies: {
+          express: '^5.0.0'
+        },
+        devDependencies: {
+          '@react-router/dev': '^8.0.0'
+        }
+      }),
+      'server.js': 'import express from "express"; const app = express(); app.listen(3000);\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, environmentProbe, dockerfileProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'express-service',
+      framework: 'express',
+      exposesHttp: true,
+      containerEntrypoint: 'server.js'
     });
   });
 

@@ -77,7 +77,12 @@ const stressCases = [...REAL_PROJECT_PLATFORM_STRESS_CASES, ...REAL_PROJECT_APPL
 const importOnlyCaseIds = new Set([
   // This pinned Vercel starter still exercises importer evidence, but Next 14 is outside the
   // supported @opennextjs/aws 3.10 packaging range.
-  'vercel-next-postgres-auth'
+  'vercel-next-postgres-auth',
+  // Pinned React Router template subdirectories are qualified for import-only. The monorepo
+  // root uses pnpm-lock.yaml, but each template subdirectory Dockerfile invokes `npm ci` without
+  // a local package-lock.json; isolated subdirectories are not standalone packaging units.
+  'react-router-default',
+  'react-router-node-custom-server'
 ]);
 
 const fromBuiltInCase = (entry: RealProjectCorpusCase): QualificationCaseManifest => ({
@@ -91,7 +96,7 @@ const fromBuiltInCase = (entry: RealProjectCorpusCase): QualificationCaseManifes
     ...(entry.subdirectory === undefined ? {} : { subdirectory: entry.subdirectory }),
     // Built-in cases are cloned only for qualification and are never redistributed. New external
     // manifests must provide their project's actual license explicitly.
-    license: 'upstream-project-license'
+    license: entry.license ?? 'upstream-project-license'
   },
   origin: entry.source,
   tags: [...entry.exercises],
@@ -101,6 +106,7 @@ const fromBuiltInCase = (entry: RealProjectCorpusCase): QualificationCaseManifes
     ...(entry.expect.dependencyKinds === undefined ? {} : { dependencyKinds: { ...entry.expect.dependencyKinds } }),
     serviceCount: entry.expect.serviceCount,
     httpServiceCount: entry.expect.httpServiceCount,
+    ...(entry.expect.services === undefined ? {} : { services: [...entry.expect.services] }),
     ...(entry.expect.existingDeployments === undefined
       ? {}
       : { existingDeployments: [...entry.expect.existingDeployments] }),

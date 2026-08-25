@@ -25,12 +25,27 @@ const relativeProjectPathSchema = z
     }
   });
 
+const expectedServiceSchema = z
+  .object({
+    name: z.string().optional(),
+    path: z.string().optional(),
+    framework: z.string().optional(),
+    exposesHttp: z.boolean().optional(),
+    startCommand: z.string().optional(),
+    buildCommand: z.string().optional(),
+    dockerfile: z.string().optional()
+  })
+  .strict();
+
+export type ExpectedService = z.infer<typeof expectedServiceSchema>;
+
 const expectationSchema = z
   .object({
     resourceTypes: z.record(z.string(), z.number().int().nonnegative()),
     dependencyKinds: z.record(z.string(), z.number().int().nonnegative()).optional(),
     serviceCount: z.number().int().nonnegative(),
     httpServiceCount: z.number().int().nonnegative(),
+    services: z.array(expectedServiceSchema).optional(),
     existingDeployments: z.array(z.string()).optional(),
     requiredConfig: z.array(z.string()).optional(),
     forbiddenConfig: z.array(z.string()).optional(),
