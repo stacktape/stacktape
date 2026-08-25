@@ -97,12 +97,13 @@ describe('qualification reports', () => {
     ]
   };
   const report = {
-    schemaVersion: 2,
+    schemaVersion: 3,
     runId: 'qualification-test',
     generatedAt: '2026-08-25T00:00:00.000Z',
     productCommit: 'c'.repeat(40),
     productFingerprint: 'd'.repeat(64),
     lanes: ['import'] as const,
+    awsScenarios: [],
     environment: { platform: 'win32', architecture: 'x64', bun: '1.3.14', node: '24.0.0' },
     summary: { passed: 1, failed: 0, skipped: 0, durationMs: 10 },
     globalSteps: [],
@@ -142,6 +143,72 @@ describe('qualification reports', () => {
         summary: { ...report.summary, passed: 0 }
       })
     ).toThrow('Summary passed count must equal 1');
+  });
+
+  test('requires exact global-lane evidence with structured failures and AWS scenario identity', () => {
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['runtime'],
+        cases: [],
+        summary: { ...report.summary, passed: 0 },
+        globalSteps: []
+      })
+    ).toThrow('exactly match requested global lanes');
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        summary: { ...report.summary, passed: 2 },
+        globalSteps: [{ name: 'runtime', status: 'passed', durationMs: 1, summary: 'Unrequested.' }]
+      })
+    ).toThrow('exactly match requested global lanes');
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['runtime'],
+        cases: [],
+        summary: { ...report.summary, passed: 0, failed: 1 },
+        globalSteps: [{ name: 'runtime', status: 'failed', durationMs: 1, summary: 'Failed.' }]
+      })
+    ).toThrow('structured failure evidence');
+
+    const awsStep = (scenario: string) => ({
+      name: 'aws' as const,
+      status: 'passed' as const,
+      durationMs: 1,
+      summary: `${scenario} passed.`,
+      details: { scenario }
+    });
+    expect(
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['aws'],
+        awsScenarios: ['lambda-api', 'container-api'],
+        cases: [],
+        summary: { ...report.summary, passed: 2 },
+        globalSteps: [awsStep('lambda-api'), awsStep('container-api')]
+      }).globalSteps
+    ).toHaveLength(2);
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['aws'],
+        awsScenarios: ['lambda-api', 'container-api'],
+        cases: [],
+        summary: { ...report.summary, passed: 2 },
+        globalSteps: [awsStep('container-api'), awsStep('lambda-api')]
+      })
+    ).toThrow('must identify its requested scenario');
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['aws'],
+        awsScenarios: ['lambda-api', 'lambda-api'],
+        cases: [],
+        summary: { ...report.summary, passed: 2 },
+        globalSteps: [awsStep('lambda-api'), awsStep('lambda-api')]
+      })
+    ).toThrow('AWS scenarios must be unique');
   });
 
   test('requires non-empty evidence for project lanes', () => {

@@ -69,16 +69,23 @@ describe('qualification runner', () => {
     const firstOutput = join(root, 'first');
     const secondOutput = join(root, 'second');
     const thirdOutput = join(root, 'third');
-    await runQualification([`--manifest=${manifestPath}`, '--lanes=import', `--output-dir=${firstOutput}`]);
     await runQualification([
       `--manifest=${manifestPath}`,
       '--lanes=import',
+      '--run-id=resume-one',
+      `--output-dir=${firstOutput}`
+    ]);
+    await runQualification([
+      `--manifest=${manifestPath}`,
+      '--lanes=import',
+      '--run-id=resume-two',
       `--output-dir=${secondOutput}`,
       `--resume-from=${join(firstOutput, 'qualification-report.json')}`
     ]);
     await runQualification([
       `--manifest=${manifestPath}`,
       '--lanes=import',
+      '--run-id=resume-three',
       `--output-dir=${thirdOutput}`,
       `--resume-from=${join(secondOutput, 'qualification-report.json')}`
     ]);
@@ -87,8 +94,19 @@ describe('qualification runner', () => {
     const second = await readReport(secondOutput);
     const third = await readReport(thirdOutput);
     expect(first.cases[0]).toMatchObject({ status: 'passed', execution: 'executed' });
-    expect(second.cases[0]).toMatchObject({ status: 'passed', execution: 'reused' });
-    expect(third.cases[0]).toMatchObject({ status: 'passed', execution: 'reused' });
+    expect(first.runId).toBe('resume-one');
+    expect(second).toMatchObject({ runId: 'resume-two' });
+    expect(second.cases[0]).toMatchObject({
+      status: 'passed',
+      execution: 'reused',
+      resumedFrom: { runId: 'resume-one' }
+    });
+    expect(third).toMatchObject({ runId: 'resume-three' });
+    expect(third.cases[0]).toMatchObject({
+      status: 'passed',
+      execution: 'reused',
+      resumedFrom: { runId: 'resume-two' }
+    });
     expect(second.summary).toMatchObject({ passed: 1, failed: 0, skipped: 0 });
     expect(await Bun.file(join(thirdOutput, 'cases', 'resume-fixture', 'stacktape.yml')).exists()).toBeTrue();
   }, 120_000);

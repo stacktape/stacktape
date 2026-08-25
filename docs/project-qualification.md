@@ -119,6 +119,7 @@ cases/<id>/result.json          result written immediately after that project
 cases/<id>/stacktape.yml        generated importer output
 cases/<id>/compiled-template.yml  template when synthesis reached that point
 sandbox-metadata.json             host-created image identity and SHA-256 hashes of accepted sandbox artifacts
+sandbox-failure.json              host-created reason, termination state, and any accepted partial-artifact hashes
 ```
 
 The per-case result makes a partially completed run useful. The final report includes the exact Git commit and a hash of
@@ -126,11 +127,12 @@ tracked changes plus untracked source files. Case fingerprints also include the 
 the Node, Bun, Docker, operating-system, and architecture context. A resumed success stays a passing result, records its
 original report, and carries its configuration/template evidence forward.
 
-The sandbox first copies output into a new temporary host directory, rejects links, special files, unexpected paths, and
-excessive output, validates report semantics, and only then renames it to the requested destination. The host-created
-metadata hashes the accepted files and records the actual runner image ID. Project code still shares the runner UID with
-the harness and can edit its report before collection, so these files are review evidence—not cryptographic attestation
-against a malicious worker.
+The sandbox first copies output into a new temporary host directory, rejects special files, unexpected paths, excessive
+output, and every link outside retained workdirs. Links inside retained workdirs must be portable relative links whose
+targets stay inside that workdir. It validates report semantics and only then renames the temporary directory to the
+requested destination. The host-created metadata hashes the accepted files and records the actual runner image ID.
+Project code still shares the runner UID with the harness and can edit its report before collection, so these files are
+review evidence—not cryptographic attestation against a malicious worker.
 
 ## External and synthetic corpora
 
