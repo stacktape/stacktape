@@ -1,6 +1,8 @@
 import { randomBytes } from 'node:crypto';
-import { isAbsolute, join, normalize, resolve, win32 } from 'node:path';
+import { readFileSync, realpathSync } from 'node:fs';
+import { dirname, isAbsolute, join, normalize, relative, resolve, sep, win32 } from 'node:path';
 import { parseArgs } from 'node:util';
+import { qualificationManifestSchema } from './contracts';
 
 export const QUALIFICATION_SANDBOX_REPORT_VERSION = 2 as const;
 
@@ -47,7 +49,8 @@ export const SENSITIVE_HOST_ENV_PATTERNS = [
 ];
 
 export type StagedInput = {
-  hostPath: string;
+  hostPath?: string;
+  content?: string;
   containerRelativePath: string;
   isDirectory: boolean;
   label: string;
@@ -58,7 +61,9 @@ export type PlannedSandboxExecution = {
   createdAt: string;
   networkName: string;
   dindContainerName: string;
+  stagingContainerName: string;
   runnerContainerName: string;
+  inputVolumeName: string;
   outputVolumeName: string;
   cacheVolumeName: string;
   imageTag: string;
@@ -166,6 +171,13 @@ export const validateCanonicalPath = (userPath: string, invocationDirectory: str
   return normalized;
 };
 
+const assertInside = (parent: string, child: string, label: string) => {
+  const childRelative = relative(parent, child);
+  if (childRelative === '..' || childRelative.startsWith(`..${sep}`) || isAbsolute(childRelative)) {
+    throw new Error(`${label} resolves outside ${parent}.`);
+  }
+};
+
 export const parseSandboxedOptions = (argv: string[]): SandboxedQualificationParsedOptions => {
   const { values } = parseArgs({
     args: argv,
@@ -248,13 +260,15 @@ export const planSandboxExecution = ({
   rawArgs,
   invocationDirectory = process.cwd(),
   rootDirectory,
-  runIdSuffix
+  runIdSuffix,
+  isSelfTest = false
 }: {
   productCommit: string;
   rawArgs: string[];
   invocationDirectory?: string;
   rootDirectory: string;
   runIdSuffix?: string;
+  isSelfTest?: boolean;
 }): PlannedSandboxExecution => {
   const parsed = parseSandboxedOptions(rawArgs);
   const commit = productCommit.trim();
@@ -280,7 +294,9 @@ export const planSandboxExecution = ({
   const runId = `qual-${now.toISOString().replace(/[:.]/g, '-').slice(0, 19)}-${suffix}`;
   const networkName = `stp-qual-net-${suffix}`;
   const dindContainerName = `stp-qual-dind-${suffix}`;
+  const stagingContainerName = `stp-qual-stage-${suffix}`;
   const runnerContainerName = `stp-qual-runner-${suffix}`;
+  const inputVolumeName = `stp-qual-input-${suffix}`;
   const outputVolumeName = `stp-qual-out-${suffix}`;
   const cacheVolumeName = `stp-qual-cache-${suffix}`;
   const imageTag = buildRunnerImageTag(commit);
@@ -315,12 +331,30 @@ export const planSandboxExecution = ({
   if (parsed.manifests !== undefined && parsed.manifests.length > 0) {
     for (const [index, manifestRelPath] of parsed.manifests.entries()) {
       const canonicalManifest = validateCanonicalPath(manifestRelPath, invocationDirectory);
-      const manifestBasename = canonicalManifest.split(/[\\/]/).at(-1)!;
-      const containerManifestPath = `/qualification/inputs/manifests/${index}/${manifestBasename}`;
+      const manifestDirectory = realpathSync(dirname(canonicalManifest));
+      const manifest = qualificationManifestSchema.parse(JSON.parse(readFileSync(canonicalManifest, 'utf8')));
+      const rewrittenManifest = structuredClone(manifest);
+
+      for (const [caseIndex, entry] of rewrittenManifest.cases.entries()) {
+        if (entry.source.kind !== 'local') continue;
+        const sourceRoot = realpathSync(resolve(manifestDirectory, entry.source.path));
+        assertInside(manifestDirectory, sourceRoot, `Local source for ${entry.id}`);
+        const sourceDirectoryName = `manifest-${index}-source-${caseIndex}-${entry.id}`;
+        stagedInputs.push({
+          hostPath: sourceRoot,
+          containerRelativePath: `inputs/${sourceDirectoryName}`,
+          isDirectory: true,
+          label: `manifest-${index}-source-${entry.id}`
+        });
+        entry.source.path = sourceDirectoryName;
+      }
+
+      const manifestFileName = `manifest-${index}.json`;
+      const containerManifestPath = `/qualification/inputs/${manifestFileName}`;
 
       stagedInputs.push({
-        hostPath: canonicalManifest,
-        containerRelativePath: `inputs/manifests/${index}/${manifestBasename}`,
+        content: `${JSON.stringify(rewrittenManifest, null, 2)}\n`,
+        containerRelativePath: `inputs/${manifestFileName}`,
         isDirectory: false,
         label: `manifest-${index}`
       });
@@ -333,12 +367,11 @@ export const planSandboxExecution = ({
   let resolvedResumePath: string | undefined;
   if (parsed.resumeFrom !== undefined) {
     const canonicalResume = validateCanonicalPath(parsed.resumeFrom, invocationDirectory);
-    const resumeBasename = canonicalResume.split(/[\\/]/).at(-1)!;
-    const containerResumePath = `/qualification/inputs/resume/${resumeBasename}`;
+    const containerResumePath = '/qualification/inputs/resume-report.json';
 
     stagedInputs.push({
       hostPath: canonicalResume,
-      containerRelativePath: `inputs/resume/${resumeBasename}`,
+      containerRelativePath: 'inputs/resume-report.json',
       isDirectory: false,
       label: 'resume-report'
     });
@@ -421,6 +454,8 @@ export const planSandboxExecution = ({
     '--tmpfs',
     '/home/node:rw,exec,nosuid,size=1g',
     '-v',
+    `${inputVolumeName}:/qualification/inputs:ro`,
+    '-v',
     `${outputVolumeName}:/qualification/output:rw`,
     '-v',
     `${cacheVolumeName}:/qualification/cache:rw`,
@@ -447,7 +482,9 @@ export const planSandboxExecution = ({
     createdAt,
     networkName,
     dindContainerName,
+    stagingContainerName,
     runnerContainerName,
+    inputVolumeName,
     outputVolumeName,
     cacheVolumeName,
     imageTag,
@@ -471,7 +508,7 @@ export const planSandboxExecution = ({
       pidsLimit,
       timeoutMs
     },
-    isSelfTest: Boolean(parsed.selfTest)
+    isSelfTest
   };
 
   assertPlannedSecurity(planned);
@@ -493,6 +530,16 @@ export const assertPlannedSecurity = (planned: PlannedSandboxExecution) => {
   for (const arg of planned.runnerArgs) {
     if (arg.includes('docker.sock') || arg.includes('pipe/docker_engine')) {
       throw new Error(`Sandbox plan violation: host Docker socket detected in runner arguments: ${arg}`);
+    }
+  }
+
+  for (const staged of planned.stagedInputs) {
+    if ((staged.hostPath === undefined) === (staged.content === undefined)) {
+      throw new Error(`Sandbox plan violation: staged input ${staged.label} must have exactly one source.`);
+    }
+    const normalizedTarget = staged.containerRelativePath.replaceAll('\\', '/');
+    if (!normalizedTarget.startsWith('inputs/') || normalizedTarget.split('/').includes('..')) {
+      throw new Error(`Sandbox plan violation: staged input ${staged.label} has unsafe target ${normalizedTarget}.`);
     }
   }
 
@@ -534,6 +581,10 @@ export const assertPlannedSecurity = (planned: PlannedSandboxExecution) => {
 
   if (!planned.runnerArgs.includes('--security-opt=no-new-privileges:true')) {
     throw new Error('Sandbox plan violation: runner container must enforce --security-opt=no-new-privileges:true.');
+  }
+
+  if (!planned.runnerArgs.includes(`${planned.inputVolumeName}:/qualification/inputs:ro`)) {
+    throw new Error('Sandbox plan violation: staged project inputs must be mounted read-only.');
   }
 
   for (const [key, value] of Object.entries(planned.environment)) {
