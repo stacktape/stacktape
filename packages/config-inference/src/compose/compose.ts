@@ -196,7 +196,6 @@ const runtimeVersionConfig = (service: ServiceFact): Record<string, unknown> => 
 };
 
 const usesPublishedImageFallback = (service: ServiceFact): boolean =>
-  service.dockerfile === undefined &&
   service.prebuiltImage !== undefined &&
   ((service.missingEmbeddedAssets?.length ?? 0) > 0 || service.prebuiltImageAuthoritative === true);
 
@@ -206,6 +205,15 @@ const packagingFor = (
   suppressNixpacksRelease = false
 ): Record<string, unknown> => {
   const buildRoot = service.buildRoot ?? service.path;
+  if (usesPublishedImageFallback(service)) {
+    return {
+      type: 'prebuilt-image',
+      properties: {
+        image: service.prebuiltImage,
+        ...(service.containerCommand === undefined ? {} : { command: service.containerCommand })
+      }
+    };
+  }
   if (service.dockerfile !== undefined) {
     // Their Dockerfile is the most faithful description of how this runs that exists. Use it.
     return {
@@ -215,15 +223,6 @@ const packagingFor = (
         // Facts keep repository-relative evidence paths; Stacktape expects this one relative to the
         // build context.
         dockerfilePath: buildRoot === '.' ? service.dockerfile : posix.relative(buildRoot, service.dockerfile),
-        ...(service.containerCommand === undefined ? {} : { command: service.containerCommand })
-      }
-    };
-  }
-  if (usesPublishedImageFallback(service)) {
-    return {
-      type: 'prebuilt-image',
-      properties: {
-        image: service.prebuiltImage,
         ...(service.containerCommand === undefined ? {} : { command: service.containerCommand })
       }
     };
@@ -1239,6 +1238,7 @@ const buildServiceResource = ({
         minInstances: profile.scaling.minInstances,
         maxInstances: profile.scaling.maxInstances
       },
+      ...(service.port === undefined ? {} : { port: service.port }),
       ...(resourceType === 'web-service'
         ? {
             alarms: [

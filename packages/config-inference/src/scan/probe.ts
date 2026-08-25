@@ -70,6 +70,14 @@ export type ProbeOutput = {
     authoritative?: boolean;
     evidence: Citation[];
   }>;
+  /** Verified container ports for matching source services. */
+  servicePorts?: Array<{
+    path: string;
+    serviceName: string;
+    port: number;
+    authoritative?: boolean;
+    evidence: Citation[];
+  }>;
   dependencies?: DependencyFact[];
   /**
    * Kinds selected by the runnable deployment shape (for example the one database in the default

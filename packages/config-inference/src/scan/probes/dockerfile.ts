@@ -135,16 +135,202 @@ const isDockerIgnored = (path: string, dockerignore: string | undefined): boolea
   return ignored;
 };
 
-const normalizedLocalCopySources = (raw: string): string[] =>
-  dockerfileInstructions(raw)
-    .flatMap(localCopySources)
-    .map((source) => source.replaceAll('\\', '/').replace(/^\.\//, '').replace(/\/$/, ''))
-    .filter((source) => source !== '' && !source.startsWith('/') && !source.includes('$'));
+type StageState = {
+  workdir: string;
+  containerFiles: Map<string, string>;
+  goBuildTargets: string[];
+};
 
-const copySourceContains = (source: string, path: string): boolean => {
-  if (source === '.') return true;
-  if (source.includes('*') || source.includes('?') || source.includes('[')) return globPattern(source).test(path);
-  return path === source || path.startsWith(`${source}/`);
+const parseDockerfileStages = (
+  raw: string,
+  buildContextFiles: readonly string[]
+): {
+  stages: StageState[];
+  hasGoBuild: boolean;
+  allTargets: string[];
+} => {
+  const instructions = dockerfileInstructions(raw);
+  const stages: StageState[] = [];
+  let currentStage: StageState = {
+    workdir: '/',
+    containerFiles: new Map<string, string>(),
+    goBuildTargets: []
+  };
+  let hasGoBuild = false;
+  const allTargets = new Set<string>();
+
+  for (const instruction of instructions) {
+    if (/^FROM\s+/i.test(instruction)) {
+      currentStage = {
+        workdir: '/',
+        containerFiles: new Map<string, string>(),
+        goBuildTargets: []
+      };
+      stages.push(currentStage);
+      continue;
+    }
+
+    if (/^WORKDIR\s+/i.test(instruction)) {
+      const match = /^WORKDIR\s+(.+)$/i.exec(instruction);
+      if (match !== null) {
+        const rawDir = match[1]!.trim().replace(/^(?:"|')|(?:"|')$/g, '');
+        if (rawDir.startsWith('/')) {
+          currentStage.workdir = posix.normalize(rawDir);
+        } else {
+          currentStage.workdir = posix.normalize(posix.join(currentStage.workdir, rawDir));
+        }
+      }
+      continue;
+    }
+
+    const copyMatch = /^(?:COPY|ADD)\s+(.+)$/i.exec(instruction);
+    if (copyMatch !== null) {
+      if (/^--from(?:=|\s)/i.test(copyMatch[1]!)) {
+        continue;
+      }
+      const declaration = copyMatch[1]!.replace(/^(?:--[A-Za-z-]+(?:=\S+|\s+\S+)\s+)*/g, '').trim();
+      let sources: string[] = [];
+      let dest = '';
+      if (declaration.startsWith('[')) {
+        try {
+          const values = JSON.parse(declaration) as unknown;
+          if (Array.isArray(values) && values.length >= 2 && values.every((v) => typeof v === 'string')) {
+            sources = values.slice(0, -1);
+            dest = values.at(-1)!;
+          }
+        } catch {
+          // malformed JSON declaration
+        }
+      } else {
+        const tokens = declaration.match(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\S+/g) ?? [];
+        if (tokens.length >= 2) {
+          sources = tokens.slice(0, -1).map((t) => t.replace(/^(?:"|')|(?:"|')$/g, ''));
+          dest = tokens.at(-1)!.replace(/^(?:"|')|(?:"|')$/g, '');
+        }
+      }
+      if (dest !== '') {
+        const destContainerPath = dest.startsWith('/')
+          ? posix.normalize(dest)
+          : posix.normalize(posix.join(currentStage.workdir, dest));
+        const destIsDirectory =
+          dest.endsWith('/') || dest.endsWith('/.') || dest === '.' || dest === '/.' || sources.length > 1;
+
+        for (const rawSource of sources) {
+          const source = rawSource.replaceAll('\\', '/').replace(/^\.\//, '').replace(/\/$/, '');
+          if (source === '' || source === '.') {
+            for (const file of buildContextFiles) {
+              const target = destIsDirectory ? posix.normalize(posix.join(destContainerPath, file)) : destContainerPath;
+              currentStage.containerFiles.set(target, file);
+            }
+          } else if (source.includes('*') || source.includes('?') || source.includes('[')) {
+            const pattern = globPattern(source);
+            for (const file of buildContextFiles) {
+              if (pattern.test(file)) {
+                const target = destIsDirectory
+                  ? posix.normalize(posix.join(destContainerPath, posix.basename(file)))
+                  : destContainerPath;
+                currentStage.containerFiles.set(target, file);
+              }
+            }
+          } else {
+            for (const file of buildContextFiles) {
+              if (file === source) {
+                const target = destIsDirectory
+                  ? posix.normalize(posix.join(destContainerPath, posix.basename(file)))
+                  : destContainerPath;
+                currentStage.containerFiles.set(target, file);
+              } else if (file.startsWith(`${source}/`)) {
+                const rel = posix.relative(source, file);
+                const target = posix.normalize(posix.join(destContainerPath, rel));
+                currentStage.containerFiles.set(target, file);
+              }
+            }
+          }
+        }
+      }
+      continue;
+    }
+
+    if (/^RUN\s+/i.test(instruction)) {
+      const command = instruction.replace(/^RUN\s+/i, '');
+      let currentCwd = currentStage.workdir;
+      const segments = command.split(/(?:;|&&|\|\|)/);
+      for (const segment of segments) {
+        const trimmed = segment.trim();
+        const cdMatch = /^cd\s+([^\s]+)/.exec(trimmed);
+        if (cdMatch !== null) {
+          const cdDir = cdMatch[1]!.replace(/^(?:"|')|(?:"|')$/g, '');
+          currentCwd = cdDir.startsWith('/') ? posix.normalize(cdDir) : posix.normalize(posix.join(currentCwd, cdDir));
+        }
+        for (const match of trimmed.matchAll(
+          /(?:^|\s)(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*go\s+build(?:\s+([^;&|]+))?(?=$|[;&|])/g
+        )) {
+          hasGoBuild = true;
+          const rawArgs = match[1];
+          const tokens = rawArgs?.match(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\S+/g) ?? [];
+          let skipValue = false;
+          let positionalTarget = false;
+          const stageTargets: string[] = [];
+          for (const rawToken of tokens) {
+            const token = rawToken.replace(/^(?:"|')|(?:"|')$/g, '');
+            if (skipValue) {
+              skipValue = false;
+              continue;
+            }
+            if (
+              token === '-o' ||
+              token === '-p' ||
+              token === '-tags' ||
+              token === '-ldflags' ||
+              token === '-gcflags' ||
+              token === '-asmflags' ||
+              token === '-mod' ||
+              token === '-modfile' ||
+              token === '-overlay' ||
+              token === '-pkgdir' ||
+              token === '-toolexec' ||
+              token === '-coverpkg'
+            ) {
+              skipValue = true;
+              continue;
+            }
+            if (token.startsWith('-')) continue;
+            positionalTarget = true;
+            stageTargets.push(token);
+          }
+          if (!positionalTarget) stageTargets.push('.');
+
+          const modCandidates = [...currentStage.containerFiles.entries()]
+            .filter(
+              ([containerPath, hostPath]) =>
+                posix.basename(containerPath) === 'go.mod' && posix.basename(hostPath) === 'go.mod'
+            )
+            .map(([containerPath]) => posix.dirname(containerPath));
+          const containerModDir =
+            modCandidates.find((dir) => currentCwd === dir || currentCwd.startsWith(`${dir}/`)) ??
+            modCandidates[0] ??
+            (currentCwd === '/' ? '/' : currentStage.workdir);
+
+          for (const target of stageTargets) {
+            const withoutRecursiveSuffix = target.endsWith('/...') ? target.slice(0, -4) || '.' : target;
+            const targetContainer = withoutRecursiveSuffix.startsWith('/')
+              ? posix.normalize(withoutRecursiveSuffix)
+              : posix.normalize(posix.join(currentCwd, withoutRecursiveSuffix));
+            let rel = posix.relative(containerModDir, targetContainer);
+            if (rel.endsWith('.go')) rel = posix.dirname(rel);
+            if (rel === '') rel = '.';
+            if (rel !== '..' && !rel.startsWith('../') && !rel.includes('$')) {
+              currentStage.goBuildTargets.push(rel);
+              allTargets.add(rel);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  if (stages.length === 0) stages.push(currentStage);
+  return { stages, hasGoBuild, allTargets: [...allTargets].toSorted() };
 };
 
 const goBuildTargetContains = (target: string, directory: string): boolean =>
@@ -172,7 +358,9 @@ const missingDockerfileGoPackages = async ({
   const modulePath = goModRaw === undefined ? undefined : /^\s*module\s+(\S+)\s*$/m.exec(goModRaw)?.[1];
   if (modulePath === undefined) return [];
   const modulePrefix = `${modulePath}/`;
-  const sources = normalizedLocalCopySources(raw);
+  const { stages, hasGoBuild } = parseDockerfileStages(raw, buildContextFiles);
+  if (!hasGoBuild) return [];
+
   const allGoFiles = context.files.filter(
     (file) =>
       file.endsWith('.go') &&
@@ -180,7 +368,6 @@ const missingDockerfileGoPackages = async ({
       (root === '.' || file.startsWith(`${root}/`)) &&
       !/(?:^|\/)(?:vendor|test|tests|fixtures)(?:\/|$)/i.test(file)
   );
-  const buildFiles = new Set(buildContextFiles);
   const sourceByRelativePath = new Map<string, string>();
   for (const file of allGoFiles.slice(0, 750)) {
     const relativeFile = root === '.' ? file : file.slice(root.length + 1);
@@ -189,119 +376,78 @@ const missingDockerfileGoPackages = async ({
     if (source !== undefined && goFileMatchesBuildTarget(relativeFile, source))
       sourceByRelativePath.set(relativeFile, source);
   }
-  const copiedFiles = new Set(
-    [...sourceByRelativePath.keys()].filter(
-      (file) => buildFiles.has(file) && sources.some((source) => copySourceContains(source, file))
-    )
-  );
-  const build = dockerfileGoBuildSelection(raw);
-  const pending = !build.found
-    ? [...copiedFiles]
-    : [...copiedFiles].filter((file) =>
-        build.targets.some((target) => goBuildTargetContains(target, posix.dirname(file)))
-      );
-  const visited = new Set<string>();
+
   const missing = new Set<string>();
-  if (build.found) {
-    for (const target of build.targets) {
+
+  for (const stage of stages) {
+    if (stage.goBuildTargets.length === 0) continue;
+    const stageCopiedFiles = new Set(stage.containerFiles.values());
+
+    for (const target of stage.goBuildTargets) {
       const repositoryHasTarget = [...sourceByRelativePath.keys()].some((file) =>
         goBuildTargetContains(target, posix.dirname(file))
       );
-      const copiedTarget = [...copiedFiles].some((file) => goBuildTargetContains(target, posix.dirname(file)));
+      const copiedTarget = [...stageCopiedFiles].some(
+        (file) => file.endsWith('.go') && goBuildTargetContains(target, posix.dirname(file))
+      );
       if (repositoryHasTarget && !copiedTarget) missing.add(target);
     }
-  }
-  while (pending.length > 0) {
-    const file = pending.shift()!;
-    if (visited.has(file)) continue;
-    visited.add(file);
-    const source = sourceByRelativePath.get(file);
-    if (source === undefined) continue;
-    for (const imported of goImports(source)) {
-      if (!imported.path.startsWith(modulePrefix)) continue;
-      const directory = posix.normalize(imported.path.slice(modulePrefix.length));
-      if (directory === '' || directory === '..' || directory.startsWith('../')) continue;
-      const repositoryHasPackage = allGoFiles.some((candidate) => {
-        const relative = root === '.' ? candidate : candidate.slice(root.length + 1);
-        return posix.dirname(relative) === directory;
-      });
-      if (!repositoryHasPackage) continue;
-      const included = [...sourceByRelativePath.keys()].filter(
-        (candidate) =>
-          posix.dirname(candidate) === directory &&
-          buildFiles.has(candidate) &&
-          sources.some((copySource) => copySourceContains(copySource, candidate))
-      );
-      if (included.length === 0) {
-        missing.add(directory);
-        continue;
+
+    const pending = [...stageCopiedFiles].filter((file) =>
+      stage.goBuildTargets.some((target) => goBuildTargetContains(target, posix.dirname(file)))
+    );
+    const visited = new Set<string>();
+    while (pending.length > 0) {
+      const file = pending.shift()!;
+      if (visited.has(file)) continue;
+      visited.add(file);
+      const source = sourceByRelativePath.get(file);
+      if (source === undefined) continue;
+      for (const imported of goImports(source)) {
+        if (!imported.path.startsWith(modulePrefix)) continue;
+        const directory = posix.normalize(imported.path.slice(modulePrefix.length));
+        if (directory === '' || directory === '..' || directory.startsWith('../')) continue;
+        const repositoryHasPackage = allGoFiles.some((candidate) => {
+          const relative = root === '.' ? candidate : candidate.slice(root.length + 1);
+          return posix.dirname(relative) === directory;
+        });
+        if (!repositoryHasPackage) continue;
+        const included = [...sourceByRelativePath.keys()].filter(
+          (candidate) => posix.dirname(candidate) === directory && stageCopiedFiles.has(candidate)
+        );
+        if (included.length === 0) {
+          missing.add(directory);
+          continue;
+        }
+        for (const candidate of included) if (!visited.has(candidate)) pending.push(candidate);
       }
-      for (const candidate of included) if (!visited.has(candidate)) pending.push(candidate);
     }
   }
+
   return [...missing].toSorted();
 };
 
-const dockerBuildContextFiles = async (root: string, context: ProbeContext): Promise<string[]> => {
-  const ignorePath = root === '.' ? '.dockerignore' : `${root}/.dockerignore`;
-  const dockerignore = context.files.includes(ignorePath)
-    ? await readText(context, ignorePath, { fullFile: true })
-    : undefined;
+const dockerBuildContextFiles = async (root: string, context: ProbeContext, dockerfile?: string): Promise<string[]> => {
+  let dockerignorePath: string | undefined;
+  if (dockerfile !== undefined) {
+    const specific = `${dockerfile}.dockerignore`;
+    if (context.files.includes(specific)) dockerignorePath = specific;
+  }
+  if (dockerignorePath === undefined) {
+    const defaultPath = root === '.' ? '.dockerignore' : `${root}/.dockerignore`;
+    if (context.files.includes(defaultPath)) dockerignorePath = defaultPath;
+  }
+  const dockerignore =
+    dockerignorePath !== undefined ? await readText(context, dockerignorePath, { fullFile: true }) : undefined;
   return context.files
     .filter((file) => root === '.' || file.startsWith(`${root}/`))
     .map((file) => (root === '.' ? file : file.slice(root.length + 1)))
     .filter((file) => !isDockerIgnored(file, dockerignore));
 };
 
-const dockerfileGoBuildSelection = (raw: string): { found: boolean; targets: string[] } => {
-  let found = false;
-  const targets = new Set<string>();
-  for (const instruction of dockerfileInstructions(raw)) {
-    if (!/^RUN\s+/i.test(instruction)) continue;
-    const command = instruction.replace(/^RUN\s+/i, '');
-    for (const match of command.matchAll(
-      /(?:^|[;&|]\s*)(?:[A-Za-z_][A-Za-z0-9_]*=\S+\s+)*go\s+build(?:\s+([^;&|]+))?(?=$|[;&|])/g
-    )) {
-      found = true;
-      const tokens = match[1]?.match(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\S+/g) ?? [];
-      let skipValue = false;
-      let positionalTarget = false;
-      for (const rawToken of tokens) {
-        const token = rawToken.replace(/^(?:"|')|(?:"|')$/g, '');
-        if (skipValue) {
-          skipValue = false;
-          continue;
-        }
-        if (
-          token === '-o' ||
-          token === '-p' ||
-          token === '-tags' ||
-          token === '-ldflags' ||
-          token === '-gcflags' ||
-          token === '-asmflags' ||
-          token === '-mod' ||
-          token === '-modfile' ||
-          token === '-overlay' ||
-          token === '-pkgdir' ||
-          token === '-toolexec' ||
-          token === '-coverpkg'
-        ) {
-          skipValue = true;
-          continue;
-        }
-        if (token.startsWith('-')) continue;
-        positionalTarget = true;
-        const withoutRecursiveSuffix = token.endsWith('/...') ? token.slice(0, -4) || '.' : token;
-        const normalizedToken = posix.normalize(withoutRecursiveSuffix.replace(/^\.\//, '').replace(/\/$/, ''));
-        const normalized = normalizedToken.endsWith('.go') ? posix.dirname(normalizedToken) : normalizedToken;
-        if (normalized !== '' && normalized !== '..' && !normalized.startsWith('../') && !normalized.includes('$')) {
-          targets.add(normalized);
-        }
-      }
-      if (!positionalTarget) targets.add('.');
-    }
-  }
-  return { found, targets: [...targets].toSorted() };
+export const dockerfileGoBuildSelection = (raw: string): { found: boolean; targets: string[] } => {
+  const { hasGoBuild, allTargets } = parseDockerfileStages(raw, []);
+  return { found: hasGoBuild, targets: allTargets };
 };
 
 export const dockerfileGoBuildDirectories = (raw: string): string[] =>
@@ -310,13 +456,15 @@ export const dockerfileGoBuildDirectories = (raw: string): string[] =>
 export const dockerfileCanBuildContext = async ({
   raw,
   root,
-  context
+  context,
+  dockerfile
 }: {
   raw: string;
   root: string;
   context: ProbeContext;
+  dockerfile?: string;
 }): Promise<boolean> => {
-  const buildContextFiles = await dockerBuildContextFiles(root, context);
+  const buildContextFiles = await dockerBuildContextFiles(root, context, dockerfile);
   return (
     missingDockerfileCopySources({ raw, root: '.', files: buildContextFiles }).length === 0 &&
     (await missingDockerfileGoPackages({ raw, root, context, buildContextFiles })).length === 0
@@ -350,7 +498,7 @@ export const dockerfileProbe: Probe = {
       // before Docker runs. Init packages a clean checkout, so selecting such a file guarantees a
       // COPY failure. Another source probe can still keep the application using a native buildpack.
       // oxlint-disable-next-line no-await-in-loop -- one candidate per service root survives this check.
-      if (!(await dockerfileCanBuildContext({ raw, root, context }))) continue;
+      if (!(await dockerfileCanBuildContext({ raw, root, context, dockerfile: path }))) continue;
       const { port, citation: portCitation } = exposedPort(path, raw);
       const dockerfileCitation = citeFirstMatch(path, raw, /^\s*FROM\s+\S+/im, 'dockerfile');
 

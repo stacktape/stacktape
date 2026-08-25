@@ -779,6 +779,38 @@ describe('assembleCandidateFacts', () => {
     });
   });
 
+  it('does not let a logged string in reachable Go code claim ownership of a frontend', async () => {
+    const repoRoot = await makeRepo({
+      'go.mod': 'module example.com/orders\n',
+      'cmd/main.go': [
+        'package main',
+        'import "log"',
+        'import "net/http"',
+        'func main() {',
+        '  log.Println("starting server, frontend served at dashboard/dist")',
+        '  http.ListenAndServe(":8080", nil)',
+        '}',
+        ''
+      ].join('\n'),
+      'dashboard/package.json': JSON.stringify({
+        name: 'dashboard',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0', vite: '^8.0.0' }
+      }),
+      'dashboard/index.html': '<div id="root"></div>'
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: [manifestProbe, serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(2);
+    expect(facts.services.find((service) => service.name === 'dashboard')?.servesStaticAssets).toEqual({
+      path: 'dashboard/dist'
+    });
+  });
+
   it('does not turn a Vite-built workspace library into a static website', async () => {
     const repoRoot = await makeRepo({
       'package.json': JSON.stringify({

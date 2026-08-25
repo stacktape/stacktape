@@ -166,6 +166,7 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       services: [{ name: 'listmonk', path: '.', exposesHttp: true }],
       requiredConfig: [
         'type: web-service',
+        'port: 9000',
         'type: prebuilt-image',
         'image: listmonk/listmonk:latest',
         '--install',
@@ -207,7 +208,7 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       serviceCount: 1,
       httpServiceCount: 1,
       services: [{ name: 'ntfy', path: '.', exposesHttp: true }],
-      requiredConfig: ['type: web-service', 'type: prebuilt-image', 'image: binwiederhier/ntfy', '- serve'],
+      requiredConfig: ['type: web-service', 'port: 80', 'type: prebuilt-image', 'image: binwiederhier/ntfy', '- serve'],
       forbiddenConfig: [
         'type: hosting-bucket',
         'uploadDirectoryPath: web/',

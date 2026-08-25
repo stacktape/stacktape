@@ -928,7 +928,7 @@ const readGoStaticConsumer = async (root: string, context: ProbeContext): Promis
   for (const { path, raw } of sources) {
     for (const match of raw.matchAll(/^\s*\/\/go:embed\s+([^\r\n]+)$/gm)) {
       for (const token of (match[1] ?? '').match(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\S+/g) ?? []) {
-        const unquoted = token.replace(/^(?:"|')|(?:"|')$/g, '');
+        const unquoted = token.replace(/^(?:"|')|(?:"|')$/g, '').replace(/^all:/, '');
         const resolved = resolveRepositoryPath(posix.dirname(path), unquoted);
         if (resolved !== undefined) embeddedPaths.add(resolved);
       }
@@ -981,6 +981,8 @@ const makefileMovesOutputInto = ({
   return false;
 };
 
+const escapeRegex = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
 /**
  * A nested browser build is not a second application when the parent Go binary demonstrably reads
  * or embeds its output. This is deliberately path-based: a sibling frontend with no such link stays
@@ -1011,15 +1013,42 @@ const staticBuildIsOwnedByGoApplication = async ({
   }
   const consumer = await pending;
   const relativeOutput = goRoot === '.' ? outputPath : outputPath.slice(goRoot.length + 1);
-  const quotedOutput = new RegExp(
-    `(?:"|\`)${relativeOutput.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:/[^"\`]*)?(?:"|\`)`
+
+  if (
+    consumer.embeddedPaths.has(outputPath) ||
+    consumer.embeddedPaths.has(relativeOutput) ||
+    pathIsConsumed(outputPath, consumer.embeddedPaths) ||
+    pathIsConsumed(relativeOutput, consumer.embeddedPaths) ||
+    [...consumer.embeddedPaths].some(
+      (embedded) => outputPath.startsWith(`${embedded}/`) || relativeOutput.startsWith(`${embedded}/`)
+    )
+  ) {
+    return true;
+  }
+
+  const escapedRelative = escapeRegex(relativeOutput);
+  const assetServerPattern = new RegExp(
+    `(?:\\b(?:http\\.Dir|os\\.DirFS|pkger\\.Include|statik|rice\\.FindBox|stuffbin\\.\\w+|initFS)\\s*\\(|\\b(?:var\\s+|const\\s+)?\\w*(?:frontend|static|assets?|dist|public|ui|web|admin|site|docs)\\w*\\s*(?::=|=|\\s+string\\s*=)\\s*)(?:"|\`)${escapedRelative}(?:/[^"\`]*)?(?:"|\`)`
   );
-  if (consumer.sources.some(({ raw }) => quotedOutput.test(goCodeWithoutComments(raw)))) return true;
+  if (consumer.sources.some(({ raw }) => assetServerPattern.test(goCodeWithoutComments(raw)))) {
+    return true;
+  }
+
   if (consumer.makefile === undefined) return false;
+  const makefileAssetPattern = new RegExp(
+    `\\b(?:stuffbin|pkger|statik|go-bindata|fileb0x|STATIC|ASSETS?)\\b[^\r\n]*\\b${escapedRelative}\\b`
+  );
+  if (makefileAssetPattern.test(consumer.makefile)) return true;
+
   return makefileMovesOutputInto({
     raw: consumer.makefile,
     outputPath,
-    consumedPaths: consumer.embeddedPaths
+    consumedPaths: new Set([
+      ...consumer.embeddedPaths,
+      ...(manifest.directory === '.' ? [] : [manifest.directory, `${manifest.directory}/public`]),
+      'frontend',
+      'frontend/public'
+    ])
   });
 };
 

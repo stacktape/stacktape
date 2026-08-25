@@ -22,6 +22,57 @@ export interface WebService {
 
 export interface WebServiceProps extends SimpleServiceContainer {
   /**
+   * #### Port this service listens on. Injected as the `PORT` env var.
+   *
+   * ---
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * resources:
+   *   apiService:
+   *     type: web-service
+   *     properties:
+   *       packaging:
+   *         type: stacktape-image-buildpack
+   *         properties:
+   *           entryfilePath: src/main.ts
+   *       # stp-focus
+   *       port: 8080
+   *       # stp-end-focus
+   *       resources:
+   *         cpu: 1
+   *         memory: 2048
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const apiService = new WebService({
+   *     port: 8080,
+   *     packaging: new StacktapeImageBuildpackPackaging({
+   *       entryfilePath: 'src/main.ts'
+   *     }),
+   *     resources: {
+   *       cpu: 1,
+   *       memory: 2048
+   *     }
+   *   });
+   *
+   *   return {
+   *     resources: { apiService }
+   *   };
+   * });
+   * ```
+   *
+   * @default 3000
+   */
+  port?: number;
+
+  /**
    * #### CORS settings. Overrides any CORS headers from your application.
    *
    * ---

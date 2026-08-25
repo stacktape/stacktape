@@ -44,9 +44,22 @@ type GoHttpEvidence = { framework?: string; pattern: RegExp };
 const escapeForPattern = (value: string): string => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const goImportQualifier = (raw: string, moduleName: string, conventionalName: string): string | undefined => {
-  const imported = goImports(raw).find((candidate) => candidate.path === moduleName);
+  const imports = goImports(raw);
+  const imported = imports.find((candidate) => candidate.path === moduleName);
   if (imported === undefined || imported.qualifier === '.' || imported.qualifier === '_') return undefined;
-  return imported.qualifier || conventionalName;
+  const qualifier = imported.qualifier || conventionalName;
+  if (imports.some((candidate) => candidate.path !== moduleName && candidate.qualifier === qualifier)) {
+    return undefined;
+  }
+  return qualifier;
+};
+
+const isQualifierShadowed = (source: string, qualifier: string): boolean => {
+  const escaped = escapeForPattern(qualifier);
+  const varPattern = new RegExp(`\\b(?:var\\s+${escaped}\\b|${escaped}\\s*:=)`);
+  const paramPattern = new RegExp(`\\bfunc\\s+(?:\\([^)]*\\)\\s*)?[A-Za-z0-9_]*\\s*\\([^)]*\\b${escaped}\\s+`);
+  const receiverPattern = new RegExp(`\\bfunc\\s*\\(\\s*${escaped}\\s+\\*?[A-Za-z0-9_]+`);
+  return varPattern.test(source) || paramPattern.test(source) || receiverPattern.test(source);
 };
 
 const receiverCallPattern = ({
@@ -77,10 +90,12 @@ const goHttpEvidence = (raw: string): GoHttpEvidence | undefined => {
   const executableSource = goExecutableCode(raw);
   const netHttp = goImportQualifier(raw, 'net/http', 'http');
   if (netHttp !== undefined) {
-    const direct = new RegExp(
-      `\\b${escapeForPattern(netHttp)}\\s*\\.\\s*(?:ListenAndServe|ListenAndServeTLS|Serve)\\s*\\(`
-    );
-    if (direct.test(executableSource)) return { pattern: direct };
+    if (!isQualifierShadowed(executableSource, netHttp)) {
+      const direct = new RegExp(
+        `\\b${escapeForPattern(netHttp)}\\s*\\.\\s*(?:ListenAndServe|ListenAndServeTLS|Serve)\\s*\\(`
+      );
+      if (direct.test(executableSource)) return { pattern: direct };
+    }
     const receiver = receiverCallPattern({
       raw: executableSource,
       factory: new RegExp(
@@ -137,7 +152,7 @@ const goHttpEvidence = (raw: string): GoHttpEvidence | undefined => {
   }
 
   const fastHttp = goImportQualifier(raw, 'github.com/valyala/fasthttp', 'fasthttp');
-  if (fastHttp !== undefined) {
+  if (fastHttp !== undefined && !isQualifierShadowed(executableSource, fastHttp)) {
     const direct = new RegExp(
       `\\b${escapeForPattern(fastHttp)}\\s*\\.\\s*(?:ListenAndServe|ListenAndServeTLS|Serve)\\s*\\(`
     );
@@ -154,6 +169,13 @@ const goModuleName = (raw: string): string | undefined => {
   const segments = modulePath.split('/');
   while (segments.length > 1 && /^v\d+$/.test(segments.at(-1)!)) segments.pop();
   return segments.at(-1);
+};
+
+const isEmbeddableFile = (file: string, basePath: string, allowAll: boolean): boolean => {
+  if (allowAll) return true;
+  const relativePart = file.startsWith(`${basePath}/`) ? file.slice(basePath.length + 1) : file;
+  const segments = relativePart.split('/');
+  return segments.every((segment) => !segment.startsWith('.') && !segment.startsWith('_'));
 };
 
 /** Missing go:embed inputs make a clean source checkout uncompilable until its asset build runs. */
@@ -197,13 +219,21 @@ const missingGoEmbeddedAssets = (
     for (const { path, raw } of sourcesByDirectory.get(directory) ?? []) {
       for (const match of raw.matchAll(/^\s*\/\/go:embed\s+([^\r\n]+)$/gm)) {
         for (const token of (match[1] ?? '').match(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\S+/g) ?? []) {
-          const pattern = token.replace(/^(?:"|')|(?:"|')$/g, '').replace(/^all:/, '');
+          const unquoted = token.replace(/^(?:"|')|(?:"|')$/g, '');
+          const hasAll = unquoted.startsWith('all:');
+          const pattern = hasAll ? unquoted.slice(4) : unquoted;
           const resolved = posix.normalize(posix.join(posix.dirname(path), pattern));
           if (resolved.startsWith('../') || posix.isAbsolute(resolved)) continue;
           const hasGlob = resolved.includes('*') || resolved.includes('?') || resolved.includes('[');
           const exists = hasGlob
-            ? files.some((file) => goPathMatches(resolved, file))
-            : files.some((file) => file === resolved || file.startsWith(`${resolved}/`));
+            ? files.some(
+                (file) => goPathMatches(resolved, file) && isEmbeddableFile(file, posix.dirname(resolved), hasAll)
+              )
+            : files.some((file) => {
+                if (file === resolved) return true;
+                if (file.startsWith(`${resolved}/`)) return isEmbeddableFile(file, resolved, hasAll);
+                return false;
+              });
           if (!exists) missing.add(resolved);
         }
       }
@@ -472,8 +502,12 @@ export const serverEntrypointProbe: Probe = {
         const ownsCandidate = singleMainPackage || selectsThisPackage;
         // Associating a Dockerfile also makes it authoritative in the composer, so require the same
         // clean-context validation as the Dockerfile probe before attaching it to a source service.
-        // oxlint-disable-next-line no-await-in-loop -- bounded validation for one root Dockerfile.
-        if (raw !== undefined && ownsCandidate && (await dockerfileCanBuildContext({ raw, root, context }))) {
+        if (
+          raw !== undefined &&
+          ownsCandidate &&
+          // oxlint-disable-next-line no-await-in-loop -- bounded validation for one root Dockerfile.
+          (await dockerfileCanBuildContext({ raw, root, context, dockerfile }))
+        ) {
           selectedDockerfile = dockerfile;
         }
         if (raw !== undefined && ownsCandidate && port !== undefined && port > 0 && port <= 65_535) {

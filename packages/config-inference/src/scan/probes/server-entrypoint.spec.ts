@@ -503,4 +503,51 @@ describe('the server entrypoint probe', () => {
     expect(facts.services).toHaveLength(1);
     expect(facts.services[0]?.missingEmbeddedAssets).toBeUndefined();
   });
+
+  it('respects qualifier shadowing so a shadowed http receiver or variable does not trigger HTTP server detection', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/shadowed\n',
+      'main.go': [
+        'package main',
+        'import "net/http"',
+        'type customClient struct{}',
+        'func (http *customClient) Serve() {}',
+        'func (http *customClient) ListenAndServe() {}',
+        'func main() {',
+        '  client := &customClient{}',
+        '  client.Serve()',
+        '  client.ListenAndServe()',
+        '}',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [serverEntrypointProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('excludes dot and underscore files from go:embed directory matching unless all: prefix is present', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/embed-test\n',
+      'main.go': [
+        'package main',
+        'import "net/http"',
+        'import "embed"',
+        '//go:embed assets',
+        '//go:embed all:dotassets',
+        'var plain embed.FS',
+        'var withAll embed.FS',
+        'func main() { http.ListenAndServe(":8080", nil) }',
+        ''
+      ].join('\n'),
+      'assets/.gitkeep': '',
+      'dotassets/.gitkeep': ''
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [serverEntrypointProbe] });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]?.missingEmbeddedAssets).toEqual(['assets']);
+  });
 });

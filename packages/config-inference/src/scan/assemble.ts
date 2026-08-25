@@ -726,6 +726,17 @@ export const assembleCandidateFacts = async ({
       service.evidence = mergeEvidence(service.evidence ?? [], image.evidence);
     }
   }
+  for (const portInfo of outputs.flatMap((output) => output.servicePorts ?? [])) {
+    const atPath = services.filter((service) => service.path === portInfo.path);
+    const exact = atPath.filter(
+      (service) => normalizedServiceName(service) === normalizedServiceName({ name: portInfo.serviceName })
+    );
+    const targets = exact.length > 0 ? exact : portInfo.authoritative && atPath.length === 1 ? atPath : [];
+    for (const service of targets) {
+      service.port ??= portInfo.port;
+      service.evidence = mergeEvidence(service.evidence ?? [], portInfo.evidence);
+    }
+  }
   // Forward descriptor-local names before attribution decides whether a consumer exists. Waiting
   // until afterwards loses the link entirely: Compose calls it `backend`, the language manifest
   // calls the merged service `flask`, and attribution otherwise discards `backend` as unknown.

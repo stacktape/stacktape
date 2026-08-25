@@ -38,6 +38,8 @@ type WebServiceProps = {
   loadBalancing?: WebServiceLoadBalancing;
   /** Logging configuration. */
   logging?: ContainerWorkloadContainerLogging;
+  /** Port this service listens on. Injected as the `PORT` env var. */
+  port?: number;
   /** Auto-scaling: add/remove container instances based on demand. */
   scaling?: ContainerWorkloadScaling;
   /** Sensitive environment variables fetched by the container runtime.
@@ -941,6 +943,54 @@ export default defineConfig(() => {
   });
 
   return { resources: { api } };
+});
+```
+
+## Property: `port`
+
+- Required: no
+- Type: `number`
+- Default: `3000`
+
+Port this service listens on. Injected as the `PORT` env var.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiService:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/main.ts
+      port: 8080
+      resources:
+        cpu: 1
+        memory: 2048
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiService = new WebService({
+    port: 8080,
+    packaging: new StacktapeImageBuildpackPackaging({
+      entryfilePath: 'src/main.ts'
+    }),
+    resources: {
+      cpu: 1,
+      memory: 2048
+    }
+  });
+
+  return {
+    resources: { apiService }
+  };
 });
 ```
 

@@ -230,4 +230,44 @@ describe('the standalone Dockerfile probe', () => {
     expect(facts.services).toHaveLength(1);
     expect(facts.services[0]?.dockerfile).toBe('Dockerfile');
   });
+
+  it('honors Dockerfile-specific ignore files such as Dockerfile.release.dockerignore', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/api\n',
+      '.dockerignore': '# default ignores nothing\n',
+      'Dockerfile.release.dockerignore': 'internal/private\n',
+      'Dockerfile.release': 'FROM golang:1.25\nCOPY . .\nRUN go build -o /api .\nEXPOSE 8080\n',
+      'main.go': 'package main\nimport _ "example.com/api/internal/private"\nfunc main() {}\n',
+      'internal/private/private.go': 'package private\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('resolves RUN go build targets relative to WORKDIR across COPY destination mapping', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/mono\n',
+      'cmd/api/main.go': 'package main\nfunc main() {}\n',
+      'cmd/cli/main.go': 'package main\nimport _ "example.com/mono/internal/clidriver"\nfunc main() {}\n',
+      'internal/clidriver/clidriver.go': 'package clidriver\n',
+      Dockerfile: [
+        'FROM golang:1.25 AS builder',
+        'WORKDIR /src',
+        'COPY go.mod ./',
+        'COPY cmd/api ./cmd/api',
+        'RUN go build -o /bin/api ./cmd/api',
+        'FROM alpine:3.20',
+        'COPY --from=builder /bin/api /usr/local/bin/api',
+        'EXPOSE 8080',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]?.dockerfile).toBe('Dockerfile');
+  });
 });
