@@ -732,6 +732,7 @@ export const executeSandboxedQualification = async (
   let runnerExitCode = 1;
   let runnerImage: Awaited<ReturnType<typeof inspectRunnerImage>> | undefined;
   let outputInspection: OutputInspection | undefined;
+  let runnerTermination: { exitCode: number | null; timedOut: boolean; interruptedSignal?: NodeJS.Signals } | undefined;
   let primaryFailure: unknown;
   let cleanupErrors: string[] = [];
   let executionResult: { exitCode: number; planned: PlannedSandboxExecution } | undefined;
@@ -877,8 +878,18 @@ export const executeSandboxedQualification = async (
     if (runResult.stdout) process.stdout.write(runResult.stdout);
     if (runResult.stderr) process.stderr.write(runResult.stderr);
 
+    runnerTermination = {
+      exitCode: runResult.exitCode,
+      timedOut: runResult.timedOut,
+      ...(runResult.interruptedSignal === undefined ? {} : { interruptedSignal: runResult.interruptedSignal })
+    };
     runnerExitCode = processResultExitCode(runResult);
     if (runResult.timedOut || runResult.interruptedSignal !== undefined) {
+      process.stderr.write(
+        runResult.timedOut
+          ? `Qualification runner exceeded ${planned.resourceLimits.timeoutMs}ms and will be stopped before output inspection.\n`
+          : `Qualification runner was interrupted by ${runResult.interruptedSignal} and will be stopped before output inspection.\n`
+      );
       // Killing a detached `docker start -a` client does not stop its container. Stop it before inspecting the
       // output volume so a timed-out project cannot race the trusted scanner or the host copy.
       await stopRunnerAfterDetachedAttach(planned);
@@ -902,11 +913,13 @@ export const executeSandboxedQualification = async (
 
     // 9. Schema validate the qualification report if present
     const reportPath = join(hostMaterializationDirectory, 'qualification-report.json');
+    let copiedArtifactHashes: Awaited<ReturnType<typeof validateAndHashOutputTree>> | undefined;
     try {
       const artifactHashes = await validateAndHashOutputTree(
         hostMaterializationDirectory,
         parsed.keepWorkdirs === true
       );
+      copiedArtifactHashes = artifactHashes;
       const reportJsonText = await readFile(reportPath, 'utf8');
       const parsedReport = qualificationReportSchema.parse(JSON.parse(reportJsonText));
       if (parsedReport.productCommit !== planned.productCommit) {
@@ -1013,7 +1026,34 @@ export const executeSandboxedQualification = async (
       outputMaterialized = true;
     } catch (reportError) {
       process.stderr.write(`Qualification report validation failed: ${String(reportError)}\n`);
-      runnerExitCode = 1;
+      runnerExitCode = runnerExitCode === 0 ? 1 : runnerExitCode;
+      if (copiedArtifactHashes !== undefined) {
+        await writeFile(
+          join(hostMaterializationDirectory, 'sandbox-failure.json'),
+          `${JSON.stringify(
+            {
+              schemaVersion: 1,
+              runId: planned.runId,
+              generatedAt: new Date().toISOString(),
+              productCommit: planned.productCommit,
+              qualificationReportVerified: false,
+              failure: errorText(reportError),
+              runnerTermination,
+              runnerImage,
+              outputInspection,
+              hostReplay: planned.hostReplay,
+              manifestMappings: planned.manifestMappings,
+              artifacts: copiedArtifactHashes
+            },
+            null,
+            2
+          )}\n`,
+          'utf8'
+        );
+        await rename(hostMaterializationDirectory, planned.hostOutputDirectory);
+        outputMaterialized = true;
+        process.stderr.write(`Safe partial diagnostics preserved at ${planned.hostOutputDirectory}.\n`);
+      }
     }
 
     executionResult = { exitCode: runnerExitCode, planned };
