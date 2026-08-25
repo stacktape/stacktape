@@ -1144,10 +1144,12 @@ export const composeConfig = ({
     }
 
     for (const constraint of service.runtimePortabilityConstraints) {
-      if (constraint.kind !== 'object-storage-explicit-credentials-and-endpoint') continue;
       gaps.push({
         subject: `${service.name}.object-storage-client`,
-        message: `${service.name} constructs its S3 client with explicit access-key credentials and a custom endpoint. Stacktape created an AWS bucket and granted this service IAM access, but this client bypasses that AWS identity and still expects the local S3-compatible endpoint. Update it to use the AWS default credential chain and regional endpoint before deploying.`
+        message:
+          constraint.kind === 'object-storage-explicit-credentials-and-endpoint'
+            ? `${service.name} constructs its S3 client with explicit access-key credentials and a custom endpoint. Stacktape created an AWS bucket and granted this service IAM access, but this client bypasses that AWS identity and still expects the local S3-compatible endpoint. Update it to use the AWS default credential chain and regional endpoint before deploying.`
+            : `${service.name}'s deployment settings provide a custom object-storage endpoint and static access keys. Stacktape omitted those local settings because an AWS bucket should use IAM and its regional endpoint, but source analysis could not prove that this client falls back to those AWS defaults. Confirm or update the client before deploying.`
       });
     }
 

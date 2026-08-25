@@ -24,11 +24,12 @@ import type { Uncertainty } from '../facts/uncertainty';
 import { classifyFileAccess } from '../policy/file-access';
 import { raiseConventionalCommands, raisePlannedCommands, type CommandPlanner } from './conventions';
 import { raiseDockerfileOwnership } from './dockerfile-ownership';
-import { enrichEnvironmentUsage, enrichRuntimePortability } from './environment-usage';
+import { enrichEnvironmentUsage } from './environment-usage';
 import { listRepositoryFiles } from './file-tree';
 import type { Probe, ProbeContext, ProbeOutput } from './probe';
 import { ENV_NAME_TO_KIND } from './probes/environment';
 import { readSourceFile } from './read-source';
+import { enrichRuntimePortability } from './runtime-portability';
 
 const MAX_EVIDENCE_PER_FACT = 6;
 
@@ -289,7 +290,8 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
  */
 const genericMergeTarget = (
   services: ReadonlyMap<string, ServiceFactInput>,
-  incoming: ServiceFactInput
+  incoming: ServiceFactInput,
+  descriptorTargetServices: ReadonlySet<string>
 ): [string, ServiceFactInput] | undefined => {
   const entries = [...services.entries()];
   const exactCommandMatches = entries.filter(
@@ -321,10 +323,13 @@ const genericMergeTarget = (
       child.path !== '.' &&
       (rootDescriptor.dockerfile === `${child.path}/Dockerfile` ||
         rootDescriptor.dockerfile.startsWith(`${child.path}/`) ||
-        // A repository-root multi-stage Dockerfile commonly names each target after its workspace
-        // application. The root-owned file cannot point at a child path, so the exact process/name
-        // pair is its ownership evidence. A Dockerfile under some *other* child never qualifies.
+        // A repository-root multi-stage Dockerfile can own several child applications, but only an
+        // explicit descriptor target proves that relationship. A root Dockerfile plus a coincidentally
+        // equal package name is not ownership evidence.
         (posix.dirname(rootDescriptor.dockerfile) === '.' &&
+          descriptorTargetServices.has(
+            `${rootDescriptor.path}\0${normalizedServiceName(rootDescriptor)}\0${rootDescriptor.dockerfile}`
+          ) &&
           normalizedServiceName(rootDescriptor) === normalizedServiceName(child)))
     );
   });
@@ -423,6 +428,13 @@ const mergeServices = (
   outputs: readonly ProbeOutput[]
 ): { services: ServiceFactInput[]; renames: Map<string, string> } => {
   const byPath = new Map<string, ServiceFactInput>();
+  const descriptorTargetServices = new Set(
+    outputs.flatMap((output) =>
+      (output.descriptorTargetServices ?? []).map(
+        (service) => `${service.path}\0${normalizedServiceName({ name: service.serviceName })}\0${service.dockerfile}`
+      )
+    )
+  );
   const lifecycleDockerfiles = new Set(
     outputs.flatMap((output) => [...(output.lifecycleDockerfiles ?? []), ...(output.descriptorTargetDockerfiles ?? [])])
   );
@@ -513,7 +525,7 @@ const mergeServices = (
           });
           continue;
         }
-        const target = genericMergeTarget(byPath, service);
+        const target = genericMergeTarget(byPath, service, descriptorTargetServices);
         if (target !== undefined) {
           const [targetKey, targetService] = target;
           if (service.name !== targetService.name) renames.set(service.name, targetService.name);

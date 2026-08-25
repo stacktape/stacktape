@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import type { QualificationCaseManifest } from './contracts';
-import { acceptsResourceCount } from './import-contract';
+import { acceptsResourceCount, deployabilityFailure } from './import-contract';
 
 const entry = {
   id: 'edge-runtime',
@@ -30,5 +30,11 @@ describe('import resource presence contract', () => {
         0
       )
     ).toBeTrue();
+  });
+
+  test('fails when the importer unlocks deployment against an explicit blocking contract', () => {
+    expect(deployabilityFailure(false, true)).toBe('deployable: expected false; got true.');
+    expect(deployabilityFailure(false, false)).toBeUndefined();
+    expect(deployabilityFailure(undefined, true)).toBeUndefined();
   });
 });

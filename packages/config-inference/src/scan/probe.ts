@@ -93,6 +93,8 @@ export type ProbeOutput = {
   lifecycleDockerfiles?: string[];
   /** Multi-stage Dockerfiles whose explicit Compose targets own the runnable services. */
   descriptorTargetDockerfiles?: string[];
+  /** Exact Compose service identities that selected a named stage from a shared Dockerfile. */
+  descriptorTargetServices?: Array<{ path: string; serviceName: string; dockerfile: string }>;
   /** Compose processes that explicitly select a development stage/runtime and must never deploy. */
   developmentProcesses?: string[];
   uncertainties?: Uncertainty[];

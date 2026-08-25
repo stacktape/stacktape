@@ -995,7 +995,12 @@ export const dockerComposeProbe: Probe = {
                   build.target !== undefined && build.dockerfile !== undefined ? [build.dockerfile] : []
                 )
               )
-            ]
+            ],
+            descriptorTargetServices: appDeclarations.flatMap(({ composeName, build }) =>
+              build.target !== undefined && build.dockerfile !== undefined
+                ? [{ path: build.root, serviceName: factName(composeName), dockerfile: build.dockerfile }]
+                : []
+            )
           }),
       ...(appDeclarations.length > 0 &&
       new Set(dependencies.filter((entry) => DATABASE_KINDS.has(entry.kind)).map((entry) => entry.kind)).size === 1

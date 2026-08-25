@@ -353,13 +353,22 @@ const CASES: EvalCase[] = [
     name: 'Compose root context with nested ASP.NET API and worker Dockerfiles',
     files: {
       'Directory.Build.props': '<Project></Project>\n',
-      'src/Orders.Api/Orders.Api.csproj': '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n',
-      'src/Orders.Worker/Orders.Worker.csproj': '<Project Sdk="Microsoft.NET.Sdk.Worker"></Project>\n',
-      'src/Orders.Core/StorageClient.cs': [
-        'var credentials = new BasicAWSCredentials(options.AccessKey, options.SecretKey);',
-        'var config = new AmazonS3Config { ServiceURL = options.ServiceUrl };',
+      'src/Orders.Api/Orders.Api.csproj': [
+        '<Project Sdk="Microsoft.NET.Sdk.Web">',
+        '  <ItemGroup><ProjectReference Include="..\\Orders.Core\\Orders.Core.csproj" /></ItemGroup>',
+        '</Project>',
         ''
       ].join('\n'),
+      'src/Orders.Worker/Orders.Worker.csproj': [
+        '<Project Sdk="Microsoft.NET.Sdk.Worker">',
+        '  <ItemGroup><ProjectReference Include="..\\Orders.Core\\Orders.Core.csproj" /></ItemGroup>',
+        '</Project>',
+        ''
+      ].join('\n'),
+      'src/Orders.Core/Orders.Core.csproj': '<Project Sdk="Microsoft.NET.Sdk"></Project>\n',
+      'src/Orders.Core/StorageCredentials.cs':
+        'var credentials = new BasicAWSCredentials(options.AccessKey, options.SecretKey);\n',
+      'src/Orders.Core/StorageEndpoint.cs': 'var config = new AmazonS3Config { ServiceURL = options.ServiceUrl };\n',
       'src/Orders.Api/Dockerfile': [
         'FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build',
         'WORKDIR /src',

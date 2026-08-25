@@ -19,6 +19,8 @@ export type RealProjectCorpusExpectation = {
   resourceTypes: Readonly<Record<string, number>>;
   /** Exact dependency fact counts by portable dependency kind. */
   dependencyKinds?: Readonly<Record<string, number>>;
+  /** Exact visible composition decisions by closed decision kind. */
+  decisionKinds?: Readonly<Record<string, number>>;
   serviceCount: number;
   httpServiceCount: number;
   /** Order-independent per-service semantic expectations. */
@@ -32,6 +34,8 @@ export type RealProjectCorpusExpectation = {
   forbiddenGapPatterns?: readonly string[];
   /** Static manifests in this corpus must never be reported as evidence that a dependency is live. */
   forbidCurrentlyHostedDependencies?: boolean;
+  /** Whether the result represents the complete application closely enough to unlock deployment. */
+  deployable?: boolean;
 };
 
 export type RealProjectCorpusCase = {

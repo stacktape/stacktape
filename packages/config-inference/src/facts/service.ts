@@ -96,6 +96,10 @@ export const runtimePortabilityConstraintSchema = z.discriminatedUnion('kind', [
   z.object({
     kind: z.literal('object-storage-explicit-credentials-and-endpoint'),
     evidence: z.array(citationSchema).default([])
+  }),
+  z.object({
+    kind: z.literal('object-storage-explicit-settings-unverified'),
+    evidence: z.array(citationSchema).default([])
   })
 ]);
 
@@ -357,7 +361,7 @@ export const serviceFactSchema = z
         backgroundProcesses: z.boolean()
       })
       .optional(),
-    /** Source-proven assumptions that need code changes before the generated AWS resources work. */
+    /** Runtime assumptions that need confirmation or code changes before managed AWS replacements work. */
     runtimePortabilityConstraints: z.array(runtimePortabilityConstraintSchema).default([]),
     source: factSourceSchema
   })
