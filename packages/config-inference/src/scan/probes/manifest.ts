@@ -304,6 +304,8 @@ type ConfigToken = {
  */
 const configTokens = (source: string): ConfigToken[] => {
   const tokens: ConfigToken[] = [];
+  const regexPrefixTokens = new Set(['=', ':', '(', ',', '[', '{', ';', '!', '?', '&', '|']);
+  const regexPrefixKeywords = new Set(['return', 'throw', 'case', 'yield', 'await']);
   let index = 0;
   while (index < source.length) {
     const character = source[index]!;
@@ -322,7 +324,13 @@ const configTokens = (source: string): ConfigToken[] => {
       index = Math.min(index + 2, source.length);
       continue;
     }
-    if (character === '/' && tokens.at(-1)?.value === ':') {
+    const previousToken = tokens.at(-1);
+    if (
+      character === '/' &&
+      (previousToken === undefined ||
+        regexPrefixTokens.has(previousToken.value) ||
+        (previousToken.kind === 'identifier' && regexPrefixKeywords.has(previousToken.value)))
+    ) {
       // A regex literal is a dynamic value for our purposes. Skip it as one unit so commas or
       // property-looking text inside the expression cannot become top-level config evidence.
       index += 1;
@@ -393,7 +401,7 @@ const configTokens = (source: string): ConfigToken[] => {
       });
       continue;
     }
-    if ('{}:,'.includes(character)) tokens.push({ kind: 'punctuation', value: character, start: index });
+    if ('{}:,=;([!?&|'.includes(character)) tokens.push({ kind: 'punctuation', value: character, start: index });
     index += 1;
   }
   return tokens;
