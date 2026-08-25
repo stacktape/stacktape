@@ -65,6 +65,41 @@ const CASES: EvalCase[] = [
     }
   },
   {
+    name: 'Render web app plus key-value service',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'status-page',
+        scripts: { start: 'node build' },
+        dependencies: { express: '^5.0.0', ioredis: '^5.0.0' }
+      }),
+      'render.yaml': [
+        'services:',
+        '  - type: web',
+        '    name: status-page',
+        '    env: node',
+        '    startCommand: node build',
+        '    envVars:',
+        '      - key: REDIS_URL',
+        '        fromService:',
+        '          name: status-cache',
+        '          type: keyvalue',
+        '          property: connectionString',
+        '  - type: keyvalue',
+        '    name: status-cache',
+        ''
+      ].join('\n')
+    },
+    expect: {
+      dependencyKinds: ['redis'],
+      resources: { statusPage: 'web-service', cache: 'redis-cluster' },
+      serviceEnvironment: [
+        { resource: 'statusPage', name: 'REDIS_URL', value: "$ResourceParam('cache', 'connectionString')" }
+      ],
+      deployable: true,
+      maxQuestions: 0
+    }
+  },
+  {
     name: 'Serverless Framework local queue event',
     files: {
       'serverless.yml': [

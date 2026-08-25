@@ -114,6 +114,46 @@ describe('the render.yaml importer', () => {
     expect(database?.currentlyHostedOn).toBeUndefined();
   });
 
+  it('wires a Render key-value service through fromService as a Redis dependency', async () => {
+    root = await makeRepo({
+      'render.yaml': [
+        'services:',
+        '  - type: web',
+        '    name: status-page',
+        '    env: node',
+        '    startCommand: node build',
+        '    envVars:',
+        '      - key: REDIS_URL',
+        '        fromService:',
+        '          name: status-cache',
+        '          type: keyvalue',
+        '          property: connectionString',
+        '  - type: keyvalue',
+        '    name: status-cache',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [paasManifestsProbe] });
+
+    expect(facts.services[0]?.environmentVariables).toContainEqual(
+      expect.objectContaining({
+        name: 'REDIS_URL',
+        role: 'infra-dependency',
+        dependencyName: 'cache'
+      })
+    );
+    expect(facts.dependencies).toContainEqual(
+      expect.objectContaining({
+        name: 'cache',
+        kind: 'redis',
+        consumedBy: ['statusPage'],
+        addressedBy: ['REDIS_URL'],
+        hostingEvidence: 'deployment-manifest'
+      })
+    );
+  });
+
   it('reads current nested projects, production environment databases, groups, and Docker commands', async () => {
     root = await makeRepo({
       'backend/Dockerfile': 'FROM python:3.13\n',

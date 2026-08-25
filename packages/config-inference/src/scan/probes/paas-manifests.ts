@@ -139,6 +139,7 @@ const renderDeclarations = (
 const renderVariable = (
   entry: RenderEnvVar,
   databaseNames: ReadonlyMap<string, string>,
+  serviceDependencyNames: ReadonlyMap<string, string>,
   serviceNames: ReadonlyMap<string, string>,
   evidence: Citation[]
 ): EnvironmentVariableUse | undefined => {
@@ -158,6 +159,13 @@ const renderVariable = (
   }
   if (isRecord(entry.fromService)) {
     const target = asString(entry.fromService.name);
+    const dependency = target === undefined ? undefined : serviceDependencyNames.get(target);
+    if (dependency !== undefined) {
+      // Render models Redis/key-value stores as services, so their connectionString is expressed
+      // with fromService rather than fromDatabase. It is still a backing dependency in the
+      // generated Stacktape topology, not another application service.
+      return { ...base, role: 'infra-dependency', dependencyName: dependency };
+    }
     const mapped = target === undefined ? undefined : serviceNames.get(target);
     const property = asString(entry.fromService.property)?.toLowerCase();
     const targetServiceProperty =
@@ -235,13 +243,19 @@ const readRenderManifest = (
   }
 
   // Key-value/Redis instances are declared as services on Render, but they are backing stores.
-  for (const service of declaredServices) {
+  // Keep their Render names so fromService references can be wired to the dependency below.
+  const declaredServiceDependencies = declaredServices.filter((service) => {
     const type = asString(service.type);
-    if (type !== 'redis' && type !== 'keyvalue') continue;
+    return type === 'redis' || type === 'keyvalue';
+  });
+  const serviceDependencyNames = new Map<string, string>();
+  for (const service of declaredServiceDependencies) {
     const renderName = asString(service.name) ?? 'cache';
+    const name = declaredServiceDependencies.length === 1 ? defaultDependencyName('redis') : factName(renderName);
+    serviceDependencyNames.set(renderName, name);
     const citation = citeFirstMatchOnly(file, raw, new RegExp(`name:\\s*["']?${escapeRegExp(renderName)}`));
     dependencies.push({
-      name: defaultDependencyName('redis'),
+      name,
       kind: 'redis',
       extensions: [],
       consumedBy: [],
@@ -274,7 +288,9 @@ const readRenderManifest = (
       }
     );
     const environmentVariables = declaredVariables
-      .map((entry) => renderVariable(entry as RenderEnvVar, databaseNames, serviceNames, evidence))
+      .map((entry) =>
+        renderVariable(entry as RenderEnvVar, databaseNames, serviceDependencyNames, serviceNames, evidence)
+      )
       .filter((entry): entry is EnvironmentVariableUse => entry !== undefined);
 
     // A variable that addresses a database is also consumption evidence for it.
