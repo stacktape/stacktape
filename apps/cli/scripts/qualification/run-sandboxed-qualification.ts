@@ -3,6 +3,9 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { BUILT_IN_CASES, AWS_QUALIFICATION_SCENARIOS } from './catalog';
 import {
+  MAX_CASE_RESULT_BYTES,
+  MAX_COMPILED_TEMPLATE_BYTES,
+  MAX_GENERATED_CONFIG_BYTES,
   MAX_QUALIFICATION_REPORT_BYTES,
   qualificationCaseResultSchema,
   qualificationReportSchema,
@@ -122,10 +125,6 @@ export const prepareHostOutputDirectory = async (target: string) => {
 export const validateAndHashOutputTree = async (directory: string, keepWorkdirs: boolean) => {
   return (await inspectOutputTree(directory, keepWorkdirs, true)).artifacts;
 };
-
-export const MAX_CASE_RESULT_BYTES = 4 * 1024 ** 2;
-export const MAX_GENERATED_CONFIG_BYTES = 4 * 1024 ** 2;
-export const MAX_COMPILED_TEMPLATE_BYTES = 16 * 1024 ** 2;
 
 const readBoundedEvidenceText = async (path: string, label: string, maximumBytes: number) => {
   if (!(await pathExists(path))) throw new Error(`Collected evidence is missing ${label}.`);

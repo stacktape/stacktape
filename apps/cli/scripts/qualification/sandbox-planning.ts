@@ -4,6 +4,7 @@ import { dirname, isAbsolute, join, normalize, relative, resolve, sep, win32 } f
 import { parseArgs } from 'node:util';
 import { BUILT_IN_CASES, casesForPreset } from './catalog';
 import {
+  MAX_CASE_RESULT_BYTES,
   MAX_QUALIFICATION_REPORT_BYTES,
   qualificationCaseResultSchema,
   qualificationManifestSchema,
@@ -249,6 +250,9 @@ const validateResumeCaseDirectory = (reportDirectory: string, result: Qualificat
     }
     totalBytes += metadata.size;
     if (entry.name === 'result.json') {
+      if (metadata.size > MAX_CASE_RESULT_BYTES) {
+        throw new Error(`Resume artifact ${result.id}/result.json exceeds the ${MAX_CASE_RESULT_BYTES}-byte limit.`);
+      }
       const artifactResult = qualificationCaseResultSchema.parse(
         JSON.parse(readFileSync(join(caseDirectory, entry.name), 'utf8'))
       );
