@@ -1,7 +1,8 @@
-import { mkdir } from 'node:fs/promises';
-import { resolve } from 'node:path';
+import { mkdir, readFile } from 'node:fs/promises';
+import { dirname, join, resolve } from 'node:path';
 import { BUILT_IN_CASES, AWS_QUALIFICATION_SCENARIOS } from './catalog';
-import { assertProcessSucceeded, outputTail, redactOutput, runProcess, type ProcessResult } from './process';
+import { qualificationReportSchema } from './contracts';
+import { assertProcessSucceeded, outputTail, redactOutput, runProcess } from './process';
 import { buildRunnerImage } from './sandbox-dockerfile';
 import {
   assertPlannedSecurity,
@@ -10,7 +11,8 @@ import {
   DEFAULT_SANDBOX_PIDS_LIMIT,
   parseSandboxedOptions,
   planSandboxExecution,
-  type PlannedSandboxExecution
+  type PlannedSandboxExecution,
+  type StagedInput
 } from './sandbox-planning';
 
 const rootDirectory = resolve(import.meta.dir, '..', '..', '..', '..');
@@ -19,11 +21,11 @@ const invocationDirectory = resolve(process.env.INIT_CWD ?? process.cwd());
 const errorText = (error: unknown) =>
   outputTail(redactOutput(error instanceof Error ? (error.stack ?? error.message) : String(error)), 12_000);
 
-const helpText = `Stacktape sandboxed project qualification
+const helpText = `Stacktape disposable project qualification sandbox
 
-Runs qualification in a disposable Docker container connected to a nested Docker-in-Docker (DinD)
-daemon. Untrusted project installation and build scripts never receive host credentials, the host home
-directory, or the host Docker socket (/var/run/docker.sock).
+Runs qualification in a disposable non-root Docker container connected to an isolated
+Docker-in-Docker (DinD) daemon. Untrusted project installation and build scripts never receive
+the host home directory, credential files, arbitrary environment tokens, or the host Docker socket.
 
 Usage:
   pnpm qualify:projects:sandboxed -- [options]
@@ -33,41 +35,46 @@ Standard Qualification Options:
   --preset=smoke|release|stress|all  Built-in project set (default: smoke without --manifest)
   --case=<id>[,<id>...]              Run selected built-in or manifest cases; repeatable
   --manifest=<path>                  Add a versioned JSON corpus manifest; repeatable
-  --lanes=import,package,runtime,aws Requested lanes (package automatically includes import)
-  --aws-scenario=<id>                Explicit AWS archetype; required for the aws lane; repeatable
+  --lanes=import,package,runtime     Requested lanes (package automatically includes import; aws lane is rejected)
+  --aws-scenario=<id>                Explicit AWS archetype (note: aws lane is rejected in sandbox)
   --output-dir=<path>                Durable JSON/Markdown results (default: .stacktape/qualification/<run>)
-  --cache-root=<path>                Persistent checkout cache
+  --cache-root=<path>                Host cache directory for persistent project downloads
   --resume-from=<report.json>        Skip matching cases that already passed
   --shard=<index>/<total>            Deterministically run one shard, for example 2/10
   --max-cases=<count>                Cap projects after selection and sharding
-  --keep-workdirs                    Retain isolated project copies inside container for diagnosis
+  --keep-workdirs                    Retain isolated project copies inside container output for diagnosis
   --fail-fast                        Stop project execution after the first failed case
   --list                             List built-in projects and AWS scenarios
   --help                             Show this help
 
 Sandbox Options:
-  --memory=<limit>                   Container memory limit (default: ${DEFAULT_SANDBOX_MEMORY})
-  --cpus=<limit>                     Container CPU limit (default: ${DEFAULT_SANDBOX_CPUS})
-  --pids-limit=<limit>               Container process limit (default: ${DEFAULT_SANDBOX_PIDS_LIMIT})
+  --memory=<limit>                   Container memory limit per container (default: ${DEFAULT_SANDBOX_MEMORY})
+  --cpus=<limit>                     Container CPU limit per container (default: ${DEFAULT_SANDBOX_CPUS})
+  --pids-limit=<limit>               Process limit per container (default: ${DEFAULT_SANDBOX_PIDS_LIMIT})
   --rebuild-image                    Force rebuilding the runner image even if already cached
   --dry-run                          Print planned sandbox container commands and boundary without executing
-  --self-test                        Run a fast self-test inside the sandbox to verify the boundary
+  --self-test                        Run complete end-to-end self-test with a synthetic Docker project
+  --list-orphans                     List any lingering qualification containers, networks, or volumes
+  --clean-orphans                    Remove all lingering qualification containers, networks, and volumes
 
-Residual Security Model & Limitations:
-  1. Privileged DinD: The nested Docker daemon requires --privileged to manage overlayfs namespaces.
-     While the qualification runner is unprivileged, code escaping the nested daemon could access the VM/kernel.
-  2. Network / LAN Egress: Outbound internet connectivity is enabled to download dependencies (npm, PyPI, etc.).
-     Cloud metadata (169.254.169.254) and host gateway DNS names (host.docker.internal) are sinkholed to 127.0.0.1,
-     but egress to public IPs and unsegmented local network endpoints remains reachable.
-  3. Shared Linux Kernel: Containers share the underlying Linux VM / host kernel. This is not a hardware hypervisor.
-  4. Isolation Scope: Only --output-dir (read-write), --cache-root (read-write), and declared manifests (read-only)
-     are mounted. Host home, AWS credentials, Stacktape API keys, and /var/run/docker.sock are never mounted.
+Security Model & Honest Limitations:
+  1. Scope: Disposable build containment for reviewed or reputable pinned sources.
+     Actively hostile code requires an ephemeral cloud VM or hosted runner with no secrets.
+  2. Privileged DinD: DinD requires --privileged to manage overlayfs namespaces. While the runner is
+     unprivileged (non-root, cap-drop ALL, read-only rootfs), an escape from the nested dockerd could reach the VM kernel.
+  3. Network Egress: Outbound internet access is enabled for package managers (npm, pip, maven, cargo).
+     DNS overrides sinkhole names like host.docker.internal and metadata.google.internal to 127.0.0.1,
+     but direct IP egress to public IPs and local LAN remains open unless blocked by external firewalls.
+  4. Non-Root Runner: Runs as UID 1000 with root-owned read-only /workspace, read-only rootfs, and cap-drop ALL.
+     Project code cannot rewrite CLI source files or tool binaries.
+  5. Zero Host Bind Mounts: All inputs are staged via docker cp into container volumes. Outputs are copied
+     back and schema-validated by the host upon completion.
 `;
 
 const listCatalog = () => {
   process.stdout.write('Built-in projects:\n');
   for (const entry of BUILT_IN_CASES) process.stdout.write(`  ${entry.id}  [${entry.tags.join(', ')}]\n`);
-  process.stdout.write('\nExplicit AWS scenarios:\n');
+  process.stdout.write('\nExplicit AWS scenarios (note: rejected in sandbox):\n');
   for (const scenario of AWS_QUALIFICATION_SCENARIOS) {
     process.stdout.write(
       `  ${scenario.id}  policy=${scenario.policy} cost=${scenario.costClass} [${scenario.coverage.join(', ')}]\n`
@@ -147,33 +154,186 @@ const waitForDindReadiness = async (dindContainerName: string, timeoutMs = 30_00
   throw new Error(`Nested Docker-in-Docker daemon failed to become ready within ${timeoutMs}ms:\n${lastError}`);
 };
 
+export const listOrphanResources = async () => {
+  process.stdout.write('Checking for lingering qualification sandbox resources...\n');
+  const containers = await runProcess({
+    command: 'docker',
+    args: [
+      'ps',
+      '-a',
+      '--filter',
+      'label=stacktape.qualification.managed=true',
+      '--format',
+      '{{.ID}} {{.Names}} ({{.Status}})'
+    ],
+    cwd: rootDirectory,
+    timeoutMs: 15_000
+  });
+  const volumes = await runProcess({
+    command: 'docker',
+    args: ['volume', 'ls', '--filter', 'label=stacktape.qualification.managed=true', '--format', '{{.Name}}'],
+    cwd: rootDirectory,
+    timeoutMs: 15_000
+  });
+  const networks = await runProcess({
+    command: 'docker',
+    args: ['network', 'ls', '--filter', 'label=stacktape.qualification.managed=true', '--format', '{{.ID}} {{.Name}}'],
+    cwd: rootDirectory,
+    timeoutMs: 15_000
+  });
+
+  process.stdout.write(`Containers:\n${containers.stdout || '  None'}\n`);
+  process.stdout.write(`Volumes:\n${volumes.stdout || '  None'}\n`);
+  process.stdout.write(`Networks:\n${networks.stdout || '  None'}\n`);
+};
+
+export const cleanOrphanResources = async () => {
+  process.stdout.write('Cleaning lingering qualification sandbox resources...\n');
+  const containerIds = await runProcess({
+    command: 'docker',
+    args: ['ps', '-a', '-q', '--filter', 'label=stacktape.qualification.managed=true'],
+    cwd: rootDirectory,
+    timeoutMs: 15_000
+  });
+  for (const id of containerIds.stdout.split(/\s+/).filter(Boolean)) {
+    await runProcess({ command: 'docker', args: ['rm', '-f', id], cwd: rootDirectory, timeoutMs: 15_000 });
+  }
+
+  const volumeNames = await runProcess({
+    command: 'docker',
+    args: ['volume', 'ls', '-q', '--filter', 'label=stacktape.qualification.managed=true'],
+    cwd: rootDirectory,
+    timeoutMs: 15_000
+  });
+  for (const name of volumeNames.stdout.split(/\s+/).filter(Boolean)) {
+    await runProcess({ command: 'docker', args: ['volume', 'rm', '-f', name], cwd: rootDirectory, timeoutMs: 15_000 });
+  }
+
+  const networkIds = await runProcess({
+    command: 'docker',
+    args: ['network', 'ls', '-q', '--filter', 'label=stacktape.qualification.managed=true'],
+    cwd: rootDirectory,
+    timeoutMs: 15_000
+  });
+  for (const id of networkIds.stdout.split(/\s+/).filter(Boolean)) {
+    await runProcess({ command: 'docker', args: ['network', 'rm', id], cwd: rootDirectory, timeoutMs: 15_000 });
+  }
+  process.stdout.write('Orphan cleanup completed.\n');
+};
+
+const verifyResourceOwned = async (kind: 'container' | 'volume' | 'network', name: string, expectedRunId: string) => {
+  try {
+    const inspectResult = await runProcess({
+      command: 'docker',
+      args: [kind, 'inspect', name],
+      cwd: rootDirectory,
+      timeoutMs: 10_000
+    });
+    if (inspectResult.exitCode !== 0) return false;
+    const inspectJson = JSON.parse(inspectResult.stdout.trim() || '[]')[0];
+    const labels =
+      (kind === 'volume' ? inspectJson?.Labels : (inspectJson?.Config?.Labels ?? inspectJson?.Labels)) ?? {};
+    return (
+      labels['stacktape.qualification.managed'] === 'true' && labels['stacktape.qualification.run-id'] === expectedRunId
+    );
+  } catch {
+    return false;
+  }
+};
+
 const cleanupSandboxResources = async (planned: PlannedSandboxExecution) => {
-  try {
-    await runProcess({
-      command: 'docker',
-      args: ['rm', '-f', planned.runnerContainerName],
-      cwd: rootDirectory,
-      timeoutMs: 15_000
-    });
-  } catch {}
+  const errors: string[] = [];
 
+  // Remove runner container
   try {
-    await runProcess({
-      command: 'docker',
-      args: ['rm', '-f', planned.dindContainerName],
-      cwd: rootDirectory,
-      timeoutMs: 15_000
-    });
-  } catch {}
+    if (await verifyResourceOwned('container', planned.runnerContainerName, planned.runId)) {
+      await runProcess({
+        command: 'docker',
+        args: ['rm', '-f', planned.runnerContainerName],
+        cwd: rootDirectory,
+        timeoutMs: 15_000
+      });
+    }
+  } catch (error) {
+    errors.push(`Failed to remove runner container ${planned.runnerContainerName}: ${String(error)}`);
+  }
 
+  // Remove DinD container
   try {
-    await runProcess({
-      command: 'docker',
-      args: ['network', 'rm', planned.networkName],
-      cwd: rootDirectory,
-      timeoutMs: 15_000
-    });
-  } catch {}
+    if (await verifyResourceOwned('container', planned.dindContainerName, planned.runId)) {
+      await runProcess({
+        command: 'docker',
+        args: ['rm', '-f', planned.dindContainerName],
+        cwd: rootDirectory,
+        timeoutMs: 15_000
+      });
+    }
+  } catch (error) {
+    errors.push(`Failed to remove DinD container ${planned.dindContainerName}: ${String(error)}`);
+  }
+
+  // Remove volumes
+  for (const vol of [planned.outputVolumeName, planned.cacheVolumeName]) {
+    try {
+      if (await verifyResourceOwned('volume', vol, planned.runId)) {
+        await runProcess({
+          command: 'docker',
+          args: ['volume', 'rm', '-f', vol],
+          cwd: rootDirectory,
+          timeoutMs: 15_000
+        });
+      }
+    } catch (error) {
+      errors.push(`Failed to remove volume ${vol}: ${String(error)}`);
+    }
+  }
+
+  // Remove network
+  try {
+    if (await verifyResourceOwned('network', planned.networkName, planned.runId)) {
+      await runProcess({
+        command: 'docker',
+        args: ['network', 'rm', planned.networkName],
+        cwd: rootDirectory,
+        timeoutMs: 15_000
+      });
+    }
+  } catch (error) {
+    errors.push(`Failed to remove network ${planned.networkName}: ${String(error)}`);
+  }
+
+  if (errors.length > 0) {
+    process.stderr.write(`Cleanup warnings:\n${errors.join('\n')}\n`);
+  }
+};
+
+const stageInputIntoRunner = async (runnerContainerName: string, staged: StagedInput) => {
+  const targetPath = `/qualification/${staged.containerRelativePath.replaceAll('\\', '/')}`;
+  const targetDir = dirname(targetPath);
+
+  // Ensure parent directory exists inside container
+  await runProcess({
+    command: 'docker',
+    args: ['exec', '--user', '0:0', runnerContainerName, 'mkdir', '-p', targetDir],
+    cwd: rootDirectory,
+    timeoutMs: 15_000
+  });
+
+  const cpResult = await runProcess({
+    command: 'docker',
+    args: ['cp', staged.hostPath, `${runnerContainerName}:${targetPath}`],
+    cwd: rootDirectory,
+    timeoutMs: 30_000
+  });
+  assertProcessSucceeded(cpResult);
+
+  // Chown staged input to node user (1000:1000)
+  await runProcess({
+    command: 'docker',
+    args: ['exec', '--user', '0:0', runnerContainerName, 'chown', '-R', '1000:1000', targetDir],
+    cwd: rootDirectory,
+    timeoutMs: 15_000
+  });
 };
 
 export const executeSandboxedQualification = async (
@@ -193,11 +353,32 @@ export const executeSandboxedQualification = async (
 
   await assertDockerAvailable();
 
-  const effectiveArgs = parsed.selfTest
-    ? ['--preset=smoke', '--lanes=import', '--max-cases=1', ...rawArgs.filter((arg) => arg !== '--self-test')]
-    : rawArgs;
+  if (parsed.listOrphans) {
+    await listOrphanResources();
+    return { exitCode: 0, planned: undefined as any };
+  }
+
+  if (parsed.cleanOrphans) {
+    await cleanOrphanResources();
+    return { exitCode: 0, planned: undefined as any };
+  }
 
   const productCommit = await getCleanProductCommit(parsed.dryRun);
+
+  let effectiveArgs = rawArgs;
+  if (parsed.selfTest) {
+    const fixtureManifest = resolve(
+      rootDirectory,
+      'apps/cli/scripts/qualification/fixtures/self-test-docker-project/manifest.json'
+    );
+    effectiveArgs = [
+      `--manifest=${fixtureManifest}`,
+      '--case=qualification-self-test-docker',
+      '--lanes=import,package',
+      ...rawArgs.filter((arg) => arg !== '--self-test')
+    ];
+  }
+
   const planned = planSandboxExecution({
     productCommit,
     rawArgs: effectiveArgs,
@@ -217,7 +398,9 @@ export const executeSandboxedQualification = async (
           network: planned.networkName,
           dindContainer: planned.dindContainerName,
           runnerContainer: planned.runnerContainerName,
-          mounts: planned.mounts,
+          outputVolume: planned.outputVolumeName,
+          cacheVolume: planned.cacheVolumeName,
+          stagedInputs: planned.stagedInputs,
           hostOverrides: planned.hostOverrides,
           environment: planned.environment,
           dindCommand: ['docker', ...planned.dindArgs].join(' '),
@@ -238,23 +421,53 @@ export const executeSandboxedQualification = async (
     onProgress: (msg) => process.stderr.write(msg)
   });
 
-  await mkdir(planned.outputDirectory, { recursive: true });
-  await mkdir(planned.cacheRoot, { recursive: true });
+  await mkdir(planned.hostOutputDirectory, { recursive: true });
 
   process.stderr.write(
-    `Starting disposable qualification sandbox:\n- Network: ${planned.networkName}\n- DinD: ${planned.dindContainerName}\n- Runner: ${planned.runnerContainerName}\n- Output: ${planned.outputDirectory}\n- Cache: ${planned.cacheRoot}\n\n`
+    `Starting disposable qualification sandbox:\n- Network: ${planned.networkName}\n- DinD: ${planned.dindContainerName}\n- Runner: ${planned.runnerContainerName}\n- Output: ${planned.hostOutputDirectory}\n\n`
   );
 
-  let runnerProcessResult: ProcessResult | undefined;
+  let runnerExitCode = 1;
   try {
+    // 1. Create bridge network
     const netResult = await runProcess({
       command: 'docker',
-      args: ['network', 'create', '--driver', 'bridge', planned.networkName],
+      args: [
+        'network',
+        'create',
+        '--driver',
+        'bridge',
+        '--label',
+        'stacktape.qualification.managed=true',
+        '--label',
+        `stacktape.qualification.run-id=${planned.runId}`,
+        planned.networkName
+      ],
       cwd: rootDirectory,
       timeoutMs: 30_000
     });
     assertProcessSucceeded(netResult);
 
+    // 2. Create named volumes
+    for (const vol of [planned.outputVolumeName, planned.cacheVolumeName]) {
+      const volResult = await runProcess({
+        command: 'docker',
+        args: [
+          'volume',
+          'create',
+          '--label',
+          'stacktape.qualification.managed=true',
+          '--label',
+          `stacktape.qualification.run-id=${planned.runId}`,
+          vol
+        ],
+        cwd: rootDirectory,
+        timeoutMs: 15_000
+      });
+      assertProcessSucceeded(volResult);
+    }
+
+    // 3. Start DinD
     const dindResult = await runProcess({
       command: 'docker',
       args: planned.dindArgs,
@@ -265,23 +478,75 @@ export const executeSandboxedQualification = async (
 
     await waitForDindReadiness(planned.dindContainerName);
 
-    runnerProcessResult = await runProcess({
+    // 4. Create runner container (without starting it immediately to stage inputs)
+    const createArgs = ['create', ...planned.runnerArgs.slice(1)];
+    const createResult = await runProcess({
       command: 'docker',
-      args: planned.runnerArgs,
+      args: createArgs,
+      cwd: rootDirectory,
+      timeoutMs: 30_000
+    });
+    assertProcessSucceeded(createResult);
+
+    // 5. Stage inputs
+    for (const staged of planned.stagedInputs) {
+      await stageInputIntoRunner(planned.runnerContainerName, staged);
+    }
+
+    // 6. Start runner and attach
+    const runResult = await runProcess({
+      command: 'docker',
+      args: ['start', '-a', planned.runnerContainerName],
       cwd: rootDirectory,
       timeoutMs: planned.resourceLimits.timeoutMs,
       forwardSignals: true
     });
 
-    if (runnerProcessResult.stdout) process.stdout.write(runnerProcessResult.stdout);
-    if (runnerProcessResult.stderr) process.stderr.write(runnerProcessResult.stderr);
+    if (runResult.stdout) process.stdout.write(runResult.stdout);
+    if (runResult.stderr) process.stderr.write(runResult.stderr);
 
-    const exitCode = runnerProcessResult.exitCode ?? (runnerProcessResult.timedOut ? 124 : 1);
-    return { exitCode, planned };
+    runnerExitCode = runResult.exitCode ?? (runResult.timedOut ? 124 : 1);
+
+    // 7. Copy output directory back to host
+    process.stderr.write(`Copying qualification output back to ${planned.hostOutputDirectory}...\n`);
+    const cpOutResult = await runProcess({
+      command: 'docker',
+      args: ['cp', `${planned.runnerContainerName}:/qualification/output/.`, planned.hostOutputDirectory],
+      cwd: rootDirectory,
+      timeoutMs: 60_000
+    });
+    if (cpOutResult.exitCode !== 0) {
+      process.stderr.write(`Warning: Failed to copy output files from container: ${cpOutResult.stderr}\n`);
+    }
+
+    // 8. Schema validate the qualification report if present
+    const reportPath = join(planned.hostOutputDirectory, 'qualification-report.json');
+    try {
+      const reportJsonText = await readFile(reportPath, 'utf8');
+      const parsedReport = qualificationReportSchema.parse(JSON.parse(reportJsonText));
+      process.stderr.write(
+        `Qualification report verified: ${parsedReport.summary.passed} passed, ${parsedReport.summary.failed} failed.\n`
+      );
+      if (planned.isSelfTest) {
+        if (parsedReport.summary.passed >= 1 && parsedReport.summary.failed === 0) {
+          process.stdout.write('\nSandbox self-test SUCCESS: nested Docker build and template synthesis verified.\n');
+          runnerExitCode = 0;
+        } else {
+          process.stderr.write('\nSandbox self-test FAILED: expected 1 passed case with 0 failures.\n');
+          runnerExitCode = 1;
+        }
+      }
+    } catch (reportError) {
+      if (runnerExitCode === 0) {
+        process.stderr.write(`Warning: Could not validate qualification report schema: ${String(reportError)}\n`);
+      }
+    }
+
+    return { exitCode: runnerExitCode, planned };
   } finally {
-    process.stderr.write('\nCleaning up disposable sandbox containers and network...\n');
+    process.stderr.write('Cleaning up disposable sandbox resources...\n');
     await cleanupSandboxResources(planned);
-    process.stderr.write('Disposable sandbox cleaned up.\n');
+    process.stderr.write('Disposable sandbox cleanup complete.\n');
   }
 };
 
