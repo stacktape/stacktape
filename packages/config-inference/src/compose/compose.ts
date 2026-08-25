@@ -12,7 +12,7 @@
  */
 
 import type { Citation } from '../facts/citation';
-import type { DependencyFact } from '../facts/dependency';
+import { defaultDependencyName, type DependencyFact } from '../facts/dependency';
 import { AWS_DEPLOYMENT_TOOLS, DEPLOYMENT_TOOL_LABELS } from '../facts/existing-deployment';
 import type { DeploymentRuntimeConstraint } from '../facts/existing-deployment';
 import type { PackageManager, ProjectFacts } from '../facts/project-facts';
@@ -733,6 +733,81 @@ export const composeConfig = ({
   const cloudflareOwnedServices = new Set([...cloudflareRuntimeOwnership.values()].flat());
   const services = facts.services.filter((service) => !cloudflareOwnedServices.has(service));
   const serviceNames = new Set(services.map((service) => service.name));
+  const reservedDependencyNames = new Set(facts.dependencies.map((dependency) => dependency.name));
+  const replacementDependencyName = (kind: DependencyFact['kind']): string => {
+    const preferred = defaultDependencyName(kind);
+    if (!reservedDependencyNames.has(preferred)) {
+      reservedDependencyNames.add(preferred);
+      return preferred;
+    }
+    for (let suffix = 2; ; suffix += 1) {
+      const candidate = `${preferred}${suffix}`;
+      if (!reservedDependencyNames.has(candidate)) {
+        reservedDependencyNames.add(candidate);
+        return candidate;
+      }
+    }
+  };
+  /**
+   * Infrastructure selected by policy, not dependencies observed in the repository.
+   *
+   * A build feature proves compatibility with an engine, while the local SQLite default proves the
+   * opposite of an existing requirement. Keep the distinction explicit: the choice becomes a
+   * notable assumption, and only its selected configuration receives the derived database wiring.
+   */
+  const managedDatabaseReplacements = new Map<
+    ServiceFact,
+    { dependency: DependencyFact; connectionVariable: string }
+  >();
+  const managedReplacementServices = new Map<DependencyFact, ServiceFact>();
+  for (const service of services) {
+    const localDatabase = service.defaultLocalDatabase;
+    if (localDatabase === undefined) continue;
+    const capability = service.managedDatabaseCapabilities?.find(
+      (candidate) => candidate.connectionVariable === localDatabase.connectionVariable
+    );
+    if (capability === undefined) continue;
+    const alreadyUsesManagedDatabase = facts.dependencies.some(
+      (dependency) =>
+        RDS_ENGINE_TYPES[dependency.kind] !== undefined &&
+        dependency.consumedBy.includes(service.name) &&
+        dependency.addressedBy.includes(localDatabase.connectionVariable)
+    );
+    if (alreadyUsesManagedDatabase) continue;
+
+    const decisionId = `sqlite-persistence:${service.name}`;
+    const chosen = decisions[decisionId] === 'persistent-volume' ? 'persistent-volume' : 'migrate-to-managed-database';
+    assumptions.push({
+      id: decisionId,
+      kind: 'sqlite-persistence',
+      chosen,
+      alternatives: ['migrate-to-managed-database', 'persistent-volume'],
+      parameters: {
+        serviceName: service.name,
+        paths: [localDatabase.path],
+        managedDatabaseKind: capability.kind,
+        connectionVariable: localDatabase.connectionVariable
+      },
+      evidence: [...capability.evidence],
+      notable: true
+    });
+    if (chosen !== 'migrate-to-managed-database') continue;
+
+    const dependency: DependencyFact = {
+      name: replacementDependencyName(capability.kind),
+      kind: capability.kind,
+      extensions: [],
+      consumedBy: [service.name],
+      addressedBy: [localDatabase.connectionVariable],
+      evidence: [...capability.evidence],
+      source: 'probe'
+    };
+    managedDatabaseReplacements.set(service, {
+      dependency,
+      connectionVariable: localDatabase.connectionVariable
+    });
+    managedReplacementServices.set(dependency, service);
+  }
   // A dependency used solely by a Worker, or not connected to any recognized service at all, is
   // part of the same unresolved topology. Keep dependencies required by a retained sibling, but do
   // not turn an SDK package hint into a convincing orphan database, queue, or bucket.
@@ -792,6 +867,13 @@ export const composeConfig = ({
       consumers
     };
   });
+  for (const [service, { dependency }] of managedDatabaseReplacements) {
+    dependencySelections.push({
+      original: dependency,
+      selected: dependency,
+      consumers: new Set([service])
+    });
+  }
   const dependencies = dependencySelections.flatMap(({ selected }) => (selected === undefined ? [] : [selected]));
   const dependencyConsumers = new Map<DependencyFact, Set<ServiceFact>>();
   for (const { selected, consumers } of dependencySelections) {
@@ -936,8 +1018,12 @@ export const composeConfig = ({
     });
     if (privateDatabase) privateDatabaseResourceNames.add(name);
     resources[name] = composed.resource;
+    const replacementService = managedReplacementServices.get(dependency);
     provenance[name] = {
-      reason: composed.reason,
+      reason:
+        replacementService === undefined
+          ? composed.reason
+          : `The persistence decision replaces ${replacementService.name}'s unsafe local SQLite database with managed ${dependencyLabel(dependency.kind)}.`,
       evidence: dependency.evidence.slice(0, 3)
     };
 
@@ -1016,6 +1102,74 @@ export const composeConfig = ({
     }
   });
 
+  const persistentVolumes = new Map<ServiceFact, Array<{ resourceName: string; mountPath: string }>>();
+  let hasUnresolvedPersistence = false;
+  for (const service of services) {
+    const writes = service.writesLocalFilesystem;
+    if (writes === undefined) continue;
+    const declaredVolumePaths = service.declaredContainerVolumes?.paths;
+    const classification = classifyService(service);
+    const supportsEfs =
+      classification.resourceType === 'web-service' ||
+      classification.resourceType === 'worker-service' ||
+      classification.resourceType === 'private-service';
+    if (!supportsEfs || declaredVolumePaths === undefined) {
+      hasUnresolvedPersistence = true;
+      gaps.push({
+        subject: `${service.name}.persistent-storage`,
+        message: `${service.name} writes passwords, keys, SQLite data, or other application state to ${writes.paths.join(', ')}. That data would be lost when the runtime restarts because init could not attach persistent storage to this resource type. Configure a persistent volume before deploying.`
+      });
+      continue;
+    }
+
+    const localDatabase = service.defaultLocalDatabase;
+    if (localDatabase !== undefined) {
+      const selectedReplacement = managedDatabaseReplacements.get(service);
+      const hasManagedDatabaseReplacement = dependencies.some(
+        (dependency) =>
+          RDS_ENGINE_TYPES[dependency.kind] !== undefined &&
+          dependencyConsumers.get(dependency)?.has(service) === true &&
+          composedDependenciesByFact.has(dependency) &&
+          (selectedReplacement?.dependency === dependency ||
+            service.environmentVariables.some(
+              (variable) =>
+                variable.name === localDatabase.connectionVariable &&
+                variable.role === 'infra-dependency' &&
+                variable.dependencyName === dependency.name
+            ))
+      );
+      const databaseIsInsideMountedVolume = declaredVolumePaths.some(
+        (mountPath) => localDatabase.path === mountPath || localDatabase.path.startsWith(`${mountPath}/`)
+      );
+      if (databaseIsInsideMountedVolume && !hasManagedDatabaseReplacement) {
+        hasUnresolvedPersistence = true;
+        gaps.push({
+          subject: `${service.name}.database-persistence`,
+          message: `${service.name} defaults to SQLite at ${localDatabase.path}. SQLite WAL is unsupported on network filesystems, and an EFS file backup is not an application-consistent database backup. Configure ${localDatabase.connectionVariable} to a managed database before deploying; disabling WAL alone does not make filesystem backups safe.`
+        });
+      }
+    }
+
+    const volumes = declaredVolumePaths.map((mountPath) => {
+      const leaf = mountPath.split('/').findLast((segment) => segment.length > 0) ?? 'data';
+      const preferredName =
+        declaredVolumePaths.length === 1
+          ? `${service.name}Data`
+          : `${service.name}${leaf.replace(/[^a-zA-Z0-9]+(.)/g, (_, character: string) => character.toUpperCase())}Data`;
+      const resourceName = uniqueName(preferredName, taken);
+      resources[resourceName] = {
+        type: 'efs-filesystem',
+        properties: { backupEnabled: true, throughputMode: 'elastic' }
+      };
+      provenance[resourceName] = {
+        reason: `${service.name} declares persistent container data at ${mountPath}, so an encrypted, backed-up filesystem keeps it across restarts.`,
+        evidence: service.evidence.filter((citation) => citation.field === 'writesLocalFilesystem').slice(0, 3)
+      };
+      return { resourceName, mountPath };
+    });
+    persistentVolumes.set(service, volumes);
+  }
+
   for (const [index, service] of services.entries()) {
     const name = resourceNames[index]!;
     const classification = classifyService(service);
@@ -1039,6 +1193,19 @@ export const composeConfig = ({
       composedDependencies: composedDependenciesByFact,
       projectName
     });
+    const managedReplacement = managedDatabaseReplacements.get(service);
+    if (managedReplacement !== undefined) {
+      const resourceName = dependencyResourceNames.get(managedReplacement.dependency.name);
+      if (
+        resourceName !== undefined &&
+        !environment.some((entry) => entry.name === managedReplacement.connectionVariable)
+      ) {
+        environment.push({
+          name: managedReplacement.connectionVariable,
+          value: `$ResourceParam('${resourceName}', 'connectionString')`
+        });
+      }
+    }
     // The agent path may already have written the same variable from the service's own facts, so the
     // first entry for a name wins rather than the file carrying it twice.
     for (const extra of externalVariables.get(service) ?? []) {
@@ -1124,7 +1291,8 @@ export const composeConfig = ({
       // provider runs `release:` at build time, where the database this migration needs does not
       // exist — caught on the first real-AWS run of the validation lane.
       suppressNixpacksRelease: migrationHooks.hookedServices.includes(service.name),
-      requiresVpc
+      requiresVpc,
+      persistentVolumes: persistentVolumes.get(service) ?? []
     });
     provenance[name] = {
       reason: classification.reason,
@@ -1233,6 +1401,7 @@ export const composeConfig = ({
     if (!ADDRESS_REQUIRED_KINDS.has(dependency.kind) || !composedDependencyNames.has(dependency.name)) continue;
     const consumersWithoutAddress = [...(dependencyConsumers.get(dependency) ?? [])].filter(
       (service) =>
+        managedDatabaseReplacements.get(service)?.dependency !== dependency &&
         !service.environmentVariables.some(
           (variable) => variable.role === 'infra-dependency' && variable.dependencyName === dependency.name
         )
@@ -1322,7 +1491,8 @@ export const composeConfig = ({
     serviceResources: Object.fromEntries(serviceResourceNames),
     // A partial monorepo result remains useful for review, but must not unlock deployment as though
     // it represented the complete application.
-    deployable: Object.keys(resources).length > 0 && cloudflareRuntimeConstraints.length === 0
+    deployable:
+      Object.keys(resources).length > 0 && cloudflareRuntimeConstraints.length === 0 && !hasUnresolvedPersistence
   };
 };
 
@@ -1336,7 +1506,8 @@ const buildServiceResource = ({
   profile,
   packageManager,
   suppressNixpacksRelease,
-  requiresVpc
+  requiresVpc,
+  persistentVolumes
 }: {
   resourceType: ServiceResourceType;
   service: ServiceFact;
@@ -1348,6 +1519,7 @@ const buildServiceResource = ({
   packageManager: PackageManager | undefined;
   suppressNixpacksRelease: boolean;
   requiresVpc: boolean;
+  persistentVolumes: ReadonlyArray<{ resourceName: string; mountPath: string }>;
 }): ComposedResource => {
   const shared = {
     ...(environment.length > 0 ? { environment } : {}),
@@ -1513,15 +1685,24 @@ const buildServiceResource = ({
         : {}),
       // Scaling is only meaningful for something that stays up. A batch job is sized, not scaled.
       scaling: {
-        minInstances: service.bundledLifecycle === undefined ? profile.scaling.minInstances : 1,
+        minInstances:
+          service.bundledLifecycle === undefined && persistentVolumes.length === 0 ? profile.scaling.minInstances : 1,
         maxInstances:
-          service.bundledLifecycle === undefined
+          service.bundledLifecycle === undefined && persistentVolumes.length === 0
             ? profile.scaling.maxInstances
             : Math.min(profile.scaling.maxInstances, 1)
       },
-      ...(resourceType === 'web-service' && service.port !== undefined && service.port !== 3000
-        ? { containerPort: service.port }
-        : {}),
+      ...(persistentVolumes.length === 0
+        ? {}
+        : {
+            volumeMounts: persistentVolumes.map((volume) => ({
+              type: 'efs',
+              properties: {
+                efsFilesystemName: volume.resourceName,
+                mountPath: volume.mountPath
+              }
+            }))
+          }),
       ...(resourceType === 'web-service'
         ? {
             alarms: [

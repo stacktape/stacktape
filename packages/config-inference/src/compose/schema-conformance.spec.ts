@@ -181,6 +181,24 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     );
   });
 
+  it('a container with a persistent Docker volume', () => {
+    expectValid(
+      composeFrom({
+        services: [
+          service({
+            name: 'vault',
+            language: 'rust',
+            port: 80,
+            dockerfile: 'docker/Dockerfile',
+            startCommand: undefined,
+            writesLocalFilesystem: { paths: ['/data'], purpose: 'unknown' },
+            declaredContainerVolumes: { paths: ['/data'] }
+          })
+        ]
+      })
+    );
+  });
+
   it('two services referring to each other', () => {
     expectValid(
       composeFrom({

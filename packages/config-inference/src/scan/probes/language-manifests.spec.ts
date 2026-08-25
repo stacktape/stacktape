@@ -326,9 +326,9 @@ describe('dependency lists in other languages', () => {
   it('reads Cargo.toml', async () => {
     expect(
       await kindsIn({
-        'Cargo.toml': ['[dependencies]', 'axum = "0.7"', 'tokio-postgres = "0.7"', ''].join('\n')
+        'Cargo.toml': ['[dependencies]', 'axum = "0.7"', 'lettre = "0.11"', 'tokio-postgres = "0.7"', ''].join('\n')
       })
-    ).toEqual(['postgres']);
+    ).toEqual(['email', 'postgres']);
   });
 
   it('reads mix.exs', async () => {

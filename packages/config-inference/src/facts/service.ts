@@ -331,6 +331,45 @@ export const serviceFactSchema = z
         backgroundProcesses: z.boolean()
       })
       .optional(),
+    /**
+     * Persistent paths explicitly declared by the selected container image through `VOLUME`.
+     *
+     * Probe-only: source writes alone do not prove that mounting a filesystem over the path is the
+     * image author's intended storage contract. Keeping this outside `serviceShape` prevents agent
+     * input from upgrading an arbitrary local write into deployable persistent infrastructure.
+     */
+    declaredContainerVolumes: z.object({ paths: z.array(z.string().startsWith('/')).min(1) }).optional(),
+    /**
+     * A local database the application selects when no external connection variable is supplied.
+     *
+     * Probe-only: this records a source-derived default, not a recommendation. Composition uses it
+     * to reject network-filesystem persistence unless an exact managed-database connection replaces
+     * the default.
+     */
+    defaultLocalDatabase: z
+      .object({
+        kind: z.literal('sqlite'),
+        path: z.string().startsWith('/'),
+        connectionVariable: z.string().regex(/^[A-Z][A-Z0-9_]+$/)
+      })
+      .optional(),
+    /**
+     * Managed database engines this application can use instead of its local default.
+     *
+     * Probe-only: build features and configuration source can prove compatibility, but compatibility
+     * is not evidence that the application currently requires or uses that engine. Composition may
+     * offer one as a disclosed persistence decision; it must never become a dependency fact here.
+     */
+    managedDatabaseCapabilities: z
+      .array(
+        z.object({
+          kind: z.enum(['postgres', 'mysql', 'mssql']),
+          connectionVariable: z.string().regex(/^[A-Z][A-Z0-9_]+$/),
+          evidence: z.array(citationSchema).min(1)
+        })
+      )
+      .min(1)
+      .optional(),
     source: factSourceSchema
   })
   .superRefine(checkServiceConsistency);

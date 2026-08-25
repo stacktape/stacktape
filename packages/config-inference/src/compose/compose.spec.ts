@@ -926,6 +926,101 @@ describe('composeConfig', () => {
     });
   });
 
+  it('does not claim deployment readiness for local state without an image volume contract', () => {
+    const composed = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            writesLocalFilesystem: { paths: ['/data'], purpose: 'sqlite' }
+          })
+        ]
+      })
+    });
+
+    expect(composed.deployable).toBe(false);
+    expect(composed.config.resources.webData).toBeUndefined();
+    expect(composed.gaps).toContainEqual(
+      expect.objectContaining({
+        subject: 'web.persistent-storage',
+        message: expect.stringMatching(/passwords, keys, SQLite data.*lost when the runtime restarts/i)
+      })
+    );
+  });
+
+  it('does not treat SQLite on EFS as application-consistent database persistence', () => {
+    const composed = composeConfig({
+      facts: facts({
+        services: [
+          service({
+            writesLocalFilesystem: { paths: ['/data'], purpose: 'sqlite' },
+            declaredContainerVolumes: { paths: ['/data'] },
+            defaultLocalDatabase: {
+              kind: 'sqlite',
+              path: '/data/db.sqlite3',
+              connectionVariable: 'DATABASE_URL'
+            }
+          })
+        ]
+      })
+    });
+
+    expect(composed.config.resources.webData?.type).toBe('efs-filesystem');
+    expect(composed.deployable).toBe(false);
+    expect(composed.gaps).toContainEqual(
+      expect.objectContaining({
+        subject: 'web.database-persistence',
+        message: expect.stringMatching(
+          /SQLite WAL.*network filesystems.*application-consistent.*managed database.*disabling WAL/i
+        )
+      })
+    );
+  });
+
+  it('records the managed-database replacement as a choice rather than a discovered dependency', () => {
+    const input = facts({
+      services: [
+        service({
+          writesLocalFilesystem: { paths: ['/data'], purpose: 'sqlite' },
+          declaredContainerVolumes: { paths: ['/data'] },
+          defaultLocalDatabase: {
+            kind: 'sqlite',
+            path: '/data/app.sqlite3',
+            connectionVariable: 'DATABASE_URL'
+          },
+          managedDatabaseCapabilities: [
+            {
+              kind: 'postgres',
+              connectionVariable: 'DATABASE_URL',
+              evidence: [{ file: 'Cargo.toml', line: 8, quote: 'postgresql = ["diesel/postgres"]' }]
+            }
+          ]
+        })
+      ]
+    });
+
+    expect(input.dependencies).toEqual([]);
+    const composed = composeConfig({ facts: input });
+
+    expect(composed.config.resources.mainDatabase?.type).toBe('relational-database');
+    expect(composed.config.resources.databaseBastion?.type).toBe('bastion');
+    expect(composed.config.resources.web?.properties.environment).toContainEqual({
+      name: 'DATABASE_URL',
+      value: "$ResourceParam('mainDatabase', 'connectionString')"
+    });
+    expect(composed.assumptions).toContainEqual(
+      expect.objectContaining({
+        id: 'sqlite-persistence:web',
+        kind: 'sqlite-persistence',
+        chosen: 'migrate-to-managed-database',
+        alternatives: ['migrate-to-managed-database', 'persistent-volume'],
+        parameters: expect.objectContaining({ managedDatabaseKind: 'postgres' }),
+        notable: true
+      })
+    );
+    expect(composed.provenance.mainDatabase?.reason).toMatch(/persistence decision.*unsafe local SQLite/i);
+    expect(composed.deployable).toBe(true);
+  });
+
   it('gives colliding names distinct resource keys', () => {
     const { config } = composeConfig({
       facts: facts({

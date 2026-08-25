@@ -154,6 +154,14 @@ export const runImportQualification = async ({
         failures
       });
     }
+    if (expected.decisionKinds !== undefined) {
+      assertExactCounts({
+        label: 'decision kinds',
+        expected: expected.decisionKinds,
+        actual: countBy(decisions, 'kind'),
+        failures
+      });
+    }
     if (services.length !== expected.serviceCount) {
       failures.push(`service count: expected ${expected.serviceCount}; got ${services.length}.`);
     }
@@ -193,6 +201,9 @@ export const runImportQualification = async ({
       const expression = new RegExp(pattern, 'i');
       const matching = gapText.find((gap) => expression.test(gap));
       if (matching !== undefined) failures.push(`gap unexpectedly matches /${pattern}/i: ${matching}`);
+    }
+    if (expected.deployable !== undefined && result.composition.deployable !== expected.deployable) {
+      failures.push(`deployable: expected ${expected.deployable}; got ${result.composition.deployable}.`);
     }
   }
 

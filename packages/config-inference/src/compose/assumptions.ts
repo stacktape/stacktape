@@ -42,6 +42,37 @@ export type Assumption = {
   notable: boolean;
 };
 
+export type DecisionNotice = { summary: string; detail: string };
+
+/**
+ * Shared house copy for decisions whose safety consequence must be equally prominent in the
+ * browser review and headless terminal output.
+ */
+export const decisionNoticeFor = (
+  assumption: Pick<Assumption, 'kind' | 'chosen' | 'parameters'>
+): DecisionNotice | undefined => {
+  if (assumption.kind !== 'sqlite-persistence') return undefined;
+  const serviceName =
+    typeof assumption.parameters.serviceName === 'string' ? assumption.parameters.serviceName : 'the application';
+  const managedDatabaseKind = assumption.parameters.managedDatabaseKind;
+  if (managedDatabaseKind !== 'postgres' && managedDatabaseKind !== 'mysql' && managedDatabaseKind !== 'mssql') {
+    return undefined;
+  }
+  const engine = ({ postgres: 'PostgreSQL', mysql: 'MySQL', mssql: 'SQL Server' } as const)[managedDatabaseKind];
+
+  return assumption.chosen === 'migrate-to-managed-database'
+    ? {
+        summary: `Stacktape replaces ${serviceName}'s default SQLite database with managed ${engine}`,
+        detail:
+          'SQLite WAL is unsafe on EFS. This adds a paid RDS database and, with the recommended private access, a bastion. Existing SQLite data is not migrated automatically; export and import it before switching production traffic.'
+      }
+    : {
+        summary: `Keeping ${serviceName}'s SQLite database on EFS is not deployment-ready`,
+        detail:
+          'SQLite WAL is unsafe on network filesystems, and an EFS file backup is not an application-consistent database backup. Disabling WAL alone does not make this safe.'
+      };
+};
+
 /** The kinds where a wrong guess is discovered in production rather than immediately. */
 const NOTABLE_KINDS: ReadonlySet<Uncertainty['kind']> = new Set([
   'external-database-disposition',

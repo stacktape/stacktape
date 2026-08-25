@@ -26,6 +26,7 @@ import type { EnvironmentVariableRole, EnvironmentVariableUse, ServiceFactInput 
 import type { Citation } from '../facts/citation';
 import type { SourceRead } from './read-source';
 import { AMBIGUOUS_DATABASE_NAMES, AMBIGUOUS_DATABASE_SETTING_NAMES, ENV_NAME_TO_KIND } from './probes/environment';
+import { isNonProductionFixturePath } from './deployment-relevance';
 import { isPlatformEnvironmentVariable } from './platform-environment';
 
 /** Whole-repo and per-service ceilings, so one pathological repository cannot stall the scan. */
@@ -328,7 +329,7 @@ export const enrichEnvironmentUsage = async ({
 
   for (const file of prioritizedFiles) {
     if (totalAssigned >= MAX_FILES_SCANNED) break;
-    if (EXCLUDED_PATH.test(file) || EXCLUDED_FILE.test(file)) continue;
+    if (EXCLUDED_PATH.test(file) || EXCLUDED_FILE.test(file) || isNonProductionFixturePath(file)) continue;
     if (!PATTERNS_BY_EXTENSION.some((entry) => entry.extensions.test(file))) continue;
     const owner = pathsDeepestFirst.find((path) => path === '.' || file === path || file.startsWith(`${path}/`));
     if (owner === undefined) continue;

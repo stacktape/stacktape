@@ -107,6 +107,7 @@ const fromBuiltInCase = (entry: RealProjectCorpusCase): QualificationCaseManifes
   expect: {
     resourceTypes: { ...entry.expect.resourceTypes },
     ...(entry.expect.dependencyKinds === undefined ? {} : { dependencyKinds: { ...entry.expect.dependencyKinds } }),
+    ...(entry.expect.decisionKinds === undefined ? {} : { decisionKinds: { ...entry.expect.decisionKinds } }),
     serviceCount: entry.expect.serviceCount,
     httpServiceCount: entry.expect.httpServiceCount,
     ...(entry.expect.services === undefined ? {} : { services: [...entry.expect.services] }),
@@ -123,7 +124,8 @@ const fromBuiltInCase = (entry: RealProjectCorpusCase): QualificationCaseManifes
       : { forbiddenGapPatterns: [...entry.expect.forbiddenGapPatterns] }),
     ...(entry.expect.forbidCurrentlyHostedDependencies === undefined
       ? {}
-      : { forbidCurrentlyHostedDependencies: entry.expect.forbidCurrentlyHostedDependencies })
+      : { forbidCurrentlyHostedDependencies: entry.expect.forbidCurrentlyHostedDependencies }),
+    ...(entry.expect.deployable === undefined ? {} : { deployable: entry.expect.deployable })
   },
   deployment: {
     policy: 'never',

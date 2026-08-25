@@ -93,4 +93,17 @@ describe('the copy itself', () => {
     expect(copy.summary(parameters, 'create-new')).toBe('Creating a new queue on AWS');
     expect(copy.consequence?.('create-new', parameters)).toBe('A separate, empty queue is created on AWS.');
   });
+
+  it('makes the cost and data consequence of replacing SQLite prominent', () => {
+    const copy = DECISION_COPY['sqlite-persistence']!;
+    const parameters = { serviceName: 'vault', managedDatabaseKind: 'postgres' };
+
+    expect(copy.summary(parameters, 'migrate-to-managed-database')).toBe(
+      "Stacktape replaces vault's default SQLite database with managed PostgreSQL"
+    );
+    expect(copy.detail(parameters, 'migrate-to-managed-database')).toMatch(
+      /SQLite WAL.*EFS.*paid RDS.*bastion.*not migrated automatically/i
+    );
+    expect(copy.consequence?.('migrate-to-managed-database', parameters)).toMatch(/paid.*moved separately/i);
+  });
 });
