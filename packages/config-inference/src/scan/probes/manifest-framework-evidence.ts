@@ -176,13 +176,73 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
 
   const evidence: FrameworkConfigEvidence = { solidStart: false, tanstackStart: false };
   type ReachabilityMode = 'config' | 'plugin';
-  const visited = new Map<ts.Node, Set<ReachabilityMode>>();
+  type ReachabilityState = `${ReachabilityMode}:${'called' | 'value'}`;
+  const visited = new Map<ts.Node, Set<ReachabilityState>>();
+  const mutatedSymbols = new Set<ts.Symbol>();
 
-  const enter = (node: ts.Node, mode: ReachabilityMode): boolean => {
-    const modes = visited.get(node) ?? new Set<ReachabilityMode>();
-    if (modes.has(mode)) return false;
-    modes.add(mode);
-    visited.set(node, modes);
+  const symbolAtMutationTarget = (target: ts.Expression): ts.Symbol | undefined => {
+    const expression = unwrapExpression(target);
+    if (ts.isIdentifier(expression)) return checker.getSymbolAtLocation(expression);
+    if (ts.isPropertyAccessExpression(expression)) return checker.getSymbolAtLocation(expression.name);
+    if (ts.isElementAccessExpression(expression)) return checker.getSymbolAtLocation(expression.argumentExpression);
+    return undefined;
+  };
+
+  const recordMutationTarget = (target: ts.Expression): void => {
+    const expression = unwrapExpression(target);
+    const symbol = symbolAtMutationTarget(expression);
+    if (symbol !== undefined) mutatedSymbols.add(symbol);
+    if (ts.isArrayLiteralExpression(expression)) {
+      for (const element of expression.elements) {
+        if (!ts.isOmittedExpression(element))
+          recordMutationTarget(ts.isSpreadElement(element) ? element.expression : element);
+      }
+    } else if (ts.isObjectLiteralExpression(expression)) {
+      for (const property of expression.properties) {
+        if (ts.isShorthandPropertyAssignment(property)) recordMutationTarget(property.name);
+        if (ts.isPropertyAssignment(property)) recordMutationTarget(property.initializer);
+        if (ts.isSpreadAssignment(property)) recordMutationTarget(property.expression);
+      }
+    }
+  };
+
+  const collectMutations = (node: ts.Node): void => {
+    if (
+      ts.isBinaryExpression(node) &&
+      node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
+      node.operatorToken.kind <= ts.SyntaxKind.LastAssignment
+    ) {
+      recordMutationTarget(node.left);
+    } else if (
+      (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
+      (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken)
+    ) {
+      recordMutationTarget(node.operand);
+    }
+    ts.forEachChild(node, collectMutations);
+  };
+  collectMutations(sourceFile);
+
+  const bindingIsUnchanged = (expression: ts.LeftHandSideExpression, binding: CallableBinding): boolean => {
+    if (mutatedSymbols.has(binding.symbol)) return false;
+    if (binding.kind === 'identifier') return true;
+    if (ts.isPropertyAccessExpression(expression)) {
+      const memberSymbol = checker.getSymbolAtLocation(expression.name);
+      return memberSymbol === undefined || !mutatedSymbols.has(memberSymbol);
+    }
+    if (ts.isElementAccessExpression(expression)) {
+      const memberSymbol = checker.getSymbolAtLocation(expression.argumentExpression);
+      return memberSymbol === undefined || !mutatedSymbols.has(memberSymbol);
+    }
+    return true;
+  };
+
+  const enter = (node: ts.Node, mode: ReachabilityMode, invoked: boolean): boolean => {
+    const state: ReachabilityState = `${mode}:${invoked ? 'called' : 'value'}`;
+    const states = visited.get(node) ?? new Set<ReachabilityState>();
+    if (states.has(state)) return false;
+    states.add(state);
+    visited.set(node, states);
     return true;
   };
 
@@ -206,13 +266,16 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
   }
 
   function inspectSymbolValue(symbol: ts.Symbol, mode: ReachabilityMode, invoked: boolean): void {
+    // A reassigned local or object member no longer has the value represented by its declaration. Refuse to follow
+    // that stale declaration instead of treating a plugin factory that has been overwritten as active config.
+    if (mutatedSymbols.has(symbol)) return;
     for (const declaration of symbol.declarations ?? []) {
       if (ts.isVariableDeclaration(declaration) && declaration.initializer !== undefined) {
         const initializer = unwrapExpression(declaration.initializer);
         if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) {
           if (invoked || mode === 'config') inspectFunctionBody(initializer.body, mode);
         } else {
-          inspectExpression(initializer, mode);
+          inspectExpression(initializer, mode, invoked);
         }
       } else if (ts.isFunctionDeclaration(declaration) && declaration.body !== undefined && invoked) {
         inspectFunctionBody(declaration.body, mode);
@@ -221,7 +284,7 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
         if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) {
           if (invoked || mode === 'config') inspectFunctionBody(initializer.body, mode);
         } else {
-          inspectExpression(initializer, mode);
+          inspectExpression(initializer, mode, invoked);
         }
       } else if (ts.isMethodDeclaration(declaration) && declaration.body !== undefined && invoked) {
         inspectFunctionBody(declaration.body, mode);
@@ -232,13 +295,15 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     }
   }
 
-  function inspectExpression(rawExpression: ts.Expression, mode: ReachabilityMode): void {
+  function inspectExpression(rawExpression: ts.Expression, mode: ReachabilityMode, invoked = false): void {
     const expression = unwrapExpression(rawExpression);
-    if (!enter(expression, mode)) return;
+    if (!enter(expression, mode, invoked)) return;
 
     if (ts.isCallExpression(expression)) {
       const binding = calledBinding(expression.expression, bindings, checker);
-      if (binding !== undefined && binding.role === mode) evidence[binding.framework] = true;
+      if (binding !== undefined && binding.role === mode && bindingIsUnchanged(expression.expression, binding)) {
+        evidence[binding.framework] = true;
+      }
 
       const callee = unwrapExpression(expression.expression);
       if (ts.isIdentifier(callee)) {
@@ -257,8 +322,14 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     }
 
     if (ts.isIdentifier(expression)) {
+      if (invoked) {
+        const binding = calledBinding(expression, bindings, checker);
+        if (binding !== undefined && binding.role === mode && bindingIsUnchanged(expression, binding)) {
+          evidence[binding.framework] = true;
+        }
+      }
       const symbol = checker.getSymbolAtLocation(expression);
-      if (symbol !== undefined) inspectSymbolValue(symbol, mode, false);
+      if (symbol !== undefined) inspectSymbolValue(symbol, mode, invoked);
       return;
     }
 
@@ -288,31 +359,37 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
 
     if (ts.isConditionalExpression(expression)) {
       const condition = constantBoolean(expression.condition);
-      if (condition !== false) inspectExpression(expression.whenTrue, mode);
-      if (condition !== true) inspectExpression(expression.whenFalse, mode);
+      if (condition !== false) inspectExpression(expression.whenTrue, mode, invoked);
+      if (condition !== true) inspectExpression(expression.whenFalse, mode, invoked);
       return;
     }
 
     if (ts.isBinaryExpression(expression)) {
       const condition = constantBoolean(expression.left);
       if (expression.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken) {
-        if (condition !== false) inspectExpression(expression.right, mode);
+        if (condition !== false) inspectExpression(expression.right, mode, invoked);
       } else if (expression.operatorToken.kind === ts.SyntaxKind.BarBarToken) {
-        if (condition !== true) inspectExpression(expression.right, mode);
+        if (condition !== true) inspectExpression(expression.right, mode, invoked);
       } else if (expression.operatorToken.kind === ts.SyntaxKind.CommaToken) {
-        inspectExpression(expression.right, mode);
+        inspectExpression(expression.right, mode, invoked);
       } else if (expression.operatorToken.kind === ts.SyntaxKind.QuestionQuestionToken) {
-        inspectExpression(expression.left, mode);
-        inspectExpression(expression.right, mode);
+        inspectExpression(expression.left, mode, invoked);
+        inspectExpression(expression.right, mode, invoked);
       }
       return;
     }
 
     if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+      if (invoked) {
+        const binding = calledBinding(expression, bindings, checker);
+        if (binding !== undefined && binding.role === mode && bindingIsUnchanged(expression, binding)) {
+          evidence[binding.framework] = true;
+        }
+      }
       const symbol = checker.getSymbolAtLocation(
         ts.isPropertyAccessExpression(expression) ? expression.name : expression.argumentExpression
       );
-      if (symbol !== undefined) inspectSymbolValue(symbol, mode, false);
+      if (symbol !== undefined) inspectSymbolValue(symbol, mode, invoked);
     }
   }
 
@@ -409,7 +486,25 @@ const executableName = (token: string): string => {
   return (normalized.split('/').at(-1) ?? normalized).replace(/\.(?:cmd|exe)$/i, '').toLowerCase();
 };
 
-const YARN_OPTIONS_WITH_VALUES = new Set(['--cwd', '--mutex', '--network-timeout', '--use-yarnrc']);
+// Required-value global options declared by Yarn Classic 1.22's CLI. Keeping this explicit prevents an option value
+// such as `vinxi` from being mistaken for the executable while still allowing real scripts to put global flags before
+// either `run` or the script name.
+const YARN_OPTIONS_WITH_VALUES = new Set([
+  '--cache-folder',
+  '--cwd',
+  '--global-folder',
+  '--https-proxy',
+  '--link-folder',
+  '--modules-folder',
+  '--mutex',
+  '--network-concurrency',
+  '--network-timeout',
+  '--otp',
+  '--preferred-cache-folder',
+  '--proxy',
+  '--registry',
+  '--use-yarnrc'
+]);
 
 const skipYarnOptions = (tokens: string[]): string[] => {
   let remaining = tokens;

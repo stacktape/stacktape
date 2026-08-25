@@ -934,12 +934,12 @@ describe('nested resource identity', () => {
  */
 describe('single-server-Lambda SSR web materialization', () => {
   const SSR_WEB_FRAMEWORKS = [
-    { resourceType: 'astro-web', getter: 'astroWebs', hashedAssetDirectory: '_astro' },
-    { resourceType: 'nuxt-web', getter: 'nuxtWebs', hashedAssetDirectory: '_nuxt' },
-    { resourceType: 'sveltekit-web', getter: 'sveltekitWebs', hashedAssetDirectory: '_app' },
-    { resourceType: 'solidstart-web', getter: 'solidstartWebs', hashedAssetDirectory: '_build' },
-    { resourceType: 'tanstack-web', getter: 'tanstackWebs', hashedAssetDirectory: '_build' },
-    { resourceType: 'remix-web', getter: 'remixWebs', hashedAssetDirectory: 'assets' }
+    { resourceType: 'astro-web', getter: 'astroWebs', hashedAssetDirectories: ['_astro'] },
+    { resourceType: 'nuxt-web', getter: 'nuxtWebs', hashedAssetDirectories: ['_nuxt'] },
+    { resourceType: 'sveltekit-web', getter: 'sveltekitWebs', hashedAssetDirectories: ['_app'] },
+    { resourceType: 'solidstart-web', getter: 'solidstartWebs', hashedAssetDirectories: ['_build'] },
+    { resourceType: 'tanstack-web', getter: 'tanstackWebs', hashedAssetDirectories: ['assets', '_build'] },
+    { resourceType: 'remix-web', getter: 'remixWebs', hashedAssetDirectories: ['assets'] }
   ] as const;
 
   type SsrWebFramework = (typeof SSR_WEB_FRAMEWORKS)[number];
@@ -1108,43 +1108,44 @@ describe('single-server-Lambda SSR web materialization', () => {
     });
   });
 
-  test('routes only the framework hashed-asset directory straight to the bucket', () => {
+  test('routes every supported framework hashed-asset directory straight to the bucket', () => {
     SSR_WEB_FRAMEWORKS.forEach((framework) => {
-      const [assetRoute, ...otherRoutes] = serverCdnOf(framework).routeRewrites || [];
+      const assetRoutes = serverCdnOf(framework).routeRewrites || [];
 
-      expect(otherRoutes).toEqual([]);
-      expect(assetRoute.path).toBe(`${framework.hashedAssetDirectory}/*`);
-      expect(assetRoute.routeTo).toEqual({
-        type: 'bucket',
-        properties: { bucketName: 'site.bucket', disableUrlNormalization: true }
-      });
-      expect(assetRoute.cachingOptions).toEqual({
-        cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
-        cachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6'
-      });
-      expect(assetRoute.forwardingOptions?.allowedMethods).toEqual(['GET', 'HEAD', 'OPTIONS']);
-      // Static objects carry no origin request policy at all, rather than the server's.
-      expect(asCloudformationValue(assetRoute.forwardingOptions?.originRequestPolicyId)).toEqual({
-        Ref: 'AWS::NoValue'
+      expect(assetRoutes.map(({ path }) => path)).toEqual(
+        framework.hashedAssetDirectories.map((directory) => `${directory}/*`)
+      );
+      assetRoutes.forEach((assetRoute) => {
+        expect(assetRoute.routeTo).toEqual({
+          type: 'bucket',
+          properties: { bucketName: 'site.bucket', disableUrlNormalization: true }
+        });
+        expect(assetRoute.cachingOptions).toEqual({
+          cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
+          cachePolicyId: '658327ea-f89d-4fab-a63d-7e88639e58f6'
+        });
+        expect(assetRoute.forwardingOptions?.allowedMethods).toEqual(['GET', 'HEAD', 'OPTIONS']);
+        // Static objects carry no origin request policy at all, rather than the server's.
+        expect(asCloudformationValue(assetRoute.forwardingOptions?.originRequestPolicyId)).toEqual({
+          Ref: 'AWS::NoValue'
+        });
       });
     });
   });
 
-  test('pins the hashed-asset directory each framework actually builds into', () => {
-    // This is the only value the six materializations disagree on. `solidstart-web` and `tanstack-web` share `_build`
-    // because both are Vite defaults; the rest are their own framework's convention.
+  test('pins the hashed-asset directories emitted by every supported output generation', () => {
     expect(
       SSR_WEB_FRAMEWORKS.map((framework) => [
         framework.resourceType,
-        (serverCdnOf(framework).routeRewrites || [])[0].path
+        (serverCdnOf(framework).routeRewrites || []).map(({ path }) => path)
       ])
     ).toEqual([
-      ['astro-web', '_astro/*'],
-      ['nuxt-web', '_nuxt/*'],
-      ['sveltekit-web', '_app/*'],
-      ['solidstart-web', '_build/*'],
-      ['tanstack-web', '_build/*'],
-      ['remix-web', 'assets/*']
+      ['astro-web', ['_astro/*']],
+      ['nuxt-web', ['_nuxt/*']],
+      ['sveltekit-web', ['_app/*']],
+      ['solidstart-web', ['_build/*']],
+      ['tanstack-web', ['assets/*', '_build/*']],
+      ['remix-web', ['assets/*']]
     ]);
   });
 
@@ -1155,14 +1156,13 @@ describe('single-server-Lambda SSR web materialization', () => {
       expect(directoryUpload?.directoryPath).toBe(`${buildFolderPathFor(framework)}/bucket-content`);
       expect(directoryUpload?.fileOptions).toEqual([
         {
-          includePattern: `${framework.hashedAssetDirectory}/**/*`,
-          headers: [{ key: 'cache-control', value: 'public,max-age=31536000,immutable' }]
-        },
-        {
-          excludePattern: `${framework.hashedAssetDirectory}/**/*`,
           includePattern: '**/*',
           headers: [{ key: 'cache-control', value: 'public,max-age=0,s-maxage=31536000,must-revalidate' }]
-        }
+        },
+        ...framework.hashedAssetDirectories.map((directory) => ({
+          includePattern: `${directory}/**/*`,
+          headers: [{ key: 'cache-control', value: 'public,max-age=31536000,immutable' }]
+        }))
       ]);
     });
   });
@@ -1177,7 +1177,7 @@ describe('single-server-Lambda SSR web materialization', () => {
         ._nestedResources.bucket;
 
       expect(directoryUpload?.fileOptions?.[0]).toEqual(authoredFileOption);
-      expect(directoryUpload?.fileOptions).toHaveLength(3);
+      expect(directoryUpload?.fileOptions).toHaveLength(2 + framework.hashedAssetDirectories.length);
     });
   });
 
@@ -1214,18 +1214,17 @@ describe('single-server-Lambda SSR web materialization', () => {
 
   test('lets a path caching override retune the hashed-asset route without moving its origin', () => {
     SSR_WEB_FRAMEWORKS.forEach((framework) => {
+      const primaryHashedAssetDirectory = framework.hashedAssetDirectories[0];
       const routeRewrites =
         serverCdnOf(framework, {
           appDirectory: './',
           cdn: {
-            pathCachingOverrides: [
-              { path: `/${framework.hashedAssetDirectory}/*`, cachingOptions: { defaultTTL: 120 } }
-            ]
+            pathCachingOverrides: [{ path: `/${primaryHashedAssetDirectory}/*`, cachingOptions: { defaultTTL: 120 } }]
           }
         }).routeRewrites || [];
 
-      expect(routeRewrites).toHaveLength(1);
-      expect(routeRewrites[0].path).toBe(`${framework.hashedAssetDirectory}/*`);
+      expect(routeRewrites).toHaveLength(framework.hashedAssetDirectories.length);
+      expect(routeRewrites[0].path).toBe(`${primaryHashedAssetDirectory}/*`);
       // Matching ignores a leading slash, merges caching only, and leaves the bucket origin in place.
       expect(routeRewrites[0].cachingOptions).toEqual({
         cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
@@ -1244,14 +1243,18 @@ describe('single-server-Lambda SSR web materialization', () => {
           cdn: { pathCachingOverrides: [{ path: '/api/*', cachingOptions: { defaultTTL: 5 } }] }
         }).routeRewrites || [];
 
-      expect(routeRewrites.map(({ path }) => path)).toEqual([`${framework.hashedAssetDirectory}/*`, '/api/*']);
-      expect(routeRewrites[1].routeTo).toBeUndefined();
-      expect(routeRewrites[1].forwardingOptions?.originRequestPolicyId).toBe('b689b0a8-53d0-40ab-baf2-68738e2966ac');
-      expect(asCloudformationValue(routeRewrites[1].edgeFunctions?.onRequest)).toEqual({
+      expect(routeRewrites.map(({ path }) => path)).toEqual([
+        ...framework.hashedAssetDirectories.map((directory) => `${directory}/*`),
+        '/api/*'
+      ]);
+      const apiRoute = routeRewrites.at(-1)!;
+      expect(apiRoute.routeTo).toBeUndefined();
+      expect(apiRoute.forwardingOptions?.originRequestPolicyId).toBe('b689b0a8-53d0-40ab-baf2-68738e2966ac');
+      expect(asCloudformationValue(apiRoute.edgeFunctions?.onRequest)).toEqual({
         'Fn::GetAtt': [cfLogicalNames.ssrWebHostHeaderRewriteFunction('site', framework.resourceType), 'FunctionARN']
       });
-      expect(routeRewrites[1].cachingOptions?.defaultTTL).toBe(5);
-      expect(routeRewrites[1].cachingOptions?.maxTTL).toBe(31536000);
+      expect(apiRoute.cachingOptions?.defaultTTL).toBe(5);
+      expect(apiRoute.cachingOptions?.maxTTL).toBe(31536000);
     });
   });
 

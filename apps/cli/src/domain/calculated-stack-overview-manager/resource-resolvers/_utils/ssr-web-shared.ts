@@ -77,11 +77,11 @@ export const getStaticAssetsCacheBehaviorTemplateOverride =
   ({
     resourceName,
     assetsDirectoryPath,
-    staticPathPrefix
+    staticPathPrefixes
   }: {
     resourceName: string;
     assetsDirectoryPath: string;
-    staticPathPrefix?: string;
+    staticPathPrefixes: readonly string[];
   }) =>
   async (template: CloudFormationTemplate) => {
     // Check if assets directory exists
@@ -104,17 +104,24 @@ export const getStaticAssetsCacheBehaviorTemplateOverride =
       const cacheBehaviors = (distribution.Properties.DistributionConfig as DistributionConfig)
         .CacheBehaviors as CacheBehavior[];
 
-      const staticBehaviourIndex = cacheBehaviors.findIndex(
-        (b) => b.PathPattern === '<<TBD_STATIC>>' || (staticPathPrefix && b.PathPattern === `${staticPathPrefix}/*`)
-      );
+      const staticPathPatterns = new Set([
+        '<<TBD_STATIC>>',
+        ...staticPathPrefixes.map((staticPathPrefix) => `${staticPathPrefix}/*`)
+      ]);
+      const isStaticPathPattern = (pathPattern: CacheBehavior['PathPattern']) =>
+        typeof pathPattern === 'string' && staticPathPatterns.has(pathPattern);
+      const staticBehaviours = cacheBehaviors.filter(({ PathPattern }) => isStaticPathPattern(PathPattern));
 
-      if (staticBehaviourIndex === -1) {
+      if (staticBehaviours.length === 0) {
         continue;
       }
 
-      const [staticFilesCacheBehaviour] = cacheBehaviors.splice(staticBehaviourIndex, 1);
+      const nonStaticBehaviours = cacheBehaviors.filter(({ PathPattern }) => !isStaticPathPattern(PathPattern));
+      cacheBehaviors.splice(0, cacheBehaviors.length, ...nonStaticBehaviours);
 
       newCacheBehaviours.forEach((behaviour) => {
+        const staticFilesCacheBehaviour =
+          staticBehaviours.find(({ PathPattern }) => PathPattern === behaviour.PathPattern) ?? staticBehaviours[0]!;
         const existingBehaviourIndex = cacheBehaviors.findIndex(
           ({ PathPattern }) => PathPattern === behaviour.PathPattern
         );
@@ -188,6 +195,13 @@ export type SsrWebFrameworkConfig = {
     wrapperType: 'passthrough' | 'node-http' | 'web-fetch' | 'tanstack-fetch';
   }>;
 };
+
+export const getSsrWebStaticAssetPrefixes = (frameworkConfig: SsrWebFrameworkConfig): string[] => [
+  ...new Set([
+    frameworkConfig.staticAssetPrefix,
+    ...(frameworkConfig.fallbackOutputVariants ?? []).map(({ staticAssetPrefix }) => staticAssetPrefix)
+  ])
+];
 
 export const SSR_WEB_FRAMEWORK_CONFIGS: Record<SsrWebResourceType, SsrWebFrameworkConfig> = {
   'astro-web': {

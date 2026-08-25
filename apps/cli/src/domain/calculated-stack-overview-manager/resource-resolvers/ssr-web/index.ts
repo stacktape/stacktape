@@ -16,6 +16,7 @@ import { resolveFunction } from '../functions';
 import {
   getHostHeaderRewriteCloudfrontFunction,
   getDistributionRootObjectTemplateOverride,
+  getSsrWebStaticAssetPrefixes,
   getStaticAssetsCacheBehaviorTemplateOverride,
   SSR_WEB_FRAMEWORK_CONFIGS,
   type SsrWebResourceType
@@ -54,7 +55,7 @@ const resolveSsrWeb = (ssrWeb: SsrWebResource, resourceType: SsrWebResourceType)
     getStaticAssetsCacheBehaviorTemplateOverride({
       resourceName: serverFunction.name,
       assetsDirectoryPath: `${buildPath}/bucket-content`,
-      staticPathPrefix: frameworkConfig.staticAssetPrefix
+      staticPathPrefixes: getSsrWebStaticAssetPrefixes(frameworkConfig)
     })
   );
 

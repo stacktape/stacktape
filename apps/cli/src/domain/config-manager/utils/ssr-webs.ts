@@ -99,30 +99,30 @@ export const applySsrWebPathCachingOverrides = ({
 export type SingleLambdaSsrWebType = SsrWebResource['type'];
 
 /**
- * The only thing the six frameworks disagree on: the build-output directory the framework writes its content-hashed
- * assets into.
+ * The build-output directories the six frameworks write their content-hashed assets into.
  *
- * It is load-bearing three times over — as the CDN route served straight from the bucket instead of the server
- * Lambda, and as the include/exclude pair that gives those hashed files immutable cache headers while everything else
- * revalidates. Changing an entry changes which requests reach the server function, so these are framework facts, not
- * preferences. Current TanStack Start's Vite output uses `assets`; legacy Nitro output used `_build`.
+ * It is load-bearing three times over — as the CDN route served straight from the bucket instead of the server Lambda,
+ * and as the upload filters that give those hashed files immutable cache headers while everything else revalidates.
+ * Changing an entry changes which requests reach the server function, so these are framework facts, not preferences.
+ * A framework can have more than one entry when supported output generations use different prefixes: current TanStack
+ * Start uses `assets`, while its legacy Nitro output used `_build`.
  */
-export const HASHED_ASSET_DIRECTORY_BY_TYPE = {
-  'astro-web': '_astro',
-  'nuxt-web': '_nuxt',
-  'sveltekit-web': '_app',
-  'solidstart-web': '_build',
-  'tanstack-web': 'assets',
-  'remix-web': 'assets'
-} satisfies Record<SingleLambdaSsrWebType, string>;
+export const HASHED_ASSET_DIRECTORIES_BY_TYPE = {
+  'astro-web': ['_astro'],
+  'nuxt-web': ['_nuxt'],
+  'sveltekit-web': ['_app'],
+  'solidstart-web': ['_build'],
+  'tanstack-web': ['assets', '_build'],
+  'remix-web': ['assets']
+} as const satisfies Record<SingleLambdaSsrWebType, readonly string[]>;
 
 /**
  * Builds the two resources one of the six single-server-Lambda SSR frameworks brings with it: the bucket its static
  * output is uploaded to, and the Lambda that renders everything else behind a CloudFront distribution.
  *
  * Everything below is shared by all six. The framework only enters through its own resource type — which names the
- * build directory and the host-header-rewrite CloudFront function — and through the hashed-asset directory read from
- * the table above.
+ * build directory and the host-header-rewrite CloudFront function — and through the supported hashed-asset directories
+ * read from the table above.
  *
  * `nextjs-web` is deliberately not one of these. It synthesizes nine children including revalidation infrastructure,
  * image optimization and an optional edge server, and keeps its own getter.
@@ -150,7 +150,7 @@ export const buildSsrWebNestedResources = ({
 
   const bucket = getNestedResourceIdentity(ssrWeb, 'bucket');
   const serverFunction = getNestedResourceIdentity(ssrWeb, 'serverFunction');
-  const hashedAssetDirectory = HASHED_ASSET_DIRECTORY_BY_TYPE[resourceType];
+  const hashedAssetDirectories: readonly string[] = HASHED_ASSET_DIRECTORIES_BY_TYPE[resourceType];
 
   const serverCachingOptions: CdnCachingOptions = {
     cacheMethods: ['GET', 'HEAD', 'OPTIONS'],
@@ -210,20 +210,18 @@ export const buildSsrWebNestedResources = ({
       defaultCachingOptions,
       defaultForwardingOptions: serverForwardingOptions,
       defaultEdgeFunctions: createEdgeFunctions(),
-      routeRewrites: [
-        {
-          path: `${hashedAssetDirectory}/*`,
-          forwardingOptions: staticBucketDataForwardingOptions,
-          cachingOptions: staticBucketDataCachingOptions,
-          routeTo: {
-            type: 'bucket',
-            properties: {
-              bucketName: bucket.stpReferenceableName,
-              disableUrlNormalization: true
-            }
+      routeRewrites: hashedAssetDirectories.map((hashedAssetDirectory) => ({
+        path: `${hashedAssetDirectory}/*`,
+        forwardingOptions: staticBucketDataForwardingOptions,
+        cachingOptions: staticBucketDataCachingOptions,
+        routeTo: {
+          type: 'bucket',
+          properties: {
+            bucketName: bucket.stpReferenceableName,
+            disableUrlNormalization: true
           }
         }
-      ]
+      }))
     })
   };
 
@@ -238,14 +236,13 @@ export const buildSsrWebNestedResources = ({
         fileOptions: [
           ...(fileOptions || []),
           {
-            includePattern: `${hashedAssetDirectory}/**/*`,
-            headers: [{ key: 'cache-control', value: 'public,max-age=31536000,immutable' }]
-          },
-          {
-            excludePattern: `${hashedAssetDirectory}/**/*`,
             includePattern: '**/*',
             headers: [{ key: 'cache-control', value: 'public,max-age=0,s-maxage=31536000,must-revalidate' }]
-          }
+          },
+          ...hashedAssetDirectories.map((hashedAssetDirectory) => ({
+            includePattern: `${hashedAssetDirectory}/**/*`,
+            headers: [{ key: 'cache-control', value: 'public,max-age=31536000,immutable' }]
+          }))
         ]
       }
     },
