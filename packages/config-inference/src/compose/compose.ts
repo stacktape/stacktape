@@ -138,6 +138,15 @@ const mostSpecificServicesOwningPath = (services: readonly ServiceFact[], path: 
   return owners.filter((service) => (service.path === '.' ? 0 : service.path.split('/').length) === deepest);
 };
 
+const isSharedDependencyEvidence = (path: string): boolean => {
+  const name = posix.basename(path);
+  return (
+    !path.includes('/') &&
+    (/^(?:docker-)?compose\.ya?ml$/i.test(name) ||
+      /^(?:\.env(?:[.-].*)?|env[.-](?:example|sample|template|defaults?)(?:[.-].*)?)$/i.test(name))
+  );
+};
+
 /**
  * Resolve a runtime entrypoint to a service only when the ownership is unambiguous.
  *
@@ -661,28 +670,44 @@ export const composeConfig = ({
   // A dependency used solely by a Worker, or not connected to any recognized service at all, is
   // part of the same unresolved topology. Keep dependencies required by a retained sibling, but do
   // not turn an SDK package hint into a convincing orphan database, queue, or bucket.
-  const dependencies = facts.dependencies.filter((dependency) => {
-    if (cloudflareRuntimeConstraints.length === 0) return true;
-    if (dependency.consumedBy.length === 0) return false;
+  const dependencySelections = facts.dependencies.map((dependency) => {
+    if (cloudflareRuntimeConstraints.length === 0) return { original: dependency, selected: dependency };
+    if (dependency.consumedBy.length === 0) return { original: dependency };
 
-    let evidenceOwners: ServiceFact[] | undefined;
-    return dependency.consumedBy.some((consumerName) => {
+    const sharedEvidence = dependency.evidence.filter((citation) => isSharedDependencyEvidence(citation.file));
+    const scopedEvidenceOwners = dependency.evidence
+      .filter((citation) => !isSharedDependencyEvidence(citation.file))
+      .flatMap((citation) => mostSpecificServicesOwningPath(facts.services, citation.file));
+    const hasSharedEvidence = sharedEvidence.length > 0;
+    const retainedConsumerNames = dependency.consumedBy.filter((consumerName) => {
       const matchingServices = facts.services.filter((service) => service.name === consumerName);
       if (matchingServices.length === 0) return false;
 
       const retainedMatches = matchingServices.filter((service) => services.includes(service));
-      if (retainedMatches.length === matchingServices.length) return true;
       if (retainedMatches.length === 0) return false;
-
-      // Names are normally unique, and the consumer identity is enough. Only consult citation paths
-      // when a retained service and a Cloudflare-owned service genuinely share that identity.
-      evidenceOwners ??= dependency.evidence.flatMap((citation) =>
-        mostSpecificServicesOwningPath(facts.services, citation.file)
+      const retainedEvidenceOwner = scopedEvidenceOwners.some(
+        (owner) => owner.name === consumerName && retainedMatches.includes(owner)
       );
-      return evidenceOwners.some((owner) => owner.name === consumerName && retainedMatches.includes(owner));
+      if (retainedMatches.length !== matchingServices.length) return retainedEvidenceOwner;
+
+      // A root/shared descriptor can establish a unique consumer by name. Evidence scoped inside a
+      // different nested service cannot: keeping that name would later wire the dependency across
+      // application boundaries merely because two facts happened to mention it.
+      return hasSharedEvidence || retainedEvidenceOwner;
     });
+    if (retainedConsumerNames.length === 0) return { original: dependency };
+    return {
+      original: dependency,
+      selected:
+        retainedConsumerNames.length === dependency.consumedBy.length
+          ? dependency
+          : { ...dependency, consumedBy: retainedConsumerNames }
+    };
   });
-  const omittedCloudflareDependencies = facts.dependencies.filter((dependency) => !dependencies.includes(dependency));
+  const dependencies = dependencySelections.flatMap(({ selected }) => (selected === undefined ? [] : [selected]));
+  const omittedCloudflareDependencies = dependencySelections.flatMap(({ original, selected }) =>
+    selected === undefined ? [original] : []
+  );
   const recommendedPreferences = defaultDeploymentPreferences(facts);
   const preferences: DeploymentPreferences = {
     ...(mode === undefined ? recommendedPreferences : MODE_PREFERENCES[mode]),

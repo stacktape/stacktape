@@ -24,6 +24,7 @@ import type { Citation } from '../../facts/citation';
 import { posix } from 'node:path';
 import { parse as parseToml } from 'smol-toml';
 import * as ts from 'typescript';
+import yaml from 'yaml';
 import { readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
 const CLOUDFLARE_MANIFEST_NAMES = ['wrangler.toml', 'wrangler.json', 'wrangler.jsonc'] as const;
@@ -153,15 +154,34 @@ const isWorkspaceMember = (directory: string, patterns: readonly string[]): bool
   return included;
 };
 
+const boundedWorkspacePatterns = (entries: readonly unknown[]): string[] =>
+  entries
+    .filter((entry): entry is string => typeof entry === 'string' && entry.trim().length > 0 && entry.length <= 256)
+    .slice(0, 128);
+
 const packageWorkspacePatterns = (raw: string | null | undefined): string[] => {
   if (raw === null || raw === undefined) return [];
   try {
     const parsed = JSON.parse(raw) as { workspaces?: unknown };
     if (Array.isArray(parsed.workspaces)) {
-      return parsed.workspaces.filter((entry): entry is string => typeof entry === 'string');
+      return boundedWorkspacePatterns(parsed.workspaces);
     }
     const packages = (parsed.workspaces as { packages?: unknown } | undefined)?.packages;
-    return Array.isArray(packages) ? packages.filter((entry): entry is string => typeof entry === 'string') : [];
+    return Array.isArray(packages) ? boundedWorkspacePatterns(packages) : [];
+  } catch {
+    return [];
+  }
+};
+
+const pnpmWorkspacePatterns = (raw: string | undefined): string[] => {
+  if (raw === undefined) return [];
+  try {
+    const document = yaml.parseDocument(raw);
+    if (document.errors.length > 0) return [];
+    const parsed = document.toJSON() as unknown;
+    if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return [];
+    const packages = (parsed as { packages?: unknown }).packages;
+    return Array.isArray(packages) ? boundedWorkspacePatterns(packages) : [];
   } catch {
     return [];
   }
@@ -211,12 +231,7 @@ const activeCloudflareApplicationDirectories = async (context: ProbeContext): Pr
         : Promise.resolve(null)
     )
   ]);
-  const workspacePatterns = [
-    ...packageWorkspacePatterns(rootPackage),
-    ...(pnpmWorkspace === undefined
-      ? []
-      : [...pnpmWorkspace.matchAll(/^\s*-\s*['"]?([^'"\n]+)['"]?\s*$/gm)].map((match) => match[1]!.trim()))
-  ];
+  const workspacePatterns = [...packageWorkspacePatterns(rootPackage), ...pnpmWorkspacePatterns(pnpmWorkspace)];
 
   return new Set(
     directories.filter((directory, index) => {

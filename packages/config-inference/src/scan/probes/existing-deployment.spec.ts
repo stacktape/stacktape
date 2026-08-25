@@ -771,9 +771,101 @@ describe('the existing-deployment probe', () => {
     expect(composed.deployable).toBe(false);
   });
 
+  it('does not keep a multi-consumer dependency cited only inside the suppressed same-name service', () => {
+    const facts = projectFactsSchema.parse({
+      schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+      services: [
+        {
+          name: 'api',
+          path: 'apps/edge',
+          language: 'javascript',
+          exposesHttp: true,
+          executionModel: 'long-running',
+          startCommand: 'wrangler dev',
+          evidence: [{ file: 'apps/edge/package.json', line: 1, quote: '"name"' }],
+          source: 'probe'
+        },
+        {
+          name: 'api',
+          path: 'apps/node',
+          language: 'javascript',
+          exposesHttp: true,
+          executionModel: 'long-running',
+          startCommand: 'node index.js',
+          evidence: [{ file: 'apps/node/package.json', line: 1, quote: '"name"' }],
+          source: 'probe'
+        },
+        {
+          name: 'web',
+          path: 'apps/web',
+          language: 'javascript',
+          exposesHttp: true,
+          executionModel: 'long-running',
+          startCommand: 'node index.js',
+          evidence: [{ file: 'apps/web/package.json', line: 1, quote: '"name"' }],
+          source: 'probe'
+        }
+      ],
+      dependencies: [
+        {
+          name: 'edgeDatabase',
+          kind: 'postgres',
+          consumedBy: ['api', 'web'],
+          addressedBy: ['DATABASE_URL'],
+          evidence: [{ file: 'apps/edge/wrangler.json', line: 1, quote: 'd1_databases' }],
+          source: 'probe'
+        },
+        {
+          name: 'webCache',
+          kind: 'redis',
+          consumedBy: ['api', 'web'],
+          addressedBy: ['REDIS_URL'],
+          evidence: [{ file: 'apps/web/package.json', line: 1, quote: 'redis' }],
+          source: 'probe'
+        }
+      ],
+      existingDeployments: [
+        {
+          tool: 'cloudflare-workers',
+          managesAws: false,
+          runtimeConstraints: [
+            {
+              platform: 'cloudflare-worker',
+              scope: 'apps/edge',
+              entrypoint: 'apps/edge/src/index.ts',
+              evidence: [{ file: 'apps/edge/wrangler.json', line: 1, quote: 'main' }]
+            }
+          ],
+          evidence: [{ file: 'apps/edge/wrangler.json', line: 1, quote: 'main' }],
+          source: 'probe'
+        }
+      ]
+    });
+    const composed = composeConfig({ facts, projectName: 'workspace' });
+
+    expect(composed.config.resources.api?.type).toBe('web-service');
+    expect(composed.config.resources.web?.type).toBe('web-service');
+    expect(composed.config.resources.edgeDatabase).toBeUndefined();
+    expect(composed.config.resources.webCache?.type).toBe('redis-cluster');
+    expect(composed.config.resources.api?.properties.connectTo).toBeUndefined();
+    expect(composed.config.resources.web?.properties.connectTo).toEqual(['webCache']);
+    expect(composed.gaps.find((gap) => gap.subject === 'cloudflare-workers')?.message).toContain(
+      'detected Postgres dependency out'
+    );
+    expect(composed.deployable).toBe(false);
+  });
+
   it('ignores supporting-material Wrangler apps whose package is not active from the repository root', async () => {
     root = await makeRepo({
       'package.json': APP_MANIFEST,
+      'pnpm-workspace.yaml': [
+        'packages:',
+        '  - "apps/*" # the only workspace packages',
+        'onlyBuiltDependencies:',
+        '  - examples/*'
+      ].join('\n'),
+      'apps/api/package.json': APP_MANIFEST,
+      'apps/api/index.js': 'require("express")().listen(3000);',
       'examples/worker/package.json': JSON.stringify({
         name: 'example-worker',
         scripts: { dev: 'wrangler dev' },
@@ -817,7 +909,7 @@ describe('the existing-deployment probe', () => {
   it('recognizes an incidental directory selected by the root pnpm workspace', async () => {
     root = await makeRepo({
       'package.json': JSON.stringify({ name: 'workspace', private: true }),
-      'pnpm-workspace.yaml': 'packages:\n  - examples/*\n',
+      'pnpm-workspace.yaml': 'packages:\n  - "examples/*" # deployed workspace applications\n',
       'examples/worker/package.json': JSON.stringify({ name: 'worker' }),
       'examples/worker/wrangler.json': '{ "main": "src/index.ts" }',
       'examples/worker/src/index.ts': 'export default { fetch() { return new Response("ok"); } };'
@@ -828,6 +920,27 @@ describe('the existing-deployment probe', () => {
     expect(facts.existingDeployments[0]?.runtimeConstraints).toContainEqual(
       expect.objectContaining({ scope: 'examples/worker', entrypoint: 'examples/worker/src/index.ts' })
     );
+  });
+
+  it('recognizes flow-style pnpm workspace packages without reading unrelated lists', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({ name: 'workspace', private: true }),
+      'pnpm-workspace.yaml': ['packages: ["docs/*", \'apps/*\']', 'onlyBuiltDependencies: ["examples/*"]'].join('\n'),
+      'docs/worker/package.json': JSON.stringify({ name: 'docs-worker' }),
+      'docs/worker/wrangler.json': '{ "main": "src/index.ts" }',
+      'docs/worker/src/index.ts': 'export default { fetch() { return new Response("ok"); } };',
+      'examples/worker/package.json': JSON.stringify({ name: 'example-worker' }),
+      'examples/worker/wrangler.json': '{ "main": "src/index.ts" }',
+      'examples/worker/src/index.ts': 'export default { fetch() { return new Response("example"); } };'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    const constraints = facts.existingDeployments[0]?.runtimeConstraints ?? [];
+
+    expect(constraints).toContainEqual(
+      expect.objectContaining({ scope: 'docs/worker', entrypoint: 'docs/worker/src/index.ts' })
+    );
+    expect(constraints.some((constraint) => constraint.scope === 'examples/worker')).toBe(false);
   });
 
   it('recognizes a bounded standalone Wrangler deployment signal outside a root workspace', async () => {
