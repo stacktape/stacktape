@@ -1227,6 +1227,11 @@ describe('assembleCandidateFacts', () => {
         scripts: { build: 'vite build', start: 'yarn --prod vinxi start' },
         dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
       }),
+      'packages/yarn-optional-zero/package.json': JSON.stringify({
+        name: 'yarn-optional-zero',
+        scripts: { build: 'vite build', start: 'yarn --prod 0 vinxi start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
       'packages/yarn-optional-inline/package.json': JSON.stringify({
         name: 'yarn-optional-inline',
         scripts: { build: 'vite build', start: 'yarn --emoji=false vinxi start' },
@@ -1281,8 +1286,8 @@ describe('assembleCandidateFacts', () => {
       'yarn-global-folder',
       'yarn-modules-folder',
       'yarn-optional-bool-options',
-      'yarn-optional-flag-only',
       'yarn-optional-inline',
+      'yarn-optional-zero',
       'yarn-run-vinxi',
       'yarn-silent-vinxi',
       'yarn-vinxi'

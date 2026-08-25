@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, symlink, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -531,6 +531,71 @@ describe('SSR build output organization', () => {
     expect(await readFile(join(artifactRoot, 'bucket-content', 'index.html'), 'utf8')).toBe('legacy');
     expect(await readFile(join(artifactRoot, 'bucket-content', '_build', 'fresh.js'), 'utf8')).toBe('fresh');
     expect(await Bun.file(join(artifactRoot, 'bucket-content', 'assets', 'stale.js')).exists()).toBe(false);
+  });
+
+  test(`refuses to clear output through an intermediate ${process.platform === 'win32' ? 'junction' : 'symbolic link'}`, async () => {
+    const root = await createRoot();
+    const applicationRoot = join(root, 'application');
+    const outsideRoot = join(root, 'outside');
+    const artifactRoot = join(root, 'artifacts');
+    const outsideFile = join(outsideRoot, 'server', 'keep.txt');
+    await mkdir(applicationRoot, { recursive: true });
+    await mkdir(join(outsideRoot, 'server'), { recursive: true });
+    await writeFile(outsideFile, 'must survive');
+    await writeFile(join(applicationRoot, 'package.json'), JSON.stringify({ name: 'linked-output' }));
+    await symlink(outsideRoot, join(applicationRoot, 'dist'), process.platform === 'win32' ? 'junction' : 'dir');
+    let buildStarted = false;
+    let packagingCause: unknown;
+
+    await expect(
+      createSsrWebArtifacts({
+        resourceName: 'linked-output',
+        resourceType: 'tanstack-web',
+        serverFunctionName: 'linked-output-server',
+        distFolderPath: artifactRoot,
+        cwd: root,
+        progressLogger: {
+          eventContext: { instanceId: 'linked-output' },
+          startEvent: () => {},
+          updateEvent: () => {},
+          finishEvent: () => {}
+        },
+        createProgressLogger: () => ({
+          eventContext: { instanceId: 'linked-output.archive' },
+          startEvent: () => {},
+          updateEvent: () => {},
+          finishEvent: () => {}
+        }),
+        buildConfig: {
+          buildCommand: 'vite build',
+          workingDir: applicationRoot,
+          serverOutputPath: 'dist/server',
+          staticOutputPath: 'dist/client',
+          handlerFileName: 'server.js',
+          staticAssetPrefix: 'assets',
+          wrapperType: 'tanstack-fetch'
+        },
+        environmentVars: [],
+        archiveItem: async () => {
+          throw new Error('archive must not run');
+        },
+        createPackagingError: ({ message, cause }) => {
+          packagingCause = cause;
+          return new Error(message, { cause });
+        },
+        executeProcess: async () => {
+          buildStarted = true;
+          return { stdout: '', stderr: '', exitCode: 0 };
+        }
+      })
+    ).rejects.toThrow('Error when packaging tanstack-web "linked-output".');
+
+    expect(buildStarted).toBe(false);
+    expect(packagingCause).toBeInstanceOf(Error);
+    expect((packagingCause as Error).message).toContain(
+      'Refusing to clear SSR build output through a symbolic link or junction'
+    );
+    expect(await readFile(outsideFile, 'utf8')).toBe('must survive');
   });
 
   test('packages the Rsbuild handler under the exact fetch-wrapper import name', async () => {

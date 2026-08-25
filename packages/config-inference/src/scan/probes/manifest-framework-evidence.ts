@@ -209,6 +209,140 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     }
   };
 
+  function symbolsStoredInProperty(
+    rawBase: ts.Expression,
+    memberName: string,
+    seenObjects = new Set<ts.Symbol>()
+  ): Set<ts.Symbol> {
+    const result = new Set<ts.Symbol>();
+    const base = unwrapExpression(rawBase);
+    const inspectObjectValue = (expression: ts.Expression): void => {
+      const value = unwrapExpression(expression);
+      if (ts.isIdentifier(value)) {
+        const symbol = checker.getSymbolAtLocation(value);
+        if (symbol === undefined || seenObjects.has(symbol)) return;
+        seenObjects.add(symbol);
+        for (const declaration of symbol.declarations ?? []) {
+          if (ts.isVariableDeclaration(declaration) && declaration.initializer !== undefined) {
+            inspectObjectValue(declaration.initializer);
+          }
+        }
+        return;
+      }
+      if (!ts.isObjectLiteralExpression(value)) return;
+      for (const property of value.properties) {
+        if (ts.isSpreadAssignment(property)) {
+          for (const symbol of symbolsStoredInProperty(property.expression, memberName, seenObjects)) {
+            result.add(symbol);
+          }
+          continue;
+        }
+        if (propertyName(property.name) !== memberName) continue;
+        const propertySymbol = property.name === undefined ? undefined : checker.getSymbolAtLocation(property.name);
+        if (propertySymbol !== undefined) result.add(propertySymbol);
+        if (ts.isShorthandPropertyAssignment(property)) {
+          const valueSymbol = checker.getShorthandAssignmentValueSymbol(property);
+          if (valueSymbol !== undefined) result.add(valueSymbol);
+        } else if (ts.isPropertyAssignment(property)) {
+          for (const symbol of symbolsForExpressionValue(property.initializer, seenObjects)) result.add(symbol);
+        }
+      }
+    };
+    inspectObjectValue(base);
+    return result;
+  }
+
+  function symbolsForExpressionValue(rawExpression: ts.Expression, seenObjects = new Set<ts.Symbol>()): Set<ts.Symbol> {
+    const result = new Set<ts.Symbol>();
+    const expression = unwrapExpression(rawExpression);
+    if (ts.isIdentifier(expression)) {
+      const symbol = checker.getSymbolAtLocation(expression);
+      if (symbol !== undefined) result.add(symbol);
+      return result;
+    }
+    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+      const memberName = ts.isPropertyAccessExpression(expression)
+        ? expression.name.text
+        : ts.isStringLiteralLike(expression.argumentExpression)
+          ? expression.argumentExpression.text
+          : undefined;
+      const propertySymbol = checker.getSymbolAtLocation(
+        ts.isPropertyAccessExpression(expression) ? expression.name : expression.argumentExpression
+      );
+      if (propertySymbol !== undefined) result.add(propertySymbol);
+      if (memberName !== undefined) {
+        for (const symbol of symbolsStoredInProperty(expression.expression, memberName, seenObjects)) {
+          result.add(symbol);
+        }
+      }
+    }
+    return result;
+  }
+
+  const addValueAliases = (left: ts.Symbol | undefined, right: ts.Expression): void => {
+    if (left === undefined) return;
+    for (const rightSymbol of symbolsForExpressionValue(right)) {
+      if (left !== rightSymbol) valueAliases.push([left, rightSymbol]);
+    }
+  };
+
+  const recordBindingAliases = (name: ts.BindingName, initializer: ts.Expression): void => {
+    if (ts.isIdentifier(name)) {
+      addValueAliases(checker.getSymbolAtLocation(name), initializer);
+      return;
+    }
+    if (ts.isObjectBindingPattern(name)) {
+      for (const element of name.elements) {
+        if (element.dotDotDotToken !== undefined || !ts.isIdentifier(element.name)) continue;
+        const memberName = propertyName(element.propertyName) ?? element.name.text;
+        const left = checker.getSymbolAtLocation(element.name);
+        if (memberName === undefined || left === undefined) continue;
+        for (const right of symbolsStoredInProperty(initializer, memberName)) {
+          if (left !== right) valueAliases.push([left, right]);
+        }
+      }
+      return;
+    }
+    const value = unwrapExpression(initializer);
+    if (!ts.isArrayLiteralExpression(value)) return;
+    for (let index = 0; index < name.elements.length; index += 1) {
+      const binding = name.elements[index];
+      const source = value.elements[index];
+      if (
+        binding === undefined ||
+        ts.isOmittedExpression(binding) ||
+        source === undefined ||
+        !ts.isIdentifier(binding.name)
+      ) {
+        continue;
+      }
+      addValueAliases(
+        checker.getSymbolAtLocation(binding.name),
+        ts.isSpreadElement(source) ? source.expression : source
+      );
+    }
+  };
+
+  const recordAssignmentAliases = (target: ts.Expression, source: ts.Expression): void => {
+    const left = unwrapExpression(target);
+    if (ts.isIdentifier(left)) {
+      addValueAliases(checker.getSymbolAtLocation(left), source);
+      return;
+    }
+    if (ts.isObjectLiteralExpression(left)) {
+      for (const property of left.properties) {
+        if (!ts.isPropertyAssignment(property) || !ts.isIdentifier(unwrapExpression(property.initializer))) continue;
+        const memberName = propertyName(property.name);
+        const alias = unwrapExpression(property.initializer);
+        if (memberName === undefined || !ts.isIdentifier(alias)) continue;
+        const aliasSymbol = checker.getSymbolAtLocation(alias);
+        for (const right of symbolsStoredInProperty(source, memberName)) {
+          if (aliasSymbol !== undefined && aliasSymbol !== right) valueAliases.push([aliasSymbol, right]);
+        }
+      }
+    }
+  };
+
   const recordStoredPropertyValueMutation = (
     access: ts.PropertyAccessExpression | ts.ElementAccessExpression
   ): void => {
@@ -217,38 +351,8 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
       : ts.isStringLiteralLike(access.argumentExpression)
         ? access.argumentExpression.text
         : undefined;
-    const base = unwrapExpression(access.expression);
-    if (memberName === undefined || !ts.isIdentifier(base)) return;
-    const seen = new Set<ts.Symbol>();
-    const inspectObjectValue = (symbol: ts.Symbol): void => {
-      if (seen.has(symbol)) return;
-      seen.add(symbol);
-      for (const declaration of symbol.declarations ?? []) {
-        if (!ts.isVariableDeclaration(declaration) || declaration.initializer === undefined) continue;
-        const initializer = unwrapExpression(declaration.initializer);
-        if (ts.isIdentifier(initializer)) {
-          const initializerSymbol = checker.getSymbolAtLocation(initializer);
-          if (initializerSymbol !== undefined) inspectObjectValue(initializerSymbol);
-          continue;
-        }
-        if (!ts.isObjectLiteralExpression(initializer)) continue;
-        for (const property of initializer.properties) {
-          if (propertyName(property.name) !== memberName) continue;
-          if (ts.isShorthandPropertyAssignment(property)) {
-            const valueSymbol = checker.getShorthandAssignmentValueSymbol(property);
-            if (valueSymbol !== undefined) valueMutatedSymbols.add(valueSymbol);
-          } else if (ts.isPropertyAssignment(property)) {
-            const value = unwrapExpression(property.initializer);
-            if (ts.isIdentifier(value)) {
-              const valueSymbol = checker.getSymbolAtLocation(value);
-              if (valueSymbol !== undefined) valueMutatedSymbols.add(valueSymbol);
-            }
-          }
-        }
-      }
-    };
-    const baseSymbol = checker.getSymbolAtLocation(base);
-    if (baseSymbol !== undefined) inspectObjectValue(baseSymbol);
+    if (memberName === undefined) return;
+    for (const symbol of symbolsStoredInProperty(access.expression, memberName)) valueMutatedSymbols.add(symbol);
   };
 
   const recordValueMutation = (target: ts.Expression, mutatesStoredPropertyValue = false): void => {
@@ -280,6 +384,8 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     ['Object', new Set(['assign', 'defineProperties', 'defineProperty', 'setPrototypeOf'])],
     ['Reflect', new Set(['defineProperty', 'deleteProperty', 'set', 'setPrototypeOf'])]
   ]);
+  const PROTOTYPE_MUTATION_GLOBALS = new Set(['Array', 'Map', 'Set']);
+  const PROTOTYPE_INVOCATION_METHODS = new Set(['apply', 'bind', 'call']);
 
   const calledMember = (expression: ts.LeftHandSideExpression): { base: ts.Expression; name: string } | undefined => {
     const callee = unwrapExpression(expression);
@@ -290,16 +396,24 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     return undefined;
   };
 
+  const isUnshadowedPrototypeMutation = (expression: ts.LeftHandSideExpression): boolean => {
+    const invocation = calledMember(expression);
+    if (invocation === undefined || !PROTOTYPE_INVOCATION_METHODS.has(invocation.name)) return false;
+    const mutation = calledMember(unwrapExpression(invocation.base) as ts.LeftHandSideExpression);
+    if (mutation === undefined || !INSTANCE_MUTATION_METHODS.has(mutation.name)) return false;
+    const prototype = calledMember(unwrapExpression(mutation.base) as ts.LeftHandSideExpression);
+    if (prototype?.name !== 'prototype') return false;
+    const globalObject = unwrapExpression(prototype.base);
+    return (
+      ts.isIdentifier(globalObject) &&
+      PROTOTYPE_MUTATION_GLOBALS.has(globalObject.text) &&
+      checker.getSymbolAtLocation(globalObject) === undefined
+    );
+  };
+
   const collectMutations = (node: ts.Node): void => {
-    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer !== undefined) {
-      const initializer = unwrapExpression(node.initializer);
-      if (ts.isIdentifier(initializer)) {
-        const declaredSymbol = checker.getSymbolAtLocation(node.name);
-        const initializerSymbol = checker.getSymbolAtLocation(initializer);
-        if (declaredSymbol !== undefined && initializerSymbol !== undefined) {
-          valueAliases.push([declaredSymbol, initializerSymbol]);
-        }
-      }
+    if (ts.isVariableDeclaration(node) && node.initializer !== undefined) {
+      recordBindingAliases(node.name, node.initializer);
     }
     if (
       ts.isBinaryExpression(node) &&
@@ -307,6 +421,7 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
       node.operatorToken.kind <= ts.SyntaxKind.LastAssignment
     ) {
       const target = unwrapExpression(node.left);
+      recordAssignmentAliases(target, node.right);
       if (ts.isIdentifier(target) || ts.isArrayLiteralExpression(target) || ts.isObjectLiteralExpression(target)) {
         recordReassignment(target);
       } else {
@@ -322,6 +437,9 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     } else if (ts.isDeleteExpression(node)) {
       recordValueMutation(node.expression);
     } else if (ts.isCallExpression(node)) {
+      if (isUnshadowedPrototypeMutation(node.expression) && node.arguments[0] !== undefined) {
+        recordValueMutation(node.arguments[0]);
+      }
       const member = calledMember(node.expression);
       if (member !== undefined) {
         const base = unwrapExpression(member.base);
@@ -486,6 +604,11 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
         if (ts.isSpreadAssignment(property)) {
           inspectExpression(property.expression, mode);
         } else if (mode === 'config' && propertyName(property.name) === 'plugins') {
+          if (
+            !symbolIsUnchanged(property.name === undefined ? undefined : checker.getSymbolAtLocation(property.name))
+          ) {
+            continue;
+          }
           if (ts.isPropertyAssignment(property)) inspectExpression(property.initializer, 'plugin');
           if (ts.isShorthandPropertyAssignment(property)) inspectExpression(property.name, 'plugin');
         }
@@ -553,7 +676,8 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
       statement.asteriskToken === undefined &&
       ts.getModifiers(statement)?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword)
     ) {
-      inspectFunctionBody(statement.body, 'config');
+      const symbol = statement.name === undefined ? undefined : checker.getSymbolAtLocation(statement.name);
+      if (symbolIsUnchanged(symbol)) inspectFunctionBody(statement.body, 'config');
     }
   }
   return evidence;
@@ -656,24 +780,21 @@ const YARN_OPTIONS_WITH_VALUES = new Set([
   '--use-yarnrc'
 ]);
 
-const YARN_OPTIONS_WITH_OPTIONAL_BOOLEAN_VALUES = new Set([
-  '--emoji',
-  '--prod',
-  '--production',
-  '--scripts-prepend-node-path'
-]);
+const YARN_OPTIONS_WITH_OPTIONAL_VALUES = new Set(['--emoji', '--prod', '--production', '--scripts-prepend-node-path']);
 
 const skipYarnOptions = (tokens: string[]): string[] => {
   let remaining = tokens;
   while (remaining[0]?.startsWith('-')) {
     const option = remaining[0]!;
     const normalizedOption = option.toLowerCase();
-    const optionalValue = remaining[1]?.toLowerCase();
+    // Yarn Classic consumes any following non-option token as the optional value. That includes values such as `0`
+    // and command-looking names; only another option proves that the value was omitted.
     const consumesFollowingToken =
       !option.includes('=') &&
       (YARN_OPTIONS_WITH_VALUES.has(normalizedOption) ||
-        (YARN_OPTIONS_WITH_OPTIONAL_BOOLEAN_VALUES.has(normalizedOption) &&
-          (optionalValue === 'true' || optionalValue === 'false')));
+        (YARN_OPTIONS_WITH_OPTIONAL_VALUES.has(normalizedOption) &&
+          remaining[1] !== undefined &&
+          !remaining[1].startsWith('-')));
     remaining = remaining.slice(consumesFollowingToken ? 2 : 1);
   }
   return remaining;

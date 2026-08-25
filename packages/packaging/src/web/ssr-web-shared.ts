@@ -5,7 +5,7 @@ import type {
   PackagingProgressLogger as ProgressLogger
 } from '../runtime-contracts';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
-import { readdir, stat } from 'node:fs/promises';
+import { lstat, readdir, realpath, stat } from 'node:fs/promises';
 import { serializeEnvironment } from '../runtime-helpers';
 import { copy, emptyDir, ensureDir, outputFile, pathExists, readFile, remove, writeFile } from 'fs-extra';
 import { buildUsingCustomArtifact } from '../artifact/custom-artifact';
@@ -128,6 +128,7 @@ const ssrWebOutputVariants = (buildConfig: SsrWebBuildConfig): SsrWebOutputVaria
 
 const clearSsrWebOutputVariants = async (buildConfig: SsrWebBuildConfig): Promise<void> => {
   const workingDirectory = resolve(buildConfig.workingDir);
+  const realWorkingDirectory = await realpath(workingDirectory);
   const outputPaths = [
     ...new Set(
       ssrWebOutputVariants(buildConfig).flatMap(({ serverOutputPath, staticOutputPath }) => [
@@ -136,7 +137,7 @@ const clearSsrWebOutputVariants = async (buildConfig: SsrWebBuildConfig): Promis
       ])
     )
   ];
-  for (const outputPath of outputPaths) {
+  const containedOutputPaths = outputPaths.map((outputPath) => {
     const relativeOutputPath = relative(workingDirectory, outputPath);
     if (
       relativeOutputPath === '' ||
@@ -146,7 +147,31 @@ const clearSsrWebOutputVariants = async (buildConfig: SsrWebBuildConfig): Promis
     ) {
       throw new Error(`Refusing to clear SSR build output outside the application directory: ${outputPath}`);
     }
-  }
+    return { relativeOutputPath };
+  });
+  await Promise.all(
+    containedOutputPaths.flatMap(({ relativeOutputPath }) => {
+      const pathSegments = relativeOutputPath.split(sep);
+      return pathSegments.map(async (_, index) => {
+        const currentPath = join(workingDirectory, ...pathSegments.slice(0, index + 1));
+        let currentStat;
+        try {
+          currentStat = await lstat(currentPath);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+          throw error;
+        }
+        if (currentStat.isSymbolicLink()) {
+          throw new Error(`Refusing to clear SSR build output through a symbolic link or junction: ${currentPath}`);
+        }
+        const realCurrentPath = await realpath(currentPath);
+        const relativeRealPath = relative(realWorkingDirectory, realCurrentPath);
+        if (relativeRealPath === '..' || relativeRealPath.startsWith(`..${sep}`) || isAbsolute(relativeRealPath)) {
+          throw new Error(`Refusing to clear SSR build output through a symbolic link or junction: ${currentPath}`);
+        }
+      });
+    })
+  );
   const rootOutputPaths = outputPaths.filter(
     (candidatePath) =>
       !outputPaths.some((possibleParentPath) => {
