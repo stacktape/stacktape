@@ -176,7 +176,7 @@ describe('qualification manifests', () => {
           }
         ]
       })
-    ).toThrow('zero expected services and resources');
+    ).toThrow('zero expected resources');
   });
 
   test('describes import-only and package-qualified projects accurately', () => {

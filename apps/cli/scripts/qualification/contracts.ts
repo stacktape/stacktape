@@ -66,14 +66,12 @@ const expectationSchema = z
   .superRefine((expectation, context) => {
     if (
       expectation.allowNoResources === true &&
-      (expectation.serviceCount !== 0 ||
-        expectation.httpServiceCount !== 0 ||
-        Object.values(expectation.resourceTypes).some((count) => count !== 0))
+      Object.values(expectation.resourceTypes).some((count) => count !== 0)
     ) {
       context.addIssue({
         code: 'custom',
         path: ['allowNoResources'],
-        message: 'allowNoResources requires zero expected services and resources.'
+        message: 'allowNoResources requires zero expected resources.'
       });
     }
     const seen = new Set<string>();
