@@ -7,6 +7,8 @@ import {
   buildRunnerImageTag,
   PINNED_BUN_SHA256,
   PINNED_BUN_VERSION,
+  PINNED_BUILDX_SHA256,
+  PINNED_BUILDX_VERSION,
   PINNED_PNPM_VERSION,
   SANDBOX_BASE_NODE_IMAGE
 } from './sandbox-planning';
@@ -44,6 +46,21 @@ RUN ARCH="$(uname -m)" && \\
 
 # Install pinned pnpm
 RUN npm install -g pnpm@${PINNED_PNPM_VERSION} && chmod 755 /usr/local/bin/pnpm
+
+# Debian's docker.io package does not include the Buildx CLI plugin that Stacktape packaging uses.
+RUN ARCH="$(uname -m)" && \\
+    if [ "$ARCH" = "x86_64" ]; then \\
+        BUILDX_ARCH="amd64" && \\
+        EXPECTED_SHA="${PINNED_BUILDX_SHA256.x64}"; \\
+    elif [ "$ARCH" = "aarch64" ]; then \\
+        BUILDX_ARCH="arm64" && \\
+        EXPECTED_SHA="${PINNED_BUILDX_SHA256.aarch64}"; \\
+    else echo "Unsupported architecture $ARCH" && exit 1; fi && \\
+    mkdir -p /usr/local/libexec/docker/cli-plugins && \\
+    curl -fsSL "https://github.com/docker/buildx/releases/download/v${PINNED_BUILDX_VERSION}/buildx-v${PINNED_BUILDX_VERSION}.linux-\${BUILDX_ARCH}" -o /usr/local/libexec/docker/cli-plugins/docker-buildx && \\
+    echo "\${EXPECTED_SHA}  /usr/local/libexec/docker/cli-plugins/docker-buildx" | sha256sum -c - && \\
+    chmod 755 /usr/local/libexec/docker/cli-plugins/docker-buildx && \\
+    docker buildx version
 
 WORKDIR /workspace
 
