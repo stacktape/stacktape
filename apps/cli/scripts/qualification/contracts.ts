@@ -3,6 +3,9 @@ import { z } from 'zod';
 
 export const QUALIFICATION_REPORT_VERSION = 3 as const;
 export const MAX_QUALIFICATION_REPORT_BYTES = 32 * 1024 ** 2;
+export const MAX_CASE_RESULT_BYTES = 4 * 1024 ** 2;
+export const MAX_GENERATED_CONFIG_BYTES = 4 * 1024 ** 2;
+export const MAX_COMPILED_TEMPLATE_BYTES = 16 * 1024 ** 2;
 
 export const qualificationLaneSchema = z.enum(['import', 'package', 'runtime', 'aws']);
 export type QualificationLane = z.infer<typeof qualificationLaneSchema>;

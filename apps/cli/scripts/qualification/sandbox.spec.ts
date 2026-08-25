@@ -4,14 +4,16 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, truncateSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { BUILT_IN_CASES } from './catalog';
-import { MAX_QUALIFICATION_REPORT_BYTES } from './contracts';
+import {
+  MAX_CASE_RESULT_BYTES,
+  MAX_COMPILED_TEMPLATE_BYTES,
+  MAX_GENERATED_CONFIG_BYTES,
+  MAX_QUALIFICATION_REPORT_BYTES
+} from './contracts';
 import { QUALIFICATION_RUNNER_DOCKERFILE } from './sandbox-dockerfile';
 import type { ProcessResult } from './process';
 import {
   describeSandboxFailure,
-  MAX_CASE_RESULT_BYTES,
-  MAX_COMPILED_TEMPLATE_BYTES,
-  MAX_GENERATED_CONFIG_BYTES,
   processResultExitCode,
   readCollectedQualificationReport,
   stopRunnerAfterDetachedAttach,
@@ -196,13 +198,14 @@ describe('sandboxed qualification planning & command composition', () => {
         cases: [resumedResult, unselectedResult]
       })}\n`
     );
+    const rawArgs = [
+      '--manifest=apps/cli/scripts/qualification/fixtures/self-test-docker-project/manifest.json',
+      `--resume-from=${resumeReportPath}`,
+      '--lanes=import'
+    ];
     const planned = planSandboxExecution({
       productCommit: mockCommit,
-      rawArgs: [
-        '--manifest=apps/cli/scripts/qualification/fixtures/self-test-docker-project/manifest.json',
-        `--resume-from=${resumeReportPath}`,
-        '--lanes=import'
-      ],
+      rawArgs,
       invocationDirectory: mockRoot,
       rootDirectory: mockRoot,
       runIdSuffix: 'stagetest'
@@ -224,6 +227,17 @@ describe('sandboxed qualification planning & command composition', () => {
     expect(planned.innerCommandArgs).toContain('--manifest=/qualification/inputs/manifest-0.json');
     expect(planned.innerCommandArgs).toContain('--resume-from=/qualification/inputs/resume-report.json');
     expect(planned.expectedCaseIds).toEqual(['qualification-self-test-docker']);
+
+    truncateSync(join(resumeCaseDirectory, 'result.json'), MAX_CASE_RESULT_BYTES + 1);
+    expect(() =>
+      planSandboxExecution({
+        productCommit: mockCommit,
+        rawArgs,
+        invocationDirectory: mockRoot,
+        rootDirectory: mockRoot,
+        runIdSuffix: 'oversizedresult'
+      })
+    ).toThrow('result.json exceeds');
   });
 
   test('bounds the selected resume campaign rather than staging unbounded passing artifacts', () => {
