@@ -309,6 +309,7 @@ describe('the compose probe', () => {
         '      REDIS_PORT: ${REDIS_PORT:-6379}',
         '      LOG_LEVEL: ${LOG_LEVEL:-info}',
         '      ASPNETCORE_ENVIRONMENT: Production',
+        '      ASPNETCORE_HTTP_PORTS: 8087',
         '      Api__DefaultPort: 8087',
         '      Worker__PollingIntervalMs: 1000',
         '      Worker__LockDurationSeconds: 60',
@@ -348,6 +349,7 @@ describe('the compose probe', () => {
       safeLiteralValue: 'info'
     });
     expect(byName.ASPNETCORE_ENVIRONMENT?.safeLiteralValue).toBe('Production');
+    expect(byName.ASPNETCORE_HTTP_PORTS?.safeLiteralValue).toBe('8087');
     expect(byName.Api__DefaultPort?.safeLiteralValue).toBe('8087');
     expect(byName.Worker__PollingIntervalMs?.safeLiteralValue).toBe('1000');
     expect(byName.Worker__LockDurationSeconds?.safeLiteralValue).toBe('60');
