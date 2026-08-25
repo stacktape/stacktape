@@ -868,13 +868,24 @@ export const dockerComposeProbe: Probe = {
       const applications = Object.entries(document.services).filter(
         ([composeName, service]) =>
           buildOf(service, document.path, context.files) !== undefined ||
-          sourceBuilds.has(`${document.path}:${composeName}`)
+          sourceBuilds.has(`${document.path}:${composeName}`) ||
+          // A release descriptor can run this repository's published application instead of a
+          // local build. Its explicit command and ingress are application evidence for selection,
+          // not permission to invent an image-only source service later in the probe.
+          (typeof service.image === 'string' &&
+            kindForImage(service.image) === undefined &&
+            containerCommandOf(service) !== undefined &&
+            (containerPortOf(service) ?? proxyPortOf(service)) !== undefined &&
+            !isDevelopmentProcess(service, {}))
       ).length;
       if (applications === 0) return Number.NEGATIVE_INFINITY;
       return (
         applications * 10 +
         (PRODUCTION_VARIANT.test(document.variant ?? '') ? 100 : 0) -
-        (NON_APPLICATION_VARIANT.test(document.variant ?? '') ? 100 : 0)
+        (NON_APPLICATION_VARIANT.test(document.variant ?? '') ||
+        /^(?:dev|development|tests?)(?:\/|$)/i.test(document.path)
+          ? 100
+          : 0)
       );
     };
     const selected = documents.toSorted((left, right) => applicationScore(right) - applicationScore(left))[0]!;

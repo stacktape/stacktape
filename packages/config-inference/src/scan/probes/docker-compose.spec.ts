@@ -2031,7 +2031,7 @@ describe('the compose probe', () => {
     });
   });
 
-  it('keeps a published image when its exact startup command owns fresh-database install and upgrade', async () => {
+  it('keeps a published release image and lifecycle instead of a neighboring development build', async () => {
     root = await makeRepo({
       'go.mod': 'module example.com/list-manager\nrequire github.com/labstack/echo/v4 v4.12.0\n',
       'cmd/main.go': [
@@ -2049,6 +2049,21 @@ describe('the compose probe', () => {
         '      - -c',
         '      - ./list-manager --install --idempotent --yes && ./list-manager --upgrade --yes && ./list-manager',
         '    ports: ["9000:9000"]',
+        ''
+      ].join('\n'),
+      'dev/app.Dockerfile': 'FROM golang:1.26\nWORKDIR /app\nCOPY . .\n',
+      'dev/docker-compose.yml': [
+        'services:',
+        '  front:',
+        '    build: { context: .., dockerfile: dev/app.Dockerfile }',
+        '    command: make run-frontend',
+        '    ports: ["8080:8080"]',
+        '  backend:',
+        '    build: { context: .., dockerfile: dev/app.Dockerfile }',
+        '    command: make run-backend-docker',
+        '    ports: ["9000:9000"]',
+        '  db:',
+        '    image: postgres:13',
         ''
       ].join('\n')
     });
