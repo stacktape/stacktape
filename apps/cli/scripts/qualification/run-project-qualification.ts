@@ -176,6 +176,9 @@ const parseOptions = async (): Promise<ParsedOptions | 'list' | 'help' | 'sandbo
   }
 
   const lanes = normalizeLanes(values.lanes);
+  if (candidates.length === 0 && lanes.some((lane) => lane === 'import' || lane === 'package')) {
+    throw new Error('No project cases remain after applying selection, shard, and maximum-case filters.');
+  }
   const allowHostProjectCode =
     Boolean(values['allow-host-project-code']) || process.env.STACKTAPE_QUALIFICATION_SANDBOX === '1';
   if (lanes.includes('package') && !allowHostProjectCode) {
@@ -725,6 +728,59 @@ const runCase = async ({
   }
 };
 
+const createFailFastSkippedResult = async ({
+  selected,
+  options,
+  productFingerprint,
+  executionFingerprint,
+  stoppedAfter
+}: {
+  selected: SelectedCase;
+  options: ParsedOptions;
+  productFingerprint: string;
+  executionFingerprint: string;
+  stoppedAfter: string;
+}): Promise<QualificationCaseResult> => {
+  const { entry } = selected;
+  const caseLanes = options.lanes.filter(
+    (lane): lane is 'import' | 'package' => lane === 'import' || lane === 'package'
+  );
+  let sourceFingerprint: string;
+  try {
+    sourceFingerprint = await calculateSourceFingerprint({ entry, manifestDirectory: selected.manifestDirectory });
+  } catch {
+    sourceFingerprint = createHash('sha256')
+      .update(JSON.stringify({ unavailableBeforeExecution: true, entry }))
+      .digest('hex');
+  }
+  const summary = `Not executed because --fail-fast stopped after ${stoppedAfter}.`;
+  const skippedStep = (name: 'acquire' | 'import' | 'package'): QualificationStep => ({
+    name,
+    status: 'skipped',
+    durationMs: 0,
+    summary,
+    details: { stoppedAfter }
+  });
+  return {
+    id: entry.id,
+    title: entry.title,
+    fingerprint: fingerprintFor({
+      entry,
+      productFingerprint,
+      sourceFingerprint,
+      executionFingerprint,
+      lanes: caseLanes
+    }),
+    sourceFingerprint,
+    execution: 'executed',
+    status: 'skipped',
+    durationMs: 0,
+    source: entry.source,
+    tags: entry.tags,
+    steps: [skippedStep('acquire'), ...caseLanes.map(skippedStep)]
+  };
+};
+
 const runGlobalProcessStep = async ({
   name,
   command,
@@ -901,6 +957,7 @@ const main = async () => {
   const executionFingerprint = createHash('sha256').update(JSON.stringify(environment)).digest('hex');
   const resumable = await loadResumableCases(options.resumeFrom);
   const caseResults: QualificationCaseResult[] = [];
+  let failFastStoppedAfter: string | undefined;
   process.stderr.write(
     `Qualification run: ${options.cases.length} project(s), lanes ${options.lanes.join(', ')}\nResults: ${options.outputDirectory}\n`
   );
@@ -908,43 +965,55 @@ const main = async () => {
     for (const [index, selected] of options.cases.entries()) {
       process.stderr.write(`[${index + 1}/${options.cases.length}] ${selected.entry.id}\n`);
       let result: QualificationCaseResult;
-      try {
-        result = await runCase({ selected, options, productFingerprint, executionFingerprint, resumable });
-      } catch (error) {
-        const sourceFingerprint = createHash('sha256')
-          .update(`harness-failure:${errorText(error)}`)
-          .digest('hex');
-        result = {
-          id: selected.entry.id,
-          title: selected.entry.title,
-          fingerprint: fingerprintFor({
-            entry: selected.entry,
-            productFingerprint,
+      if (failFastStoppedAfter !== undefined) {
+        result = await createFailFastSkippedResult({
+          selected,
+          options,
+          productFingerprint,
+          executionFingerprint,
+          stoppedAfter: failFastStoppedAfter
+        });
+      } else {
+        try {
+          result = await runCase({ selected, options, productFingerprint, executionFingerprint, resumable });
+        } catch (error) {
+          const sourceFingerprint = createHash('sha256')
+            .update(`harness-failure:${errorText(error)}`)
+            .digest('hex');
+          result = {
+            id: selected.entry.id,
+            title: selected.entry.title,
+            fingerprint: fingerprintFor({
+              entry: selected.entry,
+              productFingerprint,
+              sourceFingerprint,
+              executionFingerprint,
+              lanes: options.lanes.filter(
+                (lane): lane is 'import' | 'package' => lane === 'import' || lane === 'package'
+              )
+            }),
             sourceFingerprint,
-            executionFingerprint,
-            lanes: options.lanes.filter((lane): lane is 'import' | 'package' => lane === 'import' || lane === 'package')
-          }),
-          sourceFingerprint,
-          execution: 'executed',
-          status: 'failed',
-          durationMs: 0,
-          source: selected.entry.source,
-          tags: selected.entry.tags,
-          steps: [
-            failedStep({
-              name: 'harness',
-              startedAt: Date.now(),
-              code: 'QUALIFICATION_HARNESS_FAILED',
-              error,
-              reproductionCommand: reproductionCommand(selected, options.lanes.join(','))
-            })
-          ]
-        };
+            execution: 'executed',
+            status: 'failed',
+            durationMs: 0,
+            source: selected.entry.source,
+            tags: selected.entry.tags,
+            steps: [
+              failedStep({
+                name: 'harness',
+                startedAt: Date.now(),
+                code: 'QUALIFICATION_HARNESS_FAILED',
+                error,
+                reproductionCommand: reproductionCommand(selected, options.lanes.join(','))
+              })
+            ]
+          };
+        }
       }
       caseResults.push(result);
       await writeJsonAtomic(join(options.outputDirectory, 'cases', selected.entry.id, 'result.json'), result);
       process.stderr.write(`  ${result.status} (${Math.round(result.durationMs / 100) / 10}s)\n`);
-      if (options.failFast && result.status === 'failed') break;
+      if (options.failFast && result.status === 'failed') failFastStoppedAfter = selected.entry.id;
     }
   } finally {
     if (!options.keepWorkdirs) {

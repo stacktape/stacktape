@@ -121,6 +121,8 @@ export const qualificationStepSchema = z
   .strict();
 export type QualificationStep = z.infer<typeof qualificationStepSchema>;
 
+const perCaseStepOrder = ['harness', 'acquire', 'import', 'package'] as const;
+
 export const qualificationCaseResultSchema = z
   .object({
     id: safeIdSchema,
@@ -146,6 +148,82 @@ export const qualificationCaseResultSchema = z
         message: 'A qualification case must contain executed evidence.'
       });
       return;
+    }
+    const stepNames = result.steps.map((step) => step.name);
+    for (const [index, name] of stepNames.entries()) {
+      if (name === 'runtime' || name === 'aws') {
+        context.addIssue({
+          code: 'custom',
+          path: ['steps', index, 'name'],
+          message: `${name} is a run-wide step and cannot be recorded on a project case.`
+        });
+      }
+      if (stepNames.indexOf(name) !== index) {
+        context.addIssue({
+          code: 'custom',
+          path: ['steps', index, 'name'],
+          message: `Project step ${name} may only be recorded once.`
+        });
+      }
+      const previousName = stepNames[index - 1];
+      if (
+        previousName !== undefined &&
+        perCaseStepOrder.indexOf(name as (typeof perCaseStepOrder)[number]) <
+          perCaseStepOrder.indexOf(previousName as (typeof perCaseStepOrder)[number])
+      ) {
+        context.addIssue({
+          code: 'custom',
+          path: ['steps', index, 'name'],
+          message: `Project step ${name} is out of order.`
+        });
+      }
+    }
+
+    const harnessStep = result.steps.find((step) => step.name === 'harness');
+    const acquireStep = result.steps.find((step) => step.name === 'acquire');
+    const importStep = result.steps.find((step) => step.name === 'import');
+    const packageStep = result.steps.find((step) => step.name === 'package');
+    if (harnessStep !== undefined && (result.steps.length !== 1 || harnessStep.status !== 'failed')) {
+      context.addIssue({
+        code: 'custom',
+        path: ['steps'],
+        message: 'A harness step is terminal project-level failure evidence and must be the only recorded step.'
+      });
+    }
+    if (harnessStep === undefined && acquireStep === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['steps'],
+        message: 'Project evidence must begin with acquisition.'
+      });
+    }
+    if (acquireStep?.status === 'failed' && result.steps.at(-1) !== acquireStep) {
+      context.addIssue({
+        code: 'custom',
+        path: ['steps'],
+        message: 'A failed acquisition is terminal and cannot have downstream lane evidence.'
+      });
+    }
+    if (acquireStep?.status === 'skipped' && result.steps.some((step) => step.status !== 'skipped')) {
+      context.addIssue({
+        code: 'custom',
+        path: ['steps'],
+        message: 'Downstream lane steps must be skipped when acquisition is skipped.'
+      });
+    }
+    if (packageStep !== undefined && importStep === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['steps'],
+        message: 'Packaging evidence requires importer evidence first.'
+      });
+    }
+    if (importStep?.status === 'skipped' && packageStep?.status !== undefined && packageStep.status !== 'skipped') {
+      context.addIssue({
+        code: 'custom',
+        path: ['steps'],
+        message: 'Packaging must be skipped when importing was skipped.'
+      });
     }
     const expectedStatus = result.steps.some((step) => step.status === 'failed')
       ? 'failed'
@@ -216,10 +294,14 @@ export const qualificationReportSchema = z
       }
       ids.add(result.id);
     }
+    const recordedStatuses = [
+      ...report.cases.map((result) => result.status),
+      ...report.globalSteps.map((step) => step.status)
+    ];
     const actualSummary = {
-      passed: report.cases.filter((result) => result.status === 'passed').length,
-      failed: report.cases.filter((result) => result.status === 'failed').length,
-      skipped: report.cases.filter((result) => result.status === 'skipped').length
+      passed: recordedStatuses.filter((status) => status === 'passed').length,
+      failed: recordedStatuses.filter((status) => status === 'failed').length,
+      skipped: recordedStatuses.filter((status) => status === 'skipped').length
     };
     for (const key of ['passed', 'failed', 'skipped'] as const) {
       if (report.summary[key] !== actualSummary[key]) {
@@ -232,6 +314,49 @@ export const qualificationReportSchema = z
     }
     if (new Set(report.lanes).size !== report.lanes.length) {
       context.addIssue({ code: 'custom', path: ['lanes'], message: 'Qualification lanes must be unique.' });
+    }
+    if (report.lanes.includes('package') && !report.lanes.includes('import')) {
+      context.addIssue({
+        code: 'custom',
+        path: ['lanes'],
+        message: 'The package lane requires the import lane in the same report.'
+      });
+    }
+
+    const hasProjectLanes = report.lanes.includes('import') || report.lanes.includes('package');
+    if (hasProjectLanes && report.cases.length === 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['cases'],
+        message: 'Import or package qualification must contain at least one selected project case.'
+      });
+    }
+    for (const [caseIndex, result] of report.cases.entries()) {
+      if (!hasProjectLanes || result.steps.some((step) => step.name === 'harness')) continue;
+      const acquireStep = result.steps.find((step) => step.name === 'acquire');
+      const importStep = result.steps.find((step) => step.name === 'import');
+      const packageStep = result.steps.find((step) => step.name === 'package');
+      if (acquireStep?.status !== 'failed' && report.lanes.includes('import') && importStep === undefined) {
+        context.addIssue({
+          code: 'custom',
+          path: ['cases', caseIndex, 'steps'],
+          message: 'The selected project is missing its requested import step.'
+        });
+      }
+      if (acquireStep?.status !== 'failed' && report.lanes.includes('package') && packageStep === undefined) {
+        context.addIssue({
+          code: 'custom',
+          path: ['cases', caseIndex, 'steps'],
+          message: 'The selected project is missing its requested package step.'
+        });
+      }
+      if (!report.lanes.includes('package') && packageStep !== undefined) {
+        context.addIssue({
+          code: 'custom',
+          path: ['cases', caseIndex, 'steps'],
+          message: 'A project cannot record a package step when that lane was not requested.'
+        });
+      }
     }
   });
 export type QualificationReport = z.infer<typeof qualificationReportSchema>;
