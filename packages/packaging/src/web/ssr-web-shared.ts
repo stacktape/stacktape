@@ -48,8 +48,8 @@ export type SsrWebBuildConfig = {
   staticAssetPrefix: string;
   /** Environment variables to set during build */
   buildEnv?: Record<string, string> | undefined;
-  /** Wrapper type: 'passthrough' for Nitro-based, 'node-http' for Node.js HTTP handler, 'web-fetch' for Web Fetch API handler */
-  wrapperType: 'passthrough' | 'node-http' | 'web-fetch';
+  /** Wrapper type for the framework's generated server entrypoint. */
+  wrapperType: 'passthrough' | 'node-http' | 'web-fetch' | 'tanstack-fetch';
 };
 
 export type SsrWebPackagingProps = {
@@ -97,10 +97,11 @@ export const getMissingRequiredAdapterPackages = async ({
 
 /**
  * Creates the Lambda handler wrapper for SSR web resources.
- * Three types:
+ * Four types:
  * - 'passthrough': for Nitro-based frameworks that already output a Lambda handler
  * - 'node-http': for frameworks that output a Node.js HTTP handler (Astro, SvelteKit)
- * - 'web-fetch': for frameworks that export a Web Fetch API handler (Remix)
+ * - 'web-fetch': for Remix server build modules adapted through createRequestHandler
+ * - 'tanstack-fetch': for TanStack Start entries whose default export exposes fetch
  */
 export const createServerWrapper = async ({
   distFolderPath,
@@ -109,7 +110,7 @@ export const createServerWrapper = async ({
 }: {
   distFolderPath: string;
   handlerFileName: string;
-  wrapperType: 'passthrough' | 'node-http' | 'web-fetch';
+  wrapperType: 'passthrough' | 'node-http' | 'web-fetch' | 'tanstack-fetch';
 }) => {
   const serverFunctionPath = join(distFolderPath, 'server-function');
   const wrapperPath = join(serverFunctionPath, 'index-wrap.mjs');
@@ -258,11 +259,12 @@ export const handler = async (event) => {
 };
 `;
     await outputFile(wrapperPath, wrapperContent);
-  } else if (wrapperType === 'web-fetch') {
-    // web-fetch wrapper: converts Lambda events to Web Fetch API Request/Response.
-    // Used by Remix which exports a server build module that needs createRequestHandler.
-    const wrapperContent = `
-import { Buffer } from "node:buffer";
+  } else if (wrapperType === 'web-fetch' || wrapperType === 'tanstack-fetch') {
+    // Both entries ultimately consume a Web Fetch API Request. Remix exports a build module that
+    // createRequestHandler adapts; current TanStack Start exports an object with a fetch method.
+    const requestHandlerInitializer =
+      wrapperType === 'web-fetch'
+        ? `
 import { createRequestHandler } from "@remix-run/node";
 
 let requestHandler;
@@ -273,6 +275,25 @@ async function getHandler() {
   requestHandler = createRequestHandler(build, "production");
   return requestHandler;
 }
+`
+        : `
+let requestHandler;
+
+async function getHandler() {
+  if (requestHandler) return requestHandler;
+  const entry = await import("./${handlerFileName}");
+  const owner = entry.default && typeof entry.default.fetch === "function" ? entry.default : undefined;
+  const candidate = owner?.fetch || entry.fetch || entry.default;
+  if (typeof candidate !== "function") {
+    throw new Error("Could not find a Web Fetch handler in ${handlerFileName}. Expected default.fetch, fetch, or a default function export.");
+  }
+  requestHandler = owner ? candidate.bind(owner) : candidate;
+  return requestHandler;
+}
+`;
+    const wrapperContent = `
+import { Buffer } from "node:buffer";
+${requestHandlerInitializer}
 
 export const handler = async (event) => {
   const app = await getHandler();

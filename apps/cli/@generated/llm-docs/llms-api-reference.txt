@@ -66847,7 +66847,7 @@ export default defineConfig(() => {
 Source: `packages/config/src/tanstack-web.ts`
 Route: `/config-reference/tanstack-web`
 
-Deploy a TanStack Start SSR app with Lambda (Nitro aws-lambda preset), S3 for static assets, and CloudFront CDN.
+Deploy a TanStack Start SSR app with Lambda, S3 for static assets, and CloudFront CDN.
 
 Resource type: `tanstack-web`
 

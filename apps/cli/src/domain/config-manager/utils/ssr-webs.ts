@@ -105,14 +105,14 @@ export type SingleLambdaSsrWebType = SsrWebResource['type'];
  * It is load-bearing three times over — as the CDN route served straight from the bucket instead of the server
  * Lambda, and as the include/exclude pair that gives those hashed files immutable cache headers while everything else
  * revalidates. Changing an entry changes which requests reach the server function, so these are framework facts, not
- * preferences. `solidstart-web` and `tanstack-web` really do share `_build`: both are Vite defaults.
+ * preferences. Current TanStack Start's Vite output uses `assets`; legacy Nitro output used `_build`.
  */
-const HASHED_ASSET_DIRECTORY_BY_TYPE = {
+export const HASHED_ASSET_DIRECTORY_BY_TYPE = {
   'astro-web': '_astro',
   'nuxt-web': '_nuxt',
   'sveltekit-web': '_app',
   'solidstart-web': '_build',
-  'tanstack-web': '_build',
+  'tanstack-web': 'assets',
   'remix-web': 'assets'
 } satisfies Record<SingleLambdaSsrWebType, string>;
 

@@ -2,7 +2,7 @@ import type { DomainConfiguration, EnvironmentVar, ResourceAccessProps, Resource
 import type { DirectoryUploadFilter } from './buckets';
 import type { SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig } from './ssr-web-shared';
 /**
- * #### Deploy a TanStack Start SSR app with Lambda (Nitro aws-lambda preset), S3 for static assets, and CloudFront CDN.
+ * #### Deploy a TanStack Start SSR app with Lambda, S3 for static assets, and CloudFront CDN.
  */
 export interface TanStackWeb {
   type: 'tanstack-web';

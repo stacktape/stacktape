@@ -28,19 +28,17 @@ describe('SSR static asset cache paths', () => {
 });
 
 describe('SSR web framework defaults', () => {
-  test('tanstack-web defaults to Vite dev and build commands with Nitro aws-lambda preset', () => {
+  test('tanstack-web packages the current Vite server and client outputs', () => {
     const config = SSR_WEB_FRAMEWORK_CONFIGS['tanstack-web'];
     expect(config).toEqual({
       displayName: 'TanStack Start',
       defaultDevCommand: 'vite dev',
       defaultBuildCommand: 'vite build',
-      serverOutputPath: '.output/server',
-      staticOutputPath: '.output/public',
-      staticAssetPrefix: '_build',
-      handlerPath: 'index.mjs',
-      presetEnvVar: 'NITRO_PRESET',
-      presetValue: 'aws-lambda',
-      wrapperType: 'passthrough'
+      serverOutputPath: 'dist/server',
+      staticOutputPath: 'dist/client',
+      staticAssetPrefix: 'assets',
+      handlerPath: 'server.js',
+      wrapperType: 'tanstack-fetch'
     });
   });
 });

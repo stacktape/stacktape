@@ -214,7 +214,13 @@ export const buildOfflineQualificationEnvironment = ({
     ComSpec: inheritedEnvironment.ComSpec,
     NUMBER_OF_PROCESSORS: inheritedEnvironment.NUMBER_OF_PROCESSORS,
     PROCESSOR_ARCHITECTURE: inheritedEnvironment.PROCESSOR_ARCHITECTURE,
-    OS: inheritedEnvironment.OS
+    OS: inheritedEnvironment.OS,
+    // Docker Desktop installs CLI plugins such as buildx below Program Files on Windows. The Docker
+    // executable still resolves through PATH without these variables, but then interprets `buildx`
+    // as an unknown top-level argument. Preserve only the installation roots; DOCKER_CONFIG and the
+    // user profile remain isolated below, so credentials, contexts, and personal Docker settings do not leak in.
+    ProgramFiles: inheritedEnvironment.ProgramFiles,
+    ProgramW6432: inheritedEnvironment.ProgramW6432
   };
   const temporaryDirectory = join(homeDirectory, 'tmp');
 

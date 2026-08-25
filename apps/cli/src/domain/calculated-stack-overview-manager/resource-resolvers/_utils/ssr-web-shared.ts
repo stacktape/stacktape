@@ -170,8 +170,8 @@ export type SsrWebFrameworkConfig = {
   presetEnvVar?: string;
   /** Preset value for Lambda deployment */
   presetValue?: string;
-  /** Wrapper type: 'passthrough' for Nitro-based, 'node-http' for Node.js HTTP handler, 'web-fetch' for Web Fetch API handler */
-  wrapperType: 'passthrough' | 'node-http' | 'web-fetch';
+  /** Wrapper type for the framework's generated server entrypoint. */
+  wrapperType: 'passthrough' | 'node-http' | 'web-fetch' | 'tanstack-fetch';
   /** Required npm packages for the adapter (installed in user's project before build) */
   requiredAdapterPackages?: string[];
   /** Native dependencies loaded dynamically by otherwise bundled framework runtime code. */
@@ -225,13 +225,11 @@ export const SSR_WEB_FRAMEWORK_CONFIGS: Record<SsrWebResourceType, SsrWebFramewo
     displayName: 'TanStack Start',
     defaultDevCommand: 'vite dev',
     defaultBuildCommand: 'vite build',
-    serverOutputPath: '.output/server',
-    staticOutputPath: '.output/public',
-    staticAssetPrefix: '_build',
-    handlerPath: 'index.mjs',
-    presetEnvVar: 'NITRO_PRESET',
-    presetValue: 'aws-lambda',
-    wrapperType: 'passthrough'
+    serverOutputPath: 'dist/server',
+    staticOutputPath: 'dist/client',
+    staticAssetPrefix: 'assets',
+    handlerPath: 'server.js',
+    wrapperType: 'tanstack-fetch'
   },
   'sveltekit-web': {
     displayName: 'SvelteKit',

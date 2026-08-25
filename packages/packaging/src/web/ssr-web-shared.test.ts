@@ -117,6 +117,44 @@ describe('SSR Lambda wrappers', () => {
     expect(response.multiValueHeaders).toBeUndefined();
   });
 
+  test('adapts a TanStack Start default fetch entry to an API Gateway response', async () => {
+    const root = await createRoot();
+    const serverFunctionPath = join(root, 'server-function');
+    await mkdir(serverFunctionPath, { recursive: true });
+    await writeFile(
+      join(serverFunctionPath, 'server.js'),
+      `export default {
+        marker: "tanstack-start",
+        async fetch(request) {
+          return Response.json({ marker: this.marker, method: request.method, url: request.url });
+        }
+      };`
+    );
+    await createServerWrapper({
+      distFolderPath: root,
+      handlerFileName: 'server.js',
+      wrapperType: 'tanstack-fetch'
+    });
+    const wrapperUrl = `${pathToFileURL(join(serverFunctionPath, 'index-wrap.mjs')).href}?test=${Date.now()}`;
+    const { handler } = await import(wrapperUrl);
+
+    const response = await handler({
+      version: '2.0',
+      requestContext: { http: { method: 'GET' } },
+      rawPath: '/dashboard',
+      rawQueryString: 'mode=ssr',
+      headers: { 'x-forwarded-host': 'app.example.com', 'x-forwarded-proto': 'https' }
+    });
+
+    expect(response.statusCode).toBe(200);
+    expect(response.isBase64Encoded).toBe(false);
+    expect(JSON.parse(response.body)).toEqual({
+      marker: 'tanstack-start',
+      method: 'GET',
+      url: 'https://app.example.com/dashboard?mode=ssr'
+    });
+  });
+
   test('normalizes transparently decompressed responses and preserves the public origin', async () => {
     const root = await createRoot();
     const serverFunctionPath = join(root, 'server-function');

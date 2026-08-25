@@ -59158,7 +59158,7 @@
   },
   "TanStackWeb": {
     "definitionName": "TanStackWeb",
-    "shortDescription": "<p> Deploy a TanStack Start SSR app with Lambda (Nitro aws-lambda preset), S3 for static assets, and CloudFront CDN.</p>",
+    "shortDescription": "<p> Deploy a TanStack Start SSR app with Lambda, S3 for static assets, and CloudFront CDN.</p>",
     "properties": [
       {
         "name": "properties",
