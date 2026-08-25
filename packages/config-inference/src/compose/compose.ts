@@ -354,6 +354,7 @@ const packagingFor = (
 const environmentFor = (
   service: ServiceFact,
   context: {
+    services?: readonly ServiceFact[];
     serviceResourceNames: ReadonlyMap<string, string>;
     dependencies: readonly DependencyFact[];
     dependencyConsumers: ReadonlyMap<DependencyFact, ReadonlySet<ServiceFact>>;
@@ -362,7 +363,8 @@ const environmentFor = (
     projectName: string | undefined;
   }
 ): Array<{ name: string; value: unknown }> => {
-  const { serviceResourceNames, dependencies, dependencyConsumers, composedDependencies, projectName } = context;
+  const { services, serviceResourceNames, dependencies, dependencyConsumers, composedDependencies, projectName } =
+    context;
   const variables: Array<{ name: string; value: unknown }> = [];
 
   for (const variable of service.environmentVariables) {
@@ -408,11 +410,15 @@ const environmentFor = (
       continue;
     }
     if (variable.role === 'generated-secret') {
-      const self = serviceResourceNames.get(service.name);
-      if (self !== undefined) {
+      const ownerService =
+        services?.find((s) => s.path === service.path && s.exposesHttp) ??
+        services?.find((s) => s.path === service.path) ??
+        service;
+      const ownerName = serviceResourceNames.get(ownerService.name) ?? serviceResourceNames.get(service.name);
+      if (ownerName !== undefined) {
         variables.push({
           name: variable.name,
-          value: generatedApplicationSecretReference(projectName, self, variable.name)
+          value: generatedApplicationSecretReference(projectName, ownerName, variable.name)
         });
       }
       continue;
@@ -1010,6 +1016,7 @@ export const composeConfig = ({
     });
 
     const environment = environmentFor(service, {
+      services,
       serviceResourceNames,
       dependencies,
       dependencyConsumers,
@@ -1108,10 +1115,12 @@ export const composeConfig = ({
       evidence: classification.evidence
     };
     if (service.bundledLifecycle !== undefined) {
+      const runsStartupMigrations = service.bundledLifecycle.databaseMigrations;
       gaps.push({
         subject: `${service.name}.scaling`,
-        message:
-          'This container starts database migrations or background loops inside the main service process. Init keeps it at one instance so those jobs do not run concurrently. Separate that lifecycle work before enabling horizontal scaling.'
+        message: runsStartupMigrations
+          ? 'This container runs database migrations during service startup. Init keeps it at one instance so replicas do not race, but the migration remains coupled to application startup rather than an isolated deploy hook. Move the reviewed migration command into a dedicated deploy lifecycle step before enabling horizontal scaling.'
+          : 'This container starts background loops inside the main service process. Init keeps it at one instance so those jobs do not run concurrently. Separate that lifecycle work before enabling horizontal scaling.'
       });
     }
 
@@ -1165,6 +1174,26 @@ export const composeConfig = ({
       gaps.push({
         subject: service.name,
         message: `${service.name} is invoked by ${trigger.sourceType} in the existing deployment files. Init cannot translate that trigger yet. Add its Stacktape equivalent before deploying.`
+      });
+    }
+    const hasObjectStorage = dependencies.some(
+      (dependency) => dependency.kind === 'object-storage' && composedDependencyNames.has(dependency.name)
+    );
+    const mediaPersistenceOwner =
+      services.find((candidate) => candidate.path === service.path && candidate.exposesHttp) ??
+      services.find((candidate) => candidate.path === service.path);
+    if (
+      mediaPersistenceOwner === service &&
+      !hasObjectStorage &&
+      (service.writesLocalFilesystem?.purpose === 'uploads' ||
+        service.environmentVariables.some(
+          (variable) =>
+            /^FILESYSTEM_(?:DISK|DRIVER|CLOUD)$/i.test(variable.name) || /^PF_ENABLE_CLOUD$/i.test(variable.name)
+        ))
+    ) {
+      gaps.push({
+        subject: `${service.name}.media-persistence`,
+        message: `${service.name} declares media/filesystem configuration, but init could not prove that object storage is active. Any uploads left on the container filesystem are ephemeral and can disappear during a deployment or replacement. Confirm the active storage driver and configure S3-compatible object storage with a bucket before accepting media uploads.`
       });
     }
   }

@@ -17,12 +17,12 @@ export const isSecretishDeclaredName = (name: string): boolean => SECRETISH_NAME
  * data. This is intentionally an allow-list: a vague `VALUE=...` still stays names-only.
  */
 const SAFE_LITERAL_NAME =
-  /^(?:NODE_ENV|RAILS_ENV|RACK_ENV|APP_ENV|ENVIRONMENT|DENO_ENV|LOG_LEVEL|RUST_LOG|DEBUG|TRACE|HOST|RAILS_LOG_TO_STDOUT|RAILS_SERVE_STATIC_FILES|PHX_SERVER|PROCESS_TYPE|USE_S3_STORAGE|AWS_FORCE_PATH_STYLE|DJANGO_DEBUG|DRY_RUN|SPRING_PROFILES_ACTIVE|[A-Z0-9_]*(?:ENVIRONMENT|PORTS?|CONCURRENCY|WORKERS?|THREADS?|ENABLED|DISABLED|REGION|STAGE|PROFILE|MODE|INTERVAL(?:_(?:MS|SECONDS|SECS|MINUTES))?|DURATION(?:_(?:MS|SECONDS|SECS|MINUTES))?|TIMEOUT(?:_(?:MS|SECONDS|SECS|MINUTES))?|RETENTION(?:_(?:DAYS|HOURS|MINUTES))?|BACKOFF(?:_BASE)?_(?:MS|SECONDS|SECS|MINUTES)|MAX_RETRIES|MAX_ATTEMPTS|RETRIES|BATCH_SIZE|PREFETCH_COUNT|LIMIT|SIZE(?:_MB)?|CHANCE|FORCE_PATH_STYLE|WORKER_ID|CONSUMER_GROUP)|[A-Z0-9_]*(?:TOPIC|TOPICS)_[A-Z0-9_]+)$/;
+  /^(?:NODE_ENV|RAILS_ENV|RACK_ENV|APP_ENV|ENVIRONMENT|DENO_ENV|LOG_LEVEL|RUST_LOG|DEBUG|TRACE|HOST|RAILS_LOG_TO_STDOUT|RAILS_SERVE_STATIC_FILES|PHX_SERVER|PROCESS_TYPE|USE_S3_STORAGE|AWS_FORCE_PATH_STYLE|DJANGO_DEBUG|DRY_RUN|SPRING_PROFILES_ACTIVE|[A-Z0-9_]*(?:ENVIRONMENT|PORTS?|CONCURRENCY|WORKERS?|THREADS?|ENABLED?|DISABLED?|REGION|STAGE|PROFILE|MODE|INTERVAL(?:_(?:MS|SECONDS|SECS|MINUTES))?|DURATION(?:_(?:MS|SECONDS|SECS|MINUTES))?|TIMEOUT(?:_(?:MS|SECONDS|SECS|MINUTES))?|RETENTION(?:_(?:DAYS|HOURS|MINUTES))?|BACKOFF(?:_BASE)?_(?:MS|SECONDS|SECS|MINUTES)|MAX_RETRIES|MAX_ATTEMPTS|RETRIES|BATCH_SIZE|PREFETCH_COUNT|LIMIT|SIZE(?:_MB)?|CHANCE|QUALITY|FORCE_PATH_STYLE|WORKER_ID|CONSUMER_GROUP|DRIVER|CLIENT|SCHEME|CHANNEL|PREFIX|DOMAIN|DISK|CLOUD|CONNECTION)|[A-Z0-9_]*(?:TOPIC|TOPICS)_[A-Z0-9_]+)$/;
 
 /** Reduce a manifest scalar to a safe environment literal, or retain no value at all. */
 export const safeDeclaredLiteral = (name: string, value: unknown): string | undefined => {
   const normalizedName = normalizedSettingName(name);
-  if (!SAFE_LITERAL_NAME.test(normalizedName) || isSecretishDeclaredName(name)) return undefined;
+  if (isSecretishDeclaredName(name)) return undefined;
   if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') return undefined;
   let literal = String(value).trim();
   // Compose frequently states a configurable value as `${NAME:-production}`. The fallback is the
@@ -37,6 +37,12 @@ export const safeDeclaredLiteral = (name: string, value: unknown): string | unde
     literal.includes('${')
   )
     return undefined;
+
+  const isBooleanOrNumericLiteral =
+    /^(?:true|false|0|1|yes|no|on|off)$/i.test(literal) || /^-?\d+(?:\.\d+)?$/.test(literal);
+  if (isBooleanOrNumericLiteral) return literal;
+
+  if (!SAFE_LITERAL_NAME.test(normalizedName)) return undefined;
   return literal;
 };
 

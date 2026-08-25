@@ -101,10 +101,19 @@ export const ENV_NAME_TO_KIND: ReadonlyArray<{
     pattern: /^(POSTGRES|PG)_?(URL|URI|DSN|HOST|USER|PASSWORD|DB|DATABASE)?$/i,
     kind: 'postgres'
   },
-  { pattern: /^MYSQL_/i, kind: 'mysql' },
-  { pattern: /^MONGO(DB)?_/i, kind: 'mongodb' },
   {
-    pattern: /^REDIS_(?:URL|URI|DSN|CONNECTION_?STRING|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|DB(?:_INDEX)?)$/i,
+    pattern:
+      /^(?:MYSQL|MARIADB)_(?:URL|URI|DSN|CONNECTION_?STRING|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|PASSWD|DB|DATABASE|NAME)$/i,
+    kind: 'mysql'
+  },
+  {
+    pattern:
+      /^(?:MONGO|MONGODB)_(?:URL|URI|DSN|CONNECTION_?STRING|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|PASSWD|DB|DATABASE|NAME)$/i,
+    kind: 'mongodb'
+  },
+  {
+    pattern:
+      /^(?:REDIS|VALKEY|CACHE)_(?:URL|URI|DSN|CONNECTION_?STRING|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|DB(?:_INDEX)?)$/i,
     kind: 'redis'
   },
   {
@@ -129,7 +138,8 @@ export const ENV_NAME_TO_KIND: ReadonlyArray<{
 export const AMBIGUOUS_DATABASE_NAMES = /^(DATABASE|DB)_?(URL|URI|DSN|CONNECTION_STRING)$/i;
 
 /** Split database settings name a database but not its engine until another fact settles it. */
-export const AMBIGUOUS_DATABASE_SETTING_NAMES = /^(?:DB|DATABASE)_(?:HOST|PORT|NAME|USER|USERNAME|PASSWORD|PASSWD)$/i;
+export const AMBIGUOUS_DATABASE_SETTING_NAMES =
+  /^(?:DB|DATABASE)_(?:HOST(?:NAME)?|PORT|NAME|DATABASE|DB|USER|USERNAME|PASSWORD|PASSWD|SCHEMA)$/i;
 
 /**
  * Which hosting claim wins when two environment files disagree.
@@ -209,6 +219,9 @@ const DATABASE_SELECTOR_VALUES: Readonly<Record<string, DependencyKind>> = {
 
 const ENVIRONMENT_TEMPLATE_PATTERN = /(?:^|\/)(?:\.?)env[-.](?:example|sample|template|defaults?)(?:[-.].*)?$/i;
 
+/** Test-only settings describe a separate runtime and must not choose production topology. */
+const TEST_ENVIRONMENT_PATTERN = /(?:^|\/)(?:\.?)env(?:[.-](?:test|testing))(?:[.-].*)?$/i;
+
 /**
  * Prefer the one template the root application Dockerfile explicitly copies. Variant examples may
  * sit side-by-side (`env-example-relational`, `env-example-document`); reading both describes every
@@ -247,8 +260,8 @@ export const environmentProbe: Probe = {
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
     // The same predicate the policy uses. Keeping a second copy here is how the two drift: broaden
     // the policy to cover `.envrc` and this probe silently keeps ignoring it.
-    const discoveredEnvFiles = context.files.filter((file) =>
-      isEnvironmentFileName(file.slice(file.lastIndexOf('/') + 1))
+    const discoveredEnvFiles = context.files.filter(
+      (file) => isEnvironmentFileName(file.slice(file.lastIndexOf('/') + 1)) && !TEST_ENVIRONMENT_PATTERN.test(file)
     );
     const envFiles = await activeEnvironmentFiles(context, discoveredEnvFiles);
     if (envFiles.length === 0) return {};

@@ -366,6 +366,141 @@ describe('the compose probe', () => {
     expect(JSON.stringify(facts)).not.toContain('public-looking-but-still-secret');
   });
 
+  it('preserves Laravel process commands, startup flags, secrets, and split dependency wiring', async () => {
+    const distractors = Object.fromEntries(
+      Array.from({ length: 320 }, (_, index) => [
+        `app/Feature${String(index).padStart(3, '0')}.php`,
+        '<?php final class Feature {}\n'
+      ])
+    );
+    root = await makeRepo({
+      ...distractors,
+      'composer.json': JSON.stringify({
+        name: 'acme/media',
+        require: { 'laravel/framework': '^12', 'ext-pdo_mysql': '*', predis: '^3' }
+      }),
+      Dockerfile: 'FROM serversideup/php:8.5-frankenphp\nEXPOSE 8080\n',
+      'public/index.php': '<?php require __DIR__ . "/../vendor/autoload.php";\n',
+      'config/app.php': "<?php return ['key' => env('APP_KEY')];\n",
+      'config/database.php': [
+        '<?php return [',
+        "  'default' => env('DB_CONNECTION', 'mysql'),",
+        "  'host' => env('DB_HOST', '127.0.0.1'),",
+        "  'port' => env('DB_PORT', '3306'),",
+        "  'database' => env('DB_DATABASE', 'app'),",
+        "  'username' => env('DB_USERNAME', 'app'),",
+        "  'password' => env('DB_PASSWORD', ''),",
+        "  'ssl_ca' => env('MYSQL_ATTR_SSL_CA'),",
+        "  'redis_host' => env('REDIS_HOST', '127.0.0.1'),",
+        "  'redis_password' => env('REDIS_PASSWORD'),",
+        "  'redis_port' => env('REDIS_PORT', '6379'),",
+        '];',
+        ''
+      ].join('\n'),
+      'config/filesystems.php': [
+        '<?php return [',
+        "  'default' => env('FILESYSTEM_DISK', 'local'),",
+        "  'bucket' => env('AWS_BUCKET'),",
+        '];',
+        ''
+      ].join('\n'),
+      '.env.example': [
+        'APP_KEY=',
+        'DB_CONNECTION=mysql',
+        'DB_HOST=127.0.0.1',
+        'DB_PORT=3306',
+        'DB_DATABASE=app',
+        'DB_USERNAME=app',
+        'DB_PASSWORD=',
+        'REDIS_HOST=127.0.0.1',
+        'REDIS_PASSWORD=null',
+        'REDIS_PORT=6379',
+        'FILESYSTEM_DISK=local',
+        ''
+      ].join('\n'),
+      // Test topology must not override the production MySQL selector above.
+      '.env.testing': 'DB_CONNECTION=sqlite\nDB_DATABASE=tests/database.sqlite\n',
+      'docker-compose.yml': [
+        'services:',
+        '  web:',
+        '    build: .',
+        '    ports: ["8080:8080"]',
+        '    depends_on: [db, redis]',
+        '    environment:',
+        '      PHP_OPCACHE_ENABLE: "1"',
+        '      AUTORUN_ENABLED: "true"',
+        '      AUTORUN_LARAVEL_MIGRATION: "true"',
+        '      AUTORUN_LARAVEL_MIGRATION_ISOLATION: "true"',
+        '      AUTORUN_LARAVEL_STORAGE_LINK: "true"',
+        '      AUTORUN_LARAVEL_EVENT_CACHE: "true"',
+        '      AUTORUN_LARAVEL_CONFIG_CACHE: "true"',
+        '  horizon:',
+        '    build: .',
+        '    entrypoint: ["php", "artisan"]',
+        '    command: ["horizon"]',
+        '    depends_on: [db, redis]',
+        '    environment:',
+        '      AUTORUN_LARAVEL_MIGRATION: "false"',
+        '      AUTORUN_LARAVEL_STORAGE_LINK: "true"',
+        '      AUTORUN_LARAVEL_CONFIG_CACHE: "true"',
+        '  scheduler:',
+        '    build: .',
+        '    command: ["php", "artisan", "schedule:work"]',
+        '    depends_on: [db, redis]',
+        '    environment:',
+        '      AUTORUN_LARAVEL_MIGRATION: "false"',
+        '  db:',
+        '    image: mysql:9',
+        '  redis:',
+        '    image: redis:7',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [languageManifestProbe, dockerComposeProbe, environmentProbe, serverEntrypointProbe]
+    });
+    const web = facts.services.find((service) => service.name === 'web')!;
+    const horizon = facts.services.find((service) => service.name === 'horizon')!;
+    const scheduler = facts.services.find((service) => service.name === 'scheduler')!;
+    const webVariables = new Map(web.environmentVariables.map((variable) => [variable.name, variable]));
+    const database = facts.dependencies.find((dependency) => dependency.kind === 'mysql')!;
+    const cache = facts.dependencies.find((dependency) => dependency.kind === 'redis')!;
+
+    expect(web.startCommand).toBeUndefined();
+    expect(horizon.startCommand).toBe('php artisan horizon');
+    expect(scheduler.startCommand).toBe('php artisan schedule:work');
+    expect(web.bundledLifecycle).toEqual({ databaseMigrations: true, backgroundProcesses: false });
+    expect(horizon.bundledLifecycle).toBeUndefined();
+    expect(scheduler.bundledLifecycle).toBeUndefined();
+
+    expect(webVariables.get('APP_KEY')).toMatchObject({ role: 'generated-secret' });
+    for (const name of ['DB_HOST', 'DB_PORT', 'DB_DATABASE', 'DB_USERNAME', 'DB_PASSWORD']) {
+      expect(webVariables.get(name)).toMatchObject({ role: 'infra-dependency', dependencyName: database.name });
+    }
+    for (const name of ['REDIS_HOST', 'REDIS_PASSWORD', 'REDIS_PORT']) {
+      expect(webVariables.get(name)).toMatchObject({ role: 'infra-dependency', dependencyName: cache.name });
+    }
+    expect(webVariables.get('DB_CONNECTION')).toMatchObject({ role: 'runtime-config' });
+    expect(webVariables.get('MYSQL_ATTR_SSL_CA')).toMatchObject({ role: 'runtime-config' });
+
+    for (const [name, value] of [
+      ['PHP_OPCACHE_ENABLE', '1'],
+      ['AUTORUN_LARAVEL_MIGRATION', 'true'],
+      ['AUTORUN_LARAVEL_EVENT_CACHE', 'true'],
+      ['AUTORUN_LARAVEL_CONFIG_CACHE', 'true']
+    ] as const) {
+      expect(webVariables.get(name)).toMatchObject({ role: 'runtime-config', safeLiteralValue: value });
+    }
+    expect(facts.dependencies.some((dependency) => dependency.kind === 'object-storage')).toBe(false);
+    expect(database.currentlyHostedOn).toBeUndefined();
+    expect(database.hostingEvidence).toBeUndefined();
+    expect(cache.currentlyHostedOn).toBeUndefined();
+    expect(facts.existingDeployments).toEqual([]);
+    expect(web.evidence).toContainEqual(expect.objectContaining({ file: 'docker-compose.yml' }));
+  });
+
   it('does not mistake Kafka topic and consumer-group settings for broker addresses', async () => {
     root = await makeRepo({
       Dockerfile: 'FROM eclipse-temurin:21\n',

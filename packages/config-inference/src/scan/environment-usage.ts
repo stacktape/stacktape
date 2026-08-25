@@ -25,7 +25,7 @@ import type { DependencyFact, DependencyKind } from '../facts/dependency';
 import type { EnvironmentVariableRole, EnvironmentVariableUse, ServiceFactInput } from '../facts/service';
 import type { Citation } from '../facts/citation';
 import type { SourceRead } from './read-source';
-import { AMBIGUOUS_DATABASE_NAMES, ENV_NAME_TO_KIND } from './probes/environment';
+import { AMBIGUOUS_DATABASE_NAMES, AMBIGUOUS_DATABASE_SETTING_NAMES, ENV_NAME_TO_KIND } from './probes/environment';
 import { isPlatformEnvironmentVariable } from './platform-environment';
 
 /** Whole-repo and per-service ceilings, so one pathological repository cannot stall the scan. */
@@ -132,7 +132,7 @@ const SECRET_NAME =
   /SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY|API_KEY|APIKEY|ACCESS_KEY|CLIENT_ID|CLIENT_SECRET|AUTH|CREDENTIAL|SIGNING|DSN|LICENSE_KEY|_KEY$/;
 
 const GENERATED_APPLICATION_SECRET_NAME =
-  /^(?:SECRET_KEY|SESSION_SECRET|COOKIE_SECRET|CSRF_SECRET|AUTH_SECRET|JWT_SECRET|SIGNING_SECRET)$/;
+  /^(?:APP_KEY|APP_SECRET|APPLICATION_SECRET|SECRET_KEY|SESSION_SECRET|COOKIE_SECRET|CSRF_SECRET|AUTH_SECRET|JWT_SECRET|SIGNING_SECRET|BETTER_AUTH_SECRET|NEXTAUTH_SECRET)$/;
 
 /** Directories whose env reads describe tooling or test rigs, not the deployed process. */
 const EXCLUDED_PATH = new RegExp(
@@ -169,6 +169,18 @@ const EXCLUDED_PATH = new RegExp(
 
 const EXCLUDED_FILE = /\.(?:test|spec|stories)\.[^.]+$|\.d\.ts$/i;
 
+/**
+ * Configuration modules concentrate deployment-critical environment reads. Large applications can
+ * contain hundreds of controllers and jobs before a `config/` directory appears in lexical order;
+ * scanning those first must not consume the bounded per-service budget before database and secret
+ * settings are reached.
+ */
+const environmentUsagePriority = (path: string): number =>
+  /(?:^|\/)(?:config|configuration|settings)(?:\/|\.|$)/i.test(path) ||
+  /(?:^|\/)(?:application|database|filesystem|redis|cache|queue)\.(?:php|py|rb|[cm]?[jt]s)$/i.test(path)
+    ? 0
+    : 1;
+
 const OPTIONAL_ENVSECRET_DEFINITION = /\bdef\s+envsecret\s*\([^)]*\bdefault(?:\s*:[^=,)]+)?\s*=\s*(?:None|["']{2})/;
 
 const ROLE_ORDER: Record<EnvironmentVariableRole, number> = {
@@ -179,6 +191,9 @@ const ROLE_ORDER: Record<EnvironmentVariableRole, number> = {
   'cross-service-reference': 4,
   'runtime-config': 5
 };
+
+/** Keep storage-mode evidence inside the bounded result even in integration-heavy applications. */
+const DEPLOYMENT_CRITICAL_NAME = /^(?:FILESYSTEM_(?:DISK|DRIVER|CLOUD)|PF_ENABLE_CLOUD)$/i;
 
 type Occurrence = {
   citations: Citation[];
@@ -249,7 +264,7 @@ const resolveDependency = (name: string, dependencies: readonly DependencyFact[]
   // `DATABASE_URL` names no engine, but when the repository holds exactly one database the other
   // probes already settled which one it means — the same reconciliation the assembler applies to
   // the engine question itself.
-  if (AMBIGUOUS_DATABASE_NAMES.test(name)) {
+  if (AMBIGUOUS_DATABASE_NAMES.test(name) || AMBIGUOUS_DATABASE_SETTING_NAMES.test(name)) {
     const databases = dependencies.filter((dependency) => DATABASE_KINDS.has(dependency.kind));
     return databases.length === 1 ? databases[0] : undefined;
   }
@@ -303,7 +318,15 @@ export const enrichEnvironmentUsage = async ({
 
   const filesByPath = new Map<string, string[]>();
   let totalAssigned = 0;
-  for (const file of files) {
+  const prioritizedFiles = files
+    .map((file, index) => ({ file, index }))
+    .toSorted(
+      (left, right) =>
+        environmentUsagePriority(left.file) - environmentUsagePriority(right.file) || left.index - right.index
+    )
+    .map(({ file }) => file);
+
+  for (const file of prioritizedFiles) {
     if (totalAssigned >= MAX_FILES_SCANNED) break;
     if (EXCLUDED_PATH.test(file) || EXCLUDED_FILE.test(file)) continue;
     if (!PATTERNS_BY_EXTENSION.some((entry) => entry.extensions.test(file))) continue;
@@ -342,6 +365,7 @@ export const enrichEnvironmentUsage = async ({
     const uses = classified
       .toSorted(
         (a, b) =>
+          Number(!DEPLOYMENT_CRITICAL_NAME.test(a.name)) - Number(!DEPLOYMENT_CRITICAL_NAME.test(b.name)) ||
           Number(b.required) - Number(a.required) ||
           ROLE_ORDER[a.role] - ROLE_ORDER[b.role] ||
           a.name.localeCompare(b.name)

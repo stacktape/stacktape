@@ -71,9 +71,7 @@ export const wiringFor = (kind: DependencyKind, variableName: string): Environme
   }
 
   if (/PASSWORD|PASSWD/.test(name)) {
-    // Only RDS databases get a generated password secret; everything else has no password of ours
-    // to hand out, and a wrong guess here would put a connection string where a password belongs.
-    return RDS_KINDS.has(kind) ? { kind: 'password-secret' } : { kind: 'none' };
+    return RDS_KINDS.has(kind) || kind === 'redis' ? { kind: 'password-secret' } : { kind: 'none' };
   }
   if (/(?:^|_)(?:USER|USERNAME)$/.test(name)) {
     return RDS_KINDS.has(kind) ? { kind: 'database-username' } : { kind: 'none' };

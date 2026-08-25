@@ -76,8 +76,6 @@ export type EvalExpectation = {
     buildContextPath?: string;
     dockerfilePath?: string;
   }>;
-  /** User-visible composition gaps that must explain why a result is incomplete. */
-  requiredGapPatterns?: readonly string[];
 };
 
 export type EvalCase = {
