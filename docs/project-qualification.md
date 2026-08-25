@@ -227,16 +227,17 @@ Evidence is deterministically verified from repository and report state. It does
 against a compromised host environment. Worker claims (prose summaries, root cause explanations, uncertainties) are
 explicitly distinguished from automatically verified facts.
 
-### Generating a review bundle
+#### Generating a review bundle
 
-Run from the public repository root:
+Place the worker campaign handoff inside `.stacktape/qualification/` (which is git-ignored) so the repository worktree
+remains clean before review bundle creation:
 
 ```powershell
-# Generate bundle from a worker campaign handoff
-pnpm qualify:review-bundle -- --handoff=campaign-handoff.json
+# Generate bundle from a worker campaign handoff located in .stacktape/qualification/
+pnpm qualify:review-bundle -- --handoff=.stacktape/qualification/campaign-handoff.json
 
 # Override reports, commits, or output location
-pnpm qualify:review-bundle -- --handoff=campaign-handoff.json --output-dir=.stacktape/qualification/review-01
+pnpm qualify:review-bundle -- --handoff=.stacktape/qualification/campaign-handoff.json --output-dir=.stacktape/qualification/review-01
 ```
 
 Each run writes:
@@ -246,7 +247,13 @@ review-bundle.json         versioned machine-readable review bundle
 review-bundle.md           human review summary with tables, risk flags, and diff digests
 ```
 
-A minimal worker campaign handoff (`campaign-handoff.json`) is:
+Exit codes:
+
+- `0`: `ready-for-review` (all automated checks passed; ready for reviewer evaluation).
+- `2`: `requires-attention` (high risk flags, harness modifications, or missing evidence).
+- `1`: `rejected` (critical risk flags, dirty worktree, or schema/proof failures).
+
+A worker campaign handoff (`.stacktape/qualification/campaign-handoff.json`) includes:
 
 ```json
 {
@@ -262,10 +269,30 @@ A minimal worker campaign handoff (`campaign-handoff.json`) is:
   "focusedRegression": {
     "testFile": "packages/config-inference/src/probes/postgres.spec.ts",
     "testCommand": "bun test packages/config-inference/src/probes/postgres.spec.ts",
-    "description": "Verifies custom PGPORT string parsing."
+    "description": "Verifies custom PGPORT string parsing.",
+    "commandEvidence": {
+      "argv": ["bun", "test", "packages/config-inference/src/probes/postgres.spec.ts"],
+      "cwd": "C:/Projects/stacktape",
+      "startedAt": "2026-08-25T01:00:00.000Z",
+      "completedAt": "2026-08-25T01:00:01.000Z",
+      "durationMs": 1000,
+      "exitCode": 0,
+      "logPath": "logs/regression.log",
+      "logSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
   },
   "affectedTypecheck": {
-    "command": "pnpm --filter @stacktape/config-inference run typecheck"
+    "command": "pnpm --filter @stacktape/config-inference run typecheck",
+    "commandEvidence": {
+      "argv": ["pnpm", "--filter", "@stacktape/config-inference", "run", "typecheck"],
+      "cwd": "C:/Projects/stacktape",
+      "startedAt": "2026-08-25T01:00:02.000Z",
+      "completedAt": "2026-08-25T01:00:05.000Z",
+      "durationMs": 3000,
+      "exitCode": 0,
+      "logPath": "logs/typecheck.log",
+      "logSha256": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef"
+    }
   },
   "neighborCases": ["express-postgres-basic", "docker-fastapi"],
   "runtimeEvidence": {

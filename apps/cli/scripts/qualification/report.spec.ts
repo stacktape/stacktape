@@ -12,7 +12,7 @@ describe('qualification report', () => {
       productFingerprint: 'tree-fingerprint',
       lanes: ['import', 'package'],
       environment: { platform: 'win32', architecture: 'x64', bun: '1.3.14', node: '24.0.0' },
-      summary: { passed: 0, failed: 1, skipped: 0, durationMs: 1234 },
+      summary: { passed: 0, failed: 2, skipped: 0, durationMs: 1234 },
       globalSteps: [
         {
           name: 'runtime',

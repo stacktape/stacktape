@@ -1,5 +1,14 @@
+import { isAbsolute, win32 } from 'node:path';
 import { z } from 'zod';
 import { qualificationLaneSchema, stepStatusSchema } from './contracts';
+
+export const hasControlCharacters = (str: string): boolean => {
+  for (let i = 0; i < str.length; i++) {
+    const code = str.charCodeAt(i);
+    if (code < 32 || code === 127) return true;
+  }
+  return false;
+};
 
 export const CAMPAIGN_HANDOFF_VERSION = 1 as const;
 export const QUALIFICATION_REVIEW_BUNDLE_VERSION = 1 as const;
@@ -23,14 +32,81 @@ export const failureClassificationSchema = z.enum([
 ]);
 export type FailureClassification = z.infer<typeof failureClassificationSchema>;
 
-const commitShaSchema = z.string().regex(/^[a-f0-9]{40}$/, 'Must be a full 40-character Git commit SHA.');
-const sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/, 'Must be a 64-character SHA-256 hex digest.');
+const RESERVED_DEVICE_NAMES = new Set([
+  'con',
+  'prn',
+  'aux',
+  'nul',
+  'com1',
+  'com2',
+  'com3',
+  'com4',
+  'com5',
+  'com6',
+  'com7',
+  'com8',
+  'com9',
+  'lpt1',
+  'lpt2',
+  'lpt3',
+  'lpt4',
+  'lpt5',
+  'lpt6',
+  'lpt7',
+  'lpt8',
+  'lpt9'
+]);
+
+export const campaignIdSchema = z
+  .string()
+  .min(2)
+  .max(80)
+  .regex(/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?$/, 'Use lowercase letters, numbers, and internal dashes.')
+  .refine((id) => !RESERVED_DEVICE_NAMES.has(id.toLowerCase()), 'Campaign ID cannot be a reserved device name.');
+
+export const commitShaSchema = z.string().regex(/^[a-f0-9]{40}$/, 'Must be a full 40-character Git commit SHA.');
+export const sha256HexSchema = z.string().regex(/^[a-f0-9]{64}$/, 'Must be a 64-character SHA-256 hex digest.');
+
+export const relativePathSchema = z
+  .string()
+  .min(1)
+  .superRefine((value, context) => {
+    const normalized = value.replaceAll('\\', '/');
+    if (
+      isAbsolute(value) ||
+      win32.isAbsolute(value) ||
+      normalized.startsWith('/') ||
+      normalized.startsWith('\\\\') ||
+      normalized.split('/').includes('..') ||
+      hasControlCharacters(value)
+    ) {
+      context.addIssue({
+        code: 'custom',
+        message: 'Path must stay inside its declared root and not use absolute, UNC, or dot-dot notation.'
+      });
+    }
+  });
+
+export const commandEvidenceSchema = z
+  .object({
+    argv: z.array(z.string().min(1)).min(1),
+    cwd: z.string().min(1),
+    startedAt: z.string().datetime(),
+    completedAt: z.string().datetime(),
+    durationMs: z.number().int().nonnegative(),
+    exitCode: z.number().int(),
+    logPath: relativePathSchema,
+    logSha256: sha256HexSchema
+  })
+  .strict();
+export type CommandEvidence = z.infer<typeof commandEvidenceSchema>;
 
 export const focusedRegressionClaimSchema = z
   .object({
     testFile: z.string().min(1),
     testCommand: z.string().min(1),
-    description: z.string().min(1)
+    description: z.string().min(1),
+    commandEvidence: commandEvidenceSchema.optional()
   })
   .strict();
 export type FocusedRegressionClaim = z.infer<typeof focusedRegressionClaimSchema>;
@@ -38,7 +114,8 @@ export type FocusedRegressionClaim = z.infer<typeof focusedRegressionClaimSchema
 export const affectedTypecheckClaimSchema = z
   .object({
     command: z.string().min(1),
-    description: z.string().min(1).optional()
+    description: z.string().min(1).optional(),
+    commandEvidence: commandEvidenceSchema.optional()
   })
   .strict();
 export type AffectedTypecheckClaim = z.infer<typeof affectedTypecheckClaimSchema>;
@@ -75,7 +152,7 @@ export type ClassifiedFailureClaim = z.infer<typeof classifiedFailureClaimSchema
 export const campaignHandoffSchema = z
   .object({
     schemaVersion: z.literal(CAMPAIGN_HANDOFF_VERSION),
-    campaignId: z.string().min(2).max(100),
+    campaignId: campaignIdSchema,
     campaignType: campaignTypeSchema,
     title: z.string().min(1).max(200),
     summary: z.string().min(1).max(10_000),
@@ -94,22 +171,104 @@ export const campaignHandoffSchema = z
   .strict();
 export type CampaignHandoff = z.infer<typeof campaignHandoffSchema>;
 
-export const caseArtifactDigestSchema = z
+export const gitCommitInfoSchema = z
   .object({
-    sha256: sha256HexSchema,
-    bytes: z.number().int().nonnegative()
+    sha: commitShaSchema,
+    authorName: z.string(),
+    authorEmail: z.string(),
+    authoredAt: z.string(),
+    subject: z.string()
   })
   .strict();
-export type CaseArtifactDigest = z.infer<typeof caseArtifactDigestSchema>;
+export type GitCommitInfo = z.infer<typeof gitCommitInfoSchema>;
+
+export const gitEvidenceSchema = z
+  .object({
+    baseCommit: commitShaSchema,
+    finalCommit: commitShaSchema,
+    headCommit: commitShaSchema,
+    branch: z.string(),
+    remoteOriginUrl: z.string().optional(),
+    commitRange: z.string().min(1),
+    commits: z.array(gitCommitInfoSchema),
+    cleanFinalWorktree: z.boolean(),
+    binaryDiffSha256: sha256HexSchema,
+    changedFilesSha256: sha256HexSchema,
+    changedFiles: z.array(z.string()),
+    diffStat: z
+      .object({
+        filesChanged: z.number().int().nonnegative(),
+        insertions: z.number().int().nonnegative(),
+        deletions: z.number().int().nonnegative()
+      })
+      .strict()
+  })
+  .strict();
+export type GitEvidence = z.infer<typeof gitEvidenceSchema>;
+
+export const reportFileEvidenceSchema = z
+  .object({
+    path: z.string().min(1),
+    sha256: sha256HexSchema,
+    bytes: z.number().int().nonnegative(),
+    productCommit: commitShaSchema,
+    productFingerprint: sha256HexSchema,
+    runId: z.string().min(1),
+    summary: z
+      .object({
+        passed: z.number().int().nonnegative(),
+        failed: z.number().int().nonnegative(),
+        skipped: z.number().int().nonnegative(),
+        durationMs: z.number().nonnegative()
+      })
+      .strict(),
+    lanes: z.array(qualificationLaneSchema)
+  })
+  .strict();
+export type ReportFileEvidence = z.infer<typeof reportFileEvidenceSchema>;
+
+export const artifactRecordSchema = z
+  .object({
+    relativePath: z.string().min(1),
+    sha256: sha256HexSchema,
+    bytes: z.number().int().nonnegative(),
+    artifactType: z.enum(['stacktape-config', 'cloudformation-template'])
+  })
+  .strict();
+export type ArtifactRecord = z.infer<typeof artifactRecordSchema>;
 
 export const caseArtifactComparisonSchema = z
   .object({
-    before: caseArtifactDigestSchema.optional(),
-    after: caseArtifactDigestSchema.optional(),
+    before: artifactRecordSchema.optional(),
+    after: artifactRecordSchema.optional(),
     changed: z.boolean()
   })
   .strict();
 export type CaseArtifactComparison = z.infer<typeof caseArtifactComparisonSchema>;
+
+export const laneTransitionTypeSchema = z.enum([
+  'fixed',
+  'regressed',
+  'unchanged-passed',
+  'unchanged-failed',
+  'unchanged-skipped',
+  'added-passed',
+  'added-failed',
+  'removed',
+  'skipped-regression'
+]);
+export type LaneTransitionType = z.infer<typeof laneTransitionTypeSchema>;
+
+export const laneTransitionSchema = z
+  .object({
+    lane: qualificationLaneSchema,
+    beforeStatus: stepStatusSchema.or(z.literal('absent')),
+    afterStatus: stepStatusSchema.or(z.literal('absent')),
+    transition: laneTransitionTypeSchema,
+    summary: z.string().optional()
+  })
+  .strict();
+export type LaneTransition = z.infer<typeof laneTransitionSchema>;
 
 export const caseTransitionTypeSchema = z.enum([
   'fixed',
@@ -133,6 +292,7 @@ export const caseTransitionSchema = z
     sourceFingerprintBefore: sha256HexSchema.optional(),
     sourceFingerprintAfter: sha256HexSchema.optional(),
     sourceFingerprintMatch: z.boolean(),
+    laneTransitions: z.array(laneTransitionSchema),
     configArtifact: caseArtifactComparisonSchema.optional(),
     templateArtifact: caseArtifactComparisonSchema.optional(),
     failuresBefore: z.array(z.string()).optional(),
@@ -141,11 +301,76 @@ export const caseTransitionSchema = z
   .strict();
 export type CaseTransition = z.infer<typeof caseTransitionSchema>;
 
+export const executedCommandEvidenceRecordSchema = z
+  .object({
+    claimType: z.enum(['focused-regression', 'affected-typecheck', 'other']),
+    verified: z.boolean(),
+    argv: z.array(z.string()),
+    cwd: z.string(),
+    exitCode: z.number().int(),
+    durationMs: z.number().int().nonnegative(),
+    logRelativePath: z.string(),
+    logSha256: sha256HexSchema,
+    logBytes: z.number().int().nonnegative(),
+    failureReason: z.string().optional()
+  })
+  .strict();
+export type ExecutedCommandEvidenceRecord = z.infer<typeof executedCommandEvidenceRecordSchema>;
+
+export const claimsVsVerificationSchema = z
+  .object({
+    workerClaims: campaignHandoffSchema,
+    claimPresent: z
+      .object({
+        focusedRegression: z.boolean(),
+        affectedTypecheck: z.boolean(),
+        neighborCases: z.boolean(),
+        runtimeEvidence: z.boolean()
+      })
+      .strict(),
+    reportedEvidence: z
+      .object({
+        preFixReportSummary: reportFileEvidenceSchema,
+        postFixReportSummary: reportFileEvidenceSchema,
+        fixedCasesCount: z.number().int().nonnegative(),
+        regressedCasesCount: z.number().int().nonnegative(),
+        addedCasesCount: z.number().int().nonnegative(),
+        runtimeLanePassedInPostReport: z.boolean()
+      })
+      .strict(),
+    executedCommandEvidence: z
+      .object({
+        focusedRegression: executedCommandEvidenceRecordSchema.optional(),
+        affectedTypecheck: executedCommandEvidenceRecordSchema.optional()
+      })
+      .strict(),
+    independentlyVerified: z
+      .object({
+        cleanWorktree: z.boolean(),
+        headEqualsFinalCommit: z.boolean(),
+        baseIsAncestorOfFinal: z.boolean(),
+        preFixReportCommitMatchesBase: z.boolean(),
+        postFixReportCommitMatchesFinal: z.boolean(),
+        qualificationReportsSchemaValid: z.boolean(),
+        caseSourceFingerprintsMatch: z.boolean(),
+        campaignTypeRequirementsSatisfied: z.boolean(),
+        productBugSameSourceSameLaneFixed: z.boolean(),
+        neighborCasesPassVerified: z.boolean(),
+        expectedArtifactsPresent: z.boolean(),
+        artifactsHashedCount: z.number().int().nonnegative()
+      })
+      .strict()
+  })
+  .strict();
+export type ClaimsVsVerification = z.infer<typeof claimsVsVerificationSchema>;
+
 export const reviewRiskSeveritySchema = z.enum(['critical', 'high', 'medium', 'low', 'info']);
 export type ReviewRiskSeverity = z.infer<typeof reviewRiskSeveritySchema>;
 
 export const reviewRiskCodeSchema = z.enum([
   'WORKTREE_DIRTY',
+  'FINAL_COMMIT_NOT_HEAD',
+  'BASE_COMMIT_NOT_ANCESTOR',
   'BASE_COMMIT_MISMATCH',
   'FINAL_COMMIT_MISMATCH',
   'HARNESS_MODIFIED',
@@ -154,13 +379,29 @@ export const reviewRiskCodeSchema = z.enum([
   'CORE_SYNTHESIS_MODIFIED',
   'PACKAGING_CORE_MODIFIED',
   'SOURCE_FINGERPRINT_MUTATION',
+  'SOURCE_FINGERPRINT_MUTATED_ON_FIX',
   'REGRESSED_CASES',
-  'NO_FIXED_CASES_FOR_PRODUCT_BUG',
-  'MISSING_FOCUSED_REGRESSION_FOR_PRODUCT_BUG',
-  'MISSING_AFFECTED_TYPECHECK_FOR_PRODUCT_BUG',
-  'MISSING_NEIGHBOR_CASES_FOR_PRODUCT_BUG',
+  'COVERAGE_LOSS_CASE_REMOVED',
+  'COVERAGE_LOSS_CASE_SKIPPED',
+  'COVERAGE_LOSS_LANE_SKIPPED',
+  'PRODUCT_BUG_PROOF_FAILED',
+  'NEW_COVERAGE_PROOF_FAILED',
+  'HARNESS_FIX_REQUIRES_ATTENTION',
+  'HARNESS_FIX_NO_HARNESS_DIFF',
+  'CORPUS_REFRESH_NO_CORPUS_DIFF',
+  'CORPUS_REFRESH_LOST_COVERAGE',
+  'INVESTIGATION_NOT_FOR_INTEGRATION',
+  'MISSING_FOCUSED_REGRESSION_COMMAND_EVIDENCE',
+  'FOCUSED_REGRESSION_COMMAND_FAILED',
+  'MISSING_AFFECTED_TYPECHECK_COMMAND_EVIDENCE',
+  'AFFECTED_TYPECHECK_COMMAND_FAILED',
+  'NEIGHBOR_CASES_UNVERIFIED',
   'MISSING_RUNTIME_EVIDENCE_FOR_PACKAGING',
-  'UNVERIFIED_WORKER_CLAIMS'
+  'PACKAGING_RUNTIME_UNVERIFIED_WITH_REASON',
+  'MISSING_EXPECTED_ARTIFACT',
+  'ARTIFACT_SYMLINK_REJECTED',
+  'ARTIFACT_PATH_ESCAPE',
+  'OUTPUT_DIR_ESCAPE'
 ]);
 export type ReviewRiskCode = z.infer<typeof reviewRiskCodeSchema>;
 
@@ -175,50 +416,29 @@ export const reviewRiskFlagSchema = z
   .strict();
 export type ReviewRiskFlag = z.infer<typeof reviewRiskFlagSchema>;
 
-export const gitEvidenceSchema = z
+export const reviewerSummarySchema = z
   .object({
+    verdict: z.enum(['ready-for-review', 'requires-attention', 'rejected']),
+    verdictExplanation: z.string().min(1),
+    campaignId: campaignIdSchema,
+    campaignType: campaignTypeSchema,
+    title: z.string().min(1),
     baseCommit: commitShaSchema,
     finalCommit: commitShaSchema,
-    commitRange: z.string().min(1),
-    cleanFinalWorktree: z.boolean(),
-    binaryDiffSha256: sha256HexSchema,
-    changedFilesSha256: sha256HexSchema,
-    changedFiles: z.array(z.string()),
-    diffStat: z
-      .object({
-        filesChanged: z.number().int().nonnegative(),
-        insertions: z.number().int().nonnegative(),
-        deletions: z.number().int().nonnegative()
-      })
-      .strict()
+    totalChangedFiles: z.number().int().nonnegative(),
+    fixedCasesCount: z.number().int().nonnegative(),
+    regressedCasesCount: z.number().int().nonnegative(),
+    riskFlagsCount: z.number().int().nonnegative(),
+    criticalRiskCount: z.number().int().nonnegative(),
+    highRiskCount: z.number().int().nonnegative()
   })
   .strict();
-export type GitEvidence = z.infer<typeof gitEvidenceSchema>;
-
-export const qualificationReportSummaryEvidenceSchema = z
-  .object({
-    runId: z.string().min(1),
-    generatedAt: z.string().datetime(),
-    productCommit: commitShaSchema,
-    productFingerprint: sha256HexSchema,
-    lanes: z.array(qualificationLaneSchema),
-    summary: z
-      .object({
-        passed: z.number().int().nonnegative(),
-        failed: z.number().int().nonnegative(),
-        skipped: z.number().int().nonnegative(),
-        durationMs: z.number().nonnegative()
-      })
-      .strict(),
-    reportPath: z.string().min(1)
-  })
-  .strict();
-export type QualificationReportSummaryEvidence = z.infer<typeof qualificationReportSummaryEvidenceSchema>;
+export type ReviewerSummary = z.infer<typeof reviewerSummarySchema>;
 
 export const qualificationEvidenceSchema = z
   .object({
-    preFixReport: qualificationReportSummaryEvidenceSchema,
-    postFixReport: qualificationReportSummaryEvidenceSchema,
+    preFixReport: reportFileEvidenceSchema,
+    postFixReport: reportFileEvidenceSchema,
     caseTransitions: z.array(caseTransitionSchema),
     fixedCaseIds: z.array(z.string()),
     regressedCaseIds: z.array(z.string()),
@@ -229,40 +449,6 @@ export const qualificationEvidenceSchema = z
   .strict();
 export type QualificationEvidence = z.infer<typeof qualificationEvidenceSchema>;
 
-export const automatedVerificationSchema = z
-  .object({
-    cleanWorktreeVerified: z.boolean(),
-    baseCommitVerified: z.boolean(),
-    finalCommitVerified: z.boolean(),
-    preFixReportVerified: z.boolean(),
-    postFixReportVerified: z.boolean(),
-    productBugFixVerified: z.boolean(),
-    focusedRegressionVerified: z.boolean(),
-    affectedTypecheckVerified: z.boolean(),
-    neighborCasesVerified: z.boolean(),
-    runtimeEvidenceVerified: z.boolean(),
-    artifactsHashedCount: z.number().int().nonnegative()
-  })
-  .strict();
-export type AutomatedVerification = z.infer<typeof automatedVerificationSchema>;
-
-export const reviewerSummarySchema = z
-  .object({
-    verdict: z.enum(['ready-for-review', 'requires-attention', 'rejected']),
-    campaignId: z.string().min(1),
-    campaignType: campaignTypeSchema,
-    title: z.string().min(1),
-    baseCommit: commitShaSchema,
-    finalCommit: commitShaSchema,
-    totalChangedFiles: z.number().int().nonnegative(),
-    fixedCasesCount: z.number().int().nonnegative(),
-    regressedCasesCount: z.number().int().nonnegative(),
-    riskFlagsCount: z.number().int().nonnegative(),
-    criticalOrHighRiskCount: z.number().int().nonnegative()
-  })
-  .strict();
-export type ReviewerSummary = z.infer<typeof reviewerSummarySchema>;
-
 export const qualificationReviewBundleSchema = z
   .object({
     schemaVersion: z.literal(QUALIFICATION_REVIEW_BUNDLE_VERSION),
@@ -271,12 +457,7 @@ export const qualificationReviewBundleSchema = z
     reviewerSummary: reviewerSummarySchema,
     gitEvidence: gitEvidenceSchema,
     qualificationEvidence: qualificationEvidenceSchema,
-    claimsVsVerification: z
-      .object({
-        workerClaims: campaignHandoffSchema,
-        automatedVerification: automatedVerificationSchema
-      })
-      .strict(),
+    claimsVsVerification: claimsVsVerificationSchema,
     riskFlags: z.array(reviewRiskFlagSchema),
     disclaimer: z.string().min(1)
   })

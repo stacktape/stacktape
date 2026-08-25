@@ -149,20 +149,23 @@ replaying the entire corpus or parsing chat logs:
 
 1. Record the baseline pre-fix qualification report and final post-fix qualification report.
 2. Ensure the working tree is clean and committed.
-3. Write a campaign handoff JSON file (e.g. `campaign-handoff.json`).
+3. Write a campaign handoff JSON file under `.stacktape/qualification/` (e.g.
+   `.stacktape/qualification/campaign-handoff.json`).
 4. Generate the bundle:
 
 ```powershell
-pnpm qualify:review-bundle -- --handoff=campaign-handoff.json
+pnpm qualify:review-bundle -- --handoff=.stacktape/qualification/campaign-handoff.json
 ```
 
 For product-bug campaigns, the generator verifies that:
 
-- At least one qualification case transitioned from failed in the pre-fix report to passed in the post-fix report.
-- Focused unit/regression test command and file are provided.
-- Affected package typecheck command is provided.
-- Neighbor cases are listed to prevent regressions.
-- If packaging source changed, runtime evidence or an explicit not-run uncertainty reason is included.
+- At least one qualification case with identical source fingerprint transitioned from failed in the pre-fix report to
+  passed in the post-fix report on the same lane.
+- Focused unit/regression test command evidence is provided with valid execution logs and SHA-256 digest.
+- Affected package typecheck command evidence is provided with valid execution logs and SHA-256 digest.
+- Neighbor cases are listed and verified passing in the post-fix qualification report.
+- If packaging source changed, runtime lane passed in the post-fix report or an explicit not-run uncertainty reason is
+  included.
 
 ## Finish the work session
 

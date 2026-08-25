@@ -121,6 +121,14 @@ export const qualificationStepSchema = z
   .strict();
 export type QualificationStep = z.infer<typeof qualificationStepSchema>;
 
+export const statusForSteps = (steps: readonly QualificationStep[]): StepStatus => {
+  if (steps.some((step) => step.status === 'failed')) return 'failed';
+  if (steps.length > 0 && steps.every((step) => step.status === 'skipped')) return 'skipped';
+  if (steps.some((step) => step.status === 'passed') && !steps.some((step) => step.status === 'failed'))
+    return 'passed';
+  return 'skipped';
+};
+
 export const qualificationCaseResultSchema = z
   .object({
     id: safeIdSchema,
@@ -137,7 +145,26 @@ export const qualificationCaseResultSchema = z
     keptWorkdir: z.string().optional(),
     resumedFrom: z.object({ reportPath: z.string(), runId: z.string() }).strict().optional()
   })
-  .strict();
+  .strict()
+  .superRefine((caseResult, context) => {
+    if (caseResult.steps.length > 0) {
+      const expectedStatus = statusForSteps(caseResult.steps);
+      if (caseResult.status !== expectedStatus) {
+        context.addIssue({
+          code: 'custom',
+          path: ['status'],
+          message: `Case status '${caseResult.status}' contradicts step results (expected '${expectedStatus}').`
+        });
+      }
+    }
+    if (caseResult.execution === 'reused' && caseResult.resumedFrom === undefined) {
+      context.addIssue({
+        code: 'custom',
+        path: ['resumedFrom'],
+        message: "Reused case result must include 'resumedFrom' metadata."
+      });
+    }
+  });
 export type QualificationCaseResult = z.infer<typeof qualificationCaseResultSchema>;
 
 export const qualificationReportSchema = z
@@ -169,5 +196,45 @@ export const qualificationReportSchema = z
     globalSteps: z.array(qualificationStepSchema),
     cases: z.array(qualificationCaseResultSchema)
   })
-  .strict();
+  .strict()
+  .superRefine((report, context) => {
+    const seen = new Set<string>();
+    for (const [index, entry] of report.cases.entries()) {
+      if (seen.has(entry.id)) {
+        context.addIssue({ code: 'custom', path: ['cases', index, 'id'], message: `Duplicate case id '${entry.id}'.` });
+      }
+      seen.add(entry.id);
+    }
+    const passedCount =
+      report.cases.filter((c) => c.status === 'passed').length +
+      report.globalSteps.filter((s) => s.status === 'passed').length;
+    const failedCount =
+      report.cases.filter((c) => c.status === 'failed').length +
+      report.globalSteps.filter((s) => s.status === 'failed').length;
+    const skippedCount =
+      report.cases.filter((c) => c.status === 'skipped').length +
+      report.globalSteps.filter((s) => s.status === 'skipped').length;
+
+    if (report.summary.passed !== passedCount) {
+      context.addIssue({
+        code: 'custom',
+        path: ['summary', 'passed'],
+        message: `Summary passed count (${report.summary.passed}) does not match actual count (${passedCount}).`
+      });
+    }
+    if (report.summary.failed !== failedCount) {
+      context.addIssue({
+        code: 'custom',
+        path: ['summary', 'failed'],
+        message: `Summary failed count (${report.summary.failed}) does not match actual count (${failedCount}).`
+      });
+    }
+    if (report.summary.skipped !== skippedCount) {
+      context.addIssue({
+        code: 'custom',
+        path: ['summary', 'skipped'],
+        message: `Summary skipped count (${report.summary.skipped}) does not match actual count (${skippedCount}).`
+      });
+    }
+  });
 export type QualificationReport = z.infer<typeof qualificationReportSchema>;

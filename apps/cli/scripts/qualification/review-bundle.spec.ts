@@ -2,14 +2,15 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { QualificationReport } from './contracts';
+import { qualificationCaseResultSchema, qualificationReportSchema, type QualificationReport } from './contracts';
 import {
+  assertPathConfined,
   buildReviewBundle,
-  loadAndValidateHandoff,
+  hashBufferOrString,
   renderReviewBundleMarkdown,
   writeReviewBundle
 } from './review-bundle';
-import type { CampaignHandoff } from './review-bundle-contracts';
+import { campaignIdSchema, type CampaignHandoff } from './review-bundle-contracts';
 import { assertProcessSucceeded, runProcess } from './process';
 
 const temporaryRoots: string[] = [];
@@ -55,166 +56,177 @@ const createMockReport = ({
   runId,
   productCommit,
   status: _status = 'passed',
-  cases = []
+  cases = [],
+  globalSteps = []
 }: {
   runId: string;
   productCommit: string;
   status?: 'passed' | 'failed';
   cases?: QualificationReport['cases'];
-}): QualificationReport => ({
-  schemaVersion: 2,
-  runId,
-  generatedAt: new Date().toISOString(),
-  productCommit,
-  productFingerprint: 'a'.repeat(64),
-  lanes: ['import', 'package'],
-  environment: {
-    platform: process.platform,
-    architecture: process.arch,
-    bun: Bun.version,
-    node: process.versions.node
-  },
-  summary: {
-    passed: cases.filter((c) => c.status === 'passed').length,
-    failed: cases.filter((c) => c.status === 'failed').length,
-    skipped: cases.filter((c) => c.status === 'skipped').length,
-    durationMs: 5000
-  },
-  globalSteps: [],
-  cases
-});
+  globalSteps?: QualificationReport['globalSteps'];
+}): QualificationReport => {
+  const passed =
+    cases.filter((c) => c.status === 'passed').length + globalSteps.filter((s) => s.status === 'passed').length;
+  const failed =
+    cases.filter((c) => c.status === 'failed').length + globalSteps.filter((s) => s.status === 'failed').length;
+  const skipped =
+    cases.filter((c) => c.status === 'skipped').length + globalSteps.filter((s) => s.status === 'skipped').length;
 
-describe('qualification review bundle contracts & logic', () => {
-  test('validates and loads a valid campaign handoff', async () => {
-    const validHandoff: CampaignHandoff = {
-      schemaVersion: 1,
-      campaignId: 'fastify-postgres-fix',
-      campaignType: 'product-bug',
-      title: 'Fix Fastify PostgreSQL connection string parsing in importer',
-      summary: 'Fixed incorrect port inference when PGPORT was specified in .env files.',
-      baseCommit: 'a'.repeat(40),
-      finalCommit: 'b'.repeat(40),
-      preFixReportPath: 'fixtures/pre-report.json',
-      postFixReportPath: 'fixtures/post-report.json',
-      focusedRegression: {
-        testFile: 'src/domain/importer/postgres.spec.ts',
-        testCommand: 'bun test src/domain/importer/postgres.spec.ts',
-        description: 'Verifies PGPORT environment resolution.'
-      },
-      affectedTypecheck: {
-        command: 'pnpm --filter @stacktape/config-inference run typecheck'
-      },
-      neighborCases: ['express-postgres-basic', 'docker-fastapi'],
-      runtimeEvidence: {
-        executed: false,
-        notRunReason: 'Import-only configuration change; runtime packaging behavior unaffected.'
-      },
-      classifiedFailures: [
-        {
-          caseId: 'fastify-postgres-worker',
-          classification: 'importer',
-          explanation: 'PGPORT was parsed as string instead of integer in postgres probe.'
-        }
-      ],
-      uncertainties: ['Did not test with legacy PostgreSQL 9.6 connection URLs.']
-    };
+  return {
+    schemaVersion: 2,
+    runId,
+    generatedAt: new Date().toISOString(),
+    productCommit,
+    productFingerprint: 'a'.repeat(64),
+    lanes: ['import', 'package'],
+    environment: {
+      platform: process.platform,
+      architecture: process.arch,
+      bun: Bun.version,
+      node: process.versions.node
+    },
+    summary: {
+      passed,
+      failed,
+      skipped,
+      durationMs: 5000
+    },
+    globalSteps,
+    cases
+  };
+};
 
-    const { handoff } = await loadAndValidateHandoff(validHandoff);
-    expect(handoff.campaignId).toBe('fastify-postgres-fix');
-    expect(handoff.campaignType).toBe('product-bug');
-    expect(handoff.runtimeEvidence?.executed).toBeFalse();
+describe('qualification review bundle', () => {
+  test('strictly validates campaignId syntax and rejects reserved or path traversal names', () => {
+    expect(campaignIdSchema.parse('fastify-postgres-fix')).toBe('fastify-postgres-fix');
+    expect(campaignIdSchema.parse('fix-case-123')).toBe('fix-case-123');
+
+    // Invalid syntax
+    expect(() => campaignIdSchema.parse('Upper-Case')).toThrow();
+    expect(() => campaignIdSchema.parse('with_underscore')).toThrow();
+    expect(() => campaignIdSchema.parse('with/slash')).toThrow();
+    expect(() => campaignIdSchema.parse('with\\backslash')).toThrow();
+    expect(() => campaignIdSchema.parse('../escape')).toThrow();
+    expect(() => campaignIdSchema.parse('C:\\projects')).toThrow();
+    expect(() => campaignIdSchema.parse('\\\\unc\\share')).toThrow();
+    expect(() => campaignIdSchema.parse('con')).toThrow('reserved');
+    expect(() => campaignIdSchema.parse('PRN')).toThrow();
+    expect(() => campaignIdSchema.parse('nul')).toThrow('reserved');
+    expect(() => campaignIdSchema.parse('com1')).toThrow('reserved');
+    expect(() => campaignIdSchema.parse('lpt1')).toThrow('reserved');
+    expect(() => campaignIdSchema.parse('a\x00b')).toThrow();
   });
 
-  test('rejects unexecuted runtime claim without notRunReason', async () => {
-    const invalidHandoff = {
-      schemaVersion: 1,
-      campaignId: 'invalid-runtime',
-      campaignType: 'product-bug',
-      title: 'Invalid runtime evidence',
-      summary: 'Testing validation error',
-      baseCommit: 'a'.repeat(40),
-      finalCommit: 'b'.repeat(40),
-      preFixReportPath: 'pre.json',
-      postFixReportPath: 'post.json',
-      runtimeEvidence: {
-        executed: false
-      }
-    };
+  test('assertPathConfined strictly confines paths and rejects escapes', async () => {
+    const base = await createTempDir();
+    const sub = join(base, 'sub');
+    await mkdir(sub);
 
-    expect(loadAndValidateHandoff(invalidHandoff as any)).rejects.toThrow('explicit not-run uncertainty');
+    expect(assertPathConfined({ baseDirectory: base, targetPath: 'sub', label: 'test' })).toBe(sub);
+    expect(() => assertPathConfined({ baseDirectory: base, targetPath: '../outside', label: 'test' })).toThrow(
+      'resolves outside'
+    );
+    expect(() => assertPathConfined({ baseDirectory: base, targetPath: '\\\\server\\share', label: 'test' })).toThrow(
+      'UNC path'
+    );
+    expect(() => assertPathConfined({ baseDirectory: base, targetPath: 'a\x00b', label: 'test' })).toThrow(
+      'control characters'
+    );
   });
 
-  test('builds a valid review bundle with fixed cases and generates markdown', async () => {
-    const { repoDir, baseCommit, finalCommit } = await setupTestGitRepo();
-    const outputDir = await createTempDir();
-
-    const preCases: QualificationReport['cases'] = [
-      {
-        id: 'fastify-postgres-worker',
-        title: 'Fastify PostgreSQL Worker',
+  test('qualificationReportSchema rejects forged case status and count inconsistencies', () => {
+    // Case status contradicts step results
+    expect(() =>
+      qualificationCaseResultSchema.parse({
+        id: 'bad-case',
+        title: 'Bad Case',
         fingerprint: '1'.repeat(64),
         sourceFingerprint: 'f'.repeat(64),
         execution: 'executed',
-        status: 'failed',
-        durationMs: 1200,
-        source: { kind: 'local', path: 'fixtures/fastify', license: 'MIT' },
-        tags: ['node', 'fastify', 'postgres'],
+        status: 'passed', // Forged passed status!
+        durationMs: 100,
+        source: { kind: 'local', path: 'proj', license: 'MIT' },
+        tags: ['node'],
         steps: [
           {
             name: 'import',
             status: 'failed',
-            durationMs: 1000,
-            summary: 'Invalid postgres port configuration.',
-            failure: { code: 'IMPORT_CONTRACT_FAILED', message: 'Expected port 5432, got null.' }
+            durationMs: 100,
+            summary: 'Failed step'
           }
         ]
-      },
-      {
-        id: 'express-postgres-basic',
-        title: 'Express Postgres Basic',
-        fingerprint: '2'.repeat(64),
-        sourceFingerprint: 'e'.repeat(64),
-        execution: 'executed',
-        status: 'passed',
-        durationMs: 800,
-        source: { kind: 'local', path: 'fixtures/express', license: 'MIT' },
-        tags: ['node', 'express'],
-        steps: [{ name: 'import', status: 'passed', durationMs: 800, summary: 'Passed.' }]
-      }
-    ];
+      })
+    ).toThrow('contradicts step results');
 
-    const postCases: QualificationReport['cases'] = [
-      {
-        id: 'fastify-postgres-worker',
-        title: 'Fastify PostgreSQL Worker',
-        fingerprint: '3'.repeat(64),
+    // Reused case without resumedFrom
+    expect(() =>
+      qualificationCaseResultSchema.parse({
+        id: 'reused-case',
+        title: 'Reused Case',
+        fingerprint: '1'.repeat(64),
         sourceFingerprint: 'f'.repeat(64),
-        execution: 'executed',
+        execution: 'reused',
         status: 'passed',
-        durationMs: 1100,
-        source: { kind: 'local', path: 'fixtures/fastify', license: 'MIT' },
-        tags: ['node', 'fastify', 'postgres'],
-        steps: [{ name: 'import', status: 'passed', durationMs: 1100, summary: 'Passed import contract.' }]
-      },
-      {
-        id: 'express-postgres-basic',
-        title: 'Express Postgres Basic',
-        fingerprint: '2'.repeat(64),
-        sourceFingerprint: 'e'.repeat(64),
-        execution: 'executed',
-        status: 'passed',
-        durationMs: 800,
-        source: { kind: 'local', path: 'fixtures/express', license: 'MIT' },
-        tags: ['node', 'express'],
-        steps: [{ name: 'import', status: 'passed', durationMs: 800, summary: 'Passed.' }]
-      }
-    ];
+        durationMs: 0,
+        source: { kind: 'local', path: 'proj', license: 'MIT' },
+        tags: ['node'],
+        steps: [{ name: 'import', status: 'passed', durationMs: 0, summary: 'Passed' }]
+      })
+    ).toThrow("must include 'resumedFrom'");
 
-    // Write reports and artifacts
-    const preReportDir = join(outputDir, 'pre-run');
-    const postReportDir = join(outputDir, 'post-run');
+    // Report with aggregate count mismatch
+    expect(() =>
+      qualificationReportSchema.parse({
+        schemaVersion: 2,
+        runId: 'count-mismatch',
+        generatedAt: new Date().toISOString(),
+        productCommit: 'a'.repeat(40),
+        productFingerprint: 'b'.repeat(64),
+        lanes: ['import'],
+        environment: { platform: 'win32', architecture: 'x64', bun: '1.3.14', node: '24.0.0' },
+        summary: { passed: 99, failed: 0, skipped: 0, durationMs: 100 }, // Forged count!
+        globalSteps: [],
+        cases: [
+          {
+            id: 'real-case',
+            title: 'Real Case',
+            fingerprint: '1'.repeat(64),
+            sourceFingerprint: 'f'.repeat(64),
+            execution: 'executed',
+            status: 'passed',
+            durationMs: 100,
+            source: { kind: 'local', path: 'proj', license: 'MIT' },
+            tags: ['node'],
+            steps: [{ name: 'import', status: 'passed', durationMs: 100, summary: 'Passed' }]
+          }
+        ]
+      })
+    ).toThrow('does not match actual count');
+  });
+
+  test('builds a valid product-bug review bundle with verified command evidence and artifacts', async () => {
+    const { repoDir, baseCommit, finalCommit } = await setupTestGitRepo();
+    const tempDir = await createTempDir();
+
+    // Create command log files
+    const logDir = join(tempDir, 'logs');
+    await mkdir(logDir, { recursive: true });
+    const regressionLogText = 'PASS packages/config-inference/src/probes/postgres.spec.ts\n1 pass\n0 fail\n';
+    const typecheckLogText = '$ tsc -p tsconfig.json\nDone.\n';
+    const regressionLogPath = join(logDir, 'regression.log');
+    const typecheckLogPath = join(logDir, 'typecheck.log');
+    await writeFile(regressionLogPath, regressionLogText, 'utf8');
+    await writeFile(typecheckLogPath, typecheckLogText, 'utf8');
+
+    const regressionLogSha256 = hashBufferOrString(regressionLogText);
+    const typecheckLogSha256 = hashBufferOrString(typecheckLogText);
+
+    // Pre & Post qualification reports & artifacts
+    const preReportDir = join(tempDir, 'pre-run');
+    const postReportDir = join(tempDir, 'post-run');
     await mkdir(join(preReportDir, 'cases', 'fastify-postgres-worker'), { recursive: true });
     await mkdir(join(postReportDir, 'cases', 'fastify-postgres-worker'), { recursive: true });
+    await mkdir(join(postReportDir, 'cases', 'express-postgres-neighbor'), { recursive: true });
 
     await writeFile(
       join(preReportDir, 'cases', 'fastify-postgres-worker', 'stacktape.yml'),
@@ -226,338 +238,248 @@ describe('qualification review bundle contracts & logic', () => {
       'resources:\n  database:\n    type: relational-database\n    properties:\n      port: 5432\n',
       'utf8'
     );
+    await writeFile(
+      join(postReportDir, 'cases', 'express-postgres-neighbor', 'stacktape.yml'),
+      'resources:\n  database:\n    type: relational-database\n',
+      'utf8'
+    );
 
-    const preReport = createMockReport({
-      runId: 'pre-fix-run',
-      productCommit: baseCommit,
-      status: 'failed',
-      cases: preCases
-    });
-    const postReport = createMockReport({
-      runId: 'post-fix-run',
-      productCommit: finalCommit,
-      status: 'passed',
-      cases: postCases
-    });
+    const preCases: QualificationReport['cases'] = [
+      {
+        id: 'fastify-postgres-worker',
+        title: 'Fastify PostgreSQL Worker',
+        fingerprint: '1'.repeat(64),
+        sourceFingerprint: 'f'.repeat(64),
+        execution: 'executed',
+        status: 'failed',
+        durationMs: 1200,
+        source: { kind: 'local', path: 'fixtures/fastify', license: 'MIT' },
+        tags: ['node', 'fastify'],
+        steps: [
+          {
+            name: 'import',
+            status: 'failed',
+            durationMs: 1000,
+            summary: 'Port parsing failed',
+            failure: { code: 'IMPORT_FAILED', message: 'Expected port 5432' }
+          }
+        ]
+      }
+    ];
+
+    const postCases: QualificationReport['cases'] = [
+      {
+        id: 'fastify-postgres-worker',
+        title: 'Fastify PostgreSQL Worker',
+        fingerprint: '3'.repeat(64),
+        sourceFingerprint: 'f'.repeat(64), // SAME source fingerprint
+        execution: 'executed',
+        status: 'passed',
+        durationMs: 1100,
+        source: { kind: 'local', path: 'fixtures/fastify', license: 'MIT' },
+        tags: ['node', 'fastify'],
+        steps: [{ name: 'import', status: 'passed', durationMs: 1100, summary: 'Passed import' }]
+      },
+      {
+        id: 'express-postgres-neighbor',
+        title: 'Express Postgres Neighbor',
+        fingerprint: '4'.repeat(64),
+        sourceFingerprint: 'e'.repeat(64),
+        execution: 'executed',
+        status: 'passed',
+        durationMs: 800,
+        source: { kind: 'local', path: 'fixtures/express', license: 'MIT' },
+        tags: ['node', 'express'],
+        steps: [{ name: 'import', status: 'passed', durationMs: 800, summary: 'Passed import' }]
+      }
+    ];
+
+    const preReport = createMockReport({ runId: 'pre-run', productCommit: baseCommit, cases: preCases });
+    const postReport = createMockReport({ runId: 'post-run', productCommit: finalCommit, cases: postCases });
 
     const preReportPath = join(preReportDir, 'qualification-report.json');
     const postReportPath = join(postReportDir, 'qualification-report.json');
     await writeFile(preReportPath, JSON.stringify(preReport), 'utf8');
     await writeFile(postReportPath, JSON.stringify(postReport), 'utf8');
 
+    const handoffPath = join(tempDir, 'campaign-handoff.json');
     const handoff: CampaignHandoff = {
       schemaVersion: 1,
       campaignId: 'fastify-postgres-fix',
       campaignType: 'product-bug',
-      title: 'Fix Fastify PostgreSQL connection string parsing in importer',
-      summary: 'Fixed port inference in PostgreSQL probe.',
+      title: 'Fix Fastify PostgreSQL port inference',
+      summary: 'Fixed integer parsing for PGPORT environment variable.',
       baseCommit,
       finalCommit,
       preFixReportPath: preReportPath,
       postFixReportPath: postReportPath,
       focusedRegression: {
-        testFile: 'src/domain/importer/postgres.spec.ts',
-        testCommand: 'bun test src/domain/importer/postgres.spec.ts',
-        description: 'Verifies PGPORT environment resolution.'
+        testFile: 'packages/config-inference/src/probes/postgres.spec.ts',
+        testCommand: 'bun test packages/config-inference/src/probes/postgres.spec.ts',
+        description: 'Verifies PGPORT parsing',
+        commandEvidence: {
+          argv: ['bun', 'test', 'packages/config-inference/src/probes/postgres.spec.ts'],
+          cwd: repoDir,
+          startedAt: '2026-08-25T01:00:00.000Z',
+          completedAt: '2026-08-25T01:00:01.000Z',
+          durationMs: 1000,
+          exitCode: 0,
+          logPath: 'logs/regression.log',
+          logSha256: regressionLogSha256
+        }
       },
       affectedTypecheck: {
-        command: 'pnpm --filter @stacktape/config-inference run typecheck'
+        command: 'pnpm --filter @stacktape/config-inference run typecheck',
+        commandEvidence: {
+          argv: ['pnpm', '--filter', '@stacktape/config-inference', 'run', 'typecheck'],
+          cwd: repoDir,
+          startedAt: '2026-08-25T01:00:02.000Z',
+          completedAt: '2026-08-25T01:00:05.000Z',
+          durationMs: 3000,
+          exitCode: 0,
+          logPath: 'logs/typecheck.log',
+          logSha256: typecheckLogSha256
+        }
       },
-      neighborCases: ['express-postgres-basic'],
-      runtimeEvidence: {
-        executed: false,
-        notRunReason: 'Import-only change.'
-      }
+      neighborCases: ['express-postgres-neighbor']
     };
+    await writeFile(handoffPath, JSON.stringify(handoff), 'utf8');
 
     const bundle = await buildReviewBundle({
-      handoff,
+      handoff: handoffPath,
       worktreeRoot: repoDir
     });
 
     expect(bundle.reviewerSummary.verdict).toBe('ready-for-review');
-    expect(bundle.reviewerSummary.fixedCasesCount).toBe(1);
-    expect(bundle.reviewerSummary.regressedCasesCount).toBe(0);
-    expect(bundle.qualificationEvidence.fixedCaseIds).toEqual(['fastify-postgres-worker']);
-    expect(bundle.claimsVsVerification.automatedVerification.productBugFixVerified).toBeTrue();
-    expect(bundle.claimsVsVerification.automatedVerification.cleanWorktreeVerified).toBeTrue();
-    expect(bundle.claimsVsVerification.automatedVerification.artifactsHashedCount).toBeGreaterThan(0);
-
-    const transition = bundle.qualificationEvidence.caseTransitions.find((t) => t.id === 'fastify-postgres-worker');
-    expect(transition?.transitionType).toBe('fixed');
-    expect(transition?.configArtifact?.changed).toBeTrue();
+    expect(bundle.claimsVsVerification.independentlyVerified.productBugSameSourceSameLaneFixed).toBeTrue();
+    expect(bundle.claimsVsVerification.independentlyVerified.neighborCasesPassVerified).toBeTrue();
+    expect(bundle.claimsVsVerification.executedCommandEvidence.focusedRegression?.verified).toBeTrue();
+    expect(bundle.claimsVsVerification.executedCommandEvidence.affectedTypecheck?.verified).toBeTrue();
+    expect(bundle.qualificationEvidence.caseTransitions[0].configArtifact?.changed).toBeTrue();
 
     const markdown = renderReviewBundleMarkdown(bundle);
     expect(markdown).toContain('READY FOR REVIEW');
-    expect(markdown).toContain('Fix Fastify PostgreSQL connection string parsing in importer');
-    expect(markdown).toContain('fastify-postgres-worker');
-    expect(markdown).toContain('Binary Diff SHA-256');
-    expect(markdown).toContain('Trust Boundary & Disclaimer');
+    expect(markdown).toContain('fastify-postgres-fix');
+    expect(markdown).toContain('Worker-Authored Claims (Visibly Untrusted Input)');
     expect(markdown).toContain('does not provide cryptographic tamper-proofing');
 
-    const written = await writeReviewBundle(join(outputDir, 'bundle-out'), bundle);
+    const bundleOut = join(tempDir, 'bundle-out');
+    const written = await writeReviewBundle(bundleOut, bundle);
     expect(await Bun.file(written.jsonPath).exists()).toBeTrue();
     expect(await Bun.file(written.markdownPath).exists()).toBeTrue();
   });
 
-  test('fails closed on dirty worktree', async () => {
-    const { repoDir, baseCommit, finalCommit } = await setupTestGitRepo();
-    const tempDir = await createTempDir();
-
-    // Create a dirty file
-    await writeFile(join(repoDir, 'untracked-dirty.txt'), 'dirty\n', 'utf8');
-
-    const preReport = createMockReport({ runId: 'pre-run', productCommit: baseCommit });
-    const postReport = createMockReport({ runId: 'post-run', productCommit: finalCommit });
-    const prePath = join(tempDir, 'pre.json');
-    const postPath = join(tempDir, 'post.json');
-    await writeFile(prePath, JSON.stringify(preReport), 'utf8');
-    await writeFile(postPath, JSON.stringify(postReport), 'utf8');
-
-    const handoff: CampaignHandoff = {
-      schemaVersion: 1,
-      campaignId: 'dirty-test',
-      campaignType: 'new-coverage',
-      title: 'Dirty test',
-      summary: 'Summary',
-      baseCommit,
-      finalCommit,
-      preFixReportPath: prePath,
-      postFixReportPath: postPath
-    };
-
-    expect(buildReviewBundle({ handoff, worktreeRoot: repoDir })).rejects.toThrow('Worktree is dirty');
-
-    // With --allow-dirty it should succeed but record WORKTREE_DIRTY risk flag and reject verdict
-    const bundle = await buildReviewBundle({ handoff, worktreeRoot: repoDir, allowDirty: true });
-    expect(bundle.reviewerSummary.verdict).toBe('rejected');
-    expect(bundle.riskFlags.some((f) => f.code === 'WORKTREE_DIRTY')).toBeTrue();
-  });
-
-  test('fails closed on base commit or final commit mismatch with reports', async () => {
-    const { repoDir, baseCommit, finalCommit } = await setupTestGitRepo();
-    const tempDir = await createTempDir();
-
-    // Pre report has wrong commit
-    const wrongSha = 'c'.repeat(40);
-    const preReport = createMockReport({ runId: 'pre-run', productCommit: wrongSha });
-    const postReport = createMockReport({ runId: 'post-run', productCommit: finalCommit });
-    const prePath = join(tempDir, 'pre.json');
-    const postPath = join(tempDir, 'post.json');
-    await writeFile(prePath, JSON.stringify(preReport), 'utf8');
-    await writeFile(postPath, JSON.stringify(postReport), 'utf8');
-
-    const handoff: CampaignHandoff = {
-      schemaVersion: 1,
-      campaignId: 'mismatch-test',
-      campaignType: 'new-coverage',
-      title: 'Mismatch test',
-      summary: 'Summary',
-      baseCommit,
-      finalCommit,
-      preFixReportPath: prePath,
-      postFixReportPath: postPath
-    };
-
-    const bundle = await buildReviewBundle({ handoff, worktreeRoot: repoDir });
-    expect(bundle.reviewerSummary.verdict).toBe('rejected');
-    expect(bundle.riskFlags.some((f) => f.code === 'BASE_COMMIT_MISMATCH')).toBeTrue();
-  });
-
-  test('fails closed for product-bug campaign with 0 fixed cases', async () => {
+  test('rejects product-bug fix when source fingerprint mutated between pre and post', async () => {
     const { repoDir, baseCommit, finalCommit } = await setupTestGitRepo();
     const tempDir = await createTempDir();
 
     const preCases: QualificationReport['cases'] = [
       {
-        id: 'sample-case',
-        title: 'Sample Case',
-        fingerprint: '1'.repeat(64),
-        sourceFingerprint: 'f'.repeat(64),
-        execution: 'executed',
-        status: 'passed',
-        durationMs: 500,
-        source: { kind: 'local', path: 'fixtures/sample', license: 'MIT' },
-        tags: ['node'],
-        steps: [{ name: 'import', status: 'passed', durationMs: 500, summary: 'Passed.' }]
-      }
-    ];
-
-    const postCases = [...preCases];
-
-    const preReport = createMockReport({ runId: 'pre-run', productCommit: baseCommit, cases: preCases });
-    const postReport = createMockReport({ runId: 'post-run', productCommit: finalCommit, cases: postCases });
-    const prePath = join(tempDir, 'pre.json');
-    const postPath = join(tempDir, 'post.json');
-    await writeFile(prePath, JSON.stringify(preReport), 'utf8');
-    await writeFile(postPath, JSON.stringify(postReport), 'utf8');
-
-    const handoff: CampaignHandoff = {
-      schemaVersion: 1,
-      campaignId: 'no-fixed-cases',
-      campaignType: 'product-bug',
-      title: 'No fixed cases test',
-      summary: 'Claiming bug fix without failed-before/passed-after proof',
-      baseCommit,
-      finalCommit,
-      preFixReportPath: prePath,
-      postFixReportPath: postPath,
-      focusedRegression: {
-        testFile: 'test.spec.ts',
-        testCommand: 'bun test test.spec.ts',
-        description: 'Test'
-      },
-      affectedTypecheck: {
-        command: 'pnpm typecheck'
-      },
-      neighborCases: ['neighbor-case'],
-      runtimeEvidence: { executed: false, notRunReason: 'Reason' }
-    };
-
-    const bundle = await buildReviewBundle({ handoff, worktreeRoot: repoDir });
-    expect(bundle.reviewerSummary.verdict).toBe('rejected');
-    expect(bundle.riskFlags.some((f) => f.code === 'NO_FIXED_CASES_FOR_PRODUCT_BUG')).toBeTrue();
-  });
-
-  test('detects sensitive file changes and assigns appropriate risk flags', async () => {
-    const { repoDir, baseCommit } = await setupTestGitRepo();
-    const tempDir = await createTempDir();
-
-    // Modify sensitive files
-    await mkdir(join(repoDir, 'apps', 'cli', 'scripts', 'qualification'), { recursive: true });
-    await mkdir(join(repoDir, 'apps', 'cli', 'src', 'aws'), { recursive: true });
-    await mkdir(join(repoDir, 'packages', 'packaging', 'src'), { recursive: true });
-
-    await writeFile(
-      join(repoDir, 'apps', 'cli', 'scripts', 'qualification', 'offline-aws.ts'),
-      '// modified\n',
-      'utf8'
-    );
-    await writeFile(join(repoDir, 'apps', 'cli', 'src', 'aws', 'client.ts'), '// modified\n', 'utf8');
-    await writeFile(join(repoDir, 'packages', 'packaging', 'src', 'packager.ts'), '// modified\n', 'utf8');
-
-    await git(repoDir, 'add', '.');
-    await git(repoDir, 'commit', '-m', 'modify sensitive files');
-    const finalCommit = await git(repoDir, 'rev-parse', 'HEAD');
-
-    const preReport = createMockReport({ runId: 'pre-run', productCommit: baseCommit });
-    const postReport = createMockReport({ runId: 'post-run', productCommit: finalCommit });
-    const prePath = join(tempDir, 'pre.json');
-    const postPath = join(tempDir, 'post.json');
-    await writeFile(prePath, JSON.stringify(preReport), 'utf8');
-    await writeFile(postPath, JSON.stringify(postReport), 'utf8');
-
-    const handoff: CampaignHandoff = {
-      schemaVersion: 1,
-      campaignId: 'sensitive-test',
-      campaignType: 'harness-fix',
-      title: 'Harness modification',
-      summary: 'Updating harness and packaging core',
-      baseCommit,
-      finalCommit,
-      preFixReportPath: prePath,
-      postFixReportPath: postPath,
-      runtimeEvidence: { executed: false, notRunReason: 'Offline guard only' }
-    };
-
-    const bundle = await buildReviewBundle({ handoff, worktreeRoot: repoDir });
-    expect(bundle.riskFlags.some((f) => f.code === 'HARNESS_MODIFIED')).toBeTrue();
-    expect(bundle.riskFlags.some((f) => f.code === 'AWS_OR_OFFLINE_GUARD_MODIFIED')).toBeTrue();
-    expect(bundle.riskFlags.some((f) => f.code === 'PACKAGING_CORE_MODIFIED')).toBeTrue();
-  });
-
-  test('flags source fingerprint mutation between pre-fix and post-fix', async () => {
-    const { repoDir, baseCommit, finalCommit } = await setupTestGitRepo();
-    const tempDir = await createTempDir();
-
-    const preCases: QualificationReport['cases'] = [
-      {
-        id: 'mutated-case',
-        title: 'Mutated Case',
-        fingerprint: '1'.repeat(64),
-        sourceFingerprint: 'a'.repeat(64),
-        execution: 'executed',
-        status: 'passed',
-        durationMs: 500,
-        source: { kind: 'local', path: 'fixtures/mutated', license: 'MIT' },
-        tags: ['node'],
-        steps: [{ name: 'import', status: 'passed', durationMs: 500, summary: 'Passed.' }]
-      }
-    ];
-
-    const postCases: QualificationReport['cases'] = [
-      {
-        ...preCases[0],
-        sourceFingerprint: 'b'.repeat(64) // Changed!
-      }
-    ];
-
-    const preReport = createMockReport({ runId: 'pre-run', productCommit: baseCommit, cases: preCases });
-    const postReport = createMockReport({ runId: 'post-run', productCommit: finalCommit, cases: postCases });
-    const prePath = join(tempDir, 'pre.json');
-    const postPath = join(tempDir, 'post.json');
-    await writeFile(prePath, JSON.stringify(preReport), 'utf8');
-    await writeFile(postPath, JSON.stringify(postReport), 'utf8');
-
-    const handoff: CampaignHandoff = {
-      schemaVersion: 1,
-      campaignId: 'mutation-test',
-      campaignType: 'new-coverage',
-      title: 'Mutation test',
-      summary: 'Testing source mutation detection',
-      baseCommit,
-      finalCommit,
-      preFixReportPath: prePath,
-      postFixReportPath: postPath
-    };
-
-    const bundle = await buildReviewBundle({ handoff, worktreeRoot: repoDir });
-    expect(bundle.riskFlags.some((f) => f.code === 'SOURCE_FINGERPRINT_MUTATION')).toBeTrue();
-    const transition = bundle.qualificationEvidence.caseTransitions.find((t) => t.id === 'mutated-case');
-    expect(transition?.sourceFingerprintMatch).toBeFalse();
-  });
-
-  test('flags missing focused regression, typecheck, or neighbor cases for product-bug', async () => {
-    const { repoDir, baseCommit, finalCommit } = await setupTestGitRepo();
-    const tempDir = await createTempDir();
-
-    const preCases: QualificationReport['cases'] = [
-      {
-        id: 'fixed-case',
-        title: 'Fixed Case',
+        id: 'fastify-case',
+        title: 'Fastify Case',
         fingerprint: '1'.repeat(64),
         sourceFingerprint: 'a'.repeat(64),
         execution: 'executed',
         status: 'failed',
-        durationMs: 500,
-        source: { kind: 'local', path: 'fixtures/fixed', license: 'MIT' },
+        durationMs: 1000,
+        source: { kind: 'local', path: 'proj', license: 'MIT' },
         tags: ['node'],
-        steps: [{ name: 'import', status: 'failed', durationMs: 500, summary: 'Failed.' }]
+        steps: [{ name: 'import', status: 'failed', durationMs: 1000, summary: 'Failed' }]
       }
     ];
 
     const postCases: QualificationReport['cases'] = [
       {
-        ...preCases[0],
+        id: 'fastify-case',
+        title: 'Fastify Case',
+        fingerprint: '2'.repeat(64),
+        sourceFingerprint: 'b'.repeat(64), // MUTATED SOURCE!
+        execution: 'executed',
         status: 'passed',
-        steps: [{ name: 'import', status: 'passed', durationMs: 500, summary: 'Passed.' }]
+        durationMs: 1000,
+        source: { kind: 'local', path: 'proj', license: 'MIT' },
+        tags: ['node'],
+        steps: [{ name: 'import', status: 'passed', durationMs: 1000, summary: 'Passed' }]
       }
     ];
 
-    const preReport = createMockReport({ runId: 'pre-run', productCommit: baseCommit, cases: preCases });
-    const postReport = createMockReport({ runId: 'post-run', productCommit: finalCommit, cases: postCases });
+    const preReport = createMockReport({ runId: 'pre', productCommit: baseCommit, cases: preCases });
+    const postReport = createMockReport({ runId: 'post', productCommit: finalCommit, cases: postCases });
     const prePath = join(tempDir, 'pre.json');
     const postPath = join(tempDir, 'post.json');
     await writeFile(prePath, JSON.stringify(preReport), 'utf8');
     await writeFile(postPath, JSON.stringify(postReport), 'utf8');
 
-    // Missing focusedRegression, affectedTypecheck, neighborCases
     const handoff: CampaignHandoff = {
       schemaVersion: 1,
-      campaignId: 'missing-evidence-test',
+      campaignId: 'mutated-product-bug',
       campaignType: 'product-bug',
-      title: 'Missing evidence test',
-      summary: 'Testing missing evidence flags',
+      title: 'Mutated bug test',
+      summary: 'Testing source mutation rejection',
+      baseCommit,
+      finalCommit,
+      preFixReportPath: prePath,
+      postFixReportPath: postPath,
+      neighborCases: []
+    };
+
+    const bundle = await buildReviewBundle({ handoff, worktreeRoot: repoDir });
+    expect(bundle.reviewerSummary.verdict).toBe('rejected');
+    expect(bundle.riskFlags.some((f) => f.code === 'SOURCE_FINGERPRINT_MUTATED_ON_FIX')).toBeTrue();
+    expect(bundle.riskFlags.some((f) => f.code === 'PRODUCT_BUG_PROOF_FAILED')).toBeTrue();
+  });
+
+  test('rejects fake fix where pre-fix failed on package but post-fix ran only import', async () => {
+    const { repoDir, baseCommit, finalCommit } = await setupTestGitRepo();
+    const tempDir = await createTempDir();
+
+    const preCases: QualificationReport['cases'] = [
+      {
+        id: 'packaging-case',
+        title: 'Packaging Case',
+        fingerprint: '1'.repeat(64),
+        sourceFingerprint: 'f'.repeat(64),
+        execution: 'executed',
+        status: 'failed',
+        durationMs: 2000,
+        source: { kind: 'local', path: 'proj', license: 'MIT' },
+        tags: ['node'],
+        steps: [
+          { name: 'import', status: 'passed', durationMs: 1000, summary: 'Import ok' },
+          { name: 'package', status: 'failed', durationMs: 1000, summary: 'Package build error' }
+        ]
+      }
+    ];
+
+    const postCases: QualificationReport['cases'] = [
+      {
+        id: 'packaging-case',
+        title: 'Packaging Case',
+        fingerprint: '2'.repeat(64),
+        sourceFingerprint: 'f'.repeat(64),
+        execution: 'executed',
+        status: 'passed',
+        durationMs: 1000,
+        source: { kind: 'local', path: 'proj', license: 'MIT' },
+        tags: ['node'],
+        // In post-fix, package was NOT run (only import was run!)
+        steps: [{ name: 'import', status: 'passed', durationMs: 1000, summary: 'Import ok' }]
+      }
+    ];
+
+    const preReport = createMockReport({ runId: 'pre', productCommit: baseCommit, cases: preCases });
+    const postReport = createMockReport({ runId: 'post', productCommit: finalCommit, cases: postCases });
+    const prePath = join(tempDir, 'pre.json');
+    const postPath = join(tempDir, 'post.json');
+    await writeFile(prePath, JSON.stringify(preReport), 'utf8');
+    await writeFile(postPath, JSON.stringify(postReport), 'utf8');
+
+    const handoff: CampaignHandoff = {
+      schemaVersion: 1,
+      campaignId: 'fake-fix-lane-mismatch',
+      campaignType: 'product-bug',
+      title: 'Lane mismatch test',
+      summary: 'Package failed before but only import ran after',
       baseCommit,
       finalCommit,
       preFixReportPath: prePath,
@@ -565,87 +487,224 @@ describe('qualification review bundle contracts & logic', () => {
     };
 
     const bundle = await buildReviewBundle({ handoff, worktreeRoot: repoDir });
-    expect(bundle.riskFlags.some((f) => f.code === 'MISSING_FOCUSED_REGRESSION_FOR_PRODUCT_BUG')).toBeTrue();
-    expect(bundle.riskFlags.some((f) => f.code === 'MISSING_AFFECTED_TYPECHECK_FOR_PRODUCT_BUG')).toBeTrue();
-    expect(bundle.riskFlags.some((f) => f.code === 'MISSING_NEIGHBOR_CASES_FOR_PRODUCT_BUG')).toBeTrue();
+    expect(bundle.reviewerSummary.verdict).toBe('rejected');
+    expect(bundle.claimsVsVerification.independentlyVerified.productBugSameSourceSameLaneFixed).toBeFalse();
+    expect(bundle.riskFlags.some((f) => f.code === 'PRODUCT_BUG_PROOF_FAILED')).toBeTrue();
   });
 
-  test('flags missing runtime evidence when packaging code changes without runtime proof', async () => {
-    const { repoDir, baseCommit } = await setupTestGitRepo();
-    const tempDir = await createTempDir();
-
-    // Modify packaging file
-    await mkdir(join(repoDir, 'packages', 'packaging', 'src'), { recursive: true });
-    await writeFile(join(repoDir, 'packages', 'packaging', 'src', 'bundle.ts'), '// packaging change\n', 'utf8');
-    await git(repoDir, 'add', '.');
-    await git(repoDir, 'commit', '-m', 'packaging change');
-    const finalCommit = await git(repoDir, 'rev-parse', 'HEAD');
-
-    const preReport = createMockReport({ runId: 'pre-run', productCommit: baseCommit });
-    const postReport = createMockReport({ runId: 'post-run', productCommit: finalCommit });
-    const prePath = join(tempDir, 'pre.json');
-    const postPath = join(tempDir, 'post.json');
-    await writeFile(prePath, JSON.stringify(preReport), 'utf8');
-    await writeFile(postPath, JSON.stringify(postReport), 'utf8');
-
-    const handoffWithoutRuntime: CampaignHandoff = {
-      schemaVersion: 1,
-      campaignId: 'packaging-no-runtime',
-      campaignType: 'new-coverage',
-      title: 'Packaging change without runtime evidence',
-      summary: 'Testing packaging runtime evidence check',
-      baseCommit,
-      finalCommit,
-      preFixReportPath: prePath,
-      postFixReportPath: postPath
-    };
-
-    const bundle = await buildReviewBundle({ handoff: handoffWithoutRuntime, worktreeRoot: repoDir });
-    expect(bundle.riskFlags.some((f) => f.code === 'MISSING_RUNTIME_EVIDENCE_FOR_PACKAGING')).toBeTrue();
-  });
-
-  test('executes via CLI script run-review-bundle.ts', async () => {
+  test('detects coverage loss when previously passing case or lane is removed or skipped', async () => {
     const { repoDir, baseCommit, finalCommit } = await setupTestGitRepo();
     const tempDir = await createTempDir();
 
-    const preReport = createMockReport({ runId: 'pre-run', productCommit: baseCommit });
-    const postReport = createMockReport({ runId: 'post-run', productCommit: finalCommit });
+    const preCases: QualificationReport['cases'] = [
+      {
+        id: 'passing-case-1',
+        title: 'Passing Case 1',
+        fingerprint: '1'.repeat(64),
+        sourceFingerprint: '1'.repeat(64),
+        execution: 'executed',
+        status: 'passed',
+        durationMs: 1000,
+        source: { kind: 'local', path: 'p1', license: 'MIT' },
+        tags: ['node'],
+        steps: [
+          { name: 'import', status: 'passed', durationMs: 500, summary: 'Import pass' },
+          { name: 'package', status: 'passed', durationMs: 500, summary: 'Package pass' }
+        ]
+      },
+      {
+        id: 'passing-case-2',
+        title: 'Passing Case 2',
+        fingerprint: '2'.repeat(64),
+        sourceFingerprint: '2'.repeat(64),
+        execution: 'executed',
+        status: 'passed',
+        durationMs: 500,
+        source: { kind: 'local', path: 'p2', license: 'MIT' },
+        tags: ['node'],
+        steps: [{ name: 'import', status: 'passed', durationMs: 500, summary: 'Import pass' }]
+      }
+    ];
+
+    const postCases: QualificationReport['cases'] = [
+      {
+        id: 'passing-case-1',
+        title: 'Passing Case 1',
+        fingerprint: '1'.repeat(64),
+        sourceFingerprint: '1'.repeat(64),
+        execution: 'executed',
+        status: 'passed',
+        durationMs: 500,
+        source: { kind: 'local', path: 'p1', license: 'MIT' },
+        tags: ['node'],
+        // package lane was skipped!
+        steps: [
+          { name: 'import', status: 'passed', durationMs: 500, summary: 'Import pass' },
+          { name: 'package', status: 'skipped', durationMs: 0, summary: 'Package skipped' }
+        ]
+      }
+      // passing-case-2 was completely removed!
+    ];
+
+    const preReport = createMockReport({ runId: 'pre', productCommit: baseCommit, cases: preCases });
+    const postReport = createMockReport({ runId: 'post', productCommit: finalCommit, cases: postCases });
     const prePath = join(tempDir, 'pre.json');
     const postPath = join(tempDir, 'post.json');
     await writeFile(prePath, JSON.stringify(preReport), 'utf8');
     await writeFile(postPath, JSON.stringify(postReport), 'utf8');
 
-    const handoffPath = join(tempDir, 'handoff.json');
     const handoff: CampaignHandoff = {
       schemaVersion: 1,
-      campaignId: 'cli-test',
+      campaignId: 'coverage-loss-test',
       campaignType: 'new-coverage',
-      title: 'CLI execution test',
-      summary: 'Testing CLI execution of review bundle generator',
+      title: 'Coverage loss test',
+      summary: 'Testing detection of removed cases and skipped lanes',
       baseCommit,
       finalCommit,
       preFixReportPath: prePath,
       postFixReportPath: postPath
     };
-    await writeFile(handoffPath, JSON.stringify(handoff), 'utf8');
 
-    const bundleOut = join(tempDir, 'bundle-output');
+    const bundle = await buildReviewBundle({ handoff, worktreeRoot: repoDir });
+    expect(bundle.reviewerSummary.verdict).toBe('rejected');
+    expect(bundle.riskFlags.some((f) => f.code === 'COVERAGE_LOSS_CASE_REMOVED')).toBeTrue();
+    expect(bundle.riskFlags.some((f) => f.code === 'COVERAGE_LOSS_LANE_SKIPPED')).toBeTrue();
+  });
+
+  test('validates campaign-type rules for new-coverage, harness-fix, and investigation', async () => {
+    const { repoDir, baseCommit, finalCommit } = await setupTestGitRepo();
+    const tempDir = await createTempDir();
+
+    const preReport = createMockReport({ runId: 'pre', productCommit: baseCommit });
+    const postReport = createMockReport({ runId: 'post', productCommit: finalCommit });
+    const prePath = join(tempDir, 'pre.json');
+    const postPath = join(tempDir, 'post.json');
+    await writeFile(prePath, JSON.stringify(preReport), 'utf8');
+    await writeFile(postPath, JSON.stringify(postReport), 'utf8');
+
+    // 1. new-coverage with 0 added cases
+    const newCoverageHandoff: CampaignHandoff = {
+      schemaVersion: 1,
+      campaignId: 'empty-new-coverage',
+      campaignType: 'new-coverage',
+      title: 'Empty coverage',
+      summary: 'No new cases added',
+      baseCommit,
+      finalCommit,
+      preFixReportPath: prePath,
+      postFixReportPath: postPath
+    };
+    const newCoverageBundle = await buildReviewBundle({ handoff: newCoverageHandoff, worktreeRoot: repoDir });
+    expect(newCoverageBundle.reviewerSummary.verdict).toBe('rejected');
+    expect(newCoverageBundle.riskFlags.some((f) => f.code === 'NEW_COVERAGE_PROOF_FAILED')).toBeTrue();
+
+    // 2. harness-fix always requires human attention
+    const harnessHandoff: CampaignHandoff = {
+      schemaVersion: 1,
+      campaignId: 'harness-fix-test',
+      campaignType: 'harness-fix',
+      title: 'Harness test',
+      summary: 'Fixing harness runner',
+      baseCommit,
+      finalCommit,
+      preFixReportPath: prePath,
+      postFixReportPath: postPath
+    };
+    const harnessBundle = await buildReviewBundle({ handoff: harnessHandoff, worktreeRoot: repoDir });
+    expect(harnessBundle.reviewerSummary.verdict).toBe('requires-attention');
+    expect(harnessBundle.riskFlags.some((f) => f.code === 'HARNESS_FIX_REQUIRES_ATTENTION')).toBeTrue();
+
+    // 3. investigation can never be ready-for-review
+    const investigationHandoff: CampaignHandoff = {
+      schemaVersion: 1,
+      campaignId: 'investigation-test',
+      campaignType: 'investigation',
+      title: 'Investigation test',
+      summary: 'Spike investigation',
+      baseCommit,
+      finalCommit,
+      preFixReportPath: prePath,
+      postFixReportPath: postPath
+    };
+    const investigationBundle = await buildReviewBundle({ handoff: investigationHandoff, worktreeRoot: repoDir });
+    expect(investigationBundle.reviewerSummary.verdict).toBe('requires-attention');
+    expect(investigationBundle.riskFlags.some((f) => f.code === 'INVESTIGATION_NOT_FOR_INTEGRATION')).toBeTrue();
+  });
+
+  test('sanitizes malicious worker Markdown and HTML injection', async () => {
+    const { repoDir, baseCommit, finalCommit } = await setupTestGitRepo();
+    const tempDir = await createTempDir();
+
+    const preReport = createMockReport({ runId: 'pre', productCommit: baseCommit });
+    const postReport = createMockReport({ runId: 'post', productCommit: finalCommit });
+    const prePath = join(tempDir, 'pre.json');
+    const postPath = join(tempDir, 'post.json');
+    await writeFile(prePath, JSON.stringify(preReport), 'utf8');
+    await writeFile(postPath, JSON.stringify(postReport), 'utf8');
+
+    const maliciousHandoff: CampaignHandoff = {
+      schemaVersion: 1,
+      campaignId: 'malicious-injection',
+      campaignType: 'investigation',
+      title: 'Legit Title\n# FAKE HEADING\n| Fake | Table |',
+      summary: 'Summary with <script>alert("hack")</script> and **`READY FOR REVIEW`** claim.',
+      baseCommit,
+      finalCommit,
+      preFixReportPath: prePath,
+      postFixReportPath: postPath,
+      uncertainties: ['<img src=x onerror=alert(1)>', '# Malicious Heading']
+    };
+
+    const bundle = await buildReviewBundle({ handoff: maliciousHandoff, worktreeRoot: repoDir });
+    const markdown = renderReviewBundleMarkdown(bundle);
+    expect(markdown).toContain('```text\nSummary with <script>');
+    expect(markdown).toContain('&lt;img src=x onerror=alert(1)&gt;');
+    expect(markdown).toContain('Legit Title # FAKE HEADING \\| Fake \\| Table \\|');
+  });
+
+  test('CLI script run-review-bundle.ts returns distinct exit codes for verdicts', async () => {
+    const { repoDir, baseCommit, finalCommit } = await setupTestGitRepo();
+    const tempDir = await createTempDir();
+
+    const preReport = createMockReport({ runId: 'pre', productCommit: baseCommit });
+    const postReport = createMockReport({ runId: 'post', productCommit: finalCommit });
+    const prePath = join(tempDir, 'pre.json');
+    const postPath = join(tempDir, 'post.json');
+    await writeFile(prePath, JSON.stringify(preReport), 'utf8');
+    await writeFile(postPath, JSON.stringify(postReport), 'utf8');
+
+    // Investigation -> requires-attention (exit code 2)
+    const handoffPath = join(tempDir, 'investigation-handoff.json');
+    await writeFile(
+      handoffPath,
+      JSON.stringify({
+        schemaVersion: 1,
+        campaignId: 'cli-investigation',
+        campaignType: 'investigation',
+        title: 'CLI investigation test',
+        summary: 'Investigation testing exit code',
+        baseCommit,
+        finalCommit,
+        preFixReportPath: prePath,
+        postFixReportPath: postPath
+      }),
+      'utf8'
+    );
+
     const result = await runProcess({
       command: process.execPath,
       args: [
         join(import.meta.dir, 'run-review-bundle.ts'),
         `--handoff=${handoffPath}`,
         `--worktree-root=${repoDir}`,
-        `--output-dir=${bundleOut}`
+        `--output-dir=${join(tempDir, 'bundle-out')}`
       ],
       cwd: repoDir,
       timeoutMs: 30_000
     });
-    assertProcessSucceeded(result);
+
+    expect(result.exitCode).toBe(2);
     const parsedStdout = JSON.parse(result.stdout);
-    expect(parsedStdout.verdict).toBe('ready-for-review');
-    expect(parsedStdout.campaignId).toBe('cli-test');
-    expect(await Bun.file(join(bundleOut, 'review-bundle.json')).exists()).toBeTrue();
-    expect(await Bun.file(join(bundleOut, 'review-bundle.md')).exists()).toBeTrue();
+    expect(parsedStdout.verdict).toBe('requires-attention');
   });
 });

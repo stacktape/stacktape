@@ -1,70 +1,119 @@
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { readFile, stat } from 'node:fs/promises';
-import { dirname, join, relative, resolve } from 'node:path';
-import { qualificationReportSchema, type QualificationCaseResult, type QualificationReport } from './contracts';
+import { createReadStream } from 'node:fs';
+import { lstat, mkdir, readFile, realpath, rename, writeFile } from 'node:fs/promises';
+import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
+import {
+  qualificationReportSchema,
+  type QualificationLane,
+  type QualificationReport,
+  type StepStatus
+} from './contracts';
 import { assertProcessSucceeded, runProcess } from './process';
-import { writeJsonAtomic } from './report';
 import {
   campaignHandoffSchema,
+  hasControlCharacters,
   QUALIFICATION_REVIEW_BUNDLE_VERSION,
   qualificationReviewBundleSchema,
-  type AutomatedVerification,
-  type CampaignHandoff,
+  type ArtifactRecord,
   type CaseArtifactComparison,
-  type CaseArtifactDigest,
   type CaseTransition,
   type CaseTransitionType,
+  type ClaimsVsVerification,
+  type CommandEvidence,
+  type ExecutedCommandEvidenceRecord,
+  type GitCommitInfo,
   type GitEvidence,
+  type LaneTransition,
+  type LaneTransitionType,
   type QualificationEvidence,
-  type QualificationReportSummaryEvidence,
   type QualificationReviewBundle,
+  type ReportFileEvidence,
   type ReviewerSummary,
   type ReviewRiskFlag
 } from './review-bundle-contracts';
 
 export const REVIEW_BUNDLE_DISCLAIMER =
-  'This review bundle provides deterministic automated verification of Git commits, working tree state, qualification reports, case transitions, and artifact digests. It does not provide cryptographic tamper-proofing against malicious local environments or compromised test runners. Worker assertions (problem analysis, regression descriptions, uncertainty explanations) are separated from automatically verified facts (Git history, binary diff SHA-256, schema validation, before/after case transitions, artifact hashes).';
+  'This review bundle provides deterministic automated verification of Git commits, repository provenance, qualification report schemas, case transitions, command execution logs, and artifact digests. It does not provide cryptographic tamper-proofing against malicious local host environments or compromised test runners. Worker-authored assertions (problem descriptions, justifications, failure classifications, uncertainty notes) are separated from automatically verified facts (Git history, streaming binary diff SHA-256, schema validation, same-source same-lane case transitions, artifact hashes).';
 
 export type BuildReviewBundleOptions = {
-  handoff: string | CampaignHandoff;
+  handoff: string | object;
   preFixReport?: string | QualificationReport;
   postFixReport?: string | QualificationReport;
   baseCommit?: string;
   finalCommit?: string;
   worktreeRoot?: string;
+  outputDirectory?: string;
   allowDirty?: boolean;
 };
 
-const pathExists = async (path: string) => {
-  try {
-    await stat(path);
-    return true;
-  } catch (error) {
-    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return false;
-    throw error;
+export const assertPathConfined = ({
+  baseDirectory,
+  targetPath,
+  label
+}: {
+  baseDirectory: string;
+  targetPath: string;
+  label: string;
+}): string => {
+  if (targetPath.startsWith('\\\\') || targetPath.startsWith('//')) {
+    throw new Error(`${label} cannot be a UNC path.`);
   }
+  if (hasControlCharacters(targetPath)) {
+    throw new Error(`${label} contains invalid control characters.`);
+  }
+  const resolvedBase = resolve(baseDirectory);
+  const resolvedTarget = resolve(baseDirectory, targetPath);
+  const rel = relative(resolvedBase, resolvedTarget);
+  if (rel === '..' || rel.startsWith(`..${sep}`) || rel.startsWith('../') || isAbsolute(rel) || win32.isAbsolute(rel)) {
+    throw new Error(`${label} resolves outside ${resolvedBase}.`);
+  }
+  return resolvedTarget;
 };
 
-const hashBufferOrString = (content: string | Buffer) => createHash('sha256').update(content).digest('hex');
+export const hashBufferOrString = (content: string | Buffer): string =>
+  createHash('sha256').update(content).digest('hex');
 
-const hashFileIfExists = async (path: string): Promise<CaseArtifactDigest | undefined> => {
-  try {
-    const exists = await pathExists(path);
-    if (!exists) return undefined;
-    const content = await readFile(path);
-    return {
-      sha256: createHash('sha256').update(content).digest('hex'),
-      bytes: content.byteLength
-    };
-  } catch {
-    return undefined;
-  }
+export const hashFileStream = (filePath: string): Promise<{ sha256: string; bytes: number }> =>
+  new Promise((resolveHash, reject) => {
+    const hash = createHash('sha256');
+    let bytes = 0;
+    const stream = createReadStream(filePath);
+    stream.on('data', (chunk) => {
+      bytes += chunk.length;
+      hash.update(chunk);
+    });
+    stream.once('error', reject);
+    stream.once('end', () => resolveHash({ sha256: hash.digest('hex'), bytes }));
+  });
+
+export const hashBinaryDiffStream = (base: string, final: string, cwd: string): Promise<string> =>
+  new Promise((resolveHash, reject) => {
+    const hash = createHash('sha256');
+    const child = spawn('git', ['diff', '--binary', base, final], {
+      cwd,
+      stdio: ['ignore', 'pipe', 'pipe']
+    });
+    child.stdout.on('data', (chunk) => hash.update(chunk));
+    child.once('error', reject);
+    child.once('close', (code) => {
+      if (code !== 0) reject(new Error(`git diff --binary exited with code ${code}`));
+      else resolveHash(hash.digest('hex'));
+    });
+  });
+
+export const writePlainTextAtomic = async (path: string, content: string): Promise<void> => {
+  await mkdir(dirname(path), { recursive: true });
+  const temporaryPath = `${path}.partial-${process.pid}-${Date.now()}`;
+  await writeFile(temporaryPath, content, 'utf8');
+  await rename(temporaryPath, path);
 };
 
-export const loadAndValidateHandoff = async (
-  handoffPathOrObject: string | CampaignHandoff,
-  relativeTo = process.cwd()
-): Promise<{ handoff: CampaignHandoff; handoffPath?: string }> => {
+export const writeJsonAtomic = async (path: string, value: unknown): Promise<void> => {
+  await writePlainTextAtomic(path, `${JSON.stringify(value, null, 2)}\n`);
+};
+
+export const loadAndValidateHandoff = async (handoffPathOrObject: string | object, relativeTo = process.cwd()) => {
   if (typeof handoffPathOrObject === 'string') {
     const absolutePath = resolve(relativeTo, handoffPathOrObject);
     const raw = JSON.parse(await readFile(absolutePath, 'utf8'));
@@ -74,27 +123,195 @@ export const loadAndValidateHandoff = async (
   return { handoff: campaignHandoffSchema.parse(handoffPathOrObject) };
 };
 
-export const loadAndValidateReport = async (
+export const loadAndValidateReportFile = async (
   reportPathOrObject: string | QualificationReport,
   relativeTo = process.cwd()
-): Promise<{ report: QualificationReport; reportPath: string; reportDir: string }> => {
+): Promise<{
+  report: QualificationReport;
+  reportPath: string;
+  reportDir: string;
+  sha256: string;
+  bytes: number;
+}> => {
   if (typeof reportPathOrObject === 'string') {
     const absolutePath = resolve(relativeTo, reportPathOrObject);
+    const { sha256, bytes } = await hashFileStream(absolutePath);
     const raw = JSON.parse(await readFile(absolutePath, 'utf8'));
     const parsed = qualificationReportSchema.parse(raw);
-    return { report: parsed, reportPath: absolutePath, reportDir: dirname(absolutePath) };
+    return {
+      report: parsed,
+      reportPath: absolutePath,
+      reportDir: dirname(absolutePath),
+      sha256,
+      bytes
+    };
   }
+  const content = JSON.stringify(reportPathOrObject);
   const parsed = qualificationReportSchema.parse(reportPathOrObject);
-  return { report: parsed, reportPath: 'in-memory-report.json', reportDir: process.cwd() };
+  return {
+    report: parsed,
+    reportPath: 'in-memory-report.json',
+    reportDir: process.cwd(),
+    sha256: hashBufferOrString(content),
+    bytes: Buffer.byteLength(content, 'utf8')
+  };
 };
 
-const runGit = async (args: string[], cwd: string, timeoutMs = 60_000) => {
+const runGit = async (args: string[], cwd: string, timeoutMs = 60_000): Promise<string> => {
   const result = await runProcess({ command: 'git', args, cwd, timeoutMs });
   assertProcessSucceeded(result);
   return result.stdout;
 };
 
-const analyzeGitState = async ({
+const verifyCommandEvidence = async ({
+  commandEvidence,
+  baseDirectory,
+  claimType
+}: {
+  commandEvidence?: CommandEvidence;
+  baseDirectory: string;
+  claimType: 'focused-regression' | 'affected-typecheck' | 'other';
+}): Promise<{
+  record?: ExecutedCommandEvidenceRecord;
+  verified: boolean;
+  riskFlag?: ReviewRiskFlag;
+}> => {
+  if (!commandEvidence) {
+    return { verified: false };
+  }
+
+  let logFullPath: string;
+  try {
+    logFullPath = assertPathConfined({
+      baseDirectory,
+      targetPath: commandEvidence.logPath,
+      label: `${claimType} logPath`
+    });
+  } catch (error) {
+    return {
+      verified: false,
+      record: {
+        claimType,
+        verified: false,
+        argv: commandEvidence.argv,
+        cwd: commandEvidence.cwd,
+        exitCode: commandEvidence.exitCode,
+        durationMs: commandEvidence.durationMs,
+        logRelativePath: commandEvidence.logPath,
+        logSha256: commandEvidence.logSha256,
+        logBytes: 0,
+        failureReason: error instanceof Error ? error.message : String(error)
+      },
+      riskFlag: {
+        code:
+          claimType === 'focused-regression'
+            ? 'FOCUSED_REGRESSION_COMMAND_FAILED'
+            : 'AFFECTED_TYPECHECK_COMMAND_FAILED',
+        severity: 'critical',
+        message: `Command log path escapes allowed root: ${String(error)}`
+      }
+    };
+  }
+
+  try {
+    const fileStats = await lstat(logFullPath);
+    if (fileStats.isSymbolicLink()) {
+      return {
+        verified: false,
+        riskFlag: {
+          code:
+            claimType === 'focused-regression'
+              ? 'FOCUSED_REGRESSION_COMMAND_FAILED'
+              : 'AFFECTED_TYPECHECK_COMMAND_FAILED',
+          severity: 'critical',
+          message: `${claimType} log file cannot be a symbolic link.`
+        }
+      };
+    }
+
+    const { sha256, bytes } = await hashFileStream(logFullPath);
+    if (sha256 !== commandEvidence.logSha256) {
+      return {
+        verified: false,
+        record: {
+          claimType,
+          verified: false,
+          argv: commandEvidence.argv,
+          cwd: commandEvidence.cwd,
+          exitCode: commandEvidence.exitCode,
+          durationMs: commandEvidence.durationMs,
+          logRelativePath: commandEvidence.logPath,
+          logSha256: commandEvidence.logSha256,
+          logBytes: bytes,
+          failureReason: `Log SHA-256 mismatch: recorded ${commandEvidence.logSha256}, actual ${sha256}`
+        },
+        riskFlag: {
+          code:
+            claimType === 'focused-regression'
+              ? 'FOCUSED_REGRESSION_COMMAND_FAILED'
+              : 'AFFECTED_TYPECHECK_COMMAND_FAILED',
+          severity: 'critical',
+          message: `${claimType} log SHA-256 digest does not match file on disk.`
+        }
+      };
+    }
+
+    if (commandEvidence.exitCode !== 0) {
+      return {
+        verified: false,
+        record: {
+          claimType,
+          verified: false,
+          argv: commandEvidence.argv,
+          cwd: commandEvidence.cwd,
+          exitCode: commandEvidence.exitCode,
+          durationMs: commandEvidence.durationMs,
+          logRelativePath: commandEvidence.logPath,
+          logSha256: commandEvidence.logSha256,
+          logBytes: bytes,
+          failureReason: `Command exited with nonzero code ${commandEvidence.exitCode}`
+        },
+        riskFlag: {
+          code:
+            claimType === 'focused-regression'
+              ? 'FOCUSED_REGRESSION_COMMAND_FAILED'
+              : 'AFFECTED_TYPECHECK_COMMAND_FAILED',
+          severity: 'high',
+          message: `${claimType} command exited with nonzero code ${commandEvidence.exitCode}.`
+        }
+      };
+    }
+
+    return {
+      verified: true,
+      record: {
+        claimType,
+        verified: true,
+        argv: commandEvidence.argv,
+        cwd: commandEvidence.cwd,
+        exitCode: commandEvidence.exitCode,
+        durationMs: commandEvidence.durationMs,
+        logRelativePath: commandEvidence.logPath,
+        logSha256: commandEvidence.logSha256,
+        logBytes: bytes
+      }
+    };
+  } catch (error) {
+    return {
+      verified: false,
+      riskFlag: {
+        code:
+          claimType === 'focused-regression'
+            ? 'FOCUSED_REGRESSION_COMMAND_FAILED'
+            : 'AFFECTED_TYPECHECK_COMMAND_FAILED',
+        severity: 'critical',
+        message: `Could not verify ${claimType} log file: ${String(error)}`
+      }
+    };
+  }
+};
+
+const analyzeGitProvenance = async ({
   baseCommit,
   finalCommit,
   rootDir,
@@ -107,7 +324,7 @@ const analyzeGitState = async ({
 }): Promise<{ gitEvidence: GitEvidence; gitRiskFlags: ReviewRiskFlag[] }> => {
   const gitRiskFlags: ReviewRiskFlag[] = [];
 
-  // Check working tree cleanliness
+  // Check status
   const statusStdout = await runGit(['status', '--porcelain=v1', '--untracked-files=all'], rootDir);
   const isClean = statusStdout.trim() === '';
   if (!isClean) {
@@ -131,25 +348,74 @@ const analyzeGitState = async ({
     });
   }
 
-  // Resolve and verify commits
+  // HEAD commit
+  const headCommit = (await runGit(['rev-parse', 'HEAD'], rootDir)).trim();
   const resolvedBase = (await runGit(['rev-parse', '--verify', `${baseCommit}^{commit}`], rootDir)).trim();
   const resolvedFinal = (await runGit(['rev-parse', '--verify', `${finalCommit}^{commit}`], rootDir)).trim();
 
-  // Changed files
-  const nameOnlyStdout = await runGit(['diff', '--name-only', resolvedBase, resolvedFinal], rootDir);
-  const changedFiles = nameOnlyStdout
+  if (resolvedFinal !== headCommit) {
+    gitRiskFlags.push({
+      code: 'FINAL_COMMIT_NOT_HEAD',
+      severity: 'critical',
+      message: `Final commit ${resolvedFinal} does not equal current HEAD ${headCommit}.`
+    });
+  }
+
+  // Ancestry check
+  try {
+    await runGit(['merge-base', '--is-ancestor', resolvedBase, resolvedFinal], rootDir);
+  } catch {
+    gitRiskFlags.push({
+      code: 'BASE_COMMIT_NOT_ANCESTOR',
+      severity: 'critical',
+      message: `Base commit ${resolvedBase} is not an ancestor of final commit ${resolvedFinal}.`
+    });
+  }
+
+  // Branch & remote
+  let branch = 'HEAD';
+  try {
+    branch = (await runGit(['rev-parse', '--abbrev-ref', 'HEAD'], rootDir)).trim();
+  } catch {}
+
+  let remoteOriginUrl: string | undefined;
+  try {
+    remoteOriginUrl = (await runGit(['remote', 'get-url', 'origin'], rootDir)).trim();
+  } catch {}
+
+  // Commit history list
+  const logStdout = await runGit(
+    ['log', '--format=%H%x1f%an%x1f%ae%x1f%aI%x1f%s', `${resolvedBase}..${resolvedFinal}`],
+    rootDir
+  );
+  const commits: GitCommitInfo[] = logStdout
     .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const [sha, authorName, authorEmail, authoredAt, subject] = line.split('\x1f');
+      return {
+        sha: sha ?? '',
+        authorName: authorName ?? '',
+        authorEmail: authorEmail ?? '',
+        authoredAt: authoredAt ?? '',
+        subject: subject ?? ''
+      };
+    });
+
+  // Changed files NUL-delimited
+  const nameOnlyStdout = await runGit(['diff', '-z', '--name-only', resolvedBase, resolvedFinal], rootDir);
+  const changedFiles = nameOnlyStdout
+    .split('\0')
     .map((line) => line.trim().replaceAll('\\', '/'))
     .filter(Boolean)
     .sort();
-
   const changedFilesSha256 = hashBufferOrString(changedFiles.join('\n'));
 
-  // Binary diff
-  const binaryDiffStdout = await runGit(['diff', '--binary', resolvedBase, resolvedFinal], rootDir);
-  const binaryDiffSha256 = hashBufferOrString(binaryDiffStdout);
+  // Streaming binary diff hash
+  const binaryDiffSha256 = await hashBinaryDiffStream(resolvedBase, resolvedFinal, rootDir);
 
-  // Diff stats
+  // Numstat diff stats
   const numstatStdout = await runGit(['diff', '--numstat', resolvedBase, resolvedFinal], rootDir);
   let insertions = 0;
   let deletions = 0;
@@ -169,7 +435,11 @@ const analyzeGitState = async ({
   const gitEvidence: GitEvidence = {
     baseCommit: resolvedBase,
     finalCommit: resolvedFinal,
+    headCommit,
+    branch,
+    ...(remoteOriginUrl ? { remoteOriginUrl } : {}),
     commitRange: `${resolvedBase.slice(0, 10)}..${resolvedFinal.slice(0, 10)}`,
+    commits,
     cleanFinalWorktree: isClean,
     binaryDiffSha256,
     changedFilesSha256,
@@ -249,18 +519,63 @@ const checkSensitiveFiles = (changedFiles: readonly string[]): ReviewRiskFlag[] 
   return flags;
 };
 
-const resolveArtifactPath = (
-  reportDir: string,
-  caseId: string,
-  fileName: 'stacktape.yml' | 'compiled-template.yml',
-  _caseResult?: QualificationCaseResult
-) => {
-  // Check standard cases/<id>/<fileName>
-  const directPath = join(reportDir, 'cases', caseId, fileName);
-  return directPath;
+const validateAndHashArtifactFile = async ({
+  reportDir,
+  caseId,
+  fileName,
+  artifactType
+}: {
+  reportDir: string;
+  caseId: string;
+  fileName: 'stacktape.yml' | 'compiled-template.yml';
+  artifactType: 'stacktape-config' | 'cloudformation-template';
+}): Promise<{ record?: ArtifactRecord; riskFlag?: ReviewRiskFlag }> => {
+  const expectedPath = join(reportDir, 'cases', caseId, fileName);
+  try {
+    const stats = await lstat(expectedPath);
+    if (stats.isSymbolicLink()) {
+      return {
+        riskFlag: {
+          code: 'ARTIFACT_SYMLINK_REJECTED',
+          severity: 'critical',
+          message: `Artifact file ${expectedPath} cannot be a symbolic link.`,
+          caseIds: [caseId]
+        }
+      };
+    }
+
+    const realReportDir = await realpath(reportDir);
+    const realArtifactPath = await realpath(expectedPath);
+    const rel = relative(realReportDir, realArtifactPath);
+    if (rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel) || win32.isAbsolute(rel)) {
+      return {
+        riskFlag: {
+          code: 'ARTIFACT_PATH_ESCAPE',
+          severity: 'critical',
+          message: `Artifact ${expectedPath} resolves outside report directory ${realReportDir}.`,
+          caseIds: [caseId]
+        }
+      };
+    }
+
+    const { sha256, bytes } = await hashFileStream(realArtifactPath);
+    return {
+      record: {
+        relativePath: `cases/${caseId}/${fileName}`,
+        sha256,
+        bytes,
+        artifactType
+      }
+    };
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') {
+      return {};
+    }
+    throw error;
+  }
 };
 
-const evaluateCaseTransitions = async ({
+const evaluateCaseTransitionsAndArtifacts = async ({
   preReport,
   preReportDir,
   postReport,
@@ -277,8 +592,9 @@ const evaluateCaseTransitions = async ({
   addedCaseIds: string[];
   unchangedPassedCaseIds: string[];
   unchangedFailedCaseIds: string[];
-  sourceFingerprintMutationFlags: ReviewRiskFlag[];
+  transitionRiskFlags: ReviewRiskFlag[];
   artifactsHashedCount: number;
+  productBugSameSourceSameLaneFixed: boolean;
 }> => {
   const preCases = new Map(preReport.cases.map((c) => [c.id, c]));
   const postCases = new Map(postReport.cases.map((c) => [c.id, c]));
@@ -290,8 +606,9 @@ const evaluateCaseTransitions = async ({
   const addedCaseIds: string[] = [];
   const unchangedPassedCaseIds: string[] = [];
   const unchangedFailedCaseIds: string[] = [];
-  const sourceFingerprintMutationFlags: ReviewRiskFlag[] = [];
+  const transitionRiskFlags: ReviewRiskFlag[] = [];
   let artifactsHashedCount = 0;
+  let productBugSameSourceSameLaneFixed = false;
 
   for (const id of allIds) {
     const preCase = preCases.get(id);
@@ -308,10 +625,10 @@ const evaluateCaseTransitions = async ({
         : sourceFingerprintBefore === sourceFingerprintAfter;
 
     if (!sourceFingerprintMatch) {
-      sourceFingerprintMutationFlags.push({
+      transitionRiskFlags.push({
         code: 'SOURCE_FINGERPRINT_MUTATION',
         severity: 'high',
-        message: `Case ${id} source fingerprint changed between pre-fix (${sourceFingerprintBefore?.slice(
+        message: `Case '${id}' source fingerprint changed between pre-fix (${sourceFingerprintBefore?.slice(
           0,
           10
         )}) and post-fix (${sourceFingerprintAfter?.slice(0, 10)}).`,
@@ -319,62 +636,189 @@ const evaluateCaseTransitions = async ({
       });
     }
 
-    let transitionType: CaseTransitionType;
-    if (beforeStatus === 'absent') {
-      transitionType = afterStatus === 'passed' ? 'added-passed' : 'added-failed';
-      addedCaseIds.push(id);
-    } else if (afterStatus === 'absent') {
-      transitionType = 'removed';
-    } else if (beforeStatus === 'failed' && afterStatus === 'passed') {
-      transitionType = 'fixed';
-      fixedCaseIds.push(id);
-    } else if (beforeStatus === 'passed' && afterStatus === 'failed') {
-      transitionType = 'regressed';
-      regressedCaseIds.push(id);
-    } else if (beforeStatus === 'passed' && afterStatus === 'passed') {
-      transitionType = 'unchanged-passed';
-      unchangedPassedCaseIds.push(id);
-    } else if (beforeStatus === 'failed' && afterStatus === 'failed') {
-      transitionType = 'unchanged-failed';
-      unchangedFailedCaseIds.push(id);
-    } else {
-      transitionType = 'unchanged-skipped';
+    // Lane transitions
+    const laneTransitions: LaneTransition[] = [];
+    const allLanes: QualificationLane[] = ['import', 'package', 'runtime', 'aws'];
+    let hasSameSourceSameLaneFix = false;
+
+    for (const lane of allLanes) {
+      const preStep = preCase?.steps.find((s) => s.name === lane);
+      const postStep = postCase?.steps.find((s) => s.name === lane);
+
+      const beforeLaneStatus: StepStatus | 'absent' = preStep?.status ?? 'absent';
+      const afterLaneStatus: StepStatus | 'absent' = postStep?.status ?? 'absent';
+
+      if (beforeLaneStatus === 'absent' && afterLaneStatus === 'absent') {
+        continue;
+      }
+
+      let transition: LaneTransitionType;
+      if (beforeLaneStatus === 'passed' && (afterLaneStatus === 'skipped' || afterLaneStatus === 'absent')) {
+        transition = 'skipped-regression';
+        transitionRiskFlags.push({
+          code: 'COVERAGE_LOSS_LANE_SKIPPED',
+          severity: 'critical',
+          message: `Case '${id}' previously passed lane '${lane}' but was skipped or absent in post-fix run.`,
+          caseIds: [id]
+        });
+      } else if (beforeLaneStatus === 'failed' && afterLaneStatus === 'passed') {
+        transition = 'fixed';
+        if (sourceFingerprintMatch) {
+          hasSameSourceSameLaneFix = true;
+        } else {
+          transitionRiskFlags.push({
+            code: 'SOURCE_FINGERPRINT_MUTATED_ON_FIX',
+            severity: 'critical',
+            message: `Case '${id}' passed lane '${lane}' after failing, but its source fingerprint mutated.`,
+            caseIds: [id]
+          });
+        }
+      } else if (beforeLaneStatus === 'passed' && afterLaneStatus === 'failed') {
+        transition = 'regressed';
+      } else if (beforeLaneStatus === 'passed' && afterLaneStatus === 'passed') {
+        transition = 'unchanged-passed';
+      } else if (beforeLaneStatus === 'failed' && afterLaneStatus === 'failed') {
+        transition = 'unchanged-failed';
+      } else if (beforeLaneStatus === 'skipped' && afterLaneStatus === 'skipped') {
+        transition = 'unchanged-skipped';
+      } else if (beforeLaneStatus === 'absent' && afterLaneStatus === 'passed') {
+        transition = 'added-passed';
+      } else if (beforeLaneStatus === 'absent' && afterLaneStatus === 'failed') {
+        transition = 'added-failed';
+      } else {
+        transition = 'removed';
+      }
+
+      laneTransitions.push({
+        lane,
+        beforeStatus: beforeLaneStatus,
+        afterStatus: afterLaneStatus,
+        transition,
+        summary: postStep?.summary ?? preStep?.summary
+      });
     }
 
-    // Artifact comparisons
-    let configArtifact: CaseArtifactComparison | undefined;
-    let templateArtifact: CaseArtifactComparison | undefined;
+    let caseTransitionType: CaseTransitionType;
+    if (beforeStatus === 'absent') {
+      caseTransitionType = afterStatus === 'passed' ? 'added-passed' : 'added-failed';
+      addedCaseIds.push(id);
+    } else if (afterStatus === 'absent') {
+      caseTransitionType = 'removed';
+      if (beforeStatus === 'passed') {
+        transitionRiskFlags.push({
+          code: 'COVERAGE_LOSS_CASE_REMOVED',
+          severity: 'critical',
+          message: `Previously passing case '${id}' was removed from post-fix run.`,
+          caseIds: [id]
+        });
+      }
+    } else if (beforeStatus === 'failed' && afterStatus === 'passed') {
+      caseTransitionType = 'fixed';
+      if (sourceFingerprintMatch && hasSameSourceSameLaneFix) {
+        fixedCaseIds.push(id);
+        productBugSameSourceSameLaneFixed = true;
+      }
+    } else if (beforeStatus === 'passed' && afterStatus === 'failed') {
+      caseTransitionType = 'regressed';
+      regressedCaseIds.push(id);
+    } else if (beforeStatus === 'passed' && afterStatus === 'skipped') {
+      caseTransitionType = 'regressed';
+      regressedCaseIds.push(id);
+      transitionRiskFlags.push({
+        code: 'COVERAGE_LOSS_CASE_SKIPPED',
+        severity: 'critical',
+        message: `Previously passing case '${id}' was skipped in post-fix run.`,
+        caseIds: [id]
+      });
+    } else if (beforeStatus === 'passed' && afterStatus === 'passed') {
+      caseTransitionType = 'unchanged-passed';
+      unchangedPassedCaseIds.push(id);
+    } else if (beforeStatus === 'failed' && afterStatus === 'failed') {
+      caseTransitionType = 'unchanged-failed';
+      unchangedFailedCaseIds.push(id);
+    } else {
+      caseTransitionType = 'unchanged-skipped';
+    }
 
-    const preConfigPath = resolveArtifactPath(preReportDir, id, 'stacktape.yml', preCase);
-    const postConfigPath = resolveArtifactPath(postReportDir, id, 'stacktape.yml', postCase);
-    const preConfigDigest = await hashFileIfExists(preConfigPath);
-    const postConfigDigest = await hashFileIfExists(postConfigPath);
-    if (preConfigDigest !== undefined || postConfigDigest !== undefined) {
-      if (preConfigDigest) artifactsHashedCount++;
-      if (postConfigDigest) artifactsHashedCount++;
+    // Artifact checks
+    const preConfig = await validateAndHashArtifactFile({
+      reportDir: preReportDir,
+      caseId: id,
+      fileName: 'stacktape.yml',
+      artifactType: 'stacktape-config'
+    });
+    if (preConfig.riskFlag) transitionRiskFlags.push(preConfig.riskFlag);
+    if (preConfig.record) artifactsHashedCount++;
+
+    const postConfig = await validateAndHashArtifactFile({
+      reportDir: postReportDir,
+      caseId: id,
+      fileName: 'stacktape.yml',
+      artifactType: 'stacktape-config'
+    });
+    if (postConfig.riskFlag) transitionRiskFlags.push(postConfig.riskFlag);
+    if (postConfig.record) artifactsHashedCount++;
+
+    // Require post stacktape.yml if case passed import in post report
+    const passedImportInPost = postCase?.steps.some((s) => s.name === 'import' && s.status === 'passed');
+    if (passedImportInPost && (!postConfig.record || postConfig.record.bytes === 0)) {
+      transitionRiskFlags.push({
+        code: 'MISSING_EXPECTED_ARTIFACT',
+        severity: 'critical',
+        message: `Case '${id}' passed import lane but is missing valid non-empty post stacktape.yml artifact.`,
+        caseIds: [id]
+      });
+    }
+
+    let configArtifact: CaseArtifactComparison | undefined;
+    if (preConfig.record || postConfig.record) {
       configArtifact = {
-        before: preConfigDigest,
-        after: postConfigDigest,
+        before: preConfig.record,
+        after: postConfig.record,
         changed:
-          preConfigDigest !== undefined && postConfigDigest !== undefined
-            ? preConfigDigest.sha256 !== postConfigDigest.sha256
+          preConfig.record !== undefined && postConfig.record !== undefined
+            ? preConfig.record.sha256 !== postConfig.record.sha256
             : true
       };
     }
 
-    const preTemplatePath = resolveArtifactPath(preReportDir, id, 'compiled-template.yml', preCase);
-    const postTemplatePath = resolveArtifactPath(postReportDir, id, 'compiled-template.yml', postCase);
-    const preTemplateDigest = await hashFileIfExists(preTemplatePath);
-    const postTemplateDigest = await hashFileIfExists(postTemplatePath);
-    if (preTemplateDigest !== undefined || postTemplateDigest !== undefined) {
-      if (preTemplateDigest) artifactsHashedCount++;
-      if (postTemplateDigest) artifactsHashedCount++;
+    const preTemplate = await validateAndHashArtifactFile({
+      reportDir: preReportDir,
+      caseId: id,
+      fileName: 'compiled-template.yml',
+      artifactType: 'cloudformation-template'
+    });
+    if (preTemplate.riskFlag) transitionRiskFlags.push(preTemplate.riskFlag);
+    if (preTemplate.record) artifactsHashedCount++;
+
+    const postTemplate = await validateAndHashArtifactFile({
+      reportDir: postReportDir,
+      caseId: id,
+      fileName: 'compiled-template.yml',
+      artifactType: 'cloudformation-template'
+    });
+    if (postTemplate.riskFlag) transitionRiskFlags.push(postTemplate.riskFlag);
+    if (postTemplate.record) artifactsHashedCount++;
+
+    // Require post compiled-template.yml if case passed package in post report
+    const passedPackageInPost = postCase?.steps.some((s) => s.name === 'package' && s.status === 'passed');
+    if (passedPackageInPost && (!postTemplate.record || postTemplate.record.bytes === 0)) {
+      transitionRiskFlags.push({
+        code: 'MISSING_EXPECTED_ARTIFACT',
+        severity: 'critical',
+        message: `Case '${id}' passed package lane but is missing valid non-empty post compiled-template.yml artifact.`,
+        caseIds: [id]
+      });
+    }
+
+    let templateArtifact: CaseArtifactComparison | undefined;
+    if (preTemplate.record || postTemplate.record) {
       templateArtifact = {
-        before: preTemplateDigest,
-        after: postTemplateDigest,
+        before: preTemplate.record,
+        after: postTemplate.record,
         changed:
-          preTemplateDigest !== undefined && postTemplateDigest !== undefined
-            ? preTemplateDigest.sha256 !== postTemplateDigest.sha256
+          preTemplate.record !== undefined && postTemplate.record !== undefined
+            ? preTemplate.record.sha256 !== postTemplate.record.sha256
             : true
       };
     }
@@ -389,12 +833,13 @@ const evaluateCaseTransitions = async ({
     caseTransitions.push({
       id,
       title: postCase?.title ?? preCase?.title ?? id,
-      transitionType,
+      transitionType: caseTransitionType,
       beforeStatus,
       afterStatus,
       ...(sourceFingerprintBefore ? { sourceFingerprintBefore } : {}),
       ...(sourceFingerprintAfter ? { sourceFingerprintAfter } : {}),
       sourceFingerprintMatch,
+      laneTransitions,
       ...(configArtifact ? { configArtifact } : {}),
       ...(templateArtifact ? { templateArtifact } : {}),
       ...(failuresBefore && failuresBefore.length > 0 ? { failuresBefore } : {}),
@@ -409,8 +854,9 @@ const evaluateCaseTransitions = async ({
     addedCaseIds,
     unchangedPassedCaseIds,
     unchangedFailedCaseIds,
-    sourceFingerprintMutationFlags,
-    artifactsHashedCount
+    transitionRiskFlags,
+    artifactsHashedCount,
+    productBugSameSourceSameLaneFixed
   };
 };
 
@@ -419,7 +865,8 @@ export const buildReviewBundle = async (options: BuildReviewBundleOptions): Prom
   const allowDirty = Boolean(options.allowDirty);
 
   // 1. Load & validate handoff
-  const { handoff } = await loadAndValidateHandoff(options.handoff, rootDir);
+  const { handoff, handoffPath } = await loadAndValidateHandoff(options.handoff, rootDir);
+  const handoffBaseDir = handoffPath ? dirname(handoffPath) : rootDir;
 
   const baseCommit = options.baseCommit ?? handoff.baseCommit;
   const finalCommit = options.finalCommit ?? handoff.finalCommit;
@@ -427,11 +874,11 @@ export const buildReviewBundle = async (options: BuildReviewBundleOptions): Prom
   const postFixReportPath = options.postFixReport ?? handoff.postFixReportPath;
 
   // 2. Load & validate reports
-  const preReportLoaded = await loadAndValidateReport(preFixReportPath, rootDir);
-  const postReportLoaded = await loadAndValidateReport(postFixReportPath, rootDir);
+  const preLoaded = await loadAndValidateReportFile(preFixReportPath, rootDir);
+  const postLoaded = await loadAndValidateReportFile(postFixReportPath, rootDir);
 
   // 3. Analyze Git state
-  const { gitEvidence, gitRiskFlags } = await analyzeGitState({
+  const { gitEvidence, gitRiskFlags } = await analyzeGitProvenance({
     baseCommit,
     finalCommit,
     rootDir,
@@ -440,22 +887,22 @@ export const buildReviewBundle = async (options: BuildReviewBundleOptions): Prom
 
   const riskFlags: ReviewRiskFlag[] = [...gitRiskFlags];
 
-  // 4. Verify commit alignments with reports
-  const baseCommitVerified = preReportLoaded.report.productCommit === gitEvidence.baseCommit;
-  if (!baseCommitVerified) {
+  // 4. Verify commit alignment
+  const preCommitMatches = preLoaded.report.productCommit === gitEvidence.baseCommit;
+  if (!preCommitMatches) {
     riskFlags.push({
       code: 'BASE_COMMIT_MISMATCH',
       severity: 'critical',
-      message: `Pre-fix qualification report commit (${preReportLoaded.report.productCommit}) does not match declared/verified base commit (${gitEvidence.baseCommit}).`
+      message: `Pre-fix qualification report commit (${preLoaded.report.productCommit}) does not match declared base commit (${gitEvidence.baseCommit}).`
     });
   }
 
-  const finalCommitVerified = postReportLoaded.report.productCommit === gitEvidence.finalCommit;
-  if (!finalCommitVerified) {
+  const postCommitMatches = postLoaded.report.productCommit === gitEvidence.finalCommit;
+  if (!postCommitMatches) {
     riskFlags.push({
       code: 'FINAL_COMMIT_MISMATCH',
       severity: 'critical',
-      message: `Post-fix qualification report commit (${postReportLoaded.report.productCommit}) does not match declared/verified final commit (${gitEvidence.finalCommit}).`
+      message: `Post-fix qualification report commit (${postLoaded.report.productCommit}) does not match declared final commit (${gitEvidence.finalCommit}).`
     });
   }
 
@@ -467,16 +914,17 @@ export const buildReviewBundle = async (options: BuildReviewBundleOptions): Prom
     addedCaseIds,
     unchangedPassedCaseIds,
     unchangedFailedCaseIds,
-    sourceFingerprintMutationFlags,
-    artifactsHashedCount
-  } = await evaluateCaseTransitions({
-    preReport: preReportLoaded.report,
-    preReportDir: preReportLoaded.reportDir,
-    postReport: postReportLoaded.report,
-    postReportDir: postReportLoaded.reportDir
+    transitionRiskFlags,
+    artifactsHashedCount,
+    productBugSameSourceSameLaneFixed
+  } = await evaluateCaseTransitionsAndArtifacts({
+    preReport: preLoaded.report,
+    preReportDir: preLoaded.reportDir,
+    postReport: postLoaded.report,
+    postReportDir: postLoaded.reportDir
   });
 
-  riskFlags.push(...sourceFingerprintMutationFlags);
+  riskFlags.push(...transitionRiskFlags);
 
   if (regressedCaseIds.length > 0) {
     riskFlags.push({
@@ -489,117 +937,216 @@ export const buildReviewBundle = async (options: BuildReviewBundleOptions): Prom
     });
   }
 
-  // 6. Check sensitive files
+  // 6. Sensitive file checks
   const sensitiveFlags = checkSensitiveFiles(gitEvidence.changedFiles);
   riskFlags.push(...sensitiveFlags);
 
-  // 7. Check campaign-specific requirements
-  let productBugFixVerified = false;
-  let focusedRegressionVerified = false;
-  let affectedTypecheckVerified = false;
-  let neighborCasesVerified = false;
+  // 7. Verify command evidence (never run shell strings!)
+  const focusedRegressionVerifiedResult = await verifyCommandEvidence({
+    commandEvidence: handoff.focusedRegression?.commandEvidence,
+    baseDirectory: handoffBaseDir,
+    claimType: 'focused-regression'
+  });
+  if (focusedRegressionVerifiedResult.riskFlag) riskFlags.push(focusedRegressionVerifiedResult.riskFlag);
 
-  if (handoff.campaignType === 'product-bug') {
-    productBugFixVerified = fixedCaseIds.length > 0;
-    if (!productBugFixVerified) {
-      riskFlags.push({
-        code: 'NO_FIXED_CASES_FOR_PRODUCT_BUG',
-        severity: 'critical',
-        message:
-          'Product-bug campaigns must prove at least one failed-before/passed-after qualification case transition.'
-      });
-    }
+  const affectedTypecheckVerifiedResult = await verifyCommandEvidence({
+    commandEvidence: handoff.affectedTypecheck?.commandEvidence,
+    baseDirectory: handoffBaseDir,
+    claimType: 'affected-typecheck'
+  });
+  if (affectedTypecheckVerifiedResult.riskFlag) riskFlags.push(affectedTypecheckVerifiedResult.riskFlag);
 
-    focusedRegressionVerified = Boolean(
-      handoff.focusedRegression &&
-      handoff.focusedRegression.testFile.trim().length > 0 &&
-      handoff.focusedRegression.testCommand.trim().length > 0
-    );
-    if (!focusedRegressionVerified) {
+  // 8. Verify neighbor cases against post report
+  let neighborCasesPassVerified = false;
+  if (handoff.neighborCases && handoff.neighborCases.length > 0) {
+    const missingOrFailedNeighbors = handoff.neighborCases.filter((id) => {
+      const postCase = postLoaded.report.cases.find((c) => c.id === id);
+      return !postCase || postCase.status !== 'passed';
+    });
+    if (missingOrFailedNeighbors.length === 0) {
+      neighborCasesPassVerified = true;
+    } else {
       riskFlags.push({
-        code: 'MISSING_FOCUSED_REGRESSION_FOR_PRODUCT_BUG',
+        code: 'NEIGHBOR_CASES_UNVERIFIED',
         severity: 'high',
-        message: 'Product-bug campaigns must provide focused regression test evidence.'
+        message: `Neighbor cases missing or not passed in post-fix report: ${missingOrFailedNeighbors.join(', ')}.`,
+        caseIds: missingOrFailedNeighbors
       });
     }
-
-    affectedTypecheckVerified = Boolean(
-      handoff.affectedTypecheck && handoff.affectedTypecheck.command.trim().length > 0
-    );
-    if (!affectedTypecheckVerified) {
-      riskFlags.push({
-        code: 'MISSING_AFFECTED_TYPECHECK_FOR_PRODUCT_BUG',
-        severity: 'high',
-        message: 'Product-bug campaigns must provide affected package typecheck evidence.'
-      });
-    }
-
-    neighborCasesVerified = Boolean(handoff.neighborCases && handoff.neighborCases.length > 0);
-    if (!neighborCasesVerified) {
-      riskFlags.push({
-        code: 'MISSING_NEIGHBOR_CASES_FOR_PRODUCT_BUG',
-        severity: 'high',
-        message: 'Product-bug campaigns must list neighbor cases run to prevent collateral regressions.'
-      });
-    }
-  } else {
-    productBugFixVerified = true;
-    focusedRegressionVerified = Boolean(handoff.focusedRegression);
-    affectedTypecheckVerified = Boolean(handoff.affectedTypecheck);
-    neighborCasesVerified = Boolean(handoff.neighborCases && handoff.neighborCases.length > 0);
   }
 
-  // 8. Packaging change runtime evidence requirement
+  // 9. Verify packaging runtime evidence
   const packagingChanged = gitEvidence.changedFiles.some(
     (file) => file.startsWith('packages/packaging/') || file.startsWith('apps/cli/helper-lambdas/')
   );
   const runtimeLanePassedInPostReport =
-    postReportLoaded.report.lanes.includes('runtime') &&
-    postReportLoaded.report.globalSteps.some((s) => s.name === 'runtime' && s.status === 'passed');
-  const runtimeClaim = handoff.runtimeEvidence;
-  const runtimeEvidenceVerified =
-    !packagingChanged ||
-    runtimeLanePassedInPostReport ||
-    Boolean(runtimeClaim && (runtimeClaim.executed || Boolean(runtimeClaim.notRunReason?.trim())));
+    postLoaded.report.lanes.includes('runtime') &&
+    postLoaded.report.globalSteps.some((s) => s.name === 'runtime' && s.status === 'passed');
 
-  if (packagingChanged && !runtimeEvidenceVerified) {
-    riskFlags.push({
-      code: 'MISSING_RUNTIME_EVIDENCE_FOR_PACKAGING',
-      severity: 'high',
-      message: 'Packaging changes require runtime lane evidence or an explicit not-run uncertainty reason.'
-    });
+  if (packagingChanged) {
+    if (!runtimeLanePassedInPostReport) {
+      if (handoff.runtimeEvidence?.notRunReason) {
+        riskFlags.push({
+          code: 'PACKAGING_RUNTIME_UNVERIFIED_WITH_REASON',
+          severity: 'high',
+          message: `Packaging code changed without runtime lane execution. Worker supplied omission reason: ${handoff.runtimeEvidence.notRunReason}`
+        });
+      } else {
+        riskFlags.push({
+          code: 'MISSING_RUNTIME_EVIDENCE_FOR_PACKAGING',
+          severity: 'critical',
+          message: 'Packaging code changed without runtime lane execution or an explicit not-run uncertainty reason.'
+        });
+      }
+    }
   }
 
-  // 9. Automated verification summary
-  const automatedVerification: AutomatedVerification = {
-    cleanWorktreeVerified: gitEvidence.cleanFinalWorktree,
-    baseCommitVerified,
-    finalCommitVerified,
-    preFixReportVerified: true,
-    postFixReportVerified: true,
-    productBugFixVerified,
-    focusedRegressionVerified,
-    affectedTypecheckVerified,
-    neighborCasesVerified,
-    runtimeEvidenceVerified,
-    artifactsHashedCount
-  };
+  // 10. Campaign type rules verification
+  let campaignTypeRequirementsSatisfied = false;
 
-  // 10. Compute verdict
-  const hasCritical = riskFlags.some((f) => f.severity === 'critical');
-  const criticalOrHighRiskCount = riskFlags.filter((f) => f.severity === 'critical' || f.severity === 'high').length;
+  switch (handoff.campaignType) {
+    case 'product-bug': {
+      const hasFixedCase = productBugSameSourceSameLaneFixed && fixedCaseIds.length > 0;
+      const hasRegression = focusedRegressionVerifiedResult.verified;
+      const hasTypecheck = affectedTypecheckVerifiedResult.verified;
+      const hasNeighbors = neighborCasesPassVerified;
+
+      if (!hasFixedCase) {
+        riskFlags.push({
+          code: 'PRODUCT_BUG_PROOF_FAILED',
+          severity: 'critical',
+          message:
+            'Product-bug campaigns must prove at least one same-source same-lane failed-before/passed-after transition.'
+        });
+      }
+      if (!hasRegression) {
+        riskFlags.push({
+          code: 'MISSING_FOCUSED_REGRESSION_COMMAND_EVIDENCE',
+          severity: 'high',
+          message: 'Product-bug campaigns must provide verified focused regression command evidence.'
+        });
+      }
+      if (!hasTypecheck) {
+        riskFlags.push({
+          code: 'MISSING_AFFECTED_TYPECHECK_COMMAND_EVIDENCE',
+          severity: 'high',
+          message: 'Product-bug campaigns must provide verified affected package typecheck command evidence.'
+        });
+      }
+      if (!hasNeighbors) {
+        riskFlags.push({
+          code: 'NEIGHBOR_CASES_UNVERIFIED',
+          severity: 'high',
+          message: 'Product-bug campaigns must list neighbor cases that pass in the post-fix qualification report.'
+        });
+      }
+
+      campaignTypeRequirementsSatisfied = hasFixedCase && hasRegression && hasTypecheck && hasNeighbors;
+      break;
+    }
+    case 'new-coverage': {
+      const hasAddedPassed =
+        addedCaseIds.length > 0 || caseTransitions.some((t) => t.transitionType === 'added-passed');
+      if (!hasAddedPassed) {
+        riskFlags.push({
+          code: 'NEW_COVERAGE_PROOF_FAILED',
+          severity: 'critical',
+          message: 'New-coverage campaign claims new coverage but no new passing cases or lanes were added.'
+        });
+      }
+      campaignTypeRequirementsSatisfied = hasAddedPassed;
+      break;
+    }
+    case 'harness-fix': {
+      const harnessFilesChanged = gitEvidence.changedFiles.some(
+        (f) =>
+          f.startsWith('apps/cli/scripts/qualification/') ||
+          f.startsWith('apps/cli/scripts/real-aws/') ||
+          f.includes('verify-source-cli-aws-readonly')
+      );
+      if (!harnessFilesChanged) {
+        riskFlags.push({
+          code: 'HARNESS_FIX_NO_HARNESS_DIFF',
+          severity: 'high',
+          message: 'Harness-fix campaign declared but no test harness files were modified in Git diff.'
+        });
+      }
+      riskFlags.push({
+        code: 'HARNESS_FIX_REQUIRES_ATTENTION',
+        severity: 'high',
+        message: 'Harness modifications always require manual reviewer inspection and attention.'
+      });
+      campaignTypeRequirementsSatisfied = harnessFilesChanged;
+      break;
+    }
+    case 'corpus-refresh': {
+      const corpusFilesChanged = gitEvidence.changedFiles.some(
+        (f) =>
+          f.endsWith('manifest.json') ||
+          f.includes('catalog.ts') ||
+          f.includes('init-real-project-corpus-cases') ||
+          f.includes('synthetic-project-corpus-expectations')
+      );
+      if (!corpusFilesChanged) {
+        riskFlags.push({
+          code: 'CORPUS_REFRESH_NO_CORPUS_DIFF',
+          severity: 'high',
+          message: 'Corpus-refresh campaign declared but no manifest or corpus files were modified in Git diff.'
+        });
+      }
+      const hasLostCoverage =
+        regressedCaseIds.length > 0 ||
+        caseTransitions.some(
+          (t) => t.transitionType === 'removed' || t.laneTransitions.some((l) => l.transition === 'skipped-regression')
+        );
+      if (hasLostCoverage) {
+        riskFlags.push({
+          code: 'CORPUS_REFRESH_LOST_COVERAGE',
+          severity: 'critical',
+          message: 'Corpus refresh caused regressions or lost coverage.'
+        });
+      }
+      campaignTypeRequirementsSatisfied = corpusFilesChanged && !hasLostCoverage;
+      break;
+    }
+    case 'investigation': {
+      riskFlags.push({
+        code: 'INVESTIGATION_NOT_FOR_INTEGRATION',
+        severity: 'medium',
+        message: 'Investigation campaigns are exploratory and not eligible for direct ready-for-review integration.'
+      });
+      campaignTypeRequirementsSatisfied = false;
+      break;
+    }
+  }
+
+  // 11. Compute verdict
+  const criticalRiskCount = riskFlags.filter((f) => f.severity === 'critical').length;
+  const highRiskCount = riskFlags.filter((f) => f.severity === 'high').length;
 
   let verdict: ReviewerSummary['verdict'];
-  if (hasCritical) {
+  let verdictExplanation: string;
+
+  if (criticalRiskCount > 0) {
     verdict = 'rejected';
-  } else if (criticalOrHighRiskCount > 0 || regressedCaseIds.length > 0) {
+    verdictExplanation = `Failed closed with ${criticalRiskCount} critical risk flag(s).`;
+  } else if (
+    highRiskCount > 0 ||
+    handoff.campaignType === 'harness-fix' ||
+    handoff.campaignType === 'investigation' ||
+    regressedCaseIds.length > 0 ||
+    !campaignTypeRequirementsSatisfied
+  ) {
     verdict = 'requires-attention';
+    verdictExplanation = `Requires human attention (${highRiskCount} high risk flag(s), campaign requirements check).`;
   } else {
     verdict = 'ready-for-review';
+    verdictExplanation = 'All automated fail-closed checks passed. Ready for human reviewer evaluation.';
   }
 
   const reviewerSummary: ReviewerSummary = {
     verdict,
+    verdictExplanation,
     campaignId: handoff.campaignId,
     campaignType: handoff.campaignType,
     title: handoff.title,
@@ -609,27 +1156,30 @@ export const buildReviewBundle = async (options: BuildReviewBundleOptions): Prom
     fixedCasesCount: fixedCaseIds.length,
     regressedCasesCount: regressedCaseIds.length,
     riskFlagsCount: riskFlags.length,
-    criticalOrHighRiskCount
+    criticalRiskCount,
+    highRiskCount
   };
 
-  const preFixSummaryEvidence: QualificationReportSummaryEvidence = {
-    runId: preReportLoaded.report.runId,
-    generatedAt: preReportLoaded.report.generatedAt,
-    productCommit: preReportLoaded.report.productCommit,
-    productFingerprint: preReportLoaded.report.productFingerprint,
-    lanes: preReportLoaded.report.lanes,
-    summary: preReportLoaded.report.summary,
-    reportPath: relative(rootDir, preReportLoaded.reportPath).replaceAll('\\', '/')
+  const preFixSummaryEvidence: ReportFileEvidence = {
+    path: relative(rootDir, preLoaded.reportPath).replaceAll('\\', '/'),
+    sha256: preLoaded.sha256,
+    bytes: preLoaded.bytes,
+    productCommit: preLoaded.report.productCommit,
+    productFingerprint: preLoaded.report.productFingerprint,
+    runId: preLoaded.report.runId,
+    summary: preLoaded.report.summary,
+    lanes: preLoaded.report.lanes
   };
 
-  const postFixSummaryEvidence: QualificationReportSummaryEvidence = {
-    runId: postReportLoaded.report.runId,
-    generatedAt: postReportLoaded.report.generatedAt,
-    productCommit: postReportLoaded.report.productCommit,
-    productFingerprint: postReportLoaded.report.productFingerprint,
-    lanes: postReportLoaded.report.lanes,
-    summary: postReportLoaded.report.summary,
-    reportPath: relative(rootDir, postReportLoaded.reportPath).replaceAll('\\', '/')
+  const postFixSummaryEvidence: ReportFileEvidence = {
+    path: relative(rootDir, postLoaded.reportPath).replaceAll('\\', '/'),
+    sha256: postLoaded.sha256,
+    bytes: postLoaded.bytes,
+    productCommit: postLoaded.report.productCommit,
+    productFingerprint: postLoaded.report.productFingerprint,
+    runId: postLoaded.report.runId,
+    summary: postLoaded.report.summary,
+    lanes: postLoaded.report.lanes
   };
 
   const qualificationEvidence: QualificationEvidence = {
@@ -643,6 +1193,42 @@ export const buildReviewBundle = async (options: BuildReviewBundleOptions): Prom
     unchangedFailedCaseIds
   };
 
+  const claimsVsVerification: ClaimsVsVerification = {
+    workerClaims: handoff,
+    claimPresent: {
+      focusedRegression: Boolean(handoff.focusedRegression),
+      affectedTypecheck: Boolean(handoff.affectedTypecheck),
+      neighborCases: Boolean(handoff.neighborCases && handoff.neighborCases.length > 0),
+      runtimeEvidence: Boolean(handoff.runtimeEvidence)
+    },
+    reportedEvidence: {
+      preFixReportSummary: preFixSummaryEvidence,
+      postFixReportSummary: postFixSummaryEvidence,
+      fixedCasesCount: fixedCaseIds.length,
+      regressedCasesCount: regressedCaseIds.length,
+      addedCasesCount: addedCaseIds.length,
+      runtimeLanePassedInPostReport
+    },
+    executedCommandEvidence: {
+      ...(focusedRegressionVerifiedResult.record ? { focusedRegression: focusedRegressionVerifiedResult.record } : {}),
+      ...(affectedTypecheckVerifiedResult.record ? { affectedTypecheck: affectedTypecheckVerifiedResult.record } : {})
+    },
+    independentlyVerified: {
+      cleanWorktree: gitEvidence.cleanFinalWorktree,
+      headEqualsFinalCommit: gitEvidence.headCommit === gitEvidence.finalCommit,
+      baseIsAncestorOfFinal: !gitRiskFlags.some((f) => f.code === 'BASE_COMMIT_NOT_ANCESTOR'),
+      preFixReportCommitMatchesBase: preCommitMatches,
+      postFixReportCommitMatchesFinal: postCommitMatches,
+      qualificationReportsSchemaValid: true,
+      caseSourceFingerprintsMatch: !riskFlags.some((f) => f.code === 'SOURCE_FINGERPRINT_MUTATION'),
+      campaignTypeRequirementsSatisfied,
+      productBugSameSourceSameLaneFixed,
+      neighborCasesPassVerified,
+      expectedArtifactsPresent: !riskFlags.some((f) => f.code === 'MISSING_EXPECTED_ARTIFACT'),
+      artifactsHashedCount
+    }
+  };
+
   const bundle: QualificationReviewBundle = {
     schemaVersion: QUALIFICATION_REVIEW_BUNDLE_VERSION,
     bundleId: `review-${handoff.campaignId}-${new Date().toISOString().replace(/[:.]/g, '-')}`,
@@ -650,10 +1236,7 @@ export const buildReviewBundle = async (options: BuildReviewBundleOptions): Prom
     reviewerSummary,
     gitEvidence,
     qualificationEvidence,
-    claimsVsVerification: {
-      workerClaims: handoff,
-      automatedVerification
-    },
+    claimsVsVerification,
     riskFlags,
     disclaimer: REVIEW_BUNDLE_DISCLAIMER
   };
@@ -661,12 +1244,18 @@ export const buildReviewBundle = async (options: BuildReviewBundleOptions): Prom
   return qualificationReviewBundleSchema.parse(bundle);
 };
 
-const escapeTableCell = (value: string) => value.replaceAll('|', '\\|').replaceAll('\n', ' ');
+const sanitizeForMarkdownText = (text: string) =>
+  text
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('|', '\\|')
+    .replaceAll('\n', ' ');
 
 export const renderReviewBundleMarkdown = (bundle: QualificationReviewBundle): string => {
   const { reviewerSummary, gitEvidence, qualificationEvidence, claimsVsVerification, riskFlags } = bundle;
   const workerClaims = claimsVsVerification.workerClaims;
-  const verified = claimsVsVerification.automatedVerification;
+  const verified = claimsVsVerification.independentlyVerified;
 
   const verdictBadge =
     reviewerSummary.verdict === 'ready-for-review'
@@ -684,12 +1273,12 @@ export const renderReviewBundleMarkdown = (bundle: QualificationReviewBundle): s
           ...riskFlags.map((f) => {
             const affected =
               [
-                ...(f.files ?? []).map((file) => `\`${file}\``),
-                ...(f.caseIds ?? []).map((id) => `case \`${id}\``)
+                ...(f.files ?? []).map((file) => `\`${sanitizeForMarkdownText(file)}\``),
+                ...(f.caseIds ?? []).map((id) => `case \`${sanitizeForMarkdownText(id)}\``)
               ].join(', ') || '—';
-            return `| **${f.severity.toUpperCase()}** | \`${f.code}\` | ${escapeTableCell(
+            return `| **${f.severity.toUpperCase()}** | \`${f.code}\` | ${sanitizeForMarkdownText(
               f.message
-            )} | ${escapeTableCell(affected)} |`;
+            )} | ${affected} |`;
           })
         ].join('\n');
 
@@ -697,20 +1286,22 @@ export const renderReviewBundleMarkdown = (bundle: QualificationReviewBundle): s
     const configNote = t.configArtifact ? (t.configArtifact.changed ? 'Modified' : 'Identical') : 'None';
     const templateNote = t.templateArtifact ? (t.templateArtifact.changed ? 'Modified' : 'Identical') : 'None';
     const matchNote = t.sourceFingerprintMatch ? 'Yes' : '**No (Mutated)**';
-    return `| \`${t.id}\` | \`${t.beforeStatus}\` | \`${t.afterStatus}\` | **${t.transitionType}** | ${matchNote} | ${configNote} | ${templateNote} |`;
+    return `| \`${sanitizeForMarkdownText(t.id)}\` | \`${t.beforeStatus}\` | \`${t.afterStatus}\` | **${
+      t.transitionType
+    }** | ${matchNote} | ${configNote} | ${templateNote} |`;
   });
 
   const failureDetails = qualificationEvidence.caseTransitions
     .filter((t) => (t.failuresBefore && t.failuresBefore.length > 0) || (t.failuresAfter && t.failuresAfter.length > 0))
     .map((t) => {
-      const parts = [`### Case \`${t.id}\``, ''];
+      const parts = [`### Case \`${sanitizeForMarkdownText(t.id)}\``, ''];
       if (t.failuresBefore && t.failuresBefore.length > 0) {
         parts.push('**Pre-fix Failures:**');
-        for (const f of t.failuresBefore) parts.push(`- ${escapeTableCell(f)}`);
+        for (const f of t.failuresBefore) parts.push(`- ${sanitizeForMarkdownText(f)}`);
       }
       if (t.failuresAfter && t.failuresAfter.length > 0) {
         parts.push('', '**Post-fix Failures:**');
-        for (const f of t.failuresAfter) parts.push(`- ${escapeTableCell(f)}`);
+        for (const f of t.failuresAfter) parts.push(`- ${sanitizeForMarkdownText(f)}`);
       }
       return parts.join('\n');
     });
@@ -723,7 +1314,10 @@ export const renderReviewBundleMarkdown = (bundle: QualificationReviewBundle): s
           '| Case | Classification | Root Cause / Explanation |',
           '| --- | --- | --- |',
           ...classifiedFailures.map(
-            (c) => `| \`${c.caseId}\` | \`${c.classification}\` | ${escapeTableCell(c.explanation)} |`
+            (c) =>
+              `| \`${sanitizeForMarkdownText(c.caseId)}\` | \`${c.classification}\` | ${sanitizeForMarkdownText(
+                c.explanation
+              )} |`
           )
         ].join('\n');
 
@@ -731,13 +1325,13 @@ export const renderReviewBundleMarkdown = (bundle: QualificationReviewBundle): s
   const uncertaintiesList =
     uncertainties.length === 0
       ? '_None declared by worker._'
-      : uncertainties.map((u) => `- ${escapeTableCell(u)}`).join('\n');
+      : uncertainties.map((u) => `- ${sanitizeForMarkdownText(u)}`).join('\n');
 
   return `${[
-    `# Hardening Review Bundle: ${workerClaims.title}`,
+    `# Hardening Review Bundle: ${sanitizeForMarkdownText(workerClaims.title)}`,
     '',
-    `**Verdict:** ${verdictBadge}  `,
-    `**Campaign:** \`${reviewerSummary.campaignId}\` (\`${reviewerSummary.campaignType}\`)  `,
+    `**Verdict:** ${verdictBadge} (${reviewerSummary.verdictExplanation})  `,
+    `**Campaign:** \`${sanitizeForMarkdownText(reviewerSummary.campaignId)}\` (\`${reviewerSummary.campaignType}\`)  `,
     `**Generated:** ${bundle.generatedAt}  `,
     '',
     '## Executive Summary',
@@ -748,8 +1342,8 @@ export const renderReviewBundleMarkdown = (bundle: QualificationReviewBundle): s
     `| **Base Commit** | \`${gitEvidence.baseCommit}\` |`,
     `| **Final Commit** | \`${gitEvidence.finalCommit}\` |`,
     `| **Changed Files** | ${gitEvidence.changedFiles.length} files (+${gitEvidence.diffStat.insertions}, -${gitEvidence.diffStat.deletions}) |`,
-    `| **Fixed Cases** | ${qualificationEvidence.fixedCaseIds.length} (\`${qualificationEvidence.fixedCaseIds.join(', ') || 'none'}\`) |`,
-    `| **Regressed Cases** | ${qualificationEvidence.regressedCaseIds.length} (\`${qualificationEvidence.regressedCaseIds.join(', ') || 'none'}\`) |`,
+    `| **Fixed Cases** | ${qualificationEvidence.fixedCaseIds.length} (\`${qualificationEvidence.fixedCaseIds.map(sanitizeForMarkdownText).join(', ') || 'none'}\`) |`,
+    `| **Regressed Cases** | ${qualificationEvidence.regressedCaseIds.length} (\`${qualificationEvidence.regressedCaseIds.map(sanitizeForMarkdownText).join(', ') || 'none'}\`) |`,
     `| **Binary Diff SHA-256** | \`${gitEvidence.binaryDiffSha256}\` |`,
     `| **Changed Files SHA-256** | \`${gitEvidence.changedFilesSha256}\` |`,
     `| **Clean Worktree** | ${gitEvidence.cleanFinalWorktree ? 'Yes' : '**No (Dirty)**'} |`,
@@ -760,20 +1354,33 @@ export const renderReviewBundleMarkdown = (bundle: QualificationReviewBundle): s
     '',
     '## Automated Verification vs Worker Claims',
     '',
-    '| Check | Verified Fact | Worker Claim / Context |',
+    '| Check | Verified Fact | Detail / Evidence |',
     '| --- | --- | --- |',
-    `| **Worktree Clean** | ${verified.cleanWorktreeVerified ? 'PASS' : 'FAIL'} | Worker finalized branch |`,
-    `| **Commit Alignment** | ${verified.baseCommitVerified && verified.finalCommitVerified ? 'PASS' : 'FAIL'} | \`${gitEvidence.commitRange}\` |`,
-    `| **Fixed Case Proof** | ${verified.productBugFixVerified ? 'PASS' : 'FAIL'} | Fixed: ${qualificationEvidence.fixedCaseIds.join(', ') || 'none'} |`,
-    `| **Focused Regression** | ${verified.focusedRegressionVerified ? 'PASS' : 'FAIL'} | ${workerClaims.focusedRegression ? `\`${workerClaims.focusedRegression.testCommand}\`` : 'None'} |`,
-    `| **Affected Typecheck** | ${verified.affectedTypecheckVerified ? 'PASS' : 'FAIL'} | ${workerClaims.affectedTypecheck ? `\`${workerClaims.affectedTypecheck.command}\`` : 'None'} |`,
-    `| **Neighbor Cases** | ${verified.neighborCasesVerified ? 'PASS' : 'FAIL'} | ${workerClaims.neighborCases?.join(', ') || 'None'} |`,
-    `| **Runtime Evidence** | ${verified.runtimeEvidenceVerified ? 'PASS' : 'FAIL'} | ${workerClaims.runtimeEvidence?.executed ? 'Executed' : (workerClaims.runtimeEvidence?.notRunReason ?? 'Not specified')} |`,
-    `| **Artifacts Hashed** | ${verified.artifactsHashedCount} artifact(s) | Generated configs and templates compared |`,
+    `| **Worktree Clean** | ${verified.cleanWorktree ? 'PASS' : 'FAIL'} | Worktree clean check |`,
+    `| **Commit Alignment** | ${verified.preFixReportCommitMatchesBase && verified.postFixReportCommitMatchesFinal ? 'PASS' : 'FAIL'} | Base & Final match reports |`,
+    `| **Fixed Case Proof** | ${verified.productBugSameSourceSameLaneFixed ? 'PASS' : 'FAIL'} | Same-source same-lane fix verified |`,
+    `| **Focused Regression Evidence** | ${claimsVsVerification.executedCommandEvidence.focusedRegression?.verified ? 'PASS' : 'FAIL / CLAIM ONLY'} | ${
+      claimsVsVerification.executedCommandEvidence.focusedRegression?.verified
+        ? `Log SHA-256 verified (${claimsVsVerification.executedCommandEvidence.focusedRegression.logRelativePath})`
+        : 'No verified command log evidence'
+    } |`,
+    `| **Affected Typecheck Evidence** | ${claimsVsVerification.executedCommandEvidence.affectedTypecheck?.verified ? 'PASS' : 'FAIL / CLAIM ONLY'} | ${
+      claimsVsVerification.executedCommandEvidence.affectedTypecheck?.verified
+        ? `Log SHA-256 verified (${claimsVsVerification.executedCommandEvidence.affectedTypecheck.logRelativePath})`
+        : 'No verified command log evidence'
+    } |`,
+    `| **Neighbor Cases Pass** | ${verified.neighborCasesPassVerified ? 'PASS' : 'FAIL'} | Verified against post-fix report |`,
+    `| **Runtime Lane Pass** | ${claimsVsVerification.reportedEvidence.runtimeLanePassedInPostReport ? 'PASS' : 'NOT EXECUTED'} | Post-fix global runtime lane step |`,
+    `| **Artifacts Hashed & Confinement** | ${verified.artifactsHashedCount} artifact(s) | Generated configs and templates verified |`,
     '',
-    '### Worker Summary & Analysis',
+    '## Worker-Authored Claims (Visibly Untrusted Input)',
     '',
-    workerClaims.summary,
+    '> [!NOTE]',
+    '> The following section contains worker prose statements. These statements are presented as declared claims and are distinct from automated facts.',
+    '',
+    '```text',
+    workerClaims.summary.replaceAll('```', '\\`\\`\\`'),
+    '```',
     '',
     '### Failure Classifications',
     '',
@@ -794,7 +1401,7 @@ export const renderReviewBundleMarkdown = (bundle: QualificationReviewBundle): s
     '',
     gitEvidence.changedFiles.length === 0
       ? '_No files changed between base and final commits._'
-      : gitEvidence.changedFiles.map((file) => `- \`${file}\``).join('\n'),
+      : gitEvidence.changedFiles.map((file) => `- \`${sanitizeForMarkdownText(file)}\``).join('\n'),
     '',
     '## Trust Boundary & Disclaimer',
     '',
@@ -803,13 +1410,13 @@ export const renderReviewBundleMarkdown = (bundle: QualificationReviewBundle): s
   ].join('\n')}\n`;
 };
 
-export const writeReviewBundle = async (outputDirectory: string, bundle: QualificationReviewBundle) => {
+export const writeReviewBundle = async (
+  outputDirectory: string,
+  bundle: QualificationReviewBundle
+): Promise<{ jsonPath: string; markdownPath: string }> => {
   const jsonPath = join(outputDirectory, 'review-bundle.json');
   const markdownPath = join(outputDirectory, 'review-bundle.md');
   await writeJsonAtomic(jsonPath, bundle);
-  await writeJsonAtomic(markdownPath, renderReviewBundleMarkdown(bundle));
-  // Note: write markdown plain
-  const { writeFile } = await import('node:fs/promises');
-  await writeFile(markdownPath, renderReviewBundleMarkdown(bundle), 'utf8');
+  await writePlainTextAtomic(markdownPath, renderReviewBundleMarkdown(bundle));
   return { jsonPath, markdownPath };
 };

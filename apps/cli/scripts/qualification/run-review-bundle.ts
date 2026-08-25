@@ -1,7 +1,7 @@
 import { mkdir } from 'node:fs/promises';
 import { join, resolve } from 'node:path';
 import { parseArgs } from 'node:util';
-import { buildReviewBundle, writeReviewBundle } from './review-bundle';
+import { assertPathConfined, buildReviewBundle, writeReviewBundle } from './review-bundle';
 import { outputTail, redactOutput } from './process';
 
 const rootDirectory = resolve(import.meta.dir, '..', '..', '..', '..');
@@ -21,7 +21,8 @@ Options:
   --post-fix-report=<path>  Override post-fix qualification report path
   --base-commit=<sha>       Override base Git commit SHA
   --final-commit=<sha>      Override final Git commit SHA (defaults to HEAD if not specified)
-  --output-dir=<path>       Output directory for review bundle JSON and Markdown (default: .stacktape/qualification/<run>)
+  --worktree-root=<path>    Override worktree root directory
+  --output-dir=<path>       Output directory for review bundle JSON and Markdown
   --allow-dirty             Allow dirty working tree (records critical risk flag instead of failing closed)
   --help                    Show this help
 `;
@@ -53,10 +54,10 @@ const main = async () => {
     throw new Error('Missing required argument: --handoff=<path>. Use --help for usage instructions.');
   }
 
+  const worktreeRoot = values['worktree-root'] ? resolve(invocationDirectory, values['worktree-root']) : rootDirectory;
   const handoffPath = resolve(invocationDirectory, values.handoff);
   const preFixReport = values['pre-fix-report'] ? resolve(invocationDirectory, values['pre-fix-report']) : undefined;
   const postFixReport = values['post-fix-report'] ? resolve(invocationDirectory, values['post-fix-report']) : undefined;
-  const worktreeRoot = values['worktree-root'] ? resolve(invocationDirectory, values['worktree-root']) : rootDirectory;
 
   const bundle = await buildReviewBundle({
     handoff: handoffPath,
@@ -68,10 +69,17 @@ const main = async () => {
     allowDirty: values['allow-dirty']
   });
 
-  const outputDirectory = resolve(
-    invocationDirectory,
-    values['output-dir'] ?? join(rootDirectory, '.stacktape', 'qualification', bundle.bundleId)
-  );
+  let outputDirectory: string;
+  if (values['output-dir']) {
+    outputDirectory = resolve(invocationDirectory, values['output-dir']);
+  } else {
+    const qualificationRoot = join(worktreeRoot, '.stacktape', 'qualification');
+    outputDirectory = assertPathConfined({
+      baseDirectory: qualificationRoot,
+      targetPath: bundle.bundleId,
+      label: 'Default output directory'
+    });
+  }
 
   await mkdir(outputDirectory, { recursive: true });
   const { jsonPath, markdownPath } = await writeReviewBundle(outputDirectory, bundle);
@@ -80,6 +88,7 @@ const main = async () => {
     `${JSON.stringify(
       {
         verdict: bundle.reviewerSummary.verdict,
+        verdictExplanation: bundle.reviewerSummary.verdictExplanation,
         campaignId: bundle.reviewerSummary.campaignId,
         bundleId: bundle.bundleId,
         jsonPath,
@@ -87,7 +96,8 @@ const main = async () => {
         fixedCases: bundle.qualificationEvidence.fixedCaseIds,
         regressedCases: bundle.qualificationEvidence.regressedCaseIds,
         riskFlagsCount: bundle.reviewerSummary.riskFlagsCount,
-        criticalOrHighRiskCount: bundle.reviewerSummary.criticalOrHighRiskCount
+        criticalRiskCount: bundle.reviewerSummary.criticalRiskCount,
+        highRiskCount: bundle.reviewerSummary.highRiskCount
       },
       null,
       2
@@ -96,6 +106,10 @@ const main = async () => {
 
   if (bundle.reviewerSummary.verdict === 'rejected') {
     process.exitCode = 1;
+  } else if (bundle.reviewerSummary.verdict === 'requires-attention') {
+    process.exitCode = 2;
+  } else {
+    process.exitCode = 0;
   }
 };
 
