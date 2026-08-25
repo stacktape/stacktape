@@ -486,4 +486,31 @@ describe('assembleCandidateFacts', () => {
     expect(facts.services).toEqual([]);
     expect(facts.dependencies).toEqual([]);
   });
+
+  it('identifies TanStack Start from @tanstack/react-start and infers tanstack-start framework', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'tanstack-app',
+        scripts: { build: 'vite build', start: 'node .output/server/index.mjs' },
+        dependencies: {
+          '@tanstack/react-start': '^1.168.49',
+          '@tanstack/react-router': '^1.170.32',
+          react: '^19.0.0'
+        }
+      }),
+      'pnpm-lock.yaml': ''
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root: repoRoot,
+      probes: PROBES
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'tanstack-app',
+      framework: 'tanstack-start',
+      exposesHttp: true
+    });
+  });
 });

@@ -80,7 +80,9 @@ const HTTP_FRAMEWORKS: ReadonlySet<string> = new Set([
   'sveltekit',
   '@sveltejs/kit',
   '@solidjs/start',
-  '@tanstack/start'
+  '@tanstack/start',
+  '@tanstack/react-start',
+  '@tanstack/solid-start'
 ]);
 
 /** Frameworks worth naming, because the composer has dedicated handling for several of them. */
@@ -91,6 +93,8 @@ const FRAMEWORK_NAMES: ReadonlyArray<{ package: string; name: string }> = [
   { package: 'astro', name: 'astro' },
   { package: '@remix-run/node', name: 'remix' },
   { package: '@solidjs/start', name: 'solid-start' },
+  { package: '@tanstack/react-start', name: 'tanstack-start' },
+  { package: '@tanstack/solid-start', name: 'tanstack-start' },
   { package: '@tanstack/start', name: 'tanstack-start' },
   { package: '@nestjs/core', name: 'nestjs' },
   { package: 'express', name: 'express' },
