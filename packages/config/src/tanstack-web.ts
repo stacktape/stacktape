@@ -2,7 +2,7 @@ import type { DomainConfiguration, EnvironmentVar, ResourceAccessProps, Resource
 import type { DirectoryUploadFilter } from './buckets';
 import type { SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig } from './ssr-web-shared';
 /**
- * #### Deploy a TanStack Start SSR app with Lambda (Nitro aws-lambda preset), S3 for static assets, and CloudFront CDN.
+ * #### Deploy a TanStack Start SSR app with Lambda, S3 for static assets, and CloudFront CDN.
  */
 export interface TanStackWeb {
   type: 'tanstack-web';
@@ -13,7 +13,7 @@ export interface TanStackWeb {
 
 export interface TanStackWebProps extends ResourceAccessProps {
   /**
-   * #### Directory containing your `app.config.ts`. For monorepos, point to the TanStack Start workspace.
+   * #### Directory containing your TanStack Start app. Current apps typically use `vite.config.*` or `rsbuild.config.*`; legacy apps may use `app.config.ts`.
    *
    *
    * ---
@@ -55,7 +55,7 @@ export interface TanStackWebProps extends ResourceAccessProps {
    */
   appDirectory?: string;
   /**
-   * #### Override the default `vinxi build` command.
+   * #### Override the default `vite build` command.
    *
    * ---
    *
@@ -281,7 +281,7 @@ export interface TanStackWebProps extends ResourceAccessProps {
    */
   useFirewall?: string;
   /**
-   * #### Dev server config for `stacktape dev`. Defaults to `vinxi dev`.
+   * #### Dev server config for `stacktape dev`. Defaults to `vite dev`.
    *
    * ---
    *

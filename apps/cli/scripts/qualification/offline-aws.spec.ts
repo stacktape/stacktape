@@ -123,7 +123,9 @@ describe('offline AWS qualification guard', () => {
         Stacktape_Api_Key: 'mixed-case-inherited',
         STACKTAPE_API_KEY: 'inherited',
         GITHUB_TOKEN: 'must-not-be-inherited',
-        PATH: 'C:\\tools'
+        PATH: 'C:\\tools',
+        ProgramFiles: 'C:\\Program Files',
+        ProgramW6432: 'C:\\Program Files'
       }
     });
     expect(environment.AWS_PROFILE).toBeUndefined();
@@ -134,6 +136,8 @@ describe('offline AWS qualification guard', () => {
     expect(environment.Stacktape_Api_Key).toBeUndefined();
     expect(environment.GITHUB_TOKEN).toBeUndefined();
     expect(environment.PATH).toBe('C:\\tools');
+    expect(environment.ProgramFiles).toBe('C:\\Program Files');
+    expect(environment.ProgramW6432).toBe('C:\\Program Files');
     expect(environment.HOME).toBe('C:\\qualification\\home');
     expect(environment.STACKTAPE_API_KEY).toBe('offline-qualification-do-not-use');
     expect(environment.AWS_ENDPOINT_URL).toBe('http://127.0.0.1:12345');

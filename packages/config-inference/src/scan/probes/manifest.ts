@@ -16,6 +16,14 @@ import { defaultDependencyName, type DependencyFact, type DependencyKind } from 
 import type { MigrationFact, PackageManager } from '../../facts/project-facts';
 import type { ServiceFactInput } from '../../facts/service';
 import { citeFirstMatchOnly, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import {
+  frameworkBuildCommand,
+  frameworkDevCommand,
+  frameworkStartCommand,
+  hasStartFrameworkProductionCommand,
+  inspectFrameworkConfig,
+  type FrameworkConfigEvidence
+} from './manifest-framework-evidence';
 import { safeMigrationClauseOf } from './procfile';
 
 /**
@@ -83,212 +91,11 @@ const HTTP_FRAMEWORKS: ReadonlySet<string> = new Set([
   'sveltekit',
   '@sveltejs/kit',
   '@solidjs/start',
-  '@tanstack/start'
+  '@tanstack/start',
+  '@tanstack/react-start',
+  '@tanstack/solid-start',
+  '@tanstack/vue-start'
 ]);
-
-type InferredFramework = {
-  name: string;
-  package?: string;
-  exposesHttp?: boolean;
-};
-
-/**
- * Identify the primary application framework using bounded semantic evidence:
- * config files and active build/dev/start scripts take precedence over passive or leftover dependencies.
- */
-const detectFramework = (manifest: ParsedManifest, context: ProbeContext): InferredFramework | undefined => {
-  const dirPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
-  const scripts = manifest.scripts;
-  const activeScripts = [scripts.build, scripts.dev, scripts.start].filter(
-    (script): script is string => typeof script === 'string'
-  );
-  const scriptsStr = activeScripts.join(' ');
-  const deps = manifest.dependencies;
-
-  // Framework config files in the package directory
-  const rrConfigFile = context.files.find(
-    (file) =>
-      file === `${dirPrefix}react-router.config.ts` ||
-      file === `${dirPrefix}react-router.config.js` ||
-      file === `${dirPrefix}react-router.config.mjs` ||
-      file === `${dirPrefix}react-router.config.cjs`
-  );
-  const remixConfigFile = context.files.find(
-    (file) =>
-      file === `${dirPrefix}remix.config.js` ||
-      file === `${dirPrefix}remix.config.ts` ||
-      file === `${dirPrefix}remix.config.mjs` ||
-      file === `${dirPrefix}remix.config.cjs`
-  );
-  const nextConfigFile = context.files.find(
-    (file) =>
-      file === `${dirPrefix}next.config.js` ||
-      file === `${dirPrefix}next.config.mjs` ||
-      file === `${dirPrefix}next.config.ts` ||
-      file === `${dirPrefix}next.config.cjs`
-  );
-  const nuxtConfigFile = context.files.find(
-    (file) => file === `${dirPrefix}nuxt.config.ts` || file === `${dirPrefix}nuxt.config.js`
-  );
-  const astroConfigFile = context.files.find(
-    (file) =>
-      file === `${dirPrefix}astro.config.mjs` ||
-      file === `${dirPrefix}astro.config.ts` ||
-      file === `${dirPrefix}astro.config.js`
-  );
-  const svelteConfigFile = context.files.find(
-    (file) => file === `${dirPrefix}svelte.config.js` || file === `${dirPrefix}svelte.config.ts`
-  );
-
-  const hasReactRouterScripts = /\breact-router\b|\breact-router-serve\b/.test(scriptsStr);
-  const hasReactRouterDeps =
-    deps['@react-router/dev'] !== undefined ||
-    deps['@react-router/node'] !== undefined ||
-    deps['@react-router/serve'] !== undefined ||
-    deps['@react-router/express'] !== undefined;
-
-  const hasRemixScripts = /\bremix\b|\bremix-serve\b/.test(scriptsStr);
-  const hasRemixDeps =
-    deps['@remix-run/dev'] !== undefined ||
-    deps['@remix-run/node'] !== undefined ||
-    deps['@remix-run/react'] !== undefined ||
-    deps['@remix-run/serve'] !== undefined ||
-    deps.remix !== undefined;
-  const hasRemixServerDep =
-    deps['@remix-run/node'] !== undefined || deps['@remix-run/serve'] !== undefined || deps.remix !== undefined;
-
-  const hasNextScripts = /\bnext\s+(?:dev|build|start)\b/.test(scriptsStr);
-  const hasNextDep = deps.next !== undefined;
-
-  const hasNuxtScripts = /\bnuxt\s+(?:dev|build|generate)\b/.test(scriptsStr);
-  const hasNuxtDep = deps.nuxt !== undefined;
-
-  const hasAstroScripts = /\bastro\s+(?:dev|build|preview)\b/.test(scriptsStr);
-  const hasAstroDep = deps.astro !== undefined;
-
-  const hasSvelteDep = deps['@sveltejs/kit'] !== undefined;
-
-  // 1. Config files and active framework scripts take precedence over ambiguous dependency declarations:
-  if (nextConfigFile !== undefined || (hasNextDep && hasNextScripts)) {
-    return { name: 'nextjs', package: 'next', exposesHttp: true };
-  }
-
-  if (nuxtConfigFile !== undefined || (hasNuxtDep && hasNuxtScripts)) {
-    return { name: 'nuxt', package: 'nuxt', exposesHttp: true };
-  }
-
-  if (astroConfigFile !== undefined || (hasAstroDep && hasAstroScripts)) {
-    return { name: 'astro', package: 'astro', exposesHttp: true };
-  }
-
-  if (svelteConfigFile !== undefined && hasSvelteDep) {
-    return { name: 'sveltekit', package: '@sveltejs/kit', exposesHttp: true };
-  }
-
-  // React Router: config file OR (react-router scripts AND react-router dependencies)
-  // This explicitly wins over leftover @remix-run/node dependencies in migrated projects.
-  if (rrConfigFile !== undefined || (hasReactRouterScripts && hasReactRouterDeps)) {
-    const matchedPkg =
-      deps['@react-router/serve'] !== undefined
-        ? '@react-router/serve'
-        : deps['@react-router/node'] !== undefined
-          ? '@react-router/node'
-          : deps['@react-router/express'] !== undefined
-            ? '@react-router/express'
-            : deps['@react-router/dev'] !== undefined
-              ? '@react-router/dev'
-              : deps['react-router'] !== undefined
-                ? 'react-router'
-                : undefined;
-    return {
-      name: 'react-router',
-      ...(matchedPkg !== undefined ? { package: matchedPkg } : {})
-    };
-  }
-
-  // Remix: config file OR (remix scripts AND remix dependencies)
-  if (remixConfigFile !== undefined || (hasRemixScripts && hasRemixDeps)) {
-    const matchedPkg =
-      deps['@remix-run/node'] !== undefined
-        ? '@remix-run/node'
-        : deps['@remix-run/serve'] !== undefined
-          ? '@remix-run/serve'
-          : deps['@remix-run/dev'] !== undefined
-            ? '@remix-run/dev'
-            : deps.remix !== undefined
-              ? 'remix'
-              : undefined;
-    return {
-      name: 'remix',
-      exposesHttp: true,
-      ...(matchedPkg !== undefined ? { package: matchedPkg } : {})
-    };
-  }
-
-  // SolidStart
-  if (deps['@solidjs/start'] !== undefined) {
-    return {
-      name: 'solid-start',
-      package: '@solidjs/start',
-      exposesHttp: true
-    };
-  }
-
-  // TanStack Start
-  if (deps['@tanstack/start'] !== undefined) {
-    return {
-      name: 'tanstack-start',
-      package: '@tanstack/start',
-      exposesHttp: true
-    };
-  }
-
-  // NestJS
-  if (deps['@nestjs/core'] !== undefined) {
-    return { name: 'nestjs', package: '@nestjs/core' };
-  }
-
-  // Standard HTTP server libraries
-  if (deps.express !== undefined) {
-    return { name: 'express', package: 'express', exposesHttp: true };
-  }
-  if (deps.fastify !== undefined) {
-    return { name: 'fastify', package: 'fastify', exposesHttp: true };
-  }
-  if (deps.hono !== undefined) {
-    return { name: 'hono', package: 'hono', exposesHttp: true };
-  }
-  if (deps.koa !== undefined) {
-    return { name: 'koa', package: 'koa', exposesHttp: true };
-  }
-
-  // Fallbacks from remaining dependencies:
-  if (hasNextDep) return { name: 'nextjs', package: 'next', exposesHttp: true };
-  if (hasNuxtDep) return { name: 'nuxt', package: 'nuxt', exposesHttp: true };
-  if (hasAstroDep) return { name: 'astro', package: 'astro', exposesHttp: true };
-  if (hasSvelteDep) return { name: 'sveltekit', package: '@sveltejs/kit', exposesHttp: true };
-  if (hasRemixServerDep) {
-    return {
-      name: 'remix',
-      package:
-        deps['@remix-run/node'] !== undefined
-          ? '@remix-run/node'
-          : deps['@remix-run/serve'] !== undefined
-            ? '@remix-run/serve'
-            : 'remix',
-      exposesHttp: true
-    };
-  }
-  if (
-    deps['@react-router/serve'] !== undefined &&
-    typeof scripts.start === 'string' &&
-    /\breact-router-serve\b/.test(scripts.start)
-  ) {
-    return { name: 'react-router', package: '@react-router/serve' };
-  }
-
-  return undefined;
-};
 
 type LiteralProperty = { value: ts.Expression; keyStart: number };
 
@@ -388,6 +195,31 @@ const safeBuildDirectory = (value: string): string | undefined => {
   const meaningfulSegments = segments.filter((segment) => segment !== '' && segment !== '.');
   return meaningfulSegments.join('/') || '.';
 };
+
+/** Frameworks worth naming, because the composer has dedicated handling for several of them. */
+const FRAMEWORK_NAMES: ReadonlyArray<{ package: string; name: string }> = [
+  { package: 'next', name: 'nextjs' },
+  { package: 'nuxt', name: 'nuxt' },
+  { package: '@sveltejs/kit', name: 'sveltekit' },
+  { package: 'astro', name: 'astro' },
+  { package: '@remix-run/node', name: 'remix' },
+  { package: '@react-router/dev', name: 'react-router' },
+  { package: 'react-router', name: 'react-router' },
+  { package: '@react-router/node', name: 'react-router' },
+  { package: '@react-router/express', name: 'react-router' },
+  { package: '@react-router/serve', name: 'react-router' },
+  { package: 'react-router-dom', name: 'react-router' },
+  { package: '@solidjs/start', name: 'solid-start' },
+  { package: '@tanstack/react-start', name: 'tanstack-start' },
+  { package: '@tanstack/solid-start', name: 'tanstack-start' },
+  { package: '@tanstack/vue-start', name: 'tanstack-start' },
+  { package: '@tanstack/start', name: 'tanstack-start' },
+  { package: '@nestjs/core', name: 'nestjs' },
+  { package: 'express', name: 'express' },
+  { package: 'fastify', name: 'fastify' },
+  { package: 'hono', name: 'hono' },
+  { package: 'koa', name: 'koa' }
+];
 
 /** Build-only browser frameworks that produce a directory for `hosting-bucket`. */
 const staticSiteFor = async (
@@ -636,6 +468,152 @@ const prismaDatasourceKind = async (
   };
 };
 
+const DEDICATED_WEB_FRAMEWORKS = new Set([
+  'nextjs',
+  'nuxt',
+  'sveltekit',
+  'astro',
+  'remix',
+  'react-router',
+  'tanstack-start',
+  'solid-start',
+  'nestjs'
+]);
+
+const readFrameworkConfigEvidence = async (
+  manifest: ParsedManifest,
+  context: ProbeContext
+): Promise<FrameworkConfigEvidence> => {
+  const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
+  const configPaths = context.files.filter((file) => {
+    if (!file.startsWith(manifestPrefix)) return false;
+    const relativePath = file.slice(manifestPrefix.length);
+    return /^(?:vite\.config|rsbuild\.config|app\.config)\.[cm]?[jt]sx?$/i.test(relativePath);
+  });
+  const contents = await Promise.all(configPaths.map((path) => readText(context, path)));
+  return configPaths.reduce<FrameworkConfigEvidence>(
+    (evidence, path, index) => {
+      const content = contents[index];
+      if (content === undefined) return evidence;
+      const inspected = inspectFrameworkConfig(path, content);
+      return {
+        solidStart: evidence.solidStart || inspected.solidStart,
+        tanstackStart: evidence.tanstackStart || inspected.tanstackStart
+      };
+    },
+    { solidStart: false, tanstackStart: false }
+  );
+};
+
+const resolveFramework = async (
+  manifest: ParsedManifest,
+  context: ProbeContext,
+  frameworkConfigEvidence: FrameworkConfigEvidence
+): Promise<{ package: string; name: string } | undefined> => {
+  const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
+  const dirFiles = context.files
+    .filter((file) => file.startsWith(manifestPrefix))
+    .map((file) => file.slice(manifestPrefix.length));
+
+  // If react-router dev dependency is only present as tooling without config/scripts or runtime deps,
+  // do not treat it as a framework overriding express/fastify/hono/koa or creating phantom services.
+  const hasReactRouterConfig = dirFiles.some((f) => /^react-router\.config\.[cm]?[jt]sx?$/i.test(f));
+  const activeScriptsStr = [manifest.scripts.build, manifest.scripts.dev, manifest.scripts.start]
+    .filter((s): s is string => typeof s === 'string')
+    .join(' ');
+  const hasReactRouterScripts = /\breact-router\b|\breact-router-serve\b/.test(activeScriptsStr);
+  const hasReactRouterRuntimeDeps =
+    manifest.dependencies['@react-router/node'] !== undefined ||
+    manifest.dependencies['@react-router/serve'] !== undefined ||
+    manifest.dependencies['@react-router/express'] !== undefined ||
+    manifest.dependencies['react-router'] !== undefined ||
+    manifest.dependencies['react-router-dom'] !== undefined;
+
+  const hasReactRouterEvidence = hasReactRouterConfig || hasReactRouterScripts || hasReactRouterRuntimeDeps;
+
+  const matches = FRAMEWORK_NAMES.filter((entry) => {
+    if (entry.package === '@react-router/dev' && !hasReactRouterEvidence) {
+      return false;
+    }
+    return manifest.dependencies[entry.package] !== undefined;
+  });
+  if (matches.length === 0) return undefined;
+  if (matches.length === 1) return matches[0];
+
+  // Prefer meta-frameworks over generic low-level server libraries (e.g. Next.js over internal Express)
+  const metaFrameworks = matches.filter((entry) => DEDICATED_WEB_FRAMEWORKS.has(entry.name));
+  const candidateList = metaFrameworks.length > 0 ? metaFrameworks : matches;
+  if (candidateList.length === 1) return candidateList[0];
+
+  const candidateFor = (name: string) => candidateList.find((candidate) => candidate.name === name);
+
+  // A framework-specific build is the strongest lifecycle evidence because it determines the
+  // artifact we will package. Stale dev/start scripts are common after migrations.
+  const buildFramework = frameworkBuildCommand(manifest.scripts.build);
+  if (buildFramework !== undefined && candidateFor(buildFramework) !== undefined) return candidateFor(buildFramework);
+  if (/\breact-router\s+build\b/.test(manifest.scripts.build ?? '') && candidateFor('react-router') !== undefined) {
+    return candidateFor('react-router');
+  }
+
+  // Without any build script, a concrete production server command is the active lifecycle.
+  // When a build exists, exact config evidence below outranks a stale start script.
+  if (manifest.scripts.build === undefined) {
+    const startFramework = frameworkStartCommand(manifest.scripts.start);
+    if (startFramework !== undefined && candidateFor(startFramework) !== undefined) return candidateFor(startFramework);
+    if (/\breact-router-serve\b/.test(manifest.scripts.start ?? '') && candidateFor('react-router') !== undefined) {
+      return candidateFor('react-router');
+    }
+  }
+
+  // 2. Exact framework configuration imports. These are stronger than a conventional config
+  // filename, which is often left behind during a framework migration.
+  if (frameworkConfigEvidence.tanstackStart && candidateList.some((candidate) => candidate.name === 'tanstack-start')) {
+    return candidateList.find((candidate) => candidate.name === 'tanstack-start');
+  }
+  if (frameworkConfigEvidence.solidStart && candidateList.some((candidate) => candidate.name === 'solid-start')) {
+    return candidateList.find((candidate) => candidate.name === 'solid-start');
+  }
+
+  const startFramework = frameworkStartCommand(manifest.scripts.start);
+  if (startFramework !== undefined && candidateFor(startFramework) !== undefined) return candidateFor(startFramework);
+  if (/\breact-router-serve\b/.test(manifest.scripts.start ?? '') && candidateFor('react-router') !== undefined) {
+    return candidateFor('react-router');
+  }
+
+  // 3. Conventional config files
+  if (hasReactRouterConfig && candidateList.some((c) => c.name === 'react-router')) {
+    return candidateList.find((c) => c.name === 'react-router');
+  }
+  if (dirFiles.some((f) => /^next\.config\.[cm]?[jt]sx?$/i.test(f)) && candidateList.some((c) => c.name === 'nextjs')) {
+    return candidateList.find((c) => c.name === 'nextjs');
+  }
+  if (dirFiles.some((f) => /^remix\.config\.[cm]?[jt]sx?$/i.test(f)) && candidateList.some((c) => c.name === 'remix')) {
+    return candidateList.find((c) => c.name === 'remix');
+  }
+  if (dirFiles.some((f) => /^nuxt\.config\.[cm]?[jt]sx?$/i.test(f)) && candidateList.some((c) => c.name === 'nuxt')) {
+    return candidateList.find((c) => c.name === 'nuxt');
+  }
+  if (
+    dirFiles.some((f) => /^svelte\.config\.[cm]?[jt]sx?$/i.test(f)) &&
+    candidateList.some((c) => c.name === 'sveltekit')
+  ) {
+    return candidateList.find((c) => c.name === 'sveltekit');
+  }
+  if (dirFiles.some((f) => /^astro\.config\.[cm]?[jt]sx?$/i.test(f)) && candidateList.some((c) => c.name === 'astro')) {
+    return candidateList.find((c) => c.name === 'astro');
+  }
+
+  // Active React Router scripts (e.g. dev)
+  if (hasReactRouterScripts && candidateFor('react-router') !== undefined) {
+    return candidateFor('react-router');
+  }
+
+  const devFramework = frameworkDevCommand(manifest.scripts.dev);
+  if (devFramework !== undefined && candidateFor(devFramework) !== undefined) return candidateFor(devFramework);
+
+  return candidateList[0];
+};
+
 export const manifestProbe: Probe = {
   name: 'manifest',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -672,40 +650,43 @@ export const manifestProbe: Probe = {
       { consumers: Set<string>; addressedBy: Set<string>; evidence: Citation[] }
     >();
     const migrations: MigrationFact[] = [];
-
-    const staticSites = await Promise.all(
-      manifests.map((manifest) =>
-        typeof manifest.scripts.build !== 'string' ? undefined : staticSiteFor(manifest, context)
-      )
+    const resolvedManifests = await Promise.all(
+      manifests.map(async (manifest) => {
+        const frameworkConfigEvidence = await readFrameworkConfigEvidence(manifest, context);
+        const frameworkEntry = await resolveFramework(manifest, context, frameworkConfigEvidence);
+        const staticSite =
+          typeof manifest.scripts.build !== 'string' ? undefined : await staticSiteFor(manifest, context);
+        return {
+          manifest,
+          frameworkConfigEvidence,
+          frameworkEntry,
+          staticSite
+        };
+      })
     );
 
-    for (let index = 0; index < manifests.length; index += 1) {
-      const manifest = manifests[index]!;
+    for (const { manifest, frameworkConfigEvidence, frameworkEntry, staticSite } of resolvedManifests) {
       const hasStart = typeof manifest.scripts.start === 'string';
       const hasBuild = typeof manifest.scripts.build === 'string';
       const buildPlan = buildPlanFor(manifest);
-      const staticSite = staticSites[index];
-      const frameworkInfo = detectFramework(manifest, context);
 
       let exposesHttp = false;
       if (staticSite !== undefined) {
         exposesHttp = false;
-      } else if (frameworkInfo?.name === 'react-router') {
+      } else if (frameworkEntry?.name === 'react-router') {
         const startScript = manifest.scripts.start;
         const runsReactRouterServe = typeof startScript === 'string' && /\breact-router-serve\b/.test(startScript);
         exposesHttp = runsReactRouterServe || (hasStart && staticSite === undefined);
-      } else if (frameworkInfo?.exposesHttp) {
-        exposesHttp = true;
       } else {
         exposesHttp = Object.keys(manifest.dependencies).some((name) => HTTP_FRAMEWORKS.has(name));
       }
 
       const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
-      const hasHandlerLayout = context.files.some(
-        (file) =>
-          file.startsWith(manifestPrefix) &&
-          /(?:^|\/)(?:functions?|lambdas?|handlers?)(?:\/|$)/i.test(file.slice(manifestPrefix.length)) &&
-          /\.(?:[cm]?js|tsx?|py)$/.test(file)
+      const dirFiles = context.files
+        .filter((file) => file.startsWith(manifestPrefix))
+        .map((file) => file.slice(manifestPrefix.length));
+      const hasHandlerLayout = dirFiles.some(
+        (file) => /(?:^|\/)(?:functions?|lambdas?|handlers?)(?:\/|$)/i.test(file) && /\.(?:[cm]?js|tsx?|py)$/.test(file)
       );
       const handlerOnlyPackage =
         hasHandlerLayout &&
@@ -717,10 +698,23 @@ export const manifestProbe: Probe = {
       // positive signal keeps a monorepo from producing a phantom service at its root.
       const isWorkspaceRoot =
         (manifest.workspaces?.length ?? 0) > 0 || (manifest.directory === '.' && pnpmGlobs.length > 0);
-      const runnable = staticSite !== undefined || hasStart || exposesHttp;
+
+      const isStartFramework = frameworkEntry?.name === 'tanstack-start' || frameworkEntry?.name === 'solid-start';
+      const hasMatchingStartConfig =
+        frameworkEntry?.name === 'tanstack-start'
+          ? frameworkConfigEvidence.tanstackStart
+          : frameworkEntry?.name === 'solid-start'
+            ? frameworkConfigEvidence.solidStart
+            : false;
+      const hasMatchingStartCommand = isStartFramework && hasStartFrameworkProductionCommand(manifest.scripts.start);
+      // Start packages also expose APIs used by shared libraries. A generic Vite/tsc build or dev
+      // script does not prove that package is an SSR application. Require either a recognized
+      // framework server command or the framework's exact config import before emitting a paid web resource.
+      const startPackageWithoutEvidence = isStartFramework && !hasMatchingStartCommand && !hasMatchingStartConfig;
+      const runnable = (staticSite !== undefined || hasStart || exposesHttp) && !startPackageWithoutEvidence;
       // Root scripts such as `turbo run start` orchestrate child packages; they are not a third
       // deployable service. A real root app still has its own framework signal and survives this.
-      const orchestrationOnlyRoot = isWorkspaceRoot && frameworkInfo === undefined && staticSite === undefined;
+      const orchestrationOnlyRoot = isWorkspaceRoot && frameworkEntry === undefined && staticSite === undefined;
       if (runnable && !orchestrationOnlyRoot && !handlerOnlyPackage) {
         const evidence: Citation[] = [];
         const startCitation =
@@ -732,7 +726,7 @@ export const manifestProbe: Probe = {
         if (buildCitation) evidence.push(buildCitation);
         evidence.push(...(staticSite?.evidence ?? []));
         const evidencedFrameworkPackage =
-          frameworkInfo?.package ??
+          frameworkEntry?.package ??
           (staticSite?.framework === 'angular'
             ? '@angular/core'
             : staticSite?.framework === 'gatsby'
@@ -766,8 +760,8 @@ export const manifestProbe: Probe = {
           path: manifest.directory,
           language: 'javascript',
           ...(nodeEngine ? { runtimeVersion: nodeEngine } : {}),
-          ...(frameworkInfo
-            ? { framework: frameworkInfo.name }
+          ...(frameworkEntry
+            ? { framework: frameworkEntry.name }
             : staticSite
               ? { framework: staticSite.framework }
               : {}),

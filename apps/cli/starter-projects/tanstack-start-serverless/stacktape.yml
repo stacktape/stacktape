@@ -3,3 +3,4 @@ resources:
     type: tanstack-web
     properties:
       appDirectory: ./
+      buildCommand: vinxi build

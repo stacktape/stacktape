@@ -4,7 +4,8 @@ import type {
   ExecuteProcess,
   PackagingProgressLogger as ProgressLogger
 } from '../runtime-contracts';
-import { basename, join } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
+import { lstat, readdir, realpath, stat } from 'node:fs/promises';
 import { serializeEnvironment } from '../runtime-helpers';
 import { copy, emptyDir, ensureDir, outputFile, pathExists, readFile, remove, writeFile } from 'fs-extra';
 import { buildUsingCustomArtifact } from '../artifact/custom-artifact';
@@ -48,8 +49,17 @@ export type SsrWebBuildConfig = {
   staticAssetPrefix: string;
   /** Environment variables to set during build */
   buildEnv?: Record<string, string> | undefined;
-  /** Wrapper type: 'passthrough' for Nitro-based, 'node-http' for Node.js HTTP handler, 'web-fetch' for Web Fetch API handler */
-  wrapperType: 'passthrough' | 'node-http' | 'web-fetch';
+  /** Wrapper type for the framework's generated server entrypoint. */
+  wrapperType: 'passthrough' | 'node-http' | 'web-fetch' | 'tanstack-fetch';
+  /** Supported alternative framework layouts; the freshest emitted handler wins when multiple layouts exist. */
+  fallbackOutputVariants?: Array<{
+    serverOutputPath: string;
+    staticOutputPath: string;
+    handlerFileName: string;
+    preserveServerOutputDirectory?: boolean | undefined;
+    staticAssetPrefix: string;
+    wrapperType: 'passthrough' | 'node-http' | 'web-fetch' | 'tanstack-fetch';
+  }>;
 };
 
 export type SsrWebPackagingProps = {
@@ -78,6 +88,106 @@ type ApplicationManifest = {
   peerDependencies?: Record<string, string> | undefined;
 };
 
+const exactCaseRegularFileMtime = async (filePath: string): Promise<number | undefined> => {
+  try {
+    const parentEntries = await readdir(dirname(filePath));
+    if (!parentEntries.includes(basename(filePath))) return undefined;
+    // stat follows a symlink. A symlink to a regular file is valid because output copying
+    // dereferences it, while a directory or a symlink to a directory is not a Lambda handler.
+    const fileStat = await stat(filePath);
+    return fileStat.isFile() ? fileStat.mtimeMs : undefined;
+  } catch {
+    return undefined;
+  }
+};
+
+const isExactCaseRegularFile = async (filePath: string): Promise<boolean> =>
+  (await exactCaseRegularFileMtime(filePath)) !== undefined;
+
+type SsrWebOutputVariant = Pick<
+  SsrWebBuildConfig,
+  | 'handlerFileName'
+  | 'preserveServerOutputDirectory'
+  | 'serverOutputPath'
+  | 'staticAssetPrefix'
+  | 'staticOutputPath'
+  | 'wrapperType'
+>;
+
+const ssrWebOutputVariants = (buildConfig: SsrWebBuildConfig): SsrWebOutputVariant[] => [
+  {
+    serverOutputPath: buildConfig.serverOutputPath,
+    staticOutputPath: buildConfig.staticOutputPath,
+    handlerFileName: buildConfig.handlerFileName,
+    preserveServerOutputDirectory: buildConfig.preserveServerOutputDirectory,
+    staticAssetPrefix: buildConfig.staticAssetPrefix,
+    wrapperType: buildConfig.wrapperType
+  },
+  ...(buildConfig.fallbackOutputVariants ?? [])
+];
+
+const clearSsrWebOutputVariants = async (buildConfig: SsrWebBuildConfig): Promise<void> => {
+  const workingDirectory = resolve(buildConfig.workingDir);
+  const realWorkingDirectory = await realpath(workingDirectory);
+  const outputPaths = [
+    ...new Set(
+      ssrWebOutputVariants(buildConfig).flatMap(({ serverOutputPath, staticOutputPath }) => [
+        resolve(workingDirectory, serverOutputPath),
+        resolve(workingDirectory, staticOutputPath)
+      ])
+    )
+  ];
+  const containedOutputPaths = outputPaths.map((outputPath) => {
+    const relativeOutputPath = relative(workingDirectory, outputPath);
+    if (
+      relativeOutputPath === '' ||
+      relativeOutputPath === '..' ||
+      relativeOutputPath.startsWith(`..${sep}`) ||
+      isAbsolute(relativeOutputPath)
+    ) {
+      throw new Error(`Refusing to clear SSR build output outside the application directory: ${outputPath}`);
+    }
+    return { relativeOutputPath };
+  });
+  await Promise.all(
+    containedOutputPaths.flatMap(({ relativeOutputPath }) => {
+      const pathSegments = relativeOutputPath.split(sep);
+      return pathSegments.map(async (_, index) => {
+        const currentPath = join(workingDirectory, ...pathSegments.slice(0, index + 1));
+        let currentStat;
+        try {
+          currentStat = await lstat(currentPath);
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code === 'ENOENT') return;
+          throw error;
+        }
+        if (currentStat.isSymbolicLink()) {
+          throw new Error(`Refusing to clear SSR build output through a symbolic link or junction: ${currentPath}`);
+        }
+        const realCurrentPath = await realpath(currentPath);
+        const relativeRealPath = relative(realWorkingDirectory, realCurrentPath);
+        if (relativeRealPath === '..' || relativeRealPath.startsWith(`..${sep}`) || isAbsolute(relativeRealPath)) {
+          throw new Error(`Refusing to clear SSR build output through a symbolic link or junction: ${currentPath}`);
+        }
+      });
+    })
+  );
+  const rootOutputPaths = outputPaths.filter(
+    (candidatePath) =>
+      !outputPaths.some((possibleParentPath) => {
+        if (candidatePath === possibleParentPath) return false;
+        const pathFromParent = relative(possibleParentPath, candidatePath);
+        return (
+          pathFromParent !== '' &&
+          pathFromParent !== '..' &&
+          !pathFromParent.startsWith(`..${sep}`) &&
+          !isAbsolute(pathFromParent)
+        );
+      })
+  );
+  await Promise.all(rootOutputPaths.map((outputPath) => remove(outputPath)));
+};
+
 export const getMissingRequiredAdapterPackages = async ({
   requiredAdapterPackages = [],
   workingDir
@@ -95,12 +205,33 @@ export const getMissingRequiredAdapterPackages = async ({
   return requiredAdapterPackages.filter((packageName) => !declaredPackages.has(packageName));
 };
 
+export const resolveSsrWebOutputVariant = async (buildConfig: SsrWebBuildConfig): Promise<SsrWebBuildConfig> => {
+  const outputVariants = ssrWebOutputVariants(buildConfig);
+  const handlerMtimes = await Promise.all(
+    outputVariants.map(({ serverOutputPath, handlerFileName }) =>
+      exactCaseRegularFileMtime(join(buildConfig.workingDir, serverOutputPath, handlerFileName))
+    )
+  );
+  const selectedIndex = handlerMtimes.reduce<number>((freshestIndex, mtime, index) => {
+    if (mtime === undefined) return freshestIndex;
+    if (freshestIndex === -1) return index;
+    return mtime > handlerMtimes[freshestIndex]! ? index : freshestIndex;
+  }, -1);
+  if (selectedIndex === -1) {
+    throw new Error(
+      `The build completed without creating any supported server handler (${outputVariants.map(({ serverOutputPath, handlerFileName }) => `${serverOutputPath.replace(/[\\/]$/, '')}/${handlerFileName}`).join(', ')}).${buildConfig.adapterConfigurationHint ? ` ${buildConfig.adapterConfigurationHint}` : ''}`
+    );
+  }
+  return { ...buildConfig, ...outputVariants[selectedIndex] };
+};
+
 /**
  * Creates the Lambda handler wrapper for SSR web resources.
- * Three types:
+ * Four types:
  * - 'passthrough': for Nitro-based frameworks that already output a Lambda handler
  * - 'node-http': for frameworks that output a Node.js HTTP handler (Astro, SvelteKit)
- * - 'web-fetch': for frameworks that export a Web Fetch API handler (Remix)
+ * - 'web-fetch': for Remix server build modules adapted through createRequestHandler
+ * - 'tanstack-fetch': for TanStack Start entries whose default export exposes fetch
  */
 export const createServerWrapper = async ({
   distFolderPath,
@@ -109,7 +240,7 @@ export const createServerWrapper = async ({
 }: {
   distFolderPath: string;
   handlerFileName: string;
-  wrapperType: 'passthrough' | 'node-http' | 'web-fetch';
+  wrapperType: 'passthrough' | 'node-http' | 'web-fetch' | 'tanstack-fetch';
 }) => {
   const serverFunctionPath = join(distFolderPath, 'server-function');
   const wrapperPath = join(serverFunctionPath, 'index-wrap.mjs');
@@ -258,11 +389,12 @@ export const handler = async (event) => {
 };
 `;
     await outputFile(wrapperPath, wrapperContent);
-  } else if (wrapperType === 'web-fetch') {
-    // web-fetch wrapper: converts Lambda events to Web Fetch API Request/Response.
-    // Used by Remix which exports a server build module that needs createRequestHandler.
-    const wrapperContent = `
-import { Buffer } from "node:buffer";
+  } else if (wrapperType === 'web-fetch' || wrapperType === 'tanstack-fetch') {
+    // Both entries ultimately consume a Web Fetch API Request. Remix exports a build module that
+    // createRequestHandler adapts; current TanStack Start exports an object with a fetch method.
+    const requestHandlerInitializer =
+      wrapperType === 'web-fetch'
+        ? `
 import { createRequestHandler } from "@remix-run/node";
 
 let requestHandler;
@@ -273,6 +405,25 @@ async function getHandler() {
   requestHandler = createRequestHandler(build, "production");
   return requestHandler;
 }
+`
+        : `
+let requestHandler;
+
+async function getHandler() {
+  if (requestHandler) return requestHandler;
+  const entry = await import("./${handlerFileName}");
+  const owner = entry.default && typeof entry.default.fetch === "function" ? entry.default : undefined;
+  const candidate = owner?.fetch || entry.fetch || entry.default;
+  if (typeof candidate !== "function") {
+    throw new Error("Could not find a Web Fetch handler in ${handlerFileName}. Expected default.fetch, fetch, or a default function export.");
+  }
+  requestHandler = owner ? candidate.bind(owner) : candidate;
+  return requestHandler;
+}
+`;
+    const wrapperContent = `
+import { Buffer } from "node:buffer";
+${requestHandlerInitializer}
 
 export const handler = async (event) => {
   const app = await getHandler();
@@ -422,6 +573,12 @@ export const reorganizeBuildOutput = async ({
     }
     const staticSourcePath = join(distFolderPath, 'build-output', buildConfig.staticOutputPath);
     if (await pathExists(staticSourcePath)) {
+      // The staging copy still contains the nested server subtree. Remove it only after the server
+      // was materialized separately, and before copying public files into bucket-content; otherwise
+      // Lambda code and potentially server-only data become downloadable CDN objects.
+      const serverRelativeToStatic = normalizedServer.slice(normalizedStatic.length + 1);
+      const nestedServerSourcePath = join(staticSourcePath, serverRelativeToStatic);
+      if (await pathExists(nestedServerSourcePath)) await remove(nestedServerSourcePath);
       await copy(staticSourcePath, bucketContentPath, copyOpts);
     }
   } else {
@@ -470,6 +627,16 @@ export const reorganizeBuildOutput = async ({
     if (await pathExists(staticSourcePath)) {
       await copy(staticSourcePath, join(serverFunctionPath, buildConfig.copyStaticAssetsToServerDirectory), copyOpts);
     }
+  }
+
+  const copiedHandlerPath = buildConfig.preserveServerOutputDirectory
+    ? join(serverFunctionPath, basename(normalizedServer), buildConfig.handlerFileName)
+    : join(serverFunctionPath, buildConfig.handlerFileName);
+  if (!(await isExactCaseRegularFile(copiedHandlerPath))) {
+    throw new Error(
+      `The packaged server handler is missing at the exact wrapper import path ${copiedHandlerPath}. ` +
+        'Ensure the framework output contains a regular file with the expected letter casing.'
+    );
   }
 };
 
@@ -521,6 +688,7 @@ export const createSsrWebArtifacts = async ({
   await emptyDir(distFolderPath);
   const buildOutputPath = join(distFolderPath, 'build-output');
   await ensureDir(buildOutputPath);
+  let resolvedBuildConfig = buildConfig;
 
   await runWebBuildExclusive({
     workingDirectory: buildConfig.workingDir,
@@ -530,6 +698,10 @@ export const createSsrWebArtifacts = async ({
         description: `Building ${resourceType} project`
       });
       try {
+        // Framework output directories belong to the build. Clearing every supported variant inside the exclusive
+        // build section prevents a handler left by an older framework version from winning output detection.
+        await clearSsrWebOutputVariants(buildConfig);
+
         // Run the build command via npx to ensure local binaries are found
         await executeProcess('npx', ['--yes', ...parseCommand(buildConfig.buildCommand)], {
           cwd: buildConfig.workingDir,
@@ -545,18 +717,13 @@ export const createSsrWebArtifacts = async ({
         // Handle the case where one output path is nested inside the other (e.g. SvelteKit:
         // serverOutputPath='build', staticOutputPath='build/client') by copying the parent first,
         // then resolving the child from within the already-copied parent.
-        const serverOutputFullPath = join(buildConfig.workingDir, buildConfig.serverOutputPath);
-        const staticOutputFullPath = join(buildConfig.workingDir, buildConfig.staticOutputPath);
+        resolvedBuildConfig = await resolveSsrWebOutputVariant(buildConfig);
+        const serverOutputFullPath = join(resolvedBuildConfig.workingDir, resolvedBuildConfig.serverOutputPath);
+        const staticOutputFullPath = join(resolvedBuildConfig.workingDir, resolvedBuildConfig.staticOutputPath);
         const deref = { dereference: true };
 
-        if (!(await pathExists(serverOutputFullPath))) {
-          throw new Error(
-            `The ${resourceType} build completed without creating the configured server output at ${buildConfig.serverOutputPath}.${buildConfig.adapterConfigurationHint ? ` ${buildConfig.adapterConfigurationHint}` : ''}`
-          );
-        }
-
-        const normalizedServer = buildConfig.serverOutputPath.replace(/\\/g, '/');
-        const normalizedStatic = buildConfig.staticOutputPath.replace(/\\/g, '/');
+        const normalizedServer = resolvedBuildConfig.serverOutputPath.replace(/\\/g, '/');
+        const normalizedStatic = resolvedBuildConfig.staticOutputPath.replace(/\\/g, '/');
         const staticIsInsideServer = normalizedStatic.startsWith(`${normalizedServer}/`);
         const serverIsInsideStatic = normalizedServer.startsWith(`${normalizedStatic}/`);
 
@@ -564,10 +731,10 @@ export const createSsrWebArtifacts = async ({
           // Static is nested inside server (e.g. server='build', static='build/client')
           // Copy the parent (server) first, then the child (static) is already inside
           if (await pathExists(serverOutputFullPath)) {
-            await copy(serverOutputFullPath, join(buildOutputPath, buildConfig.serverOutputPath), deref);
+            await copy(serverOutputFullPath, join(buildOutputPath, resolvedBuildConfig.serverOutputPath), deref);
           }
           // Static output is now at its relative position inside the copied server output
-          const staticWithinCopied = join(buildOutputPath, buildConfig.staticOutputPath);
+          const staticWithinCopied = join(buildOutputPath, resolvedBuildConfig.staticOutputPath);
           if (await pathExists(staticWithinCopied)) {
             await ensureDir(join(buildOutputPath, normalizedStatic, '..'));
             await copy(staticWithinCopied, join(buildOutputPath, '__static-assets'));
@@ -575,19 +742,19 @@ export const createSsrWebArtifacts = async ({
         } else if (serverIsInsideStatic) {
           // Server is nested inside static - copy parent (static) first
           if (await pathExists(staticOutputFullPath)) {
-            await copy(staticOutputFullPath, join(buildOutputPath, buildConfig.staticOutputPath), deref);
+            await copy(staticOutputFullPath, join(buildOutputPath, resolvedBuildConfig.staticOutputPath), deref);
           }
-          const serverWithinCopied = join(buildOutputPath, buildConfig.serverOutputPath);
+          const serverWithinCopied = join(buildOutputPath, resolvedBuildConfig.serverOutputPath);
           if (await pathExists(serverWithinCopied)) {
             await copy(serverWithinCopied, join(buildOutputPath, '__server-output'));
           }
         } else {
           // Independent paths - copy both
           if (await pathExists(serverOutputFullPath)) {
-            await copy(serverOutputFullPath, join(buildOutputPath, buildConfig.serverOutputPath), deref);
+            await copy(serverOutputFullPath, join(buildOutputPath, resolvedBuildConfig.serverOutputPath), deref);
           }
           if (await pathExists(staticOutputFullPath)) {
-            await copy(staticOutputFullPath, join(buildOutputPath, buildConfig.staticOutputPath), deref);
+            await copy(staticOutputFullPath, join(buildOutputPath, resolvedBuildConfig.staticOutputPath), deref);
           }
         }
       } catch (error) {
@@ -610,8 +777,8 @@ export const createSsrWebArtifacts = async ({
     description: `Bundling ${resourceType} functions`
   });
 
-  await reorganizeBuildOutput({ distFolderPath, buildConfig });
-  if (buildConfig.nativeRuntimePackages?.length) {
+  await reorganizeBuildOutput({ distFolderPath, buildConfig: resolvedBuildConfig });
+  if (resolvedBuildConfig.nativeRuntimePackages?.length) {
     if (!runDocker || !nativeDependencyInstallationRootPath) {
       throw createPackagingError({
         type: 'PACKAGING',
@@ -619,12 +786,12 @@ export const createSsrWebArtifacts = async ({
       });
     }
     const resolvedPackages = await Promise.all(
-      buildConfig.nativeRuntimePackages.map(async (runtimePackage) => {
+      resolvedBuildConfig.nativeRuntimePackages.map(async (runtimePackage) => {
         const resolvedPackage = await resolveInstalledNodePackage({
           applicationRoot: buildConfig.workingDir,
           packageName: runtimePackage.name,
           resolveFromPackage: runtimePackage.resolveFromPackage,
-          traceBasePath: buildConfig.traceBasePath ?? buildConfig.workingDir
+          traceBasePath: resolvedBuildConfig.traceBasePath ?? resolvedBuildConfig.workingDir
         });
         if (!resolvedPackage) {
           throw createPackagingError({
@@ -651,10 +818,10 @@ export const createSsrWebArtifacts = async ({
   }
   await createServerWrapper({
     distFolderPath,
-    handlerFileName: buildConfig.preserveServerOutputDirectory
-      ? `${basename(buildConfig.serverOutputPath)}/${buildConfig.handlerFileName}`
-      : buildConfig.handlerFileName,
-    wrapperType: buildConfig.wrapperType
+    handlerFileName: resolvedBuildConfig.preserveServerOutputDirectory
+      ? `${basename(resolvedBuildConfig.serverOutputPath)}/${resolvedBuildConfig.handlerFileName}`
+      : resolvedBuildConfig.handlerFileName,
+    wrapperType: resolvedBuildConfig.wrapperType
   });
 
   // Clean up build output

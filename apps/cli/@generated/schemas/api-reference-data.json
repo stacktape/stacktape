@@ -59158,7 +59158,7 @@
   },
   "TanStackWeb": {
     "definitionName": "TanStackWeb",
-    "shortDescription": "<p> Deploy a TanStack Start SSR app with Lambda (Nitro aws-lambda preset), S3 for static assets, and CloudFront CDN.</p>",
+    "shortDescription": "<p> Deploy a TanStack Start SSR app with Lambda, S3 for static assets, and CloudFront CDN.</p>",
     "properties": [
       {
         "name": "properties",
@@ -59202,7 +59202,7 @@
       {
         "name": "appDirectory",
         "required": false,
-        "shortDescription": "<p> Directory containing your <code>app.config.ts</code>. For monorepos, point to the TanStack Start workspace.</p>",
+        "shortDescription": "<p> Directory containing your TanStack Start app. Current apps typically use <code>vite.config.*</code> or <code>rsbuild.config.*</code>; legacy apps may use <code>app.config.ts</code>.</p>",
         "longDescription": "",
         "defaultValue": ".",
         "typeInfo": {
@@ -59225,7 +59225,7 @@
       {
         "name": "buildCommand",
         "required": false,
-        "shortDescription": "<p> Override the default <code>vinxi build</code> command.</p>",
+        "shortDescription": "<p> Override the default <code>vite build</code> command.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "primitive",
@@ -59315,7 +59315,7 @@
       {
         "name": "dev",
         "required": false,
-        "shortDescription": "<p> Dev server config for <code>stacktape dev</code>. Defaults to <code>vinxi dev</code>.</p>",
+        "shortDescription": "<p> Dev server config for <code>stacktape dev</code>. Defaults to <code>vite dev</code>.</p>",
         "longDescription": "",
         "typeInfo": {
           "kind": "reference",
@@ -59448,7 +59448,7 @@
       "requiredCount": 0,
       "optionalCount": 11
     },
-    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype TanStackWebProps = {\n  /** Directory containing your `app.config.ts`. For monorepos, point to the TanStack Start workspace. */\n  appDirectory?: string;\n  /** Override the default `vinxi build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `vinxi dev`. */\n  dev?: SsrWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: SsrWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';\n\n// [!code focus-start]\ntype TanStackWebProps = {\n  /** Directory containing your TanStack Start app. Current apps typically use `vite.config.*` or `rsbuild.config.*`; legacy apps may use `app.config.ts`. */\n  appDirectory?: string;\n  /** Override the default `vite build` command. */\n  buildCommand?: string;\n  /** CDN cache controls for SSR routes and specific path patterns. */\n  cdn?: SsrWebCdnConfig;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Attach custom domains with auto-managed DNS records and TLS certificates. */\n  customDomains?: Array<DomainConfiguration>;\n  /** Dev server config for `stacktape dev`. Defaults to `vite dev`. */\n  dev?: SsrWebDevConfig;\n  /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */\n  environment?: Array<EnvironmentVar>;\n  /** Set custom headers (e.g., `Cache-Control`) for static files matching a pattern. */\n  fileOptions?: Array<DirectoryUploadFilter>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Customize the SSR Lambda function (memory, timeout, VPC, logging). */\n  serverLambda?: SsrWebServerLambdaConfig;\n  /** Name of a `web-app-firewall` resource to protect this app. Firewall `scope` must be `cdn`. */\n  useFirewall?: string;\n};\n// [!code focus-end]"
   },
   "Task": {
     "definitionName": "Task",

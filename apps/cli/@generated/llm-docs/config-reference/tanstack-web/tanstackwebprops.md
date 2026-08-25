@@ -8,9 +8,9 @@ Resource type: `tanstack-web`
 import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
 
 type TanStackWebProps = {
-  /** Directory containing your `app.config.ts`. For monorepos, point to the TanStack Start workspace. */
+  /** Directory containing your TanStack Start app. Current apps typically use `vite.config.*` or `rsbuild.config.*`; legacy apps may use `app.config.ts`. */
   appDirectory?: string;
-  /** Override the default `vinxi build` command. */
+  /** Override the default `vite build` command. */
   buildCommand?: string;
   /** CDN cache controls for SSR routes and specific path patterns. */
   cdn?: SsrWebCdnConfig;
@@ -18,7 +18,7 @@ type TanStackWebProps = {
   connectTo?: Array<string>;
   /** Attach custom domains with auto-managed DNS records and TLS certificates. */
   customDomains?: Array<DomainConfiguration>;
-  /** Dev server config for `stacktape dev`. Defaults to `vinxi dev`. */
+  /** Dev server config for `stacktape dev`. Defaults to `vite dev`. */
   dev?: SsrWebDevConfig;
   /** Environment variables for the SSR function. Use `$ResourceParam()` or `$Secret()` for dynamic values. */
   environment?: Array<EnvironmentVar>;
@@ -39,7 +39,7 @@ type TanStackWebProps = {
 - Type: `string`
 - Default: `.`
 
-Directory containing your `app.config.ts`. For monorepos, point to the TanStack Start workspace.
+Directory containing your TanStack Start app. Current apps typically use `vite.config.*` or `rsbuild.config.*`; legacy apps may use `app.config.ts`.
 
 ### Example 1 (yaml)
 
@@ -75,7 +75,7 @@ export default defineConfig(() => {
 - Required: no
 - Type: `string`
 
-Override the default `vinxi build` command.
+Override the default `vite build` command.
 
 ### Example 1 (yaml)
 
@@ -293,7 +293,7 @@ export default defineConfig(() => {
 - Required: no
 - Type: `SsrWebDevConfig`
 
-Dev server config for `stacktape dev`. Defaults to `vinxi dev`.
+Dev server config for `stacktape dev`. Defaults to `vite dev`.
 
 ### Example 1 (yaml)
 

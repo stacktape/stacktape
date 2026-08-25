@@ -82,7 +82,10 @@ const importOnlyCaseIds = new Set([
   // root uses pnpm-lock.yaml, but each template subdirectory Dockerfile invokes `npm ci` without
   // a local package-lock.json; isolated subdirectories are not standalone packaging units.
   'react-router-default',
-  'react-router-node-custom-server'
+  'react-router-node-custom-server',
+  // The raw monorepo example subdirectory has no standalone lockfile and is not reproducible
+  // package input. Qualified on import only until a generated standalone project is added.
+  'tanstack-start-basic'
 ]);
 
 const fromBuiltInCase = (entry: RealProjectCorpusCase): QualificationCaseManifest => ({

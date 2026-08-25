@@ -454,6 +454,92 @@ const CASES: EvalCase[] = [
       ],
       deployable: true
     }
+  },
+  {
+    name: 'TanStack Start SSR web app',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'tanstack-start-app',
+        type: 'module',
+        scripts: { build: 'vite build', start: 'node .output/server/index.mjs' },
+        dependencies: {
+          '@tanstack/react-start': '^1.168.49',
+          '@tanstack/react-router': '^1.170.32',
+          react: '^19.0.0',
+          'react-dom': '^19.0.0'
+        },
+        devDependencies: {
+          '@vitejs/plugin-react': '^6.0.1',
+          nitro: '^3.0.260311-beta',
+          vite: '^8.0.14'
+        }
+      }),
+      'vite.config.ts': [
+        "import { defineConfig } from 'vite';",
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        "import viteReact from '@vitejs/plugin-react';",
+        "import { nitro } from 'nitro/vite';",
+        '',
+        'export default defineConfig({',
+        '  plugins: [tanstackStart(), viteReact(), nitro()]',
+        '});'
+      ].join('\n'),
+      'src/routes/__root.tsx': [
+        "import { Outlet, createRootRoute } from '@tanstack/react-router';",
+        '',
+        'export const Route = createRootRoute({',
+        '  component: () => <Outlet />',
+        '});'
+      ].join('\n'),
+      'src/routes/index.tsx': [
+        "import { createFileRoute } from '@tanstack/react-router';",
+        '',
+        'export const Route = createFileRoute("/")({',
+        '  component: () => <h1>Hello TanStack Start</h1>',
+        '});'
+      ].join('\n'),
+      'src/router.tsx': [
+        "import { createRouter } from '@tanstack/react-router';",
+        "import { routeTree } from './routeTree.gen';",
+        '',
+        'export function getRouter() {',
+        '  return createRouter({ routeTree });',
+        '}'
+      ].join('\n'),
+      'src/routeTree.gen.ts': 'export const routeTree = {};\n'
+    },
+    expect: {
+      resources: { tanstackStartApp: 'tanstack-web' },
+      deployable: true,
+      maxQuestions: 0
+    }
+  },
+  {
+    name: 'TanStack Start Rsbuild SSR web app',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'tanstack-rsbuild-app',
+        type: 'module',
+        scripts: { build: 'rsbuild build', start: 'node ./dist/server/index.js' },
+        dependencies: {
+          '@tanstack/react-start': '^1.168.49',
+          '@tanstack/react-router': '^1.170.32',
+          react: '^19.0.0',
+          'react-dom': '^19.0.0'
+        },
+        devDependencies: { '@rsbuild/core': '^1.5.0' }
+      }),
+      'rsbuild.config.ts': [
+        "import * as startPlugin from '@tanstack/react-start/plugin/rsbuild';",
+        'export default { plugins: [startPlugin.tanstackStart()] };'
+      ].join('\n'),
+      'src/routes/index.tsx': 'export const Route = {};'
+    },
+    expect: {
+      resources: { tanstackRsbuildApp: 'tanstack-web' },
+      deployable: true,
+      maxQuestions: 0
+    }
   }
 ];
 

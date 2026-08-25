@@ -77,11 +77,11 @@ export const getStaticAssetsCacheBehaviorTemplateOverride =
   ({
     resourceName,
     assetsDirectoryPath,
-    staticPathPrefix
+    staticPathPrefixes
   }: {
     resourceName: string;
     assetsDirectoryPath: string;
-    staticPathPrefix?: string;
+    staticPathPrefixes: readonly string[];
   }) =>
   async (template: CloudFormationTemplate) => {
     // Check if assets directory exists
@@ -104,17 +104,24 @@ export const getStaticAssetsCacheBehaviorTemplateOverride =
       const cacheBehaviors = (distribution.Properties.DistributionConfig as DistributionConfig)
         .CacheBehaviors as CacheBehavior[];
 
-      const staticBehaviourIndex = cacheBehaviors.findIndex(
-        (b) => b.PathPattern === '<<TBD_STATIC>>' || (staticPathPrefix && b.PathPattern === `${staticPathPrefix}/*`)
-      );
+      const staticPathPatterns = new Set([
+        '<<TBD_STATIC>>',
+        ...staticPathPrefixes.map((staticPathPrefix) => `${staticPathPrefix}/*`)
+      ]);
+      const isStaticPathPattern = (pathPattern: CacheBehavior['PathPattern']) =>
+        typeof pathPattern === 'string' && staticPathPatterns.has(pathPattern);
+      const staticBehaviours = cacheBehaviors.filter(({ PathPattern }) => isStaticPathPattern(PathPattern));
 
-      if (staticBehaviourIndex === -1) {
+      if (staticBehaviours.length === 0) {
         continue;
       }
 
-      const [staticFilesCacheBehaviour] = cacheBehaviors.splice(staticBehaviourIndex, 1);
+      const nonStaticBehaviours = cacheBehaviors.filter(({ PathPattern }) => !isStaticPathPattern(PathPattern));
+      cacheBehaviors.splice(0, cacheBehaviors.length, ...nonStaticBehaviours);
 
       newCacheBehaviours.forEach((behaviour) => {
+        const staticFilesCacheBehaviour =
+          staticBehaviours.find(({ PathPattern }) => PathPattern === behaviour.PathPattern) ?? staticBehaviours[0]!;
         const existingBehaviourIndex = cacheBehaviors.findIndex(
           ({ PathPattern }) => PathPattern === behaviour.PathPattern
         );
@@ -170,15 +177,31 @@ export type SsrWebFrameworkConfig = {
   presetEnvVar?: string;
   /** Preset value for Lambda deployment */
   presetValue?: string;
-  /** Wrapper type: 'passthrough' for Nitro-based, 'node-http' for Node.js HTTP handler, 'web-fetch' for Web Fetch API handler */
-  wrapperType: 'passthrough' | 'node-http' | 'web-fetch';
+  /** Wrapper type for the framework's generated server entrypoint. */
+  wrapperType: 'passthrough' | 'node-http' | 'web-fetch' | 'tanstack-fetch';
   /** Required npm packages for the adapter (installed in user's project before build) */
   requiredAdapterPackages?: string[];
   /** Native dependencies loaded dynamically by otherwise bundled framework runtime code. */
   nativeRuntimePackages?: Array<{ name: string; resolveFromPackage?: string }>;
   /** Exact framework configuration required for the server adapter. */
   adapterConfigurationHint?: string;
+  /** Supported alternative framework layouts; the freshest emitted handler wins when multiple layouts exist. */
+  fallbackOutputVariants?: Array<{
+    serverOutputPath: string;
+    staticOutputPath: string;
+    handlerFileName: string;
+    preserveServerOutputDirectory?: boolean;
+    staticAssetPrefix: string;
+    wrapperType: 'passthrough' | 'node-http' | 'web-fetch' | 'tanstack-fetch';
+  }>;
 };
+
+export const getSsrWebStaticAssetPrefixes = (frameworkConfig: SsrWebFrameworkConfig): string[] => [
+  ...new Set([
+    frameworkConfig.staticAssetPrefix,
+    ...(frameworkConfig.fallbackOutputVariants ?? []).map(({ staticAssetPrefix }) => staticAssetPrefix)
+  ])
+];
 
 export const SSR_WEB_FRAMEWORK_CONFIGS: Record<SsrWebResourceType, SsrWebFrameworkConfig> = {
   'astro-web': {
@@ -223,15 +246,31 @@ export const SSR_WEB_FRAMEWORK_CONFIGS: Record<SsrWebResourceType, SsrWebFramewo
   },
   'tanstack-web': {
     displayName: 'TanStack Start',
-    defaultDevCommand: 'vinxi dev',
-    defaultBuildCommand: 'vinxi build',
-    serverOutputPath: '.output/server',
-    staticOutputPath: '.output/public',
-    staticAssetPrefix: '_build',
-    handlerPath: 'index.mjs',
+    defaultDevCommand: 'vite dev',
+    defaultBuildCommand: 'vite build',
+    serverOutputPath: 'dist/server',
+    staticOutputPath: 'dist/client',
+    staticAssetPrefix: 'assets',
+    handlerPath: 'server.js',
     presetEnvVar: 'NITRO_PRESET',
     presetValue: 'aws-lambda',
-    wrapperType: 'passthrough'
+    wrapperType: 'tanstack-fetch',
+    fallbackOutputVariants: [
+      {
+        serverOutputPath: 'dist/server',
+        staticOutputPath: 'dist/client',
+        staticAssetPrefix: 'assets',
+        handlerFileName: 'index.js',
+        wrapperType: 'tanstack-fetch'
+      },
+      {
+        serverOutputPath: '.output/server',
+        staticOutputPath: '.output/public',
+        staticAssetPrefix: '_build',
+        handlerFileName: 'index.mjs',
+        wrapperType: 'passthrough'
+      }
+    ]
   },
   'sveltekit-web': {
     displayName: 'SvelteKit',

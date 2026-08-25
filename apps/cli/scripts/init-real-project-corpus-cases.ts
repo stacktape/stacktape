@@ -560,6 +560,23 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
     }
   },
   {
+    id: 'tanstack-start-basic',
+    repository: 'https://github.com/TanStack/router.git',
+    commit: '9f8990b5150338695c8870cbe443edadf2b7b825',
+    subdirectory: 'examples/react/start-basic',
+    source: 'official-starter',
+    exercises: ['tanstack-start', 'react', 'ssr', 'nitro', 'vite'],
+    expect: {
+      resourceTypes: { 'tanstack-web': 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      existingDeployments: [],
+      requiredConfig: ['type: tanstack-web', 'appDirectory: .', 'buildCommand: npm run build'],
+      forbiddenConfig: ['type: worker-service', 'type: hosting-bucket', 'type: nixpacks'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
     id: 'render-celery',
     repository: 'https://github.com/render-examples/celery.git',
     commit: 'ec6cac1ecd99b5adcd95e1061eb40c07507e366e',
