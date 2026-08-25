@@ -364,6 +364,44 @@ describe('the compose probe', () => {
     expect(JSON.stringify(facts)).not.toContain('public-looking-but-still-secret');
   });
 
+  it('does not mistake Kafka topic and consumer-group settings for broker addresses', async () => {
+    root = await makeRepo({
+      Dockerfile: 'FROM eclipse-temurin:21\n',
+      'compose.yaml': [
+        'services:',
+        '  app:',
+        '    build: .',
+        '    ports: ["8080:8080"]',
+        '    depends_on: [kafka]',
+        '    environment:',
+        '      SPRING_KAFKA_BOOTSTRAP_SERVERS: kafka:9092',
+        '      APP_KAFKA_CONSUMER_GROUP: ${APP_KAFKA_CONSUMER_GROUP:-orders-service}',
+        '      APP_KAFKA_TOPICS_ORDER_EVENTS: ${APP_KAFKA_TOPICS_ORDER_EVENTS:-orders.events}',
+        '  kafka:',
+        '    image: apache/kafka:3.8.0',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [dockerComposeProbe] });
+    const byName = Object.fromEntries(
+      facts.services[0]!.environmentVariables.map((variable) => [variable.name, variable])
+    );
+
+    expect(byName.SPRING_KAFKA_BOOTSTRAP_SERVERS).toMatchObject({
+      role: 'infra-dependency',
+      dependencyName: 'eventStream'
+    });
+    expect(byName.APP_KAFKA_CONSUMER_GROUP).toMatchObject({
+      role: 'runtime-config',
+      safeLiteralValue: 'orders-service'
+    });
+    expect(byName.APP_KAFKA_TOPICS_ORDER_EVENTS).toMatchObject({
+      role: 'runtime-config',
+      safeLiteralValue: 'orders.events'
+    });
+  });
+
   it('keeps two independently named databases instead of collapsing them by engine', async () => {
     root = await makeRepo({
       'docker-compose.yml': [

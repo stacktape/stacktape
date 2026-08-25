@@ -320,7 +320,15 @@ const variableNamesDependency = (name: string, kind: DependencyKind): boolean =>
     case 'amqp':
       return /(?:AMQP|RABBIT)/.test(upper);
     case 'kafka':
-      return /(?:KAFKA|BROKER)/.test(upper);
+      // Kafka appears in many settings that do not address the broker at all: topic names,
+      // consumer groups, retry policy, and serializers. Treat only connection-shaped names as
+      // topology. Otherwise a declared `APP_KAFKA_TOPICS_ORDERS=orders` becomes a fake broker
+      // secret and the application's own operational default is lost.
+      return (
+        /(?:KAFKA|BROKER)/.test(upper) &&
+        /(?:BOOTSTRAP|BROKERS?|URL|URI|HOST|ENDPOINT|ADDRESS|SERVERS?)/.test(upper) &&
+        !/(?:TOPICS?|CONSUMER_GROUP|GROUP_ID)/.test(upper)
+      );
     case 'nats':
       return /(?:NATS|BROKER)/.test(upper);
     case 'search':
