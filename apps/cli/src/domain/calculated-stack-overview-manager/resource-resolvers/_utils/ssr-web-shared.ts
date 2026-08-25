@@ -185,7 +185,7 @@ export type SsrWebFrameworkConfig = {
   nativeRuntimePackages?: Array<{ name: string; resolveFromPackage?: string }>;
   /** Exact framework configuration required for the server adapter. */
   adapterConfigurationHint?: string;
-  /** Older supported framework layouts tried only when the primary server output is absent. */
+  /** Supported alternative framework layouts; the freshest emitted handler wins when multiple layouts exist. */
   fallbackOutputVariants?: Array<{
     serverOutputPath: string;
     staticOutputPath: string;

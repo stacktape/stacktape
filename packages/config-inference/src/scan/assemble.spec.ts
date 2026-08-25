@@ -932,6 +932,35 @@ describe('assembleCandidateFacts', () => {
         'const helpers = { make: () => tanstackStart() };',
         'helpers.make = () => ({});',
         'export default { plugins: [helpers.make()] };'
+      ].join('\n'),
+      'packages/reassigned-object-helper/package.json': startLibraryManifest('reassigned-object-helper'),
+      'packages/reassigned-object-helper/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'let helpers = { make: () => tanstackStart() };',
+        'helpers = { make: () => ({}) };',
+        'export default { plugins: [helpers.make()] };'
+      ].join('\n'),
+      'packages/assigned-object-helper/package.json': startLibraryManifest('assigned-object-helper'),
+      'packages/assigned-object-helper/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'const helpers = { make: () => tanstackStart() };',
+        'Object.assign(helpers, { make: () => ({}) });',
+        'export default { plugins: [helpers.make()] };'
+      ].join('\n'),
+      'packages/popped-plugin-list/package.json': startLibraryManifest('popped-plugin-list'),
+      'packages/popped-plugin-list/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'const plugins = [tanstackStart()];',
+        'plugins.pop();',
+        'export default { plugins };'
+      ].join('\n'),
+      'packages/aliased-popped-plugin-list/package.json': startLibraryManifest('aliased-popped-plugin-list'),
+      'packages/aliased-popped-plugin-list/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'const plugins = [tanstackStart()];',
+        'const mutablePlugins = plugins;',
+        'mutablePlugins.pop();',
+        'export default { plugins };'
       ].join('\n')
     });
 
@@ -1045,6 +1074,16 @@ describe('assembleCandidateFacts', () => {
         'const helpers = { make: () => tanstackStart() };',
         'const createStart = helpers.make;',
         'export default { plugins: [createStart()] };'
+      ].join('\n'),
+      'apps/named-function/package.json': JSON.stringify({
+        name: 'named-function-start',
+        scripts: { build: 'vite build' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'apps/named-function/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'function config() { return { plugins: [tanstackStart()] }; }',
+        'export default config;'
       ].join('\n')
     });
 
@@ -1052,6 +1091,7 @@ describe('assembleCandidateFacts', () => {
 
     expect(facts.services.map((service) => service.name)).toEqual([
       'import-alias-start',
+      'named-function-start',
       'named-binding-start',
       'namespace-helper-start',
       'object-element-start',
@@ -1174,6 +1214,24 @@ describe('assembleCandidateFacts', () => {
         },
         dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
       }),
+      'packages/yarn-optional-bool-options/package.json': JSON.stringify({
+        name: 'yarn-optional-bool-options',
+        scripts: {
+          build: 'vite build',
+          start: 'yarn --emoji false --production true --scripts-prepend-node-path false vinxi start'
+        },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/yarn-optional-flag-only/package.json': JSON.stringify({
+        name: 'yarn-optional-flag-only',
+        scripts: { build: 'vite build', start: 'yarn --prod vinxi start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'packages/yarn-optional-inline/package.json': JSON.stringify({
+        name: 'yarn-optional-inline',
+        scripts: { build: 'vite build', start: 'yarn --emoji=false vinxi start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
       'packages/echo-node/package.json': JSON.stringify({
         name: 'echo-node',
         scripts: { build: 'vite build', start: 'echo node -r dotenv/config ./dist/server/server.js' },
@@ -1199,6 +1257,11 @@ describe('assembleCandidateFacts', () => {
         scripts: { build: 'vite build', start: 'yarn --modules-folder vendor_modules echo vinxi start' },
         dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
       }),
+      'packages/yarn-optional-value-decoy/package.json': JSON.stringify({
+        name: 'yarn-optional-value-decoy',
+        scripts: { build: 'vite build', start: 'yarn --production false echo vinxi start' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
       'packages/node-argument-decoy/package.json': JSON.stringify({
         name: 'node-argument-decoy',
         scripts: { build: 'vite build', start: 'node --env-file .env ./scripts/log.js ./dist/server/server.js' },
@@ -1217,6 +1280,9 @@ describe('assembleCandidateFacts', () => {
       'yarn-cache-folder',
       'yarn-global-folder',
       'yarn-modules-folder',
+      'yarn-optional-bool-options',
+      'yarn-optional-flag-only',
+      'yarn-optional-inline',
       'yarn-run-vinxi',
       'yarn-silent-vinxi',
       'yarn-vinxi'

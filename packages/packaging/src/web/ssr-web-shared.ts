@@ -4,7 +4,7 @@ import type {
   ExecuteProcess,
   PackagingProgressLogger as ProgressLogger
 } from '../runtime-contracts';
-import { basename, dirname, join } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { readdir, stat } from 'node:fs/promises';
 import { serializeEnvironment } from '../runtime-helpers';
 import { copy, emptyDir, ensureDir, outputFile, pathExists, readFile, remove, writeFile } from 'fs-extra';
@@ -51,7 +51,7 @@ export type SsrWebBuildConfig = {
   buildEnv?: Record<string, string> | undefined;
   /** Wrapper type for the framework's generated server entrypoint. */
   wrapperType: 'passthrough' | 'node-http' | 'web-fetch' | 'tanstack-fetch';
-  /** Older supported framework layouts tried only when the primary server output is absent. */
+  /** Supported alternative framework layouts; the freshest emitted handler wins when multiple layouts exist. */
   fallbackOutputVariants?: Array<{
     serverOutputPath: string;
     staticOutputPath: string;
@@ -88,16 +88,79 @@ type ApplicationManifest = {
   peerDependencies?: Record<string, string> | undefined;
 };
 
-const isExactCaseRegularFile = async (filePath: string): Promise<boolean> => {
+const exactCaseRegularFileMtime = async (filePath: string): Promise<number | undefined> => {
   try {
     const parentEntries = await readdir(dirname(filePath));
-    if (!parentEntries.includes(basename(filePath))) return false;
+    if (!parentEntries.includes(basename(filePath))) return undefined;
     // stat follows a symlink. A symlink to a regular file is valid because output copying
     // dereferences it, while a directory or a symlink to a directory is not a Lambda handler.
-    return (await stat(filePath)).isFile();
+    const fileStat = await stat(filePath);
+    return fileStat.isFile() ? fileStat.mtimeMs : undefined;
   } catch {
-    return false;
+    return undefined;
   }
+};
+
+const isExactCaseRegularFile = async (filePath: string): Promise<boolean> =>
+  (await exactCaseRegularFileMtime(filePath)) !== undefined;
+
+type SsrWebOutputVariant = Pick<
+  SsrWebBuildConfig,
+  | 'handlerFileName'
+  | 'preserveServerOutputDirectory'
+  | 'serverOutputPath'
+  | 'staticAssetPrefix'
+  | 'staticOutputPath'
+  | 'wrapperType'
+>;
+
+const ssrWebOutputVariants = (buildConfig: SsrWebBuildConfig): SsrWebOutputVariant[] => [
+  {
+    serverOutputPath: buildConfig.serverOutputPath,
+    staticOutputPath: buildConfig.staticOutputPath,
+    handlerFileName: buildConfig.handlerFileName,
+    preserveServerOutputDirectory: buildConfig.preserveServerOutputDirectory,
+    staticAssetPrefix: buildConfig.staticAssetPrefix,
+    wrapperType: buildConfig.wrapperType
+  },
+  ...(buildConfig.fallbackOutputVariants ?? [])
+];
+
+const clearSsrWebOutputVariants = async (buildConfig: SsrWebBuildConfig): Promise<void> => {
+  const workingDirectory = resolve(buildConfig.workingDir);
+  const outputPaths = [
+    ...new Set(
+      ssrWebOutputVariants(buildConfig).flatMap(({ serverOutputPath, staticOutputPath }) => [
+        resolve(workingDirectory, serverOutputPath),
+        resolve(workingDirectory, staticOutputPath)
+      ])
+    )
+  ];
+  for (const outputPath of outputPaths) {
+    const relativeOutputPath = relative(workingDirectory, outputPath);
+    if (
+      relativeOutputPath === '' ||
+      relativeOutputPath === '..' ||
+      relativeOutputPath.startsWith(`..${sep}`) ||
+      isAbsolute(relativeOutputPath)
+    ) {
+      throw new Error(`Refusing to clear SSR build output outside the application directory: ${outputPath}`);
+    }
+  }
+  const rootOutputPaths = outputPaths.filter(
+    (candidatePath) =>
+      !outputPaths.some((possibleParentPath) => {
+        if (candidatePath === possibleParentPath) return false;
+        const pathFromParent = relative(possibleParentPath, candidatePath);
+        return (
+          pathFromParent !== '' &&
+          pathFromParent !== '..' &&
+          !pathFromParent.startsWith(`..${sep}`) &&
+          !isAbsolute(pathFromParent)
+        );
+      })
+  );
+  await Promise.all(rootOutputPaths.map((outputPath) => remove(outputPath)));
 };
 
 export const getMissingRequiredAdapterPackages = async ({
@@ -118,23 +181,17 @@ export const getMissingRequiredAdapterPackages = async ({
 };
 
 export const resolveSsrWebOutputVariant = async (buildConfig: SsrWebBuildConfig): Promise<SsrWebBuildConfig> => {
-  const outputVariants = [
-    {
-      serverOutputPath: buildConfig.serverOutputPath,
-      staticOutputPath: buildConfig.staticOutputPath,
-      handlerFileName: buildConfig.handlerFileName,
-      preserveServerOutputDirectory: buildConfig.preserveServerOutputDirectory,
-      staticAssetPrefix: buildConfig.staticAssetPrefix,
-      wrapperType: buildConfig.wrapperType
-    },
-    ...(buildConfig.fallbackOutputVariants ?? [])
-  ];
-  const availability = await Promise.all(
+  const outputVariants = ssrWebOutputVariants(buildConfig);
+  const handlerMtimes = await Promise.all(
     outputVariants.map(({ serverOutputPath, handlerFileName }) =>
-      isExactCaseRegularFile(join(buildConfig.workingDir, serverOutputPath, handlerFileName))
+      exactCaseRegularFileMtime(join(buildConfig.workingDir, serverOutputPath, handlerFileName))
     )
   );
-  const selectedIndex = availability.findIndex(Boolean);
+  const selectedIndex = handlerMtimes.reduce<number>((freshestIndex, mtime, index) => {
+    if (mtime === undefined) return freshestIndex;
+    if (freshestIndex === -1) return index;
+    return mtime > handlerMtimes[freshestIndex]! ? index : freshestIndex;
+  }, -1);
   if (selectedIndex === -1) {
     throw new Error(
       `The build completed without creating any supported server handler (${outputVariants.map(({ serverOutputPath, handlerFileName }) => `${serverOutputPath.replace(/[\\/]$/, '')}/${handlerFileName}`).join(', ')}).${buildConfig.adapterConfigurationHint ? ` ${buildConfig.adapterConfigurationHint}` : ''}`
@@ -610,6 +667,10 @@ export const createSsrWebArtifacts = async ({
         description: `Building ${resourceType} project`
       });
       try {
+        // Framework output directories belong to the build. Clearing every supported variant inside the exclusive
+        // build section prevents a handler left by an older framework version from winning output detection.
+        await clearSsrWebOutputVariants(buildConfig);
+
         // Run the build command via npx to ensure local binaries are found
         await executeProcess('npx', ['--yes', ...parseCommand(buildConfig.buildCommand)], {
           cwd: buildConfig.workingDir,

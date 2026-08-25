@@ -178,9 +178,11 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
   type ReachabilityMode = 'config' | 'plugin';
   type ReachabilityState = `${ReachabilityMode}:${'called' | 'value'}`;
   const visited = new Map<ts.Node, Set<ReachabilityState>>();
-  const mutatedSymbols = new Set<ts.Symbol>();
+  const reassignedSymbols = new Set<ts.Symbol>();
+  const valueMutatedSymbols = new Set<ts.Symbol>();
+  const valueAliases: Array<[ts.Symbol, ts.Symbol]> = [];
 
-  const symbolAtMutationTarget = (target: ts.Expression): ts.Symbol | undefined => {
+  const symbolAtValue = (target: ts.Expression): ts.Symbol | undefined => {
     const expression = unwrapExpression(target);
     if (ts.isIdentifier(expression)) return checker.getSymbolAtLocation(expression);
     if (ts.isPropertyAccessExpression(expression)) return checker.getSymbolAtLocation(expression.name);
@@ -188,53 +190,193 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     return undefined;
   };
 
-  const recordMutationTarget = (target: ts.Expression): void => {
+  const recordReassignment = (target: ts.Expression): void => {
     const expression = unwrapExpression(target);
-    const symbol = symbolAtMutationTarget(expression);
-    if (symbol !== undefined) mutatedSymbols.add(symbol);
-    if (ts.isArrayLiteralExpression(expression)) {
+    if (ts.isIdentifier(expression)) {
+      const symbol = checker.getSymbolAtLocation(expression);
+      if (symbol !== undefined) reassignedSymbols.add(symbol);
+    } else if (ts.isArrayLiteralExpression(expression)) {
       for (const element of expression.elements) {
         if (!ts.isOmittedExpression(element))
-          recordMutationTarget(ts.isSpreadElement(element) ? element.expression : element);
+          recordReassignment(ts.isSpreadElement(element) ? element.expression : element);
       }
     } else if (ts.isObjectLiteralExpression(expression)) {
       for (const property of expression.properties) {
-        if (ts.isShorthandPropertyAssignment(property)) recordMutationTarget(property.name);
-        if (ts.isPropertyAssignment(property)) recordMutationTarget(property.initializer);
-        if (ts.isSpreadAssignment(property)) recordMutationTarget(property.expression);
+        if (ts.isShorthandPropertyAssignment(property)) recordReassignment(property.name);
+        if (ts.isPropertyAssignment(property)) recordReassignment(property.initializer);
+        if (ts.isSpreadAssignment(property)) recordReassignment(property.expression);
       }
     }
   };
 
+  const recordStoredPropertyValueMutation = (
+    access: ts.PropertyAccessExpression | ts.ElementAccessExpression
+  ): void => {
+    const memberName = ts.isPropertyAccessExpression(access)
+      ? access.name.text
+      : ts.isStringLiteralLike(access.argumentExpression)
+        ? access.argumentExpression.text
+        : undefined;
+    const base = unwrapExpression(access.expression);
+    if (memberName === undefined || !ts.isIdentifier(base)) return;
+    const seen = new Set<ts.Symbol>();
+    const inspectObjectValue = (symbol: ts.Symbol): void => {
+      if (seen.has(symbol)) return;
+      seen.add(symbol);
+      for (const declaration of symbol.declarations ?? []) {
+        if (!ts.isVariableDeclaration(declaration) || declaration.initializer === undefined) continue;
+        const initializer = unwrapExpression(declaration.initializer);
+        if (ts.isIdentifier(initializer)) {
+          const initializerSymbol = checker.getSymbolAtLocation(initializer);
+          if (initializerSymbol !== undefined) inspectObjectValue(initializerSymbol);
+          continue;
+        }
+        if (!ts.isObjectLiteralExpression(initializer)) continue;
+        for (const property of initializer.properties) {
+          if (propertyName(property.name) !== memberName) continue;
+          if (ts.isShorthandPropertyAssignment(property)) {
+            const valueSymbol = checker.getShorthandAssignmentValueSymbol(property);
+            if (valueSymbol !== undefined) valueMutatedSymbols.add(valueSymbol);
+          } else if (ts.isPropertyAssignment(property)) {
+            const value = unwrapExpression(property.initializer);
+            if (ts.isIdentifier(value)) {
+              const valueSymbol = checker.getSymbolAtLocation(value);
+              if (valueSymbol !== undefined) valueMutatedSymbols.add(valueSymbol);
+            }
+          }
+        }
+      }
+    };
+    const baseSymbol = checker.getSymbolAtLocation(base);
+    if (baseSymbol !== undefined) inspectObjectValue(baseSymbol);
+  };
+
+  const recordValueMutation = (target: ts.Expression, mutatesStoredPropertyValue = false): void => {
+    const expression = unwrapExpression(target);
+    const symbol = symbolAtValue(expression);
+    if (symbol !== undefined) valueMutatedSymbols.add(symbol);
+    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+      if (mutatesStoredPropertyValue) recordStoredPropertyValueMutation(expression);
+      recordValueMutation(expression.expression, mutatesStoredPropertyValue);
+    }
+  };
+
+  const INSTANCE_MUTATION_METHODS = new Set([
+    'add',
+    'clear',
+    'copyWithin',
+    'delete',
+    'fill',
+    'pop',
+    'push',
+    'reverse',
+    'set',
+    'shift',
+    'sort',
+    'splice',
+    'unshift'
+  ]);
+  const GLOBAL_MUTATION_METHODS = new Map([
+    ['Object', new Set(['assign', 'defineProperties', 'defineProperty', 'setPrototypeOf'])],
+    ['Reflect', new Set(['defineProperty', 'deleteProperty', 'set', 'setPrototypeOf'])]
+  ]);
+
+  const calledMember = (expression: ts.LeftHandSideExpression): { base: ts.Expression; name: string } | undefined => {
+    const callee = unwrapExpression(expression);
+    if (ts.isPropertyAccessExpression(callee)) return { base: callee.expression, name: callee.name.text };
+    if (ts.isElementAccessExpression(callee) && ts.isStringLiteralLike(callee.argumentExpression)) {
+      return { base: callee.expression, name: callee.argumentExpression.text };
+    }
+    return undefined;
+  };
+
   const collectMutations = (node: ts.Node): void => {
+    if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name) && node.initializer !== undefined) {
+      const initializer = unwrapExpression(node.initializer);
+      if (ts.isIdentifier(initializer)) {
+        const declaredSymbol = checker.getSymbolAtLocation(node.name);
+        const initializerSymbol = checker.getSymbolAtLocation(initializer);
+        if (declaredSymbol !== undefined && initializerSymbol !== undefined) {
+          valueAliases.push([declaredSymbol, initializerSymbol]);
+        }
+      }
+    }
     if (
       ts.isBinaryExpression(node) &&
       node.operatorToken.kind >= ts.SyntaxKind.FirstAssignment &&
       node.operatorToken.kind <= ts.SyntaxKind.LastAssignment
     ) {
-      recordMutationTarget(node.left);
+      const target = unwrapExpression(node.left);
+      if (ts.isIdentifier(target) || ts.isArrayLiteralExpression(target) || ts.isObjectLiteralExpression(target)) {
+        recordReassignment(target);
+      } else {
+        recordValueMutation(target);
+      }
     } else if (
       (ts.isPrefixUnaryExpression(node) || ts.isPostfixUnaryExpression(node)) &&
       (node.operator === ts.SyntaxKind.PlusPlusToken || node.operator === ts.SyntaxKind.MinusMinusToken)
     ) {
-      recordMutationTarget(node.operand);
+      const target = unwrapExpression(node.operand);
+      if (ts.isIdentifier(target)) recordReassignment(target);
+      else recordValueMutation(target);
+    } else if (ts.isDeleteExpression(node)) {
+      recordValueMutation(node.expression);
+    } else if (ts.isCallExpression(node)) {
+      const member = calledMember(node.expression);
+      if (member !== undefined) {
+        const base = unwrapExpression(member.base);
+        const globalMethods = ts.isIdentifier(base) ? GLOBAL_MUTATION_METHODS.get(base.text) : undefined;
+        const isUnshadowedGlobalMutation =
+          globalMethods?.has(member.name) === true && checker.getSymbolAtLocation(base) === undefined;
+        if (isUnshadowedGlobalMutation && node.arguments[0] !== undefined) {
+          recordValueMutation(node.arguments[0]);
+        } else if (INSTANCE_MUTATION_METHODS.has(member.name)) {
+          recordValueMutation(member.base, true);
+        }
+      }
     }
     ts.forEachChild(node, collectMutations);
   };
   collectMutations(sourceFile);
 
-  const bindingIsUnchanged = (expression: ts.LeftHandSideExpression, binding: CallableBinding): boolean => {
-    if (mutatedSymbols.has(binding.symbol)) return false;
-    if (binding.kind === 'identifier') return true;
+  // Reassigning an alias changes only that binding. Mutating the referenced array/object changes every direct local
+  // alias of the same value, so propagate only value mutations across alias edges.
+  let foundValueAliasMutation = true;
+  while (foundValueAliasMutation) {
+    foundValueAliasMutation = false;
+    for (const [left, right] of valueAliases) {
+      if (valueMutatedSymbols.has(left) && !valueMutatedSymbols.has(right)) {
+        valueMutatedSymbols.add(right);
+        foundValueAliasMutation = true;
+      } else if (valueMutatedSymbols.has(right) && !valueMutatedSymbols.has(left)) {
+        valueMutatedSymbols.add(left);
+        foundValueAliasMutation = true;
+      }
+    }
+  }
+
+  const symbolIsUnchanged = (symbol: ts.Symbol | undefined): boolean =>
+    symbol === undefined || (!reassignedSymbols.has(symbol) && !valueMutatedSymbols.has(symbol));
+
+  const accessPathIsUnchanged = (rawExpression: ts.Expression): boolean => {
+    const expression = unwrapExpression(rawExpression);
+    if (ts.isIdentifier(expression)) return symbolIsUnchanged(checker.getSymbolAtLocation(expression));
     if (ts.isPropertyAccessExpression(expression)) {
-      const memberSymbol = checker.getSymbolAtLocation(expression.name);
-      return memberSymbol === undefined || !mutatedSymbols.has(memberSymbol);
+      return (
+        accessPathIsUnchanged(expression.expression) && symbolIsUnchanged(checker.getSymbolAtLocation(expression.name))
+      );
     }
     if (ts.isElementAccessExpression(expression)) {
-      const memberSymbol = checker.getSymbolAtLocation(expression.argumentExpression);
-      return memberSymbol === undefined || !mutatedSymbols.has(memberSymbol);
+      return (
+        accessPathIsUnchanged(expression.expression) &&
+        symbolIsUnchanged(checker.getSymbolAtLocation(expression.argumentExpression))
+      );
     }
     return true;
+  };
+
+  const bindingIsUnchanged = (expression: ts.LeftHandSideExpression, binding: CallableBinding): boolean => {
+    return symbolIsUnchanged(binding.symbol) && accessPathIsUnchanged(expression);
   };
 
   const enter = (node: ts.Node, mode: ReachabilityMode, invoked: boolean): boolean => {
@@ -268,7 +410,7 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
   function inspectSymbolValue(symbol: ts.Symbol, mode: ReachabilityMode, invoked: boolean): void {
     // A reassigned local or object member no longer has the value represented by its declaration. Refuse to follow
     // that stale declaration instead of treating a plugin factory that has been overwritten as active config.
-    if (mutatedSymbols.has(symbol)) return;
+    if (!symbolIsUnchanged(symbol)) return;
     for (const declaration of symbol.declarations ?? []) {
       if (ts.isVariableDeclaration(declaration) && declaration.initializer !== undefined) {
         const initializer = unwrapExpression(declaration.initializer);
@@ -277,8 +419,12 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
         } else {
           inspectExpression(initializer, mode, invoked);
         }
-      } else if (ts.isFunctionDeclaration(declaration) && declaration.body !== undefined && invoked) {
-        inspectFunctionBody(declaration.body, mode);
+      } else if (
+        ts.isFunctionDeclaration(declaration) &&
+        declaration.body !== undefined &&
+        declaration.asteriskToken === undefined
+      ) {
+        if (invoked || mode === 'config') inspectFunctionBody(declaration.body, mode);
       } else if (ts.isPropertyAssignment(declaration)) {
         const initializer = unwrapExpression(declaration.initializer);
         if (ts.isArrowFunction(initializer) || ts.isFunctionExpression(initializer)) {
@@ -310,10 +456,12 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
         const symbol = checker.getSymbolAtLocation(callee);
         if (symbol !== undefined) inspectSymbolValue(symbol, mode, true);
       } else if (ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee)) {
-        const symbol = checker.getSymbolAtLocation(
-          ts.isPropertyAccessExpression(callee) ? callee.name : callee.argumentExpression
-        );
-        if (symbol !== undefined) inspectSymbolValue(symbol, mode, true);
+        if (accessPathIsUnchanged(callee)) {
+          const symbol = checker.getSymbolAtLocation(
+            ts.isPropertyAccessExpression(callee) ? callee.name : callee.argumentExpression
+          );
+          if (symbol !== undefined) inspectSymbolValue(symbol, mode, true);
+        }
       } else if (ts.isArrowFunction(callee) || ts.isFunctionExpression(callee)) {
         inspectFunctionBody(callee.body, mode);
       }
@@ -380,6 +528,7 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     }
 
     if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+      if (!accessPathIsUnchanged(expression)) return;
       if (invoked) {
         const binding = calledBinding(expression, bindings, checker);
         if (binding !== undefined && binding.role === mode && bindingIsUnchanged(expression, binding)) {
@@ -401,6 +550,7 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     if (
       ts.isFunctionDeclaration(statement) &&
       statement.body !== undefined &&
+      statement.asteriskToken === undefined &&
       ts.getModifiers(statement)?.some((modifier) => modifier.kind === ts.SyntaxKind.DefaultKeyword)
     ) {
       inspectFunctionBody(statement.body, 'config');
@@ -506,11 +656,25 @@ const YARN_OPTIONS_WITH_VALUES = new Set([
   '--use-yarnrc'
 ]);
 
+const YARN_OPTIONS_WITH_OPTIONAL_BOOLEAN_VALUES = new Set([
+  '--emoji',
+  '--prod',
+  '--production',
+  '--scripts-prepend-node-path'
+]);
+
 const skipYarnOptions = (tokens: string[]): string[] => {
   let remaining = tokens;
   while (remaining[0]?.startsWith('-')) {
     const option = remaining[0]!;
-    remaining = remaining.slice(!option.includes('=') && YARN_OPTIONS_WITH_VALUES.has(option.toLowerCase()) ? 2 : 1);
+    const normalizedOption = option.toLowerCase();
+    const optionalValue = remaining[1]?.toLowerCase();
+    const consumesFollowingToken =
+      !option.includes('=') &&
+      (YARN_OPTIONS_WITH_VALUES.has(normalizedOption) ||
+        (YARN_OPTIONS_WITH_OPTIONAL_BOOLEAN_VALUES.has(normalizedOption) &&
+          (optionalValue === 'true' || optionalValue === 'false')));
+    remaining = remaining.slice(consumesFollowingToken ? 2 : 1);
   }
   return remaining;
 };

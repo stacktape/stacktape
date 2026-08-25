@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, utimes, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -238,12 +238,14 @@ describe('SSR build output organization', () => {
     });
   });
 
-  test('prefers the current output when both current and legacy handlers exist', async () => {
+  test('prefers the freshest output when both current and legacy handlers exist', async () => {
     const root = await createRoot();
+    const legacyHandler = join(root, '.output', 'server', 'index.mjs');
+    await mkdir(join(root, '.output', 'server'), { recursive: true });
+    await writeFile(legacyHandler, 'export const handler = () => {};');
+    await utimes(legacyHandler, new Date('2020-01-01T00:00:00.000Z'), new Date('2020-01-01T00:00:00.000Z'));
     await mkdir(join(root, 'dist', 'server'), { recursive: true });
     await writeFile(join(root, 'dist', 'server', 'server.js'), 'export default { fetch() {} };');
-    await mkdir(join(root, '.output', 'server'), { recursive: true });
-    await writeFile(join(root, '.output', 'server', 'index.mjs'), 'export const handler = () => {};');
 
     const buildConfig: SsrWebBuildConfig = {
       buildCommand: 'unused',
@@ -268,6 +270,44 @@ describe('SSR build output organization', () => {
       serverOutputPath: 'dist/server',
       handlerFileName: 'server.js',
       wrapperType: 'tanstack-fetch'
+    });
+  });
+
+  test('selects a fresh legacy handler instead of a stale current handler', async () => {
+    const root = await createRoot();
+    const currentHandler = join(root, 'dist', 'server', 'server.js');
+    const legacyHandler = join(root, '.output', 'server', 'index.mjs');
+    await mkdir(join(root, 'dist', 'server'), { recursive: true });
+    await writeFile(currentHandler, 'export default { fetch() {} };');
+    await utimes(currentHandler, new Date('2020-01-01T00:00:00.000Z'), new Date('2020-01-01T00:00:00.000Z'));
+    await mkdir(join(root, '.output', 'server'), { recursive: true });
+    await writeFile(legacyHandler, 'export const handler = () => {};');
+
+    const resolved = await resolveSsrWebOutputVariant({
+      buildCommand: 'unused',
+      workingDir: root,
+      serverOutputPath: 'dist/server',
+      staticOutputPath: 'dist/client',
+      handlerFileName: 'server.js',
+      staticAssetPrefix: 'assets',
+      wrapperType: 'tanstack-fetch',
+      fallbackOutputVariants: [
+        {
+          serverOutputPath: '.output/server',
+          staticOutputPath: '.output/public',
+          handlerFileName: 'index.mjs',
+          staticAssetPrefix: '_build',
+          wrapperType: 'passthrough'
+        }
+      ]
+    });
+
+    expect(resolved).toMatchObject({
+      serverOutputPath: '.output/server',
+      staticOutputPath: '.output/public',
+      handlerFileName: 'index.mjs',
+      staticAssetPrefix: '_build',
+      wrapperType: 'passthrough'
     });
   });
 
@@ -412,6 +452,85 @@ describe('SSR build output organization', () => {
     expect(await readFile(join(root, 'server-function', 'server', 'entry.mjs'), 'utf8')).toContain('handler');
     expect(await readFile(join(root, 'bucket-content', 'asset.txt'), 'utf8')).toBe('public');
     expect(await readFile(join(root, 'server-function', 'client', 'asset.txt'), 'utf8')).toBe('public');
+  });
+
+  test('clears stale current output before a build emits only the legacy layout', async () => {
+    const root = await createRoot();
+    const applicationRoot = join(root, 'application');
+    const artifactRoot = join(root, 'artifacts');
+    const staleHandler = join(applicationRoot, 'dist', 'server', 'server.js');
+    await mkdir(join(applicationRoot, 'dist', 'server'), { recursive: true });
+    await mkdir(join(applicationRoot, 'dist', 'client', 'assets'), { recursive: true });
+    await writeFile(staleHandler, 'export default { async fetch() { return new Response("stale"); } };');
+    await writeFile(join(applicationRoot, 'dist', 'client', 'assets', 'stale.js'), 'stale');
+    await writeFile(join(applicationRoot, 'package.json'), JSON.stringify({ name: 'legacy-start', type: 'module' }));
+    let inspectedArchive = false;
+
+    const outputs = await createSsrWebArtifacts({
+      resourceName: 'legacy-start',
+      resourceType: 'tanstack-web',
+      serverFunctionName: 'legacy-start-server',
+      distFolderPath: artifactRoot,
+      cwd: root,
+      progressLogger: {
+        eventContext: { instanceId: 'legacy-start' },
+        startEvent: () => {},
+        updateEvent: () => {},
+        finishEvent: () => {}
+      },
+      createProgressLogger: () => ({
+        eventContext: { instanceId: 'legacy-start.archive' },
+        startEvent: () => {},
+        updateEvent: () => {},
+        finishEvent: () => {}
+      }),
+      buildConfig: {
+        buildCommand: 'vinxi build',
+        workingDir: applicationRoot,
+        serverOutputPath: 'dist/server',
+        staticOutputPath: 'dist/client',
+        handlerFileName: 'server.js',
+        staticAssetPrefix: 'assets',
+        wrapperType: 'tanstack-fetch',
+        fallbackOutputVariants: [
+          {
+            serverOutputPath: '.output/server',
+            staticOutputPath: '.output/public',
+            handlerFileName: 'index.mjs',
+            staticAssetPrefix: '_build',
+            wrapperType: 'passthrough'
+          }
+        ]
+      },
+      environmentVars: [],
+      archiveItem: async ({ absoluteSourcePath, absoluteDestDirPath }) => {
+        expect(await Bun.file(join(absoluteSourcePath, 'index.mjs')).exists()).toBe(true);
+        expect(await Bun.file(join(absoluteSourcePath, 'server.js')).exists()).toBe(false);
+        expect(await readFile(join(absoluteSourcePath, 'index-wrap.mjs'), 'utf8')).toContain('import("./index.mjs")');
+        inspectedArchive = true;
+        if (absoluteDestDirPath === undefined) throw new Error('Expected an archive destination.');
+        await mkdir(absoluteDestDirPath, { recursive: true });
+        const archivePath = join(absoluteDestDirPath, 'legacy-start.zip');
+        await writeFile(archivePath, 'zip');
+        return archivePath;
+      },
+      createPackagingError: ({ message, cause }) => new Error(message, { cause }),
+      executeProcess: async () => {
+        expect(await Bun.file(staleHandler).exists()).toBe(false);
+        await mkdir(join(applicationRoot, '.output', 'server'), { recursive: true });
+        await mkdir(join(applicationRoot, '.output', 'public', '_build'), { recursive: true });
+        await writeFile(join(applicationRoot, '.output', 'server', 'index.mjs'), 'export const handler = () => {};');
+        await writeFile(join(applicationRoot, '.output', 'public', 'index.html'), 'legacy');
+        await writeFile(join(applicationRoot, '.output', 'public', '_build', 'fresh.js'), 'fresh');
+        return { stdout: '', stderr: '', exitCode: 0 };
+      }
+    });
+
+    expect(inspectedArchive).toBe(true);
+    expect(outputs[0]?.outcome).toBe('bundled');
+    expect(await readFile(join(artifactRoot, 'bucket-content', 'index.html'), 'utf8')).toBe('legacy');
+    expect(await readFile(join(artifactRoot, 'bucket-content', '_build', 'fresh.js'), 'utf8')).toBe('fresh');
+    expect(await Bun.file(join(artifactRoot, 'bucket-content', 'assets', 'stale.js')).exists()).toBe(false);
   });
 
   test('packages the Rsbuild handler under the exact fetch-wrapper import name', async () => {
