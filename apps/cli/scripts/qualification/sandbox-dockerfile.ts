@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { assertProcessSucceeded, runProcess } from './process';
 import {
   buildRunnerImageTag,
@@ -47,17 +47,19 @@ RUN npm install -g pnpm@${PINNED_PNPM_VERSION} && chmod 755 /usr/local/bin/pnpm
 
 WORKDIR /workspace
 
-# Copy clean committed Stacktape tree with exact .git metadata
-COPY --chown=root:root repo /workspace/
+# The committed tree is root-owned and intentionally read-only to the UID 1000 runner.
+RUN git config --system --add safe.directory /workspace
 
-# Install workspace dependencies from lockfile
+# Install dependencies from only the workspace manifests and lockfiles. Ordinary source-only commits reuse this layer.
+COPY --chown=root:root dependency-context /workspace/
+RUN pnpm install --frozen-lockfile --ignore-scripts
+
+# Overlay the clean shallow checkout with exact HEAD metadata, then run the workspace lifecycle setup against it.
+COPY --chown=root:root repo /workspace/
 RUN pnpm install --frozen-lockfile
 
 # Build dev artifacts needed for CLI execution
 RUN pnpm --filter @stacktape/cli run build:dev-artifacts
-
-# Ensure root-owned read-only workspace for non-root execution
-RUN chmod -R 755 /workspace
 
 # Prepare dedicated writable volume mount points owned by node user (UID 1000)
 RUN mkdir -p /qualification/output /qualification/cache /qualification/inputs /home/node && \\
@@ -125,25 +127,60 @@ export const buildRunnerImage = async ({
   onProgress?.(`Building qualification runner image ${imageTag} from clean committed tree at ${productCommit}...\n`);
   const buildDirectory = await mkdtemp(join(tmpdir(), 'stacktape-runner-build-'));
   const repoCheckoutDir = join(buildDirectory, 'repo');
+  const dependencyContextDir = join(buildDirectory, 'dependency-context');
   const dockerfilePath = join(buildDirectory, 'Dockerfile');
 
   try {
-    // Clone clean committed HEAD with .git metadata intact
-    const cloneResult = await runProcess({
+    // Fetch only the exact commit. Full repository history adds almost a gigabyte to every runner image.
+    await mkdir(repoCheckoutDir, { recursive: true });
+    const initResult = await runProcess({
       command: 'git',
-      args: ['clone', '--no-checkout', rootDirectory, repoCheckoutDir],
-      cwd: rootDirectory,
-      timeoutMs: 120_000
+      args: ['init', '--quiet'],
+      cwd: repoCheckoutDir,
+      timeoutMs: 30_000
     });
-    assertProcessSucceeded(cloneResult);
+    assertProcessSucceeded(initResult);
+
+    const fetchResult = await runProcess({
+      command: 'git',
+      args: ['fetch', '--depth=1', '--no-tags', rootDirectory, productCommit],
+      cwd: repoCheckoutDir,
+      timeoutMs: 5 * 60_000
+    });
+    assertProcessSucceeded(fetchResult);
 
     const checkoutResult = await runProcess({
       command: 'git',
-      args: ['checkout', '--detach', '--force', productCommit],
+      args: ['checkout', '--detach', '--force', 'FETCH_HEAD'],
       cwd: repoCheckoutDir,
       timeoutMs: 60_000
     });
     assertProcessSucceeded(checkoutResult);
+
+    const dependencyFilesResult = await runProcess({
+      command: 'git',
+      args: ['ls-files', '-z'],
+      cwd: repoCheckoutDir,
+      timeoutMs: 30_000
+    });
+    assertProcessSucceeded(dependencyFilesResult);
+    if (dependencyFilesResult.stdoutTruncated) throw new Error('Git dependency manifest list exceeded capture limits.');
+    const dependencyFiles = dependencyFilesResult.stdout
+      .split('\0')
+      .filter(Boolean)
+      .filter(
+        (path) =>
+          path === 'package.json' ||
+          path === 'pnpm-lock.yaml' ||
+          path === 'pnpm-workspace.yaml' ||
+          path.endsWith('/package.json') ||
+          path.endsWith('/pnpm-lock.yaml')
+      );
+    for (const dependencyFile of dependencyFiles) {
+      const destination = join(dependencyContextDir, dependencyFile);
+      await mkdir(dirname(destination), { recursive: true });
+      await copyFile(join(repoCheckoutDir, dependencyFile), destination);
+    }
 
     await writeFile(dockerfilePath, QUALIFICATION_RUNNER_DOCKERFILE, 'utf8');
 

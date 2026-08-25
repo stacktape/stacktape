@@ -1,6 +1,7 @@
-import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
+import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { dirname, join, resolve } from 'node:path';
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { BUILT_IN_CASES, AWS_QUALIFICATION_SCENARIOS } from './catalog';
 import { qualificationReportSchema } from './contracts';
 import { assertProcessSucceeded, outputTail, redactOutput, runProcess } from './process';
@@ -21,6 +22,86 @@ const invocationDirectory = resolve(process.env.INIT_CWD ?? process.cwd());
 
 const errorText = (error: unknown) =>
   outputTail(redactOutput(error instanceof Error ? (error.stack ?? error.message) : String(error)), 12_000);
+
+const pathExists = async (path: string) => {
+  try {
+    await lstat(path);
+    return true;
+  } catch (error) {
+    if (error instanceof Error && 'code' in error && error.code === 'ENOENT') return false;
+    throw error;
+  }
+};
+
+const isInside = (parent: string, child: string) => {
+  const childRelative = relative(parent, child);
+  return (
+    childRelative === '' ||
+    (!childRelative.startsWith(`..${sep}`) && childRelative !== '..' && !isAbsolute(childRelative))
+  );
+};
+
+export const prepareHostOutputDirectory = async (target: string) => {
+  if (await pathExists(target)) {
+    throw new Error(`Qualification output directory already exists; refusing to merge with stale evidence: ${target}`);
+  }
+  const parent = dirname(target);
+  const rootReal = await realpath(rootDirectory);
+  const outputIsInsideWorktree = isInside(resolve(rootDirectory), resolve(target));
+  let existingAncestor = parent;
+  while (!(await pathExists(existingAncestor))) {
+    const nextAncestor = dirname(existingAncestor);
+    if (nextAncestor === existingAncestor) throw new Error(`Could not find an existing parent for output ${target}.`);
+    existingAncestor = nextAncestor;
+  }
+  if (outputIsInsideWorktree && !isInside(rootReal, await realpath(existingAncestor))) {
+    throw new Error(`Qualification output ancestor resolves outside the Stacktape worktree: ${existingAncestor}`);
+  }
+  await mkdir(parent, { recursive: true });
+  const parentReal = await realpath(parent);
+  if (outputIsInsideWorktree && !isInside(rootReal, parentReal)) {
+    throw new Error(`Default qualification output parent resolves outside the Stacktape worktree: ${parentReal}`);
+  }
+  return mkdtemp(join(parent, `.${basename(target)}.partial-`));
+};
+
+export const validateAndHashOutputTree = async (directory: string, keepWorkdirs: boolean) => {
+  const files: Array<{ path: string; size: number; sha256: string }> = [];
+  let totalBytes = 0;
+  const maxFiles = keepWorkdirs ? 200_000 : 10_000;
+  const maxBytes = keepWorkdirs ? 20 * 1024 ** 3 : 512 * 1024 ** 2;
+  const visit = async (current: string, relativeDirectory = ''): Promise<void> => {
+    for (const entry of await readdir(current, { withFileTypes: true })) {
+      const relativePath = join(relativeDirectory, entry.name).replaceAll('\\', '/');
+      const absolutePath = join(current, entry.name);
+      const metadata = await lstat(absolutePath);
+      if (metadata.isSymbolicLink() || (!metadata.isDirectory() && !metadata.isFile())) {
+        throw new Error(`Qualification output contains a link or special file: ${relativePath}`);
+      }
+      if (metadata.isDirectory()) {
+        await visit(absolutePath, relativePath);
+        continue;
+      }
+      if (metadata.nlink !== 1) throw new Error(`Qualification output contains a hard-linked file: ${relativePath}`);
+      const allowed =
+        relativePath === 'qualification-report.json' ||
+        relativePath === 'qualification-report.md' ||
+        /^cases\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\/(?:result\.json|stacktape\.yml|compiled-template\.yml)$/.test(
+          relativePath
+        ) ||
+        (keepWorkdirs && relativePath.startsWith('workdirs/'));
+      if (!allowed) throw new Error(`Qualification output contains an unexpected artifact: ${relativePath}`);
+      totalBytes += metadata.size;
+      if (files.length + 1 > maxFiles || totalBytes > maxBytes) {
+        throw new Error(`Qualification output exceeds the ${maxFiles}-file or ${maxBytes}-byte materialization limit.`);
+      }
+      const bytes = await readFile(absolutePath);
+      files.push({ path: relativePath, size: metadata.size, sha256: createHash('sha256').update(bytes).digest('hex') });
+    }
+  };
+  await visit(directory);
+  return files.sort((left, right) => left.path.localeCompare(right.path));
+};
 
 const helpText = `Stacktape disposable project qualification sandbox
 
@@ -56,7 +137,8 @@ Sandbox Options:
   --dry-run                          Print planned sandbox container commands and boundary without executing
   --self-test                        Run complete end-to-end self-test with a synthetic Docker project
   --list-orphans                     List any lingering qualification containers, networks, or volumes
-  --clean-orphans                    Remove all lingering qualification containers, networks, and volumes
+  --clean-orphans --run-id=<id>      Remove lingering resources owned by exactly one qualification run
+  --prune-images [--keep-images=3]   Remove older unused managed runner images, retaining the newest images
 
 Security Model & Honest Limitations:
   1. Scope: Disposable build containment for reviewed or reputable pinned sources.
@@ -188,73 +270,153 @@ export const listOrphanResources = async () => {
   process.stdout.write(`Networks:\n${networks.stdout || '  None'}\n`);
 };
 
-export const cleanOrphanResources = async () => {
-  process.stdout.write('Cleaning lingering qualification sandbox resources...\n');
+export const cleanOrphanResources = async (runId: string) => {
+  if (!/^qual-[a-zA-Z0-9-]+$/.test(runId)) {
+    throw new Error(`Invalid qualification run ID ${JSON.stringify(runId)}.`);
+  }
+  const filters = [
+    '--filter',
+    'label=stacktape.qualification.managed=true',
+    '--filter',
+    `label=stacktape.qualification.run-id=${runId}`
+  ];
+  process.stdout.write(`Cleaning lingering qualification sandbox resources for ${runId}...\n`);
   const containerIds = await runProcess({
     command: 'docker',
-    args: ['ps', '-a', '-q', '--filter', 'label=stacktape.qualification.managed=true'],
+    args: ['ps', '-a', '-q', ...filters],
     cwd: rootDirectory,
     timeoutMs: 15_000
   });
+  assertProcessSucceeded(containerIds);
   for (const id of containerIds.stdout.split(/\s+/).filter(Boolean)) {
-    await runProcess({ command: 'docker', args: ['rm', '-f', id], cwd: rootDirectory, timeoutMs: 15_000 });
+    const result = await runProcess({
+      command: 'docker',
+      args: ['rm', '-f', id],
+      cwd: rootDirectory,
+      timeoutMs: 15_000
+    });
+    assertProcessSucceeded(result);
   }
 
   const volumeNames = await runProcess({
     command: 'docker',
-    args: ['volume', 'ls', '-q', '--filter', 'label=stacktape.qualification.managed=true'],
+    args: ['volume', 'ls', '-q', ...filters],
     cwd: rootDirectory,
     timeoutMs: 15_000
   });
+  assertProcessSucceeded(volumeNames);
   for (const name of volumeNames.stdout.split(/\s+/).filter(Boolean)) {
-    await runProcess({ command: 'docker', args: ['volume', 'rm', '-f', name], cwd: rootDirectory, timeoutMs: 15_000 });
+    const result = await runProcess({
+      command: 'docker',
+      args: ['volume', 'rm', '-f', name],
+      cwd: rootDirectory,
+      timeoutMs: 15_000
+    });
+    assertProcessSucceeded(result);
   }
 
   const networkIds = await runProcess({
     command: 'docker',
-    args: ['network', 'ls', '-q', '--filter', 'label=stacktape.qualification.managed=true'],
+    args: ['network', 'ls', '-q', ...filters],
     cwd: rootDirectory,
     timeoutMs: 15_000
   });
+  assertProcessSucceeded(networkIds);
   for (const id of networkIds.stdout.split(/\s+/).filter(Boolean)) {
-    await runProcess({ command: 'docker', args: ['network', 'rm', id], cwd: rootDirectory, timeoutMs: 15_000 });
+    const result = await runProcess({
+      command: 'docker',
+      args: ['network', 'rm', id],
+      cwd: rootDirectory,
+      timeoutMs: 15_000
+    });
+    assertProcessSucceeded(result);
   }
-  process.stdout.write('Orphan cleanup completed.\n');
+  process.stdout.write(`Orphan cleanup completed for ${runId}.\n`);
 };
 
-const verifyResourceOwned = async (kind: 'container' | 'volume' | 'network', name: string, expectedRunId: string) => {
-  try {
-    const inspectResult = await runProcess({
-      command: 'docker',
-      args: [kind, 'inspect', name],
-      cwd: rootDirectory,
-      timeoutMs: 10_000
-    });
-    if (inspectResult.exitCode !== 0) return false;
-    const inspectJson = JSON.parse(inspectResult.stdout.trim() || '[]')[0];
-    const labels =
-      (kind === 'volume' ? inspectJson?.Labels : (inspectJson?.Config?.Labels ?? inspectJson?.Labels)) ?? {};
-    return (
-      labels['stacktape.qualification.managed'] === 'true' && labels['stacktape.qualification.run-id'] === expectedRunId
-    );
-  } catch {
-    return false;
+export const pruneManagedRunnerImages = async (keepImages = 3) => {
+  if (!Number.isInteger(keepImages) || keepImages < 0 || keepImages > 20) {
+    throw new Error('--keep-images must be an integer between 0 and 20.');
   }
+  const imageIdsResult = await runProcess({
+    command: 'docker',
+    args: ['image', 'ls', '-q', '--filter', 'label=stacktape.qualification.managed=true'],
+    cwd: rootDirectory,
+    timeoutMs: 30_000
+  });
+  assertProcessSucceeded(imageIdsResult);
+  const imageIds = [...new Set(imageIdsResult.stdout.split(/\s+/).filter(Boolean))];
+  const images = await Promise.all(
+    imageIds.map(async (imageId) => {
+      const inspectResult = await runProcess({
+        command: 'docker',
+        args: ['image', 'inspect', imageId],
+        cwd: rootDirectory,
+        timeoutMs: 15_000
+      });
+      assertProcessSucceeded(inspectResult);
+      const inspected = JSON.parse(inspectResult.stdout)[0];
+      return { id: imageId, createdAt: Date.parse(String(inspected?.Created ?? '')) || 0 };
+    })
+  );
+  images.sort((left, right) => right.createdAt - left.createdAt);
+  for (const image of images.slice(keepImages)) {
+    const removeResult = await runProcess({
+      command: 'docker',
+      args: ['image', 'rm', image.id],
+      cwd: rootDirectory,
+      timeoutMs: 2 * 60_000
+    });
+    assertProcessSucceeded(removeResult);
+  }
+  process.stdout.write(`Managed runner image pruning complete; retained ${Math.min(keepImages, images.length)}.\n`);
+};
+
+type SandboxResourceKind = 'container' | 'volume' | 'network';
+
+const inspectResource = async (kind: SandboxResourceKind, name: string, expectedRunId: string) => {
+  const inspectResult = await runProcess({
+    command: 'docker',
+    args: [kind, 'inspect', name],
+    cwd: rootDirectory,
+    timeoutMs: 10_000
+  });
+  if (inspectResult.exitCode !== 0) {
+    const output = `${inspectResult.stdout}\n${inspectResult.stderr}`;
+    if (/no such|not found/i.test(output)) return { exists: false, owned: false };
+    throw new Error(`Could not inspect ${kind} ${name}: ${outputTail(output, 2_000)}`);
+  }
+  const inspectJson = JSON.parse(inspectResult.stdout.trim() || '[]')[0];
+  const labels = (kind === 'volume' ? inspectJson?.Labels : (inspectJson?.Config?.Labels ?? inspectJson?.Labels)) ?? {};
+  return {
+    exists: true,
+    owned:
+      labels['stacktape.qualification.managed'] === 'true' && labels['stacktape.qualification.run-id'] === expectedRunId
+  };
 };
 
 const cleanupSandboxResources = async (planned: PlannedSandboxExecution) => {
   const errors: string[] = [];
 
+  const removeOwnedResource = async (kind: SandboxResourceKind, name: string, removeArgs: string[]) => {
+    const before = await inspectResource(kind, name, planned.runId);
+    if (!before.exists) return;
+    if (!before.owned)
+      throw new Error(`Refusing to remove ${kind} ${name}: its qualification ownership labels differ.`);
+    const removeResult = await runProcess({
+      command: 'docker',
+      args: removeArgs,
+      cwd: rootDirectory,
+      timeoutMs: 30_000
+    });
+    assertProcessSucceeded(removeResult);
+    const after = await inspectResource(kind, name, planned.runId);
+    if (after.exists) throw new Error(`${kind} ${name} still exists after Docker reported successful removal.`);
+  };
+
   for (const containerName of [planned.runnerContainerName, planned.stagingContainerName]) {
     try {
-      if (await verifyResourceOwned('container', containerName, planned.runId)) {
-        await runProcess({
-          command: 'docker',
-          args: ['rm', '-f', containerName],
-          cwd: rootDirectory,
-          timeoutMs: 15_000
-        });
-      }
+      await removeOwnedResource('container', containerName, ['rm', '-f', containerName]);
     } catch (error) {
       errors.push(`Failed to remove container ${containerName}: ${String(error)}`);
     }
@@ -262,14 +424,7 @@ const cleanupSandboxResources = async (planned: PlannedSandboxExecution) => {
 
   // Remove DinD container
   try {
-    if (await verifyResourceOwned('container', planned.dindContainerName, planned.runId)) {
-      await runProcess({
-        command: 'docker',
-        args: ['rm', '-f', planned.dindContainerName],
-        cwd: rootDirectory,
-        timeoutMs: 15_000
-      });
-    }
+    await removeOwnedResource('container', planned.dindContainerName, ['rm', '-f', planned.dindContainerName]);
   } catch (error) {
     errors.push(`Failed to remove DinD container ${planned.dindContainerName}: ${String(error)}`);
   }
@@ -277,14 +432,7 @@ const cleanupSandboxResources = async (planned: PlannedSandboxExecution) => {
   // Remove volumes
   for (const vol of [planned.inputVolumeName, planned.outputVolumeName, planned.cacheVolumeName]) {
     try {
-      if (await verifyResourceOwned('volume', vol, planned.runId)) {
-        await runProcess({
-          command: 'docker',
-          args: ['volume', 'rm', '-f', vol],
-          cwd: rootDirectory,
-          timeoutMs: 15_000
-        });
-      }
+      await removeOwnedResource('volume', vol, ['volume', 'rm', '-f', vol]);
     } catch (error) {
       errors.push(`Failed to remove volume ${vol}: ${String(error)}`);
     }
@@ -292,21 +440,12 @@ const cleanupSandboxResources = async (planned: PlannedSandboxExecution) => {
 
   // Remove network
   try {
-    if (await verifyResourceOwned('network', planned.networkName, planned.runId)) {
-      await runProcess({
-        command: 'docker',
-        args: ['network', 'rm', planned.networkName],
-        cwd: rootDirectory,
-        timeoutMs: 15_000
-      });
-    }
+    await removeOwnedResource('network', planned.networkName, ['network', 'rm', planned.networkName]);
   } catch (error) {
     errors.push(`Failed to remove network ${planned.networkName}: ${String(error)}`);
   }
 
-  if (errors.length > 0) {
-    process.stderr.write(`Cleanup warnings:\n${errors.join('\n')}\n`);
-  }
+  return errors;
 };
 
 const stageInputIntoContainer = async (containerName: string, staged: StagedInput) => {
@@ -363,6 +502,33 @@ const stageInputIntoContainer = async (containerName: string, staged: StagedInpu
   }
 };
 
+const expectedReportLanes = (planned: PlannedSandboxExecution) => {
+  const laneArgument = planned.innerCommandArgs.find((argument) => argument.startsWith('--lanes='));
+  const lanes = (laneArgument?.slice('--lanes='.length) ?? 'import,package')
+    .split(',')
+    .map((lane) => lane.trim())
+    .filter(Boolean);
+  if (lanes.includes('package') && !lanes.includes('import')) lanes.unshift('import');
+  return [...new Set(lanes)];
+};
+
+const inspectRunnerImage = async (planned: PlannedSandboxExecution) => {
+  const result = await runProcess({
+    command: 'docker',
+    args: ['image', 'inspect', planned.imageTag],
+    cwd: rootDirectory,
+    timeoutMs: 15_000
+  });
+  assertProcessSucceeded(result);
+  const inspected = JSON.parse(result.stdout)[0];
+  return {
+    tag: planned.imageTag,
+    id: String(inspected?.Id ?? ''),
+    repoDigests: Array.isArray(inspected?.RepoDigests) ? inspected.RepoDigests : [],
+    labels: inspected?.Config?.Labels ?? {}
+  };
+};
+
 export const executeSandboxedQualification = async (
   rawArgs: string[] = process.argv.slice(2)
 ): Promise<{ exitCode: number; planned: PlannedSandboxExecution }> => {
@@ -386,8 +552,17 @@ export const executeSandboxedQualification = async (
   }
 
   if (parsed.cleanOrphans) {
-    await cleanOrphanResources();
+    if (parsed.runId === undefined) throw new Error('--clean-orphans requires the exact --run-id=<id>.');
+    await cleanOrphanResources(parsed.runId);
     return { exitCode: 0, planned: undefined as any };
+  }
+
+  if (parsed.pruneImages) {
+    await pruneManagedRunnerImages(parsed.keepImages === undefined ? 3 : Number(parsed.keepImages));
+    return { exitCode: 0, planned: undefined as any };
+  }
+  if (parsed.runId !== undefined || parsed.keepImages !== undefined) {
+    throw new Error('--run-id requires --clean-orphans, and --keep-images requires --prune-images.');
   }
 
   const productCommit = await getCleanProductCommit(parsed.dryRun);
@@ -469,13 +644,17 @@ export const executeSandboxedQualification = async (
     onProgress: (msg) => process.stderr.write(msg)
   });
 
-  await mkdir(planned.hostOutputDirectory, { recursive: true });
+  const hostMaterializationDirectory = await prepareHostOutputDirectory(planned.hostOutputDirectory);
+  let outputMaterialized = false;
 
   process.stderr.write(
     `Starting disposable qualification sandbox:\n- Network: ${planned.networkName}\n- DinD: ${planned.dindContainerName}\n- Runner: ${planned.runnerContainerName}\n- Output: ${planned.hostOutputDirectory}\n\n`
   );
 
   let runnerExitCode = 1;
+  let primaryFailure: unknown;
+  let cleanupErrors: string[] = [];
+  let executionResult: { exitCode: number; planned: PlannedSandboxExecution } | undefined;
   try {
     // 1. Create bridge network
     const netResult = await runProcess({
@@ -623,7 +802,7 @@ export const executeSandboxedQualification = async (
     process.stderr.write(`Copying qualification output back to ${planned.hostOutputDirectory}...\n`);
     const cpOutResult = await runProcess({
       command: 'docker',
-      args: ['cp', `${planned.runnerContainerName}:/qualification/output/.`, planned.hostOutputDirectory],
+      args: ['cp', `${planned.runnerContainerName}:/qualification/output/.`, hostMaterializationDirectory],
       cwd: rootDirectory,
       timeoutMs: 60_000
     });
@@ -633,14 +812,39 @@ export const executeSandboxedQualification = async (
     }
 
     // 8. Schema validate the qualification report if present
-    const reportPath = join(planned.hostOutputDirectory, 'qualification-report.json');
+    const reportPath = join(hostMaterializationDirectory, 'qualification-report.json');
     try {
+      const artifactHashes = await validateAndHashOutputTree(
+        hostMaterializationDirectory,
+        parsed.keepWorkdirs === true
+      );
       const reportJsonText = await readFile(reportPath, 'utf8');
       const parsedReport = qualificationReportSchema.parse(JSON.parse(reportJsonText));
       if (parsedReport.productCommit !== planned.productCommit) {
         throw new Error(
           `Qualification report commit ${parsedReport.productCommit} does not match sandbox commit ${planned.productCommit}.`
         );
+      }
+      const expectedLanes = expectedReportLanes(planned);
+      if (JSON.stringify(parsedReport.lanes) !== JSON.stringify(expectedLanes)) {
+        throw new Error(
+          `Qualification report lanes ${parsedReport.lanes.join(',')} do not match requested lanes ${expectedLanes.join(',')}.`
+        );
+      }
+      const requestedCaseIds = planned.innerCommandArgs
+        .filter((argument) => argument.startsWith('--case='))
+        .flatMap((argument) => argument.slice('--case='.length).split(','));
+      for (const requestedCaseId of requestedCaseIds) {
+        if (!parsedReport.cases.some((entry) => entry.id === requestedCaseId)) {
+          throw new Error(`Qualification report is missing requested case ${requestedCaseId}.`);
+        }
+      }
+      if (
+        parsedReport.summary.failed > 0 ||
+        parsedReport.globalSteps.some((step) => step.status === 'failed') ||
+        parsedReport.cases.some((entry) => entry.status === 'failed')
+      ) {
+        runnerExitCode = runnerExitCode === 0 ? 1 : runnerExitCode;
       }
       process.stderr.write(
         `Qualification report verified: ${parsedReport.summary.passed} passed, ${parsedReport.summary.failed} failed.\n`
@@ -650,13 +854,14 @@ export const executeSandboxedQualification = async (
         const packageStep = selfTestCase?.steps.find((step) => step.name === 'package');
         const checked = packageStep?.details?.checked;
         const templatePath = join(
-          planned.hostOutputDirectory,
+          hostMaterializationDirectory,
           'cases',
           'qualification-self-test-docker',
           'compiled-template.yml'
         );
         const templateText = await readFile(templatePath, 'utf8');
         if (
+          runnerExitCode === 0 &&
           parsedReport.cases.length === 1 &&
           parsedReport.summary.passed === 1 &&
           parsedReport.summary.failed === 0 &&
@@ -669,26 +874,72 @@ export const executeSandboxedQualification = async (
           checked.packaging === true &&
           'template' in checked &&
           checked.template === true &&
+          Array.isArray(packageStep.details?.packagedWorkloads) &&
+          packageStep.details.packagedWorkloads.some(
+            (workload) =>
+              typeof workload === 'object' &&
+              workload !== null &&
+              'skipped' in workload &&
+              workload.skipped === false &&
+              'digest' in workload &&
+              typeof workload.digest === 'string' &&
+              workload.digest.length > 0
+          ) &&
           templateText.trim().length > 0
         ) {
           process.stdout.write('\nSandbox self-test SUCCESS: nested Docker build and template synthesis verified.\n');
-          runnerExitCode = 0;
         } else {
           process.stderr.write('\nSandbox self-test FAILED: expected 1 passed case with 0 failures.\n');
           runnerExitCode = 1;
         }
       }
+      await writeFile(
+        join(hostMaterializationDirectory, 'sandbox-metadata.json'),
+        `${JSON.stringify(
+          {
+            schemaVersion: 1,
+            runId: planned.runId,
+            generatedAt: new Date().toISOString(),
+            productCommit: planned.productCommit,
+            runnerImage: await inspectRunnerImage(planned),
+            artifacts: artifactHashes
+          },
+          null,
+          2
+        )}\n`,
+        'utf8'
+      );
+      await rename(hostMaterializationDirectory, planned.hostOutputDirectory);
+      outputMaterialized = true;
     } catch (reportError) {
       process.stderr.write(`Qualification report validation failed: ${String(reportError)}\n`);
       runnerExitCode = 1;
     }
 
-    return { exitCode: runnerExitCode, planned };
+    executionResult = { exitCode: runnerExitCode, planned };
+  } catch (error) {
+    primaryFailure = error;
   } finally {
     process.stderr.write('Cleaning up disposable sandbox resources...\n');
-    await cleanupSandboxResources(planned);
-    process.stderr.write('Disposable sandbox cleanup complete.\n');
+    cleanupErrors = await cleanupSandboxResources(planned);
+    if (cleanupErrors.length === 0) {
+      process.stderr.write('Disposable sandbox cleanup complete and absence verified.\n');
+    }
+    if (!outputMaterialized) {
+      await rm(hostMaterializationDirectory, { recursive: true, force: true, maxRetries: 3, retryDelay: 250 });
+    }
   }
+  if (cleanupErrors.length > 0) {
+    const recoveryCommand = `pnpm qualify:projects:sandboxed -- --clean-orphans --run-id=${planned.runId}`;
+    throw new Error(
+      `Sandbox run ${planned.runId} cleanup is incomplete. Runner exit code: ${runnerExitCode}.` +
+        `${primaryFailure === undefined ? '' : `\nOriginal failure:\n${errorText(primaryFailure)}`}` +
+        `\nCleanup failures:\n${cleanupErrors.join('\n')}\nRecovery command:\n${recoveryCommand}`
+    );
+  }
+  if (primaryFailure !== undefined) throw primaryFailure;
+  if (executionResult === undefined) throw new Error(`Sandbox run ${planned.runId} produced no execution result.`);
+  return executionResult;
 };
 
 const main = async () => {

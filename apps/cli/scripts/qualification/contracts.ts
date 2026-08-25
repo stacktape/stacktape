@@ -137,7 +137,45 @@ export const qualificationCaseResultSchema = z
     keptWorkdir: z.string().optional(),
     resumedFrom: z.object({ reportPath: z.string(), runId: z.string() }).strict().optional()
   })
-  .strict();
+  .strict()
+  .superRefine((result, context) => {
+    if (result.steps.length === 0) {
+      context.addIssue({
+        code: 'custom',
+        path: ['steps'],
+        message: 'A qualification case must contain executed evidence.'
+      });
+      return;
+    }
+    const expectedStatus = result.steps.some((step) => step.status === 'failed')
+      ? 'failed'
+      : result.steps.every((step) => step.status === 'skipped')
+        ? 'skipped'
+        : 'passed';
+    if (result.status !== expectedStatus) {
+      context.addIssue({
+        code: 'custom',
+        path: ['status'],
+        message: `Case status must be ${expectedStatus} for its recorded steps.`
+      });
+    }
+    for (const [index, step] of result.steps.entries()) {
+      if (step.status === 'failed' && step.failure === undefined) {
+        context.addIssue({
+          code: 'custom',
+          path: ['steps', index, 'failure'],
+          message: 'A failed step must include structured failure evidence.'
+        });
+      }
+      if (step.status !== 'failed' && step.failure !== undefined) {
+        context.addIssue({
+          code: 'custom',
+          path: ['steps', index, 'failure'],
+          message: 'Only a failed step may include failure evidence.'
+        });
+      }
+    }
+  });
 export type QualificationCaseResult = z.infer<typeof qualificationCaseResultSchema>;
 
 export const qualificationReportSchema = z
@@ -169,5 +207,31 @@ export const qualificationReportSchema = z
     globalSteps: z.array(qualificationStepSchema),
     cases: z.array(qualificationCaseResultSchema)
   })
-  .strict();
+  .strict()
+  .superRefine((report, context) => {
+    const ids = new Set<string>();
+    for (const [index, result] of report.cases.entries()) {
+      if (ids.has(result.id)) {
+        context.addIssue({ code: 'custom', path: ['cases', index, 'id'], message: `Duplicate case id ${result.id}.` });
+      }
+      ids.add(result.id);
+    }
+    const actualSummary = {
+      passed: report.cases.filter((result) => result.status === 'passed').length,
+      failed: report.cases.filter((result) => result.status === 'failed').length,
+      skipped: report.cases.filter((result) => result.status === 'skipped').length
+    };
+    for (const key of ['passed', 'failed', 'skipped'] as const) {
+      if (report.summary[key] !== actualSummary[key]) {
+        context.addIssue({
+          code: 'custom',
+          path: ['summary', key],
+          message: `Summary ${key} count must equal ${actualSummary[key]}.`
+        });
+      }
+    }
+    if (new Set(report.lanes).size !== report.lanes.length) {
+      context.addIssue({ code: 'custom', path: ['lanes'], message: 'Qualification lanes must be unique.' });
+    }
+  });
 export type QualificationReport = z.infer<typeof qualificationReportSchema>;
