@@ -94,6 +94,43 @@ const CASES: EvalCase[] = [
     }
   },
   {
+    name: 'Compose root context with a nested ASP.NET Dockerfile',
+    files: {
+      'Directory.Build.props': '<Project></Project>\n',
+      'src/Orders.Api/Orders.Api.csproj': '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n',
+      'src/Orders.Api/Dockerfile': [
+        'FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build',
+        'WORKDIR /src',
+        'COPY ["Directory.Build.props", "./"]',
+        'COPY ["src/Orders.Api/Orders.Api.csproj", "src/Orders.Api/"]',
+        'RUN dotnet publish "src/Orders.Api/Orders.Api.csproj" -o /app/publish',
+        ''
+      ].join('\n'),
+      'compose.yaml': [
+        'services:',
+        '  api:',
+        '    build:',
+        '      context: .',
+        '      dockerfile: src/Orders.Api/Dockerfile',
+        '    ports: ["8080:8080"]',
+        ''
+      ].join('\n')
+    },
+    expect: {
+      resources: { OrdersApi: 'web-service' },
+      resourcePackaging: [
+        {
+          resource: 'OrdersApi',
+          type: 'custom-dockerfile',
+          buildContextPath: '.',
+          dockerfilePath: 'src/Orders.Api/Dockerfile'
+        }
+      ],
+      deployable: true,
+      maxQuestions: 0
+    }
+  },
+  {
     name: 'Render web app plus key-value service',
     files: {
       'package.json': JSON.stringify({

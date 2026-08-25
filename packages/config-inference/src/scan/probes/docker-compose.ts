@@ -661,6 +661,12 @@ export const dockerComposeProbe: Probe = {
       serviceFacts.push({
         name,
         path: build.root,
+        // Keep Compose's explicit build context as an independent fact. The assembler may later
+        // merge this descriptor with a language project in a child directory (for example an
+        // ASP.NET .csproj under src/Api whose Dockerfile still copies solution-level files). In
+        // that case the child directory locates the service, while this root remains the only
+        // correct Docker build context.
+        buildRoot: build.root,
         ...((rootCounts.get(build.root) ?? 0) > 1 ||
         BACKGROUND_PROCESS_NAME.test(composeName) ||
         build.target !== undefined

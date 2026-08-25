@@ -55,7 +55,13 @@ export type EvalExpectation = {
    */
   serviceEnvironment?: ReadonlyArray<{ resource: string; name: string; value: string }>;
   /** Packaging contracts that must survive the complete probe, verification, and composition path. */
-  resourcePackaging?: ReadonlyArray<{ resource: string; type: string; command?: readonly string[] }>;
+  resourcePackaging?: ReadonlyArray<{
+    resource: string;
+    type: string;
+    command?: readonly string[];
+    buildContextPath?: string;
+    dockerfilePath?: string;
+  }>;
 };
 
 export type EvalCase = {
@@ -147,7 +153,10 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
   for (const packagingExpectation of expected.resourcePackaging ?? []) {
     const resource = result.composition.config.resources[packagingExpectation.resource];
     const packaging = resource?.properties.packaging as
-      | { type?: string; properties?: { command?: readonly string[] } }
+      | {
+          type?: string;
+          properties?: { command?: readonly string[]; buildContextPath?: string; dockerfilePath?: string };
+        }
       | undefined;
     if (packaging?.type !== packagingExpectation.type) {
       failures.push({
@@ -161,6 +170,22 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
       failures.push({
         stage: 'composition',
         detail: `Expected "${packagingExpectation.resource}" to run ${JSON.stringify(packagingExpectation.command)}; found ${JSON.stringify(packaging.properties?.command)}.`
+      });
+    } else if (
+      packagingExpectation.buildContextPath !== undefined &&
+      packaging.properties?.buildContextPath !== packagingExpectation.buildContextPath
+    ) {
+      failures.push({
+        stage: 'composition',
+        detail: `Expected "${packagingExpectation.resource}" to build from ${packagingExpectation.buildContextPath}; found ${packaging.properties?.buildContextPath ?? 'nothing'}.`
+      });
+    } else if (
+      packagingExpectation.dockerfilePath !== undefined &&
+      packaging.properties?.dockerfilePath !== packagingExpectation.dockerfilePath
+    ) {
+      failures.push({
+        stage: 'composition',
+        detail: `Expected "${packagingExpectation.resource}" to use Dockerfile ${packagingExpectation.dockerfilePath}; found ${packaging.properties?.dockerfilePath ?? 'nothing'}.`
       });
     }
   }

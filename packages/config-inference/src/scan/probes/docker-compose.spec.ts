@@ -466,6 +466,44 @@ describe('the compose probe', () => {
     );
   });
 
+  it('preserves a root build context when a nested language project owns the Dockerfile', async () => {
+    root = await makeRepo({
+      'Directory.Build.props': '<Project></Project>\n',
+      'src/Orders.Api/Orders.Api.csproj': '<Project Sdk="Microsoft.NET.Sdk.Web"></Project>\n',
+      'src/Orders.Api/Dockerfile': [
+        'FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build',
+        'WORKDIR /src',
+        'COPY ["Directory.Build.props", "./"]',
+        'COPY ["src/Orders.Api/Orders.Api.csproj", "src/Orders.Api/"]',
+        'RUN dotnet publish "src/Orders.Api/Orders.Api.csproj" -o /app/publish',
+        ''
+      ].join('\n'),
+      'compose.yaml': [
+        'services:',
+        '  api:',
+        '    build:',
+        '      context: .',
+        '      dockerfile: src/Orders.Api/Dockerfile',
+        '    ports: ["8080:8080"]',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [dockerfileProbe, languageManifestProbe, dockerComposeProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'Orders.Api',
+      path: 'src/Orders.Api',
+      buildRoot: '.',
+      dockerfile: 'src/Orders.Api/Dockerfile',
+      exposesHttp: true
+    });
+  });
+
   it('keeps a named worker private when its published port is only for health checks', async () => {
     root = await makeRepo({
       Dockerfile: 'FROM eclipse-temurin:21\nEXPOSE 8080\n',
