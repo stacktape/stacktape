@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { QUALIFICATION_RUNNER_DOCKERFILE } from './sandbox-dockerfile';
 import { processResultExitCode, validateAndHashOutputTree } from './run-sandboxed-qualification';
+import { makeRetainedWorkdirPortable } from './sandbox-output';
 import {
   assertPlannedSecurity,
   BLOCKED_HOST_GATEWAYS,
@@ -354,6 +355,27 @@ describe('sandboxed qualification planning & command composition', () => {
     temporaryDirectories.push(outside);
     symlinkSync(outside, join(workdir, 'node_modules', 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
     await expect(validateAndHashOutputTree(root, true)).rejects.toThrow(/absolute link|escaping link/);
+  });
+
+  test('makes contained absolute workdir links portable and removes unsafe links', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'qualification-portable-links-'));
+    temporaryDirectories.push(root);
+    const workdir = join(root, 'workdirs', 'node-case-Ab12Cd');
+    const target = join(workdir, 'cache', 'target');
+    mkdirSync(target, { recursive: true });
+    writeFileSync(join(target, 'package.json'), '{}\n');
+    mkdirSync(join(workdir, 'links'));
+    symlinkSync(target, join(workdir, 'links', 'contained'), process.platform === 'win32' ? 'junction' : 'dir');
+    const outside = join(dirname(root), `${basename(root)}-portable-outside`);
+    mkdirSync(outside);
+    temporaryDirectories.push(outside);
+    symlinkSync(outside, join(workdir, 'links', 'unsafe'), process.platform === 'win32' ? 'junction' : 'dir');
+
+    const result = await makeRetainedWorkdirPortable(workdir);
+    expect(result).toEqual({ convertedAbsoluteLinks: 1, removedUnsafeLinks: 1 });
+    const accepted = await validateAndHashOutputTree(root, true);
+    expect(accepted.find((entry) => entry.path.endsWith('/links/contained'))?.type).toBe('symlink');
+    expect(accepted.find((entry) => entry.path.endsWith('/links/unsafe'))?.type).toBe('file');
   });
 });
 

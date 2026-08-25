@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
-import { lstat, readFile, readdir, readlink, realpath } from 'node:fs/promises';
-import { isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
+import { lstat, readFile, readdir, readlink, realpath, symlink, unlink, writeFile } from 'node:fs/promises';
+import { dirname, isAbsolute, join, relative, resolve, sep, win32 } from 'node:path';
 
 const safeCaseId = '[a-z0-9](?:[a-z0-9-]*[a-z0-9])?';
 const retainedWorkdirName = `${safeCaseId}-[A-Za-z0-9]{6}`;
@@ -44,6 +44,53 @@ export type OutputInspection = {
   symlinks: number;
   totalBytes: number;
   limits: ReturnType<typeof limitsFor>;
+};
+
+export const makeRetainedWorkdirPortable = async (workdir: string) => {
+  const workdirRoot = await realpath(workdir);
+  const absoluteLinks: Array<{ path: string; target: string; targetIsDirectory: boolean }> = [];
+  const unsafeLinks: string[] = [];
+  let entries = 0;
+  const visit = async (current: string): Promise<void> => {
+    for (const entry of await readdir(current, { withFileTypes: true })) {
+      entries++;
+      if (entries > 200_000) throw new Error('Retained workdir exceeds the 200000-entry portability limit.');
+      const path = join(current, entry.name);
+      const metadata = await lstat(path);
+      if (metadata.isDirectory()) {
+        await visit(path);
+        continue;
+      }
+      if (!metadata.isSymbolicLink()) continue;
+      const target = await readlink(path);
+      try {
+        const resolvedTarget = await realpath(path);
+        if (!isInside(workdirRoot, resolvedTarget)) {
+          unsafeLinks.push(path);
+          continue;
+        }
+        if (isAbsolute(target) || win32.isAbsolute(target)) {
+          absoluteLinks.push({
+            path,
+            target: relative(dirname(path), resolvedTarget) || '.',
+            targetIsDirectory: (await lstat(resolvedTarget)).isDirectory()
+          });
+        }
+      } catch {
+        unsafeLinks.push(path);
+      }
+    }
+  };
+  await visit(workdirRoot);
+  for (const link of absoluteLinks) {
+    await unlink(link.path);
+    await symlink(link.target, link.path, link.targetIsDirectory ? 'dir' : 'file');
+  }
+  for (const path of unsafeLinks) {
+    await unlink(path);
+    await writeFile(path, 'Unsafe or broken symlink removed by the Stacktape qualification sandbox.\n', 'utf8');
+  }
+  return { convertedAbsoluteLinks: absoluteLinks.length, removedUnsafeLinks: unsafeLinks.length };
 };
 
 export const inspectOutputTree = async (

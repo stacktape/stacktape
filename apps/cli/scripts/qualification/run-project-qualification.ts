@@ -22,6 +22,7 @@ import { buildOfflineQualificationEnvironment, startOfflineAwsServer, type Offli
 import { acquireProject, calculateSourceFingerprint } from './project-source';
 import { assertProcessSucceeded, outputTail, redactOutput, runProcess, type ProcessResult } from './process';
 import { writeJsonAtomic, writeQualificationReport } from './report';
+import { makeRetainedWorkdirPortable } from './sandbox-output';
 
 type SelectedCase = {
   entry: QualificationCaseManifest;
@@ -701,6 +702,13 @@ const runCase = async ({
       }
     }
 
+    if (options.keepWorkdirs && workRoot !== undefined && process.env.STACKTAPE_QUALIFICATION_SANDBOX === '1') {
+      const portability = await makeRetainedWorkdirPortable(workRoot);
+      const acquireStep = steps.find((step) => step.name === 'acquire');
+      if (acquireStep !== undefined) {
+        acquireStep.details = { ...acquireStep.details, retainedWorkdirPortability: portability };
+      }
+    }
     const status = statusForSteps(steps);
     return {
       id: entry.id,
