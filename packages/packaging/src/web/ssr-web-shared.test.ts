@@ -404,7 +404,6 @@ describe('SSR build output organization', () => {
     await writeFile(join(buildOutput, 'public', 'server', 'handler.mjs'), 'private-server');
     await mkdir(join(buildOutput, '__server-output'), { recursive: true });
     await writeFile(join(buildOutput, '__server-output', 'handler.mjs'), 'private-server');
-    await rm(join(buildOutput, 'public', 'server'), { recursive: true });
 
     const buildConfig: SsrWebBuildConfig = {
       buildCommand: 'unused',

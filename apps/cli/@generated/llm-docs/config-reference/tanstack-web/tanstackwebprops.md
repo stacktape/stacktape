@@ -8,7 +8,7 @@ Resource type: `tanstack-web`
 import type { DirectoryUploadFilter, DomainConfiguration, EnvironmentVar, SsrWebCdnConfig, SsrWebDevConfig, SsrWebServerLambdaConfig, StpIamRoleStatement } from 'stacktape';
 
 type TanStackWebProps = {
-  /** Directory containing your `app.config.ts`. For monorepos, point to the TanStack Start workspace. */
+  /** Directory containing your TanStack Start app. Current apps typically use `vite.config.*` or `rsbuild.config.*`; legacy apps may use `app.config.ts`. */
   appDirectory?: string;
   /** Override the default `vite build` command. */
   buildCommand?: string;
@@ -39,7 +39,7 @@ type TanStackWebProps = {
 - Type: `string`
 - Default: `.`
 
-Directory containing your `app.config.ts`. For monorepos, point to the TanStack Start workspace.
+Directory containing your TanStack Start app. Current apps typically use `vite.config.*` or `rsbuild.config.*`; legacy apps may use `app.config.ts`.
 
 ### Example 1 (yaml)
 

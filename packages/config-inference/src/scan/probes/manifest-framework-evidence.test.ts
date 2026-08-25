@@ -91,6 +91,26 @@ describe('framework config reachability', () => {
         'const plugins = [tanstackStart()]; const remove = plugins.pop.bind(plugins); const alias = remove; alias.call(undefined); export default { plugins };'
       ).tanstackStart
     ).toBe(false);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; const boundPop = plugins.pop.bind(plugins); Reflect.apply(boundPop, null, []); export default { plugins };'
+      ).tanstackStart
+    ).toBe(false);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; const remove = plugins.pop; remove.call(plugins); export default { plugins };'
+      ).tanstackStart
+    ).toBe(false);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; const { pop } = plugins; pop.call(plugins); export default { plugins };'
+      ).tanstackStart
+    ).toBe(false);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; const remove = plugins.pop; Reflect.apply(remove, plugins, []); export default { plugins };'
+      ).tanstackStart
+    ).toBe(false);
   });
 
   test('keeps safe aliases and does not mistake a shadowed Object.assign for the global mutator', () => {
@@ -134,6 +154,21 @@ describe('framework config reachability', () => {
         'const plugins = [tanstackStart()]; let remove = plugins.pop.bind(plugins); remove = () => undefined; remove(); export default { plugins };'
       ).tanstackStart
     ).toBe(true);
+    expect(
+      inspectViteConfig(
+        'const Reflect = { apply: () => undefined }; const plugins = [tanstackStart()]; const boundPop = plugins.pop.bind(plugins); Reflect.apply(boundPop, null, []); export default { plugins };'
+      ).tanstackStart
+    ).toBe(true);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; const other = []; const remove = plugins.pop; remove.call(other); export default { plugins };'
+      ).tanstackStart
+    ).toBe(true);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; const other = []; const { pop } = plugins; pop.call(other); export default { plugins };'
+      ).tanstackStart
+    ).toBe(true);
   });
 
   test('follows destructured callable provenance from namespace imports and local helper objects', () => {
@@ -144,6 +179,27 @@ describe('framework config reachability', () => {
           "import * as startPlugin from '@tanstack/react-start/plugin/vite';",
           'const { tanstackStart } = startPlugin;',
           'export default { plugins: [tanstackStart()] };'
+        ].join('\n')
+      ).tanstackStart
+    ).toBe(true);
+    expect(
+      inspectFrameworkConfig(
+        'vite.config.ts',
+        [
+          "import * as startPlugin from '@tanstack/react-start/plugin/vite';",
+          'const alias = startPlugin;',
+          'const { tanstackStart } = alias;',
+          'export default { plugins: [tanstackStart()] };'
+        ].join('\n')
+      ).tanstackStart
+    ).toBe(true);
+    expect(
+      inspectFrameworkConfig(
+        'vite.config.ts',
+        [
+          "import * as startPlugin from '@tanstack/react-start/plugin/vite';",
+          'const alias = startPlugin;',
+          'export default { plugins: [alias.tanstackStart()] };'
         ].join('\n')
       ).tanstackStart
     ).toBe(true);
@@ -170,6 +226,18 @@ describe('framework config reachability', () => {
     expect(
       inspectViteConfig(
         'const helpers = { make: () => tanstackStart() }; helpers.make = () => ({}); const { make } = helpers; export default { plugins: [make()] };'
+      ).tanstackStart
+    ).toBe(false);
+    expect(
+      inspectFrameworkConfig(
+        'vite.config.ts',
+        [
+          "import * as startPlugin from '@tanstack/react-start/plugin/vite';",
+          'let alias = startPlugin;',
+          'alias = { tanstackStart: () => ({}) };',
+          'const { tanstackStart } = alias;',
+          'export default { plugins: [tanstackStart()] };'
+        ].join('\n')
       ).tanstackStart
     ).toBe(false);
   });

@@ -497,16 +497,47 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     return mutation !== undefined && mutationMemberIsUsable(mutation) ? expression.arguments[0] : undefined;
   };
 
+  const isUnboundMutationMethod = (rawExpression: ts.Expression, seenSymbols = new Set<ts.Symbol>()): boolean => {
+    const expression = unwrapExpression(rawExpression);
+    if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
+      const mutation = calledMember(expression);
+      return mutation !== undefined && mutationMemberIsUsable(mutation);
+    }
+    if (!ts.isIdentifier(expression)) return false;
+    const symbol = checker.getSymbolAtLocation(expression);
+    if (symbol === undefined || seenSymbols.has(symbol) || reassignedSymbols.has(symbol)) return false;
+    seenSymbols.add(symbol);
+    for (const declaration of symbol.declarations ?? []) {
+      if (ts.isVariableDeclaration(declaration) && declaration.initializer !== undefined) {
+        if (isUnboundMutationMethod(declaration.initializer, seenSymbols)) return true;
+      } else if (ts.isBindingElement(declaration) && ts.isObjectBindingPattern(declaration.parent)) {
+        const memberName =
+          propertyName(declaration.propertyName) ??
+          (ts.isIdentifier(declaration.name) ? declaration.name.text : undefined);
+        if (memberName !== undefined && INSTANCE_MUTATION_METHODS.has(memberName)) return true;
+      }
+    }
+    return false;
+  };
+
   for (const call of callExpressions) {
     const callee = unwrapExpression(call.expression);
     let target = boundMutationTarget(callee);
     const invocation = calledMember(call.expression);
+    const invocationBase = invocation === undefined ? undefined : unwrapExpression(invocation.base);
+    const isUnshadowedReflectApply =
+      invocation?.name === 'apply' &&
+      invocationBase !== undefined &&
+      ts.isIdentifier(invocationBase) &&
+      invocationBase.text === 'Reflect' &&
+      checker.getSymbolAtLocation(invocationBase) === undefined;
+    if (target === undefined && isUnshadowedReflectApply && call.arguments[0] !== undefined) {
+      target = boundMutationTarget(call.arguments[0]);
+      if (target === undefined && isUnboundMutationMethod(call.arguments[0])) target = call.arguments[1];
+    }
     if (target === undefined && invocation !== undefined && PROTOTYPE_INVOCATION_METHODS.has(invocation.name)) {
       target = boundMutationTarget(invocation.base);
-      if (target === undefined) {
-        const mutation = calledMember(unwrapExpression(invocation.base) as ts.LeftHandSideExpression);
-        if (mutation !== undefined && mutationMemberIsUsable(mutation)) target = call.arguments[0];
-      }
+      if (target === undefined && isUnboundMutationMethod(invocation.base)) target = call.arguments[0];
     }
     if (target !== undefined) recordValueMutation(target);
   }
@@ -529,6 +560,38 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
 
   const symbolIsUnchanged = (symbol: ts.Symbol | undefined): boolean =>
     symbol === undefined || (!reassignedSymbols.has(symbol) && !valueMutatedSymbols.has(symbol));
+
+  const valueAliasClosure = (start: ts.Symbol): Set<ts.Symbol> => {
+    const result = new Set([start]);
+    const queue = [start];
+    while (queue.length > 0) {
+      const current = queue.shift()!;
+      for (const [left, right] of valueAliases) {
+        const next = left === current ? right : right === current ? left : undefined;
+        if (next !== undefined && !result.has(next)) {
+          result.add(next);
+          queue.push(next);
+        }
+      }
+    }
+    return result;
+  };
+
+  const resolvedCalledBinding = (expression: ts.LeftHandSideExpression): CallableBinding | undefined => {
+    const direct = calledBinding(expression, bindings, checker);
+    if (direct !== undefined) return direct;
+    const member = calledMember(expression);
+    if (member === undefined) return undefined;
+    const base = unwrapExpression(member.base);
+    if (!ts.isIdentifier(base)) return undefined;
+    const baseSymbol = checker.getSymbolAtLocation(base);
+    if (baseSymbol === undefined) return undefined;
+    const aliases = valueAliasClosure(baseSymbol);
+    return bindings.find(
+      (binding) =>
+        binding.kind === 'namespace-member' && aliases.has(binding.symbol) && binding.memberName === member.name
+    );
+  };
 
   const accessPathIsUnchanged = (rawExpression: ts.Expression): boolean => {
     const expression = unwrapExpression(rawExpression);
@@ -630,10 +693,11 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
         const base = unwrapExpression(initializer);
         if (invoked && ts.isIdentifier(base)) {
           const baseSymbol = checker.getSymbolAtLocation(base);
+          const baseAliases = baseSymbol === undefined ? new Set<ts.Symbol>() : valueAliasClosure(baseSymbol);
           const namespaceBinding = bindings.find(
             (binding) =>
               binding.kind === 'namespace-member' &&
-              binding.symbol === baseSymbol &&
+              baseAliases.has(binding.symbol) &&
               binding.memberName === memberName &&
               binding.role === mode
           );
@@ -653,7 +717,7 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     if (!enter(expression, mode, invoked)) return;
 
     if (ts.isCallExpression(expression)) {
-      const binding = calledBinding(expression.expression, bindings, checker);
+      const binding = resolvedCalledBinding(expression.expression);
       if (binding !== undefined && binding.role === mode && bindingIsUnchanged(expression.expression, binding)) {
         evidence[binding.framework] = true;
       }
@@ -678,7 +742,7 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
 
     if (ts.isIdentifier(expression)) {
       if (invoked) {
-        const binding = calledBinding(expression, bindings, checker);
+        const binding = resolvedCalledBinding(expression);
         if (binding !== undefined && binding.role === mode && bindingIsUnchanged(expression, binding)) {
           evidence[binding.framework] = true;
         }
@@ -742,7 +806,7 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     if (ts.isPropertyAccessExpression(expression) || ts.isElementAccessExpression(expression)) {
       if (!accessPathIsUnchanged(expression)) return;
       if (invoked) {
-        const binding = calledBinding(expression, bindings, checker);
+        const binding = resolvedCalledBinding(expression);
         if (binding !== undefined && binding.role === mode && bindingIsUnchanged(expression, binding)) {
           evidence[binding.framework] = true;
         }

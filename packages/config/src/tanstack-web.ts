@@ -13,7 +13,7 @@ export interface TanStackWeb {
 
 export interface TanStackWebProps extends ResourceAccessProps {
   /**
-   * #### Directory containing your `app.config.ts`. For monorepos, point to the TanStack Start workspace.
+   * #### Directory containing your TanStack Start app. Current apps typically use `vite.config.*` or `rsbuild.config.*`; legacy apps may use `app.config.ts`.
    *
    *
    * ---

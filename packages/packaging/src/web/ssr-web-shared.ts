@@ -573,6 +573,12 @@ export const reorganizeBuildOutput = async ({
     }
     const staticSourcePath = join(distFolderPath, 'build-output', buildConfig.staticOutputPath);
     if (await pathExists(staticSourcePath)) {
+      // The staging copy still contains the nested server subtree. Remove it only after the server
+      // was materialized separately, and before copying public files into bucket-content; otherwise
+      // Lambda code and potentially server-only data become downloadable CDN objects.
+      const serverRelativeToStatic = normalizedServer.slice(normalizedStatic.length + 1);
+      const nestedServerSourcePath = join(staticSourcePath, serverRelativeToStatic);
+      if (await pathExists(nestedServerSourcePath)) await remove(nestedServerSourcePath);
       await copy(staticSourcePath, bucketContentPath, copyOpts);
     }
   } else {
