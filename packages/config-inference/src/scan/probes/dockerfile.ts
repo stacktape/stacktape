@@ -11,6 +11,7 @@ const serviceRootFor = (dockerfile: string, files: readonly string[]): string =>
 };
 
 const DEVELOPMENT_ONLY_DIRECTORY = /(?:^|\/)(?:\.devcontainer|\.github|\.gitlab|\.circleci)(?:\/|$)/i;
+const DEVELOPMENT_ONLY_DOCKERFILE = /^Dockerfile[.-](?:dev|development|test|local|ci)(?:[.-].*)?$/i;
 
 const serviceNameFor = (root: string, repositoryRoot: string): string =>
   root === '.' ? (repositoryRoot.split(/[/\\]/).findLast((segment) => segment !== '') ?? 'app') : posix.basename(root);
@@ -97,7 +98,10 @@ export const dockerfileProbe: Probe = {
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
     const candidates = context.files
       .filter(
-        (path) => /^Dockerfile(?:\.[^/]+)?$/i.test(posix.basename(path)) && !DEVELOPMENT_ONLY_DIRECTORY.test(path)
+        (path) =>
+          /^Dockerfile(?:[.-][^/]+)?$/i.test(posix.basename(path)) &&
+          !DEVELOPMENT_ONLY_DOCKERFILE.test(posix.basename(path)) &&
+          !DEVELOPMENT_ONLY_DIRECTORY.test(path)
       )
       .toSorted((left, right) => {
         const leftExact = posix.basename(left).toLowerCase() === 'dockerfile';

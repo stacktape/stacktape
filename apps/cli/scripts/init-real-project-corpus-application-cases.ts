@@ -201,14 +201,14 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       serviceCount: 1,
       httpServiceCount: 1,
       services: [{ name: 'ntfy', path: '.', exposesHttp: true }],
-      requiredConfig: ['type: web-service', 'entryfilePath: main.go'],
+      requiredConfig: ['type: web-service', 'type: custom-dockerfile', 'dockerfilePath: Dockerfile-build', '- serve'],
       forbiddenConfig: [
         'type: hosting-bucket',
         'uploadDirectoryPath: web/',
         'type: relational-database',
         'mainDatabase',
         'NTFY_DATABASE_URL',
-        'type: custom-dockerfile'
+        'entryfilePath: main.go'
       ],
       forbidCurrentlyHostedDependencies: true
     }

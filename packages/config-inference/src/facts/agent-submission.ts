@@ -30,13 +30,15 @@ import {
 import type { Uncertainty } from './uncertainty';
 
 /**
- * The service shape the facts document uses, minus probe-only retained literals and `source`.
- * An agent may classify a variable, but prompt-injected repository text must not choose a value
- * that reaches the generated deployment configuration.
+ * The service shape the facts document uses, minus probe-only retained literals, exact container
+ * argv and `source`. An agent may classify a variable, but prompt-injected repository text must
+ * not choose a value or executable argument that reaches the generated deployment configuration.
  */
+const { containerCommand: _probeContainerCommand, ...agentVisibleServiceShape } = serviceShape;
+
 const agentServiceSchema = z
   .object({
-    ...serviceShape,
+    ...agentVisibleServiceShape,
     environmentVariables: z.array(environmentVariableUseSchema.omit({ safeLiteralValue: true })).default([])
   })
   .superRefine((service, ctx) => {

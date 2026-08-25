@@ -809,4 +809,56 @@ describe('the compose probe', () => {
       }
     });
   });
+
+  it('preserves an exact published-image command for a matching source-built container', async () => {
+    root = await makeRepo({
+      'go.mod': 'module example.com/notifier\nrequire github.com/labstack/echo/v4 v4.12.0\n',
+      'main.go': [
+        'package main',
+        'import "github.com/labstack/echo/v4"',
+        'func main() { server := echo.New(); server.Start(":80") }',
+        ''
+      ].join('\n'),
+      Dockerfile: 'FROM alpine:3.20\nCOPY notifier /usr/bin/notifier\nEXPOSE 80\n',
+      'Dockerfile-build': [
+        'FROM golang:1.25 AS builder',
+        'RUN apk add --no-cache build-base',
+        'COPY go.mod main.go /src/',
+        'RUN cd /src && go build -o /notifier .',
+        'FROM alpine:3.20',
+        'COPY --from=builder /notifier /usr/bin/notifier',
+        'EXPOSE 80',
+        'ENTRYPOINT ["notifier"]',
+        ''
+      ].join('\n'),
+      'docker-compose.yml': [
+        'services:',
+        '  notifier:',
+        '    image: example/notifier:latest',
+        '    command: ["serve", "--listen-http", ":80"]',
+        '    ports: ["80:80"]',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [serverEntrypointProbe, dockerComposeProbe, dockerfileProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'notifier',
+      dockerfile: 'Dockerfile-build',
+      containerCommand: ['serve', '--listen-http', ':80']
+    });
+    expect(composeConfig({ facts }).config.resources.notifier?.properties.packaging).toEqual({
+      type: 'custom-dockerfile',
+      properties: {
+        buildContextPath: '.',
+        dockerfilePath: 'Dockerfile-build',
+        command: ['serve', '--listen-http', ':80']
+      }
+    });
+  });
 });

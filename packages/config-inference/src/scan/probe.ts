@@ -53,6 +53,13 @@ export type ProbeOutput = {
     processType?: string;
     environmentVariables: EnvironmentVariableUse[];
   }>;
+  /** Exact Compose command overrides for source services described through a published image. */
+  serviceCommands?: Array<{
+    path: string;
+    serviceName: string;
+    containerCommand: string[];
+    evidence: Citation[];
+  }>;
   dependencies?: DependencyFact[];
   /**
    * Kinds selected by the runnable deployment shape (for example the one database in the default

@@ -297,7 +297,20 @@ const MIGRATION_COMMAND =
   /(?:^|\s)(?:alembic\s+upgrade|(?:npm|pnpm|yarn|bun)\s+(?:--filter\s+\S+\s+)?(?:run\s+)?(?:\S*migrat\S*|\S*db:\S*)|npx\s+[^\s]*(?:migrat|prisma)|python3?\s+manage\.py\s+migrate|rails\s+db:|rake\s+db:|prisma\s+migrate|typeorm\s+[^\s]*migration|knex\s+migrate|sequelize(?:-cli)?\s+db:migrate|flyway|liquibase|dbmate)(?:\s|$)/i;
 
 const commandOf = (service: ComposeService): string | undefined =>
-  typeof service.command === 'string' && service.command.trim() !== '' ? service.command.trim() : undefined;
+  typeof service.command === 'string' && service.command.trim() !== ''
+    ? service.command.trim()
+    : Array.isArray(service.command) &&
+        service.command.length > 0 &&
+        service.command.every((entry) => typeof entry === 'string' && entry !== '')
+      ? service.command.join(' ')
+      : undefined;
+
+const containerCommandOf = (service: ComposeService): string[] | undefined =>
+  Array.isArray(service.command) &&
+  service.command.length > 0 &&
+  service.command.every((entry) => typeof entry === 'string' && entry !== '')
+    ? service.command
+    : undefined;
 
 /** The fallback part of `${NAME:-value}` is what this Compose deployment actually uses by default. */
 const composeDefault = (value: string): string => value.replace(/\$\{[A-Za-z_][A-Za-z0-9_]*(?::-|-)([^}]*)\}/g, '$1');
@@ -674,6 +687,7 @@ export const dockerComposeProbe: Probe = {
         ...(!exposesHttp || port === undefined ? {} : { port }),
         executionModel: 'long-running',
         ...(typeof service.command === 'string' && service.command !== '' ? { startCommand: service.command } : {}),
+        ...(containerCommandOf(service) === undefined ? {} : { containerCommand: containerCommandOf(service) }),
         ...(build.dockerfile === undefined ? {} : { dockerfile: build.dockerfile }),
         environmentVariables: variables,
         evidence: citation === undefined ? [] : [citation],
@@ -687,9 +701,25 @@ export const dockerComposeProbe: Probe = {
     // at the same root. Restrict this to variables that address an explicit `depends_on` resource;
     // arbitrary settings from an unrelated third-party image must not leak onto local code.
     const serviceEnvironments: NonNullable<ProbeOutput['serviceEnvironments']> = [];
+    const serviceCommands: NonNullable<ProbeOutput['serviceCommands']> = [];
     for (const [composeName, service] of Object.entries(declaredServices)) {
       if (dependencyNames.has(composeName) || builtDeclarations.some((entry) => entry.composeName === composeName)) {
         continue;
+      }
+      const containerCommand = containerCommandOf(service);
+      if (containerCommand !== undefined) {
+        const citation = citeFirstMatchOnly(
+          path,
+          raw,
+          new RegExp(escapeForPattern(containerCommand[0]!)),
+          'containerCommand'
+        );
+        serviceCommands.push({
+          path: composeDirectory(path),
+          serviceName: factName(composeName),
+          containerCommand,
+          evidence: citation === undefined ? [] : [citation]
+        });
       }
       const consumedDependencies = dependsOn(service)
         .map((entry) => dependencyNames.get(entry))
@@ -729,6 +759,7 @@ export const dockerComposeProbe: Probe = {
       ...(dependencies.length === 0 ? {} : { dependencies }),
       ...(serviceFacts.length === 0 ? {} : { services: serviceFacts }),
       ...(serviceEnvironments.length === 0 ? {} : { serviceEnvironments }),
+      ...(serviceCommands.length === 0 ? {} : { serviceCommands }),
       ...(migrations.length === 0 ? {} : { migrations }),
       ...(lifecycleDockerfiles.size === 0 ? {} : { lifecycleDockerfiles: [...lifecycleDockerfiles] }),
       ...(developmentProcesses.size === 0 ? {} : { developmentProcesses: [...developmentProcesses] }),

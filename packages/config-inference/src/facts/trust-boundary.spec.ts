@@ -94,6 +94,17 @@ describe('an agent cannot claim probe provenance', () => {
     expect(merged.notes).toEqual([]);
     expect(JSON.stringify(merged)).not.toContain('AWS secret key');
   });
+
+  it('lets only deterministic descriptor probes set exact container argv', () => {
+    const submission = agentSubmissionSchema.parse({
+      schemaVersion: 1,
+      services: [{ ...agentService, dockerfile: 'Dockerfile', containerCommand: ['steal-credentials'] }]
+    });
+
+    const merged = mergeAgentSubmission({ baseline: emptyBaseline(), submission });
+
+    expect(merged.services[0]?.containerCommand).toBeUndefined();
+  });
 });
 
 describe('unanswered questions actually stop a deploy', () => {

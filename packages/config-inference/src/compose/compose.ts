@@ -209,7 +209,8 @@ const packagingFor = (
         buildContextPath: buildRoot,
         // Facts keep repository-relative evidence paths; Stacktape expects this one relative to the
         // build context.
-        dockerfilePath: buildRoot === '.' ? service.dockerfile : posix.relative(buildRoot, service.dockerfile)
+        dockerfilePath: buildRoot === '.' ? service.dockerfile : posix.relative(buildRoot, service.dockerfile),
+        ...(service.containerCommand === undefined ? {} : { command: service.containerCommand })
       }
     };
   }

@@ -234,6 +234,7 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
     runtimeVersion: existing.runtimeVersion ?? incoming.runtimeVersion,
     buildCommand: existing.buildCommand ?? incoming.buildCommand,
     startCommand: existing.startCommand ?? incoming.startCommand,
+    containerCommand: existing.containerCommand ?? incoming.containerCommand,
     buildRoot: existing.buildRoot ?? incoming.buildRoot,
     containerEntrypoint: existing.containerEntrypoint ?? incoming.containerEntrypoint,
     functionEntrypoint: existing.functionEntrypoint ?? incoming.functionEntrypoint,
@@ -691,6 +692,18 @@ export const assembleCandidateFacts = async ({
         service.environmentVariables ?? [],
         environment.environmentVariables
       );
+    }
+  }
+  for (const command of outputs.flatMap((output) => output.serviceCommands ?? [])) {
+    for (const service of services) {
+      if (
+        service.path !== command.path ||
+        normalizedServiceName(service) !== normalizedServiceName({ name: command.serviceName })
+      ) {
+        continue;
+      }
+      service.containerCommand ??= [...command.containerCommand];
+      service.evidence = mergeEvidence(service.evidence ?? [], command.evidence);
     }
   }
   // Forward descriptor-local names before attribution decides whether a consumer exists. Waiting
