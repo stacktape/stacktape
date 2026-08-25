@@ -1238,7 +1238,9 @@ const buildServiceResource = ({
         minInstances: profile.scaling.minInstances,
         maxInstances: profile.scaling.maxInstances
       },
-      ...(service.port === undefined ? {} : { port: service.port }),
+      ...(resourceType === 'web-service' && service.port !== undefined && service.port !== 3000
+        ? { containerPort: service.port }
+        : {}),
       ...(resourceType === 'web-service'
         ? {
             alarms: [

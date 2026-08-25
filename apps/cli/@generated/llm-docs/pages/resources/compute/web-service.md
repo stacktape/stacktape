@@ -523,6 +523,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `alarms` | no | `Array<ApplicationLoadBalancerAlarm \| HttpApiGatewayAlarm>` | - |
 | `cdn` | no | `CdnConfiguration` | - |
 | `connectTo` | no | `Array<string>` | - |
+| `containerPort` | no | `number` | `3000` |
 | `cors` | no | `HttpApiCorsConfig` | - |
 | `customDomains` | no | `Array<DomainConfiguration>` | - |
 | `deployment` | no | `ContainerWorkloadDeploymentConfig` | - |
@@ -533,7 +534,6 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `internalHealthCheck` | no | `ContainerHealthCheck` | - |
 | `loadBalancing` | no | `http-api-gateway \| application-load-balancer \| network-load-balancer` | - |
 | `logging` | no | `ContainerWorkloadContainerLogging` | - |
-| `port` | no | `number` | `3000` |
 | `scaling` | no | `ContainerWorkloadScaling` | - |
 | `secrets` | no | `Array<SecretEnvironmentVar>` | - |
 | `sideContainers` | no | `Array<ServiceHelperContainer>` | - |

@@ -22,55 +22,17 @@ export interface WebService {
 
 export interface WebServiceProps extends SimpleServiceContainer {
   /**
-   * #### Port this service listens on. Injected as the `PORT` env var.
+   * #### Port the application listens on inside its container.
    *
    * ---
    *
-   * **Example (YAML):**
-   *
-   * ```yaml
-   * resources:
-   *   apiService:
-   *     type: web-service
-   *     properties:
-   *       packaging:
-   *         type: stacktape-image-buildpack
-   *         properties:
-   *           entryfilePath: src/main.ts
-   *       # stp-focus
-   *       port: 8080
-   *       # stp-end-focus
-   *       resources:
-   *         cpu: 1
-   *         memory: 2048
-   * ```
-   *
-   * **Example (TypeScript):**
-   *
-   * ```ts
-   * import { defineConfig, WebService, StacktapeImageBuildpackPackaging } from 'stacktape';
-   *
-   * export default defineConfig(() => {
-   *   const apiService = new WebService({
-   *     port: 8080,
-   *     packaging: new StacktapeImageBuildpackPackaging({
-   *       entryfilePath: 'src/main.ts'
-   *     }),
-   *     resources: {
-   *       cpu: 1,
-   *       memory: 2048
-   *     }
-   *   });
-   *
-   *   return {
-   *     resources: { apiService }
-   *   };
-   * });
-   * ```
+   * Stacktape routes public HTTP traffic to this port and sets the `PORT` environment variable to
+   * the same value. Keep the default for applications that listen on `3000`; set this when an
+   * existing image has a different fixed listener.
    *
    * @default 3000
    */
-  port?: number;
+  containerPort?: number;
 
   /**
    * #### CORS settings. Overrides any CORS headers from your application.

@@ -918,9 +918,9 @@ export class ConfigManager {
         alarms,
         disabledGlobalAlarms,
         loadBalancing,
+        containerPort = 3000,
         deployment,
         useFirewall,
-        port,
         configParentResourceType: _configParentResourceType,
         nameChain,
         stopTimeout,
@@ -962,7 +962,9 @@ export class ConfigManager {
                 packaging,
                 environment: (environment || [])
                   .concat([
-                    ...(loadBalancing?.type === 'network-load-balancer' ? [] : [{ name: 'PORT', value: port || 3000 }]),
+                    ...(loadBalancing?.type === 'network-load-balancer'
+                      ? []
+                      : [{ name: 'PORT', value: containerPort }]),
                     { name: 'HOST', value: '0.0.0.0' }
                   ])
                   .concat(deployment ? [{ name: 'DEPLOYMENT_TEST_PORT', value: DEFAULT_TEST_LISTENER_PORT }] : []),
@@ -985,17 +987,17 @@ export class ConfigManager {
                         type: 'application-load-balancer',
                         properties: {
                           priority: 3,
-                          containerPort: port || 3000,
+                          containerPort,
                           loadBalancerName: `${[...nameChain, loadBalancerIdentifier].join('.')}`,
                           listenerPort: 443,
                           paths: ['*']
                         }
                       }
                     : loadBalancing?.type === 'network-load-balancer'
-                      ? loadBalancing.properties.ports.map(({ port: nlbPort, containerPort }) => ({
+                      ? loadBalancing.properties.ports.map(({ port: nlbPort, containerPort: nlbContainerPort }) => ({
                           type: 'network-load-balancer',
                           properties: {
-                            containerPort: containerPort || nlbPort,
+                            containerPort: nlbContainerPort || nlbPort,
                             loadBalancerName: `${[...nameChain, networkLoadBalancerIdentifier].join('.')}`,
                             listenerPort: nlbPort
                           }
@@ -1003,7 +1005,7 @@ export class ConfigManager {
                       : {
                           type: 'http-api-gateway',
                           properties: {
-                            containerPort: port || 3000,
+                            containerPort,
                             httpApiGatewayName: `${[...nameChain, httpApiGatewayIdentifier].join('.')}`,
                             method: '*',
                             path: '/{proxy+}'
