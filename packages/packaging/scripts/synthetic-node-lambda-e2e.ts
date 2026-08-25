@@ -367,7 +367,6 @@ try {
     progressLogger,
     invocationId: 'synthetic-node-lambda-e2e',
     sizeLimit: 250,
-    zippedSizeLimit: 50,
     languageSpecificConfig: {
       nodeVersion: 24,
       outputModuleFormat: 'esm',

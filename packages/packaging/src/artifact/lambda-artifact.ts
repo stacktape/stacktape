@@ -13,7 +13,6 @@ export const createLambdaZipArtifact = async ({
   distFolderPath,
   digest,
   sizeLimit,
-  zippedSizeLimit,
   progressLogger,
   finalMessageSuffix,
   archiveItem,
@@ -23,7 +22,6 @@ export const createLambdaZipArtifact = async ({
   distFolderPath: string;
   digest: string;
   sizeLimit?: number | undefined;
-  zippedSizeLimit?: number | undefined;
   progressLogger: ProgressLogger;
   finalMessageSuffix?: string | undefined;
   archiveItem: ArchiveItem;
@@ -53,13 +51,6 @@ export const createLambdaZipArtifact = async ({
   const originalZipPath = `${distFolderPath}.zip`;
   const zippedSizeBytes = await getFileSizeBytes(originalZipPath);
   const zippedSize = Number((zippedSizeBytes / 1024 / 1024).toFixed(2));
-  if (zippedSizeLimit && zippedSizeBytes > zippedSizeLimit * 1024 * 1024) {
-    throw createPackagingError({
-      type: 'PACKAGING',
-      message: `${name} has size ${zippedSize}. Should be less than ${zippedSizeLimit}.`
-    });
-  }
-
   const adjustedZipPath = `${distFolderPath}-${digest}.zip`;
   await rename(originalZipPath, adjustedZipPath);
 

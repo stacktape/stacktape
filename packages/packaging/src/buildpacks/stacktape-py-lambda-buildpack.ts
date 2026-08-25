@@ -12,14 +12,12 @@ export const buildUsingStacktapePyLambdaBuildpack = async ({
   progressLogger,
   name,
   sizeLimit,
-  zippedSizeLimit,
   languageSpecificConfig,
   entryfilePath,
   cwd,
   ...otherProps
 }: StpBuildpackInput &
   LambdaArtifactActions & {
-    zippedSizeLimit: number;
     languageSpecificConfig: PyLanguageSpecificConfig;
   }): Promise<PackagingOutput> => {
   const packageManagerFilePath = languageSpecificConfig?.packageManagerFile
@@ -62,7 +60,6 @@ export const buildUsingStacktapePyLambdaBuildpack = async ({
     distFolderPath,
     digest,
     sizeLimit,
-    zippedSizeLimit,
     archiveItem: otherProps.archiveItem,
     createPackagingError: otherProps.createPackagingError,
     progressLogger

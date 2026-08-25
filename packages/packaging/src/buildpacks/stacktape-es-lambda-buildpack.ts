@@ -14,7 +14,6 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
   progressLogger,
   name,
   sizeLimit,
-  zippedSizeLimit,
   languageSpecificConfig,
   dockerBuildOutputArchitecture,
   sharedLayerExternals = [],
@@ -26,7 +25,6 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
 }: StpBuildpackInput &
   LambdaArtifactActions &
   EsBuildActions & {
-    zippedSizeLimit: number;
     nodeTarget: string;
     minify: boolean;
     sharedLayerExternals?: string[] | undefined;
@@ -88,13 +86,6 @@ export const buildUsingStacktapeEsLambdaBuildpack = async ({
 
   const zippedSizeBytes = await getFileSizeBytes(originalZipPath);
   zippedSize = formatSizeMb(zippedSizeBytes);
-  if (zippedSizeLimit && zippedSizeBytes > zippedSizeLimit * BYTES_PER_MB) {
-    throw createPackagingError({
-      type: 'PACKAGING',
-      message: `${name} has size ${zippedSize}. Should be less than ${zippedSizeLimit}.`
-    });
-  }
-
   const adjustedZipPath = `${bundledDistFolderPath}-${digest}.zip`;
   await rename(originalZipPath, adjustedZipPath);
 

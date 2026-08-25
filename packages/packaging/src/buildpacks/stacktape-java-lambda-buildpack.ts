@@ -12,13 +12,11 @@ export const buildUsingStacktapeJavaLambdaBuildpack = async ({
   name,
   entryfilePath,
   sizeLimit,
-  zippedSizeLimit,
   languageSpecificConfig,
   cwd,
   ...otherProps
 }: StpBuildpackInput &
   LambdaArtifactActions & {
-    zippedSizeLimit: number;
     languageSpecificConfig: JavaLanguageSpecificConfig;
   }): Promise<PackagingOutput> => {
   const useMaven =
@@ -57,7 +55,6 @@ export const buildUsingStacktapeJavaLambdaBuildpack = async ({
     distFolderPath,
     digest,
     sizeLimit,
-    zippedSizeLimit,
     archiveItem: otherProps.archiveItem,
     createPackagingError: otherProps.createPackagingError,
     progressLogger

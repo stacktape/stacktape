@@ -16,7 +16,6 @@ import { getAllFilesInDir, getFileHash, getFileSizeBytes, getFolderSizeBytes } f
 import { getZipUncompressedSizeBytes } from './zip-metadata';
 
 const SIZE_LIMIT = 250;
-const ZIPPED_SIZE_LIMIT = 50;
 const FILE_SIZE_UNIT = 'MB';
 
 export const buildUsingCustomArtifact = async ({
@@ -127,13 +126,6 @@ export const buildUsingCustomArtifact = async ({
   const zippedSizeBytes = await getFileSizeBytes(artifactPath);
   const zippedSize = Number((zippedSizeBytes / 1024 / 1024).toFixed(2));
   await progressLogger.finishEvent({ eventType: 'CALCULATE_SIZE' });
-
-  if (zippedSizeBytes > ZIPPED_SIZE_LIMIT * 1024 * 1024) {
-    throw createPackagingError({
-      type: 'PACKAGING',
-      message: `${name} has size ${zippedSize}${FILE_SIZE_UNIT}. Should be less than ${ZIPPED_SIZE_LIMIT}${FILE_SIZE_UNIT}.`
-    });
-  }
 
   const sourceFiles =
     isZipped || !isDir

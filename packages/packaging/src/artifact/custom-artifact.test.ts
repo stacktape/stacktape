@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildUsingCustomArtifact } from './custom-artifact';
@@ -72,5 +72,35 @@ describe('custom Lambda artifacts', () => {
         createPackagingError: ({ message }) => new Error(message)
       })
     ).rejects.toThrow('Custom Lambda package was not found');
+  });
+
+  test('accepts a compressed artifact over 50 MB because deployment uses S3', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stacktape-large-compressed-artifact-'));
+    roots.push(root);
+    const packagePath = join(root, 'package');
+    const distFolderPath = join(root, 'dist');
+    await Promise.all([mkdir(packagePath), mkdir(distFolderPath)]);
+    await writeFile(join(packagePath, 'index.js'), 'exports.handler = () => undefined');
+
+    const result = await buildUsingCustomArtifact({
+      name: 'large-compressed',
+      cwd: root,
+      packagePath,
+      handler: 'index.handler',
+      distFolderPath,
+      existingDigests: [],
+      progressLogger,
+      archiveItem: async ({ absoluteDestDirPath }) => {
+        if (!absoluteDestDirPath) throw new Error('Test archive destination is required.');
+        const archivePath = join(absoluteDestDirPath, 'large.zip');
+        await writeFile(archivePath, 'zip');
+        // A sparse file makes the boundary contract cheap to exercise on every platform.
+        await truncate(archivePath, 51 * 1024 * 1024);
+        return archivePath;
+      },
+      createPackagingError: ({ message }) => new Error(message)
+    });
+
+    expect(result.zippedSize).toBe(51);
   });
 });

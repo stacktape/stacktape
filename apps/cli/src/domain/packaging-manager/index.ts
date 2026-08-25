@@ -763,7 +763,6 @@ export class PackagingManager {
 
       // Check size limits
       const sizeLimit = 250; // MB
-      const zippedSizeLimit = 50; // MB
 
       if (functionSizeBytes > sizeLimit * 1024 * 1024) {
         throw new Error(`Function ${name} has size ${unzippedSizeMB}MB. Should be less than ${sizeLimit}MB.`);
@@ -779,10 +778,6 @@ export class PackagingManager {
       const zippedSizeBytes = await getFileSizeBytes(originalZipPath);
       const zippedSizeMB = Number((zippedSizeBytes / 1024 / 1024).toFixed(2));
       const zippedSizeKB = Number((zippedSizeBytes / 1024).toFixed(1));
-
-      if (zippedSizeBytes > zippedSizeLimit * 1024 * 1024) {
-        throw new Error(`Function ${name} zipped size ${zippedSizeMB}MB exceeds limit of ${zippedSizeLimit}MB.`);
-      }
 
       const adjustedZipPath = `${distFolderPath}-${digest}.zip`;
       await rename(originalZipPath, adjustedZipPath);
@@ -1457,7 +1452,6 @@ export class PackagingManager {
               ...sharedProps,
               ...sharedStpBuildpackProps,
               sizeLimit: 250,
-              zippedSizeLimit: 50,
               debug: globalStateManager.isDebugMode,
               distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
                 jobName,
@@ -1525,7 +1519,6 @@ export class PackagingManager {
               ...sharedProps,
               ...sharedStpBuildpackProps,
               sizeLimit: 250,
-              zippedSizeLimit: 50,
               distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
                 jobName,
                 invocationId: globalStateManager.invocationId
@@ -1584,7 +1577,6 @@ export class PackagingManager {
               ...sharedProps,
               ...sharedStpBuildpackProps,
               sizeLimit: 250,
-              zippedSizeLimit: 50,
               distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
                 jobName,
                 invocationId: globalStateManager.invocationId
@@ -1636,7 +1628,6 @@ export class PackagingManager {
               ...sharedProps,
               ...sharedStpBuildpackProps,
               sizeLimit: 250,
-              zippedSizeLimit: 50,
               distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
                 jobName,
                 invocationId: globalStateManager.invocationId
@@ -1695,7 +1686,6 @@ export class PackagingManager {
               ...sharedProps,
               ...sharedStpBuildpackProps,
               sizeLimit: 250,
-              zippedSizeLimit: 50,
               distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
                 jobName,
                 invocationId: globalStateManager.invocationId
@@ -1787,7 +1777,6 @@ export class PackagingManager {
               ...sharedProps,
               ...sharedStpBuildpackProps,
               sizeLimit: 250,
-              zippedSizeLimit: 50,
               distFolderPath: fsPaths.absoluteLambdaArtifactFolderPath({
                 jobName,
                 invocationId: globalStateManager.invocationId
