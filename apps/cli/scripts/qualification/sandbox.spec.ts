@@ -4,12 +4,18 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, truncateSync, writeFileSyn
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { BUILT_IN_CASES } from './catalog';
+import { MAX_QUALIFICATION_REPORT_BYTES } from './contracts';
 import { QUALIFICATION_RUNNER_DOCKERFILE } from './sandbox-dockerfile';
 import type { ProcessResult } from './process';
 import {
   describeSandboxFailure,
+  MAX_CASE_RESULT_BYTES,
+  MAX_COMPILED_TEMPLATE_BYTES,
+  MAX_GENERATED_CONFIG_BYTES,
   processResultExitCode,
+  readCollectedQualificationReport,
   stopRunnerAfterDetachedAttach,
+  validateCollectedCaseArtifacts,
   validateAndHashOutputTree
 } from './run-sandboxed-qualification';
 import { hashFileSha256, makeRetainedWorkdirPortable } from './sandbox-output';
@@ -281,6 +287,25 @@ describe('sandboxed qualification planning & command composition', () => {
     ).toThrow('campaign staging limit');
   });
 
+  test('rejects oversized reports before reading and parsing them', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'qualification-report-bound-'));
+    temporaryDirectories.push(root);
+    const reportPath = join(root, 'qualification-report.json');
+    writeFileSync(reportPath, '{}\n');
+    truncateSync(reportPath, MAX_QUALIFICATION_REPORT_BYTES + 1);
+
+    await expect(readCollectedQualificationReport(reportPath)).rejects.toThrow('no larger than');
+    expect(() =>
+      planSandboxExecution({
+        productCommit: mockCommit,
+        rawArgs: ['--case=heroku-node-getting-started', '--lanes=import', `--resume-from=${reportPath}`],
+        invocationDirectory: mockRoot,
+        rootDirectory: mockRoot,
+        runIdSuffix: 'reportbound'
+      })
+    ).toThrow('no larger than');
+  });
+
   test('stages only selected local sources, deduplicates them, and supports spaces in paths', () => {
     const root = mkdtempSync(join(tmpdir(), 'qualification manifest with spaces-'));
     temporaryDirectories.push(root);
@@ -504,6 +529,63 @@ describe('sandboxed qualification planning & command composition', () => {
     writeFileSync(path, content);
     expect(await hashFileSha256(path)).toBe(createHash('sha256').update(content).digest('hex'));
   });
+
+  test('requires exact per-case artifacts before accepting a sandbox report', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'qualification-case-artifacts-'));
+    temporaryDirectories.push(root);
+    const caseDirectory = join(root, 'cases', 'artifact-case');
+    mkdirSync(caseDirectory, { recursive: true });
+    const result = {
+      id: 'artifact-case',
+      title: 'Artifact case',
+      fingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+      execution: 'executed' as const,
+      status: 'passed' as const,
+      durationMs: 3,
+      source: { kind: 'local' as const, path: '.', license: 'Synthetic' },
+      tags: ['artifacts'],
+      steps: [
+        { name: 'acquire' as const, status: 'passed' as const, durationMs: 1, summary: 'Acquired.' },
+        { name: 'import' as const, status: 'passed' as const, durationMs: 1, summary: 'Imported.' },
+        { name: 'package' as const, status: 'passed' as const, durationMs: 1, summary: 'Packaged.' }
+      ],
+      generatedConfigPath: 'cases/artifact-case/stacktape.yml'
+    };
+    const report = {
+      schemaVersion: 3 as const,
+      runId: 'artifact-run',
+      generatedAt: '2026-08-25T00:00:00.000Z',
+      productCommit: mockCommit,
+      productFingerprint: 'c'.repeat(64),
+      lanes: ['import' as const, 'package' as const],
+      awsScenarios: [],
+      environment: { platform: process.platform, architecture: process.arch, bun: '1.3.14', node: '24.0.0' },
+      summary: { passed: 1, failed: 0, skipped: 0, durationMs: 3 },
+      globalSteps: [],
+      cases: [result]
+    };
+
+    await expect(validateCollectedCaseArtifacts(root, report)).rejects.toThrow('result.json');
+    writeFileSync(join(caseDirectory, 'result.json'), `${JSON.stringify(result)}\n`);
+    await expect(validateCollectedCaseArtifacts(root, report)).rejects.toThrow('stacktape.yml');
+    writeFileSync(join(caseDirectory, 'stacktape.yml'), 'resources: {}\n');
+    await expect(validateCollectedCaseArtifacts(root, report)).rejects.toThrow('compiled-template.yml');
+    writeFileSync(join(caseDirectory, 'compiled-template.yml'), '   \n');
+    await expect(validateCollectedCaseArtifacts(root, report)).rejects.toThrow('must be nonempty');
+    writeFileSync(join(caseDirectory, 'compiled-template.yml'), 'Resources: {}\n');
+    await expect(validateCollectedCaseArtifacts(root, report)).resolves.toBeUndefined();
+    truncateSync(join(caseDirectory, 'compiled-template.yml'), MAX_COMPILED_TEMPLATE_BYTES + 1);
+    await expect(validateCollectedCaseArtifacts(root, report)).rejects.toThrow('no larger than');
+    writeFileSync(join(caseDirectory, 'compiled-template.yml'), 'Resources: {}\n');
+    truncateSync(join(caseDirectory, 'stacktape.yml'), MAX_GENERATED_CONFIG_BYTES + 1);
+    await expect(validateCollectedCaseArtifacts(root, report)).rejects.toThrow('no larger than');
+    writeFileSync(join(caseDirectory, 'stacktape.yml'), 'resources: {}\n');
+    truncateSync(join(caseDirectory, 'result.json'), MAX_CASE_RESULT_BYTES + 1);
+    await expect(validateCollectedCaseArtifacts(root, report)).rejects.toThrow('no larger than');
+    writeFileSync(join(caseDirectory, 'result.json'), `${JSON.stringify({ ...result, title: 'Mismatch' })}\n`);
+    await expect(validateCollectedCaseArtifacts(root, report)).rejects.toThrow('does not match');
+  });
 });
 
 describe('sandboxed qualification resource & lane validation', () => {
@@ -598,6 +680,28 @@ describe('sandboxed qualification resource & lane validation', () => {
         rootDirectory: mockRoot
       })
     ).toThrow('The aws lane cannot be executed in the qualification sandbox');
+  });
+
+  test('rejects an explicitly empty lane selection', () => {
+    expect(() =>
+      planSandboxExecution({
+        productCommit: mockCommit,
+        rawArgs: ['--lanes='],
+        invocationDirectory: mockRoot,
+        rootDirectory: mockRoot
+      })
+    ).toThrow('at least one lane');
+  });
+
+  test('rejects project selection for a global-only lane', () => {
+    expect(() =>
+      planSandboxExecution({
+        productCommit: mockCommit,
+        rawArgs: ['--case=heroku-node-getting-started', '--lanes=runtime'],
+        invocationDirectory: mockRoot,
+        rootDirectory: mockRoot
+      })
+    ).toThrow('require the import or package lane');
   });
 });
 

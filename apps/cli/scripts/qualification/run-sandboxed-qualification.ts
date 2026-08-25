@@ -2,7 +2,12 @@ import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { BUILT_IN_CASES, AWS_QUALIFICATION_SCENARIOS } from './catalog';
-import { qualificationReportSchema } from './contracts';
+import {
+  MAX_QUALIFICATION_REPORT_BYTES,
+  qualificationCaseResultSchema,
+  qualificationReportSchema,
+  type QualificationReport
+} from './contracts';
 import { assertProcessSucceeded, outputTail, redactOutput, runProcess } from './process';
 import { buildRunnerImage } from './sandbox-dockerfile';
 import { inspectOutputTree, type OutputInspection } from './sandbox-output';
@@ -116,6 +121,59 @@ export const prepareHostOutputDirectory = async (target: string) => {
 
 export const validateAndHashOutputTree = async (directory: string, keepWorkdirs: boolean) => {
   return (await inspectOutputTree(directory, keepWorkdirs, true)).artifacts;
+};
+
+export const MAX_CASE_RESULT_BYTES = 4 * 1024 ** 2;
+export const MAX_GENERATED_CONFIG_BYTES = 4 * 1024 ** 2;
+export const MAX_COMPILED_TEMPLATE_BYTES = 16 * 1024 ** 2;
+
+const readBoundedEvidenceText = async (path: string, label: string, maximumBytes: number) => {
+  if (!(await pathExists(path))) throw new Error(`Collected evidence is missing ${label}.`);
+  const metadata = await lstat(path);
+  if (!metadata.isFile() || metadata.size > maximumBytes) {
+    throw new Error(`Collected ${label} must be a file no larger than ${maximumBytes} bytes.`);
+  }
+  const text = await readFile(path, 'utf8');
+  if (text.trim().length === 0) throw new Error(`Collected ${label} must be nonempty.`);
+  return text;
+};
+
+export const readCollectedQualificationReport = async (path: string) =>
+  qualificationReportSchema.parse(
+    JSON.parse(await readBoundedEvidenceText(path, 'qualification-report.json', MAX_QUALIFICATION_REPORT_BYTES))
+  );
+
+export const validateCollectedCaseArtifacts = async (directory: string, report: QualificationReport) => {
+  for (const result of report.cases) {
+    const caseDirectory = join(directory, 'cases', result.id);
+    const resultPath = join(caseDirectory, 'result.json');
+    const artifactResult = qualificationCaseResultSchema.parse(
+      JSON.parse(await readBoundedEvidenceText(resultPath, `cases/${result.id}/result.json`, MAX_CASE_RESULT_BYTES))
+    );
+    if (JSON.stringify(artifactResult) !== JSON.stringify(result)) {
+      throw new Error(`Collected cases/${result.id}/result.json does not match the final qualification report.`);
+    }
+
+    const importPassed = result.steps.some((step) => step.name === 'import' && step.status === 'passed');
+    if (importPassed) {
+      const expectedConfigPath = `cases/${result.id}/stacktape.yml`;
+      if (result.generatedConfigPath !== expectedConfigPath) {
+        throw new Error(`Passed importer evidence for ${result.id} must identify ${expectedConfigPath}.`);
+      }
+      const configPath = join(caseDirectory, 'stacktape.yml');
+      await readBoundedEvidenceText(configPath, `cases/${result.id}/stacktape.yml`, MAX_GENERATED_CONFIG_BYTES);
+    }
+
+    const packagePassed = result.steps.some((step) => step.name === 'package' && step.status === 'passed');
+    if (packagePassed) {
+      const templatePath = join(caseDirectory, 'compiled-template.yml');
+      await readBoundedEvidenceText(
+        templatePath,
+        `cases/${result.id}/compiled-template.yml`,
+        MAX_COMPILED_TEMPLATE_BYTES
+      );
+    }
+  }
 };
 
 const helpText = `Stacktape disposable project qualification sandbox
@@ -1006,8 +1064,8 @@ export const executeSandboxedQualification = async (
         parsed.keepWorkdirs === true
       );
       copiedArtifactHashes = artifactHashes;
-      const reportJsonText = await readFile(reportPath, 'utf8');
-      const parsedReport = qualificationReportSchema.parse(JSON.parse(reportJsonText));
+      const parsedReport = await readCollectedQualificationReport(reportPath);
+      await validateCollectedCaseArtifacts(hostMaterializationDirectory, parsedReport);
       if (parsedReport.runId !== planned.runId) {
         throw new Error(
           `Qualification report run ID ${parsedReport.runId} does not match sandbox run ${planned.runId}.`

@@ -4,6 +4,7 @@ import { dirname, isAbsolute, join, normalize, relative, resolve, sep, win32 } f
 import { parseArgs } from 'node:util';
 import { BUILT_IN_CASES, casesForPreset } from './catalog';
 import {
+  MAX_QUALIFICATION_REPORT_BYTES,
   qualificationCaseResultSchema,
   qualificationManifestSchema,
   qualificationReportSchema,
@@ -488,6 +489,21 @@ export const planSandboxExecution = ({
     .split(',')
     .map((lane) => lane.trim())
     .filter(Boolean);
+  if (requestedLanes.length === 0) throw new Error('Qualification requires at least one lane.');
+  const hasProjectLanes = requestedLanes.some((lane) => lane === 'import' || lane === 'package');
+  if (
+    !hasProjectLanes &&
+    (parsed.cases !== undefined ||
+      parsed.manifests !== undefined ||
+      parsed.preset !== undefined ||
+      parsed.shard !== undefined ||
+      parsed.maxCases !== undefined ||
+      parsed.resumeFrom !== undefined ||
+      parsed.keepWorkdirs ||
+      parsed.failFast)
+  ) {
+    throw new Error('Project selection and resume options require the import or package lane.');
+  }
   if (!requestedLanes.some((lane) => lane === 'import' || lane === 'package') && explicitlySelectedCaseIds.size === 0) {
     selectedCandidates = [];
   }
@@ -549,6 +565,12 @@ export const planSandboxExecution = ({
   if (parsed.resumeFrom !== undefined) {
     const canonicalResume = realpathSync(validateCanonicalPath(parsed.resumeFrom, invocationDirectory));
     const containerResumePath = '/qualification/inputs/resume-report.json';
+    const resumeMetadata = lstatSync(canonicalResume);
+    if (!resumeMetadata.isFile() || resumeMetadata.size > MAX_QUALIFICATION_REPORT_BYTES) {
+      throw new Error(
+        `Resume qualification report must be a file no larger than ${MAX_QUALIFICATION_REPORT_BYTES} bytes.`
+      );
+    }
     const resumeText = readFileSync(canonicalResume, 'utf8');
     const resumeReport = qualificationReportSchema.parse(JSON.parse(resumeText));
     const reportDirectory = realpathSync(dirname(canonicalResume));

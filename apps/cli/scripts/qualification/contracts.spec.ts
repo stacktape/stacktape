@@ -123,6 +123,20 @@ describe('qualification reports', () => {
     expect(() => qualificationReportSchema.parse({ ...report, cases: [validResult, validResult] })).toThrow(
       'Duplicate case id'
     );
+    expect(() =>
+      qualificationReportSchema.parse({ ...report, cases: [{ ...validResult, execution: 'reused' }] })
+    ).toThrow('must identify its source report');
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        cases: [
+          {
+            ...validResult,
+            resumedFrom: { reportPath: 'previous/qualification-report.json', runId: 'previous-run' }
+          }
+        ]
+      })
+    ).toThrow('executed evidence must not');
   });
 
   test('counts run-wide steps in the report summary', () => {
@@ -171,6 +185,15 @@ describe('qualification reports', () => {
         globalSteps: [{ name: 'runtime', status: 'failed', durationMs: 1, summary: 'Failed.' }]
       })
     ).toThrow('structured failure evidence');
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['runtime'],
+        cases: [],
+        summary: { ...report.summary, passed: 0, skipped: 1 },
+        globalSteps: [{ name: 'runtime', status: 'skipped', durationMs: 0, summary: 'Skipped.' }]
+      })
+    ).toThrow('cannot be reported as skipped');
 
     const awsStep = (scenario: string) => ({
       name: 'aws' as const,
@@ -221,6 +244,19 @@ describe('qualification reports', () => {
     ).toThrow('at least one selected project case');
   });
 
+  test('rejects a report that claims no qualification lanes or evidence', () => {
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: [],
+        awsScenarios: [],
+        cases: [],
+        summary: { ...report.summary, passed: 0 },
+        globalSteps: []
+      })
+    ).toThrow('at least one lane');
+  });
+
   test('requires unique ordered requested project steps', () => {
     expect(() =>
       qualificationReportSchema.parse({
@@ -252,6 +288,20 @@ describe('qualification reports', () => {
         cases: [validResult]
       })
     ).toThrow('missing its requested package step');
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        cases: [
+          {
+            ...validResult,
+            steps: [
+              validResult.steps[0],
+              { name: 'import', status: 'skipped', durationMs: 0, summary: 'Skipped without fail-fast.' }
+            ]
+          }
+        ]
+      })
+    ).toThrow('whole project is a fail-fast skip');
   });
 
   test('accepts terminal acquisition failures and fully structured fail-fast skips', () => {
@@ -279,21 +329,31 @@ describe('qualification reports', () => {
 
     const failFastSkip = {
       ...validResult,
+      id: 'skipped-project',
       status: 'skipped' as const,
       steps: (['acquire', 'import', 'package'] as const).map((name) => ({
         name,
         status: 'skipped' as const,
         durationMs: 0,
-        summary: 'Stopped by fail-fast.'
+        summary: 'Stopped by fail-fast.',
+        details: { stoppedAfter: acquisitionFailure.id }
       }))
     };
     expect(
       qualificationReportSchema.parse({
         ...report,
         lanes: ['import', 'package'],
+        summary: { ...report.summary, passed: 0, failed: 1, skipped: 1 },
+        cases: [acquisitionFailure, failFastSkip]
+      }).cases[1]?.status
+    ).toBe('skipped');
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['import', 'package'],
         summary: { ...report.summary, passed: 0, skipped: 1 },
         cases: [failFastSkip]
-      }).cases[0]?.status
-    ).toBe('skipped');
+      })
+    ).toThrow('earlier failed case');
   });
 });
