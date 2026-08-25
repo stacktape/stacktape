@@ -38,6 +38,7 @@
     "publish:schemas": "bun scripts/publish-schemas.ts",
     "publish:starters": "bun scripts/push-starter-projects.ts",
     "qualify:projects": "bun scripts/qualification/run-project-qualification.ts",
+    "qualify:review-bundle": "bun scripts/qualification/run-review-bundle.ts",
     "release": "bun scripts/release/trigger-release.ts",
     "release:checksums": "bun scripts/release/checksums.ts",
     "test": "bun run test:src && bun run test:characterization && bun run test:config-unit && bun run test:generators && bun run test:starter-projects && bun run test:command-safety && bun run test:qualification && bun run test:docker-secrets && bun run test:release-security && bun run test:mcp-docs && bun run test:mcp-production && bun run test:helper-lambdas && bun run test:characterization:helper-lambdas && bun run test:cli-smoke",

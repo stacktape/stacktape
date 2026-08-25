@@ -142,18 +142,43 @@ Run the explicit scenario through `pnpm qualify:projects -- --lanes=aws --aws-sc
 interruption. Verify cleanup, including owned log groups, buckets/versions or multipart uploads, and generated secrets,
 before calling the run complete.
 
+## Produce the review bundle
+
+Before final handoff, generate a machine-readable review bundle that allows reviewers to validate the campaign without
+replaying the entire corpus or parsing chat logs:
+
+1. Record the baseline pre-fix qualification report and final post-fix qualification report.
+2. Ensure the working tree is clean and committed.
+3. Write a campaign handoff JSON file (e.g. `campaign-handoff.json`).
+4. Generate the bundle:
+
+```powershell
+pnpm qualify:review-bundle -- --handoff=campaign-handoff.json
+```
+
+For product-bug campaigns, the generator verifies that:
+
+- At least one qualification case transitioned from failed in the pre-fix report to passed in the post-fix report.
+- Focused unit/regression test command and file are provided.
+- Affected package typecheck command is provided.
+- Neighbor cases are listed to prevent regressions.
+- If packaging source changed, runtime evidence or an explicit not-run uncertainty reason is included.
+
 ## Finish the work session
 
 Return or store:
 
-- the JSON and Markdown report paths;
-- projects added, their source commits, and the customer behavior each represents;
-- failures classified as Stacktape, harness, upstream, or environment;
+- the review bundle JSON and Markdown paths (`review-bundle.json`, `review-bundle.md`);
+- the pre-fix and post-fix qualification report paths;
+- projects added or fixed, their source commits, and the customer behavior each represents;
+- failures classified as importer, packaging, core-synthesis, harness, upstream-project, or environment;
 - product behavior changed and focused regressions added;
 - exact checks and qualification reruns that passed;
-- AWS scenarios run, account/region identifiers without credentials, health evidence, and cleanup result;
+- AWS scenarios run (if authorized), account/region identifiers without credentials, health evidence, and cleanup
+  result;
 - remaining coverage gaps or uncertain classifications.
 
-Do not commit caches, generated configs/templates, reports, retained workdirs, credentials, or cloud state files. Stop a
-live-deployment session if cleanup identity is uncertain. Stop an exploratory session when new cases repeat already
-known behavior without revealing a new contract; spend the remaining capacity fixing and distilling what was found.
+Do not commit caches, generated configs/templates, qualification reports, retained workdirs, credentials, or cloud state
+files. Stop a live-deployment session if cleanup identity is uncertain. Stop an exploratory session when new cases
+repeat already known behavior without revealing a new contract; spend the remaining capacity fixing and distilling what
+was found.

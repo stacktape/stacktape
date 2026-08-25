@@ -199,3 +199,86 @@ pnpm qualify:projects -- --lanes=aws --aws-scenario=lambda-packaging-update
 
 Init scenarios additionally require the variables documented in `apps/cli/scripts/real-aws/README.md`. If cleanup is
 interrupted, preserve the state file and use the canary's `--cleanup-only` recovery command before starting another run.
+
+## Hardening review bundles
+
+A hardening review bundle allows a strong reviewer to validate a worker branch's qualification campaign without reading
+its full chat transcript or replaying an entire corpus from scratch. It joins a worker-authored campaign handoff with
+pre-fix and post-fix qualification reports and verified Git evidence.
+
+The bundle generator fails closed:
+
+- **Clean worktree:** requires an untracked/unmodified final working tree (bypassable with `--allow-dirty`, which logs a
+  critical risk flag).
+- **Exact commits:** verifies base and final commit SHAs exist and match the pre-fix and post-fix qualification reports.
+- **Diff & file hashes:** computes SHA-256 digests of the binary `git diff` and sorted changed file list.
+- **Schema validation:** validates both qualification reports against `qualificationReportSchema`.
+- **Transitions:** verifies before/after case status transitions, source fingerprints, and failure messages.
+- **Artifact hashing:** computes SHA-256 digests of generated `stacktape.yml` and `compiled-template.yml` artifacts to
+  prove configuration changes.
+- **Risk flags:** automatically flags changes to test harness, corpus manifests/expectations, AWS/guard logic, core
+  synthesis, and packaging.
+- **Product-bug rules:** product bug fixes must prove at least one failed-before/passed-after case and supply focused
+  test, affected typecheck, and neighbor-case evidence.
+- **Packaging rules:** packaging core modifications require runtime lane execution or an explicit not-run uncertainty
+  reason.
+
+Evidence is deterministically verified from repository and report state. It does not claim cryptographic tamper-proofing
+against a compromised host environment. Worker claims (prose summaries, root cause explanations, uncertainties) are
+explicitly distinguished from automatically verified facts.
+
+### Generating a review bundle
+
+Run from the public repository root:
+
+```powershell
+# Generate bundle from a worker campaign handoff
+pnpm qualify:review-bundle -- --handoff=campaign-handoff.json
+
+# Override reports, commits, or output location
+pnpm qualify:review-bundle -- --handoff=campaign-handoff.json --output-dir=.stacktape/qualification/review-01
+```
+
+Each run writes:
+
+```text
+review-bundle.json         versioned machine-readable review bundle
+review-bundle.md           human review summary with tables, risk flags, and diff digests
+```
+
+A minimal worker campaign handoff (`campaign-handoff.json`) is:
+
+```json
+{
+  "schemaVersion": 1,
+  "campaignId": "fastify-postgres-port-fix",
+  "campaignType": "product-bug",
+  "title": "Fix Fastify PostgreSQL port parsing in importer",
+  "summary": "Fixed integer parsing for PGPORT in config-inference PostgreSQL probe.",
+  "baseCommit": "0123456789abcdef0123456789abcdef01234567",
+  "finalCommit": "89abcdef0123456789abcdef0123456789abcdef",
+  "preFixReportPath": ".stacktape/qualification/pre-run/qualification-report.json",
+  "postFixReportPath": ".stacktape/qualification/post-run/qualification-report.json",
+  "focusedRegression": {
+    "testFile": "packages/config-inference/src/probes/postgres.spec.ts",
+    "testCommand": "bun test packages/config-inference/src/probes/postgres.spec.ts",
+    "description": "Verifies custom PGPORT string parsing."
+  },
+  "affectedTypecheck": {
+    "command": "pnpm --filter @stacktape/config-inference run typecheck"
+  },
+  "neighborCases": ["express-postgres-basic", "docker-fastapi"],
+  "runtimeEvidence": {
+    "executed": false,
+    "notRunReason": "Importer configuration change; runtime packaging behavior unaffected."
+  },
+  "classifiedFailures": [
+    {
+      "caseId": "fastify-postgres-worker",
+      "classification": "importer",
+      "explanation": "PGPORT string environment variable was not parsed into a numeric port."
+    }
+  ],
+  "uncertainties": ["Did not test with custom PostgreSQL socket paths."]
+}
+```
