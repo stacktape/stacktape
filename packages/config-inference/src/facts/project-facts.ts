@@ -54,6 +54,30 @@ export const migrationFactSchema = z.object({
 
 export type MigrationFact = z.infer<typeof migrationFactSchema>;
 
+/**
+ * Runtime contracts observed in authoritative deployment files that Stacktape cannot currently
+ * preserve. These are probe-owned policy inputs, not agent prose: composition turns each closed
+ * kind into a blocking, user-facing gap and keeps the otherwise useful partial configuration in
+ * review-only state.
+ */
+export const deploymentRequirementSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('public-grpc'),
+    serviceName: z.string().min(1),
+    port: z.number().int().positive().max(65_535),
+    evidence: z.array(citationSchema).default([])
+  }),
+  z.object({
+    kind: z.literal('persistent-bootstrap-artifacts'),
+    producerServiceName: z.string().min(1),
+    consumerServiceNames: z.array(z.string().min(1)).min(1),
+    paths: z.array(z.string().min(1)).min(1),
+    evidence: z.array(citationSchema).default([])
+  })
+]);
+
+export type DeploymentRequirement = z.infer<typeof deploymentRequirementSchema>;
+
 export const PROJECT_FACTS_SCHEMA_VERSION = 1;
 
 export const projectFactsSchema = z.object({
@@ -71,6 +95,8 @@ export const projectFactsSchema = z.object({
    */
   existingDeployments: z.array(existingDeploymentSchema).default([]),
   migrations: z.array(migrationFactSchema).default([]),
+  /** Probe-owned runtime contracts that make a partial config unsafe to deploy as the whole app. */
+  deploymentRequirements: z.array(deploymentRequirementSchema).default([]),
   uncertainties: z.array(uncertaintySchema).default([]),
   /**
    * Advisory observations with nowhere else to go.

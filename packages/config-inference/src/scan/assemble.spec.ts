@@ -1537,7 +1537,7 @@ describe('assembleCandidateFacts', () => {
       exposesHttp: false,
       servesStaticAssets: { path: 'build/client' }
     });
-    expect(facts.services[0]?.containerEntrypoint).toBe('examples/server.js');
+    expect(facts.services[0]?.containerEntrypoint).toBeUndefined();
   });
 
   it('does not promote a non-React-Router static site for a colocated server source', async () => {

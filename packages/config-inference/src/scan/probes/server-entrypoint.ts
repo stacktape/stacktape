@@ -10,6 +10,7 @@ import {
   type ProbeContext,
   type ProbeOutput
 } from '../probe';
+import { activeWorkspaceDirectories, isIncidentalPath } from '../incidental-directories';
 import { nearestManifestRoot } from '../service-root';
 import { goExecutableCode, goFileMatchesBuildTarget, goHasMainFunction, goImports, goPathMatches } from '../go-source';
 import { dockerfileCanBuildContext, dockerfileGoBuildDirectories } from './dockerfile';
@@ -378,12 +379,14 @@ const declaredStartFor = async (
 export const serverEntrypointProbe: Probe = {
   name: 'server-entrypoint',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
+    const activeDirectories = await activeWorkspaceDirectories(context);
     const candidates = context.files.filter(
       (path) =>
         /\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/.test(path) &&
         !path.endsWith('_test.go') &&
         !/(?:^|\/)(?:test|tests|__tests__|spec|fixtures)(?:\/|$)/i.test(path) &&
-        !/(?:^|\/)[^/]+\.(?:test|spec)\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/i.test(path)
+        !/(?:^|\/)[^/]+\.(?:test|spec)\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/i.test(path) &&
+        !isIncidentalPath(path, activeDirectories)
     );
     const byRoot = new Map<string, ServiceFactInput>();
     const goSources = new Map<string, string>();
@@ -400,6 +403,7 @@ export const serverEntrypointProbe: Probe = {
       const detection = detectionFor(path, raw);
       if (detection === undefined) continue;
       const root = nearestManifestRoot(path, context.files) ?? '.';
+      if (root !== '.' && isIncidentalPath(root, activeDirectories)) continue;
       const key = `${root}::${detection.processType ?? 'main'}`;
       if (byRoot.has(key)) continue;
       let exposesHttp = detection.exposesHttp ?? true;

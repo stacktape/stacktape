@@ -150,6 +150,54 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     );
   });
 
+  it('a one-shot Docker batch job with build arguments and runtime environment', () => {
+    const config = composeFrom({
+      services: [
+        service({
+          name: 'bootstrap',
+          language: 'go',
+          exposesHttp: false,
+          executionModel: 'one-shot',
+          startCommand: undefined,
+          dockerfile: 'build/package/servers.dockerfile',
+          dockerfileBuildArgs: [{ argName: 'SERVER_TARGET', value: 'admin' }],
+          environmentVariables: [
+            {
+              name: 'DATABASE_URL',
+              role: 'infra-dependency',
+              dependencyName: 'mainDatabase',
+              required: true,
+              evidence: []
+            }
+          ]
+        })
+      ],
+      dependencies: [
+        {
+          name: 'mainDatabase',
+          kind: 'postgres',
+          extensions: [],
+          consumedBy: ['bootstrap'],
+          evidence: [],
+          source: 'probe'
+        }
+      ]
+    });
+
+    expectValid(config);
+    expect(config.resources.bootstrap?.properties.container).toMatchObject({
+      packaging: {
+        type: 'custom-dockerfile',
+        properties: {
+          dockerfilePath: 'build/package/servers.dockerfile',
+          buildArgs: [{ argName: 'SERVER_TARGET', value: 'admin' }]
+        }
+      },
+      environment: [expect.objectContaining({ name: 'DATABASE_URL' })]
+    });
+    expect(config.resources.bootstrap?.properties.environment).toBeUndefined();
+  });
+
   it('a static site', () => {
     expectValid(
       composeFrom({

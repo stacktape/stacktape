@@ -137,7 +137,7 @@ export const runRepairMission = async (options: RunRepairOptions): Promise<Repai
 
   // Verified exactly as the first pass is. A model under pressure to produce *a* fix is a model
   // more likely to invent one, so this is the attempt where citation checking earns the most.
-  const workspace = new Workspace(options.repositoryRoot);
+  const workspace = new Workspace(options.repositoryRoot, files);
   const verification = await verifyFacts({
     facts: merged,
     readFile: async (path) => {

@@ -425,6 +425,7 @@ export const mergeAgentSubmission = ({
     // remove, or weaken them while enriching the rest of the draft.
     existingDeployments: baseline.existingDeployments,
     migrations,
+    deploymentRequirements: baseline.deploymentRequirements,
     uncertainties,
     // `notes` stays a probe-and-verifier field. Free prose from something that reads untrusted files
     // has no route to the user, not even an advisory one.

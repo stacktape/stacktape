@@ -13,7 +13,11 @@
 
 import { open, realpath } from 'node:fs/promises';
 import { isAbsolute, relative, resolve, sep } from 'node:path';
-import { classifyFileAccess, extractEnvironmentVariableNames } from '@stacktape/config-inference/policy';
+import {
+  classifyFileAccess,
+  extractEnvironmentVariableNames,
+  isDockerfilePath
+} from '@stacktape/config-inference/policy';
 
 export type WorkspaceReadFailure = {
   ok: false;
@@ -53,8 +57,18 @@ const escapes = (message: string): WorkspaceReadFailure => ({
  */
 export class Workspace {
   #realRoot: string | undefined;
+  #descriptorDockerfiles: ReadonlySet<string>;
 
-  constructor(private readonly root: string) {}
+  constructor(
+    private readonly root: string,
+    policyListedFiles: readonly string[] = []
+  ) {
+    // The repository listing admits a skipped-directory Dockerfile only after a bounded release
+    // descriptor names it. Reuse that decision so probes and the agent never disagree on readability.
+    this.#descriptorDockerfiles = new Set(
+      policyListedFiles.filter((path) => isDockerfilePath(path) && classifyFileAccess(path) === 'blocked')
+    );
+  }
 
   async #resolvedRoot(): Promise<string> {
     if (this.#realRoot === undefined) {
@@ -155,7 +169,9 @@ export class Workspace {
 
     const { handle, path } = opened;
     try {
-      const access = classifyFileAccess(path);
+      const access = classifyFileAccess(path, {
+        allowDescriptorReferencedDockerfile: this.#descriptorDockerfiles.has(path)
+      });
       if (access === 'blocked') {
         return {
           ok: false,

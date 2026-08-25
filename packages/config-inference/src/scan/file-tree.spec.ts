@@ -25,6 +25,22 @@ beforeAll(async () => {
   await write('_build/prod/lib/customer_notifications/ebin/app.beam');
   await write('apps/web/.next/build.js');
   await write('apps/web/app.tsx');
+  await write(
+    '.github/workflows/release.yml',
+    [
+      'steps:',
+      '  - run: docker build -f ./build/package/servers.dockerfile .',
+      '  - uses: docker/build-push-action@v6',
+      '    with:',
+      '      file: dist/release/custom.dockerfile',
+      ''
+    ].join('\n')
+  );
+  await write('build/package/servers.dockerfile');
+  await write('dist/release/custom.dockerfile');
+  await write('build/output/copied.dockerfile');
+  await write('build/output/server.js');
+  await write('apps/api/build/package/server.js');
 });
 
 afterAll(async () => {
@@ -33,7 +49,7 @@ afterAll(async () => {
 
 describe('listRepositoryFiles', () => {
   it('lists source files and skips dependency and build directories', async () => {
-    const { files, truncated } = await listRepositoryFiles(root);
+    const { files, truncated, descriptorDockerfiles } = await listRepositoryFiles(root);
 
     expect(truncated).toBe(false);
     expect(files).toContain('package.json');
@@ -43,6 +59,12 @@ describe('listRepositoryFiles', () => {
     expect(files).not.toContain('deps/phoenix/priv/templates/phx.gen.release/Dockerfile.eex');
     expect(files).not.toContain('_build/prod/lib/customer_notifications/ebin/app.beam');
     expect(files).not.toContain('apps/web/.next/build.js');
+    expect(files).toContain('build/package/servers.dockerfile');
+    expect(files).toContain('dist/release/custom.dockerfile');
+    expect(descriptorDockerfiles).toEqual(['build/package/servers.dockerfile', 'dist/release/custom.dockerfile']);
+    expect(files).not.toContain('build/output/copied.dockerfile');
+    expect(files).not.toContain('build/output/server.js');
+    expect(files).not.toContain('apps/api/build/package/server.js');
   });
 
   it('omits blocked credential files but keeps environment files listed', async () => {
@@ -59,6 +81,32 @@ describe('listRepositoryFiles', () => {
 
     expect(truncated).toBe(true);
     expect(files).toHaveLength(2);
+  });
+
+  it('bounds descriptor-named Dockerfiles before filesystem inspection', async () => {
+    const boundedRoot = await mkdtemp(join(tmpdir(), 'config-inference-tree-bound-'));
+    const references = Array.from(
+      { length: 80 },
+      (_, index) => `build/generated/server-${String(index).padStart(2, '0')}.dockerfile`
+    );
+    try {
+      await mkdir(join(boundedRoot, '.github/workflows'), { recursive: true });
+      await mkdir(join(boundedRoot, 'build/generated'), { recursive: true });
+      await writeFile(
+        join(boundedRoot, '.github/workflows/release.yml'),
+        ['steps:', ...references.map((file) => `  - run: docker build -f ${file} .`), ''].join('\n'),
+        'utf8'
+      );
+      await Promise.all(references.map((file) => writeFile(join(boundedRoot, file), 'FROM scratch\n', 'utf8')));
+
+      const listing = await listRepositoryFiles(boundedRoot);
+
+      expect(listing.descriptorDockerfiles).toEqual(references.slice(0, 32));
+      expect(listing.files.filter((file) => file.startsWith('build/generated/'))).toEqual(references.slice(0, 32));
+      expect(listing.files).not.toContain(references[32]);
+    } finally {
+      await rm(boundedRoot, { recursive: true, force: true });
+    }
   });
 });
 

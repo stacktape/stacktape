@@ -109,7 +109,11 @@ export const runImportQualification = async ({
     tool: deployment.tool,
     evidence: deployment.evidence.map((evidence) => `${evidence.file}:${evidence.line}`).join(', ')
   }));
-  const gaps = result.composition.gaps.map((gap) => ({ subject: gap.subject, message: gap.message }));
+  const gaps = result.composition.gaps.map((gap) => ({
+    subject: gap.subject,
+    message: gap.message,
+    ...(gap.severity === undefined ? {} : { severity: gap.severity })
+  }));
   const decisions = result.composition.assumptions.map((decision) => ({
     id: decision.id,
     kind: decision.kind,
@@ -165,6 +169,9 @@ export const runImportQualification = async ({
     if (services.length !== expected.serviceCount) {
       failures.push(`service count: expected ${expected.serviceCount}; got ${services.length}.`);
     }
+    if (expected.deployable !== undefined && result.composition.deployable !== expected.deployable) {
+      failures.push(`deployable: expected ${expected.deployable}; got ${result.composition.deployable}.`);
+    }
     const httpServiceCount = services.filter((service) => service.exposesHttp).length;
     if (httpServiceCount !== expected.httpServiceCount) {
       failures.push(`HTTP service count: expected ${expected.httpServiceCount}; got ${httpServiceCount}.`);
@@ -219,6 +226,7 @@ export const runImportQualification = async ({
       existingDeployments,
       decisions,
       gaps,
+      deployable: result.composition.deployable,
       resources,
       output: output.slice(-40).map(redactOutput)
     }

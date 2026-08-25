@@ -15,6 +15,7 @@ import type { ExistingDeploymentFact } from '../facts/existing-deployment';
 import {
   PROJECT_FACTS_SCHEMA_VERSION,
   projectFactsSchema,
+  type DeploymentRequirement,
   type MigrationFact,
   type PackageManager,
   type ProjectFacts
@@ -26,6 +27,7 @@ import { raiseConventionalCommands, raisePlannedCommands, type CommandPlanner } 
 import { raiseDockerfileOwnership } from './dockerfile-ownership';
 import { enrichEnvironmentUsage } from './environment-usage';
 import { listRepositoryFiles } from './file-tree';
+import { activeWorkspaceDirectories, isIncidentalDirectory } from './incidental-directories';
 import type { Probe, ProbeContext, ProbeOutput } from './probe';
 import { ENV_NAME_TO_KIND } from './probes/environment';
 import { readSourceFile } from './read-source';
@@ -210,11 +212,21 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
     ? undefined
     : (existing.servesStaticAssets ?? incoming.servesStaticAssets);
 
-  const exposesHttp = BACKGROUND_PROCESS_TYPE.test(existing.processType ?? incoming.processType ?? '')
-    ? false
-    : servesStaticAssets !== undefined
+  const composeOwnedContainer = [existing, incoming].find(
+    (service) =>
+      service.processType?.startsWith('compose:') === true &&
+      service.dockerfile !== undefined &&
+      (service.dockerfileBuildArgs?.length ?? 0) > 0
+  );
+
+  const exposesHttp =
+    composeOwnedContainer?.exposesHttp === false && composeOwnedContainer.port !== undefined
       ? false
-      : existing.exposesHttp || incoming.exposesHttp;
+      : BACKGROUND_PROCESS_TYPE.test(existing.processType ?? incoming.processType ?? '')
+        ? false
+        : servesStaticAssets !== undefined
+          ? false
+          : existing.exposesHttp || incoming.exposesHttp;
 
   const port = BACKGROUND_PROCESS_TYPE.test(existing.processType ?? incoming.processType ?? '')
     ? undefined
@@ -257,7 +269,13 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
           ]
         }),
     buildRoot: existing.buildRoot ?? incoming.buildRoot,
-    containerEntrypoint: existing.containerEntrypoint ?? incoming.containerEntrypoint,
+    // A parameterized Compose image contract owns its selected server. A generic source scanner can
+    // find another HTTP-capable main in the same repository root (metrics endpoints on a gRPC engine
+    // are a common example), but that does not make it this declared build target's entrypoint.
+    containerEntrypoint:
+      composeOwnedContainer === undefined
+        ? (existing.containerEntrypoint ?? incoming.containerEntrypoint)
+        : composeOwnedContainer.containerEntrypoint,
     functionEntrypoint: existing.functionEntrypoint ?? incoming.functionEntrypoint,
     functionTriggers: [
       ...new Map(
@@ -268,6 +286,7 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
       ).values()
     ],
     dockerfile: existing.dockerfile ?? incoming.dockerfile,
+    dockerfileBuildArgs: existing.dockerfileBuildArgs ?? incoming.dockerfileBuildArgs,
     healthCheckPath: existing.healthCheckPath ?? incoming.healthCheckPath,
     writesLocalFilesystem: existing.writesLocalFilesystem ?? incoming.writesLocalFilesystem,
     bundledLifecycle: existing.bundledLifecycle ?? incoming.bundledLifecycle,
@@ -707,21 +726,28 @@ export type CandidateFactsResult = {
 };
 
 /** Build the probe context for a repository root. */
-export const createProbeContext = (root: string, files: readonly string[]): ProbeContext => ({
-  root,
-  files,
-  read: (repoRelativePath, options) => readSourceFile(root, repoRelativePath, options),
-  readPrivileged: async (repoRelativePath) => {
-    // Even the privileged reader refuses credential material. A probe has no business opening a
-    // private key, so the exception it holds is narrow by construction: environment values only.
-    if (classifyFileAccess(repoRelativePath) === 'blocked') return null;
-    try {
-      return await readFile(join(root, repoRelativePath), 'utf8');
-    } catch {
-      return null;
+export const createProbeContext = (
+  root: string,
+  files: readonly string[],
+  descriptorDockerfiles: readonly string[] = []
+): ProbeContext => {
+  const descriptorDockerfileSet = new Set(descriptorDockerfiles);
+  return {
+    root,
+    files,
+    read: (repoRelativePath, options) => readSourceFile(root, repoRelativePath, options, descriptorDockerfileSet),
+    readPrivileged: async (repoRelativePath) => {
+      // Even the privileged reader refuses credential material. A probe has no business opening a
+      // private key, so the exception it holds is narrow by construction: environment values only.
+      if (classifyFileAccess(repoRelativePath) === 'blocked') return null;
+      try {
+        return await readFile(join(root, repoRelativePath), 'utf8');
+      } catch {
+        return null;
+      }
     }
-  }
-});
+  };
+};
 
 /**
  * Produce the candidate facts document a repository yields without any AI at all.
@@ -745,8 +771,11 @@ export const assembleCandidateFacts = async ({
    */
   planner?: CommandPlanner;
 }): Promise<CandidateFactsResult> => {
-  const listing = files === undefined ? await listRepositoryFiles(root) : { files: [...files], truncated: false };
-  const context = createProbeContext(root, listing.files);
+  const listing =
+    files === undefined
+      ? await listRepositoryFiles(root)
+      : { files: [...files], truncated: false, descriptorDockerfiles: [] };
+  const context = createProbeContext(root, listing.files, listing.descriptorDockerfiles);
 
   // Probes are independent and every one of them is I/O, so they run together. Order is preserved
   // because the merge below resolves conflicts by probe order, and a scan whose result depends on
@@ -762,6 +791,30 @@ export const assembleCandidateFacts = async ({
       }
     })
   );
+
+  // Documentation, examples, SDKs, clients, tests and development helpers frequently contain
+  // runnable samples. They are not production workloads unless an authoritative workspace or
+  // release descriptor selects their directory explicitly.
+  const activeWorkspacePaths = await activeWorkspaceDirectories(context);
+  const declaredApplicationPaths = new Set(outputs.flatMap((output) => output.declaredApplicationPaths ?? []));
+  const authoritativeSourceParents = new Set(
+    [...declaredApplicationPaths]
+      .filter(
+        (path) =>
+          path !== '.' && /^(?:cmd|apps?|services?|packages?|src|bin)$/i.test(posix.basename(posix.dirname(path)))
+      )
+      .map((path) => posix.dirname(path))
+  );
+  for (const output of outputs) {
+    if (output.services === undefined) continue;
+    output.services = output.services.filter(
+      (service) =>
+        declaredApplicationPaths.has(service.path) ||
+        (authoritativeSourceParents.has(posix.dirname(service.path))
+          ? false
+          : !isIncidentalDirectory(service.path, activeWorkspacePaths))
+    );
+  }
 
   const { services, renames } = mergeServices(outputs);
   for (const environment of outputs.flatMap((output) => output.serviceEnvironments ?? [])) {
@@ -868,6 +921,7 @@ export const assembleCandidateFacts = async ({
   const preferredDatabaseKinds = [...preferredKinds].filter((kind) => DATABASE_KINDS.has(kind));
   let selectedDatabaseKind = preferredDatabaseKinds.length === 1 ? preferredDatabaseKinds[0] : undefined;
   const disabledKinds = new Set(outputs.flatMap((output) => output.disabledDependencyKinds ?? []));
+  const authoritativeKinds = new Set(outputs.flatMap((output) => output.authoritativeDependencyKinds ?? []));
   const reconciliationUncertainties: Uncertainty[] = [];
   if (selectedDatabaseKind === undefined) {
     const databaseDependencies = dependencies.filter((dependency) => DATABASE_KINDS.has(dependency.kind));
@@ -912,12 +966,17 @@ export const assembleCandidateFacts = async ({
       return false;
     }
     const disabled = disabledKinds.has(dependency.kind);
+    const outsideAuthoritativeRelease =
+      authoritativeKinds.size > 0 &&
+      !authoritativeKinds.has(dependency.kind) &&
+      !isExternalHosting(dependency) &&
+      dependency.hostingEvidence !== 'deployment-manifest';
     const nonPreferredDatabase =
       selectedDatabaseKind !== undefined &&
       DATABASE_KINDS.has(dependency.kind) &&
       dependency.kind !== selectedDatabaseKind;
     if (disabled) return isExternalHosting(dependency) || dependency.hostingEvidence === 'deployment-manifest';
-    return !nonPreferredDatabase || hasStrongDependencyEvidence(dependency, services);
+    return !outsideAuthoritativeRelease && (!nonPreferredDatabase || hasStrongDependencyEvidence(dependency, services));
   });
 
   if (reconciledDependencies.length !== dependencies.length) {
@@ -1001,6 +1060,26 @@ export const assembleCandidateFacts = async ({
   }
   const migrations = [...migrationsByKey.values()];
 
+  const deploymentRequirementsByKey = new Map<string, DeploymentRequirement>();
+  for (const output of outputs) {
+    for (const requirement of output.deploymentRequirements ?? []) {
+      const remapped =
+        requirement.kind === 'public-grpc'
+          ? { ...requirement, serviceName: renames.get(requirement.serviceName) ?? requirement.serviceName }
+          : {
+              ...requirement,
+              producerServiceName: renames.get(requirement.producerServiceName) ?? requirement.producerServiceName,
+              consumerServiceNames: requirement.consumerServiceNames.map((name) => renames.get(name) ?? name)
+            };
+      const key =
+        remapped.kind === 'public-grpc'
+          ? `${remapped.kind}:${remapped.serviceName}:${remapped.port}`
+          : `${remapped.kind}:${remapped.producerServiceName}:${remapped.paths.join(',')}`;
+      if (!deploymentRequirementsByKey.has(key)) deploymentRequirementsByKey.set(key, remapped);
+    }
+  }
+  const deploymentRequirements = [...deploymentRequirementsByKey.values()];
+
   const packageManager = outputs.find((output) => output.packageManager !== undefined)?.packageManager as
     | PackageManager
     | undefined;
@@ -1027,6 +1106,7 @@ export const assembleCandidateFacts = async ({
     dependencies,
     existingDeployments,
     migrations,
+    deploymentRequirements,
     uncertainties: [...uncertainties.values()],
     notes
   });

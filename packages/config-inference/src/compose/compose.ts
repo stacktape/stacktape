@@ -68,6 +68,8 @@ export type CompositionGap = {
   subject: string;
   /** What we could not do, phrased for the user rather than for a log. */
   message: string;
+  /** Blocking gaps keep the partial config available for review but suppress deployment readiness. */
+  severity?: 'warning' | 'blocking';
 };
 
 export type CompositionResult = {
@@ -293,6 +295,9 @@ const packagingFor = (
         // Facts keep repository-relative evidence paths; Stacktape expects this one relative to the
         // build context.
         dockerfilePath: buildRoot === '.' ? service.dockerfile : posix.relative(buildRoot, service.dockerfile),
+        ...(service.dockerfileBuildArgs === undefined || service.dockerfileBuildArgs.length === 0
+          ? {}
+          : { buildArgs: service.dockerfileBuildArgs }),
         // Deployment descriptors such as Procfiles declare the command for each process that is
         // built from the shared application image. Override Docker CMD while preserving ENTRYPOINT
         // so image initialization still runs and shell-shaped source commands (`&&`, variables,
@@ -905,6 +910,22 @@ export const composeConfig = ({
   const gaps: CompositionGap[] = [];
   const taken = new Set<string>();
 
+  for (const requirement of facts.deploymentRequirements) {
+    if (requirement.kind === 'public-grpc') {
+      gaps.push({
+        subject: `${requirement.serviceName}.grpc-ingress`,
+        message: `${requirement.serviceName} requires public gRPC/HTTP2 ingress on port ${requirement.port}. Init cannot represent that protocol safely with the current web-service listener, so this partial configuration must stay review-only until you add an explicit compatible ingress design.`,
+        severity: 'blocking'
+      });
+      continue;
+    }
+    gaps.push({
+      subject: `${requirement.producerServiceName}.bootstrap`,
+      message: `${requirement.producerServiceName} generates persistent bootstrap configuration or cryptographic keysets consumed by ${requirement.consumerServiceNames.join(', ')} at ${requirement.paths.join(', ')}. Init cannot preserve those shared artifacts durably or sequence their bootstrap safely, so this partial configuration must stay review-only.`,
+      severity: 'blocking'
+    });
+  }
+
   const dependencyResourceNames = new Map<string, string>();
   /** Dependency names we are actually creating, so a variable pointing at one we are not can say so. */
   const composedDependencyNames = new Set<string>();
@@ -1492,7 +1513,10 @@ export const composeConfig = ({
     // A partial monorepo result remains useful for review, but must not unlock deployment as though
     // it represented the complete application.
     deployable:
-      Object.keys(resources).length > 0 && cloudflareRuntimeConstraints.length === 0 && !hasUnresolvedPersistence
+      Object.keys(resources).length > 0 &&
+      cloudflareRuntimeConstraints.length === 0 &&
+      !hasUnresolvedPersistence &&
+      !uniqueGaps.some((gap) => gap.severity === 'blocking')
   };
 };
 
@@ -1652,7 +1676,8 @@ const buildServiceResource = ({
       type: 'batch-job',
       properties: {
         container: {
-          packaging: packagingFor(service, packageManager, suppressNixpacksRelease)
+          packaging: packagingFor(service, packageManager, suppressNixpacksRelease),
+          ...(environment.length > 0 ? { environment } : {})
         },
         resources: { ...profile.container },
         ...(service.schedule === undefined
@@ -1665,7 +1690,7 @@ const buildServiceResource = ({
                 }
               ]
             }),
-        ...shared
+        ...(connectTo.length > 0 ? { connectTo: [...connectTo] } : {})
       }
     };
   }

@@ -147,9 +147,12 @@ const clampToCharacterCeiling = (text: string): { text: string; clamped: boolean
 export const readSourceFile = async (
   root: string,
   repoRelativePath: string,
-  options: ReadSourceFileOptions = {}
+  options: ReadSourceFileOptions = {},
+  descriptorReferencedDockerfiles: ReadonlySet<string> = new Set()
 ): Promise<SourceRead> => {
-  const access = classifyFileAccess(repoRelativePath);
+  const access = classifyFileAccess(repoRelativePath, {
+    allowDescriptorReferencedDockerfile: descriptorReferencedDockerfiles.has(repoRelativePath)
+  });
   if (access === 'blocked') {
     return {
       kind: 'blocked',

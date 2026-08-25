@@ -4,6 +4,7 @@ import { posix } from 'node:path';
 import type { Citation } from '../../facts/citation';
 import type { ServiceFactInput } from '../../facts/service';
 import { isNonProductionFixturePath } from '../deployment-relevance';
+import { activeWorkspaceDirectories, isIncidentalPath } from '../incidental-directories';
 import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { goFileMatchesBuildTarget, goImports } from '../go-source';
 import { nearestManifestRoot } from '../service-root';
@@ -526,13 +527,15 @@ export const declaredDockerfileVolumes = (path: string, raw: string): { paths: s
 export const dockerfileProbe: Probe = {
   name: 'dockerfile',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
+    const activeDirectories = await activeWorkspaceDirectories(context);
     const candidates = context.files
       .filter(
         (path) =>
           /^Dockerfile(?:[.-][^/]+)?$/i.test(posix.basename(path)) &&
           !DEVELOPMENT_ONLY_DOCKERFILE.test(posix.basename(path)) &&
           !DEVELOPMENT_ONLY_DIRECTORY.test(path) &&
-          !isNonProductionFixturePath(path)
+          !isNonProductionFixturePath(path) &&
+          !isIncidentalPath(path, activeDirectories)
       )
       .toSorted((left, right) => {
         const leftExact = posix.basename(left).toLowerCase() === 'dockerfile';
@@ -543,6 +546,7 @@ export const dockerfileProbe: Probe = {
 
     for (const path of candidates) {
       const root = serviceRootFor(path, context.files);
+      if (root !== '.' && isIncidentalPath(root, activeDirectories)) continue;
       if (services.has(root)) continue;
       // A checked-out symbolic link can be materialized as a one-line target path on platforms
       // where Git symlinks are disabled. Follow only an exact repository-local Dockerfile pointer.

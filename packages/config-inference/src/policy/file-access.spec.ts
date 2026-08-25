@@ -52,6 +52,33 @@ describe('classifyFileAccess', () => {
     expect(classifyFileAccess('node_modules/left-pad/index.js')).toBe('blocked');
     expect(classifyFileAccess('apps/web/.next/server/page.js')).toBe('blocked');
   });
+
+  it('admits only descriptor-referenced Dockerfiles from otherwise skipped output directories', () => {
+    expect(classifyFileAccess('build/package/servers.dockerfile')).toBe('blocked');
+    expect(
+      classifyFileAccess('dist/container/servers.dockerfile', {
+        allowDescriptorReferencedDockerfile: true
+      })
+    ).toBe('read');
+    expect(
+      classifyFileAccess('build/package/servers.dockerfile', {
+        allowDescriptorReferencedDockerfile: true
+      })
+    ).toBe('read');
+    expect(
+      classifyFileAccess('node_modules/tool/Dockerfile', {
+        allowDescriptorReferencedDockerfile: true
+      })
+    ).toBe('blocked');
+    expect(
+      classifyFileAccess('.docker/Dockerfile', {
+        allowDescriptorReferencedDockerfile: true
+      })
+    ).toBe('blocked');
+    expect(classifyFileAccess('build/package/scripts/entrypoint.sh')).toBe('blocked');
+    expect(classifyFileAccess('build/output/server.js')).toBe('blocked');
+    expect(classifyFileAccess('apps/api/build/package/server.js')).toBe('blocked');
+  });
 });
 
 describe('isSkippedDirectoryName', () => {

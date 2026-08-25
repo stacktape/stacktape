@@ -654,6 +654,85 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       httpServiceCount: 1,
       forbidCurrentlyHostedDependencies: true
     }
+  },
+  {
+    id: 'real-hatchet',
+    repository: 'https://github.com/hatchet-dev/hatchet.git',
+    commit: 'cc5e413f72cbcd138be7a8d962f6dffb96e3841c',
+    license: 'MIT',
+    source: 'real-application',
+    exercises: ['go', 'react', 'grpc', 'postgres', 'migration', 'docker-compose', 'bootstrap'],
+    expect: {
+      resourceTypes: {
+        bastion: 1,
+        'batch-job': 2,
+        'hosting-bucket': 1,
+        'relational-database': 1,
+        'web-service': 1,
+        'worker-service': 1
+      },
+      dependencyKinds: { postgres: 1 },
+      serviceCount: 5,
+      httpServiceCount: 1,
+      deployable: false,
+      services: [
+        {
+          name: 'app',
+          path: 'frontend/app',
+          framework: 'react',
+          exposesHttp: false,
+          buildCommand: 'npm run build'
+        },
+        {
+          name: 'hatchetMigrate',
+          path: '.',
+          exposesHttp: false,
+          dockerfile: 'build/package/servers.dockerfile'
+        },
+        {
+          name: 'hatchetAdmin',
+          path: '.',
+          exposesHttp: false,
+          dockerfile: 'build/package/servers.dockerfile'
+        },
+        {
+          name: 'hatchetEngine',
+          path: '.',
+          exposesHttp: false,
+          port: 7077,
+          startCommand: '/hatchet/hatchet-engine --config /hatchet/generated',
+          dockerfile: 'build/package/servers.dockerfile'
+        },
+        {
+          name: 'hatchetApi',
+          path: '.',
+          framework: 'echo',
+          exposesHttp: true,
+          port: 8080,
+          startCommand: '/hatchet/hatchet-api --config /hatchet/generated',
+          dockerfile: 'build/package/servers.dockerfile'
+        }
+      ],
+      existingDeployments: [],
+      requiredConfig: [
+        'type: batch-job',
+        'type: worker-service',
+        'type: web-service',
+        'dockerfilePath: build/package/servers.dockerfile',
+        'argName: SERVER_TARGET',
+        'value: migrate',
+        'value: admin',
+        'value: engine',
+        'value: api',
+        'name: SERVER_MSGQUEUE_KIND',
+        'value: postgres',
+        'executeCommand: go run ./cmd/hatchet-migrate'
+      ],
+      forbiddenConfig: ['type: redis-cluster', 'type: kafka-cluster', 'value: nats', 'value: rabbitmq'],
+      requiredGapPatterns: ['public gRPC/HTTP2 ingress.*7077', 'persistent bootstrap.*cryptographic keysets'],
+      forbiddenGapPatterns: ['NATS-compatible broker', 'RabbitMQ-compatible AMQP broker'],
+      forbidCurrentlyHostedDependencies: true
+    }
   }
 ] as const satisfies readonly RealProjectCorpusCase[];
 

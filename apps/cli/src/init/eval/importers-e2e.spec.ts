@@ -219,6 +219,154 @@ const CASES: EvalCase[] = [
     }
   },
   {
+    name: 'Release Compose overrides infra-only Compose with parameterized server binaries',
+    files: {
+      'go.mod': 'module example.com/platform\n\ngo 1.26\n',
+      '.github/workflows/release.yml':
+        'steps:\n  - run: docker build -f ./build/package/servers.dockerfile . --build-arg SERVER_TARGET=api\n',
+      'docker-compose.yml': [
+        'services:',
+        '  postgres:',
+        '    image: postgres:15.6',
+        '  rabbitmq:',
+        '    image: rabbitmq:3-management',
+        '  nats:',
+        '    image: nats:2',
+        ''
+      ].join('\n'),
+      'docker-compose.release.yml': [
+        'services:',
+        '  platform-migrate:',
+        '    image: ghcr.io/acme/platform-migrate:${LATEST_TAG}',
+        '    environment:',
+        '      DATABASE_URL: postgresql://postgres:5432/app',
+        '  platform-admin:',
+        '    image: ghcr.io/acme/platform-admin:${LATEST_TAG}',
+        '    environment:',
+        '      DATABASE_URL: postgresql://postgres:5432/app',
+        '      SERVER_MSGQUEUE_KIND: postgres',
+        '    volumes: ["./generated:/platform/generated"]',
+        '  platform-engine:',
+        '    image: ghcr.io/acme/platform-engine:${LATEST_TAG}',
+        '    command: /platform/platform-engine --config /platform/generated',
+        '    ports: ["7077:7077"]',
+        '    environment:',
+        '      DATABASE_URL: postgresql://postgres:5432/app',
+        '      SERVER_GRPC_PORT: "7077"',
+        '      SERVER_MSGQUEUE_KIND: postgres',
+        '    volumes: ["./generated:/platform/generated"]',
+        '  platform-api:',
+        '    image: ghcr.io/acme/platform-api:${LATEST_TAG}',
+        '    command: /platform/platform-api --config /platform/generated',
+        '    ports: ["8080:8080"]',
+        '    environment:',
+        '      DATABASE_URL: postgresql://postgres:5432/app',
+        '      SERVER_PORT: "8080"',
+        '      SERVER_MSGQUEUE_KIND: postgres',
+        '      INTERNAL_GRPC_ADDRESS: platform-engine:7077',
+        '    volumes: ["./generated:/platform/generated"]',
+        ''
+      ].join('\n'),
+      'build/package/servers.dockerfile': [
+        'FROM golang:1.26 AS build',
+        'ARG VERSION=v1.0.0',
+        'ARG SERVER_TARGET',
+        'RUN if [ "$SERVER_TARGET" != "api" ] && [ "$SERVER_TARGET" != "engine" ] && [ "$SERVER_TARGET" != "admin" ] && [ "$SERVER_TARGET" != "migrate" ]; then exit 1; fi',
+        'COPY /cmd ./cmd',
+        'RUN go build -ldflags="-X main.Version=${VERSION}" -o /bin/platform-${SERVER_TARGET} ./cmd/platform-${SERVER_TARGET}',
+        'FROM alpine',
+        'ARG SERVER_TARGET=engine',
+        'COPY --from=build /bin/platform-${SERVER_TARGET} /platform/',
+        'VOLUME /platform/generated',
+        'CMD ["/bin/sh", "-c", "/platform/platform-${SERVER_TARGET}"]',
+        ''
+      ].join('\n'),
+      'cmd/platform-api/main.go': 'package main\nfunc main() {}\n',
+      'cmd/platform-engine/main.go': 'package main\nfunc main() {}\n',
+      'cmd/platform-admin/main.go':
+        'package main\nvar root = &cobra.Command{}\nfunc main() { keys := GenerateLocalKeys(); os.WriteFile("generated/master.key", keys, 0600); root.Execute() }\n',
+      'cmd/platform-migrate/main.go':
+        'package main\n// migrations run through goose\nfunc main() { migrate.RunMigrations() }\n',
+      'frontend/dashboard/package.json': JSON.stringify({
+        name: 'dashboard',
+        private: true,
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^8.0.0' }
+      }),
+      'frontend/dashboard/src/main.tsx': 'export const Dashboard = () => <main />;\n',
+      'frontend/dashboard/index.html': '<main id="root"></main>\n',
+      'frontend/dashboard/vite.config.ts': 'import { defineConfig } from "vite";\nexport default defineConfig({});\n',
+      'docs/example/package.json': JSON.stringify({
+        name: 'docs-example',
+        scripts: { start: 'node index.js' },
+        dependencies: { '@aws-sdk/client-s3': '^3.0.0' }
+      }),
+      'sdks/typescript/package.json': JSON.stringify({
+        name: 'typescript-sdk',
+        scripts: { start: 'node index.js' },
+        dependencies: { '@aws-sdk/client-s3': '^3.0.0' }
+      }),
+      'hack/dev/package.json': JSON.stringify({
+        name: 'dev-helper',
+        scripts: { start: 'node index.js' },
+        dependencies: { amqplib: '^0.10.0' }
+      })
+    },
+    expect: {
+      dependencyKinds: ['postgres'],
+      absentDependencyKinds: ['amqp', 'nats', 'object-storage'],
+      resources: {
+        mainDatabase: 'relational-database',
+        databaseBastion: 'bastion',
+        dashboard: 'hosting-bucket',
+        platformMigrate: 'batch-job',
+        platformAdmin: 'batch-job',
+        platformEngine: 'worker-service',
+        platformApi: 'web-service'
+      },
+      resourceCount: 7,
+      scriptNames: ['migrateDatabase'],
+      serviceEnvironment: [
+        { resource: 'platformApi', name: 'SERVER_MSGQUEUE_KIND', value: 'postgres' },
+        { resource: 'platformAdmin', name: 'SERVER_MSGQUEUE_KIND', value: 'postgres' }
+      ],
+      serviceProperties: [{ resource: 'platformApi', containerPort: 8080 }],
+      resourcePackaging: [
+        {
+          resource: 'platformMigrate',
+          type: 'custom-dockerfile',
+          dockerfilePath: 'build/package/servers.dockerfile',
+          buildArgs: [{ argName: 'SERVER_TARGET', value: 'migrate' }]
+        },
+        {
+          resource: 'platformAdmin',
+          type: 'custom-dockerfile',
+          dockerfilePath: 'build/package/servers.dockerfile',
+          buildArgs: [{ argName: 'SERVER_TARGET', value: 'admin' }]
+        },
+        {
+          resource: 'platformEngine',
+          type: 'custom-dockerfile',
+          command: ['/bin/sh', '-c', '/platform/platform-engine --config /platform/generated'],
+          dockerfilePath: 'build/package/servers.dockerfile',
+          buildArgs: [{ argName: 'SERVER_TARGET', value: 'engine' }]
+        },
+        {
+          resource: 'platformApi',
+          type: 'custom-dockerfile',
+          command: ['/bin/sh', '-c', '/platform/platform-api --config /platform/generated'],
+          dockerfilePath: 'build/package/servers.dockerfile',
+          buildArgs: [{ argName: 'SERVER_TARGET', value: 'api' }]
+        }
+      ],
+      requiredGapPatterns: ['public gRPC/HTTP2 ingress.*7077', 'persistent bootstrap.*keysets'],
+      forbiddenGapPatterns: ['RabbitMQ-compatible', 'NATS-compatible'],
+      deployable: false,
+      maxQuestions: 0
+    }
+  },
+  {
     name: 'Root production Dockerfile with persistent state beside nested browser-test fixtures',
     directoryName: 'vaultwarden',
     files: {
@@ -308,6 +456,51 @@ const CASES: EvalCase[] = [
       requiredGapPatterns: ['SMTP.*host.*port.*username.*password'],
       forbiddenGapPatterns: ['lost when the runtime restarts'],
       deployable: true
+    }
+  },
+  {
+    name: 'Ordinary Compose admin web service sharing uploads with its API',
+    files: {
+      Dockerfile: 'FROM node:24 AS admin\nCOPY . /app\nFROM node:24 AS api\nCOPY . /app\n',
+      'compose.yaml': [
+        'services:',
+        '  admin:',
+        '    build:',
+        '      context: .',
+        '      target: admin',
+        '    command: node admin.js',
+        '    ports: ["8080:8080"]',
+        '    volumes: ["uploads:/app/uploads"]',
+        '  api:',
+        '    build:',
+        '      context: .',
+        '      target: api',
+        '    command: node api.js',
+        '    ports: ["3000:3000"]',
+        '    volumes: ["uploads:/app/uploads"]',
+        'volumes:',
+        '  uploads:',
+        ''
+      ].join('\n'),
+      'admin.js': 'require("http").createServer(() => {}).listen(8080);\n',
+      'apps/admin/maintenance.py': [
+        'import click',
+        'from pathlib import Path',
+        '',
+        '@click.command()',
+        'def rotate_keys():',
+        '    key = GenerateLocalKeys()',
+        '    Path("generated/master.key").write_text(key)',
+        ''
+      ].join('\n'),
+      'api.js': 'require("http").createServer(() => {}).listen(3000);\n'
+    },
+    expect: {
+      resources: { admin: 'web-service', api: 'web-service' },
+      resourceCount: 2,
+      forbiddenGapPatterns: ['persistent bootstrap', 'keysets'],
+      deployable: true,
+      maxQuestions: 2
     }
   },
   {

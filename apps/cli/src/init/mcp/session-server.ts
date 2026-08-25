@@ -103,7 +103,7 @@ export const createInitMcpServer = (
   );
 
   const context: InitToolContext = {
-    workspace: new Workspace(state.root),
+    workspace: new Workspace(state.root, state.files),
     files: state.files,
     brief: state.brief,
     onSubmit: (submission) => {

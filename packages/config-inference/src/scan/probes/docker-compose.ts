@@ -35,6 +35,9 @@ import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type Probe
 
 /** The names compose itself looks for, in the order it looks for them. */
 const COMPOSE_FILENAMES = ['compose.yaml', 'compose.yml', 'docker-compose.yaml', 'docker-compose.yml'] as const;
+const COMPOSE_VARIANT = /^(?:compose|docker-compose)\.([^.]+)\.ya?ml$/i;
+const PRODUCTION_VARIANT = /^(?:prod|production|release)$/i;
+const NON_APPLICATION_VARIANT = /^(?:dev|development|infra|observability|test|testing)$/i;
 
 /**
  * Where a compose file may live and still describe this repository's dependencies.
@@ -147,9 +150,26 @@ type ComposeService = {
   depends_on?: unknown;
   environment?: unknown;
   labels?: unknown;
+  volumes?: unknown;
+};
+
+type ComposeDocument = {
+  path: string;
+  raw: string;
+  services: Record<string, ComposeService>;
+  variant?: string;
 };
 
 const DATABASE_KINDS: ReadonlySet<DependencyKind> = new Set(['postgres', 'mysql', 'mssql', 'mongodb', 'sqlite']);
+const MESSAGE_QUEUE_KIND_BY_SELECTOR: Readonly<Record<string, DependencyKind>> = {
+  postgres: 'postgres',
+  postgresql: 'postgres',
+  rabbitmq: 'amqp',
+  amqp: 'amqp',
+  nats: 'nats',
+  kafka: 'kafka',
+  redis: 'redis'
+};
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
@@ -172,11 +192,15 @@ const resolveFrom = (directory: string, value: string): string | undefined => {
   return resolved === '..' || resolved.startsWith('../') ? undefined : resolved;
 };
 
-const buildOf = (
-  service: ComposeService,
-  file: string,
-  files: readonly string[]
-): { root: string; dockerfile?: string; target?: string } | undefined => {
+type ResolvedBuild = {
+  root: string;
+  dockerfile?: string;
+  target?: string;
+  buildArgs?: Array<{ argName: string; value: string }>;
+  evidence?: Citation[];
+};
+
+const buildOf = (service: ComposeService, file: string, files: readonly string[]): ResolvedBuild | undefined => {
   const declaration = service.build;
   const context =
     typeof declaration === 'string' ? declaration : isRecord(declaration) ? declaration.context : undefined;
@@ -192,6 +216,104 @@ const buildOf = (
     ...(dockerfile !== undefined && files.includes(dockerfile) ? { dockerfile } : {}),
     ...(target === undefined ? {} : { target })
   };
+};
+
+type SourceBuild = {
+  root: string;
+  dockerfile: string;
+  /** Source-build selection is an ARG value, not a Docker stage target. */
+  target?: undefined;
+  buildArgs: Array<{ argName: string; value: string }>;
+  evidence: Citation[];
+};
+
+const composeCandidates = (files: readonly string[]): string[] =>
+  files
+    .filter((path) => {
+      const directory = posix.dirname(path);
+      const prefix = directory === '.' ? '' : `${directory}/`;
+      if (!COMPOSE_DIRECTORIES.includes(prefix as (typeof COMPOSE_DIRECTORIES)[number])) return false;
+      const name = posix.basename(path);
+      return COMPOSE_FILENAMES.includes(name as (typeof COMPOSE_FILENAMES)[number]) || COMPOSE_VARIANT.test(name);
+    })
+    .toSorted((left, right) => left.localeCompare(right));
+
+const parseComposeDocument = async (context: ProbeContext, path: string): Promise<ComposeDocument | undefined> => {
+  const raw = await readText(context, path);
+  if (raw === undefined) return undefined;
+  try {
+    const parsed = yaml.parse(raw) as { services?: unknown } | null;
+    if (!isRecord(parsed?.services)) return undefined;
+    const variant = COMPOSE_VARIANT.exec(posix.basename(path))?.[1];
+    return {
+      path,
+      raw,
+      services: parsed.services as Record<string, ComposeService>,
+      ...(variant === undefined ? {} : { variant })
+    };
+  } catch {
+    return undefined;
+  }
+};
+
+const targetValueFor = (composeName: string, image: string): string | undefined => {
+  const imageName = repositoryOf(image).split('/').at(-1);
+  if (imageName === undefined || factName(imageName) !== factName(composeName)) return undefined;
+  const segments = composeName.split(/[-_.]/).filter(Boolean);
+  return segments.length < 2 ? undefined : segments.at(-1)?.toLowerCase();
+};
+
+/**
+ * Link a first-party release image back to a parameterised repository Dockerfile.
+ *
+ * The image and Compose service must share an exact normalized name, and the Dockerfile must both
+ * declare and interpolate an ARG whose accepted literal includes the image suffix. This avoids
+ * treating arbitrary prebuilt images as source builds while covering release workflows that keep
+ * build commands in CI rather than duplicating them in Compose.
+ */
+const sourceBuildOf = async (
+  composeName: string,
+  service: ComposeService,
+  context: ProbeContext,
+  dockerfilePaths: readonly string[],
+  dockerfileCache: Map<string, string | undefined>
+): Promise<SourceBuild | undefined> => {
+  if (typeof service.image !== 'string') return undefined;
+  const target = targetValueFor(composeName, service.image);
+  if (target === undefined) return undefined;
+
+  for (const dockerfile of dockerfilePaths) {
+    let raw = dockerfileCache.get(dockerfile);
+    if (!dockerfileCache.has(dockerfile)) {
+      // oxlint-disable-next-line no-await-in-loop -- bounded release Dockerfile candidates are cached.
+      raw = await readText(context, dockerfile, { fullFile: true });
+      dockerfileCache.set(dockerfile, raw);
+    }
+    if (raw === undefined || !new RegExp(`["']${escapeForPattern(target)}["']`, 'i').test(raw)) continue;
+    const argNames = [...raw.matchAll(/^\s*ARG\s+([A-Za-z_][A-Za-z0-9_]*)(?:=.*)?$/gim)].map((match) => match[1]!);
+    const argName = argNames.find((name) =>
+      new RegExp(`^.*\\$\\{?${escapeForPattern(name)}\\}?.*["']${escapeForPattern(target)}["'].*$`, 'im').test(raw!)
+    );
+    if (argName === undefined) continue;
+
+    const copiedRootEntry = [...raw.matchAll(/^\s*(?:COPY|ADD)\s+(?:--[^\s]+\s+)*\/?([^\s/]+)(?:\/|\s)/gim)]
+      .map((match) => match[1]!)
+      .find((entry) => context.files.some((path) => path.startsWith(`${entry}/`)));
+    const directory = posix.dirname(dockerfile);
+    const argCitation = citeFirstMatchOnly(
+      dockerfile,
+      raw,
+      new RegExp(`^\\s*ARG\\s+${escapeForPattern(argName)}(?:=.*)?$`, 'im'),
+      'dockerfileBuildArgs'
+    );
+    return {
+      root: copiedRootEntry === undefined ? (directory === '.' ? '.' : directory) : '.',
+      dockerfile,
+      buildArgs: [{ argName, value: target }],
+      evidence: argCitation === undefined ? [] : [argCitation]
+    };
+  }
+  return undefined;
 };
 
 /**
@@ -356,6 +478,8 @@ const declaredLifecycleOf = (
 
 /** The fallback part of `${NAME:-value}` is what this Compose deployment actually uses by default. */
 const composeDefault = (value: string): string => value.replace(/\$\{[A-Za-z_][A-Za-z0-9_]*(?::-|-)([^}]*)\}/g, '$1');
+
+const CONNECTION_SETTING_NAME = /(?:URL|URI|HOST|PORT|ENDPOINT|ADDRESS|CONNECTION|CONNSTR|DSN)/;
 
 const variableNamesDependency = (name: string, kind: DependencyKind): boolean => {
   const upper = name.toUpperCase();
@@ -544,7 +668,142 @@ const environmentEntries = (service: ComposeService): Array<{ name: string; valu
     : [];
 };
 
-const isDevelopmentProcess = (service: ComposeService, build: { target?: string }): boolean => {
+const volumeEntries = (service: ComposeService): Array<{ source?: string; target: string }> =>
+  !Array.isArray(service.volumes)
+    ? []
+    : service.volumes.flatMap((entry) => {
+        if (typeof entry === 'string') {
+          const segments = entry.split(':');
+          const target = segments.length === 1 ? segments[0] : segments[1];
+          return target === undefined ? [] : [{ ...(segments[0] === target ? {} : { source: segments[0] }), target }];
+        }
+        if (!isRecord(entry) || typeof entry.target !== 'string') return [];
+        return [
+          {
+            ...(typeof entry.source === 'string' ? { source: entry.source } : {}),
+            target: entry.target
+          }
+        ];
+      });
+
+const FINITE_MIGRATION_PROCESS = /(?:^|[-_.])migrat(?:e|ion|ions)?(?:$|[-_.])/i;
+const FINITE_LIFECYCLE_COMMAND = /(?:^|\s)(?:bootstrap|quickstart|generate-(?:keys?|certs?)|init|setup|seed)(?:\s|$)/i;
+const MIGRATION_SOURCE =
+  /\b(?:(?:[A-Za-z_][A-Za-z0-9_]*\.)?(?:Run(?:Down)?Migrations?|Migrate(?:Up|Down)?|ApplyMigrations?)|goose\.(?:Up|Down|UpTo|DownTo))\s*\(/i;
+const BOOTSTRAP_KEY_SOURCE =
+  /\b(?:GenerateLocalKeys|GenerateJWTKeysets?|Generate[A-Za-z0-9_]*(?:Keys?|Certs?)|keysets?|master[_ .-]?key|private[_ .-]?(?:jwt[_ .-]?)?key)\b/i;
+const BOOTSTRAP_WRITE_SOURCE = /\b(?:WriteFile|writeFile(?:Sync)?|write_text|File\.write|MkdirAll)\b/;
+const LIFECYCLE_CLI_SOURCE = /\b(?:cobra\.Command|rootCmd\.Execute|cli\.Execute|argparse|click\.command)\b/i;
+const BUILD_SELECTOR_ARGUMENT = /(?:TARGET|SERVICE|PROCESS|APP|BINARY)/i;
+const TARGET_SOURCE_PARENT = /^(?:cmd|apps?|services?|packages?|src|bin)$/i;
+
+const finiteProcessEvidenceOf = async ({
+  service,
+  build,
+  context,
+  completedConsumer
+}: {
+  service: ComposeService;
+  build: {
+    root: string;
+    dockerfile?: string;
+    target?: string | undefined;
+    buildArgs?: Array<{ argName: string; value: string }>;
+  };
+  context: ProbeContext;
+  completedConsumer: boolean;
+}): Promise<{ finite: boolean; bootstrap: boolean; evidence: Citation[] }> => {
+  if (completedConsumer) return { finite: true, bootstrap: false, evidence: [] };
+  const command = commandOf(service);
+  const commandMigration = command !== undefined && MIGRATION_COMMAND.test(command);
+  const commandBootstrap = command !== undefined && FINITE_LIFECYCLE_COMMAND.test(command);
+  const publishesHttp = (containerPortOf(service) ?? proxyPortOf(service)) !== undefined;
+  // A published listener is the declaration Compose will actually keep running. Repositories often
+  // colocate dormant maintenance CLIs with an admin web app; source-only key or migration code must
+  // not turn that explicitly reachable service into a one-shot batch job. A completed dependency or
+  // an explicitly finite configured command remains authoritative because Compose executes it.
+  if (publishesHttp) {
+    return { finite: commandMigration || commandBootstrap, bootstrap: commandBootstrap, evidence: [] };
+  }
+
+  const selectedTargets = [
+    ...(build.target === undefined ? [] : [build.target]),
+    ...(build.buildArgs ?? []).filter(({ argName }) => BUILD_SELECTOR_ARGUMENT.test(argName)).map(({ value }) => value)
+  ].filter((target) => /^[A-Za-z0-9_.-]+$/.test(target));
+  if (selectedTargets.length === 0) {
+    return { finite: commandMigration || commandBootstrap, bootstrap: commandBootstrap, evidence: [] };
+  }
+
+  const normalizedTargets = selectedTargets.map((target) => factName(target).toLowerCase());
+  const sourceFiles = context.files
+    .filter((file) => {
+      const relative =
+        build.root === '.' ? file : file.startsWith(`${build.root}/`) ? file.slice(build.root.length + 1) : undefined;
+      if (relative === undefined || !/\.(?:[cm]?js|tsx?|py|go|rb|rs|java|kt|cs|php|exs?)$/i.test(relative)) {
+        return false;
+      }
+      if (
+        /(?:^|\/)(?:test|tests|__tests__|spec|fixtures)(?:\/|$)/i.test(relative) ||
+        /(?:^|\/)[^/]+\.(?:test|spec)\.(?:[cm]?js|tsx?|py|go|rb|rs|java|kt|cs|php|exs?)$/i.test(relative)
+      ) {
+        return false;
+      }
+      const segments = relative.split('/');
+      return segments.some(
+        (segment, index) =>
+          index > 0 &&
+          TARGET_SOURCE_PARENT.test(segments[index - 1] ?? '') &&
+          normalizedTargets.some((target) => factName(segment).toLowerCase().includes(target))
+      );
+    })
+    .slice(0, 60);
+  let migrationCitation: Citation | undefined;
+  let bootstrapKeyCitation: Citation | undefined;
+  let bootstrapWriteCitation: Citation | undefined;
+  let cliCitation: Citation | undefined;
+  for (const file of sourceFiles) {
+    // oxlint-disable-next-line no-await-in-loop -- bounded source proof for one selected build target.
+    const raw = await readText(context, file);
+    if (raw === undefined) continue;
+    migrationCitation ??= citeFirstMatchOnly(file, raw, MIGRATION_SOURCE, 'executionModel');
+    bootstrapKeyCitation ??= citeFirstMatchOnly(file, raw, BOOTSTRAP_KEY_SOURCE, 'executionModel');
+    bootstrapWriteCitation ??= citeFirstMatchOnly(file, raw, BOOTSTRAP_WRITE_SOURCE, 'executionModel');
+    cliCitation ??= citeFirstMatchOnly(file, raw, LIFECYCLE_CLI_SOURCE, 'executionModel');
+  }
+  const sourceMigration = migrationCitation !== undefined;
+  const sourceBootstrap =
+    bootstrapKeyCitation !== undefined && bootstrapWriteCitation !== undefined && cliCitation !== undefined;
+  return {
+    finite: commandMigration || commandBootstrap || sourceMigration || sourceBootstrap,
+    bootstrap: commandBootstrap || sourceBootstrap,
+    evidence: [
+      ...(sourceMigration ? [migrationCitation] : []),
+      ...(sourceBootstrap ? [bootstrapKeyCitation, bootstrapWriteCitation, cliCitation] : [])
+    ].filter((citation): citation is Citation => citation !== undefined)
+  };
+};
+
+const grpcPortOf = (service: ComposeService, publishedPort: number | undefined): number | undefined => {
+  if (publishedPort === undefined) return undefined;
+  return environmentEntries(service).some(
+    ({ name, value }) =>
+      /(?:^|_)GRPC_PORT$/i.test(name) &&
+      typeof value === 'string' &&
+      Number.parseInt(composeDefault(value), 10) === publishedPort
+  )
+    ? publishedPort
+    : undefined;
+};
+
+const crossServicePropertyOf = (value: string, hostname: string): EnvironmentVariableUse['targetServiceProperty'] => {
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return 'url';
+  if (new RegExp(`(?:^|[^A-Za-z0-9_-])${escapeForPattern(hostname)}:\\d+(?:[^0-9]|$)`).test(value)) {
+    return 'hostport';
+  }
+  return 'host';
+};
+
+const isDevelopmentProcess = (service: ComposeService, build: { target?: string | undefined }): boolean => {
   if (/^(?:dev|development)$/i.test(build.target ?? '')) return true;
   if (typeof service.image === 'string' && /(?:^|:)development(?:$|[-.])/i.test(service.image)) return true;
   if (/\b(?:vite|next|nuxt|astro|ng|gatsby)\s+(?:dev|develop)\b/i.test(commandOf(service) ?? '')) return true;
@@ -578,34 +837,90 @@ const isDevelopmentProcess = (service: ComposeService, build: { target?: string 
 export const dockerComposeProbe: Probe = {
   name: 'docker-compose',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
-    // Root and the conventional infra directories, in a fixed priority order. See
-    // COMPOSE_DIRECTORIES for why deeper nesting deliberately stays out.
-    const path = COMPOSE_DIRECTORIES.flatMap((directory) =>
-      COMPOSE_FILENAMES.map((name) => `${directory}${name}`)
-    ).find((candidate) => context.files.includes(candidate));
-    if (path === undefined) return {};
+    const documents = (
+      await Promise.all(composeCandidates(context.files).map((path) => parseComposeDocument(context, path)))
+    ).filter((document): document is ComposeDocument => document !== undefined);
+    if (documents.length === 0) return {};
 
-    const raw = await readText(context, path);
-    if (raw === undefined) return {};
-
-    let parsed: unknown;
-    try {
-      parsed = yaml.parse(raw);
-    } catch {
-      // A compose file we cannot parse is one the user is probably already fighting with. Say
-      // nothing rather than half-read it.
-      return {};
+    const dockerfilePaths = context.files
+      .filter((path) => /(?:^|\/)(?:Dockerfile(?:\.[^/]+)?|[^/]+\.dockerfile)$/i.test(path))
+      .filter((path) => !/(?:^|\/)(?:test|tests|fixtures|examples?|hack(?:-dev)?|loadtests?)(?:\/|$)/i.test(path))
+      .toSorted((left, right) => {
+        const leftProduction = /(?:^|\/)build\/package\//i.test(left) ? 0 : 1;
+        const rightProduction = /(?:^|\/)build\/package\//i.test(right) ? 0 : 1;
+        return leftProduction - rightProduction || left.localeCompare(right);
+      });
+    const dockerfileCache = new Map<string, string | undefined>();
+    const sourceBuilds = new Map<string, SourceBuild>();
+    for (const document of documents) {
+      for (const [composeName, service] of Object.entries(document.services)) {
+        // oxlint-disable-next-line no-await-in-loop -- bounded Compose/Dockerfile cross-reference with a cache.
+        const sourceBuild = await sourceBuildOf(composeName, service, context, dockerfilePaths, dockerfileCache);
+        if (sourceBuild !== undefined) sourceBuilds.set(`${document.path}:${composeName}`, sourceBuild);
+      }
     }
 
-    const declaredServices = (parsed as { services?: Record<string, ComposeService> } | null)?.services;
-    if (declaredServices === null || typeof declaredServices !== 'object') return {};
+    const applicationScore = (document: ComposeDocument): number => {
+      const applications = Object.entries(document.services).filter(
+        ([composeName, service]) =>
+          buildOf(service, document.path, context.files) !== undefined ||
+          sourceBuilds.has(`${document.path}:${composeName}`)
+      ).length;
+      if (applications === 0) return Number.NEGATIVE_INFINITY;
+      return (
+        applications * 10 +
+        (PRODUCTION_VARIANT.test(document.variant ?? '') ? 100 : 0) -
+        (NON_APPLICATION_VARIANT.test(document.variant ?? '') ? 100 : 0)
+      );
+    };
+    const selected = documents.toSorted((left, right) => applicationScore(right) - applicationScore(left))[0]!;
+    const fallback = documents.find((document) => document.variant === undefined) ?? documents[0]!;
+    const applicationDocument = Number.isFinite(applicationScore(selected)) ? selected : fallback;
+    const layeredRelease =
+      applicationDocument !== fallback && PRODUCTION_VARIANT.test(applicationDocument.variant ?? '');
+    const dependencyDocuments = layeredRelease ? [fallback, applicationDocument] : [applicationDocument];
+    const path = applicationDocument.path;
+    const raw = applicationDocument.raw;
+    const declaredServices = applicationDocument.services;
 
-    const dependencyDeclarations = Object.entries(declaredServices).flatMap(([composeName, service]) => {
-      const image = service?.image;
-      if (typeof image !== 'string' || image === '') return [];
-      const kind = kindForImage(image);
-      return kind === undefined ? [] : [{ composeName, service, image, kind }];
-    });
+    const selectedBackendKinds = new Set<DependencyKind>();
+    for (const service of Object.values(declaredServices)) {
+      for (const entry of environmentEntries(service)) {
+        if (
+          !/(?:MSGQUEUE|MESSAGE_QUEUE|BROKER).*(?:KIND|TYPE)|(?:KIND|TYPE).*(?:MSGQUEUE|MESSAGE_QUEUE|BROKER)/i.test(
+            entry.name
+          )
+        ) {
+          continue;
+        }
+        const value = typeof entry.value === 'string' ? composeDefault(entry.value).trim().toLowerCase() : '';
+        const selectedKind = MESSAGE_QUEUE_KIND_BY_SELECTOR[value];
+        if (selectedKind !== undefined) selectedBackendKinds.add(selectedKind);
+      }
+    }
+
+    // Release overlays frequently repeat a base dependency to amend it. Later documents override
+    // the same Compose service name, exactly as the layered Compose model does, so one database
+    // never becomes two facts merely because both files mention it.
+    const layeredDependencyServices = new Map<string, { service: ComposeService; document: ComposeDocument }>();
+    for (const document of dependencyDocuments) {
+      for (const [composeName, service] of Object.entries(document.services)) {
+        layeredDependencyServices.set(composeName, { service, document });
+      }
+    }
+    const allDependencyDeclarations = [...layeredDependencyServices.entries()].flatMap(
+      ([composeName, { service, document }]) => {
+        const image = service?.image;
+        if (typeof image !== 'string' || image === '') return [];
+        const kind = kindForImage(image);
+        return kind === undefined ? [] : [{ composeName, service, image, kind, document }];
+      }
+    );
+    const selectableBackendKinds: ReadonlySet<DependencyKind> = new Set(['amqp', 'nats', 'kafka']);
+    const dependencyDeclarations = allDependencyDeclarations.filter(
+      ({ kind }) =>
+        selectedBackendKinds.size === 0 || !selectableBackendKinds.has(kind) || selectedBackendKinds.has(kind)
+    );
     const kindCounts = new Map<DependencyKind, number>();
     for (const declaration of dependencyDeclarations) {
       kindCounts.set(declaration.kind, (kindCounts.get(declaration.kind) ?? 0) + 1);
@@ -613,13 +928,17 @@ export const dockerComposeProbe: Probe = {
     const dependencyNames = new Map<string, string>();
     const dependencies: DependencyFact[] = [];
 
-    for (const { composeName, image, kind } of dependencyDeclarations) {
+    for (const { composeName, image, kind, document } of dependencyDeclarations) {
       const name = (kindCounts.get(kind) ?? 0) === 1 ? defaultDependencyName(kind) : factName(composeName);
       dependencyNames.set(composeName, name);
 
       // The image line itself, cited by construction: it is the whole of the evidence, and it reads
       // well in the wizard next to "your code needs a Postgres database".
-      const citation = citeFirstMatchOnly(path, raw, new RegExp(`image:\\s*["']?${escapeForPattern(image)}`));
+      const citation = citeFirstMatchOnly(
+        document.path,
+        document.raw,
+        new RegExp(`image:\\s*["']?${escapeForPattern(image)}`)
+      );
       const version = versionFromTag(image);
 
       dependencies.push({
@@ -630,6 +949,7 @@ export const dockerComposeProbe: Probe = {
         // names the rest of the pipeline uses. Attribution happens once, in `assemble`.
         consumedBy: [],
         addressedBy: [],
+        ...(layeredRelease ? { hostingEvidence: 'deployment-manifest' as const } : {}),
         ...(version === undefined ? {} : { engineVersion: version }),
         evidence: citation === undefined ? [] : [citation],
         source: 'probe'
@@ -638,7 +958,8 @@ export const dockerComposeProbe: Probe = {
 
     const builtDeclarations = Object.entries(declaredServices).flatMap(([composeName, service]) => {
       if (dependencyNames.has(composeName)) return [];
-      const build = buildOf(service, path, context.files);
+      const build =
+        buildOf(service, path, context.files) ?? sourceBuilds.get(`${applicationDocument.path}:${composeName}`);
       return build === undefined ? [] : [{ composeName, service, build }];
     });
     const utilityBuilds = new Set<string>();
@@ -651,6 +972,20 @@ export const dockerComposeProbe: Probe = {
       }
     }
     const appDeclarations = builtDeclarations.filter((entry) => !utilityBuilds.has(entry.composeName));
+    const declaredSourcePaths = new Set<string>();
+    if (layeredRelease) {
+      for (const { composeName } of appDeclarations) {
+        const normalizedName = factName(composeName).toLowerCase();
+        for (const file of context.files) {
+          const segments = file.split('/');
+          for (let index = 1; index < segments.length - 1; index += 1) {
+            if (!TARGET_SOURCE_PARENT.test(segments[index - 1] ?? '')) continue;
+            if (factName(segments[index] ?? '').toLowerCase() !== normalizedName) continue;
+            declaredSourcePaths.add(segments.slice(0, index + 1).join('/'));
+          }
+        }
+      }
+    }
     const rootCounts = new Map<string, number>();
     for (const { build } of appDeclarations) rootCounts.set(build.root, (rootCounts.get(build.root) ?? 0) + 1);
     const appNames = new Map(appDeclarations.map(({ composeName }) => [composeName, factName(composeName)]));
@@ -664,6 +999,28 @@ export const dockerComposeProbe: Probe = {
         oneShotConsumers.set(dependencyName, consumers);
       }
     }
+    const processEvidence = new Map(
+      await Promise.all(
+        appDeclarations.map(
+          async ({ composeName, service, build }) =>
+            [
+              composeName,
+              await finiteProcessEvidenceOf({
+                service,
+                build,
+                context,
+                completedConsumer: oneShotConsumers.has(composeName)
+              })
+            ] as const
+        )
+      )
+    );
+    const finiteProcesses = new Set(
+      [...processEvidence.entries()].filter(([, evidence]) => evidence.finite).map(([composeName]) => composeName)
+    );
+    const bootstrapProcesses = new Set(
+      [...processEvidence.entries()].filter(([, evidence]) => evidence.bootstrap).map(([composeName]) => composeName)
+    );
     const migrations: MigrationFact[] = [];
     const lifecycleDockerfiles = new Set<string>();
 
@@ -775,10 +1132,15 @@ export const dockerComposeProbe: Probe = {
         developmentProcesses.add(`${build.root}::compose:${composeName}`);
       }
       const port = containerPortOf(service) ?? proxyPortOf(service);
+      const grpcPort = grpcPortOf(service, port);
       // Workers often publish an Actuator/metrics port solely for orchestrator health checks. A
       // Compose process name is a stronger statement of its role than the presence of that admin
       // port; exposing it publicly as a web service would be both inaccurate and unsafe.
-      const exposesHttp = port !== undefined && !BACKGROUND_PROCESS_NAME.test(composeName);
+      const exposesHttp =
+        port !== undefined &&
+        grpcPort === undefined &&
+        !finiteProcesses.has(composeName) &&
+        !BACKGROUND_PROCESS_NAME.test(composeName);
       const consumedDependencies = new Set(
         dependsOn(service)
           .map((entry) => dependencyNames.get(entry))
@@ -788,9 +1150,10 @@ export const dockerComposeProbe: Probe = {
       for (const entry of environmentEntries(service)) {
         if (!/^[A-Za-z_][A-Za-z0-9_]*$/.test(entry.name) || isPlatformEnvironmentVariable(entry.name)) continue;
         const value = typeof entry.value === 'string' ? composeDefault(entry.value) : '';
-        const referencedDependency = [...dependencyNames.entries()].find(([hostname]) =>
-          new RegExp(`(?:^|[^A-Za-z0-9_-])${escapeForPattern(hostname)}(?:[^A-Za-z0-9_-]|$)`).test(value)
-        );
+        const referencedDependency = [...dependencyNames.entries()].find(([hostname]) => {
+          if (!CONNECTION_SETTING_NAME.test(entry.name.toUpperCase())) return false;
+          return new RegExp(`(?:^|[^A-Za-z0-9_-])${escapeForPattern(hostname)}(?:[^A-Za-z0-9_-]|$)`).test(value);
+        });
         const referencedService = [...appNames.entries()].find(
           ([hostname]) =>
             hostname !== composeName &&
@@ -823,6 +1186,7 @@ export const dockerComposeProbe: Probe = {
             name: entry.name,
             role: 'cross-service-reference',
             targetServiceName: referencedService[1],
+            targetServiceProperty: crossServicePropertyOf(value, referencedService[0]),
             required: true,
             evidence
           });
@@ -865,14 +1229,23 @@ export const dockerComposeProbe: Probe = {
           : {}),
         language: languageOf(context.files, build.root) ?? (build.dockerfile === undefined ? 'unknown' : 'container'),
         exposesHttp,
-        ...(!exposesHttp || port === undefined ? {} : { port }),
+        ...(port === undefined || (!exposesHttp && grpcPort === undefined) ? {} : { port }),
         executionModel: 'long-running',
         ...(commandOf(service) !== undefined ? { startCommand: commandOf(service) } : {}),
         ...(containerCommandOf(service) === undefined ? {} : { containerCommand: containerCommandOf(service) }),
+        ...(finiteProcesses.has(composeName) ? { executionModel: 'one-shot' as const } : {}),
         ...(build.dockerfile === undefined ? {} : { dockerfile: build.dockerfile }),
+        ...(build.buildArgs === undefined || build.buildArgs.length === 0
+          ? {}
+          : { dockerfileBuildArgs: build.buildArgs }),
         ...(bundledLifecycle.lifecycle === undefined ? {} : { bundledLifecycle: bundledLifecycle.lifecycle }),
         environmentVariables: variables,
-        evidence: [...(citation === undefined ? [] : [citation]), ...bundledLifecycle.evidence],
+        evidence: [
+          ...(citation === undefined ? [] : [citation]),
+          ...(build.evidence ?? []),
+          ...(processEvidence.get(composeName)?.evidence ?? []),
+          ...bundledLifecycle.evidence
+        ],
         source: 'probe'
       });
     }
@@ -972,6 +1345,98 @@ export const dockerComposeProbe: Probe = {
       }
     }
 
+    for (const declaration of appDeclarations) {
+      if (!FINITE_MIGRATION_PROCESS.test(declaration.composeName)) continue;
+      const commandDirectory = `cmd/${declaration.composeName}`;
+      if (!context.files.some((file) => file === `${commandDirectory}/main.go`)) continue;
+      const migrationSources = context.files
+        .filter((file) => file.startsWith(`${commandDirectory}/`) && file.endsWith('.go'))
+        .slice(0, 40);
+      let gooseCitation: Citation | undefined;
+      for (const source of migrationSources) {
+        // oxlint-disable-next-line no-await-in-loop -- bounded source proof for the declared migration binary.
+        const sourceRaw = await readText(context, source);
+        if (sourceRaw === undefined || !/\bgoose\b/i.test(sourceRaw)) continue;
+        gooseCitation = citeFirstMatchOnly(source, sourceRaw, /\bgoose\b/i);
+        break;
+      }
+      if (gooseCitation === undefined) continue;
+      const owner = serviceFacts.find((service) => service.executionModel === 'long-running' && service.exposesHttp);
+      if (owner === undefined) continue;
+      migrations.push({
+        serviceName: owner.name,
+        tool: 'goose',
+        command: `go run ./${commandDirectory}`,
+        runsAt: 'ci',
+        evidence: [gooseCitation]
+      });
+    }
+
+    const longRunningNames = new Set(
+      appDeclarations
+        .filter(({ composeName }) => !finiteProcesses.has(composeName) && !oneShotConsumers.has(composeName))
+        .map(({ composeName }) => composeName)
+    );
+    const deploymentRequirements: NonNullable<ProbeOutput['deploymentRequirements']> = [];
+    for (const [composeName, service] of Object.entries(declaredServices)) {
+      if (!longRunningNames.has(composeName)) continue;
+      const port = containerPortOf(service) ?? proxyPortOf(service);
+      const grpcPort = grpcPortOf(service, port);
+      if (grpcPort === undefined) continue;
+      const citation = citeFirstMatchOnly(path, raw, new RegExp(`(?:^|["'\\s:-])${grpcPort}(?:["'\\s:/]|$)`), 'port');
+      deploymentRequirements.push({
+        kind: 'public-grpc',
+        serviceName: appNames.get(composeName)!,
+        port: grpcPort,
+        evidence: citation === undefined ? [] : [citation]
+      });
+    }
+
+    for (const [producerName, producerService] of Object.entries(declaredServices)) {
+      if (!finiteProcesses.has(producerName) || !bootstrapProcesses.has(producerName)) continue;
+      const producerVolumes = volumeEntries(producerService);
+      const consumers = Object.entries(declaredServices).filter(
+        ([candidateName, candidate]) =>
+          longRunningNames.has(candidateName) &&
+          volumeEntries(candidate).some((volume) =>
+            producerVolumes.some(
+              (producerVolume) =>
+                producerVolume.target === volume.target &&
+                producerVolume.source !== undefined &&
+                volume.source === producerVolume.source
+            )
+          )
+      );
+      const paths = [
+        ...new Set(
+          producerVolumes
+            .filter((volume) =>
+              consumers.some(([, consumer]) =>
+                volumeEntries(consumer).some(
+                  (consumerVolume) =>
+                    consumerVolume.target === volume.target &&
+                    volume.source !== undefined &&
+                    consumerVolume.source === volume.source
+                )
+              )
+            )
+            .map((volume) => volume.target)
+        )
+      ];
+      if (consumers.length === 0 || paths.length === 0) continue;
+      const citation = citeFirstMatchOnly(path, raw, new RegExp(`^\\s*${escapeForPattern(producerName)}:`));
+      deploymentRequirements.push({
+        kind: 'persistent-bootstrap-artifacts',
+        producerServiceName: appNames.get(producerName)!,
+        consumerServiceNames: consumers.map(([name]) => appNames.get(name)!),
+        paths,
+        evidence: [
+          ...(citation === undefined ? [] : [citation]),
+          ...(processEvidence.get(producerName)?.evidence ?? [])
+        ]
+      });
+    }
+
     return {
       ...(dependencies.length === 0 ? {} : { dependencies }),
       ...(serviceFacts.length === 0 ? {} : { services: serviceFacts }),
@@ -980,15 +1445,31 @@ export const dockerComposeProbe: Probe = {
       ...(serviceImages.length === 0 ? {} : { serviceImages }),
       ...(servicePorts.length === 0 ? {} : { servicePorts }),
       ...(migrations.length === 0 ? {} : { migrations }),
+      ...(deploymentRequirements.length === 0 ? {} : { deploymentRequirements }),
+      ...(appDeclarations.length === 0
+        ? {}
+        : {
+            declaredApplicationPaths: [
+              ...new Set([...appDeclarations.map(({ build }) => build.root), ...declaredSourcePaths])
+            ]
+          }),
+      ...(!layeredRelease
+        ? {}
+        : { authoritativeDependencyKinds: [...new Set(dependencies.map((dependency) => dependency.kind))] }),
       ...(lifecycleDockerfiles.size === 0 ? {} : { lifecycleDockerfiles: [...lifecycleDockerfiles] }),
       ...(developmentProcesses.size === 0 ? {} : { developmentProcesses: [...developmentProcesses] }),
-      ...(!appDeclarations.some(({ build }) => build.target !== undefined && build.dockerfile !== undefined)
+      ...(!appDeclarations.some(
+        ({ build }) =>
+          build.dockerfile !== undefined && (build.target !== undefined || (build.buildArgs?.length ?? 0) > 0)
+      )
         ? {}
         : {
             descriptorTargetDockerfiles: [
               ...new Set(
                 appDeclarations.flatMap(({ build }) =>
-                  build.target !== undefined && build.dockerfile !== undefined ? [build.dockerfile] : []
+                  build.dockerfile !== undefined && (build.target !== undefined || (build.buildArgs?.length ?? 0) > 0)
+                    ? [build.dockerfile]
+                    : []
                 )
               )
             ]
