@@ -961,6 +961,28 @@ describe('assembleCandidateFacts', () => {
         'const mutablePlugins = plugins;',
         'mutablePlugins.pop();',
         'export default { plugins };'
+      ].join('\n'),
+      'packages/call-popped-plugin-list/package.json': startLibraryManifest('call-popped-plugin-list'),
+      'packages/call-popped-plugin-list/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'const plugins = [tanstackStart()];',
+        'plugins.pop.call(plugins);',
+        'export default { plugins };'
+      ].join('\n'),
+      'packages/apply-spliced-plugin-list/package.json': startLibraryManifest('apply-spliced-plugin-list'),
+      'packages/apply-spliced-plugin-list/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'const plugins = [tanstackStart()];',
+        'plugins.splice.apply(plugins, [0, 1]);',
+        'export default { plugins };'
+      ].join('\n'),
+      'packages/bound-popped-plugin-list/package.json': startLibraryManifest('bound-popped-plugin-list'),
+      'packages/bound-popped-plugin-list/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'const plugins = [tanstackStart()];',
+        'const remove = plugins.pop.bind(plugins);',
+        'remove();',
+        'export default { plugins };'
       ].join('\n')
     });
 
@@ -1084,12 +1106,35 @@ describe('assembleCandidateFacts', () => {
         "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
         'function config() { return { plugins: [tanstackStart()] }; }',
         'export default config;'
+      ].join('\n'),
+      'apps/destructured-namespace/package.json': JSON.stringify({
+        name: 'destructured-namespace-start',
+        scripts: { build: 'vite build' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'apps/destructured-namespace/vite.config.ts': [
+        "import * as startPlugin from '@tanstack/react-start/plugin/vite';",
+        'const { tanstackStart } = startPlugin;',
+        'export default { plugins: [tanstackStart()] };'
+      ].join('\n'),
+      'apps/destructured-helper/package.json': JSON.stringify({
+        name: 'destructured-helper-start',
+        scripts: { build: 'vite build' },
+        dependencies: { '@tanstack/react-start': '^1.168.49', react: '^19.0.0' }
+      }),
+      'apps/destructured-helper/vite.config.ts': [
+        "import { tanstackStart } from '@tanstack/react-start/plugin/vite';",
+        'const helpers = { make: () => tanstackStart() };',
+        'const { make: createStart } = helpers;',
+        'export default { plugins: [createStart()] };'
       ].join('\n')
     });
 
     const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
 
     expect(facts.services.map((service) => service.name)).toEqual([
+      'destructured-helper-start',
+      'destructured-namespace-start',
       'import-alias-start',
       'named-function-start',
       'named-binding-start',

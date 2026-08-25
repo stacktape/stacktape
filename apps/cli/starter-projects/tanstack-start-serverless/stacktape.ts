@@ -2,7 +2,8 @@ import { TanStackWeb, defineConfig } from '../../__release-npm';
 
 export default defineConfig(() => {
   const web = new TanStackWeb({
-    appDirectory: './'
+    appDirectory: './',
+    buildCommand: 'vinxi build'
   });
 
   return {

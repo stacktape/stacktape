@@ -62,6 +62,35 @@ describe('framework config reachability', () => {
         'const plugins = [tanstackStart()]; Array.prototype.pop.call(plugins); export default { plugins };'
       ).tanstackStart
     ).toBe(false);
+    expect(
+      inspectViteConfig('const plugins = [tanstackStart()]; plugins.pop.call(plugins); export default { plugins };')
+        .tanstackStart
+    ).toBe(false);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; plugins.splice.apply(plugins, [0, 1]); export default { plugins };'
+      ).tanstackStart
+    ).toBe(false);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; const remove = plugins.pop.bind(plugins); remove(); export default { plugins };'
+      ).tanstackStart
+    ).toBe(false);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; plugins.splice.bind(plugins, 0, 1)(); export default { plugins };'
+      ).tanstackStart
+    ).toBe(false);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; Array.prototype.pop.bind(plugins)(); export default { plugins };'
+      ).tanstackStart
+    ).toBe(false);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; const remove = plugins.pop.bind(plugins); const alias = remove; alias.call(undefined); export default { plugins };'
+      ).tanstackStart
+    ).toBe(false);
   });
 
   test('keeps safe aliases and does not mistake a shadowed Object.assign for the global mutator', () => {
@@ -85,6 +114,64 @@ describe('framework config reachability', () => {
         'const Array = { prototype: { pop: { call: () => undefined } } }; const plugins = [tanstackStart()]; Array.prototype.pop.call(plugins); export default { plugins };'
       ).tanstackStart
     ).toBe(true);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; const other = []; plugins.pop.call(other); export default { plugins };'
+      ).tanstackStart
+    ).toBe(true);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; const remove = plugins.pop.bind(plugins); export default { plugins };'
+      ).tanstackStart
+    ).toBe(true);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; const other = []; const remove = plugins.pop.bind(other); remove(); export default { plugins };'
+      ).tanstackStart
+    ).toBe(true);
+    expect(
+      inspectViteConfig(
+        'const plugins = [tanstackStart()]; let remove = plugins.pop.bind(plugins); remove = () => undefined; remove(); export default { plugins };'
+      ).tanstackStart
+    ).toBe(true);
+  });
+
+  test('follows destructured callable provenance from namespace imports and local helper objects', () => {
+    expect(
+      inspectFrameworkConfig(
+        'vite.config.ts',
+        [
+          "import * as startPlugin from '@tanstack/react-start/plugin/vite';",
+          'const { tanstackStart } = startPlugin;',
+          'export default { plugins: [tanstackStart()] };'
+        ].join('\n')
+      ).tanstackStart
+    ).toBe(true);
+    expect(
+      inspectViteConfig(
+        'const helpers = { make: () => tanstackStart() }; const { make: createStart } = helpers; export default { plugins: [createStart()] };'
+      ).tanstackStart
+    ).toBe(true);
+    expect(
+      inspectViteConfig(
+        'const helpers = { tanstackStart }; const { tanstackStart: createStart } = helpers; export default { plugins: [createStart()] };'
+      ).tanstackStart
+    ).toBe(true);
+    expect(
+      inspectFrameworkConfig(
+        'vite.config.ts',
+        [
+          "import * as startPlugin from '@tanstack/react-start/plugin/vite';",
+          'const { tanstackStart } = startPlugin;',
+          'export default { plugins: [tanstackStart] };'
+        ].join('\n')
+      ).tanstackStart
+    ).toBe(false);
+    expect(
+      inspectViteConfig(
+        'const helpers = { make: () => tanstackStart() }; helpers.make = () => ({}); const { make } = helpers; export default { plugins: [make()] };'
+      ).tanstackStart
+    ).toBe(false);
   });
 
   test('follows a named default-exported config function and terminates on local cycles', () => {

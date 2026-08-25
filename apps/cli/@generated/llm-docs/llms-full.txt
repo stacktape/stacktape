@@ -35562,16 +35562,16 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 Source: `apps/docs/content/resources/frontend/tanstack-start.mdx`
 Route: `/resources/frontend/tanstack-start`
 
-A Stacktape TanStack Start resource deploys a TanStack Start SSR app on AWS Lambda via the Nitro aws-lambda preset, stores static assets on S3, and serves everything through CloudFront. Stacktape handles the build output, CDN routing, custom domains, and Lambda infrastructure so you focus on building your TanStack Start application.
+A Stacktape TanStack Start resource deploys a TanStack Start SSR app on AWS Lambda, stores static assets on S3, and serves everything through CloudFront. Stacktape handles current Vite and Rsbuild output as well as the legacy Vinxi/Nitro output, CDN routing, custom domains, and Lambda infrastructure so you focus on building your TanStack Start application.
 
 ## When to use
 
-The TanStack Start resource is the right choice when your frontend is a TanStack Start app that needs server rendering. The resource is designed around the TanStack Start build output: point `appDirectory` at the directory containing `app.config.ts`, and Stacktape wires the SSR function, static asset bucket, and CDN.
+The TanStack Start resource is the right choice when your frontend is a TanStack Start app that needs server rendering. Point `appDirectory` at the application package containing its `vite.config.*`, `rsbuild.config.*`, or legacy `app.config.ts`, and Stacktape wires the SSR function, static asset bucket, and CDN.
 
 Common use cases:
 
-- **Server-rendered TanStack Start apps** — dashboards, portals, and content sites that need SSR via Vinxi and Nitro
-- **TanStack Start in a monorepo** — set `appDirectory` to the workspace containing `app.config.ts` rather than the repository root
+- **Server-rendered TanStack Start apps** — dashboards, portals, and content sites built with current Vite or Rsbuild integrations, or legacy Vinxi/Nitro
+- **TanStack Start in a monorepo** — set `appDirectory` to the application workspace rather than the repository root
 - **SSR apps that need CDN, custom domains, or WAF protection** — configure all three on a single resource
 
 ## When NOT to use
@@ -35583,7 +35583,7 @@ Common use cases:
 
 ## Basic example
 
-The smallest useful TanStack Start config points Stacktape at the app directory containing `app.config.ts`. In a single-app repository that directory is usually the repository root (the default `"."`); in a monorepo it is the package or workspace directory.
+The smallest useful TanStack Start config points Stacktape at the application directory. In a single-app repository that directory is usually the repository root (the default `"."`); in a monorepo it is the package or workspace directory.
 
 
 Example (TypeScript):
@@ -35602,11 +35602,11 @@ export default defineConfig(() => {
 ```
 
 
-Stacktape runs `vinxi build` by default, deploys the server output as a Lambda function, uploads static assets to S3, and routes traffic through CloudFront.
+Stacktape runs `vite build` by default, deploys the server output as a Lambda function, uploads static assets to S3, and routes traffic through CloudFront. Current Rsbuild applications should set `buildCommand` to their build script. Legacy `@tanstack/start` applications that still use `app.config.ts` must set `buildCommand: 'vinxi build'`; Stacktape recognizes and packages their `.output` layout.
 
 ## Build and dev
 
-The `buildCommand` property overrides the default `vinxi build` command. Use it when your TanStack Start app needs a workspace-aware command such as `pnpm --filter web build` or when the app must run a prebuild step. Leave `buildCommand` unset when a normal Vinxi build works from `appDirectory` — fewer custom commands make CI and local behavior easier to reason about.
+The `buildCommand` property overrides the default `vite build` command. Use it for Rsbuild, a legacy Vinxi application, a workspace-aware command such as `pnpm --filter web build`, or an application that needs a prebuild step. Leave it unset only when `vite build` is the production build from `appDirectory`.
 
 
 Example (TypeScript):
@@ -35624,7 +35624,7 @@ export default defineConfig(() => {
 ```
 
 
-The `dev` property configures the local development server used by [`stacktape dev`](/cli/dev). It defaults to `vinxi dev`. Override it when your repository needs a different local dev command — it does not affect the deployed build. See the [API Reference](#api-reference) for `dev` configuration options.
+The `dev` property configures the local development server used by [`stacktape dev`](/cli/dev). It defaults to `vite dev`. Override it for Rsbuild, legacy `vinxi dev`, or another repository-specific command — it does not affect the deployed build. See the [API Reference](#api-reference) for `dev` configuration options.
 
 ## Server Lambda
 
@@ -35796,7 +35796,7 @@ A Stacktape TanStack Start resource uses CloudFront CDN to serve the app. Its do
 
 ### Where should `appDirectory` point?
 
-Set `appDirectory` to the directory containing your `app.config.ts` file. The default is `"."` (the repository root). In a monorepo, point it to the TanStack Start workspace — for example, `./apps/web` or `./packages/frontend`. Stacktape runs `vinxi build` from this directory unless you override `buildCommand`.
+Set `appDirectory` to the TanStack Start application directory. The default is `"."` (the repository root). In a monorepo, point it to the application workspace — for example, `./apps/web` or `./packages/frontend`. Stacktape runs `vite build` from this directory unless you override `buildCommand`; legacy Vinxi applications need `buildCommand: 'vinxi build'`.
 
 ### How do I connect a database to a TanStack Start app?
 

@@ -385,7 +385,7 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     ['Reflect', new Set(['defineProperty', 'deleteProperty', 'set', 'setPrototypeOf'])]
   ]);
   const PROTOTYPE_MUTATION_GLOBALS = new Set(['Array', 'Map', 'Set']);
-  const PROTOTYPE_INVOCATION_METHODS = new Set(['apply', 'bind', 'call']);
+  const PROTOTYPE_INVOCATION_METHODS = new Set(['apply', 'call']);
 
   const calledMember = (expression: ts.LeftHandSideExpression): { base: ts.Expression; name: string } | undefined => {
     const callee = unwrapExpression(expression);
@@ -410,6 +410,17 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
       checker.getSymbolAtLocation(globalObject) === undefined
     );
   };
+
+  const mutationMemberIsUsable = (mutation: { base: ts.Expression; name: string }): boolean => {
+    if (!INSTANCE_MUTATION_METHODS.has(mutation.name)) return false;
+    const prototype = calledMember(unwrapExpression(mutation.base) as ts.LeftHandSideExpression);
+    if (prototype?.name !== 'prototype') return true;
+    const globalObject = unwrapExpression(prototype.base);
+    if (!ts.isIdentifier(globalObject) || !PROTOTYPE_MUTATION_GLOBALS.has(globalObject.text)) return true;
+    return checker.getSymbolAtLocation(globalObject) === undefined;
+  };
+
+  const callExpressions: ts.CallExpression[] = [];
 
   const collectMutations = (node: ts.Node): void => {
     if (ts.isVariableDeclaration(node) && node.initializer !== undefined) {
@@ -437,6 +448,7 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     } else if (ts.isDeleteExpression(node)) {
       recordValueMutation(node.expression);
     } else if (ts.isCallExpression(node)) {
+      callExpressions.push(node);
       if (isUnshadowedPrototypeMutation(node.expression) && node.arguments[0] !== undefined) {
         recordValueMutation(node.arguments[0]);
       }
@@ -456,6 +468,48 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     ts.forEachChild(node, collectMutations);
   };
   collectMutations(sourceFile);
+
+  const boundMutationTarget = (
+    rawExpression: ts.Expression,
+    seenSymbols = new Set<ts.Symbol>()
+  ): ts.Expression | undefined => {
+    const expression = unwrapExpression(rawExpression);
+    if (ts.isIdentifier(expression)) {
+      const symbol = checker.getSymbolAtLocation(expression);
+      if (symbol === undefined || seenSymbols.has(symbol) || reassignedSymbols.has(symbol)) return undefined;
+      seenSymbols.add(symbol);
+      for (const declaration of symbol.declarations ?? []) {
+        if (ts.isVariableDeclaration(declaration) && declaration.initializer !== undefined) {
+          const target = boundMutationTarget(declaration.initializer, seenSymbols);
+          if (target !== undefined) return target;
+        }
+      }
+      return undefined;
+    }
+    if (!ts.isCallExpression(expression)) return undefined;
+    const binding = calledMember(expression.expression);
+    if (binding?.name !== 'bind') return undefined;
+
+    // Rebinding an already-bound mutator preserves its original receiver.
+    const existingTarget = boundMutationTarget(binding.base, seenSymbols);
+    if (existingTarget !== undefined) return existingTarget;
+    const mutation = calledMember(unwrapExpression(binding.base) as ts.LeftHandSideExpression);
+    return mutation !== undefined && mutationMemberIsUsable(mutation) ? expression.arguments[0] : undefined;
+  };
+
+  for (const call of callExpressions) {
+    const callee = unwrapExpression(call.expression);
+    let target = boundMutationTarget(callee);
+    const invocation = calledMember(call.expression);
+    if (target === undefined && invocation !== undefined && PROTOTYPE_INVOCATION_METHODS.has(invocation.name)) {
+      target = boundMutationTarget(invocation.base);
+      if (target === undefined) {
+        const mutation = calledMember(unwrapExpression(invocation.base) as ts.LeftHandSideExpression);
+        if (mutation !== undefined && mutationMemberIsUsable(mutation)) target = call.arguments[0];
+      }
+    }
+    if (target !== undefined) recordValueMutation(target);
+  }
 
   // Reassigning an alias changes only that binding. Mutating the referenced array/object changes every direct local
   // alias of the same value, so propagate only value mutations across alias edges.
@@ -529,6 +583,12 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
     // A reassigned local or object member no longer has the value represented by its declaration. Refuse to follow
     // that stale declaration instead of treating a plugin factory that has been overwritten as active config.
     if (!symbolIsUnchanged(symbol)) return;
+    if (invoked) {
+      const importedBinding = bindings.find(
+        (binding) => binding.kind === 'identifier' && binding.symbol === symbol && binding.role === mode
+      );
+      if (importedBinding !== undefined) evidence[importedBinding.framework] = true;
+    }
     for (const declaration of symbol.declarations ?? []) {
       if (ts.isVariableDeclaration(declaration) && declaration.initializer !== undefined) {
         const initializer = unwrapExpression(declaration.initializer);
@@ -555,6 +615,35 @@ export const inspectFrameworkConfig = (path: string, contents: string): Framewor
       } else if (ts.isShorthandPropertyAssignment(declaration)) {
         const valueSymbol = checker.getShorthandAssignmentValueSymbol(declaration);
         if (valueSymbol !== undefined) inspectSymbolValue(valueSymbol, mode, invoked);
+      } else if (
+        ts.isBindingElement(declaration) &&
+        ts.isObjectBindingPattern(declaration.parent) &&
+        ts.isVariableDeclaration(declaration.parent.parent) &&
+        declaration.parent.parent.initializer !== undefined
+      ) {
+        const memberName =
+          propertyName(declaration.propertyName) ??
+          (ts.isIdentifier(declaration.name) ? declaration.name.text : undefined);
+        const initializer = declaration.parent.parent.initializer;
+        if (memberName === undefined || !accessPathIsUnchanged(initializer)) continue;
+
+        const base = unwrapExpression(initializer);
+        if (invoked && ts.isIdentifier(base)) {
+          const baseSymbol = checker.getSymbolAtLocation(base);
+          const namespaceBinding = bindings.find(
+            (binding) =>
+              binding.kind === 'namespace-member' &&
+              binding.symbol === baseSymbol &&
+              binding.memberName === memberName &&
+              binding.role === mode
+          );
+          if (namespaceBinding !== undefined && symbolIsUnchanged(namespaceBinding.symbol)) {
+            evidence[namespaceBinding.framework] = true;
+          }
+        }
+        for (const sourceSymbol of symbolsStoredInProperty(initializer, memberName)) {
+          if (sourceSymbol !== symbol) inspectSymbolValue(sourceSymbol, mode, invoked);
+        }
       }
     }
   }
