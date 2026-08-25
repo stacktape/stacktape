@@ -1,8 +1,15 @@
-import { randomBytes } from 'node:crypto';
-import { readFileSync, realpathSync } from 'node:fs';
+import { createHash, randomBytes } from 'node:crypto';
+import { lstatSync, readFileSync, readdirSync, realpathSync } from 'node:fs';
 import { dirname, isAbsolute, join, normalize, relative, resolve, sep, win32 } from 'node:path';
 import { parseArgs } from 'node:util';
-import { qualificationManifestSchema } from './contracts';
+import { BUILT_IN_CASES, casesForPreset } from './catalog';
+import {
+  qualificationCaseResultSchema,
+  qualificationManifestSchema,
+  qualificationReportSchema,
+  type QualificationCaseManifest,
+  type QualificationCaseResult
+} from './contracts';
 
 export const QUALIFICATION_SANDBOX_REPORT_VERSION = 2 as const;
 
@@ -79,6 +86,18 @@ export type PlannedSandboxExecution = {
   hostCacheRoot?: string;
   resumeFrom?: string;
   manifests: string[];
+  expectedCaseIds: string[];
+  hostReplay: {
+    command: 'pnpm';
+    args: string[];
+    cwd: string;
+  };
+  manifestMappings: Array<{
+    originalPath: string;
+    originalSha256: string;
+    containerPath: string;
+    rewrittenSha256: string;
+  }>;
   resourceLimits: {
     memory: string;
     cpus: string;
@@ -179,6 +198,68 @@ const assertInside = (parent: string, child: string, label: string) => {
   if (childRelative === '..' || childRelative.startsWith(`..${sep}`) || isAbsolute(childRelative)) {
     throw new Error(`${label} resolves outside ${parent}.`);
   }
+};
+
+const sha256 = (value: string | Buffer) => createHash('sha256').update(value).digest('hex');
+
+const replayArgsFor = (rawArgs: string[]) => {
+  const replayArgs: string[] = [];
+  for (let index = 0; index < rawArgs.length; index++) {
+    const argument = rawArgs[index];
+    if (argument === '--output-dir') {
+      index++;
+      continue;
+    }
+    if (
+      argument.startsWith('--output-dir=') ||
+      argument === '--dry-run' ||
+      argument === '--rebuild-image' ||
+      argument === '--self-test'
+    ) {
+      continue;
+    }
+    replayArgs.push(argument);
+  }
+  return replayArgs;
+};
+
+const validateResumeCaseDirectory = (reportDirectory: string, result: QualificationCaseResult) => {
+  const candidate = join(reportDirectory, 'cases', result.id);
+  const caseDirectory = realpathSync(candidate);
+  assertInside(reportDirectory, caseDirectory, `Resume artifacts for ${result.id}`);
+  const allowed = new Set(['result.json', 'stacktape.yml', 'compiled-template.yml']);
+  const required = new Set(['result.json']);
+  if (result.steps.some((step) => step.name === 'import' && step.status === 'passed')) required.add('stacktape.yml');
+  if (result.steps.some((step) => step.name === 'package' && step.status === 'passed')) {
+    required.add('compiled-template.yml');
+  }
+  let totalBytes = 0;
+  for (const entry of readdirSync(caseDirectory, { withFileTypes: true })) {
+    if (!entry.isFile() || !allowed.has(entry.name)) {
+      throw new Error(`Resume artifacts for ${result.id} contain an unexpected entry: ${entry.name}.`);
+    }
+    required.delete(entry.name);
+    const metadata = lstatSync(join(caseDirectory, entry.name));
+    if (metadata.nlink !== 1) {
+      throw new Error(`Resume artifact ${result.id}/${entry.name} must not be hard linked.`);
+    }
+    totalBytes += metadata.size;
+    if (entry.name === 'result.json') {
+      const artifactResult = qualificationCaseResultSchema.parse(
+        JSON.parse(readFileSync(join(caseDirectory, entry.name), 'utf8'))
+      );
+      if (JSON.stringify(artifactResult) !== JSON.stringify(result)) {
+        throw new Error(`Resume artifact ${result.id}/result.json does not match its qualification report.`);
+      }
+    }
+  }
+  if (required.size > 0) {
+    throw new Error(`Resume artifacts for ${result.id} are missing: ${[...required].join(', ')}.`);
+  }
+  if (totalBytes > 512 * 1024 ** 2) {
+    throw new Error(`Resume artifacts for ${result.id} exceed the 512 MiB staging limit.`);
+  }
+  return caseDirectory;
 };
 
 export const parseSandboxedOptions = (argv: string[]): SandboxedQualificationParsedOptions => {
@@ -296,6 +377,9 @@ export const planSandboxExecution = ({
       'The aws lane cannot be executed in the qualification sandbox. AWS scenarios require real AWS credentials and run in disposable AWS accounts. Use the import, package, and runtime lanes in the sandbox.'
     );
   }
+  if (parsed.preset !== undefined && !['smoke', 'release', 'stress', 'all'].includes(parsed.preset)) {
+    throw new Error(`Unknown preset ${parsed.preset}. Use smoke, release, stress, or all.`);
+  }
 
   const suffix = runIdSuffix ?? randomBytes(3).toString('hex');
   const now = new Date();
@@ -336,21 +420,82 @@ export const planSandboxExecution = ({
   if (parsed.keepWorkdirs) innerCommandArgs.push('--keep-workdirs');
   if (parsed.failFast) innerCommandArgs.push('--fail-fast');
 
-  const resolvedManifestPaths: string[] = [];
+  const loadedManifests = (parsed.manifests ?? []).map((manifestRelPath, index) => {
+    const canonicalPath = realpathSync(validateCanonicalPath(manifestRelPath, invocationDirectory));
+    const text = readFileSync(canonicalPath, 'utf8');
+    return {
+      index,
+      canonicalPath,
+      directory: realpathSync(dirname(canonicalPath)),
+      text,
+      manifest: qualificationManifestSchema.parse(JSON.parse(text))
+    };
+  });
+  type Candidate = {
+    entry: QualificationCaseManifest;
+    manifestIndex?: number;
+  };
+  const builtInEntries: Candidate[] =
+    parsed.preset === undefined && loadedManifests.length > 0
+      ? []
+      : casesForPreset(parsed.preset ?? 'smoke').map((entry) => ({ entry }));
+  const externalEntries: Candidate[] = loadedManifests.flatMap(({ index, manifest }) =>
+    manifest.cases.map((entry) => ({ entry, manifestIndex: index }))
+  );
+  const allCandidates: Candidate[] = [...BUILT_IN_CASES.map((entry) => ({ entry })), ...externalEntries];
   const explicitlySelectedCaseIds = new Set(parsed.cases?.flatMap((value) => value.split(',')).filter(Boolean) ?? []);
+  let selectedCandidates =
+    explicitlySelectedCaseIds.size === 0
+      ? [...builtInEntries, ...externalEntries]
+      : allCandidates.filter(({ entry }) => explicitlySelectedCaseIds.has(entry.id));
+  const duplicateIds = selectedCandidates
+    .map(({ entry }) => entry.id)
+    .filter((id, index, ids) => ids.indexOf(id) !== index);
+  if (duplicateIds.length > 0) {
+    throw new Error(`Duplicate qualification case ids: ${[...new Set(duplicateIds)].join(', ')}.`);
+  }
+  const missingIds = [...explicitlySelectedCaseIds].filter(
+    (id) => !selectedCandidates.some(({ entry }) => entry.id === id)
+  );
+  if (missingIds.length > 0) throw new Error(`Unknown qualification case ids: ${missingIds.join(', ')}.`);
+  if (parsed.shard !== undefined) {
+    const shard = parsed.shard.match(/^(\d+)\/(\d+)$/);
+    if (shard === null) throw new Error('--shard must use <index>/<total>, for example 2/10.');
+    const index = Number(shard[1]);
+    const total = Number(shard[2]);
+    if (index < 1 || total < 1 || index > total) {
+      throw new Error('--shard index must be between 1 and total.');
+    }
+    selectedCandidates = selectedCandidates.filter((_, candidateIndex) => candidateIndex % total === index - 1);
+  }
+  if (parsed.maxCases !== undefined) {
+    const maximumCases = Number(parsed.maxCases);
+    if (!Number.isInteger(maximumCases) || maximumCases < 1) {
+      throw new Error('--max-cases must be a positive integer.');
+    }
+    selectedCandidates = selectedCandidates.slice(0, maximumCases);
+  }
+  const requestedLanes = (parsed.lanes ?? 'import,package')
+    .split(',')
+    .map((lane) => lane.trim())
+    .filter(Boolean);
+  if (!requestedLanes.some((lane) => lane === 'import' || lane === 'package') && explicitlySelectedCaseIds.size === 0) {
+    selectedCandidates = [];
+  }
+  const expectedCaseIds = selectedCandidates.map(({ entry }) => entry.id);
+  const selectedExternalCaseIds = new Set(
+    selectedCandidates.filter(({ manifestIndex }) => manifestIndex !== undefined).map(({ entry }) => entry.id)
+  );
+
+  const resolvedManifestPaths: string[] = [];
+  const manifestMappings: PlannedSandboxExecution['manifestMappings'] = [];
   const stagedLocalSources = new Map<string, string>();
-  if (parsed.manifests !== undefined && parsed.manifests.length > 0) {
-    for (const [index, manifestRelPath] of parsed.manifests.entries()) {
-      const canonicalManifest = validateCanonicalPath(manifestRelPath, invocationDirectory);
-      const manifestDirectory = realpathSync(dirname(canonicalManifest));
-      const manifest = qualificationManifestSchema.parse(JSON.parse(readFileSync(canonicalManifest, 'utf8')));
+  if (loadedManifests.length > 0) {
+    for (const { index, canonicalPath, directory: manifestDirectory, manifest, text } of loadedManifests) {
       const rewrittenManifest = structuredClone(manifest);
 
       for (const [caseIndex, entry] of rewrittenManifest.cases.entries()) {
-        if (
-          entry.source.kind !== 'local' ||
-          (explicitlySelectedCaseIds.size > 0 && !explicitlySelectedCaseIds.has(entry.id))
-        ) {
+        if (entry.source.kind !== 'local' || !selectedExternalCaseIds.has(entry.id)) {
           continue;
         }
         const sourceRoot = realpathSync(resolve(manifestDirectory, entry.source.path));
@@ -371,30 +516,50 @@ export const planSandboxExecution = ({
 
       const manifestFileName = `manifest-${index}.json`;
       const containerManifestPath = `/qualification/inputs/${manifestFileName}`;
+      const rewrittenText = `${JSON.stringify(rewrittenManifest, null, 2)}\n`;
 
       stagedInputs.push({
-        content: `${JSON.stringify(rewrittenManifest, null, 2)}\n`,
+        content: rewrittenText,
         containerRelativePath: `inputs/${manifestFileName}`,
         isDirectory: false,
         label: `manifest-${index}`
       });
 
       innerCommandArgs.push(`--manifest=${containerManifestPath}`);
-      resolvedManifestPaths.push(canonicalManifest);
+      resolvedManifestPaths.push(canonicalPath);
+      manifestMappings.push({
+        originalPath: canonicalPath,
+        originalSha256: sha256(text),
+        containerPath: containerManifestPath,
+        rewrittenSha256: sha256(rewrittenText)
+      });
     }
   }
 
   let resolvedResumePath: string | undefined;
   if (parsed.resumeFrom !== undefined) {
-    const canonicalResume = validateCanonicalPath(parsed.resumeFrom, invocationDirectory);
+    const canonicalResume = realpathSync(validateCanonicalPath(parsed.resumeFrom, invocationDirectory));
     const containerResumePath = '/qualification/inputs/resume-report.json';
+    const resumeText = readFileSync(canonicalResume, 'utf8');
+    const resumeReport = qualificationReportSchema.parse(JSON.parse(resumeText));
+    const reportDirectory = realpathSync(dirname(canonicalResume));
 
     stagedInputs.push({
-      hostPath: canonicalResume,
+      content: resumeText,
       containerRelativePath: 'inputs/resume-report.json',
       isDirectory: false,
       label: 'resume-report'
     });
+    for (const result of resumeReport.cases) {
+      if (result.status !== 'passed') continue;
+      const caseDirectory = validateResumeCaseDirectory(reportDirectory, result);
+      stagedInputs.push({
+        hostPath: caseDirectory,
+        containerRelativePath: `inputs/cases/${result.id}`,
+        isDirectory: true,
+        label: `resume-case-${result.id}`
+      });
+    }
 
     innerCommandArgs.push(`--resume-from=${containerResumePath}`);
     resolvedResumePath = canonicalResume;
@@ -522,6 +687,13 @@ export const planSandboxExecution = ({
       : {}),
     ...(resolvedResumePath === undefined ? {} : { resumeFrom: resolvedResumePath }),
     manifests: resolvedManifestPaths,
+    expectedCaseIds,
+    hostReplay: {
+      command: 'pnpm',
+      args: ['qualify:projects:sandboxed', '--', ...replayArgsFor(rawArgs)],
+      cwd: invocationDirectory
+    },
+    manifestMappings,
     resourceLimits: {
       memory,
       cpus,

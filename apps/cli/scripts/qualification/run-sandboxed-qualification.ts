@@ -1,11 +1,11 @@
-import { createHash } from 'node:crypto';
-import { lstat, mkdir, mkdtemp, readFile, readdir, realpath, rename, rm, writeFile } from 'node:fs/promises';
+import { lstat, mkdir, mkdtemp, readFile, realpath, rename, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import { BUILT_IN_CASES, AWS_QUALIFICATION_SCENARIOS } from './catalog';
 import { qualificationReportSchema } from './contracts';
 import { assertProcessSucceeded, outputTail, redactOutput, runProcess } from './process';
 import { buildRunnerImage } from './sandbox-dockerfile';
+import { inspectOutputTree, type OutputInspection } from './sandbox-output';
 import {
   assertPlannedSecurity,
   DEFAULT_SANDBOX_CPUS,
@@ -66,41 +66,7 @@ export const prepareHostOutputDirectory = async (target: string) => {
 };
 
 export const validateAndHashOutputTree = async (directory: string, keepWorkdirs: boolean) => {
-  const files: Array<{ path: string; size: number; sha256: string }> = [];
-  let totalBytes = 0;
-  const maxFiles = keepWorkdirs ? 200_000 : 10_000;
-  const maxBytes = keepWorkdirs ? 20 * 1024 ** 3 : 512 * 1024 ** 2;
-  const visit = async (current: string, relativeDirectory = ''): Promise<void> => {
-    for (const entry of await readdir(current, { withFileTypes: true })) {
-      const relativePath = join(relativeDirectory, entry.name).replaceAll('\\', '/');
-      const absolutePath = join(current, entry.name);
-      const metadata = await lstat(absolutePath);
-      if (metadata.isSymbolicLink() || (!metadata.isDirectory() && !metadata.isFile())) {
-        throw new Error(`Qualification output contains a link or special file: ${relativePath}`);
-      }
-      if (metadata.isDirectory()) {
-        await visit(absolutePath, relativePath);
-        continue;
-      }
-      if (metadata.nlink !== 1) throw new Error(`Qualification output contains a hard-linked file: ${relativePath}`);
-      const allowed =
-        relativePath === 'qualification-report.json' ||
-        relativePath === 'qualification-report.md' ||
-        /^cases\/[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\/(?:result\.json|stacktape\.yml|compiled-template\.yml)$/.test(
-          relativePath
-        ) ||
-        (keepWorkdirs && relativePath.startsWith('workdirs/'));
-      if (!allowed) throw new Error(`Qualification output contains an unexpected artifact: ${relativePath}`);
-      totalBytes += metadata.size;
-      if (files.length + 1 > maxFiles || totalBytes > maxBytes) {
-        throw new Error(`Qualification output exceeds the ${maxFiles}-file or ${maxBytes}-byte materialization limit.`);
-      }
-      const bytes = await readFile(absolutePath);
-      files.push({ path: relativePath, size: metadata.size, sha256: createHash('sha256').update(bytes).digest('hex') });
-    }
-  };
-  await visit(directory);
-  return files.sort((left, right) => left.path.localeCompare(right.path));
+  return (await inspectOutputTree(directory, keepWorkdirs, true)).artifacts;
 };
 
 const helpText = `Stacktape disposable project qualification sandbox
@@ -512,21 +478,103 @@ const expectedReportLanes = (planned: PlannedSandboxExecution) => {
   return [...new Set(lanes)];
 };
 
+export const processResultExitCode = (result: {
+  exitCode: number | null;
+  timedOut: boolean;
+  interruptedSignal?: NodeJS.Signals;
+}) => {
+  if (result.interruptedSignal !== undefined) return result.interruptedSignal === 'SIGINT' ? 130 : 143;
+  if (result.timedOut) return 124;
+  return result.exitCode ?? 1;
+};
+
 const inspectRunnerImage = async (planned: PlannedSandboxExecution) => {
+  const containerResult = await runProcess({
+    command: 'docker',
+    args: ['container', 'inspect', '--format={{.Image}}', planned.runnerContainerName],
+    cwd: rootDirectory,
+    timeoutMs: 15_000
+  });
+  assertProcessSucceeded(containerResult);
+  const immutableImageId = containerResult.stdout.trim();
+  if (!/^sha256:[a-f0-9]{64}$/.test(immutableImageId)) {
+    throw new Error(`Runner container returned an invalid immutable image id: ${immutableImageId}`);
+  }
   const result = await runProcess({
     command: 'docker',
-    args: ['image', 'inspect', planned.imageTag],
+    args: ['image', 'inspect', immutableImageId],
     cwd: rootDirectory,
     timeoutMs: 15_000
   });
   assertProcessSucceeded(result);
   const inspected = JSON.parse(result.stdout)[0];
+  const labels = inspected?.Config?.Labels ?? {};
+  if (
+    labels['stacktape.qualification.managed'] !== 'true' ||
+    labels['stacktape.qualification.commit'] !== planned.productCommit
+  ) {
+    throw new Error(`Runner image ${immutableImageId} does not carry the expected qualification labels.`);
+  }
   return {
     tag: planned.imageTag,
-    id: String(inspected?.Id ?? ''),
+    id: immutableImageId,
     repoDigests: Array.isArray(inspected?.RepoDigests) ? inspected.RepoDigests : [],
-    labels: inspected?.Config?.Labels ?? {}
+    labels
   };
+};
+
+const inspectOutputVolumeBeforeCopy = async (
+  planned: PlannedSandboxExecution,
+  immutableImageId: string,
+  keepWorkdirs: boolean
+): Promise<OutputInspection> => {
+  const result = await runProcess({
+    command: 'docker',
+    args: [
+      'run',
+      '--rm',
+      '--name',
+      planned.stagingContainerName,
+      '--network=none',
+      '--user',
+      '1000:1000',
+      '--read-only',
+      '--cap-drop=ALL',
+      '--security-opt=no-new-privileges:true',
+      '--memory=512m',
+      '--cpus=1',
+      '--pids-limit=128',
+      '--label',
+      'stacktape.qualification.managed=true',
+      '--label',
+      `stacktape.qualification.run-id=${planned.runId}`,
+      '-e',
+      `KEEP_WORKDIRS=${keepWorkdirs ? '1' : '0'}`,
+      '-v',
+      `${planned.outputVolumeName}:/qualification/output:ro`,
+      '--entrypoint',
+      'bun',
+      immutableImageId,
+      '/workspace/apps/cli/scripts/qualification/sandbox-output.ts'
+    ],
+    cwd: rootDirectory,
+    timeoutMs: 5 * 60_000
+  });
+  assertProcessSucceeded(result);
+  const parsed = JSON.parse(result.stdout.trim()) as Partial<OutputInspection>;
+  for (const key of ['entries', 'directories', 'files', 'symlinks', 'totalBytes'] as const) {
+    if (!Number.isInteger(parsed[key]) || Number(parsed[key]) < 0) {
+      throw new Error(`Output inspection returned an invalid ${key} value.`);
+    }
+  }
+  if (
+    parsed.limits === undefined ||
+    !Number.isInteger(parsed.limits.maxEntries) ||
+    !Number.isInteger(parsed.limits.maxBytes)
+  ) {
+    throw new Error('Output inspection returned invalid limits.');
+  }
+  return parsed as OutputInspection;
 };
 
 export const executeSandboxedQualification = async (
@@ -652,6 +700,8 @@ export const executeSandboxedQualification = async (
   );
 
   let runnerExitCode = 1;
+  let runnerImage: Awaited<ReturnType<typeof inspectRunnerImage>> | undefined;
+  let outputInspection: OutputInspection | undefined;
   let primaryFailure: unknown;
   let cleanupErrors: string[] = [];
   let executionResult: { exitCode: number; planned: PlannedSandboxExecution } | undefined;
@@ -783,6 +833,7 @@ export const executeSandboxedQualification = async (
       timeoutMs: 30_000
     });
     assertProcessSucceeded(createResult);
+    runnerImage = await inspectRunnerImage(planned);
 
     // 6. Start runner and attach
     const runResult = await runProcess({
@@ -796,9 +847,12 @@ export const executeSandboxedQualification = async (
     if (runResult.stdout) process.stdout.write(runResult.stdout);
     if (runResult.stderr) process.stderr.write(runResult.stderr);
 
-    runnerExitCode = runResult.exitCode ?? (runResult.timedOut ? 124 : 1);
+    runnerExitCode = processResultExitCode(runResult);
 
-    // 7. Copy output directory back to host
+    // 7. Inspect the stopped runner's output volume before allowing any copy to the host.
+    outputInspection = await inspectOutputVolumeBeforeCopy(planned, runnerImage.id, parsed.keepWorkdirs === true);
+
+    // 8. Copy the already-bounded output directory back to host.
     process.stderr.write(`Copying qualification output back to ${planned.hostOutputDirectory}...\n`);
     const cpOutResult = await runProcess({
       command: 'docker',
@@ -806,12 +860,12 @@ export const executeSandboxedQualification = async (
       cwd: rootDirectory,
       timeoutMs: 60_000
     });
-    if (cpOutResult.exitCode !== 0) {
+    if (processResultExitCode(cpOutResult) !== 0) {
       process.stderr.write(`Failed to copy output files from container: ${cpOutResult.stderr}\n`);
       runnerExitCode = 1;
     }
 
-    // 8. Schema validate the qualification report if present
+    // 9. Schema validate the qualification report if present
     const reportPath = join(hostMaterializationDirectory, 'qualification-report.json');
     try {
       const artifactHashes = await validateAndHashOutputTree(
@@ -831,13 +885,11 @@ export const executeSandboxedQualification = async (
           `Qualification report lanes ${parsedReport.lanes.join(',')} do not match requested lanes ${expectedLanes.join(',')}.`
         );
       }
-      const requestedCaseIds = planned.innerCommandArgs
-        .filter((argument) => argument.startsWith('--case='))
-        .flatMap((argument) => argument.slice('--case='.length).split(','));
-      for (const requestedCaseId of requestedCaseIds) {
-        if (!parsedReport.cases.some((entry) => entry.id === requestedCaseId)) {
-          throw new Error(`Qualification report is missing requested case ${requestedCaseId}.`);
-        }
+      const reportedCaseIds = parsedReport.cases.map((entry) => entry.id);
+      if (JSON.stringify(reportedCaseIds) !== JSON.stringify(planned.expectedCaseIds)) {
+        throw new Error(
+          `Qualification report cases ${reportedCaseIds.join(',')} do not exactly match selected cases ${planned.expectedCaseIds.join(',')}.`
+        );
       }
       if (
         parsedReport.summary.failed > 0 ||
@@ -901,7 +953,20 @@ export const executeSandboxedQualification = async (
             runId: planned.runId,
             generatedAt: new Date().toISOString(),
             productCommit: planned.productCommit,
-            runnerImage: await inspectRunnerImage(planned),
+            runnerImage,
+            outputInspection,
+            hostReplay: planned.hostReplay,
+            manifestMappings: planned.manifestMappings,
+            pathMappings: {
+              containerOutput: '/qualification/output',
+              hostOutput: planned.hostOutputDirectory,
+              ...(planned.resumeFrom === undefined
+                ? {}
+                : {
+                    containerResumeReport: '/qualification/inputs/resume-report.json',
+                    hostResumeReport: planned.resumeFrom
+                  })
+            },
             artifacts: artifactHashes
           },
           null,
