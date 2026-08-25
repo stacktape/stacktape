@@ -35,6 +35,7 @@ const RELEASE_DESCRIPTOR =
   /^(?:\.github\/workflows\/[^/]+\.ya?ml|\.github\/actions\/[^/]+\/action\.ya?ml|\.gitlab-ci\.ya?ml|Makefile|Taskfile\.ya?ml|justfile)$/i;
 const MAX_RELEASE_DESCRIPTORS = 64;
 const MAX_DESCRIPTOR_BYTES = 1_000_000;
+const MAX_DESCRIPTOR_DOCKERFILES = 32;
 
 const normalizeDockerfileReference = (value: string): string | undefined => {
   const normalized = posix.normalize(value.replaceAll('\\', '/').replace(/^\.\//, ''));
@@ -55,7 +56,7 @@ const normalizeDockerfileReference = (value: string): string | undefined => {
 
 const descriptorDockerfiles = async (root: string, listedFiles: readonly string[]): Promise<string[]> => {
   const references = new Set<string>();
-  for (const descriptor of listedFiles
+  descriptorLoop: for (const descriptor of listedFiles
     .filter((file) => RELEASE_DESCRIPTOR.test(file))
     .slice(0, MAX_RELEASE_DESCRIPTORS)) {
     let raw: string;
@@ -77,7 +78,12 @@ const descriptorDockerfiles = async (root: string, listedFiles: readonly string[
     for (const pattern of patterns) {
       for (const match of raw.matchAll(pattern)) {
         const normalized = normalizeDockerfileReference(match[2] ?? '');
-        if (normalized !== undefined) references.add(normalized);
+        if (normalized !== undefined) {
+          references.add(normalized);
+          // Stop while parsing, before even one filesystem lookup. The descriptor and byte bounds
+          // limit input size; this separate cardinality bound limits work caused by that input.
+          if (references.size >= MAX_DESCRIPTOR_DOCKERFILES) break descriptorLoop;
+        }
       }
     }
   }

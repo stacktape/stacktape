@@ -920,14 +920,14 @@ describe('the compose probe', () => {
 
   it('keeps an ordinary admin HTTP service long-running and does not call a shared uploads volume bootstrap', async () => {
     root = await makeRepo({
-      Dockerfile: 'FROM node:24 AS admin\nCOPY . /app\nFROM node:24 AS api\nCOPY . /app\n',
+      Dockerfile: 'FROM python:3.14 AS admin\nCOPY . /app\nFROM node:24 AS api\nCOPY . /app\n',
       'compose.yaml': [
         'services:',
         '  admin:',
         '    build:',
         '      context: .',
         '      target: admin',
-        '    command: node admin.js',
+        '    command: python apps/admin/app.py',
         '    ports: ["8080:8080"]',
         '    volumes: ["uploads:/app/uploads"]',
         '  api:',
@@ -941,7 +941,21 @@ describe('the compose probe', () => {
         '  uploads:',
         ''
       ].join('\n'),
-      'admin.js': 'require("http").createServer(() => {}).listen(8080);\n',
+      'apps/admin/app.py': [
+        'from flask import Flask',
+        'import click',
+        'from pathlib import Path',
+        '',
+        'app = Flask(__name__)',
+        '',
+        '@click.command()',
+        'def rotate_keys():',
+        '    key = GenerateLocalKeys()',
+        '    Path("generated/master.key").write_text(key)',
+        '',
+        'app.run(host="0.0.0.0", port=8080)',
+        ''
+      ].join('\n'),
       'api.js': 'require("http").createServer(() => {}).listen(3000);\n'
     });
 
@@ -952,7 +966,35 @@ describe('the compose probe', () => {
       executionModel: 'long-running',
       port: 8080
     });
+    expect(facts.services.find((service) => service.name === 'admin')?.evidence).not.toEqual(
+      expect.arrayContaining([expect.objectContaining({ file: 'apps/admin/app.py', field: 'executionModel' })])
+    );
     expect(facts.deploymentRequirements).toEqual([]);
+  });
+
+  it('keeps an explicitly finite command authoritative even when Compose publishes a port', async () => {
+    root = await makeRepo({
+      Dockerfile: 'FROM python:3.14\nCOPY . /app\n',
+      'compose.yaml': [
+        'services:',
+        '  maintenance:',
+        '    build: .',
+        '    command: python -m admin generate-keys',
+        '    ports: ["8080:8080"]',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [dockerComposeProbe] });
+
+    expect(facts.services).toEqual([
+      expect.objectContaining({
+        name: 'maintenance',
+        exposesHttp: false,
+        executionModel: 'one-shot',
+        startCommand: 'python -m admin generate-keys'
+      })
+    ]);
   });
 
   it('preserves a custom port and detects lifecycle work bundled behind the Dockerfile command', async () => {

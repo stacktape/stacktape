@@ -82,6 +82,32 @@ describe('listRepositoryFiles', () => {
     expect(truncated).toBe(true);
     expect(files).toHaveLength(2);
   });
+
+  it('bounds descriptor-named Dockerfiles before filesystem inspection', async () => {
+    const boundedRoot = await mkdtemp(join(tmpdir(), 'config-inference-tree-bound-'));
+    const references = Array.from(
+      { length: 80 },
+      (_, index) => `build/generated/server-${String(index).padStart(2, '0')}.dockerfile`
+    );
+    try {
+      await mkdir(join(boundedRoot, '.github/workflows'), { recursive: true });
+      await mkdir(join(boundedRoot, 'build/generated'), { recursive: true });
+      await writeFile(
+        join(boundedRoot, '.github/workflows/release.yml'),
+        ['steps:', ...references.map((file) => `  - run: docker build -f ${file} .`), ''].join('\n'),
+        'utf8'
+      );
+      await Promise.all(references.map((file) => writeFile(join(boundedRoot, file), 'FROM scratch\n', 'utf8')));
+
+      const listing = await listRepositoryFiles(boundedRoot);
+
+      expect(listing.descriptorDockerfiles).toEqual(references.slice(0, 32));
+      expect(listing.files.filter((file) => file.startsWith('build/generated/'))).toEqual(references.slice(0, 32));
+      expect(listing.files).not.toContain(references[32]);
+    } finally {
+      await rm(boundedRoot, { recursive: true, force: true });
+    }
+  });
 });
 
 describe('renderFileTree', () => {

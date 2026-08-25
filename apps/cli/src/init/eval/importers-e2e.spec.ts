@@ -237,6 +237,16 @@ const CASES: EvalCase[] = [
         ''
       ].join('\n'),
       'admin.js': 'require("http").createServer(() => {}).listen(8080);\n',
+      'apps/admin/maintenance.py': [
+        'import click',
+        'from pathlib import Path',
+        '',
+        '@click.command()',
+        'def rotate_keys():',
+        '    key = GenerateLocalKeys()',
+        '    Path("generated/master.key").write_text(key)',
+        ''
+      ].join('\n'),
       'api.js': 'require("http").createServer(() => {}).listen(3000);\n'
     },
     expect: {

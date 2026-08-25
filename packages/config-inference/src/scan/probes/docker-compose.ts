@@ -621,6 +621,14 @@ const finiteProcessEvidenceOf = async ({
   const command = commandOf(service);
   const commandMigration = command !== undefined && MIGRATION_COMMAND.test(command);
   const commandBootstrap = command !== undefined && FINITE_LIFECYCLE_COMMAND.test(command);
+  const publishesHttp = (containerPortOf(service) ?? proxyPortOf(service)) !== undefined;
+  // A published listener is the declaration Compose will actually keep running. Repositories often
+  // colocate dormant maintenance CLIs with an admin web app; source-only key or migration code must
+  // not turn that explicitly reachable service into a one-shot batch job. A completed dependency or
+  // an explicitly finite configured command remains authoritative because Compose executes it.
+  if (publishesHttp) {
+    return { finite: commandMigration || commandBootstrap, bootstrap: commandBootstrap, evidence: [] };
+  }
 
   const selectedTargets = [
     ...(build.target === undefined ? [] : [build.target]),
