@@ -859,8 +859,8 @@ export const executeSandboxedQualification = async (
           'qualification-self-test-docker',
           'compiled-template.yml'
         );
-        const templateText = await readFile(templatePath, 'utf8');
-        if (
+        const templateText = (await pathExists(templatePath)) ? await readFile(templatePath, 'utf8') : '';
+        const selfTestPassed =
           runnerExitCode === 0 &&
           parsedReport.cases.length === 1 &&
           parsedReport.summary.passed === 1 &&
@@ -885,8 +885,8 @@ export const executeSandboxedQualification = async (
               typeof workload.digest === 'string' &&
               workload.digest.length > 0
           ) &&
-          templateText.trim().length > 0
-        ) {
+          templateText.trim().length > 0;
+        if (selfTestPassed) {
           process.stdout.write('\nSandbox self-test SUCCESS: nested Docker build and template synthesis verified.\n');
         } else {
           process.stderr.write('\nSandbox self-test FAILED: expected 1 passed case with 0 failures.\n');
