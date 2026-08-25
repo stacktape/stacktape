@@ -55,6 +55,7 @@ const globalFailureDetails = (steps: readonly QualificationStep[]) =>
     ]);
 
 export const renderQualificationReport = (report: QualificationReport) => {
+  const discoveryCases = report.cases.filter((entry) => entry.status === 'discovery');
   const caseRows = report.cases.map((entry) => {
     const failedLanes = entry.steps.filter((step) => step.status === 'failed').map((step) => step.name);
     return `| ${entry.id} | ${entry.status} | ${entry.execution} | ${formatDuration(entry.durationMs)} | ${
@@ -74,10 +75,18 @@ export const renderQualificationReport = (report: QualificationReport) => {
       report.environment.docker === undefined ? '' : `; Docker ${report.environment.docker}`
     }`,
     '',
-    `**Result:** ${report.summary.passed} passed, ${report.summary.failed} failed, ${report.summary.skipped} skipped in ${formatDuration(
+    `**Result:** ${report.summary.passed} qualified, ${report.summary.failed} failed, ${report.summary.discovery} discovery-only, ${report.summary.skipped} skipped in ${formatDuration(
       report.summary.durationMs
     )}.`,
     '',
+    ...(discoveryCases.length === 0
+      ? []
+      : [
+          '> **Discovery is not a qualification pass.** The projects listed as discovery-only produced schema-valid',
+          '> configurations, but nobody has reviewed and encoded their exact intended topology yet. Packaging was',
+          '> deliberately blocked until that semantic contract exists.',
+          ''
+        ]),
     '## Run-wide lanes',
     '',
     stepTable(report.globalSteps),
@@ -88,6 +97,17 @@ export const renderQualificationReport = (report: QualificationReport) => {
     '| --- | --- | --- | ---: | --- | --- |',
     ...caseRows,
     '',
+    ...(discoveryCases.length === 0
+      ? []
+      : [
+          '## Discovery projects awaiting contracts',
+          '',
+          ...discoveryCases.map(
+            (entry) =>
+              `- \`${entry.id}\`: review the generated \`cases/${entry.id}/stacktape.yml\`, then encode exact importer expectations before packaging.`
+          ),
+          ''
+        ]),
     ...(report.summary.failed === 0
       ? []
       : [

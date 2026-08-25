@@ -120,6 +120,11 @@ Review the generated `stacktape.yml`; do not judge success only by exit code. Ch
 types, commands, environment wiring, dependencies, gaps, and resource safety defaults. After the discovery result is
 understood, add exact `expect` counts and required/forbidden configuration or gap patterns to the manifest.
 
+An uncontracted case is reported as `discovery`, never as `passed`. The harness deliberately skips packaging and will
+not reuse that result until a human or coordinating agent has reviewed the intended application and encoded `expect`.
+The command still writes all review artifacts but exits with code 2. Do not bypass this boundary with a vague
+expectation merely to reach the package lane.
+
 If a reviewed/reputable batch is large, use deterministic shards and the qualification sandbox. Cases in one run share
 its disposable cache; separate sandbox workers do not share a host cache:
 

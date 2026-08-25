@@ -1095,7 +1095,7 @@ export const executeSandboxedQualification = async (
         runnerExitCode = runnerExitCode === 0 ? 1 : runnerExitCode;
       }
       process.stderr.write(
-        `Qualification report verified: ${parsedReport.summary.passed} passed, ${parsedReport.summary.failed} failed.\n`
+        `Qualification report verified: ${parsedReport.summary.passed} qualified, ${parsedReport.summary.failed} failed, ${parsedReport.summary.discovery} discovery-only.\n`
       );
       if (planned.isSelfTest) {
         const selfTestCase = parsedReport.cases.find((entry) => entry.id === 'qualification-self-test-docker');
