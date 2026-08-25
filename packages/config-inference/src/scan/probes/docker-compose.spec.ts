@@ -861,4 +861,49 @@ describe('the compose probe', () => {
       }
     });
   });
+
+  it('uses a declared image only when missing embedded assets make source packaging unusable', async () => {
+    root = await makeRepo({
+      'go.mod': 'module example.com/notifier\n',
+      'main.go': [
+        'package main',
+        'import "net/http"',
+        'import _ "example.com/notifier/server"',
+        'func main() { http.ListenAndServe(":80", nil) }',
+        ''
+      ].join('\n'),
+      'server/assets.go': 'package server\nimport "embed"\n//go:embed site\nvar assets embed.FS\n',
+      Dockerfile: 'FROM alpine:3.20\nCOPY notifier /usr/bin/notifier\nEXPOSE 80\n',
+      'docker-compose.yml': [
+        'services:',
+        '  notifier:',
+        '    image: example/notifier',
+        '    command: ["serve"]',
+        '    ports: ["80:80"]',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [serverEntrypointProbe, dockerComposeProbe, dockerfileProbe]
+    });
+    const composition = composeConfig({ facts });
+
+    expect(facts.services[0]).toMatchObject({
+      prebuiltImage: 'example/notifier',
+      missingEmbeddedAssets: ['server/site'],
+      containerCommand: ['serve']
+    });
+    expect(composition.config.resources.notifier?.properties.packaging).toEqual({
+      type: 'prebuilt-image',
+      properties: { image: 'example/notifier', command: ['serve'] }
+    });
+    expect(composition.gaps).toContainEqual(
+      expect.objectContaining({
+        subject: 'notifier.packaging',
+        message: expect.stringMatching(/does not include changes from this checkout.*no immutable tag or digest/)
+      })
+    );
+  });
 });

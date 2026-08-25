@@ -34,7 +34,12 @@ import type { Uncertainty } from './uncertainty';
  * argv and `source`. An agent may classify a variable, but prompt-injected repository text must
  * not choose a value or executable argument that reaches the generated deployment configuration.
  */
-const { containerCommand: _probeContainerCommand, ...agentVisibleServiceShape } = serviceShape;
+const {
+  containerCommand: _probeContainerCommand,
+  prebuiltImage: _probePrebuiltImage,
+  missingEmbeddedAssets: _probeMissingEmbeddedAssets,
+  ...agentVisibleServiceShape
+} = serviceShape;
 
 const agentServiceSchema = z
   .object({

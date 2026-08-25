@@ -267,6 +267,10 @@ export const serviceShape = {
   startCommand: z.string().min(1).optional(),
   /** Exact argv that a container descriptor uses to override the Dockerfile CMD. */
   containerCommand: z.array(z.string().min(1)).min(1).optional(),
+  /** Published image retained from a deterministic deployment descriptor as a last-resort package. */
+  prebuiltImage: z.string().min(1).optional(),
+  /** Repository-relative go:embed inputs that a clean checkout does not contain. */
+  missingEmbeddedAssets: z.array(repositoryPathSchema).min(1).optional(),
   /**
    * Repository directory from which packaging/build commands run when it differs from the source
    * directory that owns the service. Deployment manifests commonly build a child app from the

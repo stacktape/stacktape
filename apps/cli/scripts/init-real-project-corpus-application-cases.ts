@@ -201,15 +201,18 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
       serviceCount: 1,
       httpServiceCount: 1,
       services: [{ name: 'ntfy', path: '.', exposesHttp: true }],
-      requiredConfig: ['type: web-service', 'type: custom-dockerfile', 'dockerfilePath: Dockerfile-build', '- serve'],
+      requiredConfig: ['type: web-service', 'type: prebuilt-image', 'image: binwiederhier/ntfy', '- serve'],
       forbiddenConfig: [
         'type: hosting-bucket',
         'uploadDirectoryPath: web/',
         'type: relational-database',
         'mainDatabase',
         'NTFY_DATABASE_URL',
-        'entryfilePath: main.go'
+        'entryfilePath: main.go',
+        'type: custom-dockerfile',
+        'dockerfilePath: Dockerfile-build'
       ],
+      requiredGapPatterns: ['missing files required by go:embed.*does not include changes from this checkout'],
       forbidCurrentlyHostedDependencies: true
     }
   },

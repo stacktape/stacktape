@@ -60,6 +60,13 @@ export type ProbeOutput = {
     containerCommand: string[];
     evidence: Citation[];
   }>;
+  /** Literal published images for matching source services; never creates an image-only service. */
+  serviceImages?: Array<{
+    path: string;
+    serviceName: string;
+    prebuiltImage: string;
+    evidence: Citation[];
+  }>;
   dependencies?: DependencyFact[];
   /**
    * Kinds selected by the runnable deployment shape (for example the one database in the default

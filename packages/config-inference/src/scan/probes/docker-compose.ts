@@ -702,6 +702,7 @@ export const dockerComposeProbe: Probe = {
     // arbitrary settings from an unrelated third-party image must not leak onto local code.
     const serviceEnvironments: NonNullable<ProbeOutput['serviceEnvironments']> = [];
     const serviceCommands: NonNullable<ProbeOutput['serviceCommands']> = [];
+    const serviceImages: NonNullable<ProbeOutput['serviceImages']> = [];
     for (const [composeName, service] of Object.entries(declaredServices)) {
       if (dependencyNames.has(composeName) || builtDeclarations.some((entry) => entry.composeName === composeName)) {
         continue;
@@ -718,6 +719,21 @@ export const dockerComposeProbe: Probe = {
           path: composeDirectory(path),
           serviceName: factName(composeName),
           containerCommand,
+          evidence: citation === undefined ? [] : [citation]
+        });
+      }
+      if (typeof service.image === 'string' && service.image.trim() !== '' && !service.image.includes('$')) {
+        const prebuiltImage = service.image.trim();
+        const citation = citeFirstMatchOnly(
+          path,
+          raw,
+          new RegExp(`image:\\s*["']?${escapeForPattern(prebuiltImage)}`),
+          'prebuiltImage'
+        );
+        serviceImages.push({
+          path: composeDirectory(path),
+          serviceName: factName(composeName),
+          prebuiltImage,
           evidence: citation === undefined ? [] : [citation]
         });
       }
@@ -760,6 +776,7 @@ export const dockerComposeProbe: Probe = {
       ...(serviceFacts.length === 0 ? {} : { services: serviceFacts }),
       ...(serviceEnvironments.length === 0 ? {} : { serviceEnvironments }),
       ...(serviceCommands.length === 0 ? {} : { serviceCommands }),
+      ...(serviceImages.length === 0 ? {} : { serviceImages }),
       ...(migrations.length === 0 ? {} : { migrations }),
       ...(lifecycleDockerfiles.size === 0 ? {} : { lifecycleDockerfiles: [...lifecycleDockerfiles] }),
       ...(developmentProcesses.size === 0 ? {} : { developmentProcesses: [...developmentProcesses] }),

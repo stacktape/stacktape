@@ -4,6 +4,7 @@ import { posix } from 'node:path';
 import type { Citation } from '../../facts/citation';
 import type { ServiceFactInput } from '../../facts/service';
 import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { goCodeWithoutComments } from '../go-source';
 import { nearestManifestRoot } from '../service-root';
 
 const serviceRootFor = (dockerfile: string, files: readonly string[]): string => {
@@ -93,6 +94,71 @@ export const missingDockerfileCopySources = ({
   return [...missing];
 };
 
+const normalizedLocalCopySources = (raw: string): string[] =>
+  dockerfileInstructions(raw)
+    .flatMap(localCopySources)
+    .map((source) => source.replaceAll('\\', '/').replace(/^\.\//, '').replace(/\/$/, ''))
+    .filter((source) => source !== '' && !source.startsWith('/') && !source.includes('$'));
+
+const copySourceContains = (source: string, path: string): boolean => {
+  if (source === '.') return true;
+  if (source.includes('*') || source.includes('?') || source.includes('[')) return globPattern(source).test(path);
+  return path === source || path.startsWith(`${source}/`) || source.startsWith(`${path}/`);
+};
+
+/**
+ * A manually enumerated Go Dockerfile can become stale while every listed COPY still exists. If
+ * checked-in code imports a module-local top-level package that the Dockerfile never copies, the Go
+ * build is guaranteed to fail even though the ordinary missing-source check passes.
+ */
+const missingDockerfileGoPackages = async ({
+  raw,
+  root,
+  context
+}: {
+  raw: string;
+  root: string;
+  context: ProbeContext;
+}): Promise<string[]> => {
+  const goMod = root === '.' ? 'go.mod' : `${root}/go.mod`;
+  if (!context.files.includes(goMod)) return [];
+  const goModRaw = await readText(context, goMod, { fullFile: true });
+  const modulePath = goModRaw === undefined ? undefined : /^\s*module\s+(\S+)\s*$/m.exec(goModRaw)?.[1];
+  if (modulePath === undefined) return [];
+  const modulePrefix = `${modulePath}/`;
+  const importedTopDirectories = new Set<string>();
+  const sources = normalizedLocalCopySources(raw);
+  const goFiles = context.files.filter(
+    (file) =>
+      file.endsWith('.go') &&
+      !file.endsWith('_test.go') &&
+      (root === '.' || file.startsWith(`${root}/`)) &&
+      !/(?:^|\/)(?:vendor|test|tests|fixtures)(?:\/|$)/i.test(file)
+  );
+  for (const file of goFiles.slice(0, 750)) {
+    const relativeFile = root === '.' ? file : file.slice(root.length + 1);
+    if (!sources.some((source) => copySourceContains(source, relativeFile))) continue;
+    // oxlint-disable-next-line no-await-in-loop -- bounded source reads are needed to prove Dockerfile completeness.
+    const source = await readText(context, file, { fullFile: true });
+    if (source === undefined) continue;
+    for (const match of goCodeWithoutComments(source).matchAll(/["']([^"']+)["']/g)) {
+      const imported = match[1];
+      if (imported === undefined || !imported.startsWith(modulePrefix)) continue;
+      const top = imported.slice(modulePrefix.length).split('/')[0];
+      if (top !== undefined && top !== '') importedTopDirectories.add(top);
+    }
+  }
+  return [...importedTopDirectories]
+    .filter((directory) => {
+      const repositoryDirectory = root === '.' ? directory : `${root}/${directory}`;
+      if (!context.files.some((file) => file === repositoryDirectory || file.startsWith(`${repositoryDirectory}/`))) {
+        return false;
+      }
+      return !sources.some((source) => copySourceContains(source, directory));
+    })
+    .toSorted();
+};
+
 export const dockerfileProbe: Probe = {
   name: 'dockerfile',
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
@@ -120,6 +186,8 @@ export const dockerfileProbe: Probe = {
       // before Docker runs. Init packages a clean checkout, so selecting such a file guarantees a
       // COPY failure. Another source probe can still keep the application using a native buildpack.
       if (missingDockerfileCopySources({ raw, root, files: context.files }).length > 0) continue;
+      // oxlint-disable-next-line no-await-in-loop -- one candidate per service root survives this check.
+      if ((await missingDockerfileGoPackages({ raw, root, context })).length > 0) continue;
       const { port, citation: portCitation } = exposedPort(path, raw);
       const dockerfileCitation = citeFirstMatch(path, raw, /^\s*FROM\s+\S+/im, 'dockerfile');
 

@@ -121,6 +121,29 @@ describe('the standalone Dockerfile probe', () => {
     expect(facts.services[0]).toMatchObject({ dockerfile: 'Dockerfile-build', port: 80 });
   });
 
+  it('rejects a stale source Dockerfile that omits a module-local imported package', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/notifier\n',
+      'main.go': 'package main\nimport _ "example.com/notifier/metrics"\nfunc main() {}\n',
+      'metrics/metrics.go': 'package metrics\n',
+      'cmd/serve.go': 'package cmd\n',
+      'Dockerfile-build': [
+        'FROM golang:1.25 AS builder',
+        'COPY go.mod main.go /src/',
+        'COPY cmd /src/cmd',
+        'RUN cd /src && go build -o /notifier .',
+        'FROM alpine:3.20',
+        'COPY --from=builder /notifier /usr/bin/notifier',
+        'EXPOSE 80',
+        ''
+      ].join('\n')
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [dockerfileProbe] });
+
+    expect(facts.services).toEqual([]);
+  });
+
   it('accepts local directories, globs, and JSON COPY sources that exist in the build context', async () => {
     const repositoryRoot = await makeRepo({
       'package.json': '{"name":"api"}',

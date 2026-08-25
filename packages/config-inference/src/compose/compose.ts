@@ -195,6 +195,11 @@ const runtimeVersionConfig = (service: ServiceFact): Record<string, unknown> => 
   return {};
 };
 
+const usesPublishedImageFallback = (service: ServiceFact): boolean =>
+  service.dockerfile === undefined &&
+  service.prebuiltImage !== undefined &&
+  (service.missingEmbeddedAssets?.length ?? 0) > 0;
+
 const packagingFor = (
   service: ServiceFact,
   packageManager: PackageManager | undefined,
@@ -210,6 +215,15 @@ const packagingFor = (
         // Facts keep repository-relative evidence paths; Stacktape expects this one relative to the
         // build context.
         dockerfilePath: buildRoot === '.' ? service.dockerfile : posix.relative(buildRoot, service.dockerfile),
+        ...(service.containerCommand === undefined ? {} : { command: service.containerCommand })
+      }
+    };
+  }
+  if (usesPublishedImageFallback(service)) {
+    return {
+      type: 'prebuilt-image',
+      properties: {
+        image: service.prebuiltImage,
         ...(service.containerCommand === undefined ? {} : { command: service.containerCommand })
       }
     };
@@ -721,6 +735,7 @@ export const composeConfig = ({
       reason: composed.reason,
       evidence: dependency.evidence.slice(0, 3)
     };
+
     if (dependency.kind === 'mongodb') {
       gaps.push({
         subject: `${dependency.name}.provider`,
@@ -901,6 +916,15 @@ export const composeConfig = ({
       evidence: classification.evidence
     };
 
+    if (usesPublishedImageFallback(service)) {
+      const imageTail = service.prebuiltImage!.slice(service.prebuiltImage!.lastIndexOf('/') + 1);
+      const mutableImage = !service.prebuiltImage!.includes('@') && !imageTail.includes(':');
+      gaps.push({
+        subject: `${service.name}.packaging`,
+        message: `A clean checkout is missing files required by go:embed (${service.missingEmbeddedAssets!.join(', ')}), and no checked-in source Dockerfile can build this revision. We used the image declared in Docker Compose (${service.prebuiltImage!}) so the generated service can run, but that image does not include changes from this checkout${mutableImage ? ' and has no immutable tag or digest' : ''}. Repair or choose source packaging before relying on local source changes.`
+      });
+    }
+
     // Root-context builds can carry a stated limitation; the packaging itself is emitted inside
     // `buildServiceResource`, and the caveat belongs next to the other honest omissions. Only the
     // container shapes reach the Nixpacks branch — framework `-web` resources, hosting buckets and
@@ -911,7 +935,8 @@ export const composeConfig = ({
         classification.resourceType === 'private-service' ||
         classification.resourceType === 'batch-job') &&
       service.dockerfile === undefined &&
-      service.containerEntrypoint === undefined;
+      service.containerEntrypoint === undefined &&
+      !usesPublishedImageFallback(service);
     const monorepoCaveat = usesNixpacksPackaging ? monorepoPackaging(service, facts.packageManager)?.caveat : undefined;
     if (monorepoCaveat !== undefined) {
       gaps.push({ subject: service.name, message: monorepoCaveat });

@@ -235,6 +235,14 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
     buildCommand: existing.buildCommand ?? incoming.buildCommand,
     startCommand: existing.startCommand ?? incoming.startCommand,
     containerCommand: existing.containerCommand ?? incoming.containerCommand,
+    prebuiltImage: existing.prebuiltImage ?? incoming.prebuiltImage,
+    ...((existing.missingEmbeddedAssets?.length ?? 0) + (incoming.missingEmbeddedAssets?.length ?? 0) === 0
+      ? {}
+      : {
+          missingEmbeddedAssets: [
+            ...new Set([...(existing.missingEmbeddedAssets ?? []), ...(incoming.missingEmbeddedAssets ?? [])])
+          ]
+        }),
     buildRoot: existing.buildRoot ?? incoming.buildRoot,
     containerEntrypoint: existing.containerEntrypoint ?? incoming.containerEntrypoint,
     functionEntrypoint: existing.functionEntrypoint ?? incoming.functionEntrypoint,
@@ -704,6 +712,18 @@ export const assembleCandidateFacts = async ({
       }
       service.containerCommand ??= [...command.containerCommand];
       service.evidence = mergeEvidence(service.evidence ?? [], command.evidence);
+    }
+  }
+  for (const image of outputs.flatMap((output) => output.serviceImages ?? [])) {
+    for (const service of services) {
+      if (
+        service.path !== image.path ||
+        normalizedServiceName(service) !== normalizedServiceName({ name: image.serviceName })
+      ) {
+        continue;
+      }
+      service.prebuiltImage ??= image.prebuiltImage;
+      service.evidence = mergeEvidence(service.evidence ?? [], image.evidence);
     }
   }
   // Forward descriptor-local names before attribution decides whether a consumer exists. Waiting

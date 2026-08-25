@@ -393,4 +393,32 @@ describe('the server entrypoint probe', () => {
       })
     );
   });
+
+  it('records missing go:embed inputs but not assets present in the checkout', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/notifier\n',
+      'main.go': [
+        'package main',
+        'import "net/http"',
+        'import _ "example.com/notifier/server"',
+        'func main() { http.ListenAndServe(":80", nil) }',
+        ''
+      ].join('\n'),
+      'server/assets.go': [
+        'package server',
+        'import "embed"',
+        '//go:embed site docs generated/*',
+        'var assets embed.FS',
+        ''
+      ].join('\n'),
+      'server/site/index.html': '<main>ready</main>',
+      'server/generated/app.js': 'console.log("ready")',
+      'internal/demo/assets.go': 'package demo\nimport "embed"\n//go:embed absent\nvar assets embed.FS\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repositoryRoot, probes: [serverEntrypointProbe] });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]?.missingEmbeddedAssets).toEqual(['server/docs']);
+  });
 });

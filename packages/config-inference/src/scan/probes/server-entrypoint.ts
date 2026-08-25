@@ -151,12 +151,80 @@ const goHttpEvidence = (raw: string): GoHttpEvidence | undefined => {
   return undefined;
 };
 
+const goModulePath = (raw: string): string | undefined => /^\s*module\s+(\S+)\s*$/m.exec(raw)?.[1];
+
 const goModuleName = (raw: string): string | undefined => {
-  const modulePath = /^\s*module\s+(\S+)\s*$/m.exec(raw)?.[1];
+  const modulePath = goModulePath(raw);
   if (modulePath === undefined) return undefined;
   const segments = modulePath.split('/');
   while (segments.length > 1 && /^v\d+$/.test(segments.at(-1)!)) segments.pop();
   return segments.at(-1);
+};
+
+const embedGlob = (value: string): RegExp =>
+  new RegExp(
+    `^${value
+      .replace(/[.+^${}()|[\]\\]/g, '\\$&')
+      .replaceAll('**', '\u0000')
+      .replaceAll('*', '[^/]*')
+      .replaceAll('\u0000', '.*')
+      .replaceAll('?', '[^/]')}$`
+  );
+
+/** Missing go:embed inputs make a clean source checkout uncompilable until its asset build runs. */
+const missingGoEmbeddedAssets = (
+  root: string,
+  entryDirectory: string,
+  modulePath: string | undefined,
+  goSources: ReadonlyMap<string, string>,
+  files: readonly string[]
+): string[] => {
+  const missing = new Set<string>();
+  const sourcesByDirectory = new Map<string, Array<{ path: string; raw: string }>>();
+  for (const [path, raw] of goSources) {
+    if (root !== '.' && !path.startsWith(`${root}/`)) continue;
+    const directory = posix.dirname(path);
+    const entries = sourcesByDirectory.get(directory) ?? [];
+    entries.push({ path, raw });
+    sourcesByDirectory.set(directory, entries);
+  }
+  // Only packages reachable from this binary affect `go build <entrypoint>`. A demo package with
+  // missing embeds elsewhere in the module must not force the real server onto a fallback image.
+  const pending = [entryDirectory];
+  const reachable = new Set<string>();
+  while (pending.length > 0) {
+    const directory = pending.shift()!;
+    if (reachable.has(directory)) continue;
+    reachable.add(directory);
+    if (modulePath === undefined) continue;
+    for (const { raw } of sourcesByDirectory.get(directory) ?? []) {
+      for (const match of goCodeWithoutComments(raw).matchAll(/["']([^"']+)["']/g)) {
+        const imported = match[1];
+        if (imported === undefined || (imported !== modulePath && !imported.startsWith(`${modulePath}/`))) continue;
+        const relative = imported === modulePath ? '.' : imported.slice(modulePath.length + 1);
+        const importedDirectory = root === '.' ? relative : posix.join(root, relative);
+        if (sourcesByDirectory.has(importedDirectory) && !reachable.has(importedDirectory))
+          pending.push(importedDirectory);
+      }
+    }
+  }
+  for (const directory of reachable) {
+    for (const { path, raw } of sourcesByDirectory.get(directory) ?? []) {
+      for (const match of raw.matchAll(/^\s*\/\/go:embed\s+([^\r\n]+)$/gm)) {
+        for (const token of (match[1] ?? '').match(/"(?:\\.|[^"\\])*"|'(?:\\.|[^'\\])*'|\S+/g) ?? []) {
+          const pattern = token.replace(/^(?:"|')|(?:"|')$/g, '').replace(/^all:/, '');
+          const resolved = posix.normalize(posix.join(posix.dirname(path), pattern));
+          if (resolved.startsWith('../') || posix.isAbsolute(resolved)) continue;
+          const hasGlob = resolved.includes('*') || resolved.includes('?') || resolved.includes('[');
+          const exists = hasGlob
+            ? files.some((file) => embedGlob(resolved).test(file))
+            : files.some((file) => file === resolved || file.startsWith(`${resolved}/`));
+          if (!exists) missing.add(resolved);
+        }
+      }
+    }
+  }
+  return [...missing].toSorted();
 };
 
 const workerProcessType = (path: string): string => {
@@ -425,6 +493,13 @@ export const serverEntrypointProbe: Probe = {
           ? citeFirstMatch(dockerfile, exposedDockerfile!.raw, /^\s*EXPOSE\s+\d{2,5}/im, 'port')
           : citeFirstMatch(listener.path, listener.raw, listener.evidence!.pattern, 'containerEntrypoint');
       const multipleMainPackages = (mainDirectoryCountByRoot.get(root) ?? 0) > 1;
+      const missingEmbeddedAssets = missingGoEmbeddedAssets(
+        root,
+        directory,
+        goModRaw === undefined ? undefined : goModulePath(goModRaw),
+        goSources,
+        context.files
+      );
       const relativeDirectory = root === '.' ? directory : posix.relative(root, directory);
       const directoryBasename = posix.basename(directory);
       const packageName =
@@ -450,6 +525,7 @@ export const serverEntrypointProbe: Probe = {
         ...(exposedDockerfile === undefined ? {} : { port: exposedDockerfile.port }),
         executionModel: 'long-running',
         containerEntrypoint: entrypoint.path,
+        ...(missingEmbeddedAssets.length === 0 ? {} : { missingEmbeddedAssets }),
         environmentVariables: [],
         evidence: [mainCitation, listenerCitation].filter((citation) => citation !== undefined),
         source: 'probe'
