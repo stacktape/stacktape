@@ -399,7 +399,7 @@ const configTokens = (source: string): ConfigToken[] => {
   return tokens;
 };
 
-type LiteralProperty = { value: ConfigToken; key: ConfigToken };
+type LiteralProperty = { value: ConfigToken; key: ConfigToken; exact: boolean };
 
 const exportedObjectProperties = (source: string): ReadonlyMap<string, LiteralProperty> => {
   const tokens = configTokens(source);
@@ -431,7 +431,13 @@ const exportedObjectProperties = (source: string): ReadonlyMap<string, LiteralPr
     }
     if (!expectsProperty || (token.kind !== 'identifier' && token.kind !== 'string')) continue;
     if (tokens[index + 1]?.value !== ':' || tokens[index + 2] === undefined) continue;
-    properties.set(token.value, { key: token, value: tokens[index + 2]! });
+    const value = tokens[index + 2]!;
+    const terminator = tokens[index + 3];
+    properties.set(token.value, {
+      key: token,
+      value,
+      exact: terminator?.value === ',' || terminator?.value === '}'
+    });
     expectsProperty = false;
   }
   return properties;
@@ -486,12 +492,12 @@ const staticSiteFor = async (
     if (configText !== undefined) {
       const properties = exportedObjectProperties(configText);
       const ssr = properties.get('ssr');
-      if (ssr?.value.kind === 'identifier' && ssr.value.value === 'false') {
+      if (ssr?.exact === true && ssr.value.kind === 'identifier' && ssr.value.value === 'false') {
         const configuredBuildDirectory = properties.get('buildDirectory');
         const buildDirectory =
           configuredBuildDirectory === undefined
             ? 'build'
-            : configuredBuildDirectory.value.kind === 'string'
+            : configuredBuildDirectory.exact && configuredBuildDirectory.value.kind === 'string'
               ? safeBuildDirectory(configuredBuildDirectory.value.value)
               : undefined;
         if (buildDirectory === undefined) return undefined;
