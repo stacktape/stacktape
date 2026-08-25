@@ -66,6 +66,7 @@ describe('sandboxed qualification planning & command composition', () => {
     expect(planned.runnerArgs).toContain('/run:rw,noexec,nosuid,size=64m');
     expect(planned.runnerArgs).toContain('/home/node:rw,exec,nosuid,size=1g');
 
+    expect(planned.runnerArgs).toContain(`${planned.inputVolumeName}:/qualification/inputs:ro`);
     expect(planned.runnerArgs).toContain(`${planned.outputVolumeName}:/qualification/output:rw`);
     expect(planned.runnerArgs).toContain(`${planned.cacheVolumeName}:/qualification/cache:rw`);
 
@@ -92,12 +93,19 @@ describe('sandboxed qualification planning & command composition', () => {
       runIdSuffix: 'stagetest'
     });
 
-    expect(planned.stagedInputs).toHaveLength(2);
-    expect(planned.stagedInputs[0].containerRelativePath).toBe('inputs/manifests/0/manifest.json');
-    expect(planned.stagedInputs[1].containerRelativePath).toBe('inputs/resume/manifest.json');
+    expect(planned.stagedInputs).toHaveLength(3);
+    expect(planned.stagedInputs[0].containerRelativePath).toBe(
+      'inputs/manifest-0-source-0-qualification-self-test-docker'
+    );
+    expect(planned.stagedInputs[0].hostPath).toBe(
+      resolve(mockRoot, 'apps/cli/scripts/qualification/fixtures/self-test-docker-project')
+    );
+    expect(planned.stagedInputs[1].containerRelativePath).toBe('inputs/manifest-0.json');
+    expect(planned.stagedInputs[1].content).toContain('"path": "manifest-0-source-0-qualification-self-test-docker"');
+    expect(planned.stagedInputs[2].containerRelativePath).toBe('inputs/resume-report.json');
 
-    expect(planned.innerCommandArgs).toContain('--manifest=/qualification/inputs/manifests/0/manifest.json');
-    expect(planned.innerCommandArgs).toContain('--resume-from=/qualification/inputs/resume/manifest.json');
+    expect(planned.innerCommandArgs).toContain('--manifest=/qualification/inputs/manifest-0.json');
+    expect(planned.innerCommandArgs).toContain('--resume-from=/qualification/inputs/resume-report.json');
   });
 
   test('applies labels to all planned resources for tracking and orphan management', () => {
@@ -156,7 +164,9 @@ describe('sandboxed qualification security boundary enforcement', () => {
     createdAt: new Date().toISOString(),
     networkName: 'stp-qual-net-test',
     dindContainerName: 'stp-qual-dind-test',
+    stagingContainerName: 'stp-qual-stage-test',
     runnerContainerName: 'stp-qual-runner-test',
+    inputVolumeName: 'stp-qual-input-test',
     outputVolumeName: 'stp-qual-out-test',
     cacheVolumeName: 'stp-qual-cache-test',
     imageTag: 'stacktape-qualification-runner:9e04530f68c4',
@@ -172,6 +182,8 @@ describe('sandboxed qualification security boundary enforcement', () => {
       '--read-only',
       '--cap-drop=ALL',
       '--security-opt=no-new-privileges:true',
+      '-v',
+      'stp-qual-input-test:/qualification/inputs:ro',
       '-v',
       'stp-qual-out-test:/qualification/output:rw',
       'stacktape-qualification-runner:9e04530f68c4',

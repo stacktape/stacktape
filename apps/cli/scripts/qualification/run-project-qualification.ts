@@ -204,7 +204,11 @@ const parseOptions = async (): Promise<ParsedOptions | 'list' | 'help' | 'sandbo
     invocationDirectory,
     values['cache-root'] ?? process.env.STACKTAPE_QUALIFICATION_CACHE ?? defaultCacheRoot
   );
-  const workRoot = join(tmpdir(), 'stacktape-project-qualification-work', runId);
+  const keepWorkdirs = Boolean(values['keep-workdirs']);
+  const workRoot =
+    process.env.STACKTAPE_QUALIFICATION_SANDBOX === '1' && keepWorkdirs
+      ? join(outputDirectory, 'workdirs')
+      : join(tmpdir(), 'stacktape-project-qualification-work', runId);
   return {
     cases: !lanes.some((lane) => lane === 'import' || lane === 'package') && selectedIds.size === 0 ? [] : candidates,
     lanes,
@@ -212,7 +216,7 @@ const parseOptions = async (): Promise<ParsedOptions | 'list' | 'help' | 'sandbo
     outputDirectory,
     cacheRoot,
     workRoot,
-    keepWorkdirs: Boolean(values['keep-workdirs']),
+    keepWorkdirs,
     failFast: Boolean(values['fail-fast']),
     allowHostProjectCode,
     ...(values['resume-from'] === undefined ? {} : { resumeFrom: resolve(invocationDirectory, values['resume-from']) }),
