@@ -16,6 +16,7 @@
  */
 
 import type { DependencyKind } from '../facts/dependency';
+import { normalizedEnvironmentVariableName } from '../facts/service';
 
 export type EnvironmentWiring =
   | { kind: 'param'; param: string }
@@ -59,12 +60,21 @@ const PRIMARY_HANDLE: Partial<Record<DependencyKind, string>> = {
  * parameter it means.
  */
 export const wiringFor = (kind: DependencyKind, variableName: string): EnvironmentWiring => {
-  const name = variableName.toUpperCase();
+  const name = normalizedEnvironmentVariableName(variableName);
 
   // Framework mode/configuration switches can contain the dependency name while asking for a
   // literal such as `phpredis`, `default`, a prefix, or a retry count. They are never addresses.
   if (/(?:CLIENT|CLUSTER|DRIVER|PREFIX|SUFFIX|RETRY|FAILED_DRIVER)$/.test(name)) return { kind: 'none' };
   if (/(?:^|_)CONNECTION$/.test(name)) return { kind: 'none' };
+  // `connectTo` supplies AWS identity and the deployment region. A bucket has no resolver
+  // parameter for access keys, region, or a custom S3-compatible endpoint; falling back to its
+  // name for any of those settings would produce a valid-looking but unusable deployment.
+  if (
+    kind === 'object-storage' &&
+    /(?:ACCESS_KEY(?:_ID)?|SECRET_(?:ACCESS_)?KEY|CREDENTIALS?|REGION|ENDPOINT|SERVICE_URL)$/.test(name)
+  ) {
+    return { kind: 'none' };
+  }
 
   if (/^(?:(?:DATABASE|DB)_(?:TYPE|ENGINE|DIALECT)|DB)$/.test(name)) {
     return RDS_KINDS.has(kind) ? { kind: 'database-engine' } : { kind: 'none' };

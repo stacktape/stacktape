@@ -31,6 +31,7 @@ import { activeWorkspaceDirectories, isIncidentalDirectory } from './incidental-
 import type { Probe, ProbeContext, ProbeOutput } from './probe';
 import { ENV_NAME_TO_KIND } from './probes/environment';
 import { readSourceFile } from './read-source';
+import { enrichRuntimePortability } from './runtime-portability';
 
 const MAX_EVIDENCE_PER_FACT = 6;
 
@@ -305,6 +306,13 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
                 ])
               ).values()
             ],
+    runtimePortabilityConstraints: [
+      ...new Map(
+        [...(existing.runtimePortabilityConstraints ?? []), ...(incoming.runtimePortabilityConstraints ?? [])].map(
+          (constraint) => [constraint.kind, constraint]
+        )
+      ).values()
+    ],
     servesStaticAssets,
     environmentVariables: mergeEnvironmentVariables(
       existing.environmentVariables ?? [],
@@ -326,7 +334,9 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
  */
 const genericMergeTarget = (
   services: ReadonlyMap<string, ServiceFactInput>,
-  incoming: ServiceFactInput
+  incoming: ServiceFactInput,
+  descriptorTargetServices: ReadonlySet<string>,
+  declaredApplicationPaths: ReadonlySet<string>
 ): [string, ServiceFactInput] | undefined => {
   const entries = [...services.entries()];
   const exactCommandMatches = entries.filter(
@@ -338,9 +348,51 @@ const genericMergeTarget = (
       service.exposesHttp === incoming.exposesHttp
   );
   if (exactCommandMatches.length === 1) return exactCommandMatches[0];
-  const exactNameMatches = entries.filter(
-    ([, service]) => normalizedServiceName(service) === normalizedServiceName(incoming)
-  );
+  const exactNameMatches = entries.filter(([, service]) => {
+    const rootDescriptor = service.path === '.' ? service : incoming.path === '.' ? incoming : undefined;
+    const child = rootDescriptor === service ? incoming : rootDescriptor === incoming ? service : undefined;
+    // A source scan prefixes duplicate binary names with their directory. The release descriptor's
+    // selected source path still proves which binary belongs to its parameterized image.
+    if (
+      rootDescriptor?.dockerfile !== undefined &&
+      (rootDescriptor.dockerfileBuildArgs?.length ?? 0) > 0 &&
+      child !== undefined &&
+      child.path !== '.' &&
+      declaredApplicationPaths.has(child.path) &&
+      normalizedServiceName({ name: posix.basename(child.path) }) === normalizedServiceName(rootDescriptor) &&
+      descriptorTargetServices.has(
+        `${rootDescriptor.path}\0${normalizedServiceName(rootDescriptor)}\0${rootDescriptor.dockerfile}`
+      )
+    ) {
+      return true;
+    }
+    if (normalizedServiceName(service) !== normalizedServiceName(incoming)) return false;
+    if (service.path === incoming.path) return true;
+    if (
+      service.dockerfile !== undefined &&
+      incoming.dockerfile !== undefined &&
+      service.dockerfile === incoming.dockerfile
+    ) {
+      return true;
+    }
+    // A root-context descriptor can own a child application, but its display name alone is not
+    // evidence of that ownership. Require its Dockerfile to live under the child's source path.
+    return (
+      rootDescriptor?.dockerfile !== undefined &&
+      child !== undefined &&
+      child.path !== '.' &&
+      (rootDescriptor.dockerfile === `${child.path}/Dockerfile` ||
+        rootDescriptor.dockerfile.startsWith(`${child.path}/`) ||
+        // A repository-root multi-stage Dockerfile can own several child applications, but only an
+        // explicit descriptor target proves that relationship. A root Dockerfile plus a coincidentally
+        // equal package name is not ownership evidence.
+        (posix.dirname(rootDescriptor.dockerfile) === '.' &&
+          descriptorTargetServices.has(
+            `${rootDescriptor.path}\0${normalizedServiceName(rootDescriptor)}\0${rootDescriptor.dockerfile}`
+          ) &&
+          normalizedServiceName(rootDescriptor) === normalizedServiceName(child)))
+    );
+  });
   if (exactNameMatches.length === 1) return exactNameMatches[0];
   const candidates = entries.filter(
     ([, service]) => service.path === incoming.path && service.processType !== undefined
@@ -395,16 +447,16 @@ const genericMergeTarget = (
     ) {
       return true;
     }
-    const existingName = normalizedServiceName(service);
-    const incomingName = normalizedServiceName(incoming);
     if (
-      comesFromAnotherDescription &&
-      existingName.length >= 3 &&
-      existingName === incomingName &&
-      (service.path === '.' || incoming.path === '.')
+      service.processType === undefined &&
+      service.path !== '.' &&
+      incoming.dockerfile !== undefined &&
+      posix.dirname(incoming.dockerfile) === service.path
     ) {
       return true;
     }
+    const existingName = normalizedServiceName(service);
+    const incomingName = normalizedServiceName(incoming);
     return (
       Math.min(existingName.length, incomingName.length) >= 4 &&
       (service.servesStaticAssets !== undefined || incoming.servesStaticAssets !== undefined) &&
@@ -436,6 +488,14 @@ const mergeServices = (
   outputs: readonly ProbeOutput[]
 ): { services: ServiceFactInput[]; renames: Map<string, string> } => {
   const byPath = new Map<string, ServiceFactInput>();
+  const declaredApplicationPaths = new Set(outputs.flatMap((output) => output.declaredApplicationPaths ?? []));
+  const descriptorTargetServices = new Set(
+    outputs.flatMap((output) =>
+      (output.descriptorTargetServices ?? []).map(
+        (service) => `${service.path}\0${normalizedServiceName({ name: service.serviceName })}\0${service.dockerfile}`
+      )
+    )
+  );
   const lifecycleDockerfiles = new Set(
     outputs.flatMap((output) => [...(output.lifecycleDockerfiles ?? []), ...(output.descriptorTargetDockerfiles ?? [])])
   );
@@ -526,7 +586,7 @@ const mergeServices = (
           });
           continue;
         }
-        const target = genericMergeTarget(byPath, service);
+        const target = genericMergeTarget(byPath, service, descriptorTargetServices, declaredApplicationPaths);
         if (target !== undefined) {
           const [targetKey, targetService] = target;
           if (service.name !== targetService.name) renames.set(service.name, targetService.name);
@@ -1001,6 +1061,20 @@ export const assembleCandidateFacts = async ({
         })
     });
   }
+
+  // Managed resources can match a dependency's API without matching a client's credential and
+  // endpoint assumptions. Source evidence turns those cases into an explicit deployment block
+  // instead of a configuration that packages successfully but cannot talk to its AWS dependency.
+  await enrichRuntimePortability({
+    services,
+    dependencies,
+    files: listing.files,
+    read: (path) =>
+      readSourceFile(root, path, {
+        startLine: 1,
+        endLine: Number.MAX_SAFE_INTEGER
+      })
+  });
 
   const uncertainties = new Map<string, Uncertainty>();
   for (const output of outputs) {

@@ -181,6 +181,28 @@ describe('qualification manifests', () => {
     ).toThrow('zero expected resources');
   });
 
+  test('accepts exact deployment-readiness and decision contracts from an external manifest', () => {
+    const parsed = qualificationManifestSchema.parse({
+      schemaVersion: 1,
+      cases: [
+        {
+          ...validCase,
+          expect: {
+            resourceTypes: { 'web-service': 1 },
+            decisionKinds: { 'compute-target': 1 },
+            serviceCount: 1,
+            httpServiceCount: 1,
+            deployable: false
+          }
+        }
+      ]
+    });
+    expect(parsed.cases[0]?.expect).toMatchObject({
+      decisionKinds: { 'compute-target': 1 },
+      deployable: false
+    });
+  });
+
   test('describes import-only and package-qualified projects accurately', () => {
     const importOnly = BUILT_IN_CASES.find((entry) => entry.id === 'react-router-default');
     const packaged = BUILT_IN_CASES.find((entry) => entry.id === 'fly-epic-stack');

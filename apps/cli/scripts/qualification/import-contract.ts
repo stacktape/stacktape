@@ -49,6 +49,9 @@ const assertExactCounts = ({
 export const acceptsResourceCount = (entry: QualificationCaseManifest, resourceCount: number): boolean =>
   resourceCount > 0 || entry.expect?.allowNoResources === true;
 
+export const deployabilityFailure = (expected: boolean | undefined, actual: boolean): string | undefined =>
+  expected === undefined || expected === actual ? undefined : `deployable: expected ${expected}; got ${actual}.`;
+
 export const runImportQualification = async ({
   entry,
   projectRoot,
@@ -169,9 +172,8 @@ export const runImportQualification = async ({
     if (services.length !== expected.serviceCount) {
       failures.push(`service count: expected ${expected.serviceCount}; got ${services.length}.`);
     }
-    if (expected.deployable !== undefined && result.composition.deployable !== expected.deployable) {
-      failures.push(`deployable: expected ${expected.deployable}; got ${result.composition.deployable}.`);
-    }
+    const deployableMismatch = deployabilityFailure(expected.deployable, result.composition.deployable);
+    if (deployableMismatch !== undefined) failures.push(deployableMismatch);
     const httpServiceCount = services.filter((service) => service.exposesHttp).length;
     if (httpServiceCount !== expected.httpServiceCount) {
       failures.push(`HTTP service count: expected ${expected.httpServiceCount}; got ${httpServiceCount}.`);

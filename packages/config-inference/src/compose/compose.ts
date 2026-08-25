@@ -737,6 +737,9 @@ export const composeConfig = ({
   );
   const cloudflareOwnedServices = new Set([...cloudflareRuntimeOwnership.values()].flat());
   const services = facts.services.filter((service) => !cloudflareOwnedServices.has(service));
+  const runtimePortabilityConstraints = services.flatMap((service) =>
+    service.runtimePortabilityConstraints.map((constraint) => ({ service, constraint }))
+  );
   const serviceNames = new Set(services.map((service) => service.name));
   const reservedDependencyNames = new Set(facts.dependencies.map((dependency) => dependency.name));
   const replacementDependencyName = (kind: DependencyFact['kind']): string => {
@@ -1329,6 +1332,17 @@ export const composeConfig = ({
       });
     }
 
+    for (const constraint of service.runtimePortabilityConstraints) {
+      gaps.push({
+        subject: `${service.name}.object-storage-client`,
+        severity: 'blocking',
+        message:
+          constraint.kind === 'object-storage-explicit-credentials-and-endpoint'
+            ? `${service.name} constructs its S3 client with explicit access-key credentials and a custom endpoint. Stacktape created an AWS bucket and granted this service IAM access, but this client bypasses that AWS identity and still expects the local S3-compatible endpoint. Update it to use the AWS default credential chain and regional endpoint before deploying.`
+            : `${service.name}'s deployment settings provide a custom object-storage endpoint and static access keys. Stacktape omitted those local settings because an AWS bucket should use IAM and its regional endpoint, but source analysis could not prove that this client falls back to those AWS defaults. Confirm or update the client before deploying.`
+      });
+    }
+
     if (usesPublishedImageFallback(service)) {
       const imageTail = service.prebuiltImage!.slice(service.prebuiltImage!.lastIndexOf('/') + 1);
       const mutableImage =
@@ -1516,6 +1530,7 @@ export const composeConfig = ({
       Object.keys(resources).length > 0 &&
       cloudflareRuntimeConstraints.length === 0 &&
       !hasUnresolvedPersistence &&
+      runtimePortabilityConstraints.length === 0 &&
       !uniqueGaps.some((gap) => gap.severity === 'blocking')
   };
 };

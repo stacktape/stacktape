@@ -92,6 +92,41 @@ describe('an agent cannot claim probe provenance', () => {
     expect(composeConfig({ facts: merged }).config.resources).toEqual({});
   });
 
+  it('cannot remove or manufacture a probe-owned service portability constraint', () => {
+    const baseline = projectFactsSchema.parse({
+      schemaVersion: 1,
+      services: [
+        {
+          ...agentService,
+          source: 'probe',
+          runtimePortabilityConstraints: [
+            {
+              kind: 'object-storage-explicit-credentials-and-endpoint',
+              evidence: [{ file: 'src/Storage.cs', line: 4, quote: 'new BasicAWSCredentials(' }]
+            }
+          ]
+        }
+      ]
+    });
+    const submission = agentSubmissionSchema.parse({
+      schemaVersion: 1,
+      services: [
+        {
+          ...agentService,
+          framework: 'express',
+          runtimePortabilityConstraints: []
+        }
+      ]
+    });
+
+    const merged = mergeAgentSubmission({ baseline, submission });
+
+    expect(merged.services[0]?.runtimePortabilityConstraints).toEqual(
+      baseline.services[0]?.runtimePortabilityConstraints
+    );
+    expect(composeConfig({ facts: merged }).deployable).toBe(false);
+  });
+
   it('rejects paths that would escape the repository', () => {
     for (const path of ['../../etc', '/etc/passwd', 'C:/Windows', 'apps\\web', 'a//b']) {
       expect(agentSubmissionSchema.safeParse({ schemaVersion: 1, services: [{ ...agentService, path }] }).success).toBe(

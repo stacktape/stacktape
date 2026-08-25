@@ -22,7 +22,7 @@
  */
 
 import type { DependencyFact, DependencyKind } from '../facts/dependency';
-import type { EnvironmentVariableRole, EnvironmentVariableUse, ServiceFactInput } from '../facts/service';
+import { type EnvironmentVariableRole, type EnvironmentVariableUse, type ServiceFactInput } from '../facts/service';
 import type { Citation } from '../facts/citation';
 import type { SourceRead } from './read-source';
 import { AMBIGUOUS_DATABASE_NAMES, AMBIGUOUS_DATABASE_SETTING_NAMES, ENV_NAME_TO_KIND } from './probes/environment';
