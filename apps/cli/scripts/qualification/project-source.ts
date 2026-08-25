@@ -1,5 +1,17 @@
 import { createHash } from 'node:crypto';
-import { cp, mkdir, mkdtemp, readFile, readdir, readlink, realpath, rename, stat } from 'node:fs/promises';
+import {
+  chmod,
+  cp,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  readlink,
+  realpath,
+  rename,
+  stat
+} from 'node:fs/promises';
 import { basename, join, relative, resolve, sep } from 'node:path';
 import type { QualificationCaseManifest } from './contracts';
 import { assertProcessSucceeded, runProcess } from './process';
@@ -145,6 +157,15 @@ const copyProject = async ({ sourceRoot, workRoot, id }: { sourceRoot: string; w
       return !excludedSourceNames.has(name);
     }
   });
+  const makeWritable = async (path: string): Promise<void> => {
+    const metadata = await lstat(path);
+    if (metadata.isSymbolicLink()) return;
+    await chmod(path, metadata.mode | (metadata.isDirectory() ? 0o700 : 0o200));
+    if (metadata.isDirectory()) {
+      for (const entry of await readdir(path)) await makeWritable(join(path, entry));
+    }
+  };
+  await makeWritable(projectRoot);
   return projectRoot;
 };
 

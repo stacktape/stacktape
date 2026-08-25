@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -108,5 +108,32 @@ describe('qualification project sources', () => {
     await Bun.write(join(projectRoot, 'package.json'), '{"name":"changed"}\n');
     const after = await calculateSourceFingerprint({ entry, manifestDirectory: manifestRoot });
     expect(after).not.toBe(before);
+  });
+
+  test('makes the isolated project copy writable without changing the declared source', async () => {
+    const manifestRoot = await createRoot();
+    const sourceRoot = join(manifestRoot, 'read-only-project');
+    await mkdir(sourceRoot);
+    await writeFile(join(sourceRoot, 'package.json'), '{"name":"read-only-fixture"}\n');
+    await chmod(join(sourceRoot, 'package.json'), 0o444);
+    await chmod(sourceRoot, 0o555);
+    const entry: QualificationCaseManifest = {
+      id: 'read-only-fixture',
+      title: 'Read-only fixture',
+      why: 'The sandbox input stays read-only while the isolated build copy must be writable.',
+      source: { kind: 'local', path: 'read-only-project', license: 'Synthetic fixture' },
+      origin: 'synthetic',
+      tags: ['local-source'],
+      lanes: ['import']
+    };
+    const acquired = await acquireProject({
+      entry,
+      manifestDirectory: manifestRoot,
+      cacheRoot: await createRoot(),
+      workRoot: await createRoot()
+    });
+    await writeFile(join(acquired.projectRoot, 'stacktape.yml'), 'resources: {}\n');
+    expect((await stat(acquired.projectRoot)).mode & 0o200).not.toBe(0);
+    expect((await stat(sourceRoot)).mode & 0o200).toBe(0);
   });
 });
