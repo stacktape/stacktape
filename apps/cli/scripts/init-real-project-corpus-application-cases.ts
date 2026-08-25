@@ -180,7 +180,8 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     exercises: ['rust', 'rocket', 'sqlite', 'persistent-storage', 'docker', 'email'],
     expect: {
       resourceTypes: { bastion: 1, 'efs-filesystem': 1, 'relational-database': 1, 'web-service': 1 },
-      dependencyKinds: { email: 1, postgres: 1 },
+      dependencyKinds: { email: 1 },
+      decisionKinds: { 'sqlite-persistence': 1 },
       serviceCount: 1,
       httpServiceCount: 1,
       services: [

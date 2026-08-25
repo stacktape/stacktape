@@ -345,6 +345,23 @@ export const serviceFactSchema = z
         connectionVariable: z.string().regex(/^[A-Z][A-Z0-9_]+$/)
       })
       .optional(),
+    /**
+     * Managed database engines this application can use instead of its local default.
+     *
+     * Probe-only: build features and configuration source can prove compatibility, but compatibility
+     * is not evidence that the application currently requires or uses that engine. Composition may
+     * offer one as a disclosed persistence decision; it must never become a dependency fact here.
+     */
+    managedDatabaseCapabilities: z
+      .array(
+        z.object({
+          kind: z.enum(['postgres', 'mysql', 'mssql']),
+          connectionVariable: z.string().regex(/^[A-Z][A-Z0-9_]+$/),
+          evidence: z.array(citationSchema).min(1)
+        })
+      )
+      .min(1)
+      .optional(),
     source: factSourceSchema
   })
   .superRefine(checkServiceConsistency);

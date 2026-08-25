@@ -171,7 +171,7 @@ describe('the standalone Dockerfile probe', () => {
     expect(facts.dependencies).toEqual([]);
   });
 
-  it('moves a source-proven default SQLite database off the declared network volume', async () => {
+  it('offers a managed database choice without turning source capability into a dependency fact', async () => {
     const repositoryRoot = await makeRepo({
       'Cargo.toml': [
         '[package]',
@@ -217,26 +217,19 @@ describe('the standalone Dockerfile probe', () => {
     });
     const composed = composeConfig({ facts });
 
-    expect(facts.dependencies).toContainEqual(
-      expect.objectContaining({
-        name: 'mainDatabase',
-        kind: 'postgres',
-        consumedBy: ['password-vault'],
-        addressedBy: ['DATABASE_URL']
-      })
-    );
+    expect(facts.dependencies).toEqual([]);
     expect(facts.services[0]).toMatchObject({
       defaultLocalDatabase: {
         kind: 'sqlite',
         path: '/data/db.sqlite3',
         connectionVariable: 'DATABASE_URL'
-      }
+      },
+      managedDatabaseCapabilities: [{ kind: 'postgres', connectionVariable: 'DATABASE_URL' }]
     });
-    expect(facts.services[0]?.environmentVariables).toContainEqual(
+    expect(facts.services[0]?.environmentVariables).not.toContainEqual(
       expect.objectContaining({
         name: 'DATABASE_URL',
-        role: 'infra-dependency',
-        dependencyName: 'mainDatabase'
+        role: 'infra-dependency'
       })
     );
     expect(facts.services[0]?.environmentVariables).toContainEqual(
@@ -249,6 +242,14 @@ describe('the standalone Dockerfile probe', () => {
     );
 
     expect(composed.config.resources.mainDatabase?.type).toBe('relational-database');
+    expect(composed.assumptions).toContainEqual(
+      expect.objectContaining({
+        id: 'sqlite-persistence:password-vault',
+        kind: 'sqlite-persistence',
+        chosen: 'migrate-to-managed-database',
+        notable: true
+      })
+    );
     expect(composed.config.resources.passwordVault?.properties.environment).toEqual(
       expect.arrayContaining([
         { name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" },
@@ -257,6 +258,27 @@ describe('the standalone Dockerfile probe', () => {
     );
     expect(composed.gaps.some((gap) => gap.subject === 'password-vault.database-persistence')).toBe(false);
     expect(composed.deployable).toBe(true);
+
+    const keptOnEfs = composeConfig({
+      facts,
+      decisions: { 'sqlite-persistence:password-vault': 'persistent-volume' }
+    });
+    expect(keptOnEfs.config.resources.mainDatabase).toBeUndefined();
+    expect(keptOnEfs.config.resources.databaseBastion).toBeUndefined();
+    expect(keptOnEfs.config.resources.passwordVaultData?.type).toBe('efs-filesystem');
+    expect(keptOnEfs.assumptions).toContainEqual(
+      expect.objectContaining({
+        chosen: 'persistent-volume',
+        alternatives: ['migrate-to-managed-database', 'persistent-volume']
+      })
+    );
+    expect(keptOnEfs.gaps).toContainEqual(
+      expect.objectContaining({
+        subject: 'password-vault.database-persistence',
+        message: expect.stringMatching(/SQLite WAL.*network filesystems.*application-consistent.*disabling WAL/i)
+      })
+    );
+    expect(keptOnEfs.deployable).toBe(false);
   });
 
   it('retains legitimate services declared by an ordinary multi-service workspace', async () => {

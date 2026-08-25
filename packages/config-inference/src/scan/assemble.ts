@@ -263,6 +263,19 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
     bundledLifecycle: existing.bundledLifecycle ?? incoming.bundledLifecycle,
     declaredContainerVolumes: existing.declaredContainerVolumes ?? incoming.declaredContainerVolumes,
     defaultLocalDatabase: existing.defaultLocalDatabase ?? incoming.defaultLocalDatabase,
+    managedDatabaseCapabilities:
+      existing.managedDatabaseCapabilities === undefined
+        ? incoming.managedDatabaseCapabilities
+        : incoming.managedDatabaseCapabilities === undefined
+          ? existing.managedDatabaseCapabilities
+          : [
+              ...new Map(
+                [...existing.managedDatabaseCapabilities, ...incoming.managedDatabaseCapabilities].map((capability) => [
+                  `${capability.kind}:${capability.connectionVariable}`,
+                  capability
+                ])
+              ).values()
+            ],
     servesStaticAssets,
     environmentVariables: mergeEnvironmentVariables(
       existing.environmentVariables ?? [],

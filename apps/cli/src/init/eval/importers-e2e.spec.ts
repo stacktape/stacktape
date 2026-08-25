@@ -123,8 +123,10 @@ const CASES: EvalCase[] = [
       'playwright/compose/keycloak/Dockerfile': 'FROM quay.io/keycloak/keycloak:26\n'
     },
     expect: {
-      dependencyKinds: ['email', 'postgres'],
-      absentDependencyKinds: ['mysql'],
+      dependencyKinds: ['email'],
+      absentDependencyKinds: ['postgres', 'mysql'],
+      assumesKinds: ['sqlite-persistence'],
+      maxQuestions: 1,
       resources: {
         mainDatabase: 'relational-database',
         databaseBastion: 'bastion',
@@ -151,8 +153,7 @@ const CASES: EvalCase[] = [
       ],
       requiredGapPatterns: ['SMTP.*host.*port.*username.*password'],
       forbiddenGapPatterns: ['lost when the runtime restarts'],
-      deployable: true,
-      maxQuestions: 0
+      deployable: true
     }
   },
   {

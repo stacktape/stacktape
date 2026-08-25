@@ -14,6 +14,8 @@
  * an agent that reads untrusted files must never be able to put a sentence in front of a user.
  */
 
+import { decisionNoticeFor } from '@stacktape/config-inference/compose/assumptions';
+
 export type DecisionCopy = {
   /** What we did, as a statement. Shown as the headline of the row. */
   summary: (parameters: Record<string, unknown>, chosen: string) => string;
@@ -101,8 +103,11 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
   },
 
   'sqlite-persistence': {
-    summary: () => 'Moving your SQLite data to a real database',
-    detail: () =>
+    summary: (parameters, chosen) =>
+      decisionNoticeFor({ kind: 'sqlite-persistence', parameters, chosen })?.summary ??
+      'Moving your SQLite data to a real database',
+    detail: (parameters, chosen) =>
+      decisionNoticeFor({ kind: 'sqlite-persistence', parameters, chosen })?.detail ??
       'SQLite keeps everything in a file next to your app. On AWS your app is replaced on every deploy, and the file goes with it — so this moves that data somewhere it survives.',
     option: (value) =>
       value === 'migrate-to-managed-database'
@@ -112,9 +117,9 @@ export const DECISION_COPY: Record<string, DecisionCopy> = {
           : 'It is only a cache, losing it is fine',
     consequence: (value) =>
       value === 'migrate-to-managed-database'
-        ? 'You point your app at it once, and it survives every deploy after that.'
+        ? 'Creates paid database infrastructure. Existing SQLite data must be moved separately.'
         : value === 'persistent-volume'
-          ? 'Closest to how it works today, but only one copy of your app can run.'
+          ? 'The generated configuration remains blocked because SQLite is unsafe on EFS.'
           : 'Nothing is created. The file is gone on every deploy.'
   },
 

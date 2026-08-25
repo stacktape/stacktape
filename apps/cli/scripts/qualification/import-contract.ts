@@ -154,6 +154,14 @@ export const runImportQualification = async ({
         failures
       });
     }
+    if (expected.decisionKinds !== undefined) {
+      assertExactCounts({
+        label: 'decision kinds',
+        expected: expected.decisionKinds,
+        actual: countBy(decisions, 'kind'),
+        failures
+      });
+    }
     if (services.length !== expected.serviceCount) {
       failures.push(`service count: expected ${expected.serviceCount}; got ${services.length}.`);
     }

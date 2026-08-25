@@ -35,6 +35,7 @@ import { createPreflightRunners } from './preflight/runners';
 import { runRepairMission } from './missions/repair';
 import type { InfrastructureMode } from '@stacktape/config-inference/compose/modes';
 import type { DeploymentPreferences } from '@stacktape/config-inference/compose/preferences';
+import { decisionNoticeFor } from '@stacktape/config-inference/compose/assumptions';
 import type { WizardAgentOption } from './server/wizard-server';
 import { startWizardSession, toTimelineEntry } from './server/wizard-session';
 import { estimateMonthlyCost } from './pricing';
@@ -670,9 +671,14 @@ export const describeResult = (result: GreenfieldResult): string[] => {
   const notable = result.composition.assumptions.filter((assumption) => assumption.notable);
   if (notable.length > 0) {
     lines.push('', 'Decided for you, and worth a look:');
-    // The kind and the value rather than a rendered sentence: the wording lives in the wizard, and
-    // a second copy of it here would be a second copy to keep honest.
-    for (const assumption of notable) lines.push(`  - ${assumption.kind}: ${assumption.chosen}`);
+    for (const assumption of notable) {
+      const notice = decisionNoticeFor(assumption);
+      if (notice === undefined) {
+        lines.push(`  - ${assumption.kind}: ${assumption.chosen}`);
+      } else {
+        lines.push(`  - ${notice.summary}`, `      ${notice.detail}`);
+      }
+    }
     lines.push('', 'Run without --headless to change any of them in the browser.');
   }
 

@@ -53,6 +53,7 @@ const expectationSchema = z
   .object({
     resourceTypes: z.record(z.string(), z.number().int().nonnegative()),
     dependencyKinds: z.record(z.string(), z.number().int().nonnegative()).optional(),
+    decisionKinds: z.record(z.string(), z.number().int().nonnegative()).optional(),
     serviceCount: z.number().int().nonnegative(),
     httpServiceCount: z.number().int().nonnegative(),
     services: z.array(expectedServiceSchema).optional(),

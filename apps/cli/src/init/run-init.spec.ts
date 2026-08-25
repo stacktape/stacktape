@@ -266,6 +266,24 @@ describe('describeResult', () => {
     expect(lines).toContain('--headless');
   });
 
+  it('prints the SQLite replacement cost and migration consequence in headless review', () => {
+    const lines = describeResult(
+      resultWith({
+        assumptions: [
+          {
+            kind: 'sqlite-persistence',
+            chosen: 'migrate-to-managed-database',
+            parameters: { serviceName: 'vault', managedDatabaseKind: 'postgres' },
+            notable: true
+          } as never
+        ]
+      })
+    ).join('\n');
+
+    expect(lines).toContain("Stacktape replaces vault's default SQLite database with managed PostgreSQL");
+    expect(lines).toMatch(/SQLite WAL.*EFS.*paid RDS.*bastion.*not migrated automatically/i);
+  });
+
   it('reports an empty project without pretending otherwise', () => {
     const lines = describeResult(resultWith({ config: { resources: {} } })).join('\n');
 

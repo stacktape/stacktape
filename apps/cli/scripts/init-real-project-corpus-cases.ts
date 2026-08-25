@@ -19,6 +19,8 @@ export type RealProjectCorpusExpectation = {
   resourceTypes: Readonly<Record<string, number>>;
   /** Exact dependency fact counts by portable dependency kind. */
   dependencyKinds?: Readonly<Record<string, number>>;
+  /** Exact visible composition decisions by closed decision kind. */
+  decisionKinds?: Readonly<Record<string, number>>;
   serviceCount: number;
   httpServiceCount: number;
   /** Order-independent per-service semantic expectations. */

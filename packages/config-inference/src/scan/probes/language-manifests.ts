@@ -24,7 +24,6 @@
  */
 
 import { posix } from 'node:path';
-import type { Citation } from '../../facts/citation';
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/service';
 import { isNonProductionFixturePath } from '../deployment-relevance';
@@ -407,7 +406,7 @@ const normalise = (name: string): string => {
 type RustContainerConfiguration = {
   variables: EnvironmentVariableUse[];
   defaultLocalDatabase?: NonNullable<ServiceFactInput['defaultLocalDatabase']>;
-  postgresEvidence: Citation[];
+  managedDatabaseCapabilities?: NonNullable<ServiceFactInput['managedDatabaseCapabilities']>;
 };
 
 /**
@@ -508,21 +507,6 @@ const rustContainerConfiguration = async (
     /^\s*ARG\s+DB\s*=\s*[^\n#]*\bpostgresql\b[^\n#]*/im,
     'dependencies.kind'
   );
-  if (
-    databaseIsInsideVolume &&
-    databaseCitation !== undefined &&
-    cargoPostgres !== undefined &&
-    dockerPostgres !== undefined
-  ) {
-    variables.push({
-      name: 'DATABASE_URL',
-      role: 'infra-dependency',
-      dependencyName: defaultDependencyName('postgres'),
-      required: true,
-      evidence: [databaseCitation]
-    });
-  }
-
   return {
     variables,
     ...(databaseIsInsideVolume && localDatabasePath !== undefined
@@ -534,10 +518,20 @@ const rustContainerConfiguration = async (
           }
         }
       : {}),
-    postgresEvidence:
-      databaseIsInsideVolume && cargoPostgres !== undefined && dockerPostgres !== undefined
-        ? [cargoPostgres, dockerPostgres]
-        : []
+    ...(databaseIsInsideVolume &&
+    databaseCitation !== undefined &&
+    cargoPostgres !== undefined &&
+    dockerPostgres !== undefined
+      ? {
+          managedDatabaseCapabilities: [
+            {
+              kind: 'postgres' as const,
+              connectionVariable: 'DATABASE_URL',
+              evidence: [databaseCitation, cargoPostgres, dockerPostgres]
+            }
+          ]
+        }
+      : {})
   };
 };
 
@@ -672,18 +666,6 @@ export const languageManifestProbe: Probe = {
       language === 'rust' && projectName !== undefined
         ? await rustContainerConfiguration(context, projectName)
         : undefined;
-    if (rustConfiguration !== undefined && rustConfiguration.postgresEvidence.length > 0) {
-      dependencies.set('postgres', {
-        name: defaultDependencyName('postgres'),
-        kind: 'postgres',
-        extensions: [],
-        consumedBy: [projectName ?? 'app'],
-        addressedBy: ['DATABASE_URL'],
-        evidence: rustConfiguration.postgresEvidence,
-        source: 'probe'
-      });
-    }
-
     const framework = HTTP_FRAMEWORKS.find((entry) => entry.packages.some((name) => foundIn.has(name)));
     const server = [...HTTP_SERVERS].find((name) => foundIn.has(name));
     const exposesHttp = framework !== undefined || server !== undefined;
@@ -719,6 +701,9 @@ export const languageManifestProbe: Probe = {
                 ...(rustConfiguration?.defaultLocalDatabase === undefined
                   ? {}
                   : { defaultLocalDatabase: rustConfiguration.defaultLocalDatabase }),
+                ...(rustConfiguration?.managedDatabaseCapabilities === undefined
+                  ? {}
+                  : { managedDatabaseCapabilities: rustConfiguration.managedDatabaseCapabilities }),
                 environmentVariables: rustConfiguration?.variables ?? [],
                 evidence: [cite(framework?.packages[0] ?? server ?? ''), streamlitCitation].filter(
                   (citation) => citation !== undefined
