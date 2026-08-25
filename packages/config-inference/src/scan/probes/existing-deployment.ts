@@ -66,6 +66,9 @@ const IGNORED_NESTED_DIRECTORIES = new Set([
   'tests'
 ]);
 
+/** Root documentation trees are supporting material; `apps/docs` can still be a real deployed app. */
+const IGNORED_ROOT_DIRECTORIES = new Set(['docs', 'documentation']);
+
 /**
  * Deployment manifests often live beside an app in a monorepo (`apps/api/fly.toml`). Consider a
  * bounded nested location, but never turn a tutorial or test fixture into a claim about what runs
@@ -81,6 +84,7 @@ const findManifests = (files: readonly string[], names: readonly string[]): stri
       name !== undefined &&
       names.includes(name) &&
       directories.length <= 4 &&
+      !IGNORED_ROOT_DIRECTORIES.has(directories[0]?.toLowerCase() ?? '') &&
       !directories.some((segment) => IGNORED_NESTED_DIRECTORIES.has(segment.toLowerCase()))
     );
   });

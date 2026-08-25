@@ -139,22 +139,29 @@ const mostSpecificServicesOwningPath = (services: readonly ServiceFact[], path: 
 };
 
 /**
- * Resolve a runtime entrypoint to the most specific service directory that owns it.
+ * Resolve a runtime entrypoint to a service only when the ownership is unambiguous.
  *
- * A root service is an owner of every path, but a workspace app is a better owner of
- * `apps/edge/src/index.ts`. Keeping only the deepest match prevents one app-local Wrangler file
- * from suppressing platform-neutral siblings in the same monorepo.
+ * An exact function/container entrypoint is identity evidence. A single service inside an app-local
+ * scope is also safe: the package and Wrangler declaration describe one deployable unit. Several
+ * Procfile processes at the same root are not safe to associate merely because every source path is
+ * technically below `.`.
  */
 const servicesOwnedByRuntime = (
   services: readonly ServiceFact[],
   constraint: DeploymentRuntimeConstraint
 ): ServiceFact[] => {
   const inScope = services.filter((service) => pathIsInside(service.path, constraint.scope));
-  if (constraint.entrypoint === undefined) {
-    return inScope.filter((service) => service.path === constraint.scope);
-  }
+  if (constraint.entrypoint !== undefined) {
+    const exactEntrypointOwners = inScope.filter((service) => {
+      const containerEntrypoint = service.containerEntrypoint?.split(':')[0];
+      return service.functionEntrypoint === constraint.entrypoint || containerEntrypoint === constraint.entrypoint;
+    });
+    if (exactEntrypointOwners.length > 0) return exactEntrypointOwners;
 
-  return mostSpecificServicesOwningPath(inScope, constraint.entrypoint);
+    const locationOwners = mostSpecificServicesOwningPath(inScope, constraint.entrypoint);
+    if (locationOwners.length === 1 && locationOwners[0]?.path !== constraint.scope) return locationOwners;
+  }
+  return inScope.length === 1 ? inScope : [];
 };
 
 const CLOUDFLARE_BINDING_LABELS: Readonly<Record<string, string>> = {
@@ -644,17 +651,20 @@ export const composeConfig = ({
   const cloudflareRuntimeConstraints = facts.existingDeployments
     .filter((deployment) => deployment.tool === 'cloudflare-workers')
     .flatMap((deployment) => deployment.runtimeConstraints);
-  const cloudflareOwnedServiceNames = new Set(
-    cloudflareRuntimeConstraints.flatMap((constraint) =>
-      servicesOwnedByRuntime(facts.services, constraint).map((service) => service.name)
-    )
+  const cloudflareRuntimeOwnership = new Map(
+    cloudflareRuntimeConstraints.map((constraint) => [constraint, servicesOwnedByRuntime(facts.services, constraint)])
   );
-  const services = facts.services.filter((service) => !cloudflareOwnedServiceNames.has(service.name));
+  const cloudflareOwnedServices = new Set([...cloudflareRuntimeOwnership.values()].flat());
+  const ownedCloudflareRuntimeConstraints = cloudflareRuntimeConstraints.filter(
+    (constraint) => (cloudflareRuntimeOwnership.get(constraint)?.length ?? 0) > 0
+  );
+  const services = facts.services.filter((service) => !cloudflareOwnedServices.has(service));
+  const serviceSet = new Set(services);
   const serviceNames = new Set(services.map((service) => service.name));
   // A dependency used solely by a suppressed Worker service is part of the same non-portable app.
   // Do not leave behind a convincing but orphaned database, queue, or bucket.
   const dependencies = facts.dependencies.filter((dependency) => {
-    if (cloudflareRuntimeConstraints.length === 0) return true;
+    if (ownedCloudflareRuntimeConstraints.length === 0) return true;
     if (dependency.consumedBy.length > 0) {
       return dependency.consumedBy.some((consumer) => serviceNames.has(consumer));
     }
@@ -662,7 +672,7 @@ export const composeConfig = ({
       mostSpecificServicesOwningPath(facts.services, citation.file)
     );
     if (evidenceOwners.length > 0) {
-      return evidenceOwners.some((service) => serviceNames.has(service.name));
+      return evidenceOwners.some((service) => serviceSet.has(service));
     }
     // With no deployable service and no ownership evidence, emitting an orphan resource is the
     // dangerous guess. In a mixed monorepo, retain it for review rather than suppressing a possibly
@@ -1052,6 +1062,9 @@ export const composeConfig = ({
   // applied, so the wording stays conditional while still making the possible second copy visible.
   for (const deployment of facts.existingDeployments) {
     const label = DEPLOYMENT_TOOL_LABELS[deployment.tool];
+    const ownedRuntimeConstraints = deployment.runtimeConstraints.filter(
+      (constraint) => (cloudflareRuntimeOwnership.get(constraint)?.length ?? 0) > 0
+    );
     const runtimeBindings = [
       ...new Set(
         deployment.runtimeConstraints
@@ -1064,9 +1077,13 @@ export const composeConfig = ({
         ? 'Cloudflare Worker code'
         : `Cloudflare Worker code plus these runtime bindings: ${runtimeBindings.join(', ')}`;
     const cloudflareRuntimeMessage =
-      Object.keys(resources).length === 0
-        ? `This app depends on ${runtimeDetail}. Init cannot translate those runtime semantics safely, so it generated no AWS resources. Adapt the Cloudflare-owned code and bindings before deploying with Stacktape.`
-        : `Init generated AWS resources only for the platform-neutral parts of this repository. Its ${runtimeDetail} cannot be translated safely, so the Cloudflare-owned part was left out. This is not a deployable configuration for the complete app; adapt that code and its bindings first.`;
+      ownedRuntimeConstraints.length === 0
+        ? Object.keys(resources).length === 0
+          ? `This project declares ${runtimeDetail}, but init could not associate that runtime with a recognized application service. It generated no AWS resources; review the Worker as a separate application before deploying it with Stacktape.`
+          : `This project also declares ${runtimeDetail}, but init could not associate that runtime with any recognized application service. It left the detected platform-neutral services unchanged; review the Worker separately.`
+        : Object.keys(resources).length === 0
+          ? `This app depends on ${runtimeDetail}. Init cannot translate those runtime semantics safely, so it generated no AWS resources. Adapt the Cloudflare-owned code and bindings before deploying with Stacktape.`
+          : `Init generated AWS resources only for the platform-neutral parts of this repository. Its ${runtimeDetail} cannot be translated safely, so the Cloudflare-owned part was left out. This is not a deployable configuration for the complete app; adapt that code and its bindings first.`;
     gaps.push({
       subject: deployment.tool,
       message:
@@ -1112,7 +1129,7 @@ export const composeConfig = ({
     serviceResources: Object.fromEntries(serviceResourceNames),
     // A partial monorepo result remains useful for review, but must not unlock deployment as though
     // it represented the complete application.
-    deployable: Object.keys(resources).length > 0 && cloudflareRuntimeConstraints.length === 0
+    deployable: Object.keys(resources).length > 0 && ownedCloudflareRuntimeConstraints.length === 0
   };
 };
 
