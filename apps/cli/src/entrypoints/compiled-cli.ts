@@ -1,18 +1,8 @@
 import { runUsingCli } from './cli';
-
-const drainStream = async (stream: NodeJS.WriteStream) => {
-  if (stream.writableLength === 0) {
-    return;
-  }
-
-  await new Promise<void>((resolve) => {
-    stream.once('drain', resolve);
-    setTimeout(resolve, 300);
-  });
-};
+import { drainOutputStream } from './drain-output';
 
 const finishProcess = async () => {
-  await Promise.all([drainStream(process.stdout), drainStream(process.stderr)]);
+  await Promise.all([drainOutputStream(process.stdout), drainOutputStream(process.stderr)]);
   process.exit(process.exitCode ?? 0);
 };
 

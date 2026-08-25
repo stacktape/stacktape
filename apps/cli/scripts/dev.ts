@@ -9,6 +9,7 @@ import { config } from 'dotenv';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { drainOutputStream } from 'src/entrypoints/drain-output';
 
 const skipLoadingEnv = Boolean(process.env.SKIP_LOADING_ENV);
 const hasArgValue = ({ flag, value }: { flag: string; value: string }) => {
@@ -37,18 +38,8 @@ const devTmpFolderPath =
 const devBuildLockPath = `${devTmpFolderPath}.lock`;
 const devBuildLockStaleAfterMs = 10 * 60 * 1000;
 
-const drainStream = async (stream: NodeJS.WriteStream) => {
-  if (stream.writableLength === 0) {
-    return;
-  }
-  await new Promise<void>((resolve) => {
-    stream.once('drain', resolve);
-    setTimeout(resolve, 300);
-  });
-};
-
 const finishProcess = async () => {
-  await Promise.all([drainStream(process.stdout), drainStream(process.stderr)]);
+  await Promise.all([drainOutputStream(process.stdout), drainOutputStream(process.stderr)]);
   process.exit(process.exitCode ?? 0);
 };
 
