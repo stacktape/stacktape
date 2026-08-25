@@ -854,10 +854,12 @@ describe('the compose probe', () => {
         'CMD ["/bin/sh", "-c", "/platform/platform-${SERVER_TARGET}"]',
         ''
       ].join('\n'),
-      'cmd/platform-migrate/main.go': 'package main\n// migrations run through goose\nfunc main() {}\n'
+      'cmd/platform-migrate/main.go': 'package main\n// migrations run through goose\nfunc main() {}\n',
+      'cmd/platform-engine/main.go':
+        'package main\nimport "net/http"\nfunc main() { http.ListenAndServe(":7077", nil) }\n'
     });
 
-    const { facts } = await assembleCandidateFacts({ root, probes: [dockerComposeProbe] });
+    const { facts } = await assembleCandidateFacts({ root, probes: [dockerComposeProbe, serverEntrypointProbe] });
 
     expect(facts.services.map((service) => service.name)).toEqual([
       'platformMigrate',
@@ -885,6 +887,7 @@ describe('the compose probe', () => {
       ])
     );
     expect(facts.services.some((service) => 'dockerfileTarget' in service)).toBe(false);
+    expect(facts.services.find((service) => service.name === 'platformApi')?.containerEntrypoint).toBeUndefined();
     expect(facts.dependencies).toEqual([
       expect.objectContaining({ kind: 'postgres', engineVersion: '15.6', hostingEvidence: 'deployment-manifest' })
     ]);

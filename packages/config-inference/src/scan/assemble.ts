@@ -224,6 +224,13 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
       ? undefined
       : (existing.port ?? incoming.port);
 
+  const composeOwnedContainer = [existing, incoming].find(
+    (service) =>
+      service.processType?.startsWith('compose:') === true &&
+      service.dockerfile !== undefined &&
+      (service.dockerfileBuildArgs?.length ?? 0) > 0
+  );
+
   return {
     ...existing,
     // An importer can identify a container before the language manifest is read. Keep the concrete
@@ -239,7 +246,13 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
     buildCommand: existing.buildCommand ?? incoming.buildCommand,
     startCommand: existing.startCommand ?? incoming.startCommand,
     buildRoot: existing.buildRoot ?? incoming.buildRoot,
-    containerEntrypoint: existing.containerEntrypoint ?? incoming.containerEntrypoint,
+    // A parameterized Compose image contract owns its selected server. A generic source scanner can
+    // find another HTTP-capable main in the same repository root (metrics endpoints on a gRPC engine
+    // are a common example), but that does not make it this declared build target's entrypoint.
+    containerEntrypoint:
+      composeOwnedContainer === undefined
+        ? (existing.containerEntrypoint ?? incoming.containerEntrypoint)
+        : composeOwnedContainer.containerEntrypoint,
     functionEntrypoint: existing.functionEntrypoint ?? incoming.functionEntrypoint,
     functionTriggers: [
       ...new Map(
