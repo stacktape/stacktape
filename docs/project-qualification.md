@@ -39,8 +39,8 @@ The qualification sandbox (`pnpm qualify:projects:sandboxed`) constructs a dispo
   named volume, then mounted read-only in the runner. Reports and the per-run checkout cache use separate named volumes;
   reports are copied back after the runner stops. The host `$HOME`, cache directories, AWS credentials, SSH keys,
   Stacktape API keys, and inherited environment tokens are never mounted or passed through.
-- **Metadata & Host Gateway Sinkhole:** Cloud metadata (`169.254.169.254`, `metadata.google.internal`) and Docker host
-  gateways (`host.docker.internal`, `gateway.docker.internal`) are mapped to `127.0.0.1`.
+- **Name Sinkholes:** Well-known metadata and Docker host gateway names are mapped to `127.0.0.1` in the outer runner.
+  This reduces accidental access; it is not an egress firewall and does not cover direct IPs or nested build containers.
 - **Resource & Process Limits:** Enforces container memory (default 8 GB), CPU (default 4 cores), and PID limits
   (default 2048).
 
@@ -50,8 +50,8 @@ The qualification sandbox (`pnpm qualify:projects:sandboxed`) constructs a dispo
    While the runner container itself is unprivileged, an escape from the nested Docker daemon could reach the underlying
    VM/host kernel.
 2. **Network / LAN Egress:** Outbound internet access remains enabled so package managers (npm, pip, maven, cargo) and
-   Docker can download dependencies and base images. While cloud metadata is blocked, unsegmented local LAN endpoints
-   and arbitrary public IPs remain reachable from inside the container unless blocked by an external network firewall.
+   Docker can download dependencies and base images. Cloud metadata, unsegmented local LAN endpoints, host gateways, and
+   arbitrary public IPs may remain reachable unless an external VM/network firewall blocks them.
 3. **Shared Linux Kernel:** Container isolation relies on Linux kernel namespaces and cgroups (within Docker Desktop's
    WSL2 VM or host Linux kernel). It is not a hardware-isolated microVM (such as Firecracker).
 4. **Trust Boundary:** Use this local sandbox for reviewed or reputable sources pinned to an exact commit. Run newly
@@ -116,12 +116,19 @@ qualification-report.md         human summary and reproduction commands
 cases/<id>/result.json          result written immediately after that project
 cases/<id>/stacktape.yml        generated importer output
 cases/<id>/compiled-template.yml  template when synthesis reached that point
+sandbox-metadata.json             host-created image identity and SHA-256 hashes of accepted sandbox artifacts
 ```
 
 The per-case result makes a partially completed run useful. The final report includes the exact Git commit and a hash of
 tracked changes plus untracked source files. Case fingerprints also include the exact materialized project source and
 the Node, Bun, Docker, operating-system, and architecture context. A resumed success stays a passing result, records its
 original report, and carries its configuration/template evidence forward.
+
+The sandbox first copies output into a new temporary host directory, rejects links, special files, unexpected paths, and
+excessive output, validates report semantics, and only then renames it to the requested destination. The host-created
+metadata hashes the accepted files and records the actual runner image ID. Project code still shares the runner UID with
+the harness and can edit its report before collection, so these files are review evidence—not cryptographic attestation
+against a malicious worker.
 
 ## External and synthetic corpora
 

@@ -1,6 +1,9 @@
-import { describe, expect, test } from 'bun:test';
-import { resolve } from 'node:path';
+import { afterEach, describe, expect, test } from 'bun:test';
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { basename, dirname, join, resolve } from 'node:path';
 import { QUALIFICATION_RUNNER_DOCKERFILE } from './sandbox-dockerfile';
+import { validateAndHashOutputTree } from './run-sandboxed-qualification';
 import {
   assertPlannedSecurity,
   BLOCKED_HOST_GATEWAYS,
@@ -15,6 +18,11 @@ import {
 
 const mockRoot = resolve(import.meta.dir, '..', '..', '..', '..');
 const mockCommit = '9e04530f68c40f3bb5d3f1ef589d481cb0925bda';
+const temporaryDirectories: string[] = [];
+
+afterEach(() => {
+  for (const directory of temporaryDirectories.splice(0)) rmSync(directory, { recursive: true, force: true });
+});
 
 describe('sandboxed qualification planning & command composition', () => {
   test('generates commit-keyed image tag', () => {
@@ -26,6 +34,8 @@ describe('sandboxed qualification planning & command composition', () => {
     expect(QUALIFICATION_RUNNER_DOCKERFILE).toContain(
       'ENTRYPOINT ["bun", "apps/cli/scripts/qualification/run-project-qualification.ts"]'
     );
+    expect(QUALIFICATION_RUNNER_DOCKERFILE).toContain('git config --system --add safe.directory /workspace');
+    expect(QUALIFICATION_RUNNER_DOCKERFILE).not.toContain('chmod -R 755 /workspace');
 
     const planned = planSandboxExecution({
       productCommit: mockCommit,
@@ -108,6 +118,108 @@ describe('sandboxed qualification planning & command composition', () => {
     expect(planned.innerCommandArgs).toContain('--resume-from=/qualification/inputs/resume-report.json');
   });
 
+  test('stages only selected local sources, deduplicates them, and supports spaces in paths', () => {
+    const root = mkdtempSync(join(tmpdir(), 'qualification manifest with spaces-'));
+    temporaryDirectories.push(root);
+    const selectedSource = join(root, 'selected project');
+    const unrelatedSource = join(root, 'unrelated project');
+    mkdirSync(selectedSource);
+    mkdirSync(unrelatedSource);
+    writeFileSync(join(selectedSource, 'package.json'), '{}\n');
+    writeFileSync(join(unrelatedSource, 'package.json'), '{}\n');
+    const manifestPath = join(root, 'manifest.json');
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        cases: [
+          {
+            id: 'selected-one',
+            title: 'Selected one',
+            why: 'Selected source staging fixture.',
+            source: { kind: 'local', path: 'selected project', license: 'Synthetic' },
+            origin: 'synthetic',
+            tags: ['node'],
+            lanes: ['import']
+          },
+          {
+            id: 'selected-two',
+            title: 'Selected two',
+            why: 'Deduplicated source staging fixture.',
+            source: { kind: 'local', path: 'selected project', license: 'Synthetic' },
+            origin: 'synthetic',
+            tags: ['node'],
+            lanes: ['import']
+          },
+          {
+            id: 'not-selected',
+            title: 'Not selected',
+            why: 'Must not be copied into the sandbox.',
+            source: { kind: 'local', path: 'unrelated project', license: 'Synthetic' },
+            origin: 'synthetic',
+            tags: ['node'],
+            lanes: ['import']
+          }
+        ]
+      })}\n`
+    );
+
+    const planned = planSandboxExecution({
+      productCommit: mockCommit,
+      rawArgs: [`--manifest=${manifestPath}`, '--case=selected-one,selected-two', '--lanes=import'],
+      invocationDirectory: root,
+      rootDirectory: mockRoot,
+      runIdSuffix: 'selected'
+    });
+    const stagedDirectories = planned.stagedInputs.filter((entry) => entry.isDirectory);
+    expect(stagedDirectories).toHaveLength(1);
+    expect(stagedDirectories[0].hostPath).toBe(selectedSource);
+    expect(planned.stagedInputs.some((entry) => entry.hostPath === unrelatedSource)).toBeFalse();
+    expect(planned.stagedInputs.find((entry) => entry.content !== undefined)?.content).toContain(
+      '"path": "manifest-0-source-0-selected-one"'
+    );
+  });
+
+  test('rejects a local source whose directory link escapes the manifest root', () => {
+    const root = mkdtempSync(join(tmpdir(), 'qualification-symlink-'));
+    temporaryDirectories.push(root);
+    const manifestDirectory = join(root, 'manifest');
+    const outsideSource = join(root, 'outside');
+    mkdirSync(manifestDirectory);
+    mkdirSync(outsideSource);
+    symlinkSync(
+      outsideSource,
+      join(manifestDirectory, 'linked-project'),
+      process.platform === 'win32' ? 'junction' : 'dir'
+    );
+    const manifestPath = join(manifestDirectory, 'manifest.json');
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        cases: [
+          {
+            id: 'escaped-source',
+            title: 'Escaped source',
+            why: 'Must be rejected before Docker copies it.',
+            source: { kind: 'local', path: 'linked-project', license: 'Synthetic' },
+            origin: 'synthetic',
+            tags: ['node'],
+            lanes: ['import']
+          }
+        ]
+      })}\n`
+    );
+    expect(() =>
+      planSandboxExecution({
+        productCommit: mockCommit,
+        rawArgs: [`--manifest=${manifestPath}`, '--lanes=import'],
+        invocationDirectory: root,
+        rootDirectory: mockRoot
+      })
+    ).toThrow('resolves outside');
+  });
+
   test('applies labels to all planned resources for tracking and orphan management', () => {
     const planned = planSandboxExecution({
       productCommit: mockCommit,
@@ -123,6 +235,25 @@ describe('sandboxed qualification planning & command composition', () => {
 
     expect(planned.runnerArgs).toContain('stacktape.qualification.managed=true');
     expect(planned.dindArgs).toContain('stacktape.qualification.managed=true');
+  });
+
+  test('rejects unexpected files and links before sandbox output is materialized', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'qualification-output-'));
+    temporaryDirectories.push(root);
+    writeFileSync(join(root, 'qualification-report.json'), '{}\n');
+    const accepted = await validateAndHashOutputTree(root, false);
+    expect(accepted).toHaveLength(1);
+    expect(accepted[0].path).toBe('qualification-report.json');
+
+    writeFileSync(join(root, 'unexpected.txt'), 'not allowed\n');
+    await expect(validateAndHashOutputTree(root, false)).rejects.toThrow('unexpected artifact');
+    rmSync(join(root, 'unexpected.txt'));
+
+    const outside = join(dirname(root), `${basename(root)}-outside`);
+    writeFileSync(outside, 'outside\n');
+    temporaryDirectories.push(outside);
+    symlinkSync(outside, join(root, 'qualification-report.md'));
+    await expect(validateAndHashOutputTree(root, false)).rejects.toThrow('link or special file');
   });
 });
 

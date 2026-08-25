@@ -112,6 +112,9 @@ export type SandboxedQualificationParsedOptions = {
   list?: boolean;
   listOrphans?: boolean;
   cleanOrphans?: boolean;
+  runId?: string;
+  pruneImages?: boolean;
+  keepImages?: string;
   help?: boolean;
   rawForwardedArgs: string[];
 };
@@ -205,6 +208,9 @@ export const parseSandboxedOptions = (argv: string[]): SandboxedQualificationPar
       list: { type: 'boolean' },
       'list-orphans': { type: 'boolean' },
       'clean-orphans': { type: 'boolean' },
+      'run-id': { type: 'string' },
+      'prune-images': { type: 'boolean' },
+      'keep-images': { type: 'string' },
       help: { type: 'boolean' }
     },
     strict: true,
@@ -250,6 +256,9 @@ export const parseSandboxedOptions = (argv: string[]): SandboxedQualificationPar
     list: values.list,
     listOrphans: values['list-orphans'],
     cleanOrphans: values['clean-orphans'],
+    runId: values['run-id'],
+    pruneImages: values['prune-images'],
+    keepImages: values['keep-images'],
     help: values.help,
     rawForwardedArgs
   };
@@ -328,6 +337,8 @@ export const planSandboxExecution = ({
   if (parsed.failFast) innerCommandArgs.push('--fail-fast');
 
   const resolvedManifestPaths: string[] = [];
+  const explicitlySelectedCaseIds = new Set(parsed.cases?.flatMap((value) => value.split(',')).filter(Boolean) ?? []);
+  const stagedLocalSources = new Map<string, string>();
   if (parsed.manifests !== undefined && parsed.manifests.length > 0) {
     for (const [index, manifestRelPath] of parsed.manifests.entries()) {
       const canonicalManifest = validateCanonicalPath(manifestRelPath, invocationDirectory);
@@ -336,16 +347,25 @@ export const planSandboxExecution = ({
       const rewrittenManifest = structuredClone(manifest);
 
       for (const [caseIndex, entry] of rewrittenManifest.cases.entries()) {
-        if (entry.source.kind !== 'local') continue;
+        if (
+          entry.source.kind !== 'local' ||
+          (explicitlySelectedCaseIds.size > 0 && !explicitlySelectedCaseIds.has(entry.id))
+        ) {
+          continue;
+        }
         const sourceRoot = realpathSync(resolve(manifestDirectory, entry.source.path));
         assertInside(manifestDirectory, sourceRoot, `Local source for ${entry.id}`);
-        const sourceDirectoryName = `manifest-${index}-source-${caseIndex}-${entry.id}`;
-        stagedInputs.push({
-          hostPath: sourceRoot,
-          containerRelativePath: `inputs/${sourceDirectoryName}`,
-          isDirectory: true,
-          label: `manifest-${index}-source-${entry.id}`
-        });
+        const sourceDirectoryName =
+          stagedLocalSources.get(sourceRoot) ?? `manifest-${index}-source-${caseIndex}-${entry.id}`;
+        if (!stagedLocalSources.has(sourceRoot)) {
+          stagedLocalSources.set(sourceRoot, sourceDirectoryName);
+          stagedInputs.push({
+            hostPath: sourceRoot,
+            containerRelativePath: `inputs/${sourceDirectoryName}`,
+            isDirectory: true,
+            label: `manifest-${index}-source-${entry.id}`
+          });
+        }
         entry.source.path = sourceDirectoryName;
       }
 

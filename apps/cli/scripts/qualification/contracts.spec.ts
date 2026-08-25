@@ -1,6 +1,6 @@
 import { describe, expect, test } from 'bun:test';
 import { BUILT_IN_CASES, SMOKE_CASE_IDS } from './catalog';
-import { qualificationManifestSchema } from './contracts';
+import { qualificationManifestSchema, qualificationReportSchema } from './contracts';
 
 const validCase = {
   id: 'express-postgres',
@@ -75,6 +75,48 @@ describe('qualification manifests', () => {
 
   test('rejects duplicate case ids', () => {
     expect(() => qualificationManifestSchema.parse({ schemaVersion: 1, cases: [validCase, { ...validCase }] })).toThrow(
+      'Duplicate case id'
+    );
+  });
+});
+
+describe('qualification reports', () => {
+  const validResult = {
+    id: 'express-postgres',
+    title: 'Express and PostgreSQL',
+    fingerprint: 'a'.repeat(64),
+    sourceFingerprint: 'b'.repeat(64),
+    execution: 'executed' as const,
+    status: 'passed' as const,
+    durationMs: 10,
+    source: validCase.source,
+    tags: validCase.tags,
+    steps: [{ name: 'import' as const, status: 'passed' as const, durationMs: 10, summary: 'Imported.' }]
+  };
+  const report = {
+    schemaVersion: 2,
+    runId: 'qualification-test',
+    generatedAt: '2026-08-25T00:00:00.000Z',
+    productCommit: 'c'.repeat(40),
+    productFingerprint: 'd'.repeat(64),
+    lanes: ['import'] as const,
+    environment: { platform: 'win32', architecture: 'x64', bun: '1.3.14', node: '24.0.0' },
+    summary: { passed: 1, failed: 0, skipped: 0, durationMs: 10 },
+    globalSteps: [],
+    cases: [validResult]
+  };
+
+  test('rejects empty case evidence and inconsistent status or summary counts', () => {
+    expect(() => qualificationReportSchema.parse({ ...report, cases: [{ ...validResult, steps: [] }] })).toThrow(
+      'executed evidence'
+    );
+    expect(() => qualificationReportSchema.parse({ ...report, cases: [{ ...validResult, status: 'failed' }] })).toThrow(
+      'Case status must be passed'
+    );
+    expect(() =>
+      qualificationReportSchema.parse({ ...report, summary: { ...report.summary, passed: 0, skipped: 1 } })
+    ).toThrow('Summary passed count must equal 1');
+    expect(() => qualificationReportSchema.parse({ ...report, cases: [validResult, validResult] })).toThrow(
       'Duplicate case id'
     );
   });
