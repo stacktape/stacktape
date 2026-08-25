@@ -29,7 +29,7 @@ import type { MigrationFact } from '../../facts/project-facts';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/service';
 import { languageOf } from '../language';
 import { isPlatformEnvironmentVariable } from '../platform-environment';
-import { safeDeclaredLiteral } from './declared-environment';
+import { isSecretishDeclaredName, safeDeclaredLiteral } from './declared-environment';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 
 /** The names compose itself looks for, in the order it looks for them. */
@@ -637,9 +637,7 @@ export const dockerComposeProbe: Probe = {
           const safeLiteralValue = safeDeclaredLiteral(entry.name, entry.value);
           variables.push({
             name: entry.name,
-            role: /SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY|API_KEY|APIKEY|ACCESS_KEY|CREDENTIAL|_KEY$/.test(entry.name)
-              ? 'third-party-secret'
-              : 'runtime-config',
+            role: isSecretishDeclaredName(entry.name) ? 'third-party-secret' : 'runtime-config',
             hasDeclaredValue: entry.value !== undefined,
             ...(safeLiteralValue === undefined ? {} : { safeLiteralValue }),
             required: true,

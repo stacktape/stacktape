@@ -308,6 +308,13 @@ describe('the compose probe', () => {
         '      REDIS_HOST: ${REDIS_HOST:-redis}',
         '      REDIS_PORT: ${REDIS_PORT:-6379}',
         '      LOG_LEVEL: ${LOG_LEVEL:-info}',
+        '      ASPNETCORE_ENVIRONMENT: Production',
+        '      Api__DefaultPort: 8087',
+        '      Worker__PollingIntervalMs: 1000',
+        '      Worker__LockDurationSeconds: 60',
+        '      Worker__MaxAttempts: 3',
+        '      Storage__ForcePathStyle: true',
+        '      Storage__AccessKey: public-looking-but-still-secret',
         '      OPAQUE_SETTING: do-not-retain-this-value',
         '  postgres:',
         '    image: postgres:16',
@@ -340,12 +347,21 @@ describe('the compose probe', () => {
       role: 'runtime-config',
       safeLiteralValue: 'info'
     });
+    expect(byName.ASPNETCORE_ENVIRONMENT?.safeLiteralValue).toBe('Production');
+    expect(byName.Api__DefaultPort?.safeLiteralValue).toBe('8087');
+    expect(byName.Worker__PollingIntervalMs?.safeLiteralValue).toBe('1000');
+    expect(byName.Worker__LockDurationSeconds?.safeLiteralValue).toBe('60');
+    expect(byName.Worker__MaxAttempts?.safeLiteralValue).toBe('3');
+    expect(byName.Storage__ForcePathStyle?.safeLiteralValue).toBe('true');
+    expect(byName.Storage__AccessKey).toMatchObject({ role: 'third-party-secret' });
+    expect(byName.Storage__AccessKey?.safeLiteralValue).toBeUndefined();
     expect(byName.OPAQUE_SETTING).toMatchObject({
       role: 'runtime-config',
       hasDeclaredValue: true
     });
     expect(byName.OPAQUE_SETTING?.safeLiteralValue).toBeUndefined();
     expect(JSON.stringify(facts)).not.toContain('do-not-retain-this-value');
+    expect(JSON.stringify(facts)).not.toContain('public-looking-but-still-secret');
   });
 
   it('keeps two independently named databases instead of collapsing them by engine', async () => {

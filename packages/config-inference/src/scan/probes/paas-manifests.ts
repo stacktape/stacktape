@@ -24,7 +24,7 @@ import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/servi
 import { languageOf } from '../language';
 import { isPlatformEnvironmentVariable } from '../platform-environment';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
-import { safeDeclaredLiteral } from './declared-environment';
+import { isSecretishDeclaredName, safeDeclaredLiteral } from './declared-environment';
 
 type RecordValue = Record<string, unknown>;
 const isRecord = (value: unknown): value is RecordValue =>
@@ -78,8 +78,6 @@ const RENDER_RUNTIMES: Readonly<Record<string, string>> = {
   docker: 'container',
   image: 'container'
 };
-
-const SECRETISH_NAME = /SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY|API_KEY|APIKEY|ACCESS_KEY|CREDENTIAL|_KEY$/;
 
 /** Heroku add-on slugs that name a backing service. */
 const HEROKU_ADDONS: ReadonlyArray<{ prefix: string; kind: DependencyKind }> = [
@@ -183,7 +181,7 @@ const renderVariable = (
   }
   // A generated value or an unsynced one is a secret the platform holds today; the user will hold
   // it here. A plain value is ordinary configuration — the name travels, the value never does.
-  if (entry.generateValue === true || entry.sync === false || SECRETISH_NAME.test(key)) {
+  if (entry.generateValue === true || entry.sync === false || isSecretishDeclaredName(key)) {
     return { ...base, role: 'third-party-secret' };
   }
   const safeLiteralValue = safeDeclaredLiteral(key, entry.value);
@@ -531,9 +529,9 @@ const readHerokuAppManifest = (
       const safeLiteralValue = safeDeclaredLiteral(name, declaredValue);
       environmentVariables.push({
         name,
-        role: SECRETISH_NAME.test(name) ? 'third-party-secret' : 'runtime-config',
+        role: isSecretishDeclaredName(name) ? 'third-party-secret' : 'runtime-config',
         hasDeclaredValue: declaredValue !== undefined,
-        ...(safeLiteralValue === undefined || SECRETISH_NAME.test(name) ? {} : { safeLiteralValue }),
+        ...(safeLiteralValue === undefined || isSecretishDeclaredName(name) ? {} : { safeLiteralValue }),
         required: true,
         evidence: citation === undefined ? [] : [{ ...citation, quote: `"${name}":` }]
       });

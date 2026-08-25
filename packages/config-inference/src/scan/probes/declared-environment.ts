@@ -1,17 +1,28 @@
 import type { EnvironmentVariableUse } from '../../facts/service';
 
-const SECRETISH_NAME = /SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY|API_KEY|APIKEY|ACCESS_KEY|CREDENTIAL|_KEY$/;
+const normalizedSettingName = (name: string): string =>
+  name
+    .replace(/([A-Z]+)([A-Z][a-z])/g, '$1_$2')
+    .replace(/([a-z0-9])([A-Z])/g, '$1_$2')
+    .replace(/[^A-Za-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+    .toUpperCase();
+
+const SECRETISH_NAME = /SECRET|TOKEN|PASSWORD|PASSWD|PRIVATE_KEY|API_KEY|APIKEY|ACCESS_KEY|CREDENTIAL|(?:^|_)KEY$/;
+
+export const isSecretishDeclaredName = (name: string): boolean => SECRETISH_NAME.test(normalizedSettingName(name));
 
 /**
  * Settings whose values are operational configuration by convention, not credentials or user
  * data. This is intentionally an allow-list: a vague `VALUE=...` still stays names-only.
  */
 const SAFE_LITERAL_NAME =
-  /^(?:NODE_ENV|RAILS_ENV|RACK_ENV|APP_ENV|ENVIRONMENT|DENO_ENV|LOG_LEVEL|RUST_LOG|DEBUG|TRACE|HOST|RAILS_LOG_TO_STDOUT|RAILS_SERVE_STATIC_FILES|PHX_SERVER|PROCESS_TYPE|USE_S3_STORAGE|AWS_FORCE_PATH_STYLE|DJANGO_DEBUG|DRY_RUN|SPRING_PROFILES_ACTIVE|[A-Z0-9_]*(?:PORT|CONCURRENCY|WORKERS?|THREADS?|ENABLED|DISABLED|REGION|STAGE|PROFILE|MODE|INTERVAL(?:_(?:MS|SECONDS|SECS|MINUTES))?|TIMEOUT(?:_(?:MS|SECONDS|SECS|MINUTES))?|RETENTION(?:_(?:DAYS|HOURS|MINUTES))?|MAX_RETRIES|RETRIES|BATCH_SIZE|PREFETCH_COUNT|LIMIT|SIZE(?:_MB)?|CHANCE))$/;
+  /^(?:NODE_ENV|RAILS_ENV|RACK_ENV|APP_ENV|ENVIRONMENT|DENO_ENV|LOG_LEVEL|RUST_LOG|DEBUG|TRACE|HOST|RAILS_LOG_TO_STDOUT|RAILS_SERVE_STATIC_FILES|PHX_SERVER|PROCESS_TYPE|USE_S3_STORAGE|AWS_FORCE_PATH_STYLE|DJANGO_DEBUG|DRY_RUN|SPRING_PROFILES_ACTIVE|[A-Z0-9_]*(?:ENVIRONMENT|PORT|CONCURRENCY|WORKERS?|THREADS?|ENABLED|DISABLED|REGION|STAGE|PROFILE|MODE|INTERVAL(?:_(?:MS|SECONDS|SECS|MINUTES))?|DURATION(?:_(?:MS|SECONDS|SECS|MINUTES))?|TIMEOUT(?:_(?:MS|SECONDS|SECS|MINUTES))?|RETENTION(?:_(?:DAYS|HOURS|MINUTES))?|BACKOFF(?:_BASE)?_(?:MS|SECONDS|SECS|MINUTES)|MAX_RETRIES|MAX_ATTEMPTS|RETRIES|BATCH_SIZE|PREFETCH_COUNT|LIMIT|SIZE(?:_MB)?|CHANCE|FORCE_PATH_STYLE|WORKER_ID|CONSUMER_GROUP)|[A-Z0-9_]*(?:TOPIC|TOPICS)_[A-Z0-9_]+)$/;
 
 /** Reduce a manifest scalar to a safe environment literal, or retain no value at all. */
 export const safeDeclaredLiteral = (name: string, value: unknown): string | undefined => {
-  if (!SAFE_LITERAL_NAME.test(name) || SECRETISH_NAME.test(name)) return undefined;
+  const normalizedName = normalizedSettingName(name);
+  if (!SAFE_LITERAL_NAME.test(normalizedName) || isSecretishDeclaredName(name)) return undefined;
   if (typeof value !== 'string' && typeof value !== 'number' && typeof value !== 'boolean') return undefined;
   let literal = String(value).trim();
   // Compose frequently states a configurable value as `${NAME:-production}`. The fallback is the
@@ -49,12 +60,12 @@ export const declaredEnvironmentVariable = ({
   role:
     dependencyName !== undefined
       ? 'infra-dependency'
-      : SECRETISH_NAME.test(name)
+      : isSecretishDeclaredName(name)
         ? 'third-party-secret'
         : 'runtime-config',
   ...(dependencyName === undefined ? {} : { dependencyName }),
   hasDeclaredValue: true,
-  ...(dependencyName !== undefined || SECRETISH_NAME.test(name)
+  ...(dependencyName !== undefined || isSecretishDeclaredName(name)
     ? {}
     : safeDeclaredLiteral(name, value) === undefined
       ? {}

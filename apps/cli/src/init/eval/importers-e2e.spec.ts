@@ -113,6 +113,11 @@ const CASES: EvalCase[] = [
         '      context: .',
         '      dockerfile: src/Orders.Api/Dockerfile',
         '    ports: ["8080:8080"]',
+        '    environment:',
+        '      ASPNETCORE_ENVIRONMENT: Production',
+        '      Api__DefaultPort: 8080',
+        '      Storage__ForcePathStyle: true',
+        '      Storage__AccessKey: local-development-key',
         ''
       ].join('\n')
     },
@@ -125,6 +130,12 @@ const CASES: EvalCase[] = [
           buildContextPath: '.',
           dockerfilePath: 'src/Orders.Api/Dockerfile'
         }
+      ],
+      serviceEnvironment: [
+        { resource: 'OrdersApi', name: 'ASPNETCORE_ENVIRONMENT', value: 'Production' },
+        { resource: 'OrdersApi', name: 'Api__DefaultPort', value: '8080' },
+        { resource: 'OrdersApi', name: 'Storage__ForcePathStyle', value: 'true' },
+        { resource: 'OrdersApi', name: 'Storage__AccessKey', value: "$Secret('storage__accesskey')" }
       ],
       deployable: true,
       maxQuestions: 0
