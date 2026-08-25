@@ -13,9 +13,11 @@ export const drainOutputStream = async (stream: NodeJS.WriteStream, timeoutMs = 
     const timeout = setTimeout(() => finish(false), timeoutMs);
 
     try {
-      // The callback for this queued write runs only after all earlier output has reached the
-      // underlying stream. A fixed delay can truncate large JSONL result records on slow pipes.
-      stream.write('', (error) => finish(error === undefined || error === null));
+      // Use a real byte as the flush marker. Bun may acknowledge a zero-length write immediately,
+      // before an earlier large record has drained. A blank line is harmless in both human output
+      // and JSONL (consumers already ignore empty lines), and its callback is ordered after all
+      // preceding writes to the underlying stream.
+      stream.write('\n', (error) => finish(error === undefined || error === null));
     } catch {
       finish(false);
     }

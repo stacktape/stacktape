@@ -4,9 +4,13 @@ import { drainOutputStream } from './drain-output';
 
 describe('drainOutputStream', () => {
   it('waits for output that was queued before the drain request', async () => {
+    let output = '';
     const stream = new Writable({
-      write(_chunk, _encoding, callback) {
-        setTimeout(callback, 50);
+      write(chunk, _encoding, callback) {
+        setTimeout(() => {
+          output += chunk.toString();
+          callback();
+        }, 50);
       }
     }) as unknown as NodeJS.WriteStream;
     stream.write('large final JSONL record');
@@ -16,5 +20,6 @@ describe('drainOutputStream', () => {
 
     expect(drained).toBe(true);
     expect(performance.now() - startedAt).toBeGreaterThanOrEqual(40);
+    expect(output).toBe('large final JSONL record\n');
   });
 });
