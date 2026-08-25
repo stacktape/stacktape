@@ -915,7 +915,14 @@ export const REAL_PROJECT_CORPUS: readonly RealProjectCorpusCase[] = [
       dependencyKinds: { email: 1, postgres: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
-      requiredConfig: ['name: DATABASE_URL', 'name: APP_URL', "$ResourceParam('saasStarterKit', 'url')"],
+      requiredConfig: [
+        'name: DATABASE_URL',
+        'name: APP_URL',
+        "$ResourceParam('saasStarterKit', 'url')",
+        'buildCommand: npm run build-ci',
+        'executeCommand: npx prisma db push',
+        'scriptName: migrateDatabase'
+      ],
       forbiddenConfig: ["$Secret('app_url')"],
       forbiddenGapPatterns: ['APP_URL is set in a deployment file|does not read a configurable address'],
       forbidCurrentlyHostedDependencies: true

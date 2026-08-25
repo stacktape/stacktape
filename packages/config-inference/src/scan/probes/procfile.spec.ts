@@ -154,6 +154,20 @@ describe('the Procfile probe', () => {
     );
   });
 
+  it('treats a Prisma db push release command as a deploy migration', async () => {
+    root = await makeRepo({
+      'package.json': JSON.stringify({ dependencies: { prisma: '^6.0.0' } }),
+      Procfile: 'web: npm start\nrelease: npx prisma db push\n'
+    });
+
+    const { facts } = await assembleCandidateFacts({ root, probes: [procfileProbe] });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.migrations).toContainEqual(
+      expect.objectContaining({ tool: 'prisma', command: 'npx prisma db push', runsAt: 'ci' })
+    );
+  });
+
   it('ignores comments and blank lines rather than reading them as processes', async () => {
     root = await makeRepo({
       'requirements.txt': 'flask\n',

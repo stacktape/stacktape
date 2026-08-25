@@ -16,6 +16,7 @@ import { defaultDependencyName, type DependencyFact, type DependencyKind } from 
 import type { MigrationFact, PackageManager } from '../../facts/project-facts';
 import type { ServiceFactInput } from '../../facts/service';
 import { citeFirstMatchOnly, citeLine, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
+import { safeMigrationClauseOf } from './procfile';
 
 /**
  * Declared dependencies that imply a backing service.
@@ -479,6 +480,40 @@ const MIGRATION_TOOLS: ReadonlyArray<{
   }
 ];
 
+const BUILD_ONLY_SCRIPT_NAMES = ['build:ci', 'build-ci', 'vercel-build'] as const;
+const LOCAL_NODE_MIGRATION_BINARY = /^(?:prisma|drizzle-kit|knex|sequelize(?:-cli)?|typeorm)\s/;
+
+/**
+ * Some PaaS-oriented projects mutate their database inside `build`, which cannot work while
+ * Stacktape is creating an artifact before the database exists. When the project also provides an
+ * explicit build-only script, preserve that script for packaging and move the one source-authored
+ * migration clause to the deploy hook. Without both pieces of evidence, leave the original build
+ * untouched rather than guessing how to rewrite an arbitrary shell chain.
+ */
+const buildPlanFor = (
+  manifest: ParsedManifest
+): { scriptName: string; migrationCommand?: string; migrationTool?: string; migrationQuote?: string } => {
+  const build = manifest.scripts.build;
+  if (typeof build !== 'string') return { scriptName: 'build' };
+  const installedMigrationTools = MIGRATION_TOOLS.filter((tool) => manifest.dependencies[tool.package] !== undefined);
+  if (installedMigrationTools.length !== 1) return { scriptName: 'build' };
+
+  const migrationQuote = safeMigrationClauseOf(build);
+  if (migrationQuote === undefined) return { scriptName: 'build' };
+  const scriptName = BUILD_ONLY_SCRIPT_NAMES.find((candidate) => {
+    const command = manifest.scripts[candidate];
+    return typeof command === 'string' && command.trim() !== '' && safeMigrationClauseOf(command) === undefined;
+  });
+  if (scriptName === undefined) return { scriptName: 'build' };
+
+  return {
+    scriptName,
+    migrationTool: installedMigrationTools[0]!.tool,
+    migrationQuote,
+    migrationCommand: LOCAL_NODE_MIGRATION_BINARY.test(migrationQuote) ? `npx ${migrationQuote}` : migrationQuote
+  };
+};
+
 const LOCK_FILE_TO_MANAGER: ReadonlyArray<{
   file: string;
   manager: PackageManager;
@@ -648,6 +683,7 @@ export const manifestProbe: Probe = {
       const manifest = manifests[index]!;
       const hasStart = typeof manifest.scripts.start === 'string';
       const hasBuild = typeof manifest.scripts.build === 'string';
+      const buildPlan = buildPlanFor(manifest);
       const staticSite = staticSites[index];
       const frameworkInfo = detectFramework(manifest, context);
 
@@ -739,7 +775,7 @@ export const manifestProbe: Probe = {
           // Left to source signals and the container probe, which can see a bind call or an EXPOSE
           // directive. Guessing a port here would produce a health check that never passes.
           executionModel: 'long-running',
-          ...(hasBuild ? { buildCommand: runCommand(packageManager, 'build') } : {}),
+          ...(hasBuild ? { buildCommand: runCommand(packageManager, buildPlan.scriptName) } : {}),
           ...(staticSite === undefined && hasStart ? { startCommand: runCommand(packageManager, 'start') } : {}),
           ...(staticSite === undefined
             ? {}
@@ -780,14 +816,22 @@ export const manifestProbe: Probe = {
 
       for (const tool of MIGRATION_TOOLS) {
         if (manifest.dependencies[tool.package] === undefined) continue;
-        const citation = citeFirstMatchOnly(manifest.path, manifest.raw, new RegExp(`"${tool.package}"`));
+        const embeddedInBuild = buildPlan.migrationTool === tool.tool ? buildPlan : undefined;
+        const citation =
+          embeddedInBuild?.migrationQuote === undefined
+            ? citeFirstMatchOnly(manifest.path, manifest.raw, new RegExp(`"${tool.package}"`))
+            : citeFirstMatchOnly(
+                manifest.path,
+                manifest.raw,
+                new RegExp(embeddedInBuild.migrationQuote.replace(/[/\\^$*+?.()|[\]{}]/g, '\\$&'))
+              );
         migrations.push({
           serviceName: consumerName,
           tool: tool.tool,
-          command: tool.command,
+          command: embeddedInBuild?.migrationCommand ?? tool.command,
           // When migrations run is not written in a manifest. Saying `unknown` puts it in front of
           // the user as a question rather than inventing a deployment hook nobody asked for.
-          runsAt: 'unknown',
+          runsAt: embeddedInBuild === undefined ? 'unknown' : 'ci',
           evidence: citation ? [citation] : []
         });
       }

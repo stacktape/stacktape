@@ -506,6 +506,59 @@ describe('assembleCandidateFacts', () => {
     });
   });
 
+  it('uses an explicit build-only script when the ordinary build mutates Prisma state', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify(
+        {
+          name: 'storefront',
+          scripts: {
+            build: 'prisma generate && prisma db push && next build',
+            'build-ci': 'next build',
+            start: 'next start'
+          },
+          dependencies: { next: '^15.0.0', '@prisma/client': '^6.0.0', prisma: '^6.0.0' }
+        },
+        null,
+        2
+      ),
+      'package-lock.json': '{}',
+      'prisma/schema.prisma': ['datasource db {', '  provider = "postgresql"', '  url = env("DATABASE_URL")', '}'].join(
+        '\n'
+      )
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services[0]?.buildCommand).toBe('npm run build-ci');
+    expect(facts.migrations).toContainEqual(
+      expect.objectContaining({
+        serviceName: 'storefront',
+        tool: 'prisma',
+        command: 'npx prisma db push',
+        runsAt: 'ci'
+      })
+    );
+  });
+
+  it('does not rewrite a database-mutating build without a proven build-only alternative', async () => {
+    const repoRoot = await makeRepo({
+      'package.json': JSON.stringify({
+        name: 'storefront',
+        scripts: {
+          build: 'prisma generate && prisma db push && next build',
+          'build-ci': 'prisma db push && next build',
+          start: 'next start'
+        },
+        dependencies: { next: '^15.0.0', prisma: '^6.0.0' }
+      })
+    });
+
+    const { facts } = await assembleCandidateFacts({ root: repoRoot, probes: PROBES });
+
+    expect(facts.services[0]?.buildCommand).toBe('npm run build');
+    expect(facts.migrations[0]).toMatchObject({ command: 'npx prisma migrate deploy', runsAt: 'unknown' });
+  });
+
   it('recognizes a React Router Framework default template as an HTTP web service even without EXPOSE in Dockerfile', async () => {
     const repoRoot = await makeRepo({
       'package.json': JSON.stringify({

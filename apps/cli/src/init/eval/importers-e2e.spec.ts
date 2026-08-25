@@ -100,6 +100,38 @@ const CASES: EvalCase[] = [
     }
   },
   {
+    name: 'Next.js build with a separated Prisma deploy step',
+    files: {
+      'package.json': JSON.stringify(
+        {
+          name: 'storefront',
+          scripts: {
+            build: 'prisma generate && prisma db push && next build',
+            'build-ci': 'next build',
+            start: 'next start'
+          },
+          dependencies: { next: '^15.0.0', '@prisma/client': '^6.0.0', prisma: '^6.0.0' }
+        },
+        null,
+        2
+      ),
+      'package-lock.json': '{}',
+      'prisma/schema.prisma': ['datasource db {', '  provider = "postgresql"', '  url = env("DATABASE_URL")', '}'].join(
+        '\n'
+      )
+    },
+    expect: {
+      dependencyKinds: ['postgres'],
+      resources: { storefront: 'nextjs-web', mainDatabase: 'relational-database' },
+      scriptNames: ['migrateDatabase'],
+      serviceEnvironment: [
+        { resource: 'storefront', name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" }
+      ],
+      deployable: true,
+      maxQuestions: 0
+    }
+  },
+  {
     name: 'Serverless Framework local queue event',
     files: {
       'serverless.yml': [

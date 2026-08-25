@@ -64,7 +64,7 @@ const MIGRATION_TOOLS: ReadonlyArray<{ pattern: RegExp; tool: string }> = [
   { pattern: /manage\.py\s+migrate/, tool: 'django' },
   { pattern: /rails\s+db:migrate|rake\s+db:migrate/, tool: 'rails' },
   { pattern: /alembic\s+upgrade/, tool: 'alembic' },
-  { pattern: /prisma\s+migrate/, tool: 'prisma' },
+  { pattern: /prisma\s+(?:migrate|db\s+push)/, tool: 'prisma' },
   { pattern: /drizzle-kit\s+migrate/, tool: 'drizzle' },
   { pattern: /knex\s+migrate/, tool: 'knex' },
   { pattern: /sequelize.*db:migrate/, tool: 'sequelize' },

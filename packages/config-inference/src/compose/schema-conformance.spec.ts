@@ -351,6 +351,20 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     );
   });
 
+  it('an SSR framework with an explicit build-only command', () => {
+    expectValid(
+      composeFrom({
+        services: [
+          service({
+            name: 'storefront',
+            framework: 'nextjs',
+            buildCommand: 'npm run build-ci'
+          })
+        ]
+      })
+    );
+  });
+
   it('a proxied catch-all function route, as the SST and CDK importers emit it', () => {
     expectValid(
       composeFrom({

@@ -42,6 +42,19 @@ describe('classifyService', () => {
     ).toBe('nextjs-web');
   });
 
+  it('preserves an explicit framework build command', () => {
+    const { config } = composeConfig({
+      facts: facts({
+        services: [service({ framework: 'nextjs', buildCommand: 'npm run build-ci' })]
+      })
+    });
+
+    expect(config.resources.web).toMatchObject({
+      type: 'nextjs-web',
+      properties: { appDirectory: '.', buildCommand: 'npm run build-ci' }
+    });
+  });
+
   it('puts a websocket server in a container, never a per-request function', () => {
     const parsed = projectFactsSchema.parse({
       schemaVersion: 1,
