@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { composeConfig } from '../../compose/compose';
-import { assembleCandidateFacts } from '../assemble';
+import { assembleCandidateFacts, createProbeContext } from '../assemble';
 import { manifestProbe } from './manifest';
 import { nuxtHubProbe } from './nuxthub';
 
@@ -104,11 +104,9 @@ describe('NuxtHub runtime bindings', () => {
       }
     });
     expect(composed.config.scripts).toBeUndefined();
+    expect(composed.gaps.map((gap) => gap.message).join('\n')).toMatch(/local SQLite file.*not durable storage/i);
     expect(composed.gaps.map((gap) => gap.message).join('\n')).toMatch(
-      /no NuxtHub database binding or durable SQLite/i
-    );
-    expect(composed.gaps.map((gap) => gap.message).join('\n')).toMatch(
-      /migrations will not run.*explicit migration command/is
+      /can apply migrations during the production build.*verify which database.*explicit migration command/is
     );
     expect(composed.gaps.filter((gap) => gap.severity === 'blocking')).toHaveLength(2);
     expect(composed.deployable).toBe(false);
@@ -167,11 +165,260 @@ describe('NuxtHub runtime bindings', () => {
         kind: 'framework-runtime-bindings',
         bindings: ['database'],
         migrationPaths: []
+      }),
+      expect.objectContaining({
+        kind: 'framework-analysis-incomplete',
+        reasons: ['dynamic-config']
       })
     ]);
     expect(facts.deploymentRequirements[0]).not.toHaveProperty('databaseEngine');
     expect(composed.gaps.map((gap) => gap.message).join('\n')).not.toMatch(/selects SQLite/i);
     expect(composed.deployable).toBe(false);
+  });
+
+  for (const [name, path, code] of [
+    ['line comments', 'server/api/items.ts', "// import { db } from 'hub:db'\nexport default () => 'ok'"],
+    ['block comments', 'server/api/items.ts', "/* import('hub:db'); db.select(); */\nexport default () => 'ok'"],
+    ['ordinary strings', 'server/api/items.ts', 'export const example = "import { db } from \'hub:db\'"'],
+    ['type-only imports', 'server/api/items.ts', "import type { db } from 'hub:db'; export type Db = typeof db"],
+    [
+      'type-only named imports',
+      'server/api/items.ts',
+      "import { type schema } from 'hub:db'; export type Schema = typeof schema"
+    ],
+    [
+      'type-only reexports',
+      'server/api/items.ts',
+      "export type { db } from 'hub:db'; export { type schema } from 'hub:db'"
+    ],
+    ['type import expressions', 'server/api/items.ts', "export type Db = typeof import('hub:db').db"],
+    ['colocated test files', 'server/api/items.test.ts', "import { db } from 'hub:db'; db.select()"],
+    ['colocated spec files', 'server/api/items.spec.ts', "import { db } from 'hub:db'; db.select()"],
+    ['Vue comments', 'app/app.vue', "<!-- <script>import { db } from 'hub:db'</script> --><template>Hello</template>"]
+  ]) {
+    it(`does not treat ${name} as production storage usage`, async () => {
+      root = await makeRepo({
+        'package.json': manifest(),
+        'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: 'sqlite' } })",
+        [path!]: code!
+      });
+      const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+      expect(facts.deploymentRequirements).toEqual([]);
+      expect(composeConfig({ facts }).deployable).toBe(true);
+    });
+  }
+
+  for (const code of [
+    'export default async () => (await import(`hub:db`)).db.select()',
+    "export { db } from 'hub:db'",
+    "import 'hub:db'",
+    "const { db } = require('hub:db'); export default () => db.select()",
+    "import { db } from '@nuxthub/db'; export default () => db.select()"
+  ]) {
+    it(`detects runtime syntax: ${code}`, async () => {
+      root = await makeRepo({
+        'package.json': manifest(),
+        'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'] })",
+        'server/api/items.ts': code
+      });
+      const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+      expect(facts.deploymentRequirements).toEqual([expect.objectContaining({ bindings: ['database'] })]);
+      expect(composeConfig({ facts }).deployable).toBe(false);
+    });
+  }
+
+  for (const [binding, setting, code, advice] of [
+    ['database', "db: 'sqlite'", 'export default () => db.select().from(schema.todos)', /hosted SQLite.*Turso\/libSQL/],
+    ['database', "db: 'sqlite'", 'export default () => schema.todos', /production database/],
+    ['blob', 'blob: true', 'export default () => blob.list()', /uploaded files.*object-storage.*S3/],
+    ['kv', 'kv: true', "export default () => kv.getItem('key')", /key-value data.*AWS runtime.*Redis/],
+    [
+      'cache',
+      'cache: true',
+      "export default defineCachedEventHandler(() => 'cached')",
+      /Nitro cache storage.*temporary cache/
+    ],
+    ['cache', 'cache: true', "export default () => useStorage('cache').getItem('key')", /Nitro cache storage/],
+    [
+      'cache',
+      'cache: true',
+      "import { cachedFunction as cached } from 'nitropack/runtime'; export const load = cached(() => 'value')",
+      /Nitro cache storage/
+    ],
+    [
+      'blob',
+      'blob: true',
+      "import { blob as uploads } from '#imports'; export default () => uploads.list()",
+      /uploaded files/
+    ]
+  ] as const) {
+    it(`detects configured ${binding} through ${code}`, async () => {
+      root = await makeRepo({
+        'package.json': manifest(),
+        'nuxt.config.ts': `export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { ${setting} } })`,
+        'server/api/items.ts': code
+      });
+      const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+      const composed = composeConfig({ facts });
+      expect(facts.deploymentRequirements).toEqual([expect.objectContaining({ bindings: [binding] })]);
+      expect(facts.dependencies).toEqual([]);
+      expect(composed.deployable).toBe(false);
+      expect(composed.gaps[0]?.message).toMatch(advice);
+      if (binding !== 'database') expect(composed.gaps[0]?.message).not.toMatch(/database|SQLite|Turso|libSQL/);
+    });
+  }
+
+  it('does not mistake local symbols or disabled server auto-imports for NuxtHub use', async () => {
+    root = await makeRepo({
+      'package.json': manifest(),
+      'nuxt.config.ts':
+        "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: 'sqlite', blob: true, kv: true, cache: false } })",
+      'server/api/items.ts': [
+        "import { blob } from './local-blob'",
+        "import { kv } from '#imports'",
+        'function local(db, schema) { return db.select(schema.todos) }',
+        "function shadowed(kv) { return kv.getItem('local') }",
+        "export default () => ({ blob: blob.list(), db: 'label', schema: 'label', cached: defineCachedFunction(() => 1) })"
+      ].join('\n'),
+      'app/uses-client-names.ts': 'export default () => db.select()'
+    });
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(facts.deploymentRequirements).toEqual([]);
+    expect(composeConfig({ facts }).deployable).toBe(true);
+  });
+
+  it('finds custom SQLite migration directories and retains every exact SQL path', async () => {
+    const migrations = Object.fromEntries(
+      Array.from({ length: 25 }, (_, index) => [
+        `apps/web/database/changes/${String(index).padStart(4, '0')}.sql`,
+        'SELECT 1;'
+      ])
+    );
+    root = await makeRepo({
+      'apps/web/package.json': manifest(),
+      'apps/web/nuxt.config.ts':
+        "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: { dialect: 'sqlite', migrationsDirs: ['database/changes'] } } })",
+      'apps/web/server/api/items.ts': 'export default () => db.select()',
+      'apps/web/server/db/migrations/ignored.sql': 'SELECT 1;',
+      'database/changes/wrong-service.sql': 'SELECT 1;',
+      ...migrations
+    });
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(facts.deploymentRequirements).toEqual([
+      expect.objectContaining({
+        bindings: ['database'],
+        databaseEngine: 'sqlite',
+        migrationPaths: Object.keys(migrations)
+      })
+    ]);
+    const composed = composeConfig({ facts });
+    expect(composed.gaps[1]?.message).toContain('apps/web/database/changes/0024.sql');
+    expect(composed.config.scripts).toBeUndefined();
+    expect(composed.deployable).toBe(false);
+  });
+
+  for (const directories of [
+    "['../outside']",
+    "['C:/outside']",
+    "['/outside']",
+    'migrationDirs',
+    "['database/changes', ...extraDirs]"
+  ]) {
+    it(`fails closed on migration directory syntax ${directories}`, async () => {
+      root = await makeRepo({
+        'package.json': manifest(),
+        'nuxt.config.ts': `export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: { dialect: 'sqlite', migrationsDirs: ${directories} } } })`,
+        'server/api/items.ts': 'export default () => db.select()'
+      });
+      const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+      expect(facts.deploymentRequirements).toContainEqual(
+        expect.objectContaining({
+          kind: 'framework-analysis-incomplete',
+          reasons: ['migration-paths']
+        })
+      );
+      const composed = composeConfig({ facts });
+      expect(composed.gaps.map((gap) => gap.message).join(' ')).toContain('migration directories are computed');
+      expect(composed.deployable).toBe(false);
+    });
+  }
+
+  it('cannot silently unlock a NuxtHub app when the production source scan is truncated', async () => {
+    root = await makeRepo({
+      'package.json': manifest(),
+      'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: 'sqlite' } })",
+      ...Object.fromEntries(
+        Array.from({ length: 400 }, (_, index) => [
+          `server/api/a${String(index).padStart(4, '0')}.ts`,
+          'export default () => 1'
+        ])
+      ),
+      'server/api/zzzz-items.ts': 'export default () => db.select()'
+    });
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(facts.deploymentRequirements).toEqual([
+      expect.objectContaining({
+        kind: 'framework-analysis-incomplete',
+        reasons: ['source-limit']
+      })
+    ]);
+    const composed = composeConfig({ facts });
+    expect(composed.gaps[0]?.message).toContain('exceeds the bounded source scan');
+    expect(composed.deployable).toBe(false);
+  });
+
+  it('does not copy inline connection settings or env values into its findings', async () => {
+    root = await makeRepo({
+      'package.json': manifest(),
+      'nuxt.config.ts':
+        "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: { dialect: 'sqlite', connection: { authToken: 'SENTINEL_INLINE_VALUE' } } } })",
+      '.env.example': 'NUXT_SESSION_PASSWORD=SENTINEL_ENV_VALUE\nNUXT_OAUTH_GITHUB_CLIENT_SECRET=SENTINEL_OAUTH_VALUE',
+      'server/api/items.ts':
+        "export default () => { setUserSession({ token: 'SENTINEL_SOURCE_VALUE' }); return db.select() }",
+      'server/api/auth.ts': 'export default defineOAuthGitHubEventHandler({})'
+    });
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(facts.services[0]?.environmentVariables).toHaveLength(2);
+    expect(JSON.stringify({ facts, composed: composeConfig({ facts }) })).not.toContain('SENTINEL_');
+  });
+
+  it('fails closed when one production source file is too large to read completely', async () => {
+    root = await makeRepo({
+      'package.json': manifest(),
+      'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: 'sqlite' } })",
+      'server/api/large.ts': `${'// padding\n'.repeat(25_000)}export default () => db.select()`
+    });
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(facts.deploymentRequirements).toEqual([
+      expect.objectContaining({
+        kind: 'framework-analysis-incomplete',
+        reasons: ['unreadable-source']
+      })
+    ]);
+    expect(composeConfig({ facts }).deployable).toBe(false);
+  });
+
+  it('also fails closed when the repository file listing stopped before reaching production source', async () => {
+    root = await makeRepo({
+      'package.json': manifest(),
+      'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'] })",
+      'server/api/not-listed.ts': "import { db } from 'hub:db'; export default () => db.select()"
+    });
+    const output = await nuxtHubProbe.run({
+      ...createProbeContext(root, ['package.json', 'nuxt.config.ts']),
+      filesTruncated: true
+    });
+    expect(output.deploymentRequirements).toEqual([
+      expect.objectContaining({
+        kind: 'framework-analysis-incomplete',
+        reasons: ['source-limit']
+      })
+    ]);
+    const { facts } = await assembleCandidateFacts({
+      root,
+      probes: [manifestProbe, { name: 'truncated-nuxthub', run: async () => output }]
+    });
+    expect(composeConfig({ facts }).deployable).toBe(false);
   });
 
   it("does not let a workspace root claim a sibling package's binding or OAuth setup", async () => {

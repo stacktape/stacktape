@@ -1182,12 +1182,174 @@ const CASES: EvalCase[] = [
         }
       ],
       requiredGapPatterns: [
-        'NuxtHub database binding or durable SQLite',
-        'Stacktape does not run NuxtHub.*migrations will not run.*explicit migration command',
+        'local SQLite file.*not durable storage',
+        'NuxtHub can apply migrations during the production build.*verify which database',
+        'explicit migration command',
         'Stacktape will not move existing data'
       ],
       deployable: false,
       maxQuestions: 0
+    }
+  },
+  {
+    name: 'NuxtHub type imports, comments and colocated tests do not block deployment',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'nuxt-control',
+        scripts: { build: 'nuxt build' },
+        dependencies: { nuxt: '^4.0.0', '@nuxthub/core': '^0.10.6' }
+      }),
+      'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: 'sqlite' } })",
+      'server/api/health.ts':
+        "import type { db } from 'hub:db'; /* import('hub:db'); */ export default defineEventHandler(() => 'ok')",
+      'server/api/health.test.ts': "import { db } from 'hub:db'; db.select()"
+    },
+    expect: {
+      serviceCount: 1,
+      resources: { nuxtControl: 'nuxt-web' },
+      resourceCount: 1,
+      deployable: true,
+      maxQuestions: 0,
+      forbiddenGapPatterns: ['NuxtHub', 'SQLite', 'migration']
+    }
+  },
+  {
+    name: 'NuxtHub static template imports are runtime database usage',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'lazy-db',
+        scripts: { build: 'nuxt build' },
+        dependencies: { nuxt: '^4.0.0', '@nuxthub/core': '^0.10.6' }
+      }),
+      'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: 'sqlite' } })",
+      'server/api/items.ts': 'export default defineEventHandler(async () => (await import(`hub:db`)).db.select())'
+    },
+    expect: {
+      serviceCount: 1,
+      resources: { lazyDb: 'nuxt-web' },
+      resourceCount: 1,
+      deployable: false,
+      maxQuestions: 0,
+      absentDependencyKinds: ['sqlite', 'postgres'],
+      requiredGapPatterns: ['hosted SQLite provider.*Turso/libSQL']
+    }
+  },
+  {
+    name: 'NuxtHub blob auto-import gives object-storage advice without database advice',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'uploads',
+        scripts: { build: 'nuxt build' },
+        dependencies: { nuxt: '^4.0.0', '@nuxthub/core': '^0.10.6' }
+      }),
+      'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { blob: true } })",
+      'server/api/files.ts': 'export default defineEventHandler(() => blob.list())'
+    },
+    expect: {
+      serviceCount: 1,
+      resources: { uploads: 'nuxt-web' },
+      resourceCount: 1,
+      deployable: false,
+      maxQuestions: 0,
+      requiredGapPatterns: ['uploaded files.*object-storage provider.*S3'],
+      forbiddenGapPatterns: ['database', 'SQLite', 'Turso', 'libSQL']
+    }
+  },
+  {
+    name: 'NuxtHub KV and Nitro cache APIs retain their separate runtime requirements',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'cached-store',
+        scripts: { build: 'nuxt build' },
+        dependencies: { nuxt: '^4.0.0', '@nuxthub/core': '^0.10.6' }
+      }),
+      'nuxt.config.ts':
+        "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { kv: true, cache: true } })",
+      'server/api/items.ts': "export default defineCachedEventHandler(() => kv.getItem('items'))"
+    },
+    expect: {
+      serviceCount: 1,
+      resources: { cachedStore: 'nuxt-web' },
+      resourceCount: 1,
+      deployable: false,
+      maxQuestions: 0,
+      requiredGapPatterns: ['key-value data.*hosted Redis', 'Nitro cache storage provider.*temporary cache'],
+      forbiddenGapPatterns: ['database', 'Turso', 'hub:cache']
+    }
+  },
+  {
+    name: 'NuxtHub object database config preserves custom migration paths',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'custom-migrations',
+        scripts: { build: 'nuxt build' },
+        dependencies: { nuxt: '^4.0.0', '@nuxthub/core': '^0.10.6' }
+      }),
+      'nuxt.config.ts':
+        "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: { dialect: 'sqlite', migrationsDirs: ['database/changes'] } } })",
+      'server/api/items.ts': 'export default defineEventHandler(() => db.select().from(schema.items))',
+      'database/changes/0001_items.sql': 'CREATE TABLE items (id integer primary key);'
+    },
+    expect: {
+      serviceCount: 1,
+      resources: { customMigrations: 'nuxt-web' },
+      resourceCount: 1,
+      deployable: false,
+      maxQuestions: 0,
+      requiredGapPatterns: [
+        'local SQLite file.*not durable',
+        'database/changes/0001_items.sql.*production build.*verify which database'
+      ]
+    }
+  },
+  {
+    name: 'NuxtHub computed migration directories keep the import review-only',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'dynamic-migrations',
+        scripts: { build: 'nuxt build' },
+        dependencies: { nuxt: '^4.0.0', '@nuxthub/core': '^0.10.6' }
+      }),
+      'nuxt.config.ts':
+        "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: { dialect: 'sqlite', migrationsDirs: getMigrationPaths() } } })",
+      'server/api/health.ts': "export default defineEventHandler(() => 'ok')"
+    },
+    expect: {
+      serviceCount: 1,
+      resources: { dynamicMigrations: 'nuxt-web' },
+      resourceCount: 1,
+      deployable: false,
+      maxQuestions: 0,
+      requiredGapPatterns: [
+        'migration directories are computed.*not safe project-relative paths',
+        'does not prove the app is ready'
+      ]
+    }
+  },
+  {
+    name: 'NuxtHub truncated source analysis cannot approve an unchecked runtime binding',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'large-nuxt',
+        scripts: { build: 'nuxt build' },
+        dependencies: { nuxt: '^4.0.0', '@nuxthub/core': '^0.10.6' }
+      }),
+      'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: 'sqlite' } })",
+      ...Object.fromEntries(
+        Array.from({ length: 400 }, (_, index) => [
+          `server/api/a${String(index).padStart(4, '0')}.ts`,
+          'export default () => 1'
+        ])
+      ),
+      'server/api/zzzz-items.ts': 'export default defineEventHandler(() => db.select())'
+    },
+    expect: {
+      serviceCount: 1,
+      resources: { largeNuxt: 'nuxt-web' },
+      resourceCount: 1,
+      deployable: false,
+      maxQuestions: 0,
+      requiredGapPatterns: ['exceeds the bounded source scan', 'does not prove the app is ready']
     }
   },
   {

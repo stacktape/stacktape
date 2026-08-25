@@ -55,8 +55,9 @@ export const migrationFactSchema = z.object({
 export type MigrationFact = z.infer<typeof migrationFactSchema>;
 
 /**
- * Runtime contracts observed in authoritative deployment files that Stacktape cannot currently
- * preserve. These are probe-owned policy inputs, not agent prose: composition turns each closed
+ * Runtime contracts from deployment/config/source evidence that Stacktape cannot currently preserve,
+ * including framework analysis that could not safely finish. These are probe-owned policy inputs,
+ * not agent prose: composition turns each closed
  * kind into a blocking, user-facing gap and keeps the otherwise useful partial configuration in
  * review-only state.
  */
@@ -81,9 +82,16 @@ export const deploymentRequirementSchema = z.discriminatedUnion('kind', [
     provider: z.literal('nuxthub'),
     bindings: z.array(z.enum(['database', 'blob', 'kv', 'cache'])).min(1),
     /** The literal engine selected by the framework config, when source states one. */
-    databaseEngine: z.enum(['sqlite', 'unknown']).optional(),
-    /** Committed migrations the framework deployment normally applies on the application's behalf. */
+    databaseEngine: z.enum(['sqlite', 'postgresql', 'mysql', 'unknown']).optional(),
+    /** Committed migrations owned by the framework, which may apply them during the build. */
     migrationPaths: z.array(repositoryPathSchema).default([]),
+    evidence: z.array(citationSchema).default([])
+  }),
+  z.object({
+    kind: z.literal('framework-analysis-incomplete'),
+    serviceName: z.string().min(1),
+    provider: z.literal('nuxthub'),
+    reasons: z.array(z.enum(['dynamic-config', 'migration-paths', 'source-limit', 'unreadable-source'])).min(1),
     evidence: z.array(citationSchema).default([])
   })
 ]);

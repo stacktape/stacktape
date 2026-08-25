@@ -920,25 +920,48 @@ export const composeConfig = ({
       continue;
     }
     if (requirement.kind === 'framework-runtime-bindings') {
-      const bindingLabels = requirement.bindings.map((binding) =>
-        binding === 'database' ? 'database' : binding === 'blob' ? 'blob storage' : `${binding} storage`
-      );
-      const databaseDetail =
-        requirement.bindings.includes('database') && requirement.databaseEngine === 'sqlite'
-          ? " The app selects SQLite, but the generated Stacktape service has no NuxtHub database binding or durable SQLite database. Stacktape cannot safely create a managed AWS database as a substitute because the code uses NuxtHub's `hub:db` API instead of a normal PostgreSQL or MySQL connection."
-          : '';
+      const remediation = requirement.bindings.map((binding) => {
+        if (binding === 'database') {
+          const sqlite = requirement.databaseEngine === 'sqlite';
+          return sqlite
+            ? 'The app selects SQLite. A local SQLite file in this Nuxt service is not durable storage: data can be lost when the service restarts or is replaced. Configure and test a hosted SQLite provider such as Turso/libSQL, or change the database driver and connection to match your chosen production database.'
+            : 'Configure and test the NuxtHub database driver and production connection, or update the app to use your chosen database directly.';
+        }
+        if (binding === 'blob') {
+          return 'For uploaded files, configure and test a NuxtHub object-storage provider such as S3, including its bucket and access settings. Local files in this Nuxt service are not durable storage.';
+        }
+        if (binding === 'kv') {
+          return 'For key-value data, configure and test a NuxtHub KV provider that works in the AWS runtime, such as hosted Redis. Provider-specific bindings or local files are not automatically transferred.';
+        }
+        return 'For cached data, configure and test the Nitro cache storage provider in the AWS runtime, or explicitly choose a temporary cache that may be lost. Cloudflare and Vercel cache bindings are not automatically transferred.';
+      });
       gaps.push({
         subject: `${requirement.serviceName}.nuxthub-bindings`,
-        message: `${requirement.serviceName} uses NuxtHub ${bindingLabels.join(', ')} through framework-provided bindings, but Stacktape's Nuxt resource does not provide those bindings.${databaseDetail} Before deploying, either configure a NuxtHub-compatible hosted database such as Turso/libSQL, or change the app to use a database Stacktape supports. Stacktape will not move existing data.`,
+        message: `${requirement.serviceName} uses NuxtHub storage. Init has not verified or configured its production storage providers, so this configuration is not ready to deploy. ${remediation.join(' ')} Stacktape will not move existing data.`,
         severity: 'blocking'
       });
       if (requirement.migrationPaths.length > 0) {
         gaps.push({
           subject: `${requirement.serviceName}.nuxthub-migrations`,
-          message: `${requirement.serviceName} includes NuxtHub database migrations under ${requirement.migrationPaths.join(', ')}. NuxtHub normally runs them when it deploys. Stacktape does not run NuxtHub's deploy command, so these migrations will not run. After choosing the production database, add and test an explicit migration command before deploying.`,
+          message: `${requirement.serviceName} includes NuxtHub database migrations at ${requirement.migrationPaths.join(', ')}. NuxtHub can apply migrations during the production build; the target depends on its database configuration. Before building or deploying, verify which database receives them and test the migration procedure. If build-time migrations are disabled, add and test an explicit migration command. Init has not added a migration hook.`,
           severity: 'blocking'
         });
       }
+      continue;
+    }
+    if (requirement.kind === 'framework-analysis-incomplete') {
+      const reasons = requirement.reasons.map((reason) => {
+        if (reason === 'source-limit') return 'the project exceeds the bounded source scan';
+        if (reason === 'unreadable-source') return 'some production source could not be fully read or parsed';
+        if (reason === 'migration-paths')
+          return 'migration directories are computed or are not safe project-relative paths';
+        return 'the NuxtHub configuration is computed or uses an unsupported configuration shape';
+      });
+      gaps.push({
+        subject: `${requirement.serviceName}.nuxthub-analysis`,
+        message: `Init could not finish checking NuxtHub in ${requirement.serviceName}: ${reasons.join('; ')}. This does not prove the app is ready to deploy. Review the NuxtHub configuration, production storage usage, and migration paths before deploying; where possible, use explicit project-relative configuration so init can check it.`,
+        severity: 'blocking'
+      });
       continue;
     }
     gaps.push({

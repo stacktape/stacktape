@@ -25,6 +25,8 @@ export type ProbeContext = {
   root: string;
   /** Every file the access policy permits, repository-relative and POSIX. */
   files: readonly string[];
+  /** The repository walk stopped before all permitted files were listed. */
+  filesTruncated?: boolean;
   /** Policy-respecting read: environment files come back as names, credentials never come back. */
   read: (repoRelativePath: string, options?: ReadSourceFileOptions) => Promise<SourceRead>;
   /**

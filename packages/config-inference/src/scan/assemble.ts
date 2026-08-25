@@ -775,7 +775,10 @@ export const assembleCandidateFacts = async ({
     files === undefined
       ? await listRepositoryFiles(root)
       : { files: [...files], truncated: false, descriptorDockerfiles: [] };
-  const context = createProbeContext(root, listing.files, listing.descriptorDockerfiles);
+  const context = {
+    ...createProbeContext(root, listing.files, listing.descriptorDockerfiles),
+    filesTruncated: listing.truncated
+  };
 
   // Probes are independent and every one of them is I/O, so they run together. Order is preserved
   // because the merge below resolves conflicts by probe order, and a scan whose result depends on
@@ -1064,7 +1067,7 @@ export const assembleCandidateFacts = async ({
   for (const output of outputs) {
     for (const requirement of output.deploymentRequirements ?? []) {
       const remapped = (() => {
-        if (requirement.kind === 'public-grpc' || requirement.kind === 'framework-runtime-bindings') {
+        if (requirement.kind !== 'persistent-bootstrap-artifacts') {
           return { ...requirement, serviceName: renames.get(requirement.serviceName) ?? requirement.serviceName };
         }
         return {
@@ -1078,7 +1081,9 @@ export const assembleCandidateFacts = async ({
           ? `${remapped.kind}:${remapped.serviceName}:${remapped.port}`
           : remapped.kind === 'framework-runtime-bindings'
             ? `${remapped.kind}:${remapped.provider}:${remapped.serviceName}:${remapped.bindings.join(',')}`
-            : `${remapped.kind}:${remapped.producerServiceName}:${remapped.paths.join(',')}`;
+            : remapped.kind === 'framework-analysis-incomplete'
+              ? `${remapped.kind}:${remapped.provider}:${remapped.serviceName}:${remapped.reasons.join(',')}`
+              : `${remapped.kind}:${remapped.producerServiceName}:${remapped.paths.join(',')}`;
       if (!deploymentRequirementsByKey.has(key)) deploymentRequirementsByKey.set(key, remapped);
     }
   }
