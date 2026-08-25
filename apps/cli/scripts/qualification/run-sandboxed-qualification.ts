@@ -21,7 +21,12 @@ const rootDirectory = resolve(import.meta.dir, '..', '..', '..', '..');
 const invocationDirectory = resolve(process.env.INIT_CWD ?? process.cwd());
 
 const errorText = (error: unknown) =>
-  outputTail(redactOutput(error instanceof Error ? (error.stack ?? error.message) : String(error)), 12_000);
+  outputTail(
+    redactOutput(
+      error instanceof Error ? `${error.message}${error.stack === undefined ? '' : `\n${error.stack}`}` : String(error)
+    ),
+    12_000
+  );
 
 const pathExists = async (path: string) => {
   try {
