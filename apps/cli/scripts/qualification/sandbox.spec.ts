@@ -3,7 +3,11 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { QUALIFICATION_RUNNER_DOCKERFILE } from './sandbox-dockerfile';
-import { processResultExitCode, validateAndHashOutputTree } from './run-sandboxed-qualification';
+import {
+  describeSandboxFailure,
+  processResultExitCode,
+  validateAndHashOutputTree
+} from './run-sandboxed-qualification';
 import { makeRetainedWorkdirPortable } from './sandbox-output';
 import {
   assertPlannedSecurity,
@@ -384,6 +388,31 @@ describe('sandboxed qualification resource & lane validation', () => {
     expect(processResultExitCode({ exitCode: 0, timedOut: true })).toBe(124);
     expect(processResultExitCode({ exitCode: 0, timedOut: false, interruptedSignal: 'SIGINT' })).toBe(130);
     expect(processResultExitCode({ exitCode: 0, timedOut: false })).toBe(0);
+  });
+
+  test('preserves the primary runner failure alongside report validation diagnostics', () => {
+    expect(describeSandboxFailure(new Error('missing report'), { exitCode: 1, timedOut: true }, 10_000)).toEqual({
+      failureKind: 'runner-timeout',
+      failure: 'Qualification runner timed out after 10000ms; its partial output did not contain a verifiable report.',
+      reportValidationFailure: expect.stringContaining('missing report')
+    });
+    expect(
+      describeSandboxFailure(
+        new Error('missing report'),
+        { exitCode: 1, timedOut: false, interruptedSignal: 'SIGINT' },
+        10_000
+      )
+    ).toEqual({
+      failureKind: 'runner-interrupted',
+      failure:
+        'Qualification runner was interrupted by SIGINT; its partial output did not contain a verifiable report.',
+      reportValidationFailure: expect.stringContaining('missing report')
+    });
+    expect(describeSandboxFailure(new Error('invalid JSON'), { exitCode: 0, timedOut: false }, 10_000)).toEqual({
+      failureKind: 'report-validation',
+      failure: 'Qualification output did not contain a verifiable report.',
+      reportValidationFailure: expect.stringContaining('invalid JSON')
+    });
   });
 
   test('validates resource bound inputs correctly', () => {
