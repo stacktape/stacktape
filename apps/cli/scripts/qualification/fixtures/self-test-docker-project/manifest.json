@@ -7,7 +7,7 @@
       "why": "Verifies the disposable DinD qualification sandbox boundary packages a container workload through nested Docker without host socket or AWS access.",
       "source": {
         "kind": "local",
-        "path": "apps/cli/scripts/qualification/fixtures/self-test-docker-project",
+        "path": ".",
         "license": "Stacktape fixture"
       },
       "origin": "synthetic",

@@ -1,4 +1,5 @@
-import { mkdir, readFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { BUILT_IN_CASES, AWS_QUALIFICATION_SCENARIOS } from './catalog';
 import { qualificationReportSchema } from './contracts';
@@ -38,7 +39,7 @@ Standard Qualification Options:
   --lanes=import,package,runtime     Requested lanes (package automatically includes import; aws lane is rejected)
   --aws-scenario=<id>                Explicit AWS archetype (note: aws lane is rejected in sandbox)
   --output-dir=<path>                Durable JSON/Markdown results (default: .stacktape/qualification/<run>)
-  --cache-root=<path>                Host cache directory for persistent project downloads
+  --cache-root=<path>                Rejected in sandbox; its cache is disposable and never copied onto the host
   --resume-from=<report.json>        Skip matching cases that already passed
   --shard=<index>/<total>            Deterministically run one shard, for example 2/10
   --max-cases=<count>                Cap projects after selection and sharding
@@ -244,18 +245,19 @@ const verifyResourceOwned = async (kind: 'container' | 'volume' | 'network', nam
 const cleanupSandboxResources = async (planned: PlannedSandboxExecution) => {
   const errors: string[] = [];
 
-  // Remove runner container
-  try {
-    if (await verifyResourceOwned('container', planned.runnerContainerName, planned.runId)) {
-      await runProcess({
-        command: 'docker',
-        args: ['rm', '-f', planned.runnerContainerName],
-        cwd: rootDirectory,
-        timeoutMs: 15_000
-      });
+  for (const containerName of [planned.runnerContainerName, planned.stagingContainerName]) {
+    try {
+      if (await verifyResourceOwned('container', containerName, planned.runId)) {
+        await runProcess({
+          command: 'docker',
+          args: ['rm', '-f', containerName],
+          cwd: rootDirectory,
+          timeoutMs: 15_000
+        });
+      }
+    } catch (error) {
+      errors.push(`Failed to remove container ${containerName}: ${String(error)}`);
     }
-  } catch (error) {
-    errors.push(`Failed to remove runner container ${planned.runnerContainerName}: ${String(error)}`);
   }
 
   // Remove DinD container
@@ -273,7 +275,7 @@ const cleanupSandboxResources = async (planned: PlannedSandboxExecution) => {
   }
 
   // Remove volumes
-  for (const vol of [planned.outputVolumeName, planned.cacheVolumeName]) {
+  for (const vol of [planned.inputVolumeName, planned.outputVolumeName, planned.cacheVolumeName]) {
     try {
       if (await verifyResourceOwned('volume', vol, planned.runId)) {
         await runProcess({
@@ -307,33 +309,58 @@ const cleanupSandboxResources = async (planned: PlannedSandboxExecution) => {
   }
 };
 
-const stageInputIntoRunner = async (runnerContainerName: string, staged: StagedInput) => {
+const stageInputIntoContainer = async (containerName: string, staged: StagedInput) => {
   const targetPath = `/qualification/${staged.containerRelativePath.replaceAll('\\', '/')}`;
   const targetDir = dirname(targetPath);
+  let temporaryDirectory: string | undefined;
+  let sourcePath = staged.hostPath;
 
-  // Ensure parent directory exists inside container
-  await runProcess({
-    command: 'docker',
-    args: ['exec', '--user', '0:0', runnerContainerName, 'mkdir', '-p', targetDir],
-    cwd: rootDirectory,
-    timeoutMs: 15_000
-  });
+  if (staged.content !== undefined) {
+    temporaryDirectory = await mkdtemp(join(tmpdir(), 'stacktape-qualification-input-'));
+    sourcePath = join(temporaryDirectory, 'input');
+    await writeFile(sourcePath, staged.content, 'utf8');
+  }
+  if (sourcePath === undefined) throw new Error(`Staged input ${staged.label} has no source.`);
 
-  const cpResult = await runProcess({
-    command: 'docker',
-    args: ['cp', staged.hostPath, `${runnerContainerName}:${targetPath}`],
-    cwd: rootDirectory,
-    timeoutMs: 30_000
-  });
-  assertProcessSucceeded(cpResult);
+  try {
+    const mkdirResult = await runProcess({
+      command: 'docker',
+      args: ['exec', '--user', '0:0', containerName, 'mkdir', '-p', targetDir],
+      cwd: rootDirectory,
+      timeoutMs: 15_000
+    });
+    assertProcessSucceeded(mkdirResult);
 
-  // Chown staged input to node user (1000:1000)
-  await runProcess({
-    command: 'docker',
-    args: ['exec', '--user', '0:0', runnerContainerName, 'chown', '-R', '1000:1000', targetDir],
-    cwd: rootDirectory,
-    timeoutMs: 15_000
-  });
+    const cpResult = await runProcess({
+      command: 'docker',
+      args: ['cp', sourcePath, `${containerName}:${targetPath}`],
+      cwd: rootDirectory,
+      timeoutMs: 5 * 60_000
+    });
+    assertProcessSucceeded(cpResult);
+
+    const permissionsResult = await runProcess({
+      command: 'docker',
+      args: [
+        'exec',
+        '--user',
+        '0:0',
+        containerName,
+        'sh',
+        '-c',
+        'chown -R root:root "$1" && chmod -R a-w,a+rX "$1"',
+        'sh',
+        targetPath
+      ],
+      cwd: rootDirectory,
+      timeoutMs: 60_000
+    });
+    assertProcessSucceeded(permissionsResult);
+  } finally {
+    if (temporaryDirectory !== undefined) {
+      await rm(temporaryDirectory, { recursive: true, force: true });
+    }
+  }
 };
 
 export const executeSandboxedQualification = async (
@@ -365,8 +392,26 @@ export const executeSandboxedQualification = async (
 
   const productCommit = await getCleanProductCommit(parsed.dryRun);
 
+  if (parsed.cacheRoot !== undefined) {
+    throw new Error(
+      '--cache-root is not supported by the sandbox because qualification code must not copy a writable build cache back onto the host. The sandbox keeps one disposable cache for the entire run; omit this option.'
+    );
+  }
+
   let effectiveArgs = rawArgs;
   if (parsed.selfTest) {
+    if (
+      parsed.preset !== undefined ||
+      parsed.cases !== undefined ||
+      parsed.manifests !== undefined ||
+      parsed.lanes !== undefined ||
+      parsed.awsScenarios !== undefined ||
+      parsed.resumeFrom !== undefined ||
+      parsed.shard !== undefined ||
+      parsed.maxCases !== undefined
+    ) {
+      throw new Error('--self-test cannot be combined with project selection, lanes, resume, or sharding options.');
+    }
     const fixtureManifest = resolve(
       rootDirectory,
       'apps/cli/scripts/qualification/fixtures/self-test-docker-project/manifest.json'
@@ -383,7 +428,8 @@ export const executeSandboxedQualification = async (
     productCommit,
     rawArgs: effectiveArgs,
     invocationDirectory,
-    rootDirectory
+    rootDirectory,
+    isSelfTest: Boolean(parsed.selfTest)
   });
 
   assertPlannedSecurity(planned);
@@ -397,7 +443,9 @@ export const executeSandboxedQualification = async (
           imageTag: planned.imageTag,
           network: planned.networkName,
           dindContainer: planned.dindContainerName,
+          stagingContainer: planned.stagingContainerName,
           runnerContainer: planned.runnerContainerName,
+          inputVolume: planned.inputVolumeName,
           outputVolume: planned.outputVolumeName,
           cacheVolume: planned.cacheVolumeName,
           stagedInputs: planned.stagedInputs,
@@ -449,7 +497,7 @@ export const executeSandboxedQualification = async (
     assertProcessSucceeded(netResult);
 
     // 2. Create named volumes
-    for (const vol of [planned.outputVolumeName, planned.cacheVolumeName]) {
+    for (const vol of [planned.inputVolumeName, planned.outputVolumeName, planned.cacheVolumeName]) {
       const volResult = await runProcess({
         command: 'docker',
         args: [
@@ -478,7 +526,76 @@ export const executeSandboxedQualification = async (
 
     await waitForDindReadiness(planned.dindContainerName);
 
-    // 4. Create runner container (without starting it immediately to stage inputs)
+    // 4. Stage exact manifest inputs through a trusted helper. The runner later mounts inputs read-only.
+    const stagingCreateResult = await runProcess({
+      command: 'docker',
+      args: [
+        'create',
+        '--name',
+        planned.stagingContainerName,
+        '--network=none',
+        '--user',
+        '0:0',
+        '--read-only',
+        '--security-opt=no-new-privileges:true',
+        '--label',
+        'stacktape.qualification.managed=true',
+        '--label',
+        `stacktape.qualification.run-id=${planned.runId}`,
+        '-v',
+        `${planned.inputVolumeName}:/qualification/inputs:rw`,
+        '-v',
+        `${planned.outputVolumeName}:/qualification/output:rw`,
+        '-v',
+        `${planned.cacheVolumeName}:/qualification/cache:rw`,
+        '--entrypoint',
+        '/bin/sh',
+        planned.imageTag,
+        '-c',
+        'sleep infinity'
+      ],
+      cwd: rootDirectory,
+      timeoutMs: 30_000
+    });
+    assertProcessSucceeded(stagingCreateResult);
+
+    const stagingStartResult = await runProcess({
+      command: 'docker',
+      args: ['start', planned.stagingContainerName],
+      cwd: rootDirectory,
+      timeoutMs: 30_000
+    });
+    assertProcessSucceeded(stagingStartResult);
+
+    const writableVolumePermissions = await runProcess({
+      command: 'docker',
+      args: [
+        'exec',
+        '--user',
+        '0:0',
+        planned.stagingContainerName,
+        'sh',
+        '-c',
+        'chown 1000:1000 /qualification/output /qualification/cache && chmod 700 /qualification/output /qualification/cache && chown root:root /qualification/inputs && chmod 755 /qualification/inputs'
+      ],
+      cwd: rootDirectory,
+      timeoutMs: 15_000
+    });
+    assertProcessSucceeded(writableVolumePermissions);
+
+    for (const staged of planned.stagedInputs) {
+      await stageInputIntoContainer(planned.stagingContainerName, staged);
+    }
+
+    const stagingRemoveResult = await runProcess({
+      command: 'docker',
+      args: ['rm', '-f', planned.stagingContainerName],
+      cwd: rootDirectory,
+      timeoutMs: 15_000
+    });
+    assertProcessSucceeded(stagingRemoveResult);
+
+    // 5. Create the unprivileged runner with read-only source inputs.
     const createArgs = ['create', ...planned.runnerArgs.slice(1)];
     const createResult = await runProcess({
       command: 'docker',
@@ -487,11 +604,6 @@ export const executeSandboxedQualification = async (
       timeoutMs: 30_000
     });
     assertProcessSucceeded(createResult);
-
-    // 5. Stage inputs
-    for (const staged of planned.stagedInputs) {
-      await stageInputIntoRunner(planned.runnerContainerName, staged);
-    }
 
     // 6. Start runner and attach
     const runResult = await runProcess({
@@ -516,7 +628,8 @@ export const executeSandboxedQualification = async (
       timeoutMs: 60_000
     });
     if (cpOutResult.exitCode !== 0) {
-      process.stderr.write(`Warning: Failed to copy output files from container: ${cpOutResult.stderr}\n`);
+      process.stderr.write(`Failed to copy output files from container: ${cpOutResult.stderr}\n`);
+      runnerExitCode = 1;
     }
 
     // 8. Schema validate the qualification report if present
@@ -524,11 +637,40 @@ export const executeSandboxedQualification = async (
     try {
       const reportJsonText = await readFile(reportPath, 'utf8');
       const parsedReport = qualificationReportSchema.parse(JSON.parse(reportJsonText));
+      if (parsedReport.productCommit !== planned.productCommit) {
+        throw new Error(
+          `Qualification report commit ${parsedReport.productCommit} does not match sandbox commit ${planned.productCommit}.`
+        );
+      }
       process.stderr.write(
         `Qualification report verified: ${parsedReport.summary.passed} passed, ${parsedReport.summary.failed} failed.\n`
       );
       if (planned.isSelfTest) {
-        if (parsedReport.summary.passed >= 1 && parsedReport.summary.failed === 0) {
+        const selfTestCase = parsedReport.cases.find((entry) => entry.id === 'qualification-self-test-docker');
+        const packageStep = selfTestCase?.steps.find((step) => step.name === 'package');
+        const checked = packageStep?.details?.checked;
+        const templatePath = join(
+          planned.hostOutputDirectory,
+          'cases',
+          'qualification-self-test-docker',
+          'compiled-template.yml'
+        );
+        const templateText = await readFile(templatePath, 'utf8');
+        if (
+          parsedReport.cases.length === 1 &&
+          parsedReport.summary.passed === 1 &&
+          parsedReport.summary.failed === 0 &&
+          selfTestCase?.execution === 'executed' &&
+          selfTestCase.status === 'passed' &&
+          packageStep?.status === 'passed' &&
+          typeof checked === 'object' &&
+          checked !== null &&
+          'packaging' in checked &&
+          checked.packaging === true &&
+          'template' in checked &&
+          checked.template === true &&
+          templateText.trim().length > 0
+        ) {
           process.stdout.write('\nSandbox self-test SUCCESS: nested Docker build and template synthesis verified.\n');
           runnerExitCode = 0;
         } else {
@@ -537,9 +679,8 @@ export const executeSandboxedQualification = async (
         }
       }
     } catch (reportError) {
-      if (runnerExitCode === 0) {
-        process.stderr.write(`Warning: Could not validate qualification report schema: ${String(reportError)}\n`);
-      }
+      process.stderr.write(`Qualification report validation failed: ${String(reportError)}\n`);
+      runnerExitCode = 1;
     }
 
     return { exitCode: runnerExitCode, planned };

@@ -64,20 +64,22 @@ pnpm qualify:projects -- --manifest=<manifest.json> --case=<id> --lanes=import -
 ```
 
 Treat newly downloaded project code as untrusted. Packaging can execute lifecycle scripts, framework builds,
-Dockerfiles, and arbitrary commands. A lesser-capability worker must not add `--allow-host-project-code` itself. The
-campaign orchestrator runs packaging in the disposable qualification sandbox (`pnpm qualify:projects:sandboxed`), which
-isolates untrusted builds using a nested Docker-in-Docker (DinD) daemon without mounting the host socket or host home.
-Use `--allow-host-project-code` only when reviewing and accepting exact pinned source on the host. Available credentials
-do not count as acceptance.
+Dockerfiles, and arbitrary commands. A lesser-capability worker must not add `--allow-host-project-code` itself. It may
+run import-only inspection locally because that lane does not execute project code. Package unknown code on a disposable
+cloud VM or hosted runner with no secrets. After an orchestrator reviews a reputable source pinned to an exact commit,
+it may use the local qualification sandbox (`pnpm qualify:projects:sandboxed`), which avoids host bind mounts and the
+host Docker socket but still relies on privileged DinD. Use `--allow-host-project-code` only after separately accepting
+that exact source on the host. Available credentials do not count as acceptance.
 
 Review the generated `stacktape.yml`; do not judge success only by exit code. Check the inferred services, process
 types, commands, environment wiring, dependencies, gaps, and resource safety defaults. After the discovery result is
 understood, add exact `expect` counts and required/forbidden configuration or gap patterns to the manifest.
 
-If a batch is large, use deterministic shards, persistent cache, and the qualification sandbox:
+If a reviewed/reputable batch is large, use deterministic shards and the qualification sandbox. Cases in one run share
+its disposable cache; separate sandbox workers do not share a host cache:
 
 ```sh
-pnpm qualify:projects:sandboxed -- --manifest=<manifest.json> --lanes=import,package --cache-root=.stacktape/project-cache --shard=1/8
+pnpm qualify:projects:sandboxed -- --manifest=<manifest.json> --lanes=import,package --shard=1/8
 ```
 
 For reviewed pinned projects running directly on the host:

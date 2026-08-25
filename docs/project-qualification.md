@@ -35,9 +35,10 @@ The qualification sandbox (`pnpm qualify:projects:sandboxed`) constructs a dispo
   host Docker socket (`/var/run/docker.sock` or `//./pipe/docker_engine`) is **never mounted**.
 - **Committed Product Build:** Built strictly from a clean committed Stacktape tree at `HEAD` with pinned Node 24, Bun
   1.3.14, and pnpm 11.17.0, keyed by product commit.
-- **Explicit Inputs/Outputs Only:** Mounts strictly `--output-dir` (read-write), `--cache-root` (read-write), and
-  declared manifest directories (read-only). The host `$HOME` directory, AWS credential files, SSH keys, Stacktape API
-  keys, and environment tokens are **never passed**.
+- **No Host Bind Mounts:** Exact declared local project sources and rewritten manifests are copied into a disposable
+  named volume, then mounted read-only in the runner. Reports and the per-run checkout cache use separate named volumes;
+  reports are copied back after the runner stops. The host `$HOME`, cache directories, AWS credentials, SSH keys,
+  Stacktape API keys, and inherited environment tokens are never mounted or passed through.
 - **Metadata & Host Gateway Sinkhole:** Cloud metadata (`169.254.169.254`, `metadata.google.internal`) and Docker host
   gateways (`host.docker.internal`, `gateway.docker.internal`) are mapped to `127.0.0.1`.
 - **Resource & Process Limits:** Enforces container memory (default 8 GB), CPU (default 4 cores), and PID limits
@@ -53,6 +54,9 @@ The qualification sandbox (`pnpm qualify:projects:sandboxed`) constructs a dispo
    and arbitrary public IPs remain reachable from inside the container unless blocked by an external network firewall.
 3. **Shared Linux Kernel:** Container isolation relies on Linux kernel namespaces and cgroups (within Docker Desktop's
    WSL2 VM or host Linux kernel). It is not a hardware-isolated microVM (such as Firecracker).
+4. **Trust Boundary:** Use this local sandbox for reviewed or reputable sources pinned to an exact commit. Run newly
+   discovered or potentially hostile projects only on a disposable cloud VM or hosted runner that contains no secrets
+   and can be destroyed after the run. Privileged DinD is not a hostile-code security boundary.
 
 Packaging is not deployment qualification by itself. A successful package proves that Stacktape can turn the project
 into deployment artifacts and a template. It does not prove that an ALB health check passes, a migration succeeds
@@ -70,14 +74,14 @@ pnpm qualify:projects -- --list
 # Default representative import set (does not execute project build scripts).
 pnpm qualify:projects -- --preset=smoke --lanes=import
 
-# Sandboxed qualification for untrusted project code (recommended for package lane).
+# Sandboxed qualification for reviewed/reputable pinned project code (recommended for the package lane).
 pnpm qualify:projects:sandboxed -- --preset=smoke --lanes=import,package
 
 # Single project packaging inside the disposable DinD sandbox.
 pnpm qualify:projects:sandboxed -- --case=docker-fastapi --lanes=import,package
 
-# Sandboxed qualification with custom output directory and cache root.
-pnpm qualify:projects:sandboxed -- --preset=release --lanes=import,package --output-dir=.stacktape/qualification/release-run --cache-root=.stacktape/project-cache
+# Sandboxed qualification with a custom output directory. Its checkout cache lasts for this run only.
+pnpm qualify:projects:sandboxed -- --preset=release --lanes=import,package --output-dir=.stacktape/qualification/release-run
 
 # Full source packaging for reviewed pinned projects on this host.
 pnpm qualify:projects -- --preset=smoke --lanes=import,package --allow-host-project-code
@@ -100,7 +104,9 @@ pnpm qualify:projects -- --preset=all --lanes=import,package --allow-host-projec
 ```
 
 Use `--max-cases=<count>` to bound an exploratory run. Use `--fail-fast` when one failure should stop later projects.
-`--output-dir` and `--cache-root` are resolved from the directory in which the user invoked pnpm, including on Windows.
+`--output-dir` and direct-host `--cache-root` paths are resolved from the directory in which the user invoked pnpm,
+including on Windows. The sandbox rejects `--cache-root`: writing a project-controlled cache back onto the host would
+weaken its boundary. All projects within one sandbox run still share the same disposable cache volume.
 
 Each run writes:
 
