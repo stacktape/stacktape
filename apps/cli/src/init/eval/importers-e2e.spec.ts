@@ -65,6 +65,160 @@ const CASES: EvalCase[] = [
     }
   },
   {
+    name: 'Laravel Compose web, Horizon, scheduler, MySQL, and Redis',
+    directoryName: 'pixelfed',
+    files: {
+      'composer.json': JSON.stringify({
+        name: 'acme/pixelfed',
+        require: { 'laravel/framework': '^12', 'ext-pdo_mysql': '*', predis: '^3' }
+      }),
+      Dockerfile: 'FROM serversideup/php:8.5-frankenphp\nEXPOSE 8080\n',
+      'public/index.php': '<?php require __DIR__ . "/../vendor/autoload.php";\n',
+      'config/app.php': "<?php return ['key' => env('APP_KEY')];\n",
+      'config/database.php': [
+        '<?php return [',
+        "  'default' => env('DB_CONNECTION', 'mysql'),",
+        "  'host' => env('DB_HOST', '127.0.0.1'),",
+        "  'port' => env('DB_PORT', '3306'),",
+        "  'database' => env('DB_DATABASE', 'app'),",
+        "  'username' => env('DB_USERNAME', 'app'),",
+        "  'password' => env('DB_PASSWORD', ''),",
+        "  'ssl_ca' => env('MYSQL_ATTR_SSL_CA'),",
+        "  'redis_host' => env('REDIS_HOST', '127.0.0.1'),",
+        "  'redis_password' => env('REDIS_PASSWORD'),",
+        "  'redis_port' => env('REDIS_PORT', '6379'),",
+        '];',
+        ''
+      ].join('\n'),
+      'config/filesystems.php': [
+        '<?php return [',
+        "  'default' => env('FILESYSTEM_DISK', 'local'),",
+        "  'bucket' => env('AWS_BUCKET'),",
+        '];',
+        ''
+      ].join('\n'),
+      'config/cache.php': "<?php return ['default' => env('CACHE_DRIVER', 'file')];\n",
+      'config/queue.php': "<?php return ['default' => env('QUEUE_DRIVER', 'sync')];\n",
+      '.env.example': [
+        'APP_KEY=',
+        'DB_CONNECTION=mysql',
+        'DB_HOST=127.0.0.1',
+        'DB_PORT=3306',
+        'DB_DATABASE=pixelfed',
+        'DB_USERNAME=pixelfed',
+        'DB_PASSWORD=',
+        'REDIS_HOST=127.0.0.1',
+        'REDIS_PASSWORD=null',
+        'REDIS_PORT=6379',
+        'FILESYSTEM_DISK=local',
+        ''
+      ].join('\n'),
+      '.env.docker.example': ['CACHE_DRIVER=redis', 'QUEUE_DRIVER=redis', 'ADMIN_PIN=1234', 'OTP_CODE=000000', ''].join(
+        '\n'
+      ),
+      '.env.testing': 'DB_CONNECTION=sqlite\nDB_DATABASE=tests/database.sqlite\n',
+      'docker-compose.yml': [
+        'services:',
+        '  pixelfed:',
+        '    build: .',
+        '    ports: ["8080:8080"]',
+        '    depends_on: [db, redis]',
+        '    environment:',
+        '      PHP_OPCACHE_ENABLE: "1"',
+        '      AUTORUN_ENABLED: "true"',
+        '      AUTORUN_LARAVEL_MIGRATION: "true"',
+        '      AUTORUN_LARAVEL_MIGRATION_ISOLATION: "true"',
+        '      AUTORUN_LARAVEL_STORAGE_LINK: "true"',
+        '      AUTORUN_LARAVEL_EVENT_CACHE: "true"',
+        '      AUTORUN_LARAVEL_CONFIG_CACHE: "true"',
+        '  horizon:',
+        '    build: .',
+        '    entrypoint: ["php", "artisan"]',
+        '    command: ["horizon"]',
+        '    depends_on: [db, redis]',
+        '    environment:',
+        '      AUTORUN_LARAVEL_MIGRATION: "false"',
+        '      AUTORUN_LARAVEL_STORAGE_LINK: "true"',
+        '  scheduler:',
+        '    build: .',
+        '    command: ["php", "artisan", "schedule:work"]',
+        '    depends_on: [db, redis]',
+        '    environment:',
+        '      AUTORUN_LARAVEL_MIGRATION: "false"',
+        '  db:',
+        '    image: mysql:9',
+        '  redis:',
+        '    image: redis:7',
+        ''
+      ].join('\n')
+    },
+    expect: {
+      dependencyKinds: ['mysql', 'redis'],
+      absentDependencyKinds: ['object-storage'],
+      resources: {
+        mainDatabase: 'relational-database',
+        cache: 'redis-cluster',
+        pixelfed: 'web-service',
+        horizon: 'worker-service',
+        scheduler: 'worker-service'
+      },
+      resourcePackaging: [
+        { resource: 'pixelfed', type: 'custom-dockerfile', dockerfilePath: 'Dockerfile' },
+        {
+          resource: 'horizon',
+          type: 'custom-dockerfile',
+          dockerfilePath: 'Dockerfile',
+          command: ['/bin/sh', '-c', 'php artisan horizon']
+        },
+        {
+          resource: 'scheduler',
+          type: 'custom-dockerfile',
+          dockerfilePath: 'Dockerfile',
+          command: ['php', 'artisan', 'schedule:work']
+        }
+      ],
+      serviceProperties: [
+        { resource: 'pixelfed', containerPort: 8080, minInstances: 1, maxInstances: 1 },
+        { resource: 'horizon', minInstances: 1, maxInstances: 3 },
+        { resource: 'scheduler', minInstances: 1, maxInstances: 3 }
+      ],
+      serviceEnvironment: [
+        { resource: 'pixelfed', name: 'APP_KEY', value: "$Secret('eval-pixelfed.generatedAppKey')" },
+        { resource: 'horizon', name: 'APP_KEY', value: "$Secret('eval-pixelfed.generatedAppKey')" },
+        { resource: 'pixelfed', name: 'DB_HOST', value: "$ResourceParam('mainDatabase', 'host')" },
+        { resource: 'pixelfed', name: 'DB_PORT', value: "$ResourceParam('mainDatabase', 'port')" },
+        { resource: 'pixelfed', name: 'DB_DATABASE', value: "$ResourceParam('mainDatabase', 'dbName')" },
+        { resource: 'pixelfed', name: 'DB_USERNAME', value: 'stacktape' },
+        { resource: 'pixelfed', name: 'DB_PASSWORD', value: "$Secret('eval-mainDatabase.password')" },
+        { resource: 'pixelfed', name: 'REDIS_HOST', value: "$ResourceParam('cache', 'host')" },
+        { resource: 'pixelfed', name: 'REDIS_PASSWORD', value: "$Secret('eval-cache.password')" },
+        { resource: 'pixelfed', name: 'REDIS_PORT', value: "$ResourceParam('cache', 'port')" },
+        { resource: 'pixelfed', name: 'PHP_OPCACHE_ENABLE', value: '1' },
+        { resource: 'pixelfed', name: 'AUTORUN_LARAVEL_EVENT_CACHE', value: 'true' },
+        { resource: 'horizon', name: 'AUTORUN_LARAVEL_MIGRATION', value: 'false' },
+        { resource: 'pixelfed', name: 'CACHE_DRIVER', value: 'redis' },
+        { resource: 'pixelfed', name: 'QUEUE_DRIVER', value: 'redis' },
+        { resource: 'horizon', name: 'CACHE_DRIVER', value: 'redis' },
+        { resource: 'horizon', name: 'QUEUE_DRIVER', value: 'redis' },
+        { resource: 'scheduler', name: 'CACHE_DRIVER', value: 'redis' },
+        { resource: 'scheduler', name: 'QUEUE_DRIVER', value: 'redis' }
+      ],
+      absentServiceEnvironment: [
+        { resource: 'pixelfed', name: 'DB_CONNECTION' },
+        { resource: 'pixelfed', name: 'AWS_BUCKET' },
+        { resource: 'pixelfed', name: 'MYSQL_ATTR_SSL_CA' },
+        { resource: 'pixelfed', name: 'ADMIN_PIN' },
+        { resource: 'pixelfed', name: 'OTP_CODE' },
+        { resource: 'horizon', name: 'ADMIN_PIN' },
+        { resource: 'horizon', name: 'OTP_CODE' }
+      ],
+      requiredGapPatterns: ['database migrations during service startup', 'media.*ephemeral|ephemeral.*media'],
+      forbiddenGapPatterns: ['does not read a configurable address'],
+      deployable: true,
+      maxQuestions: 0
+    }
+  },
+  {
     name: 'Django Compose image with custom port, split Postgres settings, and bundled lifecycle',
     directoryName: 'healthchecks',
     files: {

@@ -9,10 +9,10 @@
  * whether that database is already running on Supabase — which decides whether we create anything
  * at all or leave a live system alone.
  *
- * The containment: the value is read here, reduced immediately to two enum members, and dropped. It
- * is never returned, never cited, never logged. The citations this probe emits quote only the part
- * of the line to the left of the `=`, so a facts document remains safe to show, store and send even
- * though it was derived from a secret.
+ * The containment: dependency values are reduced immediately to enum members and dropped. A
+ * deployment-specific template may additionally retain an allow-listed operational literal, using
+ * the same secret-name rejection as deployment manifests. Citations always quote only the part of
+ * the line to the left of the `=`, so a facts document remains safe to show, store and send.
  */
 
 import type { Citation } from '../../facts/citation';
@@ -22,10 +22,12 @@ import {
   type DependencyHosting,
   type DependencyKind
 } from '../../facts/dependency';
+import type { EnvironmentVariableUse } from '../../facts/service';
 import type { Uncertainty } from '../../facts/uncertainty';
 import { extractEnvironmentVariableNames, isEnvironmentFileName } from '../../policy/file-access';
 import { readText } from '../probe';
 import type { Probe, ProbeContext, ProbeOutput } from '../probe';
+import { safeDeclaredLiteral } from './declared-environment';
 
 /** Connection-string schemes that name their engine outright. */
 const SCHEME_TO_KIND: ReadonlyArray<{ pattern: RegExp; kind: DependencyKind }> = [
@@ -101,10 +103,19 @@ export const ENV_NAME_TO_KIND: ReadonlyArray<{
     pattern: /^(POSTGRES|PG)_?(URL|URI|DSN|HOST|USER|PASSWORD|DB|DATABASE)?$/i,
     kind: 'postgres'
   },
-  { pattern: /^MYSQL_/i, kind: 'mysql' },
-  { pattern: /^MONGO(DB)?_/i, kind: 'mongodb' },
   {
-    pattern: /^REDIS_(?:URL|URI|DSN|CONNECTION_?STRING|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|DB(?:_INDEX)?)$/i,
+    pattern:
+      /^(?:MYSQL|MARIADB)_(?:URL|URI|DSN|CONNECTION_?STRING|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|PASSWD|DB|DATABASE|NAME)$/i,
+    kind: 'mysql'
+  },
+  {
+    pattern:
+      /^(?:MONGO|MONGODB)_(?:URL|URI|DSN|CONNECTION_?STRING|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|PASSWD|DB|DATABASE|NAME)$/i,
+    kind: 'mongodb'
+  },
+  {
+    pattern:
+      /^(?:REDIS|VALKEY|CACHE)_(?:URL|URI|DSN|CONNECTION_?STRING|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|DB(?:_INDEX)?)$/i,
     kind: 'redis'
   },
   {
@@ -129,7 +140,8 @@ export const ENV_NAME_TO_KIND: ReadonlyArray<{
 export const AMBIGUOUS_DATABASE_NAMES = /^(DATABASE|DB)_?(URL|URI|DSN|CONNECTION_STRING)$/i;
 
 /** Split database settings name a database but not its engine until another fact settles it. */
-export const AMBIGUOUS_DATABASE_SETTING_NAMES = /^(?:DB|DATABASE)_(?:HOST|PORT|NAME|USER|USERNAME|PASSWORD|PASSWD)$/i;
+export const AMBIGUOUS_DATABASE_SETTING_NAMES =
+  /^(?:DB|DATABASE)_(?:HOST(?:NAME)?|PORT|NAME|DATABASE|DB|USER|USERNAME|PASSWORD|PASSWD|SCHEMA)$/i;
 
 /**
  * Which hosting claim wins when two environment files disagree.
@@ -184,16 +196,17 @@ const classifyAssignment = (line: string): { kind?: DependencyKind; hosting?: De
   };
 };
 
-const assignmentValue = (line: string): string | undefined => {
+const rawAssignmentValue = (line: string): string | undefined => {
   const separator = line.indexOf('=');
   if (separator <= 0) return undefined;
   const value = line
     .slice(separator + 1)
     .trim()
-    .replace(/^["']|["']$/g, '')
-    .toLowerCase();
+    .replace(/^["']|["']$/g, '');
   return value === '' ? undefined : value;
 };
+
+const assignmentValue = (line: string): string | undefined => rawAssignmentValue(line)?.toLowerCase();
 
 const DATABASE_SELECTOR_VALUES: Readonly<Record<string, DependencyKind>> = {
   postgres: 'postgres',
@@ -207,7 +220,18 @@ const DATABASE_SELECTOR_VALUES: Readonly<Record<string, DependencyKind>> = {
   sqlite: 'sqlite'
 };
 
-const ENVIRONMENT_TEMPLATE_PATTERN = /(?:^|\/)(?:\.?)env[-.](?:example|sample|template|defaults?)(?:[-.].*)?$/i;
+const ENVIRONMENT_TEMPLATE_PATTERN =
+  /(?:^|\/)(?:\.?)env(?:[-.][a-z0-9_-]+)*[-.](?:example|sample|template|defaults?)(?:[-.].*)?$/i;
+
+/** A checked-in environment template explicitly shaped for a deployment runtime, not local examples. */
+const DEPLOYMENT_ENVIRONMENT_PATTERN =
+  /(?:^|[._-])(?:docker|compose|container|production|prod|deploy(?:ment)?)(?:[._-]|$)/i;
+
+/** Backend selectors are the deployment-template values that must override optional code fallbacks. */
+const DEPLOYMENT_OVERRIDE_NAME = /(?:^|_)(?:DRIVER|STORE|CONNECTION|DISK|CLOUD|CLIENT|SCHEME)$/i;
+
+/** Test-only settings describe a separate runtime and must not choose production topology. */
+const TEST_ENVIRONMENT_PATTERN = /(?:^|\/)(?:\.?)env(?:[.-](?:test|testing))(?:[.-].*)?$/i;
 
 /**
  * Prefer the one template the root application Dockerfile explicitly copies. Variant examples may
@@ -247,8 +271,8 @@ export const environmentProbe: Probe = {
   run: async (context: ProbeContext): Promise<ProbeOutput> => {
     // The same predicate the policy uses. Keeping a second copy here is how the two drift: broaden
     // the policy to cover `.envrc` and this probe silently keeps ignoring it.
-    const discoveredEnvFiles = context.files.filter((file) =>
-      isEnvironmentFileName(file.slice(file.lastIndexOf('/') + 1))
+    const discoveredEnvFiles = context.files.filter(
+      (file) => isEnvironmentFileName(file.slice(file.lastIndexOf('/') + 1)) && !TEST_ENVIRONMENT_PATTERN.test(file)
     );
     const envFiles = await activeEnvironmentFiles(context, discoveredEnvFiles);
     if (envFiles.length === 0) return {};
@@ -259,6 +283,8 @@ export const environmentProbe: Probe = {
     const ambiguousSettings = new Map<string, Citation | undefined>();
     const preferredDependencyKinds = new Set<DependencyKind>();
     const disabledDependencyKinds = new Set<DependencyKind>();
+    const deploymentLiterals = new Map<string, Map<string, EnvironmentVariableUse>>();
+    const conflictingDeploymentLiterals = new Map<string, Set<string>>();
 
     // Read together, then folded in file order: the accumulation below is order-sensitive (the first
     // file to mention a kind owns its citation), so the reads are parallel and the merge is not.
@@ -277,6 +303,9 @@ export const environmentProbe: Probe = {
       const permitsHostingClaim = !ENVIRONMENT_TEMPLATE_PATTERN.test(file);
       const lines = raw.split(/\r?\n/);
       const names = extractEnvironmentVariableNames(raw);
+      const baseName = file.slice(file.lastIndexOf('/') + 1);
+      const deploymentTemplate = DEPLOYMENT_ENVIRONMENT_PATTERN.test(baseName);
+      const servicePath = file.includes('/') ? file.slice(0, file.lastIndexOf('/')) : '.';
 
       for (const name of names) {
         const citation = citeVariableName(file, lines, name);
@@ -288,6 +317,33 @@ export const environmentProbe: Probe = {
               .startsWith(`${name}=`)
           ) ?? '';
         const { kind: valueKind, hosting } = classifyAssignment(declaration);
+        const declaredLiteral =
+          deploymentTemplate && DEPLOYMENT_OVERRIDE_NAME.test(name)
+            ? safeDeclaredLiteral(name, rawAssignmentValue(declaration))
+            : undefined;
+        if (declaredLiteral !== undefined) {
+          const variables = deploymentLiterals.get(servicePath) ?? new Map<string, EnvironmentVariableUse>();
+          const conflicts = conflictingDeploymentLiterals.get(servicePath) ?? new Set<string>();
+          const current = variables.get(name);
+          if (!conflicts.has(name) && current !== undefined && current.safeLiteralValue !== declaredLiteral) {
+            variables.delete(name);
+            conflicts.add(name);
+          } else if (!conflicts.has(name)) {
+            variables.set(name, {
+              name,
+              role: 'runtime-config',
+              hasDeclaredValue: true,
+              safeLiteralValue: declaredLiteral,
+              required: true,
+              evidence:
+                citation === undefined
+                  ? (current?.evidence ?? [])
+                  : [...(current?.evidence ?? []), citation].slice(0, 4)
+            });
+          }
+          deploymentLiterals.set(servicePath, variables);
+          conflictingDeploymentLiterals.set(servicePath, conflicts);
+        }
         const value = assignmentValue(declaration);
         const selectedDatabaseKind =
           /^(?:(?:DATABASE|DB)_(?:TYPE|ENGINE|DIALECT)|DB)$/i.test(name) && value !== undefined
@@ -383,9 +439,14 @@ export const environmentProbe: Probe = {
       return dependency;
     });
 
+    const serviceEnvironments: NonNullable<ProbeOutput['serviceEnvironments']> = [...deploymentLiterals].flatMap(
+      ([path, variables]) => (variables.size === 0 ? [] : [{ path, environmentVariables: [...variables.values()] }])
+    );
+
     return {
       dependencies,
       uncertainties,
+      ...(serviceEnvironments.length === 0 ? {} : { serviceEnvironments }),
       ...(preferredDependencyKinds.size === 0 ? {} : { preferredDependencyKinds: [...preferredDependencyKinds] }),
       ...(disabledDependencyKinds.size === 0 ? {} : { disabledDependencyKinds: [...disabledDependencyKinds] })
     };

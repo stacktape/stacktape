@@ -37,16 +37,16 @@ describe('wiringFor', () => {
     expect(wiringFor('mongodb', 'MONGO_USER')).toEqual({ kind: 'none' });
     // A Redis database index is a number the app owns, not a value we can supply.
     expect(wiringFor('redis', 'REDIS_DB')).toEqual({ kind: 'none' });
-    expect(wiringFor('redis', 'REDIS_PASSWORD')).toEqual({ kind: 'none' });
     expect(wiringFor('redis', 'REDIS_CLIENT')).toEqual({ kind: 'none' });
     expect(wiringFor('redis', 'REDIS_PREFIX')).toEqual({ kind: 'none' });
     expect(wiringFor('queue', 'QUEUE_CONNECTION')).toEqual({ kind: 'none' });
     expect(wiringFor('queue', 'SQS_SUFFIX')).toEqual({ kind: 'none' });
   });
 
-  it('routes password shapes to the generated database secret, and only for databases', () => {
+  it('routes password shapes to the generated database/redis secret', () => {
     expect(wiringFor('postgres', 'POSTGRES_PASSWORD')).toEqual({ kind: 'password-secret' });
     expect(wiringFor('mysql', 'MYSQL_PASSWD')).toEqual({ kind: 'password-secret' });
+    expect(wiringFor('redis', 'REDIS_PASSWORD')).toEqual({ kind: 'password-secret' });
   });
 });
 

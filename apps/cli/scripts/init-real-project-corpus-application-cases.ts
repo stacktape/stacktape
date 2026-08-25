@@ -367,6 +367,79 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     }
   },
   {
+    id: 'real-pixelfed',
+    repository: 'https://github.com/pixelfed/pixelfed.git',
+    commit: '0dc12f23edda47b9e6336c3b1d85687442225055',
+    license: 'AGPL-3.0',
+    source: 'real-application',
+    exercises: ['php', 'laravel', 'mysql', 'redis', 'worker', 'scheduler', 'migration', 'object-storage'],
+    expect: {
+      resourceTypes: {
+        bastion: 1,
+        'redis-cluster': 1,
+        'relational-database': 1,
+        'web-service': 1,
+        'worker-service': 2
+      },
+      dependencyKinds: { mysql: 1, redis: 1 },
+      serviceCount: 3,
+      httpServiceCount: 1,
+      services: [
+        { name: 'pixelfed', path: '.', exposesHttp: true, port: 8080, dockerfile: 'Dockerfile' },
+        {
+          name: 'horizon',
+          path: '.',
+          exposesHttp: false,
+          startCommand: 'php artisan horizon',
+          dockerfile: 'Dockerfile'
+        },
+        {
+          name: 'scheduler',
+          path: '.',
+          exposesHttp: false,
+          startCommand: 'php artisan schedule:work',
+          dockerfile: 'Dockerfile'
+        }
+      ],
+      existingDeployments: [],
+      requiredConfig: [
+        'type: web-service',
+        'type: worker-service',
+        'dockerfilePath: Dockerfile',
+        'command:\n            - php\n            - artisan\n            - horizon',
+        'command:\n            - php\n            - artisan\n            - schedule:work',
+        'name: PHP_OPCACHE_ENABLE\n          value: "1"',
+        'name: AUTORUN_LARAVEL_MIGRATION\n          value: "true"',
+        'name: CACHE_DRIVER\n          value: redis',
+        'name: QUEUE_DRIVER\n          value: redis',
+        'name: DB_HOST',
+        "$ResourceParam('mainDatabase', 'host')",
+        'name: DB_DATABASE',
+        "$ResourceParam('mainDatabase', 'dbName')",
+        'name: DB_USERNAME',
+        'value: stacktape',
+        'name: DB_PASSWORD',
+        "$Secret('real-pixelfed-mainDatabase.password')",
+        'name: REDIS_HOST',
+        "$ResourceParam('cache', 'host')",
+        'name: REDIS_PASSWORD',
+        "$Secret('real-pixelfed-cache.password')",
+        'name: APP_KEY',
+        "$Secret('real-pixelfed-pixelfed.generatedAppKey')"
+      ],
+      forbiddenConfig: [
+        'type: bucket',
+        'name: MYSQL_ATTR_SSL_CA',
+        'name: PHP_OPCACHE_ENABLE\n          value: $ResourceParam',
+        "$Secret('autorun_laravel_migration')",
+        "$Secret('autorun_laravel_storage_link')"
+      ],
+      requiredGapPatterns: ['database migrations during service startup', 'media.*ephemeral|ephemeral.*media'],
+      forbiddenGapPatterns: ['does not read a configurable address'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
     id: 'real-koel-docker',
     repository: 'https://github.com/koel/docker.git',
     commit: '924a03870e25629303ff283f9f381ba19f81dc95',

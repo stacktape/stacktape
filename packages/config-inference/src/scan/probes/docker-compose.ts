@@ -141,6 +141,7 @@ type ComposeService = {
   image?: unknown;
   build?: unknown;
   command?: unknown;
+  entrypoint?: unknown;
   ports?: unknown;
   expose?: unknown;
   depends_on?: unknown;
@@ -297,21 +298,61 @@ const BACKGROUND_PROCESS_NAME = /(?:^|[-_.])(?:worker|scheduler|cron|consumer|qu
 const MIGRATION_COMMAND =
   /(?:^|[\s:=])(?:alembic\s+upgrade|(?:npm|pnpm|yarn|bun)\s+(?:--filter\s+\S+\s+)?(?:run\s+)?(?:\S*migrat\S*|\S*db:\S*)|npx\s+[^\s]*(?:migrat|prisma)|(?:python3?\s+)?(?:\.\/)?manage\.py\s+migrate|rails\s+db:|rake\s+db:|prisma\s+migrate|typeorm\s+[^\s]*migration|knex\s+migrate|sequelize(?:-cli)?\s+db:migrate|flyway|liquibase|dbmate)(?:\s|$)/i;
 
-const commandOf = (service: ComposeService): string | undefined =>
-  typeof service.command === 'string' && service.command.trim() !== ''
-    ? service.command.trim()
-    : Array.isArray(service.command) &&
-        service.command.length > 0 &&
-        service.command.every((entry) => typeof entry === 'string' && entry !== '')
-      ? service.command.join(' ')
-      : undefined;
+const commandString = (value: unknown): string | undefined => {
+  if (typeof value === 'string') {
+    const trimmed = value.trim();
+    return trimmed === '' ? undefined : trimmed;
+  }
+  if (Array.isArray(value)) {
+    if (value.length > 0 && value.every((entry): entry is string => typeof entry === 'string')) {
+      return value.join(' ').trim();
+    }
+  }
+  return undefined;
+};
+
+const commandOf = (service: ComposeService): string | undefined => {
+  const entrypoint = commandString(service.entrypoint);
+  const command = commandString(service.command);
+  return entrypoint === undefined ? command : command === undefined ? entrypoint : `${entrypoint} ${command}`;
+};
 
 const containerCommandOf = (service: ComposeService): string[] | undefined =>
+  service.entrypoint === undefined &&
   Array.isArray(service.command) &&
   service.command.length > 0 &&
   service.command.every((entry) => typeof entry === 'string' && entry !== '')
     ? service.command
     : undefined;
+
+const enabledLiteral = (value: unknown): boolean =>
+  typeof value === 'boolean'
+    ? value
+    : typeof value === 'number'
+      ? value === 1
+      : typeof value === 'string' && /^(?:1|true|yes|on)$/i.test(composeDefault(value).trim());
+
+/** Explicit startup migration flags are lifecycle evidence even when the image owns the entrypoint. */
+const declaredLifecycleOf = (
+  service: ComposeService,
+  file: string,
+  raw: string
+): { lifecycle?: NonNullable<ServiceFactInput['bundledLifecycle']>; evidence: Citation[] } => {
+  const migration = environmentEntries(service).find(
+    ({ name, value }) => /(?:^|_)MIGRATIONS?$/i.test(name) && enabledLiteral(value)
+  );
+  if (migration === undefined) return { evidence: [] };
+  const citation = citeFirstMatchOnly(
+    file,
+    raw,
+    new RegExp(`^\\s*(?:-\\s*)?${escapeForPattern(migration.name)}(?:\\s*:|=)`),
+    'bundledLifecycle'
+  );
+  return {
+    lifecycle: { databaseMigrations: true, backgroundProcesses: false },
+    evidence: citation === undefined ? [] : [{ ...citation, quote: `${migration.name}:` }]
+  };
+};
 
 /** The fallback part of `${NAME:-value}` is what this Compose deployment actually uses by default. */
 const composeDefault = (value: string): string => value.replace(/\$\{[A-Za-z_][A-Za-z0-9_]*(?::-|-)([^}]*)\}/g, '$1');
@@ -321,21 +362,59 @@ const variableNamesDependency = (name: string, kind: DependencyKind): boolean =>
   switch (kind) {
     case 'postgres':
       return (
-        /(?:POSTGRES|POSTGRESQL|PG|DATABASE|DATASOURCE)/.test(upper) ||
-        /(?:^|_)DB_{1,2}(?:HOST|PORT|USER|USERNAME|PASSWORD|PASSWD|DATABASE|DB_NAME)$/.test(upper)
+        /^(?:POSTGRES|POSTGRESQL|PG|DATABASE|DATASOURCE)_(?:URL|URI|DSN|CONNECTION_?STRING|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|PASSWD|DB|DATABASE|NAME|SCHEMA)$/i.test(
+          upper
+        ) ||
+        /^(?:POSTGRES|POSTGRESQL|PG|DATABASE|DATASOURCE)_(?:URL|URI|DSN|CONNECTION_?STRING|HOST|PORT|PASSWORD)$/i.test(
+          upper
+        ) ||
+        /^(?:DATABASE|DB)_(?:URL|URI|DSN|CONNECTION_STRING|HOST|PORT|NAME|DATABASE|DB|USER|USERNAME|PASSWORD|PASSWD)$/i.test(
+          upper
+        ) ||
+        /(?:^|_)DB_{1,2}(?:HOST|PORT|USER|USERNAME|PASSWORD|PASSWD|DATABASE|DB_NAME)$/i.test(upper)
       );
     case 'mysql':
-      return /(?:MYSQL|MARIADB|DATABASE|DATASOURCE)/.test(upper);
+      return (
+        /^(?:MYSQL|MARIADB|DATABASE|DATASOURCE)_(?:URL|URI|DSN|CONNECTION_?STRING|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|PASSWD|DB|DATABASE|NAME|SCHEMA)$/i.test(
+          upper
+        ) ||
+        /^(?:MYSQL|MARIADB)_(?:URL|URI|DSN|CONNECTION_?STRING|HOST|PORT|PASSWORD)$/i.test(upper) ||
+        /^(?:DATABASE|DB)_(?:URL|URI|DSN|CONNECTION_STRING|HOST|PORT|NAME|DATABASE|DB|USER|USERNAME|PASSWORD|PASSWD)$/i.test(
+          upper
+        )
+      );
     case 'mssql':
-      return /(?:MSSQL|SQLSERVER|DATABASE|DATASOURCE)/.test(upper);
+      return (
+        /^(?:MSSQL|SQLSERVER|DATABASE|DATASOURCE)_(?:URL|URI|DSN|CONNECTION_?STRING|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|PASSWD|DB|DATABASE|NAME|SCHEMA)$/i.test(
+          upper
+        ) ||
+        /^(?:DATABASE|DB)_(?:URL|URI|DSN|CONNECTION_STRING|HOST|PORT|NAME|DATABASE|DB|USER|USERNAME|PASSWORD|PASSWD)$/i.test(
+          upper
+        )
+      );
     case 'mongodb':
-      return /(?:MONGO|DATABASE)/.test(upper);
+      return /^(?:MONGO|MONGODB|DATABASE)_(?:URL|URI|DSN|CONNECTION_?STRING|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|PASSWD|DB|DATABASE|NAME)$/i.test(
+        upper
+      );
     case 'redis':
-      return /(?:REDIS|CACHE)/.test(upper);
+      return (
+        /^(?:REDIS|VALKEY|CACHE)_(?:URL|URI|DSN|CONNECTION_?STRING|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|PASSWD|ADDR(?:ESS)?|ENDPOINT|SERVERS?|SOCKET|DB(?:_INDEX)?)$/i.test(
+          upper
+        ) && !/^(?:CACHE)_(?:DRIVER|STORE|TYPE|PREFIX|TTL|ENABLED?|DISABLED?)$/i.test(upper)
+      );
     case 'object-storage':
-      return /(?:S3|BUCKET|OBJECT_STORAGE|MINIO)/.test(upper);
+      return (
+        /^(?:S3|BUCKET|OBJECT_STORAGE|AWS_S3|AWS_STORAGE)_(?:BUCKET|BUCKET_NAME|NAME|URL|ENDPOINT|REGION|ACCESS_KEY|SECRET_KEY|SECRET_ACCESS_KEY|ACCESS_KEY_ID)$/i.test(
+          upper
+        ) ||
+        upper === 'S3_BUCKET' ||
+        upper === 'BUCKET_NAME' ||
+        upper === 'AWS_BUCKET'
+      );
     case 'amqp':
-      return /(?:AMQP|RABBIT)/.test(upper);
+      return /^(?:AMQP|RABBITMQ|RABBIT)_(?:URL|URI|DSN|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|PASSWD|VHOST)$/i.test(
+        upper
+      );
     case 'kafka':
       // Kafka appears in many settings that do not address the broker at all: topic names,
       // consumer groups, retry policy, and serializers. Treat only connection-shaped names as
@@ -347,11 +426,13 @@ const variableNamesDependency = (name: string, kind: DependencyKind): boolean =>
         !/(?:TOPICS?|CONSUMER_GROUP|GROUP_ID)/.test(upper)
       );
     case 'nats':
-      return /(?:NATS|BROKER)/.test(upper);
+      return /^(?:NATS)_(?:URL|URI|SERVERS?|HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|PASSWD)$/i.test(upper);
     case 'search':
-      return /(?:ELASTIC|OPENSEARCH|MEILI|TYPESENSE|SEARCH)/.test(upper);
+      return /^(?:ELASTIC|ELASTICSEARCH|OPENSEARCH|MEILI|MEILISEARCH|TYPESENSE|SEARCH)_(?:URL|URI|HOST(?:NAME)?|PORT|ENDPOINT|API_KEY|KEY|PASSWORD)$/i.test(
+        upper
+      );
     case 'email':
-      return /(?:SMTP|MAIL)/.test(upper);
+      return /^(?:SMTP|EMAIL|MAIL)_(?:HOST(?:NAME)?|PORT|USER(?:NAME)?|PASSWORD|PASSWD|URL|URI|DSN)$/i.test(upper);
     default:
       return false;
   }
@@ -674,7 +755,22 @@ export const dockerComposeProbe: Probe = {
       if (oneShotConsumers.has(composeName)) continue;
       const name = appNames.get(composeName)!;
       // oxlint-disable-next-line no-await-in-loop -- one bounded literal config traversal per app service.
-      const bundledLifecycle = await bundledLifecycleOf({ context, service, build });
+      const inspectedLifecycle = await bundledLifecycleOf({ context, service, build });
+      const declaredLifecycle = declaredLifecycleOf(service, path, raw);
+      const bundledLifecycle = {
+        lifecycle:
+          inspectedLifecycle.lifecycle === undefined && declaredLifecycle.lifecycle === undefined
+            ? undefined
+            : {
+                databaseMigrations:
+                  inspectedLifecycle.lifecycle?.databaseMigrations === true ||
+                  declaredLifecycle.lifecycle?.databaseMigrations === true,
+                backgroundProcesses:
+                  inspectedLifecycle.lifecycle?.backgroundProcesses === true ||
+                  declaredLifecycle.lifecycle?.backgroundProcesses === true
+              },
+        evidence: [...inspectedLifecycle.evidence, ...declaredLifecycle.evidence]
+      };
       if (isDevelopmentProcess(service, build)) {
         developmentProcesses.add(`${build.root}::compose:${composeName}`);
       }
@@ -771,7 +867,7 @@ export const dockerComposeProbe: Probe = {
         exposesHttp,
         ...(!exposesHttp || port === undefined ? {} : { port }),
         executionModel: 'long-running',
-        ...(typeof service.command === 'string' && service.command !== '' ? { startCommand: service.command } : {}),
+        ...(commandOf(service) !== undefined ? { startCommand: commandOf(service) } : {}),
         ...(containerCommandOf(service) === undefined ? {} : { containerCommand: containerCommandOf(service) }),
         ...(build.dockerfile === undefined ? {} : { dockerfile: build.dockerfile }),
         ...(bundledLifecycle.lifecycle === undefined ? {} : { bundledLifecycle: bundledLifecycle.lifecycle }),
