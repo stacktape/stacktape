@@ -24,7 +24,9 @@ Dockerfiles, Nixpacks, buildpacks, and framework builders can execute code and u
 For that reason, the package lane refuses to run on an ordinary host unless the operator explicitly adds
 `--allow-host-project-code` or runs inside the disposable qualification sandbox via `pnpm qualify:projects:sandboxed`
 (or `--sandboxed`). Use `--allow-host-project-code` only for a pinned project whose execution risk has been reviewed and
-accepted. Newly discovered internet projects should package inside the disposable qualification sandbox.
+accepted. Use the local disposable qualification sandbox only for reviewed or reputable sources pinned to an exact
+commit. Run newly discovered or potentially hostile projects on a disposable cloud VM or hosted runner with no secrets;
+destroy that machine after the run.
 
 ### Sandbox Architecture & Residual Security Limitations
 

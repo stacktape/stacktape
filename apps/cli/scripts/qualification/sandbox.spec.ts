@@ -3,7 +3,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node
 import { tmpdir } from 'node:os';
 import { basename, dirname, join, resolve } from 'node:path';
 import { QUALIFICATION_RUNNER_DOCKERFILE } from './sandbox-dockerfile';
-import { validateAndHashOutputTree } from './run-sandboxed-qualification';
+import { processResultExitCode, validateAndHashOutputTree } from './run-sandboxed-qualification';
 import {
   assertPlannedSecurity,
   BLOCKED_HOST_GATEWAYS,
@@ -91,11 +91,48 @@ describe('sandboxed qualification planning & command composition', () => {
   });
 
   test('stages external manifests and resume files cleanly without bind-mounting host directories', () => {
+    const resumeRoot = mkdtempSync(join(tmpdir(), 'qualification-resume-'));
+    temporaryDirectories.push(resumeRoot);
+    const resumeCaseDirectory = join(resumeRoot, 'cases', 'qualification-self-test-docker');
+    mkdirSync(resumeCaseDirectory, { recursive: true });
+    const resumedResult = {
+      id: 'qualification-self-test-docker',
+      title: 'Qualification sandbox Docker self-test',
+      fingerprint: 'a'.repeat(64),
+      sourceFingerprint: 'b'.repeat(64),
+      execution: 'executed',
+      status: 'passed',
+      durationMs: 1,
+      source: { kind: 'local', path: '.', license: 'Synthetic' },
+      tags: ['docker', 'node'],
+      steps: [
+        { name: 'acquire', status: 'passed', durationMs: 0, summary: 'Acquired.' },
+        { name: 'import', status: 'passed', durationMs: 1, summary: 'Imported.' }
+      ]
+    };
+    writeFileSync(join(resumeCaseDirectory, 'result.json'), `${JSON.stringify(resumedResult)}\n`);
+    writeFileSync(join(resumeCaseDirectory, 'stacktape.yml'), 'resources: {}\n');
+    const resumeReportPath = join(resumeRoot, 'qualification-report.json');
+    writeFileSync(
+      resumeReportPath,
+      `${JSON.stringify({
+        schemaVersion: 2,
+        runId: 'qualification-resume-fixture',
+        generatedAt: '2026-08-25T00:00:00.000Z',
+        productCommit: mockCommit,
+        productFingerprint: 'c'.repeat(64),
+        lanes: ['import'],
+        environment: { platform: process.platform, architecture: process.arch, bun: '1.3.14', node: '24.0.0' },
+        summary: { passed: 1, failed: 0, skipped: 0, durationMs: 1 },
+        globalSteps: [],
+        cases: [resumedResult]
+      })}\n`
+    );
     const planned = planSandboxExecution({
       productCommit: mockCommit,
       rawArgs: [
         '--manifest=apps/cli/scripts/qualification/fixtures/self-test-docker-project/manifest.json',
-        '--resume-from=apps/cli/scripts/qualification/fixtures/self-test-docker-project/manifest.json',
+        `--resume-from=${resumeReportPath}`,
         '--lanes=import'
       ],
       invocationDirectory: mockRoot,
@@ -103,7 +140,7 @@ describe('sandboxed qualification planning & command composition', () => {
       runIdSuffix: 'stagetest'
     });
 
-    expect(planned.stagedInputs).toHaveLength(3);
+    expect(planned.stagedInputs).toHaveLength(4);
     expect(planned.stagedInputs[0].containerRelativePath).toBe(
       'inputs/manifest-0-source-0-qualification-self-test-docker'
     );
@@ -113,9 +150,11 @@ describe('sandboxed qualification planning & command composition', () => {
     expect(planned.stagedInputs[1].containerRelativePath).toBe('inputs/manifest-0.json');
     expect(planned.stagedInputs[1].content).toContain('"path": "manifest-0-source-0-qualification-self-test-docker"');
     expect(planned.stagedInputs[2].containerRelativePath).toBe('inputs/resume-report.json');
+    expect(planned.stagedInputs[3].containerRelativePath).toBe('inputs/cases/qualification-self-test-docker');
 
     expect(planned.innerCommandArgs).toContain('--manifest=/qualification/inputs/manifest-0.json');
     expect(planned.innerCommandArgs).toContain('--resume-from=/qualification/inputs/resume-report.json');
+    expect(planned.expectedCaseIds).toEqual(['qualification-self-test-docker']);
   });
 
   test('stages only selected local sources, deduplicates them, and supports spaces in paths', () => {
@@ -178,6 +217,42 @@ describe('sandboxed qualification planning & command composition', () => {
     expect(planned.stagedInputs.find((entry) => entry.content !== undefined)?.content).toContain(
       '"path": "manifest-0-source-0-selected-one"'
     );
+  });
+
+  test('stages only the effective local source after sharding and max-case selection', () => {
+    const root = mkdtempSync(join(tmpdir(), 'qualification-sharded-staging-'));
+    temporaryDirectories.push(root);
+    for (const source of ['first', 'second', 'third']) {
+      mkdirSync(join(root, source));
+      writeFileSync(join(root, source, 'package.json'), '{}\n');
+    }
+    const manifestPath = join(root, 'manifest.json');
+    writeFileSync(
+      manifestPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        cases: ['first', 'second', 'third'].map((id) => ({
+          id: `${id}-case`,
+          title: id,
+          why: `Exercise ${id} selection.`,
+          source: { kind: 'local', path: id, license: 'Synthetic' },
+          origin: 'synthetic',
+          tags: ['node'],
+          lanes: ['import']
+        }))
+      })}\n`
+    );
+    const planned = planSandboxExecution({
+      productCommit: mockCommit,
+      rawArgs: [`--manifest=${manifestPath}`, '--lanes=import', '--shard=2/3', '--max-cases=1'],
+      invocationDirectory: root,
+      rootDirectory: mockRoot,
+      runIdSuffix: 'sharded'
+    });
+    expect(planned.expectedCaseIds).toEqual(['second-case']);
+    expect(planned.stagedInputs.filter((entry) => entry.isDirectory).map((entry) => entry.hostPath)).toEqual([
+      join(root, 'second')
+    ]);
   });
 
   test('rejects a local source whose directory link escapes the manifest root', () => {
@@ -253,11 +328,37 @@ describe('sandboxed qualification planning & command composition', () => {
     writeFileSync(outside, 'outside\n');
     temporaryDirectories.push(outside);
     symlinkSync(outside, join(root, 'qualification-report.md'));
-    await expect(validateAndHashOutputTree(root, false)).rejects.toThrow('link or special file');
+    await expect(validateAndHashOutputTree(root, false)).rejects.toThrow('link outside a retained workdir');
+  });
+
+  test('allows only contained relative symlinks inside retained workdirs', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'qualification-workdir-links-'));
+    temporaryDirectories.push(root);
+    const workdir = join(root, 'workdirs', 'node-case');
+    mkdirSync(join(workdir, 'packages', 'target'), { recursive: true });
+    writeFileSync(join(workdir, 'packages', 'target', 'package.json'), '{}\n');
+    mkdirSync(join(workdir, 'node_modules'));
+    symlinkSync('../packages/target', join(workdir, 'node_modules', 'target'), 'dir');
+    const accepted = await validateAndHashOutputTree(root, true);
+    const containedLink = accepted.find((entry) => entry.path === 'workdirs/node-case/node_modules/target');
+    expect(containedLink?.type).toBe('symlink');
+    expect(containedLink?.linkTarget?.replaceAll('\\', '/')).toBe('../packages/target');
+
+    const outside = join(dirname(root), `${basename(root)}-escape`);
+    mkdirSync(outside);
+    temporaryDirectories.push(outside);
+    symlinkSync(outside, join(workdir, 'node_modules', 'escape'), process.platform === 'win32' ? 'junction' : 'dir');
+    await expect(validateAndHashOutputTree(root, true)).rejects.toThrow(/absolute link|escaping link/);
   });
 });
 
 describe('sandboxed qualification resource & lane validation', () => {
+  test('prioritizes timeout and interruption over a misleading zero exit code', () => {
+    expect(processResultExitCode({ exitCode: 0, timedOut: true })).toBe(124);
+    expect(processResultExitCode({ exitCode: 0, timedOut: false, interruptedSignal: 'SIGINT' })).toBe(130);
+    expect(processResultExitCode({ exitCode: 0, timedOut: false })).toBe(0);
+  });
+
   test('validates resource bound inputs correctly', () => {
     expect(validateMemoryString('8g')).toBe('8g');
     expect(validateMemoryString('4096m')).toBe('4096m');
@@ -332,6 +433,9 @@ describe('sandboxed qualification security boundary enforcement', () => {
     hostOverrides: BLOCKED_HOST_GATEWAYS,
     hostOutputDirectory: 'C:\\output',
     manifests: [],
+    expectedCaseIds: [],
+    hostReplay: { command: 'pnpm', args: ['qualify:projects:sandboxed', '--'], cwd: mockRoot },
+    manifestMappings: [],
     resourceLimits: { memory: '8g', cpus: '4', pidsLimit: 2048, timeoutMs: 7200000 },
     isSelfTest: false
   };
