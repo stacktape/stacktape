@@ -1391,4 +1391,49 @@ describe('composing detected migrations into deploy hooks', () => {
     // A changed mind removes the hook entirely — the decision is real, not cosmetic.
     expect(withTiming({ 'migration-timing:web': 'manual' }).config.scripts).toBeUndefined();
   });
+
+  it('composes a React Router Framework service with Dockerfile into a web-service with custom-dockerfile packaging', () => {
+    const serviceFact = service({
+      name: 'app',
+      framework: 'react-router',
+      exposesHttp: true,
+      startCommand: 'npm run start',
+      dockerfile: 'Dockerfile'
+    });
+    const composition = composeConfig({ facts: facts({ services: [serviceFact] }) });
+
+    expect(composition.config.resources.app).toMatchObject({
+      type: 'web-service',
+      properties: {
+        packaging: {
+          type: 'custom-dockerfile',
+          properties: {
+            dockerfilePath: 'Dockerfile'
+          }
+        }
+      }
+    });
+  });
+
+  it('composes a React Router Framework service without Dockerfile into a web-service with nixpacks packaging', () => {
+    const serviceFact = service({
+      name: 'app',
+      framework: 'react-router',
+      exposesHttp: true,
+      startCommand: 'npm run start'
+    });
+    const composition = composeConfig({ facts: facts({ services: [serviceFact] }) });
+
+    expect(composition.config.resources.app).toMatchObject({
+      type: 'web-service',
+      properties: {
+        packaging: {
+          type: 'nixpacks',
+          properties: {
+            startCmd: 'npm run start'
+          }
+        }
+      }
+    });
+  });
 });

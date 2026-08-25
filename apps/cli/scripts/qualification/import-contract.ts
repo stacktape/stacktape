@@ -86,6 +86,7 @@ export const runImportQualification = async ({
     exposesHttp: service.exposesHttp,
     executionModel: service.executionModel,
     ...(service.processType === undefined ? {} : { processType: service.processType }),
+    ...(service.buildCommand === undefined ? {} : { buildCommand: service.buildCommand }),
     ...(service.startCommand === undefined ? {} : { startCommand: service.startCommand }),
     ...(service.containerEntrypoint === undefined ? {} : { containerEntrypoint: service.containerEntrypoint }),
     ...(service.functionEntrypoint === undefined ? {} : { functionEntrypoint: service.functionEntrypoint }),
@@ -153,6 +154,49 @@ export const runImportQualification = async ({
     const httpServiceCount = services.filter((service) => service.exposesHttp).length;
     if (httpServiceCount !== expected.httpServiceCount) {
       failures.push(`HTTP service count: expected ${expected.httpServiceCount}; got ${httpServiceCount}.`);
+    }
+
+    if (expected.services !== undefined) {
+      for (const expectedService of expected.services) {
+        const matched = services.find((s) => {
+          if (expectedService.name !== undefined && s.name !== expectedService.name) return false;
+          if (expectedService.path !== undefined && s.path !== expectedService.path) return false;
+          return true;
+        });
+
+        if (matched === undefined) {
+          failures.push(
+            `expected service ${JSON.stringify(expectedService.name ?? expectedService.path ?? '<unnamed>')} was not found among inferred services: ${JSON.stringify(services.map((s) => ({ name: s.name, path: s.path })))}.`
+          );
+          continue;
+        }
+
+        if (expectedService.framework !== undefined && matched.framework !== expectedService.framework) {
+          failures.push(
+            `service ${matched.name} framework: expected ${JSON.stringify(expectedService.framework)}; got ${JSON.stringify(matched.framework)}.`
+          );
+        }
+        if (expectedService.exposesHttp !== undefined && matched.exposesHttp !== expectedService.exposesHttp) {
+          failures.push(
+            `service ${matched.name} exposesHttp: expected ${expectedService.exposesHttp}; got ${matched.exposesHttp}.`
+          );
+        }
+        if (expectedService.startCommand !== undefined && matched.startCommand !== expectedService.startCommand) {
+          failures.push(
+            `service ${matched.name} startCommand: expected ${JSON.stringify(expectedService.startCommand)}; got ${JSON.stringify(matched.startCommand)}.`
+          );
+        }
+        if (expectedService.buildCommand !== undefined && matched.buildCommand !== expectedService.buildCommand) {
+          failures.push(
+            `service ${matched.name} buildCommand: expected ${JSON.stringify(expectedService.buildCommand)}; got ${JSON.stringify(matched.buildCommand)}.`
+          );
+        }
+        if (expectedService.dockerfile !== undefined && matched.dockerfile !== expectedService.dockerfile) {
+          failures.push(
+            `service ${matched.name} dockerfile: expected ${JSON.stringify(expectedService.dockerfile)}; got ${JSON.stringify(matched.dockerfile)}.`
+          );
+        }
+      }
     }
 
     const expectedDeploymentTools = [...(expected.existingDeployments ?? [])].sort();

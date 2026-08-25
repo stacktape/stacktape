@@ -169,52 +169,64 @@ const mergeEnvironmentVariables = (
 
 const BACKGROUND_PROCESS_TYPE = /(?:^|:)(?:worker|scheduler|cron|consumer)$/;
 
-const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): ServiceFactInput => ({
-  ...existing,
-  // An importer can identify a container before the language manifest is read. Keep the concrete
-  // application language once another probe establishes it; `container` describes packaging, not
-  // what the user writes.
-  language:
-    existing.language === 'unknown' || existing.language === 'container' ? incoming.language : existing.language,
-  // A declared background process can publish a metrics/health port without becoming a public web
-  // service. Outside that explicit role, a positive bind/EXPOSE finding remains stronger than
-  // silence from another probe.
-  exposesHttp: BACKGROUND_PROCESS_TYPE.test(existing.processType ?? incoming.processType ?? '')
-    ? false
-    : existing.servesStaticAssets !== undefined || incoming.servesStaticAssets !== undefined
-      ? false
-      : existing.exposesHttp || incoming.exposesHttp,
-  port: BACKGROUND_PROCESS_TYPE.test(existing.processType ?? incoming.processType ?? '')
+const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): ServiceFactInput => {
+  const customServerProven =
+    !BACKGROUND_PROCESS_TYPE.test(existing.processType ?? incoming.processType ?? '') &&
+    ((existing.containerEntrypoint !== undefined && existing.exposesHttp) ||
+      (incoming.containerEntrypoint !== undefined && incoming.exposesHttp));
+
+  const servesStaticAssets = customServerProven
     ? undefined
-    : existing.servesStaticAssets !== undefined || incoming.servesStaticAssets !== undefined
+    : (existing.servesStaticAssets ?? incoming.servesStaticAssets);
+
+  const exposesHttp = BACKGROUND_PROCESS_TYPE.test(existing.processType ?? incoming.processType ?? '')
+    ? false
+    : servesStaticAssets !== undefined
+      ? false
+      : existing.exposesHttp || incoming.exposesHttp;
+
+  const port = BACKGROUND_PROCESS_TYPE.test(existing.processType ?? incoming.processType ?? '')
+    ? undefined
+    : servesStaticAssets !== undefined
       ? undefined
-      : (existing.port ?? incoming.port),
-  processType: existing.processType ?? incoming.processType,
-  framework: existing.framework ?? incoming.framework,
-  runtimeVersion: existing.runtimeVersion ?? incoming.runtimeVersion,
-  buildCommand: existing.buildCommand ?? incoming.buildCommand,
-  startCommand: existing.startCommand ?? incoming.startCommand,
-  buildRoot: existing.buildRoot ?? incoming.buildRoot,
-  containerEntrypoint: existing.containerEntrypoint ?? incoming.containerEntrypoint,
-  functionEntrypoint: existing.functionEntrypoint ?? incoming.functionEntrypoint,
-  functionTriggers: [
-    ...new Map(
-      [...(existing.functionTriggers ?? []), ...(incoming.functionTriggers ?? [])].map((trigger) => [
-        JSON.stringify(trigger),
-        trigger
-      ])
-    ).values()
-  ],
-  dockerfile: existing.dockerfile ?? incoming.dockerfile,
-  healthCheckPath: existing.healthCheckPath ?? incoming.healthCheckPath,
-  writesLocalFilesystem: existing.writesLocalFilesystem ?? incoming.writesLocalFilesystem,
-  servesStaticAssets: existing.servesStaticAssets ?? incoming.servesStaticAssets,
-  environmentVariables: mergeEnvironmentVariables(
-    existing.environmentVariables ?? [],
-    incoming.environmentVariables ?? []
-  ),
-  evidence: mergeEvidence([...(existing.evidence ?? [])], incoming.evidence ?? [])
-});
+      : (existing.port ?? incoming.port);
+
+  return {
+    ...existing,
+    // An importer can identify a container before the language manifest is read. Keep the concrete
+    // application language once another probe establishes it; `container` describes packaging, not
+    // what the user writes.
+    language:
+      existing.language === 'unknown' || existing.language === 'container' ? incoming.language : existing.language,
+    exposesHttp,
+    port,
+    processType: existing.processType ?? incoming.processType,
+    framework: existing.framework ?? incoming.framework,
+    runtimeVersion: existing.runtimeVersion ?? incoming.runtimeVersion,
+    buildCommand: existing.buildCommand ?? incoming.buildCommand,
+    startCommand: existing.startCommand ?? incoming.startCommand,
+    buildRoot: existing.buildRoot ?? incoming.buildRoot,
+    containerEntrypoint: existing.containerEntrypoint ?? incoming.containerEntrypoint,
+    functionEntrypoint: existing.functionEntrypoint ?? incoming.functionEntrypoint,
+    functionTriggers: [
+      ...new Map(
+        [...(existing.functionTriggers ?? []), ...(incoming.functionTriggers ?? [])].map((trigger) => [
+          JSON.stringify(trigger),
+          trigger
+        ])
+      ).values()
+    ],
+    dockerfile: existing.dockerfile ?? incoming.dockerfile,
+    healthCheckPath: existing.healthCheckPath ?? incoming.healthCheckPath,
+    writesLocalFilesystem: existing.writesLocalFilesystem ?? incoming.writesLocalFilesystem,
+    servesStaticAssets,
+    environmentVariables: mergeEnvironmentVariables(
+      existing.environmentVariables ?? [],
+      incoming.environmentVariables ?? []
+    ),
+    evidence: mergeEvidence([...(existing.evidence ?? [])], incoming.evidence ?? [])
+  };
+};
 
 /**
  * Find which declared process a generic package-manifest service describes.

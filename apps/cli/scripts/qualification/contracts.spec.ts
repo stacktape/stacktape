@@ -78,6 +78,42 @@ describe('qualification manifests', () => {
       'Duplicate case id'
     );
   });
+
+  test('accepts NOASSERTION license and per-service expectations', () => {
+    const caseWithServices = {
+      ...validCase,
+      source: {
+        ...validCase.source,
+        license: 'NOASSERTION'
+      },
+      expect: {
+        resourceTypes: { 'web-service': 1 },
+        serviceCount: 1,
+        httpServiceCount: 1,
+        services: [
+          {
+            name: 'app',
+            framework: 'react-router',
+            exposesHttp: true,
+            startCommand: 'npm run start',
+            buildCommand: 'npm run build',
+            dockerfile: 'Dockerfile'
+          }
+        ]
+      }
+    };
+    const parsed = qualificationManifestSchema.parse({ schemaVersion: 1, cases: [caseWithServices] });
+    expect(parsed.cases[0]?.source.license).toBe('NOASSERTION');
+    expect(parsed.cases[0]?.expect?.services).toHaveLength(1);
+    expect(parsed.cases[0]?.expect?.services?.[0]).toMatchObject({
+      name: 'app',
+      framework: 'react-router',
+      exposesHttp: true,
+      startCommand: 'npm run start',
+      buildCommand: 'npm run build',
+      dockerfile: 'Dockerfile'
+    });
+  });
 });
 
 describe('qualification reports', () => {

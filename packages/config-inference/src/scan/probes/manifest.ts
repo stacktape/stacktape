@@ -83,32 +83,204 @@ const HTTP_FRAMEWORKS: ReadonlySet<string> = new Set([
   '@tanstack/start'
 ]);
 
-/** Frameworks worth naming, because the composer has dedicated handling for several of them. */
-const FRAMEWORK_NAMES: ReadonlyArray<{ package: string; name: string }> = [
-  { package: 'next', name: 'nextjs' },
-  { package: 'nuxt', name: 'nuxt' },
-  { package: '@sveltejs/kit', name: 'sveltekit' },
-  { package: 'astro', name: 'astro' },
-  { package: '@remix-run/node', name: 'remix' },
-  { package: '@solidjs/start', name: 'solid-start' },
-  { package: '@tanstack/start', name: 'tanstack-start' },
-  { package: '@nestjs/core', name: 'nestjs' },
-  { package: 'express', name: 'express' },
-  { package: 'fastify', name: 'fastify' },
-  { package: 'hono', name: 'hono' },
-  { package: 'koa', name: 'koa' }
-];
+type InferredFramework = {
+  name: string;
+  package?: string;
+  exposesHttp?: boolean;
+};
+
+/**
+ * Identify the primary application framework using bounded semantic evidence:
+ * config files and active build/dev/start scripts take precedence over passive or leftover dependencies.
+ */
+const detectFramework = (manifest: ParsedManifest, context: ProbeContext): InferredFramework | undefined => {
+  const dirPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
+  const scripts = manifest.scripts;
+  const scriptsStr = Object.values(scripts).join(' ');
+  const deps = manifest.dependencies;
+
+  // Framework config files in the package directory
+  const rrConfigFile = context.files.find(
+    (file) =>
+      file === `${dirPrefix}react-router.config.ts` ||
+      file === `${dirPrefix}react-router.config.js` ||
+      file === `${dirPrefix}react-router.config.mjs` ||
+      file === `${dirPrefix}react-router.config.cjs`
+  );
+  const remixConfigFile = context.files.find(
+    (file) =>
+      file === `${dirPrefix}remix.config.js` ||
+      file === `${dirPrefix}remix.config.ts` ||
+      file === `${dirPrefix}remix.config.mjs` ||
+      file === `${dirPrefix}remix.config.cjs`
+  );
+  const nextConfigFile = context.files.find(
+    (file) =>
+      file === `${dirPrefix}next.config.js` ||
+      file === `${dirPrefix}next.config.mjs` ||
+      file === `${dirPrefix}next.config.ts` ||
+      file === `${dirPrefix}next.config.cjs`
+  );
+  const nuxtConfigFile = context.files.find(
+    (file) => file === `${dirPrefix}nuxt.config.ts` || file === `${dirPrefix}nuxt.config.js`
+  );
+  const astroConfigFile = context.files.find(
+    (file) =>
+      file === `${dirPrefix}astro.config.mjs` ||
+      file === `${dirPrefix}astro.config.ts` ||
+      file === `${dirPrefix}astro.config.js`
+  );
+  const svelteConfigFile = context.files.find(
+    (file) => file === `${dirPrefix}svelte.config.js` || file === `${dirPrefix}svelte.config.ts`
+  );
+
+  const hasReactRouterScripts = /\breact-router\b|\breact-router-serve\b/.test(scriptsStr);
+  const hasReactRouterDeps =
+    deps['@react-router/dev'] !== undefined ||
+    deps['@react-router/node'] !== undefined ||
+    deps['@react-router/serve'] !== undefined ||
+    deps['@react-router/express'] !== undefined;
+
+  const hasRemixScripts = /\bremix\b|\bremix-serve\b/.test(scriptsStr);
+  const hasRemixDeps =
+    deps['@remix-run/dev'] !== undefined ||
+    deps['@remix-run/node'] !== undefined ||
+    deps['@remix-run/react'] !== undefined ||
+    deps.remix !== undefined;
+
+  const hasNextScripts = /\bnext\s+(?:dev|build|start)\b/.test(scriptsStr);
+  const hasNextDep = deps.next !== undefined;
+
+  const hasNuxtScripts = /\bnuxt\s+(?:dev|build|generate)\b/.test(scriptsStr);
+  const hasNuxtDep = deps.nuxt !== undefined;
+
+  const hasAstroScripts = /\bastro\s+(?:dev|build|preview)\b/.test(scriptsStr);
+  const hasAstroDep = deps.astro !== undefined;
+
+  const hasSvelteDep = deps['@sveltejs/kit'] !== undefined;
+
+  // 1. Config files and active framework scripts take precedence over ambiguous dependency declarations:
+  if (nextConfigFile !== undefined || (hasNextDep && hasNextScripts)) {
+    return { name: 'nextjs', package: 'next', exposesHttp: true };
+  }
+
+  if (nuxtConfigFile !== undefined || (hasNuxtDep && hasNuxtScripts)) {
+    return { name: 'nuxt', package: 'nuxt', exposesHttp: true };
+  }
+
+  if (astroConfigFile !== undefined || (hasAstroDep && hasAstroScripts)) {
+    return { name: 'astro', package: 'astro', exposesHttp: true };
+  }
+
+  if (svelteConfigFile !== undefined && hasSvelteDep) {
+    return { name: 'sveltekit', package: '@sveltejs/kit', exposesHttp: true };
+  }
+
+  // React Router: config file OR (react-router scripts AND react-router dependencies)
+  // This explicitly wins over leftover @remix-run/node dependencies in migrated projects.
+  if (rrConfigFile !== undefined || (hasReactRouterScripts && hasReactRouterDeps)) {
+    const matchedPkg =
+      deps['@react-router/serve'] !== undefined
+        ? '@react-router/serve'
+        : deps['@react-router/node'] !== undefined
+          ? '@react-router/node'
+          : deps['@react-router/express'] !== undefined
+            ? '@react-router/express'
+            : deps['@react-router/dev'] !== undefined
+              ? '@react-router/dev'
+              : deps['react-router'] !== undefined
+                ? 'react-router'
+                : undefined;
+    return { name: 'react-router', ...(matchedPkg !== undefined ? { package: matchedPkg } : {}) };
+  }
+
+  // Remix: config file OR (remix scripts AND remix dependencies)
+  if (remixConfigFile !== undefined || (hasRemixScripts && hasRemixDeps)) {
+    const matchedPkg =
+      deps['@remix-run/node'] !== undefined
+        ? '@remix-run/node'
+        : deps['@remix-run/dev'] !== undefined
+          ? '@remix-run/dev'
+          : deps.remix !== undefined
+            ? 'remix'
+            : undefined;
+    return { name: 'remix', exposesHttp: true, ...(matchedPkg !== undefined ? { package: matchedPkg } : {}) };
+  }
+
+  // SolidStart
+  if (deps['@solidjs/start'] !== undefined) {
+    return { name: 'solid-start', package: '@solidjs/start', exposesHttp: true };
+  }
+
+  // TanStack Start
+  if (deps['@tanstack/start'] !== undefined) {
+    return { name: 'tanstack-start', package: '@tanstack/start', exposesHttp: true };
+  }
+
+  // NestJS
+  if (deps['@nestjs/core'] !== undefined) {
+    return { name: 'nestjs', package: '@nestjs/core' };
+  }
+
+  // Standard HTTP server libraries
+  if (deps.express !== undefined) {
+    return { name: 'express', package: 'express', exposesHttp: true };
+  }
+  if (deps.fastify !== undefined) {
+    return { name: 'fastify', package: 'fastify', exposesHttp: true };
+  }
+  if (deps.hono !== undefined) {
+    return { name: 'hono', package: 'hono', exposesHttp: true };
+  }
+  if (deps.koa !== undefined) {
+    return { name: 'koa', package: 'koa', exposesHttp: true };
+  }
+
+  // Fallbacks from remaining dependencies:
+  if (hasNextDep) return { name: 'nextjs', package: 'next', exposesHttp: true };
+  if (hasNuxtDep) return { name: 'nuxt', package: 'nuxt', exposesHttp: true };
+  if (hasAstroDep) return { name: 'astro', package: 'astro', exposesHttp: true };
+  if (hasSvelteDep) return { name: 'sveltekit', package: '@sveltejs/kit', exposesHttp: true };
+  if (hasRemixDeps) return { name: 'remix', package: '@remix-run/node', exposesHttp: true };
+  if (
+    deps['@react-router/serve'] !== undefined &&
+    typeof scripts.start === 'string' &&
+    /\breact-router-serve\b/.test(scripts.start)
+  ) {
+    return { name: 'react-router', package: '@react-router/serve' };
+  }
+
+  return undefined;
+};
 
 /** Build-only browser frameworks that produce a directory for `hosting-bucket`. */
-const staticSiteFor = (
+const staticSiteFor = async (
   manifest: ParsedManifest,
-  files: readonly string[]
-):
+  context: ProbeContext
+): Promise<
   | {
-      framework: 'angular' | 'gatsby' | 'react' | 'vite' | 'vue';
+      framework: 'angular' | 'gatsby' | 'react' | 'vite' | 'vue' | 'react-router';
       outputDirectory: string;
     }
-  | undefined => {
+  | undefined
+> => {
+  const dirPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
+
+  // React Router SPA mode: configured via ssr: false in react-router.config.*
+  const rrConfigFile = context.files.find(
+    (file) =>
+      file === `${dirPrefix}react-router.config.ts` ||
+      file === `${dirPrefix}react-router.config.js` ||
+      file === `${dirPrefix}react-router.config.mjs` ||
+      file === `${dirPrefix}react-router.config.cjs`
+  );
+  if (rrConfigFile !== undefined) {
+    const configText = await readText(context, rrConfigFile);
+    if (configText !== undefined && /\bssr:\s*false\b/.test(configText)) {
+      return { framework: 'react-router', outputDirectory: 'build/client' };
+    }
+  }
+
   if (manifest.dependencies['@angular/core'] !== undefined) {
     return {
       framework: 'angular',
@@ -120,7 +292,7 @@ const staticSiteFor = (
   const viteEntrypoints = (
     manifest.directory === '.' ? ['index.html', 'src/index.html'] : ['index.html', 'src/index.html']
   ).map((path) => (manifest.directory === '.' ? path : `${manifest.directory}/${path}`));
-  if (manifest.dependencies.vite !== undefined && viteEntrypoints.some((path) => files.includes(path))) {
+  if (manifest.dependencies.vite !== undefined && viteEntrypoints.some((path) => context.files.includes(path))) {
     return {
       framework:
         manifest.dependencies.vue !== undefined ? 'vue' : manifest.dependencies.react !== undefined ? 'react' : 'vite',
@@ -309,15 +481,32 @@ export const manifestProbe: Probe = {
     >();
     const migrations: MigrationFact[] = [];
 
-    for (const manifest of manifests) {
+    const staticSites = await Promise.all(
+      manifests.map((manifest) =>
+        typeof manifest.scripts.build !== 'string' ? undefined : staticSiteFor(manifest, context)
+      )
+    );
+
+    for (let index = 0; index < manifests.length; index += 1) {
+      const manifest = manifests[index]!;
       const hasStart = typeof manifest.scripts.start === 'string';
       const hasBuild = typeof manifest.scripts.build === 'string';
-      const frameworkEntry = FRAMEWORK_NAMES.find((entry) => manifest.dependencies[entry.package] !== undefined);
-      const exposesHttp = Object.keys(manifest.dependencies).some((name) => HTTP_FRAMEWORKS.has(name));
-      // A Vite/CRA/Angular/Gatsby development server is not a production service. Its build output
-      // is uploaded to static hosting; treating `ng serve` or `gatsby develop` as a worker is both
-      // expensive and non-functional.
-      const staticSite = exposesHttp || !hasBuild ? undefined : staticSiteFor(manifest, context.files);
+      const staticSite = staticSites[index];
+      const frameworkInfo = detectFramework(manifest, context);
+
+      let exposesHttp = false;
+      if (staticSite !== undefined) {
+        exposesHttp = false;
+      } else if (frameworkInfo?.name === 'react-router') {
+        const startScript = manifest.scripts.start;
+        const runsReactRouterServe = typeof startScript === 'string' && /\breact-router-serve\b/.test(startScript);
+        exposesHttp = runsReactRouterServe || (hasStart && staticSite === undefined);
+      } else if (frameworkInfo?.exposesHttp) {
+        exposesHttp = true;
+      } else {
+        exposesHttp = Object.keys(manifest.dependencies).some((name) => HTTP_FRAMEWORKS.has(name));
+      }
+
       const manifestPrefix = manifest.directory === '.' ? '' : `${manifest.directory}/`;
       const hasHandlerLayout = context.files.some(
         (file) =>
@@ -338,7 +527,7 @@ export const manifestProbe: Probe = {
       const runnable = staticSite !== undefined || hasStart || exposesHttp;
       // Root scripts such as `turbo run start` orchestrate child packages; they are not a third
       // deployable service. A real root app still has its own framework signal and survives this.
-      const orchestrationOnlyRoot = isWorkspaceRoot && frameworkEntry === undefined && staticSite === undefined;
+      const orchestrationOnlyRoot = isWorkspaceRoot && frameworkInfo === undefined && staticSite === undefined;
       if (runnable && !orchestrationOnlyRoot && !handlerOnlyPackage) {
         const evidence: Citation[] = [];
         const startCitation =
@@ -349,16 +538,20 @@ export const manifestProbe: Probe = {
         const buildCitation = citeFirstMatchOnly(manifest.path, manifest.raw, /"build"\s*:/, 'buildCommand');
         if (buildCitation) evidence.push(buildCitation);
         const evidencedFrameworkPackage =
-          frameworkEntry?.package ??
+          frameworkInfo?.package ??
           (staticSite?.framework === 'angular'
             ? '@angular/core'
             : staticSite?.framework === 'gatsby'
               ? 'gatsby'
               : staticSite?.framework === 'react' && manifest.dependencies['react-scripts'] !== undefined
                 ? 'react-scripts'
-                : staticSite === undefined
-                  ? undefined
-                  : 'vite');
+                : staticSite?.framework === 'react-router'
+                  ? manifest.dependencies['@react-router/dev'] !== undefined
+                    ? '@react-router/dev'
+                    : 'react-router'
+                  : staticSite === undefined
+                    ? undefined
+                    : 'vite');
         if (evidencedFrameworkPackage !== undefined) {
           const frameworkCitation = citeFirstMatchOnly(
             manifest.path,
@@ -379,8 +572,8 @@ export const manifestProbe: Probe = {
           path: manifest.directory,
           language: 'javascript',
           ...(nodeEngine ? { runtimeVersion: nodeEngine } : {}),
-          ...(frameworkEntry
-            ? { framework: frameworkEntry.name }
+          ...(frameworkInfo
+            ? { framework: frameworkInfo.name }
             : staticSite
               ? { framework: staticSite.framework }
               : {}),

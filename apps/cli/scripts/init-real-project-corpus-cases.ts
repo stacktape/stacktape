@@ -12,6 +12,16 @@ export { REAL_PROJECT_PLATFORM_STRESS_CASES } from './init-real-project-corpus-p
  * to an upstream repository changing underneath a release check.
  */
 
+export type ExpectedService = {
+  name?: string;
+  path?: string;
+  framework?: string;
+  exposesHttp?: boolean;
+  startCommand?: string;
+  buildCommand?: string;
+  dockerfile?: string;
+};
+
 export type RealProjectCorpusExpectation = {
   /** Exact generated resource counts by Stacktape resource type. */
   resourceTypes: Readonly<Record<string, number>>;
@@ -19,6 +29,8 @@ export type RealProjectCorpusExpectation = {
   dependencyKinds?: Readonly<Record<string, number>>;
   serviceCount: number;
   httpServiceCount: number;
+  /** Order-independent per-service semantic expectations. */
+  services?: readonly ExpectedService[];
   /** Exact set of deployment tools declared by the project. A declaration is not proof of a live deployment. */
   existingDeployments?: readonly string[];
   requiredConfig?: readonly string[];
@@ -36,6 +48,8 @@ export type RealProjectCorpusCase = {
   commit: string;
   /** Directory in the upstream repository that is itself a runnable project. */
   subdirectory?: string;
+  /** Declared upstream license, or 'NOASSERTION' if the pinned commit lacks a license file. */
+  license?: string;
   source: 'official-starter' | 'official-example' | 'real-application';
   exercises: readonly string[];
   expect: RealProjectCorpusExpectation;
