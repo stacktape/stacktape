@@ -116,7 +116,6 @@ export class DeploymentArtifactManager {
     this.deploymentBucketName = awsResourceNames.deploymentBucket(globallyUniqueStackHash);
     this.repositoryName = awsResourceNames.deploymentEcrRepo(globallyUniqueStackHash);
     this.repositoryUrl = getEcrRepositoryUrl(accountId, globalStateManager.region, this.repositoryName);
-    await this.loginToEcr();
     // Skip artifact lookup for create (nothing to look up) and dev (running locally)
     if (stackActionType && stackActionType !== 'create' && stackActionType !== 'dev') {
       await eventManager.startEvent({
@@ -446,7 +445,13 @@ export class DeploymentArtifactManager {
         });
       });
     });
-    this.getImagesToUpload({ hotSwapDeploy: useHotswap }).forEach(({ jobName, tag, imageTagWithUrl }) => {
+    const imagesToUpload = this.getImagesToUpload({ hotSwapDeploy: useHotswap });
+    if (imagesToUpload.length > 0) {
+      // Validation and synthesis build images locally but never push them. Fetching an ECR token during
+      // initialization made those read-only commands contact AWS and modify the user's Docker credential store.
+      await this.loginToEcr();
+    }
+    imagesToUpload.forEach(({ jobName, tag, imageTagWithUrl }) => {
       jobs.push(() => {
         return this.uploadImage({
           tag,

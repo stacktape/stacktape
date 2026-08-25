@@ -16,8 +16,8 @@ const validEnvironment = {
 };
 
 describe('source CLI AWS read-only smoke guardrails', () => {
-  test('refuses Windows before considering opt-in', () => {
-    expect(() => resolveSmokeOptions({ platform: 'win32', env: validEnvironment })).toThrow('cannot run from Windows');
+  test('supports a guarded source-CLI smoke on Windows', () => {
+    expect(resolveSmokeOptions({ platform: 'win32', env: validEnvironment }).profile).toBe('development');
   });
 
   test('requires explicit opt-in, profile, and expected account', () => {

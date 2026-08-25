@@ -70,8 +70,10 @@ describe('real-AWS packaging canary guardrails', () => {
     ).toThrow('identify this exact canary run');
   });
 
-  test('refuses Windows, endpoint overrides, unsafe names, and implicit credentials', () => {
-    expect(() => resolveCanaryOptions({ platform: 'win32', env: guardedProfileEnvironment })).toThrow('Linux or macOS');
+  test('supports Windows while refusing endpoint overrides, unsafe names, and implicit credentials', () => {
+    expect(resolveCanaryOptions({ platform: 'win32', env: guardedProfileEnvironment }).projectName).toBe(
+      'v4canary-test-123'
+    );
     expect(() =>
       resolveCanaryOptions({
         platform: 'linux',

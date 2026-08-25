@@ -341,6 +341,14 @@ const cliPrefix = (options: CanaryOptions): { command: string; args: string[] } 
     : { command: process.execPath, args: ['run', 'dev'] };
 
 const signalChild = (child: ChildProcess, signal: NodeJS.Signals) => {
+  if (process.platform === 'win32' && child.pid !== undefined) {
+    const killer = spawn('taskkill.exe', ['/pid', String(child.pid), '/t', ...(signal === 'SIGKILL' ? ['/f'] : [])], {
+      stdio: 'ignore',
+      windowsHide: true
+    });
+    killer.unref();
+    return;
+  }
   try {
     process.kill(-child.pid!, signal);
     return;
@@ -367,7 +375,7 @@ const spawnCli = (options: CanaryOptions, args: string[], env: Environment): Chi
   const prefix = cliPrefix(options);
   const child = spawn(prefix.command, [...prefix.args, ...args], {
     cwd: cliDirectory,
-    detached: true,
+    detached: process.platform !== 'win32',
     env,
     stdio: ['ignore', 'pipe', 'pipe']
   });

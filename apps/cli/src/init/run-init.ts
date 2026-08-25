@@ -88,6 +88,8 @@ export type InitOptions = {
    * user's subscription. Production never passes it.
    */
   runSession?: typeof runAgentSessionWithRetry;
+  /** Overrides the optional anonymous pricing request in tests and offline qualification. */
+  estimateCost?: typeof estimateMonthlyCost;
   openBrowser?: (url: string) => Promise<unknown>;
   onOutput?: (line: string) => void;
 };
@@ -278,7 +280,7 @@ export const runInit = async (options: InitOptions = {}): Promise<InitOutcome> =
 
     // Priced after the resource list is on screen, because it is a network call in a command that
     // otherwise needs nothing. No answer means no line, not an error.
-    const price = await estimateMonthlyCost(renderYaml(result.composition));
+    const price = await (options.estimateCost ?? estimateMonthlyCost)(renderYaml(result.composition));
     if (price !== undefined) {
       say('');
       say(`About ${price.monthly} in ${price.region}, for what is in this file.`);

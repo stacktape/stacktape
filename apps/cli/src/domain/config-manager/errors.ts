@@ -479,7 +479,7 @@ export const configErrors = {
     return new CliError({
       category: 'CONFIG_VALIDATION',
       code: 'CONFIG_NEXTJS_PROJECT_MISSING',
-      message: `Error in ${inlineCode(stpResourceName)} resource: Specified directory "${inlineCode(directoryPath)}" does not seem to contain Next.js project (does not contain next.config.(js/ts)).`
+      message: `Error in ${inlineCode(stpResourceName)} resource: Specified directory "${inlineCode(directoryPath)}" does not seem to contain a Next.js project (no Next.js dependency or next.config file was found).`
     });
   },
   sqsRedriveTargetAmbiguous({ sqsQueueReferencerStpName }: { sqsQueueReferencerStpName: string }): CliError {
