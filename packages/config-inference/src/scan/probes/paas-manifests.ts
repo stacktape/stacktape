@@ -21,6 +21,7 @@ import yaml from 'yaml';
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import type { Citation } from '../../facts/citation';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/service';
+import { readDockerfileDefinition } from '../dockerfile-definition';
 import { languageOf } from '../language';
 import { isPlatformEnvironmentVariable } from '../platform-environment';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
@@ -587,6 +588,16 @@ export const paasManifestsProbe: Probe = {
     }
 
     if (services.length === 0 && dependencies.length === 0 && serviceEnvironments.length === 0) return {};
+    await Promise.all(
+      services.map(async (service) => {
+        if (service.dockerfile === undefined) return;
+        const definition = await readDockerfileDefinition(context, service.dockerfile);
+        // Canonicalizing the build file must not move a descriptor's application or build context.
+        // A broken or unsafe alias supplies no packaging path; other evidence can still describe the app.
+        if (definition === undefined) delete service.dockerfile;
+        else service.dockerfile = definition.path;
+      })
+    );
     return {
       ...(services.length === 0 ? {} : { services }),
       ...(dependencies.length === 0 ? {} : { dependencies }),

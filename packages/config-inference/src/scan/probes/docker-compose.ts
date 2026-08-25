@@ -28,6 +28,7 @@ import { defaultDependencyName, type DependencyFact, type DependencyKind } from 
 import type { Citation } from '../../facts/citation';
 import type { MigrationFact } from '../../facts/project-facts';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/service';
+import { isDockerfilePath } from '../../policy/file-access';
 import { readDockerfileDefinition } from '../dockerfile-definition';
 import { languageOf } from '../language';
 import { isPlatformEnvironmentVariable } from '../platform-environment';
@@ -852,7 +853,7 @@ export const dockerComposeProbe: Probe = {
     if (documents.length === 0) return {};
 
     const dockerfilePaths = context.files
-      .filter((path) => /(?:^|\/)(?:Dockerfile(?:\.[^/]+)?|[^/]+\.dockerfile)$/i.test(path))
+      .filter(isDockerfilePath)
       .filter((path) => !/(?:^|\/)(?:test|tests|fixtures|examples?|hack(?:-dev)?|loadtests?)(?:\/|$)/i.test(path))
       .toSorted((left, right) => {
         const leftProduction = /(?:^|\/)build\/package\//i.test(left) ? 0 : 1;

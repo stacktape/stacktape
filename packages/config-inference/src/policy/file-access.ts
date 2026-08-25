@@ -113,7 +113,7 @@ export type FileAccess = 'read' | 'names-only' | 'blocked';
 
 /** A repository-owned container build descriptor, wherever a release definition keeps it. */
 export const isDockerfilePath = (repoRelativePath: string): boolean =>
-  /^(?:Dockerfile(?:\.[^/]+)?|[^/]+\.dockerfile)$/i.test(posix.basename(repoRelativePath));
+  /^(?:Dockerfile(?:[.-][^/]+)?|[^/]+\.dockerfile)$/i.test(posix.basename(repoRelativePath));
 
 /**
  * Environment files are `names-only` with no exceptions, including `.env.example`.

@@ -11,7 +11,7 @@
 
 import { open, readFile, stat } from 'node:fs/promises';
 import { basename, join } from 'node:path';
-import { classifyFileAccess, extractEnvironmentVariableNames } from '../policy/file-access';
+import { classifyFileAccess, extractEnvironmentVariableNames, isDockerfilePath } from '../policy/file-access';
 
 /** Files above this never land in memory whole; a bounded prefix is read instead. */
 const MAX_BYTES_READ = 1_000_000;
@@ -98,7 +98,7 @@ const LOCK_FILE_NAMES: ReadonlySet<string> = new Set([
  * reading it for.
  */
 const lineBudgetFor = (fileName: string): number => {
-  if (/^Dockerfile/i.test(fileName) || /^(docker-)?compose\.ya?ml$/i.test(fileName)) {
+  if (isDockerfilePath(fileName) || /^(docker-)?compose\.ya?ml$/i.test(fileName)) {
     return Number.POSITIVE_INFINITY;
   }
   if (/^(Procfile|Makefile|\.gitlab-ci\.yml|fly\.toml|render\.yaml|vercel\.json)$/i.test(fileName)) {

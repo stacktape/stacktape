@@ -1,15 +1,25 @@
 import { posix } from 'node:path';
+import { isDockerfilePath } from '../policy/file-access';
 import { readText, type ProbeContext } from './probe';
+
+/** Bound both filesystem-link metadata and materialized pointer traversal to 32 inspected paths. */
+export const MAX_DOCKERFILE_LINK_DEPTH = 32;
 
 const pointerDeclaration = (raw: string): string | undefined => {
   const declaration = raw.trim().replaceAll('\\', '/');
-  return /^(?:[^/]+\/)*Dockerfile(?:\.[^/]+)?$/i.test(declaration) ? declaration : undefined;
+  return !/[\r\n]/.test(declaration) && !declaration.includes('\0') && isDockerfilePath(declaration)
+    ? declaration
+    : undefined;
 };
 
-const pointerTarget = (path: string, declaration: string): string | undefined => {
-  const directory = posix.dirname(path);
-  const resolved = posix.normalize(directory === '.' ? declaration : posix.join(directory, declaration));
-  return resolved === '..' || resolved.startsWith('../') ? undefined : resolved;
+const containedPath = (path: string): string | undefined => {
+  const normalized = posix.normalize(path.replaceAll('\\', '/'));
+  return normalized === '..' ||
+    normalized.startsWith('../') ||
+    posix.isAbsolute(normalized) ||
+    /^[A-Za-z]:/.test(normalized)
+    ? undefined
+    : normalized;
 };
 
 /**
@@ -25,17 +35,29 @@ export const readDockerfileDefinition = async (
   path: string,
   options: { fullFile?: boolean } = {}
 ): Promise<{ path: string; raw: string } | undefined> => {
-  if (!context.files.includes(path)) return undefined;
-  const candidateRaw = await readText(context, path, options);
-  if (candidateRaw === undefined) return undefined;
+  let current = containedPath(path);
+  const visited = new Set<string>();
+  for (let depth = 0; depth < MAX_DOCKERFILE_LINK_DEPTH; depth += 1) {
+    if (current === undefined || visited.has(current) || !context.files.includes(current)) return undefined;
+    visited.add(current);
 
-  const linkedTarget = context.dockerfileSymlinkTargets.get(path);
-  const declaration = linkedTarget === undefined ? pointerDeclaration(candidateRaw) : undefined;
-  const target = linkedTarget ?? (declaration === undefined ? undefined : pointerTarget(path, declaration));
-  if (declaration !== undefined && target === undefined) return undefined;
-  if (target === undefined) return { path, raw: candidateRaw };
-  if (!context.files.includes(target)) return undefined;
+    const linkedTarget = context.dockerfileSymlinkTargets.get(current);
+    if (linkedTarget !== undefined) {
+      current = containedPath(linkedTarget);
+      continue;
+    }
 
-  const raw = await readText(context, target, options);
-  return raw === undefined ? undefined : { path: target, raw };
+    // oxlint-disable-next-line no-await-in-loop -- a bounded, cycle-checked Dockerfile pointer chain.
+    const raw = await readText(context, current, options);
+    if (raw === undefined) return undefined;
+    if (/^\s*FROM\s+\S+/im.test(raw)) return { path: current, raw };
+
+    const declaration = pointerDeclaration(raw);
+    if (declaration === undefined) return undefined;
+    // Resolve relative to each pointer, not the original alias. `..` may stay inside the repository,
+    // while absolute, drive-qualified and repository-escaping targets are always refused.
+    if (posix.isAbsolute(declaration) || /^[A-Za-z]:/.test(declaration)) return undefined;
+    current = containedPath(posix.join(posix.dirname(current), declaration));
+  }
+  return undefined;
 };

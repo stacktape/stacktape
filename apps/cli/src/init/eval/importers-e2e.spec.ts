@@ -33,6 +33,50 @@ const CASES: EvalCase[] = [
     }
   },
   {
+    name: 'Fly multi-process app using a chained production Dockerfile alias',
+    files: {
+      'package.json': JSON.stringify({ name: 'shop', dependencies: { fastify: '^5.0.0' } }),
+      Dockerfile: 'docker/Dockerfile.alias\n',
+      'docker/Dockerfile.alias': 'production.dockerfile\n',
+      'docker/production.dockerfile': 'FROM node:24\nEXPOSE 4000\nSTOPSIGNAL SIGINT\n',
+      'fly.toml': [
+        'app = "shop-api"',
+        '[build]',
+        'dockerfile = "Dockerfile"',
+        '[processes]',
+        'web = "node dist/server.js"',
+        'jobs = "node dist/jobs.js"',
+        '[http_service]',
+        'internal_port = 4000',
+        'processes = ["web"]',
+        ''
+      ].join('\n')
+    },
+    expect: {
+      resources: { shopApi: 'web-service', shopApiJobs: 'worker-service' },
+      resourceCount: 2,
+      resourcePackaging: [
+        {
+          resource: 'shopApi',
+          type: 'custom-dockerfile',
+          buildContextPath: '.',
+          dockerfilePath: 'docker/production.dockerfile',
+          command: ['/bin/sh', '-c', 'node dist/server.js']
+        },
+        {
+          resource: 'shopApiJobs',
+          type: 'custom-dockerfile',
+          buildContextPath: '.',
+          dockerfilePath: 'docker/production.dockerfile',
+          command: ['/bin/sh', '-c', 'node dist/jobs.js']
+        }
+      ],
+      serviceProperties: [{ resource: 'shopApi', containerPort: 4000 }],
+      deployable: true,
+      maxQuestions: 0
+    }
+  },
+  {
     name: 'Docker Compose app plus worker and database',
     files: {
       'package.json': JSON.stringify({ name: 'orders', dependencies: { express: '^5.0.0', pg: '^8.0.0' } }),

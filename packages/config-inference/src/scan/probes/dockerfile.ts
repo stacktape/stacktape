@@ -3,6 +3,7 @@
 import { posix } from 'node:path';
 import type { Citation } from '../../facts/citation';
 import type { ServiceFactInput } from '../../facts/service';
+import { isDockerfilePath } from '../../policy/file-access';
 import { isNonProductionFixturePath } from '../deployment-relevance';
 import { readDockerfileDefinition } from '../dockerfile-definition';
 import { activeWorkspaceDirectories, isIncidentalPath } from '../incidental-directories';
@@ -15,7 +16,8 @@ const serviceRootFor = (dockerfile: string, files: readonly string[]): string =>
 };
 
 const DEVELOPMENT_ONLY_DIRECTORY = /(?:^|\/)(?:\.devcontainer|\.github|\.gitlab|\.circleci)(?:\/|$)/i;
-const DEVELOPMENT_ONLY_DOCKERFILE = /^Dockerfile[.-](?:dev|development|test|local|ci)(?:[.-].*)?$/i;
+const DEVELOPMENT_ONLY_DOCKERFILE =
+  /^(?:Dockerfile[.-](?:dev|development|test|local|ci)(?:[.-].*)?|(?:dev|development|test|local|ci)(?:[.-].*)?\.dockerfile)$/i;
 
 const serviceNameFor = (root: string, repositoryRoot: string): string =>
   root === '.' ? (repositoryRoot.split(/[/\\]/).findLast((segment) => segment !== '') ?? 'app') : posix.basename(root);
@@ -504,7 +506,7 @@ export const dockerfileProbe: Probe = {
     const candidates = context.files
       .filter(
         (path) =>
-          /^Dockerfile(?:[.-][^/]+)?$/i.test(posix.basename(path)) &&
+          isDockerfilePath(path) &&
           !DEVELOPMENT_ONLY_DOCKERFILE.test(posix.basename(path)) &&
           !DEVELOPMENT_ONLY_DIRECTORY.test(path) &&
           !isNonProductionFixturePath(path) &&
@@ -523,7 +525,7 @@ export const dockerfileProbe: Probe = {
       if (services.has(root)) continue;
       // A checked-out symbolic link can be materialized as a one-line target path on platforms
       // where Git symlinks are disabled. Follow only an exact repository-local Dockerfile pointer.
-      // oxlint-disable-next-line no-await-in-loop -- at most one bounded pointer target per candidate.
+      // oxlint-disable-next-line no-await-in-loop -- one bounded pointer chain per candidate.
       const definition = await readDockerfileDefinition(context, path);
       if (definition === undefined || !/^\s*FROM\s+\S+/im.test(definition.raw)) continue;
       const { path: dockerfile, raw } = definition;

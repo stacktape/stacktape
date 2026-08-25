@@ -25,7 +25,7 @@ export type ProbeContext = {
   root: string;
   /** Every file the access policy permits, repository-relative and POSIX. */
   files: readonly string[];
-  /** Canonical repository-local target for each admitted Dockerfile symlink. */
+  /** Immediate repository-local target for each admitted Dockerfile symlink. */
   dockerfileSymlinkTargets: ReadonlyMap<string, string>;
   /** Policy-respecting read: environment files come back as names, credentials never come back. */
   read: (repoRelativePath: string, options?: ReadSourceFileOptions) => Promise<SourceRead>;
