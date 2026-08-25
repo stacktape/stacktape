@@ -6,7 +6,7 @@ import {
   type ProjectFactsInput
 } from '../facts/project-facts';
 import { matchQuote, normalizeForMatch } from './quote-match';
-import { checkCommandAnchor, checkDependencyAnchor, checkPortAnchor } from './anchors';
+import { checkCommandAnchor, checkDependencyAnchor, checkHttpAnchor, checkPortAnchor } from './anchors';
 import { verifyFacts, type FileReader } from './verify-facts';
 
 const FILES: Record<string, string> = {
@@ -121,6 +121,12 @@ describe('anchors', () => {
 
   it('rejects a command that appears nowhere in the file', () => {
     expect(checkCommandAnchor('python manage.py runserver', '{ "scripts": { "build": "tsc" } }').satisfied).toBe(false);
+  });
+
+  it('accepts React Router production serve evidence but not development tooling alone', () => {
+    expect(checkHttpAnchor('{ "@react-router/serve": "^8.0.0" }').satisfied).toBe(true);
+    expect(checkHttpAnchor('{ "start": "react-router-serve ./build/server/index.js" }').satisfied).toBe(true);
+    expect(checkHttpAnchor('{ "@react-router/dev": "^8.0.0" }').satisfied).toBe(false);
   });
 });
 

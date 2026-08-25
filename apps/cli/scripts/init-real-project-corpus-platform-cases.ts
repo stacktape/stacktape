@@ -124,12 +124,13 @@ const ALL_REAL_PROJECT_PLATFORM_CASES = [
     repository: 'https://github.com/epicweb-dev/epic-stack.git',
     commit: 'da819d69af1bb66b19cfee35ad81aa8502d0be05',
     source: 'official-starter',
-    exercises: ['fly', 'remix', 'prisma', 'litefs', 'monorepo'],
+    exercises: ['fly', 'react-router', 'prisma', 'litefs', 'monorepo'],
     expect: {
       resourceTypes: { bucket: 1, 'web-service': 1 },
       dependencyKinds: { 'object-storage': 1, sqlite: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
+      services: [{ name: 'epicStackTemplate', framework: 'react-router' }],
       existingDeployments: ['fly'],
       requiredGapPatterns: ['SQLite runs inside|Fly\.io deployment config'],
       forbidCurrentlyHostedDependencies: true

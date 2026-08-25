@@ -125,7 +125,9 @@ const fromBuiltInCase = (entry: RealProjectCorpusCase): QualificationCaseManifes
   deployment: {
     policy: 'never',
     costClass: 'high',
-    reason: 'Real projects are packaged in full; AWS behavior is sampled through the explicit archetype scenarios.'
+    reason: importOnlyCaseIds.has(entry.id)
+      ? 'This pinned source is qualified for deterministic import only; AWS behavior is sampled through explicit archetype scenarios.'
+      : 'This standalone pinned project is qualified through import and packaging; AWS behavior is sampled through explicit archetype scenarios.'
   }
 });
 

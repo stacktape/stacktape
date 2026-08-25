@@ -18,6 +18,7 @@ import {
   type RealProjectCorpusCase
 } from './init-real-project-corpus-cases';
 import { validateConfigYaml } from './code-generation/validate-config-string';
+import { validateServiceExpectations } from './qualification/service-expectations';
 
 type CorpusResult = {
   id: string;
@@ -38,6 +39,7 @@ type CorpusResult = {
     exposesHttp: boolean;
     executionModel: string;
     processType?: string;
+    buildCommand?: string;
     startCommand?: string;
     containerEntrypoint?: string;
     functionEntrypoint?: string;
@@ -199,6 +201,12 @@ const validateSemantics = (corpusCase: RealProjectCorpusCase, result: CorpusResu
     failures.push(`HTTP service count: expected ${expected.httpServiceCount}; got ${httpServiceCount}.`);
   }
 
+  if (expected.services !== undefined) {
+    const serviceChecks = validateServiceExpectations(expected.services, result.services);
+    assertions += serviceChecks.assertions;
+    failures.push(...serviceChecks.failures);
+  }
+
   assertions += 1;
   const expectedDeployments = [...(expected.existingDeployments ?? [])].sort();
   const actualDeployments = result.existingDeployments.map((deployment) => deployment.tool).sort();
@@ -304,6 +312,7 @@ const summarise = async (corpusCase: RealProjectCorpusCase, checkout: string): P
         exposesHttp: service.exposesHttp,
         executionModel: service.executionModel,
         ...(service.processType === undefined ? {} : { processType: service.processType }),
+        ...(service.buildCommand === undefined ? {} : { buildCommand: service.buildCommand }),
         ...(service.startCommand === undefined ? {} : { startCommand: service.startCommand }),
         ...(service.containerEntrypoint === undefined ? {} : { containerEntrypoint: service.containerEntrypoint }),
         ...(service.functionEntrypoint === undefined ? {} : { functionEntrypoint: service.functionEntrypoint }),
