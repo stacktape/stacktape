@@ -1468,6 +1468,12 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::CloudFormation::CustomResource' }
     });
   },
+  customResourceUptimeMonitoring() {
+    return buildCfLogicalName({
+      specifier: { type: 'UptimeMonitoring' },
+      suffix: { cloudformationResourceType: 'AWS::CloudFormation::CustomResource' }
+    });
+  },
   customResourceEdgeLambda(stpResourceName: string) {
     return buildCfLogicalName({
       stpResourceName,

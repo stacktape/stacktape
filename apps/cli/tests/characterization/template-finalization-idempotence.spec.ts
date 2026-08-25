@@ -173,7 +173,8 @@ const finalizeInOneInvocation = async ({
       batchJobTriggerLambda: helperLambda,
       stacktapeServiceLambda: helperLambda,
       cdnOriginRequestLambda: helperLambda,
-      cdnOriginResponseLambda: helperLambda
+      cdnOriginResponseLambda: helperLambda,
+      uptimeProber: helperLambda
     };
     globalStateManager.localTargetAwsAccount = {
       id: 'characterization-account',

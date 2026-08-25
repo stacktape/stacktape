@@ -15,6 +15,7 @@ export const CHILD_RESOURCES: Record<
     }
   ],
   'email-sender': [],
+  'uptime-check': [],
   'appsync-api': [
     { logicalName: cfLogicalNames.appsyncApi, resourceType: 'AWS::AppSync::GraphQLApi' },
     { logicalName: cfLogicalNames.appsyncApiSchema, resourceType: 'AWS::AppSync::GraphQLSchema' },

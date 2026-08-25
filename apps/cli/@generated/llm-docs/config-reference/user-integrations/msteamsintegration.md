@@ -6,11 +6,11 @@
 import type { MsTeamsIntegrationProps } from 'stacktape';
 
 type MsTeamsIntegration = {
-  properties?: MsTeamsIntegrationProps;
+  properties: MsTeamsIntegrationProps;
 };
 ```
 
 ## Property: `properties`
 
-- Required: no
+- Required: yes
 - Type: `MsTeamsIntegrationProps`

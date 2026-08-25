@@ -243,7 +243,14 @@ const _PLAIN_TYPES_TO_GENERATE = [
   'CustomResourceInstanceProps',
   'DeploymentScriptProps',
   // Alarm types
-  'AlarmUserIntegration',
+  'NotificationChannel',
+  'ConsoleChannelIntegrationProps',
+  // Uptime check types
+  'UptimeCheckProps',
+  'UptimeCheckAssertion',
+  'UptimeCheckEvaluation',
+  'StatusCodeAssertionProps',
+  'BodyContainsAssertionProps',
   // IAM types
   'StpIamRoleStatement',
   // Config section types
@@ -343,14 +350,14 @@ type AuthoringAlarmTrigger =
 type PublishedAlarmProps<Trigger extends AuthoringAlarmTrigger> = {
   trigger: WithAuthoringNamedResourceReferences<Trigger>;
   evaluation?: import('./plain').AlarmEvaluation;
-  notificationTargets?: import('./plain').AlarmUserIntegration[];
+  notificationChannels?: import('./plain').NotificationChannel[];
   includeInHistory?: boolean;
   description?: string;
 };
 export declare class Alarm<Trigger extends AuthoringAlarmTrigger = AuthoringAlarmTrigger> {
   readonly trigger: PublishedAlarmProps<Trigger>['trigger'];
   readonly evaluation?: NonNullable<PublishedAlarmProps<Trigger>['evaluation']>;
-  readonly notificationTargets?: NonNullable<PublishedAlarmProps<Trigger>['notificationTargets']>;
+  readonly notificationChannels?: NonNullable<PublishedAlarmProps<Trigger>['notificationChannels']>;
   readonly includeInHistory?: NonNullable<PublishedAlarmProps<Trigger>['includeInHistory']>;
   readonly description?: string;
   readonly [alarmSymbol]: true;
@@ -987,7 +994,7 @@ import type {
 export type {
   ${plainPropsImports},
   ${typePropertiesImports.join(',\n  ')},
-  AlarmUserIntegration,
+  NotificationChannel,
   StpIamRoleStatement
 } from './plain';
 

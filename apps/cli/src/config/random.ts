@@ -239,6 +239,17 @@ export const RESOURCE_DEFAULTS = {
   'open-search-domain': {},
   'efs-filesystem': {},
   'network-load-balancer': {},
+  'uptime-check': {
+    method: 'GET',
+    intervalSeconds: 60,
+    timeoutSeconds: 10,
+    followRedirects: true,
+    enabled: true,
+    evaluation: {
+      consecutiveFailures: 2,
+      consecutiveSuccesses: 2
+    }
+  },
   convex: {},
   'agentcore-runtime': {},
   'agentcore-memory': {},
@@ -274,7 +285,8 @@ export const HELPER_LAMBDA_NAMES = [
   'batchJobTriggerLambda',
   'stacktapeServiceLambda',
   'cdnOriginRequestLambda',
-  'cdnOriginResponseLambda'
+  'cdnOriginResponseLambda',
+  'uptimeProber'
 ] as const;
 
 export type HelperLambdaName = (typeof HELPER_LAMBDA_NAMES)[number];
@@ -339,7 +351,8 @@ export const HELPER_LAMBDAS = [
   'batchJobTriggerLambda',
   'cdnOriginRequestLambda',
   'cdnOriginResponseLambda',
-  'stacktapeServiceLambda'
+  'stacktapeServiceLambda',
+  'uptimeProber'
 ] as const satisfies readonly HelperLambdaName[];
 
 // The console API/table still use the legacy "StackOperation" name, but these

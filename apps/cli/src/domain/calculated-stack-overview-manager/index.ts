@@ -85,6 +85,7 @@ import { resolveSnsTopics } from './resource-resolvers/sns-topics';
 import { resolveSqsQueues } from './resource-resolvers/sqs-queues';
 import { resolveStateMachines } from './resource-resolvers/state-machines';
 import { resolveUpstashRedisDatabases } from './resource-resolvers/upstash-redis';
+import { resolveUptimeChecks } from './resource-resolvers/uptime-checks';
 import { resolveUserPools } from './resource-resolvers/user-pools';
 import { resolveWebAppFirewalls } from './resource-resolvers/web-app-firewalls';
 import { resolveWebServices } from './resource-resolvers/web-services';
@@ -144,10 +145,12 @@ export class CalculatedStackOverviewManager {
 
   resolveAllResources = async () => {
     void this.context;
+    // No phase pin: this runs at different points per command (after packaging
+    // during deploy), and pinning it to INITIALIZE would file the event under a
+    // phase that already closed in the scrollback record.
     await eventManager.startEvent({
       eventType: 'RESOLVE_CONFIG',
-      description: 'Resolving configuration',
-      phase: 'INITIALIZE'
+      description: 'Preparing infrastructure template'
     });
     await settleResourceResolvers([
       resolveStackOutputs,
@@ -186,6 +189,7 @@ export class CalculatedStackOverviewManager {
       resolveServiceDiscoveryPrivateNamespace,
       resolveRedisClusters,
       resolveUpstashRedisDatabases,
+      resolveUptimeChecks,
       resolveEdgeLambdaFunctions,
       resolveBudget,
       resolveCodeDeploySharedResources,
@@ -213,7 +217,10 @@ export class CalculatedStackOverviewManager {
       resolveDebugAgentRole,
       resolveDevContainerWorkloadRoles
     ]);
-    await eventManager.finishEvent({ eventType: 'RESOLVE_CONFIG', phase: 'INITIALIZE' });
+    await eventManager.finishEvent({
+      eventType: 'RESOLVE_CONFIG',
+      finalMessage: `Infrastructure template prepared (${this.resourceCount} AWS resources)`
+    });
   };
 
   get resourceCount() {

@@ -80,9 +80,11 @@ import {
   getStacktapeServiceLambdaCustomTaggingInducedStatement,
   getStacktapeServiceLambdaEcsRedeployInducedStatements,
   getStacktapeServiceLambdaEnvironment,
-  getStacktapeServiceLambdaIssueDetectionStatements
+  getStacktapeServiceLambdaIssueDetectionStatements,
+  getStacktapeServiceLambdaUptimeMonitoringStatements
 } from './utils/lambdas';
 import { mergeStacktapeDefaults } from './utils/misc';
+import { MAX_UPTIME_CHECKS_PER_STACK, resolveUptimeCheckRegions, validateUptimeCheck } from './utils/uptime-checks';
 import { buildNextjsWebNestedResources } from './utils/nextjs-webs';
 import { buildSsrWebNestedResources } from './utils/ssr-webs';
 import { runInitialValidations, validateConfigStructure, validateGuardrails } from './utils/validation';
@@ -299,13 +301,28 @@ export class ConfigManager {
 
   loadGlobalConfig = async () => {
     const globalConfig = await stacktapeTrpcApiManager.apiClient.globalConfig();
-    this.globalConfigAlarms = ((globalConfig.alarms as unknown as AlarmDefinition[]) || []).filter((alarm) =>
-      isGlobalAlarmEligibleForStack({
-        alarm,
-        projectName: this.stackContext.projectName,
-        stage: this.stackContext.stage
+    // The Console wire format still calls channels `notificationTargets` and attaches full console
+    // channels. Config-language alarms use `notificationChannels`; console-attached channels become
+    // `console-channel` references resolved by the Console at delivery time, so channel credentials
+    // never enter the customer-side alarm payload.
+    this.globalConfigAlarms = (globalConfig.alarms || [])
+      .map((wireAlarm) => {
+        const { notificationTargets, ...alarm } = wireAlarm;
+        return {
+          ...alarm,
+          notificationChannels: (notificationTargets || []).map(({ name }) => ({
+            type: 'console-channel',
+            properties: { channelName: name }
+          }))
+        } as unknown as AlarmDefinition;
       })
-    );
+      .filter((alarm) =>
+        isGlobalAlarmEligibleForStack({
+          alarm,
+          projectName: this.stackContext.projectName,
+          stage: this.stackContext.stage
+        })
+      );
     this.globalConfigDeploymentNotifications = (globalConfig.deploymentNotifications ||
       []) as DeploymentNotificationDefinition[];
     const parsedGuardrails = guardrailDefinitionSchema.array().safeParse(globalConfig.guardrails || []);
@@ -719,6 +736,27 @@ export class ConfigManager {
 
   get upstashRedisDatabases() {
     return this.getResourcesFromConfig('upstash-redis');
+  }
+
+  get uptimeChecks() {
+    const configuredChecks = this.getResourcesFromConfig('uptime-check');
+    if (configuredChecks.length > MAX_UPTIME_CHECKS_PER_STACK) {
+      throw configErrors.uptimeChecksLimitExceeded({
+        count: configuredChecks.length,
+        limit: MAX_UPTIME_CHECKS_PER_STACK
+      });
+    }
+    return configuredChecks.map((check) => {
+      const resolved = {
+        ...check,
+        regions: resolveUptimeCheckRegions({
+          configuredRegions: check.regions,
+          stackRegion: this.stackContext.region
+        })
+      };
+      validateUptimeCheck({ check: resolved });
+      return resolved;
+    });
   }
 
   get edgeLambdaFunctions() {
@@ -1666,8 +1704,8 @@ export class ConfigManager {
   get categorizedEmailsUsedInAlertNotifications() {
     const senders = new Set<string>();
     const recipients = new Set<string>();
-    this.allAlarms.forEach(({ notificationTargets }) =>
-      notificationTargets?.forEach(({ type, properties }) => {
+    this.allAlarms.forEach(({ notificationChannels }) =>
+      notificationChannels?.forEach(({ type, properties }) => {
         if (type === 'email') {
           senders.add(properties.sender);
           recipients.add(properties.recipient);
@@ -2115,6 +2153,11 @@ export class ConfigManager {
         ...getStacktapeServiceLambdaCustomTaggingInducedStatement(),
         ...getStacktapeServiceLambdaIssueDetectionStatements({
           issueDetectionEnabled: this.isIssueDetectionEnabled
+        }),
+        ...getStacktapeServiceLambdaUptimeMonitoringStatements({
+          uptimeMonitoringEnabled: this.uptimeChecks.length > 0,
+          accountId: this.stackContext.accountId,
+          deploymentBucketName: awsResourceNames.deploymentBucket(this.globallyUniqueStackHash)
         })
       ]
     };
@@ -2341,6 +2384,24 @@ export class ConfigManager {
       ...this.allNextjsLambdaFunctions,
       ...this.allSsrWebLambdaFunctions,
       ...this.helperLambdas
+    ];
+  }
+
+  /**
+   * The prober is not a stack function — the uptimeMonitoring custom resource creates it imperatively
+   * in each probe region — but its artifact still ships through the deployment bucket like any helper
+   * lambda, so the custom resource can copy it into the regional staging buckets.
+   */
+  get uptimeProberUploadArtifacts() {
+    if (!this.uptimeChecks.length) {
+      return [];
+    }
+    const artifactName = 'uptimeProber';
+    return [
+      {
+        artifactName,
+        packaging: { type: 'helper-lambda' as const, properties: this.helperLambdaDetails[artifactName] }
+      }
     ];
   }
 

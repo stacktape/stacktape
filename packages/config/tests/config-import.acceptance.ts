@@ -105,7 +105,7 @@ export type AlarmDefinitionSurface = Pick<
   | 'description'
   | 'evaluation'
   | 'includeInHistory'
-  | 'notificationTargets'
+  | 'notificationChannels'
 >;
 
 export const alarmTrigger: AlarmTrigger = {

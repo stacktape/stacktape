@@ -40,6 +40,7 @@ import type { StateMachine } from './state-machines';
 import type { SvelteKitWeb } from './sveltekit-web';
 import type { TanStackWeb } from './tanstack-web';
 import type { UpstashRedis } from './upstash-redis';
+import type { UptimeCheck } from './uptime-checks';
 import type { UserAuthPool } from './user-pools';
 import type { WebAppFirewall } from './web-app-firewall';
 import type { WebService } from './web-services';
@@ -73,6 +74,7 @@ export type StacktapeResourceDefinition =
   | CustomResourceInstance
   | CustomResourceDefinition
   | UpstashRedis
+  | UptimeCheck
   | DeploymentScript
   | AwsCdkConstruct
   | SqsQueue

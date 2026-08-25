@@ -1,11 +1,5 @@
 import type { ApplicationLoadBalancerCustomTrigger } from './alarm-metrics';
-import type { DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from './user-integrations';
-export type AlarmUserIntegration =
-  | MsTeamsIntegration
-  | SlackIntegration
-  | EmailIntegration
-  | DiscordIntegration
-  | WebhookIntegration;
+import type { NotificationChannel } from './notification-channels';
 
 
 export interface AlarmDefinitionBase {
@@ -96,7 +90,7 @@ export interface AlarmDefinitionBase {
    *             properties:
    *               thresholdPercent: 2
    *           # stp-focus
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: slack
    *               properties:
    *                 conversationId: C12345678
@@ -126,7 +120,7 @@ export interface AlarmDefinitionBase {
    *           properties: { thresholdPercent: 2 }
    *         },
    *         // stp-focus
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'slack',
    *             properties: { conversationId: 'C12345678', accessToken: $Secret('slack-bot-token') }
@@ -149,7 +143,7 @@ export interface AlarmDefinitionBase {
    * });
    * ```
    */
-  notificationTargets?: AlarmUserIntegration[];
+  notificationChannels?: NotificationChannel[];
   /**
    * #### Whether alarm state changes should appear in monitoring history.
    *
@@ -566,7 +560,7 @@ export interface SqsQueueNotEmptyTrigger {
    *             # stp-focus
    *             type: sqs-queue-not-empty
    *             # stp-end-focus
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: email
    *               properties:
    *                 sender: alerts@example.com
@@ -588,7 +582,7 @@ export interface SqsQueueNotEmptyTrigger {
    *           type: 'sqs-queue-not-empty'
    *           // stp-end-focus
    *         },
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'email',
    *             properties: { sender: 'alerts@example.com', recipient: 'oncall@example.com' }

@@ -6,11 +6,11 @@
 import type { SlackIntegrationProps } from 'stacktape';
 
 type SlackIntegration = {
-  properties?: SlackIntegrationProps;
+  properties: SlackIntegrationProps;
 };
 ```
 
 ## Property: `properties`
 
-- Required: no
+- Required: yes
 - Type: `SlackIntegrationProps`

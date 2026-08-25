@@ -37,7 +37,7 @@ resources:
             properties:
               thresholdMilliseconds: 5000
           description: API function is running slow
-          notificationTargets:
+          notificationChannels:
             - type: ms-teams
               properties:
                 webhookUrl: $Secret('ms-teams-webhook-url')
@@ -60,7 +60,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-duration', properties: { thresholdMilliseconds: 5000 } },
         description: 'API function is running slow',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'ms-teams',
             properties: {

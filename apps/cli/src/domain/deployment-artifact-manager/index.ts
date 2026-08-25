@@ -64,7 +64,7 @@ export class DeploymentArtifactManager {
   uploadedLayerS3Keys: Map<number, string> = new Map(); // layerNumber -> s3Key
 
   getLambdasToUpload({ hotSwapDeploy }: { hotSwapDeploy: boolean }) {
-    return configManager.allLambdasToUpload
+    return [...configManager.allLambdasToUpload, ...configManager.uptimeProberUploadArtifacts]
       .map((lambda) => {
         const s3UploadInfo = this.getLambdaS3UploadInfo({
           artifactName: lambda.artifactName,
@@ -116,7 +116,6 @@ export class DeploymentArtifactManager {
     this.deploymentBucketName = awsResourceNames.deploymentBucket(globallyUniqueStackHash);
     this.repositoryName = awsResourceNames.deploymentEcrRepo(globallyUniqueStackHash);
     this.repositoryUrl = getEcrRepositoryUrl(accountId, globalStateManager.region, this.repositoryName);
-    await this.loginToEcr();
     // Skip artifact lookup for create (nothing to look up) and dev (running locally)
     if (stackActionType && stackActionType !== 'create' && stackActionType !== 'dev') {
       await eventManager.startEvent({
@@ -272,7 +271,11 @@ export class DeploymentArtifactManager {
         });
       }
     });
-    await childLogger.finishEvent({ eventType: 'UPLOAD_BUCKET_CONTENT', data: syncStats });
+    await childLogger.finishEvent({
+      eventType: 'UPLOAD_BUCKET_CONTENT',
+      finalMessage: 'Content uploaded',
+      data: syncStats
+    });
   };
 
   // this is ran when the stack is rolled back
@@ -283,7 +286,7 @@ export class DeploymentArtifactManager {
     //    - there could have been multiple failed updates which created new artifacts with same version (but different digest)
     await eventManager.startEvent({
       eventType: 'DELETE_OBSOLETE_ARTIFACTS',
-      description: 'Deleting obsolete artifacts.'
+      description: 'Deleting obsolete artifacts'
     });
     await Promise.all([
       this.deleteImagesFromEcrRepo(
@@ -300,6 +303,7 @@ export class DeploymentArtifactManager {
     ]);
     await eventManager.finishEvent({
       eventType: 'DELETE_OBSOLETE_ARTIFACTS',
+      finalMessage: 'Obsolete artifacts deleted',
       data: {}
     });
   };
@@ -308,7 +312,7 @@ export class DeploymentArtifactManager {
   deleteArtifactsFixedDeploy = async () => {
     await eventManager.startEvent({
       eventType: 'DELETE_OBSOLETE_ARTIFACTS',
-      description: 'Deleting obsolete artifacts.'
+      description: 'Deleting obsolete artifacts'
     });
     await Promise.all([
       // we are deleting all image tags with current version that are not used
@@ -336,6 +340,7 @@ export class DeploymentArtifactManager {
     ]);
     await eventManager.finishEvent({
       eventType: 'DELETE_OBSOLETE_ARTIFACTS',
+      finalMessage: 'Obsolete artifacts deleted',
       data: {}
     });
   };
@@ -382,7 +387,7 @@ export class DeploymentArtifactManager {
     if (obsoleteImages.length || obsoleteObjects.length) {
       await eventManager.startEvent({
         eventType: 'DELETE_OBSOLETE_ARTIFACTS',
-        description: 'Deleting obsolete artifacts.'
+        description: 'Deleting obsolete artifacts'
       });
       await Promise.all([
         this.deleteImagesFromEcrRepo(
@@ -394,6 +399,7 @@ export class DeploymentArtifactManager {
       ]);
       await eventManager.finishEvent({
         eventType: 'DELETE_OBSOLETE_ARTIFACTS',
+        finalMessage: 'Obsolete artifacts deleted',
         data: { obsoleteImages, obsoleteObjects }
       });
     }
@@ -446,7 +452,13 @@ export class DeploymentArtifactManager {
         });
       });
     });
-    this.getImagesToUpload({ hotSwapDeploy: useHotswap }).forEach(({ jobName, tag, imageTagWithUrl }) => {
+    const imagesToUpload = this.getImagesToUpload({ hotSwapDeploy: useHotswap });
+    if (imagesToUpload.length > 0) {
+      // Validation and synthesis build images locally but never push them. Fetching an ECR token during
+      // initialization made those read-only commands contact AWS and modify the user's Docker credential store.
+      await this.loginToEcr();
+    }
+    imagesToUpload.forEach(({ jobName, tag, imageTagWithUrl }) => {
       jobs.push(() => {
         return this.uploadImage({
           tag,
@@ -477,16 +489,17 @@ export class DeploymentArtifactManager {
       await processConcurrently(jobs, DEFAULT_MAXIMUM_PARALLEL_ARTIFACT_UPLOADS);
       await eventManager.finishEvent({
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
+        finalMessage: 'Deployment artifacts uploaded',
         data: { images: this.successfullyUploadedImages, objects: this.successfullyCreatedObjects }
       });
     } else {
       await eventManager.startEvent({
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
-        description: 'No artifacts to upload'
+        description: 'Uploading deployment artifacts'
       });
       await eventManager.finishEvent({
         eventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
-        finalMessage: 'All artifacts already deployed.'
+        finalMessage: 'Nothing to upload (all artifacts unchanged)'
       });
     }
   };
@@ -512,7 +525,12 @@ export class DeploymentArtifactManager {
       }
     );
     await processConcurrently(jobs, DEFAULT_MAXIMUM_PARALLEL_BUCKET_SYNCS);
-    await eventManager.finishEvent({ eventType: 'SYNC_BUCKET', data: { syncedDirs: configManager.allBucketsToSync } });
+    const syncedCount = configManager.allBucketsToSync.length;
+    await eventManager.finishEvent({
+      eventType: 'SYNC_BUCKET',
+      finalMessage: `${syncedCount} director${syncedCount === 1 ? 'y' : 'ies'} synced into bucket${syncedCount === 1 ? '' : 's'}`,
+      data: { syncedDirs: configManager.allBucketsToSync }
+    });
   };
 
   deleteAllArtifacts = async () => {
@@ -733,7 +751,7 @@ export class DeploymentArtifactManager {
     await tagDockerImage(jobName, imageTagWithUrl);
     await pushDockerImage(imageTagWithUrl);
     this.successfullyUploadedImages.push({ tag, name: jobName });
-    await uploadLogger.finishEvent({ eventType: 'UPLOAD_IMAGE' });
+    await uploadLogger.finishEvent({ eventType: 'UPLOAD_IMAGE', finalMessage: 'Container image uploaded' });
     return { jobName, imageTagWithUrl };
   };
 
@@ -766,11 +784,11 @@ export class DeploymentArtifactManager {
 
     const uploadLogger = eventManager.createChildLogger({
       parentEventType: 'UPLOAD_DEPLOYMENT_ARTIFACTS',
-      instanceId: 'shared-lambda-layers'
+      instanceId: 'shared-layer'
     });
     await uploadLogger.startEvent({
       eventType: 'UPLOAD_SHARED_LAYER',
-      description: `Uploading ${layersToUpload.length} shared layer(s)${cachedLayers.length > 0 ? ` (${cachedLayers.length} cached)` : ''}`
+      description: `Uploading ${layersToUpload.length} shared layer${layersToUpload.length === 1 ? '' : 's'}${cachedLayers.length > 0 ? ` (${cachedLayers.length} cached)` : ''}`
     });
 
     try {

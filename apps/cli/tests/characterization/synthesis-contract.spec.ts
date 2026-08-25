@@ -58,6 +58,7 @@ import {
   SqsQueueEventBusIntegration,
   StacktapeImageBuildpackPackaging,
   StacktapeLambdaBuildpackPackaging,
+  UptimeCheck,
   UserAuthPool,
   WebSocketApiGateway,
   WebSocketApiIntegration,
@@ -73,7 +74,8 @@ const createDenseConfig = ({
   kafkaConnectTo = true,
   kafkaRemoteInDev = false,
   infrequentAccessWorkerLogs = false,
-  subscribeToWorkerLogs = false
+  subscribeToWorkerLogs = false,
+  includeUptimeCheck = false
 }: {
   includeAppsync?: boolean;
   includeDsql?: boolean;
@@ -83,6 +85,7 @@ const createDenseConfig = ({
   kafkaRemoteInDev?: boolean;
   infrequentAccessWorkerLogs?: boolean;
   subscribeToWorkerLogs?: boolean;
+  includeUptimeCheck?: boolean;
 } = {}) =>
   defineConfig(() => {
     const apiGateway = new HttpApiGateway({
@@ -159,6 +162,19 @@ const createDenseConfig = ({
     const dsqlDatabase = new DsqlDatabase({
       deletionProtection: true,
       kmsKeyArn: 'arn:aws:kms:eu-west-1:123456789999:key/dsql-key'
+    });
+    const apiUptime = new UptimeCheck({
+      url: 'https://api.example.com/health',
+      intervalSeconds: 30,
+      regions: ['eu-west-1', 'us-east-1'],
+      assertions: [
+        { type: 'status-code', properties: { accepted: [200] } },
+        { type: 'body-contains', properties: { value: 'ok' } }
+      ]
+    });
+    const homepageUptime = new UptimeCheck({
+      url: 'https://example.com',
+      regions: ['eu-west-1']
     });
     const kafkaCluster = new KafkaCluster(kafkaRemoteInDev ? { dev: { remote: true } } : {});
     const api = new LambdaFunction({
@@ -302,6 +318,7 @@ const createDenseConfig = ({
         database,
         ...(includeDsql ? { dsqlDatabase } : {}),
         ...(includeKafka ? { kafkaCluster } : {}),
+        ...(includeUptimeCheck ? { apiUptime, homepageUptime } : {}),
         api,
         worker,
         ...(subscribeToWorkerLogs ? { logObserver } : {}),
@@ -346,6 +363,7 @@ export const synthesizeDenseFixture = async ({
   kafkaRemoteInDev,
   infrequentAccessWorkerLogs,
   subscribeToWorkerLogs,
+  includeUptimeCheck,
   remoteResources
 }: {
   synthesisContext?: Partial<StackContext>;
@@ -359,6 +377,7 @@ export const synthesizeDenseFixture = async ({
   kafkaRemoteInDev?: boolean;
   infrequentAccessWorkerLogs?: boolean;
   subscribeToWorkerLogs?: boolean;
+  includeUptimeCheck?: boolean;
   remoteResources?: string[];
 } = {}) => {
   return withCredentiallessSynthesisBoundary(async () => {
@@ -393,7 +412,8 @@ export const synthesizeDenseFixture = async ({
       kafkaRemoteInDev,
       includeWebsocket,
       infrequentAccessWorkerLogs,
-      subscribeToWorkerLogs
+      subscribeToWorkerLogs,
+      includeUptimeCheck
     });
     globalStateManager.presetConfig = compiledConfig.config;
     globalStateManager.persistedState = {
@@ -408,7 +428,8 @@ export const synthesizeDenseFixture = async ({
       batchJobTriggerLambda: helperLambda,
       stacktapeServiceLambda: helperLambda,
       cdnOriginRequestLambda: helperLambda,
-      cdnOriginResponseLambda: helperLambda
+      cdnOriginResponseLambda: helperLambda,
+      uptimeProber: helperLambda
     };
     globalStateManager.localTargetAwsAccount = {
       id: 'characterization-account',
@@ -981,6 +1002,60 @@ describe('full synthesis contract', () => {
         username: { value: 'admin' }
       }
     });
+  });
+
+  test('synthesizes uptime checks into the shared monitoring custom resource', async () => {
+    const template = await synthesizeDenseFixture({ includeUptimeCheck: true });
+    const resources = template.Resources as Record<string, any>;
+    const monitoring = resources[cfLogicalNames.customResourceUptimeMonitoring()];
+
+    expect(monitoring).toMatchObject({ Type: 'AWS::CloudFormation::CustomResource' });
+    const props = monitoring.Properties.uptimeMonitoring;
+    // A check is assigned only to its own regions: the single-region homepage check must not leak
+    // into us-east-1.
+    expect(props.regionAssignments.map(({ region }) => region)).toEqual(['eu-west-1', 'us-east-1']);
+    const byRegion = Object.fromEntries(
+      props.regionAssignments.map(({ region, checks }) => [region, checks.map(({ checkName }) => checkName).sort()])
+    );
+    expect(byRegion['eu-west-1']).toEqual(['apiUptime', 'homepageUptime']);
+    expect(byRegion['us-east-1']).toEqual(['apiUptime']);
+    const apiCheck = props.regionAssignments[0].checks.find(({ checkName }) => checkName === 'apiUptime');
+    expect(apiCheck).toMatchObject({
+      v: 1,
+      checkName: 'apiUptime',
+      project: 'characterization',
+      stage: 'baseline',
+      stackName: 'characterization-baseline',
+      url: 'https://api.example.com/health',
+      method: 'GET',
+      intervalSeconds: 30,
+      timeoutSeconds: 10,
+      followRedirects: true,
+      enabled: true
+    });
+    expect(typeof apiCheck.revision).toBe('string');
+    expect(apiCheck.revision).toHaveLength(24);
+    // The final-template override replaced the placeholder with the real upload key.
+    expect(props.proberArtifact.s3Key).toContain('uptimeProber/');
+    expect(props.proberArtifact.digest).toBe('characterization');
+    expect(props.apiUrl).toMatch(/^https:\/\//);
+
+    // The service lambda role gained the scoped provisioning permissions.
+    const allStatements = Object.values(resources)
+      .filter((resource: any) => resource.Type === 'AWS::IAM::Role')
+      .flatMap((role: any) => role.Properties.Policies || [])
+      .flatMap((policy: any) => policy.PolicyDocument.Statement);
+    expect(
+      allStatements.some(
+        (statement: any) =>
+          (statement.Action || []).includes('ssm:PutParameter') &&
+          (statement.Resource || []).some((resource: string) => String(resource).includes('/stacktape/uptime-checks'))
+      )
+    ).toBe(true);
+
+    // Dev stacks are ephemeral; they must not provision probers.
+    const devTemplate = await synthesizeDenseFixture({ includeUptimeCheck: true, command: 'dev' });
+    expect(devTemplate.Resources[cfLogicalNames.customResourceUptimeMonitoring()]).toBeUndefined();
   });
 
   test('synthesizes the complete AppSync Lambda-resolver and connectTo contract', async () => {

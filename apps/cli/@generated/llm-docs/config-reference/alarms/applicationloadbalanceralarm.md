@@ -3,7 +3,7 @@
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
 
 type ApplicationLoadBalancerAlarm = {
   trigger: ApplicationLoadBalancerAlarmTrigger;
@@ -14,7 +14,7 @@ type ApplicationLoadBalancerAlarm = {
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
   /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
-  notificationTargets?: Array<ApplicationLoadBalancerAlarmNotificationTargets>;
+  notificationChannels?: Array<ApplicationLoadBalancerAlarmNotificationChannels>;
 };
 
 /** Union choices used by the properties above. */
@@ -23,12 +23,13 @@ type ApplicationLoadBalancerAlarmTrigger =
   | ApplicationLoadBalancerErrorRateTrigger
   | ApplicationLoadBalancerUnhealthyTargetsTrigger;
 
-type ApplicationLoadBalancerAlarmNotificationTargets =
+type ApplicationLoadBalancerAlarmNotificationChannels =
   | SlackIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
-  | WebhookIntegration;
+  | WebhookIntegration
+  | ConsoleChannelIntegration;
 ```
 
 ## Property: `trigger`
@@ -217,10 +218,10 @@ export default defineConfig(() => {
 });
 ```
 
-## Property: `notificationTargets`
+## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook>`
+- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
@@ -230,6 +231,7 @@ Choices:
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
 - `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
 
@@ -244,7 +246,7 @@ resources:
             type: http-api-gateway-error-rate
             properties:
               thresholdPercent: 2
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C12345678
@@ -272,7 +274,7 @@ export default defineConfig(() => {
           type: 'http-api-gateway-error-rate',
           properties: { thresholdPercent: 2 }
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: { conversationId: 'C12345678', accessToken: $Secret('slack-bot-token') }

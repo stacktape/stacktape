@@ -37,7 +37,7 @@ resources:
             properties:
               thresholdMilliseconds: 30000
           description: Ingest job is taking too long
-          notificationTargets:
+          notificationChannels:
             - type: discord
               properties:
                 webhookUrl: $Secret('discord-webhook-url')
@@ -60,7 +60,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-duration', properties: { thresholdMilliseconds: 30000 } },
         description: 'Ingest job is taking too long',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'discord',
             properties: {

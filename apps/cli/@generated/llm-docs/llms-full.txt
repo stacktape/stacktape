@@ -14978,7 +14978,7 @@ Stacktape alarms monitor CloudWatch metrics and notify your team when thresholds
 
 Alarm triggers cover the most critical failure modes: Lambda error rate and duration, database CPU/memory/storage/connections/latency, HTTP API Gateway error rate and latency, Application Load Balancer error rate and unhealthy targets, and SQS received-message count and not-empty alarms. Each alarm supports configurable evaluation windows — period length, how many periods to evaluate, and how many must breach before firing.
 
-Without `notificationTargets`, alarms change state in CloudWatch but nobody gets paged. Always route alarms to at least one notification channel. Stacktape supports five channel types: Slack, Microsoft Teams, Discord, email, and custom webhooks.
+Without `notificationChannels`, alarms change state in CloudWatch but nobody gets paged. Always route alarms to at least one notification channel. Stacktape supports five channel types: Slack, Microsoft Teams, Discord, email, and custom webhooks.
 
 
 Example (TypeScript):
@@ -15003,7 +15003,7 @@ export default defineConfig(() => {
           evaluationPeriods: 3,
           breachedPeriods: 2
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'email',
             properties: {
@@ -15148,7 +15148,7 @@ Guardrails are most valuable once your team has more than one person deploying, 
 
 Before sending real traffic, run through these concrete checks:
 
-1. **Confirm alarms notify correctly.** Trigger a test error in your function or service and verify the notification reaches your on-call channel. An alarm without `notificationTargets` fires silently in CloudWatch — check that every production alarm has at least one target configured. Use [`stacktape logs`](/cli/logs) to confirm CloudWatch is receiving log data.
+1. **Confirm alarms notify correctly.** Trigger a test error in your function or service and verify the notification reaches your on-call channel. An alarm without `notificationChannels` fires silently in CloudWatch — check that every production alarm has at least one target configured. Use [`stacktape logs`](/cli/logs) to confirm CloudWatch is receiving log data.
 
 2. **Set a budget threshold.** Open the [Stacktape Console](/getting-started/using-console-ui) Budgets page and create a budget alert matching your expected monthly spend. Set alerts at 80% and 100%. Enable forecast-based alerts so you catch spend trends before they hit the threshold.
 
@@ -18986,7 +18986,7 @@ Most triggers accept two optional overrides:
 
 ## Defining alarms on resources
 
-Stacktape alarms are defined inline on individual resources using the `alarms` property. Each alarm specifies a `trigger` (what to monitor and the threshold) and optionally an `evaluation` window and `notificationTargets`.
+Stacktape alarms are defined inline on individual resources using the `alarms` property. Each alarm specifies a `trigger` (what to monitor and the threshold) and optionally an `evaluation` window and `notificationChannels`.
 
 ### Lambda function alarms
 
@@ -19091,7 +19091,7 @@ export default defineConfig(() => {
           evaluationPeriods: 3,
           breachedPeriods: 2
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: {
@@ -19145,7 +19145,7 @@ For database storage alarms, the defaults (`period: 60`, `evaluationPeriods: 1`,
 
 ## Notification targets
 
-Stacktape alarms can send notifications to one or more targets when they fire. Configure the `notificationTargets` array on each alarm to specify where alerts are delivered. Supported target types include MS Teams, Slack, email, Discord, and webhooks.
+Stacktape alarms can send notifications to one or more targets when they fire. Configure the `notificationChannels` array on each alarm to specify where alerts are delivered. Supported target types include MS Teams, Slack, email, Discord, and webhooks.
 
 For the full setup guide on each integration type, see [alert channels](/observability/alert-channels).
 
@@ -19246,7 +19246,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `forServices` | no | `Array<string>` | - |
 | `forStages` | no | `Array<string>` | - |
 | `includeInHistory` | no | `boolean` | `true` |
-| `notificationTargets` | no | `Array<slack \| ms-teams \| email \| discord \| webhook>` | - |
+| `notificationChannels` | no | `Array<slack \| ms-teams \| email \| discord \| webhook \| console-channel>` | - |
 
 
 ## FAQ
@@ -28297,7 +28297,7 @@ export default defineConfig(() => {
 ```
 
 
-`thresholdPercent: 5` fires the error-rate alarm when more than 5% of invocations fail. `thresholdMilliseconds: 5000` fires the duration alarm when execution time exceeds 5 seconds. Alarm evaluation settings (period, evaluated periods, breached periods) and `notificationTargets` are configurable on each alarm. See [alarms](/observability/alarms) for notification target types and setup.
+`thresholdPercent: 5` fires the error-rate alarm when more than 5% of invocations fail. `thresholdMilliseconds: 5000` fires the duration alarm when execution time exceeds 5 seconds. Alarm evaluation settings (period, evaluated periods, breached periods) and `notificationChannels` are configurable on each alarm. See [alarms](/observability/alarms) for notification target types and setup.
 
 ## Layers
 
@@ -42396,7 +42396,7 @@ Concrete scenarios where alarm triggers add value:
 
 ## When NOT to use
 
-If you only need a human to see the alert, skip the Lambda function entirely. Use the built-in `notificationTargets` on the alarm itself — Stacktape supports [Slack, email, Discord, MS Teams, and webhooks](/observability/alert-channels) with no code required. Only add an alarm trigger when the response demands custom logic that a notification message cannot deliver. For most teams, notification targets cover the majority of alerting needs.
+If you only need a human to see the alert, skip the Lambda function entirely. Use the built-in `notificationChannels` on the alarm itself — Stacktape supports [Slack, email, Discord, MS Teams, and webhooks](/observability/alert-channels) with no code required. Only add an alarm trigger when the response demands custom logic that a notification message cannot deliver. For most teams, notification targets cover the majority of alerting needs.
 
 ## Configuration
 
@@ -49361,7 +49361,7 @@ resources:
             period: 60
             evaluationPeriods: 5
             breachedPeriods: 3
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C0123456789
@@ -49396,7 +49396,7 @@ export default defineConfig(() => {
           }
         },
         evaluation: { period: 60, evaluationPeriods: 5, breachedPeriods: 3 },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: {
@@ -49455,7 +49455,7 @@ resources:
             period: 60
             evaluationPeriods: 5
             breachedPeriods: 3
-          notificationTargets:
+          notificationChannels:
             - type: email
               properties:
                 sender: alerts@example.com
@@ -49490,7 +49490,7 @@ export default defineConfig(() => {
           }
         },
         evaluation: { period: 60, evaluationPeriods: 5, breachedPeriods: 3 },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'email',
             properties: {
@@ -49640,7 +49640,7 @@ Route: `/config-reference/alarms`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';
 
 type AlarmDefinition = {
   /** A unique name for this alarm (e.g., `api-error-rate`, `db-cpu-high`). */
@@ -49658,7 +49658,7 @@ type AlarmDefinition = {
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
   /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
-  notificationTargets?: Array<AlarmDefinitionNotificationTargets>;
+  notificationChannels?: Array<AlarmDefinitionNotificationChannels>;
 };
 
 /** Union choices used by the properties above. */
@@ -49679,12 +49679,13 @@ type AlarmDefinitionTrigger =
   | RelationalDatabaseFreeMemoryTrigger
   | RelationalDatabaseConnectionCountTrigger;
 
-type AlarmDefinitionNotificationTargets =
+type AlarmDefinitionNotificationChannels =
   | SlackIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
-  | WebhookIntegration;
+  | WebhookIntegration
+  | ConsoleChannelIntegration;
 ```
 
 ## Property: `name`
@@ -49910,10 +49911,10 @@ export default defineConfig(() => {
 });
 ```
 
-## Property: `notificationTargets`
+## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook>`
+- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
@@ -49923,6 +49924,7 @@ Choices:
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
 - `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
 
@@ -49937,7 +49939,7 @@ resources:
             type: http-api-gateway-error-rate
             properties:
               thresholdPercent: 2
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C12345678
@@ -49965,7 +49967,7 @@ export default defineConfig(() => {
           type: 'http-api-gateway-error-rate',
           properties: { thresholdPercent: 2 }
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: { conversationId: 'C12345678', accessToken: $Secret('slack-bot-token') }
@@ -50197,7 +50199,7 @@ Route: `/config-reference/alarms`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ApplicationLoadBalancerCustomTrigger, ApplicationLoadBalancerErrorRateTrigger, ApplicationLoadBalancerUnhealthyTargetsTrigger, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
 
 type ApplicationLoadBalancerAlarm = {
   trigger: ApplicationLoadBalancerAlarmTrigger;
@@ -50208,7 +50210,7 @@ type ApplicationLoadBalancerAlarm = {
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
   /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
-  notificationTargets?: Array<ApplicationLoadBalancerAlarmNotificationTargets>;
+  notificationChannels?: Array<ApplicationLoadBalancerAlarmNotificationChannels>;
 };
 
 /** Union choices used by the properties above. */
@@ -50217,12 +50219,13 @@ type ApplicationLoadBalancerAlarmTrigger =
   | ApplicationLoadBalancerErrorRateTrigger
   | ApplicationLoadBalancerUnhealthyTargetsTrigger;
 
-type ApplicationLoadBalancerAlarmNotificationTargets =
+type ApplicationLoadBalancerAlarmNotificationChannels =
   | SlackIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
-  | WebhookIntegration;
+  | WebhookIntegration
+  | ConsoleChannelIntegration;
 ```
 
 ## Property: `trigger`
@@ -50411,10 +50414,10 @@ export default defineConfig(() => {
 });
 ```
 
-## Property: `notificationTargets`
+## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook>`
+- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
@@ -50424,6 +50427,7 @@ Choices:
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
 - `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
 
@@ -50438,7 +50442,7 @@ resources:
             type: http-api-gateway-error-rate
             properties:
               thresholdPercent: 2
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C12345678
@@ -50466,7 +50470,7 @@ export default defineConfig(() => {
           type: 'http-api-gateway-error-rate',
           properties: { thresholdPercent: 2 }
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: { conversationId: 'C12345678', accessToken: $Secret('slack-bot-token') }
@@ -50947,7 +50951,7 @@ Route: `/config-reference/alarms`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, HttpApiGatewayErrorRateTrigger, HttpApiGatewayLatencyTrigger, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
 
 type HttpApiGatewayAlarm = {
   trigger: HttpApiGatewayAlarmTrigger;
@@ -50958,7 +50962,7 @@ type HttpApiGatewayAlarm = {
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
   /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
-  notificationTargets?: Array<HttpApiGatewayAlarmNotificationTargets>;
+  notificationChannels?: Array<HttpApiGatewayAlarmNotificationChannels>;
 };
 
 /** Union choices used by the properties above. */
@@ -50966,12 +50970,13 @@ type HttpApiGatewayAlarmTrigger =
   | HttpApiGatewayErrorRateTrigger
   | HttpApiGatewayLatencyTrigger;
 
-type HttpApiGatewayAlarmNotificationTargets =
+type HttpApiGatewayAlarmNotificationChannels =
   | SlackIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
-  | WebhookIntegration;
+  | WebhookIntegration
+  | ConsoleChannelIntegration;
 ```
 
 ## Property: `trigger`
@@ -51159,10 +51164,10 @@ export default defineConfig(() => {
 });
 ```
 
-## Property: `notificationTargets`
+## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook>`
+- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
@@ -51172,6 +51177,7 @@ Choices:
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
 - `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
 
@@ -51186,7 +51192,7 @@ resources:
             type: http-api-gateway-error-rate
             properties:
               thresholdPercent: 2
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C12345678
@@ -51214,7 +51220,7 @@ export default defineConfig(() => {
           type: 'http-api-gateway-error-rate',
           properties: { thresholdPercent: 2 }
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: { conversationId: 'C12345678', accessToken: $Secret('slack-bot-token') }
@@ -51616,7 +51622,7 @@ Route: `/config-reference/alarms`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, DiscordIntegration, EmailIntegration, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, LambdaDurationTrigger, LambdaErrorRateTrigger, MsTeamsIntegration, SlackIntegration, WebhookIntegration } from 'stacktape';
 
 type LambdaAlarm = {
   trigger: LambdaAlarmTrigger;
@@ -51627,7 +51633,7 @@ type LambdaAlarm = {
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
   /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
-  notificationTargets?: Array<LambdaAlarmNotificationTargets>;
+  notificationChannels?: Array<LambdaAlarmNotificationChannels>;
 };
 
 /** Union choices used by the properties above. */
@@ -51635,12 +51641,13 @@ type LambdaAlarmTrigger =
   | LambdaErrorRateTrigger
   | LambdaDurationTrigger;
 
-type LambdaAlarmNotificationTargets =
+type LambdaAlarmNotificationChannels =
   | SlackIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
-  | WebhookIntegration;
+  | WebhookIntegration
+  | ConsoleChannelIntegration;
 ```
 
 ## Property: `trigger`
@@ -51828,10 +51835,10 @@ export default defineConfig(() => {
 });
 ```
 
-## Property: `notificationTargets`
+## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook>`
+- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
@@ -51841,6 +51848,7 @@ Choices:
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
 - `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
 
@@ -51855,7 +51863,7 @@ resources:
             type: http-api-gateway-error-rate
             properties:
               thresholdPercent: 2
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C12345678
@@ -51883,7 +51891,7 @@ export default defineConfig(() => {
           type: 'http-api-gateway-error-rate',
           properties: { thresholdPercent: 2 }
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: { conversationId: 'C12345678', accessToken: $Secret('slack-bot-token') }
@@ -52297,7 +52305,7 @@ Route: `/config-reference/alarms`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, DiscordIntegration, EmailIntegration, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackIntegration, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, RelationalDatabaseCPUUtilizationTrigger, RelationalDatabaseConnectionCountTrigger, RelationalDatabaseFreeMemoryTrigger, RelationalDatabaseFreeStorageTrigger, RelationalDatabaseReadLatencyTrigger, RelationalDatabaseWriteLatencyTrigger, SlackIntegration, WebhookIntegration } from 'stacktape';
 
 type RelationalDatabaseAlarm = {
   trigger: RelationalDatabaseAlarmTrigger;
@@ -52308,7 +52316,7 @@ type RelationalDatabaseAlarm = {
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
   /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
-  notificationTargets?: Array<RelationalDatabaseAlarmNotificationTargets>;
+  notificationChannels?: Array<RelationalDatabaseAlarmNotificationChannels>;
 };
 
 /** Union choices used by the properties above. */
@@ -52320,12 +52328,13 @@ type RelationalDatabaseAlarmTrigger =
   | RelationalDatabaseFreeMemoryTrigger
   | RelationalDatabaseConnectionCountTrigger;
 
-type RelationalDatabaseAlarmNotificationTargets =
+type RelationalDatabaseAlarmNotificationChannels =
   | SlackIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
-  | WebhookIntegration;
+  | WebhookIntegration
+  | ConsoleChannelIntegration;
 ```
 
 ## Property: `trigger`
@@ -52517,10 +52526,10 @@ export default defineConfig(() => {
 });
 ```
 
-## Property: `notificationTargets`
+## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook>`
+- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
@@ -52530,6 +52539,7 @@ Choices:
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
 - `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
 
@@ -52544,7 +52554,7 @@ resources:
             type: http-api-gateway-error-rate
             properties:
               thresholdPercent: 2
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C12345678
@@ -52572,7 +52582,7 @@ export default defineConfig(() => {
           type: 'http-api-gateway-error-rate',
           properties: { thresholdPercent: 2 }
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: { conversationId: 'C12345678', accessToken: $Secret('slack-bot-token') }
@@ -53994,7 +54004,7 @@ Route: `/config-reference/alarms`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';
 
 type SqsQueueAlarm = {
   trigger: SqsQueueAlarmTrigger;
@@ -54005,7 +54015,7 @@ type SqsQueueAlarm = {
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
   /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
-  notificationTargets?: Array<SqsQueueAlarmNotificationTargets>;
+  notificationChannels?: Array<SqsQueueAlarmNotificationChannels>;
 };
 
 /** Union choices used by the properties above. */
@@ -54013,12 +54023,13 @@ type SqsQueueAlarmTrigger =
   | SqsQueueReceivedMessagesCountTrigger
   | SqsQueueNotEmptyTrigger;
 
-type SqsQueueAlarmNotificationTargets =
+type SqsQueueAlarmNotificationChannels =
   | SlackIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
-  | WebhookIntegration;
+  | WebhookIntegration
+  | ConsoleChannelIntegration;
 ```
 
 ## Property: `trigger`
@@ -54206,10 +54217,10 @@ export default defineConfig(() => {
 });
 ```
 
-## Property: `notificationTargets`
+## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook>`
+- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
@@ -54219,6 +54230,7 @@ Choices:
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
 - `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
 
@@ -54233,7 +54245,7 @@ resources:
             type: http-api-gateway-error-rate
             properties:
               thresholdPercent: 2
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C12345678
@@ -54261,7 +54273,7 @@ export default defineConfig(() => {
           type: 'http-api-gateway-error-rate',
           properties: { thresholdPercent: 2 }
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: { conversationId: 'C12345678', accessToken: $Secret('slack-bot-token') }
@@ -55777,7 +55789,7 @@ resources:
             type: application-load-balancer-error-rate
             properties:
               thresholdPercent: 5
-          notificationTargets:
+          notificationChannels:
             - type: email
               properties:
                 sender: alerts@example.com
@@ -55816,7 +55828,7 @@ export default defineConfig(() => {
           type: 'application-load-balancer-error-rate',
           properties: { thresholdPercent: 5 }
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'email',
             properties: { sender: 'alerts@example.com', recipient: 'oncall@example.com' }
@@ -68535,8 +68547,8 @@ Alarms for this Convex deployment (backend container, ALB, database). Merged wit
 alarms from the Stacktape Console.
 
 Choices:
-- `ApplicationLoadBalancerAlarm` (`ApplicationLoadBalancerAlarm`). Properties: `trigger: application-load-balancer-custom | application-load-balancer-error-rate | application-load-balancer-unhealthy-targets`, `evaluation?: AlarmEvaluation`, `notificationTargets?: Array<slack | ms-teams | email | discord | webhook>`, `includeInHistory?: boolean`, `description?: string`.
-- `RelationalDatabaseAlarm` (`RelationalDatabaseAlarm`). Properties: `trigger: database-read-latency | database-write-latency | database-cpu-utilization | database-free-storage | database-free-memory | database-connection-count`, `evaluation?: AlarmEvaluation`, `notificationTargets?: Array<slack | ms-teams | email | discord | webhook>`, `includeInHistory?: boolean`, `description?: string`.
+- `ApplicationLoadBalancerAlarm` (`ApplicationLoadBalancerAlarm`). Properties: `trigger: application-load-balancer-custom | application-load-balancer-error-rate | application-load-balancer-unhealthy-targets`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
+- `RelationalDatabaseAlarm` (`RelationalDatabaseAlarm`). Properties: `trigger: database-read-latency | database-write-latency | database-cpu-utilization | database-free-storage | database-free-memory | database-connection-count`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
 
 ### Example 1 (yaml)
 
@@ -84318,7 +84330,7 @@ resources:
             type: lambda-error-rate
             properties:
               thresholdPercent: 5
-          notificationTargets:
+          notificationChannels:
             - type: email
               properties:
                 sender: alerts@example.com
@@ -84336,7 +84348,7 @@ export default defineConfig(() => {
     alarms: [
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },
-        notificationTargets: [
+        notificationChannels: [
           { type: 'email', properties: { sender: 'alerts@example.com', recipient: 'oncall@example.com' } }
         ]
       }
@@ -92508,7 +92520,7 @@ resources:
             type: http-api-gateway-error-rate
             properties:
               thresholdPercent: 5
-          notificationTargets:
+          notificationChannels:
             - type: email
               properties:
                 sender: alerts@example.com
@@ -92542,7 +92554,7 @@ export default defineConfig(() => {
           type: 'http-api-gateway-error-rate',
           properties: { thresholdPercent: 5 }
         },
-        notificationTargets: [
+        notificationChannels: [
           { type: 'email', properties: { sender: 'alerts@example.com', recipient: 'ops@example.com' } }
         ]
       }
@@ -100666,6 +100678,94 @@ export default defineConfig(() => {
 
 ---
 
+# ConsoleChannelIntegration API Reference
+
+Source: `packages/config/src/notification-channels.ts`
+Route: `/config-reference/notification-channels`
+
+## TypeScript definition
+
+```typescript
+import type { ConsoleChannelIntegrationProps } from 'stacktape';
+
+type ConsoleChannelIntegration = {
+  properties: ConsoleChannelIntegrationProps;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `ConsoleChannelIntegrationProps`
+
+---
+
+# ConsoleChannelIntegrationProps API Reference
+
+Source: `packages/config/src/notification-channels.ts`
+Route: `/config-reference/notification-channels`
+
+## TypeScript definition
+
+```typescript
+type ConsoleChannelIntegrationProps = {
+  /** Name of a notification channel configured in the Stacktape Console. */
+  channelName: string;
+};
+```
+
+## Property: `channelName`
+
+- Required: yes
+- Type: `string`
+
+Name of a notification channel configured in the Stacktape Console.
+
+Channels are created once per organization in the Console (**Monitoring** → **Channels**) and hold the
+delivery credentials (Slack tokens, webhook URLs, ...). Referencing a channel by name lets many alarms and
+uptime checks share one destination without repeating credentials in the config.
+
+The referenced channel must exist in your organization — the deployment fails with a clear error if it
+doesn't. Delivery happens through the Stacktape Console, so events routed to a console channel always
+appear in the alert history.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiHealth:
+    type: uptime-check
+    properties:
+      url: https://api.example.com/health
+      notificationChannels:
+        - type: console-channel
+          properties:
+            channelName: engineering-slack
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { UptimeCheck, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiHealth = new UptimeCheck({
+    url: 'https://api.example.com/health',
+    notificationChannels: [
+      {
+        type: 'console-channel',
+        properties: {
+          channelName: 'engineering-slack'
+        }
+      }
+    ]
+  });
+  return { resources: { apiHealth } };
+});
+```
+
+---
+
 # NuxtWeb API Reference
 
 Source: `packages/config/src/nuxt-web.ts`
@@ -108509,7 +108609,7 @@ mainDatabase:
           type: database-cpu-utilization
           properties:
             thresholdPercent: 85
-        notificationTargets:
+        notificationChannels:
           - type: email
             properties:
               sender: alerts@example.com
@@ -108536,7 +108636,7 @@ const mainDatabase = new RelationalDatabase({
         type: 'database-cpu-utilization',
         properties: { thresholdPercent: 85 }
       },
-      notificationTargets: [
+      notificationChannels: [
         {
           type: 'email',
           properties: { sender: 'alerts@example.com', recipient: 'ops@example.com' }
@@ -111495,7 +111595,7 @@ resources:
             type: sqs-queue-received-messages-count
             properties:
               thresholdCount: 1000
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C0123456789
@@ -111526,7 +111626,7 @@ export default defineConfig(() => {
           type: 'sqs-queue-received-messages-count',
           properties: { thresholdCount: 1000 }
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: {
@@ -115831,6 +115931,684 @@ export default defineConfig(() => {
   });
 
   return { resources: { cache, api } };
+});
+```
+
+---
+
+# BodyContainsAssertion API Reference
+
+Source: `packages/config/src/uptime-checks.ts`
+Route: `/config-reference/uptime-checks`
+
+## TypeScript definition
+
+```typescript
+import type { BodyContainsAssertionProps } from 'stacktape';
+
+type BodyContainsAssertion = {
+  properties: BodyContainsAssertionProps;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `BodyContainsAssertionProps`
+
+---
+
+# BodyContainsAssertionProps API Reference
+
+Source: `packages/config/src/uptime-checks.ts`
+Route: `/config-reference/uptime-checks`
+
+## TypeScript definition
+
+```typescript
+type BodyContainsAssertionProps = {
+  /** Text that must appear in the response body. */
+  value: string;
+};
+```
+
+## Property: `value`
+
+- Required: yes
+- Type: `string`
+
+Text that must appear in the response body.
+
+Matched against the first 512 KB of the response. Requires the `GET` method.
+
+---
+
+# StatusCodeAssertion API Reference
+
+Source: `packages/config/src/uptime-checks.ts`
+Route: `/config-reference/uptime-checks`
+
+## TypeScript definition
+
+```typescript
+import type { StatusCodeAssertionProps } from 'stacktape';
+
+type StatusCodeAssertion = {
+  properties: StatusCodeAssertionProps;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `StatusCodeAssertionProps`
+
+---
+
+# StatusCodeAssertionProps API Reference
+
+Source: `packages/config/src/uptime-checks.ts`
+Route: `/config-reference/uptime-checks`
+
+## TypeScript definition
+
+```typescript
+type StatusCodeAssertionProps = {
+  /** HTTP status codes counted as successful. */
+  accepted: Array<number>;
+};
+```
+
+## Property: `accepted`
+
+- Required: yes
+- Type: `Array<number>`
+
+HTTP status codes counted as successful.
+
+The response status must exactly match one of the listed codes.
+
+---
+
+# UptimeCheck API Reference
+
+Source: `packages/config/src/uptime-checks.ts`
+Route: `/config-reference/uptime-checks`
+
+## TypeScript definition
+
+```typescript
+import type { UptimeCheckProps } from 'stacktape';
+
+type UptimeCheck = {
+  properties: UptimeCheckProps;
+  /** Escape hatch to modify the underlying CloudFormation resources Stacktape creates. */
+  overrides?: unknown;
+};
+```
+
+## Property: `properties`
+
+- Required: yes
+- Type: `UptimeCheckProps`
+
+## Property: `overrides`
+
+- Required: no
+- Type: `unknown`
+
+Escape hatch to modify the underlying CloudFormation resources Stacktape creates.
+
+Use dot-notation paths to override specific properties on any child resource.
+Find resource logical IDs with `stacktape info:stack`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  mainDb:
+    type: relational-database
+    properties:
+      credentials:
+        masterUserPassword: $Secret('db-password')
+      engine:
+        type: postgres
+        properties:
+          version: '16.2'
+          primaryInstance:
+            instanceSize: db.t3.micro
+    overrides:
+      MainDbDatabaseInstance:
+        Properties.StorageEncrypted: true
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { RelationalDatabase, RdsEnginePostgres, $Secret, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const mainDb = new RelationalDatabase({
+    credentials: { masterUserPassword: $Secret('db-password') },
+    engine: new RdsEnginePostgres({
+      version: '16.2',
+      primaryInstance: { instanceSize: 'db.t3.micro' }
+    }),
+    overrides: {
+      MainDbDatabaseInstance: { 'Properties.StorageEncrypted': true }
+    }
+  });
+
+  return { resources: { mainDb } };
+});
+```
+
+---
+
+# UptimeCheckEvaluation API Reference
+
+Source: `packages/config/src/uptime-checks.ts`
+Route: `/config-reference/uptime-checks`
+
+## TypeScript definition
+
+```typescript
+type UptimeCheckEvaluation = {
+  /** How many consecutive failed evaluations mark the check as down. */
+  consecutiveFailures?: number;
+  /** How many consecutive successful evaluations mark a down check as recovered. */
+  consecutiveSuccesses?: number;
+};
+```
+
+## Property: `consecutiveFailures`
+
+- Required: no
+- Type: `number`
+- Default: `2`
+
+How many consecutive failed evaluations mark the check as down.
+
+Allowed range: 1 to 10.
+
+## Property: `consecutiveSuccesses`
+
+- Required: no
+- Type: `number`
+- Default: `2`
+
+How many consecutive successful evaluations mark a down check as recovered.
+
+Allowed range: 1 to 10.
+
+---
+
+# UptimeCheckProps API Reference
+
+Source: `packages/config/src/uptime-checks.ts`
+Route: `/config-reference/uptime-checks`
+
+## TypeScript definition
+
+```typescript
+import type { BodyContainsAssertion, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, StatusCodeAssertion, UptimeCheckEvaluation, WebhookIntegration } from 'stacktape';
+
+type UptimeCheckProps = {
+  /** The URL to monitor. */
+  url: string;
+  /** Conditions the response must meet for the probe to count as successful. */
+  assertions?: Array<UptimeCheckAssertions>;
+  /** Temporarily pause the check without deleting it. */
+  enabled?: boolean;
+  /** How many consecutive failed or successful evaluations flip the check between up and down. */
+  evaluation?: UptimeCheckEvaluation;
+  /** Whether the probe follows HTTP redirects (up to 5). */
+  followRedirects?: boolean;
+  /** How often each monitoring region probes the URL, in seconds. */
+  intervalSeconds?: 30 | 60;
+  /** HTTP method used for the probe. */
+  method?: "GET" | "HEAD";
+  /** Where to send notifications when the check goes down or recovers. */
+  notificationChannels?: Array<UptimeCheckNotificationChannels>;
+  /** AWS regions the URL is probed from. */
+  regions?: Array<"af-south-1" | "ap-east-1" | "ap-northeast-1" | "ap-northeast-2" | "ap-northeast-3" | "ap-south-1" | "ap-southeast-1" | "ap-southeast-2" | "ca-central-1" | "eu-central-1" | "eu-north-1" | "eu-south-1" | "eu-west-1" | "eu-west-2" | "eu-west-3" | "me-south-1" | "sa-east-1" | "us-east-1" | "us-east-2" | "us-west-1" | "us-west-2">;
+  /** How long to wait for a response before the probe counts as failed, in seconds. */
+  timeoutSeconds?: number;
+};
+
+/** Union choices used by the properties above. */
+type UptimeCheckAssertions =
+  | StatusCodeAssertion
+  | BodyContainsAssertion;
+
+type UptimeCheckNotificationChannels =
+  | SlackIntegration
+  | MsTeamsIntegration
+  | EmailIntegration
+  | DiscordIntegration
+  | WebhookIntegration
+  | ConsoleChannelIntegration;
+```
+
+## Property: `url`
+
+- Required: yes
+- Type: `string`
+
+The URL to monitor.
+
+The check periodically sends an HTTP request to this URL from multiple AWS regions and alerts you when it
+stops responding successfully. Use a literal URL, or reference a deployed resource's URL with
+`$ResourceParam()`.
+
+Must be a publicly reachable `https://` or `http://` URL. Monitoring of VPC-internal endpoints is not
+supported yet.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  api:
+    type: web-service
+    properties:
+      packaging:
+        type: stacktape-image-buildpack
+        properties:
+          entryfilePath: src/server.ts
+      resources:
+        cpu: 0.25
+        memory: 512
+
+  apiHealth:
+    type: uptime-check
+    properties:
+      url: $ResourceParam('api', 'url')
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { UptimeCheck, WebService, defineConfig, $ResourceParam } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new WebService({
+    packaging: {
+      type: 'stacktape-image-buildpack',
+      properties: { entryfilePath: 'src/server.ts' }
+    },
+    resources: { cpu: 0.25, memory: 512 }
+  });
+
+  const apiHealth = new UptimeCheck({
+    url: $ResourceParam('api', 'url'),
+  });
+
+  return { resources: { api, apiHealth } };
+});
+```
+
+## Property: `assertions`
+
+- Required: no
+- Type: `Array<status-code | body-contains>`
+
+Conditions the response must meet for the probe to count as successful.
+
+When omitted, any `2xx` or `3xx` status code counts as up. All listed assertions must pass.
+
+TLS certificate expiry is tracked automatically on every `https://` check — you get a warning when the
+certificate is about to expire, without configuring anything.
+
+Choices:
+- `status-code` (`StatusCodeAssertion`). Properties: `accepted: Array<number>`.
+- `body-contains` (`BodyContainsAssertion`). Properties: `value: string`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiHealth:
+    type: uptime-check
+    properties:
+      url: https://api.example.com/health
+      assertions:
+        - type: status-code
+          properties:
+            accepted: [200]
+        - type: body-contains
+          properties:
+            value: '"status":"ok"'
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { UptimeCheck, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiHealth = new UptimeCheck({
+    url: 'https://api.example.com/health',
+    assertions: [
+      { type: 'status-code', properties: { accepted: [200] } },
+      { type: 'body-contains', properties: { value: '"status":"ok"' } }
+    ]
+  });
+  return { resources: { apiHealth } };
+});
+```
+
+## Property: `enabled`
+
+- Required: no
+- Type: `boolean`
+- Default: `true`
+
+Temporarily pause the check without deleting it.
+
+A paused check keeps its history and incidents but stops probing and alerting. Useful during planned
+maintenance.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiHealth:
+    type: uptime-check
+    properties:
+      url: https://api.example.com/health
+      enabled: false
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { UptimeCheck, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiHealth = new UptimeCheck({
+    url: 'https://api.example.com/health',
+    enabled: false
+  });
+  return { resources: { apiHealth } };
+});
+```
+
+## Property: `evaluation`
+
+- Required: no
+- Type: `UptimeCheckEvaluation`
+
+How many consecutive failed or successful evaluations flip the check between up and down.
+
+Failures must be confirmed by multiple monitoring regions within the same evaluation window before the
+check is considered down — a blip in a single region never pages you.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiHealth:
+    type: uptime-check
+    properties:
+      url: https://api.example.com/health
+      evaluation:
+        consecutiveFailures: 3
+        consecutiveSuccesses: 2
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { UptimeCheck, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiHealth = new UptimeCheck({
+    url: 'https://api.example.com/health',
+    evaluation: { consecutiveFailures: 3, consecutiveSuccesses: 2 }
+  });
+  return { resources: { apiHealth } };
+});
+```
+
+## Property: `followRedirects`
+
+- Required: no
+- Type: `boolean`
+- Default: `true`
+
+Whether the probe follows HTTP redirects (up to 5).
+
+When disabled, a `3xx` response is evaluated directly against your assertions.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  wwwRedirect:
+    type: uptime-check
+    properties:
+      url: https://example.com
+      followRedirects: false
+      assertions:
+        - type: status-code
+          properties:
+            accepted: [301]
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { UptimeCheck, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const wwwRedirect = new UptimeCheck({
+    url: 'https://example.com',
+    followRedirects: false,
+    assertions: [{ type: 'status-code', properties: { accepted: [301] } }]
+  });
+  return { resources: { wwwRedirect } };
+});
+```
+
+## Property: `intervalSeconds`
+
+- Required: no
+- Type: `number: 30 | 60`
+- Default: `60`
+
+How often each monitoring region probes the URL, in seconds.
+
+With the default 3 monitoring regions, an interval of `60` means the endpoint is probed 3 times per
+minute in total (once per region).
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiHealth:
+    type: uptime-check
+    properties:
+      url: https://api.example.com/health
+      intervalSeconds: 30
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { UptimeCheck, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiHealth = new UptimeCheck({
+    url: 'https://api.example.com/health',
+    intervalSeconds: 30
+  });
+  return { resources: { apiHealth } };
+});
+```
+
+## Property: `method`
+
+- Required: no
+- Type: `string: "GET" | "HEAD"`
+- Default: `GET`
+
+HTTP method used for the probe.
+
+`HEAD` is cheaper for endpoints that support it (no response body is transferred), but `body-contains`
+assertions require `GET`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  homepage:
+    type: uptime-check
+    properties:
+      url: https://example.com
+      method: HEAD
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { UptimeCheck, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const homepage = new UptimeCheck({
+    url: 'https://example.com',
+    method: 'HEAD'
+  });
+  return { resources: { homepage } };
+});
+```
+
+## Property: `notificationChannels`
+
+- Required: no
+- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
+
+Where to send notifications when the check goes down or recovers.
+
+Accepts inline destinations (`slack`, `ms-teams`, `discord`, `email`, `webhook`) and references to
+channels configured in the Stacktape Console (`console-channel`). State changes always appear in the
+Console's monitoring history, even with no channels configured.
+
+Choices:
+- `slack` (`SlackIntegration`). Properties: `conversationId: string`, `accessToken: string`.
+- `ms-teams` (`MsTeamsIntegration`). Properties: `webhookUrl: string`.
+- `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
+- `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
+- `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiHealth:
+    type: uptime-check
+    properties:
+      url: https://api.example.com/health
+      notificationChannels:
+        - type: console-channel
+          properties:
+            channelName: engineering-slack
+        - type: email
+          properties:
+            sender: alerts@example.com
+            recipient: oncall@example.com
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { UptimeCheck, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiHealth = new UptimeCheck({
+    url: 'https://api.example.com/health',
+    notificationChannels: [
+      { type: 'console-channel', properties: { channelName: 'engineering-slack' } },
+      { type: 'email', properties: { sender: 'alerts@example.com', recipient: 'oncall@example.com' } }
+    ]
+  });
+  return { resources: { apiHealth } };
+});
+```
+
+## Property: `regions`
+
+- Required: no
+- Type: `Array<string: "af-south-1" | "ap-east-1" | "ap-northeast-1" | "ap-northeast-2" | "ap-northeast-3" | "ap-south-1" | "ap-southeast-1" | "ap-southeast-2" | "ca-central-1" | "eu-central-1" | "eu-north-1" | "eu-south-1" | "eu-west-1" | "eu-west-2" | "eu-west-3" | "me-south-1" | "sa-east-1" | "us-east-1" | "us-east-2" | "us-west-1" | "us-west-2">`
+
+AWS regions the URL is probed from.
+
+Probes run from lightweight monitoring functions in these regions of your own AWS account. Using multiple
+distant regions gives you an outside view per geography and prevents a single region's network blip from
+triggering a false alert.
+
+When omitted, the check runs from the stack's region plus two distant regions.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiHealth:
+    type: uptime-check
+    properties:
+      url: https://api.example.com/health
+      regions:
+        - eu-west-1
+        - us-east-1
+        - ap-southeast-1
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { UptimeCheck, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiHealth = new UptimeCheck({
+    url: 'https://api.example.com/health',
+    regions: ['eu-west-1', 'us-east-1', 'ap-southeast-1']
+  });
+  return { resources: { apiHealth } };
+});
+```
+
+## Property: `timeoutSeconds`
+
+- Required: no
+- Type: `number`
+- Default: `10`
+
+How long to wait for a response before the probe counts as failed, in seconds.
+
+Allowed range: 1 to 30.
+
+### Example 1 (yaml)
+
+```yaml
+resources:
+  apiHealth:
+    type: uptime-check
+    properties:
+      url: https://api.example.com/health
+      timeoutSeconds: 5
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { UptimeCheck, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const apiHealth = new UptimeCheck({
+    url: 'https://api.example.com/health',
+    timeoutSeconds: 5
+  });
+  return { resources: { apiHealth } };
 });
 ```
 
@@ -120332,13 +121110,13 @@ Route: `/config-reference/user-integrations`
 import type { DiscordIntegrationProps } from 'stacktape';
 
 type DiscordIntegration = {
-  properties?: DiscordIntegrationProps;
+  properties: DiscordIntegrationProps;
 };
 ```
 
 ## Property: `properties`
 
-- Required: no
+- Required: yes
 - Type: `DiscordIntegrationProps`
 
 ---
@@ -120385,7 +121163,7 @@ resources:
             properties:
               thresholdMilliseconds: 30000
           description: Ingest job is taking too long
-          notificationTargets:
+          notificationChannels:
             - type: discord
               properties:
                 webhookUrl: $Secret('discord-webhook-url')
@@ -120408,7 +121186,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-duration', properties: { thresholdMilliseconds: 30000 } },
         description: 'Ingest job is taking too long',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'discord',
             properties: {
@@ -120489,7 +121267,7 @@ resources:
             properties:
               thresholdPercent: 1
           description: Payment processing failures detected
-          notificationTargets:
+          notificationChannels:
             - type: email
               properties:
                 sender: alerts@mycompany.com
@@ -120513,7 +121291,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 1 } },
         description: 'Payment processing failures detected',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'email',
             properties: {
@@ -120555,7 +121333,7 @@ resources:
             properties:
               thresholdPercent: 1
           description: Payment processing failures detected
-          notificationTargets:
+          notificationChannels:
             - type: email
               properties:
                 sender: alerts@mycompany.com
@@ -120579,7 +121357,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 1 } },
         description: 'Payment processing failures detected',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'email',
             properties: {
@@ -120608,13 +121386,13 @@ Route: `/config-reference/user-integrations`
 import type { MsTeamsIntegrationProps } from 'stacktape';
 
 type MsTeamsIntegration = {
-  properties?: MsTeamsIntegrationProps;
+  properties: MsTeamsIntegrationProps;
 };
 ```
 
 ## Property: `properties`
 
-- Required: no
+- Required: yes
 - Type: `MsTeamsIntegrationProps`
 
 ---
@@ -120661,7 +121439,7 @@ resources:
             properties:
               thresholdMilliseconds: 5000
           description: API function is running slow
-          notificationTargets:
+          notificationChannels:
             - type: ms-teams
               properties:
                 webhookUrl: $Secret('ms-teams-webhook-url')
@@ -120684,7 +121462,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-duration', properties: { thresholdMilliseconds: 5000 } },
         description: 'API function is running slow',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'ms-teams',
             properties: {
@@ -120712,13 +121490,13 @@ Route: `/config-reference/user-integrations`
 import type { SlackIntegrationProps } from 'stacktape';
 
 type SlackIntegration = {
-  properties?: SlackIntegrationProps;
+  properties: SlackIntegrationProps;
 };
 ```
 
 ## Property: `properties`
 
-- Required: no
+- Required: yes
 - Type: `SlackIntegrationProps`
 
 ---
@@ -120767,7 +121545,7 @@ resources:
             properties:
               thresholdPercent: 5
           description: Worker error rate is too high
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C0123456789
@@ -120791,7 +121569,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },
         description: 'Worker error rate is too high',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: {
@@ -120835,7 +121613,7 @@ resources:
             properties:
               thresholdPercent: 5
           description: Worker error rate is too high
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C0123456789
@@ -120859,7 +121637,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },
         description: 'Worker error rate is too high',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: {
@@ -120888,13 +121666,13 @@ Route: `/config-reference/user-integrations`
 import type { WebhookIntegrationProps } from 'stacktape';
 
 type WebhookIntegration = {
-  properties?: WebhookIntegrationProps;
+  properties: WebhookIntegrationProps;
 };
 ```
 
 ## Property: `properties`
 
-- Required: no
+- Required: yes
 - Type: `WebhookIntegrationProps`
 
 ---
@@ -120945,7 +121723,7 @@ resources:
             properties:
               thresholdPercent: 10
           description: Scheduler errors detected
-          notificationTargets:
+          notificationChannels:
             - type: webhook
               properties:
                 url: https://ops.mycompany.com/hooks/stacktape-alarms
@@ -120969,7 +121747,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },
         description: 'Scheduler errors detected',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'webhook',
             properties: {
@@ -121011,7 +121789,7 @@ resources:
             properties:
               thresholdPercent: 10
           description: Scheduler errors detected
-          notificationTargets:
+          notificationChannels:
             - type: webhook
               properties:
                 url: https://ops.mycompany.com/hooks/stacktape-alarms
@@ -121038,7 +121816,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },
         description: 'Scheduler errors detected',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'webhook',
             properties: {
@@ -121086,7 +121864,7 @@ resources:
             properties:
               thresholdPercent: 10
           description: Scheduler errors detected
-          notificationTargets:
+          notificationChannels:
             - type: webhook
               properties:
                 url: https://ops.mycompany.com/hooks/stacktape-alarms
@@ -121110,7 +121888,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },
         description: 'Scheduler errors detected',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'webhook',
             properties: {
@@ -124729,8 +125507,8 @@ export default defineConfig(() => {
 Alarms for this service (merged with global alarms from the Stacktape Console).
 
 Choices:
-- `ApplicationLoadBalancerAlarm` (`ApplicationLoadBalancerAlarm`). Properties: `trigger: application-load-balancer-custom | application-load-balancer-error-rate | application-load-balancer-unhealthy-targets`, `evaluation?: AlarmEvaluation`, `notificationTargets?: Array<slack | ms-teams | email | discord | webhook>`, `includeInHistory?: boolean`, `description?: string`.
-- `HttpApiGatewayAlarm` (`HttpApiGatewayAlarm`). Properties: `trigger: http-api-gateway-error-rate | http-api-gateway-latency`, `evaluation?: AlarmEvaluation`, `notificationTargets?: Array<slack | ms-teams | email | discord | webhook>`, `includeInHistory?: boolean`, `description?: string`.
+- `ApplicationLoadBalancerAlarm` (`ApplicationLoadBalancerAlarm`). Properties: `trigger: application-load-balancer-custom | application-load-balancer-error-rate | application-load-balancer-unhealthy-targets`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
+- `HttpApiGatewayAlarm` (`HttpApiGatewayAlarm`). Properties: `trigger: http-api-gateway-error-rate | http-api-gateway-latency`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
 
 ### Example 1 (yaml)
 
@@ -124751,7 +125529,7 @@ resources:
             type: http-api-gateway-error-rate
             properties:
               thresholdPercent: 5
-          notificationTargets:
+          notificationChannels:
             - type: email
               properties:
                 sender: alerts@example.com
@@ -124780,7 +125558,7 @@ export default defineConfig(() => {
             thresholdPercent: 5
           }
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'email',
             properties: {

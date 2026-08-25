@@ -111,8 +111,8 @@ Alarms for this Convex deployment (backend container, ALB, database). Merged wit
 alarms from the Stacktape Console.
 
 Choices:
-- `ApplicationLoadBalancerAlarm` (`ApplicationLoadBalancerAlarm`). Properties: `trigger: application-load-balancer-custom | application-load-balancer-error-rate | application-load-balancer-unhealthy-targets`, `evaluation?: AlarmEvaluation`, `notificationTargets?: Array<slack | ms-teams | email | discord | webhook>`, `includeInHistory?: boolean`, `description?: string`.
-- `RelationalDatabaseAlarm` (`RelationalDatabaseAlarm`). Properties: `trigger: database-read-latency | database-write-latency | database-cpu-utilization | database-free-storage | database-free-memory | database-connection-count`, `evaluation?: AlarmEvaluation`, `notificationTargets?: Array<slack | ms-teams | email | discord | webhook>`, `includeInHistory?: boolean`, `description?: string`.
+- `ApplicationLoadBalancerAlarm` (`ApplicationLoadBalancerAlarm`). Properties: `trigger: application-load-balancer-custom | application-load-balancer-error-rate | application-load-balancer-unhealthy-targets`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
+- `RelationalDatabaseAlarm` (`RelationalDatabaseAlarm`). Properties: `trigger: database-read-latency | database-write-latency | database-cpu-utilization | database-free-storage | database-free-memory | database-connection-count`, `evaluation?: AlarmEvaluation`, `notificationChannels?: Array<slack | ms-teams | email | discord | webhook | console-channel>`, `includeInHistory?: boolean`, `description?: string`.
 
 ### Example 1 (yaml)
 

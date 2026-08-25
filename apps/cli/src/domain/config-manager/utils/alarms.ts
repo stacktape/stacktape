@@ -75,6 +75,16 @@ export const resourceTypesForAlarmType: {
   'sqs-queue-not-empty': ['sqs-queue']
 };
 
+const validateAlarmNotificationChannels = (alarm: StpAlarm) => {
+  if (
+    alarm.includeInHistory === false &&
+    (alarm.notificationChannels || []).some(({ type }) => type === 'console-channel')
+  ) {
+    throw configErrors.alarmConsoleChannelRequiresHistory({ alarmName: alarm.nameChain.join('.') });
+  }
+  return alarm;
+};
+
 export const getAlarmsToBeAppliedToResource = ({
   resource,
   globalAlarms
@@ -107,5 +117,7 @@ export const getAlarmsToBeAppliedToResource = ({
           })
         }) as StpAlarm
     )
-  ].filter((alarm) => isAlarmEligibleForResource({ alarm, resource }));
+  ]
+    .filter((alarm) => isAlarmEligibleForResource({ alarm, resource }))
+    .map(validateAlarmNotificationChannels);
 };

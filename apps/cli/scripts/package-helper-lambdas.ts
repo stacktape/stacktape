@@ -33,6 +33,10 @@ const helperLambdas = {
   cdnOriginResponseLambda: {
     filePath: join(HELPER_LAMBDAS_SOURCE_FOLDER_PATH, 'cdnOriginResponseLambda/index.ts'),
     bundleSizeLimit: 3.35
+  },
+  uptimeProber: {
+    filePath: join(HELPER_LAMBDAS_SOURCE_FOLDER_PATH, 'uptimeProber/index.ts'),
+    bundleSizeLimit: 3.35
   }
 };
 

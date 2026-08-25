@@ -330,7 +330,7 @@ export interface ApplicationLoadBalancerProps {
    *             type: application-load-balancer-error-rate
    *             properties:
    *               thresholdPercent: 5
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: email
    *               properties:
    *                 sender: alerts@example.com
@@ -371,7 +371,7 @@ export interface ApplicationLoadBalancerProps {
    *           type: 'application-load-balancer-error-rate',
    *           properties: { thresholdPercent: 5 }
    *         },
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'email',
    *             properties: { sender: 'alerts@example.com', recipient: 'oncall@example.com' }

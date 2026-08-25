@@ -6,11 +6,11 @@
 import type { DiscordIntegrationProps } from 'stacktape';
 
 type DiscordIntegration = {
-  properties?: DiscordIntegrationProps;
+  properties: DiscordIntegrationProps;
 };
 ```
 
 ## Property: `properties`
 
-- Required: no
+- Required: yes
 - Type: `DiscordIntegrationProps`

@@ -130,6 +130,15 @@ export type StpServiceCustomResourceKafkaBootstrapBrokersProps = {
   clusterArn: string | Intrinsic;
 };
 
+export type StpServiceCustomResourceUptimeMonitoringProps = {
+  /** Per-region check lists; a check is probed only from the regions it is assigned to. */
+  regionAssignments: import('@helper-lambdas/uptimeProber/manifest').UptimeRegionAssignment[];
+  /** Prober code in the stack's deployment bucket; copied into each probe region's staging bucket. */
+  proberArtifact: { bucketName: string; s3Key: string; digest: string };
+  apiUrl: string;
+  stackName: string;
+};
+
 export type StpServiceCustomResourceProperties = {
   s3Events?: StpServiceCustomResourceEventProps<S3IntegrationProps>[];
   // @deprecated - use edgeLambda instead
@@ -152,6 +161,7 @@ export type StpServiceCustomResourceProperties = {
   userPoolDetails?: StpServiceCustomResourceUserPoolDetailsProps;
   ssmParameterRetrieve?: StpServiceCustomResourceSsmParameterRetrieveProps;
   kafkaBootstrapBrokers?: StpServiceCustomResourceKafkaBootstrapBrokersProps;
+  uptimeMonitoring?: StpServiceCustomResourceUptimeMonitoringProps;
 };
 
 export type StpServiceSharedCustomResourceProperties = Omit<

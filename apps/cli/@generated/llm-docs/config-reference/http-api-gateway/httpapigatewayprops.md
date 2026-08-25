@@ -44,7 +44,7 @@ resources:
             type: http-api-gateway-error-rate
             properties:
               thresholdPercent: 5
-          notificationTargets:
+          notificationChannels:
             - type: email
               properties:
                 sender: alerts@example.com
@@ -78,7 +78,7 @@ export default defineConfig(() => {
           type: 'http-api-gateway-error-rate',
           properties: { thresholdPercent: 5 }
         },
-        notificationTargets: [
+        notificationChannels: [
           { type: 'email', properties: { sender: 'alerts@example.com', recipient: 'ops@example.com' } }
         ]
       }

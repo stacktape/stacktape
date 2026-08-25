@@ -193,6 +193,44 @@ export const listIssuesInputSchema = z.object({
 
 export const issueActionInputSchema = z.object({ issueId: z.string() });
 
+export const syncUptimeChecksInputSchema = z.object({
+  project: z.string().min(1),
+  stage: z.string().min(1),
+  checks: z
+    .array(
+      z.object({
+        name: z.string().min(1),
+        /** Content hash of the check definition; probe results from other revisions are dropped. */
+        revision: z.string().min(1),
+        enabled: z.boolean(),
+        url: z.string().min(1),
+        method: z.enum(['GET', 'HEAD']),
+        intervalSeconds: z.number().int().min(1),
+        timeoutSeconds: z.number().int().min(1),
+        followRedirects: z.boolean(),
+        assertions: z.array(z.object({ type: z.string(), properties: z.record(z.string(), z.unknown()) })).optional(),
+        regions: z.array(z.string().min(1)).min(1),
+        consecutiveFailures: z.number().int().min(1),
+        consecutiveSuccesses: z.number().int().min(1),
+        notificationChannels: z
+          .array(
+            z.object({
+              name: z.string().min(1),
+              type: z.enum(['slack', 'ms_teams', 'e_mail', 'discord', 'webhook', 'console-channel']),
+              properties: z.unknown()
+            })
+          )
+          .optional()
+      })
+    )
+    .max(100)
+});
+
+export type SyncUptimeChecksResponse = {
+  /** console-channel references whose name does not exist in the organization. */
+  missingChannelNames: string[];
+};
+
 export type RecordStackOperationParams = z.input<typeof recordStackOperationInputSchema>;
 export type CreateDeploymentTokenFromCliParams = z.input<typeof createDeploymentTokenFromCliInputSchema>;
 export type Ec2DeployFromCliParams = z.input<typeof ec2DeployFromCliInputSchema>;
@@ -206,6 +244,7 @@ export type GetAwsConnectionStatusInput = z.input<typeof getAwsConnectionStatusI
 export type GetGitProviderConnectionStatusInput = z.input<typeof getGitProviderConnectionStatusInputSchema>;
 export type CreateGitDeploymentConfigFromCliInput = z.input<typeof createGitDeploymentConfigFromCliInputSchema>;
 export type ReportEventParams = z.input<typeof reportEventInputSchema>;
+export type SyncUptimeChecksParams = z.input<typeof syncUptimeChecksInputSchema>;
 export type AwsAccountCredentialsParams = z.input<typeof awsAccountCredentialsInputSchema>;
 export type TemplateParams = z.input<typeof templateInputSchema>;
 export type DefaultDomainsInfoParams = z.input<typeof defaultDomainsInfoInputSchema>;
@@ -605,6 +644,9 @@ export type ApiKeyTrpcClient = {
   };
   reportEvent: {
     mutate: (args: ReportEventParams) => Promise<string>;
+  };
+  syncUptimeChecks: {
+    mutate: (args: SyncUptimeChecksParams) => Promise<SyncUptimeChecksResponse>;
   };
   issuesFromCli: {
     query: (args: ListIssuesParams) => Promise<ListIssuesResponse>;

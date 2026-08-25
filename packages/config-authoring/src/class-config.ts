@@ -337,6 +337,14 @@ export const RESOURCES_CONVERTIBLE_TO_CLASSES = [
     canConnectTo: []
   },
   {
+    className: 'UptimeCheck',
+    resourceType: 'uptime-check',
+    propsType: 'UptimeCheckProps',
+    interfaceName: 'UptimeCheck',
+    sourceFile: 'uptime-checks.d.ts',
+    canConnectTo: []
+  },
+  {
     className: 'SqsQueue',
     resourceType: 'sqs-queue',
     propsType: 'SqsQueueProps',

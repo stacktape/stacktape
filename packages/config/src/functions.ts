@@ -839,7 +839,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *             type: lambda-error-rate
    *             properties:
    *               thresholdPercent: 5
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: email
    *               properties:
    *                 sender: alerts@example.com
@@ -859,7 +859,7 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    *     alarms: [
    *       {
    *         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           { type: 'email', properties: { sender: 'alerts@example.com', recipient: 'oncall@example.com' } }
    *         ]
    *       }

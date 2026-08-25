@@ -155,7 +155,7 @@ export interface ApplicationLoadBalancerCustomTriggerProps extends TriggerWithCu
    *             period: 60
    *             evaluationPeriods: 5
    *             breachedPeriods: 3
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: slack
    *               properties:
    *                 conversationId: C0123456789
@@ -192,7 +192,7 @@ export interface ApplicationLoadBalancerCustomTriggerProps extends TriggerWithCu
    *           }
    *         },
    *         evaluation: { period: 60, evaluationPeriods: 5, breachedPeriods: 3 },
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'slack',
    *             properties: {
@@ -251,7 +251,7 @@ export interface ApplicationLoadBalancerCustomTriggerProps extends TriggerWithCu
    *             period: 60
    *             evaluationPeriods: 5
    *             breachedPeriods: 3
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: email
    *               properties:
    *                 sender: alerts@example.com
@@ -288,7 +288,7 @@ export interface ApplicationLoadBalancerCustomTriggerProps extends TriggerWithCu
    *           }
    *         },
    *         evaluation: { period: 60, evaluationPeriods: 5, breachedPeriods: 3 },
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'email',
    *             properties: {

@@ -18,7 +18,7 @@ export default async (event: AlarmNotificationEventRuleInput) => {
     if (resolvedEvent.stateValue !== 'ALARM') return;
 
     await Promise.all(
-      (resolvedEvent.alarmConfig?.notificationTargets || []).map((notificationDetail) => {
+      (resolvedEvent.alarmConfig?.notificationChannels || []).map((notificationDetail) => {
         if (notificationDetail.type === 'slack') {
           return sendAlarmSlackMessage({ notificationDetail, alarmDetail: resolvedEvent });
         }
@@ -59,11 +59,16 @@ const reportToConsoleApi = async (event: AlarmNotificationEventRuleInput) => {
       event.stateValue === 'OK'
         ? `Alarm "${event.alarmConfig?.name || event.alarmAwsResourceName}" resolved`
         : `Alarm "${event.alarmConfig?.name || event.alarmAwsResourceName}" triggered`,
-    channels: (event.alarmConfig?.notificationTargets || []).map((channel) => ({
-      name: channel.type === 'slack' ? 'Slack' : channel.type === 'email' ? 'Email' : channel.type,
-      type: channel.type === 'ms-teams' ? 'ms_teams' : channel.type === 'email' ? 'e_mail' : channel.type,
-      properties: channel.properties || {}
-    })),
+    channels: (event.alarmConfig?.notificationChannels || []).map((channel) => {
+      if (channel.type === 'console-channel') {
+        return { name: channel.properties.channelName, type: channel.type, properties: {} };
+      }
+      return {
+        name: channel.type === 'slack' ? 'Slack' : channel.type === 'email' ? 'Email' : channel.type,
+        type: channel.type === 'ms-teams' ? 'ms_teams' : channel.type === 'email' ? 'e_mail' : channel.type,
+        properties: channel.properties || {}
+      };
+    }),
     details: {
       description: event.description,
       time: event.time,

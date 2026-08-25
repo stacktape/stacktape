@@ -51,7 +51,7 @@ describe('configuration schema inspection', () => {
   test('preserves resource count, forced order, and category assignments', () => {
     const resources = getStacktapeResourceDefinitions();
 
-    expect(resources).toHaveLength(49);
+    expect(resources).toHaveLength(50);
     expect(new Set(STACKTAPE_RESOURCE_TYPES)).toEqual(new Set(resources.map(({ type }) => type)));
     expect(resources.slice(0, 3).map(({ type }) => type)).toEqual(['function', 'hosting-bucket', 'web-service']);
     expect(resources.find(({ type }) => type === 'relational-database')?.category).toBe('database-resource');

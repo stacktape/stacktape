@@ -279,7 +279,7 @@ export interface WebServiceProps extends SimpleServiceContainer {
    *             type: http-api-gateway-error-rate
    *             properties:
    *               thresholdPercent: 5
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: email
    *               properties:
    *                 sender: alerts@example.com
@@ -310,7 +310,7 @@ export interface WebServiceProps extends SimpleServiceContainer {
    *             thresholdPercent: 5
    *           }
    *         },
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'email',
    *             properties: {

@@ -31,8 +31,8 @@ describe('a Stacktape configuration can be built from explicit package imports',
 describe('the generated configuration schema package export', () => {
   test('resolves the canonical committed schema', () => {
     expect(configSchema).toBe(canonicalConfigSchema);
-    expect(Object.keys(configSchema.definitions)).toHaveLength(466);
-    expect(configSchema.definitions.StacktapeResourceDefinition.anyOf).toHaveLength(49);
+    expect(Object.keys(configSchema.definitions)).toHaveLength(476);
+    expect(configSchema.definitions.StacktapeResourceDefinition.anyOf).toHaveLength(50);
     expect(configSchema.definitions.AppSyncApiProps).toBeDefined();
     expect(configSchema.definitions.KafkaClusterProps).toBeDefined();
   });

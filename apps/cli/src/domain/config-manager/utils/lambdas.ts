@@ -620,6 +620,63 @@ export const getStacktapeServiceLambdaIssueDetectionStatements = ({
   return [{ Resource: ['*'], Action: ['logs:GetLogEvents', 'logs:FilterLogEvents'] }];
 };
 
+export const getStacktapeServiceLambdaUptimeMonitoringStatements = ({
+  uptimeMonitoringEnabled,
+  accountId,
+  deploymentBucketName
+}: {
+  uptimeMonitoringEnabled: boolean;
+  accountId: string;
+  deploymentBucketName: string;
+}): StpIamRoleStatement[] => {
+  if (!uptimeMonitoringEnabled) return [];
+  return [
+    {
+      Resource: ['arn:aws:s3:::stp-uptime-prober-*', 'arn:aws:s3:::stp-uptime-prober-*/*'],
+      Action: ['s3:CreateBucket', 's3:GetObject', 's3:PutObject', 's3:ListBucket']
+    },
+    {
+      Resource: [`arn:aws:s3:::${deploymentBucketName}/*`],
+      Action: ['s3:GetObject']
+    },
+    {
+      Resource: [`arn:aws:lambda:*:${accountId}:function:${helperLambdaAwsResourceNames.uptimeProberFunction()}`],
+      Action: [
+        'lambda:CreateFunction',
+        'lambda:GetFunction',
+        'lambda:GetFunctionConfiguration',
+        'lambda:GetPolicy',
+        'lambda:UpdateFunctionCode',
+        'lambda:UpdateFunctionConfiguration',
+        'lambda:DeleteFunction',
+        'lambda:AddPermission',
+        'lambda:RemovePermission',
+        'lambda:TagResource'
+      ]
+    },
+    {
+      Resource: [`arn:aws:iam::${accountId}:role/${helperLambdaAwsResourceNames.uptimeProberRole()}`],
+      Action: ['iam:GetRole', 'iam:CreateRole', 'iam:PutRolePolicy', 'iam:PassRole']
+    },
+    {
+      Resource: [`arn:aws:events:*:${accountId}:rule/${helperLambdaAwsResourceNames.uptimeProberScheduleRule()}`],
+      Action: [
+        'events:PutRule',
+        'events:PutTargets',
+        'events:DeleteRule',
+        'events:RemoveTargets',
+        'events:DescribeRule'
+      ]
+    },
+    {
+      Resource: [
+        `arn:aws:ssm:*:${accountId}:parameter${helperLambdaAwsResourceNames.uptimeManifestParameterPrefix()}*`
+      ],
+      Action: ['ssm:PutParameter', 'ssm:DeleteParameter', 'ssm:GetParametersByPath', 'ssm:GetParameter']
+    }
+  ];
+};
+
 export const getLambdaHandler = ({ name, packaging }: { packaging: LambdaPackaging; name: string }) => {
   if (packaging.type === 'stacktape-lambda-buildpack') {
     const extension = getFileExtension(packaging.properties.entryfilePath);

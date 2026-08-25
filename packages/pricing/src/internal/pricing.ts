@@ -1581,6 +1581,21 @@ const getPricingInformationForResource = async ({
       underTheHoodLink: 'https://docs.stacktape.com/other-resources/state-machines/'
     };
   }
+  if (resource.type === 'uptime-check') {
+    const priceInfo = await getCumulatedPriceInfoForProducts({
+      dynamoDbTableName,
+      region,
+      products: []
+    });
+    return {
+      priceInfo,
+      customComment:
+        'Uptime checks run as tiny scheduled Lambda functions in your account. Their cost is usually fully covered by the AWS Lambda free tier; beyond it, expect cents per month per monitored region.',
+      relatedAwsPricingDocs: {
+        'AWS Lambda pricing': 'https://aws.amazon.com/lambda/pricing/'
+      }
+    };
+  }
   if (resource.type === 'upstash-redis') {
     const priceInfo = await getCumulatedPriceInfoForProducts({
       dynamoDbTableName,

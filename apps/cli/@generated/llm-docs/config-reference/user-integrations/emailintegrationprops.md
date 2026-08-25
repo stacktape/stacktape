@@ -37,7 +37,7 @@ resources:
             properties:
               thresholdPercent: 1
           description: Payment processing failures detected
-          notificationTargets:
+          notificationChannels:
             - type: email
               properties:
                 sender: alerts@mycompany.com
@@ -61,7 +61,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 1 } },
         description: 'Payment processing failures detected',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'email',
             properties: {
@@ -103,7 +103,7 @@ resources:
             properties:
               thresholdPercent: 1
           description: Payment processing failures detected
-          notificationTargets:
+          notificationChannels:
             - type: email
               properties:
                 sender: alerts@mycompany.com
@@ -127,7 +127,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 1 } },
         description: 'Payment processing failures detected',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'email',
             properties: {

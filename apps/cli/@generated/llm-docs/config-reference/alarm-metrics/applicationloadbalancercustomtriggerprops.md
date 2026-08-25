@@ -111,7 +111,7 @@ resources:
             period: 60
             evaluationPeriods: 5
             breachedPeriods: 3
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C0123456789
@@ -146,7 +146,7 @@ export default defineConfig(() => {
           }
         },
         evaluation: { period: 60, evaluationPeriods: 5, breachedPeriods: 3 },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: {
@@ -205,7 +205,7 @@ resources:
             period: 60
             evaluationPeriods: 5
             breachedPeriods: 3
-          notificationTargets:
+          notificationChannels:
             - type: email
               properties:
                 sender: alerts@example.com
@@ -240,7 +240,7 @@ export default defineConfig(() => {
           }
         },
         evaluation: { period: 60, evaluationPeriods: 5, breachedPeriods: 3 },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'email',
             properties: {

@@ -131,7 +131,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
   test('the schema still describes the same configuration language', async () => {
     const schema = await configSchema();
 
-    expect(Object.keys(schema.definitions)).toHaveLength(466);
+    expect(Object.keys(schema.definitions)).toHaveLength(476);
     expect(Object.keys(schema.properties).sort()).toEqual(
       [
         'cloudformationResources',
@@ -146,7 +146,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
         'deploymentConfig'
       ].sort()
     );
-    expect(schema.definitions.StacktapeResourceDefinition.anyOf).toHaveLength(49);
+    expect(schema.definitions.StacktapeResourceDefinition.anyOf).toHaveLength(50);
     // The raw escape hatch remains open while the legacy runtime-class shape is no longer published.
     expect(schema.properties.cloudformationResources.additionalProperties).toEqual({});
     expect(schema.definitions).not.toHaveProperty('IntrinsicFunction');
@@ -157,7 +157,7 @@ describe('the configuration model is owned by @stacktape/config', () => {
 
     expect(schema.properties.projectName.description).toContain('#### Project name');
     expect(schema.definitions.LambdaFunction.description).toContain('serverless compute resource');
-    expect(countDescriptions(schema)).toBe(1493);
+    expect(countDescriptions(schema)).toBe(1511);
     // Examples are the documented product content the schema, docs and editor hovers all render.
     const descriptions = JSON.stringify(schema);
     expect(descriptions.split('**Example (YAML):**').length - 1).toBeGreaterThan(900);

@@ -165,7 +165,7 @@ resources:
             type: lambda-error-rate
             properties:
               thresholdPercent: 5
-          notificationTargets:
+          notificationChannels:
             - type: email
               properties:
                 sender: alerts@example.com
@@ -183,7 +183,7 @@ export default defineConfig(() => {
     alarms: [
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },
-        notificationTargets: [
+        notificationChannels: [
           { type: 'email', properties: { sender: 'alerts@example.com', recipient: 'oncall@example.com' } }
         ]
       }

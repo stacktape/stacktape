@@ -103,7 +103,7 @@ export class BaseTypeOnly<Type extends string = string> {
  * new Alarm({
  *   trigger: new LambdaErrorRateTrigger({ thresholdPercent: 5 }),
  *   evaluation: { period: 60, evaluationPeriods: 3, breachedPeriods: 2 },
- *   notificationTargets: [
+ *   notificationChannels: [
  *     {
  *       type: 'slack',
  *       properties: { conversationId: 'C0123456789', accessToken: $Secret('slack-bot-token') }
@@ -121,14 +121,14 @@ export class Alarm<Trigger extends AlarmTrigger = AlarmTrigger> {
   readonly [alarmSymbol] = true;
   public readonly trigger: AuthoringAlarmProps<Trigger>['trigger'];
   public readonly evaluation?: NonNullable<AuthoringAlarmProps<Trigger>['evaluation']>;
-  public readonly notificationTargets?: NonNullable<AuthoringAlarmProps<Trigger>['notificationTargets']>;
+  public readonly notificationChannels?: NonNullable<AuthoringAlarmProps<Trigger>['notificationChannels']>;
   public readonly includeInHistory?: NonNullable<AuthoringAlarmProps<Trigger>['includeInHistory']>;
   public readonly description?: NonNullable<AuthoringAlarmProps<Trigger>['description']>;
 
   constructor(props: AuthoringAlarmProps<Trigger>) {
     this.trigger = props.trigger;
     if (props.evaluation !== undefined) this.evaluation = props.evaluation;
-    if (props.notificationTargets !== undefined) this.notificationTargets = props.notificationTargets;
+    if (props.notificationChannels !== undefined) this.notificationChannels = props.notificationChannels;
     if (props.includeInHistory !== undefined) this.includeInHistory = props.includeInHistory;
     if (props.description !== undefined) this.description = props.description;
   }
@@ -789,8 +789,8 @@ export const transformValue = (value: any, resourceNames: ResourceNames = new Ma
     if (value.evaluation !== undefined) {
       result.evaluation = transformValue(value.evaluation, resourceNames);
     }
-    if (value.notificationTargets !== undefined) {
-      result.notificationTargets = transformValue(value.notificationTargets, resourceNames);
+    if (value.notificationChannels !== undefined) {
+      result.notificationChannels = transformValue(value.notificationChannels, resourceNames);
     }
     if (value.includeInHistory !== undefined) {
       result.includeInHistory = value.includeInHistory;

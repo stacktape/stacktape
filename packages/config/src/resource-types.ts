@@ -49,6 +49,7 @@ export const STACKTAPE_RESOURCE_TYPES = [
   'sveltekit-web',
   'tanstack-web',
   'upstash-redis',
+  'uptime-check',
   'web-app-firewall',
   'worker-service',
   'agentcore-runtime',

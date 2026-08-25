@@ -354,7 +354,7 @@ export interface RelationalDatabaseProps {
  *             type: database-cpu-utilization
  *             properties:
  *               thresholdPercent: 85
- *           notificationTargets:
+ *           notificationChannels:
  *             - type: email
  *               properties:
  *                 sender: alerts@example.com
@@ -383,7 +383,7 @@ export interface RelationalDatabaseProps {
  *           type: 'database-cpu-utilization',
  *           properties: { thresholdPercent: 85 }
  *         },
- *         notificationTargets: [
+ *         notificationChannels: [
  *           {
  *             type: 'email',
  *             properties: { sender: 'alerts@example.com', recipient: 'ops@example.com' }

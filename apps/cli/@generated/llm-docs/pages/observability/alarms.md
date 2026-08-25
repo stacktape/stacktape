@@ -99,7 +99,7 @@ Most triggers accept two optional overrides:
 
 ## Defining alarms on resources
 
-Stacktape alarms are defined inline on individual resources using the `alarms` property. Each alarm specifies a `trigger` (what to monitor and the threshold) and optionally an `evaluation` window and `notificationTargets`.
+Stacktape alarms are defined inline on individual resources using the `alarms` property. Each alarm specifies a `trigger` (what to monitor and the threshold) and optionally an `evaluation` window and `notificationChannels`.
 
 ### Lambda function alarms
 
@@ -204,7 +204,7 @@ export default defineConfig(() => {
           evaluationPeriods: 3,
           breachedPeriods: 2
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: {
@@ -258,7 +258,7 @@ For database storage alarms, the defaults (`period: 60`, `evaluationPeriods: 1`,
 
 ## Notification targets
 
-Stacktape alarms can send notifications to one or more targets when they fire. Configure the `notificationTargets` array on each alarm to specify where alerts are delivered. Supported target types include MS Teams, Slack, email, Discord, and webhooks.
+Stacktape alarms can send notifications to one or more targets when they fire. Configure the `notificationChannels` array on each alarm to specify where alerts are delivered. Supported target types include MS Teams, Slack, email, Discord, and webhooks.
 
 For the full setup guide on each integration type, see [alert channels](/observability/alert-channels).
 
@@ -359,7 +359,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `forServices` | no | `Array<string>` | - |
 | `forStages` | no | `Array<string>` | - |
 | `includeInHistory` | no | `boolean` | `true` |
-| `notificationTargets` | no | `Array<slack \| ms-teams \| email \| discord \| webhook>` | - |
+| `notificationChannels` | no | `Array<slack \| ms-teams \| email \| discord \| webhook \| console-channel>` | - |
 
 
 ## FAQ

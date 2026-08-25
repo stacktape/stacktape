@@ -25,7 +25,7 @@ export interface SlackIntegrationProps {
    *             properties:
    *               thresholdPercent: 5
    *           description: Worker error rate is too high
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: slack
    *               properties:
    *                 # stp-focus
@@ -51,7 +51,7 @@ export interface SlackIntegrationProps {
    *       {
    *         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },
    *         description: 'Worker error rate is too high',
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'slack',
    *             properties: {
@@ -96,7 +96,7 @@ export interface SlackIntegrationProps {
    *             properties:
    *               thresholdPercent: 5
    *           description: Worker error rate is too high
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: slack
    *               properties:
    *                 conversationId: C0123456789
@@ -122,7 +122,7 @@ export interface SlackIntegrationProps {
    *       {
    *         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },
    *         description: 'Worker error rate is too high',
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'slack',
    *             properties: {
@@ -146,7 +146,7 @@ export interface SlackIntegrationProps {
 
 export interface SlackIntegration {
   type: 'slack';
-  properties?: SlackIntegrationProps;
+  properties: SlackIntegrationProps;
 }
 
 
@@ -177,7 +177,7 @@ export interface MsTeamsIntegrationProps {
    *             properties:
    *               thresholdMilliseconds: 5000
    *           description: API function is running slow
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: ms-teams
    *               properties:
    *                 # stp-focus
@@ -202,7 +202,7 @@ export interface MsTeamsIntegrationProps {
    *       {
    *         trigger: { type: 'lambda-duration', properties: { thresholdMilliseconds: 5000 } },
    *         description: 'API function is running slow',
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'ms-teams',
    *             properties: {
@@ -225,7 +225,7 @@ export interface MsTeamsIntegrationProps {
 
 export interface MsTeamsIntegration {
   type: 'ms-teams';
-  properties?: MsTeamsIntegrationProps;
+  properties: MsTeamsIntegrationProps;
 }
 
 
@@ -260,7 +260,7 @@ export interface EmailIntegrationProps {
    *             properties:
    *               thresholdPercent: 1
    *           description: Payment processing failures detected
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: email
    *               properties:
    *                 # stp-focus
@@ -286,7 +286,7 @@ export interface EmailIntegrationProps {
    *       {
    *         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 1 } },
    *         description: 'Payment processing failures detected',
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'email',
    *             properties: {
@@ -329,7 +329,7 @@ export interface EmailIntegrationProps {
    *             properties:
    *               thresholdPercent: 1
    *           description: Payment processing failures detected
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: email
    *               properties:
    *                 sender: alerts@mycompany.com
@@ -355,7 +355,7 @@ export interface EmailIntegrationProps {
    *       {
    *         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 1 } },
    *         description: 'Payment processing failures detected',
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'email',
    *             properties: {
@@ -404,7 +404,7 @@ export interface DiscordIntegrationProps {
    *             properties:
    *               thresholdMilliseconds: 30000
    *           description: Ingest job is taking too long
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: discord
    *               properties:
    *                 # stp-focus
@@ -429,7 +429,7 @@ export interface DiscordIntegrationProps {
    *       {
    *         trigger: { type: 'lambda-duration', properties: { thresholdMilliseconds: 30000 } },
    *         description: 'Ingest job is taking too long',
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'discord',
    *             properties: {
@@ -452,7 +452,7 @@ export interface DiscordIntegrationProps {
 
 export interface DiscordIntegration {
   type: 'discord';
-  properties?: DiscordIntegrationProps;
+  properties: DiscordIntegrationProps;
 }
 
 
@@ -481,7 +481,7 @@ export interface WebhookIntegrationProps {
    *             properties:
    *               thresholdPercent: 10
    *           description: Scheduler errors detected
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: webhook
    *               properties:
    *                 # stp-focus
@@ -507,7 +507,7 @@ export interface WebhookIntegrationProps {
    *       {
    *         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },
    *         description: 'Scheduler errors detected',
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'webhook',
    *             properties: {
@@ -552,7 +552,7 @@ export interface WebhookIntegrationProps {
    *             properties:
    *               thresholdPercent: 10
    *           description: Scheduler errors detected
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: webhook
    *               properties:
    *                 url: https://ops.mycompany.com/hooks/stacktape-alarms
@@ -578,7 +578,7 @@ export interface WebhookIntegrationProps {
    *       {
    *         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },
    *         description: 'Scheduler errors detected',
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'webhook',
    *             properties: {
@@ -621,7 +621,7 @@ export interface WebhookIntegrationProps {
    *             properties:
    *               thresholdPercent: 10
    *           description: Scheduler errors detected
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: webhook
    *               properties:
    *                 url: https://ops.mycompany.com/hooks/stacktape-alarms
@@ -650,7 +650,7 @@ export interface WebhookIntegrationProps {
    *       {
    *         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },
    *         description: 'Scheduler errors detected',
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'webhook',
    *             properties: {
@@ -678,5 +678,5 @@ export interface WebhookIntegrationProps {
 
 export interface WebhookIntegration {
   type: 'webhook';
-  properties?: WebhookIntegrationProps;
+  properties: WebhookIntegrationProps;
 }

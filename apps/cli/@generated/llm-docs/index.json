@@ -508,7 +508,7 @@
         "forServices",
         "forStages",
         "includeInHistory",
-        "notificationTargets"
+        "notificationChannels"
       ],
       "chunks": [
         "config-reference:AlarmDefinition#alarmdefinition-api-reference",
@@ -526,7 +526,7 @@
         "config-reference:AlarmDefinition#property-includeinhistory",
         "config-reference:AlarmDefinition#example-1-yaml-3",
         "config-reference:AlarmDefinition#example-2-typescript-3",
-        "config-reference:AlarmDefinition#property-notificationtargets",
+        "config-reference:AlarmDefinition#property-notificationchannels",
         "config-reference:AlarmDefinition#example-1-yaml-4",
         "config-reference:AlarmDefinition#example-2-typescript-4"
       ]
@@ -579,7 +579,7 @@
         "description",
         "evaluation",
         "includeInHistory",
-        "notificationTargets"
+        "notificationChannels"
       ],
       "chunks": [
         "config-reference:ApplicationLoadBalancerAlarm#applicationloadbalanceralarm-api-reference",
@@ -594,7 +594,7 @@
         "config-reference:ApplicationLoadBalancerAlarm#property-includeinhistory",
         "config-reference:ApplicationLoadBalancerAlarm#example-1-yaml-3",
         "config-reference:ApplicationLoadBalancerAlarm#example-2-typescript-3",
-        "config-reference:ApplicationLoadBalancerAlarm#property-notificationtargets",
+        "config-reference:ApplicationLoadBalancerAlarm#property-notificationchannels",
         "config-reference:ApplicationLoadBalancerAlarm#example-1-yaml-4",
         "config-reference:ApplicationLoadBalancerAlarm#example-2-typescript-4"
       ]
@@ -716,7 +716,7 @@
         "description",
         "evaluation",
         "includeInHistory",
-        "notificationTargets"
+        "notificationChannels"
       ],
       "chunks": [
         "config-reference:HttpApiGatewayAlarm#httpapigatewayalarm-api-reference",
@@ -731,7 +731,7 @@
         "config-reference:HttpApiGatewayAlarm#property-includeinhistory",
         "config-reference:HttpApiGatewayAlarm#example-1-yaml-3",
         "config-reference:HttpApiGatewayAlarm#example-2-typescript-3",
-        "config-reference:HttpApiGatewayAlarm#property-notificationtargets",
+        "config-reference:HttpApiGatewayAlarm#property-notificationchannels",
         "config-reference:HttpApiGatewayAlarm#example-1-yaml-4",
         "config-reference:HttpApiGatewayAlarm#example-2-typescript-4"
       ]
@@ -853,7 +853,7 @@
         "description",
         "evaluation",
         "includeInHistory",
-        "notificationTargets"
+        "notificationChannels"
       ],
       "chunks": [
         "config-reference:LambdaAlarm#lambdaalarm-api-reference",
@@ -868,7 +868,7 @@
         "config-reference:LambdaAlarm#property-includeinhistory",
         "config-reference:LambdaAlarm#example-1-yaml-3",
         "config-reference:LambdaAlarm#example-2-typescript-3",
-        "config-reference:LambdaAlarm#property-notificationtargets",
+        "config-reference:LambdaAlarm#property-notificationchannels",
         "config-reference:LambdaAlarm#example-1-yaml-4",
         "config-reference:LambdaAlarm#example-2-typescript-4"
       ]
@@ -990,7 +990,7 @@
         "description",
         "evaluation",
         "includeInHistory",
-        "notificationTargets"
+        "notificationChannels"
       ],
       "chunks": [
         "config-reference:RelationalDatabaseAlarm#relationaldatabasealarm-api-reference",
@@ -1005,7 +1005,7 @@
         "config-reference:RelationalDatabaseAlarm#property-includeinhistory",
         "config-reference:RelationalDatabaseAlarm#example-1-yaml-3",
         "config-reference:RelationalDatabaseAlarm#example-2-typescript-3",
-        "config-reference:RelationalDatabaseAlarm#property-notificationtargets",
+        "config-reference:RelationalDatabaseAlarm#property-notificationchannels",
         "config-reference:RelationalDatabaseAlarm#example-1-yaml-4",
         "config-reference:RelationalDatabaseAlarm#example-2-typescript-4"
       ]
@@ -1339,7 +1339,7 @@
         "description",
         "evaluation",
         "includeInHistory",
-        "notificationTargets"
+        "notificationChannels"
       ],
       "chunks": [
         "config-reference:SqsQueueAlarm#sqsqueuealarm-api-reference",
@@ -1354,7 +1354,7 @@
         "config-reference:SqsQueueAlarm#property-includeinhistory",
         "config-reference:SqsQueueAlarm#example-1-yaml-3",
         "config-reference:SqsQueueAlarm#example-2-typescript-3",
-        "config-reference:SqsQueueAlarm#property-notificationtargets",
+        "config-reference:SqsQueueAlarm#property-notificationchannels",
         "config-reference:SqsQueueAlarm#example-1-yaml-4",
         "config-reference:SqsQueueAlarm#example-2-typescript-4"
       ]
@@ -10037,6 +10037,50 @@
       ]
     },
     {
+      "id": "config-reference:ConsoleChannelIntegration",
+      "title": "ConsoleChannelIntegration API Reference",
+      "route": "/config-reference/notification-channels",
+      "sourcePath": "packages/config/src/notification-channels.ts",
+      "outputPath": "config-reference/notification-channels/consolechannelintegration.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "ConsoleChannelIntegration"
+      ],
+      "tags": [
+        "config-reference",
+        "ConsoleChannelIntegration",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:ConsoleChannelIntegration#consolechannelintegration-api-reference",
+        "config-reference:ConsoleChannelIntegration#typescript-definition",
+        "config-reference:ConsoleChannelIntegration#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:ConsoleChannelIntegrationProps",
+      "title": "ConsoleChannelIntegrationProps API Reference",
+      "route": "/config-reference/notification-channels",
+      "sourcePath": "packages/config/src/notification-channels.ts",
+      "outputPath": "config-reference/notification-channels/consolechannelintegrationprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "ConsoleChannelIntegrationProps"
+      ],
+      "tags": [
+        "config-reference",
+        "ConsoleChannelIntegrationProps",
+        "channelName"
+      ],
+      "chunks": [
+        "config-reference:ConsoleChannelIntegrationProps#consolechannelintegrationprops-api-reference",
+        "config-reference:ConsoleChannelIntegrationProps#typescript-definition",
+        "config-reference:ConsoleChannelIntegrationProps#property-channelname",
+        "config-reference:ConsoleChannelIntegrationProps#example-1-yaml",
+        "config-reference:ConsoleChannelIntegrationProps#example-2-typescript"
+      ]
+    },
+    {
       "id": "config-reference:NuxtWeb",
       "title": "NuxtWeb API Reference",
       "route": "/config-reference/nuxt-web",
@@ -12766,6 +12810,197 @@
         "config-reference:UpstashRedisProps#property-enableeviction",
         "config-reference:UpstashRedisProps#example-1-yaml",
         "config-reference:UpstashRedisProps#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:BodyContainsAssertion",
+      "title": "BodyContainsAssertion API Reference",
+      "route": "/config-reference/uptime-checks",
+      "sourcePath": "packages/config/src/uptime-checks.ts",
+      "outputPath": "config-reference/uptime-checks/bodycontainsassertion.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "BodyContainsAssertion"
+      ],
+      "tags": [
+        "config-reference",
+        "BodyContainsAssertion",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:BodyContainsAssertion#bodycontainsassertion-api-reference",
+        "config-reference:BodyContainsAssertion#typescript-definition",
+        "config-reference:BodyContainsAssertion#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:BodyContainsAssertionProps",
+      "title": "BodyContainsAssertionProps API Reference",
+      "route": "/config-reference/uptime-checks",
+      "sourcePath": "packages/config/src/uptime-checks.ts",
+      "outputPath": "config-reference/uptime-checks/bodycontainsassertionprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "BodyContainsAssertionProps"
+      ],
+      "tags": [
+        "config-reference",
+        "BodyContainsAssertionProps",
+        "value"
+      ],
+      "chunks": [
+        "config-reference:BodyContainsAssertionProps#bodycontainsassertionprops-api-reference",
+        "config-reference:BodyContainsAssertionProps#typescript-definition",
+        "config-reference:BodyContainsAssertionProps#property-value"
+      ]
+    },
+    {
+      "id": "config-reference:StatusCodeAssertion",
+      "title": "StatusCodeAssertion API Reference",
+      "route": "/config-reference/uptime-checks",
+      "sourcePath": "packages/config/src/uptime-checks.ts",
+      "outputPath": "config-reference/uptime-checks/statuscodeassertion.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "StatusCodeAssertion"
+      ],
+      "tags": [
+        "config-reference",
+        "StatusCodeAssertion",
+        "properties"
+      ],
+      "chunks": [
+        "config-reference:StatusCodeAssertion#statuscodeassertion-api-reference",
+        "config-reference:StatusCodeAssertion#typescript-definition",
+        "config-reference:StatusCodeAssertion#property-properties"
+      ]
+    },
+    {
+      "id": "config-reference:StatusCodeAssertionProps",
+      "title": "StatusCodeAssertionProps API Reference",
+      "route": "/config-reference/uptime-checks",
+      "sourcePath": "packages/config/src/uptime-checks.ts",
+      "outputPath": "config-reference/uptime-checks/statuscodeassertionprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "StatusCodeAssertionProps"
+      ],
+      "tags": [
+        "config-reference",
+        "StatusCodeAssertionProps",
+        "accepted"
+      ],
+      "chunks": [
+        "config-reference:StatusCodeAssertionProps#statuscodeassertionprops-api-reference",
+        "config-reference:StatusCodeAssertionProps#typescript-definition",
+        "config-reference:StatusCodeAssertionProps#property-accepted"
+      ]
+    },
+    {
+      "id": "config-reference:UptimeCheck",
+      "title": "UptimeCheck API Reference",
+      "route": "/config-reference/uptime-checks",
+      "sourcePath": "packages/config/src/uptime-checks.ts",
+      "outputPath": "config-reference/uptime-checks/uptimecheck.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "UptimeCheck"
+      ],
+      "tags": [
+        "config-reference",
+        "UptimeCheck",
+        "properties",
+        "overrides"
+      ],
+      "chunks": [
+        "config-reference:UptimeCheck#uptimecheck-api-reference",
+        "config-reference:UptimeCheck#typescript-definition",
+        "config-reference:UptimeCheck#property-properties",
+        "config-reference:UptimeCheck#property-overrides",
+        "config-reference:UptimeCheck#example-1-yaml",
+        "config-reference:UptimeCheck#example-2-typescript"
+      ]
+    },
+    {
+      "id": "config-reference:UptimeCheckEvaluation",
+      "title": "UptimeCheckEvaluation API Reference",
+      "route": "/config-reference/uptime-checks",
+      "sourcePath": "packages/config/src/uptime-checks.ts",
+      "outputPath": "config-reference/uptime-checks/uptimecheckevaluation.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "UptimeCheckEvaluation"
+      ],
+      "tags": [
+        "config-reference",
+        "UptimeCheckEvaluation",
+        "consecutiveFailures",
+        "consecutiveSuccesses"
+      ],
+      "chunks": [
+        "config-reference:UptimeCheckEvaluation#uptimecheckevaluation-api-reference",
+        "config-reference:UptimeCheckEvaluation#typescript-definition",
+        "config-reference:UptimeCheckEvaluation#property-consecutivefailures",
+        "config-reference:UptimeCheckEvaluation#property-consecutivesuccesses"
+      ]
+    },
+    {
+      "id": "config-reference:UptimeCheckProps",
+      "title": "UptimeCheckProps API Reference",
+      "route": "/config-reference/uptime-checks",
+      "sourcePath": "packages/config/src/uptime-checks.ts",
+      "outputPath": "config-reference/uptime-checks/uptimecheckprops.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "UptimeCheckProps"
+      ],
+      "tags": [
+        "config-reference",
+        "UptimeCheckProps",
+        "url",
+        "assertions",
+        "enabled",
+        "evaluation",
+        "followRedirects",
+        "intervalSeconds",
+        "method",
+        "notificationChannels",
+        "regions",
+        "timeoutSeconds"
+      ],
+      "chunks": [
+        "config-reference:UptimeCheckProps#uptimecheckprops-api-reference",
+        "config-reference:UptimeCheckProps#typescript-definition",
+        "config-reference:UptimeCheckProps#property-url",
+        "config-reference:UptimeCheckProps#example-1-yaml",
+        "config-reference:UptimeCheckProps#example-2-typescript",
+        "config-reference:UptimeCheckProps#property-assertions",
+        "config-reference:UptimeCheckProps#example-1-yaml-2",
+        "config-reference:UptimeCheckProps#example-2-typescript-2",
+        "config-reference:UptimeCheckProps#property-enabled",
+        "config-reference:UptimeCheckProps#example-1-yaml-3",
+        "config-reference:UptimeCheckProps#example-2-typescript-3",
+        "config-reference:UptimeCheckProps#property-evaluation",
+        "config-reference:UptimeCheckProps#example-1-yaml-4",
+        "config-reference:UptimeCheckProps#example-2-typescript-4",
+        "config-reference:UptimeCheckProps#property-followredirects",
+        "config-reference:UptimeCheckProps#example-1-yaml-5",
+        "config-reference:UptimeCheckProps#example-2-typescript-5",
+        "config-reference:UptimeCheckProps#property-intervalseconds",
+        "config-reference:UptimeCheckProps#example-1-yaml-6",
+        "config-reference:UptimeCheckProps#example-2-typescript-6",
+        "config-reference:UptimeCheckProps#property-method",
+        "config-reference:UptimeCheckProps#example-1-yaml-7",
+        "config-reference:UptimeCheckProps#example-2-typescript-7",
+        "config-reference:UptimeCheckProps#property-notificationchannels",
+        "config-reference:UptimeCheckProps#example-1-yaml-8",
+        "config-reference:UptimeCheckProps#example-2-typescript-8",
+        "config-reference:UptimeCheckProps#property-regions",
+        "config-reference:UptimeCheckProps#example-1-yaml-9",
+        "config-reference:UptimeCheckProps#example-2-typescript-9",
+        "config-reference:UptimeCheckProps#property-timeoutseconds",
+        "config-reference:UptimeCheckProps#example-1-yaml-10",
+        "config-reference:UptimeCheckProps#example-2-typescript-10"
       ]
     },
     {

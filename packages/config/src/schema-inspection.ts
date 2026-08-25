@@ -64,7 +64,8 @@ const OTHER_RESOURCES = new Set<StacktapeResourceType>([
   'custom-resource-instance',
   'multi-container-workload',
   'deployment-script',
-  'aws-cdk-construct'
+  'aws-cdk-construct',
+  'uptime-check'
 ]);
 
 const THIRD_PARTY_RESOURCES = new Set<StacktapeResourceType>(['mongo-db-atlas-cluster', 'upstash-redis']);

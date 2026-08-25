@@ -602,7 +602,7 @@ export interface SqsQueueProps {
    *             type: sqs-queue-received-messages-count
    *             properties:
    *               thresholdCount: 1000
-   *           notificationTargets:
+   *           notificationChannels:
    *             - type: slack
    *               properties:
    *                 conversationId: C0123456789
@@ -635,7 +635,7 @@ export interface SqsQueueProps {
    *           type: 'sqs-queue-received-messages-count',
    *           properties: { thresholdCount: 1000 }
    *         },
-   *         notificationTargets: [
+   *         notificationChannels: [
    *           {
    *             type: 'slack',
    *             properties: {

@@ -34,7 +34,7 @@ export const reportAlarmEventInputSchema = z.object({
     z.object({
       id: z.string().optional(),
       name: z.string(),
-      type: z.enum(['slack', 'ms_teams', 'e_mail', 'discord', 'webhook']),
+      type: z.enum(['slack', 'ms_teams', 'e_mail', 'discord', 'webhook', 'console-channel']),
       properties: z.unknown()
     })
   ),
@@ -63,11 +63,44 @@ export const reportIssueEventInputSchema = z.object({
   occurrenceWeight: z.number().int().min(1).max(100).optional()
 });
 
+export const reportUptimeResultsInputSchema = z.object({
+  proberRegion: z.string().min(1),
+  results: z
+    .array(
+      z.object({
+        project: z.string().min(1),
+        stage: z.string().min(1),
+        checkName: z.string().min(1),
+        /** Content-hash revision of the check definition; the server drops results from stale revisions. */
+        revision: z.string().min(1),
+        /** Minute-truncated ISO timestamp of the EventBridge tick that scheduled this probe. */
+        scheduledTick: z.string().datetime(),
+        /** 0 for the on-the-minute probe, 1 for the +30s probe of 30-second checks. */
+        probeOrdinal: z.number().int().min(0).max(1),
+        status: z.enum(['up', 'down']),
+        httpStatus: z.number().int().optional(),
+        latencyMs: z.number().min(0).optional(),
+        timings: z
+          .object({
+            dnsMs: z.number().min(0).optional(),
+            connectMs: z.number().min(0).optional(),
+            tlsMs: z.number().min(0).optional(),
+            ttfbMs: z.number().min(0).optional()
+          })
+          .optional(),
+        failureReason: z.string().max(500).optional(),
+        certExpiresAt: z.string().optional()
+      })
+    )
+    .max(500)
+});
+
 export type ValidateCertificateParams = z.input<typeof validateCertificateInputSchema>;
 export type UpsertDefaultDomainDnsRecordParams = z.input<typeof defaultDomainDnsRecordInputSchema>;
 export type DeleteDefaultDomainDnsRecordParams = z.input<typeof defaultDomainDnsRecordInputSchema>;
 export type ReportAlarmEventParams = z.input<typeof reportAlarmEventInputSchema>;
 export type ReportIssueEventParams = z.input<typeof reportIssueEventInputSchema>;
+export type ReportUptimeResultsParams = z.input<typeof reportUptimeResultsInputSchema>;
 
 /**
  * The id of the issue the report was recorded against, or null when the reporting organization has issue
@@ -91,5 +124,8 @@ export type AwsIdentityTrpcClient = {
   };
   reportIssueEvent: {
     mutate: (args: ReportIssueEventParams) => Promise<ReportIssueEventResponse>;
+  };
+  reportUptimeResults: {
+    mutate: (args: ReportUptimeResultsParams) => Promise<void>;
   };
 };

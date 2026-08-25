@@ -6,11 +6,11 @@
 import type { WebhookIntegrationProps } from 'stacktape';
 
 type WebhookIntegration = {
-  properties?: WebhookIntegrationProps;
+  properties: WebhookIntegrationProps;
 };
 ```
 
 ## Property: `properties`
 
-- Required: no
+- Required: yes
 - Type: `WebhookIntegrationProps`

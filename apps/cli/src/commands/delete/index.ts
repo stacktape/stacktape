@@ -1,4 +1,6 @@
 import { ExpectedError } from '@utils/errors';
+import { stacktapeTrpcApiManager } from '@application-services/stacktape-trpc-api-manager';
+import { withSyncRetries } from '@domain-services/config-manager/utils/uptime-checks';
 import { potentiallyPromptBeforeOperation } from '../_utils/common';
 import { initializeDeleteOperation } from '../_utils/initialization';
 import { stackMetadataNames } from '@stacktape/naming/stack-metadata-names';
@@ -75,7 +77,7 @@ export const commandDelete = async () => {
   const retainedMetadata = deployedStackOverview.getStackMetadata(stackMetadataNames.retainedSharedResources());
   const retainedSharedResources =
     typeof retainedMetadata === 'string' ? parseRetainedSharedResources(retainedMetadata) : undefined;
-  return executeDeleteOperation({
+  const result = await executeDeleteOperation({
     config,
     deploymentArtifacts,
     event,
@@ -85,6 +87,20 @@ export const commandDelete = async () => {
     stackName,
     tui
   });
+  // The stack is gone, so its uptime checks leave the Console projection with it. Best effort: a
+  // failed sync leaves paused rows behind, which the next deploy of this stage reconciles.
+  try {
+    await withSyncRetries(() =>
+      stacktapeTrpcApiManager.apiClient.syncUptimeChecks({
+        project: stackContext.projectName,
+        stage: stackContext.stage,
+        checks: []
+      })
+    );
+  } catch (err) {
+    tui.info(`Could not remove uptime check definitions from the Stacktape Console: ${err}`);
+  }
+  return result;
 };
 
 export const executeDeleteOperation = async ({

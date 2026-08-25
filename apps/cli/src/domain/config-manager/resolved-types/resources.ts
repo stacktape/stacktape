@@ -112,6 +112,7 @@ import type {
   StpUpstashRedis,
   UpstashRedisReferencableParam
 } from '@domain-services/config-manager/resolved-types/upstash-redis';
+import type { StpUptimeCheck } from '@domain-services/config-manager/resolved-types/uptime-checks';
 import type {
   StpUserAuthPool,
   UserPoolReferencableParam
@@ -155,6 +156,7 @@ export type StpResource = (
   | StpCustomResource
   | StpCustomResourceDefinition
   | StpUpstashRedis
+  | StpUptimeCheck
   | StpDeploymentScript
   | StpAwsCdkConstruct
   | StpSqsQueue

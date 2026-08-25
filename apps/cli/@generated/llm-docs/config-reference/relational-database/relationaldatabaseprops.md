@@ -218,7 +218,7 @@ mainDatabase:
           type: database-cpu-utilization
           properties:
             thresholdPercent: 85
-        notificationTargets:
+        notificationChannels:
           - type: email
             properties:
               sender: alerts@example.com
@@ -245,7 +245,7 @@ const mainDatabase = new RelationalDatabase({
         type: 'database-cpu-utilization',
         properties: { thresholdPercent: 85 }
       },
-      notificationTargets: [
+      notificationChannels: [
         {
           type: 'email',
           properties: { sender: 'alerts@example.com', recipient: 'ops@example.com' }

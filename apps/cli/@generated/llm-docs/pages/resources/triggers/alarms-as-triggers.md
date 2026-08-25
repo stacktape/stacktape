@@ -15,7 +15,7 @@ Concrete scenarios where alarm triggers add value:
 
 ## When NOT to use
 
-If you only need a human to see the alert, skip the Lambda function entirely. Use the built-in `notificationTargets` on the alarm itself — Stacktape supports [Slack, email, Discord, MS Teams, and webhooks](/observability/alert-channels) with no code required. Only add an alarm trigger when the response demands custom logic that a notification message cannot deliver. For most teams, notification targets cover the majority of alerting needs.
+If you only need a human to see the alert, skip the Lambda function entirely. Use the built-in `notificationChannels` on the alarm itself — Stacktape supports [Slack, email, Discord, MS Teams, and webhooks](/observability/alert-channels) with no code required. Only add an alarm trigger when the response demands custom logic that a notification message cannot deliver. For most teams, notification targets cover the majority of alerting needs.
 
 ## Configuration
 

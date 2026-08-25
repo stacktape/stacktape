@@ -479,7 +479,7 @@ export const configErrors = {
     return new CliError({
       category: 'CONFIG_VALIDATION',
       code: 'CONFIG_NEXTJS_PROJECT_MISSING',
-      message: `Error in ${inlineCode(stpResourceName)} resource: Specified directory "${inlineCode(directoryPath)}" does not seem to contain Next.js project (does not contain next.config.(js/ts)).`
+      message: `Error in ${inlineCode(stpResourceName)} resource: Specified directory "${inlineCode(directoryPath)}" does not seem to contain a Next.js project (no Next.js dependency or next.config file was found).`
     });
   },
   sqsRedriveTargetAmbiguous({ sqsQueueReferencerStpName }: { sqsQueueReferencerStpName: string }): CliError {
@@ -738,6 +738,86 @@ export const configErrors = {
       )} can't be used with regional resources without CDN, and firewall with ${inlineCode(
         'scope: regional'
       )} can't be used with resources using CDN.`
+    });
+  },
+  uptimeCheckBodyAssertionRequiresGet({ checkName }: { checkName: string }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_UPTIME_CHECK_BODY_ASSERTION_REQUIRES_GET',
+      message: `Error in ${inlineCode('uptime-check')} ${inlineCode(checkName)}: a ${inlineCode(
+        'body-contains'
+      )} assertion requires ${inlineCode('method: GET')} — a ${inlineCode('HEAD')} response has no body to match.`,
+      hints: [`Use ${inlineCode('method: GET')}, or remove the ${inlineCode('body-contains')} assertion.`]
+    });
+  },
+  uptimeCheckValueOutOfRange({
+    checkName,
+    property,
+    min,
+    max,
+    actual
+  }: {
+    checkName: string;
+    property: string;
+    min: number;
+    max: number;
+    actual: number;
+  }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_UPTIME_CHECK_VALUE_OUT_OF_RANGE',
+      message: `Error in ${inlineCode('uptime-check')} ${inlineCode(checkName)}: ${inlineCode(
+        property
+      )} must be between ${min} and ${max} (got ${actual}).`
+    });
+  },
+  uptimeCheckRegionsInvalid({ checkName, reason }: { checkName: string; reason: string }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_UPTIME_CHECK_REGIONS_INVALID',
+      message: `Error in ${inlineCode('uptime-check')} ${inlineCode(checkName)}: ${reason}`
+    });
+  },
+  uptimeChecksLimitExceeded({ count, limit }: { count: number; limit: number }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_UPTIME_CHECKS_LIMIT_EXCEEDED',
+      message: `This stack defines ${count} ${inlineCode('uptime-check')} resources; at most ${limit} are supported per stack.`
+    });
+  },
+  uptimeCheckAssertionInvalid({ checkName, reason }: { checkName: string; reason: string }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_UPTIME_CHECK_ASSERTION_INVALID',
+      message: `Error in ${inlineCode('uptime-check')} ${inlineCode(checkName)}: ${reason}`
+    });
+  },
+  uptimeCheckUrlInvalid({ checkName, url }: { checkName: string; url: string }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_UPTIME_CHECK_URL_INVALID',
+      message: `Error in ${inlineCode('uptime-check')} ${inlineCode(checkName)}: ${inlineCode(
+        'url'
+      )} must be an ${inlineCode('http://')} or ${inlineCode('https://')} URL (got ${inlineCode(url)}).`,
+      hints: [
+        `Use a full URL like ${inlineCode('https://api.example.com/health')}, or reference a deployed resource with ${inlineCode("$ResourceParam('api', 'url')")}.`
+      ]
+    });
+  },
+  alarmConsoleChannelRequiresHistory({ alarmName }: { alarmName: string }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_ALARM_CONSOLE_CHANNEL_REQUIRES_HISTORY',
+      message: `Alarm ${inlineCode(alarmName)} uses a ${inlineCode(
+        'console-channel'
+      )} notification channel together with ${inlineCode(
+        'includeInHistory: false'
+      )}. Console channels are delivered through the Stacktape Console, which requires history routing.`,
+      hints: [
+        `Remove ${inlineCode('includeInHistory: false')}, or replace the ${inlineCode(
+          'console-channel'
+        )} entry with an inline channel (slack, ms-teams, discord, email, webhook).`
+      ]
     });
   }
 };

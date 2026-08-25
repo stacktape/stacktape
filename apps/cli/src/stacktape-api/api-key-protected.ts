@@ -47,6 +47,8 @@ import type {
   ReportEventParams,
   StackDetailsParams,
   StackDetailsResponse,
+  SyncUptimeChecksParams,
+  SyncUptimeChecksResponse,
   TemplateParams,
   TemplateResponse
 } from '@stacktape/console-api/api-key';
@@ -102,6 +104,8 @@ export type {
   ReportEventParams,
   StackDetailsParams,
   StackDetailsResponse,
+  SyncUptimeChecksParams,
+  SyncUptimeChecksResponse,
   TemplateParams,
   TemplateResponse
 } from '@stacktape/console-api/api-key';
@@ -153,6 +157,10 @@ export class ApiKeyProtectedClient {
 
   globalConfig = async (): Promise<GlobalConfigResponse> => {
     return this.#request('globalConfig', () => this.#ensureInitialized().globalConfig.query());
+  };
+
+  syncUptimeChecks = async (args: SyncUptimeChecksParams): Promise<SyncUptimeChecksResponse> => {
+    return this.#request('syncUptimeChecks', () => this.#ensureInitialized().syncUptimeChecks.mutate(args));
   };
 
   currentUserAndOrgData = async (): Promise<CurrentUserAndOrgDataResponse> => {

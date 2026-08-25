@@ -3,7 +3,7 @@
 ## TypeScript definition
 
 ```typescript
-import type { AlarmEvaluation, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';
+import type { AlarmEvaluation, ConsoleChannelIntegration, DiscordIntegration, EmailIntegration, MsTeamsIntegration, SlackIntegration, SqsQueueNotEmptyTrigger, SqsQueueReceivedMessagesCountTrigger, WebhookIntegration } from 'stacktape';
 
 type SqsQueueAlarm = {
   trigger: SqsQueueAlarmTrigger;
@@ -14,7 +14,7 @@ type SqsQueueAlarm = {
   /** Whether alarm state changes should appear in monitoring history. */
   includeInHistory?: boolean;
   /** Where to send notifications when the alarm fires — Slack, MS Teams, or email. */
-  notificationTargets?: Array<SqsQueueAlarmNotificationTargets>;
+  notificationChannels?: Array<SqsQueueAlarmNotificationChannels>;
 };
 
 /** Union choices used by the properties above. */
@@ -22,12 +22,13 @@ type SqsQueueAlarmTrigger =
   | SqsQueueReceivedMessagesCountTrigger
   | SqsQueueNotEmptyTrigger;
 
-type SqsQueueAlarmNotificationTargets =
+type SqsQueueAlarmNotificationChannels =
   | SlackIntegration
   | MsTeamsIntegration
   | EmailIntegration
   | DiscordIntegration
-  | WebhookIntegration;
+  | WebhookIntegration
+  | ConsoleChannelIntegration;
 ```
 
 ## Property: `trigger`
@@ -215,10 +216,10 @@ export default defineConfig(() => {
 });
 ```
 
-## Property: `notificationTargets`
+## Property: `notificationChannels`
 
 - Required: no
-- Type: `Array<slack | ms-teams | email | discord | webhook>`
+- Type: `Array<slack | ms-teams | email | discord | webhook | console-channel>`
 
 Where to send notifications when the alarm fires — Slack, MS Teams, or email.
 
@@ -228,6 +229,7 @@ Choices:
 - `email` (`EmailIntegration`). Properties: `sender: string`, `recipient: string`.
 - `discord` (`DiscordIntegration`). Properties: `webhookUrl: string`.
 - `webhook` (`WebhookIntegration`). Properties: `url: string`, `secret?: string`, `headers?: Record<string,string>`.
+- `console-channel` (`ConsoleChannelIntegration`). Properties: `channelName: string`.
 
 ### Example 1 (yaml)
 
@@ -242,7 +244,7 @@ resources:
             type: http-api-gateway-error-rate
             properties:
               thresholdPercent: 2
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C12345678
@@ -270,7 +272,7 @@ export default defineConfig(() => {
           type: 'http-api-gateway-error-rate',
           properties: { thresholdPercent: 2 }
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: { conversationId: 'C12345678', accessToken: $Secret('slack-bot-token') }

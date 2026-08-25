@@ -50,7 +50,7 @@ const createEvent = (includeInHistory: boolean): AlarmNotificationEventRuleInput
       name: 'errors',
       includeInHistory,
       trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 1 } },
-      notificationTargets: [{ type: 'slack', properties: { conversationId: 'C123', accessToken: 'xoxb-test' } }]
+      notificationChannels: [{ type: 'slack', properties: { conversationId: 'C123', accessToken: 'xoxb-test' } }]
     },
     affectedResource: { displayName: 'api', link: 'https://example.com' },
     comparisonOperator: 'GreaterThanThreshold',

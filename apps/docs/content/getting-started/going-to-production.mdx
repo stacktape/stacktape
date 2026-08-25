@@ -19,7 +19,7 @@ Stacktape alarms monitor CloudWatch metrics and notify your team when thresholds
 
 Alarm triggers cover the most critical failure modes: Lambda error rate and duration, database CPU/memory/storage/connections/latency, HTTP API Gateway error rate and latency, Application Load Balancer error rate and unhealthy targets, and SQS received-message count and not-empty alarms. Each alarm supports configurable evaluation windows — period length, how many periods to evaluate, and how many must breach before firing.
 
-Without `notificationTargets`, alarms change state in CloudWatch but nobody gets paged. Always route alarms to at least one notification channel. Stacktape supports five channel types: Slack, Microsoft Teams, Discord, email, and custom webhooks.
+Without `notificationChannels`, alarms change state in CloudWatch but nobody gets paged. Always route alarms to at least one notification channel. Stacktape supports five channel types: Slack, Microsoft Teams, Discord, email, and custom webhooks.
 
 <CodeBlock
   intellisense
@@ -48,7 +48,7 @@ export default defineConfig(() => {
           evaluationPeriods: 3,
           breachedPeriods: 2
         },
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'email',
             properties: {
@@ -213,7 +213,7 @@ Guardrails are most valuable once your team has more than one person deploying, 
 
 Before sending real traffic, run through these concrete checks:
 
-1. **Confirm alarms notify correctly.** Trigger a test error in your function or service and verify the notification reaches your on-call channel. An alarm without `notificationTargets` fires silently in CloudWatch — check that every production alarm has at least one target configured. Use [`stacktape logs`](/cli/logs) to confirm CloudWatch is receiving log data.
+1. **Confirm alarms notify correctly.** Trigger a test error in your function or service and verify the notification reaches your on-call channel. An alarm without `notificationChannels` fires silently in CloudWatch — check that every production alarm has at least one target configured. Use [`stacktape logs`](/cli/logs) to confirm CloudWatch is receiving log data.
 
 2. **Set a budget threshold.** Open the [Stacktape Console](/getting-started/using-console-ui) Budgets page and create a budget alert matching your expected monthly spend. Set alerts at 80% and 100%. Enable forecast-based alerts so you catch spend trends before they hit the threshold.
 

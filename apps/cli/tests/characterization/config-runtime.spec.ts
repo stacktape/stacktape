@@ -189,7 +189,8 @@ const getInitContext = ({
       batchJobTriggerLambda: helperLambda,
       stacktapeServiceLambda: helperLambda,
       cdnOriginRequestLambda: helperLambda,
-      cdnOriginResponseLambda: helperLambda
+      cdnOriginResponseLambda: helperLambda,
+      uptimeProber: helperLambda
     },
     issueDetection: {},
     resolver: {

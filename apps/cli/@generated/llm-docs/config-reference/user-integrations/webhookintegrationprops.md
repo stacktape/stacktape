@@ -41,7 +41,7 @@ resources:
             properties:
               thresholdPercent: 10
           description: Scheduler errors detected
-          notificationTargets:
+          notificationChannels:
             - type: webhook
               properties:
                 url: https://ops.mycompany.com/hooks/stacktape-alarms
@@ -65,7 +65,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },
         description: 'Scheduler errors detected',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'webhook',
             properties: {
@@ -107,7 +107,7 @@ resources:
             properties:
               thresholdPercent: 10
           description: Scheduler errors detected
-          notificationTargets:
+          notificationChannels:
             - type: webhook
               properties:
                 url: https://ops.mycompany.com/hooks/stacktape-alarms
@@ -134,7 +134,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },
         description: 'Scheduler errors detected',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'webhook',
             properties: {
@@ -182,7 +182,7 @@ resources:
             properties:
               thresholdPercent: 10
           description: Scheduler errors detected
-          notificationTargets:
+          notificationChannels:
             - type: webhook
               properties:
                 url: https://ops.mycompany.com/hooks/stacktape-alarms
@@ -206,7 +206,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 10 } },
         description: 'Scheduler errors detected',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'webhook',
             properties: {

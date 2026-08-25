@@ -39,7 +39,7 @@ resources:
             properties:
               thresholdPercent: 5
           description: Worker error rate is too high
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C0123456789
@@ -63,7 +63,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },
         description: 'Worker error rate is too high',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: {
@@ -107,7 +107,7 @@ resources:
             properties:
               thresholdPercent: 5
           description: Worker error rate is too high
-          notificationTargets:
+          notificationChannels:
             - type: slack
               properties:
                 conversationId: C0123456789
@@ -131,7 +131,7 @@ export default defineConfig(() => {
       {
         trigger: { type: 'lambda-error-rate', properties: { thresholdPercent: 5 } },
         description: 'Worker error rate is too high',
-        notificationTargets: [
+        notificationChannels: [
           {
             type: 'slack',
             properties: {
