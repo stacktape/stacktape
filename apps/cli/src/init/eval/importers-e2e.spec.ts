@@ -65,6 +65,38 @@ const CASES: EvalCase[] = [
     }
   },
   {
+    name: 'Go server with a bundled Vite administration UI',
+    files: {
+      'go.mod': 'module example.com/notification-server\n',
+      'cmd/main.go': [
+        'package main',
+        'var frontendDir = "frontend/dist"',
+        'func main() { server := echo.New(); server.Start(":9000") }',
+        ''
+      ].join('\n'),
+      'frontend/package.json': JSON.stringify({
+        name: 'notification-server',
+        scripts: { build: 'vite build' },
+        dependencies: { vue: '^3.0.0' },
+        devDependencies: { vite: '^8.0.0' }
+      }),
+      'frontend/index.html': '<div id="app"></div>',
+      'frontend/editor/package.json': JSON.stringify({
+        name: '@notification/editor',
+        scripts: { build: 'vite build' },
+        dependencies: { react: '^19.0.0' },
+        devDependencies: { vite: '^8.0.0' }
+      }),
+      'frontend/editor/index.html': '<div id="editor"></div>'
+    },
+    expect: {
+      resources: { notificationServer: 'web-service' },
+      serviceCount: 1,
+      deployable: true,
+      maxQuestions: 0
+    }
+  },
+  {
     name: 'Serverless Framework local queue event',
     files: {
       'serverless.yml': [

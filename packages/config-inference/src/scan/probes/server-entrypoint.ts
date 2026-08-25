@@ -35,6 +35,19 @@ type Detection = {
   processType?: string;
 };
 
+const GO_HTTP_SERVER_PATTERN =
+  /(?:http\.ListenAndServe|\.ListenAndServe\s*\(|\.ListenAndServeTLS\s*\(|\.Serve\s*\(|\.Start\s*\(|\.Listen\s*\()/;
+
+const GO_NON_APPLICATION_DIRECTORY = /(?:^|\/)(?:examples?|tools?|scripts?|test|tests|fixtures)(?:\/|$)/i;
+
+const goModuleName = (raw: string): string | undefined => {
+  const modulePath = /^\s*module\s+(\S+)\s*$/m.exec(raw)?.[1];
+  if (modulePath === undefined) return undefined;
+  const segments = modulePath.split('/');
+  while (segments.length > 1 && /^v\d+$/.test(segments.at(-1)!)) segments.pop();
+  return segments.at(-1);
+};
+
 const workerProcessType = (path: string): string => {
   const stem = posix.basename(path).replace(/\.[^.]+$/, '');
   return /(?:^|\/)(?:worker|workers)(?:\/|$)/i.test(path) && /^(?:index|main|bootstrap)$/i.test(stem) ? 'worker' : stem;
@@ -99,7 +112,7 @@ const detectionFor = (path: string, raw: string): Detection | undefined => {
       : undefined;
   }
   if (path.endsWith('.go')) {
-    const pattern = /(?:http\.ListenAndServe|\.ListenAndServe\s*\(|\.Run\s*\(|fiber\.New\s*\(|echo\.New\s*\()/;
+    const pattern = GO_HTTP_SERVER_PATTERN;
     return /\bfunc\s+main\s*\(/.test(raw) && pattern.test(raw)
       ? { entrypoint: path, pattern, language: 'go' }
       : undefined;
@@ -178,10 +191,13 @@ export const serverEntrypointProbe: Probe = {
         !/(?:^|\/)[^/]+\.(?:test|spec)\.(?:[cm]?js|tsx?|py|php|go|java|kt)$/i.test(path)
     );
     const byRoot = new Map<string, ServiceFactInput>();
+    const goSources = new Map<string, string>();
     for (const path of candidates) {
       // oxlint-disable-next-line no-await-in-loop -- policy-controlled reads, stopped after one entrypoint per service root.
       const raw = await readText(context, path);
       if (raw === undefined) continue;
+      if (path.endsWith('.go')) goSources.set(path, raw);
+      if (path.endsWith('.go') && GO_NON_APPLICATION_DIRECTORY.test(path)) continue;
       const detection = detectionFor(path, raw);
       if (detection === undefined) continue;
       const root = nearestManifestRoot(path, context.files) ?? '.';
@@ -198,9 +214,16 @@ export const serverEntrypointProbe: Probe = {
       // file; an unused example server elsewhere in the package is not the deployed application.
       // oxlint-disable-next-line no-await-in-loop -- stopped after one detected entrypoint per service root.
       const declaredStart = await declaredStartFor(root, detection.entrypoint, context);
+      const goMod = root === '.' ? 'go.mod' : `${root}/go.mod`;
+      let goModRaw: string | undefined;
+      if (detection.language === 'go' && context.files.includes(goMod)) {
+        // oxlint-disable-next-line no-await-in-loop -- one short module manifest gives a stable Go application name.
+        goModRaw = await readText(context, goMod, { fullFile: true });
+      }
       byRoot.set(key, {
         name:
           detection.processType ??
+          (goModRaw === undefined ? undefined : goModuleName(goModRaw)) ??
           (root === '.'
             ? (context.root.split(/[/\\]/).findLast((segment) => segment !== '') ?? 'app')
             : posix.basename(root)),
@@ -217,6 +240,92 @@ export const serverEntrypointProbe: Probe = {
           ...(citation === undefined ? [] : [citation]),
           ...(declaredStart === undefined ? [] : [declaredStart.evidence])
         ],
+        source: 'probe'
+      });
+    }
+
+    // Go applications frequently split `main` and the actual listener across files in one package.
+    // Looking at one file at a time misses that ordinary layout. A Dockerfile that exposes a port is
+    // also an explicit declaration that the selected main package is the network application, even
+    // when the listener lives behind a CLI subcommand in another package (ntfy is a real example).
+    const goMainFiles = [...goSources.entries()].filter(
+      ([path, raw]) =>
+        !GO_NON_APPLICATION_DIRECTORY.test(path) && /^\s*package\s+main\b/m.test(raw) && /\bfunc\s+main\s*\(/.test(raw)
+    );
+    const mainDirectories = new Map<string, Array<{ path: string; raw: string }>>();
+    for (const [path, raw] of goMainFiles) {
+      const directory = posix.dirname(path);
+      const entries = mainDirectories.get(directory) ?? [];
+      entries.push({ path, raw });
+      mainDirectories.set(directory, entries);
+    }
+    const mainDirectoryCountByRoot = new Map<string, number>();
+    for (const [, mains] of mainDirectories) {
+      const root = nearestManifestRoot(mains[0]!.path, context.files) ?? '.';
+      mainDirectoryCountByRoot.set(root, (mainDirectoryCountByRoot.get(root) ?? 0) + 1);
+    }
+
+    for (const [directory, mains] of mainDirectories) {
+      const entrypoint = mains.find(({ path }) => posix.basename(path) === 'main.go') ?? mains[0]!;
+      const root = nearestManifestRoot(entrypoint.path, context.files) ?? '.';
+      const key = `${root}::main`;
+      if (byRoot.has(key)) continue;
+
+      const packageFiles = context.files.filter(
+        (path) =>
+          path.endsWith('.go') &&
+          posix.dirname(path) === directory &&
+          !path.endsWith('_test.go') &&
+          !GO_NON_APPLICATION_DIRECTORY.test(path)
+      );
+      let listener: { path: string; raw: string } | undefined;
+      for (const path of packageFiles) {
+        // oxlint-disable-next-line no-await-in-loop -- package-level source is needed to join main and listener evidence.
+        const raw = await readText(context, path, { fullFile: true });
+        if (raw !== undefined && GO_HTTP_SERVER_PATTERN.test(raw)) {
+          listener = { path, raw };
+          break;
+        }
+      }
+
+      const dockerfile = root === '.' ? 'Dockerfile' : `${root}/Dockerfile`;
+      let exposedDockerfile: { raw: string; port: number } | undefined;
+      // EXPOSE identifies the module as a network application, but it cannot disambiguate two
+      // independent binaries in the same Go module. In that layout require source-level listener
+      // evidence for the selected package instead of choosing whichever main file was scanned first.
+      if (mainDirectoryCountByRoot.get(root) === 1 && context.files.includes(dockerfile)) {
+        // oxlint-disable-next-line no-await-in-loop -- one Dockerfile for the candidate Go application.
+        const raw = await readText(context, dockerfile, { fullFile: true });
+        const rawPort = raw === undefined ? undefined : /^\s*EXPOSE\s+(\d{2,5})(?:\/tcp)?\s*$/im.exec(raw)?.[1];
+        const port = rawPort === undefined ? undefined : Number.parseInt(rawPort, 10);
+        if (raw !== undefined && port !== undefined && port > 0 && port <= 65_535) {
+          exposedDockerfile = { raw, port };
+        }
+      }
+      if (listener === undefined && exposedDockerfile === undefined) continue;
+
+      const goMod = root === '.' ? 'go.mod' : `${root}/go.mod`;
+      // oxlint-disable-next-line no-await-in-loop -- one short module manifest per candidate.
+      const goModRaw = context.files.includes(goMod) ? await readText(context, goMod, { fullFile: true }) : undefined;
+      const mainCitation = citeFirstMatch(entrypoint.path, entrypoint.raw, /\bfunc\s+main\s*\(/, 'containerEntrypoint');
+      const listenerCitation =
+        listener === undefined
+          ? citeFirstMatch(dockerfile, exposedDockerfile!.raw, /^\s*EXPOSE\s+\d{2,5}/im, 'port')
+          : citeFirstMatch(listener.path, listener.raw, GO_HTTP_SERVER_PATTERN, 'containerEntrypoint');
+      byRoot.set(key, {
+        name:
+          (goModRaw === undefined ? undefined : goModuleName(goModRaw)) ??
+          (root === '.'
+            ? (context.root.split(/[/\\]/).findLast((segment) => segment !== '') ?? 'app')
+            : posix.basename(root)),
+        path: root,
+        language: 'go',
+        exposesHttp: true,
+        ...(exposedDockerfile === undefined ? {} : { port: exposedDockerfile.port }),
+        executionModel: 'long-running',
+        containerEntrypoint: entrypoint.path,
+        environmentVariables: [],
+        evidence: [mainCitation, listenerCitation].filter((citation) => citation !== undefined),
         source: 'probe'
       });
     }

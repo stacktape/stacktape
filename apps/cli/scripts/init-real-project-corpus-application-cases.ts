@@ -159,9 +159,31 @@ const ALL_REAL_PROJECT_APPLICATION_CASES = [
     source: 'real-application',
     exercises: ['go', 'postgres', 'docker', 'email'],
     expect: {
-      resourceTypes: { 'web-service': 1 },
+      resourceTypes: { bastion: 1, 'relational-database': 1, 'web-service': 1 },
+      dependencyKinds: { postgres: 1 },
       serviceCount: 1,
       httpServiceCount: 1,
+      services: [{ name: 'listmonk', path: '.', exposesHttp: true, dockerfile: 'Dockerfile' }],
+      requiredConfig: ['type: web-service', 'dockerfilePath: Dockerfile'],
+      forbiddenConfig: ['type: hosting-bucket', 'uploadDirectoryPath: frontend/'],
+      forbidCurrentlyHostedDependencies: true
+    }
+  },
+  {
+    id: 'real-ntfy',
+    repository: 'https://github.com/binwiederhier/ntfy.git',
+    commit: 'f1bdb6bfe180fd2912ba9dbcd471b12d81428c84',
+    license: 'Apache-2.0 AND GPL-2.0',
+    source: 'real-application',
+    exercises: ['go', 'react', 'websocket', 'sqlite', 'postgres', 'object-storage', 'docker'],
+    expect: {
+      resourceTypes: { bastion: 1, 'relational-database': 1, 'web-service': 1 },
+      dependencyKinds: { postgres: 1 },
+      serviceCount: 1,
+      httpServiceCount: 1,
+      services: [{ name: 'ntfy', path: '.', exposesHttp: true, dockerfile: 'Dockerfile' }],
+      requiredConfig: ['type: web-service', 'entryfilePath: main.go'],
+      forbiddenConfig: ['type: hosting-bucket', 'uploadDirectoryPath: web/'],
       forbidCurrentlyHostedDependencies: true
     }
   },

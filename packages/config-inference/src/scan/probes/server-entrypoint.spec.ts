@@ -206,4 +206,86 @@ describe('the server entrypoint probe', () => {
       containerEntrypoint: 'main.go'
     });
   });
+
+  it('joins a Go main function with the HTTP listener in another file of the same package', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/list-manager\n',
+      'cmd/main.go': 'package main\nfunc main() { startApplication() }\n',
+      'cmd/http.go': [
+        'package main',
+        'func startApplication() {',
+        '  server := echo.New()',
+        '  server.Start(":9000")',
+        '}',
+        ''
+      ].join('\n')
+    });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'list-manager',
+      path: '.',
+      language: 'go',
+      exposesHttp: true,
+      containerEntrypoint: 'cmd/main.go'
+    });
+  });
+
+  it('uses an exposed production Dockerfile to identify a delegated Go server entrypoint', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/notify/v2\n',
+      'main.go': 'package main\nfunc main() { app.Run(os.Args) }\n',
+      Dockerfile: 'FROM scratch\nCOPY notify /notify\nEXPOSE 8080\nENTRYPOINT ["/notify"]\n',
+      'server/server.go': 'package server\nfunc serve() { http.ListenAndServe(":8080", handler) }\n',
+      'examples/demo/main.go': 'package main\nfunc main() { http.ListenAndServe(":9090", handler) }\n'
+    });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [serverEntrypointProbe]
+    });
+
+    expect(facts.services).toHaveLength(1);
+    expect(facts.services[0]).toMatchObject({
+      name: 'notify',
+      path: '.',
+      language: 'go',
+      exposesHttp: true,
+      port: 8080,
+      containerEntrypoint: 'main.go'
+    });
+  });
+
+  it('does not turn a Go CLI or its example server into the deployed application', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/toolbox\n',
+      'main.go': 'package main\nfunc main() { app.Run(os.Args) }\n',
+      Dockerfile: 'FROM scratch\nCOPY toolbox /toolbox\nENTRYPOINT ["/toolbox"]\n',
+      'examples/demo/main.go': 'package main\nfunc main() { http.ListenAndServe(":9090", handler) }\n'
+    });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [serverEntrypointProbe]
+    });
+
+    expect(facts.services).toEqual([]);
+  });
+
+  it('does not use a module-level EXPOSE to choose between multiple delegated Go binaries', async () => {
+    const repositoryRoot = await makeRepo({
+      'go.mod': 'module example.com/tool-suite\n',
+      'cmd/api/main.go': 'package main\nfunc main() { app.Run(os.Args) }\n',
+      'cmd/worker/main.go': 'package main\nfunc main() { worker.Run(os.Args) }\n',
+      Dockerfile: 'FROM scratch\nCOPY application /application\nEXPOSE 8080\nENTRYPOINT ["/application"]\n'
+    });
+    const { facts } = await assembleCandidateFacts({
+      root: repositoryRoot,
+      probes: [serverEntrypointProbe]
+    });
+
+    expect(facts.services).toEqual([]);
+  });
 });
