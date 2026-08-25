@@ -59,7 +59,21 @@ describe('qualification runner', () => {
             source: { kind: 'local', path: 'project', license: 'Synthetic fixture' },
             origin: 'synthetic',
             tags: ['node', 'resume'],
-            lanes: ['import']
+            lanes: ['import'],
+            expect: {
+              resourceTypes: { 'web-service': 1 },
+              serviceCount: 1,
+              httpServiceCount: 1,
+              services: [
+                {
+                  name: 'resume-fixture',
+                  path: '.',
+                  framework: 'express',
+                  exposesHttp: true,
+                  startCommand: 'npm run start'
+                }
+              ]
+            }
           }
         ]
       })}\n`,
@@ -107,8 +121,82 @@ describe('qualification runner', () => {
       execution: 'reused',
       resumedFrom: { runId: 'resume-two' }
     });
-    expect(second.summary).toMatchObject({ passed: 1, failed: 0, skipped: 0 });
+    expect(second.summary).toMatchObject({ passed: 1, failed: 0, skipped: 0, discovery: 0 });
     expect(await Bun.file(join(thirdOutput, 'cases', 'resume-fixture', 'stacktape.yml')).exists()).toBeTrue();
+  }, 120_000);
+
+  test('reports uncontracted imports as discovery and blocks packaging and resume promotion', async () => {
+    const root = await mkdtemp(join(tmpdir(), 'stacktape-qualification-discovery-test-'));
+    temporaryRoots.push(root);
+    const project = join(root, 'project');
+    await mkdir(project);
+    await writeFile(
+      join(project, 'package.json'),
+      `${JSON.stringify({
+        name: 'discovery-fixture',
+        private: true,
+        scripts: { start: 'node index.js' },
+        dependencies: { express: '5.1.0' }
+      })}\n`,
+      'utf8'
+    );
+    await writeFile(join(project, 'index.js'), "require('express')().listen(process.env.PORT || 3000);\n", 'utf8');
+    const manifestPath = join(root, 'manifest.json');
+    await writeFile(
+      manifestPath,
+      `${JSON.stringify({
+        schemaVersion: 1,
+        cases: [
+          {
+            id: 'discovery-fixture',
+            title: 'Uncontracted discovery fixture',
+            why: 'Proves syntax-valid output cannot be promoted to qualified packaging evidence.',
+            source: { kind: 'local', path: 'project', license: 'Synthetic fixture' },
+            origin: 'synthetic',
+            tags: ['node', 'discovery'],
+            lanes: ['import', 'package']
+          }
+        ]
+      })}\n`,
+      'utf8'
+    );
+
+    const firstOutput = join(root, 'first');
+    const secondOutput = join(root, 'second');
+    const firstResult = await runQualificationRaw([
+      `--manifest=${manifestPath}`,
+      '--lanes=import,package',
+      '--allow-host-project-code',
+      `--output-dir=${firstOutput}`
+    ]);
+    const secondResult = await runQualificationRaw([
+      `--manifest=${manifestPath}`,
+      '--lanes=import,package',
+      '--allow-host-project-code',
+      `--output-dir=${secondOutput}`,
+      `--resume-from=${join(firstOutput, 'qualification-report.json')}`
+    ]);
+    expect(firstResult.exitCode).toBe(2);
+    expect(secondResult.exitCode).toBe(2);
+
+    const first = await readReport(firstOutput);
+    const second = await readReport(secondOutput);
+    expect(first.summary).toMatchObject({ passed: 0, failed: 0, skipped: 0, discovery: 1 });
+    expect(first.cases[0]).toMatchObject({ status: 'discovery', execution: 'executed' });
+    expect(first.cases[0]?.steps).toContainEqual(
+      expect.objectContaining({
+        name: 'package',
+        status: 'skipped',
+        summary: expect.stringContaining('reviewed semantic expectations')
+      })
+    );
+    expect(second.cases[0]).toMatchObject({ status: 'discovery', execution: 'executed' });
+    expect(
+      await Bun.file(join(firstOutput, 'cases', 'discovery-fixture', 'compiled-template.yml')).exists()
+    ).toBeFalse();
+    const markdown = await readFile(join(firstOutput, 'qualification-report.md'), 'utf8');
+    expect(markdown).toContain('Discovery is not a qualification pass.');
+    expect(markdown).toContain('discovery-fixture');
   }, 120_000);
 
   test('rejects a project lane when filtering leaves no effective cases', async () => {

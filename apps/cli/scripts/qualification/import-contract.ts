@@ -201,6 +201,7 @@ export const runImportQualification = async ({
     validConfig: configValidation.valid && acceptedResourceCount,
     failures,
     details: {
+      semanticContract: expected === undefined ? 'absent' : 'verified',
       services,
       dependencies,
       existingDeployments,

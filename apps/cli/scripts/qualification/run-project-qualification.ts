@@ -11,12 +11,12 @@ import {
   qualificationLaneSchema,
   qualificationManifestSchema,
   qualificationReportSchema,
+  type CaseStatus,
   type QualificationCaseManifest,
   type QualificationCaseResult,
   type QualificationLane,
   type QualificationReport,
-  type QualificationStep,
-  type StepStatus
+  type QualificationStep
 } from './contracts';
 import { runImportQualification } from './import-contract';
 import { buildOfflineQualificationEnvironment, startOfflineAwsServer, type OfflineAwsServer } from './offline-aws';
@@ -319,9 +319,12 @@ const loadResumableCases = async (path: string | undefined) => {
   return cases;
 };
 
-const statusForSteps = (steps: QualificationStep[]): StepStatus => {
+const statusForSteps = (steps: QualificationStep[], hasSemanticContract: boolean): CaseStatus => {
   if (steps.some((step) => step.status === 'failed')) return 'failed';
   if (steps.every((step) => step.status === 'skipped')) return 'skipped';
+  if (!hasSemanticContract && steps.some((step) => step.name === 'import' && step.status === 'passed')) {
+    return 'discovery';
+  }
   return 'passed';
 };
 
@@ -667,7 +670,10 @@ const runCase = async ({
           name: 'import',
           status: 'passed',
           durationMs: Date.now() - importStartedAt,
-          summary: 'Generated a schema-valid Stacktape configuration that matches the importer contract.',
+          summary:
+            entry.expect === undefined
+              ? 'Generated a schema-valid configuration for review; no semantic importer contract is declared yet.'
+              : 'Generated a schema-valid Stacktape configuration that matches the importer contract.',
           details: imported.details
         });
       }
@@ -690,6 +696,14 @@ const runCase = async ({
           status: 'skipped',
           durationMs: 0,
           summary: 'The manifest marks this project as import-only.'
+        });
+      } else if (entry.expect === undefined) {
+        steps.push({
+          name: 'package',
+          status: 'skipped',
+          durationMs: 0,
+          summary:
+            'Packaging is not qualification-eligible until the generated configuration has reviewed semantic expectations.'
         });
       } else if (configPath === undefined || !importValid) {
         steps.push({
@@ -743,7 +757,7 @@ const runCase = async ({
         acquireStep.details = { ...acquireStep.details, retainedWorkdirPortability: portability };
       }
     }
-    const status = statusForSteps(steps);
+    const status = statusForSteps(steps, entry.expect !== undefined);
     return {
       id: entry.id,
       title: entry.title,
@@ -1080,6 +1094,7 @@ const main = async () => {
   const skipped =
     caseResults.filter((entry) => entry.status === 'skipped').length +
     globalSteps.filter((step) => step.status === 'skipped').length;
+  const discovery = caseResults.filter((entry) => entry.status === 'discovery').length;
   const report: QualificationReport = {
     schemaVersion: QUALIFICATION_REPORT_VERSION,
     runId: options.runId,
@@ -1090,13 +1105,14 @@ const main = async () => {
     lanes: options.lanes,
     awsScenarios: options.awsScenarios,
     environment,
-    summary: { passed, failed, skipped, durationMs: Date.now() - runStartedAt },
+    summary: { passed, failed, skipped, discovery, durationMs: Date.now() - runStartedAt },
     globalSteps,
     cases: caseResults
   };
   const paths = await writeQualificationReport(options.outputDirectory, report);
   process.stdout.write(`${JSON.stringify({ ...report.summary, ...paths })}\n`);
   if (failed > 0) process.exitCode = 1;
+  else if (discovery > 0) process.exitCode = 2;
 };
 
 if (import.meta.main) {

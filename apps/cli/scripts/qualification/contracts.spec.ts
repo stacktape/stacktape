@@ -202,11 +202,17 @@ describe('qualification reports', () => {
     tags: validCase.tags,
     steps: [
       { name: 'acquire' as const, status: 'passed' as const, durationMs: 1, summary: 'Acquired.' },
-      { name: 'import' as const, status: 'passed' as const, durationMs: 9, summary: 'Imported.' }
+      {
+        name: 'import' as const,
+        status: 'passed' as const,
+        durationMs: 9,
+        summary: 'Imported.',
+        details: { semanticContract: 'verified' }
+      }
     ]
   };
   const report = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     runId: 'qualification-test',
     generatedAt: '2026-08-25T00:00:00.000Z',
     productCommit: 'c'.repeat(40),
@@ -214,7 +220,7 @@ describe('qualification reports', () => {
     lanes: ['import'] as const,
     awsScenarios: [],
     environment: { platform: 'win32', architecture: 'x64', bun: '1.3.14', node: '24.0.0' },
-    summary: { passed: 1, failed: 0, skipped: 0, durationMs: 10 },
+    summary: { passed: 1, failed: 0, skipped: 0, discovery: 0, durationMs: 10 },
     globalSteps: [],
     cases: [validResult]
   };
@@ -256,7 +262,60 @@ describe('qualification reports', () => {
         cases: [],
         globalSteps: [{ name: 'runtime', status: 'passed', durationMs: 10, summary: 'Runtime passed.' }]
       }).summary
-    ).toEqual({ passed: 1, failed: 0, skipped: 0, durationMs: 10 });
+    ).toEqual({ passed: 1, failed: 0, skipped: 0, discovery: 0, durationMs: 10 });
+
+    const discoveryResult = {
+      ...validResult,
+      status: 'discovery' as const,
+      steps: [
+        validResult.steps[0],
+        {
+          ...validResult.steps[1],
+          summary: 'Generated a configuration for review.',
+          details: { semanticContract: 'absent' }
+        },
+        {
+          name: 'package' as const,
+          status: 'skipped' as const,
+          durationMs: 0,
+          summary: 'Packaging awaits a semantic contract.'
+        }
+      ]
+    };
+    expect(
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['import', 'package'],
+        cases: [discoveryResult],
+        summary: { ...report.summary, passed: 0, discovery: 1 }
+      }).cases[0]?.status
+    ).toBe('discovery');
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['import', 'package'],
+        cases: [{ ...discoveryResult, status: 'passed' }],
+        summary: report.summary
+      })
+    ).toThrow('Case status must be discovery');
+    expect(() =>
+      qualificationReportSchema.parse({
+        ...report,
+        lanes: ['import', 'package'],
+        cases: [
+          {
+            ...discoveryResult,
+            status: 'passed',
+            steps: [
+              discoveryResult.steps[0],
+              discoveryResult.steps[1],
+              { ...discoveryResult.steps[2], status: 'passed' }
+            ]
+          }
+        ],
+        summary: report.summary
+      })
+    ).toThrow('Packaging cannot pass before the importer has a reviewed semantic contract');
     expect(() =>
       qualificationReportSchema.parse({
         ...report,

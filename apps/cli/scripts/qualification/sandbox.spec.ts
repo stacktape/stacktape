@@ -166,7 +166,13 @@ describe('sandboxed qualification planning & command composition', () => {
       tags: ['docker', 'node'],
       steps: [
         { name: 'acquire', status: 'passed', durationMs: 0, summary: 'Acquired.' },
-        { name: 'import', status: 'passed', durationMs: 1, summary: 'Imported.' }
+        {
+          name: 'import',
+          status: 'passed',
+          durationMs: 1,
+          summary: 'Imported.',
+          details: { semanticContract: 'verified' }
+        }
       ]
     };
     writeFileSync(join(resumeCaseDirectory, 'result.json'), `${JSON.stringify(resumedResult)}\n`);
@@ -185,7 +191,7 @@ describe('sandboxed qualification planning & command composition', () => {
     writeFileSync(
       resumeReportPath,
       `${JSON.stringify({
-        schemaVersion: 3,
+        schemaVersion: 4,
         runId: 'qualification-resume-fixture',
         generatedAt: '2026-08-25T00:00:00.000Z',
         productCommit: mockCommit,
@@ -193,7 +199,7 @@ describe('sandboxed qualification planning & command composition', () => {
         lanes: ['import'],
         awsScenarios: [],
         environment: { platform: process.platform, architecture: process.arch, bun: '1.3.14', node: '24.0.0' },
-        summary: { passed: 2, failed: 0, skipped: 0, durationMs: 1 },
+        summary: { passed: 2, failed: 0, skipped: 0, discovery: 0, durationMs: 1 },
         globalSteps: [],
         cases: [resumedResult, unselectedResult]
       })}\n`
@@ -257,7 +263,13 @@ describe('sandboxed qualification planning & command composition', () => {
         tags: entry.tags,
         steps: [
           { name: 'acquire' as const, status: 'passed' as const, durationMs: 0, summary: 'Acquired.' },
-          { name: 'import' as const, status: 'passed' as const, durationMs: 1, summary: 'Imported.' }
+          {
+            name: 'import' as const,
+            status: 'passed' as const,
+            durationMs: 1,
+            summary: 'Imported.',
+            details: { semanticContract: 'verified' }
+          }
         ]
       };
       const caseDirectory = join(resumeRoot, 'cases', entry.id);
@@ -272,7 +284,7 @@ describe('sandboxed qualification planning & command composition', () => {
     writeFileSync(
       reportPath,
       `${JSON.stringify({
-        schemaVersion: 3,
+        schemaVersion: 4,
         runId: 'qualification-large-resume',
         generatedAt: '2026-08-25T00:00:00.000Z',
         productCommit: mockCommit,
@@ -280,7 +292,7 @@ describe('sandboxed qualification planning & command composition', () => {
         lanes: ['import'],
         awsScenarios: [],
         environment: { platform: process.platform, architecture: process.arch, bun: '1.3.14', node: '24.0.0' },
-        summary: { passed: 2, failed: 0, skipped: 0, durationMs: 2 },
+        summary: { passed: 2, failed: 0, skipped: 0, discovery: 0, durationMs: 2 },
         globalSteps: [],
         cases: results
       })}\n`
@@ -589,13 +601,19 @@ describe('sandboxed qualification planning & command composition', () => {
       tags: ['artifacts'],
       steps: [
         { name: 'acquire' as const, status: 'passed' as const, durationMs: 1, summary: 'Acquired.' },
-        { name: 'import' as const, status: 'passed' as const, durationMs: 1, summary: 'Imported.' },
+        {
+          name: 'import' as const,
+          status: 'passed' as const,
+          durationMs: 1,
+          summary: 'Imported.',
+          details: { semanticContract: 'verified' }
+        },
         { name: 'package' as const, status: 'passed' as const, durationMs: 1, summary: 'Packaged.' }
       ],
       generatedConfigPath: 'cases/artifact-case/stacktape.yml'
     };
     const report = {
-      schemaVersion: 3 as const,
+      schemaVersion: 4 as const,
       runId: 'artifact-run',
       generatedAt: '2026-08-25T00:00:00.000Z',
       productCommit: mockCommit,
@@ -603,7 +621,7 @@ describe('sandboxed qualification planning & command composition', () => {
       lanes: ['import' as const, 'package' as const],
       awsScenarios: [],
       environment: { platform: process.platform, architecture: process.arch, bun: '1.3.14', node: '24.0.0' },
-      summary: { passed: 1, failed: 0, skipped: 0, durationMs: 3 },
+      summary: { passed: 1, failed: 0, skipped: 0, discovery: 0, durationMs: 3 },
       globalSteps: [],
       cases: [result]
     };

@@ -172,6 +172,12 @@ Add `expect` after reviewing the first discovery result. Expectations are a rele
 to make a changed importer pass. First decide whether the source changed, the old expectation was wrong, or Stacktape
 regressed.
 
+The minimal manifest above intentionally has no `expect`. The runner reports a successful import as `discovery`, not
+`passed`, and skips its package lane. This is a useful first inspection result, but it is not release evidence. Review
+the generated topology and add exact semantic expectations first; the next run can then qualify the import and execute
+packaging. Discovery cases are never reused by `--resume-from`. A discovery-only run writes its complete report and
+returns exit code 2 so automation cannot mistake it for a qualification pass.
+
 ## What should be stored where
 
 Use three storage layers instead of one very large repository:

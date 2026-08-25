@@ -1,7 +1,7 @@
 import { isAbsolute, win32 } from 'node:path';
 import { z } from 'zod';
 
-export const QUALIFICATION_REPORT_VERSION = 3 as const;
+export const QUALIFICATION_REPORT_VERSION = 4 as const;
 export const MAX_QUALIFICATION_REPORT_BYTES = 32 * 1024 ** 2;
 export const MAX_CASE_RESULT_BYTES = 4 * 1024 ** 2;
 export const MAX_GENERATED_CONFIG_BYTES = 4 * 1024 ** 2;
@@ -12,6 +12,9 @@ export type QualificationLane = z.infer<typeof qualificationLaneSchema>;
 
 export const stepStatusSchema = z.enum(['passed', 'failed', 'skipped']);
 export type StepStatus = z.infer<typeof stepStatusSchema>;
+
+export const caseStatusSchema = z.enum(['passed', 'failed', 'skipped', 'discovery']);
+export type CaseStatus = z.infer<typeof caseStatusSchema>;
 
 const safeIdSchema = z
   .string()
@@ -177,7 +180,7 @@ export const qualificationCaseResultSchema = z
     fingerprint: z.string().regex(/^[a-f0-9]{64}$/),
     sourceFingerprint: z.string().regex(/^[a-f0-9]{64}$/),
     execution: z.enum(['executed', 'reused']),
-    status: stepStatusSchema,
+    status: caseStatusSchema,
     durationMs: z.number().nonnegative(),
     source: z.discriminatedUnion('kind', [publicGitSourceSchema, localSourceSchema]),
     tags: z.array(safeIdSchema),
@@ -289,11 +292,39 @@ export const qualificationCaseResultSchema = z
         message: 'Importer evidence can only be skipped when the whole project is a fail-fast skip.'
       });
     }
+    const semanticContract = importStep?.details?.semanticContract;
+    if (importStep?.status === 'passed' && semanticContract !== 'verified' && semanticContract !== 'absent') {
+      context.addIssue({
+        code: 'custom',
+        path: ['steps', result.steps.indexOf(importStep), 'details', 'semanticContract'],
+        message: 'Passed importer evidence must identify whether its semantic contract was verified or absent.'
+      });
+    }
+    if (semanticContract === 'absent' && packageStep?.status === 'passed') {
+      context.addIssue({
+        code: 'custom',
+        path: ['steps', result.steps.indexOf(packageStep), 'status'],
+        message: 'Packaging cannot pass before the importer has a reviewed semantic contract.'
+      });
+    }
+    if (semanticContract === 'absent' && result.execution === 'reused') {
+      context.addIssue({
+        code: 'custom',
+        path: ['execution'],
+        message: 'Discovery-only evidence must execute again and cannot be reused as qualification evidence.'
+      });
+    }
+    const isUncontractedDiscovery =
+      importStep?.status === 'passed' &&
+      semanticContract === 'absent' &&
+      (packageStep === undefined || packageStep.status === 'skipped');
     const expectedStatus = result.steps.some((step) => step.status === 'failed')
       ? 'failed'
       : result.steps.every((step) => step.status === 'skipped')
         ? 'skipped'
-        : 'passed';
+        : isUncontractedDiscovery
+          ? 'discovery'
+          : 'passed';
     if (result.status !== expectedStatus) {
       context.addIssue({
         code: 'custom',
@@ -344,6 +375,7 @@ export const qualificationReportSchema = z
         passed: z.number().int().nonnegative(),
         failed: z.number().int().nonnegative(),
         skipped: z.number().int().nonnegative(),
+        discovery: z.number().int().nonnegative(),
         durationMs: z.number().nonnegative()
       })
       .strict(),
@@ -366,9 +398,10 @@ export const qualificationReportSchema = z
     const actualSummary = {
       passed: recordedStatuses.filter((status) => status === 'passed').length,
       failed: recordedStatuses.filter((status) => status === 'failed').length,
-      skipped: recordedStatuses.filter((status) => status === 'skipped').length
+      skipped: recordedStatuses.filter((status) => status === 'skipped').length,
+      discovery: recordedStatuses.filter((status) => status === 'discovery').length
     };
-    for (const key of ['passed', 'failed', 'skipped'] as const) {
+    for (const key of ['passed', 'failed', 'skipped', 'discovery'] as const) {
       if (report.summary[key] !== actualSummary[key]) {
         context.addIssue({
           code: 'custom',
