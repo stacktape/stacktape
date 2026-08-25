@@ -932,13 +932,11 @@ describe('the compose probe', () => {
         message: expect.stringContaining('AWS default credential chain')
       })
     );
-    expect(composed.config.resources.Api?.properties.environment).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name: 'Storage__ServiceUrl' }),
-        expect.objectContaining({ name: 'Storage__AccessKey' }),
-        expect.objectContaining({ name: 'Storage__SecretKey' })
-      ])
-    );
+    for (const name of ['Storage__ServiceUrl', 'Storage__AccessKey', 'Storage__SecretKey']) {
+      expect(composed.config.resources.Api?.properties.environment).not.toContainEqual(
+        expect.objectContaining({ name })
+      );
+    }
   });
 
   it('fails closed when comments and string examples do not prove the client is AWS-portable', async () => {
@@ -1036,16 +1034,14 @@ describe('the compose probe', () => {
     expect(composed.gaps).toContainEqual(
       expect.objectContaining({ message: expect.stringContaining('AWS default credential chain') })
     );
-    expect(composed.config.resources.uploads?.properties.environment).not.toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name: 'S3_ENDPOINT' }),
-        expect.objectContaining({ name: 'S3_ACCESS_KEY_ID' }),
-        expect.objectContaining({ name: 'S3_SECRET_ACCESS_KEY' })
-      ])
-    );
+    for (const name of ['S3_ENDPOINT', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY']) {
+      expect(composed.config.resources.uploads?.properties.environment).not.toContainEqual(
+        expect.objectContaining({ name })
+      );
+    }
   });
 
-  it('does not treat an opaque Node S3 client factory as proof of AWS defaults', async () => {
+  it('does not let an unused default Node S3 client hide a configured primary client', async () => {
     root = await makeRepo({
       'package.json': JSON.stringify({
         name: 'uploads',
@@ -1054,7 +1050,13 @@ describe('the compose probe', () => {
       }),
       'server.js': [
         'const { S3Client } = require("@aws-sdk/client-s3");',
-        'const client = new S3Client(makeStorageConfig());',
+        'const endpoint = process.env.S3_ENDPOINT;',
+        'const credentials = {',
+        '  accessKeyId: process.env.S3_ACCESS_KEY_ID,',
+        '  secretAccessKey: process.env.S3_SECRET_ACCESS_KEY',
+        '};',
+        'const client = new S3Client({ endpoint, credentials });',
+        'const unused = new S3Client();',
         'require("express")().listen(3000);',
         ''
       ].join('\n'),
@@ -1082,7 +1084,13 @@ describe('the compose probe', () => {
     expect(facts.services[0]?.runtimePortabilityConstraints).toContainEqual(
       expect.objectContaining({ kind: 'object-storage-explicit-settings-unverified' })
     );
-    expect(composeConfig({ facts, projectName: 'node-storage-opaque' }).deployable).toBe(false);
+    const composed = composeConfig({ facts, projectName: 'node-storage-opaque' });
+    expect(composed.deployable).toBe(false);
+    for (const name of ['S3_ENDPOINT', 'S3_ACCESS_KEY_ID', 'S3_SECRET_ACCESS_KEY']) {
+      expect(composed.config.resources.uploads?.properties.environment).not.toContainEqual(
+        expect.objectContaining({ name })
+      );
+    }
   });
 
   it('does not assign an incidental tools client to a portable application', async () => {

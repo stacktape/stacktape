@@ -58,6 +58,7 @@ type SourceFamily = 'csharp' | 'node' | 'java' | 'go';
 type FamilySignals = {
   client?: Citation;
   portableClient?: Citation;
+  configuredClient?: Citation;
   endpoint?: Citation;
   credentials?: Citation;
   accessKey?: Citation;
@@ -212,11 +213,16 @@ const collectSignals = (file: string, contents: string, families: Map<SourceFami
       'portableClient',
       citationFor(file, source, /\b(?:new\s+AmazonS3Client\s*\(\s*\)|AddAWSService\s*<\s*IAmazonS3\s*>\s*\(\s*\))/)
     );
+    record(
+      'configuredClient',
+      citationFor(file, source, /\b(?:new\s+AmazonS3Client|AddAWSService\s*<\s*IAmazonS3\s*>)\s*\(\s*(?!\))/)
+    );
     record('credentials', citationFor(file, source, /\bnew\s+(?:Amazon\.Runtime\.)?BasicAWSCredentials\s*\(/));
     record('endpoint', citationFor(file, source, /\bServiceURL\s*=/));
   } else if (family === 'node') {
     record('client', citationFor(file, source, /\bnew\s+S3Client\s*\(/));
     record('portableClient', citationFor(file, source, /\bnew\s+S3Client\s*\(\s*(?:\{\s*\})?\s*\)/));
+    record('configuredClient', citationFor(file, source, /\bnew\s+S3Client\s*\(\s*(?!\)|\{\s*\}\s*\))/));
     record('endpoint', citationFor(file, source, /\bendpoint\s*:/));
     record('accessKey', citationFor(file, source, /\baccessKeyId\s*:/));
     record('secretKey', citationFor(file, source, /\bsecretAccessKey\s*:/));
@@ -361,6 +367,7 @@ const sourceAssessment = (
     [...families.values()].some(
       (signals) =>
         signals.portableClient !== undefined &&
+        signals.configuredClient === undefined &&
         signals.endpoint === undefined &&
         signals.credentials === undefined &&
         signals.accessKey === undefined &&

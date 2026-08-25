@@ -44,6 +44,8 @@ describe('wiringFor', () => {
     expect(wiringFor('queue', 'QUEUE_CONNECTION')).toEqual({ kind: 'none' });
     expect(wiringFor('queue', 'SQS_SUFFIX')).toEqual({ kind: 'none' });
     expect(wiringFor('object-storage', 'Storage__AccessKey')).toEqual({ kind: 'none' });
+    expect(wiringFor('object-storage', 'S3_ACCESS_KEY_ID')).toEqual({ kind: 'none' });
+    expect(wiringFor('object-storage', 'S3_SECRET_ACCESS_KEY')).toEqual({ kind: 'none' });
     expect(wiringFor('object-storage', 'Storage__ServiceUrl')).toEqual({ kind: 'none' });
     expect(wiringFor('object-storage', 'Storage__Region')).toEqual({ kind: 'none' });
   });

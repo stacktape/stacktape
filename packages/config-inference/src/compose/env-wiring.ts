@@ -69,7 +69,10 @@ export const wiringFor = (kind: DependencyKind, variableName: string): Environme
   // `connectTo` supplies AWS identity and the deployment region. A bucket has no resolver
   // parameter for access keys, region, or a custom S3-compatible endpoint; falling back to its
   // name for any of those settings would produce a valid-looking but unusable deployment.
-  if (kind === 'object-storage' && /(?:ACCESS_?KEY|SECRET_?KEY|CREDENTIAL|REGION|ENDPOINT|SERVICE_?URL)$/.test(name)) {
+  if (
+    kind === 'object-storage' &&
+    /(?:ACCESS_KEY(?:_ID)?|SECRET_(?:ACCESS_)?KEY|CREDENTIALS?|REGION|ENDPOINT|SERVICE_URL)$/.test(name)
+  ) {
     return { kind: 'none' };
   }
 
