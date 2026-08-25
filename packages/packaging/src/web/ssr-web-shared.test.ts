@@ -7,6 +7,7 @@ import {
   createServerWrapper,
   getMissingRequiredAdapterPackages,
   reorganizeBuildOutput,
+  resolveSsrWebOutputVariant,
   type SsrWebBuildConfig
 } from './ssr-web-shared';
 import { parseCommand } from '../process/command';
@@ -202,6 +203,37 @@ describe('SSR Lambda wrappers', () => {
 });
 
 describe('SSR build output organization', () => {
+  test('falls back to a supported legacy output only when the primary output is absent', async () => {
+    const root = await createRoot();
+    await mkdir(join(root, '.output', 'server'), { recursive: true });
+    const buildConfig: SsrWebBuildConfig = {
+      buildCommand: 'unused',
+      workingDir: root,
+      serverOutputPath: 'dist/server',
+      staticOutputPath: 'dist/client',
+      handlerFileName: 'server.js',
+      staticAssetPrefix: 'assets',
+      wrapperType: 'tanstack-fetch',
+      fallbackOutputVariants: [
+        {
+          serverOutputPath: '.output/server',
+          staticOutputPath: '.output/public',
+          handlerFileName: 'index.mjs',
+          staticAssetPrefix: '_build',
+          wrapperType: 'passthrough'
+        }
+      ]
+    };
+
+    expect(await resolveSsrWebOutputVariant(buildConfig)).toMatchObject({
+      serverOutputPath: '.output/server',
+      staticOutputPath: '.output/public',
+      handlerFileName: 'index.mjs',
+      staticAssetPrefix: '_build',
+      wrapperType: 'passthrough'
+    });
+  });
+
   test('separates a server directory nested inside the static output', async () => {
     const root = await createRoot();
     const buildOutput = join(root, 'build-output');

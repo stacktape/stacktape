@@ -178,6 +178,15 @@ export type SsrWebFrameworkConfig = {
   nativeRuntimePackages?: Array<{ name: string; resolveFromPackage?: string }>;
   /** Exact framework configuration required for the server adapter. */
   adapterConfigurationHint?: string;
+  /** Older supported framework layouts tried only when the primary server output is absent. */
+  fallbackOutputVariants?: Array<{
+    serverOutputPath: string;
+    staticOutputPath: string;
+    handlerFileName: string;
+    preserveServerOutputDirectory?: boolean;
+    staticAssetPrefix: string;
+    wrapperType: 'passthrough' | 'node-http' | 'web-fetch' | 'tanstack-fetch';
+  }>;
 };
 
 export const SSR_WEB_FRAMEWORK_CONFIGS: Record<SsrWebResourceType, SsrWebFrameworkConfig> = {
@@ -229,7 +238,18 @@ export const SSR_WEB_FRAMEWORK_CONFIGS: Record<SsrWebResourceType, SsrWebFramewo
     staticOutputPath: 'dist/client',
     staticAssetPrefix: 'assets',
     handlerPath: 'server.js',
-    wrapperType: 'tanstack-fetch'
+    presetEnvVar: 'NITRO_PRESET',
+    presetValue: 'aws-lambda',
+    wrapperType: 'tanstack-fetch',
+    fallbackOutputVariants: [
+      {
+        serverOutputPath: '.output/server',
+        staticOutputPath: '.output/public',
+        staticAssetPrefix: '_build',
+        handlerFileName: 'index.mjs',
+        wrapperType: 'passthrough'
+      }
+    ]
   },
   'sveltekit-web': {
     displayName: 'SvelteKit',

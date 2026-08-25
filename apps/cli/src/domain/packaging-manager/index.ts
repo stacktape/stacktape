@@ -1301,6 +1301,7 @@ export class PackagingManager {
         staticOutputPath: frameworkConfig.staticOutputPath,
         handlerFileName: frameworkConfig.handlerPath,
         adapterConfigurationHint: frameworkConfig.adapterConfigurationHint,
+        fallbackOutputVariants: frameworkConfig.fallbackOutputVariants,
         preserveServerOutputDirectory: frameworkConfig.preserveServerOutputDirectory,
         requiredAdapterPackages: frameworkConfig.requiredAdapterPackages,
         nativeRuntimePackages: frameworkConfig.nativeRuntimePackages,

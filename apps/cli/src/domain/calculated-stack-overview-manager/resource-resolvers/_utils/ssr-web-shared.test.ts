@@ -38,7 +38,18 @@ describe('SSR web framework defaults', () => {
       staticOutputPath: 'dist/client',
       staticAssetPrefix: 'assets',
       handlerPath: 'server.js',
-      wrapperType: 'tanstack-fetch'
+      presetEnvVar: 'NITRO_PRESET',
+      presetValue: 'aws-lambda',
+      wrapperType: 'tanstack-fetch',
+      fallbackOutputVariants: [
+        {
+          serverOutputPath: '.output/server',
+          staticOutputPath: '.output/public',
+          staticAssetPrefix: '_build',
+          handlerFileName: 'index.mjs',
+          wrapperType: 'passthrough'
+        }
+      ]
     });
   });
 });

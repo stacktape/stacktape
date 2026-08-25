@@ -50,6 +50,15 @@ export type SsrWebBuildConfig = {
   buildEnv?: Record<string, string> | undefined;
   /** Wrapper type for the framework's generated server entrypoint. */
   wrapperType: 'passthrough' | 'node-http' | 'web-fetch' | 'tanstack-fetch';
+  /** Older supported framework layouts tried only when the primary server output is absent. */
+  fallbackOutputVariants?: Array<{
+    serverOutputPath: string;
+    staticOutputPath: string;
+    handlerFileName: string;
+    preserveServerOutputDirectory?: boolean | undefined;
+    staticAssetPrefix: string;
+    wrapperType: 'passthrough' | 'node-http' | 'web-fetch' | 'tanstack-fetch';
+  }>;
 };
 
 export type SsrWebPackagingProps = {
@@ -93,6 +102,30 @@ export const getMissingRequiredAdapterPackages = async ({
     ...Object.keys(manifest.peerDependencies ?? {})
   ]);
   return requiredAdapterPackages.filter((packageName) => !declaredPackages.has(packageName));
+};
+
+export const resolveSsrWebOutputVariant = async (buildConfig: SsrWebBuildConfig): Promise<SsrWebBuildConfig> => {
+  const outputVariants = [
+    {
+      serverOutputPath: buildConfig.serverOutputPath,
+      staticOutputPath: buildConfig.staticOutputPath,
+      handlerFileName: buildConfig.handlerFileName,
+      preserveServerOutputDirectory: buildConfig.preserveServerOutputDirectory,
+      staticAssetPrefix: buildConfig.staticAssetPrefix,
+      wrapperType: buildConfig.wrapperType
+    },
+    ...(buildConfig.fallbackOutputVariants ?? [])
+  ];
+  const availability = await Promise.all(
+    outputVariants.map(({ serverOutputPath }) => pathExists(join(buildConfig.workingDir, serverOutputPath)))
+  );
+  const selectedIndex = availability.findIndex(Boolean);
+  if (selectedIndex === -1) {
+    throw new Error(
+      `The build completed without creating any supported server output (${outputVariants.map(({ serverOutputPath }) => serverOutputPath).join(', ')}).${buildConfig.adapterConfigurationHint ? ` ${buildConfig.adapterConfigurationHint}` : ''}`
+    );
+  }
+  return { ...buildConfig, ...outputVariants[selectedIndex] };
 };
 
 /**
@@ -542,6 +575,7 @@ export const createSsrWebArtifacts = async ({
   await emptyDir(distFolderPath);
   const buildOutputPath = join(distFolderPath, 'build-output');
   await ensureDir(buildOutputPath);
+  let resolvedBuildConfig = buildConfig;
 
   await runWebBuildExclusive({
     workingDirectory: buildConfig.workingDir,
@@ -566,18 +600,13 @@ export const createSsrWebArtifacts = async ({
         // Handle the case where one output path is nested inside the other (e.g. SvelteKit:
         // serverOutputPath='build', staticOutputPath='build/client') by copying the parent first,
         // then resolving the child from within the already-copied parent.
-        const serverOutputFullPath = join(buildConfig.workingDir, buildConfig.serverOutputPath);
-        const staticOutputFullPath = join(buildConfig.workingDir, buildConfig.staticOutputPath);
+        resolvedBuildConfig = await resolveSsrWebOutputVariant(buildConfig);
+        const serverOutputFullPath = join(resolvedBuildConfig.workingDir, resolvedBuildConfig.serverOutputPath);
+        const staticOutputFullPath = join(resolvedBuildConfig.workingDir, resolvedBuildConfig.staticOutputPath);
         const deref = { dereference: true };
 
-        if (!(await pathExists(serverOutputFullPath))) {
-          throw new Error(
-            `The ${resourceType} build completed without creating the configured server output at ${buildConfig.serverOutputPath}.${buildConfig.adapterConfigurationHint ? ` ${buildConfig.adapterConfigurationHint}` : ''}`
-          );
-        }
-
-        const normalizedServer = buildConfig.serverOutputPath.replace(/\\/g, '/');
-        const normalizedStatic = buildConfig.staticOutputPath.replace(/\\/g, '/');
+        const normalizedServer = resolvedBuildConfig.serverOutputPath.replace(/\\/g, '/');
+        const normalizedStatic = resolvedBuildConfig.staticOutputPath.replace(/\\/g, '/');
         const staticIsInsideServer = normalizedStatic.startsWith(`${normalizedServer}/`);
         const serverIsInsideStatic = normalizedServer.startsWith(`${normalizedStatic}/`);
 
@@ -585,10 +614,10 @@ export const createSsrWebArtifacts = async ({
           // Static is nested inside server (e.g. server='build', static='build/client')
           // Copy the parent (server) first, then the child (static) is already inside
           if (await pathExists(serverOutputFullPath)) {
-            await copy(serverOutputFullPath, join(buildOutputPath, buildConfig.serverOutputPath), deref);
+            await copy(serverOutputFullPath, join(buildOutputPath, resolvedBuildConfig.serverOutputPath), deref);
           }
           // Static output is now at its relative position inside the copied server output
-          const staticWithinCopied = join(buildOutputPath, buildConfig.staticOutputPath);
+          const staticWithinCopied = join(buildOutputPath, resolvedBuildConfig.staticOutputPath);
           if (await pathExists(staticWithinCopied)) {
             await ensureDir(join(buildOutputPath, normalizedStatic, '..'));
             await copy(staticWithinCopied, join(buildOutputPath, '__static-assets'));
@@ -596,19 +625,19 @@ export const createSsrWebArtifacts = async ({
         } else if (serverIsInsideStatic) {
           // Server is nested inside static - copy parent (static) first
           if (await pathExists(staticOutputFullPath)) {
-            await copy(staticOutputFullPath, join(buildOutputPath, buildConfig.staticOutputPath), deref);
+            await copy(staticOutputFullPath, join(buildOutputPath, resolvedBuildConfig.staticOutputPath), deref);
           }
-          const serverWithinCopied = join(buildOutputPath, buildConfig.serverOutputPath);
+          const serverWithinCopied = join(buildOutputPath, resolvedBuildConfig.serverOutputPath);
           if (await pathExists(serverWithinCopied)) {
             await copy(serverWithinCopied, join(buildOutputPath, '__server-output'));
           }
         } else {
           // Independent paths - copy both
           if (await pathExists(serverOutputFullPath)) {
-            await copy(serverOutputFullPath, join(buildOutputPath, buildConfig.serverOutputPath), deref);
+            await copy(serverOutputFullPath, join(buildOutputPath, resolvedBuildConfig.serverOutputPath), deref);
           }
           if (await pathExists(staticOutputFullPath)) {
-            await copy(staticOutputFullPath, join(buildOutputPath, buildConfig.staticOutputPath), deref);
+            await copy(staticOutputFullPath, join(buildOutputPath, resolvedBuildConfig.staticOutputPath), deref);
           }
         }
       } catch (error) {
@@ -631,8 +660,8 @@ export const createSsrWebArtifacts = async ({
     description: `Bundling ${resourceType} functions`
   });
 
-  await reorganizeBuildOutput({ distFolderPath, buildConfig });
-  if (buildConfig.nativeRuntimePackages?.length) {
+  await reorganizeBuildOutput({ distFolderPath, buildConfig: resolvedBuildConfig });
+  if (resolvedBuildConfig.nativeRuntimePackages?.length) {
     if (!runDocker || !nativeDependencyInstallationRootPath) {
       throw createPackagingError({
         type: 'PACKAGING',
@@ -640,12 +669,12 @@ export const createSsrWebArtifacts = async ({
       });
     }
     const resolvedPackages = await Promise.all(
-      buildConfig.nativeRuntimePackages.map(async (runtimePackage) => {
+      resolvedBuildConfig.nativeRuntimePackages.map(async (runtimePackage) => {
         const resolvedPackage = await resolveInstalledNodePackage({
           applicationRoot: buildConfig.workingDir,
           packageName: runtimePackage.name,
           resolveFromPackage: runtimePackage.resolveFromPackage,
-          traceBasePath: buildConfig.traceBasePath ?? buildConfig.workingDir
+          traceBasePath: resolvedBuildConfig.traceBasePath ?? resolvedBuildConfig.workingDir
         });
         if (!resolvedPackage) {
           throw createPackagingError({
@@ -672,10 +701,10 @@ export const createSsrWebArtifacts = async ({
   }
   await createServerWrapper({
     distFolderPath,
-    handlerFileName: buildConfig.preserveServerOutputDirectory
-      ? `${basename(buildConfig.serverOutputPath)}/${buildConfig.handlerFileName}`
-      : buildConfig.handlerFileName,
-    wrapperType: buildConfig.wrapperType
+    handlerFileName: resolvedBuildConfig.preserveServerOutputDirectory
+      ? `${basename(resolvedBuildConfig.serverOutputPath)}/${resolvedBuildConfig.handlerFileName}`
+      : resolvedBuildConfig.handlerFileName,
+    wrapperType: resolvedBuildConfig.wrapperType
   });
 
   // Clean up build output
