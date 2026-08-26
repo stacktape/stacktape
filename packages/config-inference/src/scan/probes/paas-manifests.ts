@@ -21,6 +21,7 @@ import yaml from 'yaml';
 import { defaultDependencyName, type DependencyFact, type DependencyKind } from '../../facts/dependency';
 import type { Citation } from '../../facts/citation';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/service';
+import { readDockerfileDefinition } from '../dockerfile-definition';
 import { languageOf } from '../language';
 import { isPlatformEnvironmentVariable } from '../platform-environment';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
@@ -55,12 +56,13 @@ const renderServicePaths = (service: RecordValue): { path: string; buildRoot?: s
   const declaredBuildRoot = renderPath(asString(service.dockerContext) ?? '.');
   const dockerfile = asString(service.dockerfilePath);
   const staticOutput = asString(service.staticPublishPath);
+  // Dockerfile placement is not an application root: release files often live in deploy/ or
+  // docker/ while their context is the repository root. Inventing that directory as a second
+  // service also leaves standalone discovery free to deploy the same image without its alias.
   const ownedDirectory =
-    dockerfile === undefined
-      ? staticOutput === undefined
-        ? declaredBuildRoot
-        : renderPath(posix.dirname(renderPath(staticOutput)))
-      : renderPath(posix.dirname(renderPath(dockerfile)));
+    dockerfile === undefined && staticOutput !== undefined
+      ? renderPath(posix.dirname(renderPath(staticOutput)))
+      : declaredBuildRoot;
   return {
     path: ownedDirectory,
     ...(declaredBuildRoot === ownedDirectory ? {} : { buildRoot: declaredBuildRoot })
@@ -587,6 +589,20 @@ export const paasManifestsProbe: Probe = {
     }
 
     if (services.length === 0 && dependencies.length === 0 && serviceEnvironments.length === 0) return {};
+    await Promise.all(
+      services.map(async (service) => {
+        if (service.dockerfile === undefined) return;
+        const definition = await readDockerfileDefinition(context, service.dockerfile);
+        // Canonicalizing the build file must not move a descriptor's application or build context.
+        // A broken or unsafe alias supplies no packaging path; other evidence can still describe the app.
+        if (definition === undefined) delete service.dockerfile;
+        else {
+          if (service.dockerfile !== definition.path) service.dockerfileAlias = service.dockerfile;
+          service.dockerfile = definition.path;
+          service.dockerfileDeclared = true;
+        }
+      })
+    );
     return {
       ...(services.length === 0 ? {} : { services }),
       ...(dependencies.length === 0 ? {} : { dependencies }),

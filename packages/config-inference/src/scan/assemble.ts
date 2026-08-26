@@ -25,6 +25,7 @@ import type { Uncertainty } from '../facts/uncertainty';
 import { classifyFileAccess } from '../policy/file-access';
 import { raiseConventionalCommands, raisePlannedCommands, type CommandPlanner } from './conventions';
 import { raiseDockerfileOwnership } from './dockerfile-ownership';
+import { dockerfileIgnoreRequirement } from './dockerfile-definition';
 import { enrichEnvironmentUsage } from './environment-usage';
 import { listRepositoryFiles } from './file-tree';
 import { activeWorkspaceDirectories, isIncidentalDirectory } from './incidental-directories';
@@ -196,6 +197,11 @@ const startCommandRunsEntrypoint = (service: ServiceFactInput): boolean => {
 };
 
 const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): ServiceFactInput => {
+  // An explicit descriptor invocation owns the build file AND its original alias/context. Taking
+  // only the canonical path from an earlier standalone scan silently changes .dockerignore policy.
+  const dockerfileOwner =
+    [existing, incoming].find((service) => service.dockerfile !== undefined && service.dockerfileDeclared) ??
+    (existing.dockerfile === undefined ? incoming : existing);
   const staticService =
     existing.servesStaticAssets !== undefined
       ? existing
@@ -271,7 +277,11 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
           ]
         }),
     buildRoot:
-      composeOwnedContainer?.buildRoot ?? composeOwnedContainer?.path ?? existing.buildRoot ?? incoming.buildRoot,
+      composeOwnedContainer?.buildRoot ??
+      composeOwnedContainer?.path ??
+      (dockerfileOwner.dockerfileDeclared ? dockerfileOwner.buildRoot : undefined) ??
+      existing.buildRoot ??
+      incoming.buildRoot,
     // A parameterized Compose image contract owns its selected server. A generic source scanner can
     // find another HTTP-capable main in the same repository root (metrics endpoints on a gRPC engine
     // are a common example), but that does not make it this declared build target's entrypoint.
@@ -288,8 +298,10 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
         ])
       ).values()
     ],
-    dockerfile: existing.dockerfile ?? incoming.dockerfile,
-    dockerfileBuildArgs: existing.dockerfileBuildArgs ?? incoming.dockerfileBuildArgs,
+    dockerfile: dockerfileOwner.dockerfile,
+    dockerfileAlias: dockerfileOwner.dockerfileAlias,
+    dockerfileDeclared: dockerfileOwner.dockerfileDeclared,
+    dockerfileBuildArgs: dockerfileOwner.dockerfileBuildArgs,
     healthCheckPath: existing.healthCheckPath ?? incoming.healthCheckPath,
     writesLocalFilesystem: existing.writesLocalFilesystem ?? incoming.writesLocalFilesystem,
     bundledLifecycle: existing.bundledLifecycle ?? incoming.bundledLifecycle,
@@ -513,6 +525,7 @@ const mergeServices = (
   );
   const developmentProcesses = new Set(outputs.flatMap((output) => output.developmentProcesses ?? []));
   const unscopedDockerfiles = new Map<string, Set<string>>();
+  const unscopedDockerfileAliases = new Map<string, string>();
   for (const service of outputs.flatMap((output) => output.services ?? [])) {
     if (
       service.processType !== undefined ||
@@ -525,6 +538,9 @@ const mergeServices = (
     const paths = unscopedDockerfiles.get(service.path) ?? new Set<string>();
     paths.add(service.dockerfile);
     unscopedDockerfiles.set(service.path, paths);
+    if (service.dockerfileAlias !== undefined) {
+      unscopedDockerfileAliases.set(`${service.path}:${service.dockerfile}`, service.dockerfileAlias);
+    }
   }
   /**
    * Names that stopped existing because their service folded into another one.
@@ -638,6 +654,7 @@ const mergeServices = (
       sharedDockerfile !== undefined
     ) {
       service.dockerfile = sharedDockerfile;
+      service.dockerfileAlias = unscopedDockerfileAliases.get(`${service.path}:${sharedDockerfile}`);
     }
   }
   const descriptorOwnedDockerfiles = new Set(
@@ -803,12 +820,14 @@ export type CandidateFactsResult = {
 export const createProbeContext = (
   root: string,
   files: readonly string[],
-  descriptorDockerfiles: readonly string[] = []
+  descriptorDockerfiles: readonly string[] = [],
+  dockerfileSymlinks: ReadonlyArray<{ path: string; target: string }> = []
 ): ProbeContext => {
   const descriptorDockerfileSet = new Set(descriptorDockerfiles);
   return {
     root,
     files,
+    dockerfileSymlinkTargets: new Map(dockerfileSymlinks.map(({ path, target }) => [path, target])),
     read: (repoRelativePath, options) => readSourceFile(root, repoRelativePath, options, descriptorDockerfileSet),
     readPrivileged: async (repoRelativePath) => {
       // Even the privileged reader refuses credential material. A probe has no business opening a
@@ -848,8 +867,8 @@ export const assembleCandidateFacts = async ({
   const listing =
     files === undefined
       ? await listRepositoryFiles(root)
-      : { files: [...files], truncated: false, descriptorDockerfiles: [] };
-  const context = createProbeContext(root, listing.files, listing.descriptorDockerfiles);
+      : { files: [...files], truncated: false, descriptorDockerfiles: [], dockerfileSymlinks: [] };
+  const context = createProbeContext(root, listing.files, listing.descriptorDockerfiles, listing.dockerfileSymlinks);
 
   // Probes are independent and every one of them is I/O, so they run together. Order is preserved
   // because the merge below resolves conflicts by probe order, and a scan whose result depends on
@@ -1152,7 +1171,7 @@ export const assembleCandidateFacts = async ({
   for (const output of outputs) {
     for (const requirement of output.deploymentRequirements ?? []) {
       const remapped =
-        requirement.kind === 'public-grpc'
+        requirement.kind !== 'persistent-bootstrap-artifacts'
           ? { ...requirement, serviceName: renames.get(requirement.serviceName) ?? requirement.serviceName }
           : {
               ...requirement,
@@ -1162,11 +1181,21 @@ export const assembleCandidateFacts = async ({
       const key =
         remapped.kind === 'public-grpc'
           ? `${remapped.kind}:${remapped.serviceName}:${remapped.port}`
-          : `${remapped.kind}:${remapped.producerServiceName}:${remapped.paths.join(',')}`;
+          : remapped.kind === 'dockerfile-ignore-policy'
+            ? `${remapped.kind}:${remapped.serviceName}:${remapped.aliasDockerfile}:${remapped.canonicalDockerfile}:${remapped.buildRoot}`
+            : `${remapped.kind}:${remapped.producerServiceName}:${remapped.paths.join(',')}`;
       if (!deploymentRequirementsByKey.has(key)) deploymentRequirementsByKey.set(key, remapped);
     }
   }
-  const deploymentRequirements = [...deploymentRequirementsByKey.values()];
+  // Check after service reconciliation so the original alias and effective context belong to the
+  // selected build, not a discarded example or an intermediate pointer in its chain.
+  const ignoreRequirements = await Promise.all(
+    services.map((service) => dockerfileIgnoreRequirement(context, service))
+  );
+  const deploymentRequirements = [
+    ...deploymentRequirementsByKey.values(),
+    ...ignoreRequirements.filter((requirement) => requirement !== undefined)
+  ];
 
   const packageManager = outputs.find((output) => output.packageManager !== undefined)?.packageManager as
     | PackageManager

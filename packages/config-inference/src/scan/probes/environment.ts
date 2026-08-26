@@ -26,7 +26,7 @@ import type { EnvironmentVariableUse } from '../../facts/service';
 import type { Uncertainty } from '../../facts/uncertainty';
 import { extractEnvironmentVariableNames, isEnvironmentFileName } from '../../policy/file-access';
 import { isNonProductionFixturePath } from '../deployment-relevance';
-import { readText } from '../probe';
+import { readDockerfileDefinition } from '../dockerfile-definition';
 import type { Probe, ProbeContext, ProbeOutput } from '../probe';
 import { safeDeclaredLiteral } from './declared-environment';
 
@@ -243,11 +243,11 @@ const activeEnvironmentFiles = async (context: ProbeContext, envFiles: readonly 
   const actual = envFiles.filter((file) => !ENVIRONMENT_TEMPLATE_PATTERN.test(file));
   const templates = envFiles.filter((file) => !actual.includes(file));
   if (templates.length < 2 || !context.files.includes('Dockerfile')) return [...envFiles];
-  const dockerfile = await readText(context, 'Dockerfile');
+  const dockerfile = await readDockerfileDefinition(context, 'Dockerfile');
   if (dockerfile === undefined) return [...envFiles];
   const referenced = templates.filter((file) => {
     const base = file.slice(file.lastIndexOf('/') + 1);
-    return dockerfile.includes(file) || dockerfile.includes(base);
+    return dockerfile.raw.includes(file) || dockerfile.raw.includes(base);
   });
   return referenced.length === 1 ? [...actual, referenced[0]!] : [...envFiles];
 };

@@ -158,6 +158,50 @@ describe('an agent cannot claim probe provenance', () => {
     expect(composed.gaps).toContainEqual(expect.objectContaining({ severity: 'blocking' }));
   });
 
+  it('does not let an agent remove or forge the Dockerfile alias ignore-policy blocker', () => {
+    const baseline = projectFactsSchema.parse({
+      schemaVersion: 1,
+      services: [
+        { ...agentService, source: 'probe', dockerfile: 'docker/production.dockerfile', dockerfileAlias: 'Dockerfile' }
+      ],
+      deploymentRequirements: [
+        {
+          kind: 'dockerfile-ignore-policy',
+          serviceName: 'api',
+          aliasDockerfile: 'Dockerfile',
+          canonicalDockerfile: 'docker/production.dockerfile',
+          buildRoot: '.',
+          evidence: []
+        }
+      ]
+    });
+    const submission = agentSubmissionSchema.parse({
+      schemaVersion: 1,
+      services: [
+        {
+          ...agentService,
+          dockerfile: 'another.dockerfile',
+          dockerfileAlias: 'another.dockerfile',
+          dockerfileDeclared: true
+        }
+      ],
+      deploymentRequirements: []
+    });
+    expect(submission.services[0]).not.toHaveProperty('dockerfileAlias');
+    expect(submission.services[0]).not.toHaveProperty('dockerfileDeclared');
+    const merged = mergeAgentSubmission({ baseline, submission });
+    expect(merged.services[0]).toMatchObject({
+      dockerfile: 'docker/production.dockerfile',
+      dockerfileAlias: 'Dockerfile'
+    });
+    expect(merged.deploymentRequirements).toEqual(baseline.deploymentRequirements);
+    const composition = composeConfig({ facts: merged });
+    expect(composition.deployable).toBe(false);
+    expect(composition.gaps).toContainEqual(
+      expect.objectContaining({ subject: 'api.dockerignore', severity: 'blocking' })
+    );
+  });
+
   it('gives the agent no way to set blocking policy, recommendations or prose', () => {
     const submission = agentSubmissionSchema.parse({
       schemaVersion: 1,

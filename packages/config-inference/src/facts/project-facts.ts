@@ -16,7 +16,7 @@ import { z } from 'zod';
 import { citationSchema } from './citation';
 import { dependencyFactSchema } from './dependency';
 import { existingDeploymentSchema } from './existing-deployment';
-import { serviceFactSchema } from './service';
+import { repositoryPathSchema, serviceFactSchema } from './service';
 import { uncertaintySchema } from './uncertainty';
 
 export const packageManagerSchema = z.enum([
@@ -61,6 +61,14 @@ export type MigrationFact = z.infer<typeof migrationFactSchema>;
  * review-only state.
  */
 export const deploymentRequirementSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('dockerfile-ignore-policy'),
+    serviceName: z.string().min(1),
+    aliasDockerfile: repositoryPathSchema,
+    canonicalDockerfile: repositoryPathSchema,
+    buildRoot: repositoryPathSchema,
+    evidence: z.array(citationSchema).default([])
+  }),
   z.object({
     kind: z.literal('public-grpc'),
     serviceName: z.string().min(1),

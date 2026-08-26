@@ -6,9 +6,10 @@
  * full costs a fortune and communicates less than one that says there are four hundred.
  */
 
-import { lstat, readFile, readdir, realpath } from 'node:fs/promises';
-import { isAbsolute, join, posix, relative } from 'node:path';
+import { lstat, readFile, readdir, readlink, realpath } from 'node:fs/promises';
+import { isAbsolute, join, posix, relative, resolve } from 'node:path';
 import { classifyFileAccess, isDockerfilePath, isSkippedDirectoryName } from '../policy/file-access';
+import { MAX_DOCKERFILE_LINK_DEPTH } from './dockerfile-definition';
 
 export type RepositoryListing = {
   /** Repository-relative POSIX paths, sorted, excluding anything the policy blocks. */
@@ -17,6 +18,8 @@ export type RepositoryListing = {
   truncated: boolean;
   /** Dockerfiles inside normally-generated directories, admitted by an explicit release descriptor. */
   descriptorDockerfiles: string[];
+  /** Contained Dockerfile symlinks and their immediate repository-local targets. */
+  dockerfileSymlinks: Array<{ path: string; target: string }>;
 };
 
 export type ListRepositoryFilesOptions = {
@@ -36,6 +39,54 @@ const RELEASE_DESCRIPTOR =
 const MAX_RELEASE_DESCRIPTORS = 64;
 const MAX_DESCRIPTOR_BYTES = 1_000_000;
 const MAX_DESCRIPTOR_DOCKERFILES = 32;
+
+const containedDockerfileSymlinkTarget = async (
+  root: string,
+  resolvedRoot: string,
+  relativePath: string
+): Promise<string | undefined> => {
+  if (!isDockerfilePath(relativePath)) return undefined;
+  try {
+    const resolvedTarget = await realpath(join(root, relativePath));
+    const relativeTarget = relative(resolvedRoot, resolvedTarget);
+    if (
+      relativeTarget === '' ||
+      relativeTarget === '..' ||
+      relativeTarget.startsWith(`..\\`) ||
+      relativeTarget.startsWith('../') ||
+      isAbsolute(relativeTarget)
+    ) {
+      return undefined;
+    }
+    const normalizedTarget = relativeTarget.replaceAll('\\', '/');
+    if (!isDockerfilePath(normalizedTarget) || classifyFileAccess(normalizedTarget) === 'blocked') return undefined;
+    const targetEntry = await lstat(resolvedTarget);
+    if (!targetEntry.isFile()) return undefined;
+
+    // Retain each hop rather than jumping to realpath's final target. Otherwise a real link could
+    // skip an intermediate file excluded by maxFiles while its Windows pointer representation cannot.
+    const link = await readlink(join(root, relativePath));
+    // Absolute checkout-local links are not portable when Git materializes their bytes elsewhere.
+    if (isAbsolute(link) || /^[A-Za-z]:/.test(link)) return undefined;
+    const immediateTarget = relative(resolve(root), resolve(root, posix.dirname(relativePath), link)).replaceAll(
+      '\\',
+      '/'
+    );
+    if (
+      immediateTarget === '..' ||
+      immediateTarget.startsWith('../') ||
+      isAbsolute(immediateTarget) ||
+      !isDockerfilePath(immediateTarget) ||
+      classifyFileAccess(immediateTarget) === 'blocked'
+    ) {
+      return undefined;
+    }
+    return immediateTarget;
+  } catch {
+    // Broken links and links whose final target cannot be inspected contribute no repository fact.
+    return undefined;
+  }
+};
 
 const normalizeDockerfileReference = (value: string): string | undefined => {
   const normalized = posix.normalize(value.replaceAll('\\', '/').replace(/^\.\//, ''));
@@ -131,8 +182,15 @@ export const listRepositoryFiles = async (
 ): Promise<RepositoryListing> => {
   const maxFiles = options.maxFiles ?? DEFAULT_MAX_FILES;
   const files: string[] = [];
+  const dockerfileSymlinks: Array<{ path: string; target: string }> = [];
   let queue: string[] = [''];
   let truncated = false;
+  let resolvedRoot: string | undefined;
+  try {
+    resolvedRoot = await realpath(root);
+  } catch {
+    // The ordinary walk can still report readable entries. It simply cannot prove symlink containment.
+  }
 
   while (queue.length > 0 && !truncated) {
     const nextQueue: string[] = [];
@@ -163,6 +221,21 @@ export const listRepositoryFiles = async (
           if (!isSkippedDirectoryName(entry.name)) {
             nextQueue.push(relativePath);
           }
+          continue;
+        }
+        if (entry.isSymbolicLink()) {
+          if (resolvedRoot === undefined) continue;
+          // Only Dockerfile aliases affect deployment selection. Follow their final target after
+          // proving it is a regular Dockerfile inside this repository; never traverse linked directories.
+          // oxlint-disable-next-line no-await-in-loop -- one bounded lookup per top-level file alias.
+          const target = await containedDockerfileSymlinkTarget(root, resolvedRoot, relativePath);
+          if (target === undefined || classifyFileAccess(relativePath) === 'blocked') continue;
+          if (files.length >= maxFiles) {
+            truncated = true;
+            break;
+          }
+          files.push(relativePath);
+          dockerfileSymlinks.push({ path: relativePath, target });
           continue;
         }
         if (!entry.isFile()) {
@@ -196,7 +269,32 @@ export const listRepositoryFiles = async (
     files.push(dockerfile);
   }
 
-  return { files: files.toSorted(), truncated, descriptorDockerfiles: referencedDockerfiles };
+  const listedFiles = new Set(files);
+  const symlinkTargets = new Map(dockerfileSymlinks.map(({ path, target }) => [path, target]));
+  const admittedDockerfileSymlinks = dockerfileSymlinks.filter(({ path }) => {
+    let current = path;
+    const visited = new Set<string>();
+    for (let depth = 0; depth < MAX_DOCKERFILE_LINK_DEPTH; depth += 1) {
+      if (!listedFiles.has(current) || visited.has(current)) return false;
+      visited.add(current);
+      const target = symlinkTargets.get(current);
+      if (target === undefined) return true;
+      current = target;
+    }
+    return false;
+  });
+  const admittedDockerfileAliases = new Set(admittedDockerfileSymlinks.map(({ path }) => path));
+  const unadmittedDockerfileAliases = new Set(
+    dockerfileSymlinks.filter(({ path }) => !admittedDockerfileAliases.has(path)).map(({ path }) => path)
+  );
+  const admittedFiles = files.filter((file) => !unadmittedDockerfileAliases.has(file));
+
+  return {
+    files: admittedFiles.toSorted(),
+    truncated,
+    descriptorDockerfiles: referencedDockerfiles.filter((file) => admittedFiles.includes(file)),
+    dockerfileSymlinks: admittedDockerfileSymlinks.toSorted((left, right) => left.path.localeCompare(right.path))
+  };
 };
 
 export type RenderFileTreeOptions = {

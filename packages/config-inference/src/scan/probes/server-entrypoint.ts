@@ -2,6 +2,7 @@
 
 import { posix } from 'node:path';
 import type { ServiceFactInput } from '../../facts/service';
+import { readDockerfileDefinition } from '../dockerfile-definition';
 import {
   citeFirstMatch,
   citeFirstMatchOnly,
@@ -491,14 +492,15 @@ export const serverEntrypointProbe: Probe = {
 
       const relativeDirectory = root === '.' ? directory : posix.relative(root, directory);
       const dockerfile = root === '.' ? 'Dockerfile' : `${root}/Dockerfile`;
-      let exposedDockerfile: { raw: string; port: number } | undefined;
+      let exposedDockerfile: { path: string; raw: string; port: number } | undefined;
       let selectedDockerfile: string | undefined;
       // EXPOSE identifies the module as a network application, but it cannot disambiguate two
       // independent binaries in the same Go module. In that layout require source-level listener
       // evidence for the selected package instead of choosing whichever main file was scanned first.
       if (context.files.includes(dockerfile)) {
         // oxlint-disable-next-line no-await-in-loop -- one Dockerfile for the candidate Go application.
-        const raw = await readText(context, dockerfile, { fullFile: true });
+        const definition = await readDockerfileDefinition(context, dockerfile, { fullFile: true });
+        const raw = definition?.raw;
         const selectsThisPackage = raw !== undefined && dockerfileGoBuildDirectories(raw).includes(relativeDirectory);
         const singleMainPackage = mainDirectoryCountByRoot.get(root) === 1;
         const rawPort = raw === undefined ? undefined : /^\s*EXPOSE\s+(\d{2,5})(?:\/tcp)?\s*$/im.exec(raw)?.[1];
@@ -507,15 +509,15 @@ export const serverEntrypointProbe: Probe = {
         // Associating a Dockerfile also makes it authoritative in the composer, so require the same
         // clean-context validation as the Dockerfile probe before attaching it to a source service.
         if (
-          raw !== undefined &&
+          definition !== undefined &&
           ownsCandidate &&
           // oxlint-disable-next-line no-await-in-loop -- bounded validation for one root Dockerfile.
-          (await dockerfileCanBuildContext({ raw, root, context, dockerfile }))
+          (await dockerfileCanBuildContext({ raw: definition.raw, root, context, dockerfile }))
         ) {
-          selectedDockerfile = dockerfile;
+          selectedDockerfile = definition.path;
         }
-        if (raw !== undefined && ownsCandidate && port !== undefined && port > 0 && port <= 65_535) {
-          exposedDockerfile = { raw, port };
+        if (definition !== undefined && ownsCandidate && port !== undefined && port > 0 && port <= 65_535) {
+          exposedDockerfile = { ...definition, port };
         }
       }
       if (listener === undefined && exposedDockerfile === undefined) continue;
@@ -531,7 +533,7 @@ export const serverEntrypointProbe: Probe = {
       );
       const listenerCitation =
         listener === undefined
-          ? citeFirstMatch(dockerfile, exposedDockerfile!.raw, /^\s*EXPOSE\s+\d{2,5}/im, 'port')
+          ? citeFirstMatch(exposedDockerfile!.path, exposedDockerfile!.raw, /^\s*EXPOSE\s+\d{2,5}/im, 'port')
           : citeFirstMatch(listener.path, listener.raw, listener.evidence!.pattern, 'containerEntrypoint');
       const multipleMainPackages = (mainDirectoryCountByRoot.get(root) ?? 0) > 1;
       const missingEmbeddedAssets = missingGoEmbeddedAssets(
@@ -565,7 +567,12 @@ export const serverEntrypointProbe: Probe = {
         ...(exposedDockerfile === undefined ? {} : { port: exposedDockerfile.port }),
         executionModel: 'long-running',
         containerEntrypoint: entrypoint.path,
-        ...(selectedDockerfile === undefined ? {} : { dockerfile: selectedDockerfile }),
+        ...(selectedDockerfile === undefined
+          ? {}
+          : {
+              dockerfile: selectedDockerfile,
+              ...(selectedDockerfile === dockerfile ? {} : { dockerfileAlias: dockerfile })
+            }),
         ...(missingEmbeddedAssets.length === 0 ? {} : { missingEmbeddedAssets }),
         environmentVariables: [],
         evidence: [mainCitation, listenerCitation].filter((citation) => citation !== undefined),

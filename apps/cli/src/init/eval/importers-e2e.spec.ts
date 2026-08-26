@@ -11,6 +11,38 @@ import { describe, expect, it } from 'bun:test';
 import { runEvalCase, type EvalCase } from './harness';
 
 const CASES: EvalCase[] = [
+  ...(['alias-only', 'target-only', 'identical'] as const).map(
+    (policy): EvalCase => ({
+      name: `Fly Dockerfile pointer chain with ${policy} ignore policy`,
+      files: {
+        'package.json': JSON.stringify({ name: 'shop', dependencies: { fastify: '^5.0.0' } }),
+        Dockerfile: 'docker/Dockerfile.alias\n',
+        'docker/Dockerfile.alias': 'production.dockerfile\n',
+        'docker/production.dockerfile': 'FROM node:24\nCOPY . /app\nEXPOSE 4000\nSTOPSIGNAL SIGINT\n',
+        'private-marker.txt': 'synthetic private content',
+        ...(policy === 'target-only' ? {} : { 'Dockerfile.dockerignore': 'private-marker.txt\n' }),
+        ...(policy === 'alias-only' ? {} : { 'docker/production.dockerfile.dockerignore': 'private-marker.txt\n' }),
+        'fly.toml': 'app = "shop-api"\n[build]\ndockerfile = "Dockerfile"\n[http_service]\ninternal_port = 4000\n'
+      },
+      expect: {
+        resources: { shop: 'web-service' },
+        resourceCount: 1,
+        deployable: policy === 'identical',
+        ...(policy === 'identical'
+          ? { forbiddenGapPatterns: ['cannot prove.*files excluded'] }
+          : { requiredGapPatterns: ['cannot prove.*files excluded', 'private files', 'configuration is blocked'] }),
+        resourcePackaging: [
+          {
+            resource: 'shop',
+            type: 'custom-dockerfile',
+            buildContextPath: '.',
+            dockerfilePath: policy === 'identical' ? 'docker/production.dockerfile' : 'Dockerfile'
+          }
+        ],
+        maxQuestions: 0
+      }
+    })
+  ),
   {
     name: 'Fly multi-process app',
     files: {
@@ -28,6 +60,50 @@ const CASES: EvalCase[] = [
     },
     expect: {
       resources: { shopApi: 'web-service', shopApiJobs: 'worker-service' },
+      deployable: true,
+      maxQuestions: 0
+    }
+  },
+  {
+    name: 'Fly multi-process app using a chained production Dockerfile alias',
+    files: {
+      'package.json': JSON.stringify({ name: 'shop', dependencies: { fastify: '^5.0.0' } }),
+      Dockerfile: 'docker/Dockerfile.alias\n',
+      'docker/Dockerfile.alias': 'production.dockerfile\n',
+      'docker/production.dockerfile': 'FROM node:24\nEXPOSE 4000\nSTOPSIGNAL SIGINT\n',
+      'fly.toml': [
+        'app = "shop-api"',
+        '[build]',
+        'dockerfile = "Dockerfile"',
+        '[processes]',
+        'web = "node dist/server.js"',
+        'jobs = "node dist/jobs.js"',
+        '[http_service]',
+        'internal_port = 4000',
+        'processes = ["web"]',
+        ''
+      ].join('\n')
+    },
+    expect: {
+      resources: { shopApi: 'web-service', shopApiJobs: 'worker-service' },
+      resourceCount: 2,
+      resourcePackaging: [
+        {
+          resource: 'shopApi',
+          type: 'custom-dockerfile',
+          buildContextPath: '.',
+          dockerfilePath: 'docker/production.dockerfile',
+          command: ['/bin/sh', '-c', 'node dist/server.js']
+        },
+        {
+          resource: 'shopApiJobs',
+          type: 'custom-dockerfile',
+          buildContextPath: '.',
+          dockerfilePath: 'docker/production.dockerfile',
+          command: ['/bin/sh', '-c', 'node dist/jobs.js']
+        }
+      ],
+      serviceProperties: [{ resource: 'shopApi', containerPort: 4000 }],
       deployable: true,
       maxQuestions: 0
     }

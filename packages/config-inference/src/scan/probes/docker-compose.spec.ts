@@ -6,7 +6,7 @@
  * container speak for where production data lives.
  */
 
-import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
@@ -149,6 +149,23 @@ const cSharpStorageRepo = (source: string): Record<string, string> => ({
     ''
   ].join('\n')
 });
+
+const buildFacts = (
+  services: ReadonlyArray<{
+    name: string;
+    path: string;
+    buildRoot?: string | undefined;
+    dockerfile?: string | undefined;
+    startCommand?: string | undefined;
+  }>
+) =>
+  services.map(({ name, path, buildRoot, dockerfile, startCommand }) => ({
+    name,
+    path,
+    buildRoot,
+    dockerfile,
+    startCommand
+  }));
 
 describe('the compose probe', () => {
   it('recognizes only context-free single-tool Dockerfiles as local utilities', () => {
@@ -396,6 +413,60 @@ describe('the compose probe', () => {
     });
     expect(web?.environmentVariables.find((entry) => entry.name === 'NODE_ENV')).toBeUndefined();
     expect(JSON.stringify(facts)).not.toContain('should-never-appear');
+  });
+
+  it('canonicalizes an explicit Dockerfile for every Compose process without changing its build context', async () => {
+    root = await mkdtemp(join(tmpdir(), 'stp-compose-dockerfile-equivalence-'));
+    const materializedRoot = join(root, 'materialized');
+    const linkedRoot = join(root, 'linked');
+    const compose = [
+      'services:',
+      '  web:',
+      '    build:',
+      '      context: .',
+      '      dockerfile: Dockerfile',
+      '    command: node server.js',
+      '    ports: ["8080:8080"]',
+      '  worker:',
+      '    build:',
+      '      context: .',
+      '      dockerfile: Dockerfile',
+      '    command: node worker.js',
+      ''
+    ].join('\n');
+    await Promise.all(
+      [materializedRoot, linkedRoot].map(async (repositoryRoot) => {
+        await mkdir(join(repositoryRoot, 'docker'), { recursive: true });
+        await Promise.all([
+          writeFile(join(repositoryRoot, 'compose.yml'), compose, 'utf8'),
+          writeFile(join(repositoryRoot, 'docker/Dockerfile.production'), 'FROM node:24\nEXPOSE 8080\n', 'utf8')
+        ]);
+      })
+    );
+    await writeFile(join(materializedRoot, 'Dockerfile'), 'docker/Dockerfile.production\n', 'utf8');
+    await symlink('docker/Dockerfile.production', join(linkedRoot, 'Dockerfile'), 'file');
+
+    const [materialized, linked] = await Promise.all([
+      assembleCandidateFacts({ root: materializedRoot, probes: [dockerComposeProbe] }),
+      assembleCandidateFacts({ root: linkedRoot, probes: [dockerComposeProbe] })
+    ]);
+    expect(buildFacts(linked.facts.services)).toEqual(buildFacts(materialized.facts.services));
+    expect(buildFacts(linked.facts.services)).toEqual([
+      {
+        name: 'web',
+        path: '.',
+        buildRoot: '.',
+        dockerfile: 'docker/Dockerfile.production',
+        startCommand: 'node server.js'
+      },
+      {
+        name: 'worker',
+        path: '.',
+        buildRoot: '.',
+        dockerfile: 'docker/Dockerfile.production',
+        startCommand: 'node worker.js'
+      }
+    ]);
   });
 
   it('wires split Compose addresses and retains only allow-listed operational defaults', async () => {

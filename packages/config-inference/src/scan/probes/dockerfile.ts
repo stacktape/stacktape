@@ -3,7 +3,9 @@
 import { posix } from 'node:path';
 import type { Citation } from '../../facts/citation';
 import type { ServiceFactInput } from '../../facts/service';
+import { isDockerfilePath } from '../../policy/file-access';
 import { isNonProductionFixturePath } from '../deployment-relevance';
+import { readDockerfileDefinition } from '../dockerfile-definition';
 import { activeWorkspaceDirectories, isIncidentalPath } from '../incidental-directories';
 import { citeFirstMatch, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { goFileMatchesBuildTarget, goImports } from '../go-source';
@@ -14,35 +16,8 @@ const serviceRootFor = (dockerfile: string, files: readonly string[]): string =>
 };
 
 const DEVELOPMENT_ONLY_DIRECTORY = /(?:^|\/)(?:\.devcontainer|\.github|\.gitlab|\.circleci)(?:\/|$)/i;
-const DEVELOPMENT_ONLY_DOCKERFILE = /^Dockerfile[.-](?:dev|development|test|local|ci)(?:[.-].*)?$/i;
-
-const dockerfilePointerTarget = (path: string, raw: string, files: readonly string[]): string | undefined => {
-  const declaration = raw.trim().replaceAll('\\', '/');
-  if (!/^(?:[^/]+\/)*Dockerfile(?:\.[^/]+)?$/i.test(declaration)) return undefined;
-  const directory = posix.dirname(path);
-  const resolved = posix.normalize(directory === '.' ? declaration : posix.join(directory, declaration));
-  if (resolved === '..' || resolved.startsWith('../') || !files.includes(resolved)) return undefined;
-  return resolved;
-};
-
-/**
- * Read the Dockerfile bytes that a repository path denotes.
- *
- * Git checkouts without symlink support materialize a Dockerfile symlink as its one-line target.
- * Other probes need the same selected image contract, so resolving that narrow shape lives here
- * instead of being reimplemented with subtly different traversal rules.
- */
-export const readDockerfileDefinition = async (
-  context: ProbeContext,
-  path: string
-): Promise<{ path: string; raw: string } | undefined> => {
-  const candidateRaw = await readText(context, path);
-  if (candidateRaw === undefined) return undefined;
-  const pointerTarget = dockerfilePointerTarget(path, candidateRaw, context.files);
-  const dockerfile = pointerTarget ?? path;
-  const raw = pointerTarget === undefined ? candidateRaw : await readText(context, pointerTarget);
-  return raw === undefined ? undefined : { path: dockerfile, raw };
-};
+const DEVELOPMENT_ONLY_DOCKERFILE =
+  /^(?:Dockerfile[.-](?:dev|development|test|local|ci)(?:[.-].*)?|(?:dev|development|test|local|ci)(?:[.-].*)?\.dockerfile)$/i;
 
 const serviceNameFor = (root: string, repositoryRoot: string): string =>
   root === '.' ? (repositoryRoot.split(/[/\\]/).findLast((segment) => segment !== '') ?? 'app') : posix.basename(root);
@@ -531,7 +506,7 @@ export const dockerfileProbe: Probe = {
     const candidates = context.files
       .filter(
         (path) =>
-          /^Dockerfile(?:[.-][^/]+)?$/i.test(posix.basename(path)) &&
+          isDockerfilePath(path) &&
           !DEVELOPMENT_ONLY_DOCKERFILE.test(posix.basename(path)) &&
           !DEVELOPMENT_ONLY_DIRECTORY.test(path) &&
           !isNonProductionFixturePath(path) &&
@@ -550,7 +525,7 @@ export const dockerfileProbe: Probe = {
       if (services.has(root)) continue;
       // A checked-out symbolic link can be materialized as a one-line target path on platforms
       // where Git symlinks are disabled. Follow only an exact repository-local Dockerfile pointer.
-      // oxlint-disable-next-line no-await-in-loop -- at most one bounded pointer target per candidate.
+      // oxlint-disable-next-line no-await-in-loop -- one bounded pointer chain per candidate.
       const definition = await readDockerfileDefinition(context, path);
       if (definition === undefined || !/^\s*FROM\s+\S+/im.test(definition.raw)) continue;
       const { path: dockerfile, raw } = definition;
@@ -558,7 +533,7 @@ export const dockerfileProbe: Probe = {
       // before Docker runs. Init packages a clean checkout, so selecting such a file guarantees a
       // COPY failure. Another source probe can still keep the application using a native buildpack.
       // oxlint-disable-next-line no-await-in-loop -- one candidate per service root survives this check.
-      if (!(await dockerfileCanBuildContext({ raw, root, context, dockerfile }))) continue;
+      if (!(await dockerfileCanBuildContext({ raw, root, context, dockerfile: path }))) continue;
       const { port, citation: portCitation } = exposedPort(dockerfile, raw);
       const { paths: volumePaths, citation: volumeCitation } = declaredDockerfileVolumes(dockerfile, raw);
       const dockerfileCitation = citeFirstMatch(dockerfile, raw, /^\s*FROM\s+\S+/im, 'dockerfile');
@@ -571,6 +546,7 @@ export const dockerfileProbe: Probe = {
         ...(port === undefined ? {} : { port }),
         executionModel: 'long-running',
         dockerfile,
+        ...(path === dockerfile ? {} : { dockerfileAlias: path }),
         ...(volumePaths.length === 0
           ? {}
           : {
