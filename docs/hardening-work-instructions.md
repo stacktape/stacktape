@@ -65,6 +65,25 @@ A worker handoff is incomplete unless it contains all of the following:
 This separation saves coordinator tokens without lowering the bar: workers spend time searching and iterating, while the
 coordinator spends attention on source selection, evidence, architecture, and the final diff.
 
+### Review the whole failure boundary
+
+Before returning a parser or ownership fix for review, test the neighboring forms together. This costs less than
+repeatedly fixing one spelling of the same bug:
+
+- For JavaScript/TypeScript evidence, distinguish executable code from comments and type-only imports. Cover relevant
+  named, namespace, aliased, and literal bracket forms, including local modules where the framework loads them.
+- For service merging, keep a same-named but unrelated sibling in the fixture. Test the normal CLI probe order, not only
+  a convenient two-probe order. Assert exact service counts, commands, build context, and dependency consumers.
+- For Dockerfiles, distinguish the selected runtime's stages from unused stages. A symlink's canonical target is not
+  interchangeable with its original path when Dockerfile-specific ignore files differ.
+- Follow safety requirements through saved `stacktape.yml` and reload, not only the in-memory composition. A warning
+  that disappears when the user later runs `package` or `deploy` must not leave unsafe packaging instructions behind.
+- Prefer a direct configuration fact over trying to recognize every possible source-code spelling. For example, an
+  enabled framework-managed database can require a storage decision even when the scanner finds no query call.
+
+Use these checks when they match the change; do not turn each small fix into a new general-purpose parser project.
+Reviewers should replay the previous failure and inspect the changed boundary, rather than repeat unchanged audits.
+
 ## Find a meaningful next project
 
 Select an underserved combination of application shape, language/framework, packaging path, dependency, and previous
@@ -142,6 +161,12 @@ pnpm qualify:projects:sandboxed -- --prune-images --keep-images=3
 This command removes only images carrying the qualification harness ownership label. It does not touch project data,
 volumes, unrelated images, or Docker's global build cache. On a disposable qualification VM, inspect `docker system df`
 and recycle the VM when cache pressure grows; do not make a lesser-capability worker prune unrelated host assets.
+
+Check host free space as well as Docker usage before starting a large batch. On Docker Desktop, freeing space inside its
+virtual disk does not necessarily return space to the host drive. Finish and clean up each small import run, avoid
+`--keep-workdirs` unless needed for diagnosis, and retain canonical sources, pinned caches, and reports. If cleanup is
+blocked or disk capacity is unsafe, record an environment blocker and defer large builds; do not silently replace
+packaging evidence with an importer test pass.
 
 For reviewed pinned projects running directly on the host:
 
