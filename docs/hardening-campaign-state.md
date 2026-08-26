@@ -6,9 +6,11 @@ campaign, not release approval. Import, packaging, runtime and AWS results are s
 ## Workspace and reusable inputs
 
 - Product integration: `C:/Projects/.worktrees/stacktape-project-qualification`, branch
-  `codex/project-qualification-final`. Do not merge into the unrelated dirty `C:/Projects/stacktape` checkout.
+  `codex/project-qualification-final`. Product behavior was qualified at clean commit `35f0027a`; subsequent checkpoint
+  edits are documentation only. Do not merge into the unrelated dirty `C:/Projects/stacktape` checkout.
 - Corpus: `C:/Projects/stacktape-qualification-corpus`. It contains pinned references to public projects, complete
-  synthetic source, semantic expectations and provenance. Reports are ignored.
+  synthetic source, semantic expectations and provenance. Source adoption is committed at `bca5bc0`, and the final
+  JobDesk/DocFlow contracts at `861888d`. Reports are ignored.
 - Pinned public-source cache: `C:/Projects/stacktape-qualification-cache`.
 - Standalone JobDesk adoption source: `C:/Projects/qualification-synthetic-bun-jobdesk`, clean commit
   `ea81f74593615cb6170b09cd162679d04663aec2`. Its 38 tracked files were copied byte-for-byte into the corpus. Keep the
@@ -36,11 +38,36 @@ T3 Turbo and Bedrock WordPress. An expectation does not by itself prove that a c
 - The qualification harness checks `expect.serviceEnvironment` against the saved YAML per named resource, requiring
   exactly one entry with the expected value. A worker's correct connection cannot hide a disconnected API. A changed
   expectation invalidates resume reuse; diagnostics do not print observed environment values.
+- JobDesk's root Dockerfile produces one API and one private worker with their exact Bun commands, separate
+  PostgreSQL/Redis connections and one Drizzle migration. A bounded Docker COPY/WORKDIR mapper proves entryfile
+  ownership; path resemblance does not. Remapping, overwrites, install hooks and incomplete scans cannot silently attach
+  unrelated source. Alias-based ownership uses the original declared Dockerfile's ignore rules.
+- Array-form migration commands retain literal arguments through saved YAML and the real CLI hook consumer on Windows.
+  Recognized literal commands run without shell expansion. Unsafe arguments through Windows `.cmd`/`.bat` wrappers stop
+  with actionable guidance instead of being misquoted; native Bun/Node commands preserve the tested arguments.
 
 These repairs received independent boundary-focused review. Review found and corrected additional problems, including
 unused Docker-stage ownership, lost ignore policies after saving, and unrelated source packaging choices.
 
-## Verified checkpoint evidence
+## Final combined evidence
+
+- All **15 exact corpus contracts passed** in a fresh run at clean product `35f0027a`. This includes the new JobDesk
+  case and stronger per-resource DocFlow connection assertions. The six discovery cases were not counted as passes.
+  Report: `C:/Projects/stacktape-qualification-corpus/reports/combined-35f0027a/qualification-report.json`.
+- At that commit, all **815 inference tests** and **58 CLI importer/native-command tests** passed. The preceding
+  combined full CLI source run passed **1,041 tests**; the subsequent delta was only the two Docker evidence guards and
+  their seven regressions. All **74 harness tests**, **44 init UI tests**, and full CLI/inference/UI typechecks passed.
+- The reusable opt-in `pnpm --filter @stacktape/config-inference run test:docker-source-mapping` passed all **eight
+  actual Docker cases**, checking absolute and relative source mapping against the files Docker produced. It uses
+  trusted scratch images with no dependency downloads or running application code, and removes only its labeled objects.
+  Log: `C:/Projects/qualification-reports/native-docker-source-mapping.log`.
+- CLI committed-artifact generation checks, formatting, lint, instruction sync, workspace, pattern, architecture and
+  secret checks passed. Final logs have the `final-` prefix under `C:/Projects/qualification-reports`.
+
+These checks ran from native Windows tools with Docker Desktop; no WSL-native workspace was required. Import contracts
+include intentional negative cases: a correct refusal to claim AWS readiness is a pass, not a successful deployment.
+
+### Earlier review checkpoints
 
 - Product `9c633b7d`: all 14 then-current exact corpus contracts passed in a fresh import run. Report:
   `C:/Projects/stacktape-qualification-corpus/reports/combined-9c633b7d/qualification-report.json`.
@@ -61,20 +88,22 @@ The initial `pnpm check:public` stopped at the two release-command tests fixed b
 was then rerun successfully. This is **not** a green complete public gate: later build/release gates have not been rerun
 at this checkpoint. Logs are under `C:/Projects/qualification-reports`.
 
-## Current unfinished item
+## Remaining unqualified behavior
 
-JobDesk's literal entryfile ownership and array-form migration citations are under final review in
-`codex/jobdesk-importer-repair`. Its ordinary exact contract passes, but independent review found two edge defects:
-absolute container entry paths could claim unrelated repository source, and migration argv lost boundaries when
-converted to a shell string. The repair must include the native Windows hook consumer: POSIX single-quoting alone does
-not preserve arguments there. Do not accept only generated-YAML tests or merge an unreviewed intermediate fix.
+JobDesk's independent review accepted `965c52cb`; the integration-specific ignore-policy and truncated-scan guards are
+in `46a26ed2`. Both are merged. There is no pending repair or corpus adoption from this batch.
 
-After that repair is accepted, merge it, run the combined focused checks and all 15 exact corpus contracts, then commit
-the pending corpus adoption. Preserve the application source; do not simplify it to make inference pass.
+The source mapper is deliberately bounded. It does not certify arbitrary downloaded dependency hooks, base-image
+behavior or application runtime correctness. Compose runtime `working_dir` overrides are not yet preserved by generated
+packaging; that pre-existing limitation needs its own end-to-end case and fix. JobDesk does not use an override.
+
+JobDesk's 29 native tests use in-memory stores and queues. Live PostgreSQL/Redis behavior, actual migration execution,
+Docker packaging and process recovery remain unqualified. Its source has no authentication or transactional outbox; do
+not deploy it with real customer data. Preserve the complete source instead of simplifying it to make tests pass.
 
 ## Environment limits and next execution order
 
-The host C: drive has about 1.7 GiB free. Two obsolete harness-owned runner images were removed; the latest was kept. No
+The host C: drive has about 1.8 GiB free. Two obsolete harness-owned runner images were removed; the latest was kept. No
 source cache, reusable project or run report was deleted. Docker-internal free space is not equivalent to host free
 space. Large builds are deferred rather than risking a full host disk. Do not work around a denied cleanup operation
 with a different deletion mechanism.
@@ -92,6 +121,7 @@ Once adequate disk space or a disposable runner is available:
    session. Do not infer permission or target identity from available credentials.
 
 External-model availability at this checkpoint: Grok 4.6 xhigh supplied candidate research and blind JobDesk source;
-Antigravity Flash 3.7 high was quota-blocked, with a reported reset around 03:13 local time; the Opus CLI OAuth session
-was expired. Recheck availability once when resuming, not in a polling loop. Delegate a concrete bounded repair or
-source audit, request compact evidence, and review the affected boundary rather than repeatedly re-auditing everything.
+Antigravity Flash 3.7 high remained quota-blocked on the 03:13 retry, reporting another six minutes until reset. The
+Opus CLI OAuth session was expired. Recheck availability once when resuming, not in a polling loop. Delegate a concrete
+bounded repair or source audit, request compact evidence, and review the affected boundary rather than repeatedly
+re-auditing everything.
