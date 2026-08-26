@@ -720,6 +720,71 @@ describe('the compose probe', () => {
     ]);
   });
 
+  for (const command of [
+    '    command: ["bun", "packages/core/src/db/migrate.ts"]',
+    '    command:\n      - bun\n      - packages/core/src/db/migrate.ts',
+    '    entrypoint: ["bun"]\n    command: ["packages/core/src/db/migrate.ts"]'
+  ]) {
+    it(`cites the owning one-shot service's literal command arguments: ${command}`, async () => {
+      const compose = [
+        'services:',
+        '  unrelated:',
+        '    image: alpine',
+        '    command: bun packages/core/src/db/migrate.ts',
+        '  migrate:',
+        '    build: .',
+        command,
+        '    environment:',
+        '      DATABASE_URL: postgres://not-for-evidence',
+        '  api:',
+        '    build: .',
+        '    ports: ["3000:3000"]',
+        '    environment:',
+        '      DATABASE_URL: postgres://db:5432/app',
+        '    depends_on:',
+        '      migrate:',
+        '        condition: service_completed_successfully',
+        '  worker:',
+        '    build: .',
+        '    command: bun apps/worker/src/index.ts',
+        '    environment:',
+        '      DATABASE_URL: postgres://db:5432/app',
+        '    depends_on:',
+        '      migrate:',
+        '        condition: service_completed_successfully',
+        '  db:',
+        '    image: postgres:16',
+        ''
+      ].join('\n');
+      root = await makeRepo({ Dockerfile: 'FROM oven/bun:1\n', 'compose.yaml': compose });
+      const { facts } = await assembleCandidateFacts({ root, probes: [dockerComposeProbe] });
+      expect(facts.migrations).toHaveLength(1);
+      const migration = facts.migrations[0]!;
+      expect(migration.command).toBe('bun packages/core/src/db/migrate.ts');
+      expect(migration.evidence).toHaveLength(2);
+      expect(migration.evidence.some((citation) => citation.quote.includes('packages/core/src/db/migrate.ts'))).toBe(
+        true
+      );
+      for (const citation of migration.evidence) {
+        expect(citation.file).toBe('compose.yaml');
+        expect(citation.line).toBeGreaterThan(6);
+        expect(compose.split('\n')[citation.line - 1]).toContain(citation.quote);
+        expect(citation.quote).not.toContain('not-for-evidence');
+      }
+      const { config } = composeConfig({ facts, projectName: 'app' });
+      expect(Object.keys(config.scripts ?? {})).toEqual(['migrateDatabase']);
+      expect(config.scripts?.migrateDatabase).toMatchObject({
+        type: 'local-script-with-bastion-tunneling',
+        properties: {
+          executeCommand: 'bun packages/core/src/db/migrate.ts',
+          connectTo: ['mainDatabase'],
+          environment: [{ name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" }]
+        }
+      });
+      expect(config.hooks).toEqual({ afterDeploy: [{ scriptName: 'migrateDatabase' }] });
+    });
+  }
+
   it('reads a one-shot migration command from its dedicated Dockerfile without deploying that image forever', async () => {
     root = await makeRepo({
       'apps/api/Dockerfile': 'FROM node:24\nCMD ["node", "server.js"]\n',
@@ -916,6 +981,76 @@ describe('the compose probe', () => {
       { name: 'Api', path: 'apps/one', dockerfile: undefined }
     ]);
   });
+
+  for (const command of [
+    ['bun', 'apps/api/src/index.ts'],
+    ['bun', 'run', './apps/api/src/index.ts'],
+    ['node', 'apps/api/src/index.ts']
+  ]) {
+    for (const withWorker of [false, true]) {
+      it(`matches a root Compose command to its exact child entryfile (${command.join(' ')}, worker=${withWorker})`, async () => {
+        root = await makeRepo({
+          'package.json': JSON.stringify({ name: 'workspace', private: true, workspaces: ['apps/*'] }),
+          'apps/api/package.json': JSON.stringify({ name: '@workspace/http', dependencies: { hono: '4' } }),
+          'apps/api/src/index.ts': 'import { Hono } from "hono"; Bun.serve({ port: 3000, fetch: new Hono().fetch });\n',
+          'apps/worker/src/index.ts': 'setInterval(() => undefined, 1000);\n',
+          Dockerfile: 'FROM oven/bun:1\nWORKDIR /app\nCOPY apps ./apps\nEXPOSE 3000\n',
+          'compose.yaml': [
+            'services:',
+            '  api:',
+            '    build: .',
+            `    command: ${JSON.stringify(command)}`,
+            '    ports: ["3000:3000"]',
+            ...(withWorker ? ['  worker:', '    build: .', '    command: ["bun", "apps/worker/src/index.ts"]'] : []),
+            ''
+          ].join('\n')
+        });
+        const probes = [manifestProbe, serverEntrypointProbe, dockerfileProbe, dockerComposeProbe];
+        const results = await Promise.all(
+          [probes, probes.toReversed()].map((order) => assembleCandidateFacts({ root, probes: order }))
+        );
+        for (const { facts } of results) {
+          expect(facts.services).toHaveLength(withWorker ? 2 : 1);
+          expect(facts.services.find((service) => service.exposesHttp)).toMatchObject({
+            path: 'apps/api',
+            dockerfile: 'Dockerfile',
+            buildRoot: '.',
+            containerEntrypoint: 'apps/api/src/index.ts',
+            containerCommand: command
+          });
+          if (withWorker) expect(facts.services.find((service) => !service.exposesHttp)?.name).toBe('worker');
+        }
+      });
+    }
+  }
+
+  for (const command of [
+    ['node', 'root-server.js', 'apps/nested/nested-server.js'],
+    ['sh', '-c', 'node apps/nested/nested-server.js'],
+    ['node', 'apps/nested/not-present.js']
+  ]) {
+    it(`does not use a data argument, opaque shell or missing file as child ownership: ${command.join(' ')}`, async () => {
+      root = await makeRepo({
+        'package.json': JSON.stringify({
+          name: 'api',
+          scripts: { start: 'node root-server.js' },
+          dependencies: { express: '5' }
+        }),
+        'root-server.js': 'require("express")().listen(3000);\n',
+        'apps/nested/package.json': JSON.stringify({ name: 'api', dependencies: { fastify: '5' } }),
+        'apps/nested/nested-server.js': 'require("fastify")().listen({ port: 4000 });\n',
+        Dockerfile: 'FROM node:24\nWORKDIR /app\nCOPY root-server.js ./\nEXPOSE 3000\n',
+        'compose.yaml': `services:\n  api:\n    build: .\n    command: ${JSON.stringify(command)}\n    ports: ["3000:3000"]\n`
+      });
+      const { facts } = await assembleCandidateFacts({
+        root,
+        probes: [manifestProbe, serverEntrypointProbe, dockerfileProbe, dockerComposeProbe]
+      });
+      expect(facts.services).toHaveLength(2);
+      expect(facts.services.find((service) => service.path === 'apps/nested')?.dockerfile).toBeUndefined();
+      expect(facts.services.find((service) => service.path === '.')?.containerCommand).toEqual(command);
+    });
+  }
 
   it('does not let a root Dockerfile collapse an unrelated nested application with the same name', async () => {
     root = await makeRepo({

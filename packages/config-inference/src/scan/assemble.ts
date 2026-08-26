@@ -195,6 +195,39 @@ const startCommandRunsEntrypoint = (service: ServiceFactInput): boolean => {
   );
 };
 
+/** A literal runtime argument can identify a child app even when Compose builds from the root. */
+const literalContainerSourcePath = (
+  descriptor: ServiceFactInput,
+  sources: readonly ServiceFactInput[]
+): string | undefined => {
+  if (descriptor.dockerfile === undefined || descriptor.containerCommand === undefined) return undefined;
+  const [runtime, first, second] = descriptor.containerCommand;
+  if (!['bun', 'node', 'tsx', 'ts-node'].includes(runtime ?? '')) return undefined;
+  const entry = runtime === 'bun' && first === 'run' ? second : first;
+  // Only the runtime's entryfile argument proves ownership. A later argument may be an input file,
+  // and shell wrappers, flags, substitutions or absolute container paths need separate analysis.
+  if (entry === undefined || !/^(?:\.\/)?[A-Za-z0-9_./-]+\.[cm]?[jt]sx?$/.test(entry)) return undefined;
+  const buildRoot = descriptor.buildRoot ?? descriptor.path;
+  const entryPath = posix.normalize(posix.join(buildRoot, entry));
+  if (entryPath.startsWith('../') || (buildRoot !== '.' && !entryPath.startsWith(`${buildRoot}/`))) return undefined;
+  const paths = new Set(
+    sources
+      .filter(
+        (source) =>
+          // Source scanners also identify explicit workers. Provider-qualified declarations are
+          // not independent source evidence and must not identify each other's ownership.
+          !source.processType?.includes(':') &&
+          source.dockerfile === undefined &&
+          source.containerCommand === undefined &&
+          source.containerEntrypoint === entryPath &&
+          source.path !== '.' &&
+          entryPath.startsWith(`${source.path}/`)
+      )
+      .map((source) => source.path)
+  );
+  return paths.size === 1 ? [...paths][0] : undefined;
+};
+
 const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): ServiceFactInput => {
   const staticService =
     existing.servesStaticAssets !== undefined
@@ -490,6 +523,13 @@ const mergeServices = (
   outputs: readonly ProbeOutput[]
 ): { services: ServiceFactInput[]; renames: Map<string, string> } => {
   const byPath = new Map<string, ServiceFactInput>();
+  const allServices = outputs.flatMap((output) => output.services ?? []);
+  const literalSourcePaths = new Map(
+    allServices.flatMap((service) => {
+      const sourcePath = literalContainerSourcePath(service, allServices);
+      return sourcePath === undefined || sourcePath === service.path ? [] : [[service, sourcePath] as const];
+    })
+  );
   const descriptorSourcePaths = new Map(
     outputs.flatMap((output) =>
       (output.descriptorTargetServices ?? []).map(
@@ -537,9 +577,18 @@ const mergeServices = (
   const renames = new Map<string, string>();
 
   for (const output of outputs) {
-    for (const service of output.services ?? []) {
+    for (const originalService of output.services ?? []) {
+      const sourcePath = literalSourcePaths.get(originalService);
+      const service =
+        sourcePath === undefined
+          ? originalService
+          : {
+              ...originalService,
+              path: sourcePath,
+              buildRoot: originalService.buildRoot ?? originalService.path
+            };
       const key = serviceKey(service);
-      if (developmentProcesses.has(key)) {
+      if (developmentProcesses.has(serviceKey(originalService))) {
         const candidates = [...byPath.values()].filter(
           (candidate) =>
             candidate.path === service.path &&
@@ -571,7 +620,8 @@ const mergeServices = (
           generic !== undefined &&
           generic.processType === undefined &&
           (!matchingNameElsewhere || normalizedServiceName(generic) === normalizedServiceName(service)) &&
-          ((generic.exposesHttp && service.exposesHttp) ||
+          (sourcePath !== undefined ||
+            (generic.exposesHttp && service.exposesHttp) ||
             /(?:^|:)(?:app|web)$/.test(service.processType ?? '') ||
             (generic.path !== '.' &&
               service.dockerfile?.startsWith(`${generic.path}/`) === true &&
@@ -613,7 +663,10 @@ const mergeServices = (
         });
         continue;
       }
-      const mergedService = mergeService(existing, service);
+      // A root-context command is written relative to the build root, not the child package.
+      // Its exact entryfile also proves that the descriptor owns conflicts with source conventions.
+      const mergedService =
+        sourcePath === undefined ? mergeService(existing, service) : mergeService(service, existing);
       if (service.name !== existing.name) {
         const discardedName = mergedService.name === service.name ? existing.name : service.name;
         renames.set(discardedName, mergedService.name);
@@ -640,11 +693,14 @@ const mergeServices = (
       service.dockerfile = sharedDockerfile;
     }
   }
-  const descriptorOwnedDockerfiles = new Set(
-    merged.flatMap((service) =>
+  const descriptorOwnedDockerfiles = new Set([
+    ...merged.flatMap((service) =>
       service.processType !== undefined && service.dockerfile !== undefined ? [service.dockerfile] : []
+    ),
+    ...[...literalSourcePaths.keys()].flatMap((service) =>
+      service.dockerfile === undefined ? [] : [service.dockerfile]
     )
-  );
+  ]);
   const services = merged.filter(
     (service) =>
       !(

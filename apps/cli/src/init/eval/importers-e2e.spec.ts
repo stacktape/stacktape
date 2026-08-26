@@ -65,6 +65,100 @@ const CASES: EvalCase[] = [
     }
   },
   {
+    name: 'Bun workspace API and BullMQ worker share Redis and Postgres with one Drizzle migration',
+    directoryName: 'jobdesk',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'jobdesk',
+        private: true,
+        workspaces: ['apps/*', 'packages/*'],
+        scripts: {
+          'start:api': 'bun apps/api/src/index.ts',
+          'start:worker': 'bun apps/worker/src/index.ts',
+          'db:migrate': 'bun packages/core/src/db/migrate.ts'
+        },
+        devDependencies: { 'drizzle-kit': '^0.31' }
+      }),
+      'apps/api/package.json': JSON.stringify({
+        name: '@jobdesk/api',
+        dependencies: { '@jobdesk/core': 'workspace:*', hono: '^4' }
+      }),
+      'apps/api/src/index.ts': 'import { Hono } from "hono"; Bun.serve({ port: 3000, fetch: new Hono().fetch });\n',
+      'apps/worker/package.json': JSON.stringify({
+        name: '@jobdesk/worker',
+        dependencies: { '@jobdesk/core': 'workspace:*' }
+      }),
+      'apps/worker/src/index.ts': 'import { Worker } from "bullmq"; new Worker("jobs", async () => undefined);\n',
+      'packages/core/package.json': JSON.stringify({
+        name: '@jobdesk/core',
+        exports: './src/index.ts',
+        dependencies: { 'drizzle-orm': '^0.44', postgres: '^3', bullmq: '^5', ioredis: '^5' }
+      }),
+      'packages/core/src/index.ts': 'export const name = "jobdesk";\n',
+      'packages/core/src/db/migrate.ts':
+        'import { migrate } from "drizzle-orm/postgres-js/migrator"; await migrate(db, { migrationsFolder: "drizzle" });\n',
+      'drizzle/0000_initial.sql': 'CREATE TABLE jobs (id text PRIMARY KEY);\n',
+      Dockerfile:
+        'FROM oven/bun:1\nWORKDIR /app\nCOPY . .\nRUN bun install --frozen-lockfile\nEXPOSE 3000\nCMD ["bun", "apps/api/src/index.ts"]\n',
+      'compose.yaml': [
+        'services:',
+        '  postgres:',
+        '    image: postgres:16-alpine',
+        '  redis:',
+        '    image: redis:7-alpine',
+        '  migrate:',
+        '    build: .',
+        '    command: ["bun", "packages/core/src/db/migrate.ts"]',
+        '    environment:',
+        '      DATABASE_URL: postgres://postgres:5432/jobdesk',
+        ...['api', 'worker'].flatMap((name) => [
+          `  ${name}:`,
+          '    build: .',
+          `    command: ["bun", "apps/${name}/src/index.ts"]`,
+          ...(name === 'api' ? ['    ports: ["3000:3000"]'] : []),
+          '    environment:',
+          '      DATABASE_URL: postgres://postgres:5432/jobdesk',
+          '      REDIS_URL: redis://redis:6379',
+          '    depends_on:',
+          '      postgres:',
+          '        condition: service_started',
+          '      redis:',
+          '        condition: service_started',
+          '      migrate:',
+          '        condition: service_completed_successfully'
+        ]),
+        ''
+      ].join('\n')
+    },
+    expect: {
+      serviceCount: 2,
+      resourceCount: 5,
+      resources: {
+        api: 'web-service',
+        worker: 'worker-service',
+        mainDatabase: 'relational-database',
+        cache: 'redis-cluster',
+        databaseBastion: 'bastion'
+      },
+      dependencyKinds: ['postgres', 'redis'],
+      absentDependencyKinds: ['queue'],
+      scriptNames: ['migrateDatabase'],
+      serviceEnvironment: ['api', 'worker'].flatMap((resource) => [
+        { resource, name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" },
+        { resource, name: 'REDIS_URL', value: "$ResourceParam('cache', 'connectionString')" }
+      ]),
+      resourcePackaging: ['api', 'worker'].map((resource) => ({
+        resource,
+        type: 'custom-dockerfile',
+        buildContextPath: '.',
+        dockerfilePath: 'Dockerfile',
+        command: ['bun', `apps/${resource}/src/index.ts`]
+      })),
+      deployable: true,
+      maxQuestions: 0
+    }
+  },
+  {
     name: 'Laravel Compose web, Horizon, scheduler, MySQL, and Redis',
     directoryName: 'pixelfed',
     files: {

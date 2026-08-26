@@ -455,6 +455,29 @@ const commandOf = (service: ComposeService): string | undefined => {
   return entrypoint === undefined ? command : command === undefined ? entrypoint : `${entrypoint} ${command}`;
 };
 
+/** Cite array arguments at this service's YAML nodes, never a neighboring environment value. */
+const commandArrayEvidence = (file: string, raw: string, serviceName: string): Citation[] => {
+  const document = yaml.parseDocument(raw);
+  return ['entrypoint', 'command'].flatMap((field) => {
+    const node: unknown = document.getIn(['services', serviceName, field], true);
+    if (!isRecord(node) || !Array.isArray(node.items)) return [];
+    return node.items.flatMap((item: unknown): Citation[] => {
+      if (
+        !isRecord(item) ||
+        typeof item.value !== 'string' ||
+        !Array.isArray(item.range) ||
+        typeof item.range[0] !== 'number' ||
+        typeof item.range[1] !== 'number'
+      ) {
+        return [];
+      }
+      const quote = raw.slice(item.range[0], item.range[1]).trim();
+      if (quote === '' || /[\r\n]/.test(quote)) return [];
+      return [{ file, line: raw.slice(0, item.range[0]).split('\n').length, quote: quote.slice(0, 200) }];
+    });
+  });
+};
+
 /** Compose string commands are shell words, not an implicit `sh -c` invocation. */
 const containerCommandOf = (service: ComposeService): string[] | undefined => {
   if (service.entrypoint !== undefined) return undefined;
@@ -1182,12 +1205,13 @@ export const dockerComposeProbe: Probe = {
         if (serviceName === undefined) continue;
         for (const command of commands) {
           const citation = citeFirstMatchOnly(command.file, command.raw, new RegExp(escapeForPattern(command.command)));
+          const arrayEvidence = command.file === path ? commandArrayEvidence(path, raw, declaration.composeName) : [];
           migrations.push({
             serviceName,
             tool: command.command.split(/\s+/)[0] ?? 'migration',
             command: command.command,
             runsAt: 'ci',
-            evidence: citation === undefined ? [] : [citation]
+            evidence: arrayEvidence.length > 0 ? arrayEvidence : citation === undefined ? [] : [citation]
           });
         }
       }
