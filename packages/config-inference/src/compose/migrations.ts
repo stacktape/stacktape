@@ -12,8 +12,8 @@
  *
  * Two guards, both about running commands on the user's machine:
  *
- * - **Only command-shaped commands.** The string lands in `executeCommand`, so shell metacharacters
- *   are rejected outright and the first token must be a known package manager or migration runner.
+ * - **Only literal commands.** The string lands in `executeCommand`, so shell syntax must be quoted
+ *   as literal arguments and the first token must be a known package manager or migration runner.
  *   A migration fact can originate from an agent that read untrusted repository content; the
  *   allowlist means the worst a hostile fact can do is run a well-known tool with odd arguments,
  *   visibly, in a file the user reviews.
@@ -30,8 +30,13 @@ import { generatedDatabasePasswordSecretReference, wiringFor } from './env-wirin
 
 const DATABASE_KINDS: ReadonlySet<DependencyFact['kind']> = new Set(['postgres', 'mysql', 'mssql', 'mongodb']);
 
-/** Plain tokens only: anything a shell would interpret has no business in a generated command. */
-const COMMAND_SHAPE = /^[A-Za-z0-9_./-]+(?: [A-Za-z0-9_.:=@/-]+)*$/;
+/**
+ * Plain tokens or single-quoted literal arguments only. The sole double-quoted fragment allowed is
+ * "'", which represents an apostrophe between single-quoted chunks. No expansion, redirection,
+ * substitution or command separator can escape an argument. NUL cannot be passed to an OS process.
+ */
+const LITERAL_ARGUMENT = `(?:[A-Za-z0-9_.:=@/-]+|'[^'\\0]*'(?:"'"'[^'\\0]*')*)`;
+const COMMAND_SHAPE = new RegExp(`^[A-Za-z0-9_./-]+(?: ${LITERAL_ARGUMENT})*$`);
 
 const KNOWN_RUNNERS: ReadonlySet<string> = new Set([
   'npm',
@@ -71,7 +76,7 @@ const KNOWN_RUNNERS: ReadonlySet<string> = new Set([
 ]);
 
 export const isRunnableMigrationCommand = (command: string): boolean => {
-  if (!COMMAND_SHAPE.test(command)) return false;
+  if (COMMAND_SHAPE.exec(command)?.[0] !== command) return false;
   const first = command.split(' ')[0];
   return first !== undefined && KNOWN_RUNNERS.has(first);
 };

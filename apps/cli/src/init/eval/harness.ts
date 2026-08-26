@@ -51,6 +51,8 @@ export type EvalExpectation = {
   raisesQuestionKinds?: readonly string[];
   /** Deploy-time scripts the composition must emit, by name — the migration hook above all. */
   scriptNames?: readonly string[];
+  /** Exact script commands, including quoted argument boundaries. */
+  scriptCommands?: Readonly<Record<string, string>>;
   /**
    * Environment entries a composed resource must carry, value included.
    *
@@ -180,6 +182,15 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
   for (const scriptName of expected.scriptNames ?? []) {
     if (result.composition.config.scripts?.[scriptName] === undefined) {
       failures.push({ stage: 'composition', detail: `Expected a script named "${scriptName}"; none was emitted.` });
+    }
+  }
+  for (const [scriptName, command] of Object.entries(expected.scriptCommands ?? {})) {
+    const actual = result.composition.config.scripts?.[scriptName]?.properties.executeCommand;
+    if (actual !== command) {
+      failures.push({
+        stage: 'composition',
+        detail: `Script "${scriptName}" command is ${JSON.stringify(actual)}; expected ${JSON.stringify(command)}.`
+      });
     }
   }
 

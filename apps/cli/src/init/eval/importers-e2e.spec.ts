@@ -159,6 +159,49 @@ const CASES: EvalCase[] = [
     }
   },
   {
+    name: 'Compose literal migration arguments survive verification and composition',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'api',
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '5', pg: '8' }
+      }),
+      'server.js': 'require("express")().listen(3000);\n',
+      'migrate.js': 'console.log(JSON.stringify(process.argv.slice(2)));\n',
+      Dockerfile: 'FROM node:24\nWORKDIR /app\nCOPY . .\nEXPOSE 3000\n',
+      'compose.yaml': [
+        'services:',
+        '  migrate:',
+        '    build: .',
+        '    entrypoint: ["bun"]',
+        '    command: ["migrate.js", "--directory", "db migrations", "", "$STP_LITERAL_ARG", "; printf changed"]',
+        '  api:',
+        '    build: .',
+        '    command: ["node", "server.js"]',
+        '    ports: ["3000:3000"]',
+        '    environment:',
+        '      DATABASE_URL: postgres://db:5432/app',
+        '    depends_on:',
+        '      migrate:',
+        '        condition: service_completed_successfully',
+        '  db:',
+        '    image: postgres:16',
+        ''
+      ].join('\n')
+    },
+    expect: {
+      serviceCount: 1,
+      resourceCount: 3,
+      resources: { api: 'web-service', mainDatabase: 'relational-database', databaseBastion: 'bastion' },
+      scriptCommands: {
+        migrateDatabase: "bun migrate.js --directory 'db migrations' '' '$STP_LITERAL_ARG' '; printf changed'"
+      },
+      deployable: true,
+      raisesQuestionKinds: ['dockerfile-ownership'],
+      maxQuestions: 1
+    }
+  },
+  {
     name: 'Laravel Compose web, Horizon, scheduler, MySQL, and Redis',
     directoryName: 'pixelfed',
     files: {

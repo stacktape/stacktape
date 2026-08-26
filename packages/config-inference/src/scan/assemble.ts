@@ -206,7 +206,9 @@ const literalContainerSourcePath = (
   const entry = runtime === 'bun' && first === 'run' ? second : first;
   // Only the runtime's entryfile argument proves ownership. A later argument may be an input file,
   // and shell wrappers, flags, substitutions or absolute container paths need separate analysis.
-  if (entry === undefined || !/^(?:\.\/)?[A-Za-z0-9_./-]+\.[cm]?[jt]sx?$/.test(entry)) return undefined;
+  if (entry === undefined || posix.isAbsolute(entry) || !/^(?:\.\/)?[A-Za-z0-9_./-]+\.[cm]?[jt]sx?$/.test(entry)) {
+    return undefined;
+  }
   const buildRoot = descriptor.buildRoot ?? descriptor.path;
   const entryPath = posix.normalize(posix.join(buildRoot, entry));
   if (entryPath.startsWith('../') || (buildRoot !== '.' && !entryPath.startsWith(`${buildRoot}/`))) return undefined;

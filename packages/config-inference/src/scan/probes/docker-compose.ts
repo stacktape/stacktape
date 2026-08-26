@@ -533,6 +533,29 @@ const containerCommandOf = (service: ComposeService): string[] | undefined => {
   return words.length > 0 ? words : undefined;
 };
 
+/** Literal Compose argv has no shell expansion; a local migration hook must keep that property. */
+const migrationArrayCommand = (service: ComposeService): { command: string; inspection: string } | undefined => {
+  if (!Array.isArray(service.entrypoint) && !Array.isArray(service.command)) return undefined;
+  const argv: string[] = [];
+  for (const value of [service.entrypoint, service.command]) {
+    if (value === undefined || value === null || (Array.isArray(value) && value.length === 0)) continue;
+    const words = containerCommandOf({ command: value });
+    if (words === undefined) return undefined;
+    argv.push(...words);
+  }
+  if (argv.length === 0) return undefined;
+  return {
+    command: argv
+      .map((argument) =>
+        /^[A-Za-z0-9_.:=@/-]+$/.test(argument) ? argument : `'${argument.replaceAll("'", "'\"'\"'")}'`
+      )
+      .join(' '),
+    // Inspect each whole argument before quoting. A script such as "db migrations/run.ts" is one
+    // migration entryfile, not two words and not an unterminated shell quote.
+    inspection: argv.map((argument) => argument.replace(/\s/g, '_')).join(' ')
+  };
+};
+
 const enabledLiteral = (value: unknown): boolean =>
   typeof value === 'boolean'
     ? value
@@ -1152,6 +1175,7 @@ export const dockerComposeProbe: Probe = {
     for (const declaration of appDeclarations) {
       const consumers = oneShotConsumers.get(declaration.composeName);
       let declaredCommand = commandOf(declaration.service);
+      const arrayCommand = migrationArrayCommand(declaration.service);
       let commandFile = path;
       let commandRaw = raw;
       if (declaredCommand === undefined && declaration.build.dockerfile !== undefined) {
@@ -1166,9 +1190,12 @@ export const dockerComposeProbe: Probe = {
       if (consumers === undefined || declaredCommand === undefined) continue;
 
       const commands: Array<{ command: string; file: string; raw: string }> = [];
-      if (MIGRATION_COMMAND.test(declaredCommand)) {
+      if (
+        MIGRATION_COMMAND.test(declaredCommand) ||
+        (arrayCommand !== undefined && MIGRATION_COMMAND.test(arrayCommand.inspection))
+      ) {
         commands.push({
-          command: declaredCommand,
+          command: arrayCommand?.command ?? declaredCommand,
           file: commandFile,
           raw: commandRaw
         });

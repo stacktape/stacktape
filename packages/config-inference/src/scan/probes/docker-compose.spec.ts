@@ -9,6 +9,7 @@
 import { mkdtemp, mkdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { $ } from 'bun';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { composeConfig } from '../../compose/compose';
 import { assembleCandidateFacts } from '../assemble';
@@ -785,6 +786,80 @@ describe('the compose probe', () => {
     });
   }
 
+  for (const entryfile of ['migrate.js', 'db migrations/run.js']) {
+    for (const style of ['inline', 'multiline', 'split-entrypoint', 'scalar-entrypoint']) {
+      it(`preserves literal migration argv through composition and shell execution (${style}, ${entryfile})`, async () => {
+        const args = [
+          '--directory',
+          'db migrations',
+          '',
+          "apostrophe's",
+          'double"quote',
+          '$STP_LITERAL_ARG',
+          '$(printf changed)',
+          '`printf changed`',
+          '; printf changed',
+          '&& printf changed',
+          '| printf changed',
+          '*.sql',
+          '{one,two}',
+          '# comment',
+          'C:\\db\\migrations',
+          'line\nbreak'
+        ];
+        const argv = ['bun', entryfile, ...args];
+        const declaration =
+          style === 'inline'
+            ? [`    command: ${JSON.stringify(argv)}`]
+            : style === 'multiline'
+              ? ['    command:', ...argv.map((argument) => `      - ${JSON.stringify(argument)}`)]
+              : [
+                  style === 'split-entrypoint' ? '    entrypoint: ["bun"]' : '    entrypoint: bun',
+                  `    command: ${JSON.stringify(argv.slice(1))}`
+                ];
+        const compose = [
+          'services:',
+          '  migrate:',
+          '    build: .',
+          ...declaration,
+          '  api:',
+          '    build: .',
+          '    ports: ["3000:3000"]',
+          '    depends_on:',
+          '      migrate:',
+          '        condition: service_completed_successfully',
+          ''
+        ].join('\n');
+        root = await makeRepo({
+          Dockerfile: 'FROM oven/bun:1\n',
+          'compose.yaml': compose,
+          [entryfile]: 'console.log(JSON.stringify(process.argv.slice(2)));\n'
+        });
+        const { facts } = await assembleCandidateFacts({ root, probes: [dockerComposeProbe] });
+        expect(facts.migrations).toHaveLength(1);
+        const migration = facts.migrations[0]!;
+        expect(migration.evidence.some((citation) => citation.quote.includes(entryfile))).toBe(true);
+        for (const citation of migration.evidence)
+          expect(compose.split('\n')[citation.line - 1]).toContain(citation.quote);
+        const composition = composeConfig({ facts, projectName: 'app' });
+        const executeCommand = composition.config.scripts?.migrateDatabase?.properties.executeCommand;
+        expect(executeCommand).toBe(migration.command);
+        expect(composition.config.hooks).toEqual({ afterDeploy: [{ scriptName: 'migrateDatabase' }] });
+        expect(composition.gaps).toEqual([]);
+        if (typeof executeCommand !== 'string') throw new Error('Migration command was not composed.');
+        expect(executeCommand).toContain("--directory 'db migrations'");
+        // Execute only this test-authored argv printer, with no database or external service. Bun's
+        // cross-platform shell checks actual argument boundaries and catches accidental expansion.
+        const output = await $`${{ raw: executeCommand }}`
+          .cwd(root)
+          .env({ ...process.env, STP_LITERAL_ARG: 'expanded' })
+          .quiet()
+          .text();
+        expect(JSON.parse(output)).toEqual(args);
+      });
+    }
+  }
+
   it('reads a one-shot migration command from its dedicated Dockerfile without deploying that image forever', async () => {
     root = await makeRepo({
       'apps/api/Dockerfile': 'FROM node:24\nCMD ["node", "server.js"]\n',
@@ -1027,9 +1102,10 @@ describe('the compose probe', () => {
   for (const command of [
     ['node', 'root-server.js', 'apps/nested/nested-server.js'],
     ['sh', '-c', 'node apps/nested/nested-server.js'],
-    ['node', 'apps/nested/not-present.js']
+    ['node', 'apps/nested/not-present.js'],
+    ['node', '/apps/nested/nested-server.js']
   ]) {
-    it(`does not use a data argument, opaque shell or missing file as child ownership: ${command.join(' ')}`, async () => {
+    it(`does not use a data argument, opaque shell, missing file or absolute container path as child ownership: ${command.join(' ')}`, async () => {
       root = await makeRepo({
         'package.json': JSON.stringify({
           name: 'api',
@@ -1039,7 +1115,7 @@ describe('the compose probe', () => {
         'root-server.js': 'require("express")().listen(3000);\n',
         'apps/nested/package.json': JSON.stringify({ name: 'api', dependencies: { fastify: '5' } }),
         'apps/nested/nested-server.js': 'require("fastify")().listen({ port: 4000 });\n',
-        Dockerfile: 'FROM node:24\nWORKDIR /app\nCOPY root-server.js ./\nEXPOSE 3000\n',
+        Dockerfile: `FROM node:24\nWORKDIR /app\nCOPY root-server.js ${command[1]?.startsWith('/') ? command[1] : './'}\nEXPOSE 3000\n`,
         'compose.yaml': `services:\n  api:\n    build: .\n    command: ${JSON.stringify(command)}\n    ports: ["3000:3000"]\n`
       });
       const { facts } = await assembleCandidateFacts({
