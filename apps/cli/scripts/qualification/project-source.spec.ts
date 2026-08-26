@@ -1,9 +1,22 @@
 import { afterEach, describe, expect, test } from 'bun:test';
-import { chmod, mkdir, mkdtemp, readFile, readdir, rm, stat, writeFile } from 'node:fs/promises';
+import {
+  chmod,
+  lstat,
+  mkdir,
+  mkdtemp,
+  readFile,
+  readdir,
+  readlink,
+  rm,
+  stat,
+  symlink,
+  writeFile
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import type { QualificationCaseManifest } from './contracts';
+import { runImportQualification } from './import-contract';
 import { acquireProject, calculateSourceFingerprint } from './project-source';
 import { assertProcessSucceeded, runProcess } from './process';
 
@@ -171,5 +184,125 @@ describe('qualification project sources', () => {
     await writeFile(join(acquired.projectRoot, 'stacktape.yml'), 'resources: {}\n');
     expect((await stat(acquired.projectRoot)).mode & 0o200).not.toBe(0);
     expect((await stat(sourceRoot)).mode & 0o200).toBe(0);
+  });
+
+  test('preserves relative root and nested symlinks verbatim without rewriting them to absolute paths', async () => {
+    const manifestRoot = await createRoot();
+    const sourceRoot = join(manifestRoot, 'symlink-project');
+    await mkdir(join(sourceRoot, 'docker'), { recursive: true });
+    await mkdir(join(sourceRoot, 'apps', 'nested'), { recursive: true });
+    await writeFile(join(sourceRoot, 'docker', 'Dockerfile.debian'), 'FROM debian\n', 'utf8');
+    await writeFile(join(sourceRoot, 'apps', 'nested', 'package.json'), '{"name":"nested"}\n', 'utf8');
+    await writeFile(join(sourceRoot, '.env.template'), 'PORT=80\n', 'utf8');
+
+    await symlink('docker/Dockerfile.debian', join(sourceRoot, 'Dockerfile'));
+    await symlink('../../docker/Dockerfile.debian', join(sourceRoot, 'apps', 'nested', 'Dockerfile'));
+
+    const entry: QualificationCaseManifest = {
+      id: 'symlink-fixture',
+      title: 'Symlink fixture',
+      why: 'Proves copyProject preserves relative symlinks verbatim.',
+      source: { kind: 'local', path: 'symlink-project', license: 'Synthetic fixture' },
+      origin: 'synthetic',
+      tags: ['local-source'],
+      lanes: ['import']
+    };
+
+    const acquired = await acquireProject({
+      entry,
+      manifestDirectory: manifestRoot,
+      cacheRoot: await createRoot(),
+      workRoot: await createRoot()
+    });
+
+    const rootLink = (await readlink(join(acquired.projectRoot, 'Dockerfile'))).replaceAll('\\', '/');
+    expect(rootLink).toBe('docker/Dockerfile.debian');
+
+    const nestedLink = (await readlink(join(acquired.projectRoot, 'apps', 'nested', 'Dockerfile'))).replaceAll(
+      '\\',
+      '/'
+    );
+    expect(nestedLink).toBe('../../docker/Dockerfile.debian');
+
+    expect((await lstat(join(acquired.projectRoot, '.env.template'))).isFile()).toBeTrue();
+    expect((await lstat(join(acquired.projectRoot, 'apps', 'nested', 'package.json'))).isFile()).toBeTrue();
+  });
+
+  test('preserves outside and dangling symlinks verbatim without dereferencing or trusting outside contents', async () => {
+    const manifestRoot = await createRoot();
+    const sourceRoot = join(manifestRoot, 'dangling-project');
+    await mkdir(sourceRoot, { recursive: true });
+    await writeFile(join(sourceRoot, 'package.json'), '{"name":"dangling"}\n', 'utf8');
+
+    await symlink('missing-target.txt', join(sourceRoot, 'dangling.txt'));
+    await symlink('../../outside.txt', join(sourceRoot, 'escaping.txt'));
+
+    const entry: QualificationCaseManifest = {
+      id: 'dangling-fixture',
+      title: 'Dangling and outside symlinks',
+      why: 'Preserves verbatim links without dereferencing or pulling outside contents in.',
+      source: { kind: 'local', path: 'dangling-project', license: 'Synthetic fixture' },
+      origin: 'synthetic',
+      tags: ['local-source'],
+      lanes: ['import']
+    };
+
+    const acquired = await acquireProject({
+      entry,
+      manifestDirectory: manifestRoot,
+      cacheRoot: await createRoot(),
+      workRoot: await createRoot()
+    });
+
+    const danglingLink = (await readlink(join(acquired.projectRoot, 'dangling.txt'))).replaceAll('\\', '/');
+    expect(danglingLink).toBe('missing-target.txt');
+
+    const escapingLink = (await readlink(join(acquired.projectRoot, 'escaping.txt'))).replaceAll('\\', '/');
+    expect(escapingLink).toBe('../../outside.txt');
+
+    expect((await lstat(join(acquired.projectRoot, 'escaping.txt'))).isSymbolicLink()).toBeTrue();
+  });
+
+  test('covers complete acquire -> import path for a relative Dockerfile symlink', async () => {
+    const manifestRoot = await createRoot();
+    const sourceRoot = join(manifestRoot, 'import-symlink-project');
+    await mkdir(join(sourceRoot, 'docker'), { recursive: true });
+    await writeFile(
+      join(sourceRoot, 'docker', 'Dockerfile.debian'),
+      'FROM node:24-slim\nWORKDIR /app\nCOPY . /app\nEXPOSE 8080\nSTOPSIGNAL SIGINT\nCMD ["node", "index.js"]\n',
+      'utf8'
+    );
+    await writeFile(
+      join(sourceRoot, 'package.json'),
+      '{"name":"import-symlink-app","scripts":{"start":"node index.js"}}\n',
+      'utf8'
+    );
+    await writeFile(join(sourceRoot, 'index.js'), 'console.log("hello");\n', 'utf8');
+    await symlink('docker/Dockerfile.debian', join(sourceRoot, 'Dockerfile'));
+
+    const entry: QualificationCaseManifest = {
+      id: 'import-symlink-fixture',
+      title: 'Import symlink fixture',
+      why: 'Verifies the full acquire-to-import pipeline with a relative Dockerfile symlink.',
+      source: { kind: 'local', path: 'import-symlink-project', license: 'Synthetic fixture' },
+      origin: 'synthetic',
+      tags: ['local-source'],
+      lanes: ['import']
+    };
+
+    const acquired = await acquireProject({
+      entry,
+      manifestDirectory: manifestRoot,
+      cacheRoot: await createRoot(),
+      workRoot: await createRoot()
+    });
+
+    const rootLink = (await readlink(join(acquired.projectRoot, 'Dockerfile'))).replaceAll('\\', '/');
+    expect(rootLink).toBe('docker/Dockerfile.debian');
+
+    const importResult = await runImportQualification({ entry, projectRoot: acquired.projectRoot });
+    expect(importResult.validConfig).toBeTrue();
+    expect(importResult.failures).toHaveLength(0);
+    expect(importResult.generatedConfig).toContain('dockerfilePath: docker/Dockerfile.debian');
   });
 });

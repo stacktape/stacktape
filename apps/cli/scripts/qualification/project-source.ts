@@ -182,6 +182,7 @@ const copyProject = async ({
   await cp(sourceRoot, projectRoot, {
     recursive: true,
     dereference: false,
+    verbatimSymlinks: true,
     filter: (source) => {
       const name = basename(source);
       return !excludedSourceNames.has(name);
@@ -193,7 +194,11 @@ const copyProject = async ({
   // creates a harness-only package failure. Preserve the clean pinned checkout metadata only when
   // a Dockerfile proves it is part of the build contract; local/synthetic sources remain unchanged.
   if (gitMetadataRoot !== undefined && (await dockerfileNeedsGitMetadata(sourceRoot))) {
-    await cp(join(gitMetadataRoot, '.git'), join(projectRoot, '.git'), { recursive: true, dereference: false });
+    await cp(join(gitMetadataRoot, '.git'), join(projectRoot, '.git'), {
+      recursive: true,
+      dereference: false,
+      verbatimSymlinks: true
+    });
   }
   const makeWritable = async (path: string): Promise<void> => {
     const metadata = await lstat(path);
