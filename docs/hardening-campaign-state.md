@@ -52,6 +52,10 @@ unused Docker-stage ownership, lost ignore policies after saving, and unrelated 
   authoritative-image controls also passed.
 - The stronger DocFlow per-process wiring contract passed at `2c277cb8`:
   `C:/Projects/stacktape-qualification-corpus/reports/docflow-scoped-env-2c277cb8/qualification-report.json`.
+- Eight dependency-free Docker COPY fixtures passed on Docker 29.1.3: identity, file/directory remapping, later
+  overwrites, named/numeric stage copies, stage inheritance and changed working directories. These verify Docker's
+  actual filesystem behavior, not full project packaging. Their labeled containers and images were removed after
+  inspection. Report: `C:/Projects/qualification-reports/docker-copy-oracle-mt9dp1ar.json`.
 
 The initial `pnpm check:public` stopped at the two release-command tests fixed by `63204fd0`. Its full CLI source suite
 was then rerun successfully. This is **not** a green complete public gate: later build/release gates have not been rerun
