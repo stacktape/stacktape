@@ -1245,11 +1245,81 @@ describe('the compose probe', () => {
   }
 
   for (const fixture of [
+    {
+      name: 'declared alias sidecar excludes the entryfile',
+      aliasIgnore: 'apps\n',
+      canonicalIgnore: '',
+      rootIgnore: '',
+      ownsChild: false
+    },
+    {
+      name: 'declared alias falls back to root ignores',
+      canonicalIgnore: '',
+      rootIgnore: 'apps\n',
+      ownsChild: false
+    },
+    {
+      name: 'declared alias sidecar includes the entryfile despite canonical and root ignores',
+      aliasIgnore: '',
+      canonicalIgnore: 'apps\n',
+      rootIgnore: 'apps\n',
+      ownsChild: true
+    }
+  ]) {
+    for (const linked of [false, true]) {
+      it(`uses declared Dockerfile ignore rules for source ownership (${linked ? 'symlink' : 'materialized'}): ${fixture.name}`, async () => {
+        root = await makeRepo({
+          'package.json': JSON.stringify({
+            name: 'api',
+            scripts: { start: 'node root-server.js' },
+            dependencies: { express: '5' }
+          }),
+          'root-server.js': 'require("express")().listen(3000);\n',
+          'apps/nested/package.json': JSON.stringify({ name: 'api', dependencies: { fastify: '5' } }),
+          'apps/nested/nested-server.js': 'require("fastify")().listen({ port: 4000 });\n',
+          'docker/Dockerfile.production': 'FROM node:24\nWORKDIR /app\nCOPY . .\nEXPOSE 3000\n',
+          'docker/Dockerfile.production.dockerignore': fixture.canonicalIgnore,
+          '.dockerignore': fixture.rootIgnore,
+          ...(fixture.aliasIgnore === undefined ? {} : { 'Dockerfile.dockerignore': fixture.aliasIgnore }),
+          'compose.yaml':
+            'services:\n  api:\n    build: .\n    command: [node, apps/nested/nested-server.js]\n    ports: ["3000:3000"]\n'
+        });
+        if (linked) await symlink('docker/Dockerfile.production', join(root, 'Dockerfile'), 'file');
+        else await writeFile(join(root, 'Dockerfile'), 'docker/Dockerfile.production\n', 'utf8');
+        let commandSources: string[] | undefined;
+        const observedCompose = {
+          ...dockerComposeProbe,
+          run: async (context: Parameters<typeof dockerComposeProbe.run>[0]) => {
+            const output = await dockerComposeProbe.run(context);
+            commandSources = (output.descriptorCommandSources ?? []).map((source) => source.sourceFile);
+            return output;
+          }
+        };
+        const { facts } = await assembleCandidateFacts({
+          root,
+          probes: [manifestProbe, serverEntrypointProbe, dockerfileProbe, observedCompose]
+        });
+        expect(commandSources).toEqual(fixture.ownsChild ? ['apps/nested/nested-server.js'] : []);
+        expect(facts.services).toHaveLength(2);
+        expect(facts.services.find((service) => service.path === 'apps/nested')).toMatchObject({
+          framework: 'fastify',
+          dockerfile: fixture.ownsChild ? 'docker/Dockerfile.production' : undefined
+        });
+      });
+    }
+  }
+
+  for (const fixture of [
     { name: 'root postinstall', rootScripts: { postinstall: 'node rewrite.js' } },
     { name: 'workspace prepare', workspaceScripts: { prepare: 'node rewrite.js' } },
     { name: 'workspace preinstall', workspaceScripts: { preinstall: 'node rewrite.js' } },
     { name: 'malformed context manifest', extraManifest: '{"scripts":' },
     { name: 'truncated manifest', partialFile: 'apps/nested/package.json' },
+    {
+      name: 'truncated context file list omits a workspace hook',
+      extraManifest: JSON.stringify({ scripts: { postinstall: 'node ../../rewrite.js' } }),
+      omittedFile: 'packages/core/package.json'
+    },
     { name: 'unreadable manifest', unreadableFile: 'apps/nested/package.json' },
     { name: 'truncated Dockerfile', partialFile: 'Dockerfile' },
     { name: 'truncated ignore file', partialFile: '.dockerignore' }
@@ -1281,6 +1351,9 @@ describe('the compose probe', () => {
         run: (context: Parameters<typeof dockerComposeProbe.run>[0]) =>
           dockerComposeProbe.run({
             ...context,
+            ...(fixture.omittedFile === undefined
+              ? {}
+              : { files: context.files.filter((path) => path !== fixture.omittedFile), filesTruncated: true }),
             read: async (path, options) => {
               if (path === fixture.unreadableFile)
                 return { kind: 'unreadable' as const, path, reason: 'Test read failure' };
