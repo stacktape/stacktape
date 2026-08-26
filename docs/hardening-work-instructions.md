@@ -65,6 +65,26 @@ A worker handoff is incomplete unless it contains all of the following:
 This separation saves coordinator tokens without lowering the bar: workers spend time searching and iterating, while the
 coordinator spends attention on source selection, evidence, architecture, and the final diff.
 
+### Keep subscription spending bounded
+
+When the user reserves part of a subscription, use a recent usage reading when available and stop above the requested
+reserve to leave room for review and handoff. For example, a 30% reserve can use a 40%-remaining stopping threshold.
+Identify the requested window rather than assuming the first rate-limit entry is weekly. Record the reading's time;
+other tasks can consume the same allowance. If the reading is unavailable, use a small bounded batch and do not promise
+an exact percentage cutoff.
+
+- Use the explicitly selected external providers for execution and repair when the user wants spending moved there. Do
+  not silently substitute same-subscription subagents when an external worker is unavailable.
+- Give a worker one concrete case or failure, a clean product commit, exact paths, execution limits and acceptance
+  checks. Reuse its conversation for a narrow follow-up; do not repeat unchanged audits or full-file reads.
+- Have long-running workers keep a short progress file and a compact final handoff. Store full logs outside Git. A
+  process exit code of zero is not acceptance: cancelled replies, permission-denied tools and empty responses are
+  incomplete, even when the CLI labels the invocation successful.
+- Review the changed boundary and reproduce the important claim. Run focused checks during repair and the complete
+  affected suite once the patch is stable. Do not rerun unrelated repository suites after every small edit.
+- After an expensive case's import contract fails, rerun import first after the repair. Build only once its intended
+  configuration is restored. A successful build of the wrong configuration does not qualify that case.
+
 ### Review the whole failure boundary
 
 Before returning a parser or ownership fix for review, test the neighboring forms together. This costs less than
@@ -76,6 +96,9 @@ repeatedly fixing one spelling of the same bug:
   a convenient two-probe order. Assert exact service counts, commands, build context, and dependency consumers.
 - For Dockerfiles, distinguish the selected runtime's stages from unused stages. A symlink's canonical target is not
   interchangeable with its original path when Dockerfile-specific ignore files differ.
+- Exercise acquisition and source copying before inference when testing a real-project runner. A scanner-only symlink
+  test cannot catch a copy operation that rewrites the link to the old checkout. An external-link negative control must
+  keep its target reachable after copying; otherwise it may pass only because the link became dangling.
 - Follow safety requirements through saved `stacktape.yml` and reload, not only the in-memory composition. A warning
   that disappears when the user later runs `package` or `deploy` must not leave unsafe packaging instructions behind.
 - Prefer a direct configuration fact over trying to recognize every possible source-code spelling. For example, an

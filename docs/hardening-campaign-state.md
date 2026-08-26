@@ -6,11 +6,12 @@ campaign, not release approval. Import, packaging, runtime and AWS results are s
 ## Workspace and reusable inputs
 
 - Product integration: `C:/Projects/.worktrees/stacktape-project-qualification`, branch
-  `codex/project-qualification-final`. Product behavior was qualified at clean commit `35f0027a`; subsequent checkpoint
-  edits are documentation only. Do not merge into the unrelated dirty `C:/Projects/stacktape` checkout.
+  `codex/project-qualification-final`. The importer batch passed at `35f0027a`; the later source-copy repair and Linux
+  Vaultwarden packaging passed at clean commit `2480d98c`. Subsequent checkpoint edits are documentation only. Do not
+  merge into the unrelated dirty `C:/Projects/stacktape` checkout.
 - Corpus: `C:/Projects/stacktape-qualification-corpus`. It contains pinned references to public projects, complete
   synthetic source, semantic expectations and provenance. Source adoption is committed at `bca5bc0`, and the final
-  JobDesk/DocFlow contracts at `861888d`. Reports are ignored.
+  JobDesk/DocFlow contracts at `861888d`. Packaging-status documentation is at `dce72c9`. Reports are ignored.
 - Pinned public-source cache: `C:/Projects/stacktape-qualification-cache`.
 - Standalone JobDesk adoption source: `C:/Projects/qualification-synthetic-bun-jobdesk`, clean commit
   `ea81f74593615cb6170b09cd162679d04663aec2`. Its 38 tracked files were copied byte-for-byte into the corpus. Keep the
@@ -49,7 +50,38 @@ T3 Turbo and Bedrock WordPress. An expectation does not by itself prove that a c
 These repairs received independent boundary-focused review. Review found and corrected additional problems, including
 unused Docker-stage ownership, lost ignore policies after saving, and unrelated source packaging choices.
 
-## Final combined evidence
+## Packaging continuation — completed 2026-08-26 morning
+
+Antigravity Flash 3.7 high ran the builds and repair. The coordinator reviewed the patch, strengthened its negative
+control, reran the source and qualification tests, checked the saved configuration/template, verified host-recorded
+artifact hashes and independently checked run-owned Docker cleanup. No AWS deployment ran.
+
+- **JobDesk passed import and full packaging** on clean product `b9869435`, corpus `861888d`. Both API and worker
+  produced non-skipped image artifacts, and the synthesized ECS task definitions retained their separate Bun commands
+  and database/Redis connections. The migration hook was preserved, not executed. Report:
+  `C:/Projects/qualification-reports/jobdesk-package-b9869435-0608/qualification-report.json`.
+- **The first Linux Vaultwarden run failed its import contract.** It built Alpine successfully, but lost the declared
+  Debian path and the expected database/domain configuration. Do not count that build as a passing qualification.
+  Evidence: `C:/Projects/qualification-reports/vaultwarden-debian-package-b9869435-0623/qualification-report.json`.
+- **The cause was the harness's source copy, not an importer preference.** `fs.cp` rewrote a relative Dockerfile symlink
+  into an absolute link to the original checkout. The importer correctly refused that outside-project target. Windows
+  materialized pointer files had hidden this problem. `83c663fd` sets `verbatimSymlinks: true` for the source/history
+  copies without weakening the scanner. Test commits `1426a376` and `2480d98c` cover acquisition followed by import,
+  including rejection of a real external Dockerfile that remains reachable after copying.
+- **The corrected Linux import and Debian packaging both passed** at `2480d98c`, with the unchanged source pin and
+  expectations. The final run built the Debian image, preserved root context, port 80, single-instance scaling, `/data`
+  persistence, PostgreSQL/bastion and DOMAIN/DATABASE_URL wiring, and synthesized the template offline. Reports:
+  `C:/Projects/qualification-reports/vaultwarden-linux-import-2480d98c/qualification-report.json` and
+  `C:/Projects/qualification-reports/vaultwarden-debian-package-2480d98c/qualification-report.json`.
+- The final **78 qualification tests** and **nine source-copy tests** passed. CLI typechecks, changed-file formatting
+  and lint passed; the architecture gate found no new violations. The production change is limited to source-copy
+  options. Importer preferences, corpus expectations and application source were not changed to obtain these passes.
+
+All metadata-listed artifact SHA-256 hashes matched. The successful runs' containers, volumes and networks were removed;
+reusable product runner images remain. These are packaging/template results, not application startup, real database
+migration, persistence, CloudFormation API validation or AWS deployment results.
+
+## Earlier combined importer evidence
 
 - All **15 exact corpus contracts passed** in a fresh run at clean product `35f0027a`. This includes the new JobDesk
   case and stronger per-resource DocFlow connection assertions. The six discovery cases were not counted as passes.
@@ -98,30 +130,38 @@ behavior or application runtime correctness. Compose runtime `working_dir` overr
 packaging; that pre-existing limitation needs its own end-to-end case and fix. JobDesk does not use an override.
 
 JobDesk's 29 native tests use in-memory stores and queues. Live PostgreSQL/Redis behavior, actual migration execution,
-Docker packaging and process recovery remain unqualified. Its source has no authentication or transactional outbox; do
-not deploy it with real customer data. Preserve the complete source instead of simplifying it to make tests pass.
+and process recovery remain unqualified; its Docker packaging now passes. Its source has no authentication or
+transactional outbox; do not deploy it with real customer data. Preserve the complete source instead of simplifying it
+to make tests pass. Vaultwarden's corrected Debian packaging also passes, but its runtime and live-AWS behavior remain
+unqualified by this campaign.
 
 ## Environment limits and next execution order
 
-The host C: drive has about 1.8 GiB free. Two obsolete harness-owned runner images were removed; the latest was kept. No
-source cache, reusable project or run report was deleted. Docker-internal free space is not equivalent to host free
-space. Large builds are deferred rather than risking a full host disk. Do not work around a denied cleanup operation
-with a different deletion mechanism.
+The previous low-disk blocker eased during the morning continuation; the successful runs finished with about 13.6 GiB
+free on C:. Recheck capacity before future builds and preserve a safety floor. No source cache, reusable project or run
+report was deleted in this continuation. Docker-internal free space is not equivalent to host free space. Do not work
+around a denied cleanup operation with a different deletion mechanism.
 
-Once adequate disk space or a disposable runner is available:
+Next execution order:
 
-1. Run sandboxed import + packaging for the **corrected Debian Vaultwarden Dockerfile**, then JobDesk. The earlier
-   Alpine Vaultwarden build did not prove the corrected path. Inspect the exact Dockerfile in the generated config.
-2. Run adjacent affected package cases as capacity permits. Finish the complete public gate and runtime lane for any
-   command/packaging changes. Record environment and upstream failures separately from product defects.
+1. Add controlled runtime checks for the packaged applications where they add new evidence, particularly JobDesk's real
+   database migration and worker flow, or Vaultwarden's startup/persistence behavior. Do not repeat these package passes
+   unless code, source or the relevant execution environment changes.
+2. Finish the complete public gate and applicable runtime lane before release qualification. Extend Linux corpus
+   coverage to adjacent source-link cases as capacity permits. Record environment and upstream failures separately from
+   product defects.
 3. Only then expand the corpus into a missing customer behavior from `candidate-backlog.md`; do not collect more
    variants of an already-covered hello-world application while known build failures remain.
 4. Live AWS still needs the explicit disposable-account identity, region, credential mode, owner, API key and canary
    guard inputs described in [project qualification](project-qualification.md). No AWS deployment ran in this resumed
    session. Do not infer permission or target identity from available credentials.
 
-External-model availability at this checkpoint: Grok 4.6 xhigh supplied candidate research and blind JobDesk source;
-Antigravity Flash 3.7 high remained quota-blocked on the 03:13 retry, reporting another six minutes until reset. The
-Opus CLI OAuth session was expired. Recheck availability once when resuming, not in a polling loop. Delegate a concrete
-bounded repair or source audit, request compact evidence, and review the affected boundary rather than repeatedly
-re-auditing everything.
+The user requires at least 30% of the weekly allowance to remain. This continuation used a 40%-remaining stopping
+threshold and observed about 49% remaining in recent local rate-limit telemetry. Read fresh telemetry before resuming;
+do not infer remaining allowance from tokens or wall-clock duration, and account for other tasks sharing the limit.
+
+Antigravity Flash 3.7 high was available for the morning runs. Grok 4.6 xhigh had supplied earlier research and blind
+JobDesk source, but two new read-only diagnosis calls ended with `stopReason: cancelled` and no complete diagnosis; they
+were not accepted as review evidence. The Opus CLI OAuth session was previously expired and was not retried here.
+Recheck provider availability once when resuming. Follow the budget-sensitive worker rules in the work instructions; do
+not silently move unavailable external work onto the reserved subscription.
