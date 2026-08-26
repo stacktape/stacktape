@@ -105,6 +105,8 @@ export const dockerfileIgnoreRequirement = async (
   service: ServiceFactInput
 ): Promise<DeploymentRequirement | undefined> => {
   if (service.dockerfileAlias === undefined || service.dockerfile === undefined) return undefined;
+  // An authoritative published image does not upload or build this local Docker context.
+  if (service.prebuiltImage !== undefined && service.prebuiltImageAuthoritative === true) return undefined;
   const buildRoot = service.buildRoot ?? service.path;
   const effective = async (dockerfile: string): Promise<string | undefined> => {
     const specific = await readIgnoreFile(context, `${dockerfile}.dockerignore`);

@@ -131,6 +131,25 @@ describe('Dockerfile alias ignore-file safety', () => {
     }
   });
 
+  it('does not block a selected published image on an unused local Dockerfile ignore policy', async () => {
+    const variants = await makeVariants({
+      [TARGET]: COPY_IMAGE,
+      'Dockerfile.dockerignore': IGNORE
+    });
+    const [{ facts }] = await scanBoth(variants, [dockerfileProbe]);
+    const service = facts.services[0]!;
+    const context = createProbeContext(variants.linked, (await listRepositoryFiles(variants.linked)).files);
+    expect(await dockerfileIgnoreRequirement(context, service)).toBeDefined();
+    expect(
+      await dockerfileIgnoreRequirement(context, {
+        ...service,
+        prebuiltImage: 'example/orders:1',
+        prebuiltImageAuthoritative: true
+      })
+    ).toBeUndefined();
+    expect(await dockerfileIgnoreRequirement(context, { ...service, prebuiltImage: 'example/orders:1' })).toBeDefined();
+  });
+
   it('preserves a descriptor-selected alias when standalone discovery ran first or last', async () => {
     const variants = await makeVariants(
       {

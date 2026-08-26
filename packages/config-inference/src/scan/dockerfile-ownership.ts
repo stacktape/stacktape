@@ -128,6 +128,8 @@ export const raiseDockerfileOwnership = async ({
 
   for (const service of services) {
     if (service.dockerfile === undefined) continue;
+    // The release descriptor selected an existing image, so changing source packaging has no effect.
+    if (service.prebuiltImage !== undefined && service.prebuiltImageAuthoritative === true) continue;
     if (service.containerEntrypoint === undefined && service.startCommand === undefined) continue;
 
     // oxlint-disable-next-line no-await-in-loop -- one Dockerfile per service, read in order.

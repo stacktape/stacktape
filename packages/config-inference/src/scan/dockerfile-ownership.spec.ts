@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { composeConfig } from '../compose/compose';
 import { assembleCandidateFacts } from './assemble';
-import { classifyDockerfile } from './dockerfile-ownership';
+import { classifyDockerfile, raiseDockerfileOwnership } from './dockerfile-ownership';
 import { dockerfileProbe } from './probes/dockerfile';
 import { manifestProbe } from './probes/manifest';
 
@@ -90,6 +90,38 @@ describe('the ownership decision, end to end', () => {
 
   afterEach(async () => {
     if (root) await rm(root, { recursive: true, force: true });
+  });
+
+  it('does not ask about source packaging when an authoritative image already owns the release', async () => {
+    const service = {
+      name: 'orders',
+      path: '.',
+      language: 'node' as const,
+      source: 'probe' as const,
+      executionModel: 'long-running' as const,
+      exposesHttp: true,
+      startCommand: 'node index.js',
+      dockerfile: 'dev/app.Dockerfile'
+    };
+    const read = async (path: string) => ({
+      kind: 'contents' as const,
+      path,
+      contents: BOILERPLATE_DOCKERFILE,
+      startLine: 1,
+      endLine: BOILERPLATE_DOCKERFILE.split('\n').length,
+      totalLines: BOILERPLATE_DOCKERFILE.split('\n').length,
+      truncated: false
+    });
+    const selected = await raiseDockerfileOwnership({
+      services: [{ ...service, prebuiltImage: 'example/orders:1', prebuiltImageAuthoritative: true }],
+      read
+    });
+    expect(selected).toEqual([]);
+    const sourceBuilt = await raiseDockerfileOwnership({
+      services: [{ ...service, prebuiltImage: 'example/orders:1' }],
+      read
+    });
+    expect(sourceBuilt).toHaveLength(1);
   });
 
   const APP_MANIFEST = JSON.stringify({
