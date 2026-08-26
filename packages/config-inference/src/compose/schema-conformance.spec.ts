@@ -128,6 +128,7 @@ describe('composed configuration conforms to the Stacktape schema', () => {
           serviceName: 'web',
           bindings: ['database', 'blob', 'kv', 'cache'],
           databaseEngine: 'sqlite',
+          databaseDeclaredInConfig: true,
           migrationPaths: ['database/changes/0001.sql']
         },
         {

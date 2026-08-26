@@ -83,6 +83,8 @@ export const deploymentRequirementSchema = z.discriminatedUnion('kind', [
     bindings: z.array(z.enum(['database', 'blob', 'kv', 'cache'])).min(1),
     /** The literal engine selected by the framework config, when source states one. */
     databaseEngine: z.enum(['sqlite', 'postgresql', 'mysql', 'unknown']).optional(),
+    /** An active framework module explicitly enables this database, even without a runtime query. */
+    databaseDeclaredInConfig: z.literal(true).optional(),
     /** Committed migrations owned by the framework, which may apply them during the build. */
     migrationPaths: z.array(repositoryPathSchema).default([]),
     evidence: z.array(citationSchema).default([])

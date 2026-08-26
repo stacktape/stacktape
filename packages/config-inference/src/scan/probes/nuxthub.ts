@@ -2,6 +2,7 @@
  * NuxtHub storage is provider/driver-dependent, not an ordinary Nuxt build dependency.
  * Read literal configuration and runtime syntax without executing project code. Explicit module
  * imports and configured server auto-imports prove usage; type imports, comments and tests do not.
+ * An explicitly enabled database independently declares a production-storage contract.
  * An incomplete analysis stays review-only. Never invent an AWS database or copy connection values.
  */
 
@@ -449,14 +450,16 @@ const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence, ac
         if (activeLocalModule && !MODULE_ANALYSIS_IMPORTS.has(literalString(argument) ?? ''))
           moduleAnalysisUnresolved = true;
       }
-      if (
-        activeLocalModule &&
-        ts.isPropertyAccessExpression(callee) &&
-        ['hook', 'hookOnce'].includes(callee.name.text)
-      ) {
-        const hookName = argument === undefined ? undefined : literalString(argument);
-        if (hookName === 'hub:db:migrations:dirs') migrationHookEvidence ??= citeNode(unwrap(argument!));
-        else if (hookName === undefined) moduleAnalysisUnresolved = true;
+      if (activeLocalModule && (ts.isPropertyAccessExpression(callee) || ts.isElementAccessExpression(callee))) {
+        const method = ts.isPropertyAccessExpression(callee)
+          ? callee.name.text
+          : literalString(callee.argumentExpression);
+        if (method === undefined) moduleAnalysisUnresolved = true;
+        else if (method === 'hook' || method === 'hookOnce') {
+          const hookName = argument === undefined ? undefined : literalString(argument);
+          if (hookName === 'hub:db:migrations:dirs') migrationHookEvidence ??= citeNode(unwrap(argument!));
+          else if (hookName === undefined) moduleAnalysisUnresolved = true;
+        }
       }
       const member = namespaceMember(callee);
       if (ts.isIdentifier(callee) || member !== undefined) {
@@ -663,7 +666,11 @@ export const nuxtHubProbe: Probe = {
           environmentVariables.push({ name, role: 'third-party-secret', required: true, evidence: [evidence] });
       }
       if (environmentVariables.length > 0) serviceEnvironments.push({ path: manifest.directory, environmentVariables });
-      const configuredDatabase = config.moduleActive && config.enabledBindings.has('database');
+      const configuredDatabase =
+        config.moduleActive &&
+        config.databaseEvidence !== undefined &&
+        config.databaseEngine !== undefined &&
+        config.databaseEngine !== 'unknown';
       const migrationPaths =
         bindings.has('database') || configuredDatabase
           ? context.files
@@ -676,13 +683,9 @@ export const nuxtHubProbe: Probe = {
               )
               .toSorted()
           : [];
-      // The framework build hooks use the database even when no runtime file imports it.
-      if (
-        config.moduleActive &&
-        config.databaseEvidence !== undefined &&
-        migrationPaths.length > 0 &&
-        !bindings.has('database')
-      ) {
+      // NuxtHub resolves its database driver/local fallback and installs lifecycle hooks from
+      // configuration. Storage safety must not depend on recognizing every possible query syntax.
+      if (configuredDatabase && config.databaseEvidence !== undefined && !bindings.has('database')) {
         bindings.set('database', config.databaseEvidence);
       }
       if (bindings.size === 0 && config.issues.size === 0) continue;
@@ -702,6 +705,7 @@ export const nuxtHubProbe: Probe = {
           provider: 'nuxthub',
           bindings: [...bindings.keys()].toSorted(),
           ...(config.databaseEngine === undefined ? {} : { databaseEngine: config.databaseEngine }),
+          ...(configuredDatabase ? { databaseDeclaredInConfig: true as const } : {}),
           migrationPaths,
           evidence
         });

@@ -935,9 +935,12 @@ export const composeConfig = ({
         }
         return 'For cached data, configure and test the Nitro cache storage provider in the AWS runtime, or explicitly choose a temporary cache that may be lost. Cloudflare and Vercel cache bindings are not automatically transferred.';
       });
+      const storageEvidence = requirement.databaseDeclaredInConfig
+        ? `${requirement.serviceName}'s configuration declares a NuxtHub database.`
+        : `${requirement.serviceName} uses NuxtHub storage.`;
       gaps.push({
         subject: `${requirement.serviceName}.nuxthub-bindings`,
-        message: `${requirement.serviceName} uses NuxtHub storage. Init has not verified or configured its production storage providers, so this configuration is not ready to deploy. ${remediation.join(' ')} Stacktape will not move existing data.`,
+        message: `${storageEvidence} Init has not verified or configured its production storage providers, so this configuration is not ready to deploy. ${remediation.join(' ')} Stacktape will not move existing data.`,
         severity: 'blocking'
       });
       if (requirement.migrationPaths.length > 0) {

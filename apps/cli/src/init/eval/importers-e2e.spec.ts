@@ -1192,7 +1192,7 @@ const CASES: EvalCase[] = [
     }
   },
   {
-    name: 'NuxtHub type imports, comments and colocated tests do not block deployment',
+    name: 'NuxtHub database configuration blocks even when source has only type imports, comments and tests',
     files: {
       'package.json': JSON.stringify({
         name: 'nuxt-control',
@@ -1208,9 +1208,35 @@ const CASES: EvalCase[] = [
       serviceCount: 1,
       resources: { nuxtControl: 'nuxt-web' },
       resourceCount: 1,
-      deployable: true,
+      deployable: false,
       maxQuestions: 0,
-      forbiddenGapPatterns: ['NuxtHub', 'SQLite', 'migration']
+      requiredGapPatterns: ['configuration declares a NuxtHub database.*not ready to deploy'],
+      forbiddenGapPatterns: ['includes NuxtHub database migrations', 'uses NuxtHub storage']
+    }
+  },
+  {
+    name: 'NuxtHub database configuration alone requires production storage review without queries or migrations',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'declared-db',
+        scripts: { build: 'nuxt build' },
+        dependencies: { nuxt: '^4.0.0', '@nuxthub/core': '^0.10.6' }
+      }),
+      'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: 'sqlite' } })",
+      'app/app.vue': '<template><p>Hello</p></template>'
+    },
+    expect: {
+      serviceCount: 1,
+      resources: { declaredDb: 'nuxt-web' },
+      resourceCount: 1,
+      deployable: false,
+      maxQuestions: 0,
+      absentDependencyKinds: ['sqlite', 'postgres'],
+      requiredGapPatterns: [
+        'configuration declares a NuxtHub database.*not ready to deploy',
+        'local SQLite file.*not durable storage'
+      ],
+      forbiddenGapPatterns: ['includes NuxtHub database migrations', 'uses NuxtHub storage']
     }
   },
   {
