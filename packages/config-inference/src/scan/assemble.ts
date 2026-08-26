@@ -196,6 +196,11 @@ const startCommandRunsEntrypoint = (service: ServiceFactInput): boolean => {
 };
 
 const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): ServiceFactInput => {
+  // An explicit descriptor invocation owns the build file AND its original alias/context. Taking
+  // only the canonical path from an earlier standalone scan silently changes .dockerignore policy.
+  const dockerfileOwner =
+    [existing, incoming].find((service) => service.dockerfile !== undefined && service.dockerfileDeclared) ??
+    (existing.dockerfile === undefined ? incoming : existing);
   const staticService =
     existing.servesStaticAssets !== undefined
       ? existing
@@ -269,7 +274,9 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
             ...new Set([...(existing.missingEmbeddedAssets ?? []), ...(incoming.missingEmbeddedAssets ?? [])])
           ]
         }),
-    buildRoot: existing.buildRoot ?? incoming.buildRoot,
+    buildRoot: dockerfileOwner.dockerfileDeclared
+      ? (dockerfileOwner.buildRoot ?? existing.buildRoot ?? incoming.buildRoot)
+      : (existing.buildRoot ?? incoming.buildRoot),
     // A parameterized Compose image contract owns its selected server. A generic source scanner can
     // find another HTTP-capable main in the same repository root (metrics endpoints on a gRPC engine
     // are a common example), but that does not make it this declared build target's entrypoint.
@@ -286,9 +293,10 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
         ])
       ).values()
     ],
-    dockerfile: existing.dockerfile ?? incoming.dockerfile,
-    dockerfileAlias: existing.dockerfile === undefined ? incoming.dockerfileAlias : existing.dockerfileAlias,
-    dockerfileBuildArgs: existing.dockerfileBuildArgs ?? incoming.dockerfileBuildArgs,
+    dockerfile: dockerfileOwner.dockerfile,
+    dockerfileAlias: dockerfileOwner.dockerfileAlias,
+    dockerfileDeclared: dockerfileOwner.dockerfileDeclared,
+    dockerfileBuildArgs: dockerfileOwner.dockerfileBuildArgs,
     healthCheckPath: existing.healthCheckPath ?? incoming.healthCheckPath,
     writesLocalFilesystem: existing.writesLocalFilesystem ?? incoming.writesLocalFilesystem,
     bundledLifecycle: existing.bundledLifecycle ?? incoming.bundledLifecycle,

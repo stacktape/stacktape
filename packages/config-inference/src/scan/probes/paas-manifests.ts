@@ -598,6 +598,7 @@ export const paasManifestsProbe: Probe = {
         else {
           if (service.dockerfile !== definition.path) service.dockerfileAlias = service.dockerfile;
           service.dockerfile = definition.path;
+          service.dockerfileDeclared = true;
         }
       })
     );

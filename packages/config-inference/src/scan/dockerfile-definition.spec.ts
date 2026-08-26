@@ -114,6 +114,10 @@ describe('Dockerfile alias ignore-file safety', () => {
       expect(facts.services[0]).toMatchObject({ dockerfile: TARGET, dockerfileAlias: 'Dockerfile' });
       const composition = composeConfig({ facts });
       expect(composition.deployable).toBe(safe);
+      expect(composition.config.resources.orders?.properties.packaging).toMatchObject({
+        type: 'custom-dockerfile',
+        properties: { dockerfilePath: safe ? TARGET : 'Dockerfile' }
+      });
       expect(facts.deploymentRequirements.filter(({ kind }) => kind === 'dockerfile-ignore-policy')).toHaveLength(
         safe ? 0 : 1
       );
@@ -124,6 +128,57 @@ describe('Dockerfile alias ignore-file safety', () => {
         expect(composition.gaps.map(({ message }) => message).join('\n')).toContain('private files');
       }
       expect(JSON.stringify({ facts, composition })).not.toContain('fixture-private-marker-never-emitted');
+    }
+  });
+
+  it('preserves a descriptor-selected alias when standalone discovery ran first or last', async () => {
+    const variants = await makeVariants(
+      {
+        Dockerfile: COPY_IMAGE,
+        'package.json': '{"name":"orders","dependencies":{"express":"5"}}',
+        'private-marker.txt': 'test marker',
+        'deploy/Dockerfile.alias.dockerignore': IGNORE,
+        'compose.yml':
+          'services:\n  web:\n    build: {context: ., dockerfile: deploy/Dockerfile.alias}\n    ports: ["8080:8080"]\n'
+      },
+      { 'deploy/Dockerfile.alias': '../Dockerfile' }
+    );
+    for (const probes of [
+      [manifestProbe, dockerfileProbe, dockerComposeProbe],
+      [dockerComposeProbe, manifestProbe, dockerfileProbe]
+    ]) {
+      // oxlint-disable-next-line no-await-in-loop -- exercise both deterministic probe precedence orders.
+      for (const { facts } of await scanBoth(variants, probes)) {
+        expect(facts.services).toHaveLength(1);
+        expect(facts.services[0]).toMatchObject({
+          dockerfile: 'Dockerfile',
+          dockerfileAlias: 'deploy/Dockerfile.alias',
+          dockerfileDeclared: true
+        });
+        expect(facts.deploymentRequirements).toHaveLength(1);
+        const composition = composeConfig({ facts });
+        expect(composition.deployable).toBe(false);
+        expect(Object.values(composition.config.resources)[0]?.properties.packaging).toMatchObject({
+          type: 'custom-dockerfile',
+          properties: { buildContextPath: '.', dockerfilePath: 'deploy/Dockerfile.alias' }
+        });
+      }
+    }
+  });
+
+  it('keeps an explicitly selected canonical build instead of adopting an unscoped alias', async () => {
+    const variants = await makeVariants({
+      [TARGET]: COPY_IMAGE,
+      'package.json': '{"name":"orders","dependencies":{"express":"5"}}',
+      'Dockerfile.dockerignore': IGNORE,
+      'private-marker.txt': 'test marker',
+      'compose.yml': `services:\n  web:\n    build: {context: ., dockerfile: ${TARGET}}\n    ports: ["8080:8080"]\n`
+    });
+    for (const { facts } of await scanBoth(variants, [manifestProbe, dockerfileProbe, dockerComposeProbe])) {
+      expect(facts.services).toHaveLength(1);
+      expect(facts.services[0]?.dockerfileAlias).toBeUndefined();
+      expect(facts.deploymentRequirements).toEqual([]);
+      expect(composeConfig({ facts }).deployable).toBe(true);
     }
   });
 

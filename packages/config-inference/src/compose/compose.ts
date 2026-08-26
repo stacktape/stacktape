@@ -728,7 +728,40 @@ export const composeConfig = ({
 }): CompositionResult => {
   // Every open question is answered here, before anything is composed. The result is a complete
   // configuration and a list of what was decided — not a half-configuration and a list of prompts.
-  const { facts, assumptions } = resolveAssumptions(input, decisions);
+  const unsafeIgnorePolicies = input.deploymentRequirements.filter(
+    (requirement) => requirement.kind === 'dockerfile-ignore-policy'
+  );
+  const guardedServices = new Map(
+    input.services.flatMap((service) => {
+      const policy = unsafeIgnorePolicies.find(
+        (requirement) =>
+          requirement.serviceName === service.name &&
+          requirement.buildRoot === (service.buildRoot ?? service.path) &&
+          (requirement.canonicalDockerfile === service.dockerfile ||
+            requirement.aliasDockerfile === service.dockerfileAlias)
+      );
+      return policy === undefined ? [] : [[service, policy] as const];
+    })
+  );
+  // The saved YAML contains config, not composition gaps. Preserve the invoked alias so a later
+  // ordinary package command cannot silently expand the build context. A real link retains its
+  // ignore policy; a materialized pointer fails Docker parsing instead of copying private files.
+  // Boilerplate ownership defaults (or overrides) must not replace this with native packaging.
+  const { facts, assumptions } = resolveAssumptions(
+    {
+      ...input,
+      services: input.services.map((service) => {
+        const policy = guardedServices.get(service);
+        return policy === undefined ? service : { ...service, dockerfile: policy.aliasDockerfile };
+      }),
+      uncertainties: input.uncertainties.filter(
+        (uncertainty) =>
+          uncertainty.kind !== 'dockerfile-ownership' ||
+          ![...guardedServices.keys()].some((service) => service.name === uncertainty.serviceName)
+      )
+    },
+    decisions
+  );
   const cloudflareRuntimeConstraints = facts.existingDeployments
     .filter((deployment) => deployment.tool === 'cloudflare-workers')
     .flatMap((deployment) => deployment.runtimeConstraints);

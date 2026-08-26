@@ -142,10 +142,18 @@ describe('an agent cannot claim probe provenance', () => {
     });
     const submission = agentSubmissionSchema.parse({
       schemaVersion: 1,
-      services: [{ ...agentService, dockerfile: 'another.dockerfile', dockerfileAlias: 'another.dockerfile' }],
+      services: [
+        {
+          ...agentService,
+          dockerfile: 'another.dockerfile',
+          dockerfileAlias: 'another.dockerfile',
+          dockerfileDeclared: true
+        }
+      ],
       deploymentRequirements: []
     });
     expect(submission.services[0]).not.toHaveProperty('dockerfileAlias');
+    expect(submission.services[0]).not.toHaveProperty('dockerfileDeclared');
     const merged = mergeAgentSubmission({ baseline, submission });
     expect(merged.services[0]).toMatchObject({
       dockerfile: 'docker/production.dockerfile',

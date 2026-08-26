@@ -1256,7 +1256,7 @@ export const dockerComposeProbe: Probe = {
         ...(commandOf(service) !== undefined ? { startCommand: commandOf(service) } : {}),
         ...(containerCommandOf(service) === undefined ? {} : { containerCommand: containerCommandOf(service) }),
         ...(finiteProcesses.has(composeName) ? { executionModel: 'one-shot' as const } : {}),
-        ...(build.dockerfile === undefined ? {} : { dockerfile: build.dockerfile }),
+        ...(build.dockerfile === undefined ? {} : { dockerfile: build.dockerfile, dockerfileDeclared: true }),
         ...(build.dockerfileAlias === undefined ? {} : { dockerfileAlias: build.dockerfileAlias }),
         ...(build.buildArgs === undefined || build.buildArgs.length === 0
           ? {}

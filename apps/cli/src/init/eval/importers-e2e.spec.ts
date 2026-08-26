@@ -36,7 +36,7 @@ const CASES: EvalCase[] = [
             resource: 'shop',
             type: 'custom-dockerfile',
             buildContextPath: '.',
-            dockerfilePath: 'docker/production.dockerfile'
+            dockerfilePath: policy === 'identical' ? 'docker/production.dockerfile' : 'Dockerfile'
           }
         ],
         maxQuestions: 0

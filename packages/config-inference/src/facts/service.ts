@@ -293,6 +293,8 @@ export const serviceShape = {
   dockerfile: repositoryPathSchema.optional(),
   /** Probe-owned original path when a Dockerfile alias resolves to `dockerfile`. */
   dockerfileAlias: repositoryPathSchema.optional(),
+  /** A deployment descriptor selected this build file; stronger than standalone discovery. */
+  dockerfileDeclared: z.boolean().optional(),
   /** Build arguments passed to custom-dockerfile packaging. */
   dockerfileBuildArgs: z.array(z.object({ argName: z.string().min(1), value: z.string() })).optional(),
   healthCheckPath: z.string().min(1).optional(),
