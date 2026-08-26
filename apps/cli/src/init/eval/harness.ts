@@ -29,6 +29,8 @@ export type EvalExpectation = {
   resourceCount?: number;
   /** Exact deployable process count, used where phantom package detection is part of the contract. */
   serviceCount?: number;
+  /** Verified Dockerfile ownership by source directory; null requires an independent source-only app. */
+  serviceDockerfiles?: Readonly<Record<string, string | null>>;
   /** Dependency kinds the analysis must find, in any order. */
   dependencyKinds?: readonly string[];
   /** Dependency kinds it must NOT invent. */
@@ -143,6 +145,15 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
       stage: 'facts',
       detail: `Expected ${expected.serviceCount} service(s); found ${result.facts.services.length}.`
     });
+  }
+  for (const [path, dockerfile] of Object.entries(expected.serviceDockerfiles ?? {})) {
+    const services = result.facts.services.filter((service) => service.path === path);
+    if (services.length === 0 || services.some((service) => (service.dockerfile ?? null) !== dockerfile)) {
+      failures.push({
+        stage: 'verification',
+        detail: `Expected services at "${path}" to own ${dockerfile ?? 'no Dockerfile'}; found ${JSON.stringify(services.map((service) => service.dockerfile ?? null))}.`
+      });
+    }
   }
   for (const kind of expected.dependencyKinds ?? []) {
     if (!foundKinds.has(kind as never)) {

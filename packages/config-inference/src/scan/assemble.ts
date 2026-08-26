@@ -195,23 +195,19 @@ const startCommandRunsEntrypoint = (service: ServiceFactInput): boolean => {
   );
 };
 
-/** A literal runtime argument can identify a child app even when Compose builds from the root. */
+const descriptorCommandKey = (
+  service: Pick<ServiceFactInput, 'path' | 'name' | 'dockerfile' | 'containerCommand'>
+): string => JSON.stringify([service.path, service.name, service.dockerfile, service.containerCommand]);
+
+/** A proved runtime-to-source mapping can identify a child app built from the repository root. */
 const literalContainerSourcePath = (
   descriptor: ServiceFactInput,
-  sources: readonly ServiceFactInput[]
+  sources: readonly ServiceFactInput[],
+  provedSources: ReadonlyMap<string, ReadonlySet<string>>
 ): string | undefined => {
-  if (descriptor.dockerfile === undefined || descriptor.containerCommand === undefined) return undefined;
-  const [runtime, first, second] = descriptor.containerCommand;
-  if (!['bun', 'node', 'tsx', 'ts-node'].includes(runtime ?? '')) return undefined;
-  const entry = runtime === 'bun' && first === 'run' ? second : first;
-  // Only the runtime's entryfile argument proves ownership. A later argument may be an input file,
-  // and shell wrappers, flags, substitutions or absolute container paths need separate analysis.
-  if (entry === undefined || posix.isAbsolute(entry) || !/^(?:\.\/)?[A-Za-z0-9_./-]+\.[cm]?[jt]sx?$/.test(entry)) {
-    return undefined;
-  }
-  const buildRoot = descriptor.buildRoot ?? descriptor.path;
-  const entryPath = posix.normalize(posix.join(buildRoot, entry));
-  if (entryPath.startsWith('../') || (buildRoot !== '.' && !entryPath.startsWith(`${buildRoot}/`))) return undefined;
+  const entries = provedSources.get(descriptorCommandKey(descriptor));
+  const entryPath = entries?.size === 1 ? [...entries][0] : undefined;
+  if (entryPath === undefined) return undefined;
   const paths = new Set(
     sources
       .filter(
@@ -526,9 +522,16 @@ const mergeServices = (
 ): { services: ServiceFactInput[]; renames: Map<string, string> } => {
   const byPath = new Map<string, ServiceFactInput>();
   const allServices = outputs.flatMap((output) => output.services ?? []);
+  const provedSources = new Map<string, Set<string>>();
+  for (const entry of outputs.flatMap((output) => output.descriptorCommandSources ?? [])) {
+    const key = descriptorCommandKey({ ...entry, name: entry.serviceName });
+    const sources = provedSources.get(key) ?? new Set<string>();
+    sources.add(entry.sourceFile);
+    provedSources.set(key, sources);
+  }
   const literalSourcePaths = new Map(
     allServices.flatMap((service) => {
-      const sourcePath = literalContainerSourcePath(service, allServices);
+      const sourcePath = literalContainerSourcePath(service, allServices, provedSources);
       return sourcePath === undefined || sourcePath === service.path ? [] : [[service, sourcePath] as const];
     })
   );

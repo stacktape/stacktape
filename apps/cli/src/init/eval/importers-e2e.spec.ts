@@ -64,6 +64,43 @@ const CASES: EvalCase[] = [
       maxQuestions: 0
     }
   },
+  ...[
+    {
+      name: 'relative container filename remapped from another source',
+      dockerfile: 'FROM node:24\nWORKDIR /\nCOPY root-server.js /apps/nested/nested-server.js\nEXPOSE 3000\n',
+      scripts: {}
+    },
+    {
+      name: 'repository install hook can replace the copied source',
+      dockerfile: 'FROM node:24\nWORKDIR /app\nCOPY . .\nRUN npm install\nEXPOSE 3000\n',
+      scripts: { postinstall: 'node rewrite.js' }
+    }
+  ].map(
+    ({ name, dockerfile, scripts }): EvalCase => ({
+      name: `Compose preserves an independent same-name child: ${name}`,
+      files: {
+        'package.json': JSON.stringify({
+          name: 'api',
+          scripts: { start: 'node root-server.js', ...scripts },
+          dependencies: { express: '5' }
+        }),
+        'root-server.js': 'require("express")().listen(3000);\n',
+        'rewrite.js': 'require("node:fs").copyFileSync("root-server.js", "apps/nested/nested-server.js");\n',
+        'apps/nested/package.json': JSON.stringify({ name: 'api', dependencies: { fastify: '5' } }),
+        'apps/nested/nested-server.js': 'require("fastify")().listen({ port: 4000 });\n',
+        Dockerfile: dockerfile,
+        'compose.yaml':
+          'services:\n  api:\n    build: .\n    command: [node, apps/nested/nested-server.js]\n    ports: ["3000:3000"]\n'
+      },
+      expect: {
+        serviceCount: 2,
+        resourceCount: 2,
+        serviceDockerfiles: { '.': 'Dockerfile', 'apps/nested': null },
+        resources: { api: 'web-service', api2: 'web-service' },
+        resourcePackaging: [{ resource: 'api2', type: 'stacktape-image-buildpack' }]
+      }
+    })
+  ),
   {
     name: 'Bun workspace API and BullMQ worker share Redis and Postgres with one Drizzle migration',
     directoryName: 'jobdesk',
@@ -98,8 +135,22 @@ const CASES: EvalCase[] = [
       'packages/core/src/db/migrate.ts':
         'import { migrate } from "drizzle-orm/postgres-js/migrator"; await migrate(db, { migrationsFolder: "drizzle" });\n',
       'drizzle/0000_initial.sql': 'CREATE TABLE jobs (id text PRIMARY KEY);\n',
-      Dockerfile:
-        'FROM oven/bun:1\nWORKDIR /app\nCOPY . .\nRUN bun install --frozen-lockfile\nEXPOSE 3000\nCMD ["bun", "apps/api/src/index.ts"]\n',
+      Dockerfile: [
+        'FROM oven/bun:1 AS deps',
+        'WORKDIR /app',
+        'COPY package.json ./',
+        'COPY apps ./apps',
+        'COPY packages ./packages',
+        'RUN bun install --frozen-lockfile',
+        'FROM oven/bun:1 AS runner',
+        'WORKDIR /app',
+        'COPY --from=deps /app /app',
+        'COPY drizzle ./drizzle',
+        'EXPOSE 3000',
+        'CMD ["bun", "apps/api/src/index.ts"]',
+        ''
+      ].join('\n'),
+      '.dockerignore': 'node_modules\ndist\n.env\n**/*.test.ts\n',
       'compose.yaml': [
         'services:',
         '  postgres:',

@@ -28,6 +28,7 @@ import { defaultDependencyName, type DependencyFact, type DependencyKind } from 
 import type { MigrationFact } from '../../facts/project-facts';
 import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/service';
 import { languageOf } from '../language';
+import { sourceFileForDockerPath } from '../dockerfile-command-source';
 import { isPlatformEnvironmentVariable } from '../platform-environment';
 import { isSecretishDeclaredName, normalizedSettingName, safeDeclaredLiteral } from './declared-environment';
 import type { Citation } from '../../facts/citation';
@@ -151,6 +152,7 @@ type ComposeService = {
   environment?: unknown;
   labels?: unknown;
   volumes?: unknown;
+  working_dir?: unknown;
 };
 
 type ComposeDocument = {
@@ -173,6 +175,12 @@ const MESSAGE_QUEUE_KIND_BY_SELECTOR: Readonly<Record<string, DependencyKind>> =
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** Ownership cannot be proved from a prefix that might omit a later COPY or lifecycle hook. */
+const readOwnershipFile = async (context: ProbeContext, file: string): Promise<string | undefined> => {
+  const result = await context.read(file, { startLine: 1, endLine: Number.MAX_SAFE_INTEGER });
+  return result.kind === 'contents' && !result.truncated && result.startLine === 1 ? result.contents : undefined;
+};
 
 const factName = (value: string): string => {
   const safe = value
@@ -1575,8 +1583,90 @@ export const dockerComposeProbe: Probe = {
       });
     }
 
+    const descriptorCommandSources = (
+      await Promise.all(
+        appDeclarations.map(
+          async ({ composeName, service, build }): Promise<NonNullable<ProbeOutput['descriptorCommandSources']>> => {
+            const argv = containerCommandOf(service);
+            if (
+              build.dockerfile === undefined ||
+              argv === undefined ||
+              !['bun', 'node', 'tsx', 'ts-node'].includes(argv[0] ?? '')
+            )
+              return [];
+            const entry = argv[0] === 'bun' && argv[1] === 'run' ? argv[2] : argv[1];
+            if (
+              entry === undefined ||
+              !/\.[cm]?[jt]sx?$/.test(entry) ||
+              (service.working_dir !== undefined && typeof service.working_dir !== 'string')
+            )
+              return [];
+            const definition = await readOwnershipFile(context, build.dockerfile);
+            if (definition === undefined) return [];
+            const manifests = context.files.filter(
+              (file) =>
+                (file === 'package.json' || file.endsWith('/package.json')) &&
+                (build.root === '.' || file.startsWith(`${build.root}/`))
+            );
+            const installScriptsAbsent =
+              manifests.length > 0 &&
+              manifests.length <= 128 &&
+              (
+                await Promise.all(
+                  manifests.map(async (file) => {
+                    const contents = await readOwnershipFile(context, file);
+                    if (contents === undefined) return false;
+                    try {
+                      const manifest: unknown = JSON.parse(contents);
+                      if (!isRecord(manifest)) return false;
+                      const scripts = manifest.scripts;
+                      if (scripts === undefined) return true;
+                      return (
+                        isRecord(scripts) &&
+                        !Object.keys(scripts).some((name) =>
+                          /^(?:(?:pre|post)?(?:install|prepare|publish|dependencies)|prepublishOnly)$/.test(name)
+                        )
+                      );
+                    } catch {
+                      return false;
+                    }
+                  })
+                )
+              ).every(Boolean);
+            const ignorePath = [`${build.dockerfile}.dockerignore`, resolveFrom(build.root, '.dockerignore')].find(
+              (candidate) => candidate !== undefined && context.files.includes(candidate)
+            );
+            const dockerignore = ignorePath === undefined ? '' : await readOwnershipFile(context, ignorePath);
+            if (dockerignore === undefined) return [];
+            const sourceFile = sourceFileForDockerPath({
+              raw: definition,
+              containerPath: entry,
+              files: context.files,
+              buildRoot: build.root,
+              target: build.target,
+              workingDirectory: typeof service.working_dir === 'string' ? service.working_dir : undefined,
+              dockerignore,
+              installScriptsAbsent
+            });
+            return sourceFile === undefined
+              ? []
+              : [
+                  {
+                    path: build.root,
+                    serviceName: factName(composeName),
+                    dockerfile: build.dockerfile,
+                    containerCommand: argv,
+                    sourceFile
+                  }
+                ];
+          }
+        )
+      )
+    ).flat();
+
     return {
       ...(dependencies.length === 0 ? {} : { dependencies }),
+      ...(descriptorCommandSources.length === 0 ? {} : { descriptorCommandSources }),
       ...(serviceFacts.length === 0 ? {} : { services: serviceFacts }),
       ...(serviceEnvironments.length === 0 ? {} : { serviceEnvironments }),
       ...(serviceCommands.length === 0 ? {} : { serviceCommands }),
