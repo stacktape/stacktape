@@ -512,7 +512,7 @@ export const serverEntrypointProbe: Probe = {
           definition !== undefined &&
           ownsCandidate &&
           // oxlint-disable-next-line no-await-in-loop -- bounded validation for one root Dockerfile.
-          (await dockerfileCanBuildContext({ raw: definition.raw, root, context, dockerfile: definition.path }))
+          (await dockerfileCanBuildContext({ raw: definition.raw, root, context, dockerfile }))
         ) {
           selectedDockerfile = definition.path;
         }
@@ -567,7 +567,12 @@ export const serverEntrypointProbe: Probe = {
         ...(exposedDockerfile === undefined ? {} : { port: exposedDockerfile.port }),
         executionModel: 'long-running',
         containerEntrypoint: entrypoint.path,
-        ...(selectedDockerfile === undefined ? {} : { dockerfile: selectedDockerfile }),
+        ...(selectedDockerfile === undefined
+          ? {}
+          : {
+              dockerfile: selectedDockerfile,
+              ...(selectedDockerfile === dockerfile ? {} : { dockerfileAlias: dockerfile })
+            }),
         ...(missingEmbeddedAssets.length === 0 ? {} : { missingEmbeddedAssets }),
         environmentVariables: [],
         evidence: [mainCitation, listenerCitation].filter((citation) => citation !== undefined),

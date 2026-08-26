@@ -595,7 +595,10 @@ export const paasManifestsProbe: Probe = {
         // Canonicalizing the build file must not move a descriptor's application or build context.
         // A broken or unsafe alias supplies no packaging path; other evidence can still describe the app.
         if (definition === undefined) delete service.dockerfile;
-        else service.dockerfile = definition.path;
+        else {
+          if (service.dockerfile !== definition.path) service.dockerfileAlias = service.dockerfile;
+          service.dockerfile = definition.path;
+        }
       })
     );
     return {

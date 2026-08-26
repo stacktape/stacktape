@@ -25,6 +25,7 @@ import type { Uncertainty } from '../facts/uncertainty';
 import { classifyFileAccess } from '../policy/file-access';
 import { raiseConventionalCommands, raisePlannedCommands, type CommandPlanner } from './conventions';
 import { raiseDockerfileOwnership } from './dockerfile-ownership';
+import { dockerfileIgnoreRequirement } from './dockerfile-definition';
 import { enrichEnvironmentUsage } from './environment-usage';
 import { listRepositoryFiles } from './file-tree';
 import { activeWorkspaceDirectories, isIncidentalDirectory } from './incidental-directories';
@@ -286,6 +287,7 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
       ).values()
     ],
     dockerfile: existing.dockerfile ?? incoming.dockerfile,
+    dockerfileAlias: existing.dockerfile === undefined ? incoming.dockerfileAlias : existing.dockerfileAlias,
     dockerfileBuildArgs: existing.dockerfileBuildArgs ?? incoming.dockerfileBuildArgs,
     healthCheckPath: existing.healthCheckPath ?? incoming.healthCheckPath,
     writesLocalFilesystem: existing.writesLocalFilesystem ?? incoming.writesLocalFilesystem,
@@ -441,6 +443,7 @@ const mergeServices = (
   );
   const developmentProcesses = new Set(outputs.flatMap((output) => output.developmentProcesses ?? []));
   const unscopedDockerfiles = new Map<string, Set<string>>();
+  const unscopedDockerfileAliases = new Map<string, string>();
   for (const service of outputs.flatMap((output) => output.services ?? [])) {
     if (
       service.processType !== undefined ||
@@ -453,6 +456,9 @@ const mergeServices = (
     const paths = unscopedDockerfiles.get(service.path) ?? new Set<string>();
     paths.add(service.dockerfile);
     unscopedDockerfiles.set(service.path, paths);
+    if (service.dockerfileAlias !== undefined) {
+      unscopedDockerfileAliases.set(`${service.path}:${service.dockerfile}`, service.dockerfileAlias);
+    }
   }
   /**
    * Names that stopped existing because their service folded into another one.
@@ -564,6 +570,7 @@ const mergeServices = (
       sharedDockerfile !== undefined
     ) {
       service.dockerfile = sharedDockerfile;
+      service.dockerfileAlias = unscopedDockerfileAliases.get(`${service.path}:${sharedDockerfile}`);
     }
   }
   const descriptorOwnedDockerfiles = new Set(
@@ -1066,7 +1073,7 @@ export const assembleCandidateFacts = async ({
   for (const output of outputs) {
     for (const requirement of output.deploymentRequirements ?? []) {
       const remapped =
-        requirement.kind === 'public-grpc'
+        requirement.kind !== 'persistent-bootstrap-artifacts'
           ? { ...requirement, serviceName: renames.get(requirement.serviceName) ?? requirement.serviceName }
           : {
               ...requirement,
@@ -1076,11 +1083,21 @@ export const assembleCandidateFacts = async ({
       const key =
         remapped.kind === 'public-grpc'
           ? `${remapped.kind}:${remapped.serviceName}:${remapped.port}`
-          : `${remapped.kind}:${remapped.producerServiceName}:${remapped.paths.join(',')}`;
+          : remapped.kind === 'dockerfile-ignore-policy'
+            ? `${remapped.kind}:${remapped.serviceName}:${remapped.aliasDockerfile}:${remapped.canonicalDockerfile}:${remapped.buildRoot}`
+            : `${remapped.kind}:${remapped.producerServiceName}:${remapped.paths.join(',')}`;
       if (!deploymentRequirementsByKey.has(key)) deploymentRequirementsByKey.set(key, remapped);
     }
   }
-  const deploymentRequirements = [...deploymentRequirementsByKey.values()];
+  // Check after service reconciliation so the original alias and effective context belong to the
+  // selected build, not a discarded example or an intermediate pointer in its chain.
+  const ignoreRequirements = await Promise.all(
+    services.map((service) => dockerfileIgnoreRequirement(context, service))
+  );
+  const deploymentRequirements = [
+    ...deploymentRequirementsByKey.values(),
+    ...ignoreRequirements.filter((requirement) => requirement !== undefined)
+  ];
 
   const packageManager = outputs.find((output) => output.packageManager !== undefined)?.packageManager as
     | PackageManager

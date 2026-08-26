@@ -197,6 +197,7 @@ const resolveFrom = (directory: string, value: string): string | undefined => {
 type ResolvedBuild = {
   root: string;
   dockerfile?: string;
+  dockerfileAlias?: string;
   target?: string;
   buildArgs?: Array<{ argName: string; value: string }>;
   evidence?: Citation[];
@@ -220,7 +221,12 @@ const buildOf = async (
   const target = isRecord(declaration) && typeof declaration.target === 'string' ? declaration.target : undefined;
   return {
     root: root === '' ? '.' : root,
-    ...(definition === undefined ? {} : { dockerfile: definition.path }),
+    ...(definition === undefined
+      ? {}
+      : {
+          dockerfile: definition.path,
+          ...(dockerfile === undefined || dockerfile === definition.path ? {} : { dockerfileAlias: dockerfile })
+        }),
     ...(target === undefined ? {} : { target })
   };
 };
@@ -228,6 +234,7 @@ const buildOf = async (
 type SourceBuild = {
   root: string;
   dockerfile: string;
+  dockerfileAlias?: string;
   /** Source-build selection is an ARG value, not a Docker stage target. */
   target?: undefined;
   buildArgs: Array<{ argName: string; value: string }>;
@@ -319,6 +326,7 @@ const sourceBuildOf = async (
     return {
       root: copiedRootEntry === undefined ? (directory === '.' ? '.' : directory) : '.',
       dockerfile: canonicalDockerfile,
+      ...(dockerfile === canonicalDockerfile ? {} : { dockerfileAlias: dockerfile }),
       buildArgs: [{ argName, value: target }],
       evidence: argCitation === undefined ? [] : [argCitation]
     };
@@ -1249,6 +1257,7 @@ export const dockerComposeProbe: Probe = {
         ...(containerCommandOf(service) === undefined ? {} : { containerCommand: containerCommandOf(service) }),
         ...(finiteProcesses.has(composeName) ? { executionModel: 'one-shot' as const } : {}),
         ...(build.dockerfile === undefined ? {} : { dockerfile: build.dockerfile }),
+        ...(build.dockerfileAlias === undefined ? {} : { dockerfileAlias: build.dockerfileAlias }),
         ...(build.buildArgs === undefined || build.buildArgs.length === 0
           ? {}
           : { dockerfileBuildArgs: build.buildArgs }),

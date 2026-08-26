@@ -911,6 +911,14 @@ export const composeConfig = ({
   const taken = new Set<string>();
 
   for (const requirement of facts.deploymentRequirements) {
+    if (requirement.kind === 'dockerfile-ignore-policy') {
+      gaps.push({
+        subject: `${requirement.serviceName}.dockerignore`,
+        message: `${requirement.serviceName} uses Dockerfile alias ${requirement.aliasDockerfile}, which resolves to ${requirement.canonicalDockerfile}. Init cannot prove that changing this path preserves the files excluded from build context ${requirement.buildRoot}. Dockerfile-specific ignore files take precedence over the context's .dockerignore; changing the effective rules could copy private files into the image. This configuration is blocked. Make the effective ignore rules identical for both paths, then run init again.`,
+        severity: 'blocking'
+      });
+      continue;
+    }
     if (requirement.kind === 'public-grpc') {
       gaps.push({
         subject: `${requirement.serviceName}.grpc-ingress`,

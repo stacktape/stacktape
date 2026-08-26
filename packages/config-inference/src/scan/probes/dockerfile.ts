@@ -533,7 +533,7 @@ export const dockerfileProbe: Probe = {
       // before Docker runs. Init packages a clean checkout, so selecting such a file guarantees a
       // COPY failure. Another source probe can still keep the application using a native buildpack.
       // oxlint-disable-next-line no-await-in-loop -- one candidate per service root survives this check.
-      if (!(await dockerfileCanBuildContext({ raw, root, context, dockerfile }))) continue;
+      if (!(await dockerfileCanBuildContext({ raw, root, context, dockerfile: path }))) continue;
       const { port, citation: portCitation } = exposedPort(dockerfile, raw);
       const { paths: volumePaths, citation: volumeCitation } = declaredDockerfileVolumes(dockerfile, raw);
       const dockerfileCitation = citeFirstMatch(dockerfile, raw, /^\s*FROM\s+\S+/im, 'dockerfile');
@@ -546,6 +546,7 @@ export const dockerfileProbe: Probe = {
         ...(port === undefined ? {} : { port }),
         executionModel: 'long-running',
         dockerfile,
+        ...(path === dockerfile ? {} : { dockerfileAlias: path }),
         ...(volumePaths.length === 0
           ? {}
           : {

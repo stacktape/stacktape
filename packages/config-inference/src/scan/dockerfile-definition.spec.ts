@@ -4,7 +4,11 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'bun:test';
 import { composeConfig } from '../compose/compose';
 import { assembleCandidateFacts, createProbeContext } from './assemble';
-import { MAX_DOCKERFILE_LINK_DEPTH, readDockerfileDefinition } from './dockerfile-definition';
+import {
+  dockerfileIgnoreRequirement,
+  MAX_DOCKERFILE_LINK_DEPTH,
+  readDockerfileDefinition
+} from './dockerfile-definition';
 import { listRepositoryFiles } from './file-tree';
 import type { Probe } from './probe';
 import { dockerComposeProbe } from './probes/docker-compose';
@@ -13,12 +17,248 @@ import { environmentProbe } from './probes/environment';
 import { languageManifestProbe } from './probes/language-manifests';
 import { manifestProbe } from './probes/manifest';
 import { paasManifestsProbe } from './probes/paas-manifests';
+import { procfileProbe } from './probes/procfile';
 import { serverEntrypointProbe } from './probes/server-entrypoint';
 
 let root: string;
 
 afterEach(async () => {
   if (root) await rm(root, { recursive: true, force: true });
+});
+
+describe('Dockerfile alias ignore-file safety', () => {
+  const IGNORE = 'private-marker.txt\n';
+  const OTHER_IGNORE = 'another-file.txt\n';
+  const COPY_IMAGE = 'FROM scratch\nCOPY . /app\nEXPOSE 8080\n';
+  const cases: Array<{ name: string; files: Record<string, string>; safe: boolean }> = [
+    { name: 'no ignore files', files: {}, safe: true },
+    { name: 'shared context-root ignore', files: { '.dockerignore': IGNORE }, safe: true },
+    { name: 'alias ignore disappears', files: { 'Dockerfile.dockerignore': IGNORE }, safe: false },
+    { name: 'target ignore appears', files: { [`${TARGET}.dockerignore`]: IGNORE }, safe: false },
+    {
+      name: 'identical specific ignores',
+      files: { 'Dockerfile.dockerignore': IGNORE, [`${TARGET}.dockerignore`]: IGNORE },
+      safe: true
+    },
+    {
+      name: 'alias matches context-root fallback',
+      files: { 'Dockerfile.dockerignore': IGNORE, '.dockerignore': IGNORE },
+      safe: true
+    },
+    {
+      name: 'target matches context-root fallback',
+      files: { [`${TARGET}.dockerignore`]: IGNORE, '.dockerignore': IGNORE },
+      safe: true
+    },
+    {
+      name: 'alias differs from context-root fallback',
+      files: { 'Dockerfile.dockerignore': IGNORE, '.dockerignore': OTHER_IGNORE },
+      safe: false
+    },
+    {
+      name: 'target differs from context-root fallback',
+      files: { [`${TARGET}.dockerignore`]: IGNORE, '.dockerignore': OTHER_IGNORE },
+      safe: false
+    },
+    {
+      name: 'specific ignores differ',
+      files: { 'Dockerfile.dockerignore': IGNORE, [`${TARGET}.dockerignore`]: OTHER_IGNORE },
+      safe: false
+    },
+    {
+      name: 'identical specifics override a different root policy',
+      files: { 'Dockerfile.dockerignore': IGNORE, [`${TARGET}.dockerignore`]: IGNORE, '.dockerignore': OTHER_IGNORE },
+      safe: true
+    },
+    {
+      name: 'unselected intermediate alias ignore is irrelevant',
+      files: { 'docker/Dockerfile.alias.dockerignore': IGNORE },
+      safe: true
+    },
+    {
+      name: 'unselected intermediate does not override equal selected policies',
+      files: {
+        'Dockerfile.dockerignore': IGNORE,
+        [`${TARGET}.dockerignore`]: IGNORE,
+        'docker/Dockerfile.alias.dockerignore': OTHER_IGNORE
+      },
+      safe: true
+    },
+    {
+      name: 'empty alias overrides nonempty context-root ignore',
+      files: { 'Dockerfile.dockerignore': '', '.dockerignore': IGNORE },
+      safe: false
+    },
+    {
+      name: 'empty target overrides nonempty context-root ignore',
+      files: { [`${TARGET}.dockerignore`]: '', '.dockerignore': IGNORE },
+      safe: false
+    },
+    {
+      name: 'empty alias and absent fallback both exclude nothing',
+      files: { 'Dockerfile.dockerignore': '' },
+      safe: true
+    }
+  ];
+
+  it.each(cases)('$name', async ({ files, safe }) => {
+    const variants = await makeVariants({
+      'package.json': '{"name":"orders","dependencies":{"express":"5"}}',
+      [TARGET]: COPY_IMAGE,
+      'private-marker.txt': 'fixture-private-marker-never-emitted',
+      ...files
+    });
+    const results = await scanBoth(variants, [manifestProbe, dockerfileProbe]);
+    expect(results[0]!.facts.services).toEqual(results[1]!.facts.services);
+    for (const { facts } of results) {
+      expect(facts.services[0]).toMatchObject({ dockerfile: TARGET, dockerfileAlias: 'Dockerfile' });
+      const composition = composeConfig({ facts });
+      expect(composition.deployable).toBe(safe);
+      expect(facts.deploymentRequirements.filter(({ kind }) => kind === 'dockerfile-ignore-policy')).toHaveLength(
+        safe ? 0 : 1
+      );
+      if (!safe) {
+        expect(composition.gaps).toContainEqual(
+          expect.objectContaining({ subject: 'orders.dockerignore', severity: 'blocking' })
+        );
+        expect(composition.gaps.map(({ message }) => message).join('\n')).toContain('private files');
+      }
+      expect(JSON.stringify({ facts, composition })).not.toContain('fixture-private-marker-never-emitted');
+    }
+  });
+
+  it('keeps Compose process aliases separate, including an explicitly selected intermediate hop', async () => {
+    const variants = await makeVariants({
+      [TARGET]: COPY_IMAGE,
+      'private-marker.txt': 'test marker',
+      'docker/Dockerfile.alias.dockerignore': IGNORE,
+      'compose.yml': [
+        'services:',
+        '  web:',
+        '    build: {context: ., dockerfile: docker/Dockerfile.alias}',
+        '    ports: ["8080:8080"]',
+        '  worker:',
+        `    build: {context: ., dockerfile: ${TARGET}}`,
+        '    command: node worker.js',
+        ''
+      ].join('\n')
+    });
+    for (const { facts } of await scanBoth(variants, [dockerComposeProbe])) {
+      expect(facts.services).toHaveLength(2);
+      expect(facts.deploymentRequirements).toEqual([
+        {
+          kind: 'dockerfile-ignore-policy',
+          serviceName: 'web',
+          aliasDockerfile: 'docker/Dockerfile.alias',
+          canonicalDockerfile: TARGET,
+          buildRoot: '.',
+          evidence: []
+        }
+      ]);
+      expect(composeConfig({ facts }).deployable).toBe(false);
+    }
+  });
+
+  it.each(['render', 'fly'] as const)(
+    'checks the actual %s build context rather than the application directory',
+    async (platform) => {
+      const target = 'apps/api/docker/production.dockerfile';
+      const variants = await makeVariants(
+        {
+          [target]: COPY_IMAGE,
+          'apps/api/Dockerfile.dockerignore': IGNORE,
+          '.dockerignore': OTHER_IGNORE,
+          'apps/api/.dockerignore': IGNORE,
+          'apps/api/private-marker.txt': 'test marker',
+          ...(platform === 'render'
+            ? {
+                'render.yaml':
+                  'services:\n  - type: web\n    name: orders\n    runtime: docker\n    dockerContext: .\n    dockerfilePath: apps/api/Dockerfile\n'
+              }
+            : {
+                'apps/api/fly.toml':
+                  'app = "orders"\n[build]\ndockerfile = "Dockerfile"\n[http_service]\ninternal_port = 8080\n'
+              })
+        },
+        {
+          'apps/api/Dockerfile': 'docker/Dockerfile.alias',
+          'apps/api/docker/Dockerfile.alias': 'production.dockerfile'
+        }
+      );
+      for (const { facts } of await scanBoth(variants, [paasManifestsProbe])) {
+        expect(facts.services[0]).toMatchObject({ dockerfile: target, dockerfileAlias: 'apps/api/Dockerfile' });
+        expect(facts.deploymentRequirements).toHaveLength(platform === 'render' ? 1 : 0);
+        expect(composeConfig({ facts }).deployable).toBe(platform === 'fly');
+      }
+    }
+  );
+
+  it('blocks Go discovery and every Procfile process sharing an unsafe alias', async () => {
+    const variants = await makeVariants({
+      [TARGET]: COPY_IMAGE,
+      'go.mod': 'module example.com/orders\n',
+      'main.go': 'package main\nfunc main() { run() }\n',
+      'Dockerfile.dockerignore': IGNORE,
+      'private-marker.txt': 'test marker',
+      Procfile: 'web: ./orders\nworker: ./orders --worker\n'
+    });
+    for (const { facts } of await scanBoth(variants, [serverEntrypointProbe])) {
+      expect(facts.deploymentRequirements).toHaveLength(1);
+      expect(composeConfig({ facts }).deployable).toBe(false);
+    }
+    for (const { facts } of await scanBoth(variants, [dockerfileProbe, procfileProbe])) {
+      expect(facts.services).toHaveLength(2);
+      expect(facts.services.every(({ dockerfileAlias }) => dockerfileAlias === 'Dockerfile')).toBe(true);
+      expect(facts.deploymentRequirements).toHaveLength(2);
+      expect(composeConfig({ facts }).deployable).toBe(false);
+    }
+  });
+
+  it.each(['unlisted', 'unreadable', 'oversized', 'symlink', 'broken-symlink'] as const)(
+    'does not treat an %s ignore file as absent or compare only its prefix',
+    async (failure) => {
+      const variants = await makeVariants({
+        [TARGET]: COPY_IMAGE,
+        'Dockerfile.dockerignore': failure === 'oversized' ? `${'# policy\n'.repeat(30_000)}${IGNORE}` : IGNORE,
+        [`${TARGET}.dockerignore`]: failure === 'oversized' ? `${'# policy\n'.repeat(30_000)}${OTHER_IGNORE}` : IGNORE
+      });
+      await Promise.all(
+        Object.values(variants).map(async (repositoryRoot) => {
+          if (failure === 'symlink' || failure === 'broken-symlink') {
+            await rm(join(repositoryRoot, 'Dockerfile.dockerignore'));
+            await symlink(
+              failure === 'symlink' ? `${TARGET}.dockerignore` : 'missing-ignore',
+              join(repositoryRoot, 'Dockerfile.dockerignore'),
+              'file'
+            );
+          }
+          const { context } = await contextFor(repositoryRoot);
+          if (failure === 'unlisted')
+            context.files = context.files.filter((path) => path !== 'Dockerfile.dockerignore');
+          if (failure === 'unreadable') {
+            const read = context.read;
+            context.read = async (path, options) =>
+              path === 'Dockerfile.dockerignore'
+                ? { kind: 'unreadable', path, reason: 'Fixture refuses access.' }
+                : read(path, options);
+          }
+          expect(
+            await dockerfileIgnoreRequirement(context, {
+              name: 'orders',
+              path: '.',
+              language: 'container',
+              executionModel: 'long-running',
+              exposesHttp: true,
+              port: 8080,
+              dockerfile: TARGET,
+              dockerfileAlias: 'Dockerfile',
+              source: 'probe'
+            })
+          ).toMatchObject({ kind: 'dockerfile-ignore-policy' });
+        })
+      );
+    }
+  );
 });
 
 const ROOT_LINKS = {

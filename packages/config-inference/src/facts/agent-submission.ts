@@ -39,6 +39,7 @@ const {
   prebuiltImage: _probePrebuiltImage,
   prebuiltImageAuthoritative: _probePrebuiltImageAuthoritative,
   missingEmbeddedAssets: _probeMissingEmbeddedAssets,
+  dockerfileAlias: _probeDockerfileAlias,
   ...agentVisibleServiceShape
 } = serviceShape;
 
