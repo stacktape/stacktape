@@ -153,6 +153,28 @@ describe('qualification manifests', () => {
     ).toThrow('Duplicate expected service name app');
   });
 
+  test('accepts scoped environment assertions and rejects duplicate owners and names', () => {
+    const environment = { resource: 'api', name: 'REDIS_URL', value: "$ResourceParam('cache', 'connectionString')" };
+    const entry = {
+      ...validCase,
+      expect: {
+        resourceTypes: { 'web-service': 1 },
+        serviceCount: 1,
+        httpServiceCount: 1,
+        serviceEnvironment: [environment, { ...environment, resource: 'worker' }]
+      }
+    };
+    expect(
+      qualificationManifestSchema.parse({ schemaVersion: 1, cases: [entry] }).cases[0]?.expect?.serviceEnvironment
+    ).toHaveLength(2);
+    expect(() =>
+      qualificationManifestSchema.parse({
+        schemaVersion: 1,
+        cases: [{ ...entry, expect: { ...entry.expect, serviceEnvironment: [environment, environment] } }]
+      })
+    ).toThrow('Duplicate expected environment entry');
+  });
+
   test('allows an explicit no-resource contract only for a zero-resource result', () => {
     const noResourceCase = {
       ...validCase,

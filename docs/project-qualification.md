@@ -181,6 +181,19 @@ Add `expect` after reviewing the first discovery result. Expectations are a rele
 to make a changed importer pass. First decide whether the source changed, the old expectation was wrong, or Stacktape
 regressed.
 
+For multi-process applications, use `expect.serviceEnvironment` to assert each connection on its actual resource:
+
+```json
+"serviceEnvironment": [
+  { "resource": "api", "name": "REDIS_URL", "value": "$ResourceParam('cache', 'connectionString')" },
+  { "resource": "worker", "name": "REDIS_URL", "value": "$ResourceParam('cache', 'connectionString')" }
+]
+```
+
+The runner checks the saved YAML, requires exactly one matching entry on each named resource, and compares its value. A
+global `requiredConfig` substring cannot detect a connection missing from one process when another process has it. Use
+resource names from the generated config here, not the source service names. Never put real credentials in expectations.
+
 The minimal manifest above intentionally has no `expect`. The runner reports a successful import as `discovery`, not
 `passed`, and skips its package lane. This is a useful first inspection result, but it is not release evidence. Review
 the generated topology and add exact semantic expectations first; the next run can then qualify the import and execute

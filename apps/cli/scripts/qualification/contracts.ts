@@ -57,6 +57,10 @@ const expectationSchema = z
     serviceCount: z.number().int().nonnegative(),
     httpServiceCount: z.number().int().nonnegative(),
     services: z.array(expectedServiceSchema).optional(),
+    /** Exact named environment entries in the saved YAML, scoped to their owning resource. */
+    serviceEnvironment: z
+      .array(z.object({ resource: z.string().min(1), name: z.string().min(1), value: z.string() }).strict())
+      .optional(),
     existingDeployments: z.array(z.string()).optional(),
     requiredConfig: z.array(z.string()).optional(),
     forbiddenConfig: z.array(z.string()).optional(),
@@ -82,6 +86,18 @@ const expectationSchema = z
       });
     }
     const seen = new Set<string>();
+    const environmentEntries = new Set<string>();
+    for (const [index, entry] of (expectation.serviceEnvironment ?? []).entries()) {
+      const key = JSON.stringify([entry.resource, entry.name]);
+      if (environmentEntries.has(key)) {
+        context.addIssue({
+          code: 'custom',
+          path: ['serviceEnvironment', index],
+          message: `Duplicate expected environment entry ${entry.resource}.${entry.name}.`
+        });
+      }
+      environmentEntries.add(key);
+    }
     for (const [index, service] of (expectation.services ?? []).entries()) {
       if (seen.has(service.name)) {
         context.addIssue({

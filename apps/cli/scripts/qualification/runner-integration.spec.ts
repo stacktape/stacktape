@@ -2,7 +2,7 @@ import { afterEach, describe, expect, test } from 'bun:test';
 import { mkdir, mkdtemp, readFile, rm, truncate, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { MAX_QUALIFICATION_REPORT_BYTES, qualificationReportSchema } from './contracts';
+import { MAX_QUALIFICATION_REPORT_BYTES, qualificationManifestSchema, qualificationReportSchema } from './contracts';
 import { assertProcessSucceeded, runProcess } from './process';
 
 const temporaryRoots: string[] = [];
@@ -123,6 +123,24 @@ describe('qualification runner', () => {
     });
     expect(second.summary).toMatchObject({ passed: 1, failed: 0, skipped: 0, discovery: 0 });
     expect(await Bun.file(join(thirdOutput, 'cases', 'resume-fixture', 'stacktape.yml')).exists()).toBeTrue();
+
+    // A newly strengthened per-process contract must execute and fail, not reuse the older pass.
+    const tightened = qualificationManifestSchema.parse(JSON.parse(await readFile(manifestPath, 'utf8')));
+    tightened.cases[0]!.expect!.serviceEnvironment = [
+      { resource: 'resumeFixture', name: 'REDIS_URL', value: "$ResourceParam('cache', 'connectionString')" }
+    ];
+    await writeFile(manifestPath, JSON.stringify(tightened), 'utf8');
+    const fourthOutput = join(root, 'tightened');
+    const tightenedResult = await runQualificationRaw([
+      `--manifest=${manifestPath}`,
+      '--lanes=import',
+      `--output-dir=${fourthOutput}`,
+      `--resume-from=${join(thirdOutput, 'qualification-report.json')}`
+    ]);
+    expect(tightenedResult.exitCode).toBe(1);
+    const fourth = await readReport(fourthOutput);
+    expect(fourth.cases[0]).toMatchObject({ status: 'failed', execution: 'executed' });
+    expect(JSON.stringify(fourth.cases[0])).toContain('environment resumeFixture.REDIS_URL');
   }, 120_000);
 
   test('reports uncontracted imports as discovery and blocks packaging and resume promotion', async () => {

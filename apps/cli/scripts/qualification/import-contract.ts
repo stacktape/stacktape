@@ -1,4 +1,5 @@
 import { readFile } from 'node:fs/promises';
+import yaml from 'yaml';
 import { validateConfigYaml } from '../code-generation/validate-config-string';
 import type { QualificationCaseManifest } from './contracts';
 import { redactOutput } from './process';
@@ -51,6 +52,34 @@ export const acceptsResourceCount = (entry: QualificationCaseManifest, resourceC
 
 export const deployabilityFailure = (expected: boolean | undefined, actual: boolean): string | undefined =>
   expected === undefined || expected === actual ? undefined : `deployable: expected ${expected}; got ${actual}.`;
+
+const recordOf = (value: unknown): Record<string, unknown> | undefined =>
+  value !== null && typeof value === 'object' && !Array.isArray(value) ? (value as Record<string, unknown>) : undefined;
+
+/** A connection anywhere in the YAML does not prove that every process received it. */
+export const validateServiceEnvironment = (
+  expected: ReadonlyArray<{ resource: string; name: string; value: string }>,
+  generatedConfig: string
+): string[] => {
+  let parsed: unknown;
+  try {
+    parsed = yaml.parse(generatedConfig);
+  } catch {
+    return ['Cannot check per-resource environment entries because the saved YAML is invalid.'];
+  }
+  const resources = recordOf(recordOf(parsed)?.resources);
+  return expected.flatMap(({ resource, name, value }) => {
+    const environment = recordOf(recordOf(resources?.[resource])?.properties)?.environment;
+    const matches: unknown[] = Array.isArray(environment)
+      ? environment.filter((entry: unknown) => recordOf(entry)?.name === name)
+      : [];
+    if (matches.length !== 1) {
+      return [`environment ${resource}.${name}: expected exactly one entry; got ${matches.length}.`];
+    }
+    // Do not include observed values: an upstream project can accidentally carry credentials.
+    return recordOf(matches[0])?.value === value ? [] : [`environment ${resource}.${name}: value does not match.`];
+  });
+};
 
 export const runImportQualification = async ({
   entry,
@@ -181,6 +210,9 @@ export const runImportQualification = async ({
 
     if (expected.services !== undefined) {
       failures.push(...validateServiceExpectations(expected.services, services).failures);
+    }
+    if (expected.serviceEnvironment !== undefined) {
+      failures.push(...validateServiceEnvironment(expected.serviceEnvironment, generatedConfig));
     }
 
     const expectedDeploymentTools = [...(expected.existingDeployments ?? [])].sort();
