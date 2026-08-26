@@ -1474,6 +1474,12 @@ export const cfLogicalNames = {
       suffix: { cloudformationResourceType: 'AWS::CloudFormation::CustomResource' }
     });
   },
+  customResourceTransactionSearch() {
+    return buildCfLogicalName({
+      specifier: { type: 'TransactionSearch' },
+      suffix: { cloudformationResourceType: 'AWS::CloudFormation::CustomResource' }
+    });
+  },
   customResourceEdgeLambda(stpResourceName: string) {
     return buildCfLogicalName({
       stpResourceName,

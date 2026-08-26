@@ -7472,6 +7472,7 @@
         "storage",
         "tags",
         "timeout",
+        "tracing",
         "url",
         "volumeMounts",
         "function"
@@ -7542,12 +7543,15 @@
         "config-reference:LambdaFunctionProps#property-timeout",
         "config-reference:LambdaFunctionProps#example-1-yaml-21",
         "config-reference:LambdaFunctionProps#example-2-typescript-21",
-        "config-reference:LambdaFunctionProps#property-url",
+        "config-reference:LambdaFunctionProps#property-tracing",
         "config-reference:LambdaFunctionProps#example-1-yaml-22",
         "config-reference:LambdaFunctionProps#example-2-typescript-22",
-        "config-reference:LambdaFunctionProps#property-volumemounts",
+        "config-reference:LambdaFunctionProps#property-url",
         "config-reference:LambdaFunctionProps#example-1-yaml-23",
-        "config-reference:LambdaFunctionProps#example-2-typescript-23"
+        "config-reference:LambdaFunctionProps#example-2-typescript-23",
+        "config-reference:LambdaFunctionProps#property-volumemounts",
+        "config-reference:LambdaFunctionProps#example-1-yaml-24",
+        "config-reference:LambdaFunctionProps#example-2-typescript-24"
       ]
     },
     {
@@ -8300,6 +8304,7 @@
         "outputs",
         "stackInfoDirectory",
         "tags",
+        "tracing",
         "vpc"
       ],
       "chunks": [
@@ -8317,6 +8322,9 @@
         "config-reference:StackConfig#property-tags",
         "config-reference:StackConfig#example-1-yaml-4",
         "config-reference:StackConfig#example-2-typescript-4",
+        "config-reference:StackConfig#property-tracing",
+        "config-reference:StackConfig#example-1-yaml-5",
+        "config-reference:StackConfig#example-2-typescript-5",
         "config-reference:StackConfig#property-vpc"
       ]
     },
@@ -12758,6 +12766,33 @@
         "config-reference:TanStackWebProps#example-1-yaml-11",
         "config-reference:TanStackWebProps#usefirewall",
         "config-reference:TanStackWebProps#example-2-typescript-11"
+      ]
+    },
+    {
+      "id": "config-reference:TracingOptions",
+      "title": "TracingOptions API Reference",
+      "route": "/config-reference/tracing",
+      "sourcePath": "packages/config/src/tracing.ts",
+      "outputPath": "config-reference/tracing/tracingoptions.md",
+      "docKind": "config-reference",
+      "definitionNames": [
+        "TracingOptions"
+      ],
+      "tags": [
+        "config-reference",
+        "TracingOptions",
+        "enabled",
+        "samplingRate"
+      ],
+      "chunks": [
+        "config-reference:TracingOptions#tracingoptions-api-reference",
+        "config-reference:TracingOptions#typescript-definition",
+        "config-reference:TracingOptions#property-enabled",
+        "config-reference:TracingOptions#example-1-yaml",
+        "config-reference:TracingOptions#example-2-typescript",
+        "config-reference:TracingOptions#property-samplingrate",
+        "config-reference:TracingOptions#example-1-yaml-2",
+        "config-reference:TracingOptions#example-2-typescript-2"
       ]
     },
     {

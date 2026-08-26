@@ -20,6 +20,7 @@ import { scriptFunction } from './resolvers/script-function';
 import { sensitiveData } from './resolvers/sensitive-data';
 import { ssmParameterRetrieve } from './resolvers/ssm-parameter-retrieve';
 import { kafkaBootstrapBrokers } from './resolvers/kafka-bootstrap-brokers';
+import { transactionSearch } from './resolvers/transaction-search';
 import { uptimeMonitoring } from './resolvers/uptime-monitoring';
 import { userPoolDetails } from './resolvers/user-pool-details';
 import { acceptVpcPeeringConnections } from './resolvers/vpc-peering-connections';
@@ -49,7 +50,8 @@ const resolversMap: {
   userPoolDetails,
   ssmParameterRetrieve,
   kafkaBootstrapBrokers,
-  uptimeMonitoring
+  uptimeMonitoring,
+  transactionSearch
 };
 
 const handler: CloudFormationCustomResourceHandler = async (event, context) => {

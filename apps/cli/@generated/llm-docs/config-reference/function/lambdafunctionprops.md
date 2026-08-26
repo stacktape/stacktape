@@ -5,7 +5,7 @@ Resource type: `function`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement, WebSocketApiIntegration } from 'stacktape';
+import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement, TracingOptions, WebSocketApiIntegration } from 'stacktape';
 
 type LambdaFunctionProps = {
   /** How your code is built and packaged for deployment. */
@@ -50,6 +50,8 @@ type LambdaFunctionProps = {
   tags?: Array<CloudformationTag>;
   /** Max execution time in seconds. Function is killed if it exceeds this. */
   timeout?: number;
+  /** Distributed tracing for this function. */
+  tracing?: LambdaFunctionTracing;
   /** Give this function its own HTTPS URL (no API Gateway needed). */
   url?: LambdaUrlConfig;
   /** Persistent file-system mounts shared across invocations and functions. */
@@ -76,6 +78,10 @@ type LambdaFunctionEvents =
   | AppSyncApiIntegration
   | WebSocketApiIntegration
   | EventBusIntegration;
+
+type LambdaFunctionTracing =
+  | TracingOptions
+  | "option-2";
 
 type LambdaFunctionVolumeMounts =
   | LambdaEfsMount
@@ -1159,6 +1165,56 @@ export default defineConfig(() => {
     timeout: 300
   });
   return { resources: { dataImporter } };
+});
+```
+
+## Property: `tracing`
+
+- Required: no
+- Type: `TracingOptions | option-2`
+
+Distributed tracing for this function.
+
+When omitted, the function inherits the stack-wide `stackConfig.tracing` setting. Set `false` to
+opt this function out, `true` to opt it in with the stack-wide sampling, or an object to opt it
+in with its own settings. Stacktape attaches the OpenTelemetry instrumentation automatically —
+no code changes required.
+
+Choices:
+- `TracingOptions` (`TracingOptions`). Properties: `enabled?: boolean`, `samplingRate?: number`.
+- `option-2`
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  tracing:
+    enabled: true
+resources:
+  noisyWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/worker.ts
+      tracing: false
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const noisyWorker = new LambdaFunction({
+    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+    tracing: false
+  });
+  return {
+    stackConfig: { tracing: { enabled: true } },
+    resources: { noisyWorker }
+  };
 });
 ```
 

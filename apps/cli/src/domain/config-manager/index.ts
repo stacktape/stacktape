@@ -75,15 +75,18 @@ import {
   getBatchJobTriggerLambdaAccessControl,
   getBatchJobTriggerLambdaEnvironment,
   getLambdaHandler,
+  getLambdaRuntime,
   getStacktapeServiceLambdaAlarmNotificationInducedStatements,
   getStacktapeServiceLambdaCustomResourceInducedStatements,
   getStacktapeServiceLambdaCustomTaggingInducedStatement,
   getStacktapeServiceLambdaEcsRedeployInducedStatements,
   getStacktapeServiceLambdaEnvironment,
   getStacktapeServiceLambdaIssueDetectionStatements,
+  getStacktapeServiceLambdaTracingStatements,
   getStacktapeServiceLambdaUptimeMonitoringStatements
 } from './utils/lambdas';
 import { mergeStacktapeDefaults } from './utils/misc';
+import { getLambdaTracingInstrumentation, resolveEffectiveTracing } from './utils/tracing';
 import { MAX_UPTIME_CHECKS_PER_STACK, resolveUptimeCheckRegions, validateUptimeCheck } from './utils/uptime-checks';
 import { buildNextjsWebNestedResources } from './utils/nextjs-webs';
 import { buildSsrWebNestedResources } from './utils/ssr-webs';
@@ -736,6 +739,54 @@ export class ConfigManager {
 
   get upstashRedisDatabases() {
     return this.getResourcesFromConfig('upstash-redis');
+  }
+
+  get stackTracingDefault() {
+    return this.config.stackConfig?.tracing;
+  }
+
+  /** Lambda functions whose effective tracing (stack default + per-resource override) is enabled. */
+  get tracedLambdaFunctions() {
+    return this.functions.flatMap((lambdaFunction) => {
+      const effectiveTracing = resolveEffectiveTracing({
+        stackDefault: this.stackTracingDefault,
+        resourceOverride: lambdaFunction.tracing,
+        resourceName: lambdaFunction.name
+      });
+      return effectiveTracing.enabled ? [{ ...lambdaFunction, effectiveTracing }] : [];
+    });
+  }
+
+  /**
+   * Traced functions with their instrumentation resolved: the layer + environment when it can be
+   * applied, or the reason it cannot (unsupported runtime, region without the layer, wrapper
+   * collision). Account-level tracing infrastructure keys off functions that actually get
+   * instrumented, not off intent alone.
+   */
+  get lambdaTracingInstrumentations() {
+    return this.tracedLambdaFunctions.map((lambdaFunction) => ({
+      ...lambdaFunction,
+      ...getLambdaTracingInstrumentation({
+        resourceName: lambdaFunction.name,
+        runtime: getLambdaRuntime({
+          name: lambdaFunction.name,
+          packaging: lambdaFunction.packaging,
+          runtime: lambdaFunction.runtime
+        }),
+        region: this.stackContext.region,
+        samplingRate: lambdaFunction.effectiveTracing.samplingRate,
+        userEnvironment: Object.fromEntries(
+          (lambdaFunction.environment || []).map(({ name: varName, value }) => [varName, value])
+        ),
+        userLayers: lambdaFunction.layers,
+        projectName: this.stackContext.projectName,
+        stage: this.stackContext.stage
+      })
+    }));
+  }
+
+  get instrumentedLambdaFunctions() {
+    return this.lambdaTracingInstrumentations.filter(({ instrumentation }) => instrumentation);
   }
 
   get uptimeChecks() {
@@ -2158,6 +2209,12 @@ export class ConfigManager {
           uptimeMonitoringEnabled: this.uptimeChecks.length > 0,
           accountId: this.stackContext.accountId,
           deploymentBucketName: awsResourceNames.deploymentBucket(this.globallyUniqueStackHash)
+        }),
+        ...getStacktapeServiceLambdaTracingStatements({
+          // Dev stacks skip both the instrumentation and the Transaction Search custom resource, so
+          // the service lambda must not carry the unused account-level permissions there either.
+          tracingEnabled: this.instrumentedLambdaFunctions.length > 0 && !isDevCommand(),
+          region: this.stackContext.region
         })
       ]
     };

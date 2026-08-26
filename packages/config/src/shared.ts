@@ -39,6 +39,7 @@ import type { SqsQueue } from './sqs-queues';
 import type { StateMachine } from './state-machines';
 import type { SvelteKitWeb } from './sveltekit-web';
 import type { TanStackWeb } from './tanstack-web';
+import type { TracingOptions } from './tracing';
 import type { UpstashRedis } from './upstash-redis';
 import type { UptimeCheck } from './uptime-checks';
 import type { UserAuthPool } from './user-pools';
@@ -2672,6 +2673,53 @@ export interface StackConfig {
    * #### VPC configuration: reuse an existing VPC or configure NAT Gateways.
    */
   vpc?: VpcSettings;
+  /**
+   * #### Stack-wide distributed tracing default.
+   *
+   * ---
+   *
+   * Applies to every resource in the stack that supports tracing. Individual resources can override
+   * it with their own `tracing` property (`false` opts a resource out). Enabling tracing requires no
+   * code changes for Lambda-based resources — Stacktape attaches the OpenTelemetry instrumentation
+   * automatically.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * # stp-focus
+   * stackConfig:
+   *   tracing:
+   *     enabled: true
+   * # stp-end-focus
+   * resources:
+   *   api:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/api.ts
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const api = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+   *   });
+   *   return {
+   *     // stp-focus
+   *     stackConfig: { tracing: { enabled: true } },
+   *     // stp-end-focus
+   *     resources: { api }
+   *   };
+   * });
+   * ```
+   */
+  tracing?: TracingOptions;
 }
 
 

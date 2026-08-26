@@ -139,6 +139,11 @@ export type StpServiceCustomResourceUptimeMonitoringProps = {
   stackName: string;
 };
 
+export type StpServiceCustomResourceTransactionSearchProps = {
+  /** Bumped only when the enablement behavior itself changes; forces the resolver to re-run. */
+  version: number;
+};
+
 export type StpServiceCustomResourceProperties = {
   s3Events?: StpServiceCustomResourceEventProps<S3IntegrationProps>[];
   // @deprecated - use edgeLambda instead
@@ -162,6 +167,7 @@ export type StpServiceCustomResourceProperties = {
   ssmParameterRetrieve?: StpServiceCustomResourceSsmParameterRetrieveProps;
   kafkaBootstrapBrokers?: StpServiceCustomResourceKafkaBootstrapBrokersProps;
   uptimeMonitoring?: StpServiceCustomResourceUptimeMonitoringProps;
+  transactionSearch?: StpServiceCustomResourceTransactionSearchProps;
 };
 
 export type StpServiceSharedCustomResourceProperties = Omit<

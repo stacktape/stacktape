@@ -3,7 +3,7 @@
 ## TypeScript definition
 
 ```typescript
-import type { CloudformationTag, StackOutput, VpcSettings } from 'stacktape';
+import type { CloudformationTag, StackOutput, TracingOptions, VpcSettings } from 'stacktape';
 
 type StackConfig = {
   /** Stop saving stack info to a local file after each deployment. */
@@ -14,6 +14,8 @@ type StackConfig = {
   stackInfoDirectory?: string;
   /** Tags applied to every AWS resource in this stack. */
   tags?: Array<CloudformationTag>;
+  /** Stack-wide distributed tracing default. */
+  tracing?: TracingOptions;
   /** VPC configuration: reuse an existing VPC or configure NAT Gateways. */
   vpc?: VpcSettings;
 };
@@ -218,6 +220,50 @@ export default defineConfig(() => {
         { name: 'costCenter', value: '4100' }
       ]
     },
+    resources: { api }
+  };
+});
+```
+
+## Property: `tracing`
+
+- Required: no
+- Type: `TracingOptions`
+
+Stack-wide distributed tracing default.
+
+Applies to every resource in the stack that supports tracing. Individual resources can override
+it with their own `tracing` property (`false` opts a resource out). Enabling tracing requires no
+code changes for Lambda-based resources — Stacktape attaches the OpenTelemetry instrumentation
+automatically.
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  tracing:
+    enabled: true
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+  });
+  return {
+    stackConfig: { tracing: { enabled: true } },
     resources: { api }
   };
 });

@@ -778,6 +778,13 @@ export const configErrors = {
       message: `Error in ${inlineCode('uptime-check')} ${inlineCode(checkName)}: ${reason}`
     });
   },
+  tracingSamplingRateInvalid({ source, actual }: { source: string; actual: number }): CliError {
+    return new CliError({
+      category: 'CONFIG_VALIDATION',
+      code: 'CONFIG_TRACING_SAMPLING_RATE_INVALID',
+      message: `Invalid tracing configuration in ${source}: ${inlineCode('samplingRate')} must be a number between 0 and 1 (got ${actual}).`
+    });
+  },
   uptimeChecksLimitExceeded({ count, limit }: { count: number; limit: number }): CliError {
     return new CliError({
       category: 'CONFIG_VALIDATION',

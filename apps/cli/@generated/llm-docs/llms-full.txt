@@ -28361,6 +28361,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `storage` | no | `number` | `512` |
 | `tags` | no | `Array<CloudformationTag>` | - |
 | `timeout` | no | `number` | `10` |
+| `tracing` | no | `TracingOptions \| option-2` | - |
 | `url` | no | `LambdaUrlConfig` | - |
 | `volumeMounts` | no | `Array<efs \| s3files>` | - |
 
@@ -84170,7 +84171,7 @@ Resource type: `function`
 ## TypeScript definition
 
 ```typescript
-import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement, WebSocketApiIntegration } from 'stacktape';
+import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement, TracingOptions, WebSocketApiIntegration } from 'stacktape';
 
 type LambdaFunctionProps = {
   /** How your code is built and packaged for deployment. */
@@ -84215,6 +84216,8 @@ type LambdaFunctionProps = {
   tags?: Array<CloudformationTag>;
   /** Max execution time in seconds. Function is killed if it exceeds this. */
   timeout?: number;
+  /** Distributed tracing for this function. */
+  tracing?: LambdaFunctionTracing;
   /** Give this function its own HTTPS URL (no API Gateway needed). */
   url?: LambdaUrlConfig;
   /** Persistent file-system mounts shared across invocations and functions. */
@@ -84241,6 +84244,10 @@ type LambdaFunctionEvents =
   | AppSyncApiIntegration
   | WebSocketApiIntegration
   | EventBusIntegration;
+
+type LambdaFunctionTracing =
+  | TracingOptions
+  | "option-2";
 
 type LambdaFunctionVolumeMounts =
   | LambdaEfsMount
@@ -85324,6 +85331,56 @@ export default defineConfig(() => {
     timeout: 300
   });
   return { resources: { dataImporter } };
+});
+```
+
+## Property: `tracing`
+
+- Required: no
+- Type: `TracingOptions | option-2`
+
+Distributed tracing for this function.
+
+When omitted, the function inherits the stack-wide `stackConfig.tracing` setting. Set `false` to
+opt this function out, `true` to opt it in with the stack-wide sampling, or an object to opt it
+in with its own settings. Stacktape attaches the OpenTelemetry instrumentation automatically —
+no code changes required.
+
+Choices:
+- `TracingOptions` (`TracingOptions`). Properties: `enabled?: boolean`, `samplingRate?: number`.
+- `option-2`
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  tracing:
+    enabled: true
+resources:
+  noisyWorker:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/worker.ts
+      tracing: false
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const noisyWorker = new LambdaFunction({
+    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+    tracing: false
+  });
+  return {
+    stackConfig: { tracing: { enabled: true } },
+    resources: { noisyWorker }
+  };
 });
 ```
 
@@ -90040,7 +90097,7 @@ Route: `/config-reference/helpers`
 ## TypeScript definition
 
 ```typescript
-import type { CloudformationTag, StackOutput, VpcSettings } from 'stacktape';
+import type { CloudformationTag, StackOutput, TracingOptions, VpcSettings } from 'stacktape';
 
 type StackConfig = {
   /** Stop saving stack info to a local file after each deployment. */
@@ -90051,6 +90108,8 @@ type StackConfig = {
   stackInfoDirectory?: string;
   /** Tags applied to every AWS resource in this stack. */
   tags?: Array<CloudformationTag>;
+  /** Stack-wide distributed tracing default. */
+  tracing?: TracingOptions;
   /** VPC configuration: reuse an existing VPC or configure NAT Gateways. */
   vpc?: VpcSettings;
 };
@@ -90255,6 +90314,50 @@ export default defineConfig(() => {
         { name: 'costCenter', value: '4100' }
       ]
     },
+    resources: { api }
+  };
+});
+```
+
+## Property: `tracing`
+
+- Required: no
+- Type: `TracingOptions`
+
+Stack-wide distributed tracing default.
+
+Applies to every resource in the stack that supports tracing. Individual resources can override
+it with their own `tracing` property (`false` opts a resource out). Enabling tracing requires no
+code changes for Lambda-based resources — Stacktape attaches the OpenTelemetry instrumentation
+automatically.
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  tracing:
+    enabled: true
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+  });
+  return {
+    stackConfig: { tracing: { enabled: true } },
     resources: { api }
   };
 });
@@ -115783,6 +115886,126 @@ export default defineConfig(() => {
     environment: [{ name: 'NODE_ENV', value: 'production' }]
   });
   return { resources: { firewall, web } };
+});
+```
+
+---
+
+# TracingOptions API Reference
+
+Source: `packages/config/src/tracing.ts`
+Route: `/config-reference/tracing`
+
+## TypeScript definition
+
+```typescript
+type TracingOptions = {
+  /** Turn distributed tracing on or off. */
+  enabled?: boolean;
+  /** Fraction of requests to trace, between 0 and 1. */
+  samplingRate?: number;
+};
+```
+
+## Property: `enabled`
+
+- Required: no
+- Type: `boolean`
+
+Turn distributed tracing on or off.
+
+When enabled, Stacktape instruments supported resources with OpenTelemetry automatically: every
+request produces a trace — a timeline of the work it caused (handler execution, SQL queries,
+HTTP calls to other services) — viewable in the Console. Traces are stored in your AWS account
+using X-Ray Transaction Search, priced at ~$0.35 per GB of span data.
+
+Enabling tracing in any stack turns on X-Ray Transaction Search for the **whole AWS account and
+region**: spans from all X-Ray-instrumented workloads (Stacktape-managed or not) are then stored
+in the `aws/spans` CloudWatch Logs log group. When Stacktape itself performs this switch, it caps
+the log group's retention at 90 days; an already-enabled setup is left exactly as found. Deleting
+the stack does not switch Transaction Search back off, because other workloads may rely on it.
+
+Lambda functions are instrumented with the AWS-managed OpenTelemetry layer. Supported runtimes:
+Node.js 18–22, Python 3.10–3.13, Java 11/17/21 and .NET 8; functions on other runtimes are
+skipped with a warning. The `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG` and the
+`stacktape.*` keys of `OTEL_RESOURCE_ATTRIBUTES` environment variables are managed by Stacktape;
+other OpenTelemetry variables (like `OTEL_SERVICE_NAME`) can be overridden per function.
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  tracing:
+    enabled: true
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+  });
+  return {
+    stackConfig: { tracing: { enabled: true } },
+    resources: { api }
+  };
+});
+```
+
+## Property: `samplingRate`
+
+- Required: no
+- Type: `number`
+- Default: `1`
+
+Fraction of requests to trace, between 0 and 1.
+
+`1` records every request — ideal while traffic is small, because the interesting request is
+always captured. Lower it as traffic grows to control span-storage cost (~$0.35/GB). Sampling
+is parent-based: once a request is sampled, every service it touches records its part of the
+trace, so distributed traces stay complete.
+
+### Example 1 (yaml)
+
+```yaml
+stackConfig:
+  tracing:
+    enabled: true
+    samplingRate: 0.2
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/api.ts
+```
+
+### Example 2 (typescript)
+
+```typescript
+import { LambdaFunction, defineConfig } from 'stacktape';
+
+export default defineConfig(() => {
+  const api = new LambdaFunction({
+    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }
+  });
+  return {
+    stackConfig: { tracing: { enabled: true, samplingRate: 0.2 } },
+    resources: { api }
+  };
 });
 ```
 

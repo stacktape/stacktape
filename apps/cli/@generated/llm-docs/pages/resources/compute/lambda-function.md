@@ -778,6 +778,7 @@ The complete property-level reference is included in `llms-api-reference.txt` an
 | `storage` | no | `number` | `512` |
 | `tags` | no | `Array<CloudformationTag>` | - |
 | `timeout` | no | `number` | `10` |
+| `tracing` | no | `TracingOptions \| option-2` | - |
 | `url` | no | `LambdaUrlConfig` | - |
 | `volumeMounts` | no | `Array<efs \| s3files>` | - |
 

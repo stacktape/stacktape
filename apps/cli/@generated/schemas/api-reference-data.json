@@ -38454,6 +38454,83 @@
         ]
       },
       {
+        "name": "tracing",
+        "required": false,
+        "shortDescription": "<p> Distributed tracing for this function.</p>",
+        "longDescription": "<p>When omitted, the function inherits the stack-wide <code>stackConfig.tracing</code> setting. Set <code>false</code> to\nopt this function out, <code>true</code> to opt it in with the stack-wide sampling, or an object to opt it\nin with its own settings. Stacktape attaches the OpenTelemetry instrumentation automatically —\nno code changes required.</p>",
+        "typeInfo": {
+          "kind": "union",
+          "discriminator": null,
+          "branches": [
+            {
+              "label": "TracingOptions",
+              "typeName": "TracingOptions",
+              "properties": [
+                {
+                  "name": "enabled",
+                  "required": false,
+                  "shortDescription": "<p> Turn distributed tracing on or off.</p>",
+                  "longDescription": "<p>When enabled, Stacktape instruments supported resources with OpenTelemetry automatically: every\nrequest produces a trace — a timeline of the work it caused (handler execution, SQL queries,\nHTTP calls to other services) — viewable in the Console. Traces are stored in your AWS account\nusing X-Ray Transaction Search, priced at ~$0.35 per GB of span data.</p>\n<p>Enabling tracing in any stack turns on X-Ray Transaction Search for the <strong>whole AWS account and\nregion</strong>: spans from all X-Ray-instrumented workloads (Stacktape-managed or not) are then stored\nin the <code>aws/spans</code> CloudWatch Logs log group. When Stacktape itself performs this switch, it caps\nthe log group&#39;s retention at 90 days; an already-enabled setup is left exactly as found. Deleting\nthe stack does not switch Transaction Search back off, because other workloads may rely on it.</p>\n<p>Lambda functions are instrumented with the AWS-managed OpenTelemetry layer. Supported runtimes:\nNode.js 18–22, Python 3.10–3.13, Java 11/17/21 and .NET 8; functions on other runtimes are\nskipped with a warning. The <code>OTEL_TRACES_SAMPLER</code>, <code>OTEL_TRACES_SAMPLER_ARG</code> and the\n<code>stacktape.*</code> keys of <code>OTEL_RESOURCE_ATTRIBUTES</code> environment variables are managed by Stacktape;\nother OpenTelemetry variables (like <code>OTEL_SERVICE_NAME</code>) can be overridden per function.</p>",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "boolean"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "stackConfig:\n  tracing:\n    # [!code focus-start]\n    enabled: true\n    # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }\n  });\n  return {\n    // [!code focus-start]\n    stackConfig: { tracing: { enabled: true } },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+                    }
+                  ]
+                },
+                {
+                  "name": "samplingRate",
+                  "required": false,
+                  "shortDescription": "<p> Fraction of requests to trace, between 0 and 1.</p>",
+                  "longDescription": "<p><code>1</code> records every request — ideal while traffic is small, because the interesting request is\nalways captured. Lower it as traffic grows to control span-storage cost (~$0.35/GB). Sampling\nis parent-based: once a request is sampled, every service it touches records its part of the\ntrace, so distributed traces stay complete.</p>",
+                  "defaultValue": "1",
+                  "typeInfo": {
+                    "kind": "primitive",
+                    "types": [
+                      "number"
+                    ]
+                  },
+                  "examples": [
+                    {
+                      "lang": "yaml",
+                      "code": "stackConfig:\n  tracing:\n    enabled: true\n    # [!code focus-start]\n    samplingRate: 0.2\n    # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+                    },
+                    {
+                      "lang": "typescript",
+                      "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }\n  });\n  return {\n    // [!code focus-start]\n    stackConfig: { tracing: { enabled: true, samplingRate: 0.2 } },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+                    }
+                  ]
+                }
+              ]
+            },
+            {
+              "label": "option-2",
+              "properties": []
+            }
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "stackConfig:\n  tracing:\n    enabled: true\nresources:\n  noisyWorker:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/worker.ts\n      # [!code focus-start]\n      tracing: false\n      # [!code focus-end]"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const noisyWorker = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },\n    // [!code focus-start]\n    tracing: false\n    // [!code focus-end]\n  });\n  return {\n    stackConfig: { tracing: { enabled: true } },\n    resources: { noisyWorker }\n  };\n});"
+          }
+        ]
+      },
+      {
         "name": "url",
         "required": false,
         "shortDescription": "<p> Give this function its own HTTPS URL (no API Gateway needed).</p>",
@@ -38777,9 +38854,9 @@
     ],
     "stats": {
       "requiredCount": 1,
-      "optionalCount": 22
+      "optionalCount": 23
     },
-    "typeDeclaration": "import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement, WebSocketApiIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaFunctionProps = {\n  /** How your code is built and packaged for deployment. */\n  packaging: LambdaFunctionPackaging;\n  /** Alarms for this function (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<LambdaAlarm>;\n  /** Processor architecture: `x86_64` (default) or `arm64` (Graviton, ~20% cheaper). */\n  architecture?: \"arm64\" | \"x86_64\";\n  /** Put a CDN (CloudFront) in front of this function for caching and lower latency. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Gradual traffic shifting for safe deployments. */\n  deployment?: LambdaDeploymentConfig;\n  /** Route async invocation results to another service (SQS, SNS, EventBus, or another function). */\n  destinations?: LambdaFunctionDestinations;\n  /** Global alarm names to exclude from this function. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Environment variables available to the function at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** What triggers this function: HTTP requests, file uploads, queues, schedules, etc. */\n  events?: Array<LambdaFunctionEvents>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Connects the function to your VPC so it can reach databases, Redis, and other VPC-only resources. */\n  joinDefaultVpc?: boolean;\n  /** Lambda Layer ARNs to attach (shared libraries, custom runtimes, etc.). */\n  layers?: Array<string>;\n  /** Logging configuration (retention, forwarding). */\n  logging?: LambdaFunctionLogging;\n  /** Memory in MB (128 - 10,240). Also determines CPU power. */\n  memory?: number;\n  /** Eliminates cold starts by keeping function instances warm and ready. */\n  provisionedConcurrency?: number;\n  /** Cap the maximum number of concurrent instances for this function. */\n  reservedConcurrency?: number;\n  /** The language runtime (e.g., `nodejs22.x`, `python3.13`). */\n  runtime?: \"dotnet10\" | \"dotnet6\" | \"dotnet7\" | \"dotnet8\" | \"java11\" | \"java17\" | \"java21\" | \"java25\" | \"java8\" | \"java8.al2\" | \"nodejs18.x\" | \"nodejs20.x\" | \"nodejs22.x\" | \"nodejs24.x\" | \"provided.al2\" | \"provided.al2023\" | \"python3.10\" | \"python3.11\" | \"python3.12\" | \"python3.13\" | \"python3.14\" | \"python3.8\" | \"python3.9\" | \"ruby3.3\" | \"ruby3.4\" | \"ruby4.0\";\n  /** Size of the `/tmp` directory in MB (512 - 10,240). Ephemeral per invocation. */\n  storage?: number;\n  /** Additional tags for this function (on top of stack-level tags). Max 50. */\n  tags?: Array<CloudformationTag>;\n  /** Max execution time in seconds. Function is killed if it exceeds this. */\n  timeout?: number;\n  /** Give this function its own HTTPS URL (no API Gateway needed). */\n  url?: LambdaUrlConfig;\n  /** Persistent file-system mounts shared across invocations and functions. */\n  volumeMounts?: Array<LambdaFunctionVolumeMounts>;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaFunctionPackaging =\n  | StpBuildpackLambdaPackaging\n  | CustomArtifactLambdaPackaging;\n\ntype LambdaFunctionEvents =\n  | ApplicationLoadBalancerIntegration\n  | KafkaTopicIntegration\n  | SnsIntegration\n  | SqsIntegration\n  | KinesisIntegration\n  | DynamoDbIntegration\n  | S3Integration\n  | ScheduleIntegration\n  | AlarmIntegration\n  | CloudwatchLogIntegration\n  | HttpApiIntegration\n  | AppSyncApiIntegration\n  | WebSocketApiIntegration\n  | EventBusIntegration;\n\ntype LambdaFunctionVolumeMounts =\n  | LambdaEfsMount\n  | LambdaS3FilesMount;\n// [!code focus-end]"
+    "typeDeclaration": "import type { AlarmIntegration, AppSyncApiIntegration, ApplicationLoadBalancerIntegration, CdnConfiguration, CloudformationTag, CloudwatchLogIntegration, CustomArtifactLambdaPackaging, DynamoDbIntegration, EnvironmentVar, EventBusIntegration, HttpApiIntegration, KafkaTopicIntegration, KinesisIntegration, LambdaAlarm, LambdaDeploymentConfig, LambdaEfsMount, LambdaFunctionDestinations, LambdaFunctionLogging, LambdaS3FilesMount, LambdaUrlConfig, S3Integration, ScheduleIntegration, SnsIntegration, SqsIntegration, StpBuildpackLambdaPackaging, StpIamRoleStatement, TracingOptions, WebSocketApiIntegration } from 'stacktape';\n\n// [!code focus-start]\ntype LambdaFunctionProps = {\n  /** How your code is built and packaged for deployment. */\n  packaging: LambdaFunctionPackaging;\n  /** Alarms for this function (merged with global alarms from the Stacktape Console). */\n  alarms?: Array<LambdaAlarm>;\n  /** Processor architecture: `x86_64` (default) or `arm64` (Graviton, ~20% cheaper). */\n  architecture?: \"arm64\" | \"x86_64\";\n  /** Put a CDN (CloudFront) in front of this function for caching and lower latency. */\n  cdn?: CdnConfiguration;\n  /** Give this resource access to other resources in your stack. */\n  connectTo?: Array<string>;\n  /** Gradual traffic shifting for safe deployments. */\n  deployment?: LambdaDeploymentConfig;\n  /** Route async invocation results to another service (SQS, SNS, EventBus, or another function). */\n  destinations?: LambdaFunctionDestinations;\n  /** Global alarm names to exclude from this function. */\n  disabledGlobalAlarms?: Array<string>;\n  /** Environment variables available to the function at runtime. */\n  environment?: Array<EnvironmentVar>;\n  /** What triggers this function: HTTP requests, file uploads, queues, schedules, etc. */\n  events?: Array<LambdaFunctionEvents>;\n  /** Raw IAM policy statements for permissions not covered by `connectTo`. */\n  iamRoleStatements?: Array<StpIamRoleStatement>;\n  /** Connects the function to your VPC so it can reach databases, Redis, and other VPC-only resources. */\n  joinDefaultVpc?: boolean;\n  /** Lambda Layer ARNs to attach (shared libraries, custom runtimes, etc.). */\n  layers?: Array<string>;\n  /** Logging configuration (retention, forwarding). */\n  logging?: LambdaFunctionLogging;\n  /** Memory in MB (128 - 10,240). Also determines CPU power. */\n  memory?: number;\n  /** Eliminates cold starts by keeping function instances warm and ready. */\n  provisionedConcurrency?: number;\n  /** Cap the maximum number of concurrent instances for this function. */\n  reservedConcurrency?: number;\n  /** The language runtime (e.g., `nodejs22.x`, `python3.13`). */\n  runtime?: \"dotnet10\" | \"dotnet6\" | \"dotnet7\" | \"dotnet8\" | \"java11\" | \"java17\" | \"java21\" | \"java25\" | \"java8\" | \"java8.al2\" | \"nodejs18.x\" | \"nodejs20.x\" | \"nodejs22.x\" | \"nodejs24.x\" | \"provided.al2\" | \"provided.al2023\" | \"python3.10\" | \"python3.11\" | \"python3.12\" | \"python3.13\" | \"python3.14\" | \"python3.8\" | \"python3.9\" | \"ruby3.3\" | \"ruby3.4\" | \"ruby4.0\";\n  /** Size of the `/tmp` directory in MB (512 - 10,240). Ephemeral per invocation. */\n  storage?: number;\n  /** Additional tags for this function (on top of stack-level tags). Max 50. */\n  tags?: Array<CloudformationTag>;\n  /** Max execution time in seconds. Function is killed if it exceeds this. */\n  timeout?: number;\n  /** Distributed tracing for this function. */\n  tracing?: LambdaFunctionTracing;\n  /** Give this function its own HTTPS URL (no API Gateway needed). */\n  url?: LambdaUrlConfig;\n  /** Persistent file-system mounts shared across invocations and functions. */\n  volumeMounts?: Array<LambdaFunctionVolumeMounts>;\n};\n\n/** Union choices used by the properties above. */\ntype LambdaFunctionPackaging =\n  | StpBuildpackLambdaPackaging\n  | CustomArtifactLambdaPackaging;\n\ntype LambdaFunctionEvents =\n  | ApplicationLoadBalancerIntegration\n  | KafkaTopicIntegration\n  | SnsIntegration\n  | SqsIntegration\n  | KinesisIntegration\n  | DynamoDbIntegration\n  | S3Integration\n  | ScheduleIntegration\n  | AlarmIntegration\n  | CloudwatchLogIntegration\n  | HttpApiIntegration\n  | AppSyncApiIntegration\n  | WebSocketApiIntegration\n  | EventBusIntegration;\n\ntype LambdaFunctionTracing =\n  | TracingOptions\n  | \"option-2\";\n\ntype LambdaFunctionVolumeMounts =\n  | LambdaEfsMount\n  | LambdaS3FilesMount;\n// [!code focus-end]"
   },
   "LambdaS3FilesMount": {
     "definitionName": "LambdaS3FilesMount",
@@ -56087,6 +56164,26 @@
         ]
       },
       {
+        "name": "tracing",
+        "required": false,
+        "shortDescription": "<p> Stack-wide distributed tracing default.</p>",
+        "longDescription": "<p>Applies to every resource in the stack that supports tracing. Individual resources can override\nit with their own <code>tracing</code> property (<code>false</code> opts a resource out). Enabling tracing requires no\ncode changes for Lambda-based resources — Stacktape attaches the OpenTelemetry instrumentation\nautomatically.</p>",
+        "typeInfo": {
+          "kind": "reference",
+          "typeName": "TracingOptions"
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "# [!code focus-start]\nstackConfig:\n  tracing:\n    enabled: true\n# [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }\n  });\n  return {\n    // [!code focus-start]\n    stackConfig: { tracing: { enabled: true } },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+          }
+        ]
+      },
+      {
         "name": "vpc",
         "required": false,
         "shortDescription": "<p> VPC configuration: reuse an existing VPC or configure NAT Gateways.</p>",
@@ -56099,9 +56196,9 @@
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 5
+      "optionalCount": 6
     },
-    "typeDeclaration": "import type { CloudformationTag, StackOutput, VpcSettings } from 'stacktape';\n\n// [!code focus-start]\ntype StackConfig = {\n  /** Stop saving stack info to a local file after each deployment. */\n  disableStackInfoSaving?: boolean;\n  /** Custom values to display and save after each deployment. */\n  outputs?: Array<StackOutput>;\n  /** Directory for the stack info JSON file. */\n  stackInfoDirectory?: string;\n  /** Tags applied to every AWS resource in this stack. */\n  tags?: Array<CloudformationTag>;\n  /** VPC configuration: reuse an existing VPC or configure NAT Gateways. */\n  vpc?: VpcSettings;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { CloudformationTag, StackOutput, TracingOptions, VpcSettings } from 'stacktape';\n\n// [!code focus-start]\ntype StackConfig = {\n  /** Stop saving stack info to a local file after each deployment. */\n  disableStackInfoSaving?: boolean;\n  /** Custom values to display and save after each deployment. */\n  outputs?: Array<StackOutput>;\n  /** Directory for the stack info JSON file. */\n  stackInfoDirectory?: string;\n  /** Tags applied to every AWS resource in this stack. */\n  tags?: Array<CloudformationTag>;\n  /** Stack-wide distributed tracing default. */\n  tracing?: TracingOptions;\n  /** VPC configuration: reuse an existing VPC or configure NAT Gateways. */\n  vpc?: VpcSettings;\n};\n// [!code focus-end]"
   },
   "StackOutput": {
     "definitionName": "StackOutput",
@@ -59983,6 +60080,61 @@
       "optionalCount": 11
     },
     "typeDeclaration": "// [!code focus-start]\ntype Task = {\n  Resource: TaskResource;\n  Type: string;\n  Catch?: Array<unknown>;\n  Comment?: string;\n  End?: boolean;\n  HeartbeatSeconds?: number;\n  InputPath?: string;\n  Next?: string;\n  OutputPath?: string;\n  Parameters?: unknown;\n  ResultPath?: string;\n  Retry?: Array<unknown>;\n  TimeoutSeconds?: number;\n};\n\n/** Union choices used by the properties above. */\ntype TaskResource =\n  | \"option-1\"\n  | \"option-2\";\n// [!code focus-end]"
+  },
+  "TracingOptions": {
+    "definitionName": "TracingOptions",
+    "properties": [
+      {
+        "name": "enabled",
+        "required": false,
+        "shortDescription": "<p> Turn distributed tracing on or off.</p>",
+        "longDescription": "<p>When enabled, Stacktape instruments supported resources with OpenTelemetry automatically: every\nrequest produces a trace — a timeline of the work it caused (handler execution, SQL queries,\nHTTP calls to other services) — viewable in the Console. Traces are stored in your AWS account\nusing X-Ray Transaction Search, priced at ~$0.35 per GB of span data.</p>\n<p>Enabling tracing in any stack turns on X-Ray Transaction Search for the <strong>whole AWS account and\nregion</strong>: spans from all X-Ray-instrumented workloads (Stacktape-managed or not) are then stored\nin the <code>aws/spans</code> CloudWatch Logs log group. When Stacktape itself performs this switch, it caps\nthe log group&#39;s retention at 90 days; an already-enabled setup is left exactly as found. Deleting\nthe stack does not switch Transaction Search back off, because other workloads may rely on it.</p>\n<p>Lambda functions are instrumented with the AWS-managed OpenTelemetry layer. Supported runtimes:\nNode.js 18–22, Python 3.10–3.13, Java 11/17/21 and .NET 8; functions on other runtimes are\nskipped with a warning. The <code>OTEL_TRACES_SAMPLER</code>, <code>OTEL_TRACES_SAMPLER_ARG</code> and the\n<code>stacktape.*</code> keys of <code>OTEL_RESOURCE_ATTRIBUTES</code> environment variables are managed by Stacktape;\nother OpenTelemetry variables (like <code>OTEL_SERVICE_NAME</code>) can be overridden per function.</p>",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "boolean"
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "stackConfig:\n  tracing:\n    # [!code focus-start]\n    enabled: true\n    # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }\n  });\n  return {\n    // [!code focus-start]\n    stackConfig: { tracing: { enabled: true } },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+          }
+        ]
+      },
+      {
+        "name": "samplingRate",
+        "required": false,
+        "shortDescription": "<p> Fraction of requests to trace, between 0 and 1.</p>",
+        "longDescription": "<p><code>1</code> records every request — ideal while traffic is small, because the interesting request is\nalways captured. Lower it as traffic grows to control span-storage cost (~$0.35/GB). Sampling\nis parent-based: once a request is sampled, every service it touches records its part of the\ntrace, so distributed traces stay complete.</p>",
+        "defaultValue": "1",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "number"
+          ]
+        },
+        "examples": [
+          {
+            "lang": "yaml",
+            "code": "stackConfig:\n  tracing:\n    enabled: true\n    # [!code focus-start]\n    samplingRate: 0.2\n    # [!code focus-end]\nresources:\n  api:\n    type: function\n    properties:\n      packaging:\n        type: stacktape-lambda-buildpack\n        properties:\n          entryfilePath: src/api.ts"
+          },
+          {
+            "lang": "typescript",
+            "code": "import { LambdaFunction, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const api = new LambdaFunction({\n    packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/api.ts' } }\n  });\n  return {\n    // [!code focus-start]\n    stackConfig: { tracing: { enabled: true, samplingRate: 0.2 } },\n    // [!code focus-end]\n    resources: { api }\n  };\n});"
+          }
+        ]
+      }
+    ],
+    "stats": {
+      "requiredCount": 0,
+      "optionalCount": 2
+    },
+    "typeDeclaration": "// [!code focus-start]\ntype TracingOptions = {\n  /** Turn distributed tracing on or off. */\n  enabled?: boolean;\n  /** Fraction of requests to trace, between 0 and 1. */\n  samplingRate?: number;\n};\n// [!code focus-end]"
   },
   "UpstashProvider": {
     "definitionName": "UpstashProvider",

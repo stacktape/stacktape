@@ -134,11 +134,11 @@ describe('generated LLM docs corpus', () => {
     const docsPages = manifest.pages.filter((page) => page.docKind === 'docs-page');
     const configPages = manifest.pages.filter((page) => page.docKind === 'config-reference');
     expect(docsPages).toHaveLength(199);
-    expect(configPages).toHaveLength(442);
+    expect(configPages).toHaveLength(443);
     expect(configPages).not.toContainEqual(
       expect.objectContaining({ outputPath: 'config-reference/shared/intrinsicfunction.md' })
     );
-    expect(manifest.pages).toHaveLength(641);
+    expect(manifest.pages).toHaveLength(642);
 
     const canonicalSourcePaths = (await listFiles(DOCS_SOURCE_DIR))
       .filter((file) => file.endsWith('.mdx'))
@@ -160,7 +160,7 @@ describe('generated LLM docs corpus', () => {
       .map((file) => normalizePath(relative(LLM_DOCS_FOLDER_PATH, file)))
       .sort(compareLlmDocPaths);
     expect(generatedMarkdownPaths).toEqual(manifest.pages.map((page) => page.outputPath).sort(compareLlmDocPaths));
-    expect(await listFiles(LLM_DOCS_FOLDER_PATH)).toHaveLength(647);
+    expect(await listFiles(LLM_DOCS_FOLDER_PATH)).toHaveLength(648);
     expect(chunks.length).toBeGreaterThan(1000);
     expect(lexicalIndex.schemaVersion).toBe(1);
     expect(lexicalIndex.totalDocs).toBe(chunks.length);

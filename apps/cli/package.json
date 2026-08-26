@@ -30,6 +30,7 @@
     "generate:monaco": "bun scripts/generate-monaco-declarations.ts",
     "generate:monaco:check": "bun scripts/generate-monaco-declarations.ts --check",
     "refresh:catalog:rds": "bun scripts/generate-db-engine-versions-json.ts",
+    "refresh:catalog:otel-layers": "bun scripts/refresh-otel-lambda-layers.ts",
     "refresh:catalog:aws-prices": "bun scripts/generate-static-aws-price-info.ts",
     "starter:materialize": "bun scripts/generate-starter-project.ts",
     "helper-lambdas:package": "bun scripts/package-helper-lambdas.ts",

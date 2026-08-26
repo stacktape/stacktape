@@ -620,6 +620,59 @@ export const getStacktapeServiceLambdaIssueDetectionStatements = ({
   return [{ Resource: ['*'], Action: ['logs:GetLogEvents', 'logs:FilterLogEvents'] }];
 };
 
+/**
+ * Execution-role permissions for a traced function. Mirrors the AWS managed policy
+ * `CloudWatchLambdaApplicationSignalsExecutionRolePolicy` plus the span-write actions used by the
+ * X-Ray OTLP endpoint; none of these support resource-level scoping.
+ */
+export const getLambdaTracingRoleStatements = ({ region }: { region: string }): StpIamRoleStatement[] => {
+  const partition = region.startsWith('cn-') ? 'aws-cn' : region.startsWith('us-gov-') ? 'aws-us-gov' : 'aws';
+  return [
+    {
+      Resource: ['*'],
+      Action: [
+        'xray:PutTraceSegments',
+        'xray:PutTelemetryRecords',
+        'xray:PutSpans',
+        'xray:PutSpansForIndexing',
+        'xray:GetSamplingRules',
+        'xray:GetSamplingTargets'
+      ]
+    },
+    {
+      Resource: [`arn:${partition}:logs:*:*:log-group:/aws/application-signals/data:*`],
+      Action: ['logs:CreateLogGroup', 'logs:CreateLogStream', 'logs:PutLogEvents']
+    }
+  ];
+};
+
+export const getStacktapeServiceLambdaTracingStatements = ({
+  tracingEnabled,
+  region
+}: {
+  tracingEnabled: boolean;
+  region: string;
+}): StpIamRoleStatement[] => {
+  if (!tracingEnabled) return [];
+  const partition = region.startsWith('cn-') ? 'aws-cn' : region.startsWith('us-gov-') ? 'aws-us-gov' : 'aws';
+  // Transaction Search is an account-level X-Ray setting; its APIs and the Logs resource policy do
+  // not support resource-level scoping. The log-group statement covers bounding the retention of
+  // the `aws/spans` log group when Stacktape itself first enables Transaction Search.
+  return [
+    {
+      Resource: ['*'],
+      Action: ['xray:GetTraceSegmentDestination', 'xray:UpdateTraceSegmentDestination', 'logs:PutResourcePolicy']
+    },
+    {
+      Resource: [
+        `arn:${partition}:logs:${region}:*:log-group:aws/spans`,
+        `arn:${partition}:logs:${region}:*:log-group:aws/spans:*`
+      ],
+      Action: ['logs:CreateLogGroup', 'logs:PutRetentionPolicy']
+    }
+  ];
+};
+
 export const getStacktapeServiceLambdaUptimeMonitoringStatements = ({
   uptimeMonitoringEnabled,
   accountId,

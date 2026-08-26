@@ -7,6 +7,7 @@ import type { AlarmIntegration, ApplicationLoadBalancerIntegration, AppSyncApiIn
 import type { HttpMethod } from './http-api-gateways';
 import type { LogForwardingBase } from './log-forwarding';
 import type { LambdaRuntime } from './primitives';
+import type { ResourceTracingConfig } from './tracing';
 /**
  * #### A serverless compute resource that runs your code in response to events.
  *
@@ -871,6 +872,55 @@ export interface LambdaFunctionProps extends ResourceAccessProps {
    * ```
    */
   alarms?: LambdaAlarm[];
+  /**
+   * #### Distributed tracing for this function.
+   *
+   * ---
+   *
+   * When omitted, the function inherits the stack-wide `stackConfig.tracing` setting. Set `false` to
+   * opt this function out, `true` to opt it in with the stack-wide sampling, or an object to opt it
+   * in with its own settings. Stacktape attaches the OpenTelemetry instrumentation automatically —
+   * no code changes required.
+   *
+   * **Example (YAML):**
+   *
+   * ```yaml
+   * stackConfig:
+   *   tracing:
+   *     enabled: true
+   * resources:
+   *   noisyWorker:
+   *     type: function
+   *     properties:
+   *       packaging:
+   *         type: stacktape-lambda-buildpack
+   *         properties:
+   *           entryfilePath: src/worker.ts
+   *       # stp-focus
+   *       tracing: false
+   *       # stp-end-focus
+   * ```
+   *
+   * **Example (TypeScript):**
+   *
+   * ```ts
+   * import { LambdaFunction, defineConfig } from 'stacktape';
+   *
+   * export default defineConfig(() => {
+   *   const noisyWorker = new LambdaFunction({
+   *     packaging: { type: 'stacktape-lambda-buildpack', properties: { entryfilePath: 'src/worker.ts' } },
+   *     // stp-focus
+   *     tracing: false
+   *     // stp-end-focus
+   *   });
+   *   return {
+   *     stackConfig: { tracing: { enabled: true } },
+   *     resources: { noisyWorker }
+   *   };
+   * });
+   * ```
+   */
+  tracing?: ResourceTracingConfig;
   /**
    * #### Global alarm names to exclude from this function.
    *

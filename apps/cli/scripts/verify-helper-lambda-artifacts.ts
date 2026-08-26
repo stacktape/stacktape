@@ -9,7 +9,8 @@ const requiredHelperLambdas = [
   'batchJobTriggerLambda',
   'cdnOriginRequestLambda',
   'cdnOriginResponseLambda',
-  'stacktapeServiceLambda'
+  'stacktapeServiceLambda',
+  'uptimeProber'
 ] as const;
 
 export const verifyHelperLambdaArtifacts = async ({

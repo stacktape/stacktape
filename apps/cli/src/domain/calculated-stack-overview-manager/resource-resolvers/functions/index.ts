@@ -12,7 +12,9 @@ import { calculatedStackOverviewManager } from '@domain-services/calculated-stac
 import { stackManager } from '@domain-services/cloudformation-stack-manager';
 import { configManager } from '@domain-services/config-manager';
 import { resolveReferencesToMountedEfsFilesystems } from '@domain-services/config-manager/utils/efs-filesystems';
-import { getLambdaRuntime } from '@domain-services/config-manager/utils/lambdas';
+import { getLambdaRuntime, getLambdaTracingRoleStatements } from '@domain-services/config-manager/utils/lambdas';
+import { tuiManager } from '@application-services/tui-manager';
+import { isDevCommand } from '../../../../commands/dev/dev-mode-utils';
 import { resolveConnectToList } from '@domain-services/config-manager/utils/resource-references';
 import { deploymentArtifactManager } from '@domain-services/deployment-artifact-manager';
 import { domainManager } from '@domain-services/domain-manager';
@@ -199,6 +201,21 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
     lambdaDependsOn.push(cfLogicalNames.efsMountTarget(efsFilesystemName, 1));
   });
 
+  // Tracing instrumentation is skipped in dev mode together with the Transaction Search enablement
+  // custom resource; without that account-level setting the layer's span export would only error.
+  const tracedFunction = isDevCommand()
+    ? undefined
+    : configManager.lambdaTracingInstrumentations.find(({ name: tracedName }) => tracedName === name);
+  if (tracedFunction?.skippedReason) {
+    tuiManager.warn(`Tracing skipped for function \`${name}\`: ${tracedFunction.skippedReason}.`);
+  }
+  tracedFunction?.warnings?.forEach((warning) => tuiManager.warn(`Tracing for function \`${name}\`: ${warning}.`));
+  const tracingInstrumentation = tracedFunction?.instrumentation;
+  if (tracingInstrumentation) {
+    // First-deploy ordering: the function must not go live before spans have somewhere to land.
+    lambdaDependsOn.push(cfLogicalNames.customResourceTransactionSearch());
+  }
+
   const lambdaRoleLogicalName = cfLogicalNames.lambdaRole(name);
   calculatedStackOverviewManager.addCfChildResource({
     cfLogicalName: lambdaRoleLogicalName,
@@ -206,7 +223,13 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
       destinations,
       accessToResourcesRequiringRoleChanges,
       lambdaResourceName: resourceName,
-      iamRoleStatements: (iamRoleStatements || []).concat(policyStatementsFromEvents || []),
+      iamRoleStatements: (iamRoleStatements || [])
+        .concat(policyStatementsFromEvents || [])
+        .concat(
+          tracingInstrumentation
+            ? getLambdaTracingRoleStatements({ region: calculatedStackOverviewManager.context.region })
+            : []
+        ),
       accessToAwsServices,
       joinVpc: joinDefaultVpc,
       workloadName: name,
@@ -252,6 +275,12 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   }).forEach(({ name: varName, value: varVal }) => {
     transformedEnvVars[varName] = varVal;
   });
+  Object.entries(tracingInstrumentation?.environmentDefaults || {}).forEach(([varName, varVal]) => {
+    if (!(varName in transformedEnvVars)) {
+      transformedEnvVars[varName] = varVal;
+    }
+  });
+  Object.assign(transformedEnvVars, tracingInstrumentation?.environmentOverrides || {});
   const fileSystemConfigs = (volumeMounts || []).map((mount) => {
     if (mount.type === 's3files') {
       return {
@@ -364,12 +393,16 @@ export const resolveFunction = ({ lambdaProps }: { lambdaProps: StpLambdaFunctio
   const sharedLayerRefs = sharedLayerNumbers.map((layerNumber) =>
     getAtt(cfLogicalNames.sharedChunkLayer(layerNumber), 'LayerVersionArn')
   );
-  const allLayers = [...(layers || []), ...sharedLayerRefs];
+  const tracingLayers =
+    tracingInstrumentation && !(layers || []).includes(tracingInstrumentation.layerArn)
+      ? [tracingInstrumentation.layerArn]
+      : [];
+  const allLayers = [...(layers || []), ...sharedLayerRefs, ...tracingLayers];
   if (allLayers.length > 5) {
     throw new CliError({
       category: 'CONFIG_VALIDATION',
       code: 'CONFIG_FUNCTION_LAYER_LIMIT_EXCEEDED',
-      message: `Function \`${name}\` exceeds the AWS limit of 5 layers (user-defined: ${(layers || []).length}, shared: ${sharedLayerRefs.length}).`,
+      message: `Function \`${name}\` exceeds the AWS limit of 5 layers (user-defined: ${(layers || []).length}, shared: ${sharedLayerRefs.length}, tracing: ${tracingLayers.length}).`,
       hints: 'Reduce the number of user-defined layers or shared-layer dependencies.'
     });
   }
