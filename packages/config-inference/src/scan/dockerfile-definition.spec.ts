@@ -545,7 +545,11 @@ describe('every Dockerfile consumer uses the canonical definition', () => {
       const [linked, materialized] = await scanBoth(variants, [paasManifestsProbe]);
       expect(linked.facts.services).toEqual(materialized.facts.services);
       expect(linked.facts.services).toHaveLength(1);
-      expect(linked.facts.services[0]).toMatchObject({ name: 'orders', path: 'apps/api', dockerfile: target });
+      expect(linked.facts.services[0]).toMatchObject({
+        name: 'orders',
+        path: platform === 'render' ? '.' : 'apps/api',
+        dockerfile: target
+      });
       expect(composeConfig({ facts: linked.facts }).config.resources.orders?.properties.packaging).toMatchObject({
         type: 'custom-dockerfile',
         properties: {

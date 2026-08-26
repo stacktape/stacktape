@@ -205,8 +205,7 @@ describe('the render.yaml importer', () => {
 
     expect(facts.services.map((entry) => entry.name).toSorted()).toEqual(['shopApi', 'shopFrontend']);
     expect(facts.services.find((entry) => entry.name === 'shopApi')).toMatchObject({
-      path: 'backend',
-      buildRoot: '.',
+      path: '.',
       dockerfile: 'backend/Dockerfile',
       startCommand: 'bash scripts/start.sh',
       healthCheckPath: '/health'

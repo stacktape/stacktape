@@ -13,12 +13,13 @@ afterEach(async () => {
 });
 
 const cases = (['linked', 'materialized'] as const).flatMap((representation) =>
-  (['root-chain', 'compose-root', 'compose-nested'] as const).flatMap((layout) =>
-    (['custom', 'boilerplate'] as const).flatMap((style) =>
-      (layout === 'root-chain' && style === 'boilerplate' ? ['different', 'unverifiable'] : ['different']).map(
-        (ignoreState) => ({ representation, layout, style, ignoreState })
+  (['root-chain', 'compose-root', 'compose-nested', 'render-implicit-root', 'render-explicit-root'] as const).flatMap(
+    (layout) =>
+      (['custom', 'boilerplate'] as const).flatMap((style) =>
+        (layout === 'root-chain' && style === 'boilerplate' ? ['different', 'unverifiable'] : ['different']).map(
+          (ignoreState) => ({ representation, layout, style, ignoreState })
+        )
       )
-    )
   )
 );
 
@@ -43,9 +44,13 @@ describe('saved init config preserves an unsafe Dockerfile alias', () => {
         [canonical]: image,
         ...(layout === 'root-chain'
           ? {}
-          : {
-              'compose.yml': `services:\n  web:\n    build: {context: ${buildRoot}, dockerfile: deploy/Dockerfile.alias}\n    ports: ["8080:8080"]\n    command: node server.js\n`
-            })
+          : layout.startsWith('render-')
+            ? {
+                'render.yaml': `services:\n  - type: web\n    name: orders\n    runtime: docker\n${layout === 'render-explicit-root' ? '    rootDir: .\n' : ''}    dockerContext: .\n    dockerfilePath: deploy/Dockerfile.alias\n`
+              }
+            : {
+                'compose.yml': `services:\n  web:\n    build: {context: ${buildRoot}, dockerfile: deploy/Dockerfile.alias}\n    ports: ["8080:8080"]\n    command: node server.js\n`
+              })
       };
       await Promise.all(
         Object.entries(files).map(async ([path, contents]) => {
@@ -87,6 +92,7 @@ describe('saved init config preserves an unsafe Dockerfile alias', () => {
       expect(written.filename).toBe('stacktape.yml');
       expect(findExistingConfig(repositoryRoot)).toBe(written.path);
       const saved = parse(await readFile(written.path, 'utf8')) as CompositionResult['config'];
+      expect(Object.keys(saved.resources)).toHaveLength(1);
       const packaging = Object.values(saved.resources)[0]?.properties.packaging;
       expect(packaging).toMatchObject({
         type: 'custom-dockerfile',

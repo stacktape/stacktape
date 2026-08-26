@@ -56,12 +56,13 @@ const renderServicePaths = (service: RecordValue): { path: string; buildRoot?: s
   const declaredBuildRoot = renderPath(asString(service.dockerContext) ?? '.');
   const dockerfile = asString(service.dockerfilePath);
   const staticOutput = asString(service.staticPublishPath);
+  // Dockerfile placement is not an application root: release files often live in deploy/ or
+  // docker/ while their context is the repository root. Inventing that directory as a second
+  // service also leaves standalone discovery free to deploy the same image without its alias.
   const ownedDirectory =
-    dockerfile === undefined
-      ? staticOutput === undefined
-        ? declaredBuildRoot
-        : renderPath(posix.dirname(renderPath(staticOutput)))
-      : renderPath(posix.dirname(renderPath(dockerfile)));
+    dockerfile === undefined && staticOutput !== undefined
+      ? renderPath(posix.dirname(renderPath(staticOutput)))
+      : declaredBuildRoot;
   return {
     path: ownedDirectory,
     ...(declaredBuildRoot === ownedDirectory ? {} : { buildRoot: declaredBuildRoot })
