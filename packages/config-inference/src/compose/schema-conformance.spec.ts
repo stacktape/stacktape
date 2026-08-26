@@ -108,6 +108,44 @@ describe('composed configuration conforms to the Stacktape schema', () => {
     );
   });
 
+  it('a review-only NuxtHub app keeps a valid partial config without fabricated storage', () => {
+    const facts = projectFactsSchema.parse({
+      schemaVersion: PROJECT_FACTS_SCHEMA_VERSION,
+      services: [
+        service({
+          name: 'web',
+          framework: 'nuxt',
+          environmentVariables: [
+            { name: 'NUXT_SESSION_PASSWORD', role: 'generated-secret', required: true },
+            { name: 'NUXT_OAUTH_GITHUB_CLIENT_SECRET', role: 'third-party-secret', required: true }
+          ]
+        })
+      ],
+      deploymentRequirements: [
+        {
+          kind: 'framework-runtime-bindings',
+          provider: 'nuxthub',
+          serviceName: 'web',
+          bindings: ['database', 'blob', 'kv', 'cache'],
+          databaseEngine: 'sqlite',
+          databaseDeclaredInConfig: true,
+          migrationPaths: ['database/changes/0001.sql']
+        },
+        {
+          kind: 'framework-analysis-incomplete',
+          provider: 'nuxthub',
+          serviceName: 'web',
+          reasons: ['source-limit', 'migration-paths']
+        }
+      ]
+    });
+    const composed = composeConfig({ facts, projectName: 'demo' });
+    expectValid(composed.config);
+    expect(composed.deployable).toBe(false);
+    expect(Object.keys(composed.config.resources)).toEqual(['web']);
+    expect(composed.config.scripts).toBeUndefined();
+  });
+
   it('a worker with a queue and a bucket', () => {
     expectValid(
       composeFrom({

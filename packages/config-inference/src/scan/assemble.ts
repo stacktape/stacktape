@@ -868,7 +868,10 @@ export const assembleCandidateFacts = async ({
     files === undefined
       ? await listRepositoryFiles(root)
       : { files: [...files], truncated: false, descriptorDockerfiles: [], dockerfileSymlinks: [] };
-  const context = createProbeContext(root, listing.files, listing.descriptorDockerfiles, listing.dockerfileSymlinks);
+  const context = {
+    ...createProbeContext(root, listing.files, listing.descriptorDockerfiles, listing.dockerfileSymlinks),
+    filesTruncated: listing.truncated
+  };
 
   // Probes are independent and every one of them is I/O, so they run together. Order is preserved
   // because the merge below resolves conflicts by probe order, and a scan whose result depends on
@@ -1170,20 +1173,26 @@ export const assembleCandidateFacts = async ({
   const deploymentRequirementsByKey = new Map<string, DeploymentRequirement>();
   for (const output of outputs) {
     for (const requirement of output.deploymentRequirements ?? []) {
-      const remapped =
-        requirement.kind !== 'persistent-bootstrap-artifacts'
-          ? { ...requirement, serviceName: renames.get(requirement.serviceName) ?? requirement.serviceName }
-          : {
-              ...requirement,
-              producerServiceName: renames.get(requirement.producerServiceName) ?? requirement.producerServiceName,
-              consumerServiceNames: requirement.consumerServiceNames.map((name) => renames.get(name) ?? name)
-            };
+      const remapped = (() => {
+        if (requirement.kind !== 'persistent-bootstrap-artifacts') {
+          return { ...requirement, serviceName: renames.get(requirement.serviceName) ?? requirement.serviceName };
+        }
+        return {
+          ...requirement,
+          producerServiceName: renames.get(requirement.producerServiceName) ?? requirement.producerServiceName,
+          consumerServiceNames: requirement.consumerServiceNames.map((name) => renames.get(name) ?? name)
+        };
+      })();
       const key =
-        remapped.kind === 'public-grpc'
-          ? `${remapped.kind}:${remapped.serviceName}:${remapped.port}`
-          : remapped.kind === 'dockerfile-ignore-policy'
-            ? `${remapped.kind}:${remapped.serviceName}:${remapped.aliasDockerfile}:${remapped.canonicalDockerfile}:${remapped.buildRoot}`
-            : `${remapped.kind}:${remapped.producerServiceName}:${remapped.paths.join(',')}`;
+        remapped.kind === 'dockerfile-ignore-policy'
+          ? `${remapped.kind}:${remapped.serviceName}:${remapped.aliasDockerfile}:${remapped.canonicalDockerfile}:${remapped.buildRoot}`
+          : remapped.kind === 'public-grpc'
+            ? `${remapped.kind}:${remapped.serviceName}:${remapped.port}`
+            : remapped.kind === 'framework-runtime-bindings'
+              ? `${remapped.kind}:${remapped.provider}:${remapped.serviceName}:${remapped.bindings.join(',')}`
+              : remapped.kind === 'framework-analysis-incomplete'
+                ? `${remapped.kind}:${remapped.provider}:${remapped.serviceName}:${remapped.reasons.join(',')}`
+                : `${remapped.kind}:${remapped.producerServiceName}:${remapped.paths.join(',')}`;
       if (!deploymentRequirementsByKey.has(key)) deploymentRequirementsByKey.set(key, remapped);
     }
   }

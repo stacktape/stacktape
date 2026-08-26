@@ -963,6 +963,54 @@ export const composeConfig = ({
       });
       continue;
     }
+    if (requirement.kind === 'framework-runtime-bindings') {
+      const remediation = requirement.bindings.map((binding) => {
+        if (binding === 'database') {
+          const sqlite = requirement.databaseEngine === 'sqlite';
+          return sqlite
+            ? 'The app selects SQLite. A local SQLite file in this Nuxt service is not durable storage: data can be lost when the service restarts or is replaced. Configure and test a hosted SQLite provider such as Turso/libSQL, or change the database driver and connection to match your chosen production database.'
+            : 'Configure and test the NuxtHub database driver and production connection, or update the app to use your chosen database directly.';
+        }
+        if (binding === 'blob') {
+          return 'For uploaded files, configure and test a NuxtHub object-storage provider such as S3, including its bucket and access settings. Local files in this Nuxt service are not durable storage.';
+        }
+        if (binding === 'kv') {
+          return 'For key-value data, configure and test a NuxtHub KV provider that works in the AWS runtime, such as hosted Redis. Provider-specific bindings or local files are not automatically transferred.';
+        }
+        return 'For cached data, configure and test the Nitro cache storage provider in the AWS runtime, or explicitly choose a temporary cache that may be lost. Cloudflare and Vercel cache bindings are not automatically transferred.';
+      });
+      const storageEvidence = requirement.databaseDeclaredInConfig
+        ? `${requirement.serviceName}'s configuration declares a NuxtHub database.`
+        : `${requirement.serviceName} uses NuxtHub storage.`;
+      gaps.push({
+        subject: `${requirement.serviceName}.nuxthub-bindings`,
+        message: `${storageEvidence} Init has not verified or configured its production storage providers, so this configuration is not ready to deploy. ${remediation.join(' ')} Stacktape will not move existing data.`,
+        severity: 'blocking'
+      });
+      if (requirement.migrationPaths.length > 0) {
+        gaps.push({
+          subject: `${requirement.serviceName}.nuxthub-migrations`,
+          message: `${requirement.serviceName} includes NuxtHub database migrations at ${requirement.migrationPaths.join(', ')}. NuxtHub can apply migrations during the production build; the target depends on its database configuration. Before building or deploying, verify which database receives them and test the migration procedure. If build-time migrations are disabled, add and test an explicit migration command. Init has not added a migration hook.`,
+          severity: 'blocking'
+        });
+      }
+      continue;
+    }
+    if (requirement.kind === 'framework-analysis-incomplete') {
+      const reasons = requirement.reasons.map((reason) => {
+        if (reason === 'source-limit') return 'the project exceeds the bounded source scan';
+        if (reason === 'unreadable-source') return 'some production source could not be fully read or parsed';
+        if (reason === 'migration-paths')
+          return 'migration directories are computed, changed by a hook, or are not safe project-relative paths';
+        return 'the NuxtHub configuration is computed or uses an unsupported configuration shape';
+      });
+      gaps.push({
+        subject: `${requirement.serviceName}.nuxthub-analysis`,
+        message: `Init could not finish checking NuxtHub in ${requirement.serviceName}: ${reasons.join('; ')}. This does not prove the app is ready to deploy. Review the NuxtHub configuration, production storage usage, and migration paths before deploying; where possible, use explicit project-relative configuration so init can check it.`,
+        severity: 'blocking'
+      });
+      continue;
+    }
     gaps.push({
       subject: `${requirement.producerServiceName}.bootstrap`,
       message: `${requirement.producerServiceName} generates persistent bootstrap configuration or cryptographic keysets consumed by ${requirement.consumerServiceNames.join(', ')} at ${requirement.paths.join(', ')}. Init cannot preserve those shared artifacts durably or sequence their bootstrap safely, so this partial configuration must stay review-only.`,

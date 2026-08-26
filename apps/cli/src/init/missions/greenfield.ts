@@ -27,6 +27,7 @@ import { languageManifestProbe } from '@stacktape/config-inference/scan/probes/l
 import { lambdaSourceProbe } from '@stacktape/config-inference/scan/probes/lambda-source';
 import { staticSiteProbe } from '@stacktape/config-inference/scan/probes/static-site';
 import { manifestProbe } from '@stacktape/config-inference/scan/probes/manifest';
+import { nuxtHubProbe } from '@stacktape/config-inference/scan/probes/nuxthub';
 import { cdkProbe } from '@stacktape/config-inference/scan/probes/cdk';
 import { paasManifestsProbe } from '@stacktape/config-inference/scan/probes/paas-manifests';
 import { procfileProbe } from '@stacktape/config-inference/scan/probes/procfile';
@@ -56,6 +57,7 @@ const PROBES = [
   terraformProbe,
   cdkProbe,
   manifestProbe,
+  nuxtHubProbe,
   denoProbe,
   awsSamProbe,
   serverlessFrameworkProbe,

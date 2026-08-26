@@ -27,6 +27,8 @@ export type ProbeContext = {
   files: readonly string[];
   /** Immediate repository-local target for each admitted Dockerfile symlink. */
   dockerfileSymlinkTargets: ReadonlyMap<string, string>;
+  /** The repository walk stopped before all permitted files were listed. */
+  filesTruncated?: boolean;
   /** Policy-respecting read: environment files come back as names, credentials never come back. */
   read: (repoRelativePath: string, options?: ReadSourceFileOptions) => Promise<SourceRead>;
   /**
