@@ -12,6 +12,7 @@ import type { StpSvelteKitWeb } from '@domain-services/config-manager/resolved-t
 import type { StpTanStackWeb } from '@domain-services/config-manager/resolved-types/tanstack-web';
 import type { NativeBinaryLayerResult } from '@stacktape/packaging/es/native-dependencies';
 import type { DockerBuildOutputArchitecture, PackagingOutput } from '@stacktape/packaging/runtime-contracts';
+import { packagingMessages } from '@stacktape/packaging/runtime-contracts';
 import type { LambdaEntrypoint } from '@stacktape/packaging/split-bundler/types';
 import { existsSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
@@ -150,12 +151,12 @@ const resolveManagedLambdaBuildVersion = <Version extends string | number>({
 
 const formatLambdaSize = ({ sizeMB, sizeKB }: { sizeMB: number; sizeKB: number }) => {
   if (Number.isNaN(sizeMB) || Number.isNaN(sizeKB)) {
-    return '0KB';
+    return '0 KB';
   }
   if (sizeMB >= 0.1) {
-    return `${sizeMB}MB`;
+    return `${sizeMB} MB`;
   }
-  return `${sizeKB}KB`;
+  return `${sizeKB} KB`;
 };
 
 const loadPackagingModuleExport = async <T>({
@@ -448,7 +449,7 @@ export class PackagingManager {
     // Create progress logger for the shared layer (split bundle process)
     const sharedLayerLogger = eventManager.createChildLogger({
       parentEventType: 'PACKAGE_ARTIFACTS',
-      instanceId: 'shared-lambda-layer'
+      instanceId: 'shared-layer'
     });
     await sharedLayerLogger.startEvent({
       eventType: 'BUILD_CODE',
@@ -642,13 +643,14 @@ export class PackagingManager {
       const totalLayerBytes = layerArtifactsWithS3Keys.reduce((sum, l) => sum + l.sizeBytes, 0);
       const totalLayerSizeMB = (totalLayerBytes / (1024 * 1024)).toFixed(1);
       const layeredChunkCount = layerAssignment.layeredChunks.length;
-      const totalSavingsMB = (layerAssignment.totalBytesSaved / (1024 * 1024)).toFixed(1);
+      const totalSavingsMB = Math.round(layerAssignment.totalBytesSaved / (1024 * 1024));
       const layerCount = layerArtifactsWithS3Keys.length;
-      // Clear message: "Created 1 shared layer (70 modules, 17MB) - saves ~169MB"
-      finalMessage = `Created ${layerCount} shared layer${layerCount > 1 ? 's' : ''} (${layeredChunkCount} modules, ${totalLayerSizeMB}MB) - saves ~${totalSavingsMB}MB`;
+      // Dependencies shared by several functions are packaged once as a Lambda
+      // layer instead of being copied into every function bundle.
+      finalMessage = `${layeredChunkCount} shared modules${layerCount > 1 ? ` in ${layerCount} layers` : ''} · ${totalLayerSizeMB} MB (saves ~${totalSavingsMB} MB)`;
     } else {
       // No layers created - either no shared code or chunks didn't meet threshold
-      finalMessage = `Analyzed ${splitResult.sharedChunkCount} shared modules (none qualified for shared layer)`;
+      finalMessage = `Analyzed ${splitResult.sharedChunkCount} shared modules (none qualified for a shared layer)`;
     }
     await sharedLayerLogger.finishEvent({
       eventType: 'BUILD_CODE',
@@ -744,7 +746,7 @@ export class PackagingManager {
       if (existingDigests.includes(digest)) {
         await lambdaLogger.finishEvent({
           eventType: 'BUILD_CODE',
-          finalMessage: 'Skipped (cached)'
+          finalMessage: packagingMessages.unchanged
         });
         this.#packagedJobs.push({
           jobName,
@@ -787,15 +789,15 @@ export class PackagingManager {
       const adjustedZipPath = `${distFolderPath}-${digest}.zip`;
       await rename(originalZipPath, adjustedZipPath);
 
-      // Zip message: "120KB (unzipped), 42KB (zipped) + 1 shared layer"
+      // Zip message: "Lambda bundle · 1.2 MB (420 KB zipped) · uses 1 shared layer"
       // Reuse layerNumbers from digest calculation above
       const layerCount = layerNumbers ? layerNumbers.size : 0;
-      const layerSuffix = layerCount > 0 ? ` + ${layerCount} shared layer${layerCount > 1 ? 's' : ''}` : '';
+      const layerSuffix = layerCount > 0 ? ` · uses ${layerCount} shared layer${layerCount > 1 ? 's' : ''}` : '';
       const unzippedLabel = formatLambdaSize({ sizeMB: unzippedSizeMB, sizeKB: unzippedSizeKB });
       const zippedLabel = formatLambdaSize({ sizeMB: zippedSizeMB, sizeKB: zippedSizeKB });
       await lambdaLogger.finishEvent({
         eventType: 'BUILD_CODE',
-        finalMessage: `${unzippedLabel} (unzipped), ${zippedLabel} (zipped)${layerSuffix}`
+        finalMessage: `${packagingMessages.lambdaBundle({ size: unzippedLabel, zippedSize: zippedLabel })}${layerSuffix}`
       });
 
       this.#packagedJobs.push({
@@ -836,6 +838,11 @@ export class PackagingManager {
       await this.#installMissingDockerBuildPlatforms();
       if (shouldUseRemoteDockerCache()) {
         await ensureBuildxBuilderForCache();
+        // Registry cache pulls and exports authenticate at build time, but the CLI's only other ECR
+        // login runs later, at artifact upload. Builds otherwise coast on the credential a previous
+        // deploy persisted, and ECR tokens expire after 12 hours — the first redeploy after an idle
+        // half-day then fails every cache export with 403 until the login is refreshed here.
+        await deploymentArtifactManager.loginToEcr();
       }
     }
 
@@ -1033,8 +1040,15 @@ export class PackagingManager {
 
     await this.#waitForAllOrThrow(packagingPromises);
 
+    const packagedJobCount = this.#packagedJobs.length;
+    const reusedCount = this.#packagedJobs.filter((job) => job.skipped).length;
+    const summaryParts = [`Packaged ${packagedJobCount} workload${packagedJobCount === 1 ? '' : 's'}`];
+    if (reusedCount > 0) {
+      summaryParts.push(`${packagedJobCount - reusedCount} built`, `${reusedCount} unchanged`);
+    }
     await eventManager.finishEvent({
       eventType: 'PACKAGE_ARTIFACTS',
+      ...(packagedJobCount > 0 && { finalMessage: summaryParts.join(' · ') }),
       data: { packagedJobs: this.#packagedJobs }
     });
 
@@ -1090,7 +1104,7 @@ export class PackagingManager {
 
     await eventManager.startEvent({
       eventType: 'REPACKAGE_ARTIFACTS',
-      description: 'Finish packaging workloads'
+      description: 'Rebuilding cached workloads for the full deployment'
     });
 
     await Promise.all([
@@ -1125,6 +1139,7 @@ export class PackagingManager {
 
     await eventManager.finishEvent({
       eventType: 'REPACKAGE_ARTIFACTS',
+      finalMessage: 'Cached workloads rebuilt',
       data: { packagedJobs: this.#packagedJobs }
     });
 
