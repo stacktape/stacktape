@@ -31,6 +31,7 @@ import type { EnvironmentVariableUse, ServiceFactInput } from '../../facts/servi
 import { isDockerfilePath } from '../../policy/file-access';
 import { readDockerfileDefinition } from '../dockerfile-definition';
 import { languageOf } from '../language';
+import { sourceFileForDockerPath } from '../dockerfile-command-source';
 import { isPlatformEnvironmentVariable } from '../platform-environment';
 import { citeFirstMatchOnly, readText, type Probe, type ProbeContext, type ProbeOutput } from '../probe';
 import { isSecretishDeclaredName, normalizedSettingName, safeDeclaredLiteral } from './declared-environment';
@@ -153,6 +154,7 @@ type ComposeService = {
   environment?: unknown;
   labels?: unknown;
   volumes?: unknown;
+  working_dir?: unknown;
 };
 
 type ComposeDocument = {
@@ -175,6 +177,12 @@ const MESSAGE_QUEUE_KIND_BY_SELECTOR: Readonly<Record<string, DependencyKind>> =
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null && !Array.isArray(value);
+
+/** Ownership cannot be proved from a prefix that might omit a later COPY or lifecycle hook. */
+const readOwnershipFile = async (context: ProbeContext, file: string): Promise<string | undefined> => {
+  const result = await context.read(file, { startLine: 1, endLine: Number.MAX_SAFE_INTEGER });
+  return result.kind === 'contents' && !result.truncated && result.startLine === 1 ? result.contents : undefined;
+};
 
 const factName = (value: string): string => {
   const safe = value
@@ -519,6 +527,29 @@ const commandOf = (service: ComposeService): string | undefined => {
   return entrypoint === undefined ? command : command === undefined ? entrypoint : `${entrypoint} ${command}`;
 };
 
+/** Cite array arguments at this service's YAML nodes, never a neighboring environment value. */
+const commandArrayEvidence = (file: string, raw: string, serviceName: string): Citation[] => {
+  const document = yaml.parseDocument(raw);
+  return ['entrypoint', 'command'].flatMap((field) => {
+    const node: unknown = document.getIn(['services', serviceName, field], true);
+    if (!isRecord(node) || !Array.isArray(node.items)) return [];
+    return node.items.flatMap((item: unknown): Citation[] => {
+      if (
+        !isRecord(item) ||
+        typeof item.value !== 'string' ||
+        !Array.isArray(item.range) ||
+        typeof item.range[0] !== 'number' ||
+        typeof item.range[1] !== 'number'
+      ) {
+        return [];
+      }
+      const quote = raw.slice(item.range[0], item.range[1]).trim();
+      if (quote === '' || /[\r\n]/.test(quote)) return [];
+      return [{ file, line: raw.slice(0, item.range[0]).split('\n').length, quote: quote.slice(0, 200) }];
+    });
+  });
+};
+
 /** Compose string commands are shell words, not an implicit `sh -c` invocation. */
 const containerCommandOf = (service: ComposeService): string[] | undefined => {
   if (service.entrypoint !== undefined) return undefined;
@@ -572,6 +603,29 @@ const containerCommandOf = (service: ComposeService): string[] | undefined => {
   if (quote !== undefined || opaqueEnd !== undefined) return undefined;
   if (started) words.push(word);
   return words.length > 0 ? words : undefined;
+};
+
+/** Literal Compose argv has no shell expansion; a local migration hook must keep that property. */
+const migrationArrayCommand = (service: ComposeService): { command: string; inspection: string } | undefined => {
+  if (!Array.isArray(service.entrypoint) && !Array.isArray(service.command)) return undefined;
+  const argv: string[] = [];
+  for (const value of [service.entrypoint, service.command]) {
+    if (value === undefined || value === null || (Array.isArray(value) && value.length === 0)) continue;
+    const words = containerCommandOf({ command: value });
+    if (words === undefined) return undefined;
+    argv.push(...words);
+  }
+  if (argv.length === 0) return undefined;
+  return {
+    command: argv
+      .map((argument) =>
+        /^[A-Za-z0-9_.:=@/-]+$/.test(argument) ? argument : `'${argument.replaceAll("'", "'\"'\"'")}'`
+      )
+      .join(' '),
+    // Inspect each whole argument before quoting. A script such as "db migrations/run.ts" is one
+    // migration entryfile, not two words and not an unterminated shell quote.
+    inspection: argv.map((argument) => argument.replace(/\s/g, '_')).join(' ')
+  };
 };
 
 const enabledLiteral = (value: unknown): boolean =>
@@ -1198,6 +1252,7 @@ export const dockerComposeProbe: Probe = {
     for (const declaration of appDeclarations) {
       const consumers = oneShotConsumers.get(declaration.composeName);
       let declaredCommand = commandOf(declaration.service);
+      const arrayCommand = migrationArrayCommand(declaration.service);
       let commandFile = path;
       let commandRaw = raw;
       if (declaredCommand === undefined && declaration.build.dockerfile !== undefined) {
@@ -1212,9 +1267,12 @@ export const dockerComposeProbe: Probe = {
       if (consumers === undefined || declaredCommand === undefined) continue;
 
       const commands: Array<{ command: string; file: string; raw: string }> = [];
-      if (MIGRATION_COMMAND.test(declaredCommand)) {
+      if (
+        MIGRATION_COMMAND.test(declaredCommand) ||
+        (arrayCommand !== undefined && MIGRATION_COMMAND.test(arrayCommand.inspection))
+      ) {
         commands.push({
-          command: declaredCommand,
+          command: arrayCommand?.command ?? declaredCommand,
           file: commandFile,
           raw: commandRaw
         });
@@ -1251,12 +1309,13 @@ export const dockerComposeProbe: Probe = {
         if (serviceName === undefined) continue;
         for (const command of commands) {
           const citation = citeFirstMatchOnly(command.file, command.raw, new RegExp(escapeForPattern(command.command)));
+          const arrayEvidence = command.file === path ? commandArrayEvidence(path, raw, declaration.composeName) : [];
           migrations.push({
             serviceName,
             tool: command.command.split(/\s+/)[0] ?? 'migration',
             command: command.command,
             runsAt: 'ci',
-            evidence: citation === undefined ? [] : [citation]
+            evidence: arrayEvidence.length > 0 ? arrayEvidence : citation === undefined ? [] : [citation]
           });
         }
       }
@@ -1594,8 +1653,90 @@ export const dockerComposeProbe: Probe = {
       });
     }
 
+    const descriptorCommandSources = (
+      await Promise.all(
+        appDeclarations.map(
+          async ({ composeName, service, build }): Promise<NonNullable<ProbeOutput['descriptorCommandSources']>> => {
+            const argv = containerCommandOf(service);
+            if (
+              build.dockerfile === undefined ||
+              argv === undefined ||
+              !['bun', 'node', 'tsx', 'ts-node'].includes(argv[0] ?? '')
+            )
+              return [];
+            const entry = argv[0] === 'bun' && argv[1] === 'run' ? argv[2] : argv[1];
+            if (
+              entry === undefined ||
+              !/\.[cm]?[jt]sx?$/.test(entry) ||
+              (service.working_dir !== undefined && typeof service.working_dir !== 'string')
+            )
+              return [];
+            const definition = await readOwnershipFile(context, build.dockerfile);
+            if (definition === undefined) return [];
+            const manifests = context.files.filter(
+              (file) =>
+                (file === 'package.json' || file.endsWith('/package.json')) &&
+                (build.root === '.' || file.startsWith(`${build.root}/`))
+            );
+            const installScriptsAbsent =
+              manifests.length > 0 &&
+              manifests.length <= 128 &&
+              (
+                await Promise.all(
+                  manifests.map(async (file) => {
+                    const contents = await readOwnershipFile(context, file);
+                    if (contents === undefined) return false;
+                    try {
+                      const manifest: unknown = JSON.parse(contents);
+                      if (!isRecord(manifest)) return false;
+                      const scripts = manifest.scripts;
+                      if (scripts === undefined) return true;
+                      return (
+                        isRecord(scripts) &&
+                        !Object.keys(scripts).some((name) =>
+                          /^(?:(?:pre|post)?(?:install|prepare|publish|dependencies)|prepublishOnly)$/.test(name)
+                        )
+                      );
+                    } catch {
+                      return false;
+                    }
+                  })
+                )
+              ).every(Boolean);
+            const ignorePath = [`${build.dockerfile}.dockerignore`, resolveFrom(build.root, '.dockerignore')].find(
+              (candidate) => candidate !== undefined && context.files.includes(candidate)
+            );
+            const dockerignore = ignorePath === undefined ? '' : await readOwnershipFile(context, ignorePath);
+            if (dockerignore === undefined) return [];
+            const sourceFile = sourceFileForDockerPath({
+              raw: definition,
+              containerPath: entry,
+              files: context.files,
+              buildRoot: build.root,
+              target: build.target,
+              workingDirectory: typeof service.working_dir === 'string' ? service.working_dir : undefined,
+              dockerignore,
+              installScriptsAbsent
+            });
+            return sourceFile === undefined
+              ? []
+              : [
+                  {
+                    path: build.root,
+                    serviceName: factName(composeName),
+                    dockerfile: build.dockerfile,
+                    containerCommand: argv,
+                    sourceFile
+                  }
+                ];
+          }
+        )
+      )
+    ).flat();
+
     return {
       ...(dependencies.length === 0 ? {} : { dependencies }),
+      ...(descriptorCommandSources.length === 0 ? {} : { descriptorCommandSources }),
       ...(serviceFacts.length === 0 ? {} : { services: serviceFacts }),
       ...(serviceEnvironments.length === 0 ? {} : { serviceEnvironments }),
       ...(serviceCommands.length === 0 ? {} : { serviceCommands }),

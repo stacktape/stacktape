@@ -140,6 +140,194 @@ const CASES: EvalCase[] = [
       maxQuestions: 0
     }
   },
+  ...[
+    {
+      name: 'relative container filename remapped from another source',
+      dockerfile: 'FROM node:24\nWORKDIR /\nCOPY root-server.js /apps/nested/nested-server.js\nEXPOSE 3000\n',
+      scripts: {}
+    },
+    {
+      name: 'repository install hook can replace the copied source',
+      dockerfile: 'FROM node:24\nWORKDIR /app\nCOPY . .\nRUN npm install\nEXPOSE 3000\n',
+      scripts: { postinstall: 'node rewrite.js' }
+    }
+  ].map(
+    ({ name, dockerfile, scripts }): EvalCase => ({
+      name: `Compose preserves an independent same-name child: ${name}`,
+      files: {
+        'package.json': JSON.stringify({
+          name: 'api',
+          scripts: { start: 'node root-server.js', ...scripts },
+          dependencies: { express: '5' }
+        }),
+        'root-server.js': 'require("express")().listen(3000);\n',
+        'rewrite.js': 'require("node:fs").copyFileSync("root-server.js", "apps/nested/nested-server.js");\n',
+        'apps/nested/package.json': JSON.stringify({ name: 'api', dependencies: { fastify: '5' } }),
+        'apps/nested/nested-server.js': 'require("fastify")().listen({ port: 4000 });\n',
+        Dockerfile: dockerfile,
+        'compose.yaml':
+          'services:\n  api:\n    build: .\n    command: [node, apps/nested/nested-server.js]\n    ports: ["3000:3000"]\n'
+      },
+      expect: {
+        serviceCount: 2,
+        resourceCount: 2,
+        serviceDockerfiles: { '.': 'Dockerfile', 'apps/nested': null },
+        resources: { api: 'web-service', api2: 'web-service' },
+        resourcePackaging: [{ resource: 'api2', type: 'stacktape-image-buildpack' }]
+      }
+    })
+  ),
+  {
+    name: 'Bun workspace API and BullMQ worker share Redis and Postgres with one Drizzle migration',
+    directoryName: 'jobdesk',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'jobdesk',
+        private: true,
+        workspaces: ['apps/*', 'packages/*'],
+        scripts: {
+          'start:api': 'bun apps/api/src/index.ts',
+          'start:worker': 'bun apps/worker/src/index.ts',
+          'db:migrate': 'bun packages/core/src/db/migrate.ts'
+        },
+        devDependencies: { 'drizzle-kit': '^0.31' }
+      }),
+      'apps/api/package.json': JSON.stringify({
+        name: '@jobdesk/api',
+        dependencies: { '@jobdesk/core': 'workspace:*', hono: '^4' }
+      }),
+      'apps/api/src/index.ts': 'import { Hono } from "hono"; Bun.serve({ port: 3000, fetch: new Hono().fetch });\n',
+      'apps/worker/package.json': JSON.stringify({
+        name: '@jobdesk/worker',
+        dependencies: { '@jobdesk/core': 'workspace:*' }
+      }),
+      'apps/worker/src/index.ts': 'import { Worker } from "bullmq"; new Worker("jobs", async () => undefined);\n',
+      'packages/core/package.json': JSON.stringify({
+        name: '@jobdesk/core',
+        exports: './src/index.ts',
+        dependencies: { 'drizzle-orm': '^0.44', postgres: '^3', bullmq: '^5', ioredis: '^5' }
+      }),
+      'packages/core/src/index.ts': 'export const name = "jobdesk";\n',
+      'packages/core/src/db/migrate.ts':
+        'import { migrate } from "drizzle-orm/postgres-js/migrator"; await migrate(db, { migrationsFolder: "drizzle" });\n',
+      'drizzle/0000_initial.sql': 'CREATE TABLE jobs (id text PRIMARY KEY);\n',
+      Dockerfile: [
+        'FROM oven/bun:1 AS deps',
+        'WORKDIR /app',
+        'COPY package.json ./',
+        'COPY apps ./apps',
+        'COPY packages ./packages',
+        'RUN bun install --frozen-lockfile',
+        'FROM oven/bun:1 AS runner',
+        'WORKDIR /app',
+        'COPY --from=deps /app /app',
+        'COPY drizzle ./drizzle',
+        'EXPOSE 3000',
+        'CMD ["bun", "apps/api/src/index.ts"]',
+        ''
+      ].join('\n'),
+      '.dockerignore': 'node_modules\ndist\n.env\n**/*.test.ts\n',
+      'compose.yaml': [
+        'services:',
+        '  postgres:',
+        '    image: postgres:16-alpine',
+        '  redis:',
+        '    image: redis:7-alpine',
+        '  migrate:',
+        '    build: .',
+        '    command: ["bun", "packages/core/src/db/migrate.ts"]',
+        '    environment:',
+        '      DATABASE_URL: postgres://postgres:5432/jobdesk',
+        ...['api', 'worker'].flatMap((name) => [
+          `  ${name}:`,
+          '    build: .',
+          `    command: ["bun", "apps/${name}/src/index.ts"]`,
+          ...(name === 'api' ? ['    ports: ["3000:3000"]'] : []),
+          '    environment:',
+          '      DATABASE_URL: postgres://postgres:5432/jobdesk',
+          '      REDIS_URL: redis://redis:6379',
+          '    depends_on:',
+          '      postgres:',
+          '        condition: service_started',
+          '      redis:',
+          '        condition: service_started',
+          '      migrate:',
+          '        condition: service_completed_successfully'
+        ]),
+        ''
+      ].join('\n')
+    },
+    expect: {
+      serviceCount: 2,
+      resourceCount: 5,
+      resources: {
+        api: 'web-service',
+        worker: 'worker-service',
+        mainDatabase: 'relational-database',
+        cache: 'redis-cluster',
+        databaseBastion: 'bastion'
+      },
+      dependencyKinds: ['postgres', 'redis'],
+      absentDependencyKinds: ['queue'],
+      scriptNames: ['migrateDatabase'],
+      serviceEnvironment: ['api', 'worker'].flatMap((resource) => [
+        { resource, name: 'DATABASE_URL', value: "$ResourceParam('mainDatabase', 'connectionString')" },
+        { resource, name: 'REDIS_URL', value: "$ResourceParam('cache', 'connectionString')" }
+      ]),
+      resourcePackaging: ['api', 'worker'].map((resource) => ({
+        resource,
+        type: 'custom-dockerfile',
+        buildContextPath: '.',
+        dockerfilePath: 'Dockerfile',
+        command: ['bun', `apps/${resource}/src/index.ts`]
+      })),
+      deployable: true,
+      maxQuestions: 0
+    }
+  },
+  {
+    name: 'Compose literal migration arguments survive verification and composition',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'api',
+        scripts: { start: 'node server.js' },
+        dependencies: { express: '5', pg: '8' }
+      }),
+      'server.js': 'require("express")().listen(3000);\n',
+      'migrate.js': 'console.log(JSON.stringify(process.argv.slice(2)));\n',
+      Dockerfile: 'FROM node:24\nWORKDIR /app\nCOPY . .\nEXPOSE 3000\n',
+      'compose.yaml': [
+        'services:',
+        '  migrate:',
+        '    build: .',
+        '    entrypoint: ["bun"]',
+        '    command: ["migrate.js", "--directory", "db migrations", "", "$STP_LITERAL_ARG", "; printf changed"]',
+        '  api:',
+        '    build: .',
+        '    command: ["node", "server.js"]',
+        '    ports: ["3000:3000"]',
+        '    environment:',
+        '      DATABASE_URL: postgres://db:5432/app',
+        '    depends_on:',
+        '      migrate:',
+        '        condition: service_completed_successfully',
+        '  db:',
+        '    image: postgres:16',
+        ''
+      ].join('\n')
+    },
+    expect: {
+      serviceCount: 1,
+      resourceCount: 3,
+      resources: { api: 'web-service', mainDatabase: 'relational-database', databaseBastion: 'bastion' },
+      scriptCommands: {
+        migrateDatabase: "bun migrate.js --directory 'db migrations' '' '$STP_LITERAL_ARG' '; printf changed'"
+      },
+      deployable: true,
+      raisesQuestionKinds: ['dockerfile-ownership'],
+      maxQuestions: 1
+    }
+  },
   {
     name: 'Laravel Compose web, Horizon, scheduler, MySQL, and Redis',
     directoryName: 'pixelfed',

@@ -196,6 +196,37 @@ const startCommandRunsEntrypoint = (service: ServiceFactInput): boolean => {
   );
 };
 
+const descriptorCommandKey = (
+  service: Pick<ServiceFactInput, 'path' | 'name' | 'dockerfile' | 'containerCommand'>
+): string => JSON.stringify([service.path, service.name, service.dockerfile, service.containerCommand]);
+
+/** A proved runtime-to-source mapping can identify a child app built from the repository root. */
+const literalContainerSourcePath = (
+  descriptor: ServiceFactInput,
+  sources: readonly ServiceFactInput[],
+  provedSources: ReadonlyMap<string, ReadonlySet<string>>
+): string | undefined => {
+  const entries = provedSources.get(descriptorCommandKey(descriptor));
+  const entryPath = entries?.size === 1 ? [...entries][0] : undefined;
+  if (entryPath === undefined) return undefined;
+  const paths = new Set(
+    sources
+      .filter(
+        (source) =>
+          // Source scanners also identify explicit workers. Provider-qualified declarations are
+          // not independent source evidence and must not identify each other's ownership.
+          !source.processType?.includes(':') &&
+          source.dockerfile === undefined &&
+          source.containerCommand === undefined &&
+          source.containerEntrypoint === entryPath &&
+          source.path !== '.' &&
+          entryPath.startsWith(`${source.path}/`)
+      )
+      .map((source) => source.path)
+  );
+  return paths.size === 1 ? [...paths][0] : undefined;
+};
+
 const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): ServiceFactInput => {
   // An explicit descriptor invocation owns the build file AND its original alias/context. Taking
   // only the canonical path from an earlier standalone scan silently changes .dockerignore policy.
@@ -502,6 +533,20 @@ const mergeServices = (
   outputs: readonly ProbeOutput[]
 ): { services: ServiceFactInput[]; renames: Map<string, string> } => {
   const byPath = new Map<string, ServiceFactInput>();
+  const allServices = outputs.flatMap((output) => output.services ?? []);
+  const provedSources = new Map<string, Set<string>>();
+  for (const entry of outputs.flatMap((output) => output.descriptorCommandSources ?? [])) {
+    const key = descriptorCommandKey({ ...entry, name: entry.serviceName });
+    const sources = provedSources.get(key) ?? new Set<string>();
+    sources.add(entry.sourceFile);
+    provedSources.set(key, sources);
+  }
+  const literalSourcePaths = new Map(
+    allServices.flatMap((service) => {
+      const sourcePath = literalContainerSourcePath(service, allServices, provedSources);
+      return sourcePath === undefined || sourcePath === service.path ? [] : [[service, sourcePath] as const];
+    })
+  );
   const descriptorSourcePaths = new Map(
     outputs.flatMap((output) =>
       (output.descriptorTargetServices ?? []).map(
@@ -553,9 +598,18 @@ const mergeServices = (
   const renames = new Map<string, string>();
 
   for (const output of outputs) {
-    for (const service of output.services ?? []) {
+    for (const originalService of output.services ?? []) {
+      const sourcePath = literalSourcePaths.get(originalService);
+      const service =
+        sourcePath === undefined
+          ? originalService
+          : {
+              ...originalService,
+              path: sourcePath,
+              buildRoot: originalService.buildRoot ?? originalService.path
+            };
       const key = serviceKey(service);
-      if (developmentProcesses.has(key)) {
+      if (developmentProcesses.has(serviceKey(originalService))) {
         const candidates = [...byPath.values()].filter(
           (candidate) =>
             candidate.path === service.path &&
@@ -587,7 +641,8 @@ const mergeServices = (
           generic !== undefined &&
           generic.processType === undefined &&
           (!matchingNameElsewhere || normalizedServiceName(generic) === normalizedServiceName(service)) &&
-          ((generic.exposesHttp && service.exposesHttp) ||
+          (sourcePath !== undefined ||
+            (generic.exposesHttp && service.exposesHttp) ||
             /(?:^|:)(?:app|web)$/.test(service.processType ?? '') ||
             (generic.path !== '.' &&
               service.dockerfile?.startsWith(`${generic.path}/`) === true &&
@@ -629,7 +684,10 @@ const mergeServices = (
         });
         continue;
       }
-      const mergedService = mergeService(existing, service);
+      // A root-context command is written relative to the build root, not the child package.
+      // Its exact entryfile also proves that the descriptor owns conflicts with source conventions.
+      const mergedService =
+        sourcePath === undefined ? mergeService(existing, service) : mergeService(service, existing);
       if (service.name !== existing.name) {
         const discardedName = mergedService.name === service.name ? existing.name : service.name;
         renames.set(discardedName, mergedService.name);
@@ -657,11 +715,14 @@ const mergeServices = (
       service.dockerfileAlias = unscopedDockerfileAliases.get(`${service.path}:${sharedDockerfile}`);
     }
   }
-  const descriptorOwnedDockerfiles = new Set(
-    merged.flatMap((service) =>
+  const descriptorOwnedDockerfiles = new Set([
+    ...merged.flatMap((service) =>
       service.processType !== undefined && service.dockerfile !== undefined ? [service.dockerfile] : []
+    ),
+    ...[...literalSourcePaths.keys()].flatMap((service) =>
+      service.dockerfile === undefined ? [] : [service.dockerfile]
     )
-  );
+  ]);
   const services = merged.filter(
     (service) =>
       !(

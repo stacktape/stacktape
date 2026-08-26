@@ -3,10 +3,11 @@ import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { globalStateManager } from '@application-services/global-state-manager';
 import { stpErrors } from '@errors';
+import { parseLiteralMigrationCommand } from '@stacktape/config-inference/compose/migrations';
 import { checkExecutableInPath } from '@utils/bin-executable';
 import { exec } from '@utils/exec';
 import { getFileExtension } from '@utils/fs-utils';
-import { ExpectedError } from './errors';
+import { CliError, ExpectedError } from './errors';
 import { getPythonExecutable } from './file-loaders';
 import type { EnvironmentVar } from '@stacktape/config/shared';
 
@@ -55,7 +56,7 @@ export type ScriptFn = {
   hookType?: HookType;
 };
 
-export const executeCommandHook = ({
+export const executeCommandHook = async ({
   command,
   env,
   cwd,
@@ -71,11 +72,34 @@ export const executeCommandHook = ({
   // When using onOutputLine callback, don't use prefix transformer
   // When piping directly to stdout (no callback), use prefix for visual hierarchy
   const usePrefix = pipeStdio && !onOutputLine;
-  return exec(command, [], {
+  const literalArgv = parseLiteralMigrationCommand(command);
+  let executable = literalArgv?.[0] ?? command;
+  const args = literalArgv?.slice(1) ?? [];
+  if (literalArgv !== undefined && process.platform === 'win32') {
+    const configuredPath: unknown = Object.entries(env).find(([key]) => key.toLowerCase() === 'path')?.[1];
+    const resolved = Bun.which(executable, {
+      cwd,
+      PATH: typeof configuredPath === 'string' ? configuredPath : (process.env.PATH ?? process.env.Path)
+    });
+    // Execa's Windows adapter may invoke cmd.exe for .cmd/.bat and other wrappers even when
+    // shell:false. Do not send quoted or special arguments through that second interpreter.
+    if (!/\.(?:exe|com)$/i.test(resolved ?? '') && args.some((argument) => !/^[A-Za-z0-9_.:=@/-]+$/.test(argument))) {
+      throw new CliError({
+        category: 'SCRIPT',
+        code: 'WINDOWS_LITERAL_SCRIPT_REQUIRES_EXECUTABLE',
+        message: `Cannot preserve the literal arguments for "${executable}" through a Windows command wrapper.`,
+        hints:
+          'Use a native executable runner, such as node or bun, with the migration entryfile as an argument. Verify that the executable is available on PATH.'
+      });
+    }
+    executable = resolved ?? executable;
+  }
+  return exec(executable, args, {
     cwd,
     env,
-    // maybe use powershell.exe for windows? Originally cmd.exe was used so it could be a breaking change
-    rawOptions: { shell: process.platform === 'win32' ? undefined : '/bin/bash' },
+    // Keep arbitrary authored shell commands on their existing path. Recognized literal commands
+    // use argv directly, so their values do not depend on cmd.exe, Bash or PowerShell quoting.
+    rawOptions: { shell: literalArgv === undefined ? (process.platform === 'win32' ? undefined : '/bin/bash') : false },
     pipeStdio,
     disableStderr: !pipeStdio,
     disableStdout: !pipeStdio,

@@ -29,6 +29,8 @@ export type EvalExpectation = {
   resourceCount?: number;
   /** Exact deployable process count, used where phantom package detection is part of the contract. */
   serviceCount?: number;
+  /** Verified Dockerfile ownership by source directory; null requires an independent source-only app. */
+  serviceDockerfiles?: Readonly<Record<string, string | null>>;
   /** Dependency kinds the analysis must find, in any order. */
   dependencyKinds?: readonly string[];
   /** Dependency kinds it must NOT invent. */
@@ -51,6 +53,8 @@ export type EvalExpectation = {
   raisesQuestionKinds?: readonly string[];
   /** Deploy-time scripts the composition must emit, by name — the migration hook above all. */
   scriptNames?: readonly string[];
+  /** Exact script commands, including quoted argument boundaries. */
+  scriptCommands?: Readonly<Record<string, string>>;
   /**
    * Environment entries a composed resource must carry, value included.
    *
@@ -142,6 +146,15 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
       detail: `Expected ${expected.serviceCount} service(s); found ${result.facts.services.length}.`
     });
   }
+  for (const [path, dockerfile] of Object.entries(expected.serviceDockerfiles ?? {})) {
+    const services = result.facts.services.filter((service) => service.path === path);
+    if (services.length === 0 || services.some((service) => (service.dockerfile ?? null) !== dockerfile)) {
+      failures.push({
+        stage: 'verification',
+        detail: `Expected services at "${path}" to own ${dockerfile ?? 'no Dockerfile'}; found ${JSON.stringify(services.map((service) => service.dockerfile ?? null))}.`
+      });
+    }
+  }
   for (const kind of expected.dependencyKinds ?? []) {
     if (!foundKinds.has(kind as never)) {
       failures.push({ stage: 'facts', detail: `Expected a ${kind} dependency; none was found.` });
@@ -180,6 +193,15 @@ export const scoreResult = (evalCase: EvalCase, result: GreenfieldResult): EvalS
   for (const scriptName of expected.scriptNames ?? []) {
     if (result.composition.config.scripts?.[scriptName] === undefined) {
       failures.push({ stage: 'composition', detail: `Expected a script named "${scriptName}"; none was emitted.` });
+    }
+  }
+  for (const [scriptName, command] of Object.entries(expected.scriptCommands ?? {})) {
+    const actual = result.composition.config.scripts?.[scriptName]?.properties.executeCommand;
+    if (actual !== command) {
+      failures.push({
+        stage: 'composition',
+        detail: `Script "${scriptName}" command is ${JSON.stringify(actual)}; expected ${JSON.stringify(command)}.`
+      });
     }
   }
 
