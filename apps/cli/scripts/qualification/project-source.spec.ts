@@ -263,6 +263,62 @@ describe('qualification project sources', () => {
     expect((await lstat(join(acquired.projectRoot, 'escaping.txt'))).isSymbolicLink()).toBeTrue();
   });
 
+  test('rejects external escaping Dockerfile symlinks from custom Dockerfile packaging in full acquire-to-import pipeline', async () => {
+    const manifestRoot = await createRoot();
+    const outsideDir = join(manifestRoot, 'outside-payload');
+    const sourceRoot = join(manifestRoot, 'escaping-project');
+    await mkdir(outsideDir, { recursive: true });
+    await mkdir(sourceRoot, { recursive: true });
+
+    const poisonDocker = join(outsideDir, 'Dockerfile.poison');
+    const poisonContent =
+      'FROM node:24-slim\nEXPOSE 9999\nSTOPSIGNAL SIGTERM\n# POISON_MARKER_OUTSIDE_SECRET\nCMD ["node", "index.js"]\n';
+    await writeFile(poisonDocker, poisonContent, 'utf8');
+    await chmod(poisonDocker, 0o444);
+
+    await writeFile(
+      join(sourceRoot, 'package.json'),
+      '{"name":"escaping-app","scripts":{"start":"node index.js"}}\n',
+      'utf8'
+    );
+    await writeFile(join(sourceRoot, 'index.js'), 'console.log("hello");\n', 'utf8');
+    await symlink('../outside-payload/Dockerfile.poison', join(sourceRoot, 'Dockerfile'));
+
+    const entry: QualificationCaseManifest = {
+      id: 'escaping-dockerfile-fixture',
+      title: 'Escaping Dockerfile fixture',
+      why: 'Verifies that external escaping Dockerfiles are not trusted as in-project packaging evidence.',
+      source: { kind: 'local', path: 'escaping-project', license: 'Synthetic fixture' },
+      origin: 'synthetic',
+      tags: ['local-source'],
+      lanes: ['import']
+    };
+
+    const acquired = await acquireProject({
+      entry,
+      manifestDirectory: manifestRoot,
+      cacheRoot: await createRoot(),
+      workRoot: await createRoot()
+    });
+
+    const linkTarget = (await readlink(join(acquired.projectRoot, 'Dockerfile'))).replaceAll('\\', '/');
+    expect(linkTarget).toBe('../outside-payload/Dockerfile.poison');
+    expect((await lstat(join(acquired.projectRoot, 'Dockerfile'))).isSymbolicLink()).toBeTrue();
+
+    const importResult = await runImportQualification({ entry, projectRoot: acquired.projectRoot });
+    expect(importResult.validConfig).toBeTrue();
+    expect(importResult.generatedConfig).not.toContain('custom-dockerfile');
+    expect(importResult.generatedConfig).not.toContain('Dockerfile.poison');
+    expect(importResult.generatedConfig).not.toContain('9999');
+    expect(importResult.generatedConfig).not.toContain('POISON_MARKER_OUTSIDE_SECRET');
+    expect(importResult.generatedConfig).not.toContain('SIGTERM');
+    expect(importResult.generatedConfig).toContain('type: nixpacks');
+
+    // External file contents and permissions remain untouched
+    expect(await readFile(poisonDocker, 'utf8')).toBe(poisonContent);
+    expect((await stat(poisonDocker)).mode & 0o200).toBe(0);
+  });
+
   test('covers complete acquire -> import path for a relative Dockerfile symlink', async () => {
     const manifestRoot = await createRoot();
     const sourceRoot = join(manifestRoot, 'import-symlink-project');
