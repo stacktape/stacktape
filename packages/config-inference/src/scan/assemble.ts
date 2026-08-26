@@ -233,7 +233,7 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
     ? undefined
     : servesStaticAssets !== undefined
       ? undefined
-      : (existing.port ?? incoming.port);
+      : (composeOwnedContainer?.port ?? existing.port ?? incoming.port);
 
   return {
     ...existing,
@@ -241,12 +241,13 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
     // language manifest carries the application's own declared name, which is stable across clones
     // and therefore owns identity when the Dockerfile had only `container` to contribute.
     name:
-      (existing.language === 'unknown' || existing.language === 'container') &&
+      composeOwnedContainer?.name ??
+      ((existing.language === 'unknown' || existing.language === 'container') &&
       existing.processType === undefined &&
       incoming.language !== 'unknown' &&
       incoming.language !== 'container'
         ? incoming.name
-        : existing.name,
+        : existing.name),
     // An importer can identify a container before the language manifest is read. Keep the concrete
     // application language once another probe establishes it; `container` describes packaging, not
     // what the user writes.
@@ -269,7 +270,8 @@ const mergeService = (existing: ServiceFactInput, incoming: ServiceFactInput): S
             ...new Set([...(existing.missingEmbeddedAssets ?? []), ...(incoming.missingEmbeddedAssets ?? [])])
           ]
         }),
-    buildRoot: existing.buildRoot ?? incoming.buildRoot,
+    buildRoot:
+      composeOwnedContainer?.buildRoot ?? composeOwnedContainer?.path ?? existing.buildRoot ?? incoming.buildRoot,
     // A parameterized Compose image contract owns its selected server. A generic source scanner can
     // find another HTTP-capable main in the same repository root (metrics endpoints on a gRPC engine
     // are a common example), but that does not make it this declared build target's entrypoint.
@@ -336,7 +338,7 @@ const genericMergeTarget = (
   services: ReadonlyMap<string, ServiceFactInput>,
   incoming: ServiceFactInput,
   descriptorTargetServices: ReadonlySet<string>,
-  declaredApplicationPaths: ReadonlySet<string>
+  descriptorSourcePaths: ReadonlyMap<string, readonly string[]>
 ): [string, ServiceFactInput] | undefined => {
   const entries = [...services.entries()];
   const exactCommandMatches = entries.filter(
@@ -358,11 +360,10 @@ const genericMergeTarget = (
       (rootDescriptor.dockerfileBuildArgs?.length ?? 0) > 0 &&
       child !== undefined &&
       child.path !== '.' &&
-      declaredApplicationPaths.has(child.path) &&
       normalizedServiceName({ name: posix.basename(child.path) }) === normalizedServiceName(rootDescriptor) &&
-      descriptorTargetServices.has(
-        `${rootDescriptor.path}\0${normalizedServiceName(rootDescriptor)}\0${rootDescriptor.dockerfile}`
-      )
+      descriptorSourcePaths
+        .get(`${rootDescriptor.path}\0${normalizedServiceName(rootDescriptor)}\0${rootDescriptor.dockerfile}`)
+        ?.includes(child.path)
     ) {
       return true;
     }
@@ -387,6 +388,7 @@ const genericMergeTarget = (
         // explicit descriptor target proves that relationship. A root Dockerfile plus a coincidentally
         // equal package name is not ownership evidence.
         (posix.dirname(rootDescriptor.dockerfile) === '.' &&
+          (rootDescriptor.dockerfileBuildArgs?.length ?? 0) === 0 &&
           descriptorTargetServices.has(
             `${rootDescriptor.path}\0${normalizedServiceName(rootDescriptor)}\0${rootDescriptor.dockerfile}`
           ) &&
@@ -488,7 +490,17 @@ const mergeServices = (
   outputs: readonly ProbeOutput[]
 ): { services: ServiceFactInput[]; renames: Map<string, string> } => {
   const byPath = new Map<string, ServiceFactInput>();
-  const declaredApplicationPaths = new Set(outputs.flatMap((output) => output.declaredApplicationPaths ?? []));
+  const descriptorSourcePaths = new Map(
+    outputs.flatMap((output) =>
+      (output.descriptorTargetServices ?? []).map(
+        (service) =>
+          [
+            `${service.path}\0${normalizedServiceName({ name: service.serviceName })}\0${service.dockerfile}`,
+            service.sourcePaths ?? []
+          ] as const
+      )
+    )
+  );
   const descriptorTargetServices = new Set(
     outputs.flatMap((output) =>
       (output.descriptorTargetServices ?? []).map(
@@ -586,11 +598,13 @@ const mergeServices = (
           });
           continue;
         }
-        const target = genericMergeTarget(byPath, service, descriptorTargetServices, declaredApplicationPaths);
+        const target = genericMergeTarget(byPath, service, descriptorTargetServices, descriptorSourcePaths);
         if (target !== undefined) {
           const [targetKey, targetService] = target;
-          if (service.name !== targetService.name) renames.set(service.name, targetService.name);
-          byPath.set(targetKey, mergeService(targetService, service));
+          const mergedService = mergeService(targetService, service);
+          if (service.name !== mergedService.name) renames.set(service.name, mergedService.name);
+          if (targetService.name !== mergedService.name) renames.set(targetService.name, mergedService.name);
+          byPath.set(targetKey, mergedService);
           continue;
         }
         byPath.set(key, {

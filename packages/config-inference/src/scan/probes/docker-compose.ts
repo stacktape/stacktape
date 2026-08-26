@@ -197,6 +197,7 @@ type ResolvedBuild = {
   dockerfile?: string;
   target?: string;
   buildArgs?: Array<{ argName: string; value: string }>;
+  sourcePaths?: string[];
   evidence?: Citation[];
 };
 
@@ -224,6 +225,7 @@ type SourceBuild = {
   /** Source-build selection is an ARG value, not a Docker stage target. */
   target?: undefined;
   buildArgs: Array<{ argName: string; value: string }>;
+  sourcePaths: string[];
   evidence: Citation[];
 };
 
@@ -296,10 +298,23 @@ const sourceBuildOf = async (
     );
     if (argName === undefined) continue;
 
-    const copiedRootEntry = [...raw.matchAll(/^\s*(?:COPY|ADD)\s+(?:--[^\s]+\s+)*\/?([^\s/]+)(?:\/|\s)/gim)]
+    const copiedRootEntries = [...raw.matchAll(/^\s*(?:COPY|ADD)\s+(?:--[^\s]+\s+)*\/?([^\s/]+)(?:\/|\s)/gim)]
       .map((match) => match[1]!)
-      .find((entry) => context.files.some((path) => path.startsWith(`${entry}/`)));
+      .filter((entry) => context.files.some((path) => path.startsWith(`${entry}/`)));
     const directory = posix.dirname(dockerfile);
+    // Only the package actually compiled by the selected argument belongs to this image.
+    // A same-named sibling under apps/ or services/ is not source-ownership evidence.
+    const selectedSource = raw
+      .replace(/\\\r?\n/g, ' ')
+      .replace(new RegExp(`\\$\\{${escapeForPattern(argName)}\\}|\\$${escapeForPattern(argName)}\\b`, 'g'), target);
+    const sourcePaths = [
+      ...selectedSource.matchAll(/^\s*RUN\s+(?:--mount=\S+\s+)*go\s+build\s+[^\n]*?\s+\.\/([A-Za-z0-9_./-]+)\s*$/gm)
+    ]
+      .map((match) => posix.normalize(match[1]!))
+      .filter(
+        (path) =>
+          copiedRootEntries.some((entry) => path.startsWith(`${entry}/`)) && context.files.includes(`${path}/main.go`)
+      );
     const argCitation = citeFirstMatchOnly(
       dockerfile,
       raw,
@@ -307,9 +322,10 @@ const sourceBuildOf = async (
       'dockerfileBuildArgs'
     );
     return {
-      root: copiedRootEntry === undefined ? (directory === '.' ? '.' : directory) : '.',
+      root: copiedRootEntries.length === 0 ? (directory === '.' ? '.' : directory) : '.',
       dockerfile,
       buildArgs: [{ argName, value: target }],
+      sourcePaths,
       evidence: argCitation === undefined ? [] : [argCitation]
     };
   }
@@ -439,13 +455,60 @@ const commandOf = (service: ComposeService): string | undefined => {
   return entrypoint === undefined ? command : command === undefined ? entrypoint : `${entrypoint} ${command}`;
 };
 
-const containerCommandOf = (service: ComposeService): string[] | undefined =>
-  service.entrypoint === undefined &&
-  Array.isArray(service.command) &&
-  service.command.length > 0 &&
-  service.command.every((entry) => typeof entry === 'string' && entry !== '')
-    ? service.command
-    : undefined;
+/** Compose string commands are shell words, not an implicit `sh -c` invocation. */
+const containerCommandOf = (service: ComposeService): string[] | undefined => {
+  if (service.entrypoint !== undefined) return undefined;
+  if (Array.isArray(service.command)) {
+    return service.command.length > 0 && service.command.every((entry) => typeof entry === 'string')
+      ? service.command
+      : undefined;
+  }
+  if (typeof service.command !== 'string') return undefined;
+  const words: string[] = [];
+  let word = '';
+  let quote: string | undefined;
+  let opaqueEnd: '`' | ')' | undefined;
+  let started = false;
+  for (let index = 0; index < service.command.length; index += 1) {
+    const character = service.command[index]!;
+    if (character === '\\' && quote !== "'") {
+      const next = service.command[++index];
+      if (next === undefined) return undefined;
+      word += opaqueEnd !== undefined ? `\\${next}` : next === 'n' ? '\n' : next === 't' ? '\t' : next;
+      started = true;
+    } else if (opaqueEnd !== undefined) {
+      word += character;
+      if (character === opaqueEnd) opaqueEnd = undefined;
+    } else if (quote !== undefined) {
+      if (character === quote) quote = undefined;
+      else word += character;
+    } else if (character === '"' || character === "'") {
+      quote = character;
+      started = true;
+    } else if (character === '`' || (character === '(' && word.endsWith('$'))) {
+      opaqueEnd = character === '`' ? '`' : ')';
+      word += character;
+      started = true;
+    } else if (character === '(' || character === ')') {
+      return undefined;
+    } else if (/[;&|<>]/.test(character)) {
+      // Compose's shell-word decoder stops at an unquoted shell separator. It does not
+      // implicitly execute the remaining text through a shell.
+      if (character === '>' && /^\d+$/.test(word)) started = false;
+      break;
+    } else if (/[ \t\r\n]/.test(character)) {
+      if (started) words.push(word);
+      word = '';
+      started = false;
+    } else {
+      word += character;
+      started = true;
+    }
+  }
+  if (quote !== undefined || opaqueEnd !== undefined) return undefined;
+  if (started) words.push(word);
+  return words.length > 0 ? words : undefined;
+};
 
 const enabledLiteral = (value: unknown): boolean =>
   typeof value === 'boolean'
@@ -864,7 +927,7 @@ export const dockerComposeProbe: Probe = {
       }
     }
 
-    const applicationScore = (document: ComposeDocument): number => {
+    const applicationEvidence = (document: ComposeDocument) => {
       const applications = Object.entries(document.services).filter(
         ([composeName, service]) =>
           buildOf(service, document.path, context.files) !== undefined ||
@@ -878,19 +941,24 @@ export const dockerComposeProbe: Probe = {
             (containerPortOf(service) ?? proxyPortOf(service)) !== undefined &&
             !isDevelopmentProcess(service, {}))
       ).length;
-      if (applications === 0) return Number.NEGATIVE_INFINITY;
-      return (
-        applications * 10 +
-        (PRODUCTION_VARIANT.test(document.variant ?? '') ? 100 : 0) -
-        (NON_APPLICATION_VARIANT.test(document.variant ?? '') ||
+      const priority =
+        NON_APPLICATION_VARIANT.test(document.variant ?? '') ||
         /^(?:dev|development|tests?)(?:\/|$)/i.test(document.path)
-          ? 100
-          : 0)
-      );
+          ? 0
+          : PRODUCTION_VARIANT.test(document.variant ?? '')
+            ? 2
+            : 1;
+      return { document, applications, priority };
     };
-    const selected = documents.toSorted((left, right) => applicationScore(right) - applicationScore(left))[0]!;
-    const fallback = documents.find((document) => document.variant === undefined) ?? documents[0]!;
-    const applicationDocument = Number.isFinite(applicationScore(selected)) ? selected : fallback;
+    const selected = documents
+      .map(applicationEvidence)
+      .filter(({ applications }) => applications > 0)
+      .toSorted((left, right) => right.priority - left.priority || right.applications - left.applications)[0]?.document;
+    const fallback =
+      documents.find((document) => document.variant === undefined && composeDirectory(document.path) === '.') ??
+      documents.find((document) => document.variant === undefined) ??
+      documents[0]!;
+    const applicationDocument = selected ?? fallback;
     const layeredRelease =
       applicationDocument !== fallback && PRODUCTION_VARIANT.test(applicationDocument.variant ?? '');
     const dependencyDocuments = layeredRelease ? [fallback, applicationDocument] : [applicationDocument];
@@ -989,7 +1057,11 @@ export const dockerComposeProbe: Probe = {
     const appDeclarations = builtDeclarations.filter((entry) => !utilityBuilds.has(entry.composeName));
     const declaredSourcePaths = new Set<string>();
     if (layeredRelease) {
-      for (const { composeName } of appDeclarations) {
+      for (const { composeName, build } of appDeclarations) {
+        if (build.buildArgs !== undefined) {
+          for (const sourcePath of build.sourcePaths ?? []) declaredSourcePaths.add(sourcePath);
+          continue;
+        }
         const normalizedName = factName(composeName).toLowerCase();
         for (const file of context.files) {
           const segments = file.split('/');
@@ -1490,7 +1562,14 @@ export const dockerComposeProbe: Probe = {
             ],
             descriptorTargetServices: appDeclarations.flatMap(({ composeName, build }) =>
               build.dockerfile !== undefined && (build.target !== undefined || (build.buildArgs?.length ?? 0) > 0)
-                ? [{ path: build.root, serviceName: factName(composeName), dockerfile: build.dockerfile }]
+                ? [
+                    {
+                      path: build.root,
+                      serviceName: factName(composeName),
+                      dockerfile: build.dockerfile,
+                      sourcePaths: build.sourcePaths ?? []
+                    }
+                  ]
                 : []
             )
           }),

@@ -282,7 +282,10 @@ const CASES: EvalCase[] = [
         ''
       ].join('\n'),
       'cmd/platform-api/main.go': 'package main\nfunc main() {}\n',
-      'cmd/platform-engine/main.go': 'package main\nfunc main() {}\n',
+      'cmd/platform-engine/main.go':
+        'package main\nimport "net/http"\nfunc main() { http.ListenAndServe(":7077", nil) }\n',
+      'apps/platform-engine/main.go':
+        'package main\nimport "net/http"\nfunc main() { http.ListenAndServe(":9091", nil) }\n',
       'cmd/platform-admin/main.go':
         'package main\nvar root = &cobra.Command{}\nfunc main() { keys := GenerateLocalKeys(); os.WriteFile("generated/master.key", keys, 0600); root.Execute() }\n',
       'cmd/platform-migrate/main.go':
@@ -323,9 +326,11 @@ const CASES: EvalCase[] = [
         platformMigrate: 'batch-job',
         platformAdmin: 'batch-job',
         platformEngine: 'worker-service',
-        platformApi: 'web-service'
+        platformApi: 'web-service',
+        appsPlatformEngine: 'web-service'
       },
-      resourceCount: 7,
+      resourceCount: 8,
+      serviceCount: 6,
       scriptNames: ['migrateDatabase'],
       serviceEnvironment: [
         { resource: 'platformApi', name: 'SERVER_MSGQUEUE_KIND', value: 'postgres' },
@@ -348,14 +353,16 @@ const CASES: EvalCase[] = [
         {
           resource: 'platformEngine',
           type: 'custom-dockerfile',
-          command: ['/bin/sh', '-c', '/platform/platform-engine --config /platform/generated'],
+          buildContextPath: '.',
+          command: ['/platform/platform-engine', '--config', '/platform/generated'],
           dockerfilePath: 'build/package/servers.dockerfile',
           buildArgs: [{ argName: 'SERVER_TARGET', value: 'engine' }]
         },
         {
           resource: 'platformApi',
           type: 'custom-dockerfile',
-          command: ['/bin/sh', '-c', '/platform/platform-api --config /platform/generated'],
+          buildContextPath: '.',
+          command: ['/platform/platform-api', '--config', '/platform/generated'],
           dockerfilePath: 'build/package/servers.dockerfile',
           buildArgs: [{ argName: 'SERVER_TARGET', value: 'api' }]
         }
@@ -366,6 +373,61 @@ const CASES: EvalCase[] = [
       maxQuestions: 0
     }
   },
+  ...['array', 'string'].map(
+    (form): EvalCase => ({
+      name: `Published release ${form} command wins over twelve development builds`,
+      files: {
+        'go.mod': 'module example.com/list-manager\nrequire github.com/labstack/echo/v4 v4.12.0\n',
+        'cmd/main.go':
+          'package main\nimport "github.com/labstack/echo/v4"\nfunc main() { server := echo.New(); server.Start(":9000") }\n',
+        'docker-compose.yml': [
+          'services:',
+          '  app:',
+          '    image: example/list-manager:1.0.0',
+          form === 'array'
+            ? '    command: ["sh", "-c", "./list-manager --install --idempotent --yes && ./list-manager --upgrade --yes && ./list-manager"]'
+            : '    command: sh -c "./list-manager --install --idempotent --yes && ./list-manager --upgrade --yes && ./list-manager"',
+          '    ports: ["9000:9000"]',
+          ''
+        ].join('\n'),
+        'dev/app.Dockerfile': 'FROM golang:1.26\nWORKDIR /app\nCOPY . .\n',
+        'dev/docker-compose.yml': [
+          'services:',
+          ...Array.from({ length: 12 }, (_, index) =>
+            [
+              `  development${index}:`,
+              '    build: { context: .., dockerfile: dev/app.Dockerfile }',
+              '    command: make run-backend-docker',
+              '    ports: ["9000:9000"]'
+            ].join('\n')
+          ),
+          '  db:',
+          '    image: postgres:13',
+          ''
+        ].join('\n')
+      },
+      expect: {
+        resources: { listManager: 'web-service' },
+        serviceCount: 1,
+        resourceCount: 1,
+        absentDependencyKinds: ['postgres'],
+        resourcePackaging: [
+          {
+            resource: 'listManager',
+            type: 'prebuilt-image',
+            command: [
+              'sh',
+              '-c',
+              './list-manager --install --idempotent --yes && ./list-manager --upgrade --yes && ./list-manager'
+            ]
+          }
+        ],
+        requiredGapPatterns: ['fresh database.*does not include changes'],
+        deployable: true,
+        maxQuestions: 0
+      }
+    })
+  ),
   {
     name: 'Root production Dockerfile with persistent state beside nested browser-test fixtures',
     directoryName: 'vaultwarden',

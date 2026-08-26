@@ -299,7 +299,7 @@ export const serviceShape = {
   buildCommand: z.string().min(1).optional(),
   startCommand: z.string().min(1).optional(),
   /** Exact argv that a container descriptor uses to override the Dockerfile CMD. */
-  containerCommand: z.array(z.string().min(1)).min(1).optional(),
+  containerCommand: z.array(z.string()).min(1).optional(),
   /** Published image retained from a deterministic deployment descriptor as a last-resort package. */
   prebuiltImage: z.string().min(1).optional(),
   /** The descriptor's image command owns required startup lifecycle that source packaging cannot preserve. */
