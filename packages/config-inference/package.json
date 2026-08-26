@@ -50,6 +50,7 @@
   },
   "scripts": {
     "test": "bun test src",
+    "test:docker-source-mapping": "bun src/scan/dockerfile-command-source.e2e.ts",
     "typecheck": "tsc -p tsconfig.json"
   },
   "dependencies": {

@@ -100,6 +100,9 @@ pnpm qualify:projects -- --preset=release --lanes=import,package --allow-host-pr
 # Execute packaged synthetic artifacts in their target Docker runtimes.
 pnpm qualify:projects -- --lanes=runtime
 
+# Small Docker COPY/WORKDIR parity check for importer source ownership. Uses scratch images, not project builds.
+pnpm --filter @stacktape/config-inference run test:docker-source-mapping
+
 # Split a large corpus across ten workers.
 pnpm qualify:projects -- --preset=all --lanes=import,package --allow-host-project-code --shard=3/10
 
