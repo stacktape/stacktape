@@ -282,7 +282,9 @@ describe('qualification project sources', () => {
       'utf8'
     );
     await writeFile(join(sourceRoot, 'index.js'), 'console.log("hello");\n', 'utf8');
-    await symlink('../outside-payload/Dockerfile.poison', join(sourceRoot, 'Dockerfile'));
+    // Keep the external file reachable after relocation, so rejection cannot pass merely because
+    // the copied link became dangling. Relative and dangling links have separate controls above.
+    await symlink(poisonDocker, join(sourceRoot, 'Dockerfile'));
 
     const entry: QualificationCaseManifest = {
       id: 'escaping-dockerfile-fixture',
@@ -302,8 +304,9 @@ describe('qualification project sources', () => {
     });
 
     const linkTarget = (await readlink(join(acquired.projectRoot, 'Dockerfile'))).replaceAll('\\', '/');
-    expect(linkTarget).toBe('../outside-payload/Dockerfile.poison');
+    expect(linkTarget).toBe(poisonDocker.replaceAll('\\', '/'));
     expect((await lstat(join(acquired.projectRoot, 'Dockerfile'))).isSymbolicLink()).toBeTrue();
+    expect(await readFile(join(acquired.projectRoot, 'Dockerfile'), 'utf8')).toBe(poisonContent);
 
     const importResult = await runImportQualification({ entry, projectRoot: acquired.projectRoot });
     expect(importResult.validConfig).toBeTrue();
