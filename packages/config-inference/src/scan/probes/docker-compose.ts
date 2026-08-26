@@ -1679,6 +1679,7 @@ export const dockerComposeProbe: Probe = {
                 (build.root === '.' || file.startsWith(`${build.root}/`))
             );
             const installScriptsAbsent =
+              context.filesTruncated !== true &&
               manifests.length > 0 &&
               manifests.length <= 128 &&
               (
@@ -1703,9 +1704,12 @@ export const dockerComposeProbe: Probe = {
                   })
                 )
               ).every(Boolean);
-            const ignorePath = [`${build.dockerfile}.dockerignore`, resolveFrom(build.root, '.dockerignore')].find(
-              (candidate) => candidate !== undefined && context.files.includes(candidate)
-            );
+            // Source ownership describes the declared build, before alias canonicalization changes
+            // the effective ignore policy (which has its own deployment requirement).
+            const ignorePath = [
+              `${build.dockerfileAlias ?? build.dockerfile}.dockerignore`,
+              resolveFrom(build.root, '.dockerignore')
+            ].find((candidate) => candidate !== undefined && context.files.includes(candidate));
             const dockerignore = ignorePath === undefined ? '' : await readOwnershipFile(context, ignorePath);
             if (dockerignore === undefined) return [];
             const sourceFile = sourceFileForDockerPath({
