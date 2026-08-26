@@ -268,6 +268,10 @@ const CASES: EvalCase[] = [
         ''
       ].join('\n'),
       'build/package/servers.dockerfile': [
+        'FROM golang:1.26 AS unused-diagnostic',
+        'ARG SERVER_TARGET',
+        'COPY /apps ./apps',
+        'RUN go build -o /diagnostic ./apps/platform-${SERVER_TARGET}',
         'FROM golang:1.26 AS build',
         'ARG VERSION=v1.0.0',
         'ARG SERVER_TARGET',

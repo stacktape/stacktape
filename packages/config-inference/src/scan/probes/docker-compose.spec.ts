@@ -1668,6 +1668,10 @@ describe('the compose probe', () => {
           ''
         ].join('\n'),
         'build/package/servers.dockerfile': [
+          'FROM golang:1.26 AS unused-diagnostic',
+          'ARG SERVER_TARGET',
+          `COPY /${siblingParent} ./${siblingParent}`,
+          `RUN go build -o /diagnostic ./${siblingParent}/platform-\${SERVER_TARGET}`,
           'FROM golang:1.26 AS build',
           'ARG VERSION=v1.0.0',
           'ARG SERVER_TARGET',
@@ -1680,6 +1684,7 @@ describe('the compose probe', () => {
           'CMD ["/bin/sh", "-c", "/platform/platform-${SERVER_TARGET}"]',
           ''
         ].join('\n'),
+        'cmd/platform-api/main.go': 'package main\nfunc main() {}\n',
         'cmd/platform-migrate/main.go':
           'package main\n// migrations run through goose\nfunc main() { migrate.RunMigrations() }\n',
         'cmd/platform-admin/main.go':

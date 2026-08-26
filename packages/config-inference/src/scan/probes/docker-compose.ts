@@ -273,6 +273,42 @@ const targetValueFor = (composeName: string, image: string): string | undefined 
  * treating arbitrary prebuilt images as source builds while covering release workflows that keep
  * build commands in CI rather than duplicating them in Compose.
  */
+const runtimeDockerfileInstructions = (raw: string): string[] => {
+  const stages: Array<{ instructions: string[]; dependencies: string[] }> = [];
+  const stageNames = new Map<string, number>();
+  for (const line of raw
+    .replace(/\\\r?\n/g, ' ')
+    .split(/\r?\n/)
+    .map((value) => value.trim())) {
+    if (line === '' || line.startsWith('#')) continue;
+    const from = /^FROM\s+(?:--\S+\s+)*(\S+)(?:\s+AS\s+(\S+))?$/i.exec(line);
+    if (from !== null) {
+      const index = stages.length;
+      stages.push({ instructions: [line], dependencies: [from[1]!.toLowerCase()] });
+      stageNames.set(String(index), index);
+      if (from[2] !== undefined) stageNames.set(from[2].toLowerCase(), index);
+      continue;
+    }
+    const stage = stages.at(-1);
+    if (stage === undefined) continue;
+    stage.instructions.push(line);
+    const copyFrom = /^(?:COPY|ADD)\s+.*?--from=(\S+)/i.exec(line)?.[1];
+    if (copyFrom !== undefined) stage.dependencies.push(copyFrom.toLowerCase());
+  }
+  const active = new Set<number>();
+  const pending = stages.length === 0 ? [] : [stages.length - 1];
+  while (pending.length > 0) {
+    const index = pending.pop()!;
+    if (active.has(index)) continue;
+    active.add(index);
+    for (const dependency of stages[index]!.dependencies) {
+      const referenced = stageNames.get(dependency);
+      if (referenced !== undefined) pending.push(referenced);
+    }
+  }
+  return stages.flatMap((stage, index) => (active.has(index) ? stage.instructions : []));
+};
+
 const sourceBuildOf = async (
   composeName: string,
   service: ComposeService,
@@ -291,30 +327,41 @@ const sourceBuildOf = async (
       raw = await readText(context, dockerfile, { fullFile: true });
       dockerfileCache.set(dockerfile, raw);
     }
-    if (raw === undefined || !new RegExp(`["']${escapeForPattern(target)}["']`, 'i').test(raw)) continue;
-    const argNames = [...raw.matchAll(/^\s*ARG\s+([A-Za-z_][A-Za-z0-9_]*)(?:=.*)?$/gim)].map((match) => match[1]!);
+    if (raw === undefined) continue;
+    const activeSource = runtimeDockerfileInstructions(raw).join('\n');
+    if (!new RegExp(`["']${escapeForPattern(target)}["']`, 'i').test(activeSource)) continue;
+    const argNames = [...activeSource.matchAll(/^\s*ARG\s+([A-Za-z_][A-Za-z0-9_]*)(?:=.*)?$/gim)].map(
+      (match) => match[1]!
+    );
     const argName = argNames.find((name) =>
-      new RegExp(`^.*\\$\\{?${escapeForPattern(name)}\\}?.*["']${escapeForPattern(target)}["'].*$`, 'im').test(raw!)
+      new RegExp(`^.*\\$\\{?${escapeForPattern(name)}\\}?.*["']${escapeForPattern(target)}["'].*$`, 'im').test(
+        activeSource
+      )
     );
     if (argName === undefined) continue;
 
-    const copiedRootEntries = [...raw.matchAll(/^\s*(?:COPY|ADD)\s+(?:--[^\s]+\s+)*\/?([^\s/]+)(?:\/|\s)/gim)]
+    const copiedRootEntries = [...activeSource.matchAll(/^\s*(?:COPY|ADD)\s+(?:--[^\s]+\s+)*\/?([^\s/]+)(?:\/|\s)/gim)]
       .map((match) => match[1]!)
       .filter((entry) => context.files.some((path) => path.startsWith(`${entry}/`)));
     const directory = posix.dirname(dockerfile);
     // Only the package actually compiled by the selected argument belongs to this image.
     // A same-named sibling under apps/ or services/ is not source-ownership evidence.
-    const selectedSource = raw
-      .replace(/\\\r?\n/g, ' ')
-      .replace(new RegExp(`\\$\\{${escapeForPattern(argName)}\\}|\\$${escapeForPattern(argName)}\\b`, 'g'), target);
     const sourcePaths = [
-      ...selectedSource.matchAll(/^\s*RUN\s+(?:--mount=\S+\s+)*go\s+build\s+[^\n]*?\s+\.\/([A-Za-z0-9_./-]+)\s*$/gm)
+      ...activeSource.matchAll(/^\s*RUN\s+(?:--mount=\S+\s+)*go\s+build\s+[^\n]*?\s+\.\/(\S+)\s*$/gm)
     ]
-      .map((match) => posix.normalize(match[1]!))
+      .flatMap((match) => {
+        const operand = match[1]!;
+        const selected = operand.replace(
+          new RegExp(`\\$\\{${escapeForPattern(argName)}\\}|\\$${escapeForPattern(argName)}\\b`, 'g'),
+          target
+        );
+        return selected !== operand && /^[A-Za-z0-9_./-]+$/.test(selected) ? [posix.normalize(selected)] : [];
+      })
       .filter(
         (path) =>
           copiedRootEntries.some((entry) => path.startsWith(`${entry}/`)) && context.files.includes(`${path}/main.go`)
       );
+    if (sourcePaths.length === 0) continue;
     const argCitation = citeFirstMatchOnly(
       dockerfile,
       raw,
