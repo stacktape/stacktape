@@ -421,6 +421,127 @@ describe('NuxtHub runtime bindings', () => {
     expect(composeConfig({ facts }).deployable).toBe(false);
   });
 
+  it('blocks migration lifecycle for an active database without runtime database imports', async () => {
+    root = await makeRepo({
+      'package.json': manifest(),
+      'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: 'sqlite' } })",
+      'server/api/health.ts': "export default defineEventHandler(() => 'ok')",
+      'server/db/migrations/sqlite/0001_setup.sql': 'CREATE TABLE items (id integer primary key);'
+    });
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(facts.deploymentRequirements).toEqual([
+      expect.objectContaining({
+        kind: 'framework-runtime-bindings',
+        bindings: ['database'],
+        databaseEngine: 'sqlite',
+        migrationPaths: ['server/db/migrations/sqlite/0001_setup.sql']
+      })
+    ]);
+    expect(facts.dependencies).toEqual([]);
+    const composed = composeConfig({ facts });
+    expect(composed.deployable).toBe(false);
+    expect(composed.gaps).toContainEqual(
+      expect.objectContaining({
+        subject: 'todos.nuxthub-migrations',
+        severity: 'blocking',
+        message: expect.stringContaining('NuxtHub can apply migrations during the production build')
+      })
+    );
+    expect(composed.config.scripts).toBeUndefined();
+  });
+
+  it('does not activate a disabled database merely because old migrations are committed', async () => {
+    root = await makeRepo({
+      'package.json': manifest(),
+      'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: false } })",
+      'server/db/migrations/sqlite/0001_old.sql': 'SELECT 1;'
+    });
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(facts.deploymentRequirements).toEqual([]);
+    expect(composeConfig({ facts }).deployable).toBe(true);
+  });
+
+  for (const hook of [
+    "'hub:db:migrations:dirs': dirs => dirs.push('database/changes')",
+    "'hub:db:migrations:dirs'(dirs) { dirs.push('database/changes') }"
+  ]) {
+    it(`fails closed instead of executing a migration-directory hook: ${hook}`, async () => {
+      root = await makeRepo({
+        'package.json': manifest(),
+        'nuxt.config.ts': `export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: 'sqlite' }, hooks: { ${hook} } })`,
+        'server/api/health.ts': "export default defineEventHandler(() => 'ok')",
+        'database/changes/0001_setup.sql': 'SELECT 1;'
+      });
+      const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+      expect(facts.deploymentRequirements).toEqual([
+        expect.objectContaining({
+          kind: 'framework-analysis-incomplete',
+          reasons: ['migration-paths'],
+          evidence: expect.arrayContaining([
+            expect.objectContaining({ file: 'nuxt.config.ts', quote: "'hub:db:migrations:dirs'" })
+          ])
+        })
+      ]);
+      const composed = composeConfig({ facts });
+      expect(composed.deployable).toBe(false);
+      expect(composed.gaps[0]?.message).toContain('migration directories are computed');
+    });
+  }
+
+  for (const expression of ['framework.db.select()', "framework['db'].select()", 'framework.schema.items']) {
+    it(`recognizes a configured database through a namespace member: ${expression}`, async () => {
+      root = await makeRepo({
+        'package.json': manifest(),
+        'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: 'sqlite' } })",
+        'server/api/items.ts': `import * as framework from '#imports'; export default () => ${expression}`
+      });
+      const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+      expect(facts.deploymentRequirements).toEqual([expect.objectContaining({ bindings: ['database'] })]);
+      expect(composeConfig({ facts }).deployable).toBe(false);
+    });
+  }
+
+  it('does not mistake shadowed, type-only, or unrelated namespace members for database usage', async () => {
+    root = await makeRepo({
+      'package.json': manifest(),
+      'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: 'sqlite' } })",
+      'server/api/local.ts':
+        "import * as framework from '#imports'; export default function local(framework) { return framework.db.select() }",
+      'server/api/types.ts': "import type * as framework from '#imports'; export type Database = typeof framework.db",
+      'server/api/health.ts':
+        "import * as framework from '#imports'; export default framework.defineEventHandler(() => 'ok')"
+    });
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(facts.deploymentRequirements).toEqual([]);
+    expect(composeConfig({ facts }).deployable).toBe(true);
+  });
+
+  for (const expression of [
+    "import(('hub:db' /* SENTINEL_SOURCE_CREDENTIAL */))",
+    'import((`hub:db` /* SENTINEL_SOURCE_CREDENTIAL */))',
+    "require(('hub:db' /* SENTINEL_SOURCE_CREDENTIAL */))",
+    "import(('hub:db' as 'hub:db' /* SENTINEL_SOURCE_CREDENTIAL */))"
+  ]) {
+    it(`cites only the recognized literal in ${expression}`, async () => {
+      root = await makeRepo({
+        'package.json': manifest(),
+        'nuxt.config.ts':
+          "export default defineNuxtConfig({ modules: [('@nuxthub/core' /* SENTINEL_CONFIG_CREDENTIAL */)], hub: { db: 'sqlite' } })",
+        'server/api/items.ts': `export default async () => (await ${expression}).db.select()`
+      });
+      const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+      expect(facts.deploymentRequirements).toEqual([expect.objectContaining({ bindings: ['database'] })]);
+      const citations = facts.deploymentRequirements[0]?.evidence.filter(
+        (citation) => citation.file === 'server/api/items.ts'
+      );
+      expect(citations).toHaveLength(1);
+      expect(citations?.[0]?.quote).toMatch(/^(?:'hub:db'|`hub:db`)$/);
+      const composed = composeConfig({ facts });
+      expect(composed.deployable).toBe(false);
+      expect(JSON.stringify({ facts, composed })).not.toContain('SENTINEL_');
+    });
+  }
+
   it("does not let a workspace root claim a sibling package's binding or OAuth setup", async () => {
     root = await makeRepo({
       'package.json': JSON.stringify({

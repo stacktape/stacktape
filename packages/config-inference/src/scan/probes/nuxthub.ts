@@ -28,6 +28,7 @@ type NuxtConfigEvidence = {
   moduleActive: boolean;
   enabledBindings: Set<Binding>;
   databaseEngine?: RuntimeRequirement['databaseEngine'];
+  databaseEvidence?: Citation;
   serverDirectory: string;
   migrationDirectories: string[];
   issues: Set<AnalysisReason>;
@@ -164,7 +165,7 @@ const inspectNuxtConfig = (path: string, raw: string, directory: string): NuxtCo
         if (name === undefined) config.issues.add('dynamic-config');
         if (name === '@nuxthub/core') {
           config.moduleActive = true;
-          config.evidence.push(citeNode(module!));
+          config.evidence.push(citeNode(unwrap(module as ts.Expression)));
           if (ts.isArrayLiteralExpression(entry) && entry.elements.length > 1) config.issues.add('dynamic-config');
         }
       }
@@ -211,6 +212,7 @@ const inspectNuxtConfig = (path: string, raw: string, directory: string): NuxtCo
         config.issues.add('dynamic-config');
       continue;
     }
+    config.databaseEvidence = citeNode(property.name);
     let dialect = literalString(value);
     if (ts.isObjectLiteralExpression(value)) {
       if (hasComputedProperties(value)) {
@@ -239,6 +241,27 @@ const inspectNuxtConfig = (path: string, raw: string, directory: string): NuxtCo
     config.databaseEngine =
       dialect === 'sqlite' || dialect === 'postgresql' || dialect === 'mysql' ? dialect : 'unknown';
     if (config.databaseEngine === 'unknown') config.issues.add('dynamic-config');
+  }
+  if (config.moduleActive && config.enabledBindings.has('database')) {
+    const hooks = singleProperty(object, 'hooks');
+    if (hooks !== undefined) {
+      const hookObject = unwrap(hooks.initializer);
+      // NuxtHub calls this hook before collecting migrations. Do not execute callbacks or assume
+      // the configured directories are complete when a hook can mutate them.
+      const migrationHook = ts.isObjectLiteralExpression(hookObject)
+        ? hookObject.properties.find((property) => propertyName(property) === 'hub:db:migrations:dirs')
+        : undefined;
+      if (
+        migrationHook !== undefined ||
+        !ts.isObjectLiteralExpression(hookObject) ||
+        hookObject.properties.some(
+          (property) => ts.isSpreadAssignment(property) || propertyName(property) === undefined
+        )
+      ) {
+        config.issues.add('migration-paths');
+        config.evidence.push(citeNode(migrationHook?.name ?? hooks.name));
+      }
+    }
   }
   return config;
 };
@@ -311,6 +334,7 @@ const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence) =>
   let sessionEvidence: Citation | undefined;
   let checker: ts.TypeChecker | undefined;
   const frameworkImports = new Map<string, { name: string; declaration: ts.ImportSpecifier }>();
+  const frameworkNamespaces = new Map<string, ts.NamespaceImport>();
   const isServer = pathWithin(path, config.serverDirectory);
   const unresolved = (node: ts.Identifier): boolean => {
     checker ??= checkerFor(source);
@@ -330,11 +354,33 @@ const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence) =>
   const addBinding = (binding: Binding | undefined, node: ts.Node) => {
     if (binding !== undefined && !bindings.has(binding)) bindings.set(binding, citeNode(node));
   };
+  const addModuleBinding = (expression: ts.Expression) => {
+    const literal = unwrap(expression);
+    addBinding(moduleBinding(literalString(literal)), literal);
+  };
+  const namespaceMember = (node: ts.Node): { name: string; evidence: ts.Node } | undefined => {
+    if (!ts.isPropertyAccessExpression(node) && !ts.isElementAccessExpression(node)) return undefined;
+    const namespace = unwrap(node.expression);
+    if (!ts.isIdentifier(namespace)) return undefined;
+    const declaration = frameworkNamespaces.get(namespace.text);
+    if (declaration === undefined) return undefined;
+    checker ??= checkerFor(source);
+    if (!checker.getSymbolAtLocation(namespace)?.declarations?.includes(declaration)) return undefined;
+    const member = ts.isPropertyAccessExpression(node) ? node.name : unwrap(node.argumentExpression);
+    const name =
+      ts.isIdentifier(member) && ts.isPropertyAccessExpression(node)
+        ? member.text
+        : ts.isStringLiteral(member) || ts.isNoSubstitutionTemplateLiteral(member)
+          ? member.text
+          : undefined;
+    return name === undefined ? undefined : { name, evidence: member };
+  };
   for (const statement of source.statements) {
     if (!ts.isImportDeclaration(statement) || !runtimeImport(statement)) continue;
     const name = literalString(statement.moduleSpecifier);
     if (!['#imports', 'nitropack/runtime', 'nuxt-auth-utils/server'].includes(name ?? '')) continue;
     const named = statement.importClause?.namedBindings;
+    if (named !== undefined && ts.isNamespaceImport(named)) frameworkNamespaces.set(named.name.text, named);
     if (named !== undefined && ts.isNamedImports(named))
       for (const specifier of named.elements) {
         if (!specifier.isTypeOnly)
@@ -347,7 +393,7 @@ const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence) =>
   const visit = (node: ts.Node): void => {
     if (ts.isTypeNode(node)) return;
     if (ts.isImportDeclaration(node)) {
-      if (runtimeImport(node)) addBinding(moduleBinding(literalString(node.moduleSpecifier)), node.moduleSpecifier);
+      if (runtimeImport(node)) addModuleBinding(node.moduleSpecifier);
       return;
     }
     if (ts.isExportDeclaration(node)) {
@@ -359,7 +405,7 @@ const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence) =>
           node.exportClause.elements.length === 0 ||
           node.exportClause.elements.some((element) => !element.isTypeOnly))
       ) {
-        addBinding(moduleBinding(literalString(node.moduleSpecifier)), node.moduleSpecifier);
+        addModuleBinding(node.moduleSpecifier);
       }
       return;
     }
@@ -369,7 +415,7 @@ const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence) =>
         ts.isExternalModuleReference(node.moduleReference) &&
         node.moduleReference.expression !== undefined
       ) {
-        addBinding(moduleBinding(literalString(node.moduleReference.expression)), node.moduleReference.expression);
+        addModuleBinding(node.moduleReference.expression);
       }
       return;
     }
@@ -381,10 +427,12 @@ const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence) =>
         (callee.kind === ts.SyntaxKind.ImportKeyword ||
           (ts.isIdentifier(callee) && callee.text === 'require' && unresolved(callee)))
       ) {
-        addBinding(moduleBinding(literalString(argument)), argument);
+        addModuleBinding(argument);
       }
-      if (ts.isIdentifier(callee)) {
-        const name = runtimeName(callee);
+      const member = namespaceMember(callee);
+      if (ts.isIdentifier(callee) || member !== undefined) {
+        const name = ts.isIdentifier(callee) ? runtimeName(callee) : member?.name;
+        const citationNode = member?.evidence ?? callee;
         if (name !== undefined) {
           if (
             isServer &&
@@ -393,14 +441,21 @@ const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence) =>
             (CACHE_FUNCTIONS.has(name) ||
               (name === 'useStorage' && argument !== undefined && literalString(argument) === 'cache'))
           ) {
-            addBinding('cache', callee);
+            addBinding('cache', citationNode);
           }
           if (/^(?:set|get|clear|require)UserSession$/.test(name))
-            sessionEvidence ??= citeNode(callee, 'environmentVariables');
+            sessionEvidence ??= citeNode(citationNode, 'environmentVariables');
           const oauth = /^defineOAuth([A-Za-z0-9]+)EventHandler$/.exec(name);
-          if (oauth !== null) oauthProviders.set(providerKey(oauth[1]!), citeNode(callee, 'environmentVariables'));
+          if (oauth !== null)
+            oauthProviders.set(providerKey(oauth[1]!), citeNode(citationNode, 'environmentVariables'));
         }
       }
+    }
+    if (isServer && config.moduleActive) {
+      const member = namespaceMember(node);
+      const binding = member === undefined ? undefined : AUTO_BINDINGS.get(member.name);
+      if (member !== undefined && binding !== undefined && config.enabledBindings.has(binding))
+        addBinding(binding, member.evidence);
     }
     if (
       ts.isIdentifier(node) &&
@@ -526,6 +581,28 @@ export const nuxtHubProbe: Probe = {
           environmentVariables.push({ name, role: 'third-party-secret', required: true, evidence: [evidence] });
       }
       if (environmentVariables.length > 0) serviceEnvironments.push({ path: manifest.directory, environmentVariables });
+      const configuredDatabase = config.moduleActive && config.enabledBindings.has('database');
+      const migrationPaths =
+        bindings.has('database') || configuredDatabase
+          ? context.files
+              .filter(
+                (path) =>
+                  owns(manifest, path) &&
+                  !isNonProductionFixturePath(path) &&
+                  /\.sql$/i.test(path) &&
+                  config.migrationDirectories.some((directory) => pathWithin(path, directory))
+              )
+              .toSorted()
+          : [];
+      // The framework build hooks use the database even when no runtime file imports it.
+      if (
+        config.moduleActive &&
+        config.databaseEvidence !== undefined &&
+        migrationPaths.length > 0 &&
+        !bindings.has('database')
+      ) {
+        bindings.set('database', config.databaseEvidence);
+      }
       if (bindings.size === 0 && config.issues.size === 0) continue;
       // oxlint-disable-next-line no-await-in-loop -- one safe package identity citation per emitted requirement.
       const manifestRaw = await context.readPrivileged(manifest.path);
@@ -537,17 +614,6 @@ export const nuxtHubProbe: Probe = {
         (citation): citation is Citation => citation !== undefined
       );
       if (bindings.size > 0) {
-        const migrationPaths = bindings.has('database')
-          ? context.files
-              .filter(
-                (path) =>
-                  owns(manifest, path) &&
-                  !isNonProductionFixturePath(path) &&
-                  /\.sql$/i.test(path) &&
-                  config.migrationDirectories.some((directory) => pathWithin(path, directory))
-              )
-              .toSorted()
-          : [];
         deploymentRequirements.push({
           kind: 'framework-runtime-bindings',
           serviceName,

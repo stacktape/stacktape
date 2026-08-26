@@ -954,7 +954,7 @@ export const composeConfig = ({
         if (reason === 'source-limit') return 'the project exceeds the bounded source scan';
         if (reason === 'unreadable-source') return 'some production source could not be fully read or parsed';
         if (reason === 'migration-paths')
-          return 'migration directories are computed or are not safe project-relative paths';
+          return 'migration directories are computed, changed by a hook, or are not safe project-relative paths';
         return 'the NuxtHub configuration is computed or uses an unsupported configuration shape';
       });
       gaps.push({
