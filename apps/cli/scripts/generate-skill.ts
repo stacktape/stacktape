@@ -85,6 +85,7 @@ Read the appropriate guide based on what the user wants:
 | Background jobs & automations | [background-jobs.md](./background-jobs.md) |
 | Mobile app backend | [mobile-backend.md](./mobile-backend.md) |
 | E-commerce / marketplace | [ecommerce.md](./ecommerce.md) |
+| Monitoring, uptime & tracing | [observability.md](./observability.md) |
 
 ## Essential Commands
 
@@ -2476,6 +2477,92 @@ npx stacktape secret:get --secretName <name> --region <region>
 };
 
 // Dev Mode Guide
+const generateObservabilityGuide = (): string => {
+  return `# Monitoring, Uptime & Tracing
+
+Know when production breaks and why — uptime checks, alarms, error tracking, and distributed tracing, all configured in the stacktape config.
+
+## Uptime Checks
+
+Probe an endpoint from multiple AWS regions of the user's own account; alert when it stops responding. Add one for every public endpoint:
+
+\`\`\`yaml
+resources:
+  apiHealth:
+    type: uptime-check
+    properties:
+      url: https://api.example.com/health
+      assertions:
+        - type: status-code
+          properties:
+            accepted: [200]
+      notificationChannels:
+        - type: slack
+          properties:
+            accessToken: $Secret('slack.token')
+            conversationId: C0123456789
+\`\`\`
+
+Defaults that usually don't need changing: probe every 60s (\`intervalSeconds: 30\` for faster detection), 10s timeout, 3 probe regions (stack region + 2 distant), down after 2 consecutive failing evaluations from a quorum of regions. \`type: console-channel\` with \`channelName\` references a notification channel managed in the Stacktape Console instead of inline credentials.
+
+Without \`assertions\`, any 2xx response counts as up. \`GET\`/\`HEAD\` only. Set \`enabled: false\` to pause without losing history.
+
+## Tracing (find out WHY a request was slow or failed)
+
+One property instruments every supported Lambda function with OpenTelemetry. Traces stay in the user's AWS account (X-Ray Transaction Search) and are explored in the Console's Traces page:
+
+\`\`\`yaml
+stackConfig:
+  tracing:
+    enabled: true
+    samplingRate: 1  # trace every request; lower (e.g. 0.2) on high traffic to control cost
+\`\`\`
+
+Per-function override: \`tracing: false\` opts out, \`tracing: { samplingRate: 1 }\` opts in with its own sampling.
+
+Important caveats to tell the user:
+- Enabling tracing switches on X-Ray Transaction Search for the WHOLE AWS account+region (~$0.35/GB of spans). Deleting the stack leaves it on.
+- Supported runtimes: Node.js 18-22, Python 3.10-3.13, Java 11/17/21, .NET 8. Others are skipped with a warning.
+- Lambda functions only for now; container services are not instrumented yet.
+
+## Alarms (alert on metric thresholds)
+
+Inline on the resource, e.g. Lambda error rate:
+
+\`\`\`yaml
+resources:
+  api:
+    type: function
+    properties:
+      packaging:
+        type: stacktape-lambda-buildpack
+        properties:
+          entryfilePath: src/index.ts
+      alarms:
+        - trigger:
+            type: lambda-error-rate
+            properties:
+              thresholdPercent: 5
+          notificationChannels:
+            - type: console-channel
+              properties:
+                channelName: on-call-slack
+\`\`\`
+
+Also available: \`lambda-duration\`, database CPU/storage/latency triggers, HTTP gateway and load balancer error rate/latency, SQS queue depth.
+
+## Which tool for which question
+
+| Question | Tool |
+|----------|------|
+| Is my endpoint up right now? | uptime-check resource |
+| Why was this request slow / where did it fail? | tracing |
+| Are errors above X%? | alarms |
+| What errors is my code throwing? | Issues (automatic, Console) |
+| What did my app log? | \`npx stacktape logs\` |
+`;
+};
+
 const generateDevModeGuide = (): string => {
   return `# Local Development with Dev Mode
 
@@ -2569,6 +2656,7 @@ export const generateSkill = async () => {
     'background-jobs.md': generateBackgroundJobsGuide(),
     'mobile-backend.md': generateMobileBackendGuide(),
     'ecommerce.md': generateEcommerceGuide(),
+    'observability.md': generateObservabilityGuide(),
     'types-reference.md': generateTypesReference(),
     'cli-reference.md': generateCliReference(),
     'dev-mode.md': generateDevModeGuide()
