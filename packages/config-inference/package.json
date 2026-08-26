@@ -9,6 +9,7 @@
     "./compose/assumptions": "./src/compose/assumptions.ts",
     "./compose/classify": "./src/compose/classify.ts",
     "./compose/modes": "./src/compose/modes.ts",
+    "./compose/migrations": "./src/compose/migrations.ts",
     "./compose/preferences": "./src/compose/preferences.ts",
     "./facts": "./src/facts/project-facts.ts",
     "./facts/agent-submission": "./src/facts/agent-submission.ts",

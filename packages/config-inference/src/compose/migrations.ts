@@ -30,14 +30,6 @@ import { generatedDatabasePasswordSecretReference, wiringFor } from './env-wirin
 
 const DATABASE_KINDS: ReadonlySet<DependencyFact['kind']> = new Set(['postgres', 'mysql', 'mssql', 'mongodb']);
 
-/**
- * Plain tokens or single-quoted literal arguments only. The sole double-quoted fragment allowed is
- * "'", which represents an apostrophe between single-quoted chunks. No expansion, redirection,
- * substitution or command separator can escape an argument. NUL cannot be passed to an OS process.
- */
-const LITERAL_ARGUMENT = `(?:[A-Za-z0-9_.:=@/-]+|'[^'\\0]*'(?:"'"'[^'\\0]*')*)`;
-const COMMAND_SHAPE = new RegExp(`^[A-Za-z0-9_./-]+(?: ${LITERAL_ARGUMENT})*$`);
-
 const KNOWN_RUNNERS: ReadonlySet<string> = new Set([
   'npm',
   'npx',
@@ -75,11 +67,46 @@ const KNOWN_RUNNERS: ReadonlySet<string> = new Set([
   'dbmate'
 ]);
 
-export const isRunnableMigrationCommand = (command: string): boolean => {
-  if (COMMAND_SHAPE.exec(command)?.[0] !== command) return false;
-  const first = command.split(' ')[0];
-  return first !== undefined && KNOWN_RUNNERS.has(first);
+/**
+ * Parse only the literal command grammar the importer emits. Composition and local execution use
+ * the same parser: accepting a quoted argument must not mean handing it to a different host shell.
+ * Plain tokens and single-quoted chunks are allowed; the sole double-quoted fragment is "'", an
+ * apostrophe between quoted chunks. No expansion, substitution, redirection or shell operator is
+ * accepted. Unknown runners and NUL are rejected. This is deliberately not a general shell parser.
+ */
+export const parseLiteralMigrationCommand = (command: string): [string, ...string[]] | undefined => {
+  if (command.includes('\0')) return undefined;
+  const executable = /^[A-Za-z0-9_./-]+/.exec(command)?.[0];
+  if (executable === undefined || !KNOWN_RUNNERS.has(executable)) return undefined;
+  const argv: [string, ...string[]] = [executable];
+  let index = executable.length;
+  while (index < command.length) {
+    if (command[index++] !== ' ') return undefined;
+    let argument = '';
+    if (command[index] === "'") {
+      while (command[index] === "'") {
+        const end = command.indexOf("'", index + 1);
+        if (end === -1) return undefined;
+        argument += command.slice(index + 1, end);
+        index = end + 1;
+        if (!command.startsWith(`"'"`, index)) break;
+        argument += "'";
+        index += 3;
+        if (command[index] !== "'") return undefined;
+      }
+    } else {
+      const token = /^[A-Za-z0-9_.:=@/-]+/.exec(command.slice(index))?.[0];
+      if (token === undefined) return undefined;
+      argument = token;
+      index += token.length;
+    }
+    argv.push(argument);
+  }
+  return argv;
 };
+
+export const isRunnableMigrationCommand = (command: string): boolean =>
+  parseLiteralMigrationCommand(command) !== undefined;
 
 const pascalCase = (value: string): string =>
   value

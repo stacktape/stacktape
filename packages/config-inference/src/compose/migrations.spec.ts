@@ -1,7 +1,12 @@
 import { describe, expect, it } from 'bun:test';
-import { isRunnableMigrationCommand } from './migrations';
+import { isRunnableMigrationCommand, parseLiteralMigrationCommand } from './migrations';
 
 describe('literal migration command validation', () => {
+  it('returns the same literal argv that composition accepts', () => {
+    expect(
+      parseLiteralMigrationCommand(`bun migrate.js 'db migrations' '' 'a'"'"'b' '$VALUE' '%VALUE%' 'line\nbreak'`)
+    ).toEqual(['bun', 'migrate.js', 'db migrations', '', "a'b", '$VALUE', '%VALUE%', 'line\nbreak']);
+  });
   for (const command of [
     'bun migrate.js',
     "bun migrate.js --directory 'db migrations'",
@@ -34,6 +39,7 @@ describe('literal migration command validation', () => {
   ]) {
     it(`rejects interpreted or malformed syntax: ${JSON.stringify(command)}`, () => {
       expect(isRunnableMigrationCommand(command)).toBe(false);
+      expect(parseLiteralMigrationCommand(command)).toBeUndefined();
     });
   }
 });
