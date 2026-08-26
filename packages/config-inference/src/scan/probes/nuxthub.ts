@@ -31,6 +31,7 @@ type NuxtConfigEvidence = {
   databaseEvidence?: Citation;
   serverDirectory: string;
   migrationDirectories: string[];
+  localModules: string[];
   issues: Set<AnalysisReason>;
   evidence: Citation[];
 };
@@ -144,6 +145,7 @@ const inspectNuxtConfig = (path: string, raw: string, directory: string): NuxtCo
     enabledBindings: new Set(),
     serverDirectory: posix.join(directory, 'server'),
     migrationDirectories: [posix.join(directory, 'server/db/migrations')],
+    localModules: [],
     issues: new Set(),
     evidence: []
   };
@@ -163,6 +165,9 @@ const inspectNuxtConfig = (path: string, raw: string, directory: string): NuxtCo
         const module = ts.isArrayLiteralExpression(entry) ? entry.elements[0] : entry;
         const name = module === undefined ? undefined : literalString(module as ts.Expression);
         if (name === undefined) config.issues.add('dynamic-config');
+        if (name !== undefined && /^(?:\.{1,2}[\\/]|[~@]{1,2}[\\/]|[\\/]|[A-Za-z]:)/.test(name)) {
+          config.localModules.push(name);
+        }
         if (name === '@nuxthub/core') {
           config.moduleActive = true;
           config.evidence.push(citeNode(unwrap(module as ts.Expression)));
@@ -314,7 +319,11 @@ const runtimeImport = (node: ts.ImportDeclaration): boolean => {
   );
 };
 
-const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence) => {
+// Other imported helpers may register migration hooks; this bounded pass does not inspect their
+// implementation and must not treat an active module's migration directories as fully known.
+const MODULE_ANALYSIS_IMPORTS = new Set(['@nuxt/kit', 'nuxt/kit', 'node:path', 'node:url', 'pathe']);
+
+const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence, activeLocalModule = false) => {
   // Parse Vue scripts as TS/JS while preserving line numbers; markup is not runtime import syntax.
   let code = raw;
   let unreadable = false;
@@ -332,6 +341,8 @@ const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence) =>
   const bindings = new Map<Binding, Citation>();
   const oauthProviders = new Map<string, Citation>();
   let sessionEvidence: Citation | undefined;
+  let migrationHookEvidence: Citation | undefined;
+  let moduleAnalysisUnresolved = false;
   let checker: ts.TypeChecker | undefined;
   const frameworkImports = new Map<string, { name: string; declaration: ts.ImportSpecifier }>();
   const frameworkNamespaces = new Map<string, ts.NamespaceImport>();
@@ -393,7 +404,11 @@ const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence) =>
   const visit = (node: ts.Node): void => {
     if (ts.isTypeNode(node)) return;
     if (ts.isImportDeclaration(node)) {
-      if (runtimeImport(node)) addModuleBinding(node.moduleSpecifier);
+      if (runtimeImport(node)) {
+        addModuleBinding(node.moduleSpecifier);
+        if (activeLocalModule && !MODULE_ANALYSIS_IMPORTS.has(literalString(node.moduleSpecifier) ?? ''))
+          moduleAnalysisUnresolved = true;
+      }
       return;
     }
     if (ts.isExportDeclaration(node)) {
@@ -406,6 +421,7 @@ const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence) =>
           node.exportClause.elements.some((element) => !element.isTypeOnly))
       ) {
         addModuleBinding(node.moduleSpecifier);
+        if (activeLocalModule) moduleAnalysisUnresolved = true;
       }
       return;
     }
@@ -416,6 +432,8 @@ const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence) =>
         node.moduleReference.expression !== undefined
       ) {
         addModuleBinding(node.moduleReference.expression);
+        if (activeLocalModule && !MODULE_ANALYSIS_IMPORTS.has(literalString(node.moduleReference.expression) ?? ''))
+          moduleAnalysisUnresolved = true;
       }
       return;
     }
@@ -428,6 +446,17 @@ const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence) =>
           (ts.isIdentifier(callee) && callee.text === 'require' && unresolved(callee)))
       ) {
         addModuleBinding(argument);
+        if (activeLocalModule && !MODULE_ANALYSIS_IMPORTS.has(literalString(argument) ?? ''))
+          moduleAnalysisUnresolved = true;
+      }
+      if (
+        activeLocalModule &&
+        ts.isPropertyAccessExpression(callee) &&
+        ['hook', 'hookOnce'].includes(callee.name.text)
+      ) {
+        const hookName = argument === undefined ? undefined : literalString(argument);
+        if (hookName === 'hub:db:migrations:dirs') migrationHookEvidence ??= citeNode(unwrap(argument!));
+        else if (hookName === undefined) moduleAnalysisUnresolved = true;
       }
       const member = namespaceMember(callee);
       if (ts.isIdentifier(callee) || member !== undefined) {
@@ -471,7 +500,14 @@ const inspectSource = (path: string, raw: string, config: NuxtConfigEvidence) =>
     ts.forEachChild(node, visit);
   };
   visit(source);
-  return { bindings, oauthProviders, sessionEvidence, unreadable: unreadable || hasParseErrors(source) };
+  return {
+    bindings,
+    oauthProviders,
+    sessionEvidence,
+    migrationHookEvidence,
+    moduleAnalysisUnresolved,
+    unreadable: unreadable || hasParseErrors(source)
+  };
 };
 
 const environmentNamesFor = async (manifest: PackageManifest, context: ProbeContext): Promise<Set<string>> => {
@@ -527,6 +563,42 @@ export const nuxtHubProbe: Probe = {
         manifest.directory
       );
       if (configPath !== undefined && configRaw === undefined) config.issues.add('unreadable-source');
+      const activeLocalModules = new Set<string>();
+      if (config.moduleActive && config.enabledBindings.has('database')) {
+        const modulesDirectory = posix.join(manifest.directory, 'modules');
+        // Nuxt automatically registers modules/*.ts and modules/*/index.ts, even without a
+        // modules entry in nuxt.config. Other nested files are helpers, not module entrypoints.
+        for (const path of context.files) {
+          const relative = posix.relative(modulesDirectory, path);
+          if (
+            /^(?:[^/]+\.ts|[^/]+\/index\.ts)$/.test(relative) &&
+            !NON_RUNTIME_FILE.test(path) &&
+            !isNonProductionFixturePath(path)
+          ) {
+            activeLocalModules.add(path);
+          }
+        }
+        for (const reference of config.localModules) {
+          // Root aliases are literal; source-dir aliases/custom resolvers remain review-only.
+          const rootRelative = reference.replace(/^(?:~~|@@)[\\/]/, './');
+          const resolved = /^[~@][\\/]/.test(rootRelative)
+            ? undefined
+            : localDirectory(manifest.directory, rootRelative);
+          const candidates =
+            resolved === undefined
+              ? []
+              : [
+                  resolved,
+                  ...['.ts', '.mts', '.cts', '.js', '.mjs', '.cjs'].flatMap((extension) => [
+                    resolved + extension,
+                    `${resolved}/index${extension}`
+                  ])
+                ];
+          const path = candidates.find((candidate) => context.files.includes(candidate));
+          if (path === undefined) config.issues.add('migration-paths');
+          else activeLocalModules.add(path);
+        }
+      }
       const sourcePaths = context.files
         .filter(
           (path) =>
@@ -538,6 +610,7 @@ export const nuxtHubProbe: Probe = {
         )
         .toSorted(
           (a, b) =>
+            Number(activeLocalModules.has(b)) - Number(activeLocalModules.has(a)) ||
             Number(pathWithin(b, config.serverDirectory)) - Number(pathWithin(a, config.serverDirectory)) ||
             a.localeCompare(b)
         );
@@ -552,8 +625,16 @@ export const nuxtHubProbe: Probe = {
           config.issues.add('unreadable-source');
           continue;
         }
-        const inspected = inspectSource(path, sourceRead.contents, config);
+        const activeLocalModule = activeLocalModules.delete(path);
+        const inspected = inspectSource(path, sourceRead.contents, config, activeLocalModule);
         if (inspected.unreadable) config.issues.add('unreadable-source');
+        if (
+          activeLocalModule &&
+          (inspected.unreadable || inspected.moduleAnalysisUnresolved || inspected.migrationHookEvidence !== undefined)
+        ) {
+          config.issues.add('migration-paths');
+          if (inspected.migrationHookEvidence !== undefined) config.evidence.push(inspected.migrationHookEvidence);
+        }
         for (const [binding, citation] of inspected.bindings)
           if (!bindings.has(binding)) bindings.set(binding, citation);
         if (manifest.dependencies.has('nuxt-auth-utils')) {
@@ -562,6 +643,7 @@ export const nuxtHubProbe: Probe = {
             if (!oauthProviders.has(provider)) oauthProviders.set(provider, citation);
         }
       }
+      if (activeLocalModules.size > 0) config.issues.add('migration-paths');
       const serviceName = serviceNameFor(manifest);
       // oxlint-disable-next-line no-await-in-loop -- names-only reads are bounded to this package's root templates.
       const environmentNames = await environmentNamesFor(manifest, context);

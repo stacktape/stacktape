@@ -501,6 +501,96 @@ describe('NuxtHub runtime bindings', () => {
     });
   }
 
+  for (const [path, registration] of [
+    ['extensions/auth.ts', ", './extensions/auth.ts'"],
+    ['extensions/auth/index.ts', ", './extensions/auth'"],
+    ['modules/auth.ts', ''],
+    ['modules/auth/index.ts', '']
+  ] as const) {
+    it(`blocks migration hook registration from the active local module ${path}`, async () => {
+      root = await makeRepo({
+        'package.json': manifest(),
+        'nuxt.config.ts': `export default defineNuxtConfig({ modules: ['@nuxthub/core'${registration}], hub: { db: 'sqlite' } })`,
+        [path]: [
+          "import { createResolver, defineNuxtModule } from '@nuxt/kit'",
+          'export default defineNuxtModule({ setup(options, nuxt) {',
+          '  const { resolve } = createResolver(import.meta.url)',
+          "  nuxt.hook(('hub:db:migrations:dirs' /* SENTINEL_MODULE_CREDENTIAL */), dirs => dirs.push(resolve('./auth-migrations')))",
+          '} })'
+        ].join('\n'),
+        [path.replace(/\/[^/]+$/, '/auth-migrations/0001_auth.sql')]: 'CREATE TABLE users (id integer primary key);',
+        'server/api/health.ts': "export default defineEventHandler(() => 'ok')"
+      });
+      const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+      expect(facts.deploymentRequirements).toEqual([
+        expect.objectContaining({
+          kind: 'framework-analysis-incomplete',
+          reasons: ['migration-paths'],
+          evidence: expect.arrayContaining([expect.objectContaining({ file: path, quote: "'hub:db:migrations:dirs'" })])
+        })
+      ]);
+      expect(facts.dependencies).toEqual([]);
+      const composed = composeConfig({ facts });
+      expect(composed.deployable).toBe(false);
+      expect(composed.gaps[0]?.message).toContain('changed by a hook');
+      expect(composed.config.scripts).toBeUndefined();
+      expect(JSON.stringify({ facts, composed })).not.toContain('SENTINEL_MODULE_CREDENTIAL');
+    });
+  }
+
+  it('does not activate an unregistered local hook or comments in an unrelated auto-loaded module', async () => {
+    root = await makeRepo({
+      'package.json': manifest(),
+      'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: 'sqlite' } })",
+      'extensions/inactive.ts':
+        "export default defineNuxtModule({ setup(options, nuxt) { nuxt.hook('hub:db:migrations:dirs', dirs => dirs.push('unrelated')) } })",
+      'modules/health.ts': [
+        "import { defineNuxtModule } from '@nuxt/kit'",
+        "// nuxt.hook('hub:db:migrations:dirs', dirs => dirs.push('example'))",
+        "export default defineNuxtModule({ setup(options, nuxt) { nuxt.hook('ready', () => {}) } })"
+      ].join('\n')
+    });
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(facts.deploymentRequirements).toEqual([]);
+    expect(composeConfig({ facts }).deployable).toBe(true);
+  });
+
+  for (const source of [
+    undefined,
+    "import { registerMigrations } from './hook-registration'; export default defineNuxtModule({ setup(options, nuxt) { registerMigrations(nuxt) } })"
+  ]) {
+    it(`keeps unresolved active local module code review-only (${source === undefined ? 'missing' : 'indirect'})`, async () => {
+      root = await makeRepo({
+        'package.json': manifest(),
+        'nuxt.config.ts':
+          "export default defineNuxtConfig({ modules: ['@nuxthub/core', './extensions/auth'], hub: { db: 'sqlite' } })",
+        ...(source === undefined ? {} : { 'extensions/auth.ts': source }),
+        'extensions/hook-registration.ts':
+          "export const registerMigrations = nuxt => nuxt.hook('hub:db:migrations:dirs', dirs => dirs.push('auth-migrations'))"
+      });
+      const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+      expect(facts.deploymentRequirements).toContainEqual(
+        expect.objectContaining({
+          kind: 'framework-analysis-incomplete',
+          reasons: ['migration-paths']
+        })
+      );
+      expect(composeConfig({ facts }).deployable).toBe(false);
+    });
+  }
+
+  it('does not apply local-module database hooks when the NuxtHub database is disabled', async () => {
+    root = await makeRepo({
+      'package.json': manifest(),
+      'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: false } })",
+      'modules/auth.ts':
+        "export default defineNuxtModule({ setup(options, nuxt) { nuxt.hook('hub:db:migrations:dirs', dirs => dirs.push('auth-migrations')) } })"
+    });
+    const { facts } = await assembleCandidateFacts({ root, probes: PROBES });
+    expect(facts.deploymentRequirements).toEqual([]);
+    expect(composeConfig({ facts }).deployable).toBe(true);
+  });
+
   it('does not mistake shadowed, type-only, or unrelated namespace members for database usage', async () => {
     root = await makeRepo({
       'package.json': manifest(),

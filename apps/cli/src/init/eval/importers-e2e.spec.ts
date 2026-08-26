@@ -1462,6 +1462,30 @@ const CASES: EvalCase[] = [
       requiredGapPatterns: ['local SQLite file.*not durable storage'],
       forbiddenGapPatterns: ['SENTINEL_']
     }
+  },
+  {
+    name: 'NuxtHub auto-loaded module migration hooks cannot bypass lifecycle review',
+    files: {
+      'package.json': JSON.stringify({
+        name: 'module-migrations',
+        scripts: { build: 'nuxt build' },
+        dependencies: { nuxt: '^4.0.0', '@nuxthub/core': '^0.10.6' }
+      }),
+      'nuxt.config.ts': "export default defineNuxtConfig({ modules: ['@nuxthub/core'], hub: { db: 'sqlite' } })",
+      'modules/auth/index.ts':
+        "import { createResolver, defineNuxtModule } from '@nuxt/kit'; export default defineNuxtModule({ setup(options, nuxt) { const { resolve } = createResolver(import.meta.url); nuxt.hook('hub:db:migrations:dirs', dirs => dirs.push(resolve('./auth-migrations'))) } })",
+      'modules/auth/auth-migrations/0001_users.sql': 'CREATE TABLE users (id integer primary key);',
+      'server/api/health.ts': "export default defineEventHandler(() => 'ok')"
+    },
+    expect: {
+      serviceCount: 1,
+      resources: { moduleMigrations: 'nuxt-web' },
+      resourceCount: 1,
+      deployable: false,
+      maxQuestions: 0,
+      absentDependencyKinds: ['sqlite', 'postgres'],
+      requiredGapPatterns: ['migration directories.*changed by a hook']
+    }
   }
 ];
 
