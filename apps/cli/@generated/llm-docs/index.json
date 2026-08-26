@@ -18471,6 +18471,53 @@
       ]
     },
     {
+      "id": "page:/observability/tracing",
+      "title": "Tracing",
+      "route": "/observability/tracing",
+      "sourcePath": "apps/docs/content/observability/tracing.mdx",
+      "outputPath": "pages/observability/tracing.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "observability",
+        "tracing"
+      ],
+      "chunks": [
+        "page:/observability/tracing#tracing",
+        "page:/observability/tracing#when-to-use",
+        "page:/observability/tracing#when-not-to-use",
+        "page:/observability/tracing#configuration",
+        "page:/observability/tracing#sampling",
+        "page:/observability/tracing#what-gets-instrumented",
+        "page:/observability/tracing#environment-variables",
+        "page:/observability/tracing#account-level-effects",
+        "page:/observability/tracing#viewing-traces",
+        "page:/observability/tracing#limits"
+      ]
+    },
+    {
+      "id": "page:/observability/uptime-checks",
+      "title": "Uptime Checks",
+      "route": "/observability/uptime-checks",
+      "sourcePath": "apps/docs/content/observability/uptime-checks.mdx",
+      "outputPath": "pages/observability/uptime-checks.md",
+      "docKind": "docs-page",
+      "definitionNames": [],
+      "tags": [
+        "observability",
+        "uptime-checks"
+      ],
+      "chunks": [
+        "page:/observability/uptime-checks#uptime-checks",
+        "page:/observability/uptime-checks#when-to-use",
+        "page:/observability/uptime-checks#when-not-to-use",
+        "page:/observability/uptime-checks#configuration",
+        "page:/observability/uptime-checks#how-it-works",
+        "page:/observability/uptime-checks#limits",
+        "page:/observability/uptime-checks#viewing-results"
+      ]
+    },
+    {
       "id": "page:/packaging/containers/custom-dockerfile",
       "title": "Custom Dockerfile",
       "route": "/packaging/containers/custom-dockerfile",
