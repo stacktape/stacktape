@@ -53,7 +53,7 @@ resources:
             channelName: on-call-slack
 ```
 
-Without `assertions`, a probe succeeds when the response status is 2xx. Without `regions`, Stacktape probes from three regions: the stack's region plus two distant ones.
+Without `assertions`, a probe succeeds when the response status is 2xx or 3xx. Without `regions`, Stacktape probes from three regions: the stack's region plus two distant ones.
 
 `notificationChannels` accepts inline channel definitions (Slack, MS Teams, Discord, email, webhook) or `console-channel` references to channels managed in the [Console](/observability/alert-channels). Without any channel, incidents still appear in the Console but nothing is delivered.
 
@@ -62,7 +62,7 @@ Set `enabled: false` to pause a check without deleting its history.
 ## How it works
 
 - On deploy, Stacktape provisions one shared prober Lambda per monitoring region in your account and stores each check's definition there. Probes run every 30 or 60 seconds.
-- A check is marked down only when a quorum of regions (at least two, when the check probes from two or more) fails in the same evaluation window, after `consecutiveFailures` consecutive failing evaluations. This prevents alerts from single-region network blips.
+- A check is marked down only when a quorum of regions (at least two, when the check probes from two or more) is failing at the same time — a region counts as failing for up to ten minutes after its last failing report — and the failure has persisted for `consecutiveFailures` consecutive evaluations. This prevents alerts from single-region network blips.
 - Recovery follows the same rule symmetrically: `consecutiveSuccesses` consecutive successful evaluations.
 - Down and recovery events open and resolve incidents, deliver to your notification channels, and are retried on delivery failure.
 - If probing itself stops reporting (for example, the prober was deleted manually), the Console raises a monitoring-silent incident so a dead monitor never masquerades as a healthy endpoint.

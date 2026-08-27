@@ -8035,7 +8035,8 @@
         "executeCommands",
         "executeScript",
         "executeScripts",
-        "pipeStdio"
+        "pipeStdio",
+        "stdioMode"
       ],
       "chunks": [
         "config-reference:LocalScriptProps#localscriptprops-api-reference",
@@ -8066,7 +8067,8 @@
         "config-reference:LocalScriptProps#example-2-typescript-8",
         "config-reference:LocalScriptProps#property-pipestdio",
         "config-reference:LocalScriptProps#example-1-yaml-9",
-        "config-reference:LocalScriptProps#example-2-typescript-9"
+        "config-reference:LocalScriptProps#example-2-typescript-9",
+        "config-reference:LocalScriptProps#property-stdiomode"
       ]
     },
     {
@@ -8112,7 +8114,8 @@
         "executeCommands",
         "executeScript",
         "executeScripts",
-        "pipeStdio"
+        "pipeStdio",
+        "stdioMode"
       ],
       "chunks": [
         "config-reference:LocalScriptWithBastionTunnelingProps#localscriptwithbastiontunnelingprops-api-reference",
@@ -8146,7 +8149,8 @@
         "config-reference:LocalScriptWithBastionTunnelingProps#example-2-typescript-9",
         "config-reference:LocalScriptWithBastionTunnelingProps#property-pipestdio",
         "config-reference:LocalScriptWithBastionTunnelingProps#example-1-yaml-10",
-        "config-reference:LocalScriptWithBastionTunnelingProps#example-2-typescript-10"
+        "config-reference:LocalScriptWithBastionTunnelingProps#example-2-typescript-10",
+        "config-reference:LocalScriptWithBastionTunnelingProps#property-stdiomode"
       ]
     },
     {

@@ -102,6 +102,7 @@ The `--forceUpdate` flag ensures the pipeline does not fail when the secret alre
 | `--secretFile (-secf)` | no | `string` | Secret File — Path to a file whose contents will be stored as the secret value. | - |
 | `--secretName (-secn)` | no | `string` | Secret Name — The name of the secret in AWS Secrets Manager. | - |
 | `--secretValue (-secv)` | no | `string` | Secret Value — The value to store in the secret. For sensitive values, consider using --secretFile instead. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Related commands

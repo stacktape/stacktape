@@ -39,6 +39,7 @@ If you need a broader overview of all stack outputs and resources at once, use [
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--showSensitiveValues (-ssv)` | no | `boolean` | Show Sensitive Values — If `true`, includes sensitive values in the output of commands such as `info:stack`, `deploy`, and `param:get`. Be cautious when using this flag, as mishandling sensitive data can create security risks. | - |
 | `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples

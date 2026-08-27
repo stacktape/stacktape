@@ -2505,7 +2505,7 @@ resources:
 
 Defaults that usually don't need changing: probe every 60s (\`intervalSeconds: 30\` for faster detection), 10s timeout, 3 probe regions (stack region + 2 distant), down after 2 consecutive failing evaluations from a quorum of regions. \`type: console-channel\` with \`channelName\` references a notification channel managed in the Stacktape Console instead of inline credentials.
 
-Without \`assertions\`, any 2xx response counts as up. \`GET\`/\`HEAD\` only. Set \`enabled: false\` to pause without losing history.
+Without \`assertions\`, any 2xx/3xx response counts as up. \`GET\`/\`HEAD\` only. Set \`enabled: false\` to pause without losing history.
 
 ## Tracing (find out WHY a request was slow or failed)
 

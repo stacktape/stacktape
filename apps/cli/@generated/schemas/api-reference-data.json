@@ -40019,7 +40019,7 @@
         "name": "pipeStdio",
         "required": false,
         "shortDescription": "<p> Pipe Stdio</p>",
-        "longDescription": "<p>If <code>true</code>, pipes the standard input/output (stdio) of the hook process to the main process. This allows you to see logs from your hook and interact with prompts.</p>",
+        "longDescription": "<p>If <code>true</code>, captures the script&#39;s stdout and stderr in Stacktape&#39;s progress output. If <code>false</code>, ignores them.\nUse <code>stdioMode: inherit</code> for scripts that need interactive terminal input.</p>",
         "defaultValue": "true",
         "typeInfo": {
           "kind": "primitive",
@@ -40037,13 +40037,31 @@
             "code": "import { HostingBucket, LocalScript, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const silentTask = new LocalScript({\n    executeCommand: 'node ./scripts/background-task.js',\n    // [!code focus-start]\n    pipeStdio: false\n    // [!code focus-end]\n  });\n  const web = new HostingBucket({ uploadDirectoryPath: './dist' });\n\n  return { scripts: { silentTask }, resources: { web } };\n});"
           }
         ]
+      },
+      {
+        "name": "stdioMode",
+        "required": false,
+        "shortDescription": "<p> Standard I/O Mode</p>",
+        "longDescription": "<p>Controls how Stacktape connects the script process to the terminal.</p>\n<ul>\n<li><code>capture</code> streams stdout and stderr through Stacktape&#39;s progress UI and does not give the script terminal input.</li>\n<li><code>inherit</code> temporarily hands the terminal to the script, including stdin. Use this for interactive programs.</li>\n<li><code>ignore</code> suppresses all script standard I/O.</li>\n</ul>\n<p><code>inherit</code> temporarily hides the dashboard and restores it after the script exits.</p>",
+        "defaultValue": "capture",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ],
+          "enumValues": [
+            "capture",
+            "ignore",
+            "inherit"
+          ]
+        }
       }
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 9
+      "optionalCount": 10
     },
-    "typeDeclaration": "import type { EnvironmentVar } from 'stacktape';\n\n// [!code focus-start]\ntype LocalScriptProps = {\n  /** Assume Role of Resource */\n  assumeRoleOfResource?: string;\n  /** Connect To */\n  connectTo?: Array<string>;\n  /** Working Directory */\n  cwd?: string;\n  /** Environment Variables */\n  environment?: Array<EnvironmentVar>;\n  /** Execute Command */\n  executeCommand?: string;\n  /** Execute Commands */\n  executeCommands?: Array<string>;\n  /** Execute Script */\n  executeScript?: string;\n  /** Execute Scripts */\n  executeScripts?: Array<string>;\n  /** Pipe Stdio */\n  pipeStdio?: boolean;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { EnvironmentVar } from 'stacktape';\n\n// [!code focus-start]\ntype LocalScriptProps = {\n  /** Assume Role of Resource */\n  assumeRoleOfResource?: string;\n  /** Connect To */\n  connectTo?: Array<string>;\n  /** Working Directory */\n  cwd?: string;\n  /** Environment Variables */\n  environment?: Array<EnvironmentVar>;\n  /** Execute Command */\n  executeCommand?: string;\n  /** Execute Commands */\n  executeCommands?: Array<string>;\n  /** Execute Script */\n  executeScript?: string;\n  /** Execute Scripts */\n  executeScripts?: Array<string>;\n  /** Pipe Stdio */\n  pipeStdio?: boolean;\n  /** Standard I/O Mode */\n  stdioMode?: \"capture\" | \"ignore\" | \"inherit\";\n};\n// [!code focus-end]"
   },
   "LocalScriptWithBastionTunneling": {
     "definitionName": "LocalScriptWithBastionTunneling",
@@ -40282,7 +40300,7 @@
         "name": "pipeStdio",
         "required": false,
         "shortDescription": "<p> Pipe Stdio</p>",
-        "longDescription": "<p>If <code>true</code>, pipes the standard input/output (stdio) of the hook process to the main process. This allows you to see logs from your hook and interact with prompts.</p>",
+        "longDescription": "<p>If <code>true</code>, captures the script&#39;s stdout and stderr in Stacktape&#39;s progress output. If <code>false</code>, ignores them.\nUse <code>stdioMode: inherit</code> for scripts that need interactive terminal input.</p>",
         "defaultValue": "true",
         "typeInfo": {
           "kind": "primitive",
@@ -40300,13 +40318,31 @@
             "code": "import { HostingBucket, LocalScript, defineConfig } from 'stacktape';\n\nexport default defineConfig(() => {\n  const silentTask = new LocalScript({\n    executeCommand: 'node ./scripts/background-task.js',\n    // [!code focus-start]\n    pipeStdio: false\n    // [!code focus-end]\n  });\n  const web = new HostingBucket({ uploadDirectoryPath: './dist' });\n\n  return { scripts: { silentTask }, resources: { web } };\n});"
           }
         ]
+      },
+      {
+        "name": "stdioMode",
+        "required": false,
+        "shortDescription": "<p> Standard I/O Mode</p>",
+        "longDescription": "<p>Controls how Stacktape connects the script process to the terminal.</p>\n<ul>\n<li><code>capture</code> streams stdout and stderr through Stacktape&#39;s progress UI and does not give the script terminal input.</li>\n<li><code>inherit</code> temporarily hands the terminal to the script, including stdin. Use this for interactive programs.</li>\n<li><code>ignore</code> suppresses all script standard I/O.</li>\n</ul>\n<p><code>inherit</code> temporarily hides the dashboard and restores it after the script exits.</p>",
+        "defaultValue": "capture",
+        "typeInfo": {
+          "kind": "primitive",
+          "types": [
+            "string"
+          ],
+          "enumValues": [
+            "capture",
+            "ignore",
+            "inherit"
+          ]
+        }
       }
     ],
     "stats": {
       "requiredCount": 0,
-      "optionalCount": 10
+      "optionalCount": 11
     },
-    "typeDeclaration": "import type { EnvironmentVar } from 'stacktape';\n\n// [!code focus-start]\ntype LocalScriptWithBastionTunnelingProps = {\n  /** Assume Role of Resource */\n  assumeRoleOfResource?: string;\n  /** Bastion Resource Name */\n  bastionResource?: string;\n  /** Connect To */\n  connectTo?: Array<string>;\n  /** Working Directory */\n  cwd?: string;\n  /** Environment Variables */\n  environment?: Array<EnvironmentVar>;\n  /** Execute Command */\n  executeCommand?: string;\n  /** Execute Commands */\n  executeCommands?: Array<string>;\n  /** Execute Script */\n  executeScript?: string;\n  /** Execute Scripts */\n  executeScripts?: Array<string>;\n  /** Pipe Stdio */\n  pipeStdio?: boolean;\n};\n// [!code focus-end]"
+    "typeDeclaration": "import type { EnvironmentVar } from 'stacktape';\n\n// [!code focus-start]\ntype LocalScriptWithBastionTunnelingProps = {\n  /** Assume Role of Resource */\n  assumeRoleOfResource?: string;\n  /** Bastion Resource Name */\n  bastionResource?: string;\n  /** Connect To */\n  connectTo?: Array<string>;\n  /** Working Directory */\n  cwd?: string;\n  /** Environment Variables */\n  environment?: Array<EnvironmentVar>;\n  /** Execute Command */\n  executeCommand?: string;\n  /** Execute Commands */\n  executeCommands?: Array<string>;\n  /** Execute Script */\n  executeScript?: string;\n  /** Execute Scripts */\n  executeScripts?: Array<string>;\n  /** Pipe Stdio */\n  pipeStdio?: boolean;\n  /** Standard I/O Mode */\n  stdioMode?: \"capture\" | \"ignore\" | \"inherit\";\n};\n// [!code focus-end]"
   },
   "LogForwardingBase": {
     "definitionName": "LogForwardingBase",

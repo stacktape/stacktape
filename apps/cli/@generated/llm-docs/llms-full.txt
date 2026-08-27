@@ -1486,6 +1486,7 @@ stacktape alarms --stage prod --region eu-west-1 --agent
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--resourceName (-rn)` | no | `string` | Resource Name — The name of the resource as defined in your Stacktape configuration. | - |
 | `--state (-sta)` | no | `string` | Alarm State Filter — Filter alarms by state: OK, ALARM, or INSUFFICIENT_DATA. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Related commands
@@ -1628,6 +1629,7 @@ resource-specific validation, and usually provide more useful output.
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Troubleshooting
@@ -1926,6 +1928,7 @@ When you run `bastion:session`, Stacktape initializes stack services, resolves t
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples
@@ -2011,6 +2014,7 @@ The command opens one or more local ports, prints the local-to-remote mapping, a
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Supported resource types
@@ -2170,6 +2174,7 @@ stacktape bucket:sync --bucketId my-app-assets-bucket --sourcePath ./dist --regi
 | `--sourcePath (-sp)` | no | `string` | Source Path — The path to the directory to synchronize with the bucket. This can be an absolute path or relative to the current working directory. | - |
 | `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Important flags
@@ -2280,6 +2285,7 @@ Once you select a module, Stacktape initializes the CloudFormation registry, loa
 | `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples
@@ -2355,6 +2361,7 @@ The `cf:rollback` command accepts the following arguments. Only `--region` is re
 | `--resourcesToSkip (-rts)` | no | `array` | Resources to Skip — A list of logical resource IDs to skip during rollback. Use this when a rollback fails because certain resources cannot be restored to their previous state. | - |
 | `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## What it does
@@ -2519,6 +2526,7 @@ The `output` field contains the command output returned by Stacktape's ECS Exec 
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--taskArn (-ta)` | no | `string` | Task ARN — Specific ECS task ARN to connect to. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples
@@ -2671,6 +2679,7 @@ When the target resource has multiple running tasks (for example, a scaled-out w
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Common errors
@@ -2925,6 +2934,7 @@ stacktape delete --stage production --region eu-west-1
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Lifecycle hooks
@@ -3124,6 +3134,7 @@ Includes sensitive values in deploy output. Handle with care.
 | `--runner` | no | `string` | Deploy Runner — Controls where deployment build and packaging work runs. • `local`: Run deployment locally. • `codebuild`: Run deployment in AWS CodeBuild. • `ec2`: Run deployment on a configured EC2 runner in your AWS account. | `local`, `codebuild`, `ec2` |
 | `--showSensitiveValues (-ssv)` | no | `boolean` | Show Sensitive Values — If `true`, includes sensitive values in the output of commands such as `info:stack`, `deploy`, and `param:get`. Be cautious when using this flag, as mishandling sensitive data can create security risks. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples
@@ -3228,6 +3239,7 @@ The deployment script must already exist in your configuration **and** be deploy
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples
@@ -3320,6 +3332,7 @@ All flags accepted by `stacktape dev:stop`. None are required — the command di
 | `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Related commands
@@ -3369,6 +3382,7 @@ stacktape dev --stage dev-john --region eu-west-1
 | `--resources (-res)` | no | `array` | Resources — Specify which resources to run in dev mode. Can include workloads (containers, functions) and databases. If not provided, an interactive picker is shown. Use `all` to run all resources without prompting. Examples: `--resources myApi`, `--resources myApi,myDb`, or `--resources all`. | - |
 | `--skipResources (-sr)` | no | `array` | Skip Resources — Exclude specified resources from dev mode. All other compatible resources will run. Useful when you want to run most resources but exclude a few. Examples: `--skipResources myHeavyDb`, `--skipResources fn1,fn2`. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 | `--watch (-w)` | no | `boolean` | Watch — If `true`, watches for changes to your source files and automatically re-executes the compute resource when a change is detected. | - |
 
 
@@ -3674,6 +3688,7 @@ Meaningful Stacktape resource changes
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Related commands
@@ -3784,6 +3799,7 @@ The command requests a free AWS ACM certificate in the specified `--region`. Whe
 | `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples
@@ -4119,6 +4135,7 @@ stacktape info:stacks --region eu-west-1
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## What it does
@@ -4840,6 +4857,7 @@ stacktape login --apiKey "$STACKTAPE_API_KEY" --agent
 | `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples
@@ -4948,6 +4966,7 @@ Run `logout` when switching between Stacktape accounts or organizations, when re
 | `--logLevel (-ll)` | no | `string` | Log Level — The level of logs to print to the console. • `info`: Basic information about the operation. • `error`: Only errors. • `debug`: Detailed information for debugging. | `info`, `debug`, `error` |
 | `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Related commands
@@ -5182,6 +5201,7 @@ stacktape logs --stage prod --region eu-west-1 --resourceName myApi --agent --st
 | `--raw (-rw)` | no | `boolean` | Raw — If `true`, prints logs in raw JSON format instead of pretty-printing them. | - |
 | `--startTime (-st)` | no | `number \| string` | Start Time — The start time from which to print logs. This can be any format accepted by the JavaScript `Date` constructor. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Related commands
@@ -5495,6 +5515,7 @@ stacktape metrics --stage prod --region eu-west-1 --resourceName myApi --metric 
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--startTime (-st)` | no | `number \| string` | Start Time — The start time from which to print logs. This can be any format accepted by the JavaScript `Date` constructor. | - |
 | `--stat (-st)` | no | `string` | Metric Statistic — Statistic to retrieve: Sum, Average, Maximum, Minimum, p99 (default: Average). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Related commands
@@ -5828,6 +5849,7 @@ stacktape package --stage dev --region eu-west-1 --configPath ./infra/stacktape.
 | `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Related commands
@@ -5909,6 +5931,7 @@ If you need a broader overview of all stack outputs and resources at once, use [
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--showSensitiveValues (-ssv)` | no | `boolean` | Show Sensitive Values — If `true`, includes sensitive values in the output of commands such as `info:stack`, `deploy`, and `param:get`. Be cautious when using this flag, as mishandling sensitive data can create security risks. | - |
 | `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples
@@ -6158,6 +6181,7 @@ The `--resourceName` must match the name of a `DynamoDbTable` resource in your S
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--sk` | no | `string` | DynamoDB Sort Key — JSON object with sort key name and value (e.g., '{"timestamp": 12345}'). | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Operations
@@ -6398,6 +6422,7 @@ For automation, prefer `--agent`. The global `--outputFormat` flag is documented
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--query (-q)` | no | `string` | Logs Query — CloudWatch Logs Insights query string. Example: "fields @timestamp, @message \| filter @message like /ERROR/ \| limit 50" | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples
@@ -6619,6 +6644,7 @@ stacktape query:redis --stage prod --region eu-west-1 --resourceName myRedis --o
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--section` | no | `string` | Redis Info Section — Specific section of Redis INFO output (e.g., server, memory, stats). | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Related commands
@@ -6797,6 +6823,7 @@ In agent mode (`--agent`), the output is a structured JSON object containing:
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
 | `--timeout` | no | `number` | Query Timeout — Maximum time to wait for query execution in milliseconds (default: 30000). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Related commands
@@ -6964,6 +6991,7 @@ If the stack includes static hosting with bucket-synced content, Stacktape attem
 | `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
 | `--targetVersion (-tv)` | no | `string` | Rollback Version — The target deployment version to rollback to (e.g., `v000003`). Use `--listVersions` to see available versions. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples
@@ -7072,6 +7100,7 @@ stacktape script:run --scriptName myMigration --stage production
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--region (-r)` | no | `string` | AWS Region — The AWS region for the operation. For a list of available regions, see the [AWS documentation](https://docs.aws.amazon.com/general/latest/gr/rande.html). | `us-east-2`, `us-east-1`, `us-west-1`, `us-west-2`, `ap-east-1`, `ap-south-1`, `ap-northeast-3`, `ap-northeast-2`, `ap-southeast-1`, `ap-southeast-2`, `ap-northeast-1`, `ca-central-1`, `eu-central-1`, `eu-west-1`, `eu-west-2`, `eu-west-3`, `eu-north-1`, `me-south-1`, `sa-east-1`, `af-south-1`, `eu-south-1` |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples
@@ -7157,6 +7186,7 @@ On success, the CLI reports `Secret "my-api-key" deleted.`
 | `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
 | `--secretName (-secn)` | no | `string` | Secret Name — The name of the secret in AWS Secrets Manager. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples
@@ -7221,6 +7251,7 @@ stacktape secret:get --region eu-west-1 --secretName my-api-key --agent
 | `--outputFormat (-ofmt)` | no | `string` | Output Format — Controls the CLI output format: • `jsonl`: Machine-readable NDJSON (one JSON object per line). Disables interactive UI. • `plain`: Simple text output without colors or animations. Used automatically in CI or non-TTY environments. • `tty`: Full interactive terminal UI with colors, spinners, and animations. Used automatically when a TTY is detected. If not specified, the format is auto-detected from the environment. --agent implies --outputFormat jsonl. | `jsonl`, `plain`, `tty` |
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
 | `--secretName (-secn)` | no | `string` | Secret Name — The name of the secret in AWS Secrets Manager. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Output
@@ -7364,6 +7395,7 @@ The `--forceUpdate` flag ensures the pipeline does not fail when the secret alre
 | `--secretFile (-secf)` | no | `string` | Secret File — Path to a file whose contents will be stored as the secret value. | - |
 | `--secretName (-secn)` | no | `string` | Secret Name — The name of the secret in AWS Secrets Manager. | - |
 | `--secretValue (-secv)` | no | `string` | Secret Value — The value to store in the secret. For sensitive values, consider using --secretFile instead. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Related commands
@@ -7420,6 +7452,7 @@ stacktape synth --stage dev --region eu-west-1 --outFile ./infra/template.yaml
 | `--preserveTempFiles (-ptf)` | no | `boolean` | Preserve Temporary Files — If `true`, preserves the temporary files generated by the operation, such as the CloudFormation template and packaged resources. These files are saved to `.stacktape/[invocation-id]`. | - |
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Important flags
@@ -7714,6 +7747,7 @@ stacktape validate --stage dev --region eu-west-1 --agent
 | `--profile (-p)` | no | `string` | AWS Profile — The AWS profile to use for the command. You can manage profiles using the `aws-profile:*` commands and set a default profile with `defaults:configure`. | - |
 | `--projectName (-prj)` | no | `string` | Project Name — The name of the Stacktape project for this operation. | - |
 | `--thorough` | no | `boolean` | Thorough — If `true`, runs the most complete validation path: validates workload packaging and asks AWS CloudFormation to validate the synthesized template. | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 | `--withPackage` | no | `boolean` | With Package — If `true`, validates workload packaging in addition to resolving the configuration and template. | - |
 
 
@@ -20767,10 +20801,10 @@ Stacktape manages `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, and the `sta
 The first deploy with tracing enabled switches on **X-Ray Transaction Search** for the whole AWS account and region. This is an account-level AWS setting, not a per-stack one:
 
 - Spans from **all** X-Ray-instrumented workloads in the account — Stacktape-managed or not — are then stored in the `aws/spans` CloudWatch Logs log group.
-- When Stacktape performs this switch, it caps the log group's retention at 90 days. An already-enabled Transaction Search setup is left exactly as found, including its retention.
+- When Stacktape performs this switch and the `aws/spans` log group does not exist yet, Stacktape creates it with retention capped at 90 days. A pre-existing log group — and an already-enabled Transaction Search setup — is left exactly as found, including its retention.
 - Deleting the stack does **not** switch Transaction Search back off, because other workloads may rely on it.
 
-Span storage is priced by AWS at roughly $0.35 per GB ingested (plus CloudWatch Logs storage). With sampling and typical span sizes this is small; watch it on high-traffic stacks with `samplingRate: 1`.
+Span storage is priced by AWS at roughly $0.35 per GB ingested (plus CloudWatch Logs storage), and searching traces runs CloudWatch Logs Insights queries, which AWS bills by data scanned. With sampling and typical span sizes this is small; watch it on high-traffic stacks with `samplingRate: 1`.
 
 ## Viewing traces
 
@@ -20845,7 +20879,7 @@ resources:
             channelName: on-call-slack
 ```
 
-Without `assertions`, a probe succeeds when the response status is 2xx. Without `regions`, Stacktape probes from three regions: the stack's region plus two distant ones.
+Without `assertions`, a probe succeeds when the response status is 2xx or 3xx. Without `regions`, Stacktape probes from three regions: the stack's region plus two distant ones.
 
 `notificationChannels` accepts inline channel definitions (Slack, MS Teams, Discord, email, webhook) or `console-channel` references to channels managed in the [Console](/observability/alert-channels). Without any channel, incidents still appear in the Console but nothing is delivered.
 
@@ -20854,7 +20888,7 @@ Set `enabled: false` to pause a check without deleting its history.
 ## How it works
 
 - On deploy, Stacktape provisions one shared prober Lambda per monitoring region in your account and stores each check's definition there. Probes run every 30 or 60 seconds.
-- A check is marked down only when a quorum of regions (at least two, when the check probes from two or more) fails in the same evaluation window, after `consecutiveFailures` consecutive failing evaluations. This prevents alerts from single-region network blips.
+- A check is marked down only when a quorum of regions (at least two, when the check probes from two or more) is failing at the same time — a region counts as failing for up to ten minutes after its last failing report — and the failure has persisted for `consecutiveFailures` consecutive evaluations. This prevents alerts from single-region network blips.
 - Recovery follows the same rule symmetrically: `consecutiveSuccesses` consecutive successful evaluations.
 - Down and recovery events open and resolve incidents, deliver to your notification channels, and are retried on delivery failure.
 - If probing itself stops reporting (for example, the prober was deleted manually), the Console raises a monitoring-silent incident so a dead monitor never masquerades as a healthy endpoint.
@@ -88314,6 +88348,8 @@ type LocalScriptProps = {
   executeScripts?: Array<string>;
   /** Pipe Stdio */
   pipeStdio?: boolean;
+  /** Standard I/O Mode */
+  stdioMode?: "capture" | "ignore" | "inherit";
 };
 ```
 
@@ -88760,7 +88796,8 @@ export default defineConfig(() => {
 
 Pipe Stdio
 
-If `true`, pipes the standard input/output (stdio) of the hook process to the main process. This allows you to see logs from your hook and interact with prompts.
+If `true`, captures the script's stdout and stderr in Stacktape's progress output. If `false`, ignores them.
+Use `stdioMode: inherit` for scripts that need interactive terminal input.
 
 ### Example 1 (yaml)
 
@@ -88793,6 +88830,22 @@ export default defineConfig(() => {
   return { scripts: { silentTask }, resources: { web } };
 });
 ```
+
+## Property: `stdioMode`
+
+- Required: no
+- Type: `string: "capture" | "ignore" | "inherit"`
+- Default: `capture`
+
+Standard I/O Mode
+
+Controls how Stacktape connects the script process to the terminal.
+
+`capture` streams stdout and stderr through Stacktape's progress UI and does not give the script terminal input.
+`inherit` temporarily hands the terminal to the script, including stdin. Use this for interactive programs.
+`ignore` suppresses all script standard I/O.
+
+`inherit` temporarily hides the dashboard and restores it after the script exits.
 
 ---
 
@@ -88851,6 +88904,8 @@ type LocalScriptWithBastionTunnelingProps = {
   executeScripts?: Array<string>;
   /** Pipe Stdio */
   pipeStdio?: boolean;
+  /** Standard I/O Mode */
+  stdioMode?: "capture" | "ignore" | "inherit";
 };
 ```
 
@@ -89359,7 +89414,8 @@ export default defineConfig(() => {
 
 Pipe Stdio
 
-If `true`, pipes the standard input/output (stdio) of the hook process to the main process. This allows you to see logs from your hook and interact with prompts.
+If `true`, captures the script's stdout and stderr in Stacktape's progress output. If `false`, ignores them.
+Use `stdioMode: inherit` for scripts that need interactive terminal input.
 
 ### Example 1 (yaml)
 
@@ -89392,6 +89448,22 @@ export default defineConfig(() => {
   return { scripts: { silentTask }, resources: { web } };
 });
 ```
+
+## Property: `stdioMode`
+
+- Required: no
+- Type: `string: "capture" | "ignore" | "inherit"`
+- Default: `capture`
+
+Standard I/O Mode
+
+Controls how Stacktape connects the script process to the terminal.
+
+`capture` streams stdout and stderr through Stacktape's progress UI and does not give the script terminal input.
+`inherit` temporarily hands the terminal to the script, including stdin. Use this for interactive programs.
+`ignore` suppresses all script standard I/O.
+
+`inherit` temporarily hides the dashboard and restores it after the script exits.
 
 ---
 

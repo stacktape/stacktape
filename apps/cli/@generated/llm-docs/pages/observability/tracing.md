@@ -81,10 +81,10 @@ Stacktape manages `OTEL_TRACES_SAMPLER`, `OTEL_TRACES_SAMPLER_ARG`, and the `sta
 The first deploy with tracing enabled switches on **X-Ray Transaction Search** for the whole AWS account and region. This is an account-level AWS setting, not a per-stack one:
 
 - Spans from **all** X-Ray-instrumented workloads in the account — Stacktape-managed or not — are then stored in the `aws/spans` CloudWatch Logs log group.
-- When Stacktape performs this switch, it caps the log group's retention at 90 days. An already-enabled Transaction Search setup is left exactly as found, including its retention.
+- When Stacktape performs this switch and the `aws/spans` log group does not exist yet, Stacktape creates it with retention capped at 90 days. A pre-existing log group — and an already-enabled Transaction Search setup — is left exactly as found, including its retention.
 - Deleting the stack does **not** switch Transaction Search back off, because other workloads may rely on it.
 
-Span storage is priced by AWS at roughly $0.35 per GB ingested (plus CloudWatch Logs storage). With sampling and typical span sizes this is small; watch it on high-traffic stacks with `samplingRate: 1`.
+Span storage is priced by AWS at roughly $0.35 per GB ingested (plus CloudWatch Logs storage), and searching traces runs CloudWatch Logs Insights queries, which AWS bills by data scanned. With sampling and typical span sizes this is small; watch it on high-traffic stacks with `samplingRate: 1`.
 
 ## Viewing traces
 

@@ -39922,6 +39922,8 @@ type LocalScriptProps = {
   executeScripts?: Array<string>;
   /** Pipe Stdio */
   pipeStdio?: boolean;
+  /** Standard I/O Mode */
+  stdioMode?: "capture" | "ignore" | "inherit";
 };
 ```
 
@@ -40368,7 +40370,8 @@ export default defineConfig(() => {
 
 Pipe Stdio
 
-If `true`, pipes the standard input/output (stdio) of the hook process to the main process. This allows you to see logs from your hook and interact with prompts.
+If `true`, captures the script's stdout and stderr in Stacktape's progress output. If `false`, ignores them.
+Use `stdioMode: inherit` for scripts that need interactive terminal input.
 
 ### Example 1 (yaml)
 
@@ -40401,6 +40404,22 @@ export default defineConfig(() => {
   return { scripts: { silentTask }, resources: { web } };
 });
 ```
+
+## Property: `stdioMode`
+
+- Required: no
+- Type: `string: "capture" | "ignore" | "inherit"`
+- Default: `capture`
+
+Standard I/O Mode
+
+Controls how Stacktape connects the script process to the terminal.
+
+`capture` streams stdout and stderr through Stacktape's progress UI and does not give the script terminal input.
+`inherit` temporarily hands the terminal to the script, including stdin. Use this for interactive programs.
+`ignore` suppresses all script standard I/O.
+
+`inherit` temporarily hides the dashboard and restores it after the script exits.
 
 ---
 
@@ -40459,6 +40478,8 @@ type LocalScriptWithBastionTunnelingProps = {
   executeScripts?: Array<string>;
   /** Pipe Stdio */
   pipeStdio?: boolean;
+  /** Standard I/O Mode */
+  stdioMode?: "capture" | "ignore" | "inherit";
 };
 ```
 
@@ -40967,7 +40988,8 @@ export default defineConfig(() => {
 
 Pipe Stdio
 
-If `true`, pipes the standard input/output (stdio) of the hook process to the main process. This allows you to see logs from your hook and interact with prompts.
+If `true`, captures the script's stdout and stderr in Stacktape's progress output. If `false`, ignores them.
+Use `stdioMode: inherit` for scripts that need interactive terminal input.
 
 ### Example 1 (yaml)
 
@@ -41000,6 +41022,22 @@ export default defineConfig(() => {
   return { scripts: { silentTask }, resources: { web } };
 });
 ```
+
+## Property: `stdioMode`
+
+- Required: no
+- Type: `string: "capture" | "ignore" | "inherit"`
+- Default: `capture`
+
+Standard I/O Mode
+
+Controls how Stacktape connects the script process to the terminal.
+
+`capture` streams stdout and stderr through Stacktape's progress UI and does not give the script terminal input.
+`inherit` temporarily hands the terminal to the script, including stdin. Use this for interactive programs.
+`ignore` suppresses all script standard I/O.
+
+`inherit` temporarily hides the dashboard and restores it after the script exits.
 
 ---
 

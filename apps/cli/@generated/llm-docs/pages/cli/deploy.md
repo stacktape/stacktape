@@ -120,6 +120,7 @@ Includes sensitive values in deploy output. Handle with care.
 | `--runner` | no | `string` | Deploy Runner — Controls where deployment build and packaging work runs. • `local`: Run deployment locally. • `codebuild`: Run deployment in AWS CodeBuild. • `ec2`: Run deployment on a configured EC2 runner in your AWS account. | `local`, `codebuild`, `ec2` |
 | `--showSensitiveValues (-ssv)` | no | `boolean` | Show Sensitive Values — If `true`, includes sensitive values in the output of commands such as `info:stack`, `deploy`, and `param:get`. Be cautious when using this flag, as mishandling sensitive data can create security risks. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples

@@ -116,6 +116,7 @@ If the stack includes static hosting with bucket-synced content, Stacktape attem
 | `--stage (-s)` | no | `string` | Stage — The stage for the operation (e.g., `production`, `staging`, `dev-john`). You can set a default stage using the `defaults:configure` command. The maximum length is 12 characters. | - |
 | `--targetVersion (-tv)` | no | `string` | Rollback Version — The target deployment version to rollback to (e.g., `v000003`). Use `--listVersions` to see available versions. | - |
 | `--templateId (-ti)` | no | `string` | Template ID — The ID of the template to download. You can find a list of available templates on the [Config Builder page](https://console.stacktape.com/templates). | - |
+| `--ui (-ui)` | no | `string` | Terminal UI — Controls the interactive presentation when output format is `tty`: • `auto`: Uses native terminal scrollback for verbose phases and a fullscreen dashboard for structured deployment phases. • `stream`: Keeps native terminal scrollback visible and only redraws currently active work. • `dashboard`: Uses the fullscreen interactive dashboard for the whole command. Press Ctrl+T during a command to switch views and pin that choice for the rest of the run. | `auto`, `stream`, `dashboard` |
 
 
 ## Examples
